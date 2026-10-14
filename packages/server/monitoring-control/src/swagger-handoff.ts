@@ -123,7 +123,10 @@ export interface SwaggerSourceStore {
   setRequestStatus(
     requestId: string,
     status: SwaggerSourceRequestStatus,
-    options?: { preserveTerminal?: boolean },
+    options?: {
+      preserveTerminal?: boolean;
+      expectedStatuses?: SwaggerSourceRequestStatus[];
+    },
   ): Promise<boolean | void>;
 }
 
@@ -262,7 +265,10 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
   async setRequestStatus(
     requestId: string,
     status: SwaggerSourceRequestStatus,
-    options?: { preserveTerminal?: boolean },
+    options?: {
+      preserveTerminal?: boolean;
+      expectedStatuses?: SwaggerSourceRequestStatus[];
+    },
   ) {
     const request = this.state.requests.get(requestId);
     if (!request) throw new Error("SWAGGER_REQUEST_NOT_FOUND");
@@ -271,8 +277,15 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
       ["CANCELLED", "EXPIRED"].includes(request.status)
     )
       return false;
+    if (
+      options?.expectedStatuses &&
+      !options.expectedStatuses.includes(request.status)
+    )
+      return false;
     request.status = status;
-    return options?.preserveTerminal ? true : undefined;
+    return options?.preserveTerminal || options?.expectedStatuses
+      ? true
+      : undefined;
   }
 }
 
@@ -454,19 +467,23 @@ export function createPostgresSwaggerSourceStore(
     },
     async setRequestStatus(requestId, status, updateOptions) {
       // Evaluate against the current row in the same atomic UPDATE.
-      const condition = updateOptions?.preserveTerminal
+      let condition = updateOptions?.preserveTerminal
         ? " AND status NOT IN ('CANCELLED','EXPIRED')"
         : "";
-      const returning = updateOptions?.preserveTerminal
-        ? ' RETURNING request_id AS "requestId"'
-        : "";
+      const values: unknown[] = [requestId, status];
+      if (updateOptions?.expectedStatuses) {
+        condition += " AND status = ANY($3::text[])";
+        values.push(updateOptions.expectedStatuses);
+      }
+      const guarded = Boolean(
+        updateOptions?.preserveTerminal || updateOptions?.expectedStatuses,
+      );
+      const returning = guarded ? ' RETURNING request_id AS "requestId"' : "";
       const result = await runtime.query(
         `UPDATE swagger_source_requests SET status=$2 WHERE request_id=$1${condition}${returning}`,
-        [requestId, status],
+        values,
       );
-      return updateOptions?.preserveTerminal
-        ? result.rows.length > 0
-        : undefined;
+      return guarded ? result.rows.length > 0 : undefined;
     },
   };
 }
@@ -797,9 +814,25 @@ export function createSwaggerHandoffService(options: {
     if (
       (await options.store.setRequestStatus(request.requestId, "QUARANTINED", {
         preserveTerminal: true,
+        expectedStatuses: [
+          "PENDING_OPERATOR_UPLOAD",
+          "UPLOAD_RECEIVED",
+          "QUARANTINED",
+        ],
       })) === false
-    )
+    ) {
+      // A competing upload may have committed while this invocation was
+      // retaining the same bytes. Never return its registered request to pending.
+      const current = await options.store.getRequest(request.requestId);
+      if (current && !["CANCELLED", "EXPIRED"].includes(current.status)) {
+        const committed = await options.store.findArtifactByDigest(
+          request.requestId,
+          sha256,
+        );
+        if (committed) return { kind: "DUPLICATE", artifact: committed };
+      }
       return rejectFinalizedPayload(request.requestId);
+    }
 
     const originalFilename = safeOriginalFilename(input.originalFilename);
     let parserResult: Record<string, unknown> = { parsed: false };

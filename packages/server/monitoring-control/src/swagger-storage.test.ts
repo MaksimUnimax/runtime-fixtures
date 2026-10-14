@@ -97,6 +97,133 @@ async function fixture() {
   return { directory, store, service, input };
 }
 describe("quarantine retry and uncertain registration", () => {
+  it.each(["CANDIDATE_READY", "VALIDATION_FAILED"] as const)(
+    "does not regress committed %s when a delayed identical upload crashes",
+    async (registeredStatus) => {
+      const f = await fixture();
+      const input =
+        registeredStatus === "CANDIDATE_READY"
+          ? f.input
+          : { ...f.input, bytes: Buffer.from("{}") };
+      let resume!: () => void;
+      let reached!: () => void;
+      const pause = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      const ready = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      const crash = new Error("CRASH_AFTER_DELAYED_STATUS_UPDATE");
+      const update = f.store.setRequestStatus.bind(f.store);
+      vi.spyOn(f.store, "setRequestStatus").mockImplementationOnce(
+        async (requestId, status, options) => {
+          reached();
+          await pause;
+          await update(requestId, status, options);
+          throw crash;
+        },
+      );
+      const delayed = f
+        .service()
+        .upload(input)
+        .catch((error) => error);
+      await ready;
+      await f.service().upload(input);
+      expect((await f.store.getRequest(input.requestId))?.status).toBe(
+        registeredStatus,
+      );
+      resume();
+      expect(await delayed).toBe(crash);
+      expect((await f.store.getRequest(input.requestId))?.status).toBe(
+        registeredStatus,
+      );
+      expect(await f.store.listArtifacts(input.requestId)).toHaveLength(1);
+      expect(await readdir(f.directory)).toHaveLength(1);
+      if (registeredStatus === "CANDIDATE_READY")
+        expect(await f.service().listPending()).toEqual([]);
+    },
+  );
+
+  it.each(["CANDIDATE_READY", "VALIDATION_FAILED"] as const)(
+    "reconciles a delayed upload after competing %s without revalidation",
+    async (registeredStatus) => {
+      const f = await fixture();
+      const input =
+        registeredStatus === "CANDIDATE_READY"
+          ? f.input
+          : { ...f.input, bytes: Buffer.from("{}") };
+      let resume!: () => void;
+      let reached!: () => void;
+      const pause = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      const ready = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      const update = f.store.setRequestStatus.bind(f.store);
+      vi.spyOn(f.store, "setRequestStatus").mockImplementationOnce(
+        async (requestId, status, options) => {
+          reached();
+          await pause;
+          return update(requestId, status, options);
+        },
+      );
+      const validate = vi.fn(() => undefined);
+      const service = createSwaggerHandoffService({
+        store: f.store,
+        quarantineDir: f.directory,
+        validateUpload: validate,
+      });
+      const delayed = service.upload(input);
+      await ready;
+      await service.upload(input);
+      resume();
+      const duplicate = await delayed;
+      expect(duplicate.kind).toBe("DUPLICATE");
+      if (duplicate.kind === "DUPLICATE")
+        expect(duplicate.artifact.status).toBe(registeredStatus);
+      expect(validate).toHaveBeenCalledTimes(1);
+      expect((await f.store.getRequest(input.requestId))?.status).toBe(
+        registeredStatus,
+      );
+      expect(await f.store.listArtifacts(input.requestId)).toHaveLength(1);
+      expect(await readdir(f.directory)).toHaveLength(1);
+    },
+  );
+
+  it("atomically guards quarantine against already registered request states", async () => {
+    const statements: { sql: string; values?: unknown[] }[] = [];
+    const runtime: SwaggerSourceSqlRuntime = {
+      async query(sql, values) {
+        statements.push({ sql, values });
+        return { rows: [] };
+      },
+      async transaction(operation) {
+        return operation(runtime);
+      },
+    };
+    const expectedStatuses = [
+      "PENDING_OPERATOR_UPLOAD",
+      "UPLOAD_RECEIVED",
+      "QUARANTINED",
+    ] as const;
+    expect(
+      await createPostgresSwaggerSourceStore(runtime).setRequestStatus(
+        "storage-request",
+        "QUARANTINED",
+        { preserveTerminal: true, expectedStatuses: [...expectedStatuses] },
+      ),
+    ).toBe(false);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.sql).toContain("AND status = ANY($3::text[])");
+    expect(statements[0]?.sql).toContain("RETURNING request_id");
+    expect(statements[0]?.values).toEqual([
+      "storage-request",
+      "QUARANTINED",
+      [...expectedStatuses],
+    ]);
+  });
+
   it.each(["CANCELLED", "EXPIRED"] as const)(
     "cleans an unreferenced payload when %s wins before quarantine update",
     async (terminal) => {
