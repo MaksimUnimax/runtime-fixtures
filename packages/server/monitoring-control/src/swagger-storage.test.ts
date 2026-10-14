@@ -13,15 +13,29 @@ import {
 
 const storageFault = vi.hoisted(() => ({
   stage: "",
+  racedSymlinkTarget: undefined as string | undefined,
   failure: undefined as Error | undefined,
   cleanup: undefined as Error | undefined,
   closeFailure: undefined as Error | undefined,
 }));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof Fs>();
+  const raceCanonical = async (path: unknown) => {
+    if (storageFault.racedSymlinkTarget && String(path).endsWith(".upload")) {
+      const target = storageFault.racedSymlinkTarget;
+      storageFault.racedSymlinkTarget = undefined;
+      await fs.unlink(String(path));
+      await fs.symlink(target, String(path));
+    }
+  };
   return {
     ...fs,
+    readFile: async (...args: Parameters<typeof fs.readFile>) => {
+      await raceCanonical(args[0]);
+      return fs.readFile(...args);
+    },
     open: async (...args: Parameters<typeof fs.open>) => {
+      await raceCanonical(args[0]);
       const handle = await fs.open(...args);
       return new Proxy(handle, {
         get(target, key) {
@@ -62,6 +76,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 const directories: string[] = [];
 afterEach(async () => {
   storageFault.stage = "";
+  storageFault.racedSymlinkTarget = undefined;
   storageFault.failure = undefined;
   storageFault.cleanup = undefined;
   storageFault.closeFailure = undefined;
@@ -98,6 +113,25 @@ async function fixture(expiresAt?: Date) {
   return { directory, store, service, input };
 }
 describe("quarantine retry and uncertain registration", () => {
+  it("rejects a symlink replacing retained canonical bytes before verification opens them", async () => {
+    const f = await fixture();
+    vi.spyOn(f.store, "saveArtifact").mockRejectedValueOnce(
+      new Error("DB_UNCERTAIN"),
+    );
+    await expect(f.service().upload(f.input)).rejects.toThrow("DB_UNCERTAIN");
+    const external = await mkdtemp(
+      join(tmpdir(), "octoport-outside-quarantine-"),
+    );
+    directories.push(external);
+    const target = join(external, "identical.json");
+    await writeFile(target, f.input.bytes);
+    storageFault.racedSymlinkTarget = target;
+    await expect(f.service().upload(f.input)).rejects.toMatchObject({
+      code: "ELOOP",
+    });
+    expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(0);
+    expect(await readFile(target)).toEqual(f.input.bytes);
+  });
   it.each(["CANCELLED", "EXPIRED"] as const)(
     "rejects identical retry of an already %s request with a registered artifact",
     async (terminal) => {

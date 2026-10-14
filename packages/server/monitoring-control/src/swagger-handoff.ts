@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { link, lstat, mkdir, open, readFile, unlink } from "node:fs/promises";
+import { constants } from "node:fs";
+import { link, mkdir, open, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -615,19 +616,24 @@ async function retainQuarantineUpload(
   const filename = quarantineFilenameForRequest(requestId);
   const destination = join(directory, filename);
   const verifyExisting = async () => {
-    const stat = await lstat(destination);
-    if (
-      !stat.isFile() ||
-      stat.isSymbolicLink() ||
-      stat.size !== bytes.byteLength
-    )
-      throw new Error("QUARANTINE_PENDING_UPLOAD_MISMATCH");
-    if (
-      createHash("sha256")
-        .update(await readFile(destination))
-        .digest("hex") !== sha256
-    )
-      throw new Error("QUARANTINE_PENDING_UPLOAD_MISMATCH");
+    // Inspect and read the same regular file without following a raced symlink.
+    const handle = await open(
+      destination,
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+    try {
+      const stat = await handle.stat();
+      if (
+        !stat.isFile() ||
+        stat.size !== bytes.byteLength ||
+        createHash("sha256")
+          .update(await handle.readFile())
+          .digest("hex") !== sha256
+      )
+        throw new Error("QUARANTINE_PENDING_UPLOAD_MISMATCH");
+    } finally {
+      await handle.close();
+    }
   };
   try {
     await verifyExisting();
