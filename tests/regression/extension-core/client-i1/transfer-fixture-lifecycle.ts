@@ -10,6 +10,8 @@ const databases = [
   "octoport_b_test",
   "octoport_c_test",
   "product_control_plane_test",
+  // Existing installed-local GitHub Actions database; still loopback-only.
+  "seller_agents_i1_client",
 ] as const;
 const loopbacks = ["127.0.0.1", "localhost", "::1", "[::1]"];
 export function requireI1DisposableDatabase(value: string | undefined) {

@@ -19,7 +19,8 @@ export async function createCredentialTransferTestAuthority(
     | "octoport_a_test"
     | "octoport_b_test"
     | "octoport_c_test"
-    | "product_control_plane_test",
+    | "product_control_plane_test"
+    | "seller_agents_i1_client",
 ) {
   if (
     ![
@@ -27,6 +28,8 @@ export async function createCredentialTransferTestAuthority(
       "octoport_b_test",
       "octoport_c_test",
       "product_control_plane_test",
+      // Exact database already declared in extension-i1-ci.yml.
+      "seller_agents_i1_client",
     ].includes(expectedDatabase)
   )
     throw new Error("TRANSFER_TEST_DATABASE_NOT_ALLOWED");

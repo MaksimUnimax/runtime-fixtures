@@ -180,7 +180,14 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("48");
+    expect(count.rows[0]?.count).toBe("49");
+    const fenceTables = await runtime.query<{ table_name: string }>(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema='octoport_transfer_fence' ORDER BY table_name",
+    );
+    expect(fenceTables.rows.map((row) => row.table_name)).toEqual([
+      "authorized_transactions",
+      "writer_epoch",
+    ]);
     const browserFamilyRows = await runtime.db.execute<{
       enumlabel: string;
     }>(sql`

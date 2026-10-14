@@ -6,7 +6,7 @@ import type {
 import { createCredentialTransferTestAuthority } from "./credential-transfer-test-authority.js";
 
 /** Fault injection for fixture cleanup only; not a database security proof. */
-function fakeAdministrator() {
+function fakeAdministrator(databaseName = "octoport_c_test") {
   let roleExists = false;
   let owner = "";
   let dropFailures = 0;
@@ -21,7 +21,7 @@ function fakeAdministrator() {
     if (text.includes("current_database() AS database_name")) {
       rows = [
         {
-          database_name: "octoport_c_test",
+          database_name: databaseName,
           is_superuser: true,
           direct_session: true,
         },
@@ -145,4 +145,27 @@ describe("test authority cleanup can recover without reviving business admission
     expect(fake.roleExists()).toBe(false);
     expect(fake.elections()).toBe(1);
   });
+});
+
+it("accepts the already declared I1 database with exact observed identity", async () => {
+  const fake = fakeAdministrator("seller_agents_i1_client");
+  const authority = await createCredentialTransferTestAuthority(
+    fake.database,
+    "seller_agents_i1_client",
+  );
+  expect(authority.isActive()).toBe(true);
+  expect(fake.elections()).toBe(1);
+  await authority.dispose();
+  expect(fake.roleExists()).toBe(false);
+});
+it("rejects a mismatching actual database before any test role or election", async () => {
+  const fake = fakeAdministrator("production");
+  await expect(
+    createCredentialTransferTestAuthority(
+      fake.database,
+      "seller_agents_i1_client",
+    ),
+  ).rejects.toThrow("TRANSFER_TEST_DATABASE_OR_ADMINISTRATOR_MISMATCH");
+  expect(fake.roleExists()).toBe(false);
+  expect(fake.elections()).toBe(0);
 });

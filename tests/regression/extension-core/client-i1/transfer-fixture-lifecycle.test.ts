@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type {
   DatabaseRuntime,
@@ -30,6 +31,35 @@ function authority() {
 }
 
 describe("I1 explicit disposable database boundary", () => {
+  it("accepts the exact disposable database declared by the unchanged I1 workflow", () => {
+    const workflow = readFileSync(
+      new URL(
+        "../../../../.github/workflows/extension-i1-ci.yml",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const declared = [
+      ...workflow.matchAll(/^\s*POSTGRES_DB:\s*([a-z0-9_]+)\s*$/gm),
+    ].map((item) => item[1]);
+    expect(declared).toContain("seller_agents_i1_client");
+    expect(
+      requireI1DisposableDatabase(
+        "postgres://test@127.0.0.1:45432/seller_agents_i1_client",
+      ),
+    ).toBe("seller_agents_i1_client");
+  });
+  it.each([
+    "postgres://test@external.invalid/seller_agents_i1_client",
+    "postgres://test@localhost/seller_agents_i1_client?host=external.invalid",
+    "postgres://test@localhost/seller_agents_i1_client?hostaddr=1.2.3.4",
+    "postgres://test@localhost/seller_agents_i1_client_production",
+  ])("does not broaden CI identity into arbitrary destinations: %s", (url) => {
+    expect(() => requireI1DisposableDatabase(url)).toThrow(
+      "I1_DISPOSABLE_DATABASE_REQUIRED",
+    );
+  });
+
   it.each([
     "octoport_a_test",
     "octoport_b_test",
