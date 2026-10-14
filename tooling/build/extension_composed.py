@@ -269,8 +269,26 @@ def compose(directory, mode="development", release_authority=None):
             )
     for patch in json.loads(read_input(recipe["application_patches"], inputs)):
         text = output[patch["target"]].decode()
+        assert isinstance(patch["old"], str)
         assert text.count(patch["old"]) == 1, (patch["target"], patch["old"][:100], text.count(patch["old"]))
-        output[patch["target"]] = text.replace(patch["old"], patch["new"]).encode()
+        if "new_source" in patch:
+            # One reviewed A05 extraction. The old patch anchor and new
+            # replacement remain pinned byte-for-byte; no arbitrary path
+            # loading from the patch list is permitted.
+            assert set(patch) == {"target", "old", "old_sha256", "new_source", "new_sha256"}
+            assert patch["target"] == "content_script.js"
+            assert patch["new_source"] == "apps/extension/src/content/position-own-button.js"
+            assert baseline.sha256(patch["old"].encode()) == patch["old_sha256"]
+            replacement_bytes = read_input(patch["new_source"], inputs)
+            # Original inline patch ended with an extra blank line. Keep the
+            # checked external source canonical and restore that exact suffix
+            # at composition time, before checking the expected output hash.
+            replacement = replacement_bytes.decode() + "\n"
+            assert baseline.sha256(replacement.encode()) == patch["new_sha256"]
+        else:
+            assert set(patch) == {"target", "old", "new"}
+            replacement = patch["new"]
+        output[patch["target"]] = text.replace(patch["old"], replacement).encode()
     rewrite_product_labels(output)
     if mode == "store":
         rewrite_store_visible_brand(output)
