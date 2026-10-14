@@ -98,6 +98,77 @@ async function fixture() {
 }
 describe("quarantine retry and uncertain registration", () => {
   it.each(["CANCELLED", "EXPIRED"] as const)(
+    "cleans an unreferenced payload when %s wins before quarantine update",
+    async (terminal) => {
+      const f = await fixture();
+      await writeFile(join(f.directory, "unrelated.tmp"), "keep");
+      const update = f.store.setRequestStatus.bind(f.store);
+      vi.spyOn(f.store, "setRequestStatus").mockImplementationOnce(
+        async (requestId, status, options) => {
+          await update(requestId, terminal);
+          return update(requestId, status, options);
+        },
+      );
+      expect(await f.service().upload(f.input)).toEqual({
+        kind: "REJECTED",
+        code: "REQUEST_FINALIZED",
+      });
+      expect(await readdir(f.directory)).toEqual(["unrelated.tmp"]);
+      expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(0);
+    },
+  );
+  it("retains terminalized bytes when artifact reference read is unavailable, then cleans on retry", async () => {
+    const f = await fixture();
+    const lookup = new Error("PRIMARY_REFERENCE_READ_UNAVAILABLE");
+    const service = createSwaggerHandoffService({
+      store: f.store,
+      quarantineDir: f.directory,
+      validateUpload: async () => {
+        await f.store.setRequestStatus(f.input.requestId, "CANCELLED");
+        vi.spyOn(f.store, "listArtifacts").mockRejectedValueOnce(lookup);
+        return undefined;
+      },
+    });
+    const error: unknown = await service
+      .upload(f.input)
+      .catch((caught) => caught);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors[1]).toBe(lookup);
+    expect(await readdir(f.directory)).toHaveLength(1);
+    vi.restoreAllMocks();
+    expect(await f.service().upload(f.input)).toEqual({
+      kind: "REJECTED",
+      code: "REQUEST_FINALIZED",
+    });
+    expect(await readdir(f.directory)).toEqual([]);
+  });
+  it("preserves finalization and unlink errors, then cleans unreferenced bytes on retry", async () => {
+    const f = await fixture();
+    const cleanup = new Error("CLEANUP_DENIED");
+    const service = createSwaggerHandoffService({
+      store: f.store,
+      quarantineDir: f.directory,
+      validateUpload: async () => {
+        await f.store.setRequestStatus(f.input.requestId, "EXPIRED");
+        storageFault.cleanup = cleanup;
+        return undefined;
+      },
+    });
+    const error: unknown = await service
+      .upload(f.input)
+      .catch((caught) => caught);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors[1]).toBe(cleanup);
+    expect(await readdir(f.directory)).toHaveLength(1);
+    storageFault.cleanup = undefined;
+    expect(await f.service().upload(f.input)).toEqual({
+      kind: "REJECTED",
+      code: "REQUEST_FINALIZED",
+    });
+    expect(await readdir(f.directory)).toEqual([]);
+  });
+
+  it.each(["CANCELLED", "EXPIRED"] as const)(
     "checks and locks current %s in the artifact registration transaction",
     async (terminal) => {
       const statements: { sql: string; transaction: boolean }[] = [];
@@ -157,6 +228,7 @@ describe("quarantine retry and uncertain registration", () => {
         terminal,
       );
       expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(0);
+      expect(await readdir(f.directory)).toEqual([]);
     },
   );
 

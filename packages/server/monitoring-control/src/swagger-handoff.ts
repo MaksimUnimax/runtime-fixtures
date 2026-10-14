@@ -583,6 +583,10 @@ export function validateSwaggerBytes(
   };
 }
 
+function quarantineFilenameForRequest(requestId: string): string {
+  return `request-${createHash("sha256").update(requestId).digest("hex")}.upload`;
+}
+
 // A request accepts one artifact. Keep one stable retry payload when a database
 // acknowledgement is uncertain; never delete bytes that a commit may reference.
 async function retainQuarantineUpload(
@@ -591,7 +595,7 @@ async function retainQuarantineUpload(
   bytes: Uint8Array,
   sha256: string,
 ): Promise<string> {
-  const filename = `request-${createHash("sha256").update(requestId).digest("hex")}.upload`;
+  const filename = quarantineFilenameForRequest(requestId);
   const destination = join(directory, filename);
   const verifyExisting = async () => {
     const stat = await lstat(destination);
@@ -692,6 +696,45 @@ export function createSwaggerHandoffService(options: {
     return options.store.listPending(now());
   }
 
+  async function cleanupFinalizedPayload(requestId: string): Promise<void> {
+    // Terminal requests cannot register new artifacts: saveArtifact locks and
+    // checks the current request row before INSERT. A commit preceding the
+    // terminal transition is visible to this subsequent primary reference read.
+    const current = await options.store.getRequest(requestId);
+    if (!current || !["CANCELLED", "EXPIRED"].includes(current.status)) return;
+    const filename = quarantineFilenameForRequest(requestId);
+    const artifacts = await options.store.listArtifacts(requestId);
+    if (artifacts.some((artifact) => artifact.quarantineFilename === filename))
+      return;
+    const path = join(quarantineDir, filename);
+    try {
+      const metadata = await lstat(path);
+      if (!metadata.isFile() || metadata.isSymbolicLink())
+        throw new Error("QUARANTINE_FINALIZED_PATH_INVALID");
+      await unlink(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+
+  async function rejectFinalizedPayload(
+    requestId: string,
+    code = "REQUEST_FINALIZED",
+    cause: Error = new SwaggerRequestFinalizedError(),
+  ): Promise<SwaggerUploadResult> {
+    try {
+      await cleanupFinalizedPayload(requestId);
+    } catch (cleanupError) {
+      // Preserve bytes when the primary reference check is unavailable; a
+      // retry of the terminal request will reattempt only this owned cleanup.
+      throw new AggregateError(
+        [cause, cleanupError],
+        "QUARANTINE_FINALIZED_CLEANUP_FAILED",
+      );
+    }
+    return { kind: "REJECTED", code };
+  }
+
   async function upload(
     input: SwaggerUploadInput,
   ): Promise<SwaggerUploadResult> {
@@ -702,7 +745,7 @@ export function createSwaggerHandoffService(options: {
       await options.store.setRequestStatus(request.requestId, "EXPIRED", {
         preserveTerminal: true,
       });
-      return { kind: "REJECTED", code: "REQUEST_EXPIRED" };
+      return rejectFinalizedPayload(request.requestId, "REQUEST_EXPIRED");
     }
     if (
       input.declaredSourceFamily &&
@@ -735,8 +778,11 @@ export function createSwaggerHandoffService(options: {
       );
       return { kind: "DUPLICATE", artifact: duplicate };
     }
-    if (["CANDIDATE_READY", "CANCELLED", "EXPIRED"].includes(request.status))
+    if (["CANDIDATE_READY", "CANCELLED", "EXPIRED"].includes(request.status)) {
+      if (["CANCELLED", "EXPIRED"].includes(request.status))
+        return rejectFinalizedPayload(request.requestId);
       return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
+    }
     if ((await options.store.listArtifacts(request.requestId)).length > 0)
       return { kind: "REJECTED", code: "REQUEST_ARTIFACT_ALREADY_RECEIVED" };
 
@@ -753,7 +799,7 @@ export function createSwaggerHandoffService(options: {
         preserveTerminal: true,
       })) === false
     )
-      return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
+      return rejectFinalizedPayload(request.requestId);
 
     const originalFilename = safeOriginalFilename(input.originalFilename);
     let parserResult: Record<string, unknown> = { parsed: false };
@@ -826,7 +872,11 @@ export function createSwaggerHandoffService(options: {
       saved = await options.store.saveArtifact(artifact);
     } catch (error) {
       if (error instanceof SwaggerRequestFinalizedError)
-        return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
+        return rejectFinalizedPayload(
+          request.requestId,
+          "REQUEST_FINALIZED",
+          error,
+        );
       // An error does not prove rollback. Reconcile against the primary store;
       // if unavailable or absent, retain the stable bytes for the same retry.
       const committed = await options.store
@@ -845,7 +895,7 @@ export function createSwaggerHandoffService(options: {
           { preserveTerminal: true },
         )) === false
       )
-        return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
+        return rejectFinalizedPayload(request.requestId);
       return { kind: "DUPLICATE", artifact: saved.artifact };
     }
     if (
@@ -855,7 +905,7 @@ export function createSwaggerHandoffService(options: {
         { preserveTerminal: true },
       )) === false
     )
-      return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
+      return rejectFinalizedPayload(request.requestId);
     return status === "CANDIDATE_READY"
       ? { kind: "CANDIDATE_READY", artifact: saved.artifact }
       : {
