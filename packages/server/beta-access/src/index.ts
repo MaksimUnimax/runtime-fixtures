@@ -78,7 +78,8 @@ export type BetaAdmissionRepository = {
     correlationId: string;
     expectedRevision: number;
     normalizedIdentityTarget: string;
-    expiresAt: Date;
+    /** Fixed duration; the repository must anchor its expiration to DB time. */
+    ttlMs: number;
     reason: string;
   }): Promise<BetaIdentityInvitationMutationResult>;
   revokeIdentityInvitation(input: {
@@ -201,10 +202,7 @@ function validNormalizedEmail(value: string): boolean {
 }
 
 export class BetaAdmissionService {
-  public constructor(
-    private readonly repository: BetaAdmissionRepository,
-    private readonly now: () => Date = () => new Date(),
-  ) {}
+  public constructor(private readonly repository: BetaAdmissionRepository) {}
 
   resolve(accountId: string): Promise<BetaAccessResolution> {
     return this.repository.resolve(accountId);
@@ -251,9 +249,7 @@ export class BetaAdmissionService {
       ...input,
       requestIdHash: betaInvitationRequestIdHash(input.requestId),
       payloadHash: betaInvitationCreatePayloadHash(input),
-      expiresAt: new Date(
-        this.now().getTime() + BETA_IDENTITY_INVITATION_TTL_MS,
-      ),
+      ttlMs: BETA_IDENTITY_INVITATION_TTL_MS,
     });
   }
 

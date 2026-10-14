@@ -68,31 +68,28 @@ describe("S1.1 beta admission domain", () => {
       | {
           requestIdHash: string;
           payloadHash: string;
-          expiresAt: Date;
+          ttlMs: number;
         }
       | undefined;
     const clock = new Date("2030-01-01T00:00:00.000Z");
-    const service = new BetaAdmissionService(
-      {
-        resolve: async () => ({ kind: "NONE" }),
-        read: async () => ({
-          mode: "CLOSED",
-          capacity: 1,
-          admitted: 0,
-          remaining: 1,
-          revision: 1,
-          updatedAt: clock,
-        }),
-        mutate: async () => ({ kind: "CONFLICT" }),
-        readIdentityInvitation: async () => null,
-        inviteIdentity: async (input) => {
-          captured = input;
-          return { kind: "CONFLICT" as const };
-        },
-        revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
+    const service = new BetaAdmissionService({
+      resolve: async () => ({ kind: "NONE" }),
+      read: async () => ({
+        mode: "CLOSED",
+        capacity: 1,
+        admitted: 0,
+        remaining: 1,
+        revision: 1,
+        updatedAt: clock,
+      }),
+      mutate: async () => ({ kind: "CONFLICT" }),
+      readIdentityInvitation: async () => null,
+      inviteIdentity: async (input) => {
+        captured = input;
+        return { kind: "CONFLICT" as const };
       },
-      () => clock,
-    );
+      revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
+    });
     await service.createIdentityInvitation({
       actorPrincipalId: "actor",
       requestId: "invite-request-1234",
@@ -104,7 +101,39 @@ describe("S1.1 beta admission domain", () => {
     expect(captured).toBeDefined();
     expect(captured!.requestIdHash).not.toContain("invite-request-1234");
     expect(captured!.payloadHash).not.toContain("reviewer@example.test");
-    expect(captured!.expiresAt.toISOString()).toBe("2030-01-02T00:00:00.000Z");
+    expect(captured!.ttlMs).toBe(24 * 60 * 60_000);
+  });
+
+  it("passes the configured 24-hour TTL as a duration independent of app clock skew", async () => {
+    const fastAppClock = new Date("2026-10-16T12:00:00.000Z");
+    let request: Record<string, unknown> | undefined;
+    const service = new BetaAdmissionService({
+      resolve: async () => ({ kind: "NONE" }),
+      read: async () => ({
+        mode: "CLOSED",
+        capacity: 1,
+        admitted: 0,
+        remaining: 1,
+        revision: 1,
+        updatedAt: fastAppClock,
+      }),
+      mutate: async () => ({ kind: "CONFLICT" }),
+      readIdentityInvitation: async () => null,
+      inviteIdentity: async (input) => {
+        request = input as unknown as Record<string, unknown>;
+        return { kind: "CONFLICT" as const };
+      },
+      revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
+    });
+    await service.createIdentityInvitation({
+      actorPrincipalId: "11111111-1111-4111-8111-111111111111",
+      requestId: "ttl-clock-skew-1",
+      correlationId: "ttl-clock-skew",
+      expectedRevision: 1,
+      normalizedIdentityTarget: "ttl@example.test",
+      reason: "synthetic TTL",
+    });
+    expect(request?.ttlMs).toBe(24 * 60 * 60_000);
   });
 
   it("rejects malformed invitation domain labels before repository mutation", async () => {
