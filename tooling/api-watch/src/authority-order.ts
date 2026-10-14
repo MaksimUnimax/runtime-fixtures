@@ -1,7 +1,7 @@
 import type { AuthorityRecord } from "./types.js";
 
-// Store-owned causal order supplements wall time; legacy records have no order.
-// Callers cannot choose the next order through safeProvenance.
+// Store-owned causal order precedes wall time, which can move backward.
+// Legacy records predate sequenced writes; callers cannot choose the next order.
 export function authorityRecordSequence(record: AuthorityRecord): number {
   const value = record.safeProvenance.authorityRecordSequence;
   if (value === undefined) return 0;
@@ -25,8 +25,8 @@ export function compareAuthorityRecordOrder(
   b: AuthorityRecord,
 ): number {
   return (
-    a.validatedAt.valueOf() - b.validatedAt.valueOf() ||
     authorityRecordSequence(a) - authorityRecordSequence(b) ||
+    a.validatedAt.valueOf() - b.validatedAt.valueOf() ||
     // Legacy equal-clock observations cannot establish a later unblock.
     Number(a.failureClassification === "OPERATOR_SOURCE_REQUIRED") -
       Number(b.failureClassification === "OPERATOR_SOURCE_REQUIRED")

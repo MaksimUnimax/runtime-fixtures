@@ -225,13 +225,19 @@ describe.sequential(
       });
     }, 30000);
 
-    it.each([503, 200])(
-      "native PG authority order permits a scheduled fetch after explicit HTTP%i at the same validation timestamp",
-      async (nextStatus) => {
+    it.each([
+      [503, 0],
+      [200, 0],
+      [503, -1],
+      [200, -1],
+    ])(
+      "native PG authority order permits a scheduled fetch after explicit HTTP%i at %ims",
+      async (nextStatus, elapsed) => {
         await scoped.query("TRUNCATE api_watch_authority_records");
         let calls = 0,
           status = 403;
-        const now = new Date("2026-10-14T03:00:00Z");
+        let now = new Date("2026-10-14T03:00:00Z");
+        const initialTime = now.valueOf();
         const registry = createSourceRegistry({
           OZON_SELLER: { officialUrl: null, documents: [] },
           OZON_PERFORMANCE: { officialUrl: null, documents: [] },
@@ -275,6 +281,7 @@ describe.sequential(
         };
         await runAuthorityPass(dependencies);
         status = nextStatus;
+        now = new Date(now.valueOf() + elapsed);
         const explicit = await runAuthorityPass(dependencies);
         expect(
           explicit.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
@@ -301,9 +308,16 @@ describe.sequential(
           await createPostgresApiWatchStore(scoped).listAuthorityRecords()
         ).filter((r) => r.sourceFamily === "WILDBERRIES");
         expect(rows).toHaveLength(3);
+        expect(rows.map((r) => r.validatedAt.valueOf())).toEqual([
+          initialTime,
+          now.valueOf(),
+          now.valueOf(),
+        ]);
         expect(
-          rows.every((r) => r.validatedAt.valueOf() === now.valueOf()),
-        ).toBe(true);
+          rows[1]!.safeProvenance.authorityRecordSequence as number,
+        ).toBeGreaterThan(
+          rows[0]!.safeProvenance.authorityRecordSequence as number,
+        );
         expect(
           new Set(rows.map((r) => r.safeProvenance.authorityRecordSequence))
             .size,
@@ -311,77 +325,152 @@ describe.sequential(
       },
     );
 
-    it("native PG preserves later verified operator authority at the same clock across a store restart", async () => {
+    it.each([0, -1])(
+      "native PG preserves later verified operator authority at %ims across a store restart",
+      async (elapsed) => {
+        await scoped.query("TRUNCATE api_watch_authority_records");
+        let now = new Date("2026-10-14T03:00:00Z");
+        let calls = 0,
+          status = 403;
+        const registry = createSourceRegistry({
+          OZON_SELLER: { officialUrl: null, documents: [] },
+          OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+          WILDBERRIES: {
+            officialUrl: null,
+            acceptedHosts: ["127.0.0.1"],
+            requiredServerIdentity: undefined,
+            titlePattern: undefined,
+            documents: [
+              {
+                documentKey: "clock",
+                officialUrl: "http://127.0.0.1/clock",
+                expectedArtifactTypes: ["JSON"],
+              },
+            ],
+          },
+        });
+        const store = createPostgresApiWatchStore(scoped);
+        const dependencies = {
+          registry,
+          store,
+          pendingStore: new InMemorySwaggerSourceStore(),
+          now: () => new Date(now),
+          fetcher: (async () => {
+            calls++;
+            return new Response("synthetic", { status });
+          }) as typeof fetch,
+        };
+        await runAuthorityPass(dependencies);
+        now = new Date(now.valueOf() + elapsed);
+        const verified = await runAuthorityPass({
+          ...dependencies,
+          store: new InMemoryApiWatchStore(),
+          fetcher: (async () =>
+            new Response(
+              JSON.stringify({
+                openapi: "3.0.3",
+                info: { title: "Fixture", version: "1" },
+                paths: {
+                  "/health": {
+                    get: { responses: { "200": { description: "ok" } } },
+                  },
+                },
+              }),
+              { status: 200 },
+            )) as typeof fetch,
+        });
+        const accepted = verified.records.find(
+          (r) => r.sourceFamily === "WILDBERRIES",
+        )!;
+        expect(accepted.authorityStatus).toBe("AUTHORITY_ACCEPTED");
+        const supplied = await store.saveAuthorityRecord({
+          ...accepted,
+          acquisitionMode: "OPERATOR_SUPPLIED",
+          operatorRequestId: randomUUID(),
+        });
+        expect(supplied.validatedAt.valueOf()).toBe(now.valueOf());
+        status = 503;
+        const scheduled = await runAuthorityPass({
+          ...dependencies,
+          store: createPostgresApiWatchStore(scoped),
+          skipOperatorBlocked: true,
+        });
+        expect(calls).toBe(2);
+        expect(
+          scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")
+            ?.kind,
+        ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      },
+    );
+
+    it("native PG legacy equal-clock rows remain held until new explicit evidence", async () => {
       await scoped.query("TRUNCATE api_watch_authority_records");
-      const now = new Date("2026-10-14T03:00:00Z");
-      let calls = 0,
-        status = 403;
-      const registry = createSourceRegistry({
-        OZON_SELLER: { officialUrl: null, documents: [] },
-        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
-        WILDBERRIES: {
-          officialUrl: null,
-          acceptedHosts: ["127.0.0.1"],
-          requiredServerIdentity: undefined,
-          titlePattern: undefined,
-          documents: [
-            {
-              documentKey: "clock",
-              officialUrl: "http://127.0.0.1/clock",
-              expectedArtifactTypes: ["JSON"],
-            },
-          ],
-        },
-      });
-      const store = createPostgresApiWatchStore(scoped);
+      let status = 403,
+        calls = 0;
       const dependencies = {
-        registry,
-        store,
+        registry: createSourceRegistry({
+          OZON_SELLER: { officialUrl: null, documents: [] },
+          OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+          WILDBERRIES: {
+            officialUrl: null,
+            acceptedHosts: ["127.0.0.1"],
+            requiredServerIdentity: undefined,
+            titlePattern: undefined,
+            documents: [
+              {
+                documentKey: "clock",
+                officialUrl: "http://127.0.0.1/clock",
+                expectedArtifactTypes: ["JSON"],
+              },
+            ],
+          },
+        }),
+        store: createPostgresApiWatchStore(scoped),
         pendingStore: new InMemorySwaggerSourceStore(),
-        now: () => new Date(now),
+        now: () => new Date("2026-10-14T03:00:00Z"),
         fetcher: (async () => {
           calls++;
-          return new Response("synthetic", { status });
+          return new Response(
+            status === 200
+              ? JSON.stringify({
+                  openapi: "3.0.3",
+                  info: { title: "Fixture", version: "1" },
+                  paths: {
+                    "/health": {
+                      get: { responses: { "200": { description: "ok" } } },
+                    },
+                  },
+                })
+              : "synthetic",
+            { status },
+          );
         }) as typeof fetch,
       };
       await runAuthorityPass(dependencies);
-      const verified = await runAuthorityPass({
-        ...dependencies,
-        store: new InMemoryApiWatchStore(),
-        fetcher: (async () =>
-          new Response(
-            JSON.stringify({
-              openapi: "3.0.3",
-              info: { title: "Fixture", version: "1" },
-              paths: {
-                "/health": {
-                  get: { responses: { "200": { description: "ok" } } },
-                },
-              },
-            }),
-            { status: 200 },
-          )) as typeof fetch,
-      });
-      const accepted = verified.records.find(
-        (r) => r.sourceFamily === "WILDBERRIES",
-      )!;
-      expect(accepted.authorityStatus).toBe("AUTHORITY_ACCEPTED");
-      const supplied = await store.saveAuthorityRecord({
-        ...accepted,
-        acquisitionMode: "OPERATOR_SUPPLIED",
-        operatorRequestId: randomUUID(),
-      });
-      expect(supplied.validatedAt.valueOf()).toBe(now.valueOf());
-      status = 503;
-      const scheduled = await runAuthorityPass({
+      status = 200;
+      await runAuthorityPass(dependencies);
+      await scoped.query(
+        "UPDATE api_watch_authority_records SET safe_provenance = safe_provenance - 'authorityRecordSequence'",
+      );
+      const held = await runAuthorityPass({
         ...dependencies,
         store: createPostgresApiWatchStore(scoped),
         skipOperatorBlocked: true,
       });
       expect(calls).toBe(2);
       expect(
-        scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
-      ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+        held.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
+      ).toBe("OPERATOR_SOURCE_REQUIRED");
+      await runAuthorityPass(dependencies);
+      const released = await runAuthorityPass({
+        ...dependencies,
+        store: createPostgresApiWatchStore(scoped),
+        skipOperatorBlocked: true,
+      });
+      expect(calls).toBe(4);
+      expect(
+        released.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
+      ).toBe("ACQUIRED_OFFICIAL_SOURCE_CANDIDATE");
     });
 
     it("native PG writers serialize reserved provenance order and another store reads it without caller spoofing", async () => {

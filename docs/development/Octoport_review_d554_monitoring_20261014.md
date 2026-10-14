@@ -28,7 +28,7 @@ Node 24.20.0, Vitest 3.2.6, конечные cgroup; ответы Telegram/WB с
 
 Добавлен изолированный native integration test для существующей disposable PostgreSQL среды Server CI: реальный PG trigger отклоняет сохранение результата; frozen baseline сохраняет catch вызывающего кода и затем завершает Node, кандидат должен пережить отказ, сохранить lease и выполнить второе направление. Отдельный контроль проверяет сохранение runner failure как FAILED. Третий сценарий проверяет 39 загрузок 13 WB документов с настоящими PG schedule/retry stores. HTTP остаётся синтетическим. Frozen scheduler из `03740125` проверяется по исходному SHA256 после нормализации только import-путей/форматирования.
 
-Эти native проверки пока NOT_RUN. Installed, deployment и production acceptance не заявляются. Для successor нужны независимое review и пять CI точного SHA перед main.
+Первоначально эти native проверки ещё не были выполнены; фактические результаты точных successor SHA приведены ниже. Installed, deployment и production acceptance не заявляются. Для нового successor нужны независимое review и пять CI точного SHA перед main.
 
 Профиль ИИ и command-ledger ещё не исправлены этим кандидатом. Передача общих активных путей запрошена у существующих авторов через канонический учёт; чужие WIP, R3, Chromium и профиль Тестера сохраняются. Управление — dot; аудит Контроллера и дисковая очистка владельца сюда не переносились.
 
@@ -47,3 +47,13 @@ A подтвердил отсутствие передачи client.js: OPERATOR
 На точном `600fcd66ca523da35863771c87b6eee90d2d736e` все пять обязательных CI завершились success; Server CI действительно выполнил шесть native PG сценариев (6/6 PASS), всю integration suite (1854 PASS) и E2E (202 PASS). Таким образом, PG-trigger baseline/candidate и durable одинаковое время/конкурентные writers впервые фактически подтверждены. Это не независимая приёмка и не закрытие profile/ledger.
 
 Дополнительное первичное evidence A для 15a60300 отдельно требует OPERATOR_SUPPLIED AUTHORITY_ACCEPTED того же documentKey/URL. Добавлены адресные source/PG проверки этой trusted record границы с валидированным OpenAPI артефактом и сменой экземпляра store. Изменений продукта после600 нет. Последняя локальная проверка: 24/24 затронутых tests, typecheck/lint и collection семи native сценариев PASS; тип acquisitionMode нового fixture исправлен после TS2322. Новый native OPERATOR_SUPPLIED сценарий и CI successor SHA ещё не выполнены. Auth/upload/installed приёмка этим record-port fixture не заявляется.
+
+## Откат часов: независимое ревью 01bff390
+
+На точном `01bff39025edbe1333f67b51517fa267bba1cbc3` Server CI подтвердил 7/7 native PG, 1855 integration и 202 E2E. Четыре обязательных CI успешны; I1 run 38514476070 отменён. Его пакет из 84 файлов не содержит result.json или точной фазы. Причина отмены UNKNOWN; сборка не доказывает установленную приёмку. Прежние отказы и отдельный автор PR93 сохраняются.
+
+Сохранённое независимое ревью A R5 вернуло REWORK_REQUIRED_SOURCE_PRODUCT: validatedAt сравнивался раньше store-owned sequence, поэтому откат на 1 мс сохранял старый 403 после более позднего явного 503/принятого 200. Evidence A синтетическое, без PostgreSQL. Собственный повтор до исправления на неизменённом продукте 01bff390 дал 6 RED и 20 PASS: оба исходных случая, operator-supplied accepted, полный report pipeline, новый explicit после legacy и обратный переход accepted -> новый 403.
+
+Теперь первым сравнивается causal sequence хранилища. Legacy записи без sequence предшествуют новым sequenced writes; между legacy записями сохранён прежний timestamp порядок и fail-closed при равном времени. Номер назначает хранилище, caller его не выбирает. Изменение validatedAt, схемы и полномочий оператора не требуется.
+
+После исправления 312 API Watch tests, typecheck, lint и diff check PASS. В native suite подготовлены 11 сценариев: сохранены прежние семь и добавлены rollback 503/200/operator-supplied accepted, отдельный PG legacy equal-clock control с явным восстановлением. Локально выполнена только collection без соединения с БД. Новый exact-SHA CI и независимая приёмка ещё нужны. Профиль ИИ и ledger остаются открытыми до подтверждённой передачи трёх общих активных файлов.

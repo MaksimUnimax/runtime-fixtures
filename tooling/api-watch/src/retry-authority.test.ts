@@ -70,8 +70,10 @@ describe("independent PR97 rework: operator authority takes precedence", () => {
     [200, 0],
     [503, 1],
     [200, 1],
+    [503, -1],
+    [200, -1],
   ] as const)(
-    "later explicit HTTP%i authority survives store restart at +%ims and permits scheduled fetch",
+    "later explicit HTTP%i authority survives store restart at %ims and permits scheduled fetch",
     async (nextStatus, elapsed) => {
       const state = createInMemoryApiWatchState(),
         pendingStore = new InMemorySwaggerSourceStore();
@@ -90,7 +92,7 @@ describe("independent PR97 rework: operator authority takes precedence", () => {
           });
         }) as typeof fetch,
       };
-      await runAuthorityPass(dependencies);
+      const initial = await runAuthorityPass(dependencies);
       status = nextStatus;
       now = new Date(now.valueOf() + elapsed);
       const explicit = await runAuthorityPass(dependencies);
@@ -101,6 +103,21 @@ describe("independent PR97 rework: operator authority takes precedence", () => {
           ? "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE"
           : "SOURCE_TEMPORARILY_UNAVAILABLE",
       );
+      const initialRecord = initial.records.find(
+        (r) => r.sourceFamily === "WILDBERRIES",
+      )!;
+      const explicitRecord = explicit.records.find(
+        (r) => r.sourceFamily === "WILDBERRIES",
+      )!;
+      expect(
+        explicitRecord.safeProvenance.authorityRecordSequence,
+      ).toBeGreaterThan(
+        initialRecord.safeProvenance.authorityRecordSequence as number,
+      );
+      expect(
+        explicitRecord.validatedAt.valueOf() -
+          initialRecord.validatedAt.valueOf(),
+      ).toBe(elapsed);
       const scheduled = await runAuthorityPass({
         ...dependencies,
         store: new InMemoryApiWatchStore(state),
@@ -117,121 +134,169 @@ describe("independent PR97 rework: operator authority takes precedence", () => {
     },
   );
 
-  it("a verified operator-supplied authority at the same time releases the previous exact hold", async () => {
-    const now = new Date("2026-10-14T03:00:00Z");
-    let calls = 0,
-      status = 403;
-    const registry = clockRegistry(),
-      store = new InMemoryApiWatchStore();
-    const dependencies = {
-      registry,
-      store,
-      pendingStore: new InMemorySwaggerSourceStore(),
-      now: () => new Date(now),
-      fetcher: (async () => {
-        calls++;
-        return new Response("synthetic", { status });
-      }) as typeof fetch,
-    };
-    await runAuthorityPass(dependencies);
-    const verified = await runAuthorityPass({
-      ...dependencies,
-      store: new InMemoryApiWatchStore(),
-      fetcher: (async () =>
-        new Response(acceptedBytes, { status: 200 })) as typeof fetch,
-    });
-    const accepted = verified.records.find(
-      (r) => r.sourceFamily === "WILDBERRIES",
-    )!;
-    expect(accepted.authorityStatus).toBe("AUTHORITY_ACCEPTED");
-    const supplied = await store.saveAuthorityRecord({
-      ...accepted,
-      acquisitionMode: "OPERATOR_SUPPLIED",
-      operatorRequestId: "synthetic-operator-request",
-    });
-    expect(supplied.validatedAt.valueOf()).toBe(now.valueOf());
-    status = 503;
-    const scheduled = await runAuthorityPass({
-      ...dependencies,
-      skipOperatorBlocked: true,
-    });
-    expect(calls).toBe(2);
-    expect(
-      scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
-    ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
-  });
+  it.each([0, -1])(
+    "a verified operator-supplied authority at %ims releases the previous exact hold",
+    async (elapsed) => {
+      let now = new Date("2026-10-14T03:00:00Z");
+      let calls = 0,
+        status = 403;
+      const registry = clockRegistry(),
+        store = new InMemoryApiWatchStore();
+      const dependencies = {
+        registry,
+        store,
+        pendingStore: new InMemorySwaggerSourceStore(),
+        now: () => new Date(now),
+        fetcher: (async () => {
+          calls++;
+          return new Response("synthetic", { status });
+        }) as typeof fetch,
+      };
+      await runAuthorityPass(dependencies);
+      now = new Date(now.valueOf() + elapsed);
+      const verified = await runAuthorityPass({
+        ...dependencies,
+        store: new InMemoryApiWatchStore(),
+        fetcher: (async () =>
+          new Response(acceptedBytes, { status: 200 })) as typeof fetch,
+      });
+      const accepted = verified.records.find(
+        (r) => r.sourceFamily === "WILDBERRIES",
+      )!;
+      expect(accepted.authorityStatus).toBe("AUTHORITY_ACCEPTED");
+      const supplied = await store.saveAuthorityRecord({
+        ...accepted,
+        acquisitionMode: "OPERATOR_SUPPLIED",
+        operatorRequestId: "synthetic-operator-request",
+      });
+      expect(supplied.validatedAt.valueOf()).toBe(now.valueOf());
+      status = 503;
+      const scheduled = await runAuthorityPass({
+        ...dependencies,
+        skipOperatorBlocked: true,
+      });
+      expect(calls).toBe(2);
+      expect(
+        scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
+      ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    },
+  );
 
-  it("legacy equal-clock authority stays fail-closed until a new explicit observation", async () => {
-    const state = createInMemoryApiWatchState();
-    let calls = 0,
-      status = 403;
-    const dependencies = {
-      registry: clockRegistry(),
-      store: new InMemoryApiWatchStore(state),
-      pendingStore: new InMemorySwaggerSourceStore(),
-      now: () => new Date("2026-10-14T03:00:00Z"),
-      fetcher: (async () => {
-        calls++;
-        return new Response(status === 200 ? acceptedBytes : "synthetic", {
-          status,
-        });
-      }) as typeof fetch,
-    };
-    await runAuthorityPass(dependencies);
-    status = 200;
-    await runAuthorityPass(dependencies);
-    for (const record of state.authorities.values())
-      delete record.safeProvenance.authorityRecordSequence;
-    await runAuthorityPass({ ...dependencies, skipOperatorBlocked: true });
-    expect(calls).toBe(2);
-    await runAuthorityPass(dependencies);
-    const scheduled = await runAuthorityPass({
-      ...dependencies,
-      skipOperatorBlocked: true,
-    });
-    expect(calls).toBe(4);
-    expect(
-      scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
-    ).toBe("ACQUIRED_OFFICIAL_SOURCE_CANDIDATE");
-  });
+  it.each([0, -1])(
+    "legacy authority at %ims stays fail-closed until a new explicit observation",
+    async (elapsed) => {
+      const state = createInMemoryApiWatchState();
+      let now = new Date("2026-10-14T03:00:00Z");
+      let calls = 0,
+        status = 403;
+      const dependencies = {
+        registry: clockRegistry(),
+        store: new InMemoryApiWatchStore(state),
+        pendingStore: new InMemorySwaggerSourceStore(),
+        now: () => new Date(now),
+        fetcher: (async () => {
+          calls++;
+          return new Response(status === 200 ? acceptedBytes : "synthetic", {
+            status,
+          });
+        }) as typeof fetch,
+      };
+      await runAuthorityPass(dependencies);
+      status = 200;
+      now = new Date(now.valueOf() + elapsed);
+      await runAuthorityPass(dependencies);
+      for (const record of state.authorities.values())
+        delete record.safeProvenance.authorityRecordSequence;
+      await runAuthorityPass({ ...dependencies, skipOperatorBlocked: true });
+      expect(calls).toBe(2);
+      await runAuthorityPass(dependencies);
+      const scheduled = await runAuthorityPass({
+        ...dependencies,
+        skipOperatorBlocked: true,
+      });
+      expect(calls).toBe(4);
+      expect(
+        scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
+      ).toBe("ACQUIRED_OFFICIAL_SOURCE_CANDIDATE");
+    },
+  );
 
-  it("the full report pipeline does not revive a stale 403 at equal validation time", async () => {
-    const now = new Date("2026-10-14T03:00:00Z");
-    let calls = 0,
+  it.each([0, -1])(
+    "the full report pipeline does not revive a stale 403 at %ims",
+    async (elapsed) => {
+      let now = new Date("2026-10-14T03:00:00Z");
+      let calls = 0,
+        status = 403;
+      const dependencies = {
+        registry: clockRegistry(),
+        store: new InMemoryApiWatchStore(),
+        pendingStore: new InMemorySwaggerSourceStore(),
+        reportStore: new InMemoryApiWatchReportStore(),
+        retryStore: new InMemoryApiWatchRetryStore(),
+        clock: () => new Date(now),
+        fetcher: (async () => {
+          calls++;
+          return new Response("synthetic", { status });
+        }) as typeof fetch,
+      };
+      await runApiWatchReport({
+        runId: "clock403",
+        source: "FORCED",
+        dependencies,
+      });
+      status = 503;
+      now = new Date(now.valueOf() + elapsed);
+      await runApiWatchReport({
+        runId: "clock503",
+        source: "FORCED",
+        dependencies,
+      });
+      await runApiWatchReport({
+        runId: "clockScheduled",
+        source: "SCHEDULED",
+        dependencies,
+      });
+      expect(calls).toBe(3);
+      expect(
+        (await dependencies.retryStore.get("WILDBERRIES"))?.lastResult,
+      ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    },
+  );
+  it.each([0, -1])(
+    "a later 403 at %ims holds a previously accepted exact source",
+    async (elapsed) => {
+      const state = createInMemoryApiWatchState();
+      let now = new Date("2026-10-14T03:00:00Z"),
+        calls = 0,
+        status = 200;
+      const dependencies = {
+        registry: clockRegistry(),
+        store: new InMemoryApiWatchStore(state),
+        pendingStore: new InMemorySwaggerSourceStore(),
+        now: () => new Date(now),
+        fetcher: (async () => {
+          calls++;
+          return new Response(status === 200 ? acceptedBytes : "synthetic", {
+            status,
+          });
+        }) as typeof fetch,
+      };
+      await runAuthorityPass(dependencies);
       status = 403;
-    const dependencies = {
-      registry: clockRegistry(),
-      store: new InMemoryApiWatchStore(),
-      pendingStore: new InMemorySwaggerSourceStore(),
-      reportStore: new InMemoryApiWatchReportStore(),
-      retryStore: new InMemoryApiWatchRetryStore(),
-      clock: () => new Date(now),
-      fetcher: (async () => {
-        calls++;
-        return new Response("synthetic", { status });
-      }) as typeof fetch,
-    };
-    await runApiWatchReport({
-      runId: "clock403",
-      source: "FORCED",
-      dependencies,
-    });
-    status = 503;
-    await runApiWatchReport({
-      runId: "clock503",
-      source: "FORCED",
-      dependencies,
-    });
-    await runApiWatchReport({
-      runId: "clockScheduled",
-      source: "SCHEDULED",
-      dependencies,
-    });
-    expect(calls).toBe(3);
-    expect((await dependencies.retryStore.get("WILDBERRIES"))?.lastResult).toBe(
-      "SOURCE_TEMPORARILY_UNAVAILABLE",
-    );
-  });
+      now = new Date(now.valueOf() + elapsed);
+      await runAuthorityPass(dependencies);
+      const scheduled = await runAuthorityPass({
+        ...dependencies,
+        store: new InMemoryApiWatchStore(state),
+        skipOperatorBlocked: true,
+      });
+      expect(calls).toBe(2);
+      expect(
+        scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
+      ).toBe("OPERATOR_SOURCE_REQUIRED");
+    },
+  );
+
   it("holds scheduled acquisition, permits an explicit pass and uses its newer exact authority evidence", async () => {
     let now = new Date("2026-10-14T03:00:00Z"),
       calls = 0,
