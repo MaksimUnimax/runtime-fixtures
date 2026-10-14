@@ -6,7 +6,7 @@ const schedulerUrl = new URL("./scheduler.ts", import.meta.url).href;
 const storeUrl = new URL("./store.ts", import.meta.url).href;
 const cwd = fileURLToPath(new URL("../../../../", import.meta.url));
 
-function child(mode: string) {
+function child(mode: string, diagnostic = "async") {
   return spawnSync(
     process.execPath,
     [
@@ -18,6 +18,7 @@ function child(mode: string) {
     import { IndependentMonitoringScheduler } from ${JSON.stringify(schedulerUrl)};
     import { InMemoryMonitoringScheduleStore } from ${JSON.stringify(storeUrl)};
     const mode = ${JSON.stringify(mode)};
+    const diagnostic = ${JSON.stringify(diagnostic)};
     const store = new InMemoryMonitoringScheduleStore();
     await store.ensureDefaults(new Date());
     let failTick = false, caught = false, notices = 0, foreignRunId;
@@ -54,7 +55,9 @@ function child(mode: string) {
     const result = {status: "SUCCEEDED", code: null, summary: "synthetic"};
     const scheduler = new IndependentMonitoringScheduler({
       store, tickMs: 10,
-      onError: () => {notices++;},
+      onError: diagnostic === "async"
+        ? async () => {notices++; throw new Error("SYNTHETIC_ASYNC_DIAGNOSTIC_FAILURE");}
+        : () => {notices++; throw new Error("SYNTHETIC_SYNC_DIAGNOSTIC_FAILURE");},
       notifier: mode === "notification" ? async ({lane}) => {
         if (lane === "LLM") throw new Error("SYNTHETIC_DELIVERY_FAILURE");
       } : undefined,
@@ -104,4 +107,16 @@ describe("review P2 monitoring failures stay contained in the original process",
       if (mode !== "runner") expect(observed.notices).toBeGreaterThan(0);
     },
   );
+});
+
+it("contains synchronous diagnostic failures while retaining the original failed run", () => {
+  const result = child("finish", "sync");
+  expect(result.status, result.stderr).toBe(0);
+  const observed = JSON.parse(result.stdout.trim().split("\n").at(-1)!);
+  expect(observed.caught).toBe(true);
+  expect(observed.survived).toBe(true);
+  expect(observed.other).toBe("SUCCEEDED");
+  expect(observed.activeRunRetained).toBe(true);
+  expect(observed.lastResult).toBeNull();
+  expect(observed.notices).toBeGreaterThan(0);
 });

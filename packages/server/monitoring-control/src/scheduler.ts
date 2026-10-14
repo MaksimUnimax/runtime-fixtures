@@ -31,7 +31,7 @@ export type IndependentMonitoringSchedulerOptions = {
   onError?: (event: {
     code: "MONITORING_BACKGROUND_FAILED";
     lane?: MonitoringLane;
-  }) => void;
+  }) => void | Promise<void>;
 };
 
 export class IndependentMonitoringScheduler {
@@ -143,7 +143,11 @@ export class IndependentMonitoringScheduler {
 
   private reportBackgroundFailure(lane?: MonitoringLane): void {
     try {
-      this.options.onError?.({ code: "MONITORING_BACKGROUND_FAILED", lane });
+      void Promise.resolve(
+        this.options.onError?.({ code: "MONITORING_BACKGROUND_FAILED", lane }),
+      ).catch(() => {
+        // An asynchronous diagnostic failure is contained too.
+      });
     } catch {
       // Diagnostic callbacks must not recreate an unhandled rejection.
     }

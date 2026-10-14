@@ -12,9 +12,9 @@
 
 Node 24.20.0, Vitest 3.2.6, собственная конечная cgroup; сеть и ответы Telegram/WB синтетические.
 
-На неизменённой базе: 9 падающих assertions и 3 положительных контроля в новых regressions. После исправления: все 15 новых тестов PASS, включая отдельные процессы Node, stale-owner с реальным InMemory store, продолжение второго направления, страницу 100 неподдерживаемых Telegram updates, handler-failure fence, scheduled WB passes 0/15/75 минут, смешанный успех/отказ, Retry-After и authority blockers.
+На неизменённой базе: 9 падающих assertions и 3 положительных контроля в новых regressions. После исправления: все 16 новых тестов PASS, включая отдельные процессы Node, stale-owner с реальным InMemory store, продолжение второго направления, страницу 100 неподдерживаемых Telegram updates, handler-failure fence, scheduled WB passes 0/15/75 минут, смешанный успех/отказ, Retry-After и authority blockers.
 
-Затронутые suites: 380 уникальных Vitest-тестов PASS после исправления контекста запуска прежнего swagger-handoff.test.ts. В общем запуске этот файл первоначально имел 1 отказ из-за cwd; из каталога monitoring-control 31/31 PASS, исходник этого теста не изменялся. Typecheck monitoring-control, api-watch и telegram-operator PASS; ESLint изменённых TypeScript файлов и git diff --check PASS.
+Затронутые suites: 381 уникальный Vitest-тест PASS после исправления контекста запуска прежнего swagger-handoff.test.ts. В общем запуске этот файл первоначально имел 1 отказ из-за cwd; из каталога monitoring-control 31/31 PASS, исходник этого теста не изменялся. Typecheck monitoring-control, api-watch и telegram-operator PASS; ESLint изменённых TypeScript файлов и git diff --check PASS.
 
 Первоначальный собственный fixture без ensureDefaults и ошибочное ожидание SQL-поля activeRunId вместо публичного activeRun исправлены; их исходные красные результаты сохраняются отдельно и не считаются продуктовым доказательством. Telegram typecheck потребовал предусмотренный общей проверкой бюджет памяти и ссылки на уже установленные точные зависимости; package.json и lockfile не менялись.
 
@@ -25,3 +25,5 @@ Node 24.20.0, Vitest 3.2.6, собственная конечная cgroup; се
 Замечания 4/5 по HTTPS используют ранее принятую PR68 source/native проверку; текущий acquire.ts совпадает с принятым исходником. sourceSeen использует существующий service repair, сохраняя незакрытую composed/installed границу. Профиль ИИ и command-ledger (замечания 1/2) остаются отдельными обязательными исходами в существующем R3 scope; этот коммит их не исправляет.
 
 Первичные red/green/typecheck logs и checkpoint находятся в существующем серверном scope CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z с префиксом REVIEW_FIX. Самооценка автора не является независимой приёмкой.
+
+До независимой приёмки собственного кандидата дополнительно выявлен отказ async диагностического callback (5 RED / 1 контроль PASS). Его promise теперь также обработан; процессные проверки сохраняют исходный отказ и продолжают другое направление при синхронном и асинхронном отказе самого logger. После этого изменения повторены затронутые scheduler tests/typecheck/lint; неизменные Telegram/API Watch результаты повторно не подсчитывались.
