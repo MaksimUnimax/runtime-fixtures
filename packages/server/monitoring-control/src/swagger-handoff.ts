@@ -124,7 +124,13 @@ export interface SwaggerSourceStore {
     requestId: string,
     status: SwaggerSourceRequestStatus,
     options?: { preserveTerminal?: boolean },
-  ): Promise<void>;
+  ): Promise<boolean | void>;
+}
+
+class SwaggerRequestFinalizedError extends Error {
+  constructor() {
+    super("SWAGGER_REQUEST_FINALIZED");
+  }
 }
 
 function cloneRequest(value: SwaggerSourceRequest): SwaggerSourceRequest {
@@ -238,6 +244,10 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
   }
 
   async saveArtifact(artifact: SwaggerArtifact) {
+    const request = this.state.requests.get(artifact.requestId);
+    if (!request) throw new Error("SWAGGER_REQUEST_NOT_FOUND");
+    if (["CANCELLED", "EXPIRED"].includes(request.status))
+      throw new SwaggerRequestFinalizedError();
     const duplicate = [...this.state.artifacts.values()].find(
       (candidate) =>
         candidate.requestId === artifact.requestId &&
@@ -260,8 +270,9 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
       options?.preserveTerminal &&
       ["CANCELLED", "EXPIRED"].includes(request.status)
     )
-      return;
+      return false;
     request.status = status;
+    return options?.preserveTerminal ? true : undefined;
   }
 }
 
@@ -403,43 +414,59 @@ export function createPostgresSwaggerSourceStore(
       return result.rows[0] ? mapArtifact(result.rows[0]) : undefined;
     },
     async saveArtifact(artifact) {
-      const existing = await this.findArtifactByDigest(
-        artifact.requestId,
-        artifact.sha256,
-      );
-      if (existing) return { inserted: false, artifact: existing };
-      const result = await runtime.query<ArtifactRow>(
-        `INSERT INTO swagger_source_artifacts(artifact_id,request_id,source_family,official_url,status,quarantine_filename,original_filename,operator_id,received_at,size_bytes,sha256,detected_spec_version,parser_result,validation_result,authority_state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15) RETURNING artifact_id AS "artifactId",request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",status,quarantine_filename AS "quarantineFilename",original_filename AS "originalFilename",operator_id AS "operatorId",received_at AS "receivedAt",size_bytes AS "sizeBytes",sha256,detected_spec_version AS "detectedSpecVersion",parser_result AS "parserResult",validation_result AS "validationResult",authority_state AS "authorityState"`,
-        [
-          artifact.artifactId,
-          artifact.requestId,
-          artifact.sourceFamily,
-          artifact.officialUrl,
-          artifact.status,
-          artifact.quarantineFilename,
-          artifact.originalFilename,
-          artifact.operatorId,
-          artifact.receivedAt,
-          artifact.sizeBytes,
-          artifact.sha256,
-          artifact.detectedSpecVersion,
-          JSON.stringify(artifact.parserResult),
-          JSON.stringify(artifact.validationResult),
-          artifact.authorityState,
-        ],
-      );
-      if (!result.rows[0]) throw new Error("SWAGGER_ARTIFACT_CREATE_FAILED");
-      return { inserted: true, artifact: mapArtifact(result.rows[0]) };
+      return runtime.transaction(async (query) => {
+        const current = await query.query<{ status: string }>(
+          `SELECT status FROM swagger_source_requests WHERE request_id=$1 FOR UPDATE`,
+          [artifact.requestId],
+        );
+        if (!current.rows[0]) throw new Error("SWAGGER_REQUEST_NOT_FOUND");
+        if (["CANCELLED", "EXPIRED"].includes(current.rows[0].status))
+          throw new SwaggerRequestFinalizedError();
+        const existing = await query.query<ArtifactRow>(
+          `${artifactProjection} WHERE request_id=$1 AND sha256=$2`,
+          [artifact.requestId, artifact.sha256],
+        );
+        if (existing.rows[0])
+          return { inserted: false, artifact: mapArtifact(existing.rows[0]) };
+        const result = await query.query<ArtifactRow>(
+          `INSERT INTO swagger_source_artifacts(artifact_id,request_id,source_family,official_url,status,quarantine_filename,original_filename,operator_id,received_at,size_bytes,sha256,detected_spec_version,parser_result,validation_result,authority_state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15) RETURNING artifact_id AS "artifactId",request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",status,quarantine_filename AS "quarantineFilename",original_filename AS "originalFilename",operator_id AS "operatorId",received_at AS "receivedAt",size_bytes AS "sizeBytes",sha256,detected_spec_version AS "detectedSpecVersion",parser_result AS "parserResult",validation_result AS "validationResult",authority_state AS "authorityState"`,
+          [
+            artifact.artifactId,
+            artifact.requestId,
+            artifact.sourceFamily,
+            artifact.officialUrl,
+            artifact.status,
+            artifact.quarantineFilename,
+            artifact.originalFilename,
+            artifact.operatorId,
+            artifact.receivedAt,
+            artifact.sizeBytes,
+            artifact.sha256,
+            artifact.detectedSpecVersion,
+            JSON.stringify(artifact.parserResult),
+            JSON.stringify(artifact.validationResult),
+            artifact.authorityState,
+          ],
+        );
+        if (!result.rows[0]) throw new Error("SWAGGER_ARTIFACT_CREATE_FAILED");
+        return { inserted: true, artifact: mapArtifact(result.rows[0]) };
+      });
     },
     async setRequestStatus(requestId, status, updateOptions) {
       // Evaluate against the current row in the same atomic UPDATE.
       const condition = updateOptions?.preserveTerminal
         ? " AND status NOT IN ('CANCELLED','EXPIRED')"
         : "";
-      await runtime.query(
-        `UPDATE swagger_source_requests SET status=$2 WHERE request_id=$1${condition}`,
+      const returning = updateOptions?.preserveTerminal
+        ? ' RETURNING request_id AS "requestId"'
+        : "";
+      const result = await runtime.query(
+        `UPDATE swagger_source_requests SET status=$2 WHERE request_id=$1${condition}${returning}`,
         [requestId, status],
       );
+      return updateOptions?.preserveTerminal
+        ? result.rows.length > 0
+        : undefined;
     },
   };
 }
@@ -721,9 +748,12 @@ export function createSwaggerHandoffService(options: {
       input.bytes,
       sha256,
     );
-    await options.store.setRequestStatus(request.requestId, "QUARANTINED", {
-      preserveTerminal: true,
-    });
+    if (
+      (await options.store.setRequestStatus(request.requestId, "QUARANTINED", {
+        preserveTerminal: true,
+      })) === false
+    )
+      return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
 
     const originalFilename = safeOriginalFilename(input.originalFilename);
     let parserResult: Record<string, unknown> = { parsed: false };
@@ -795,6 +825,8 @@ export function createSwaggerHandoffService(options: {
     try {
       saved = await options.store.saveArtifact(artifact);
     } catch (error) {
+      if (error instanceof SwaggerRequestFinalizedError)
+        return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
       // An error does not prove rollback. Reconcile against the primary store;
       // if unavailable or absent, retain the stable bytes for the same retry.
       const committed = await options.store
@@ -804,20 +836,26 @@ export function createSwaggerHandoffService(options: {
       saved = { inserted: false, artifact: committed };
     }
     if (!saved.inserted) {
-      await options.store.setRequestStatus(
-        request.requestId,
-        saved.artifact.status === "CANDIDATE_READY"
-          ? "CANDIDATE_READY"
-          : "VALIDATION_FAILED",
-        { preserveTerminal: true },
-      );
+      if (
+        (await options.store.setRequestStatus(
+          request.requestId,
+          saved.artifact.status === "CANDIDATE_READY"
+            ? "CANDIDATE_READY"
+            : "VALIDATION_FAILED",
+          { preserveTerminal: true },
+        )) === false
+      )
+        return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
       return { kind: "DUPLICATE", artifact: saved.artifact };
     }
-    await options.store.setRequestStatus(
-      request.requestId,
-      status === "CANDIDATE_READY" ? "CANDIDATE_READY" : "VALIDATION_FAILED",
-      { preserveTerminal: true },
-    );
+    if (
+      (await options.store.setRequestStatus(
+        request.requestId,
+        status === "CANDIDATE_READY" ? "CANDIDATE_READY" : "VALIDATION_FAILED",
+        { preserveTerminal: true },
+      )) === false
+    )
+      return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
     return status === "CANDIDATE_READY"
       ? { kind: "CANDIDATE_READY", artifact: saved.artifact }
       : {

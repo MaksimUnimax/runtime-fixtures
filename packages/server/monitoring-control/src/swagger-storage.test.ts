@@ -97,6 +97,69 @@ async function fixture() {
   return { directory, store, service, input };
 }
 describe("quarantine retry and uncertain registration", () => {
+  it.each(["CANCELLED", "EXPIRED"] as const)(
+    "checks and locks current %s in the artifact registration transaction",
+    async (terminal) => {
+      const statements: { sql: string; transaction: boolean }[] = [];
+      let inTransaction = false;
+      const runtime: SwaggerSourceSqlRuntime = {
+        async query<T extends Record<string, unknown>>(sql: string) {
+          statements.push({ sql, transaction: inTransaction });
+          return {
+            rows: (sql.startsWith("SELECT status FROM swagger_source_requests")
+              ? [{ status: terminal }]
+              : []) as unknown as T[],
+          };
+        },
+        async transaction(operation) {
+          inTransaction = true;
+          try {
+            return await operation(runtime);
+          } finally {
+            inTransaction = false;
+          }
+        },
+      };
+      const f = await fixture();
+      await f.service().upload(f.input);
+      const [artifact] = await f.store.listArtifacts(f.input.requestId);
+      await expect(
+        createPostgresSwaggerSourceStore(runtime).saveArtifact(artifact!),
+      ).rejects.toThrow("SWAGGER_REQUEST_FINALIZED");
+      expect(statements).toHaveLength(1);
+      expect(statements[0]?.transaction).toBe(true);
+      expect(statements[0]?.sql).toContain("FOR UPDATE");
+      expect(
+        statements.some((entry) =>
+          entry.sql.includes("INSERT INTO swagger_source_artifacts"),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it.each(["CANCELLED", "EXPIRED"] as const)(
+    "rejects registration when %s commits during validation",
+    async (terminal) => {
+      const f = await fixture();
+      const service = createSwaggerHandoffService({
+        store: f.store,
+        quarantineDir: f.directory,
+        validateUpload: async () => {
+          await f.store.setRequestStatus(f.input.requestId, terminal);
+          return undefined;
+        },
+      });
+      expect(await service.upload(f.input)).toEqual({
+        kind: "REJECTED",
+        code: "REQUEST_FINALIZED",
+      });
+      expect((await f.store.getRequest(f.input.requestId))?.status).toBe(
+        terminal,
+      );
+      expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(0);
+    },
+  );
+
   it("guards reconciliation in one database update without a stale read", async () => {
     const statements: { sql: string; values?: unknown[] }[] = [];
     const runtime: SwaggerSourceSqlRuntime = {
@@ -157,7 +220,10 @@ describe("quarantine retry and uncertain registration", () => {
           throw new Error("ACK_LOST");
         },
       );
-      expect((await f.service().upload(f.input)).kind).toBe("DUPLICATE");
+      expect(await f.service().upload(f.input)).toEqual({
+        kind: "REJECTED",
+        code: "REQUEST_FINALIZED",
+      });
       expect((await f.store.getRequest(f.input.requestId))?.status).toBe(
         terminal,
       );
@@ -176,7 +242,10 @@ describe("quarantine retry and uncertain registration", () => {
           return saved;
         },
       );
-      await f.service().upload(f.input);
+      expect(await f.service().upload(f.input)).toEqual({
+        kind: "REJECTED",
+        code: "REQUEST_FINALIZED",
+      });
       expect((await f.store.getRequest(f.input.requestId))?.status).toBe(
         terminal,
       );
