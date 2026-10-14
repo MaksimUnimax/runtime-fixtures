@@ -755,7 +755,8 @@ function validatePngIcon(data, declaredSize) {
   let chunks = 0,
     sawIdat = false,
     finishedIdat = false,
-    sawPalette = false;
+    sawPalette = false,
+    sawBackground = false;
   while (offset < data.length) {
     if (++chunks > 256 || data.length - offset < 12) {
       fail("Declared PNG icon is invalid");
@@ -779,6 +780,12 @@ function validatePngIcon(data, declaredSize) {
       !["IHDR", "PLTE", "IDAT", "IEND"].includes(type)
     ) {
       fail("PNG icon unsupported critical chunk");
+    }
+    // The Octoport STORE icon pipeline emits a deliberately constrained PNG
+    // subset. Do not silently trust tRNS, tEXt or other ancillary payloads
+    // whose format and placement are not verified by this release validator.
+    if (!["IHDR", "PLTE", "bKGD", "IDAT", "IEND"].includes(type)) {
+      fail("PNG icon unsupported chunk");
     }
     if (type !== "IDAT" && sawIdat) finishedIdat = true;
     if (
@@ -812,6 +819,7 @@ function validatePngIcon(data, declaredSize) {
         width === null ||
         sawPalette ||
         sawIdat ||
+        sawBackground ||
         length === 0 ||
         length % 3 !== 0 ||
         length > 768
@@ -819,6 +827,21 @@ function validatePngIcon(data, declaredSize) {
         fail("PNG icon palette order invalid");
       }
       sawPalette = true;
+    } else if (type === "bKGD") {
+      // For our non-interlaced RGBA8 release icons, bKGD is an optional
+      // 6-byte truecolor RGB sample (zero high bytes), once and before IDAT.
+      if (
+        width === null ||
+        sawIdat ||
+        sawBackground ||
+        length !== 6 ||
+        payload[0] !== 0 ||
+        payload[2] !== 0 ||
+        payload[4] !== 0
+      ) {
+        fail("PNG icon background metadata invalid");
+      }
+      sawBackground = true;
     } else if (type === "IDAT") {
       if (width === null) fail("Declared PNG icon header invalid");
       if (finishedIdat) fail("PNG icon IDAT order invalid");

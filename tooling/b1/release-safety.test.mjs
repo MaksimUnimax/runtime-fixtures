@@ -96,7 +96,7 @@ path,browser,mode,manifest64,worker64,icon64=sys.argv[1:7]
 manifest=base64.b64decode(manifest64)
 worker=base64.b64decode(worker64)
 rows=[("manifest.json",manifest),("worker.js",worker)]
-if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","nonconsecutive_idat_png","png_highbit_ihdr","png_trailing_idat"):
+if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","nonconsecutive_idat_png","png_highbit_ihdr","png_trailing_idat","png_invalid_trns_rgba","png_metadata_text","png_consecutive_idat","png_bkgd_after_idat","png_bad_bkgd_length"):
     icon=base64.b64decode(icon64)
     def chunk(kind,payload):
         return struct.pack(">I",len(payload))+kind+payload+struct.pack(">I",zlib.crc32(kind+payload))
@@ -144,6 +144,46 @@ if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","
         assert idats and pos==len(icon)
         last=idats[-1]
         parts[last]=(b"IDAT",parts[last][1]+b"C01_NONPRIVATE_TRAILING_ZLIB_BYTES")
+        icon=icon[:8]+b"".join(chunk(kind,payload) for kind,payload in parts)
+    if mode=="png_invalid_trns_rgba":
+        # A CRC-correct tRNS after IDAT is invalid in RGBA, even if the
+        # decompressed raster stays unchanged.
+        assert icon[-8:-4]==b"IEND"
+        icon=icon[:-12]+chunk(b"tRNS",bytes((0,0)))+icon[-12:]
+    if mode=="png_metadata_text":
+        # Unknown optional metadata is not in canonical Octoport release icons.
+        assert icon[12:16]==b"IHDR"
+        icon=icon[:33]+chunk(b"tEXt",b"Comment"+bytes((0,))+b"fixture")+icon[33:]
+    if mode in ("png_consecutive_idat","png_bkgd_after_idat","png_bad_bkgd_length"):
+        # Preserve real Cairo output, including its required-order bKGD metadata.
+        parts=[];pos=8
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            parts.append((kind,payload))
+            pos+=12+length
+        assert pos==len(icon)
+        if mode=="png_consecutive_idat":
+            result=[];split=False
+            for kind,payload in parts:
+                if kind==b"IDAT" and not split:
+                    mid=len(payload)//2
+                    assert mid>0
+                    result.extend([(b"IDAT",payload[:mid]),(b"IDAT",payload[mid:])])
+                    split=True
+                else:result.append((kind,payload))
+            assert split
+            parts=result
+        if mode=="png_bkgd_after_idat":
+            bg=[i for i,(kind,_) in enumerate(parts) if kind==b"bKGD"]
+            assert len(bg)==1 and parts[-1][0]==b"IEND"
+            background=parts.pop(bg[0])
+            parts.insert(-1,background)
+        if mode=="png_bad_bkgd_length":
+            bg=[i for i,(kind,_) in enumerate(parts) if kind==b"bKGD"]
+            assert len(bg)==1 and len(parts[bg[0]][1])==6
+            parts[bg[0]]=(b"bKGD",parts[bg[0]][1][:5])
         icon=icon[:8]+b"".join(chunk(kind,payload) for kind,payload in parts)
     rows.append(("icons/icon-16.png",icon))
 if mode=="no_runtime":
@@ -472,6 +512,11 @@ function makeZip(path, browser, options = {}) {
       "nonconsecutive_idat_png",
       "png_highbit_ihdr",
       "png_trailing_idat",
+      "png_invalid_trns_rgba",
+      "png_metadata_text",
+      "png_consecutive_idat",
+      "png_bkgd_after_idat",
+      "png_bad_bkgd_length",
     ].includes(options.mode)
   ) {
     manifest.icons = {
@@ -1024,7 +1069,7 @@ expectPrepareFailure(
 expectPrepareFailure(
   "PNG nonconsecutive IDAT separated by tEXt is rejected",
   "nonconsecutive_idat_png",
-  /PNG icon IDAT order invalid/,
+  /PNG icon unsupported chunk/,
 );
 for (const [mode, title, failure] of [
   [
@@ -1049,6 +1094,51 @@ for (const [mode, title, failure] of [
     });
   }
 }
+for (const [mode, title, failure] of [
+  [
+    "png_invalid_trns_rgba",
+    "PNG RGBA rejects tRNS after IDAT",
+    /PNG icon unsupported chunk/,
+  ],
+  [
+    "png_metadata_text",
+    "canonical PNG icon rejects additional tEXt metadata",
+    /PNG icon unsupported chunk/,
+  ],
+  [
+    "png_bkgd_after_idat",
+    "PNG canonical background chunk before IDAT only",
+    /PNG icon background metadata invalid/,
+  ],
+  [
+    "png_bad_bkgd_length",
+    "PNG background metadata must contain RGB sample bytes",
+    /PNG icon background metadata invalid/,
+  ],
+]) {
+  for (const browser of ["chromium", "firefox"]) {
+    test(browser + ": " + title, () => {
+      const value = fixture({ [browser]: { mode } });
+      try {
+        assert.throws(() => prepare(value), failure);
+      } finally {
+        cleanup(value);
+      }
+    });
+  }
+}
+test("valid two-consecutive-IDAT PNG remains accepted in both browser families", () => {
+  const value = fixture({
+    chromium: { mode: "png_consecutive_idat" },
+    firefox: { mode: "png_consecutive_idat" },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
 test("valid declared Chromium and Firefox icon remains accepted", () => {
   const value = fixture({
     chromium: { mode: "valid_declared_icon" },
