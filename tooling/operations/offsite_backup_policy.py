@@ -85,17 +85,27 @@ def _normalized_key(value: str) -> str:
 
 
 def _reject_forbidden_keys(value: Any) -> None:
-    if isinstance(value, dict):
-        for key, nested in value.items():
-            if not isinstance(key, str):
-                _fail("POLICY_KEY_INVALID")
-            normalized = _normalized_key(key)
-            if any(fragment in normalized for fragment in FORBIDDEN_KEY_FRAGMENTS):
-                _fail("POLICY_SECRET_FIELD_FORBIDDEN")
-            _reject_forbidden_keys(nested)
-    elif isinstance(value, list):
-        for nested in value:
-            _reject_forbidden_keys(nested)
+    # JSON trees may be deeply nested. Walk iteratively to avoid leaking a
+    # RecursionError, and reject cyclic objects passed by direct Python callers.
+    pending = [value]
+    seen_containers: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if isinstance(current, (dict, list)):
+            identity = id(current)
+            if identity in seen_containers:
+                _fail("POLICY_SHAPE_INVALID")
+            seen_containers.add(identity)
+        if isinstance(current, dict):
+            for key, nested in current.items():
+                if not isinstance(key, str):
+                    _fail("POLICY_KEY_INVALID")
+                normalized = _normalized_key(key)
+                if any(fragment in normalized for fragment in FORBIDDEN_KEY_FRAGMENTS):
+                    _fail("POLICY_SECRET_FIELD_FORBIDDEN")
+                pending.append(nested)
+        elif isinstance(current, list):
+            pending.extend(current)
 
 
 def _positive_int(value: Any, code: str) -> int:
@@ -107,7 +117,7 @@ def _positive_int(value: Any, code: str) -> int:
 def _validate_retention(value: Any) -> None:
     retention = _exact_keys(value, set(RETENTION), "RETENTION_SHAPE_INVALID")
     for key, expected in RETENTION.items():
-        if retention[key] != expected:
+        if type(retention[key]) is not type(expected) or retention[key] != expected:
             _fail("RETENTION_CONTRACT_MISMATCH")
 
 
@@ -127,6 +137,9 @@ def _validate_restore_contract(value: Any) -> None:
 
 
 def _validate_pending(destination: Mapping[str, Any], objectives: Mapping[str, Any]) -> dict[str, Any]:
+    # JSON 0 and 0.0 compare equal to False in Python, but are not booleans.
+    if destination["ownerSelected"] is not False:
+        _fail("PENDING_OWNER_INPUT_PARTIAL")
     if destination != {
         "destinationClass": None,
         "destinationReference": None,
@@ -197,7 +210,7 @@ def validate_policy(value: Any) -> dict[str, Any]:
     if policy["schemaVersion"] != SCHEMA_VERSION:
         _fail("POLICY_SCHEMA_VERSION_INVALID")
     decision = policy["decisionState"]
-    if decision not in {PENDING, RECORDED}:
+    if not isinstance(decision, str) or decision not in {PENDING, RECORDED}:
         _fail("POLICY_DECISION_STATE_INVALID")
 
     destination = _exact_keys(
@@ -236,7 +249,7 @@ def load_policy(path: Path) -> dict[str, Any]:
         _fail("POLICY_FILE_SIZE_INVALID")
     try:
         value = json.loads(raw, object_pairs_hook=_object_without_duplicate_keys)
-    except json.JSONDecodeError as error:
+    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError, ValueError) as error:
         raise PolicyError("POLICY_JSON_INVALID") from error
     return validate_policy(value)
 
