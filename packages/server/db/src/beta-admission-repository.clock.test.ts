@@ -201,7 +201,7 @@ describe("beta admission reserves capacity using the PostgreSQL clock", () => {
       requestIdHash: "original-request",
       payloadHash: "original-payload",
       expectedRevision: 1,
-      expiresAt: new Date(applicationNow + 3600_000),
+      ttlMs: 24 * 60 * 60_000,
       reason: "synthetic-replay",
     });
     expect(result.kind).toBe("APPLIED");
@@ -250,7 +250,7 @@ describe("beta admission reserves capacity using the PostgreSQL clock", () => {
       requestIdHash: "original-request",
       payloadHash: "original-payload",
       expectedRevision: 1,
-      expiresAt: new Date(applicationNow + 3600_000),
+      ttlMs: 24 * 60 * 60_000,
       reason: "synthetic-microsecond",
     });
     expect(result.kind).toBe("APPLIED");
@@ -279,7 +279,7 @@ describe("beta admission reserves capacity using the PostgreSQL clock", () => {
       requestIdHash: "create-status-hash",
       payloadHash: "create-status-payload",
       expectedRevision: 1,
-      expiresAt: new Date(expiry),
+      ttlMs: 24 * 60 * 60_000,
       reason: "synthetic-created",
     });
     expect(result.kind).toBe("APPLIED");
@@ -294,6 +294,31 @@ describe("beta admission reserves capacity using the PostgreSQL clock", () => {
           s.sql.includes("clock_timestamp()"),
       ),
     ).toBe(true);
+  });
+
+  it("inserts invitation expiry as PostgreSQL now plus TTL, not a server-created timestamp", async () => {
+    const { repository, statements } = fakePgWithIndependentClock({
+      existingReservationPresent: false,
+    });
+    const result = await repository.inviteIdentity({
+      actorPrincipalId: "11111111-1111-4111-8111-111111111111",
+      normalizedIdentityTarget: "ttl-new@example.invalid",
+      correlationId: "ttl-database-new",
+      requestIdHash: "ttl-new-request",
+      payloadHash: "ttl-new-payload",
+      expectedRevision: 1,
+      ttlMs: 24 * 60 * 60_000,
+      reason: "synthetic TTL source test",
+    });
+    expect(result.kind).toBe("APPLIED");
+    const inserted = statements.find((s) =>
+      s.sql.includes("INSERT INTO beta_identity_invitations"),
+    );
+    if (!inserted) throw new Error("insert not observed");
+    expect(inserted.sql).toMatch(
+      /VALUES\(\$1,\$2,\$3,\$4,clock_timestamp\(\)\s*\+/,
+    );
+    expect(inserted.values[4]).toBe(24 * 60 * 60_000);
   });
 
   it("rejects reducing capacity under a database-active invitation despite a fast app clock", async () => {
@@ -329,7 +354,7 @@ describe("beta admission reserves capacity using the PostgreSQL clock", () => {
       requestIdHash: "invite-request-hash",
       payloadHash: "invite-payload-hash",
       expectedRevision: 1,
-      expiresAt: new Date(applicationNow + 3600_000),
+      ttlMs: 24 * 60 * 60_000,
       reason: "synthetic-invite",
     });
     expect(outcome.kind).toBe("CAPACITY_REACHED");
