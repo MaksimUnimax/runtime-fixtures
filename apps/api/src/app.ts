@@ -131,6 +131,28 @@ function correlationId(request: FastifyRequest): string {
     : randomUUID();
 }
 
+const requestParserStatuses = new Map<string, number>([
+  ["FST_ERR_CTP_INVALID_JSON_BODY", 400],
+  ["FST_ERR_CTP_EMPTY_JSON_BODY", 400],
+  ["FST_ERR_CTP_INVALID_CONTENT_LENGTH", 400],
+  ["FST_ERR_CTP_BODY_TOO_LARGE", 413],
+  ["FST_ERR_CTP_INVALID_MEDIA_TYPE", 415],
+]);
+
+function requestParserStatus(error: unknown): number | undefined {
+  if (
+    !(error instanceof Error) ||
+    !("code" in error) ||
+    typeof error.code !== "string" ||
+    !("statusCode" in error)
+  )
+    return undefined;
+  const status = requestParserStatuses.get(error.code);
+  return status !== undefined && error.statusCode === status
+    ? status
+    : undefined;
+}
+
 export function createApiApp(
   dependencies: ApiDependencies,
 ): FastifyInstance<
@@ -169,16 +191,25 @@ export function createApiApp(
   });
   app.setErrorHandler((error, request, reply) => {
     const controlled = error instanceof ControlledError;
+    const parserStatus = requestParserStatus(error);
     const validation =
-      error instanceof Error &&
-      ("validation" in error || error.name === "ZodError");
-    const statusCode = controlled ? error.statusCode : validation ? 400 : 500;
+      parserStatus !== undefined ||
+      (error instanceof Error &&
+        ("validation" in error || error.name === "ZodError"));
+    const statusCode = controlled
+      ? error.statusCode
+      : (parserStatus ?? (validation ? 400 : 500));
     const code: ApiErrorCodeV1 = controlled
       ? error.code
       : validation
         ? "INVALID_REQUEST"
         : "INTERNAL_ERROR";
-    if (!controlled)
+    if (!controlled && parserStatus !== undefined)
+      request.log.warn(
+        { statusCode: parserStatus, correlationId: correlationId(request) },
+        "Rejected invalid request body",
+      );
+    else if (!controlled)
       request.log.error(
         { err: error, correlationId: correlationId(request) },
         "Unhandled API error",

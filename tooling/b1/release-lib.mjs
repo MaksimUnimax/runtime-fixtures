@@ -29,6 +29,8 @@ const MAX_AUTHORITY_BYTES = 1024 * 1024;
 const MAX_CANDIDATE_MANIFEST_BYTES = 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 4096;
+// Bound ancestor-prefix work for portable cross-browser release archives.
+const MAX_ZIP_PATH_SEGMENTS = 128;
 const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 256 * 1024 * 1024;
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
@@ -442,6 +444,9 @@ export function readZip(bytes) {
 
   const entries = new Map();
   const caseFoldedNames = new Set();
+  // One segment node per distinct directory component; never retain O(depth²)
+  // ancestor-prefix strings for each ZIP entry.
+  const pathTree = new Map();
   const localRanges = [];
   let pointer = centralStart;
   let totalUncompressed = 0;
@@ -488,6 +493,7 @@ export function readZip(bytes) {
       name.includes("\\") ||
       name.startsWith("/") ||
       /^[A-Za-z]:/.test(name) ||
+      parts.length > MAX_ZIP_PATH_SEGMENTS ||
       parts.some(
         (part) =>
           !part ||
@@ -504,6 +510,33 @@ export function readZip(bytes) {
       fail("Duplicate ZIP entry");
     }
     caseFoldedNames.add(folded);
+
+    // Enforce the case-insensitive extraction tree in either entry order.
+    // A trie shares ancestor nodes between paths and bounds memory by the
+    // archive's input segments instead of cumulative joined prefixes.
+    let children = pathTree;
+    for (let depth = 0; depth < parts.length; depth += 1) {
+      const segment = parts[depth].toLowerCase();
+      let node = children.get(segment);
+      if (!node) {
+        node = { children: new Map(), isFile: false, isDirectory: false };
+        children.set(segment, node);
+      }
+      if (depth === parts.length - 1) {
+        if (isDirectory) {
+          if (node.isFile) fail("ZIP path hierarchy collision");
+          node.isDirectory = true;
+        } else {
+          if (node.isDirectory || node.children.size > 0) {
+            fail("ZIP path hierarchy collision");
+          }
+          node.isFile = true;
+        }
+      } else {
+        if (node.isFile) fail("ZIP path hierarchy collision");
+        children = node.children;
+      }
+    }
 
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     const fileType = unixMode & 0xf000;

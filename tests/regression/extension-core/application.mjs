@@ -562,7 +562,7 @@ await test('PAR-36-38-package-subset-copy-original-attachment-and-reject-corrupt
     assert.equal(absent.code, 'COPY_ARTIFACT_UNAVAILABLE', JSON.stringify(absent)); assert.equal(s.worker.network.length, 1);
   } finally { s.worker.close(); }
 });
-await test('AI-TREE-04-08-package-subset-signed-Start-pin-update-and-command-no-tree-fetch', async () => {
+await test('AI-TREE-04-08-package-subset-signed-Work-lifetime-pin-and-next-Start-update', async () => {
   let s, version=1, treeFetches=0;
   const aiId='61000000-0000-4000-8000-000000000001';
   const treeBody=()=>({format:'octoport_prompt_tree_v1',root:'root',nodes:[{id:'root',text:`PERSONAL_R3_TREE_VERSION_${version}`,children:[]}]});
@@ -593,8 +593,19 @@ await test('AI-TREE-04-08-package-subset-signed-Start-pin-update-and-command-no-
     const active=await s.worker.request({type:'OZ_WORK_PENDING_IDENTITY',identity:s.worker.identity,intent_id:pending.intent_id,revision:pending.revision,first_response_complete:true});assert.equal(active.ok,true,JSON.stringify(active));
     const work={key:active.binding.conversation_key,session:active.session,identity:s.worker.identity,tabId:s.worker.tabId};
     await s.execute(work,api,'tree-exchange-two');const owner=await s.collected(work);
-    assert.equal(owner.prompt_tree.version,2);assert.equal(owner.prompt_tree.aiId,aiId);assert.equal(treeFetches,2);
+    const persisted=await s.worker.call('workSessionFor',work.key);
+    assert.equal(persisted.prompt_tree.version,1);assert.equal(persisted.prompt_tree.sha256,pending.prompt_tree.sha256);
+    assert.equal(owner.prompt_tree.version,1);assert.equal(owner.prompt_tree.aiId,aiId);assert.equal(treeFetches,2);
     await s.deliver(work,owner);assert.equal(s.worker.network.length,beforeProvider+1);assert.equal(treeFetches,2);
+    assert.equal((await s.popup('OZ_WORK_FINISH',{conversation_key:work.key})).ok,true);
+    assert.equal((await s.worker.call('workSessionFor',work.key)).prompt_tree,null);
+    const newWork=await s.start(store);
+    assert.equal(newWork.session.prompt_tree.version,2);assert.equal(treeFetches,3);
+    await s.execute(newWork,api,'tree-new-work-two');
+    const newOwner=await s.collected(newWork);
+    assert.equal(newOwner.prompt_tree.version,2);assert.equal(treeFetches,3);
+    await s.deliver(newWork,newOwner);
+    assert.equal(s.worker.network.length,beforeProvider+2);assert.equal(treeFetches,3);
   } finally {s.worker.close();}
 });
 

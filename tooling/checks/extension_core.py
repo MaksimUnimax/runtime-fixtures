@@ -35,6 +35,7 @@ def main():
     try:
         runner.run("core-composed-version-policy", [sys.executable, "-B", ROOT / "tests/regression/extension-core/test-composed-version-policy.py"])
         runner.run("core-conversation-surface-first-start", ["node", ROOT / "tests/regression/extension-core/conversation-surface-first-start.mjs"])
+        runner.run("core-button-anchor-occlusion", ["node", ROOT / "tests/regression/extension-core/button-anchor-occlusion.mjs"])
         runner.run("core-qwen-adapter", ["node", ROOT / "tests/regression/extension-core/qwen-adapter.mjs"])
         runner.run("core-qwen-code-reader", ["node", ROOT / "tests/regression/extension-core/qwen-code-reader.mjs"])
         runner.run("core-native-import-panel-entry", ["node", ROOT / "tests/regression/extension-core/native-import-panel-entry.mjs"])
@@ -49,6 +50,7 @@ def main():
         runner.run("core-provider-response-composition", ["node", ROOT / "tests/regression/extension-core/provider-response-composition.mjs", ROOT])
         runner.run("core-store-package-contract", [sys.executable, ROOT / "tests/regression/extension-core/store-package-contract.py"])
         runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
+        runner.run("core-work-start-pending-readback", ["node", "--test", ROOT / "tests/regression/extension-core/client-i1/client-a01-pending-readback.mjs"])
         source, extracted, receipt = composed.build(output / "package")
         result["composition"] = receipt
         runner.run("core-store-metadata-and-import-fences", ["node", ROOT / "tests/regression/extension-core/client-i1/client-d3s2-store-metadata-state.mjs", ROOT])

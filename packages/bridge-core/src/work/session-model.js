@@ -66,6 +66,8 @@
     };
     if (Object.prototype.hasOwnProperty.call(record || {}, "admission_provenance"))
       normalized.admission_provenance = record.admission_provenance || null;
+    if (Object.prototype.hasOwnProperty.call(record || {}, "prompt_tree"))
+      normalized.prompt_tree = record.prompt_tree ? JSON.parse(JSON.stringify(record.prompt_tree)) : null;
     return Object.freeze(normalized);
   }
   function transition(record, next, patch = {}) {
@@ -90,6 +92,14 @@
     return Object.freeze({
       ...current,
       ...patch,
+      ...(newStart ||
+          Object.prototype.hasOwnProperty.call(current, "prompt_tree") ||
+          Object.prototype.hasOwnProperty.call(patch, "prompt_tree")
+        ? { prompt_tree: finishing ? null :
+            Object.prototype.hasOwnProperty.call(patch, "prompt_tree")
+              ? (patch.prompt_tree ? JSON.parse(JSON.stringify(patch.prompt_tree)) : null)
+              : newStart ? null : current.prompt_tree }
+        : {}),
       work_session_id: newStart ? patch.start_intent_id : current.work_session_id,
       work_generation: generation,
       terminal_state_known: newStart || finishing || current.terminal_state_known,

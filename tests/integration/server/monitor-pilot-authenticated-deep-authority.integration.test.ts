@@ -75,7 +75,9 @@ describe.sequential(
         expectedDatabaseName: actual.rows[0]!.databaseName,
         expectedDatabaseRole: actual.rows[0]!.databaseRole,
       };
-      await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+      await runtime.query(
+        "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+      );
       await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
       await runtime.query("CREATE SCHEMA public");
       await runMigrations({ connectionString });

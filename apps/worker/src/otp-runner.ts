@@ -4,21 +4,43 @@ import { decryptOtpDelivery, type AuthKeys } from "@product/auth";
 import { EmailProviderError } from "@product/email";
 import type { DatabaseRuntime } from "@product/db";
 import type { JobRunner } from "./lifecycle.js";
+import { RunnerControl, type JobFailureEvent } from "./job-failure.js";
 export class OtpEmailRunner implements JobRunner {
   private timer: NodeJS.Timeout | undefined;
+  private readonly control = new RunnerControl("otp-email");
   public constructor(
-    private readonly db: DatabaseRuntime,
+    private readonly db: Pick<DatabaseRuntime, "query">,
     private readonly keys: AuthKeys,
     private readonly provider: EmailProvider,
   ) {}
+  onFailure(listener: (event: JobFailureEvent) => void | Promise<void>) {
+    return this.control.failure.subscribe(listener);
+  }
   async start() {
-    this.timer = setInterval(() => void this.tick(), 5000);
+    this.control.ensureOpen();
+    this.timer = setInterval(() => {
+      if (this.control.quiesced) return;
+      void this.tick().catch((error) => {
+        this.quiesce();
+        this.control.scheduledFailure(error);
+      });
+    }, 5000);
     await this.tick();
   }
-  async stop() {
-    if (this.timer) clearInterval(this.timer);
+  quiesce(): void {
+    this.control.quiesce(() => {
+      if (this.timer) clearInterval(this.timer);
+      this.timer = undefined;
+    });
   }
-  async tick() {
+  async stop(): Promise<void> {
+    this.quiesce();
+    await this.control.drain();
+  }
+  async tick(): Promise<void> {
+    return this.control.admit(() => this.executeTick());
+  }
+  private async executeTick(): Promise<void> {
     const lease = randomUUID();
     // An expired PROCESSING lease is an ambiguous delivery outcome: the
     // worker may have crashed before or after SMTP accepted the message.
