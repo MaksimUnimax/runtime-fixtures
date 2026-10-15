@@ -101,7 +101,7 @@ const digest = value => createHash("sha256").update(value).digest("hex");
 const canonicalJson = value => JSON.stringify(value, (key, item) => item && typeof item === "object" && !Array.isArray(item)
   ? Object.fromEntries(Object.keys(item).sort().map(k => [k, item[k]])) : item);
 function ledgerFixture() {
-  let disk = {}, id = 0, time = 1000, allowed = true;
+  let disk = {}, id = 0, time = 1000, allowed = true, writer;
   const buffers = new Map();
   const context = { accountId: "U", principalEpoch: 1, accessEpoch: 1, grantEpoch: 1, scopeKey: "G",
     bindingRevision: 1, workGeneration: 1, workSessionId: "W", conversationBindingId: "B" };
@@ -113,6 +113,7 @@ function ledgerFixture() {
       namespace: "manual", writerKey: "manual", read: async () => structuredClone(disk),
       write: async value => { disk = structuredClone(value); }, now: () => new Date(time).toISOString(),
     });
+    writer = store;
     return realm.SellerAgentsCommandLedger.createCommandLedger({ store, canonicalJson, sha256: async value => digest(value),
       makeId: () => "id-" + (++id), now: () => time,
       assertContext: candidate => allowed && canonicalJson(candidate) === canonicalJson(context),
@@ -122,6 +123,7 @@ function ledgerFixture() {
   }
   const api = restart();
   return { api, restart, input, context, item, read: () => structuredClone(disk),
+    async seed(commands) { await writer.mutate("C1", current => ({ ...(current || {}), r3_commands: structuredClone(commands) })); },
     setTime(value) { time = value; }, deny() { allowed = false; }, allow() { allowed = true; },
     buffer(executionId, value) { buffers.set(executionId, structuredClone(value)); }, buffers };
 }
@@ -266,3 +268,177 @@ await test("PAR-34/source a fresh review cannot rebind an UNKNOWN receipt to ano
   await assert.rejects(retryPreview(f, oldId), { code: "COMMAND_CONTEXT_MISMATCH" });
 });
 console.log("SOURCE writer/receipt suite: " + count + " scenarios passed; integration, PACKAGE and INSTALLED remain NOT_RUN.");
+
+function completedHistory(f, amount, expiresAt = 1) {
+  const data = { schema: 2, origins: {}, receipts: {}, approvals: {}, deliveries: {} };
+  for (let i = 0; i < amount; i++) {
+    const executionId = "history-" + i, blockOriginKey = digest("old-origin-" + i);
+    data.origins[blockOriginKey] = { approvalRevision: 0 };
+    data.receipts[executionId] = {
+      executionId, commandKey: digest("old-command-" + i), blockOriginKey,
+      blockVersion: digest("old-block-" + i), approvalRevision: 0,
+      context: structuredClone(f.context), createdAt: 0, payloadExpiresAt: expiresAt,
+      predecessor: null, items: [{ ordinal: 0, inputHash: digest("old-input-" + i),
+        itemId: "old-item-" + i, state: "RESULT", providerAttemptId: "old-attempt-" + i,
+        bufferDigest: digest("old-result-" + i) }],
+    };
+  }
+  return data;
+}
+for (const expiresAt of [1, 3601000]) await test(
+  "review main1691 capacity: new Work recovers 2000 completed markers, expiry=" + expiresAt,
+  async () => {
+    const f = ledgerFixture(), data = completedHistory(f, 2000, expiresAt);
+    await f.seed(data);
+    await assert.rejects(f.api.reserveCommand(f.input), { code: "WORK_MARKER_CAPACITY_START_REQUIRED" });
+    f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+    const next = await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("new-work-origin") });
+    assert.equal(next.duplicate, false); assert.equal(next.dispatch, false);
+    const record = f.read().manual.C1.r3_commands;
+    assert.equal(Object.keys(record.receipts).length, 1);
+    assert.equal(Object.keys(record.origins).length, 1);
+    const args = { ...f.input, executionId: next.executionId, ordinal: 0 };
+    assert.equal((await f.api.beginProviderAttempt(args)).dispatch, true);
+    assert.equal((await f.restart().beginProviderAttempt(args)).dispatch, false);
+  },
+);
+await test("review main1691 capacity: previous Work UNKNOWN and delivery intents remain byte-identical", async () => {
+  const f = ledgerFixture(), data = completedHistory(f, 1999);
+  const uncertain = data.receipts["history-1998"];
+  uncertain.items[0].state = "UNKNOWN";
+  data.deliveries["uncertain-delivery"] = {
+    deliveryId: "uncertain-delivery", executionId: "history-0", state: "UNKNOWN",
+    expiresAt: 1, context: structuredClone(f.context), bufferDigest: digest("old-result-0"),
+  };
+  await f.seed(data);
+  const oldUnknown = structuredClone(uncertain), oldDelivery = structuredClone(data.deliveries["uncertain-delivery"]);
+  f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+  const next = await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("new-work-after-unknown") });
+  const stored = f.read().manual.C1.r3_commands;
+  assert.deepEqual(stored.receipts["history-1998"], oldUnknown);
+  assert.deepEqual(stored.deliveries["uncertain-delivery"], oldDelivery);
+  assert.ok(stored.receipts["history-0"]);
+  assert.equal(Object.keys(stored.receipts).length, 3);
+  await assert.rejects(f.api.beginProviderAttempt({ ...f.input, executionId: "history-1998", ordinal: 0 }), { code: "COMMAND_CONTEXT_MISMATCH" });
+  assert.equal((await f.restart().beginProviderAttempt({ ...f.input, executionId: next.executionId, ordinal: 0 })).dispatch, true);
+});
+console.log("SOURCE writer/ledger final: " + count + " scenarios passed; no provider requests executed.");
+
+for (const control of ["UNKNOWN", "FOREIGN_ACCOUNT"]) await test(
+  "capacity compaction retains fail-closed " + control + " history after a new Work", async () => {
+    const f = ledgerFixture(), data = completedHistory(f, 2000);
+    for (const receipt of Object.values(data.receipts)) {
+      if (control === "UNKNOWN") receipt.items[0].state = "UNKNOWN";
+      else receipt.context.accountId = "OTHER-ACCOUNT";
+    }
+    await f.seed(data);
+    const before = structuredClone(f.read().manual.C1.r3_commands);
+    f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+    await assert.rejects(f.api.reserveCommand({ ...f.input, blockOriginKey: digest("different-work") }),
+      { code: "WORK_MARKER_CAPACITY_START_REQUIRED" });
+    assert.deepEqual(f.read().manual.C1.r3_commands, before);
+  });
+console.log("SOURCE final ledger controls: " + count + " scenarios passed.");
+
+await test("capacity compaction preserves transitive retry approvals independent of insertion order", async () => {
+  const f = ledgerFixture(), data = completedHistory(f, 1998);
+  data.receipts["history-1997"].items[0].state = "UNKNOWN";
+  data.receipts["history-1997"].predecessor = "history-0";
+  for (const i of [1, 0]) data.approvals["approval-" + i] = {
+    kind: "RETRY", confirmationId: "approval-" + i, predecessor: "history-" + i,
+    consumedBy: "history-" + (i + 1), blockOriginKey: data.receipts["history-" + i].blockOriginKey,
+    context: structuredClone(f.context), expiresAt: 1,
+  };
+  await f.seed(data);
+  const before = structuredClone(data);
+  f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+  await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("transitive-new-work") });
+  const stored = f.read().manual.C1.r3_commands;
+  for (const id of ["history-0", "history-1", "history-2", "history-1997"])
+    assert.deepEqual(stored.receipts[id], before.receipts[id]);
+  assert.deepEqual(stored.approvals, before.approvals);
+  assert.equal(Object.keys(stored.receipts).length, 5);
+});
+console.log("SOURCE final dependency controls: " + count + " scenarios passed.");
+
+async function completedCopy(f) {
+  const input = { ...f.input, items: [f.item(0)] };
+  const receipt = await f.api.reserveCommand(input);
+  const attempt = await f.api.beginProviderAttempt({ ...input, executionId: receipt.executionId, ordinal: 0 });
+  const payload = "complete synthetic copy result", bufferDigest = digest(payload);
+  f.buffer(receipt.executionId, { payload, digest: bufferDigest, expiresAt: receipt.payloadExpiresAt, context: f.context });
+  await f.api.recordProviderOutcome({ ...input, executionId: receipt.executionId, ordinal: 0,
+    providerAttemptId: attempt.providerAttemptId, outcome: "RESULT", bufferDigest });
+  const preview = await f.api.previewCopy({ ...input, executionId: receipt.executionId });
+  const copy = await f.api.confirmCopy({ ...input, confirmationId: preview.confirmationId, confirmed: true });
+  assert.equal((await f.api.beginCopyDelivery({ ...input, deliveryId: copy.deliveryId })).send, true);
+  await f.api.recordCopyOutcome({ ...input, deliveryId: copy.deliveryId, outcome: "CONFIRMED" });
+  return { executionId: receipt.executionId, confirmationId: preview.confirmationId, deliveryId: copy.deliveryId };
+}
+await test("review COPY completion: real writer reclaims a confirmed old Work copy", async () => {
+  const f = ledgerFixture(), old = await completedCopy(f);
+  const prior = f.read().manual.C1.r3_commands;
+  assert.equal(prior.approvals[old.confirmationId].consumedBy, old.deliveryId);
+  assert.equal(prior.deliveries[old.deliveryId].state, "CONFIRMED");
+  f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+  const next = await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("after-completed-copy") });
+  const stored = f.read().manual.C1.r3_commands;
+  assert.equal(stored.receipts[old.executionId], undefined);
+  assert.equal(stored.approvals[old.confirmationId], undefined);
+  assert.equal(stored.deliveries[old.deliveryId], undefined);
+  assert.equal(Object.keys(stored.origins).length, 1);
+  const args = { ...f.input, executionId: next.executionId, ordinal: 0 };
+  assert.equal((await f.api.beginProviderAttempt(args)).dispatch, true);
+  assert.equal((await f.restart().beginProviderAttempt(args)).dispatch, false);
+});
+await test("review COPY capacity: 666 confirmed copies and two results free 2000 markers for new Work", async () => {
+  const f = ledgerFixture(), actual = await completedCopy(f), template = f.read().manual.C1.r3_commands;
+  const data = completedHistory(f, 668);
+  for (let i = 0; i < 666; i++) {
+    const executionId = "history-" + i, confirmationId = "copy-approval-" + i, deliveryId = "copy-delivery-" + i;
+    const receipt = data.receipts[executionId];
+    receipt.payloadExpiresAt = template.receipts[actual.executionId].payloadExpiresAt;
+    receipt.items[0].bufferDigest = template.receipts[actual.executionId].items[0].bufferDigest;
+    receipt.deliveryRevision = 1;
+    data.approvals[confirmationId] = { ...structuredClone(template.approvals[actual.confirmationId]), confirmationId, executionId, consumedBy: deliveryId };
+    data.deliveries[deliveryId] = { ...structuredClone(template.deliveries[actual.deliveryId]), deliveryId, executionId, confirmationId };
+  }
+  await f.seed(data);
+  await assert.rejects(f.api.reserveCommand({ ...f.input, blockOriginKey: digest("same-work-full-copy") }),
+    { code: "WORK_MARKER_CAPACITY_START_REQUIRED" });
+  f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+  for (let i = 0; i < 3; i++) {
+    const next = await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("after-copy-capacity-" + i) });
+    assert.equal(next.duplicate, false);
+  }
+  const stored = f.read().manual.C1.r3_commands;
+  assert.equal(Object.keys(stored.receipts).length, 3);
+  assert.equal(Object.keys(stored.approvals).length, 0);
+  assert.equal(Object.keys(stored.deliveries).length, 0);
+});
+for (const control of ["UNKNOWN", "DELIVERY_INTENT", "COPY_RESERVED", "MISSING_DELIVERY",
+  "WRONG_EXECUTION", "WRONG_CONTEXT", "WRONG_CONFIRMATION", "WRONG_DIGEST", "PARTIAL_PROVIDER", "UNKNOWN_APPROVAL"]) {
+  await test("review COPY compaction retains uncertain or ambiguous linkage: " + control, async () => {
+    const f = ledgerFixture(), old = await completedCopy(f), data = f.read().manual.C1.r3_commands;
+    const delivery = data.deliveries[old.deliveryId], approval = data.approvals[old.confirmationId];
+    if (["UNKNOWN", "DELIVERY_INTENT", "COPY_RESERVED"].includes(control)) delivery.state = control;
+    if (control === "MISSING_DELIVERY") delete data.deliveries[old.deliveryId];
+    if (control === "WRONG_EXECUTION") delivery.executionId = "missing-execution";
+    if (control === "WRONG_CONTEXT") delivery.context.workSessionId = "ambiguous-work";
+    if (control === "WRONG_CONFIRMATION") delivery.confirmationId = "missing-confirmation";
+    if (control === "WRONG_DIGEST") delivery.bufferDigest = digest("different-result");
+    if (control === "PARTIAL_PROVIDER") data.receipts[old.executionId].items.push({
+      ordinal: 1, state: "PROVIDER_INTENT", providerAttemptId: "pending-intent", inputHash: digest("pending-input"),
+    });
+    if (control === "UNKNOWN_APPROVAL") approval.kind = "UNKNOWN";
+    await f.seed(data);
+    const before = f.read().manual.C1.r3_commands;
+    f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+    await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("after-uncertain-copy-" + control) });
+    const stored = f.read().manual.C1.r3_commands;
+    assert.deepEqual(stored.receipts[old.executionId], before.receipts[old.executionId]);
+    assert.deepEqual(stored.approvals[old.confirmationId], before.approvals[old.confirmationId]);
+    assert.deepEqual(stored.deliveries, before.deliveries);
+  });
+}
+console.log("SOURCE final COPY controls: " + count + " scenarios passed; zero provider requests.");

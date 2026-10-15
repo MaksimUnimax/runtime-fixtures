@@ -253,7 +253,7 @@
   function grantRights(authority) {
     const payload = clone(authority.payload);
     for (const field of ["serverTime", "expiresAt", "offlineGraceUntil", "configVersion"]) delete payload[field];
-    if (payload.ai) delete payload.ai.profile;
+    // Signed profile content and compatibility are execution rights, including its revision.
     return verifier.canonicalJson(payload);
   }
   async function makeGrant(authority, cacheClock) {
