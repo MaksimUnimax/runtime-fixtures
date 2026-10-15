@@ -11,22 +11,21 @@
     const height = 32;
     const outsideLeft = rect.right + 10;
     const roomOutside = outsideLeft + width <= window.innerWidth - 8;
-    let left;
-    let top;
-    if (roomOutside) {
-      left = outsideLeft;
-      top = Math.max(8, Math.min(window.innerHeight - height - 8, rect.top + 4));
-    } else {
-      left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + 8));
-      top = Math.max(8, Math.min(window.innerHeight - height - 8, rect.top + 46));
-    }
-    const positions = [{ left: Math.round(left), top: Math.round(top) }];
-    // A short, full-width code block can put the in-block position over the
-    // response footer. Try the space above its right edge without covering
-    // native controls or allowing an offscreen action.
-    if (!roomOutside) positions.push({
+    // Full-width command text must remain readable. Place its action above
+    // the block, never over its code. If that slot is covered or offscreen,
+    // normal scrolling can reveal it again without starting a new Work.
+    const positions = [roomOutside ? {
+      left: Math.round(outsideLeft),
+      top: Math.round(Math.max(8, Math.min(window.innerHeight - height - 8, rect.top + 4)))
+    } : {
       left: Math.round(Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))),
       top: Math.round(rect.top - height - 8)
+    }];
+    // An adapter may instead anchor to a native Copy/header control. Preserve
+    // its established below-control slot; it is not the command-text root.
+    if (!roomOutside && anchor !== record.binding.root) positions.unshift({
+      left: Math.round(Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + 8))),
+      top: Math.round(Math.max(8, Math.min(window.innerHeight - height - 8, rect.top + 46)))
     });
     const onScreen = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
     // A viewport intersection alone does not prove that the native anchor is
