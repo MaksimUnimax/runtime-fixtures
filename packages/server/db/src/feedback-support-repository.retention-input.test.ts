@@ -75,7 +75,19 @@ describe("B06 feedback retention input safety (synthetic without DB)", () => {
         call.sql.includes("WITH case_candidates AS ("),
       );
       const cutoff = new Date(base.now.getTime() - days * 86_400_000);
-      expect(deleteCall?.values).toEqual([cutoff, cutoff, base.batchSize]);
+      expect(deleteCall?.sql).toContain(
+        "closed_at < LEAST($1::timestamptz, transaction_timestamp() - ($4::integer * INTERVAL '24 hours'))",
+      );
+      expect(deleteCall?.sql).toContain(
+        "occurred_at < LEAST($2::timestamptz, transaction_timestamp() - ($5::integer * INTERVAL '24 hours'))",
+      );
+      expect(deleteCall?.values).toEqual([
+        cutoff,
+        cutoff,
+        base.batchSize,
+        days,
+        days,
+      ]);
     },
   );
 });
