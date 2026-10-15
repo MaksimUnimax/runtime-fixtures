@@ -16,7 +16,7 @@ from pathlib import Path
 # The local runner import must never create __pycache__ inside that release.
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import monitor_pilot_retention_runner as runner
+import monitor_pilot_retention_runner as runner  # noqa: E402 - import after bytecode guard
 
 
 def maintenance_result(kind: str, cursor: dict[str, str] | None = None) -> dict:
@@ -155,8 +155,7 @@ class RetentionRunnerTests(unittest.TestCase):
             cursor_path = state / "cursor.json"
             result_path = state / "last-result.json"
             cursor_bytes = (
-                json.dumps({"version": 1, "cursor": cursor}, sort_keys=True)
-                + "\n"
+                json.dumps({"version": 1, "cursor": cursor}, sort_keys=True) + "\n"
             )
             prior_result = '{"version":1,"kind":"PARTIAL"}\n'
             cursor_path.write_text(cursor_bytes)
@@ -265,9 +264,14 @@ class RetentionRunnerTests(unittest.TestCase):
             "HEALTH_RETENTION_LIMIT_INVALID",
         )
         self.assertIsNone(
+            runner._safe_child_error("MONITOR_PILOT_EMAIL_JANE_DOE_GMAIL_COM\n")
+        )
+        self.assertIsNone(
+            runner._safe_child_error("HEALTH_RETENTION_SECRET_SYNTHETIC_MARKER\n")
+        )
+        self.assertIsNone(
             runner._safe_child_error(
-                "password=must-not-surface\n"
-                "MONITOR PILOT malformed detail\n"
+                "password=must-not-surface\nMONITOR PILOT malformed detail\n"
             )
         )
 
@@ -296,6 +300,181 @@ class RetentionRunnerTests(unittest.TestCase):
                 )
         finally:
             runner._run_command_group = original
+
+    def test_child_count_fields_are_checked_before_logging(self) -> None:
+        marker = "SYNTHETIC_NOT_A_REAL_SECRET_MARKER_9821"
+        malformed = [
+            (
+                "inventory",
+                lambda value: value["inventory"]["reasons"].update(
+                    {"ELIGIBLE": marker}
+                ),
+            ),
+            (
+                "blocked",
+                lambda value: value["blocked"].update(
+                    {"prune:PAYLOAD_MISSING": marker}
+                ),
+            ),
+            (
+                "pending",
+                lambda value: value["pendingBefore"].update({"projection": marker}),
+            ),
+            ("actions", lambda value: value["actions"].update({"pruned": marker})),
+            ("timestamp", lambda value: value.update({"startedAt": marker})),
+            (
+                "impossible_calendar_timestamp",
+                lambda value: value.update({"finishedAt": "2026-99-99T99:99:99.000Z"}),
+            ),
+            (
+                "unknown_uppercase_reason",
+                lambda value: value["inventory"]["reasons"].update(
+                    {"EMAIL_JANE_DOE_GMAIL_COM": 1}
+                ),
+            ),
+            (
+                "unknown_uppercase_prune_block",
+                lambda value: value["blocked"].update(
+                    {"prune:EMAIL_JANE_DOE_GMAIL_COM": 1}
+                ),
+            ),
+            (
+                "wrong_method_reason",
+                lambda value: value["blocked"].update({"receipt:INCIDENT_PINNED": 1}),
+            ),
+            (
+                "reason_key",
+                lambda value: value["inventory"]["reasons"].update(
+                    {
+                        "ELIGIBLE\\n" + marker: 1,
+                    }
+                ),
+            ),
+            (
+                "blocked_key",
+                lambda value: value["blocked"].update(
+                    {
+                        "prune:PAYLOAD_MISSING\\n" + marker: 1,
+                    }
+                ),
+            ),
+            (
+                "boolean_count",
+                lambda value: value["inventory"]["reasons"].update(
+                    {
+                        "ELIGIBLE": True,
+                    }
+                ),
+            ),
+            (
+                "negative_count",
+                lambda value: value["inventory"]["reasons"].update(
+                    {
+                        "ELIGIBLE": -1,
+                    }
+                ),
+            ),
+        ]
+        for label, mutate in malformed:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                result = maintenance_result("INSPECTED")
+                mutate(result)
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    with self.assertRaisesRegex(
+                        runner.RetentionRunnerError, "RETENTION_RESULT_UNSAFE_FIELDS"
+                    ):
+                        runner.run_once(
+                            "inspect",
+                            Path(temporary),
+                            Path("/synthetic-release"),
+                            60,
+                            lambda *_args: (0, result),
+                        )
+                self.assertNotIn(marker, output.getvalue())
+                self.assertFalse((Path(temporary) / "last-result.json").exists())
+
+    def test_malformed_partial_result_never_persists_cursor(self) -> None:
+        marker = "SYNTHETIC_NOT_A_REAL_SECRET_MARKER_9821"
+        result = maintenance_result(
+            "PARTIAL",
+            {
+                "completedAt": "2026-09-29T00:00:00.000Z",
+                "runId": "00000000-0000-4000-8000-000000000001",
+            },
+        )
+        result["blocked"] = {"receipt:ALREADY_RETIRED": marker}
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                with self.assertRaisesRegex(
+                    runner.RetentionRunnerError, "RETENTION_RESULT_UNSAFE_FIELDS"
+                ):
+                    runner.run_once(
+                        "apply",
+                        state,
+                        Path("/synthetic-release"),
+                        60,
+                        lambda *_args: (3, result),
+                    )
+            self.assertNotIn(marker, output.getvalue())
+            self.assertFalse((state / "cursor.json").exists())
+            self.assertFalse((state / "last-result.json").exists())
+
+    def test_invalid_partial_result_preserves_existing_checkpoint(self) -> None:
+        cursor = {
+            "completedAt": "2026-09-29T00:00:00.000Z",
+            "runId": "00000000-0000-4000-8000-000000000001",
+        }
+        result = maintenance_result("PARTIAL", cursor)
+        result["blocked"] = {"terminal:TOO_NEW": "SYNTHETIC_NOT_REAL"}
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary)
+            cursor_path = state / "cursor.json"
+            result_path = state / "last-result.json"
+            original_cursor = json.dumps({"version": 1, "cursor": cursor}) + "\n"
+            original_result = '{"version":1,"kind":"PARTIAL"}\n'
+            cursor_path.write_text(original_cursor)
+            result_path.write_text(original_result)
+            with self.assertRaisesRegex(
+                runner.RetentionRunnerError, "RETENTION_RESULT_UNSAFE_FIELDS"
+            ):
+                runner.run_once(
+                    "apply",
+                    state,
+                    Path("/synthetic-release"),
+                    60,
+                    lambda *_args: (3, result),
+                )
+            self.assertEqual(cursor_path.read_text(), original_cursor)
+            self.assertEqual(result_path.read_text(), original_result)
+
+    def test_legitimate_reason_and_blocked_counts_remain_visible(self) -> None:
+        result = maintenance_result("PARTIAL")
+        result["blocked"] = {
+            "prune:PAYLOAD_MISSING": 2,
+            "receipt:ALREADY_RETIRED": 1,
+            "terminal:TOO_NEW": 3,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(
+                    runner.run_once(
+                        "apply",
+                        state,
+                        Path("/synthetic-release"),
+                        60,
+                        lambda *_args: (3, result),
+                    ),
+                    0,
+                )
+            record = json.loads((state / "last-result.json").read_text())
+            self.assertEqual(record["blocked"], result["blocked"])
+            self.assertEqual(record["inventory"]["reasons"], {"ELIGIBLE": 1})
+            self.assertIn("prune:PAYLOAD_MISSING", output.getvalue())
 
     def test_service_templates_pin_expected_pilot_role(self) -> None:
         unit_dir = Path(__file__).resolve().parent / "systemd"

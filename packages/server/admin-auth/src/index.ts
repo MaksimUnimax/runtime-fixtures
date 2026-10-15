@@ -10,6 +10,17 @@ export * from "./maintenance-access.js";
 
 export const ADMIN_SESSION_TTL_MS = 30 * 60_000;
 export const ADMIN_ELEVATION_MAX_PORTAL_SESSION_AGE_MS = 15 * 60_000;
+
+// A genuine Date has an internal [[DateValue]] slot. instanceof alone also
+// accepts Date-prototype impostors and Proxies that make getTime throw.
+function dateEpochMsOrNaN(value: unknown): number {
+  try {
+    return Date.prototype.getTime.call(value as Date);
+  } catch {
+    return Number.NaN;
+  }
+}
+
 export const ADMIN_ROLES = [
   "ADMIN_OWNER",
   "ADMIN_OPS",
@@ -265,12 +276,19 @@ export class AdminAuthService {
     portal: PortalElevationSubject,
     correlationId: string,
   ): Promise<AdminResult<{ sessionToken: string; subject: AdminSubject }>> {
-    const age = this.now().getTime() - portal.createdAt.getTime();
-    if (age < 0 || age > ADMIN_ELEVATION_MAX_PORTAL_SESSION_AGE_MS)
+    const createdAt = this.now();
+    const createdAtMs = dateEpochMsOrNaN(createdAt);
+    const portalCreatedAtMs = dateEpochMsOrNaN(portal.createdAt);
+    const age = createdAtMs - portalCreatedAtMs;
+    const expiresAt = new Date(createdAtMs + ADMIN_SESSION_TTL_MS);
+    if (
+      !Number.isFinite(age) ||
+      !Number.isFinite(expiresAt.getTime()) ||
+      age < 0 ||
+      age > ADMIN_ELEVATION_MAX_PORTAL_SESSION_AGE_MS
+    )
       return { ok: false, code: "ADMIN_REAUTH_REQUIRED" };
     const sessionToken = this.tokenGenerator();
-    const createdAt = this.now();
-    const expiresAt = new Date(createdAt.getTime() + ADMIN_SESSION_TTL_MS);
     try {
       const result = await this.repository.createAdminSession({
         userId: portal.userId,
