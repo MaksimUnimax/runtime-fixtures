@@ -147,12 +147,16 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
     return counts
 
 
-def read_completed_bootstrap_response(response, context, completed_requests):
+def read_completed_bootstrap_response(response, context, completed_requests, failed_requests=None):
     # BrowserContext "response" fires on headers, before the HTTP body finishes.
-    # response.finished() can wait indefinitely when a request remains pending.
-    # A requestfinished listener is installed before authentication so that
-    # completion immediately preceding this read cannot be missed.
+    # A requestfailed event is terminal; an already aborted request can never
+    # become requestfinished. Do not wait 30s after a documented early abort.
+    # Keep exact Request-object identity and no URLs/body/error strings in CI.
     request = response.request
+    def selected_failed():
+        return any(failed is request for failed in (failed_requests or ()))
+    if selected_failed():
+        raise RuntimeError("signed AI bootstrap HTTP request failed before completion")
     if not any(finished is request for finished in completed_requests):
         try:
             context.wait_for_event(
@@ -161,8 +165,12 @@ def read_completed_bootstrap_response(response, context, completed_requests):
                 timeout=30000,
             )
         except PlaywrightTimeoutError:
+            if selected_failed():
+                raise RuntimeError("signed AI bootstrap HTTP request failed before completion") from None
             # Fixed error text: never retain a request URL/body/token in CI.
             raise RuntimeError("signed AI bootstrap HTTP response did not complete") from None
+    if selected_failed():
+        raise RuntimeError("signed AI bootstrap HTTP request failed before completion")
     try:
         envelope = response.json()
     except Exception:
@@ -555,7 +563,8 @@ def run(runtime, output):
                     stage = _mark_stage(output, "work_start_bootstrap_wait_done", started)
                     stage = _mark_stage(output, "work_start_bootstrap_body_begin", started)
                     bootstrap_envelope = read_completed_bootstrap_response(
-                        bootstrap_response, context, completed_bootstrap_requests
+                        bootstrap_response, context, completed_bootstrap_requests,
+                        failed_bootstrap_requests,
                     )
                     stage = _mark_stage(output, "work_start_bootstrap_body_done", started)
                     stage = _mark_stage(output, "work_start_profile_eval_begin", started)
