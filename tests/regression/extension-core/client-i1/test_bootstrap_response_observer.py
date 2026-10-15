@@ -120,7 +120,10 @@ class BootstrapObserverTest(unittest.TestCase):
         observed = module.safe_bootstrap_event_counts(
             [first, second, latest],
             [first.request, second.request],
-            [], 1, 2,
+            [], [(first.request, "first_activation_window"),
+                 (second.request, "second_activation_window"),
+                 (latest.request, "second_activation_window")],
+            1, 2,
         )
         self.assertEqual(observed, {
             "schema_version": 1,
@@ -129,31 +132,47 @@ class BootstrapObserverTest(unittest.TestCase):
             "requestfailed_200_count": 0,
             "selected_request_finished": False,
             "selected_request_failed": False,
-            "selected_response_phase": "after_work_start",
+            "selected_response_observed_window": "after_work_start_marker",
+            "selected_request_event_window": "second_activation_window",
         })
         self.assertNotIn("SECRET_PRIVATE_VALUE", str(observed))
 
     def test_event_identity_not_merely_same_request_url(self):
         selected = FakeResponse()
         other = FakeRequest(url=selected.request.url)
-        counts = module.safe_bootstrap_event_counts([selected], [other], [other], 0, 1)
+        counts = module.safe_bootstrap_event_counts(
+            [selected], [other], [other], [(other, "work_start_window")], 0, 1
+        )
         self.assertEqual(counts["requestfinished_200_count"], 0)
         self.assertEqual(counts["requestfailed_200_count"], 0)
         self.assertFalse(counts["selected_request_finished"])
         self.assertFalse(counts["selected_request_failed"])
-        self.assertEqual(counts["selected_response_phase"], "second_activation")
+        self.assertEqual(counts["selected_response_observed_window"], "after_second_activation_marker")
+        self.assertEqual(counts["selected_request_event_window"], "unobserved")
 
     def test_safe_counts_show_failure_without_leaking_request_errors(self):
         selected = FakeResponse(request=FakeRequest(url="http://127.0.0.1:43100/v1/bootstrap?PRIVATE_DATA"))
-        counts = module.safe_bootstrap_event_counts([selected], [], [selected.request], None, 0)
+        counts = module.safe_bootstrap_event_counts(
+            [selected], [], [selected.request],
+            [(selected.request, "work_start_window")], None, 0,
+        )
         self.assertEqual(counts["requestfailed_200_count"], 1)
         self.assertTrue(counts["selected_request_failed"])
         self.assertFalse(counts["selected_request_finished"])
         self.assertNotIn("PRIVATE_DATA", str(counts))
 
+    def test_unknown_request_window_label_is_not_logged(self):
+        selected = FakeResponse(request=FakeRequest(url="http://127.0.0.1:43100/v1/bootstrap?SECRET_PHASE"))
+        counts = module.safe_bootstrap_event_counts(
+            [selected], [], [], [(selected.request, "SECRET_USER_PHASE")], None, None,
+        )
+        self.assertEqual(counts["selected_request_event_window"], "unobserved")
+        self.assertNotIn("SECRET", str(counts))
+
     def test_safe_counts_no_http_response_does_not_guess_phase(self):
-        counts = module.safe_bootstrap_event_counts([], [], [], None, None)
-        self.assertEqual(counts["selected_response_phase"], "none")
+        counts = module.safe_bootstrap_event_counts([], [], [], [], None, None)
+        self.assertEqual(counts["selected_response_observed_window"], "none")
+        self.assertEqual(counts["selected_request_event_window"], "unobserved")
         self.assertEqual(counts["http_200_count"], 0)
         self.assertFalse(counts["selected_request_finished"])
 

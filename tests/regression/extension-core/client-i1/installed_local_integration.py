@@ -60,7 +60,7 @@ def wait_until(check, label, timeout=30):
         time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {label}; last={last!r}")
 
-def safe_bootstrap_event_counts(responses, finished, failed, second_activation_at=None, work_start_at=None):
+def safe_bootstrap_event_counts(responses, finished, failed, started, second_activation_at=None, work_start_at=None):
     # Only fixed keys, numbers, booleans and allowlisted phase labels leave CI.
     # No request URL, header, body, token or account/subject identity is stored.
     counts = {
@@ -78,15 +78,24 @@ def safe_bootstrap_event_counts(responses, finished, failed, second_activation_a
         "selected_request_failed": bool(responses) and any(
             error is responses[-1].request for error in failed
         ),
-        "selected_response_phase": "none",
+        "selected_response_observed_window": "none",
+        "selected_request_event_window": "unobserved",
     }
     if responses:
         if isinstance(work_start_at, int) and len(responses) > work_start_at:
-            counts["selected_response_phase"] = "after_work_start"
+            counts["selected_response_observed_window"] = "after_work_start_marker"
         elif isinstance(second_activation_at, int) and len(responses) > second_activation_at:
-            counts["selected_response_phase"] = "second_activation"
+            counts["selected_response_observed_window"] = "after_second_activation_marker"
         else:
-            counts["selected_response_phase"] = "first_activation"
+            counts["selected_response_observed_window"] = "before_second_activation_marker"
+        # Only request events determine the *request* observation window;
+        # receiving HTTP 200 later does not retrospectively change its origin.
+        label = next(
+            (phase for request, phase in reversed(started) if request is responses[-1].request),
+            None,
+        )
+        if label in {"first_activation_window", "second_activation_window", "work_start_window"}:
+            counts["selected_request_event_window"] = label
     return counts
 
 
@@ -285,10 +294,20 @@ def run(runtime, output):
                     bootstrap_http_responses = []
                     completed_bootstrap_requests = []
                     failed_bootstrap_requests = []
+                    observed_bootstrap_request_windows = []
+                    bootstrap_window = "first_activation_window"
                     second_activation_header_count = None
                     work_start_header_count = None
                     bootstrap_envelope = None
                     authorization_ids = set()
+                    def observe_started_bootstrap(request):
+                        parsed = urlparse(request.url)
+                        if (parsed.netloc == f"127.0.0.1:{api_port}" and
+                                parsed.path == "/v1/bootstrap" and request.method == "POST"):
+                            # Fixed window at Playwright request event, not at later HTTP 200.
+                            observed_bootstrap_request_windows.append((request, bootstrap_window))
+                    context.on("request", observe_started_bootstrap)
+
                     def observe_completed_bootstrap(request):
                         parsed = urlparse(request.url)
                         if (parsed.netloc == f"127.0.0.1:{api_port}" and
@@ -430,6 +449,7 @@ def run(runtime, output):
                     popup.locator("#confirmation #confirm").click()
                     popup.wait_for_function("() => document.querySelector('#auth-start').offsetParent !== null && document.querySelector('#account').innerText.includes('Вход не выполнен')")
                     second_activation_header_count = len(bootstrap_http_responses)
+                    bootstrap_window = "second_activation_window"
                     second_identity = activate(fixture_email("two", namespace))
                     assert second_identity["accessBasis"] == "BETA"
                     assert popup.locator("#account").inner_text() != first_account
@@ -445,6 +465,7 @@ def run(runtime, output):
                     stage = _mark_stage(output, "work_start", started)
                     stage = _mark_stage(output, "work_start_start_click_begin", started)
                     work_start_header_count = len(bootstrap_http_responses)
+                    bootstrap_window = "work_start_window"
                     popup.click("#start")
                     stage = _mark_stage(output, "work_start_start_click_done", started)
                     stage = _mark_stage(output, "work_start_prompt_wait_begin", started)
@@ -728,8 +749,8 @@ def run(runtime, output):
                     assert bff_counts == {"otp_request_202": 2, "otp_verify_200": 2, "logout_204": 1}
                     counts = safe_bootstrap_event_counts(
                         bootstrap_http_responses, completed_bootstrap_requests,
-                        failed_bootstrap_requests, second_activation_header_count,
-                        work_start_header_count,
+                        failed_bootstrap_requests, observed_bootstrap_request_windows,
+                        second_activation_header_count, work_start_header_count,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result.update(
@@ -791,8 +812,8 @@ def run(runtime, output):
                 except Exception:
                     counts = safe_bootstrap_event_counts(
                         bootstrap_http_responses, completed_bootstrap_requests,
-                        failed_bootstrap_requests, second_activation_header_count,
-                        work_start_header_count,
+                        failed_bootstrap_requests, observed_bootstrap_request_windows,
+                        second_activation_header_count, work_start_header_count,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result["failure_observation"] = {
