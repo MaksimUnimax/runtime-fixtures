@@ -62,11 +62,26 @@ const caseColumns = `id,account_id,created_by_user_id,device_id,created_at,updat
 const iso = (value: Date | string) => new Date(value).toISOString();
 const MAX_RETENTION_BATCH_SIZE = 1_000;
 const MAX_RETENTION_STATEMENT_TIMEOUT_MS = 30_000;
+const MAX_RETENTION_DAYS = 3_650;
 
 function validateRetentionPurgeInput(input: {
+  now: Date;
+  closedRetentionDays: number;
+  signalRetentionDays: number;
   batchSize: number;
   statementTimeoutMs: number;
 }): void {
+  if (!(input.now instanceof Date) || !Number.isFinite(input.now.getTime()))
+    throw new Error("retention now must be a valid Date");
+  for (const [field, days] of [
+    ["closedRetentionDays", input.closedRetentionDays],
+    ["signalRetentionDays", input.signalRetentionDays],
+  ] as const) {
+    if (!Number.isInteger(days) || days < 1 || days > MAX_RETENTION_DAYS)
+      throw new Error(
+        `retention ${field} must be an integer between 1 and ${MAX_RETENTION_DAYS}`,
+      );
+  }
   if (
     !Number.isInteger(input.batchSize) ||
     input.batchSize < 1 ||
@@ -444,6 +459,12 @@ export function createFeedbackSupportRepository(
           return { kind: "FORBIDDEN" as const };
         const row = await loadCase(tx, input.caseId, true);
         if (!row) return { kind: "NOT_FOUND" as const };
+        if (
+          row.account_id === null &&
+          row.created_by_user_id === null &&
+          row.description === "[Feedback removed after account deletion]"
+        )
+          return { kind: "FORBIDDEN" as const };
         if (!statusTransitionAllowed(row.status, input.status))
           return { kind: "INVALID_TRANSITION" as const };
         const closedAt = input.status === "CLOSED" ? new Date() : null;
@@ -650,6 +671,11 @@ export function createFeedbackSupportRepository(
       const signalBefore = new Date(
         input.now.getTime() - input.signalRetentionDays * 86_400_000,
       );
+      if (
+        !Number.isFinite(closedBefore.getTime()) ||
+        !Number.isFinite(signalBefore.getTime())
+      )
+        throw new Error("retention cutoff must be a valid Date");
       return runtime.transaction(async (tx) => {
         await tx.query("SELECT set_config('statement_timeout', $1, true)", [
           `${input.statementTimeoutMs}ms`,
