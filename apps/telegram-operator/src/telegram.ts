@@ -442,6 +442,15 @@ export class TelegramOperatorService {
           this.offset = Math.max(this.offset ?? -1, update.updateId + 1);
           await this.handleUpdate(update);
         }
+        // Apply raw-page progress only after the mapped batch is handled.
+        // On failure, the per-update fence above preserves at-most-once handling
+        // while leaving the unprocessed tail available for the next poll.
+        if (
+          response.nextOffset !== undefined &&
+          Number.isSafeInteger(response.nextOffset) &&
+          response.nextOffset >= 0
+        )
+          this.offset = Math.max(this.offset ?? -1, response.nextOffset);
       } catch (error) {
         this.options.logger?.("telegram_poll_failed", {
           error:
