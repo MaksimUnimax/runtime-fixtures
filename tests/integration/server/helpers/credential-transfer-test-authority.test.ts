@@ -38,7 +38,7 @@ function fakeAdministrator(databaseName = "octoport_c_test") {
         throw new Error("INJECTED_DROP_FAILURE");
       }
       roleExists = false;
-    } else if (text.includes("WITH caller AS")) {
+    } else if (text.includes("WITH RECURSIVE caller AS")) {
       const keys = [
         "direct_session_identity",
         "restricted_role",
@@ -47,11 +47,13 @@ function fakeAdministrator(databaseName = "octoport_c_test") {
         "transaction_context_structure",
         "safe_functions",
         "cannot_assume_owner",
-        "private_schema_usage_only",
+        "no_role_memberships",
+        "schema_usage_without_create",
         "can_call_entry_functions",
+        "cannot_call_internal_functions",
         "required_repository_privileges",
-        "no_direct_epoch_mutation",
-        "cannot_truncate_requests",
+        "no_direct_fence_table_privileges",
+        "repository_privilege_ceiling",
         "functions_not_public",
         "mandatory_statement_trigger",
       ];
