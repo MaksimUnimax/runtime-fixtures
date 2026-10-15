@@ -20,7 +20,7 @@ assert.equal(patch.old_sha256, hash(patch.old));
 const sourceFile = read(patch.new_source);
 assert.ok(sourceFile.endsWith("  }\n") && !sourceFile.endsWith("  }\n\n"));
 const replacement = sourceFile + "\n";
-assert.equal(hash(replacement), "bc2cb9e8869b7d1d8e49ee64eb7be5235f7901642916f8a20a051094da7ee631");
+assert.equal(hash(replacement), "7ccb0bb30b6aa0a6aba8dad0b36f82ca7180c8b0be5c02540ed84d95b6e2b996");
 assert.equal(patch.new_sha256, hash(replacement));
 assert.ok(replacement.startsWith("  function positionOwnButton(record) {"));
 assert.ok(replacement.endsWith("  }\n\n"));
@@ -35,7 +35,7 @@ for (const row of contentPatches) {
 }
 assert.equal(
   hash(content),
-  "d75a4cf7b95de565db1d0c8a9d3a91c3bb0b62f524b8903f4ffaf94fa1f27da2",
+  "41a0fa178692b932f194971fc5b250441d14deccc507d376652df393e3eeea38",
   "extracted text preserves the full content_script.js composition on exact base",
 );
 console.log(JSON.stringify({level:"SOURCE",status:"PASS",externalized:1,

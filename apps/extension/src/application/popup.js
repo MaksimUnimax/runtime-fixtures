@@ -349,13 +349,17 @@ if (!durableImportMode) $("backup-file").onclick = event => {
 };
 $("keys-download").onclick = () => openKeyFiles("download");
 $("keys-upload").onclick = () => openKeyFiles("upload");
-function invalidateBackupReview() {
+function invalidateBackupReview(inputChanged = false) {
   backupSelectionRevision++; backupText = ""; backupPreview = null;
   $("backup-preview-result").hidden = true;
+  if (inputChanged) {
+    $("backup-status").textContent = "Файл или пароль изменились. Проверьте файл заново.";
+    $("status").textContent = "";
+  }
 }
-$("backup-import-password").oninput = invalidateBackupReview;
+$("backup-import-password").oninput = () => invalidateBackupReview(true);
 $("backup-file").onchange = () => {
-  invalidateBackupReview();
+  invalidateBackupReview(true);
   $("backup-status").textContent = $("backup-file").files?.length ? "Файл выбран. Введите пароль и нажмите «Проверить файл»." : "";
 };
 function downloadBackup(name, value) {
