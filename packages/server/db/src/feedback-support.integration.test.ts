@@ -143,6 +143,63 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     );
   });
 
+  it("revokes former member access to case list, detail and user followups", async () => {
+    const created = await service.createCase(userId, {
+      accountId,
+      category: "OTHER",
+      description: "Synthetic case before membership revocation",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const caseId = created.value.caseId;
+
+    expect(await service.listOwnCases({ userId })).toHaveLength(1);
+    expect((await service.getOwnCase({ userId, caseId })).ok).toBe(true);
+    const originalReply = await service.addUserFollowup(userId, caseId, {
+      description: "Synthetic authorized reply",
+    });
+    expect(originalReply.ok).toBe(true);
+
+    const denied = async () => {
+      expect(await service.listOwnCases({ userId })).toEqual([]);
+      expect(await service.getOwnCase({ userId, caseId })).toEqual({
+        ok: false,
+        code: "FORBIDDEN",
+      });
+      expect(
+        await service.addUserFollowup(userId, caseId, {
+          description: "Synthetic reply after losing account access",
+        }),
+      ).toEqual({ ok: false, code: "FORBIDDEN" });
+      const saved = await runtime.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM feedback_followups WHERE case_id=$1",
+        [caseId],
+      );
+      expect(saved.rows[0]?.count).toBe("1");
+    };
+
+    await runtime.query(
+      "DELETE FROM account_memberships WHERE account_id=$1 AND user_id=$2",
+      [accountId, userId],
+    );
+    await denied();
+
+    await runtime.query(
+      "INSERT INTO account_memberships(account_id,user_id,role) VALUES($1,$2,'OWNER')",
+      [accountId, userId],
+    );
+    await runtime.query("UPDATE accounts SET status='SUSPENDED' WHERE id=$1", [
+      accountId,
+    ]);
+    await denied();
+
+    await runtime.query("UPDATE accounts SET status='ACTIVE' WHERE id=$1", [
+      accountId,
+    ]);
+    expect(await service.listOwnCases({ userId })).toHaveLength(1);
+    expect((await service.getOwnCase({ userId, caseId })).ok).toBe(true);
+  });
+
   it("fails closed when support mutation authority is revoked after route admission", async () => {
     const created = await service.createCase(userId, {
       accountId,

@@ -149,6 +149,24 @@ async function loadCase(
   return result.rows[0];
 }
 
+// A case creator must still belong to its active account. Lock the membership
+// and account for user mutation/read transactions so a concurrent revocation
+// cannot commit between this check and the protected case operation.
+async function activeUserCaseMembership(
+  query: DatabaseQuery,
+  accountId: string | null,
+  userId: string,
+  lock: boolean,
+): Promise<boolean> {
+  if (accountId === null) return false;
+  const result = await query.query<{ id: string }>(
+    `SELECT m.id FROM account_memberships AS m JOIN accounts AS a ON a.id=m.account_id
+     WHERE m.account_id=$1 AND m.user_id=$2 AND a.status='ACTIVE'${lock ? " FOR SHARE OF m,a" : ""}`,
+    [accountId, userId],
+  );
+  return Boolean(result.rows[0]);
+}
+
 async function followups(
   query: DatabaseQuery,
   caseId: string,
@@ -359,17 +377,36 @@ export function createFeedbackSupportRepository(
     },
     async listOwnCases(input) {
       const result = await runtime.query<CaseRow>(
-        `SELECT ${caseColumns} FROM feedback_cases WHERE created_by_user_id=$1 AND ($2::feedback_case_status IS NULL OR status=$2) ORDER BY created_at DESC,id DESC LIMIT 100`,
+        `SELECT ${caseColumns} FROM feedback_cases
+         WHERE created_by_user_id=$1
+           AND EXISTS (
+             SELECT 1 FROM account_memberships AS m
+             JOIN accounts AS a ON a.id=m.account_id
+             WHERE m.account_id=feedback_cases.account_id AND m.user_id=$1 AND a.status='ACTIVE'
+           )
+           AND ($2::feedback_case_status IS NULL OR status=$2)
+         ORDER BY created_at DESC,id DESC LIMIT 100`,
         [input.userId, input.status ?? null],
       );
       return result.rows.map(mapCase);
     },
     async getOwnCase(input) {
-      const row = await loadCase(runtime, input.caseId);
-      if (!row) return { kind: "NOT_FOUND" as const };
-      if (row.created_by_user_id !== input.userId)
-        return { kind: "FORBIDDEN" as const };
-      return withFollowups(row, await followups(runtime, input.caseId));
+      return runtime.transaction(async (tx) => {
+        const row = await loadCase(tx, input.caseId, true);
+        if (!row) return { kind: "NOT_FOUND" as const };
+        if (row.created_by_user_id !== input.userId)
+          return { kind: "FORBIDDEN" as const };
+        if (
+          !(await activeUserCaseMembership(
+            tx,
+            row.account_id,
+            input.userId,
+            true,
+          ))
+        )
+          return { kind: "FORBIDDEN" as const };
+        return withFollowups(row, await followups(tx, input.caseId));
+      });
     },
     async addFollowup(input) {
       return runtime.transaction(async (tx) => {
@@ -388,7 +425,13 @@ export function createFeedbackSupportRepository(
           return { kind: "FORBIDDEN" as const };
         if (
           input.actorType === "USER" &&
-          row.created_by_user_id !== input.actorId
+          (row.created_by_user_id !== input.actorId ||
+            !(await activeUserCaseMembership(
+              tx,
+              row.account_id,
+              input.actorId,
+              true,
+            )))
         )
           return { kind: "FORBIDDEN" as const };
         if (
