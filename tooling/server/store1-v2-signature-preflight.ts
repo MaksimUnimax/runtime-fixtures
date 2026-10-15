@@ -119,7 +119,9 @@ export function trustStore1V2SignaturePreflightProofForTest(
 }
 
 function parsePackagedConfig(source: string): Record<string, unknown> {
-  const first = source.indexOf(PACKAGED_CONFIG_MARKER);
+  // The release packager prefixes a real top-level assignment at byte zero.
+  // A textual copy in a comment, string or template cannot initialize it.
+  const first = source.startsWith(PACKAGED_CONFIG_MARKER) ? 0 : -1;
   if (first < 0) throw new Error("STORE1_PACKAGE_RUNTIME_CONFIG_MISSING");
   if (
     source.indexOf(

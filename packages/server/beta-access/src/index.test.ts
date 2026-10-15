@@ -68,31 +68,28 @@ describe("S1.1 beta admission domain", () => {
       | {
           requestIdHash: string;
           payloadHash: string;
-          expiresAt: Date;
+          ttlMs: number;
         }
       | undefined;
     const clock = new Date("2030-01-01T00:00:00.000Z");
-    const service = new BetaAdmissionService(
-      {
-        resolve: async () => ({ kind: "NONE" }),
-        read: async () => ({
-          mode: "CLOSED",
-          capacity: 1,
-          admitted: 0,
-          remaining: 1,
-          revision: 1,
-          updatedAt: clock,
-        }),
-        mutate: async () => ({ kind: "CONFLICT" }),
-        readIdentityInvitation: async () => null,
-        inviteIdentity: async (input) => {
-          captured = input;
-          return { kind: "CONFLICT" as const };
-        },
-        revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
+    const service = new BetaAdmissionService({
+      resolve: async () => ({ kind: "NONE" }),
+      read: async () => ({
+        mode: "CLOSED",
+        capacity: 1,
+        admitted: 0,
+        remaining: 1,
+        revision: 1,
+        updatedAt: clock,
+      }),
+      mutate: async () => ({ kind: "CONFLICT" }),
+      readIdentityInvitation: async () => null,
+      inviteIdentity: async (input) => {
+        captured = input;
+        return { kind: "CONFLICT" as const };
       },
-      () => clock,
-    );
+      revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
+    });
     await service.createIdentityInvitation({
       actorPrincipalId: "actor",
       requestId: "invite-request-1234",
@@ -104,11 +101,44 @@ describe("S1.1 beta admission domain", () => {
     expect(captured).toBeDefined();
     expect(captured!.requestIdHash).not.toContain("invite-request-1234");
     expect(captured!.payloadHash).not.toContain("reviewer@example.test");
-    expect(captured!.expiresAt.toISOString()).toBe("2030-01-02T00:00:00.000Z");
+    expect(captured!.ttlMs).toBe(24 * 60 * 60_000);
+  });
+
+  it("passes the configured 24-hour TTL as a duration independent of app clock skew", async () => {
+    const fastAppClock = new Date("2026-10-16T12:00:00.000Z");
+    let request: Record<string, unknown> | undefined;
+    const service = new BetaAdmissionService({
+      resolve: async () => ({ kind: "NONE" }),
+      read: async () => ({
+        mode: "CLOSED",
+        capacity: 1,
+        admitted: 0,
+        remaining: 1,
+        revision: 1,
+        updatedAt: fastAppClock,
+      }),
+      mutate: async () => ({ kind: "CONFLICT" }),
+      readIdentityInvitation: async () => null,
+      inviteIdentity: async (input) => {
+        request = input as unknown as Record<string, unknown>;
+        return { kind: "CONFLICT" as const };
+      },
+      revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
+    });
+    await service.createIdentityInvitation({
+      actorPrincipalId: "11111111-1111-4111-8111-111111111111",
+      requestId: "ttl-clock-skew-1",
+      correlationId: "ttl-clock-skew",
+      expectedRevision: 1,
+      normalizedIdentityTarget: "ttl@example.test",
+      reason: "synthetic TTL",
+    });
+    expect(request?.ttlMs).toBe(24 * 60 * 60_000);
   });
 
   it("rejects malformed invitation domain labels before repository mutation", async () => {
     let invitations = 0;
+    const forwardedTargets: string[] = [];
     const service = new BetaAdmissionService({
       resolve: async () => ({ kind: "NONE" }),
       read: async () => ({
@@ -121,8 +151,9 @@ describe("S1.1 beta admission domain", () => {
       }),
       mutate: async () => ({ kind: "CONFLICT" }),
       readIdentityInvitation: async () => null,
-      inviteIdentity: async () => {
+      inviteIdentity: async (input) => {
         invitations += 1;
+        forwardedTargets.push(input.normalizedIdentityTarget);
         return { kind: "CONFLICT" as const };
       },
       revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
@@ -140,6 +171,19 @@ describe("S1.1 beta admission domain", () => {
       "reviewer@example.test.",
       "reviewer@-example.test",
       "reviewer@example-.test",
+      "reviewer@a_b.test",
+      "reviewer@a!b.test",
+      "reviewer@a+b.test",
+      "reviewer@a\u05d0.example",
+      "reviewer@\u05d0a.example",
+      "reviewer@ab\u200dcd.example",
+      "reviewer@ab\u200ccd.example",
+      "reviewer@xn--.example",
+      "reviewer@ab--cd.example",
+      `reviewer@${[63, 63, 63, 62].map((n, i) => String.fromCharCode(97 + i).repeat(n)).join(".")}`,
+      `reviewer@${"a".repeat(64)}.test`,
+      `reviewer@${"ü".repeat(64)}.test`,
+      `reviewer@${["a", "b", "c", "d"].map((letter) => letter.repeat(63)).join(".")}`,
     ]) {
       await expect(
         service.createIdentityInvitation({
@@ -149,10 +193,20 @@ describe("S1.1 beta admission domain", () => {
       ).resolves.toEqual({ kind: "CONFLICT" });
     }
     expect(invitations).toBe(0);
-    await service.createIdentityInvitation({
-      ...request,
-      normalizedIdentityTarget: "reviewer+tag@bücher.example",
-    });
-    expect(invitations).toBe(1);
+    const validTargets = [
+      "reviewer+tag@bücher.example",
+      "reviewer@\u05e9\u05dc\u05d5\u05dd.example",
+      `reviewer@${[63, 63, 63, 61].map((n, i) => String.fromCharCode(97 + i).repeat(n)).join(".")}`,
+      `reviewer@${"a".repeat(63)}.test`,
+      `reviewer@${"ü".repeat(50)}.test`,
+    ];
+    for (const normalizedIdentityTarget of validTargets) {
+      await service.createIdentityInvitation({
+        ...request,
+        normalizedIdentityTarget,
+      });
+    }
+    expect(invitations).toBe(5);
+    expect(forwardedTargets).toEqual(validTargets);
   });
 });

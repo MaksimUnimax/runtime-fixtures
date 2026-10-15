@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   createInMemorySwaggerSourceState,
   createSwaggerHandoffService,
@@ -7,6 +10,12 @@ import {
   InMemorySwaggerSourceStore,
 } from "@product/monitoring-control";
 import { TelegramOperatorService, type TelegramTransport } from "./telegram.js";
+
+const quarantineDirectories: string[] = [];
+afterEach(async () => {
+  for (const directory of quarantineDirectories.splice(0))
+    await rm(directory, { recursive: true, force: true });
+});
 
 async function fixture() {
   const messages: Array<{ chatId: string; text: string; keyboard?: unknown }> =
@@ -31,7 +40,14 @@ async function fixture() {
     expectedArtifactType: "OPENAPI_OR_SWAGGER",
     blockerReason: "Automatic acquisition blocked by provider access behavior.",
   });
-  const swaggerHandoff = createSwaggerHandoffService({ store: handoffStore });
+  const quarantineDir = await mkdtemp(
+    join(tmpdir(), "octoport-telegram-handoff-"),
+  );
+  quarantineDirectories.push(quarantineDir);
+  const swaggerHandoff = createSwaggerHandoffService({
+    store: handoffStore,
+    quarantineDir,
+  });
   const serviceRef: { current?: TelegramOperatorService } = {};
   const scheduler = new IndependentMonitoringScheduler({
     notifier: async (notification) => {

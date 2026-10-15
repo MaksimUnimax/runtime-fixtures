@@ -5,9 +5,9 @@ generates its signing key at process start and exports only the public bundle;
 the private key remains in that API process and is never copied to the package.
 """
 from pathlib import Path
-import argparse, hashlib, json, os, re, subprocess, tempfile, time, urllib.request, uuid
+import argparse, faulthandler, hashlib, json, math, os, re, subprocess, tempfile, time, urllib.request, uuid
 from urllib.parse import urlparse
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 ROOT = Path(__file__).resolve().parents[4]
 NODE = os.environ.get("SA_NODE_BIN", "node")
@@ -60,12 +60,109 @@ def wait_until(check, label, timeout=30):
         time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {label}; last={last!r}")
 
-def read_completed_bootstrap_response(response):
-    # BrowserContext "response" fires before the response body has finished.
-    # Parsing JSON from inside that callback can hide a valid signed response.
-    error = response.finished()
-    if error is not None:
-        raise RuntimeError("signed AI bootstrap HTTP response did not complete")
+_SAFE_BOOTSTRAP_FAILURE_CLASSES = {
+    "NET::ERR_ABORTED": "ABORTED",
+    "NS_BINDING_ABORTED": "ABORTED",
+    "NET::ERR_CONNECTION_RESET": "CONNECTION_RESET",
+    "NET::ERR_CONNECTION_CLOSED": "CONNECTION_CLOSED",
+    "NET::ERR_CONNECTION_REFUSED": "CONNECTION_REFUSED",
+    "NET::ERR_TIMED_OUT": "NETWORK_TIMEOUT",
+    "NET::ERR_EMPTY_RESPONSE": "EMPTY_RESPONSE",
+    "NET::ERR_HTTP2_PROTOCOL_ERROR": "PROTOCOL_ERROR",
+    "NET::ERR_FAILED": "GENERIC_NETWORK_FAILURE",
+}
+
+
+def safe_bootstrap_failure_class(request):
+    # Playwright's request.failure may include arbitrary browser diagnostics.
+    # Never serialize the original string or exceptions; only fixed labels.
+    try:
+        detail = request.failure
+    except Exception:
+        return "UNOBSERVABLE"
+    if not isinstance(detail, str) or not detail:
+        return "UNOBSERVABLE"
+    return _SAFE_BOOTSTRAP_FAILURE_CLASSES.get(detail.strip().upper(), "OTHER")
+
+
+def safe_bootstrap_event_counts(responses, finished, failed, started, second_activation_at=None, work_start_at=None, selected_response=None, failed_at=None, work_started_at=None):
+    # Only fixed keys, numbers, booleans and allowlisted phase labels leave CI.
+    # No request URL, header, body, token or account/subject identity is stored.
+    # Report the response actually selected for signed body verification.
+    # A later response event may append to the list during that verification.
+    selected_request = selected_response.request if selected_response is not None else None
+    selected_index = next(
+        (index for index, response in enumerate(responses) if response is selected_response),
+        None,
+    ) if selected_response is not None else None
+    counts = {
+        "schema_version": 1,
+        "http_200_count": len(responses),
+        "requestfinished_200_count": sum(
+            any(done is response.request for done in finished) for response in responses
+        ),
+        "requestfailed_200_count": sum(
+            any(error is response.request for error in failed) for response in responses
+        ),
+        "selected_request_finished": selected_request is not None and any(
+            done is selected_request for done in finished
+        ),
+        "selected_request_failed": selected_request is not None and any(
+            error is selected_request for error in failed
+        ),
+        "selected_response_observed_window": "none",
+        "selected_request_event_window": "unobserved",
+        "selected_failure_class": "NONE",
+        "selected_failure_ms_after_work_start": None,
+    }
+    if selected_response is not None:
+        if selected_index is not None:
+            if isinstance(work_start_at, int) and selected_index >= work_start_at:
+                counts["selected_response_observed_window"] = "after_work_start_marker"
+            elif isinstance(second_activation_at, int) and selected_index >= second_activation_at:
+                counts["selected_response_observed_window"] = "after_second_activation_marker"
+            elif isinstance(second_activation_at, int):
+                counts["selected_response_observed_window"] = "before_second_activation_marker"
+            else:
+                counts["selected_response_observed_window"] = "unobserved"
+        else:
+            counts["selected_response_observed_window"] = "unobserved"
+        # Request-event phase is independent of late HTTP response arrival.
+        label = next(
+            (phase for request, phase in reversed(started) if request is selected_request),
+            None,
+        )
+        if label in {"first_activation_window", "second_activation_window", "work_start_window"}:
+            counts["selected_request_event_window"] = label
+    if counts["selected_request_failed"]:
+        counts["selected_failure_class"] = safe_bootstrap_failure_class(selected_request)
+        when = next(
+            (at for request, at in reversed(failed_at or ()) if request is selected_request),
+            None,
+        )
+        if isinstance(when, (int, float)) and isinstance(work_started_at, (int, float)):
+            elapsed = (when - work_started_at) * 1000
+            if math.isfinite(elapsed) and 0 <= elapsed <= 180000:
+                counts["selected_failure_ms_after_work_start"] = round(elapsed)
+    return counts
+
+
+def read_completed_bootstrap_response(response, context, completed_requests):
+    # BrowserContext "response" fires on headers, before the HTTP body finishes.
+    # response.finished() can wait indefinitely when a request remains pending.
+    # A requestfinished listener is installed before authentication so that
+    # completion immediately preceding this read cannot be missed.
+    request = response.request
+    if not any(finished is request for finished in completed_requests):
+        try:
+            context.wait_for_event(
+                "requestfinished",
+                predicate=lambda finished: finished is request,
+                timeout=30000,
+            )
+        except PlaywrightTimeoutError:
+            # Fixed error text: never retain a request URL/body/token in CI.
+            raise RuntimeError("signed AI bootstrap HTTP response did not complete") from None
     try:
         envelope = response.json()
     except Exception:
@@ -82,12 +179,69 @@ def file_sha256(path):
             digest.update(chunk)
     return digest.hexdigest()
 
+# CI uploads output even after cancellation: never include any tokens, keys,
+# fixture identities or provider response bodies in durable stage metadata.
+_WORK_START_STEPS = (
+    "start_click", "prompt_wait", "binding_wait", "state_wait",
+    "bootstrap_wait", "bootstrap_body", "profile_eval",
+    "private_page_probe", "sent_prompt_read", "private_storage_read",
+    "support_click", "support_wait", "support_read",
+    "worker_sentinel_read", "pre_restart_state",
+)
+
+_SAFE_STAGES = frozenset({
+    "database_migrate", "api_ready_wait", "browser_config",
+    "package_compose", "portal_ready_wait", "browser_start",
+    "auth_start", "portal_login_redirect", "activation_redirect",
+    "activation_preview", "activation_approval", "bootstrap_observed",
+    "work_start", "browser_restart", "browser_context_close",
+    "subprocess_cleanup", "completed",
+}) | frozenset(
+    f"work_start_{step}_{phase}"
+    for step in _WORK_START_STEPS
+    for phase in ("begin", "done")
+)
+
+
+def _mark_stage(output, name, started):
+    if name not in _SAFE_STAGES:
+        raise ValueError("UNRECOGNIZED_INSTALLED_STAGE")
+    progress = {"schema_version": 1, "stage": name,
+                "elapsed_seconds": round(time.monotonic() - started, 3)}
+    if name in {"browser_context_close", "subprocess_cleanup"}:
+        # Preserve the last fixed Work Start marker if cleanup itself stalls.
+        # Never forward arbitrary data from this file into an uploaded artifact.
+        try:
+            previous = json.loads((output / "progress.json").read_text(encoding="utf8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            previous = None
+        if isinstance(previous, dict):
+            origin = previous.get("work_start_origin") or previous.get("stage")
+            if isinstance(origin, str) and origin.startswith("work_start_") and origin in _SAFE_STAGES:
+                progress["work_start_origin"] = origin
+    temp = output / ".progress.json.tmp"
+    with temp.open("w", encoding="utf8") as stream:
+        stream.write(json.dumps(progress, ensure_ascii=False) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temp, output / "progress.json")
+    print("I1_INSTALLED_STAGE " + name, flush=True)
+    return name
+
+
 def run(runtime, output):
     if os.environ.get("PRODUCT_CONTROL_PLANE_E2E") != "1":
         raise RuntimeError("PRODUCT_CONTROL_PLANE_E2E=1 is required")
     if not os.environ.get("DATABASE_URL"):
         raise RuntimeError("DATABASE_URL is required")
     output.mkdir(parents=True, exist_ok=False)
+    started = time.monotonic()
+    # CI-only traceback contains call sites, never local variables or keys.
+    # If Playwright stalls, make the underlying code boundary observable.
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        faulthandler.enable()
+        faulthandler.dump_traceback_later(180, repeat=True)
+    stage = _mark_stage(output, "database_migrate", started)
     required = [ROOT / "package.json", ROOT / "tooling/build/extension_composed.py",
                 ROOT / "tests/regression/extension-core/client-i1/api-harness.ts",
                 ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs",
@@ -121,8 +275,10 @@ def run(runtime, output):
                 result.update(status="FAIL", stage="database_migrate", error=type(error).__name__, safe_failure={"stage": "database_migrate", "status": None, "error_code": "DATABASE_MIGRATION_FAILED"}, safe_counts={"control_responses": 0}, migration_exit_code=error.returncode)
                 raise
             api_env = {**env, "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust_path), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture_evidence_path)}
-            api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=api_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            # Output is not consumed; a PIPE can stall the child and must not retain raw data.
+            api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=api_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(api)
+            stage = _mark_stage(output, "api_ready_wait", started)
             wait_for(f"http://127.0.0.1:{api_port}/health/ready")
             if not trust_path.exists():
                 raise RuntimeError("API did not export public trust bundle")
@@ -131,6 +287,7 @@ def run(runtime, output):
             evidence = json.loads(fixture_evidence_path.read_text())
             if evidence.get("fixture_emails") != [fixture_email("one", namespace), fixture_email("two", namespace)]:
                 raise RuntimeError("API and browser fixture identities do not match")
+            stage = _mark_stage(output, "browser_config", started)
             config = subprocess.check_output([NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"), str(private_placeholder), str(trust_path)], cwd=ROOT, env=env, text=True)
             packaged_config = json.loads(config)
             configured_package = os.environ.get("SA_Q1A_FINAL_PACKAGE_ROOT")
@@ -142,6 +299,7 @@ def run(runtime, output):
             else:
                 package_root = output / "candidate-package"
                 build_env = {**env, "SA_PACKAGED_CONFIG_JSON": config}
+                stage = _mark_stage(output, "package_compose", started)
                 subprocess.run(["python", "tooling/build/extension_composed.py", "--output", str(package_root)], cwd=ROOT, env=build_env, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             package_archives = sorted(package_root.glob("*.zip"))
             if len(package_archives) != 1:
@@ -158,8 +316,10 @@ def run(runtime, output):
                 "runtime_input_sha256": composition_receipt.get("inputs", {}).get("apps/extension/src/application/runtime.js", {}).get("sha256"),
             }
             portal_env = {**env, "CONTROL_PLANE_API_ORIGIN": f"http://127.0.0.1:{api_port}"}
-            portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", portal_port], cwd=ROOT, env=portal_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            # Output is not consumed; a PIPE can stall the child and must not retain raw data.
+            portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", portal_port], cwd=ROOT, env=portal_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(portal)
+            stage = _mark_stage(output, "portal_ready_wait", started)
             wait_for(f"http://127.0.0.1:{portal_port}/login")
             fixture = (ROOT / "tests/regression/extension-core/fixtures/application-chat.html").read_text()
             # This account/restart fixture exposes a provider conversation ID.
@@ -175,13 +335,45 @@ def run(runtime, output):
                 else:
                     options["channel"] = "chromium"
                 context = playwright.chromium.launch_persistent_context(profile, **options)
-                stage = "browser_start"
+                stage = _mark_stage(output, "browser_start", started)
                 try:
                     context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
                     control_responses = []
                     bootstrap_http_responses = []
+                    completed_bootstrap_requests = []
+                    failed_bootstrap_requests = []
+                    failed_bootstrap_times = []
+                    observed_bootstrap_request_windows = []
+                    bootstrap_window = "first_activation_window"
+                    second_activation_header_count = None
+                    work_start_header_count = None
+                    work_start_started_at = None
                     bootstrap_envelope = None
                     authorization_ids = set()
+                    def observe_started_bootstrap(request):
+                        parsed = urlparse(request.url)
+                        if (parsed.netloc == f"127.0.0.1:{api_port}" and
+                                parsed.path == "/v1/bootstrap" and request.method == "POST"):
+                            # Fixed window at Playwright request event, not at later HTTP 200.
+                            observed_bootstrap_request_windows.append((request, bootstrap_window))
+                    context.on("request", observe_started_bootstrap)
+
+                    def observe_completed_bootstrap(request):
+                        parsed = urlparse(request.url)
+                        if (parsed.netloc == f"127.0.0.1:{api_port}" and
+                                parsed.path == "/v1/bootstrap" and request.method == "POST"):
+                            # Volatile request handles only, never a durable response body.
+                            completed_bootstrap_requests.append(request)
+                    context.on("requestfinished", observe_completed_bootstrap)
+
+                    def observe_failed_bootstrap(request):
+                        parsed = urlparse(request.url)
+                        if (parsed.netloc == f"127.0.0.1:{api_port}" and
+                                parsed.path == "/v1/bootstrap" and request.method == "POST"):
+                            failed_bootstrap_requests.append(request)
+                            failed_bootstrap_times.append((request, time.monotonic()))
+                    context.on("requestfailed", observe_failed_bootstrap)
+
                     def observe_control(response):
                         parsed = urlparse(response.url)
                         if parsed.netloc == f"127.0.0.1:{api_port}" and parsed.path.startswith("/v1/"):
@@ -239,11 +431,11 @@ def run(runtime, output):
 
                     def activate(email):
                         nonlocal worker_sentinel, stage
-                        stage = "auth_start"
+                        stage = _mark_stage(output, "auth_start", started)
                         with context.expect_page() as page_info:
                             popup.click("#auth-start")
                         portal_page = page_info.value
-                        stage = "portal_login_redirect"
+                        stage = _mark_stage(output, "portal_login_redirect", started)
                         portal_page.wait_for_load_state()
                         portal_page.wait_for_url("**/login?returnTo=*")
                         portal_page.locator('input[type="email"]').wait_for(state="visible")
@@ -252,17 +444,17 @@ def run(runtime, output):
                         portal_page.locator('input[inputmode="numeric"]').wait_for(state="visible")
                         portal_page.locator('input[inputmode="numeric"]').fill("424242")
                         expect_portal_post(portal_page, portal_port, "/v1/auth/otp/verify", lambda: portal_page.get_by_role("button", name="Verify").click(), 200, "otp_verify")
-                        stage = "activation_redirect"
+                        stage = _mark_stage(output, "activation_redirect", started)
                         portal_page.wait_for_url("**/activate?authorizationId=*")
                         activation_id = re.search(r"[?&]authorizationId=([0-9a-f-]{36})", portal_page.url, re.I)
                         if activation_id is None:
                             raise RuntimeError("activation redirect did not contain a bounded authorization id")
                         authorization_ids.add(activation_id.group(1).lower())
-                        stage = "activation_preview"
+                        stage = _mark_stage(output, "activation_preview", started)
                         portal_page.locator("dl dd").first.wait_for(state="visible")
                         portal_page.locator('select option:not([value=""]):not([disabled])').first.wait_for(state="attached")
                         popup.locator("#auth-code").wait_for(state="visible")
-                        stage = "activation_approval"
+                        stage = _mark_stage(output, "activation_approval", started)
                         popup.wait_for_function("""() => { const text = document.querySelector('#auth-code')?.textContent || ''; return /[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/.test(text.trim()); }""")
                         code_text = popup.locator("#auth-code").inner_text().strip()
                         code_match = re.search(r"([ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4})$", code_text)
@@ -282,7 +474,7 @@ def run(runtime, output):
                             raise RuntimeError("device approval did not reach the successful status")
                         portal_page.close()
                         popup.wait_for_function("() => document.querySelector('#account').innerText.includes('Аккаунт ·')")
-                        stage = "bootstrap_observed"
+                        stage = _mark_stage(output, "bootstrap_observed", started)
                         return worker.evaluate("""async () => { const authority = await SellerAgentsControlClient.getAuthority(); const status = await SellerAgentsControlClient.status(); return { account: authority?.payload?.account?.id || null, device: authority?.deviceId || null, session: authority?.sessionId || null, accessBasis: authority?.payload?.accessBasis || null, authenticated: status.authenticated, workAllowed: status.workAllowed }; }""")
 
                     first_identity = activate(fixture_email("one", namespace))
@@ -307,6 +499,8 @@ def run(runtime, output):
                     popup.locator("#confirmation").wait_for()
                     popup.locator("#confirmation #confirm").click()
                     popup.wait_for_function("() => document.querySelector('#auth-start').offsetParent !== null && document.querySelector('#account').innerText.includes('Вход не выполнен')")
+                    second_activation_header_count = len(bootstrap_http_responses)
+                    bootstrap_window = "second_activation_window"
                     second_identity = activate(fixture_email("two", namespace))
                     assert second_identity["accessBasis"] == "BETA"
                     assert popup.locator("#account").inner_text() != first_account
@@ -319,9 +513,17 @@ def run(runtime, output):
                     popup.click("#save")
                     popup.wait_for_function("() => document.querySelector('#stores').innerText.includes('Аккаунт B WB')")
 
-                    stage = "work_start"
+                    stage = _mark_stage(output, "work_start", started)
+                    stage = _mark_stage(output, "work_start_start_click_begin", started)
+                    work_start_header_count = len(bootstrap_http_responses)
+                    bootstrap_window = "work_start_window"
+                    work_start_started_at = time.monotonic()
                     popup.click("#start")
+                    stage = _mark_stage(output, "work_start_start_click_done", started)
+                    stage = _mark_stage(output, "work_start_prompt_wait_begin", started)
                     wait_until(lambda: chat.evaluate("() => window.sent.length > 0"), "installed Work Start prompt")
+                    stage = _mark_stage(output, "work_start_prompt_wait_done", started)
+                    stage = _mark_stage(output, "work_start_binding_wait_begin", started)
                     active_surface = wait_until(
                         lambda: popup.evaluate('''async tabId => {
                           const state = await chrome.runtime.sendMessage({type:"SA_POPUP_STATE", tab_id:tabId});
@@ -329,9 +531,11 @@ def run(runtime, output):
                         }''', chat_tab_id),
                         "confirmed active conversation binding",
                     )
+                    stage = _mark_stage(output, "work_start_binding_wait_done", started)
                     assert active_surface["identity"]["conversation_id"] == fixture_conversation_id
                     conversation_key = active_surface["conversation_key"]
                     assert conversation_key == f"https://chatgpt.com|{fixture_conversation_id}"
+                    stage = _mark_stage(output, "work_start_state_wait_begin", started)
                     work_state = wait_until(
                         lambda: worker.evaluate("""async key => {
                           const stored = await chrome.storage.local.get('ozmb_work_sessions_v1');
@@ -342,11 +546,19 @@ def run(runtime, output):
                         }""", conversation_key),
                         "installed Work Start activation",
                     )
+                    stage = _mark_stage(output, "work_start_state_wait_done", started)
+                    stage = _mark_stage(output, "work_start_bootstrap_wait_begin", started)
                     bootstrap_response = wait_until(
                         lambda: bootstrap_http_responses[-1] if bootstrap_http_responses else None,
                         "signed AI bootstrap HTTP 200 observation",
                     )
-                    bootstrap_envelope = read_completed_bootstrap_response(bootstrap_response)
+                    stage = _mark_stage(output, "work_start_bootstrap_wait_done", started)
+                    stage = _mark_stage(output, "work_start_bootstrap_body_begin", started)
+                    bootstrap_envelope = read_completed_bootstrap_response(
+                        bootstrap_response, context, completed_bootstrap_requests
+                    )
+                    stage = _mark_stage(output, "work_start_bootstrap_body_done", started)
+                    stage = _mark_stage(output, "work_start_profile_eval_begin", started)
                     signed_profile = worker.evaluate("""async ({envelope, trust, extensionVersion, expectedAccountId}) => {
                       const observed = SellerAgentsBrowserIdentity.current();
                       const verified = await SellerAgentsBootstrapVerifier.verifyV2(envelope, trust);
@@ -371,6 +583,7 @@ def run(runtime, output):
                         "extensionVersion": packaged_config["extensionVersion"],
                         "expectedAccountId": second_identity["account"],
                     })
+                    stage = _mark_stage(output, "work_start_profile_eval_done", started)
                     if not (
                         signed_profile.get("verified") is True
                         and signed_profile.get("accountMatches") is True
@@ -384,22 +597,34 @@ def run(runtime, output):
                         raise RuntimeError(f"signed AI profile verification failed: {signed_profile}")
 
                     page_private_marker = "octoport-private-page-" + uuid.uuid4().hex
+                    stage = _mark_stage(output, "work_start_private_page_probe_begin", started)
                     chat.evaluate("""marker => {
                       const probe = document.createElement('div');
                       probe.id = 'octoport-private-probe';
                       probe.textContent = marker;
                       document.body.appendChild(probe);
                     }""", page_private_marker)
+                    stage = _mark_stage(output, "work_start_private_page_probe_done", started)
+                    stage = _mark_stage(output, "work_start_sent_prompt_read_begin", started)
                     sent_prompt = chat.evaluate("() => String(window.sent?.[0] || '')")
+                    stage = _mark_stage(output, "work_start_sent_prompt_read_done", started)
+                    stage = _mark_stage(output, "work_start_private_storage_read_begin", started)
                     private_storage = worker.evaluate("""async () => {
                       const stored = await chrome.storage.local.get('seller_agents_stores_v1');
                       const accounts = stored.seller_agents_stores_v1?.accounts || {};
                       return {storeIds:Object.values(accounts).flatMap(account => Object.keys(account?.stores || {})).sort()};
                     }""")
 
+                    stage = _mark_stage(output, "work_start_private_storage_read_done", started)
+                    stage = _mark_stage(output, "work_start_support_click_begin", started)
                     popup.click("#support-generate")
+                    stage = _mark_stage(output, "work_start_support_click_done", started)
+                    stage = _mark_stage(output, "work_start_support_wait_begin", started)
                     popup.locator("#support-snapshot").wait_for(state="visible")
+                    stage = _mark_stage(output, "work_start_support_wait_done", started)
+                    stage = _mark_stage(output, "work_start_support_read_begin", started)
                     support_snapshot = json.loads(popup.locator("#support-snapshot").input_value())
+                    stage = _mark_stage(output, "work_start_support_read_done", started)
                     privacy = support_snapshot.get("privacy", {})
                     if not privacy or any(value is not False for value in privacy.values()):
                         raise RuntimeError("support snapshot privacy contract failed")
@@ -425,8 +650,11 @@ def run(runtime, output):
                         if forbidden and forbidden in serialized_snapshot:
                             raise RuntimeError("support snapshot leaked private page, prompt, account, store, credential, device, session, or conversation data")
 
+                    stage = _mark_stage(output, "work_start_worker_sentinel_read_begin", started)
                     worker_sentinel_after = worker.evaluate("globalThis.__saI1WorkerSentinel")
+                    stage = _mark_stage(output, "work_start_worker_sentinel_read_done", started)
                     same_worker = worker_sentinel == worker_sentinel_after
+                    stage = _mark_stage(output, "work_start_pre_restart_state_begin", started)
                     before_restart = worker.evaluate("""async key => {
                       const status = await SellerAgentsControlClient.status();
                       const authority = await SellerAgentsControlClient.getAuthority();
@@ -449,6 +677,7 @@ def run(runtime, output):
                         origin:row?.origin || null,
                       };
                     }""", conversation_key)
+                    stage = _mark_stage(output, "work_start_pre_restart_state_done", started)
                     assert before_restart["authenticated"] is True and before_restart["workAllowed"] is True
                     assert before_restart["accountId"] == second_identity["account"]
                     assert before_restart["deviceId"] == second_identity["device"]
@@ -459,7 +688,7 @@ def run(runtime, output):
                     assert before_restart["conversationId"] == fixture_conversation_id
                     assert before_restart["origin"] == "https://chatgpt.com"
 
-                    stage = "browser_restart"
+                    stage = _mark_stage(output, "browser_restart", started)
                     context.close()
                     context = playwright.chromium.launch_persistent_context(profile, **options)
                     context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
@@ -570,8 +799,16 @@ def run(runtime, output):
                     bff_counts = {"otp_request_202": sum(1 for endpoint, status in bff if endpoint == "/v1/auth/otp/request" and status == 202), "otp_verify_200": sum(1 for endpoint, status in bff if endpoint == "/v1/auth/otp/verify" and status == 200), "logout_204": sum(1 for endpoint, status in bff if endpoint == "/v1/auth/logout" and status == 204)}
                     assert control_counts == {"device_start": 2, "exchange": 2, "bootstrap": 3}
                     assert bff_counts == {"otp_request_202": 2, "otp_verify_200": 2, "logout_204": 1}
+                    counts = safe_bootstrap_event_counts(
+                        bootstrap_http_responses, completed_bootstrap_requests,
+                        failed_bootstrap_requests, observed_bootstrap_request_windows,
+                        second_activation_header_count, work_start_header_count,
+                        bootstrap_response, failed_bootstrap_times, work_start_started_at,
+                    )
+                    print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result.update(
                         status="PASS",
+                        bootstrap_observer_counts=counts,
                         installed_acceptance=True,
                         access_basis="BETA_SYNTHETIC_FIXTURE",
                         email_delivery_tested=False,
@@ -626,9 +863,18 @@ def run(runtime, output):
                         beta_unchanged=True,
                     )
                 except Exception:
+                    counts = safe_bootstrap_event_counts(
+                        bootstrap_http_responses, completed_bootstrap_requests,
+                        failed_bootstrap_requests, observed_bootstrap_request_windows,
+                        second_activation_header_count, work_start_header_count,
+                        locals().get("bootstrap_response"),
+                        failed_bootstrap_times, work_start_started_at,
+                    )
+                    print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result["failure_observation"] = {
                         "bootstrap_http_200_events": len(bootstrap_http_responses),
                         "bootstrap_body_parsed": bootstrap_envelope is not None,
+                        "bootstrap_observer_counts": counts,
                     }
                     try:
                         diagnostic = worker.evaluate("""async tabId => {
@@ -651,7 +897,14 @@ def run(runtime, output):
                         result["failure_diagnostic"] = {"stage": stage, "read_failed": True, "error_code": "DIAGNOSTIC_READ_FAILED"}
                     raise
                 finally:
-                    context.close()
+                    _mark_stage(output, "browser_context_close", started)
+                    try:
+                        context.close()
+                    except Exception:
+                        # Only an actual close failure becomes the error stage;
+                        # a normal cleanup must not replace the real failure.
+                        stage = "browser_context_close"
+                        raise
         except SafeStageError as error:
             result.update(status="FAIL", stage=error.stage, error=type(error).__name__, safe_failure={"stage": error.stage, "status": error.status, "error_code": error.code}, safe_counts={"control_responses": len(locals().get("control_responses", []))})
             raise
@@ -661,6 +914,7 @@ def run(runtime, output):
             result.update(status="FAIL", stage=locals().get("stage", "unknown"), error=type(error).__name__, safe_failure={"stage": locals().get("stage", "unknown"), "status": None, "error_code": "UNAVAILABLE"}, safe_counts={"control_responses": len(locals().get("control_responses", []))})
             raise
         finally:
+            _mark_stage(output, "subprocess_cleanup", started)
             for process in reversed(processes):
                 if process.poll() is None:
                     process.terminate()
@@ -670,6 +924,15 @@ def run(runtime, output):
                 except subprocess.TimeoutExpired:
                     process.kill()
             (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                faulthandler.cancel_dump_traceback_later()
+            if result.get("status") == "PASS":
+                _mark_stage(output, "completed", started)
+            elif stage in _SAFE_STAGES:
+                # Restore the *origin* of a handled failure after cleanup.
+                # When a job is killed mid-cleanup the most recent cleanup
+                # stage remains, as it should.
+                _mark_stage(output, stage, started)
     print(json.dumps(result, ensure_ascii=False))
 
 if __name__ == "__main__":

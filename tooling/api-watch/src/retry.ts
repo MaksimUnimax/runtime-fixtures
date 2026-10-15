@@ -162,3 +162,71 @@ export async function applyRetryDecision(input: {
   if (input.scheduleEarlier) await input.scheduleEarlier(nextRetryAt);
   return state;
 }
+
+/** One completed acquisition pass consumes one retry decision per family. */
+export async function applyRetryPassDecisions(input: {
+  outcomes: readonly AcquisitionOutcome[];
+  store: ApiWatchRetryStore;
+  scheduleEarlier?: (retryAt: Date) => Promise<void>;
+  now?: Date;
+}): Promise<void> {
+  const families = new Map<SwaggerSourceFamily, AcquisitionOutcome[]>();
+  for (const outcome of input.outcomes) {
+    const group = families.get(outcome.sourceFamily) ?? [];
+    group.push(outcome);
+    families.set(outcome.sourceFamily, group);
+  }
+  for (const [sourceFamily, outcomes] of families) {
+    // A family that requires operator access cannot be automatically reacquired.
+    // Retain its failure episode/cap, but withdraw any old retry deadline.
+    if (
+      outcomes.some((outcome) => outcome.kind === "OPERATOR_SOURCE_REQUIRED")
+    ) {
+      const previous = await input.store.get(sourceFamily);
+      if (previous) {
+        const now = input.now ?? new Date();
+        await input.store.save({
+          ...previous,
+          nextRetryAt: null,
+          lastAttemptAt: now,
+          lastResult: "OPERATOR_SOURCE_REQUIRED",
+          updatedAt: now,
+        });
+      }
+      continue;
+    }
+    const temporary = outcomes.filter(
+      (outcome) => retryFailureClass(outcome) !== null,
+    );
+    // A 429 constrains the whole family pass. Honor the longest confirmed
+    // Retry-After (including the existing default when no value is provided).
+    const rateLimited = temporary.filter(
+      (outcome) => retryFailureClass(outcome) === "HTTP_429",
+    );
+    const limited = rateLimited.reduce<AcquisitionOutcome | undefined>(
+      (longest, outcome) => {
+        const delay = (value: AcquisitionOutcome) =>
+          "retryAfterSeconds" in value
+            ? (value.retryAfterSeconds ?? 3600)
+            : 3600;
+        return !longest || delay(outcome) > delay(longest) ? outcome : longest;
+      },
+      undefined,
+    );
+    const representative =
+      limited ??
+      temporary[0] ??
+      outcomes.find(
+        (outcome) => outcome.kind !== "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
+      ) ??
+      outcomes[0]!;
+    // Partial success must never clear a family's outstanding failure episode.
+    await applyRetryDecision({
+      sourceFamily,
+      outcome: representative,
+      store: input.store,
+      scheduleEarlier: input.scheduleEarlier,
+      now: input.now,
+    });
+  }
+}

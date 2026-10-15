@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { BetaAdmissionService } from "../../../packages/server/beta-access/src/index.js";
 import {
   createBetaAdmissionRepository,
@@ -492,6 +500,167 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
       ),
     ).toBe(1);
   });
+
+  it("uses PostgreSQL capacity reservation time under a fast application clock", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "db-clock-capacity-start", { amount: 1 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+    const first = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "db-clock-first",
+      correlationId: "db-clock-first",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "dbclock-one@example.test",
+      reason: "synthetic time authority",
+    });
+    expect(first.kind).toBe("APPLIED");
+
+    const ahead = new Date(Date.now() + 48 * 60 * 60_000);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(ahead);
+    try {
+      const shrunk = await service.mutate(
+        input(actor, "db-clock-shrink", {
+          expectedRevision: capacity.state.revision,
+          action: "SET_CAPACITY",
+          capacity: 0,
+          amount: undefined,
+        }),
+      );
+      expect(shrunk).toEqual({ kind: "CONFLICT" });
+
+      const extra = await service.createIdentityInvitation({
+        actorPrincipalId: actor,
+        requestId: "db-clock-extra",
+        correlationId: "db-clock-extra",
+        expectedRevision: capacity.state.revision,
+        normalizedIdentityTarget: "dbclock-two@example.test",
+        reason: "synthetic no over-invitation",
+      });
+      expect(extra.kind).toBe("CAPACITY_REACHED");
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(await service.read()).toMatchObject({
+      capacity: 1,
+      admitted: 0,
+      revision: capacity.state.revision,
+    });
+    const pending = await q<{ count: string }>(
+      "SELECT count(*)::text AS count FROM beta_identity_invitations WHERE consumed_at IS NULL AND revoked_at IS NULL AND expires_at>clock_timestamp()",
+    );
+    expect(Number(pending.rows[0]?.count)).toBe(1);
+  });
+
+  it("uses database time for invitation read, idempotent replay and revoke", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "db-clock-status-start", { amount: 1 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+    const request = {
+      actorPrincipalId: actor,
+      requestId: "db-clock-status-invite",
+      correlationId: "db-clock-status-invite",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "dbclock-status@example.test",
+      reason: "synthetic status",
+    };
+    const first = await service.createIdentityInvitation(request);
+    expect(first.kind).toBe("APPLIED");
+    if (first.kind !== "APPLIED") throw new Error("invitation setup failed");
+
+    const ahead = new Date(Date.now() + 48 * 60 * 60_000);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(ahead);
+    try {
+      expect(
+        await service.readIdentityInvitation(first.invitation.id),
+      ).toMatchObject({
+        status: "PENDING",
+      });
+      const replay = await service.createIdentityInvitation(request);
+      expect(replay).toMatchObject({
+        kind: "APPLIED",
+        replay: true,
+        invitation: { status: "PENDING" },
+      });
+      const revoked = await service.revokeIdentityInvitation({
+        actorPrincipalId: actor,
+        invitationId: first.invitation.id,
+        requestId: "db-clock-status-revoke",
+        correlationId: "db-clock-status-revoke",
+        reason: "synthetic revoke",
+      });
+      expect(revoked).toMatchObject({
+        kind: "APPLIED",
+        replay: false,
+        invitation: { status: "REVOKED" },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("preserves PostgreSQL sub-millisecond timestamp precision", async () => {
+    const result = await q<{ active: boolean }>(
+      "SELECT ('2030-01-01 00:00:00.000500'::timestamptz > '2030-01-01 00:00:00.000000'::timestamptz) AS active",
+    );
+    expect(result.rows[0]?.active).toBe(true);
+  });
+
+  it.each([48, -48])(
+    "anchors 24-hour invitation TTL to PostgreSQL with app clock skew %+i hours",
+    async (skewHours) => {
+      const actor = await admin();
+      const capacity = await service.mutate(
+        input(actor, `ttl-db-capacity-${skewHours}`, { amount: 1 }),
+      );
+      expect(capacity.kind).toBe("APPLIED");
+      if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+      const skewClock = new Date(Date.now() + skewHours * 60 * 60_000);
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(skewClock);
+      try {
+        const created = await service.createIdentityInvitation({
+          actorPrincipalId: actor,
+          requestId: `ttl-db-invitation-${skewHours}`,
+          correlationId: "ttl-db-proof",
+          expectedRevision: capacity.state.revision,
+          normalizedIdentityTarget: `ttl-db-${skewHours}@example.test`,
+          reason: "synthetic PG TTL",
+        });
+        expect(created.kind).toBe("APPLIED");
+        if (created.kind !== "APPLIED") throw new Error("invitation missing");
+        expect(created.invitation.status).toBe("PENDING");
+        const records = await q<{
+          remaining_seconds: string;
+          expires_at: Date | string;
+        }>(
+          `SELECT EXTRACT(EPOCH FROM (expires_at - clock_timestamp()))::text AS remaining_seconds,
+                  expires_at
+             FROM beta_identity_invitations WHERE id=$1`,
+          [created.invitation.id],
+        );
+        expect(records.rows).toHaveLength(1);
+        const row = records.rows[0];
+        if (!row) throw new Error("missing synthetic DB invitation");
+        const remaining = Number(row.remaining_seconds);
+        expect(remaining).toBeGreaterThan(86_300);
+        expect(remaining).toBeLessThanOrEqual(86_400);
+        expect(created.invitation.expiresAt.getTime()).toBe(
+          new Date(row.expires_at).getTime(),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it("revoke and expiry release reserved capacity", async () => {
     const actor = await admin();

@@ -582,6 +582,13 @@ export async function makeWorker(directory, options = {}) {
       onRemoved: { addListener() {} },
       sendMessage(id, message, callback) {
         messages.push(structuredClone(message));
+        if (message.type === "OZ_GET_IDENTITY" && typeof options.identityResponse === "function") {
+          const configured = options.identityResponse(structuredClone(message), id);
+          if (configured !== undefined) {
+            Promise.resolve(configured).then(response => callback?.(structuredClone(response)));
+            return;
+          }
+        }
         if (message.type === "OZ_R3_READ_BLOCK") {
           Promise.resolve(options.readBlockResponse?.(structuredClone(message), id) || { ok: false, error: { code: "COMMAND_BLOCK_UNAVAILABLE" } })
             .then(response => callback?.(structuredClone(response)));

@@ -23,6 +23,7 @@ UNITS=['seller-agents-owner-test-api.service','seller-agents-owner-test-worker.s
 MONITOR_UNITS=['octoport-telegram-operator.service','octoport-health-notifications.service']
 EVID=Path('/root/octoport-control/logs/C/owner-test-deploy-62024d19')
 BACKUPS=Path('/root/octoport-control/backups/C/owner-test-predeploy')
+CGROUP_ROOT=Path('/sys/fs/cgroup')
 AUTH='OWNER_AUTHORIZE_BOUNDED_OWNER_TEST_DEPLOYMENT_62024D19'
 FORWARD_RECOVERY_SOURCE_RECEIPT=Path('apply-20260928T111855095131Z')/'receipt.json'
 FORWARD_RECOVERY_SOURCE_RECEIPT_SHA256='619e0c6f86b2a4128e7f5ab2f9e8db8c9a6115acb12d5904e02137bc7db7222c'
@@ -191,18 +192,81 @@ def restore_dropins(src: Path):
         shutil.copy2(source,path); os.chmod(path,0o644)
     run(['systemctl','daemon-reload'])
 
+def read_cgroup_pids(control_group: str) -> list[str]:
+    if not control_group.startswith('/'):
+        raise RuntimeError('PRODUCT_UNIT_CGROUP_INVALID')
+    parts=[part for part in control_group.split('/') if part]
+    if not parts or any(part in ('.','..') for part in parts):
+        raise RuntimeError('PRODUCT_UNIT_CGROUP_INVALID')
+    directory_flags=os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW
+    try:
+        root_fd=os.open(CGROUP_ROOT,directory_flags)
+    except OSError:
+        raise RuntimeError('PRODUCT_UNIT_CGROUP_UNREADABLE') from None
+    current_fd=root_fd
+    try:
+        for part in parts:
+            try:
+                next_fd=os.open(part,directory_flags,dir_fd=current_fd)
+            except FileNotFoundError:
+                # systemd normally removes an empty unit cgroup after stop.
+                return []
+            except OSError:
+                raise RuntimeError('PRODUCT_UNIT_CGROUP_UNREADABLE') from None
+            if current_fd!=root_fd:
+                os.close(current_fd)
+            current_fd=next_fd
+        try:
+            proc_fd=os.open(
+                'cgroup.procs',
+                os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW,
+                dir_fd=current_fd,
+            )
+        except OSError:
+            raise RuntimeError('PRODUCT_UNIT_CGROUP_UNREADABLE') from None
+        try:
+            with os.fdopen(proc_fd,'r',encoding='ascii',errors='strict') as source:
+                return [line.strip() for line in source if line.strip()]
+        except (OSError,UnicodeError):
+            raise RuntimeError('PRODUCT_UNIT_CGROUP_UNREADABLE') from None
+    finally:
+        if current_fd!=root_fd:
+            os.close(current_fd)
+        os.close(root_fd)
+
+
+def unit_quiescence_snapshot(unit: str) -> dict:
+    load=unit_prop(unit,'LoadState')
+    active=unit_prop(unit,'ActiveState')
+    sub=unit_prop(unit,'SubState')
+    main_pid=unit_prop(unit,'MainPID')
+    control_group=unit_prop(unit,'ControlGroup')
+    if load!='masked' or active!='inactive' or main_pid!='0':
+        raise RuntimeError('PRODUCT_UNITS_NOT_QUIESCED')
+    cgroup_pids=read_cgroup_pids(control_group) if control_group else []
+    if cgroup_pids:
+        raise RuntimeError('PRODUCT_UNITS_NOT_QUIESCED')
+    return {'load':load,'active':active,'sub':sub,'mainPid':main_pid,
+            'controlGroup':control_group,'cgroupPids':cgroup_pids}
+
+
 def stop_product_units():
-    # A failed stop must not prevent attempts to quiesce the other product units.
+    # Runtime masking closes the external restart race for the whole destructive
+    # interval. A host reboot kills the old process; a new API must claim a new
+    # instance identity before writing after recovery.
     for unit in reversed(UNITS):
         try:
-            run(['systemctl', 'stop', unit], timeout=30)
+            run(['systemctl','mask','--runtime','--now',unit],timeout=30)
         except Exception:
-            pass  # Actual inactive states below are the authority, not CLI success.
-    if any(unit_prop(unit, 'ActiveState') != 'inactive' for unit in UNITS):
-        raise RuntimeError('PRODUCT_UNITS_NOT_QUIESCED')
+            pass  # Exact manager/process/cgroup state below is authoritative.
+    return {unit:unit_quiescence_snapshot(unit) for unit in UNITS}
 
 
 def start_product_units():
+    for unit in UNITS:
+        run(['systemctl','unmask','--runtime',unit],timeout=30)
+    if any(unit_prop(unit,'LoadState')!='loaded' for unit in UNITS):
+        raise RuntimeError('PRODUCT_UNIT_RUNTIME_UNMASK_FAILED')
     for unit in ['seller-agents-owner-test-api.service','seller-agents-owner-test-worker.service','seller-agents-owner-test-portal.service']:
         run(['systemctl','start',unit],timeout=30)
 
@@ -436,8 +500,9 @@ def apply_locked(journal: Path):
 
     record()  # A kill after this point fences the next apply before any service stop.
     try:
-        stop_product_units()
+        result['quiescenceBeforeBackup']=stop_product_units()
         phase = 'QUIESCED'
+        record()
         backup = backup_live(user, db, stamp)
         phase = 'BACKUP_READY'
         result['backup'] = {'path': str(backup), 'sha256': sha256(backup),
@@ -452,6 +517,7 @@ def apply_locked(journal: Path):
         except Exception:
             phase = 'RESTORING_FRESH_BACKUP'
             result['liveMigrationRecovery'] = 'RESTORE_FRESH_BACKUP'
+            result['quiescenceBeforeDatabaseRestore']=stop_product_units()
             record()
             result['restoredMigrationCount'] = restore_live_backup(user, db, backup, db_meta)
             check_migration_prefix(base_url, 22)
@@ -548,8 +614,7 @@ def recover_forward():
             verify_release(CANDIDATE_REL,CANDIDATE); verify_release(FLOOR_REL,FLOOR)
             result['prefixBefore']=check_migration_prefix(database_url(),40)
             verify_candidate_dropins()
-            if any(unit_prop(unit,'ActiveState')!='inactive' for unit in UNITS):
-                raise RuntimeError('FORWARD_RECOVERY_PRODUCT_NOT_QUIESCED')
+            result['quiescenceBeforeRestart']=stop_product_units()
             result['monitorBefore']=verify_monitor_preflight(preflight_data.get('monitorUnits'))
             write_json_durable(recovery_path,result)
             started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')

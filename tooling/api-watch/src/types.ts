@@ -1,3 +1,4 @@
+import type { OperatorPipelineCandidate } from "./operator-receipt.js";
 import type {
   SwaggerArtifact,
   SwaggerSourceFamily,
@@ -321,6 +322,9 @@ export type ApiWatchSqlRuntime = ApiWatchSqlQuery & {
 
 export interface ApiWatchStore {
   saveAuthorityRecord(input: AuthorityRecordInput): Promise<AuthorityRecord>;
+  saveAuthorityRecords(
+    inputs: AuthorityRecordInput[],
+  ): Promise<AuthorityRecord[]>;
   listAuthorityRecords(): Promise<AuthorityRecord[]>;
   findAuthorityRecord(recordId: string): Promise<AuthorityRecord | undefined>;
   saveSnapshot(metadata: SnapshotMetadata): Promise<SnapshotMetadata>;
@@ -373,6 +377,7 @@ export type OperatorCandidateReview =
       kind: "AUTHORITY_ACCEPTED";
       record: AuthorityRecord;
       records?: AuthorityRecord[];
+      outcomes?: AcquisitionOutcome[];
       familyManifestSha256?: string;
       documentKeys?: string[];
     }
@@ -381,6 +386,7 @@ export type OperatorCandidateReview =
   | { kind: "AUTHORITY_BLOCKED"; reason: string };
 
 export type AuthorityPassResult = {
+  operatorCandidate?: OperatorPipelineCandidate;
   outcomes: AcquisitionOutcome[];
   records: AuthorityRecord[];
 };

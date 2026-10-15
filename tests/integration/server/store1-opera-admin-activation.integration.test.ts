@@ -142,12 +142,13 @@ function store1PackageEvidence(): Store1PackageSignatureEvidence {
     contractVersion: STORE1_CONTRACT,
     trustBundle,
   };
+  // Match the real composer: the packaged config is an executable prefix,
+  // not an inert marker after other script text or inside a comment.
   const serviceWorker = Buffer.from(
-    VERIFIER_SOURCE +
-      "\n" +
-      "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
+    "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
       JSON.stringify(JSON.stringify(packagedConfig)) +
-      ";",
+      ";\n" +
+      VERIFIER_SOURCE,
   );
   return extractStore1PackageSignatureEvidenceFromEntries(
     authority,
@@ -659,7 +660,9 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
   beforeAll(async () => {
     db = createDatabaseRuntime(connectionString!);
     await db.ready();
-    await q("DROP SCHEMA public CASCADE");
+    await q(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA public CASCADE",
+    );
     await q("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await q("CREATE SCHEMA public");
     await runMigrations({ connectionString: connectionString! });
