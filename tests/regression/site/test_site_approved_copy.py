@@ -55,11 +55,21 @@ class ApprovedCopyTests(unittest.TestCase):
         for disclosure in (
             'В закрытой бете поддержка ИИ зависит от проверенной версии',
             'ChatGPT Standard и Work проверяются отдельно',
+            'DeepSeek пока не поддерживается в закрытой бете',
             'Qwen проходит гостевой тест',
             'Внешний поиск возможен лишь средствами выбранной нейросети',
             'При недостающих расходах это частичная оценка, а не полная прибыль.',
         ):
             self.assertIn(disclosure, copy)
+        self.assertRegex(
+            self.home,
+            r'</h1>\s*<p class="hero-lead hero-ai-availability" role="note">'
+            r'DeepSeek пока не поддерживается в закрытой бете',
+        )
+        self.assertIn(
+            'DeepSeek пока не поддерживается в закрытой бете: его упоминание',
+            self.home,
+        )
 
     def test_install_instructions_unchanged_byte_for_byte(self):
         html = (ROOT / 'install.html').read_text()
