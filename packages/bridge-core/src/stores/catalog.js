@@ -84,10 +84,13 @@
       if (!store || store.accountId !== id || store.lifecycleState === "TOMBSTONED") fail("STORE_NOT_FOUND");
       return structuredClone(store);
     }
-    async function mutate(fn, transferContext = null, backupContext = null) {
+    async function mutate(fn, transferContext = null, backupContext = null, backupContextSupplied = false) {
       function assertCurrent() {
         if (transferContext) assertTransferContext?.(transferContext);
-        if (backupContext !== null) {
+        if (backupContextSupplied) {
+          // An explicit null/undefined is not the legacy two-argument call.
+          if (!backupContext || typeof backupContext !== "object" || Array.isArray(backupContext))
+            fail("BACKUP_CONTEXT_GUARD_INVALID");
           if (typeof assertBackupContext !== "function") fail("BACKUP_CONTEXT_GUARD_REQUIRED");
           if (assertBackupContext(backupContext) !== true) fail("BACKUP_CONTEXT_GUARD_INVALID");
         }
@@ -222,7 +225,8 @@
       });
       return { accountId: id, classifications, safeStoreIds: classifications.filter((row) => row.kind === "IMPORT_NEW").map((row) => row.storeId) };
     }
-    async function applyBackupImport(payload, expectedPlan, backupContext = null) {
+    async function applyBackupImport(payload, expectedPlan, backupContext) {
+      const backupContextSupplied = arguments.length >= 3;
       return mutate(async (scope, id) => {
         if (payload?.accountBinding?.accountId !== id || expectedPlan?.accountId !== id) fail("ACCOUNT_CHANGED");
         const current = scope.stores || {};
@@ -254,7 +258,7 @@
           imported.push(publicStore(store));
         }
         return { imported, classifications: actual };
-      }, null, backupContext);
+      }, null, backupContext, backupContextSupplied);
     }
     async function remove(id) {
       return mutate((scope) => {

@@ -208,14 +208,24 @@ for (const mode of ["missing", "async"]) {
     assert.deepEqual(f.snapshot(), before);
   });
 }
-await check("explicit invalid context cannot bypass the guard", async () => {
-  const f = fixture("invalid"), plan = await f.catalog.planBackupImport(payload);
-  await rejectsCode(
-    () => f.catalog.applyBackupImport(payload, plan, false),
-    ["AUTH_GENERATION_CHANGED"],
-  );
-  assert.equal(f.writes(), 0);
-});
+for (const [name, invalidContext] of [
+  ["false", false],
+  ["null", null],
+  ["undefined", undefined],
+  ["empty_string", ""],
+  ["empty_array", []],
+]) {
+  await check("explicit invalid context cannot bypass the guard: " + name, async () => {
+    const f = fixture("invalid-" + name), plan = await f.catalog.planBackupImport(payload);
+    const before = f.snapshot();
+    await rejectsCode(
+      () => f.catalog.applyBackupImport(payload, plan, invalidContext),
+      ["BACKUP_CONTEXT_GUARD_INVALID", "AUTH_GENERATION_CHANGED"],
+    );
+    assert.equal(f.writes(), 0);
+    assert.deepEqual(f.snapshot(), before);
+  });
+}
 console.log(JSON.stringify({
   status: "PASS", level: "EXACT_CATALOG_SOURCE_SYNTHETIC_NO_PROVIDER_NO_BROWSER",
   checks: cases, liveProviderCalls: 0,
