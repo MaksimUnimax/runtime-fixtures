@@ -63,6 +63,59 @@ class BootstrapObserverTest(unittest.TestCase):
             response, context or FakeContext(), completed if completed is not None else []
         )
 
+    def test_safe_chatgpt_grant_projection_allows_only_fixed_boolean_fields(self):
+        raw = {
+            "present": True,
+            "work_allowed": True,
+            "requested_family_matches": True,
+            "detected_family_matches": True,
+            "signed_envelope_present": True,
+            "profile_present": True,
+            "resolved": True,
+            "read_failed": False,
+        }
+        self.assertEqual(module.safe_scoped_chatgpt_grant_observation(raw), raw)
+
+    def test_safe_chatgpt_grant_projection_rejects_malformed_and_secret_data(self):
+        good = {
+            "present": True, "work_allowed": True,
+            "requested_family_matches": True,
+            "detected_family_matches": True,
+            "signed_envelope_present": True,
+            "profile_present": True, "resolved": True,
+            "read_failed": False,
+        }
+        failure = {**{key: False for key in good if key != "read_failed"}, "read_failed": True}
+        for bad in (
+            None,
+            "SECRET_TOKEN",
+            {"read_failed": True},
+            {**good, "access_token": "SECRET_TOKEN"},
+            {**good, "work_allowed": "true"},
+            {**good, "present": 1},
+            {key: value for key, value in good.items() if key != "resolved"},
+        ):
+            with self.subTest(input_type=type(bad).__name__):
+                actual = module.safe_scoped_chatgpt_grant_observation(bad)
+                self.assertEqual(actual, failure)
+                self.assertNotIn("SECRET_TOKEN", str(actual))
+
+    def test_generic_allowed_work_cannot_replace_chatgpt_scoped_grant(self):
+        # Any-family publicStatus().workAllowed true is not a ChatGPT grant.
+        raw = {
+            "present": False, "work_allowed": False,
+            "requested_family_matches": False,
+            "detected_family_matches": False,
+            "signed_envelope_present": False,
+            "profile_present": False, "resolved": False,
+            "read_failed": False,
+        }
+        result = module.safe_scoped_chatgpt_grant_observation(raw)
+        self.assertFalse(result["present"])
+        self.assertFalse(result["work_allowed"])
+        self.assertFalse(result["read_failed"])
+
+
     def test_already_finished_response_does_not_wait_or_call_finished(self):
         response = FakeResponse({"keyId": "fixture", "payload": "fixture"})
         context = FakeContext()

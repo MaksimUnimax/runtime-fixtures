@@ -147,6 +147,25 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
     return counts
 
 
+def safe_scoped_chatgpt_grant_observation(value):
+    """Project the locally checked AI-specific grant to fixed boolean evidence.
+
+    A generic workAllowed status can refer to a different AI. Never serialize
+    the envelope, profile, account/device/session or callback exception.
+    """
+    keys = ("present", "work_allowed", "requested_family_matches",
+            "detected_family_matches", "signed_envelope_present",
+            "profile_present", "resolved")
+    denied = {**{key: False for key in keys}, "read_failed": True}
+    if not isinstance(value, dict) or value.get("read_failed") is not False:
+        return denied
+    if set(value) != set(keys) | {"read_failed"}:
+        return denied
+    if any(type(value[key]) is not bool for key in keys):
+        return denied
+    return {**{key: value[key] for key in keys}, "read_failed": False}
+
+
 def read_completed_bootstrap_response(response, context, completed_requests, failed_requests=None):
     # BrowserContext "response" fires on headers, before the HTTP body finishes.
     # A requestfailed event is terminal; an already aborted request can never
@@ -889,7 +908,32 @@ def run(runtime, output):
                         diagnostic = worker.evaluate("""async tabId => {
                           const status = await SellerAgentsControlClient.status();
                           const code = String(status?.lastError?.code || "");
+                          // A generic allowed Work status may refer to a different AI.
+                          // Query only a current, locally verified ChatGPT grant, with
+                          // a bounded diagnostic read and no identity/payload output.
+                          let scoped = {read_failed: true};
+                          let scopeTimer;
+                          try {
+                            const authority = await Promise.race([
+                              SellerAgentsControlClient.getAuthority("chatgpt"),
+                              new Promise((_, reject) => {
+                                scopeTimer = setTimeout(() => reject(new Error("SCOPE_DIAG_DEADLINE")), 1200);
+                              }),
+                            ]);
+                            scoped = {
+                              present: Boolean(authority),
+                              work_allowed: authority?.workAllowed === true,
+                              requested_family_matches: authority?.requestedAi === "chatgpt",
+                              detected_family_matches: authority?.payload?.ai?.detected?.family === "chatgpt",
+                              signed_envelope_present: Boolean(authority?.envelope),
+                              profile_present: Boolean(authority?.payload?.ai?.profile),
+                              resolved: authority?.payload?.ai?.status === "RESOLVED",
+                              read_failed: false,
+                            };
+                          } catch (_) { /* Diagnostics never grant or renew authority. */ }
+                          finally { if (scopeTimer !== undefined) clearTimeout(scopeTimer); }
                           return {
+                            scoped_chatgpt_grant: scoped,
                             pending: Boolean(status?.pending),
                             authenticated: status?.authenticated === true,
                             workAllowed: status?.workAllowed === true,
@@ -899,7 +943,13 @@ def run(runtime, output):
                               ? await saLastStartDiagnostic(tabId) : null
                           };
                         }""", locals().get("chat_tab_id"))
-                        result["failure_diagnostic"] = {"stage": stage, **diagnostic}
+                        scoped = safe_scoped_chatgpt_grant_observation(
+                            diagnostic.pop("scoped_chatgpt_grant", None)
+                        )
+                        result["failure_diagnostic"] = {
+                            "stage": stage, **diagnostic,
+                            "scoped_chatgpt_grant": scoped,
+                        }
                         if bootstrap_envelope is not None:
                             result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelope)
                     except Exception:
