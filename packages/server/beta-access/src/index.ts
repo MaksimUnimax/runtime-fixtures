@@ -207,6 +207,7 @@ function validNormalizedEmail(value: string): boolean {
         (label) =>
           !!label &&
           label.length <= 63 &&
+          /^[a-z0-9-]+$/.test(label) &&
           !label.startsWith("-") &&
           !label.endsWith("-"),
       )

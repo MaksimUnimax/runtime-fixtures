@@ -138,6 +138,7 @@ describe("S1.1 beta admission domain", () => {
 
   it("rejects malformed invitation domain labels before repository mutation", async () => {
     let invitations = 0;
+    const forwardedTargets: string[] = [];
     const service = new BetaAdmissionService({
       resolve: async () => ({ kind: "NONE" }),
       read: async () => ({
@@ -150,8 +151,9 @@ describe("S1.1 beta admission domain", () => {
       }),
       mutate: async () => ({ kind: "CONFLICT" }),
       readIdentityInvitation: async () => null,
-      inviteIdentity: async () => {
+      inviteIdentity: async (input) => {
         invitations += 1;
+        forwardedTargets.push(input.normalizedIdentityTarget);
         return { kind: "CONFLICT" as const };
       },
       revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
@@ -169,6 +171,9 @@ describe("S1.1 beta admission domain", () => {
       "reviewer@example.test.",
       "reviewer@-example.test",
       "reviewer@example-.test",
+      "reviewer@a_b.test",
+      "reviewer@a!b.test",
+      "reviewer@a+b.test",
       `reviewer@${"a".repeat(64)}.test`,
       `reviewer@${"ü".repeat(64)}.test`,
       `reviewer@${["a", "b", "c", "d"].map((letter) => letter.repeat(63)).join(".")}`,
@@ -181,16 +186,18 @@ describe("S1.1 beta admission domain", () => {
       ).resolves.toEqual({ kind: "CONFLICT" });
     }
     expect(invitations).toBe(0);
-    for (const normalizedIdentityTarget of [
+    const validTargets = [
       "reviewer+tag@bücher.example",
       `reviewer@${"a".repeat(63)}.test`,
       `reviewer@${"ü".repeat(50)}.test`,
-    ]) {
+    ];
+    for (const normalizedIdentityTarget of validTargets) {
       await service.createIdentityInvitation({
         ...request,
         normalizedIdentityTarget,
       });
     }
     expect(invitations).toBe(3);
+    expect(forwardedTargets).toEqual(validTargets);
   });
 });
