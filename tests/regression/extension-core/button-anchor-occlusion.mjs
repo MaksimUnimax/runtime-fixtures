@@ -26,9 +26,9 @@ class Element {
   contains(other) { for(let e=other;e;e=e.parent)if(e===this)return true;return false; }
 }
 let passed=0;
-function run(name, { covered=false, ownOverlay=false, child=false, reveal=false, nativeControl=null, nativeControls=[], rect, expected="none", above=false }={}) {
+function run(name, { covered=false, ownOverlay=false, child=false, reveal=false, nativeControl=null, nativeControls=[], rect, expected="none", above=false, rootAnchor=false }={}) {
   const anchor=new Element(rect||{left:997.609375,top:684,width:125.390625,height:36});
-  const root=new Element({left:386,top:680,width:788,height:240}); anchor.parent=root;
+  const root=rootAnchor?anchor:new Element({left:386,top:680,width:788,height:240}); if(!rootAnchor)anchor.parent=root;
   const button=new Element({left:1133,top:688,width:87.625,height:32});
   const host=new Element({left:0,top:0,width:0,height:0});
   const banner=new Element({left:386,top:670,width:788,height:80});
@@ -57,6 +57,9 @@ run("Clear anchor must not place action over Alice Close", {nativeControl:{left:
 run("Narrow native control crossing the action edge is protected", {nativeControl:{left:1219,top:690,width:2,height:10}});
 run("Adjacent native control without overlap permits action", {nativeControl:{left:1221,top:688,width:44,height:44},expected:"block"});
 run("Native anchor is clear", {expected:"block"});
+run("Narrow native Copy near the top-right retains its below-control fallback", {
+  rect:{left:1190,top:10,width:82,height:30},nativeControl:{left:1190,top:10,width:82,height:30},expected:"block"
+});
 run("Native SVG child counts as visible anchor", {child:true,expected:"block"});
 run("Own shadow host alone does not hide its anchor", {ownOverlay:true,expected:"block"});
 run("Anchor below viewport", {rect:{left:990,top:950,width:125,height:36}});
@@ -64,20 +67,26 @@ run("Anchor above viewport", {rect:{left:990,top:-80,width:125,height:36}});
 run("Anchor right of viewport", {rect:{left:1400,top:300,width:125,height:36}});
 run("Zero-area anchor does not float a button", {rect:{left:990,top:684,width:0,height:0}});
 run("One-line ChatGPT command keeps an action clear of Copy and Share", {
-  rect:{left:324,top:410,width:892,height:22},
+  rootAnchor:true,rect:{left:324,top:410,width:892,height:22},
   nativeControls:[{left:328,top:456,width:24,height:24},{left:364,top:456,width:24,height:24}],expected:"block",above:true
 });
-run("Multiline ChatGPT command retains its clear in-block action", {
-  rect:{left:324,top:410,width:892,height:120},nativeControl:{left:328,top:554,width:24,height:24},expected:"block"
+run("Multiline ChatGPT command remains readable below its action", {
+  rootAnchor:true,rect:{left:324,top:410,width:892,height:120},nativeControl:{left:328,top:554,width:24,height:24},expected:"block",above:true
 });
 run("One-line command stays hidden when both available positions are blocked", {
-  rect:{left:324,top:410,width:892,height:22},
+  rootAnchor:true,rect:{left:324,top:410,width:892,height:22},
   nativeControls:[{left:328,top:456,width:90,height:32},{left:1118,top:365,width:100,height:45}]
 });
 run("Short code block near viewport top cannot use an offscreen fallback", {
-  rect:{left:324,top:10,width:892,height:22},nativeControl:{left:328,top:56,width:90,height:32}
+  rootAnchor:true,rect:{left:324,top:10,width:892,height:22},nativeControl:{left:328,top:56,width:90,height:32}
+});
+run("Multiline code remains readable when its above-block action is covered", {
+  rootAnchor:true,rect:{left:324,top:410,width:892,height:270},nativeControl:{left:1118,top:365,width:100,height:45}
+});
+run("Multiline code at viewport top does not get an in-code fallback", {
+  rootAnchor:true,rect:{left:324,top:10,width:892,height:270}
 });
 run("Covered one-line command does not gain a floating fallback", {
-  rect:{left:324,top:410,width:892,height:22},covered:true
+  rootAnchor:true,rect:{left:324,top:410,width:892,height:22},covered:true
 });
 console.log(JSON.stringify({status:"PASS",cases:passed,scope:"SOURCE geometry; no live/browser acceptance"}));
