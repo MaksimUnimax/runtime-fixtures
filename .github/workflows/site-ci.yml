@@ -377,8 +377,14 @@ jobs:
               assert page_parser.html_lang == "ru", f"{page_name}: html lang must be ru"
               assert page_parser.canonical == [spec["canonical"]], \
                   f"{page_name}: unexpected canonical {page_parser.canonical}"
-              assert page_parser.stylesheets == ["/styles.css?v=logo-meditation-20260928-r1"], \
-                  f"{page_name}: shared stylesheet link is missing"
+              approved_stylesheets = {
+                  "seller-analytics": "/styles.css?v=capability-dropdown-r27-20260929",
+                  "privacy": "/styles.css?v=dark-owner-ref-20260929-r13",
+                  "support": "/styles.css?v=dark-owner-ref-20260929-r13",
+                  "install": "/styles.css?v=dark-owner-ref-20260929-r13",
+              }
+              assert page_parser.stylesheets == [approved_stylesheets[page_name]], \
+                  f"{page_name}: unexpected stylesheet {page_parser.stylesheets}"
               assert page_parser.executable_scripts == 0, f"{page_name}: executable JavaScript is forbidden"
               assert page_parser.json_ld == [], f"{page_name}: unexpected page-level JSON-LD"
               assert f"<title>{spec['title']}</title>" in html, f"{page_name}: title is missing"
