@@ -439,6 +439,25 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     await expect(
       service.purgeExpired({ ...input, statementTimeoutMs: 30_001 }),
     ).rejects.toThrow("statementTimeoutMs");
+    for (const days of [-1, 0, 3_651, 1.5, Number.NaN]) {
+      await expect(
+        service.purgeExpired({ ...input, closedRetentionDays: days }),
+      ).rejects.toThrow("closedRetentionDays");
+    }
+    for (const days of [-1, 0, 3_651, Number.POSITIVE_INFINITY]) {
+      await expect(
+        service.purgeExpired({ ...input, signalRetentionDays: days }),
+      ).rejects.toThrow("signalRetentionDays");
+    }
+    await expect(
+      service.purgeExpired({ ...input, now: new Date(Number.NaN) }),
+    ).rejects.toThrow("now");
+    await expect(
+      service.purgeExpired({
+        ...input,
+        now: new Date(-8_640_000_000_000_000),
+      }),
+    ).rejects.toThrow("cutoff");
   });
 
   it("stores one account milestone under concurrent retry and calculates an isolated funnel", async () => {
