@@ -54,6 +54,7 @@ function mainTail() {
       config: { apiPort: 0 },
       process,
       createApiCleanup,
+      closeDatabases: () => database.close(),
     },
     { timeout: 1_000 },
   ) as Promise<void>;

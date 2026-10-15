@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createApiCleanup } from "./api-cleanup.js";
+import { createApiDatabases } from "./api-databases.js";
 import { createCredentialTransferApiAdmission } from "./credential-transfer-admission.js";
 import { createMaintenanceCredentialFileStore } from "./maintenance-credential-file.js";
 import {
@@ -87,13 +88,17 @@ import { sellerAgentsCommercialModeFromEnvironment } from "@product/entitlements
 const config = loadConfig(process.env);
 const commercialModeEnabled =
   sellerAgentsCommercialModeFromEnvironment(process.env) === "ENABLED";
-const database = createDatabaseRuntime(config.databaseUrl);
+const { database, transferDatabase, closeDatabases } = await createApiDatabases(
+  config.databaseUrl,
+  process.env.CREDENTIAL_TRANSFER_DATABASE_URL,
+  createDatabaseRuntime,
+);
 const transferFence = createCredentialTransferEpochFence(
-  database,
+  transferDatabase,
   randomUUID(),
 );
 const transferAdmission = createCredentialTransferApiAdmission(
-  database,
+  transferDatabase,
   transferFence,
 );
 const infrastructureReady = createInfrastructureReadiness(database);
@@ -253,7 +258,7 @@ const closeApi = createApiCleanup(
     transferService.stop();
   },
   () => app.close(),
-  () => database.close(),
+  closeDatabases,
 );
 async function shutdown(signal: string): Promise<void> {
   if (closing) return;

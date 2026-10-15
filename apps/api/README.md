@@ -5,3 +5,11 @@
 Точка импорта: blood_sand@3f16bbf6387cc62303e292fcfe61449c8f243b92.
 Фактический результат проверок — [квитанция переноса](../../docs/migration/evidence/SERVER_IMPORT_ACCEPTANCE.md).
 Запуск и команды — [локальная разработка](../../docs/server/LOCAL_DEVELOPMENT.md).
+
+## Разделение подключений credential transfer
+
+API использует DATABASE_URL для штатных репозиториев, включая регистрацию и изменение устройств. CREDENTIAL_TRANSFER_DATABASE_URL обязателен отдельно: тот же PostgreSQL endpoint и имя БД, другой LOGIN. Только этот отдельный pool передаётся transfer fence и его admission; основной pool не подменяет его при отсутствии настройки. Существующий строгий admission проверяет фактические права transfer LOGIN, включая отсутствие записи devices. Оба pool закрываются при завершении API, даже если закрытие одного завершилось ошибкой.
+
+Это SOURCE-контракт настройки. Код запуска не создаёт роли, не выдаёт права и не меняет рабочие подключения. Provisioning/rollout требуют отдельных полномочий; существующие credentials не следует копировать в исходники или логи. Для проверки обычных device-операций и изолированного transfer используются независимые тестовые подключения, а production wiring проверяется api-databases.test.ts.
+
+E2E reset в Server CI использует существующий guarded fixture helper и реальный epoch guard, сохраняя его allowlist одноразовой БД и проверку прямого test-superuser. Триггер не отключается.
