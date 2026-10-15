@@ -15,9 +15,14 @@ spec.loader.exec_module(module)
 
 
 class FakeRequest:
-    def __init__(self, url="http://127.0.0.1:43100/v1/bootstrap"):
+    def __init__(self, url="http://127.0.0.1:43100/v1/bootstrap", failure=None):
         self.url = url
         self.method = "POST"
+        self._failure = failure
+
+    @property
+    def failure(self):
+        return self._failure
 
 
 class FakeResponse:
@@ -134,6 +139,8 @@ class BootstrapObserverTest(unittest.TestCase):
             "selected_request_failed": False,
             "selected_response_observed_window": "after_work_start_marker",
             "selected_request_event_window": "second_activation_window",
+            "selected_failure_class": "NONE",
+            "selected_failure_ms_after_work_start": None,
         })
         self.assertNotIn("SECRET_PRIVATE_VALUE", str(observed))
 
@@ -214,6 +221,94 @@ class BootstrapObserverTest(unittest.TestCase):
         self.assertFalse(counts["selected_request_finished"])
         self.assertEqual(counts["selected_request_event_window"], "work_start_window")
         self.assertEqual(counts["selected_response_observed_window"], "unobserved")
+
+    def test_selected_abort_class_and_exact_failure_age_are_allowlisted(self):
+        selected = FakeResponse(request=FakeRequest(
+            url="http://127.0.0.1:43100/v1/bootstrap?SECRET_FAILURE_QUERY",
+            failure="net::ERR_ABORTED",
+        ))
+        counts = module.safe_bootstrap_event_counts(
+            [selected], [], [selected.request],
+            [(selected.request, "work_start_window")],
+            0, 0, selected, [(selected.request, 50.0)], 20.0,
+        )
+        self.assertEqual(counts["selected_failure_class"], "ABORTED")
+        self.assertEqual(counts["selected_failure_ms_after_work_start"], 30000)
+        self.assertTrue(counts["selected_request_failed"])
+        self.assertFalse(counts["selected_request_finished"])
+        self.assertNotIn("SECRET_FAILURE_QUERY", str(counts))
+        self.assertNotIn("net::", str(counts))
+
+    def test_network_failure_classes_are_strict_allowlist(self):
+        known = {
+            "net::ERR_CONNECTION_RESET": "CONNECTION_RESET",
+            "net::ERR_CONNECTION_CLOSED": "CONNECTION_CLOSED",
+            "net::ERR_TIMED_OUT": "NETWORK_TIMEOUT",
+            "net::ERR_EMPTY_RESPONSE": "EMPTY_RESPONSE",
+            "net::ERR_CONNECTION_REFUSED": "CONNECTION_REFUSED",
+            "net::ERR_HTTP2_PROTOCOL_ERROR": "PROTOCOL_ERROR",
+            "net::ERR_FAILED": "GENERIC_NETWORK_FAILURE",
+            "NS_BINDING_ABORTED": "ABORTED",
+        }
+        for raw, expected in known.items():
+            with self.subTest(expected=expected):
+                self.assertEqual(
+                    module.safe_bootstrap_failure_class(FakeRequest(failure=raw)),
+                    expected,
+                )
+
+    def test_untrusted_failure_reason_is_never_serialized(self):
+        secret = "net::ERR_ABORTED SYNTHETIC_TOKEN_PRIVATE"
+        selected = FakeResponse(request=FakeRequest(failure=secret))
+        counts = module.safe_bootstrap_event_counts(
+            [selected], [], [selected.request],
+            [(selected.request, "work_start_window")],
+            0, 0, selected, [(selected.request, 30.0)], 0.0,
+        )
+        self.assertEqual(counts["selected_failure_class"], "OTHER")
+        self.assertEqual(counts["selected_failure_ms_after_work_start"], 30000)
+        self.assertNotIn("SYNTHETIC_TOKEN_PRIVATE", str(counts))
+        self.assertNotIn("net::", str(counts))
+
+    def test_unrelated_same_url_failure_does_not_change_selected_diagnostic(self):
+        selected = FakeResponse()
+        unrelated = FakeRequest(url=selected.request.url, failure="net::ERR_ABORTED")
+        counts = module.safe_bootstrap_event_counts(
+            [selected], [], [unrelated], [(selected.request, "work_start_window")],
+            0, 0, selected, [(unrelated, 30.0)], 0.0,
+        )
+        self.assertFalse(counts["selected_request_failed"])
+        self.assertEqual(counts["selected_failure_class"], "NONE")
+        self.assertIsNone(counts["selected_failure_ms_after_work_start"])
+
+    def test_untrusted_or_invalid_failure_clock_is_unobserved(self):
+        selected = FakeResponse(request=FakeRequest(failure="net::ERR_ABORTED"))
+        for event_time, start_time in [(10.0, 20.0), (float("nan"), 0.0),
+                                       (float("inf"), 0.0), (200.0, 0.0)]:
+            with self.subTest(event_time=event_time):
+                counts = module.safe_bootstrap_event_counts(
+                    [selected], [], [selected.request],
+                    [(selected.request, "work_start_window")],
+                    0, 0, selected, [(selected.request, event_time)], start_time,
+                )
+                self.assertTrue(counts["selected_request_failed"])
+                self.assertIsNone(counts["selected_failure_ms_after_work_start"])
+                self.assertEqual(counts["selected_failure_class"], "ABORTED")
+
+    def test_request_failure_property_exceptions_are_not_exposed(self):
+        class RaisingRequest(FakeRequest):
+            @property
+            def failure(self):
+                raise RuntimeError("SYNTHETIC_SENSITIVE_ERROR")
+        selected = FakeResponse(request=RaisingRequest())
+        counts = module.safe_bootstrap_event_counts(
+            [selected], [], [selected.request],
+            [(selected.request, "work_start_window")],
+            0, 0, selected, [(selected.request, 35.0)], 5.0,
+        )
+        self.assertEqual(counts["selected_failure_class"], "UNOBSERVABLE")
+        self.assertEqual(counts["selected_failure_ms_after_work_start"], 30000)
+        self.assertNotIn("SYNTHETIC_SENSITIVE_ERROR", str(counts))
 
     def test_safe_counts_no_http_response_does_not_guess_phase(self):
         counts = module.safe_bootstrap_event_counts([], [], [], [], None, None, None)

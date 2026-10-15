@@ -5,7 +5,7 @@ generates its signing key at process start and exports only the public bundle;
 the private key remains in that API process and is never copied to the package.
 """
 from pathlib import Path
-import argparse, faulthandler, hashlib, json, os, re, subprocess, tempfile, time, urllib.request, uuid
+import argparse, faulthandler, hashlib, json, math, os, re, subprocess, tempfile, time, urllib.request, uuid
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
@@ -60,7 +60,32 @@ def wait_until(check, label, timeout=30):
         time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {label}; last={last!r}")
 
-def safe_bootstrap_event_counts(responses, finished, failed, started, second_activation_at=None, work_start_at=None, selected_response=None):
+_SAFE_BOOTSTRAP_FAILURE_CLASSES = {
+    "NET::ERR_ABORTED": "ABORTED",
+    "NS_BINDING_ABORTED": "ABORTED",
+    "NET::ERR_CONNECTION_RESET": "CONNECTION_RESET",
+    "NET::ERR_CONNECTION_CLOSED": "CONNECTION_CLOSED",
+    "NET::ERR_CONNECTION_REFUSED": "CONNECTION_REFUSED",
+    "NET::ERR_TIMED_OUT": "NETWORK_TIMEOUT",
+    "NET::ERR_EMPTY_RESPONSE": "EMPTY_RESPONSE",
+    "NET::ERR_HTTP2_PROTOCOL_ERROR": "PROTOCOL_ERROR",
+    "NET::ERR_FAILED": "GENERIC_NETWORK_FAILURE",
+}
+
+
+def safe_bootstrap_failure_class(request):
+    # Playwright's request.failure may include arbitrary browser diagnostics.
+    # Never serialize the original string or exceptions; only fixed labels.
+    try:
+        detail = request.failure
+    except Exception:
+        return "UNOBSERVABLE"
+    if not isinstance(detail, str) or not detail:
+        return "UNOBSERVABLE"
+    return _SAFE_BOOTSTRAP_FAILURE_CLASSES.get(detail.strip().upper(), "OTHER")
+
+
+def safe_bootstrap_event_counts(responses, finished, failed, started, second_activation_at=None, work_start_at=None, selected_response=None, failed_at=None, work_started_at=None):
     # Only fixed keys, numbers, booleans and allowlisted phase labels leave CI.
     # No request URL, header, body, token or account/subject identity is stored.
     # Report the response actually selected for signed body verification.
@@ -87,6 +112,8 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
         ),
         "selected_response_observed_window": "none",
         "selected_request_event_window": "unobserved",
+        "selected_failure_class": "NONE",
+        "selected_failure_ms_after_work_start": None,
     }
     if selected_response is not None:
         if selected_index is not None:
@@ -107,6 +134,16 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
         )
         if label in {"first_activation_window", "second_activation_window", "work_start_window"}:
             counts["selected_request_event_window"] = label
+    if counts["selected_request_failed"]:
+        counts["selected_failure_class"] = safe_bootstrap_failure_class(selected_request)
+        when = next(
+            (at for request, at in reversed(failed_at or ()) if request is selected_request),
+            None,
+        )
+        if isinstance(when, (int, float)) and isinstance(work_started_at, (int, float)):
+            elapsed = (when - work_started_at) * 1000
+            if math.isfinite(elapsed) and 0 <= elapsed <= 180000:
+                counts["selected_failure_ms_after_work_start"] = round(elapsed)
     return counts
 
 
@@ -305,10 +342,12 @@ def run(runtime, output):
                     bootstrap_http_responses = []
                     completed_bootstrap_requests = []
                     failed_bootstrap_requests = []
+                    failed_bootstrap_times = []
                     observed_bootstrap_request_windows = []
                     bootstrap_window = "first_activation_window"
                     second_activation_header_count = None
                     work_start_header_count = None
+                    work_start_started_at = None
                     bootstrap_envelope = None
                     authorization_ids = set()
                     def observe_started_bootstrap(request):
@@ -332,6 +371,7 @@ def run(runtime, output):
                         if (parsed.netloc == f"127.0.0.1:{api_port}" and
                                 parsed.path == "/v1/bootstrap" and request.method == "POST"):
                             failed_bootstrap_requests.append(request)
+                            failed_bootstrap_times.append((request, time.monotonic()))
                     context.on("requestfailed", observe_failed_bootstrap)
 
                     def observe_control(response):
@@ -477,6 +517,7 @@ def run(runtime, output):
                     stage = _mark_stage(output, "work_start_start_click_begin", started)
                     work_start_header_count = len(bootstrap_http_responses)
                     bootstrap_window = "work_start_window"
+                    work_start_started_at = time.monotonic()
                     popup.click("#start")
                     stage = _mark_stage(output, "work_start_start_click_done", started)
                     stage = _mark_stage(output, "work_start_prompt_wait_begin", started)
@@ -762,7 +803,7 @@ def run(runtime, output):
                         bootstrap_http_responses, completed_bootstrap_requests,
                         failed_bootstrap_requests, observed_bootstrap_request_windows,
                         second_activation_header_count, work_start_header_count,
-                        bootstrap_response,
+                        bootstrap_response, failed_bootstrap_times, work_start_started_at,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result.update(
@@ -827,6 +868,7 @@ def run(runtime, output):
                         failed_bootstrap_requests, observed_bootstrap_request_windows,
                         second_activation_header_count, work_start_header_count,
                         locals().get("bootstrap_response"),
+                        failed_bootstrap_times, work_start_started_at,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result["failure_observation"] = {
