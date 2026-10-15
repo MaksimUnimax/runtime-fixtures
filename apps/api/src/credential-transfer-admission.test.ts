@@ -10,11 +10,13 @@ const checks = [
   "transaction_context_structure",
   "safe_functions",
   "cannot_assume_owner",
-  "private_schema_usage_only",
+  "no_role_memberships",
+  "schema_usage_without_create",
   "can_call_entry_functions",
+  "cannot_call_internal_functions",
   "required_repository_privileges",
-  "no_direct_epoch_mutation",
-  "cannot_truncate_requests",
+  "no_direct_fence_table_privileges",
+  "repository_privilege_ceiling",
   "functions_not_public",
   "mandatory_statement_trigger",
 ];
@@ -86,6 +88,24 @@ describe("credential transfer API pre-listen admission", () => {
       await expect(f.admission.start()).rejects.toThrow("NOT_RESTARTABLE");
     },
   );
+  it("does not accept obsolete privilege flags in place of the current safety proof", async () => {
+    const f = fixture({
+      no_role_memberships: undefined,
+      schema_usage_without_create: undefined,
+      cannot_call_internal_functions: undefined,
+      no_direct_fence_table_privileges: undefined,
+      repository_privilege_ceiling: undefined,
+      private_schema_usage_only: true,
+      no_direct_epoch_mutation: true,
+      cannot_truncate_requests: true,
+    });
+    await expect(f.admission.start()).rejects.toThrow(
+      "UNSAFE_OR_UNPROVISIONED",
+    );
+    expect(f.claim).not.toHaveBeenCalled();
+    expect(f.admission.isReady()).toBe(false);
+  });
+
   it("does not claim after stop during privilege query", async () => {
     const f = fixture();
     const held = signal<Awaited<ReturnType<typeof f.query>>>();
