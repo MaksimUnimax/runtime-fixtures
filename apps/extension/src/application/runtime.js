@@ -290,7 +290,8 @@ async function saVerifyCommittedWorkStart(message, sender) {
 async function saPromptTreeForExchange(identity, cacheOnly = false) {
   if (typeof SellerAgentsControlClient.getPromptTree !== "function")
     return { available: false, pin: null, warning: "AI_TREE_CLIENT_UNAVAILABLE" };
-  return SellerAgentsControlClient.getPromptTree(identity, { cacheOnly });
+  // Explicit Start checks the latest publication; command execution remains cache-only.
+  return SellerAgentsControlClient.getPromptTree(identity, { cacheOnly, refresh: !cacheOnly });
 }
 async function saPendingPrompt(pending) {
   await saPendingGuard(pending);
@@ -654,7 +655,15 @@ async function saReadAdmissionSnapshot({ operation, tabId, store, intentId, conv
   if (conversationKey && key !== normalizeConversationKey(conversationKey)) throw saAdmissionError("CONVERSATION_MISMATCH");
   const binding = key ? await bindingForConversationKey(key) : null;
   const work = key ? await workSessionFor(key) : { state: OzonWorkSessionModel.STATES.INACTIVE, revision: 0 };
-  const bindingStore = binding?.store_context ? await saAssertStore(binding.store_context) : null;
+  // A new Start on the same inactive dialogue uses the current account grant.
+  // The old binding remains in the fence as history; it is never resumed here.
+  const newInactiveStart = operation === "start" &&
+    work?.state === OzonWorkSessionModel.STATES.INACTIVE &&
+    binding?.store_context?.storeId === store?.id;
+  const bindingContext = newInactiveStart && binding.store_context.authGeneration !== undefined
+    ? { ...binding.store_context, authGeneration: await SellerAgentsControlClient.generation() }
+    : binding?.store_context;
+  const bindingStore = bindingContext ? await saAssertStore(bindingContext) : null;
   const liveStore = store ? await saAssertStore(saStoreContext(store)) : (binding?.store_context ? await saAssertStore(binding.store_context) : null);
   if (!liveStore) throw saAdmissionError("STORE_NOT_FOUND");
   const authority = await SellerAgentsControlClient.getAuthority(identity);
@@ -1004,7 +1013,8 @@ async function saGuard(owner) {
 }
 const SA_SIGNED_PROFILE_ORIGINS = Object.freeze({
   chatgpt: Object.freeze(["https://chatgpt.com", "https://chat.openai.com"]),
-  alice: Object.freeze(["https://alice.yandex.ru"])
+  alice: Object.freeze(["https://alice.yandex.ru"]),
+  qwen: Object.freeze(["https://chat.qwen.ai"])
 });
 function saSignedProfileOriginAllowed(family, origin) {
   const allowed = SA_SIGNED_PROFILE_ORIGINS[family];
@@ -1175,7 +1185,7 @@ async function saSignedProfileReceipt(message, sender) {
 async function saBroadcastSignedProfileRefresh(reason = "authority_changed") {
   const boundedReason = reason === "profile_changed" ? "profile_changed" : "authority_changed";
   const tabs = await chrome.tabs.query({
-    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*"]
+    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*"]
   }).catch(() => []);
   await Promise.allSettled(tabs.filter(tab => Number.isSafeInteger(tab?.id))
     .map(tab => tabMessage(tab.id, { type: "OZ_SIGNED_AI_PROFILE_REFRESH", reason: boundedReason })));
@@ -1280,7 +1290,8 @@ const SA_SUPPORT_TRANSPORT_CLASSES = new Set([
   "TAB_GONE",
   "CONTEXT_INVALIDATED",
   "SYNC_SEND_EXCEPTION",
-  "OTHER_TAB_MESSAGE_ERROR"
+  "OTHER_TAB_MESSAGE_ERROR",
+  "RESPONSE_TIMEOUT"
 ]);
 function saSupportTransportClass(value) {
   const transportClass = typeof value === "string" ? value : "";
@@ -1356,6 +1367,34 @@ async function saLastStartDiagnostic(tabId = null) {
   }
   return null;
 }
+// Only a stage/booleans projection for the exact currently pending attempt.
+// No prompt, response body, conversation, account, session, or intent identifiers.
+async function saStartDispatchProgress(tabId, pending) {
+  if (!pending?.intent_id || !Number.isInteger(Number(tabId))) return null;
+  let rows;
+  try {
+    const data = await storageGet(KEYS.DIAGNOSTICS);
+    rows = Array.isArray(data[KEYS.DIAGNOSTICS]) ? data[KEYS.DIAGNOSTICS] : [];
+  } catch (_) { return null; }
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (Number(row?.tab_id) !== Number(tabId) || row.intent_id !== pending.intent_id ||
+        Number(row.revision) !== Number(pending.revision)) continue;
+    const stage = row.event === "WORK_START_CONTENT_DISPATCHED" ? "content_requested" :
+      row.event === "WORK_START_DISPATCH_PROGRESS" ? row.stage : null;
+    if (!["guard_enter", "guard_passed", "content_requested", "content_response"].includes(stage)) continue;
+    return {
+      stage,
+      pendingGuardPassed: stage !== "guard_enter",
+      promptReady: ["content_requested", "content_response"].includes(stage),
+      responseReceived: stage === "content_response",
+      responseOk: stage === "content_response" ? row.response_ok === true : null,
+      responseSent: stage === "content_response" ? row.response_sent === true : null,
+      recordedAt: typeof row.at === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(row.at) ? row.at : null,
+    };
+  }
+  return null;
+}
 async function saSupportSnapshot(tabId) {
   const popup = await saPopupState(tabId);
   const observed = globalThis.SellerAgentsBrowserIdentity?.current?.() || {};
@@ -1366,7 +1405,7 @@ async function saSupportSnapshot(tabId) {
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
   const detectedAiFamily = popup.identity?.ai_id || popup.page?.aiFamily;
-  const aiFamily = ["chatgpt", "alice"].includes(detectedAiFamily) ? detectedAiFamily : null;
+  const aiFamily = ["chatgpt", "alice", "qwen"].includes(detectedAiFamily) ? detectedAiFamily : null;
   const lastStart = popup.lastStart || null;
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",
@@ -1398,6 +1437,7 @@ async function saSupportSnapshot(tabId) {
       pending: Boolean(popup.pending),
       pendingOutcome: saSupportToken(popup.pending?.send_outcome),
       lastStart,
+      dispatchProgress: popup.dispatchProgress || null,
     },
     stores: {
       total: stores.length,
@@ -1444,6 +1484,7 @@ async function saPopupState(tabId) {
   const key = usableIdentity && live.conversation_id ? conversationKeyFromIdentity(live) : null;
   const pending = usableIdentity ? (await getPendingWorkStarts())[String(tabId)] || null : null;
   const lastStart = await saLastStartDiagnostic(tabId);
+  const dispatchProgress = await saStartDispatchProgress(tabId, pending);
   const auth = await SellerAgentsControlClient.status(usableIdentity ? live : null);
   const work = key ? await workSessionFor(key) : null;
   if (auth.authenticated && key) void saRefreshConversationSnapshot(key);
@@ -1456,7 +1497,7 @@ async function saPopupState(tabId) {
   if (auth.authenticated) stores = await saCatalog.list();
   return { ok: true, auth, pending: pending ? { intent_id: pending.intent_id, send_outcome: pending.send_outcome, expires_at: pending.expires_at } : null, stores,
     account: auth.account || { kind: "signed_out", label: "Вход не выполнен" },
-    identity: live, page, conversation_key: key, context, work: publicWork, lastStart,
+    identity: live, page, conversation_key: key, context, work: publicWork, lastStart, dispatchProgress,
     recovery: key ? await saR3RecoverySummary(key, work) : [],
     operation: key ? publicManualOperation(await getManualOperation(key)) : null };
 }
@@ -1585,6 +1626,7 @@ async function saWorkResume(message, sender) {
   });
 }
 async function saHandleMessage(message, sender) {
+  if (message?.type === "OZ_QWEN_READ_CODE") return saReadQwenCode(message, sender);
   const enabled = await saEnabled();
   if (enabled && message?.type === "OZ_CONTENT_READY" && sender?.tab?.id && message.identity) {
     const identity = await saResolveSurfaceIdentity(Number(sender.tab.id), normalizeIdentity(message.identity));
@@ -1724,16 +1766,23 @@ async function saHandleMessage(message, sender) {
       await saAssertDeliveryOwner(current);
       if (message.type === "OZ_WORK_DELIVERY_ASSERT") return { ok: true };
       if (!message.actor_id) throw saError("DELIVERY_ACTOR_REQUIRED");
-      let granted = false;
+      let granted = false, committedDelivery = null;
       await mutateManualOperation(key, async owner => {
         if (owner?.operation_id !== id || owner.delivery?.delivery_id !== message.delivery_id) throw saError("DELIVERY_OWNER_MISMATCH");
         await saAssertDeliveryOwner(owner);
-        if (owner.delivery.sa_send_actor) return owner;
+        if (owner.delivery.sa_send_actor) { committedDelivery = owner.delivery; return owner; }
         if (owner.delivery.phase !== "inserted") throw saError("DELIVERY_NOT_INSERTED");
+        const baseline = message.chatgpt_user_baseline;
+        if (baseline !== undefined && (!Array.isArray(baseline) || baseline.length > 4096 ||
+          !Array.from(baseline).every(id => typeof id === "string" && id.length > 0 && id.length <= 512))) throw saError("DELIVERY_BASELINE_INVALID");
         granted = true;
-        return { ...owner, delivery: { ...owner.delivery, sa_send_actor: message.actor_id, sa_send_committed_at: Date.now() } };
+        committedDelivery = { ...owner.delivery, sa_send_actor: message.actor_id, sa_send_committed_at: Date.now(),
+          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null };
+        return { ...owner, delivery: committedDelivery };
       });
-      return { ok: true, click_allowed: granted, code: granted ? "SEND_COMMITTED" : "SEND_OUTCOME_UNKNOWN_NO_RETRY" };
+      return { ok: true, click_allowed: granted, code: granted ? "SEND_COMMITTED" : "SEND_OUTCOME_UNKNOWN_NO_RETRY",
+        send_click_committed: Boolean(committedDelivery?.sa_send_actor),
+        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null };
     }
     if (message.type === "OZ_WORK_START") throw saError("STORE_SELECTION_REQUIRED");
     if (["OZ_WORK_SHOW", "OZ_WORK_HIDE", "OZ_WORK_FINISH", "OZ_WORK_REFRESH"].includes(message.type) && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");
@@ -1851,6 +1900,8 @@ async function saCheckStore(message) {
 }
 function saPrunePayload(owner, now = Date.now()) {
   if (!owner) return owner;
+  // No report bytes remain. Preserve the first provider/delivery replay fence.
+  if (owner.outgoing_text == null && owner.batch == null && owner.delivery == null) return owner;
   const expires = owner.payload_expires_at_ms || Date.parse(owner.created_at || "") + SA_PAYLOAD_TTL;
   if (Number.isFinite(expires) && expires > now) return { ...owner, payload_expires_at_ms: expires };
   const entries = Array.isArray(owner.batch?.entries) ? owner.batch.entries : [];
@@ -1896,6 +1947,7 @@ async function saCleanupExpiredPayloads() {
   const now = Date.now();
   let earliest = null;
   for (const [key, owner] of Object.entries(data[KEYS.MANUAL_OPERATIONS] || {})) {
+    if (!owner || (owner.outgoing_text == null && owner.batch == null && owner.delivery == null)) continue;
     const expiry = owner.payload_expires_at_ms || Date.parse(owner.created_at || "") + SA_PAYLOAD_TTL;
     if (!Number.isFinite(expiry) || expiry <= now) await mutateManualOperation(key, current => saPrunePayload(current));
     else earliest = earliest === null ? expiry : Math.min(earliest, expiry);
@@ -2019,6 +2071,16 @@ async function saR3ReserveCommand(prepared, context, entries, ingressRequestToke
   }
   return reserved;
 }
+function saR3ProviderResultJson(value) {
+  const text = JSON.stringify(value, (_key, item) => {
+    if (typeof item === "number" && !Number.isFinite(item))
+      throw saError("RESULT_RECEIPT_NON_FINITE_NUMBER");
+    return item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item;
+  });
+  if (typeof text !== "string") throw saError("RESULT_RECEIPT_JSON_INVALID");
+  return text;
+}
 const saR3BaseGuardedQueue = globalThis.SellerAgentsGuardedBatchQueue;
 globalThis.SellerAgentsGuardedBatchQueue = Object.freeze({ ...saR3BaseGuardedQueue,
   async run(options, { context, ports }) {
@@ -2028,7 +2090,7 @@ globalThis.SellerAgentsGuardedBatchQueue = Object.freeze({ ...saR3BaseGuardedQue
     let pending = null;
     const record = async (outcome, result = null) => {
       if (!pending || pending.recorded) return;
-      const digest = result === null ? null : await sha256Hex(SellerAgentsBootstrapVerifier.canonicalJson(result));
+      const digest = result === null ? null : await sha256Hex(saR3ProviderResultJson(result));
       for (const item of pending.items) await saR3Ledger().recordProviderOutcome({
         conversationKey: initial.conversation_key, context: initial.execution_context,
         executionId: initial.r3_execution_id, ordinal: item.ordinal,

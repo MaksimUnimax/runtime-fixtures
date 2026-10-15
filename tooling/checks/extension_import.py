@@ -109,6 +109,7 @@ def version_route_profile(version, current_version=None):
     return {"marketplace_hosts": patch >= 3, "control_hosts": patch >= 4,
             "corrective_ports": patch >= 1, "application_worker": patch >= 4,
             "page_entry_recovery": patch >= 12,
+            "native_backup_panel": patch >= 16, "qwen_guest": patch >= 16,
             "version_files": 8 if patch >= 4 else (9 if patch == 3 else 10)}
 
 
@@ -124,6 +125,11 @@ def ozon_route(runner, work, runtime, label, source_route, expected_version="0.1
         expected_permissions = permission[key]
         if version_profile['page_entry_recovery'] and key == "permissions":
             expected_permissions += ["scripting"]
+        if version_profile["native_backup_panel"] and key == "permissions":
+            expected_permissions += ["sidePanel"]
+        if version_profile["qwen_guest"] and key == "host_permissions":
+            assert baseline.read_json(ROOT / "apps/extension/composition.json")["ai_hosts"] == ["https://chat.qwen.ai/*"]
+            expected_permissions += ["https://chat.qwen.ai/*"]
         if version_profile['marketplace_hosts'] and key == "host_permissions":
             expected_permissions += baseline.read_json(ROOT / "apps/extension/composition.json")["marketplace_hosts"]
         if version_profile['control_hosts'] and key == "host_permissions":

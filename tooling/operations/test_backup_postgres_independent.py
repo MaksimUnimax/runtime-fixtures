@@ -19,6 +19,8 @@ from backup_postgres_independent import (
     parse_database_url,
     run_backup,
     verify_independent_mounts,
+    _verified_backup_directories,
+    _apply_retention,
 )
 
 
@@ -217,6 +219,77 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         self.assertTrue(unverified.exists())
         self.assertFalse(list(self.dest.glob(".incomplete-*")))
 
+    def test_invalid_created_at_is_not_verified_as_successful_backup(self) -> None:
+        """Archive bytes alone cannot authenticate its ordering metadata."""
+        good = self._existing_backup(
+            40, "2026-09-15T00:00:00Z", b"valid-canonical-date",
+        )
+        invalid_dates = (
+            "zz-invalid-timestamp",
+            "2026-09-16T00:00:00+00:00",  # backup writer emits canonical Z
+            "2026-02-30T00:00:00Z",
+            "2026-9-1T00:00:00Z",
+        )
+        bad = [
+            self._existing_backup(i + 41, stamp, f"bad-{i}".encode())
+            for i, stamp in enumerate(invalid_dates)
+        ]
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            self.assertEqual(args[0], "/fixture/pg_restore")
+            return subprocess.CompletedProcess(
+                args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+            )
+
+        verified = _verified_backup_directories(
+            self.dest, pg_restore="/fixture/pg_restore", runner=runner
+        )
+        self.assertEqual(
+            [directory for _, directory in verified], [good]
+        )
+        self.assertTrue(all(directory.exists() for directory in bad))
+
+    def test_invalid_created_at_does_not_displace_verified_retention(self) -> None:
+        """Invalid date must not evict a good historical backup at keep=7."""
+        verified = [
+            self._existing_backup(
+                i, f"2026-09-{i + 10:02d}T00:00:00Z",
+                f"valid-{i}".encode(),
+            )
+            for i in range(7)
+        ]
+        invalid = self._existing_backup(
+            99, "zz-corrupt-date", b"archive-valid-but-metadata-invalid"
+        )
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            if args[0] == "/fixture/pg_dump":
+                Path(args[args.index("--file") + 1]).write_bytes(b"new-good")
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[0] == "/fixture/pg_restore":
+                return subprocess.CompletedProcess(
+                    args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+                )
+            raise AssertionError(args)
+
+        result = run_backup(
+            self.config,
+            mount_lookup=self.mount_lookup,
+            device_id=self.device_id,
+            disk_free=lambda _path: 10**9,
+            runner=runner,
+            which=lambda name: f"/fixture/{name}",
+            now=lambda: datetime(2026, 9, 25, 12, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["retainedSuccessful"], 7)
+        self.assertFalse(verified[0].exists())  # the real oldest valid one
+        self.assertTrue(all(path.exists() for path in verified[1:]))
+        self.assertTrue(invalid.exists())  # never delete unverified evidence
+        self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
     def test_hash_corrupted_backup_does_not_displace_verified_backups(self) -> None:
         verified = [
             self._existing_backup(
@@ -314,6 +387,57 @@ class BackupPostgresIndependentTest(unittest.TestCase):
                 which=lambda name: f"/fixture/{name}",
             )
         self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
+    def test_symlinked_backups_and_members_do_not_count_as_verified(self) -> None:
+        # These fixtures are all valid if symlinks are followed, but none is
+        # a backup produced wholly inside the independently mounted target.
+        outside = Path(self.temp.name)
+        linked_directory = self._existing_backup(
+            91, "2026-09-11T00:00:00Z", b"directory-symlink",
+        )
+        actual_directory = outside / "external-backup-directory"
+        linked_directory.rename(actual_directory)
+        linked_directory.symlink_to(actual_directory, target_is_directory=True)
+
+        linked_manifest = self._existing_backup(
+            92, "2026-09-12T00:00:00Z", b"manifest-symlink",
+        )
+        actual_manifest = outside / "external-manifest.json"
+        (linked_manifest / "manifest.json").rename(actual_manifest)
+        (linked_manifest / "manifest.json").symlink_to(actual_manifest)
+
+        linked_archive = self._existing_backup(
+            93, "2026-09-13T00:00:00Z", b"archive-symlink",
+        )
+        actual_archive = outside / "external-database.dump"
+        (linked_archive / "database.dump").rename(actual_archive)
+        (linked_archive / "database.dump").symlink_to(actual_archive)
+
+        good = self._existing_backup(
+            94, "2026-09-14T00:00:00Z", b"real-owned-backup",
+        )
+
+        def runner(argv, **_kwargs):
+            self.assertEqual(str(argv[0]), "/fixture/pg_restore")
+            return subprocess.CompletedProcess(
+                argv, 0, "; archive\n1; 0 0 TABLE public users fixture\n", "",
+            )
+
+        verified = _verified_backup_directories(
+            self.dest, pg_restore="/fixture/pg_restore", runner=runner,
+        )
+        self.assertEqual([path for _stamp, path in verified], [good])
+        # Retention must ignore the symlinked candidates rather than trying
+        # to delete a linked directory or displacing the genuine backup.
+        removed = _apply_retention(
+            self.dest, 1, pg_restore="/fixture/pg_restore", runner=runner,
+        )
+        self.assertEqual(removed, [])
+        self.assertTrue(good.is_dir())
+        self.assertTrue(linked_directory.is_symlink())
+        self.assertTrue(actual_directory.is_dir())
+        self.assertTrue(actual_manifest.is_file())
+        self.assertTrue(actual_archive.is_file())
 
     def test_missing_backup_tools_fail_closed(self) -> None:
         with self.assertRaisesRegex(BackupError, "POSTGRES_BACKUP_TOOLS_MISSING"):

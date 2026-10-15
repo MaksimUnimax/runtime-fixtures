@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const BACKUP_IMPORT_FRAGMENT = "#backup-import";
 const durableImportMode = globalThis.location?.hash === BACKUP_IMPORT_FRAGMENT;
-let tabId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
+let tabId, windowId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
 let backupText = "", backupPreview = null, backupSelectionRevision = 0;
 let r3Review = null;
 let actionGeneration = 0, refreshGeneration = 0;
@@ -49,15 +49,15 @@ function revokeFirefoxTechnicalConsentFromClick() {
     .catch(() => { $("status").textContent = "Не удалось изменить разрешение"; })
     .finally(() => { $("firefox-technical-revoke").disabled = false; refreshFirefoxTechnicalConsent().catch(() => null); });
 }
-const texts = { PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разрешил подключиться к странице. Проверьте разрешение расширения для этого сайта и повторите Start", PAGE_RUNTIME_RECOVERY_UNAVAILABLE: "Эта сборка не поддерживает восстановление связи со страницей", PAGE_TAB_UNAVAILABLE: "Вкладка закрыта или недоступна", PAGE_RUNTIME_NOT_PACKAGED: "В сборке отсутствует обработчик этой страницы", ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
+const texts = { TAB_MESSAGE_TIMEOUT: "Вкладка ИИ не отвечает. После восстановления связи проверьте состояние работы; повторная отправка не выполнялась.", PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разрешил подключиться к странице. Проверьте разрешение расширения для этого сайта и повторите Start", PAGE_RUNTIME_RECOVERY_UNAVAILABLE: "Эта сборка не поддерживает восстановление связи со страницей", PAGE_TAB_UNAVAILABLE: "Вкладка закрыта или недоступна", PAGE_RUNTIME_NOT_PACKAGED: "В сборке отсутствует обработчик этой страницы", ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
   CREDENTIAL_REJECTED: "Ключ отклонён (401). Причина и срок действия не подтверждены", ACCESS_DENIED: "Недостаточно прав (403)",
   CHECK_FAILED: "Не удалось проверить: сеть, ответ площадки или формат запроса", STORE_CHANGE_CONFIRMATION_REQUIRED: "Подтвердите смену магазина",
   WORK_SESSION_ALREADY_ACTIVE: "Этот магазин уже подключён", STORE_NOT_FOUND: "Магазин удалён. Откройте список заново",
-  POPUP_CONTEXT_STALE: "Диалог изменился. Откройте расширение в нужной вкладке", WORK_START_UNSUPPORTED_PAGE: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
+  POPUP_CONTEXT_STALE: "Диалог изменился. Откройте расширение в нужной вкладке", WORK_START_UNSUPPORTED_PAGE: "Откройте поддерживаемый ИИ: ChatGPT, Алису или Qwen",
   WORK_START_ALREADY_PENDING: "Запуск уже выполняется. Повторная инструкция не отправлена", WORK_START_ALREADY_IN_PROGRESS: "Запуск уже выполняется. Дождитесь результата или завершите текущую работу",
   EXECUTION_CONTEXT_CHANGED: "Магазин или рабочая сессия изменились. Нажмите «Начать работу»", RESULT_EXPIRED: "Часовой срок результата истёк", NO_QUOTA_WAIT: "Нет пакета, ожидающего продолжения",
   AUTH_REQUIRED: "Выполните вход через портал", WORK_POLICY_BLOCKED: "Работа недоступна: подписанная политика не разрешила этот профиль ИИ", DEVICE_AUTH_CLOSED: "Попытка входа закрыта. Начните новую попытку", BOOTSTRAP_EXPIRED: "Проверенная сессия истекла. Выполните вход заново",
-  UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанная конфигурация не разрешает текущую версию расширения или браузера", WORK_UNSUPPORTED_AI: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
+  UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанная конфигурация не разрешает текущую версию расширения или браузера", WORK_UNSUPPORTED_AI: "Откройте поддерживаемый ИИ: ChatGPT, Алису или Qwen",
   SOURCE_OFFLINE: "Источник передачи сейчас недоступен. Повтор не считается доставкой", TRANSFER_VAULT_UNAVAILABLE: "Безопасное локальное хранилище ключа передачи недоступно. Передача не начата", TRANSFER_VAULT_PERSIST_FAILED: "Не удалось безопасно сохранить локальный ключ передачи. Запрос не считается готовым", TRANSFER_VAULT_CLEAR_FAILED: "Не удалось подтвердить очистку локального ключа передачи. Сброс не считается завершённым",
   TRANSFER_KEY_MISSING: "Локальный ключ этой передачи отсутствует. Создайте новый запрос на получающей установке", TRANSFER_ACCOUNT_MISMATCH: "Передача относится к другому аккаунту или установке и заблокирована", TRANSFER_EXPIRED: "Срок запроса передачи истёк. Создайте новый запрос", TRANSFER_REPLAY: "Передача уже завершена или повтор заблокирован" };
 async function request(type, fields = {}) {
@@ -126,6 +126,10 @@ async function requestTransferReceivePending() {
   return { response, presentation };
 }
 async function action(fn, { interrupt = false, accountOnly = false } = {}) {
+  if (!accountOnly && !state) {
+    $("status").textContent = "Октопорт ещё загружает состояние. Дождитесь завершения проверки.";
+    return { popupAction: "INITIAL_STATE_PENDING" };
+  }
   if (busy && !interrupt) {
     $("status").textContent = "Дождитесь завершения текущего действия.";
     return { popupAction: "BUSY_REJECTED" };
@@ -133,9 +137,9 @@ async function action(fn, { interrupt = false, accountOnly = false } = {}) {
   const generation = ++actionGeneration;
   refreshGeneration += 1;
   busy = true;
-  if (!accountOnly && typeof render === "function") render();
   $("status").textContent = "Выполняем…";
   try {
+    if (!accountOnly && typeof render === "function") render();
     const result = await fn();
     if (generation !== actionGeneration) return;
     if (!accountOnly) await refresh();
@@ -178,10 +182,13 @@ function render() {
   $("account").textContent = state.account.label;
   $("auth").hidden = authenticated;
   $("catalog").hidden = !authenticated;
+  $("add").disabled = !authenticated || busy;
+  $("edit").disabled = $("remove").disabled = !authenticated || busy;
   $("auth-status").textContent = state.auth?.lastError ? (texts[state.auth.lastError.code] || state.auth.lastError.code) : authenticated ? "Вход подтверждён подписанным bootstrap V2." : state.auth?.pending ? "Откройте портал и подтвердите устройство для своего аккаунта." : "Войдите, чтобы подключить принадлежащий вам аккаунт.";
   $("auth-code").textContent = state.auth?.pending ? `Код подтверждения: ${state.auth.pending.userCode}` : "";
   $("auth-open").hidden = !state.auth?.pending;
   $("auth-start").textContent = state.auth?.pending ? "Открыть портал ещё раз" : "Войти через портал";
+  $("auth-start").disabled = busy;
   $("auth-reset").hidden = !authenticated && !state.auth?.pending;
   $("auth-cancel").hidden = !state.auth?.pending;
   const extensionCompatibility = state.auth?.compatibility?.extension;
@@ -189,13 +196,13 @@ function render() {
   $("compatibility-note").hidden = !updateRecommended;
   $("compatibility-note").textContent = updateRecommended ? `Подписанная конфигурация рекомендует обновить расширение. Текущая версия пока разрешена.${extensionCompatibility.minimumVersion ? ` Минимально допустимая версия: ${extensionCompatibility.minimumVersion}.` : ""}` : "";
   renderOnboarding();
-  if (!authenticated) { $("r3-recovery").hidden = true; $("r3-review").hidden = true; r3Review = null; return; }
+  if (!authenticated) { closeCard(); confirmAction = null; $("confirmation").hidden = true; selectedId = ""; $("r3-recovery").hidden = true; $("r3-review").hidden = true; r3Review = null; return; }
   for (const id of ["ozon", "wildberries"]) $(id).setAttribute("aria-pressed", String(id === marketplace));
   const choices = state.stores.filter(s => s.marketplace === marketplace);
   if (!choices.some(x => x.id === selectedId)) selectedId = choices[0]?.id || "";
   $("stores").replaceChildren(...choices.map(store => { const option = document.createElement("option"); option.value = store.id; option.textContent = store.name; return option; }));
   $("stores").value = selectedId;
-  $("edit").disabled = $("remove").disabled = !selected();
+  $("edit").disabled = $("remove").disabled = busy || !selected();
   const s = selected();
   $("check-seller").hidden = $("check-performance").hidden = marketplace !== "ozon";
   $("check-token").hidden = marketplace !== "wildberries";
@@ -252,7 +259,14 @@ async function refresh(first = false) {
   await refreshFirefoxTechnicalConsent();
 }
 function closeCard() { $("card").reset(); $("card").hidden = true; editingId = null; }
+function storeControlsAllowed() {
+  if (state?.auth?.authenticated === true) return true;
+  closeCard();
+  $("status").textContent = texts.AUTH_REQUIRED;
+  return false;
+}
 function openCard(store) {
+  if (!storeControlsAllowed()) return;
   closeCard(); editingId = store?.id || null; $("card").hidden = false;
   $("name").value = store?.name || ""; $("seller-id").value = store?.sellerClientId || ""; $("performance-id").value = store?.performanceClientId || ""; $("personal").checked = store?.personalDataEnabled === true;
   $("seller").hidden = $("performance").hidden = marketplace !== "ozon"; $("wb").hidden = marketplace !== "wildberries";
@@ -261,13 +275,14 @@ function openCard(store) {
 function confirm(text, fn) { $("confirmation-text").style.whiteSpace = "pre-wrap"; $("confirmation-text").textContent = text; confirmAction = fn; $("confirmation").hidden = false; $("confirm").focus(); }
 for (const id of ["ozon", "wildberries"]) $(id).onclick = () => { marketplace = id; selectedId = ""; closeCard(); render(); };
 $("stores").onchange = () => { selectedId = $("stores").value; closeCard(); render(); };
-$("add").onclick = () => openCard(null); $("edit").onclick = () => openCard(selected()); $("cancel").onclick = closeCard;
-$("card").onsubmit = e => { e.preventDefault(); action(async () => {
+$("add").onclick = () => openCard(null); $("edit").onclick = () => { if (storeControlsAllowed()) openCard(selected()); }; $("cancel").onclick = closeCard;
+$("card").onsubmit = e => { e.preventDefault(); if (!storeControlsAllowed()) return; action(async () => {
+  if (!storeControlsAllowed()) throw new Error(texts.AUTH_REQUIRED);
   const credentials = marketplace === "wildberries" ? { token: $("token").value } : { seller: { clientId: $("seller-id").value, apiKey: $("seller-key").value }, performance: { clientId: $("performance-id").value, clientSecret: $("performance-key").value }, clearPerformance: $("clear-performance").checked };
   const response = await request("SA_STORE_SAVE", { store: { id: editingId, marketplace, name: $("name").value, personalDataEnabled: $("personal").checked, credentials } });
   selectedId = response.store.id; closeCard();
 }); };
-$("remove").onclick = () => { const id = selectedId; confirm(`Удалить магазин «${selected()?.name}» и его ключи? Все связанные с ним локальные рабочие сессии будут завершены.`, () => request("SA_STORE_DELETE", { store_id: id, confirm: true })); };
+$("remove").onclick = () => { if (!storeControlsAllowed()) return; const id = selectedId; confirm(`Удалить магазин «${selected()?.name}» и его ключи? Все связанные с ним локальные рабочие сессии будут завершены.`, () => { if (!storeControlsAllowed()) throw new Error(texts.AUTH_REQUIRED); return request("SA_STORE_DELETE", { store_id: id, confirm: true }); }); };
 $("start").onclick = () => { const id = selectedId; const run = async confirm_change => { const started = await requestStart({ store_id: id, confirm_change, start_intent_id: crypto.randomUUID() }); return { popupAction: "WORK_START_ACCEPTED", promptTreeAvailable: started.prompt_tree_available, promptTreeWarning: started.prompt_tree_warning }; };
   if (state.context.store_id && state.context.store_id !== id) confirm("В диалоге останутся данные предыдущего магазина. ИИ может смешать их в ответах. Старую работу завершим и отправим новую инструкцию для выбранного магазина.", () => run(true)); else action(() => run(false)); };
 $("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; if (fn) action(fn); };
@@ -307,18 +322,44 @@ $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
 async function openKeyFiles(mode) {
+  if (mode === "upload" && !durableImportMode) {
+    try {
+      // Call from the click handler, before any await, to retain the user gesture.
+      // A side panel survives the native file chooser; an action popup may not.
+      const sidebar = globalThis.browser?.sidebarAction;
+      if (typeof sidebar?.open === "function") await sidebar.open();
+      else if (typeof chrome.sidePanel?.open === "function" && Number.isInteger(windowId)) {
+        await chrome.sidePanel.open({ windowId });
+      } else {
+        throw new Error("IMPORT_PANEL_UNAVAILABLE");
+      }
+      globalThis.close?.();
+    } catch (_) {
+      $("status").textContent = "Не удалось открыть панель загрузки ключей в расширении. Обновите расширение и браузер и повторите.";
+      $("backup-status").textContent = $("status").textContent;
+    }
+    return;
+  }
   $("backup").scrollIntoView({ block: "start", behavior: "smooth" });
   $(mode === "upload" ? "backup-file" : "backup-password").focus();
 }
+if (!durableImportMode) $("backup-file").onclick = event => {
+  event.preventDefault();
+  return openKeyFiles("upload");
+};
 $("keys-download").onclick = () => openKeyFiles("download");
 $("keys-upload").onclick = () => openKeyFiles("upload");
-function invalidateBackupReview() {
+function invalidateBackupReview(inputChanged = false) {
   backupSelectionRevision++; backupText = ""; backupPreview = null;
   $("backup-preview-result").hidden = true;
+  if (inputChanged) {
+    $("backup-status").textContent = "Файл или пароль изменились. Проверьте файл заново.";
+    $("status").textContent = "";
+  }
 }
-$("backup-import-password").oninput = invalidateBackupReview;
+$("backup-import-password").oninput = () => invalidateBackupReview(true);
 $("backup-file").onchange = () => {
-  invalidateBackupReview();
+  invalidateBackupReview(true);
   $("backup-status").textContent = $("backup-file").files?.length ? "Файл выбран. Введите пароль и нажмите «Проверить файл»." : "";
 };
 function downloadBackup(name, value) {
@@ -373,7 +414,7 @@ if (durableImportMode) {
 const firefoxPermissionEvents = firefoxTechnicalPermissions();
 firefoxPermissionEvents?.onAdded?.addListener(() => refreshFirefoxTechnicalConsent().catch(() => null));
 firefoxPermissionEvents?.onRemoved?.addListener(() => refreshFirefoxTechnicalConsent().catch(() => null));
-chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => { tabId = tabs[0]?.id; return refresh(true); }).catch(e => { $("status").textContent = e.message; });
+chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => { tabId = tabs[0]?.id; windowId = tabs[0]?.windowId; return refresh(true); }).catch(e => { $("status").textContent = e.message; });
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !Object.keys(changes).some(key => ["seller_agents_control_auth_v2", "seller_agents_stores_v1", "ozmb_work_sessions_v1", "ozmb_pending_work_starts_v1", "ozmb_conversation_bindings", "ozmb_manual_operations"].includes(key))) return;

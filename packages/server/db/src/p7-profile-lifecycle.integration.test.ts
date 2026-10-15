@@ -89,7 +89,9 @@ describe.sequential(
     beforeAll(async () => {
       runtime = createDatabaseRuntime(connectionString!);
       await runtime.ready();
-      await runtime.db.execute(sql`DROP SCHEMA public CASCADE`);
+      await runtime.db.execute(
+        sql`DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA public CASCADE`,
+      );
       await runtime.db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE`);
       await runtime.db.execute(sql`CREATE SCHEMA public`);
       await runMigrations({ connectionString: connectionString! });

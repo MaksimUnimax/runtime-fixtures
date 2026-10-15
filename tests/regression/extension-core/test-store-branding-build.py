@@ -26,7 +26,22 @@ class StoreBrandingBuildTests(unittest.TestCase):
         composed.rewrite_store_visible_brand(output)
         for count, target in enumerate(composed.STORE_VISIBLE_BRAND_TARGETS, start=1):
             self.assertNotIn(b"Seller Agents", output[target])
-            self.assertEqual(output[target].count(b"Octoport"), count)
+            self.assertEqual(output[target].count("Октопорт".encode()), count)
+
+    def test_product_labels_preserve_protocols_hosts_and_marketplace_names(self):
+        sample = 'submit_control: "Ozon"; ' + "Ozon Bridge; Ozon Autorun ошибка; Ozon: batch принят; нажмите кнопку Ozon; OZON_API_V1 OZON_HELP_V2 https://api-seller.ozon.ru Магазин Ozon"
+        targets = ("content_script.js", "attachment_delivery_port_content.js", "shared/runtime_names.js", "service_worker.js", "shared/live_runtime_v0122_patch.js", "shared/llm_output_report_workflow_patch.js", "shared/ozon_contract.js")
+        output = {target: sample.encode() for target in targets}
+        composed.rewrite_product_labels(output)
+        for value in output.values():
+            text = value.decode()
+            self.assertIn("Октопорт: batch принят", text)
+            self.assertIn("кнопку «Октопорт»", text)
+            self.assertIn("OZON_API_V1 OZON_HELP_V2 https://api-seller.ozon.ru Магазин Ozon", text)
+            self.assertNotIn("Ozon:", text)
+            self.assertNotIn("Ozon Bridge", text)
+            self.assertNotIn("Ozon Autorun", text)
+            self.assertIn('submit_control: "Октопорт"', text)
 
     def test_rewrite_requires_every_declared_visible_surface(self):
         output = {target: b"Seller Agents" for target in composed.STORE_VISIBLE_BRAND_TARGETS[:-1]}
@@ -42,7 +57,7 @@ class StoreBrandingBuildTests(unittest.TestCase):
     def test_final_guard_rejects_any_stale_brand_leak(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            (root / "popup.html").write_bytes(b"Octoport")
+            (root / "popup.html").write_bytes("Октопорт".encode())
             (root / "unexpected.js").write_bytes(b'root.textContent = "Seller Agents";')
             with self.assertRaises(AssertionError):
                 composed.assert_no_store_brand_leaks(root)
@@ -50,8 +65,8 @@ class StoreBrandingBuildTests(unittest.TestCase):
     def test_final_guard_accepts_clean_runtime(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            (root / "popup.html").write_bytes(b"Octoport")
-            (root / "attachment_delivery_port_content.js").write_bytes(b"Octoport")
+            (root / "popup.html").write_bytes("Октопорт".encode())
+            (root / "attachment_delivery_port_content.js").write_bytes("Октопорт".encode())
             composed.assert_no_store_brand_leaks(root)
 
 

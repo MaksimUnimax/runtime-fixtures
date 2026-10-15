@@ -36,6 +36,12 @@ export interface MonitoringScheduleStore {
     now: Date;
     leaseMs: number;
   }): Promise<MonitoringStartResult>;
+  // Release only a reservation whose runner has never been entered.
+  releaseUnstartedRun(input: {
+    lane: MonitoringLane;
+    runId: string;
+    now: Date;
+  }): Promise<boolean>;
   finishRun(input: {
     lane: MonitoringLane;
     runId: string;
@@ -50,6 +56,9 @@ export interface MonitoringScheduleStore {
 }
 
 type StartRunInput = Parameters<MonitoringScheduleStore["startRun"]>[0];
+type ReleaseUnstartedRunInput = Parameters<
+  MonitoringScheduleStore["releaseUnstartedRun"]
+>[0];
 type FinishRunInput = Parameters<MonitoringScheduleStore["finishRun"]>[0];
 type NotificationFailureInput = Parameters<
   MonitoringScheduleStore["recordNotificationFailure"]
@@ -155,6 +164,25 @@ export class InMemoryMonitoringScheduleStore
       state.nextRunAt = new Date(now.valueOf() + state.intervalSeconds * 1000);
     state.updatedAt = new Date(now);
     return { kind: "STARTED", run };
+  }
+
+  async releaseUnstartedRun({
+    lane,
+    runId,
+    now,
+  }: ReleaseUnstartedRunInput): Promise<boolean> {
+    const state = this.state(lane);
+    if (state.activeRun?.runId !== runId) return false;
+    if (state.activeRun.source === "SCHEDULED")
+      state.nextRunAt = new Date(
+        Math.min(
+          state.nextRunAt.valueOf(),
+          state.activeRun.startedAt.valueOf(),
+        ),
+      );
+    state.activeRun = null;
+    state.updatedAt = new Date(now);
+    return true;
   }
 
   async finishRun({
@@ -377,6 +405,16 @@ export function createPostgresMonitoringScheduleStore(
         return { kind: "STARTED", run };
       });
     },
+    async releaseUnstartedRun({ lane, runId, now }) {
+      // One conditional write cannot release a later scheduler's lease. Restore
+      // due scheduled work, preserving any earlier retry deadline and results.
+      const released = await runtime.query<{ lane: string }>(
+        `UPDATE monitoring_lane_schedules SET next_run_at=CASE WHEN active_run_source='SCHEDULED' THEN LEAST(next_run_at,active_run_started_at) ELSE next_run_at END,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,updated_at=$3 WHERE lane=$1 AND active_run_id=$2 RETURNING lane`,
+        [lane, runId, now],
+      );
+      return released.rows.length === 1;
+    },
+
     async finishRun({ lane, runId, now, result }) {
       const safe = safeMonitoringResult(result);
       const current = await read(runtime, lane);

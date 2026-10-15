@@ -9,6 +9,7 @@
   const MAX_DUE_PER_WAKE = 16;
   const CLAIM_MS = 30_000;
   const RETRY_MS = 60_000;
+  const PAYLOAD_TTL_MS = 60 * 60_000; // Match runtime saPrunePayload legacy created_at fallback.
   const SUBSCRIPTION_RETRY_BASE_MS = 15 * 60_000;
   const SUBSCRIPTION_RETRY_MAX_MS = 6 * 60 * 60_000;
   const KINDS = Object.freeze({
@@ -222,8 +223,15 @@
 
       let expiryAt = null;
       for (const owner of Object.values(manual)) {
-        const expiry = Number(owner?.payload_expires_at_ms || 0);
-        if (expiry > 0) expiryAt = expiryAt === null ? expiry : Math.min(expiryAt, expiry);
+        // Finished/expired owners retain a replay fence, not a report buffer.
+        // Rescheduling their old expiry on every wake would create an alarm loop.
+        if (!owner || (owner.outgoing_text == null && owner.batch == null && owner.delivery == null)) continue;
+        // Legacy records can omit the explicit expiry. Match saPrunePayload's
+        // created_at + one-hour fallback instead of retaining their bytes forever.
+        const expiry = Number(owner.payload_expires_at_ms ||
+          Date.parse(owner.created_at || "") + PAYLOAD_TTL_MS);
+        const dueAt = Number.isFinite(expiry) && expiry > 0 ? expiry : now;
+        expiryAt = expiryAt === null ? dueAt : Math.min(expiryAt, dueAt);
       }
       if (expiryAt !== null) await schedule(KINDS.EXPIRY, { taskId: "expiry:buffers", dueAt: expiryAt, identity: { retryGeneration: "payload" } });
       else await cancel("expiry:buffers");

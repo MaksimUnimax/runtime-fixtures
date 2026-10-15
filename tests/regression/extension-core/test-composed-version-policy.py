@@ -96,6 +96,8 @@ class VersionPolicyTests(unittest.TestCase):
                     "corrective_ports": patch >= 1,
                     "application_worker": patch >= 4,
                     "page_entry_recovery": patch >= 12,
+                    "native_backup_panel": False,
+                    "qwen_guest": False,
                     "version_files": 8 if patch >= 4 else (9 if patch == 3 else 10),
                 }
                 self.assertEqual(
@@ -106,6 +108,17 @@ class VersionPolicyTests(unittest.TestCase):
         self.assertEqual(
             route.version_route_profile("0.2.14", "0.2.14"),
             route.version_route_profile("0.2.13", "0.2.13"),
+        )
+
+    def test_qwen_and_native_panel_start_only_at_0216(self):
+        previous = route.version_route_profile("0.2.15", "0.2.15")
+        current = route.version_route_profile("0.2.16", "0.2.16")
+        for key in ("native_backup_panel", "qwen_guest"):
+            self.assertFalse(previous[key])
+            self.assertTrue(current[key])
+        self.assertEqual(
+            {k: v for k, v in previous.items() if k not in ("native_backup_panel", "qwen_guest")},
+            {k: v for k, v in current.items() if k not in ("native_backup_panel", "qwen_guest")},
         )
 
     def test_unknown_and_future_not_in_recipe_rejected(self):

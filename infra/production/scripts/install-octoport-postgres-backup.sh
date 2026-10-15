@@ -57,7 +57,7 @@ for env_file in "${API_ENV}" "${BACKUP_ENV}"; do
   fi
 done
 
-readarray -t parsed_paths < <(
+parsed_paths_output="$(
   BACKUP_ENV="${BACKUP_ENV}" python3 - <<'PY'
 import os
 import shlex
@@ -104,7 +104,11 @@ for key in wanted:
         raise SystemExit(f"non-absolute {key}")
     print(value)
 PY
-) || fail "backup destination configuration invalid"
+)" || fail "backup destination configuration invalid"
+
+readarray -t parsed_paths <<< "${parsed_paths_output}"
+[[ "${#parsed_paths[@]}" -eq 5 ]] ||
+  fail "backup destination configuration invalid"
 
 BACKUP_DESTINATION="${parsed_paths[0]}"
 BACKUP_DESTINATION_MOUNT="${parsed_paths[1]}"

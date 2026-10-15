@@ -8,7 +8,7 @@ assert.ok(runtime, "runtime directory required");
 const manifest = JSON.parse(fs.readFileSync(path.join(runtime, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
 assert.deepEqual(manifest.background, { scripts: ["firefox_background.js"] });
-const storePackage = manifest.name === "Octoport — Ozon + Wildberries";
+const storePackage = manifest.name === "Октопорт — Ozon + Wildberries";
 assert.equal(
   manifest.browser_specific_settings?.gecko?.id,
   storePackage ? "octoport@octoport.ru" : "seller-agents@example.test",

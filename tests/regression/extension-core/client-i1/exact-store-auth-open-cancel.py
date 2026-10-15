@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 
 PACKAGE_SHA = "f409e35fb714139cc5eefd6c3b390d5d2ca89fb9567a58cb3b68157e1f62eeae"
 VERSION = "0.2.9"
-NAME = "Octoport — Ozon + Wildberries"
+NAME = "Октопорт — Ozon + Wildberries"
 BROWSER_VERSION = "136.0.6008.22"
 AUTH = """async()=>{const s=await SellerAgentsControlClient.status();return {
  authenticated:s?.authenticated===true,workAllowed:s?.workAllowed===true,

@@ -522,7 +522,7 @@ def main():
             append_help_block(fixture.page)
             button = fixture.page.locator(".ozon-bridge-block-action").last
             button.wait_for(timeout=10000)
-            assert button.inner_text() == "Ozon"
+            assert button.inner_text() == "Октопорт"
             button.click()
             fixture.page.wait_for_function("sent.length === 2", timeout=30000)
             assert fixture.page.evaluate("sent[1].startsWith('OZON_')")

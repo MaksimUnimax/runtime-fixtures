@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { verifyPopupInitialState } from "./popup-initial-state.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const html = readFileSync(path.join(runtime, "popup.html"), "utf8");
@@ -70,7 +71,7 @@ for (const identity of [{ai_id:null},{ai_id:"provider_future"}]) {
   }),[true,true,true,false]);
 }
 
-assert.match(js, /renderOnboarding\(\);\s*if \(!authenticated\) \{ \$\("r3-recovery"\)\.hidden = true; \$\("r3-review"\)\.hidden = true; r3Review = null; return; \}/);
+await verifyPopupInitialState(runtime); // Exercise guest privacy and auth-loss behavior, not a literal source layout.
 console.log(JSON.stringify({
   status: "PASS",
   scope: "A06_FIRST_RUN_ONBOARDING",

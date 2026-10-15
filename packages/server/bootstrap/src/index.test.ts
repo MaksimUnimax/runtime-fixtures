@@ -862,6 +862,7 @@ describe("BootstrapService", () => {
         "source.wildberries": true,
         "ai.chatgpt": true,
         "ai.alice": true,
+        "ai.qwen": true,
       });
     }
   });
@@ -891,6 +892,7 @@ describe("BootstrapService", () => {
         "source.wildberries": true,
         "ai.chatgpt": true,
         "ai.alice": true,
+        "ai.qwen": true,
       };
       expect(v1.payload.accessBasis).toBe("BETA");
       expect(v1.payload.entitlements).toEqual(expected);
@@ -961,6 +963,7 @@ describe("BootstrapService", () => {
         "source.wildberries": true,
         "ai.chatgpt": true,
         "ai.alice": true,
+        "ai.qwen": true,
         "device.max_active": 0,
         "provider.analytics": false,
       });
@@ -1085,6 +1088,7 @@ describe("BootstrapService", () => {
           "source.wildberries": true,
           "ai.chatgpt": true,
           "ai.alice": true,
+          "ai.qwen": true,
           "device.max_active": 0,
         });
         expect(verified.payload.ai).toEqual(

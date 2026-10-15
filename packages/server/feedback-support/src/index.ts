@@ -148,6 +148,10 @@ const secretPatterns: readonly [RegExp, string][] = [
     "[REDACTED_PRIVATE_KEY]",
   ],
   [
+    /(\b(?:proxy-)?authorization[ \t]*[:=][ \t]*)[^\r\n]*(?:(?:\r\n|\r|\n)[ \t]+[^\r\n]*)*/giu,
+    "$1[REDACTED_AUTHORIZATION]",
+  ],
+  [
     /(authorization\s*[:=]\s*bearer\s+)[A-Za-z0-9._~+/=-]{12,}/giu,
     "$1[REDACTED_TOKEN]",
   ],
@@ -167,10 +171,33 @@ const secretPatterns: readonly [RegExp, string][] = [
   ],
 ];
 
+// Decode quoted JSON keys before classifying credential fields. Unicode
+// escaped keys like "access\u005ftoken" are equivalent to "access_token".
+const quotedJsonField =
+  /("(?:\\.|[^"\\\r\n])*")(\s*:\s*")(?:(?:\\.)|[^"\\\r\n])*(?=")/gu;
+const sensitiveJsonKey =
+  /(?:password|passwd|secret|token|api[_-]?key|authorization)$/iu;
+
 export function redactAccidentalSecrets(input: string): string {
+  const jsonRedacted = input.replace(
+    quotedJsonField,
+    (field, encodedKey: string, delimiter: string) => {
+      let key: unknown;
+      try {
+        key = JSON.parse(encodedKey);
+      } catch {
+        // An invalid JSON escape makes the key identity unknowable.
+        // Preserve its original spelling but never persist its value.
+        return encodedKey + delimiter + "[REDACTED_SECRET]";
+      }
+      return typeof key === "string" && sensitiveJsonKey.test(key)
+        ? encodedKey + delimiter + "[REDACTED_SECRET]"
+        : field;
+    },
+  );
   return secretPatterns.reduce(
     (value, [pattern, replacement]) => value.replace(pattern, replacement),
-    input,
+    jsonRedacted,
   );
 }
 

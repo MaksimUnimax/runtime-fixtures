@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "stage": "I1-C1",
-  "version": "0.2.15",
+  "version": "0.2.30",
   "purpose": "LOCAL_DEVELOPMENT_CANDIDATE_DEVICE_AUTH_SIGNED_ACCOUNT_BINDING",
   "control_api_origin": "http://127.0.0.1:43100",
   "portal_origin": "http://127.0.0.1:43101",
@@ -61,7 +61,8 @@
     "packages/bridge-core/src/execution/guarded-queue.js",
     "packages/bridge-core/src/execution/observed-quota.js",
     "apps/extension/src/background/context/runtime-context.js",
-    "apps/extension/src/application/technical-scheduler.js"
+    "apps/extension/src/application/technical-scheduler.js",
+    "apps/extension/src/background/compat/qwen-code-reader.js"
   ],
   "worker_initializer": {
     "old": "let manualOperationsWriteLock = Promise.resolve();",
@@ -227,6 +228,7 @@
       "apps/extension/src/application/popup.css"
     ],
     "shared/ai_adapters.js": [
+      "apps/extension/src/content/qwen-adapter.js",
       "apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js",
       "apps/extension/src/content/conversation-surface.js",
       "apps/extension/src/content/command-receipts.js"
@@ -254,5 +256,8 @@
   "control_hosts": [
     "http://127.0.0.1:43100/*",
     "http://127.0.0.1:43101/*"
+  ],
+  "ai_hosts": [
+    "https://chat.qwen.ai/*"
   ]
 }

@@ -104,6 +104,7 @@ const apiWatchRunner = createApiWatchRunner({
   quarantineDir: swaggerQuarantineDir,
 });
 const scheduler = new IndependentMonitoringScheduler({
+  onError: (event) => console.error(event.code, event.lane ?? "ALL"),
   notifier: async (notification) => {
     if (!shouldSendMonitoringNotification(notification)) return;
     await serviceRef.current?.notify(notification);

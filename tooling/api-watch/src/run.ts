@@ -1,3 +1,4 @@
+import { completeOperatorPipeline } from "./operator-receipt.js";
 import type {
   MonitoringCoverage,
   MonitoringLaneRunner,
@@ -14,7 +15,7 @@ import {
   inventoryIdentity,
   extractProductRegistry,
 } from "./product-registry.js";
-import { applyRetryDecision } from "./retry.js";
+import { applyRetryPassDecisions } from "./retry.js";
 import type {
   ApiWatchDependencies,
   ApiWatchImpact,
@@ -165,7 +166,10 @@ export function createApiWatchRunner(
   return async (run) => {
     const reportStore = dependencies.reportStore;
     if (!reportStore) {
-      const pass = await runAuthorityPass(dependencies);
+      const pass = await runAuthorityPass({
+        ...dependencies,
+        skipOperatorBlocked: run.source === "SCHEDULED",
+      });
       return resultFromAuthorityPass(pass);
     }
     return runApiWatchReport({
@@ -570,6 +574,7 @@ export async function runApiWatchReport(input: {
     const pass = await runAuthorityPass({
       ...dependencies,
       now: dependencies.clock,
+      skipOperatorBlocked: input.source === "SCHEDULED",
     });
     const sources: ApiWatchReportSourceOutcome[] = [];
     const crosswalkDocuments: CrosswalkDocument[] = [];
@@ -629,22 +634,35 @@ export async function runApiWatchReport(input: {
         now: currentTime(dependencies),
       });
     if (dependencies.retryStore)
-      for (const outcome of pass.outcomes)
-        await applyRetryDecision({
-          sourceFamily: outcome.sourceFamily,
-          outcome,
-          store: dependencies.retryStore,
-          scheduleEarlier: dependencies.scheduleEarlier,
-          now: currentTime(dependencies),
-        });
+      await applyRetryPassDecisions({
+        outcomes: pass.outcomes,
+        store: dependencies.retryStore,
+        scheduleEarlier: dependencies.scheduleEarlier,
+        now: currentTime(dependencies),
+      });
+    if (pass.operatorCandidate)
+      await completeOperatorPipeline({
+        candidate: pass.operatorCandidate,
+        reportId: report.reportId,
+        store: dependencies.store,
+        reportStore,
+        quarantineDir:
+          dependencies.quarantineDir ??
+          process.env.SWAGGER_QUARANTINE_DIR ??
+          "/var/lib/octoport/api-watch/quarantine",
+      });
     return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
-    await reportStore.transitionReport({
-      reportId: report.reportId,
-      state: "FAILED",
-      at: currentTime(dependencies),
-      counts: { overallImpactSeverity: null },
-    });
+    // A terminal transition may commit before its ACK or a later pipeline step
+    // fails. Without a completion receipt the exact artifact remains resumable.
+    const persisted = await reportStore.getReport(report.reportId);
+    if (persisted?.state === "RUNNING")
+      await reportStore.transitionReport({
+        reportId: report.reportId,
+        state: "FAILED",
+        at: currentTime(dependencies),
+        counts: { overallImpactSeverity: null },
+      });
     return reportResult("FAILED");
   }
 }

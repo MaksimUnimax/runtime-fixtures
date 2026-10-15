@@ -5,6 +5,7 @@ export const SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS = Object.freeze([
   "source.wildberries",
   "ai.chatgpt",
   "ai.alice",
+  "ai.qwen",
 ] as const);
 
 export type SellerAgentsCapabilityPermissionKey =
@@ -50,6 +51,14 @@ const definitions: SellerAgentsCapabilityPermissionDefinition[] = [
     executionAuthority: false,
     description:
       "Account permission for the packaged Alice AI family; profile and health policy remain separate gates.",
+  },
+  {
+    entitlementKey: "ai.qwen",
+    valueType: "BOOLEAN",
+    securityClassification: "CAPABILITY",
+    executionAuthority: false,
+    description:
+      "Account permission for the packaged Qwen AI family; profile and health policy remain separate gates.",
   },
 ];
 

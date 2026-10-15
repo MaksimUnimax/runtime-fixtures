@@ -34,7 +34,33 @@ def rewrite_store_visible_brand(output):
     """Rewrite visible development branding without coupling to copy occurrence counts."""
     for target in STORE_VISIBLE_BRAND_TARGETS:
         assert target in output, target
-        output[target] = output[target].replace(b"Seller Agents", b"Octoport")
+        output[target] = output[target].replace(b"Seller Agents", "Октопорт".encode())
+
+
+def rewrite_product_labels(output):
+    """Only known product labels; marketplace names/protocols/hosts stay intact."""
+    labels = (
+        ("Ozon Bridge", "Октопорт"),
+        ("OZON BRIDGE", "ОКТОПОРТ"),
+        ("Ozon Autorun:", "Октопорт:"),
+        ("Ozon Autorun ", "Октопорт "),
+        ("Ozon manual recovery:", "Октопорт:"),
+        ("Ozon manual:", "Октопорт:"),
+        ("Ozon recovery:", "Октопорт:"),
+        ("Ozon:", "Октопорт:"),
+        ("кнопку Ozon", "кнопку «Октопорт»"),
+        ("кнопки Ozon", "кнопки «Октопорт»"),
+        ("кнопка Ozon", "кнопка «Октопорт»"),
+        ('submit_control: "Ozon"', 'submit_control: "Октопорт"'),
+        ("команд в Octoport", "команд в Октопорт"),
+        ("Сохранённый Ozon delivery text", "Сохранённый результат Октопорта"),
+    )
+    for target in ("content_script.js", "attachment_delivery_port_content.js",
+                   "shared/runtime_names.js", "service_worker.js",
+                   "shared/live_runtime_v0122_patch.js", "shared/llm_output_report_workflow_patch.js",
+                   "shared/ozon_contract.js"):
+        for old, new in labels:
+            output[target] = output[target].replace(old.encode(), new.encode())
 
 
 def assert_no_store_brand_leaks(directory):
@@ -243,8 +269,27 @@ def compose(directory, mode="development", release_authority=None):
             )
     for patch in json.loads(read_input(recipe["application_patches"], inputs)):
         text = output[patch["target"]].decode()
+        assert isinstance(patch["old"], str)
         assert text.count(patch["old"]) == 1, (patch["target"], patch["old"][:100], text.count(patch["old"]))
-        output[patch["target"]] = text.replace(patch["old"], patch["new"]).encode()
+        if "new_source" in patch:
+            # One reviewed A05 extraction. The old patch anchor and new
+            # replacement remain pinned byte-for-byte; no arbitrary path
+            # loading from the patch list is permitted.
+            assert set(patch) == {"target", "old", "old_sha256", "new_source", "new_sha256"}
+            assert patch["target"] == "content_script.js"
+            assert patch["new_source"] == "apps/extension/src/content/position-own-button.js"
+            assert baseline.sha256(patch["old"].encode()) == patch["old_sha256"]
+            replacement_bytes = read_input(patch["new_source"], inputs)
+            # Original inline patch ended with an extra blank line. Keep the
+            # checked external source canonical and restore that exact suffix
+            # at composition time, before checking the expected output hash.
+            replacement = replacement_bytes.decode() + "\n"
+            assert baseline.sha256(replacement.encode()) == patch["new_sha256"]
+        else:
+            assert set(patch) == {"target", "old", "new"}
+            replacement = patch["new"]
+        output[patch["target"]] = text.replace(patch["old"], replacement).encode()
+    rewrite_product_labels(output)
     if mode == "store":
         rewrite_store_visible_brand(output)
         popup = output["popup.html"]
@@ -265,8 +310,8 @@ def compose(directory, mode="development", release_authority=None):
     manifest_path = directory / "manifest.json"
     manifest = baseline.read_json(manifest_path)
     if mode == "store":
-        manifest["name"] = "Octoport — Ozon + Wildberries"
-        manifest["action"]["default_title"] = "Octoport"
+        manifest["name"] = "Октопорт — Ozon + Wildberries"
+        manifest["action"]["default_title"] = "Октопорт"
         manifest["description"] = "Read-only отчёты Ozon и Wildberries в выбранном ИИ; ключи магазинов хранятся локально."
     else:
         manifest["name"] = "Seller Agents Development — Ozon + WB"
@@ -288,10 +333,14 @@ def compose(directory, mode="development", release_authority=None):
         ]
     # Explicit Start can attach the packaged receiver to a pre-existing AI tab.
     # Existing host permissions still determine where execution is permitted.
-    manifest["permissions"] = list(dict.fromkeys(manifest["permissions"] + ["scripting"]))
+    manifest["permissions"] = list(dict.fromkeys(manifest["permissions"] + ["scripting", "sidePanel"]))
     manifest["host_permissions"] = list(
-        dict.fromkeys(manifest["host_permissions"] + recipe["marketplace_hosts"] + control_hosts)
+        dict.fromkeys(manifest["host_permissions"] + recipe.get("ai_hosts", []) + recipe["marketplace_hosts"] + control_hosts)
     )
+    for entry in manifest["content_scripts"]:
+        entry["matches"] = list(dict.fromkeys(entry["matches"] + recipe.get("ai_hosts", [])))
+    # Extension-owned import document survives the native file chooser.
+    manifest["side_panel"] = {"default_path": "popup.html#backup-import"}
     baseline.write_json(manifest_path, manifest)
     if mode == "store":
         assert_no_store_brand_leaks(directory)

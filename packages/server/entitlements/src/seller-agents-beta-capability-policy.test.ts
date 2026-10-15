@@ -12,6 +12,7 @@ import {
 const EXPECTED = [
   "ai.alice",
   "ai.chatgpt",
+  "ai.qwen",
   "source.ozon",
   "source.wildberries",
 ];
@@ -21,7 +22,7 @@ function sorted(values: readonly string[]) {
 }
 
 describe("Seller Agents free-beta capability permission policy", () => {
-  it("covers exactly the four reviewed D1 permission keys", () => {
+  it("covers exactly the five reviewed D1 permission keys", () => {
     expect(
       sorted(
         SELLER_AGENTS_FREE_BETA_CAPABILITY_POLICY.permissions.map(
@@ -48,7 +49,7 @@ describe("Seller Agents free-beta capability permission policy", () => {
     }
     expect(
       Object.values(getSellerAgentsFreeBetaCapabilityPermissions()),
-    ).toEqual([true, true, true, true]);
+    ).toEqual([true, true, true, true, true]);
   });
 
   it("is anchored only to BOOLEAN/CAPABILITY D1 definitions", () => {
@@ -78,6 +79,12 @@ describe("Seller Agents free-beta capability permission policy", () => {
       "marketplace.wildberries.adapter",
       "ai.chatgpt.web.adapter",
       "ai.alice.web.adapter",
+      "ai.qwen.web.adapter",
+      "ai.claude",
+      "ai.grok",
+      "ai.gemini",
+      "ai.deepseek",
+      "ai.kimi",
       "feature.guided_commands",
       "ozon.analytics",
       "ozon.performance",

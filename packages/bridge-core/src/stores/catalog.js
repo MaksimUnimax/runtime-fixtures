@@ -7,6 +7,7 @@
     write,
     currentAccount,
     assertTransferContext,
+    assertBackupContext,
     normalizeCredentials,
     revision,
     uuid,
@@ -83,9 +84,30 @@
       if (!store || store.accountId !== id || store.lifecycleState === "TOMBSTONED") fail("STORE_NOT_FOUND");
       return structuredClone(store);
     }
-    async function mutate(fn, transferContext = null) {
-      return lock.run(async () => {
+    function plainBackupContext(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      try {
+        // The caller creates this context inside the same service-worker realm.
+        // Prototype equality alone can be spoofed by a Proxy. The native
+        // structured clone rejects Proxies and other non-cloneable contexts.
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== null && prototype !== Object.prototype) return false;
+        const copied = structuredClone(value);
+        return copied !== null && typeof copied === "object" && !Array.isArray(copied);
+      } catch (_) { return false; }
+    }
+    async function mutate(fn, transferContext = null, backupContext = null, backupContextSupplied = false) {
+      function assertCurrent() {
         if (transferContext) assertTransferContext?.(transferContext);
+        if (backupContextSupplied) {
+          // An explicit null/undefined is not the legacy two-argument call.
+          if (!plainBackupContext(backupContext)) fail("BACKUP_CONTEXT_GUARD_INVALID");
+          if (typeof assertBackupContext !== "function") fail("BACKUP_CONTEXT_GUARD_REQUIRED");
+          if (assertBackupContext(backupContext) !== true) fail("BACKUP_CONTEXT_GUARD_INVALID");
+        }
+      }
+      return lock.run(async () => {
+        assertCurrent();
         const { id, all } = await state();
         if (transferContext && transferContext.accountId !== id) fail("ACCOUNT_CHANGED");
         const scope = structuredClone(
@@ -96,13 +118,13 @@
         const next = { ...all, accounts: { ...all.accounts, [id]: scope } };
         // Synchronous fence immediately before the storage call: no later
         // account/generation can be selected by this queued import.
-        if (transferContext) assertTransferContext?.(transferContext);
+        assertCurrent();
         await write({ [key]: next });
         const saved = (await read(key))[key];
         if (canonicalJson(saved) !== canonicalJson(next))
           fail("STORE_WRITE_NOT_CONFIRMED");
         if (id !== (await account())) fail("ACCOUNT_CHANGED");
-        if (transferContext) assertTransferContext?.(transferContext);
+        assertCurrent();
         return result;
       });
     }
@@ -214,7 +236,8 @@
       });
       return { accountId: id, classifications, safeStoreIds: classifications.filter((row) => row.kind === "IMPORT_NEW").map((row) => row.storeId) };
     }
-    async function applyBackupImport(payload, expectedPlan) {
+    async function applyBackupImport(payload, expectedPlan, backupContext) {
+      const backupContextSupplied = arguments.length >= 3;
       return mutate(async (scope, id) => {
         if (payload?.accountBinding?.accountId !== id || expectedPlan?.accountId !== id) fail("ACCOUNT_CHANGED");
         const current = scope.stores || {};
@@ -246,7 +269,7 @@
           imported.push(publicStore(store));
         }
         return { imported, classifications: actual };
-      });
+      }, null, backupContext, backupContextSupplied);
     }
     async function remove(id) {
       return mutate((scope) => {

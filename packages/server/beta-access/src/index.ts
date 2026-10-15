@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { toASCII } from "tr46";
 
 export const BETA_MODES = ["CLOSED", "OPEN", "PAUSED"] as const;
 export type BetaMode = (typeof BETA_MODES)[number];
@@ -78,7 +79,8 @@ export type BetaAdmissionRepository = {
     correlationId: string;
     expectedRevision: number;
     normalizedIdentityTarget: string;
-    expiresAt: Date;
+    /** Fixed duration; the repository must anchor its expiration to DB time. */
+    ttlMs: number;
     reason: string;
   }): Promise<BetaIdentityInvitationMutationResult>;
   revokeIdentityInvitation(input: {
@@ -193,18 +195,35 @@ function validNormalizedEmail(value: string): boolean {
   )
     return false;
   const domain = value.slice(value.lastIndexOf("@") + 1);
-  return domain
-    .split(".")
-    .every(
-      (label) => !!label && !label.startsWith("-") && !label.endsWith("-"),
-    );
+  // Strict UTS #46 rejects invalid bidi/joiner and Punycode labels.
+  // Check DNS A-label octets while retaining the original Unicode identity.
+  const asciiDomain = toASCII(domain, {
+    checkBidi: true,
+    checkHyphens: true,
+    checkJoiners: true,
+    useSTD3ASCIIRules: true,
+    transitionalProcessing: false,
+    verifyDNSLength: true,
+    ignoreInvalidPunycode: false,
+  });
+  return (
+    !!asciiDomain &&
+    asciiDomain.length <= 253 &&
+    asciiDomain
+      .split(".")
+      .every(
+        (label) =>
+          !!label &&
+          label.length <= 63 &&
+          /^[a-z0-9-]+$/.test(label) &&
+          !label.startsWith("-") &&
+          !label.endsWith("-"),
+      )
+  );
 }
 
 export class BetaAdmissionService {
-  public constructor(
-    private readonly repository: BetaAdmissionRepository,
-    private readonly now: () => Date = () => new Date(),
-  ) {}
+  public constructor(private readonly repository: BetaAdmissionRepository) {}
 
   resolve(accountId: string): Promise<BetaAccessResolution> {
     return this.repository.resolve(accountId);
@@ -251,9 +270,7 @@ export class BetaAdmissionService {
       ...input,
       requestIdHash: betaInvitationRequestIdHash(input.requestId),
       payloadHash: betaInvitationCreatePayloadHash(input),
-      expiresAt: new Date(
-        this.now().getTime() + BETA_IDENTITY_INVITATION_TTL_MS,
-      ),
+      ttlMs: BETA_IDENTITY_INVITATION_TTL_MS,
     });
   }
 

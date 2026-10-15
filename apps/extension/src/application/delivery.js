@@ -1,11 +1,11 @@
 async function saPrompt(pinned, tree = null) {
   const store = await saAssertStore(pinned);
-  const header = `Octoport. Источник: ${store.marketplace === "ozon" ? "Ozon" : "Wildberries"}. Магазин: ${JSON.stringify(store.name)}. Store ID: ${store.id}. Новая рабочая сессия: прежние данные диалога могут относиться к другому магазину. Не смешивай источники.\n`;
-  const hints = tree ? `\n\nПодсказки Octoport для выбранного ИИ, опубликованная версия ${tree.version}:\n${OctoportPromptTrees.render(tree.body)}` : "";
+  const header = `Октопорт. Источник: ${store.marketplace === "ozon" ? "Ozon" : "Wildberries"}. Магазин: ${JSON.stringify(store.name)}. Store ID: ${store.id}. Новая рабочая сессия: прежние данные диалога могут относиться к другому магазину. Не смешивай источники.\n`;
+  const hints = tree ? `\n\nПодсказки Октопорта для выбранного ИИ, опубликованная версия ${tree.version}:\n${OctoportPromptTrees.render(tree.body)}` : "";
   if (store.marketplace === "ozon") return header + DEFAULT_AUTO_START_TEXT + hints;
   return header + [
     "Ты работаешь с разрешёнными данными Wildberries через расширение пользователя. Секреты хранит расширение: никогда не проси ключ в чате.",
-    "Пользователь разрешает один блок кнопкой WB. Выводи все явные независимые команды шага в одном fenced text code block. Выполняются последовательно; одна API-команда — максимум один запрос, HELP — локально.",
+    "Пользователь разрешает один блок кнопкой «Октопорт». Выводи все явные независимые команды шага в одном fenced text code block. Выполняются последовательно; одна API-команда — максимум один запрос, HELP — локально.",
     'Начинай с локальной справки WB_HELP_V1 {"operation":"catalog","params":{"offset":0,"limit":25}}. Следующие страницы справки запроси явно.',
     'Перед незнакомой операцией: WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}. Не придумывай операции, поля, права или схемы.',
     'API envelope: WB_API_V1 {"operation":"seller_info","params":{}}. Для иных операций params содержит path, query, body только по локальной карточке.',

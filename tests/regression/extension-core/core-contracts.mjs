@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { verifyPopupInitialState } from "./client-i1/popup-initial-state.mjs";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 const candidate = path.resolve(process.argv[2]);
@@ -451,7 +452,9 @@ await test("PAR-07-32-package-subset-content-source-identities-and-review", asyn
   await assert.rejects(source.capture(args), { code: "COMMAND_CONTEXT_CHANGED" });
 });
 
-await test("R3-popup-import-stays-in-popup-and-rejects-stale-preview", async () => {
+await test("R3-popup-initial-state-and-render-failure-no-latched-action", () => verifyPopupInitialState(candidate));
+
+await test("R3-durable-import-panel-rejects-stale-file-password-account-preview", async () => {
   const source = fs.readFileSync(path.join(candidate, "popup.js"), "utf8"), nodes = new Map(), calls = [];
   let tabs = 0, release = null, defer = true;
   const node = id => { if (!nodes.has(id)) nodes.set(id, { value: "", files: [], hidden: true,
@@ -467,7 +470,7 @@ await test("R3-popup-import-stays-in-popup-and-rejects-stale-preview", async () 
   const first = source.indexOf("async function openKeyFiles(mode)"), last = source.indexOf("function downloadBackup", first);
   const preview = source.indexOf('$("backup-preview").onclick'), end = source.indexOf("if (durableImportMode) {", preview);
   assert.ok(first >= 0 && last > first && preview > last && end > preview);
-  vm.runInContext('let backupText="",backupPreview=null,backupSelectionRevision=0; const durableImportMode=false; let state={auth:{accountId:"fixture"}};\n' +
+  vm.runInContext('let backupText="",backupPreview=null,backupSelectionRevision=0; const durableImportMode=true; let state={auth:{accountId:"fixture"}};\n' +
     source.slice(first, last) + source.slice(preview, end), ctx);
   await node("keys-upload").onclick(); assert.equal(tabs, 0); assert.equal(node("backup-file").focused, true);
   assert.equal(node("backup-file").onclick, undefined, "native picker is not replaced with tab navigation");
@@ -481,11 +484,38 @@ await test("R3-popup-import-stays-in-popup-and-rejects-stale-preview", async () 
   defer = false; await node("backup-preview").onclick(); assert.equal(node("backup-preview-result").hidden, false);
   node("backup-import-password").value = "changed-without-event";
   await assert.rejects(node("backup-import").onclick(), /Сначала проверьте/);
+  const callsBeforeInput = calls.length;
+  node("status").textContent = "Готово";
   node("backup-import-password").oninput(); assert.equal(node("backup-preview-result").hidden, true);
+  assert.match(node("backup-status").textContent, /изменились.*Проверьте файл заново/);
+  assert.equal(node("status").textContent, "", "input change clears stale completion status");
+  assert.equal(calls.length, callsBeforeInput, "editing password does not recheck or import");
+  await node("backup-preview").onclick();
+  defer = true; release = null;
+  const recheck = node("backup-preview").onclick();
+  for (let i = 0; i < 12 && !release; i++) await Promise.resolve();
+  assert.ok(release);
+  node("status").textContent = "Готово";
+  node("backup-import-password").value = "changed-during-recheck";
+  const callsBeforeRecheckInput = calls.length;
+  node("backup-import-password").oninput();
+  release({ preview: {} }); await assert.rejects(recheck, /изменились/);
+  assert.match(node("backup-status").textContent, /изменились.*Проверьте файл заново/);
+  assert.equal(node("status").textContent, "", "editing a pending recheck clears stale completion status");
+  assert.equal(node("backup-preview-result").hidden, true);
+  assert.equal(calls.length, callsBeforeRecheckInput, "pending recheck input does not submit another request");
+  defer = false;
+  await node("backup-preview").onclick();
+  node("status").textContent = "Готово";
+  node("backup-file").onchange();
+  assert.equal(node("backup-preview-result").hidden, true);
+  assert.match(node("backup-status").textContent, /Файл выбран.*Проверить файл/);
+  assert.equal(node("status").textContent, "", "file change clears stale completion status");
   await node("backup-preview").onclick(); await node("backup-import").onclick();
   const imports = calls.filter(call => call.type === "SA_BACKUP_IMPORT");
   assert.equal(imports.length, 1); assert.equal(imports[0].fields.backup, "file-B");
-  assert.equal(imports[0].fields.password, "changed-without-event"); assert.equal(imports[0].fields.apply, true);
+  assert.equal(imports[0].fields.password, "changed-during-recheck"); assert.equal(imports[0].fields.apply, true);
+  assert.match(node("backup-status").textContent, /Импорт завершён/, "internal cleanup preserves completed import status");
   await assert.rejects(node("backup-import").onclick(), /Сначала проверьте/);
   node("backup-file").files = [{ size: 8 * 1024 * 1024 + 1, text: () => { throw new Error("oversized file must not be read"); } }];
   node("backup-file").onchange(); await assert.rejects(node("backup-preview").onclick(), /8 MiB/);

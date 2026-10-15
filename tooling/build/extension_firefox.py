@@ -94,7 +94,16 @@ def build(input_runtime: Path, output: Path) -> dict:
         for pattern in manifest.get("host_permissions", [])
     ))
     manifest["background"] = {"scripts": ["firefox_background.js"]}
-    store_package = manifest.get("name") == "Octoport — Ozon + Wildberries"
+    # Map the common import document to Firefox's native sidebar.
+    import_panel = manifest.pop("side_panel", None)
+    manifest["permissions"] = [p for p in manifest.get("permissions", []) if p != "sidePanel"]
+    if import_panel:
+        manifest["sidebar_action"] = {
+            "default_panel": import_panel["default_path"],
+            "default_title": manifest["action"]["default_title"],
+            "open_at_install": False,
+        }
+    store_package = manifest.get("name") == "Октопорт — Ozon + Wildberries"
     manifest["browser_specific_settings"] = {
         "gecko": {
             "id": "octoport@octoport.ru" if store_package else "seller-agents@example.test",

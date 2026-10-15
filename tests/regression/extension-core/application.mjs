@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs';
+import vm from 'node:vm';
 import { makeWorker, until, signFixtureBootstrap } from './worker-harness.mjs';
 const runtime = path.resolve(process.argv[2]);
 const results = [];
@@ -562,7 +564,7 @@ await test('PAR-36-38-package-subset-copy-original-attachment-and-reject-corrupt
     assert.equal(absent.code, 'COPY_ARTIFACT_UNAVAILABLE', JSON.stringify(absent)); assert.equal(s.worker.network.length, 1);
   } finally { s.worker.close(); }
 });
-await test('AI-TREE-04-08-package-subset-signed-Start-pin-update-and-command-no-tree-fetch', async () => {
+await test('AI-TREE-04-08-package-subset-signed-Work-lifetime-pin-and-next-Start-update', async () => {
   let s, version=1, treeFetches=0;
   const aiId='61000000-0000-4000-8000-000000000001';
   const treeBody=()=>({format:'octoport_prompt_tree_v1',root:'root',nodes:[{id:'root',text:`PERSONAL_R3_TREE_VERSION_${version}`,children:[]}]});
@@ -593,8 +595,19 @@ await test('AI-TREE-04-08-package-subset-signed-Start-pin-update-and-command-no-
     const active=await s.worker.request({type:'OZ_WORK_PENDING_IDENTITY',identity:s.worker.identity,intent_id:pending.intent_id,revision:pending.revision,first_response_complete:true});assert.equal(active.ok,true,JSON.stringify(active));
     const work={key:active.binding.conversation_key,session:active.session,identity:s.worker.identity,tabId:s.worker.tabId};
     await s.execute(work,api,'tree-exchange-two');const owner=await s.collected(work);
-    assert.equal(owner.prompt_tree.version,2);assert.equal(owner.prompt_tree.aiId,aiId);assert.equal(treeFetches,2);
+    const persisted=await s.worker.call('workSessionFor',work.key);
+    assert.equal(persisted.prompt_tree.version,1);assert.equal(persisted.prompt_tree.sha256,pending.prompt_tree.sha256);
+    assert.equal(owner.prompt_tree.version,1);assert.equal(owner.prompt_tree.aiId,aiId);assert.equal(treeFetches,2);
     await s.deliver(work,owner);assert.equal(s.worker.network.length,beforeProvider+1);assert.equal(treeFetches,2);
+    assert.equal((await s.popup('OZ_WORK_FINISH',{conversation_key:work.key})).ok,true);
+    assert.equal((await s.worker.call('workSessionFor',work.key)).prompt_tree,null);
+    const newWork=await s.start(store);
+    assert.equal(newWork.session.prompt_tree.version,2);assert.equal(treeFetches,3);
+    await s.execute(newWork,api,'tree-new-work-two');
+    const newOwner=await s.collected(newWork);
+    assert.equal(newOwner.prompt_tree.version,2);assert.equal(treeFetches,3);
+    await s.deliver(newWork,newOwner);
+    assert.equal(s.worker.network.length,beforeProvider+2);assert.equal(treeFetches,3);
   } finally {s.worker.close();}
 });
 
@@ -825,10 +838,10 @@ await test('R3-branding-default-Ozon-Start-keeps-protocol-and-custom-text',async
   await s.start(store);
   const prompts=s.worker.messages.filter(message=>message.type==='OZ_WORK_SEND_INITIAL_PROMPT');
   assert.equal(prompts.length,1);const text=prompts[0].prompt_text;
-  assert.match(text,/НАЧАЛО РАБОТЫ С OCTOPORT/);
+  assert.match(text,/НАЧАЛО РАБОТЫ В «Октопорт»/);
   assert.doesNotMatch(text,/Ozon Bridge/i,'default Start must not request the former product name');
   for(const protocol of ['OZON_API_V1','OZON_HELP_V2','OZON_RESULT_V1'])assert.ok(text.includes(protocol),protocol);
-  assert.ok(text.includes('кнопку Ozon'));
+  assert.ok(text.includes('кнопку «Октопорт»'));
   const saved={text:'Моя сохранённая инструкция Ozon Bridge / OZON_API_V1',is_default:false,updated_at:'2026-10-01T00:00:00.000Z'};
   const normalized=await s.worker.call('normalizeGlobalAutoStartPromptRecord',saved);
   assert.equal(normalized.changed,false);assert.deepEqual(plain(normalized.record),saved);
@@ -961,5 +974,209 @@ await test('A06-popup-unconfirmed-ACK-is-truthful-and-nonconsuming', async () =>
   assert.equal(presentation({ok:true,importState:'IMPORTED',requestId:'fixture'}).consume,true);
 });
 
+await test('R3-fractional-provider-result-receipt-stays-successful-with-one-request', async () => {
+  const s = await setup({ fetch: async () => new Response(JSON.stringify({ result: { value: 0.97, ratio: 0.35714285714285715 } }), { headers: { 'content-type': 'application/json' } }) });
+  try {
+    const store = await s.save(ozon('FRACTION_CLIENT', 'FRACTION_KEY'));
+    const started = await s.start(store);
+    await s.execute(started, 'OZON_API_V1 {"operation":"roles","params":{}}', 'fractional-business-result');
+    const owner = await s.collected(started);
+    const entry = owner.batch.entries[0];
+    assert.equal(s.worker.network.length, 1);
+    assert.equal(entry.http_status, 200);
+    assert.equal(entry.external_request_executed, true);
+    assert.equal(entry.result?.error ?? null, null);
+    assert.match(owner.outgoing_text, /0\.97/);
+    const receipt = owner.r3_commands.receipts[owner.r3_execution_id];
+    assert.equal(receipt.items[0].state, 'RESULT');
+    assert.match(receipt.items[0].bufferDigest, /^[a-f0-9]{64}$/);
+    const integer = { z: 4, a: { b: true, a: [0, 'text', null] } };
+    assert.equal(await s.worker.call('saR3ProviderResultJson', integer), await s.worker.call('SellerAgentsBootstrapVerifier.canonicalJson', integer));
+    assert.throws(() => s.worker.call('SellerAgentsBootstrapVerifier.canonicalJson', { ratio: 0.97 }), /NON_CANONICAL_NUMBER/);
+    for (const value of ['NaN', 'Infinity', '-Infinity'])
+      assert.throws(() => s.worker.call(`(function(){return saR3ProviderResultJson({value:${value}})})`), /RESULT_RECEIPT_NON_FINITE_NUMBER/);
+    await s.deliver(started, owner);
+    assert.equal(s.worker.network.length, 1);
+  } finally { s.worker.close(); }
+});
+
+await test('R3-expired-buffer-cleanup-preserves-first-replay-fence', async () => {
+  const s = await setup();
+  try {
+    const store = await s.save(ozon('EXPIRY_CLIENT', 'EXPIRY_KEY'));
+    const started = await s.start(store);
+    await s.execute(started, 'OZON_API_V1 {"operation":"roles","params":{}}', 'expiry-once');
+    const owner = await s.collected(started);
+    assert.equal(s.worker.network.length, 1);
+    const before = plain(owner.batch.entries.map(entry => entry.provider_attempt).filter(Boolean));
+    assert.equal(before.length, 1, 'retain the actual provider attempt evidence');
+    s.worker.backing.local.ozmb_manual_operations[started.key].payload_expires_at_ms = Date.now() - 1;
+    await s.worker.call('saCleanupExpiredPayloads');
+    const first = plain(await s.worker.call('getManualOperation', started.key));
+    assert.equal(first.outgoing_text, null); assert.equal(first.batch, null); assert.equal(first.delivery, null);
+    assert.equal(first.recovery_fence.attempts[0].provider_attempt_id, before[0].provider_attempt_id);
+    assert.equal(first.recovery_fence.provider_replay_forbidden, true);
+    assert.equal(first.recovery_fence.delivery_replay_forbidden, true);
+    assert.deepEqual(plain(await s.worker.call('saPrunePayload', first, Date.now() + 60_000)), first);
+    await s.worker.call('saCleanupExpiredPayloads');
+    assert.deepEqual(plain(await s.worker.call('getManualOperation', started.key)), first);
+    assert.equal(s.worker.network.length, 1, 'cleanup never replays the provider call');
+  } finally { s.worker.close(); }
+});
+
+
+await test('R3-chatgpt-send-baseline-persists-across-worker-restart-without-replay', async () => {
+ const s=await setup(); let restarted;
+ try {
+  const store=await s.save(ozon('BASELINE_CLIENT','BASELINE_KEY')), started=await s.start(store);
+  await s.execute(started, 'OZON_API_V1 {"operation":"roles","params":{}}', 'baseline-provider-once');
+  const owner=await s.collected(started);
+  const fields={owner_kind:'manual',owner_id:owner.operation_id,conversation_key:started.key,delivery_id:owner.delivery_id,actor_id:'original-content'};
+  assert.equal((await s.worker.request({type:'OZ_BATCH_DELIVERY_INSERT_COMMIT',...fields},started.sender)).insert_allowed,true);
+  assert.equal((await s.worker.request({type:'OZ_BATCH_DELIVERY_INSERTED',...fields},started.sender)).ok,true);
+  const invalid=await s.worker.request({type:'OZ_WORK_SEND_COMMIT',...fields,chatgpt_user_baseline:[null]},started.sender);
+  assert.equal(invalid.code,'DELIVERY_BASELINE_INVALID');
+  assert.equal((await s.worker.call('getManualOperation',started.key)).delivery.sa_send_actor,undefined);
+  const first=await s.worker.request({type:'OZ_WORK_SEND_COMMIT',...fields,chatgpt_user_baseline:['old-user']},started.sender);
+  assert.equal(first.click_allowed,true);assert.equal(first.send_click_committed,true);assert.deepEqual(plain(first.chatgpt_user_baseline),['old-user']);
+  const denied=await s.worker.request({type:'OZ_WORK_SEND_COMMIT',...fields,actor_id:'replacement-content',chatgpt_user_baseline:['old-user','new-report']},started.sender);
+  assert.equal(denied.click_allowed,false);assert.deepEqual(plain(denied.chatgpt_user_baseline),['old-user']);
+  assert.equal(s.worker.network.length,1);
+  const backing=s.worker.backing;s.worker.close();
+  restarted=await makeWorker(runtime,{backing,fetch:async()=>{throw new Error('recovery must not replay provider');}});
+  const stored=await restarted.call('getManualOperation',started.key);
+  const recovery=await restarted.call('manualBatchRecoveryPayload',stored,'watch_delivery');
+  assert.equal(recovery.send_click_committed,true);assert.deepEqual(plain(recovery.chatgpt_user_baseline),['old-user']);
+  assert.equal(stored.delivery.sa_send_actor,'original-content');assert.equal(restarted.network.length,0);
+ } finally {s.worker.close();restarted?.close();}
+});
+
+// Exercise the composed content script, retaining durable no-replay and dialogue fences.
+const deliverySource = fs.readFileSync(path.join(runtime, 'content_script.js'), 'utf8');
+const deliveryWatchStart = deliverySource.indexOf('  async function runBatchDeliveryWatch(');
+const deliveryWatchEnd = deliverySource.indexOf('\n  function stopManualComposerWait', deliveryWatchStart);
+assert.ok(deliveryWatchStart >= 0 && deliveryWatchEnd > deliveryWatchStart);
+const generatedDeliveryWatch = deliverySource.slice(deliveryWatchStart, deliveryWatchEnd);
+const deliveryWitnessCases=[
+ {name:"persistent_microphone_without_send",soleMic:true,ack:0,clicks:0},
+ {name:"disabled_after_click_no_user_turn",ack:0,clicks:1},
+ {name:"microphone_after_click_no_user_turn",ready:"microphone",ack:0,clicks:1},
+ {name:"old_matching_user_turn",oldMatch:true,ack:0,clicks:1},
+ {name:"new_wrong_report",newText:"OTHER REPORT",ack:0,clicks:1},
+ {name:"new_matching_user_turn_disabled",newText:"SYNTHETIC REPORT",ack:1,clicks:1},
+ {name:"new_matching_user_turn_microphone",ready:"microphone",newText:"SYNTHETIC REPORT",ack:1,clicks:1},
+ {name:"durable_send_commit_denied",denyCommit:true,ack:0,clicks:0},
+ {name:"conversation_changed_after_click",changeConversation:true,ack:0,clicks:1},
+ {name:"empty_expected_report",outgoing:"",newText:"SYNTHETIC REPORT",ack:0,clicks:1},
+ {name:"recovered_delivered_microphone",recovered:true,soleMic:true,initialUsers:[{id:"new",text:"SYNTHETIC REPORT"}],ack:1,clicks:0},
+ {name:"recovered_delivered_disabled",recovered:true,recoveredKind:"work_send_disabled",initialUsers:[{id:"new",text:"SYNTHETIC REPORT"}],ack:1,clicks:0},
+ {name:"recovered_old_matching_turn",recovered:true,soleMic:true,baseline:["new"],initialUsers:[{id:"new",text:"SYNTHETIC REPORT"}],ack:0,clicks:0},
+ {name:"recovered_legacy_missing_baseline",recovered:true,soleMic:true,missingBaseline:true,initialUsers:[{id:"new",text:"SYNTHETIC REPORT"}],ack:0,clicks:0},
+ {name:"recovered_unsent_draft_no_second_send",recovered:true,ack:0,clicks:0}
+];
+for (const s of deliveryWitnessCases) await test('R3-chatgpt-delivery-' + s.name, async () => {
+ let running=true,clicks=0,wakes=0,commits=0;const acks=[],users=s.initialUsers??(s.oldMatch?[{id:"old",text:"SYNTHETIC REPORT"}]:[]);
+ class Button{constructor(){this.isConnected=true;}click(){clicks++;if(s.newText)users.push({id:"new",text:s.newText});}}
+ const button=new Button(),adapter={id:"chatgpt",userMessages:()=>users,messageId:n=>n.id,messageText:n=>n.text};
+ const ctx={HTMLElement:Button,activeDeliveryWatch:null,DELIVERY_WATCH_INTERVAL_MS:1,manualEnabled:true,manualConversationKey:"chat",runtimeId:"synthetic-runtime",saContentContext:{},
+ current:()=>running,sameConversation:()=>!s.changeConversation||wakes===0,conversationKeyFromLocation:()=>"chat",currentAIAdapter:()=>adapter,userTurnIds:()=>users.map(n=>n.id),canonicalText:x=>String(x??"").trim(),
+ classifyComposerControl:()=>({kind:s.recoveredKind??(s.soleMic?"microphone":clicks===0?"work_send_active":s.ready??"work_send_disabled"),button}),
+ recordContentDiagnostic:()=>{},diagnosticForControlKind:x=>x,toast:()=>{},setManualBridgeReady:()=>{},visible:()=>true,controlDisabled:()=>false,saCheckDelivery:async()=>{},
+ waitForDeliveryWatchWake:async()=>{if(++wakes>3)running=false;},sleep:async()=>{if(++wakes>3)running=false;},
+ sendRuntime:async(type,body)=>{if(type==="OZ_BATCH_DELIVERY_COMPLETE")acks.push(body);if(type==="OZ_WORK_SEND_COMMIT")commits++;return {ok:true,click_allowed:!s.denyCommit,send_click_committed:!s.denyCommit,chatgpt_user_baseline:body.chatgpt_user_baseline??null};},
+ stopDeliveryWatch:()=>{ctx.activeDeliveryWatch=null;running=false;}
+ };
+ vm.createContext(ctx);vm.runInContext(generatedDeliveryWatch+"\nglobalThis.testWatch=runBatchDeliveryWatch;",ctx);
+ await ctx.testWatch({delivery_mode:'batch_watch_v1',owner_kind:'manual',owner_id:'synthetic-owner',delivery_id:'synthetic-delivery',conversation_key:'chat',origin:'https://chatgpt.com',conversation_id:'synthetic',outgoing_text:s.outgoing??'SYNTHETIC REPORT',send_click_committed:s.recovered===true,chatgpt_user_baseline:s.recovered&&!s.missingBaseline?(s.baseline??[]):null});
+ assert.equal(acks.length,s.ack,s.name); assert.equal(clicks,s.clicks,s.name);
+ assert.ok(commits<=1,'durable send commit stays one-shot');
+ if(s.ack) assert.equal(acks[0].confirmed_user_turn_id,'new');
+});
+await test('APP-58-unresponsive-identity-does-not-hold-popup-or-finish', async () => {
+  let blockedTab = null; const lateReplies = [];
+  const s = await setup({ identityResponse: (_message, id) => id === blockedTab
+    ? new Promise(resolve => lateReplies.push(resolve)) : undefined });
+  try {
+    const store = await s.save(wb('FIXTURE_IDENTITY_DEADLINE'));
+    const active = await s.start(store);
+    const known = await s.popup('SA_POPUP_STATE');
+    const before = await s.worker.call('workSessionFor', active.key);
+    const promptCount = s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length;
+    s.worker.addTab(s.worker.tabId + 1, 'independent-healthy-dialogue');
+    blockedTab = s.worker.tabId;
+    const finish = s.popup('OZ_WORK_FINISH', { conversation_key: active.key,
+      surface_id: known.identity.surface_id || 'fixture-observed-surface' });
+    const snapshot = s.popup('SA_SUPPORT_SNAPSHOT');
+    const healthy = await s.popup('SA_POPUP_STATE', { tab_id: s.worker.tabId + 1 });
+    assert.equal(healthy.page.runtimeStatus, 'ready');
+    const [finished, diagnostic] = await Promise.all([finish, snapshot]);
+    assert.equal(finished.ok, false); assert.equal(finished.code, 'TAB_MESSAGE_TIMEOUT');
+    assert.equal(diagnostic.ok, true); assert.equal(diagnostic.snapshot.page.runtimeStatus, 'unavailable');
+    assert.equal(diagnostic.snapshot.page.lastErrorCode, 'TAB_MESSAGE_TIMEOUT');
+    assert.equal(diagnostic.snapshot.page.transportClass, 'RESPONSE_TIMEOUT');
+    const after = await s.worker.call('workSessionFor', active.key);
+    assert.equal(after.state, before.state); assert.equal(after.revision, before.revision);
+    assert.equal(s.worker.network.length, 0); assert.equal(lateReplies.length, 2);
+    for (const resolve of lateReplies) resolve({ ok: true, identity: s.worker.identity });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(finished.ok, false); assert.equal(diagnostic.snapshot.page.runtimeStatus, 'unavailable');
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, promptCount);
+    blockedTab = null;
+    const restored = await s.popup('SA_POPUP_STATE');
+    assert.equal(restored.work.state, before.state); assert.equal(restored.page.runtimeStatus, 'ready');
+  } finally { s.worker.close(); }
+});
+await test('APP-59-identity-deadline-preserves-mutating-message-outcomes', async () => {
+  const workerSource = fs.readFileSync(path.join(runtime, 'service_worker.js'), 'utf8');
+  const begin = workerSource.indexOf('const TAB_MESSAGE_TRANSPORT_CLASSES');
+  const end = workerSource.indexOf('async function stopWatch(', begin);
+  assert.ok(begin >= 0 && end > begin);
+  let sequence = 0; const timers = new Map(), callbacks = [], sent = [];
+  const context = { Set, Promise, chrome: { runtime: { lastError: null }, tabs: {
+    sendMessage(id, message, callback) { sent.push({ id, message }); callbacks.push(callback); }
+  } }, setTimeout(fn, ms) { const id = ++sequence; timers.set(id, { fn, ms }); return id; },
+  clearTimeout(id) { timers.delete(id); } };
+  vm.createContext(context);
+  vm.runInContext(workerSource.slice(begin, end) + '\nglobalThis.send=tabMessage;', context);
+  const reading = context.send(1, { type: 'OZ_GET_IDENTITY' });
+  assert.equal(timers.size, 1); const deadline = [...timers.values()][0];
+  assert.equal(deadline.ms, 3000); deadline.fn();
+  const timedOut = await reading;
+  assert.equal(timedOut.code, 'TAB_MESSAGE_TIMEOUT'); assert.equal(timedOut.transport_class, 'RESPONSE_TIMEOUT');
+  context.chrome.runtime.lastError = { message: 'FIXTURE_PRIVATE_LATE_TRANSPORT_TEXT' };
+  callbacks[0]({ ok: true, identity: { conversation_id: 'late-old-dialogue' } });
+  assert.equal(timedOut.ok, false); assert.ok(!JSON.stringify(timedOut).includes('PRIVATE'));
+  context.chrome.runtime.lastError = null;
+  const mutation = context.send(1, { type: 'OZ_WORK_SEND_INITIAL_PROMPT' });
+  assert.equal(timers.size, 0, 'mutating message receives no new deadline or retry');
+  callbacks[1]({ ok: true, sent: true }); assert.equal((await mutation).sent, true);
+  const successfulRead = context.send(1, { type: 'OZ_GET_IDENTITY' });
+  callbacks[2]({ ok: true, identity: { conversation_id: 'current-dialogue' } });
+  assert.equal((await successfulRead).identity.conversation_id, 'current-dialogue');
+  assert.equal(timers.size, 0); assert.equal(sent.length, 3);
+  context.chrome.tabs.sendMessage = () => { throw new Error('FIXTURE_PRIVATE_SYNC_EXCEPTION'); };
+  const failed = await context.send(1, { type: 'OZ_GET_IDENTITY' });
+  assert.equal(failed.transport_class, 'SYNC_SEND_EXCEPTION'); assert.equal(timers.size, 0);
+  assert.ok(!JSON.stringify(failed).includes('PRIVATE'));
+});
+await test('APP-60-identity-timeout-start-does-not-inject-or-send', async () => {
+  let blocked = false; const replies = [];
+  const s = await setup({ identityResponse: () => blocked
+    ? new Promise(resolve => replies.push(resolve)) : undefined });
+  try {
+    const store = await s.save(wb('FIXTURE_TIMEOUT_START_NO_REPLAY'));
+    blocked = true;
+    const result = await s.popup('SA_WORK_START', { store_id: store.id });
+    assert.equal(result.ok, false); assert.equal(result.code, 'TAB_MESSAGE_TIMEOUT');
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, 0);
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_SIGNED_AI_PROFILE_ENSURE').length, 0);
+    assert.equal(s.worker.network.length, 0);
+    assert.equal(Object.keys(await s.worker.call('getPendingWorkStarts')).length, 0);
+    for (const resolve of replies) resolve({ ok: true, identity: s.worker.identity });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, 0);
+    assert.equal(Object.keys(await s.worker.call('getPendingWorkStarts')).length, 0);
+  } finally { s.worker.close(); }
+});
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
-console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));
+console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker, popup, attachment port and content delivery watcher; simulated browser and provider; not installed live acceptance' },null,2));

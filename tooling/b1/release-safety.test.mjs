@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import process from "node:process";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -91,10 +92,100 @@ function packagedConfig(authority, overrides = {}) {
 
 const ZIP_WRITER = String.raw`
 import base64,sys,zipfile,struct,io,zlib
-path,browser,mode,manifest64,worker64=sys.argv[1:6]
+path,browser,mode,manifest64,worker64,icon64=sys.argv[1:7]
 manifest=base64.b64decode(manifest64)
 worker=base64.b64decode(worker64)
 rows=[("manifest.json",manifest),("worker.js",worker)]
+if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","nonconsecutive_idat_png","png_highbit_ihdr","png_trailing_idat","png_invalid_trns_rgba","png_metadata_text","png_consecutive_idat","png_bkgd_after_idat","png_bad_bkgd_length"):
+    icon=base64.b64decode(icon64)
+    def chunk(kind,payload):
+        return struct.pack(">I",len(payload))+kind+payload+struct.pack(">I",zlib.crc32(kind+payload))
+    if mode=="short_declared_icon":
+        ihdr=struct.pack(">IIBBBBB",16,16,8,6,0,0,0)
+        # Claims RGBA but only one byte/pixel, the exact legacy defect class.
+        icon=(bytes((137,80,78,71,13,10,26,10))+chunk(b"IHDR",ihdr)
+              +chunk(b"IDAT",zlib.compress((b"\x00"+bytes(16))*16))
+              +chunk(b"IEND",b""))
+    if mode=="unknown_critical_png":
+        # New uppercase critical chunk with valid CRC: conforming PNG readers reject it.
+        icon=icon[:33]+chunk(b"ABCD",b"")+icon[33:]
+    if mode=="nonconsecutive_idat_png":
+        # Equivalent compressed bytes, but an ancillary tEXt breaks contiguous IDAT.
+        result=bytearray(icon[:8]);pos=8;split=False
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            pos+=12+length
+            if kind==b"IDAT" and not split:
+                middle=len(payload)//2
+                assert middle>0
+                result+=chunk(b"IDAT",payload[:middle])
+                result+=chunk(b"tEXt",b"Comment"+bytes((0,))+b"fixture")
+                result+=chunk(b"IDAT",payload[middle:])
+                split=True
+            else:result+=chunk(kind,payload)
+        assert split
+        icon=bytes(result)
+    if mode=="png_highbit_ihdr":
+        # 0xC9 is not an ASCII letter, but Node Buffer "ascii" decodes it as I.
+        assert icon[12:16]==b"IHDR" and len(icon)>=33
+        icon=icon[:8]+chunk(bytes((201,72,68,82)),icon[16:29])+icon[33:]
+    if mode=="png_trailing_idat":
+        # CRC-correct payload with bytes after the zlib end marker.
+        parts=[];pos=8
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            parts.append((kind,payload))
+            pos+=length+12
+        idats=[i for i,(kind,_) in enumerate(parts) if kind==b"IDAT"]
+        assert idats and pos==len(icon)
+        last=idats[-1]
+        parts[last]=(b"IDAT",parts[last][1]+b"C01_NONPRIVATE_TRAILING_ZLIB_BYTES")
+        icon=icon[:8]+b"".join(chunk(kind,payload) for kind,payload in parts)
+    if mode=="png_invalid_trns_rgba":
+        # A CRC-correct tRNS after IDAT is invalid in RGBA, even if the
+        # decompressed raster stays unchanged.
+        assert icon[-8:-4]==b"IEND"
+        icon=icon[:-12]+chunk(b"tRNS",bytes((0,0)))+icon[-12:]
+    if mode=="png_metadata_text":
+        # Unknown optional metadata is not in canonical Octoport release icons.
+        assert icon[12:16]==b"IHDR"
+        icon=icon[:33]+chunk(b"tEXt",b"Comment"+bytes((0,))+b"fixture")+icon[33:]
+    if mode in ("png_consecutive_idat","png_bkgd_after_idat","png_bad_bkgd_length"):
+        # Preserve real Cairo output, including its required-order bKGD metadata.
+        parts=[];pos=8
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            parts.append((kind,payload))
+            pos+=12+length
+        assert pos==len(icon)
+        if mode=="png_consecutive_idat":
+            result=[];split=False
+            for kind,payload in parts:
+                if kind==b"IDAT" and not split:
+                    mid=len(payload)//2
+                    assert mid>0
+                    result.extend([(b"IDAT",payload[:mid]),(b"IDAT",payload[mid:])])
+                    split=True
+                else:result.append((kind,payload))
+            assert split
+            parts=result
+        if mode=="png_bkgd_after_idat":
+            bg=[i for i,(kind,_) in enumerate(parts) if kind==b"bKGD"]
+            assert len(bg)==1 and parts[-1][0]==b"IEND"
+            background=parts.pop(bg[0])
+            parts.insert(-1,background)
+        if mode=="png_bad_bkgd_length":
+            bg=[i for i,(kind,_) in enumerate(parts) if kind==b"bKGD"]
+            assert len(bg)==1 and len(parts[bg[0]][1])==6
+            parts[bg[0]]=(b"bKGD",parts[bg[0]][1][:5])
+        icon=icon[:8]+b"".join(chunk(kind,payload) for kind,payload in parts)
+    rows.append(("icons/icon-16.png",icon))
 if mode=="no_runtime":
     rows=[row for row in rows if row[0]!="worker.js"]
 if mode=="secret":
@@ -111,6 +202,63 @@ if mode=="duplicate":
     rows.append(("manifest.json",b"{}"))
 if mode=="case_duplicate":
     rows.append(("MANIFEST.JSON",b"{}"))
+if mode=="prefix_file_before_child":
+    rows.extend([("assets",b"file"),("assets/logo.svg",b"child")])
+if mode=="prefix_child_before_file":
+    rows.extend([("assets/logo.svg",b"child"),("assets",b"file")])
+if mode=="prefix_directory_then_file":
+    rows.extend([("assets/",b""),("assets",b"file")])
+if mode=="prefix_file_then_directory":
+    rows.extend([("assets",b"file"),("assets/",b"")])
+if mode=="prefix_mixed_case":
+    rows.extend([("ASSETS",b"file"),("assets/logo.svg",b"child")])
+if mode=="prefix_valid_parent_first":
+    rows.extend([("assets/",b""),("assets/logo.svg",b"child")])
+if mode=="prefix_valid_parent_last":
+    rows.extend([("assets/logo.svg",b"child"),("assets/",b"")])
+if mode=="prefix_depth_excess":
+    rows.append(("/".join(["a"]*129)+".txt",b"too deep"))
+if mode=="prefix_depth_limit":
+    rows.append(("/".join(["a"]*128)+".txt",b"within depth"))
+if mode=="prefix_deep_fanout_128":
+    for i in range(128):
+        first="u"+str(i).zfill(5)+"a"*92
+        rows.append(("/".join([first]+["b"*100]*126+["leaf.txt"]),b"x"))
+if mode.startswith("windows_unsafe_"):
+    invalid_names={
+        "windows_unsafe_ads":"content/worker.js:payload",
+        "windows_unsafe_reserved":"AUX.txt",
+        "windows_unsafe_child_device":"content/NUL.log",
+        "windows_unsafe_unicode_device":"content/COM¹.log",
+        "windows_unsafe_trailing_dot":"content/name.js.",
+        "windows_unsafe_trailing_space":"content/name.js ",
+        "windows_unsafe_wildcard":"content/name?.js",
+        "windows_unsafe_control":"content/name\x1f.js",
+        "windows_unsafe_nonascii_composed":"content/café.js",
+        "windows_unsafe_nonascii_decomposed":"content/cafe\u0301.js",
+        "windows_unsafe_nonascii_kelvin":"content/Kernel.js",
+        "windows_unsafe_conin":"content/CONIN$.js",
+        "windows_unsafe_conout":"CONOUT$.txt",
+        "windows_unsafe_conout_directory":"content/CONOUT$/asset.js",
+        "windows_unsafe_com0":"content/COM0.log",
+        "windows_unsafe_lpt0":"content/LPT0.log",
+    }
+    rows.append((invalid_names[mode],b"non-private fixture"))
+if mode=="windows_case_alias":
+    rows.extend([
+        ("content/Foo.js",b"first"),
+        ("content/foo.js",b"second"),
+    ])
+if mode=="windows_portable_names":
+    rows.extend([
+        ("content/AUXiliary.js",b"portable"),
+        ("content/COM10.js",b"portable"),
+        ("content/LPT10.js",b"portable"),
+        ("content/CONINput.js",b"portable"),
+        ("content/CONOUTland.js",b"portable"),
+        ("content/.well-known.txt",b"portable"),
+        ("content/module.version.js",b"portable"),
+    ])
 if mode=="development_popup":
     rows.append(("popup.html",b'<html><script src="popup.js"></script></html>'))
     rows.append(("popup.js","console.log('Локальная разработка')".encode()))
@@ -202,7 +350,8 @@ if mode.startswith("zip_stream_"):
 if mode=="zip_opaque_prefix":
     with open(path,"wb") as sink:
         sink.write(b"C01_NONPRIVATE_UNCHECKED_PREAMBLE")
-with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w") as z:
+with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w",
+        compression=zipfile.ZIP_DEFLATED if mode in ("zip_gpbf_deflate_options","zip_deflate_unused_tail") else zipfile.ZIP_STORED) as z:
     for index,(name,value) in enumerate(rows):
         if mode=="zip_opaque_local_gap" and index==1:
             z.fp.write(b"C01_NONPRIVATE_UNCHECKED_LOCAL_GAP")
@@ -229,6 +378,72 @@ with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w") as z:
         z.writestr(info,b"")
     if mode=="zip_comment":
         z.comment=b"C01_NONPRIVATE_OPAQUE_COMMENT"
+if mode in ("zip_gpbf_reserved_bit14", "zip_gpbf_strong_encryption_bit6", "zip_gpbf_deflate_options"):
+    with open(path,"rb") as source:
+        payload=bytearray(source.read())
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        target=archive.getinfo("worker.js")
+        local_offset=target.header_offset
+        assert target.compress_type==(zipfile.ZIP_DEFLATED if mode=="zip_gpbf_deflate_options" else zipfile.ZIP_STORED)
+    eocd=payload.rfind(bytes((80,75,5,6)))
+    assert eocd>=0
+    directory=struct.unpack_from("<I",payload,eocd+16)[0]
+    count=struct.unpack_from("<H",payload,eocd+10)[0]
+    target_central=None
+    for _ in range(count):
+        assert payload[directory:directory+4]==bytes((80,75,1,2))
+        n,e,c=struct.unpack_from("<HHH",payload,directory+28)
+        label=payload[directory+46:directory+46+n]
+        if label==b"worker.js":target_central=directory
+        directory+=46+n+e+c
+    assert target_central is not None and directory==eocd
+    flag={"zip_gpbf_reserved_bit14":1<<14,
+          "zip_gpbf_strong_encryption_bit6":1<<6,
+          "zip_gpbf_deflate_options":6}[mode]
+    # Deliberately alter *both* local and central records, avoiding the
+    # pre-existing mismatch check so this exercises unsupported GPBF semantics.
+    struct.pack_into("<H",payload,local_offset+6,flag)
+    struct.pack_into("<H",payload,target_central+8,flag)
+    with open(path,"wb") as sink:
+        sink.write(payload)
+if mode=="zip_deflate_unused_tail":
+    with open(path,"rb") as source:
+        payload=bytearray(source.read())
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        worker=archive.getinfo("worker.js")
+        assert worker.compress_type==zipfile.ZIP_DEFLATED
+        local_offset=worker.header_offset
+        original_compressed_size=worker.compress_size
+    local_name_length,local_extra_length=struct.unpack_from("<HH",payload,local_offset+26)
+    end_of_deflate=local_offset+30+local_name_length+local_extra_length+original_compressed_size
+    eocd=payload.rfind(bytes((80,75,5,6)))
+    assert eocd>=0
+    central=struct.unpack_from("<I",payload,eocd+16)[0]
+    count=struct.unpack_from("<H",payload,eocd+10)[0]
+    assert end_of_deflate==central and count==2
+    directory=central
+    worker_directory=None
+    for _ in range(count):
+        assert payload[directory:directory+4]==bytes((80,75,1,2))
+        n,e,c=struct.unpack_from("<HHH",payload,directory+28)
+        if payload[directory+46:directory+46+n]==b"worker.js":
+            worker_directory=directory
+        directory+=46+n+e+c
+    assert directory==eocd and worker_directory is not None
+    # A well-formed compressed entry can have an opaque tail after the
+    # end-of-deflate marker. Neither CRC nor raw-size checks account for it.
+    extra=b"C01_BENIGN_UNUSED_DEFLATE_BYTES_"*3
+    payload[central:central]=extra
+    central_after=central+len(extra)
+    eocd_after=eocd+len(extra)
+    worker_directory_after=worker_directory+len(extra)
+    struct.pack_into("<I",payload,local_offset+18,original_compressed_size+len(extra))
+    struct.pack_into("<I",payload,worker_directory_after+20,original_compressed_size+len(extra))
+    struct.pack_into("<I",payload,eocd_after+16,central_after)
+    with zipfile.ZipFile(io.BytesIO(payload)) as verified:
+        assert verified.testzip() is None
+    with open(path,"wb") as sink:
+        sink.write(payload)
 if mode=="zip_directory_gap":
     with open(path,"rb") as handle:
         raw=handle.read()
@@ -287,6 +502,34 @@ function makeZip(path, browser, options = {}) {
       : {}),
   };
 
+  if (
+    [
+      "missing_declared_icon",
+      "short_declared_icon",
+      "valid_declared_icon",
+      "unsafe_declared_icon",
+      "unknown_critical_png",
+      "nonconsecutive_idat_png",
+      "png_highbit_ihdr",
+      "png_trailing_idat",
+      "png_invalid_trns_rgba",
+      "png_metadata_text",
+      "png_consecutive_idat",
+      "png_bkgd_after_idat",
+      "png_bad_bkgd_length",
+    ].includes(options.mode)
+  ) {
+    manifest.icons = {
+      16:
+        options.mode === "unsafe_declared_icon"
+          ? "../outside.png"
+          : "icons/icon-16.png",
+    };
+    manifest.action = { default_icon: { 16: "icons/icon-16.png" } };
+  }
+  if (options.mode === "missing_default_icon") {
+    manifest.action = { default_icon: { 16: "icons/icon-16.png" } };
+  }
   if (options.mode === "not_extension") {
     manifest = { fake: "manifest" };
   }
@@ -320,6 +563,15 @@ function makeZip(path, browser, options = {}) {
       : `globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=${JSON.stringify(
           JSON.stringify(config),
         )};\n`;
+  if (options.mode === "config_only_comment") {
+    worker = "// " + worker;
+  }
+  if (options.mode === "config_only_block_comment") {
+    worker = "/*\n" + worker + "*/\n";
+  }
+  if (options.mode === "config_only_template") {
+    worker = "const note = `" + worker + "`;\n";
+  }
   if (options.mode === "development_material") {
     worker +=
       "/* LOCAL DEVELOPMENT http://127.0.0.1:43100 http://127.0.0.1:43101 config-local-development */\n";
@@ -350,6 +602,9 @@ function makeZip(path, browser, options = {}) {
       options.mode ?? "",
       encode(JSON.stringify(manifest)),
       encode(worker),
+      encode(
+        readFileSync(resolve("apps/extension/src/assets/octoport-16.png")),
+      ),
     ],
     { encoding: "utf8" },
   );
@@ -405,13 +660,13 @@ function preflight(value, candidateDir) {
   });
 }
 
-function expectPrepareFailure(name, browserMode) {
+function expectPrepareFailure(name, browserMode, expectedFailure) {
   test(name, () => {
     const value = fixture({
       chromium: { mode: browserMode },
     });
     try {
-      assert.throws(() => prepare(value));
+      assert.throws(() => prepare(value), expectedFailure);
     } finally {
       cleanup(value);
     }
@@ -420,7 +675,7 @@ function expectPrepareFailure(name, browserMode) {
 
 test("repository release facts use current contract/version/migration tag", () => {
   const facts = productFacts();
-  assert.equal(facts.productVersion, "0.2.15");
+  assert.equal(facts.productVersion, "0.2.30");
   assert.equal(facts.contractVersion, "control_plane_v2");
   assert.equal(facts.migrationLevel, 59);
 });
@@ -653,15 +908,249 @@ test("authority public-key fingerprint must be cryptographically consistent", ()
 expectPrepareFailure("ZIP traversal is rejected", "path");
 expectPrepareFailure("absolute ZIP path is rejected", "absolute");
 expectPrepareFailure("backslash ZIP escape is rejected", "backslash");
+for (const [name, mode] of [
+  ["Windows ZIP alternate-data-stream colon is rejected", "windows_unsafe_ads"],
+  ["Windows ZIP reserved device AUX is rejected", "windows_unsafe_reserved"],
+  ["Windows ZIP nested device NUL is rejected", "windows_unsafe_child_device"],
+  [
+    "Windows ZIP superscript device COM¹ is rejected",
+    "windows_unsafe_unicode_device",
+  ],
+  ["Windows ZIP trailing dot is rejected", "windows_unsafe_trailing_dot"],
+  ["Windows ZIP trailing space is rejected", "windows_unsafe_trailing_space"],
+  ["Windows ZIP wildcard is rejected", "windows_unsafe_wildcard"],
+  ["Windows ZIP control character is rejected", "windows_unsafe_control"],
+  [
+    "Windows ZIP non-ASCII composed filename is rejected",
+    "windows_unsafe_nonascii_composed",
+  ],
+  [
+    "Windows ZIP non-ASCII decomposed filename is rejected",
+    "windows_unsafe_nonascii_decomposed",
+  ],
+  [
+    "Windows ZIP non-ASCII compatibility case filename is rejected",
+    "windows_unsafe_nonascii_kelvin",
+  ],
+  ["Windows ZIP console device CONIN$ is rejected", "windows_unsafe_conin"],
+  ["Windows ZIP console device CONOUT$ is rejected", "windows_unsafe_conout"],
+  [
+    "Windows ZIP nested CONOUT$ directory is rejected",
+    "windows_unsafe_conout_directory",
+  ],
+  ["Windows ZIP COM0 device alias is rejected", "windows_unsafe_com0"],
+  ["Windows ZIP LPT0 device alias is rejected", "windows_unsafe_lpt0"],
+]) {
+  expectPrepareFailure(name, mode, /Unsafe ZIP path/);
+}
+expectPrepareFailure(
+  "Windows ZIP nested ASCII case alias is rejected",
+  "windows_case_alias",
+  /Duplicate ZIP entry/,
+);
+test("portable Windows ZIP near-device filenames remain accepted", () => {
+  const value = fixture({ chromium: { mode: "windows_portable_names" } });
+  try {
+    const { output } = prepare(value);
+    preflight(value, output);
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure("duplicate ZIP entry is rejected", "duplicate");
 expectPrepareFailure(
   "case-folded duplicate ZIP entry is rejected",
   "case_duplicate",
 );
+for (const [name, mode] of [
+  [
+    "ZIP file ancestor before descendant is rejected",
+    "prefix_file_before_child",
+  ],
+  [
+    "ZIP descendant before file ancestor is rejected",
+    "prefix_child_before_file",
+  ],
+  [
+    "ZIP explicit directory before file is rejected",
+    "prefix_directory_then_file",
+  ],
+  [
+    "ZIP file before explicit directory is rejected",
+    "prefix_file_then_directory",
+  ],
+  ["ZIP mixed-case file ancestor is rejected", "prefix_mixed_case"],
+]) {
+  expectPrepareFailure(name, mode, /ZIP path hierarchy collision/);
+}
+expectPrepareFailure(
+  "ZIP excessive ancestor depth is rejected before hierarchy allocation",
+  "prefix_depth_excess",
+  /Unsafe ZIP path/,
+);
+for (const [name, mode] of [
+  [
+    "ZIP real directory before descendant stays valid",
+    "prefix_valid_parent_first",
+  ],
+  [
+    "ZIP real directory after descendant stays valid",
+    "prefix_valid_parent_last",
+  ],
+  ["ZIP bounded maximum path depth stays valid", "prefix_depth_limit"],
+]) {
+  test(name, () => {
+    const value = fixture({ chromium: { mode } });
+    try {
+      const { output } = prepare(value);
+      assert.equal(preflight(value, output).status, "PASS");
+    } finally {
+      cleanup(value);
+    }
+  });
+}
+test("ZIP hierarchy stays within 64 MiB JS heap for 128 distinct deep paths", () => {
+  const value = fixture({ chromium: { mode: "prefix_deep_fanout_128" } });
+  try {
+    const reader = pathToFileURL(resolve("tooling/b1/release-lib.mjs")).href;
+    const script = [
+      'import { readFileSync } from "node:fs";',
+      "import { readZip } from " + JSON.stringify(reader) + ";",
+      "const entries = readZip(readFileSync(process.argv[1]));",
+      'if (entries.size !== 130) throw Error("Unexpected ZIP entry count");',
+      "console.log(entries.size);",
+    ].join("\n");
+    const result = spawnSync(
+      NODE,
+      [
+        "--max-old-space-size=64",
+        "--input-type=module",
+        "-e",
+        script,
+        join(value.candidate, "chromium.zip"),
+      ],
+      { encoding: "utf8", timeout: 15000, maxBuffer: 4096 },
+    );
+    assert.equal(result.status, 0, result.stderr || String(result.error));
+    assert.equal(result.stdout.trim(), "130");
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure(
   "missing declared extension runtime is rejected",
   "no_runtime",
 );
+expectPrepareFailure(
+  "declared icon missing from both browser ZIPs is rejected",
+  "missing_declared_icon",
+  /Declared icon resource missing/,
+);
+expectPrepareFailure(
+  "declared 16-pixel RGBA icon with truncated rows is rejected",
+  "short_declared_icon",
+  /PNG icon pixel data invalid/,
+);
+expectPrepareFailure(
+  "unsafe declared icon path is rejected before member lookup",
+  "unsafe_declared_icon",
+  /Declared icon path invalid/,
+);
+expectPrepareFailure(
+  "missing action default_icon resource is rejected",
+  "missing_default_icon",
+  /Declared icon resource missing/,
+);
+expectPrepareFailure(
+  "PNG unknown critical chunk with valid CRC is rejected",
+  "unknown_critical_png",
+  /PNG icon unsupported critical chunk/,
+);
+expectPrepareFailure(
+  "PNG nonconsecutive IDAT separated by tEXt is rejected",
+  "nonconsecutive_idat_png",
+  /PNG icon unsupported chunk/,
+);
+for (const [mode, title, failure] of [
+  [
+    "png_highbit_ihdr",
+    "PNG non-ASCII high-bit chunk name cannot alias IHDR",
+    /PNG icon chunk type invalid/,
+  ],
+  [
+    "png_trailing_idat",
+    "PNG IDAT zlib trailing bytes cannot be ignored",
+    /PNG icon compressed stream contains trailing bytes/,
+  ],
+]) {
+  for (const browser of ["chromium", "firefox"]) {
+    test(browser + ": " + title, () => {
+      const value = fixture({ [browser]: { mode } });
+      try {
+        assert.throws(() => prepare(value), failure);
+      } finally {
+        cleanup(value);
+      }
+    });
+  }
+}
+for (const [mode, title, failure] of [
+  [
+    "png_invalid_trns_rgba",
+    "PNG RGBA rejects tRNS after IDAT",
+    /PNG icon unsupported chunk/,
+  ],
+  [
+    "png_metadata_text",
+    "canonical PNG icon rejects additional tEXt metadata",
+    /PNG icon unsupported chunk/,
+  ],
+  [
+    "png_bkgd_after_idat",
+    "PNG canonical background chunk before IDAT only",
+    /PNG icon background metadata invalid/,
+  ],
+  [
+    "png_bad_bkgd_length",
+    "PNG background metadata must contain RGB sample bytes",
+    /PNG icon background metadata invalid/,
+  ],
+]) {
+  for (const browser of ["chromium", "firefox"]) {
+    test(browser + ": " + title, () => {
+      const value = fixture({ [browser]: { mode } });
+      try {
+        assert.throws(() => prepare(value), failure);
+      } finally {
+        cleanup(value);
+      }
+    });
+  }
+}
+test("valid two-consecutive-IDAT PNG remains accepted in both browser families", () => {
+  const value = fixture({
+    chromium: { mode: "png_consecutive_idat" },
+    firefox: { mode: "png_consecutive_idat" },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
+test("valid declared Chromium and Firefox icon remains accepted", () => {
+  const value = fixture({
+    chromium: { mode: "valid_declared_icon" },
+    firefox: { mode: "valid_declared_icon" },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure("private-key material is rejected", "secret");
 expectPrepareFailure("forbidden secret file is rejected", "secretfile");
 expectPrepareFailure(
@@ -672,6 +1161,26 @@ expectPrepareFailure(
   "ZIP Unix regular-file mode on directory path is rejected",
   "unix_file_for_directory",
 );
+expectPrepareFailure(
+  "unconsumed bytes after deflate stream are rejected",
+  "zip_deflate_unused_tail",
+);
+expectPrepareFailure(
+  "reserved ZIP general-purpose flag bit14 is rejected",
+  "zip_gpbf_reserved_bit14",
+);
+expectPrepareFailure(
+  "strong-encryption ZIP general-purpose flag bit6 is rejected",
+  "zip_gpbf_strong_encryption_bit6",
+);
+test("supported deflate compression-option flag bits remain readable", () => {
+  const value = fixture({ chromium: { mode: "zip_gpbf_deflate_options" } });
+  try {
+    assert.doesNotThrow(() => prepare(value));
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure("opaque ZIP comment is rejected", "zip_comment");
 expectPrepareFailure(
   "unaccounted ZIP central directory gap is rejected",
@@ -769,6 +1278,21 @@ test("non-regular package input is rejected before archive read", () => {
 expectPrepareFailure(
   "missing reachable packaged config is rejected",
   "missing_config",
+);
+expectPrepareFailure(
+  "commented packaged configuration cannot substitute a runtime assignment",
+  "config_only_comment",
+  /reachable packaged config/,
+);
+expectPrepareFailure(
+  "block-comment packaged configuration cannot substitute a runtime assignment",
+  "config_only_block_comment",
+  /reachable packaged config/,
+);
+expectPrepareFailure(
+  "template-literal packaged configuration cannot substitute a runtime assignment",
+  "config_only_template",
+  /reachable packaged config/,
 );
 expectPrepareFailure("stale packaged contract is rejected", "wrong_contract");
 expectPrepareFailure(

@@ -41,7 +41,9 @@
     const section = matches[0], root = adapter.findCodeBlocks(section)[source.blockOrdinal];
     if (!root) fail("COMMAND_BLOCK_IDENTITY_REQUIRED");
     const proof = await capture({ context, adapter, binding: { root, section }, conversationKey });
-    const commandText = String(adapter.readCodeText(root) || "");
+    const commandText = String((adapter.readCodeTextAsync ? await adapter.readCodeTextAsync(root) : adapter.readCodeText(root)) || "");
+    const afterRead = await capture({ context, adapter, binding: { root, section }, conversationKey });
+    if (JSON.stringify(afterRead) !== JSON.stringify(proof)) fail("COMMAND_CONTEXT_CHANGED");
     if (!commandText || commandText.length > 524288) fail("COMMAND_BLOCK_INVALID");
     return { ok: true, command_text: commandText, command_source: proof };
   }

@@ -31,8 +31,24 @@ def main():
     runner = original.Runner(output)
     try:
         original.negative_control(output)
+        runner.run("i1-cdp-worker-identity-source", [
+            os.environ.get("WB_TEST_PYTHON", "python3"), "-m", "unittest", "discover",
+            "-s", str(ROOT / "tests/regression/extension-core/client-i1"),
+            "-p", "test_browser_worker_activation.py", "-v",
+        ])
         runner.run("start-entry-lifecycle", [node, ROOT / "tests/regression/extension-core/client-i1/client-start-entry-lifecycle.mjs", ROOT])
         runner.run("i1-release-preflight-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-release-preflight.mjs", ROOT])
+        runner.run("i1-r3-ledger-writer-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-r3-command-ledger.mjs"])
+        # Existing source regressions for operator R3 feedback must run on
+        # every exact candidate, not remain unreferenced standalone scripts.
+        # Run once before packaging: both validate source modules rather than
+        # an installed/browser-specific runtime.
+        runner.run("i1-r3-finish-terminal-source", [
+            node, ROOT / "tests/regression/extension-core/client-i1/client-r3-work-lifecycle.mjs"
+        ])
+        runner.run("i1-r3-parallel-bootstrap-source", [
+            node, ROOT / "tests/regression/extension-core/client-i1/client-r3-parallel-authority.mjs"
+        ])
         source, extracted, receipt = composed.build(output / "package")
         assert receipt["stage"] == "I1-C1" and receipt["version"] == expected_version
         result["composition"] = receipt
@@ -66,6 +82,8 @@ def main():
                 ("i1-races", ROOT / "tests/regression/extension-core/client-i1/client-races.mjs"),
                 ("i1-r2", ROOT / "tests/regression/extension-core/client-i1/client-r2.mjs"),
                 ("i1-r3", ROOT / "tests/regression/extension-core/client-i1/client-r3.mjs"),
+                ("i1-profile-revocation", ROOT / "tests/regression/extension-core/client-i1/client-profile-revocation.mjs"),
+                ("i1-ledger-capacity", ROOT / "tests/regression/extension-core/client-i1/client-ledger-capacity.mjs"),
                 ("i1-r4", ROOT / "tests/regression/extension-core/client-i1/client-r4.mjs"),
                 ("i1-r5", ROOT / "tests/regression/extension-core/client-i1/client-r5.mjs"),
                 ("i1-cache-time", ROOT / "tests/regression/extension-core/client-i1/client-cache-time.mjs"),

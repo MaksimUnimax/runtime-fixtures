@@ -50,24 +50,55 @@
       identity_scope: "document" };
     return { ...base, source: "new_conversation_pending" };
   }
-  function createTracker({ newToken }) {
+  function createTracker({ newToken, now = () => Date.now() }) {
     if (typeof newToken !== "function") throw new TypeError("newToken is required");
     let state = null;
     let start = null;
     let forceLocal = false;
+    let renamePermit = null, renameSpent = true;
+    const retireRename = () => { renamePermit = null; renameSpent = true; };
     function beginStart(intentId) {
       if (!state) throw new Error("CONVERSATION_SURFACE_REQUIRED");
-      start = { intentId: String(intentId), surfaceId: state.surfaceId,
+      renamePermit = null; renameSpent = false;
+      start = { intentId: String(intentId), surfaceId: state.surfaceId, deadline: now() + 120000,
         origin: state.origin, provider: state.provider, path: state.path,
         empty: state.ids.size === 0, root: state.root };
       return start.surfaceId;
     }
     function endStart(intentId, { retainWitness = false } = {}) {
+      if (!retainWitness && renamePermit?.intentId === String(intentId)) retireRename();
       if (start?.intentId !== String(intentId)) return;
       // Only the completed, witnessed first send may bridge its still-pending
       // route promotion. Cancellation never authorizes later continuity.
-      if (retainWitness && start.empty && !start.promoted && start.witnessId) start.completed = true;
-      else start = null;
+      const qwenGuestRouteOnly = start.promoted && state?.provider === "qwen" && state.path === "/c/new-chat";
+      if (retainWitness && start.empty && start.witnessId && (!start.promoted || qwenGuestRouteOnly)) {
+        start.completed = true;
+        start.qwenGuestRouteOnly = qwenGuestRouteOnly;
+      } else start = null;
+    }
+    // Only the content observer can attest that the same owned user node kept
+    // its exact Start text while Qwen replaced a provisional message ID.
+    // This consumes a bounded, document-local permit; outward proof uses only
+    // the current DOM IDs. It cannot authorize Send or another conversation.
+    function renameStartMessage(input, previousId) {
+      const permit = renamePermit, ids = opaque(input.messageIds);
+      const nextId = opaque([input.startWitnessMessageId])[0];
+      const allowed = permit && !renameSpent && now() <= permit.deadline &&
+        state?.surfaceId === permit.surfaceId && state.root === permit.root && input.root === permit.root &&
+        state.identity?.status === "confirmed" && state.identity.identity_scope === "document" &&
+        originOf(input.origin) === state.origin && token(input.accountScope) === state.account &&
+        state.provider === "qwen" && input.provider === "qwen" &&
+        state.path === "/c/guest" && input.pathname === state.path && permit.path === state.path &&
+        input.surfaceConfirmed === true && !input.conflict && opaque(input.explicitIds).length === 0 &&
+        input.startWitness === permit.intentId && previousId === permit.messageId &&
+        state.ids.has(previousId) && nextId && nextId !== previousId && !state.ids.has(nextId) &&
+        !ids.includes(previousId) && ids.includes(nextId) &&
+        (input.messageIds || []).filter(id => id === nextId).length === 1;
+      retireRename();
+      if (!allowed) return false;
+      state.ids.delete(previousId); state.ids.add(nextId);
+      if (start?.intentId === permit.intentId && start.witnessId === previousId) start.witnessId = nextId;
+      return true;
     }
     function observe(input) {
       const origin = originOf(input.origin), provider = token(input.provider);
@@ -76,6 +107,16 @@
       const account = token(input.accountScope);
       const explicit = opaque(input.explicitIds);
       const externalId = explicit.length === 1 ? externalKey(explicit[0]) : null;
+      if (renamePermit) {
+        const permittedPromotion = renamePermit.path === "/c/new-chat" && path === "/c/guest" &&
+          start?.intentId === renamePermit.intentId && start.root === input.root;
+        if (now() > renamePermit.deadline || origin !== state?.origin || provider !== "qwen" ||
+            account !== state?.account || input.root !== renamePermit.root ||
+            (path !== renamePermit.path && !permittedPromotion) ||
+            input.surfaceConfirmed !== true || input.conflict || explicit.length ||
+            input.startWitness !== renamePermit.intentId ||
+            input.startWitnessMessageId !== renamePermit.messageId) retireRename();
+      }
       if (start && start.surfaceId === state?.surfaceId &&
           start.root === input.root && input.startWitness === start.intentId &&
           input.startWitnessMessageId && ids.includes(input.startWitnessMessageId) &&
@@ -95,6 +136,7 @@
           input.startWitnessMessageId === start.witnessId && ids.includes(start.witnessId);
         const promotion = start && start.empty && start.surfaceId === state.surfaceId &&
           (start.root === input.root || retainedWitness) && input.startWitness === start.intentId &&
+          (!start.qwenGuestRouteOnly || (state.path === "/c/new-chat" && path === "/c/guest")) &&
           (!start.completed || (input.startWitnessMessageId === start.witnessId &&
             ids.includes(start.witnessId)));
         if (!sameId && !promotion) {
@@ -102,6 +144,10 @@
           reason = "navigation";
         } else if (promotion) {
           start.promoted = true;
+          // A completed Start may reach /c/guest before Qwen assigns the
+          // final UUID. Carry only the already-validated permit to this route;
+          // keep its original deadline even when promotion clears start.
+          if (renamePermit) renamePermit.path = path;
           if (start.completed) start = null;
         }
       } else if (state.ids.size && ids.length && !ids.some((id) => state.ids.has(id))) {
@@ -116,6 +162,7 @@
           ids: new Set(), identity: null };
         start = null;
         forceLocal = false;
+        retireRename();
       }
       // An external address remains the address of this tracked surface. A
       // transient missing DOM attribute is not evidence for a new local Work.
@@ -153,6 +200,15 @@
         identity.source = "local_surface_continuity";
       }
       state.identity = identity;
+      if (!renameSpent && start?.empty && provider === "qwen" &&
+          identity.status === "confirmed" && identity.identity_scope === "document" &&
+          input.root === start.root && input.surfaceConfirmed === true && !input.conflict && !explicit.length &&
+          ["/c/new-chat", "/c/guest"].includes(path) &&
+          input.startWitness === start.intentId && input.startWitnessMessageId === start.witnessId &&
+          ids.includes(start.witnessId)) {
+        renamePermit = { intentId: start.intentId, messageId: start.witnessId, root: input.root,
+          surfaceId: state.surfaceId, path, deadline: start.deadline };
+      }
       return { ...identity };
     }
     function adoptLocal(id, surfaceId) {
@@ -161,12 +217,12 @@
       return true;
     }
     function confirmSurface(input) {
-      state = null; start = null; forceLocal = false;
+      state = null; start = null; forceLocal = false; retireRename();
       observe(input);
       forceLocal = true;
       return observe(input);
     }
-    return Object.freeze({ observe, beginStart, endStart, confirmSurface, adoptLocal });
+    return Object.freeze({ observe, beginStart, endStart, confirmSurface, adoptLocal, renameStartMessage });
   }
   function normalizeProof(value) {
     if (value?.version !== 1 || !/^[a-f0-9]{64}$/.test(String(value.locator_digest || ""))) return null;
