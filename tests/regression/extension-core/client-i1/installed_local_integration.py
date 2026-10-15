@@ -147,15 +147,16 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
     return counts
 
 
-def safe_scoped_chatgpt_grant_observation(value):
-    """Project the locally checked AI-specific grant to fixed boolean evidence.
+def safe_stored_chatgpt_candidate_observation(value):
+    """Store snapshot hints only; no signature, grant or Work authority is verified.
 
-    A generic workAllowed status can refer to a different AI. Never serialize
-    the envelope, profile, account/device/session or callback exception.
+    This is a fixed-boolean projection of an untrusted persisted record, NOT
+    proof that the canceled Work Start acquisition was optional.
     """
-    keys = ("present", "work_allowed", "requested_family_matches",
-            "detected_family_matches", "signed_envelope_present",
-            "profile_present", "resolved")
+    keys = ("stored_record_present", "stored_record_ambiguous",
+            "stored_work_allowed_claim", "stored_ai_resolved_claim",
+            "stored_envelope_present", "stored_profile_present",
+            "stored_same_generation_claim", "stored_same_account_claim")
     denied = {**{key: False for key in keys}, "read_failed": True}
     if not isinstance(value, dict) or value.get("read_failed") is not False:
         return denied
@@ -908,32 +909,39 @@ def run(runtime, output):
                         diagnostic = worker.evaluate("""async tabId => {
                           const status = await SellerAgentsControlClient.status();
                           const code = String(status?.lastError?.code || "");
-                          // A generic allowed Work status may refer to a different AI.
-                          // Query only a current, locally verified ChatGPT grant, with
-                          // a bounded diagnostic read and no identity/payload output.
-                          let scoped = {read_failed: true};
-                          let scopeTimer;
+                          // Purely read the persisted record. This does NOT verify
+                          // its signature, runtime identity, expiry or Work permission.
+                          // A late storage read has no write or revocation side effect.
+                          let stored = {read_failed: true};
+                          let storageTimer;
                           try {
-                            const authority = await Promise.race([
-                              SellerAgentsControlClient.getAuthority("chatgpt"),
+                            const values = await Promise.race([
+                              chrome.storage.local.get("seller_agents_control_auth_v2"),
                               new Promise((_, reject) => {
-                                scopeTimer = setTimeout(() => reject(new Error("SCOPE_DIAG_DEADLINE")), 1200);
+                                storageTimer = setTimeout(() => reject(new Error("STORAGE_SNAPSHOT_DIAG_DEADLINE")), 1200);
                               }),
                             ]);
-                            scoped = {
-                              present: Boolean(authority),
-                              work_allowed: authority?.workAllowed === true,
-                              requested_family_matches: authority?.requestedAi === "chatgpt",
-                              detected_family_matches: authority?.payload?.ai?.detected?.family === "chatgpt",
-                              signed_envelope_present: Boolean(authority?.envelope),
-                              profile_present: Boolean(authority?.payload?.ai?.profile),
-                              resolved: authority?.payload?.ai?.status === "RESOLVED",
+                            const saved = values?.seller_agents_control_auth_v2;
+                            const records = saved?.grants && typeof saved.grants === "object" && !Array.isArray(saved.grants)
+                              ? Object.values(saved.grants) : [];
+                            const matches = records.filter(record => record?.authority?.requestedAi === "chatgpt");
+                            const record = matches.length === 1 ? matches[0] : null;
+                            stored = {
+                              stored_record_present: record !== null,
+                              stored_record_ambiguous: matches.length > 1,
+                              stored_work_allowed_claim: record?.authority?.workAllowed === true,
+                              stored_ai_resolved_claim: record?.authority?.payload?.ai?.status === "RESOLVED",
+                              stored_envelope_present: Boolean(record?.authority?.envelope),
+                              stored_profile_present: Boolean(record?.authority?.payload?.ai?.profile),
+                              stored_same_generation_claim: record != null && record.authority?.generation === saved?.generation,
+                              stored_same_account_claim: record != null && Boolean(saved?.authority?.payload?.account?.id) &&
+                                record.authority?.payload?.account?.id === saved.authority.payload.account.id,
                               read_failed: false,
                             };
-                          } catch (_) { /* Diagnostics never grant or renew authority. */ }
-                          finally { if (scopeTimer !== undefined) clearTimeout(scopeTimer); }
+                          } catch (_) { /* Never serialize exceptions or retry authorizations. */ }
+                          finally { if (storageTimer !== undefined) clearTimeout(storageTimer); }
                           return {
-                            scoped_chatgpt_grant: scoped,
+                            stored_chatgpt_candidate: stored,
                             pending: Boolean(status?.pending),
                             authenticated: status?.authenticated === true,
                             workAllowed: status?.workAllowed === true,
@@ -943,12 +951,12 @@ def run(runtime, output):
                               ? await saLastStartDiagnostic(tabId) : null
                           };
                         }""", locals().get("chat_tab_id"))
-                        scoped = safe_scoped_chatgpt_grant_observation(
-                            diagnostic.pop("scoped_chatgpt_grant", None)
+                        snapshot = safe_stored_chatgpt_candidate_observation(
+                            diagnostic.pop("stored_chatgpt_candidate", None)
                         )
                         result["failure_diagnostic"] = {
                             "stage": stage, **diagnostic,
-                            "scoped_chatgpt_grant": scoped,
+                            "stored_chatgpt_candidate_unverified": snapshot,
                         }
                         if bootstrap_envelope is not None:
                             result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelope)
