@@ -4,6 +4,7 @@ import { basename, resolve } from "node:path";
 import {
   OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE,
   parseSwaggerDocument,
+  parseSwaggerSizeBytes,
   SwaggerSourceFamilySchema,
   type SwaggerArtifact,
   type SwaggerSourceFamily,
@@ -11,6 +12,7 @@ import {
 } from "@product/monitoring-control";
 import type {
   ApiWatchSqlRuntime,
+  ApiWatchSqlQuery,
   ApiWatchStore,
   AuthorityPassResult,
   AuthorityRecord,
@@ -75,6 +77,32 @@ export function createInMemoryApiWatchState(): InMemoryApiWatchState {
   };
 }
 
+function authorityIdentity(record: AuthorityRecordInput): string {
+  return JSON.stringify([
+    record.sourceFamily,
+    record.officialUrl,
+    record.acquisitionMode,
+    record.authorityStatus,
+    record.sha256,
+    record.sizeBytes,
+    record.specVersion,
+    record.operatorRequestId,
+    record.artifactExtension,
+    record.failureClassification,
+    record.acquiredAt?.toISOString() ?? null,
+    Object.entries(record.safeProvenance)
+      .filter(([key]) => key !== "authorityRecordSequence")
+      .sort(([a], [b]) => a.localeCompare(b)),
+  ]);
+}
+function assertSameAuthority(
+  existing: AuthorityRecord,
+  input: AuthorityRecordInput,
+): void {
+  if (authorityIdentity(existing) !== authorityIdentity(input))
+    throw new Error("API_WATCH_AUTHORITY_IDENTITY_COLLISION");
+}
+
 export class InMemoryApiWatchStore implements ApiWatchStore {
   public constructor(
     private readonly state: InMemoryApiWatchState = createInMemoryApiWatchState(),
@@ -83,21 +111,38 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
   async saveAuthorityRecord(
     input: AuthorityRecordInput,
   ): Promise<AuthorityRecord> {
-    const record: AuthorityRecord = {
-      ...input,
-      recordId: input.recordId ?? randomUUID(),
-      safeProvenance: {
-        ...input.safeProvenance,
-        authorityRecordSequence: nextAuthorityRecordSequence(
-          [...this.state.authorities.values()].reduce(
-            (latest, prior) => Math.max(latest, authorityRecordSequence(prior)),
-            0,
-          ),
-        ),
-      },
-    };
-    this.state.authorities.set(record.recordId, record);
-    return cloneRecord(record);
+    return (await this.saveAuthorityRecords([input]))[0]!;
+  }
+
+  async saveAuthorityRecords(
+    inputs: AuthorityRecordInput[],
+  ): Promise<AuthorityRecord[]> {
+    let sequence = [...this.state.authorities.values()].reduce(
+      (latest, prior) => Math.max(latest, authorityRecordSequence(prior)),
+      0,
+    );
+    const records = inputs.map((input) => {
+      const existing = input.recordId
+        ? this.state.authorities.get(input.recordId)
+        : undefined;
+      if (existing) {
+        assertSameAuthority(existing, input);
+        return existing;
+      }
+      sequence = nextAuthorityRecordSequence(sequence);
+      return {
+        ...input,
+        recordId: input.recordId ?? randomUUID(),
+        safeProvenance: {
+          ...input.safeProvenance,
+          authorityRecordSequence: sequence,
+        },
+      };
+    });
+    // Validate and construct every row before publishing any family member.
+    for (const record of records)
+      this.state.authorities.set(record.recordId, record);
+    return records.map(cloneRecord);
   }
 
   async listAuthorityRecords() {
@@ -178,7 +223,7 @@ type AuthorityRow = {
   acquisitionMode: string;
   authorityStatus: string;
   sha256: string | null;
-  sizeBytes: number | null;
+  sizeBytes: number | string | null;
   specVersion: string | null;
   acquiredAt: Date | null;
   validatedAt: Date;
@@ -193,6 +238,8 @@ const authorityProjection = `SELECT record_id AS "recordId",source_family AS "so
 function mapAuthority(row: AuthorityRow): AuthorityRecord {
   return {
     ...row,
+    sizeBytes:
+      row.sizeBytes === null ? null : parseSwaggerSizeBytes(row.sizeBytes),
     sourceFamily: SwaggerSourceFamilySchema.parse(row.sourceFamily),
     acquisitionMode: row.acquisitionMode as AuthorityRecord["acquisitionMode"],
     authorityStatus: row.authorityStatus as AuthorityStatus,
@@ -203,51 +250,83 @@ function mapAuthority(row: AuthorityRow): AuthorityRecord {
   };
 }
 
+async function persistAuthorityRecord(
+  transaction: ApiWatchSqlQuery,
+  input: AuthorityRecordInput,
+): Promise<AuthorityRecord> {
+  const recordId = input.recordId ?? randomUUID();
+  // Serialize the next provenance order with its insert across store
+  // instances. This uses the existing schema and preserves validatedAt.
+  await transaction.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+    "api-watch:authority-record-sequence-v1",
+  ]);
+  const prior = await transaction.query<AuthorityRow>(
+    authorityProjection + " WHERE record_id=$1",
+    [recordId],
+  );
+  if (prior.rows[0]) {
+    const existing = mapAuthority(prior.rows[0]);
+    assertSameAuthority(existing, input);
+    return existing;
+  }
+  const latest = await transaction.query<{ sequence: string }>(
+    "SELECT COALESCE(MAX((safe_provenance->>'authorityRecordSequence')::bigint),0)::text AS sequence FROM api_watch_authority_records",
+  );
+  if (!latest.rows[0])
+    throw new Error("API_WATCH_AUTHORITY_SEQUENCE_READ_FAILED");
+  const sequence = nextAuthorityRecordSequence(Number(latest.rows[0].sequence));
+  const result = await transaction.query<AuthorityRow>(
+    `INSERT INTO api_watch_authority_records(record_id,source_family,official_url,acquisition_mode,authority_status,sha256,size_bytes,spec_version,acquired_at,validated_at,operator_request_id,artifact_extension,safe_provenance,failure_classification) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14) RETURNING record_id AS "recordId",source_family AS "sourceFamily",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",authority_status AS "authorityStatus",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",acquired_at AS "acquiredAt",validated_at AS "validatedAt",operator_request_id AS "operatorRequestId",artifact_extension AS "artifactExtension",safe_provenance AS "safeProvenance",failure_classification AS "failureClassification"`,
+    [
+      recordId,
+      input.sourceFamily,
+      input.officialUrl,
+      input.acquisitionMode,
+      input.authorityStatus,
+      input.sha256,
+      input.sizeBytes,
+      input.specVersion,
+      input.acquiredAt,
+      input.validatedAt,
+      input.operatorRequestId,
+      input.artifactExtension,
+      JSON.stringify({
+        ...input.safeProvenance,
+        authorityRecordSequence: sequence,
+      }),
+      input.failureClassification,
+    ],
+  );
+  if (!result.rows[0])
+    throw new Error("API_WATCH_AUTHORITY_RECORD_CREATE_FAILED");
+  return mapAuthority(result.rows[0]);
+}
+
+function mapSnapshot(
+  row: Record<string, unknown>,
+): import("./types.js").SnapshotMetadata {
+  return {
+    ...(row as unknown as import("./types.js").SnapshotMetadata),
+    sizeBytes: parseSwaggerSizeBytes(row.sizeBytes),
+    createdAt: new Date(row.createdAt as Date | string),
+  };
+}
+
 export function createPostgresApiWatchStore(
   runtime: ApiWatchSqlRuntime,
 ): ApiWatchStore {
   return {
     async saveAuthorityRecord(input) {
-      const recordId = input.recordId ?? randomUUID();
-      return runtime.transaction(async (transaction) => {
-        // Serialize the next provenance order with its insert across store
-        // instances. This uses the existing schema and preserves validatedAt.
-        await transaction.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-          "api-watch:authority-record-sequence-v1",
-        ]);
-        const latest = await transaction.query<{ sequence: string }>(
-          "SELECT COALESCE(MAX((safe_provenance->>'authorityRecordSequence')::bigint),0)::text AS sequence FROM api_watch_authority_records",
-        );
-        if (!latest.rows[0])
-          throw new Error("API_WATCH_AUTHORITY_SEQUENCE_READ_FAILED");
-        const sequence = nextAuthorityRecordSequence(
-          Number(latest.rows[0].sequence),
-        );
-        const result = await transaction.query<AuthorityRow>(
-          `INSERT INTO api_watch_authority_records(record_id,source_family,official_url,acquisition_mode,authority_status,sha256,size_bytes,spec_version,acquired_at,validated_at,operator_request_id,artifact_extension,safe_provenance,failure_classification) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14) RETURNING record_id AS "recordId",source_family AS "sourceFamily",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",authority_status AS "authorityStatus",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",acquired_at AS "acquiredAt",validated_at AS "validatedAt",operator_request_id AS "operatorRequestId",artifact_extension AS "artifactExtension",safe_provenance AS "safeProvenance",failure_classification AS "failureClassification"`,
-          [
-            recordId,
-            input.sourceFamily,
-            input.officialUrl,
-            input.acquisitionMode,
-            input.authorityStatus,
-            input.sha256,
-            input.sizeBytes,
-            input.specVersion,
-            input.acquiredAt,
-            input.validatedAt,
-            input.operatorRequestId,
-            input.artifactExtension,
-            JSON.stringify({
-              ...input.safeProvenance,
-              authorityRecordSequence: sequence,
-            }),
-            input.failureClassification,
-          ],
-        );
-        if (!result.rows[0])
-          throw new Error("API_WATCH_AUTHORITY_RECORD_CREATE_FAILED");
-        return mapAuthority(result.rows[0]);
+      return runtime.transaction((query) =>
+        persistAuthorityRecord(query, input),
+      );
+    },
+    async saveAuthorityRecords(inputs) {
+      return runtime.transaction(async (query) => {
+        const records: AuthorityRecord[] = [];
+        for (const input of inputs)
+          records.push(await persistAuthorityRecord(query, input));
+        return records;
       });
     },
     async listAuthorityRecords() {
@@ -268,7 +347,7 @@ export function createPostgresApiWatchStore(
         `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots WHERE source_family=$1 AND document_key IS NOT DISTINCT FROM $2 AND sha256=$3`,
         [metadata.sourceFamily, metadata.documentKey ?? null, metadata.sha256],
       );
-      if (existing.rows[0]) return existing.rows[0] as never as typeof metadata;
+      if (existing.rows[0]) return mapSnapshot(existing.rows[0]);
       const result = await runtime.query<Record<string, unknown>>(
         `INSERT INTO api_watch_snapshots(snapshot_id,source_family,sha256,size_bytes,spec_version,official_url,acquisition_mode,created_at,authority_record_id,artifact_path,document_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey"`,
         [
@@ -286,13 +365,13 @@ export function createPostgresApiWatchStore(
         ],
       );
       if (!result.rows[0]) throw new Error("API_WATCH_SNAPSHOT_CREATE_FAILED");
-      return result.rows[0] as never as typeof metadata;
+      return mapSnapshot(result.rows[0]);
     },
     async listSnapshots() {
       const result = await runtime.query<Record<string, unknown>>(
         `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots ORDER BY created_at,snapshot_id`,
       );
-      return result.rows as never as import("./types.js").SnapshotMetadata[];
+      return result.rows.map(mapSnapshot);
     },
     async saveInventory(inventory) {
       await runtime.query(
@@ -403,9 +482,53 @@ export async function runAuthorityPass(input: {
   fetcher?: typeof fetch;
   now?: () => Date;
   skipOperatorBlocked?: boolean;
+  quarantineDir?: string;
 }): Promise<AuthorityPassResult> {
-  const pass = await runDocumentAuthorityPass(input);
-  return { outcomes: pass.outcomes, records: pass.records };
+  const ready = await input.pendingStore.listReadyRequests();
+  const request = ready.find(
+    (request) =>
+      request.sourceFamily === "WILDBERRIES" &&
+      request.documentKey === WB_BUNDLE_DOCUMENT_KEY &&
+      input.registry
+        .list()
+        .some(
+          (entry) =>
+            entry.sourceFamily === "WILDBERRIES" &&
+            entry.documents?.length === 13,
+        ),
+  );
+  let operator: AuthorityPassResult | undefined;
+  if (request) {
+    const review = await evaluateOperatorCandidate({
+      ...input,
+      requestId: request.requestId,
+      quarantineDir:
+        input.quarantineDir ??
+        process.env.SWAGGER_QUARANTINE_DIR ??
+        "/var/lib/octoport/api-watch/quarantine",
+    });
+    if (
+      review.kind === "AUTHORITY_ACCEPTED" &&
+      review.outcomes &&
+      review.records
+    ) {
+      operator = { outcomes: review.outcomes, records: review.records };
+    }
+  }
+  const registry = operator
+    ? {
+        get: input.registry.get.bind(input.registry),
+        list: () =>
+          input.registry
+            .list()
+            .filter((entry) => entry.sourceFamily !== "WILDBERRIES"),
+      }
+    : input.registry;
+  const pass = await runDocumentAuthorityPass({ ...input, registry });
+  return {
+    outcomes: [...pass.outcomes, ...(operator?.outcomes ?? [])],
+    records: [...pass.records, ...(operator?.records ?? [])],
+  };
 }
 
 function invalidCandidate(reason: string): OperatorCandidateReview {
@@ -421,6 +544,23 @@ function candidatePath(root: string, artifact: SwaggerArtifact): string {
   )
     throw new Error("QUARANTINE_PATH_INVALID");
   return path;
+}
+
+function operatorAuthorityId(artifactId: string, documentKey: string): string {
+  const hex = createHash("sha256")
+    .update(JSON.stringify([artifactId, documentKey]))
+    .digest("hex");
+  return (
+    hex.slice(0, 8) +
+    "-" +
+    hex.slice(8, 12) +
+    "-5" +
+    hex.slice(13, 16) +
+    "-8" +
+    hex.slice(17, 20) +
+    "-" +
+    hex.slice(20, 32)
+  );
 }
 
 export async function evaluateOperatorCandidate(input: {
@@ -496,36 +636,64 @@ export async function evaluateOperatorCandidate(input: {
         error instanceof Error ? error.message : "WB_BUNDLE_INVALID",
       );
     }
-    const records: AuthorityRecord[] = [];
+    if (
+      bundle.documents.some(
+        (document) =>
+          !entry.documents?.some(
+            (current) =>
+              current.documentKey === document.documentKey &&
+              current.officialUrl === document.officialUrl,
+          ),
+      )
+    )
+      return invalidCandidate("WB_BUNDLE_REGISTRY_MISMATCH");
+    const recordInputs: AuthorityRecordInput[] = [];
     for (const document of bundle.documents) {
-      records.push(
-        await input.store.saveAuthorityRecord({
-          sourceFamily: "WILDBERRIES",
-          officialUrl: document.officialUrl,
-          acquisitionMode: "OPERATOR_SUPPLIED",
-          authorityStatus: "AUTHORITY_ACCEPTED",
-          sha256: document.sha256,
-          sizeBytes: document.byteLength,
-          specVersion: document.specVersion,
-          acquiredAt: candidate.receivedAt,
-          validatedAt: now(),
-          operatorRequestId: request.requestId,
-          artifactExtension: ".yaml",
-          safeProvenance: {
-            bundleArtifactId: candidate.artifactId,
-            bundleVersion: bundle.bundleVersion,
-            documentKey: document.documentKey,
-            familyManifestSha256: bundle.familyManifestSha256,
-            outerBundleSha256: bundle.outerSha256,
-          },
-          failureClassification: null,
-        }),
-      );
+      recordInputs.push({
+        recordId: operatorAuthorityId(
+          candidate.artifactId,
+          document.documentKey,
+        ),
+        sourceFamily: "WILDBERRIES",
+        officialUrl: document.officialUrl,
+        acquisitionMode: "OPERATOR_SUPPLIED",
+        authorityStatus: "AUTHORITY_ACCEPTED",
+        sha256: document.sha256,
+        sizeBytes: document.byteLength,
+        specVersion: document.specVersion,
+        acquiredAt: candidate.receivedAt,
+        validatedAt: now(),
+        operatorRequestId: request.requestId,
+        artifactExtension: ".yaml",
+        safeProvenance: {
+          bundleArtifactId: candidate.artifactId,
+          bundleVersion: bundle.bundleVersion,
+          documentKey: document.documentKey,
+          familyManifestSha256: bundle.familyManifestSha256,
+          outerBundleSha256: bundle.outerSha256,
+        },
+        failureClassification: null,
+      });
     }
+    const records = await input.store.saveAuthorityRecords(recordInputs);
     return {
       kind: "AUTHORITY_ACCEPTED",
       record: records[0]!,
       records,
+      outcomes: bundle.documents.map((document) => ({
+        kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" as const,
+        sourceFamily: "WILDBERRIES" as const,
+        documentKey: document.documentKey,
+        officialUrl: document.officialUrl,
+        finalUrl: document.officialUrl,
+        bytes: new TextEncoder().encode(document.content),
+        sha256: document.sha256,
+        sizeBytes: document.byteLength,
+        specVersion: document.specVersion,
+        artifactType: "YAML" as const,
+        parserResult: { parsed: true },
+        validationResult: { recognizedVersion: true },
+      })),
       familyManifestSha256: bundle.familyManifestSha256,
       documentKeys: records.map((record) =>
         String(record.safeProvenance.documentKey),
