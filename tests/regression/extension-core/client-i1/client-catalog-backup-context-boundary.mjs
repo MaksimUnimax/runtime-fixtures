@@ -130,6 +130,11 @@ function fixture(name, guardMode = "normal") {
       "({accountId:" + JSON.stringify(accountId) + ",generation:" + generation + "})",
       realm,
     ),
+    workerRealmProxy: () => vm.runInContext(
+      "new Proxy({accountId:" + JSON.stringify(accountId) + ",generation:" + generation +
+      "},{getPrototypeOf(){return Object.prototype;}})",
+      realm,
+    ),
   };
 }
 let cases = 0;
@@ -245,6 +250,7 @@ for (const [name, makeContext] of [
     return Object.create(forgedPrototype);
   }],
   ["foreign_realm_plain", () => vm.runInNewContext("({accountId:'synthetic',generation:1})")],
+  ["same_realm_proxy_forged_prototype", f => f.workerRealmProxy()],
   ["throwing_proxy", () => new Proxy({}, { getPrototypeOf() { throw new Error("SYNTHETIC_PROTO_TRAP"); } })],
 ]) {
   await check("non-plain context rejected with permissive guard: " + name, async () => {
@@ -252,7 +258,7 @@ for (const [name, makeContext] of [
     const plan = await f.catalog.planBackupImport(payload);
     const before = f.snapshot();
     await rejectsCode(
-      () => f.catalog.applyBackupImport(payload, plan, makeContext()),
+      () => f.catalog.applyBackupImport(payload, plan, makeContext(f)),
       ["BACKUP_CONTEXT_GUARD_INVALID"],
     );
     assert.equal(f.writes(), 0);

@@ -88,9 +88,12 @@
       if (!value || typeof value !== "object" || Array.isArray(value)) return false;
       try {
         // The caller creates this context inside the same service-worker realm.
-        // Do not trust constructor names or forged foreign/custom prototypes.
+        // Prototype equality alone can be spoofed by a Proxy. The native
+        // structured clone rejects Proxies and other non-cloneable contexts.
         const prototype = Object.getPrototypeOf(value);
-        return prototype === null || prototype === Object.prototype;
+        if (prototype !== null && prototype !== Object.prototype) return false;
+        const copied = structuredClone(value);
+        return copied !== null && typeof copied === "object" && !Array.isArray(copied);
       } catch (_) { return false; }
     }
     async function mutate(fn, transferContext = null, backupContext = null, backupContextSupplied = false) {
