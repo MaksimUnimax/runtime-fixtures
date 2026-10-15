@@ -160,6 +160,12 @@ export async function runDocumentAuthorityPass(input: {
       const prior = priorAuthority.find(
         (record) =>
           record.sourceFamily === entry.sourceFamily &&
+          // A consumed bundle is historical input, not a new official probe.
+          // Other verified operator authority retains its existing precedence.
+          !(
+            record.acquisitionMode === "OPERATOR_SUPPLIED" &&
+            typeof record.safeProvenance.bundleArtifactId === "string"
+          ) &&
           record.officialUrl === (document?.officialUrl ?? entry.officialUrl) &&
           (record.safeProvenance.documentKey ?? null) ===
             (document?.documentKey ?? null),

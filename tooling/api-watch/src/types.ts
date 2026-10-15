@@ -1,3 +1,4 @@
+import type { OperatorPipelineCandidate } from "./operator-receipt.js";
 import type {
   SwaggerArtifact,
   SwaggerSourceFamily,
@@ -385,6 +386,7 @@ export type OperatorCandidateReview =
   | { kind: "AUTHORITY_BLOCKED"; reason: string };
 
 export type AuthorityPassResult = {
+  operatorCandidate?: OperatorPipelineCandidate;
   outcomes: AcquisitionOutcome[];
   records: AuthorityRecord[];
 };
