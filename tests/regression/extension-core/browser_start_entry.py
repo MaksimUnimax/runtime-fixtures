@@ -21,6 +21,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "client-i1"))
 from browser_c1_acceptance import BrowserFixture, CHAT_FIXTURE, seed_authority, wait_for
 from synthetic_health_server import SyntheticHealthServer
+from browser_fixture_shutdown import assert_http_fixture_stopped
 
 
 class FirstBootstrapServer(SyntheticHealthServer):
@@ -332,6 +333,7 @@ def main():
     finally:
         # Never treat an interrupted browser/server teardown as a clean
         # stop of the synthetic signing-key consumer.
+        primary_error = sys.exc_info()[1]
         shutdown_errors = list(browser_shutdown_errors)
         # Browser close was attempted by ExitStack before the Playwright
         # driver stopped; do not invoke context.close() after that driver exit.
@@ -340,22 +342,7 @@ def main():
         if server:
             try:
                 server.stop()
-                # SyntheticHealthServer.stop() has a bounded thread.join(2s)
-                # without its own liveness assertion. A normal return is not
-                # proof that the test signer is no longer consuming its key.
-                assert not server.thread.is_alive(), (
-                    "SYNTHETIC_HEALTH_SERVER_THREAD_STILL_ACTIVE"
-                )
-                assert server._server.daemon_threads is False, (
-                    "SYNTHETIC_HEALTH_HANDLER_JOIN_DISABLED"
-                )
-                assert server._server.block_on_close is True, (
-                    "SYNTHETIC_HEALTH_HANDLER_CLOSE_JOIN_DISABLED"
-                )
-                assert not any(
-                    thread.is_alive()
-                    for thread in getattr(server._server, "_threads", ())
-                ), "SYNTHETIC_HEALTH_REQUEST_THREAD_STILL_ACTIVE"
+                assert_http_fixture_stopped(server)
                 server = None
             except Exception as exc:
                 shutdown_errors.append("server_" + type(exc).__name__)
@@ -385,9 +372,9 @@ def main():
             json.dumps(report, ensure_ascii=False, indent=2) + "\n"
         )
         print(json.dumps(report, ensure_ascii=False))
-        if shutdown_errors:
+        if shutdown_errors and primary_error is None:
             raise RuntimeError("SYNTHETIC_TEST_SHUTDOWN_NOT_PROVEN")
-        if key_cleanup_error:
+        if key_cleanup_error and primary_error is None:
             raise RuntimeError("SYNTHETIC_FIXTURE_SIGNING_KEY_CLEANUP_FAILED")
 
 
