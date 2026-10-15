@@ -40,6 +40,16 @@ for command_name in pg_dump pg_restore findmnt runuser systemd-analyze systemctl
     fail "missing required command: ${command_name}"
 done
 
+# This owner-test backup contract targets PostgreSQL 18. A merely present,
+# older pg_dump cannot dump PG18; unreviewed newer versions are not accepted.
+# Reject wrong clients before identity, release, mount or systemd operations.
+for command_name in pg_dump pg_restore; do
+  client_version="$(LC_ALL=C "${command_name}" --version 2>/dev/null)" ||
+    fail "unable to verify PostgreSQL client version: ${command_name}"
+  [[ "${client_version}" =~ ^${command_name}[[:space:]]+\(PostgreSQL\)[[:space:]]+18\.[0-9]+(\.[0-9]+)?([[:space:]].*)?$ ]] ||
+    fail "requires PostgreSQL 18 client: ${command_name}"
+done
+
 id "${BACKUP_USER}" >/dev/null 2>&1 || fail "backup user does not exist"
 getent group "${BACKUP_GROUP}" >/dev/null || fail "backup group does not exist"
 [[ "${BACKUP_USER}" != root && "${BACKUP_GROUP}" != root ]] ||
