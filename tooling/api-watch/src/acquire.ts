@@ -413,42 +413,66 @@ function artifactTypeFor(url: string): ExpectedArtifactType {
 async function readBoundedBody(
   response: Response,
   maximumBytes: number,
+  signal: AbortSignal,
 ): Promise<Uint8Array> {
+  if (signal.aborted)
+    throw new DOMException(
+      "Official source acquisition timed out",
+      "AbortError",
+    );
   const advertised = response.headers.get("content-length");
   if (advertised && Number(advertised) > maximumBytes)
     throw new Error("SOURCE_TOO_LARGE");
-  if (!response.body) {
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
-    return bytes;
-  }
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
+  // An adapter can also expose no body but still return a never-settling
+  // arrayBuffer(). The same deadline must bound both response representations.
+  // Stream cancel() itself is untrusted and must never delay the error path.
+  let removeAbortListener: () => void = () => undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    const onAbort = () =>
+      reject(
+        new DOMException("Official source acquisition timed out", "AbortError"),
+      );
+    signal.addEventListener("abort", onAbort, { once: true });
+    removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+    if (signal.aborted) onAbort();
+  });
   try {
-    while (true) {
-      const next = await reader.read();
-      if (next.done) break;
-      total += next.value.byteLength;
-      if (total > maximumBytes) {
-        await reader.cancel("SOURCE_TOO_LARGE");
-        throw new Error("SOURCE_TOO_LARGE");
-      }
-      chunks.push(next.value);
+    if (!response.body) {
+      const bytes = new Uint8Array(
+        await Promise.race([response.arrayBuffer(), aborted]),
+      );
+      if (bytes.byteLength > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
+      return bytes;
     }
-  } catch (error) {
-    await reader.cancel(error).catch(() => undefined);
-    throw error;
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (true) {
+        const next = await Promise.race([reader.read(), aborted]);
+        if (next.done) break;
+        total += next.value.byteLength;
+        if (total > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
+        chunks.push(next.value);
+      }
+    } catch (error) {
+      // Do not await untrusted stream cancellation after a failed/aborted read.
+      // The acquisition owner aborts the transport in its outer finally block.
+      void reader.cancel(error).catch(() => undefined);
+      throw error;
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
   } finally {
-    reader.releaseLock();
+    removeAbortListener();
   }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
 }
 
 function isAccessControlPage(bytes: Uint8Array): boolean {
@@ -541,14 +565,43 @@ export async function acquireOfficialSource(input: {
   let responseToClose: Response | undefined;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // An injected transport can ignore AbortSignal even before headers arrive.
+  // Bound the entire request promise, not just redirect cleanup and body read.
+  let removeHeaderAbortListener: () => void = () => undefined;
+  const headersAborted = new Promise<never>((_resolve, reject) => {
+    const onAbort = () =>
+      reject(
+        new DOMException("Official source acquisition timed out", "AbortError"),
+      );
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+    removeHeaderAbortListener = () =>
+      controller.signal.removeEventListener("abort", onAbort);
+    if (controller.signal.aborted) onAbort();
+  });
   try {
     try {
       while (true) {
-        response = await fetcher(currentUrl, {
-          method: "GET",
-          redirect: "manual",
-          signal: controller.signal,
-        });
+        const pendingHeaders = Promise.resolve().then(() =>
+          fetcher(currentUrl, {
+            method: "GET",
+            redirect: "manual",
+            signal: controller.signal,
+          }),
+        );
+        // A late response after timeout is no longer owned by the caller.
+        // Discard its body without awaiting possibly stuck cancellation.
+        void pendingHeaders.then(
+          (lateResponse) => {
+            if (!controller.signal.aborted) return;
+            try {
+              void lateResponse.body?.cancel().catch(() => undefined);
+            } catch {
+              // Best-effort cleanup of an untrusted transport response.
+            }
+          },
+          () => undefined,
+        );
+        response = await Promise.race([pendingHeaders, headersAborted]);
         responseToClose = response;
         if (![301, 302, 303, 307, 308].includes(response.status)) break;
         const location = response.headers.get("location");
@@ -670,6 +723,7 @@ export async function acquireOfficialSource(input: {
       bytes = await readBoundedBody(
         response,
         Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
+        controller.signal,
       );
     } catch (error) {
       if (controller.signal.aborted)
@@ -772,6 +826,7 @@ export async function acquireOfficialSource(input: {
     // Do not await a trusted test adapter's possibly unbounded cancellation.
     controller.abort();
     clearTimeout(timer);
+    removeHeaderAbortListener();
     void responseToClose?.body?.cancel().catch(() => undefined);
   }
 }
