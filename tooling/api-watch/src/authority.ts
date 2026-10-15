@@ -1,3 +1,4 @@
+import { operatorPipelineConsumed } from "./operator-receipt.js";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
@@ -14,6 +15,7 @@ import type {
   ApiWatchSqlRuntime,
   ApiWatchSqlQuery,
   ApiWatchStore,
+  ApiWatchReportStore,
   AuthorityPassResult,
   AuthorityRecord,
   AuthorityRecordInput,
@@ -483,6 +485,7 @@ export async function runAuthorityPass(input: {
   now?: () => Date;
   skipOperatorBlocked?: boolean;
   quarantineDir?: string;
+  reportStore?: ApiWatchReportStore;
 }): Promise<AuthorityPassResult> {
   const ready = await input.pendingStore.listReadyRequests();
   const request = ready.find(
@@ -497,22 +500,38 @@ export async function runAuthorityPass(input: {
             entry.documents?.length === 13,
         ),
   );
+  const quarantineDir =
+    input.quarantineDir ??
+    process.env.SWAGGER_QUARANTINE_DIR ??
+    "/var/lib/octoport/api-watch/quarantine";
   let operator: AuthorityPassResult | undefined;
-  if (request) {
+  const artifact = request
+    ? (await input.pendingStore.listArtifacts(request.requestId)).find(
+        (candidate) => candidate.status === "CANDIDATE_READY",
+      )
+    : undefined;
+  // Consider only the newest ready generation. Never fall back to older bytes
+  // after its receipt proves that the full report pipeline finished.
+  if (
+    request &&
+    artifact &&
+    !(await operatorPipelineConsumed({ ...input, artifact, quarantineDir }))
+  ) {
     const review = await evaluateOperatorCandidate({
       ...input,
       requestId: request.requestId,
-      quarantineDir:
-        input.quarantineDir ??
-        process.env.SWAGGER_QUARANTINE_DIR ??
-        "/var/lib/octoport/api-watch/quarantine",
+      quarantineDir,
     });
     if (
       review.kind === "AUTHORITY_ACCEPTED" &&
       review.outcomes &&
       review.records
     ) {
-      operator = { outcomes: review.outcomes, records: review.records };
+      operator = {
+        outcomes: review.outcomes,
+        records: review.records,
+        operatorCandidate: { artifact, records: review.records },
+      };
     }
   }
   const registry = operator
@@ -526,6 +545,9 @@ export async function runAuthorityPass(input: {
     : input.registry;
   const pass = await runDocumentAuthorityPass({ ...input, registry });
   return {
+    ...(operator?.operatorCandidate
+      ? { operatorCandidate: operator.operatorCandidate }
+      : {}),
     outcomes: [...pass.outcomes, ...(operator?.outcomes ?? [])],
     records: [...pass.records, ...(operator?.records ?? [])],
   };
