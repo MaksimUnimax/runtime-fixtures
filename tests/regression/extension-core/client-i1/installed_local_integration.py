@@ -116,7 +116,7 @@ def _mark_stage(output, name, started):
         # Never forward arbitrary data from this file into an uploaded artifact.
         try:
             previous = json.loads((output / "progress.json").read_text(encoding="utf8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeError, json.JSONDecodeError):
             previous = None
         if isinstance(previous, dict):
             origin = previous.get("work_start_origin") or previous.get("stage")
