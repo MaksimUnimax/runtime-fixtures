@@ -234,6 +234,17 @@ WORK_START_CAUSAL_OBSERVER_JS = r"""() => {
 }"""
 
 
+def require_work_start_causal_probe_installed(value):
+    """Fail closed if disposable I1 diagnostic hook installation is unconfirmed.
+
+    No unexpected status, URL, token, exception detail or sender identity
+    is ever included in the failed assertion.
+    """
+    if type(value) is not dict or set(value) != {"installed"} or value["installed"] is not True:
+        raise RuntimeError("I1_WORK_START_CAUSAL_PROBE_INSTALL_UNCONFIRMED")
+    return True
+
+
 def safe_work_start_causal_abort_probe(value):
     """Projection of test-only worker-local abort observation, never raw signals.
 
@@ -725,6 +736,7 @@ def run(runtime, output):
                     # Observe only this own disposable worker between explicit Start
                     # and teardown. Do not change product source or verifier.
                     work_start_trace_install = worker.evaluate(WORK_START_CAUSAL_OBSERVER_JS)
+                    require_work_start_causal_probe_installed(work_start_trace_install)
                     work_start_header_count = len(bootstrap_http_responses)
                     bootstrap_window = "work_start_window"
                     work_start_started_at = time.monotonic()

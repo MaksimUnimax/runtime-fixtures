@@ -593,6 +593,22 @@ process.stdout.write("LATE_SIGNED_VM_8_PASS");
 
 
 
+    def test_work_start_causal_probe_requires_exact_installed_ack(self):
+        # The observer may return installed=False when an existing probe is
+        # present. A successful Work Start must not mask that diagnostic failure.
+        self.assertIs(module.require_work_start_causal_probe_installed({"installed": True}), True)
+        for payload in (
+            None, True, False, "", "PRIVATE_STATUS", [], 1,
+            {}, {"installed": False}, {"installed": 1},
+            {"installed": "true"}, {"installed": True, "url": "PRIVATE_URL"},
+            {"installed": True, "at_abort_grant": True},
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "^I1_WORK_START_CAUSAL_PROBE_INSTALL_UNCONFIRMED$"
+            ) as exc:
+                module.require_work_start_causal_probe_installed(payload)
+            self.assertNotIn("PRIVATE", str(exc.exception))
+
     def test_work_start_abort_trace_projection_rejects_sensitive_and_unproven(self):
         sample = {
             "schema_version": 1, "probe_installed": True, "observer_error": False,
@@ -652,7 +668,9 @@ function setup() {
   const box={URL,performance,AbortController:PrivateController,
     fetch(...args){calls.push(args);return sentinel;}};
   vm.createContext(box);
-  assert.equal(vm.runInContext(source,box)().installed,true);
+  const install=vm.runInContext(source,box);
+  assert.equal(install().installed,true);
+  assert.equal(install().installed,false); // Duplicate installation must fail closed in Python.
   return {box,sentinel,calls};
 }
 function ac(f){return new f.box.AbortController();}
