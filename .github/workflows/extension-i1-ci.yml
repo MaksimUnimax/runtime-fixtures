@@ -117,8 +117,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: python -m pip install -r tooling/checks/extension-test-requirements.txt
       - run: python -m unittest discover -s tests/regression/extension-core/client-i1 -p test_bootstrap_response_observer.py -v
+      - run: python -m unittest discover -s tests/regression/extension-core/client-i1 -p test_child_output_sinks.py -v
       - run: python -m playwright install --with-deps chromium
-      - run: python tests/regression/extension-core/client-i1/installed_local_integration.py --output build/ci-installed-local
+      - run: |
+          set +e
+          # A previously completed build hung in the installed browser phase
+          # until the 25-minute job limit; preserve a bounded safe stage.
+          timeout --signal=TERM --kill-after=30s 540s python -u tests/regression/extension-core/client-i1/installed_local_integration.py --output build/ci-installed-local
+          status=$?
+          if [ "$status" -eq 124 ]; then
+            echo "::error::Installed-local test exceeded 540s; inspect I1_INSTALLED_STAGE and uploaded progress.json"
+          fi
+          exit "$status"
         env:
           PRODUCT_CONTROL_PLANE_E2E: "1"
           DATABASE_URL: postgres://product_control_plane_ci:ci_development_only_password@127.0.0.1:45432/seller_agents_i1_client

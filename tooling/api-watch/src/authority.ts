@@ -23,6 +23,11 @@ import type {
 } from "./types.js";
 import { runDocumentAuthorityPass } from "./source-set.js";
 import {
+  authorityRecordSequence,
+  nextAuthorityRecordSequence,
+  compareAuthorityRecordOrder,
+} from "./authority-order.js";
+import {
   WB_BUNDLE_DOCUMENT_KEY,
   WB_BUNDLE_OFFICIAL_URL,
   WB_BUNDLE_VERSION,
@@ -81,7 +86,15 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
     const record: AuthorityRecord = {
       ...input,
       recordId: input.recordId ?? randomUUID(),
-      safeProvenance: { ...input.safeProvenance },
+      safeProvenance: {
+        ...input.safeProvenance,
+        authorityRecordSequence: nextAuthorityRecordSequence(
+          [...this.state.authorities.values()].reduce(
+            (latest, prior) => Math.max(latest, authorityRecordSequence(prior)),
+            0,
+          ),
+        ),
+      },
     };
     this.state.authorities.set(record.recordId, record);
     return cloneRecord(record);
@@ -89,7 +102,7 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
 
   async listAuthorityRecords() {
     return [...this.state.authorities.values()]
-      .sort((a, b) => a.validatedAt.valueOf() - b.validatedAt.valueOf())
+      .sort(compareAuthorityRecordOrder)
       .map(cloneRecord);
   }
 
@@ -196,34 +209,52 @@ export function createPostgresApiWatchStore(
   return {
     async saveAuthorityRecord(input) {
       const recordId = input.recordId ?? randomUUID();
-      const result = await runtime.query<AuthorityRow>(
-        `INSERT INTO api_watch_authority_records(record_id,source_family,official_url,acquisition_mode,authority_status,sha256,size_bytes,spec_version,acquired_at,validated_at,operator_request_id,artifact_extension,safe_provenance,failure_classification) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14) RETURNING record_id AS "recordId",source_family AS "sourceFamily",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",authority_status AS "authorityStatus",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",acquired_at AS "acquiredAt",validated_at AS "validatedAt",operator_request_id AS "operatorRequestId",artifact_extension AS "artifactExtension",safe_provenance AS "safeProvenance",failure_classification AS "failureClassification"`,
-        [
-          recordId,
-          input.sourceFamily,
-          input.officialUrl,
-          input.acquisitionMode,
-          input.authorityStatus,
-          input.sha256,
-          input.sizeBytes,
-          input.specVersion,
-          input.acquiredAt,
-          input.validatedAt,
-          input.operatorRequestId,
-          input.artifactExtension,
-          JSON.stringify(input.safeProvenance),
-          input.failureClassification,
-        ],
-      );
-      if (!result.rows[0])
-        throw new Error("API_WATCH_AUTHORITY_RECORD_CREATE_FAILED");
-      return mapAuthority(result.rows[0]);
+      return runtime.transaction(async (transaction) => {
+        // Serialize the next provenance order with its insert across store
+        // instances. This uses the existing schema and preserves validatedAt.
+        await transaction.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+          "api-watch:authority-record-sequence-v1",
+        ]);
+        const latest = await transaction.query<{ sequence: string }>(
+          "SELECT COALESCE(MAX((safe_provenance->>'authorityRecordSequence')::bigint),0)::text AS sequence FROM api_watch_authority_records",
+        );
+        if (!latest.rows[0])
+          throw new Error("API_WATCH_AUTHORITY_SEQUENCE_READ_FAILED");
+        const sequence = nextAuthorityRecordSequence(
+          Number(latest.rows[0].sequence),
+        );
+        const result = await transaction.query<AuthorityRow>(
+          `INSERT INTO api_watch_authority_records(record_id,source_family,official_url,acquisition_mode,authority_status,sha256,size_bytes,spec_version,acquired_at,validated_at,operator_request_id,artifact_extension,safe_provenance,failure_classification) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14) RETURNING record_id AS "recordId",source_family AS "sourceFamily",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",authority_status AS "authorityStatus",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",acquired_at AS "acquiredAt",validated_at AS "validatedAt",operator_request_id AS "operatorRequestId",artifact_extension AS "artifactExtension",safe_provenance AS "safeProvenance",failure_classification AS "failureClassification"`,
+          [
+            recordId,
+            input.sourceFamily,
+            input.officialUrl,
+            input.acquisitionMode,
+            input.authorityStatus,
+            input.sha256,
+            input.sizeBytes,
+            input.specVersion,
+            input.acquiredAt,
+            input.validatedAt,
+            input.operatorRequestId,
+            input.artifactExtension,
+            JSON.stringify({
+              ...input.safeProvenance,
+              authorityRecordSequence: sequence,
+            }),
+            input.failureClassification,
+          ],
+        );
+        if (!result.rows[0])
+          throw new Error("API_WATCH_AUTHORITY_RECORD_CREATE_FAILED");
+        return mapAuthority(result.rows[0]);
+      });
     },
     async listAuthorityRecords() {
       const result = await runtime.query<AuthorityRow>(
         `${authorityProjection} ORDER BY validated_at,record_id`,
       );
-      return result.rows.map(mapAuthority);
+      return result.rows.map(mapAuthority).sort(compareAuthorityRecordOrder);
     },
     async findAuthorityRecord(recordId) {
       const result = await runtime.query<AuthorityRow>(
@@ -371,6 +402,7 @@ export async function runAuthorityPass(input: {
   pendingStore: SwaggerSourceStore;
   fetcher?: typeof fetch;
   now?: () => Date;
+  skipOperatorBlocked?: boolean;
 }): Promise<AuthorityPassResult> {
   const pass = await runDocumentAuthorityPass(input);
   return { outcomes: pass.outcomes, records: pass.records };

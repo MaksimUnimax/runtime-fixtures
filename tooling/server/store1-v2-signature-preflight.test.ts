@@ -416,6 +416,16 @@ describe("STORE-1 v2 signature preflight", () => {
     expect(() => evidence.verifier.validateBundle(f.trustBundle)).not.toThrow();
   });
 
+  it("rejects a packaged config that exists only in a JavaScript comment", () => {
+    const f = fixture();
+    const entries = packageEntries(packagedConfig(f.trustBundle));
+    const worker = entries.get("service_worker.js")!.toString("utf8");
+    entries.set("service_worker.js", Buffer.from("// " + worker));
+    expect(() =>
+      extractStore1PackageSignatureEvidenceFromEntries(authority, entries),
+    ).toThrow("STORE1_PACKAGE_RUNTIME_CONFIG_MISSING");
+  });
+
   it("rejects a package with no embedded trusted verifier", () => {
     const f = fixture();
     expect(() =>

@@ -481,18 +481,166 @@ class DeploymentFailures(unittest.TestCase):
 
 
 class QuiesceBoundary(unittest.TestCase):
-    def test_failed_stop_attempts_remaining_units_and_never_claims_quiescence(self):
-        def stop(args, **kwargs):
-            if args[-1] == deploy.UNITS[-1]:
+    def inactive_state(self, unit, prop):
+        if prop == "LoadState": return "masked"
+        if prop == "ActiveState": return "inactive"
+        if prop == "SubState": return "dead"
+        if prop == "MainPID": return "0"
+        if prop == "ControlGroup": return ""
+        return "unchanged"
+
+    def test_failed_mask_attempts_remaining_units_and_never_claims_quiescence(self):
+        failed = deploy.UNITS[-1]
+        def mask(args, **kwargs):
+            if args[-1] == failed:
                 raise RuntimeError("SYSTEMCTL_FAILED")
         def state(unit, prop):
-            return "active" if unit == deploy.UNITS[-1] else "inactive"
-        with patch.object(deploy, "run", side_effect=stop) as command:
+            if prop == "LoadState":
+                return "loaded" if unit == failed else "masked"
+            return self.inactive_state(unit, prop)
+        with patch.object(deploy, "run", side_effect=mask) as command:
             with patch.object(deploy, "unit_prop", side_effect=state):
                 with self.assertRaisesRegex(RuntimeError, "PRODUCT_UNITS_NOT_QUIESCED"):
                     deploy.stop_product_units()
         self.assertEqual([call.args[0][-1] for call in command.call_args_list],
                          list(reversed(deploy.UNITS)))
+
+    def test_inactive_but_live_main_pid_is_not_quiesced(self):
+        def state(unit, prop):
+            if prop == "MainPID" and unit == deploy.UNITS[0]: return "4321"
+            return self.inactive_state(unit, prop)
+        with patch.object(deploy, "run", return_value=None):
+            with patch.object(deploy, "unit_prop", side_effect=state):
+                with self.assertRaisesRegex(RuntimeError, "PRODUCT_UNITS_NOT_QUIESCED"):
+                    deploy.stop_product_units()
+
+    def test_live_cgroup_child_is_not_quiesced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            group=root/"system.slice"/"seller-agents-owner-test-api.service"
+            group.mkdir(parents=True)
+            (group/"cgroup.procs").write_text("4321\n")
+            def state(unit, prop):
+                if prop == "ControlGroup" and unit == deploy.UNITS[0]:
+                    return "/system.slice/seller-agents-owner-test-api.service"
+                return self.inactive_state(unit, prop)
+            with patch.object(deploy, "CGROUP_ROOT", root):
+                with patch.object(deploy, "run", return_value=None):
+                    with patch.object(deploy, "unit_prop", side_effect=state):
+                        with self.assertRaisesRegex(RuntimeError, "PRODUCT_UNITS_NOT_QUIESCED"):
+                            deploy.stop_product_units()
+
+    def test_existing_cgroup_without_process_file_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            group=root/"system.slice"/"seller-agents-owner-test-api.service"
+            group.mkdir(parents=True)
+            def state(unit, prop):
+                if prop == "ControlGroup" and unit == deploy.UNITS[0]:
+                    return "/system.slice/seller-agents-owner-test-api.service"
+                return self.inactive_state(unit, prop)
+            with patch.object(deploy, "CGROUP_ROOT", root):
+                with patch.object(deploy, "run", return_value=None):
+                    with patch.object(deploy, "unit_prop", side_effect=state):
+                        with self.assertRaisesRegex(RuntimeError, "PRODUCT_UNIT_CGROUP_UNREADABLE"):
+                            deploy.stop_product_units()
+
+    def test_cgroup_symlink_escape_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
+            root=Path(directory)
+            group=root/"system.slice"/"seller-agents-owner-test-api.service"
+            group.parent.mkdir(parents=True)
+            group.symlink_to(Path(outside), target_is_directory=True)
+            def state(unit, prop):
+                if prop == "ControlGroup" and unit == deploy.UNITS[0]:
+                    return "/system.slice/seller-agents-owner-test-api.service"
+                return self.inactive_state(unit, prop)
+            with patch.object(deploy, "CGROUP_ROOT", root):
+                with patch.object(deploy, "run", return_value=None):
+                    with patch.object(deploy, "unit_prop", side_effect=state):
+                        with self.assertRaisesRegex(RuntimeError, "PRODUCT_UNIT_CGROUP_UNREADABLE"):
+                            deploy.stop_product_units()
+
+    def test_cgroup_path_replacement_after_directory_open_cannot_redirect_read(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
+            root=Path(directory)
+            group=root/"system.slice"/"seller-agents-owner-test-api.service"
+            group.mkdir(parents=True)
+            (group/"cgroup.procs").write_text("")
+            outside_group=Path(outside)
+            (outside_group/"cgroup.procs").write_text("4321\n")
+            old_group=group.with_name(group.name+".opened")
+            swapped=False
+            real_open=os.open
+            def pinned_open(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal swapped
+                if path == "cgroup.procs" and dir_fd is not None and not swapped:
+                    group.rename(old_group)
+                    group.symlink_to(outside_group, target_is_directory=True)
+                    swapped=True
+                return real_open(path, flags, mode, dir_fd=dir_fd)
+            def state(unit, prop):
+                if prop == "ControlGroup" and unit == deploy.UNITS[0]:
+                    return "/system.slice/seller-agents-owner-test-api.service"
+                return self.inactive_state(unit, prop)
+            with patch.object(deploy, "CGROUP_ROOT", root):
+                with patch.object(deploy.os, "open", side_effect=pinned_open):
+                    with patch.object(deploy, "run", return_value=None):
+                        with patch.object(deploy, "unit_prop", side_effect=state):
+                            result=deploy.stop_product_units()
+            self.assertTrue(swapped)
+            self.assertEqual(result[deploy.UNITS[0]]["cgroupPids"], [])
+
+    def test_missing_cgroup_after_stop_is_allowed_and_recorded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            def state(unit, prop):
+                if prop == "ControlGroup" and unit == deploy.UNITS[0]:
+                    return "/system.slice/seller-agents-owner-test-api.service"
+                return self.inactive_state(unit, prop)
+            with patch.object(deploy, "CGROUP_ROOT", root):
+                with patch.object(deploy, "run", return_value=None):
+                    with patch.object(deploy, "unit_prop", side_effect=state):
+                        result=deploy.stop_product_units()
+        self.assertEqual(result[deploy.UNITS[0]]["load"], "masked")
+        self.assertEqual(result[deploy.UNITS[0]]["mainPid"], "0")
+        self.assertEqual(result[deploy.UNITS[0]]["cgroupPids"], [])
+
+    def test_empty_existing_cgroup_is_recorded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            group=root/"system.slice"/"seller-agents-owner-test-api.service"
+            group.mkdir(parents=True)
+            (group/"cgroup.procs").write_text("")
+            def state(unit, prop):
+                if prop == "ControlGroup" and unit == deploy.UNITS[0]:
+                    return "/system.slice/seller-agents-owner-test-api.service"
+                return self.inactive_state(unit, prop)
+            with patch.object(deploy, "CGROUP_ROOT", root):
+                with patch.object(deploy, "run", return_value=None):
+                    with patch.object(deploy, "unit_prop", side_effect=state):
+                        result=deploy.stop_product_units()
+        self.assertEqual(result[deploy.UNITS[0]]["cgroupPids"], [])
+
+    def test_start_unmasks_all_units_before_any_start(self):
+        masked=set(deploy.UNITS)
+        commands=[]
+        def command(args, **kwargs):
+            commands.append(tuple(args))
+            if args[1:3] == ["unmask", "--runtime"]:
+                masked.discard(args[-1])
+            if args[1] == "start" and masked:
+                raise AssertionError("START_BEFORE_ALL_UNMASKED")
+        def state(unit, prop):
+            if prop == "LoadState":
+                return "masked" if unit in masked else "loaded"
+            return "unchanged"
+        with patch.object(deploy, "run", side_effect=command):
+            with patch.object(deploy, "unit_prop", side_effect=state):
+                deploy.start_product_units()
+        self.assertEqual([x[-1] for x in commands[:len(deploy.UNITS)]], deploy.UNITS)
+        self.assertTrue(all(x[1] == "unmask" for x in commands[:len(deploy.UNITS)]))
+        self.assertTrue(all(x[1] == "start" for x in commands[len(deploy.UNITS):]))
 
 
 

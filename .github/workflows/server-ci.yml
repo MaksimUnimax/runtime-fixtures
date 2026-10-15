@@ -16,8 +16,14 @@ on:
       - "tests/integration/server/**"
       - "tests/e2e/server/**"
       - "tooling/server/**"
+      - "tooling/operations/test_install_octoport_postgres_backup.py"
+      - "tooling/operations/backup_postgres_independent.py"
+      - "tooling/operations/test_backup_postgres_independent.py"
+      - "tooling/operations/offsite_backup_policy.py"
+      - "tooling/operations/test_offsite_backup_policy.py"
       - "tooling/checks/server-import-check.mjs"
       - "infra/local/**"
+      - "infra/production/scripts/install-octoport-postgres-backup.sh"
       - "docs/server/**"
       - "docs/migration/evidence/SERVER_IMPORT_MANIFEST.json"
       - "package.json"
@@ -105,6 +111,12 @@ jobs:
         if: startsWith(github.ref, 'refs/heads/migration/server-')
         run: node tooling/checks/server-import-check.mjs
       - run: pnpm install --frozen-lockfile
+      - name: Verify PostgreSQL backup installer configuration parser
+        run: python3 -m unittest discover -s tooling/operations -p 'test_install_octoport_postgres_backup.py' -v
+      - name: Verify PostgreSQL backup retention and offsite policy
+        run: |
+          python3 -B -m unittest discover -s tooling/operations -p 'test_backup_postgres_independent.py' -v
+          python3 -B -m unittest discover -s tooling/operations -p 'test_offsite_backup_policy.py' -v
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck

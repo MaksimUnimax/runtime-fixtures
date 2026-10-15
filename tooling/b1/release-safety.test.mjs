@@ -92,10 +92,100 @@ function packagedConfig(authority, overrides = {}) {
 
 const ZIP_WRITER = String.raw`
 import base64,sys,zipfile,struct,io,zlib
-path,browser,mode,manifest64,worker64=sys.argv[1:6]
+path,browser,mode,manifest64,worker64,icon64=sys.argv[1:7]
 manifest=base64.b64decode(manifest64)
 worker=base64.b64decode(worker64)
 rows=[("manifest.json",manifest),("worker.js",worker)]
+if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","nonconsecutive_idat_png","png_highbit_ihdr","png_trailing_idat","png_invalid_trns_rgba","png_metadata_text","png_consecutive_idat","png_bkgd_after_idat","png_bad_bkgd_length"):
+    icon=base64.b64decode(icon64)
+    def chunk(kind,payload):
+        return struct.pack(">I",len(payload))+kind+payload+struct.pack(">I",zlib.crc32(kind+payload))
+    if mode=="short_declared_icon":
+        ihdr=struct.pack(">IIBBBBB",16,16,8,6,0,0,0)
+        # Claims RGBA but only one byte/pixel, the exact legacy defect class.
+        icon=(bytes((137,80,78,71,13,10,26,10))+chunk(b"IHDR",ihdr)
+              +chunk(b"IDAT",zlib.compress((b"\x00"+bytes(16))*16))
+              +chunk(b"IEND",b""))
+    if mode=="unknown_critical_png":
+        # New uppercase critical chunk with valid CRC: conforming PNG readers reject it.
+        icon=icon[:33]+chunk(b"ABCD",b"")+icon[33:]
+    if mode=="nonconsecutive_idat_png":
+        # Equivalent compressed bytes, but an ancillary tEXt breaks contiguous IDAT.
+        result=bytearray(icon[:8]);pos=8;split=False
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            pos+=12+length
+            if kind==b"IDAT" and not split:
+                middle=len(payload)//2
+                assert middle>0
+                result+=chunk(b"IDAT",payload[:middle])
+                result+=chunk(b"tEXt",b"Comment"+bytes((0,))+b"fixture")
+                result+=chunk(b"IDAT",payload[middle:])
+                split=True
+            else:result+=chunk(kind,payload)
+        assert split
+        icon=bytes(result)
+    if mode=="png_highbit_ihdr":
+        # 0xC9 is not an ASCII letter, but Node Buffer "ascii" decodes it as I.
+        assert icon[12:16]==b"IHDR" and len(icon)>=33
+        icon=icon[:8]+chunk(bytes((201,72,68,82)),icon[16:29])+icon[33:]
+    if mode=="png_trailing_idat":
+        # CRC-correct payload with bytes after the zlib end marker.
+        parts=[];pos=8
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            parts.append((kind,payload))
+            pos+=length+12
+        idats=[i for i,(kind,_) in enumerate(parts) if kind==b"IDAT"]
+        assert idats and pos==len(icon)
+        last=idats[-1]
+        parts[last]=(b"IDAT",parts[last][1]+b"C01_NONPRIVATE_TRAILING_ZLIB_BYTES")
+        icon=icon[:8]+b"".join(chunk(kind,payload) for kind,payload in parts)
+    if mode=="png_invalid_trns_rgba":
+        # A CRC-correct tRNS after IDAT is invalid in RGBA, even if the
+        # decompressed raster stays unchanged.
+        assert icon[-8:-4]==b"IEND"
+        icon=icon[:-12]+chunk(b"tRNS",bytes((0,0)))+icon[-12:]
+    if mode=="png_metadata_text":
+        # Unknown optional metadata is not in canonical Octoport release icons.
+        assert icon[12:16]==b"IHDR"
+        icon=icon[:33]+chunk(b"tEXt",b"Comment"+bytes((0,))+b"fixture")+icon[33:]
+    if mode in ("png_consecutive_idat","png_bkgd_after_idat","png_bad_bkgd_length"):
+        # Preserve real Cairo output, including its required-order bKGD metadata.
+        parts=[];pos=8
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            parts.append((kind,payload))
+            pos+=12+length
+        assert pos==len(icon)
+        if mode=="png_consecutive_idat":
+            result=[];split=False
+            for kind,payload in parts:
+                if kind==b"IDAT" and not split:
+                    mid=len(payload)//2
+                    assert mid>0
+                    result.extend([(b"IDAT",payload[:mid]),(b"IDAT",payload[mid:])])
+                    split=True
+                else:result.append((kind,payload))
+            assert split
+            parts=result
+        if mode=="png_bkgd_after_idat":
+            bg=[i for i,(kind,_) in enumerate(parts) if kind==b"bKGD"]
+            assert len(bg)==1 and parts[-1][0]==b"IEND"
+            background=parts.pop(bg[0])
+            parts.insert(-1,background)
+        if mode=="png_bad_bkgd_length":
+            bg=[i for i,(kind,_) in enumerate(parts) if kind==b"bKGD"]
+            assert len(bg)==1 and len(parts[bg[0]][1])==6
+            parts[bg[0]]=(b"bKGD",parts[bg[0]][1][:5])
+        icon=icon[:8]+b"".join(chunk(kind,payload) for kind,payload in parts)
+    rows.append(("icons/icon-16.png",icon))
 if mode=="no_runtime":
     rows=[row for row in rows if row[0]!="worker.js"]
 if mode=="secret":
@@ -412,6 +502,34 @@ function makeZip(path, browser, options = {}) {
       : {}),
   };
 
+  if (
+    [
+      "missing_declared_icon",
+      "short_declared_icon",
+      "valid_declared_icon",
+      "unsafe_declared_icon",
+      "unknown_critical_png",
+      "nonconsecutive_idat_png",
+      "png_highbit_ihdr",
+      "png_trailing_idat",
+      "png_invalid_trns_rgba",
+      "png_metadata_text",
+      "png_consecutive_idat",
+      "png_bkgd_after_idat",
+      "png_bad_bkgd_length",
+    ].includes(options.mode)
+  ) {
+    manifest.icons = {
+      16:
+        options.mode === "unsafe_declared_icon"
+          ? "../outside.png"
+          : "icons/icon-16.png",
+    };
+    manifest.action = { default_icon: { 16: "icons/icon-16.png" } };
+  }
+  if (options.mode === "missing_default_icon") {
+    manifest.action = { default_icon: { 16: "icons/icon-16.png" } };
+  }
   if (options.mode === "not_extension") {
     manifest = { fake: "manifest" };
   }
@@ -445,6 +563,15 @@ function makeZip(path, browser, options = {}) {
       : `globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=${JSON.stringify(
           JSON.stringify(config),
         )};\n`;
+  if (options.mode === "config_only_comment") {
+    worker = "// " + worker;
+  }
+  if (options.mode === "config_only_block_comment") {
+    worker = "/*\n" + worker + "*/\n";
+  }
+  if (options.mode === "config_only_template") {
+    worker = "const note = `" + worker + "`;\n";
+  }
   if (options.mode === "development_material") {
     worker +=
       "/* LOCAL DEVELOPMENT http://127.0.0.1:43100 http://127.0.0.1:43101 config-local-development */\n";
@@ -475,6 +602,9 @@ function makeZip(path, browser, options = {}) {
       options.mode ?? "",
       encode(JSON.stringify(manifest)),
       encode(worker),
+      encode(
+        readFileSync(resolve("apps/extension/src/assets/octoport-16.png")),
+      ),
     ],
     { encoding: "utf8" },
   );
@@ -545,7 +675,7 @@ function expectPrepareFailure(name, browserMode, expectedFailure) {
 
 test("repository release facts use current contract/version/migration tag", () => {
   const facts = productFacts();
-  assert.equal(facts.productVersion, "0.2.23");
+  assert.equal(facts.productVersion, "0.2.27");
   assert.equal(facts.contractVersion, "control_plane_v2");
   assert.equal(facts.migrationLevel, 60);
 });
@@ -911,6 +1041,116 @@ expectPrepareFailure(
   "missing declared extension runtime is rejected",
   "no_runtime",
 );
+expectPrepareFailure(
+  "declared icon missing from both browser ZIPs is rejected",
+  "missing_declared_icon",
+  /Declared icon resource missing/,
+);
+expectPrepareFailure(
+  "declared 16-pixel RGBA icon with truncated rows is rejected",
+  "short_declared_icon",
+  /PNG icon pixel data invalid/,
+);
+expectPrepareFailure(
+  "unsafe declared icon path is rejected before member lookup",
+  "unsafe_declared_icon",
+  /Declared icon path invalid/,
+);
+expectPrepareFailure(
+  "missing action default_icon resource is rejected",
+  "missing_default_icon",
+  /Declared icon resource missing/,
+);
+expectPrepareFailure(
+  "PNG unknown critical chunk with valid CRC is rejected",
+  "unknown_critical_png",
+  /PNG icon unsupported critical chunk/,
+);
+expectPrepareFailure(
+  "PNG nonconsecutive IDAT separated by tEXt is rejected",
+  "nonconsecutive_idat_png",
+  /PNG icon unsupported chunk/,
+);
+for (const [mode, title, failure] of [
+  [
+    "png_highbit_ihdr",
+    "PNG non-ASCII high-bit chunk name cannot alias IHDR",
+    /PNG icon chunk type invalid/,
+  ],
+  [
+    "png_trailing_idat",
+    "PNG IDAT zlib trailing bytes cannot be ignored",
+    /PNG icon compressed stream contains trailing bytes/,
+  ],
+]) {
+  for (const browser of ["chromium", "firefox"]) {
+    test(browser + ": " + title, () => {
+      const value = fixture({ [browser]: { mode } });
+      try {
+        assert.throws(() => prepare(value), failure);
+      } finally {
+        cleanup(value);
+      }
+    });
+  }
+}
+for (const [mode, title, failure] of [
+  [
+    "png_invalid_trns_rgba",
+    "PNG RGBA rejects tRNS after IDAT",
+    /PNG icon unsupported chunk/,
+  ],
+  [
+    "png_metadata_text",
+    "canonical PNG icon rejects additional tEXt metadata",
+    /PNG icon unsupported chunk/,
+  ],
+  [
+    "png_bkgd_after_idat",
+    "PNG canonical background chunk before IDAT only",
+    /PNG icon background metadata invalid/,
+  ],
+  [
+    "png_bad_bkgd_length",
+    "PNG background metadata must contain RGB sample bytes",
+    /PNG icon background metadata invalid/,
+  ],
+]) {
+  for (const browser of ["chromium", "firefox"]) {
+    test(browser + ": " + title, () => {
+      const value = fixture({ [browser]: { mode } });
+      try {
+        assert.throws(() => prepare(value), failure);
+      } finally {
+        cleanup(value);
+      }
+    });
+  }
+}
+test("valid two-consecutive-IDAT PNG remains accepted in both browser families", () => {
+  const value = fixture({
+    chromium: { mode: "png_consecutive_idat" },
+    firefox: { mode: "png_consecutive_idat" },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
+test("valid declared Chromium and Firefox icon remains accepted", () => {
+  const value = fixture({
+    chromium: { mode: "valid_declared_icon" },
+    firefox: { mode: "valid_declared_icon" },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure("private-key material is rejected", "secret");
 expectPrepareFailure("forbidden secret file is rejected", "secretfile");
 expectPrepareFailure(
@@ -1038,6 +1278,21 @@ test("non-regular package input is rejected before archive read", () => {
 expectPrepareFailure(
   "missing reachable packaged config is rejected",
   "missing_config",
+);
+expectPrepareFailure(
+  "commented packaged configuration cannot substitute a runtime assignment",
+  "config_only_comment",
+  /reachable packaged config/,
+);
+expectPrepareFailure(
+  "block-comment packaged configuration cannot substitute a runtime assignment",
+  "config_only_block_comment",
+  /reachable packaged config/,
+);
+expectPrepareFailure(
+  "template-literal packaged configuration cannot substitute a runtime assignment",
+  "config_only_template",
+  /reachable packaged config/,
 );
 expectPrepareFailure("stale packaged contract is rejected", "wrong_contract");
 expectPrepareFailure(

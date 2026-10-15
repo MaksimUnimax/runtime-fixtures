@@ -42,6 +42,101 @@ function failure(
   };
 }
 
+const HTTP_MONTH_INDEX = Object.freeze({
+  Jan: 0,
+  Feb: 1,
+  Mar: 2,
+  Apr: 3,
+  May: 4,
+  Jun: 5,
+  Jul: 6,
+  Aug: 7,
+  Sep: 8,
+  Oct: 9,
+  Nov: 10,
+  Dec: 11,
+} as const);
+
+function httpDateMilliseconds(value: string, nowMs: number): number | null {
+  let match = value.match(
+    /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), (\d{2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT$/,
+  );
+  let year: number;
+  let monthIndex: number;
+  let day: number;
+  let hour: number;
+  let minute: number;
+  let second: number;
+  let rfc850ShortYear = false;
+  if (match) {
+    day = Number(match[1]);
+    monthIndex = HTTP_MONTH_INDEX[match[2] as keyof typeof HTTP_MONTH_INDEX];
+    year = Number(match[3]);
+    hour = Number(match[4]);
+    minute = Number(match[5]);
+    second = Number(match[6]);
+  } else {
+    match = value.match(
+      /^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), (\d{2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(\d{2}) (\d{2}):(\d{2}):(\d{2}) GMT$/,
+    );
+    if (match) {
+      day = Number(match[1]);
+      monthIndex = HTTP_MONTH_INDEX[match[2] as keyof typeof HTTP_MONTH_INDEX];
+      const shortYear = Number(match[3]);
+      const currentYear = new Date(nowMs).getUTCFullYear();
+      year = Math.floor(currentYear / 100) * 100 + shortYear;
+      rfc850ShortYear = true;
+      hour = Number(match[4]);
+      minute = Number(match[5]);
+      second = Number(match[6]);
+    } else {
+      match = value.match(
+        /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (?: (\d)|(\d{2})) (\d{2}):(\d{2}):(\d{2}) (\d{4})$/,
+      );
+      if (!match) return null;
+      monthIndex = HTTP_MONTH_INDEX[match[1] as keyof typeof HTTP_MONTH_INDEX];
+      day = Number(match[2] ?? match[3]);
+      hour = Number(match[4]);
+      minute = Number(match[5]);
+      second = Number(match[6]);
+      year = Number(match[7]);
+    }
+  }
+  if (
+    !Number.isInteger(year) ||
+    year < 1601 ||
+    day < 1 ||
+    day > 31 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  )
+    return null;
+  let timestamp = Date.UTC(year, monthIndex, day, hour, minute, second);
+  if (rfc850ShortYear) {
+    const fiftyYearsFromNow = new Date(nowMs);
+    fiftyYearsFromNow.setUTCFullYear(fiftyYearsFromNow.getUTCFullYear() + 50);
+    if (timestamp > fiftyYearsFromNow.valueOf()) {
+      year -= 100;
+      timestamp = Date.UTC(year, monthIndex, day, hour, minute, second);
+    }
+  }
+  const parsed = new Date(timestamp);
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== monthIndex ||
+    parsed.getUTCDate() !== day ||
+    parsed.getUTCHours() !== hour ||
+    parsed.getUTCMinutes() !== minute ||
+    parsed.getUTCSeconds() !== second
+  )
+    return null;
+  return timestamp;
+}
+
 function acceptedHosts(entry: SourceRegistryEntry): Set<string> {
   if (!entry.officialUrl && !entry.documents?.length) return new Set();
   const explicit = entry.acceptedHosts?.map((host) => host.toLowerCase());
@@ -543,10 +638,16 @@ export async function acquireOfficialSource(input: {
     }
     if (response.status === 429 || response.status >= 500) {
       const retryAfter = response.headers.get("retry-after");
-      const parsedRetryAfter =
-        retryAfter && /^\d+(?:\.\d+)?$/.test(retryAfter.trim())
-          ? Number(retryAfter)
-          : null;
+      const trimmedRetryAfter = retryAfter?.trim() ?? "";
+      let parsedRetryAfter: number | null = null;
+      if (/^\d+(?:\.\d+)?$/.test(trimmedRetryAfter)) {
+        parsedRetryAfter = Number(trimmedRetryAfter);
+      } else if (trimmedRetryAfter) {
+        const now = Date.now();
+        const retryAt = httpDateMilliseconds(trimmedRetryAfter, now);
+        if (retryAt !== null)
+          parsedRetryAfter = Math.max(0, Math.ceil((retryAt - now) / 1000));
+      }
       return failure(
         entry,
         "SOURCE_TEMPORARILY_UNAVAILABLE",

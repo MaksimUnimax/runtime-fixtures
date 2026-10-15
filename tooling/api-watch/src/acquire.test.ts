@@ -71,6 +71,7 @@ import {
   acquireOfficialSource,
   selectVerifiedOfficialAddress,
 } from "./acquire.js";
+import { applyRetryDecision, InMemoryApiWatchRetryStore } from "./retry.js";
 const entry: SourceRegistryEntry = {
   sourceFamily: "OZON_SELLER",
   officialUrl: "https://docs.ozon.ru/openapi.json",
@@ -296,6 +297,205 @@ describe("four-P2 API-watch transport regressions", () => {
       expect(performance.now() - start).toBeLessThan(250);
     },
   );
+  it("parses Retry-After date semantics and preserves bounded retry scheduling", async () => {
+    for (const delaySeconds of [10 * 60, 2 * 60 * 60]) {
+      const future = new Date(Date.now() + delaySeconds * 1000);
+      future.setMilliseconds(0);
+      const dated = await acquireOfficialSource({
+        entry,
+        fetcher: async () =>
+          new Response(null, {
+            status: 429,
+            headers: { "retry-after": future.toUTCString() },
+          }),
+      });
+      expect(dated.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      if (dated.kind !== "SOURCE_TEMPORARILY_UNAVAILABLE") continue;
+      expect(dated.retryAfterSeconds).not.toBeNull();
+      expect(
+        Math.abs((dated.retryAfterSeconds ?? 0) - delaySeconds),
+      ).toBeLessThanOrEqual(1);
+
+      const now = new Date();
+      const scheduled = await applyRetryDecision({
+        sourceFamily: entry.sourceFamily,
+        outcome: dated,
+        store: new InMemoryApiWatchRetryStore(),
+        now,
+      });
+      expect(scheduled?.retryCount).toBe(1);
+      expect(scheduled?.failureClass).toBe("HTTP_429");
+      expect(
+        Math.abs(
+          (scheduled?.nextRetryAt?.valueOf() ?? 0) -
+            now.valueOf() -
+            delaySeconds * 1000,
+        ),
+      ).toBeLessThanOrEqual(1000);
+    }
+
+    const obsoleteTarget = new Date(Date.now() + 10 * 60 * 1000);
+    obsoleteTarget.setMilliseconds(0);
+    const shortDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const longDays = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const pad = (value: number) => String(value).padStart(2, "0");
+    const obsoleteDates = [
+      longDays[obsoleteTarget.getUTCDay()] +
+        ", " +
+        pad(obsoleteTarget.getUTCDate()) +
+        "-" +
+        months[obsoleteTarget.getUTCMonth()] +
+        "-" +
+        String(obsoleteTarget.getUTCFullYear()).slice(-2) +
+        " " +
+        pad(obsoleteTarget.getUTCHours()) +
+        ":" +
+        pad(obsoleteTarget.getUTCMinutes()) +
+        ":" +
+        pad(obsoleteTarget.getUTCSeconds()) +
+        " GMT",
+      shortDays[obsoleteTarget.getUTCDay()] +
+        " " +
+        months[obsoleteTarget.getUTCMonth()] +
+        " " +
+        (obsoleteTarget.getUTCDate() < 10
+          ? " " + obsoleteTarget.getUTCDate()
+          : pad(obsoleteTarget.getUTCDate())) +
+        " " +
+        pad(obsoleteTarget.getUTCHours()) +
+        ":" +
+        pad(obsoleteTarget.getUTCMinutes()) +
+        ":" +
+        pad(obsoleteTarget.getUTCSeconds()) +
+        " " +
+        obsoleteTarget.getUTCFullYear(),
+    ];
+    for (const retryAfter of obsoleteDates) {
+      const outcome = await acquireOfficialSource({
+        entry,
+        fetcher: async () =>
+          new Response(null, {
+            status: 429,
+            headers: { "retry-after": retryAfter },
+          }),
+      });
+      expect(outcome.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      if (outcome.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+        expect(
+          Math.abs((outcome.retryAfterSeconds ?? 0) - 10 * 60),
+        ).toBeLessThanOrEqual(1);
+    }
+
+    const fiftyYearBoundary = new Date();
+    fiftyYearBoundary.setMilliseconds(0);
+    fiftyYearBoundary.setUTCFullYear(fiftyYearBoundary.getUTCFullYear() + 50);
+    const formatRfc850 = (value: Date) =>
+      longDays[value.getUTCDay()] +
+      ", " +
+      pad(value.getUTCDate()) +
+      "-" +
+      months[value.getUTCMonth()] +
+      "-" +
+      String(value.getUTCFullYear()).slice(-2) +
+      " " +
+      pad(value.getUTCHours()) +
+      ":" +
+      pad(value.getUTCMinutes()) +
+      ":" +
+      pad(value.getUTCSeconds()) +
+      " GMT";
+    const beforeBoundary = new Date(fiftyYearBoundary.valueOf() - 60_000);
+    const afterBoundary = new Date(fiftyYearBoundary.valueOf() + 60_000);
+    const beforeOutcome = await acquireOfficialSource({
+      entry,
+      fetcher: async () =>
+        new Response(null, {
+          status: 429,
+          headers: { "retry-after": formatRfc850(beforeBoundary) },
+        }),
+    });
+    expect(beforeOutcome.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    if (beforeOutcome.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+      expect(beforeOutcome.retryAfterSeconds ?? 0).toBeGreaterThan(
+        49 * 365 * 24 * 60 * 60,
+      );
+    const afterOutcome = await acquireOfficialSource({
+      entry,
+      fetcher: async () =>
+        new Response(null, {
+          status: 429,
+          headers: { "retry-after": formatRfc850(afterBoundary) },
+        }),
+    });
+    expect(afterOutcome.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    if (afterOutcome.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+      expect(afterOutcome.retryAfterSeconds).toBe(0);
+
+    const numeric = await acquireOfficialSource({
+      entry,
+      fetcher: async () =>
+        new Response(null, { status: 429, headers: { "retry-after": "7200" } }),
+    });
+    expect(numeric.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    if (numeric.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+      expect(numeric.retryAfterSeconds).toBe(7200);
+
+    const past = await acquireOfficialSource({
+      entry,
+      fetcher: async () =>
+        new Response(null, {
+          status: 429,
+          headers: {
+            "retry-after": new Date(Date.now() - 60_000).toUTCString(),
+          },
+        }),
+    });
+    expect(past.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    if (past.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+      expect(past.retryAfterSeconds).toBe(0);
+
+    for (const retryAfter of [
+      "later",
+      new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      "11/06/1994 08:49:37 GMT",
+      "Sun, 32 Nov 1994 08:49:37 GMT",
+    ]) {
+      const invalid = await acquireOfficialSource({
+        entry,
+        fetcher: async () =>
+          new Response(null, {
+            status: 429,
+            headers: { "retry-after": retryAfter },
+          }),
+      });
+      expect(invalid.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      if (invalid.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+        expect(invalid.retryAfterSeconds).toBeNull();
+    }
+  });
+
   it.each([
     {},
     { location: "https://untrusted.invalid/openapi.json" },

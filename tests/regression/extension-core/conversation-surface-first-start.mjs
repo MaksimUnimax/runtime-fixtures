@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
-import { webcrypto } from "node:crypto";
+import { webcrypto, createHash } from "node:crypto";
 const root = path.resolve(import.meta.dirname, "../../..");
 const source = (name) => fs.readFileSync(path.join(root, name), "utf8");
 function composedSource(name, target) {
@@ -10,7 +10,13 @@ function composedSource(name, target) {
   for (const patch of JSON.parse(source("apps/extension/application-patches.json"))) {
     if (patch.target !== target) continue;
     assert.equal(result.split(patch.old).length - 1, 1, `Unique composed patch: ${target}`);
-    result = result.replace(patch.old, patch.new);
+    let replacement = patch.new;
+    if (patch.new_source !== undefined) {
+      assert.equal(patch.new_source, "apps/extension/src/content/position-own-button.js");
+      replacement = source(patch.new_source) + "\n";
+      assert.equal(createHash("sha256").update(replacement).digest("hex"), patch.new_sha256);
+    }
+    result = result.replace(patch.old, replacement);
   }
   return result;
 }
