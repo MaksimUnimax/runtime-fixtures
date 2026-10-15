@@ -360,3 +360,85 @@ await test("capacity compaction preserves transitive retry approvals independent
   assert.equal(Object.keys(stored.receipts).length, 5);
 });
 console.log("SOURCE final dependency controls: " + count + " scenarios passed.");
+
+async function completedCopy(f) {
+  const input = { ...f.input, items: [f.item(0)] };
+  const receipt = await f.api.reserveCommand(input);
+  const attempt = await f.api.beginProviderAttempt({ ...input, executionId: receipt.executionId, ordinal: 0 });
+  const payload = "complete synthetic copy result", bufferDigest = digest(payload);
+  f.buffer(receipt.executionId, { payload, digest: bufferDigest, expiresAt: receipt.payloadExpiresAt, context: f.context });
+  await f.api.recordProviderOutcome({ ...input, executionId: receipt.executionId, ordinal: 0,
+    providerAttemptId: attempt.providerAttemptId, outcome: "RESULT", bufferDigest });
+  const preview = await f.api.previewCopy({ ...input, executionId: receipt.executionId });
+  const copy = await f.api.confirmCopy({ ...input, confirmationId: preview.confirmationId, confirmed: true });
+  assert.equal((await f.api.beginCopyDelivery({ ...input, deliveryId: copy.deliveryId })).send, true);
+  await f.api.recordCopyOutcome({ ...input, deliveryId: copy.deliveryId, outcome: "CONFIRMED" });
+  return { executionId: receipt.executionId, confirmationId: preview.confirmationId, deliveryId: copy.deliveryId };
+}
+await test("review COPY completion: real writer reclaims a confirmed old Work copy", async () => {
+  const f = ledgerFixture(), old = await completedCopy(f);
+  const prior = f.read().manual.C1.r3_commands;
+  assert.equal(prior.approvals[old.confirmationId].consumedBy, old.deliveryId);
+  assert.equal(prior.deliveries[old.deliveryId].state, "CONFIRMED");
+  f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+  const next = await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("after-completed-copy") });
+  const stored = f.read().manual.C1.r3_commands;
+  assert.equal(stored.receipts[old.executionId], undefined);
+  assert.equal(stored.approvals[old.confirmationId], undefined);
+  assert.equal(stored.deliveries[old.deliveryId], undefined);
+  assert.equal(Object.keys(stored.origins).length, 1);
+  const args = { ...f.input, executionId: next.executionId, ordinal: 0 };
+  assert.equal((await f.api.beginProviderAttempt(args)).dispatch, true);
+  assert.equal((await f.restart().beginProviderAttempt(args)).dispatch, false);
+});
+await test("review COPY capacity: 666 confirmed copies and two results free 2000 markers for new Work", async () => {
+  const f = ledgerFixture(), actual = await completedCopy(f), template = f.read().manual.C1.r3_commands;
+  const data = completedHistory(f, 668);
+  for (let i = 0; i < 666; i++) {
+    const executionId = "history-" + i, confirmationId = "copy-approval-" + i, deliveryId = "copy-delivery-" + i;
+    const receipt = data.receipts[executionId];
+    receipt.payloadExpiresAt = template.receipts[actual.executionId].payloadExpiresAt;
+    receipt.items[0].bufferDigest = template.receipts[actual.executionId].items[0].bufferDigest;
+    receipt.deliveryRevision = 1;
+    data.approvals[confirmationId] = { ...structuredClone(template.approvals[actual.confirmationId]), confirmationId, executionId, consumedBy: deliveryId };
+    data.deliveries[deliveryId] = { ...structuredClone(template.deliveries[actual.deliveryId]), deliveryId, executionId, confirmationId };
+  }
+  await f.seed(data);
+  await assert.rejects(f.api.reserveCommand({ ...f.input, blockOriginKey: digest("same-work-full-copy") }),
+    { code: "WORK_MARKER_CAPACITY_START_REQUIRED" });
+  f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+  for (let i = 0; i < 3; i++) {
+    const next = await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("after-copy-capacity-" + i) });
+    assert.equal(next.duplicate, false);
+  }
+  const stored = f.read().manual.C1.r3_commands;
+  assert.equal(Object.keys(stored.receipts).length, 3);
+  assert.equal(Object.keys(stored.approvals).length, 0);
+  assert.equal(Object.keys(stored.deliveries).length, 0);
+});
+for (const control of ["UNKNOWN", "DELIVERY_INTENT", "COPY_RESERVED", "MISSING_DELIVERY",
+  "WRONG_EXECUTION", "WRONG_CONTEXT", "WRONG_CONFIRMATION", "WRONG_DIGEST", "PARTIAL_PROVIDER", "UNKNOWN_APPROVAL"]) {
+  await test("review COPY compaction retains uncertain or ambiguous linkage: " + control, async () => {
+    const f = ledgerFixture(), old = await completedCopy(f), data = f.read().manual.C1.r3_commands;
+    const delivery = data.deliveries[old.deliveryId], approval = data.approvals[old.confirmationId];
+    if (["UNKNOWN", "DELIVERY_INTENT", "COPY_RESERVED"].includes(control)) delivery.state = control;
+    if (control === "MISSING_DELIVERY") delete data.deliveries[old.deliveryId];
+    if (control === "WRONG_EXECUTION") delivery.executionId = "missing-execution";
+    if (control === "WRONG_CONTEXT") delivery.context.workSessionId = "ambiguous-work";
+    if (control === "WRONG_CONFIRMATION") delivery.confirmationId = "missing-confirmation";
+    if (control === "WRONG_DIGEST") delivery.bufferDigest = digest("different-result");
+    if (control === "PARTIAL_PROVIDER") data.receipts[old.executionId].items.push({
+      ordinal: 1, state: "PROVIDER_INTENT", providerAttemptId: "pending-intent", inputHash: digest("pending-input"),
+    });
+    if (control === "UNKNOWN_APPROVAL") approval.kind = "UNKNOWN";
+    await f.seed(data);
+    const before = f.read().manual.C1.r3_commands;
+    f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+    await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("after-uncertain-copy-" + control) });
+    const stored = f.read().manual.C1.r3_commands;
+    assert.deepEqual(stored.receipts[old.executionId], before.receipts[old.executionId]);
+    assert.deepEqual(stored.approvals[old.confirmationId], before.approvals[old.confirmationId]);
+    assert.deepEqual(stored.deliveries, before.deliveries);
+  });
+}
+console.log("SOURCE final COPY controls: " + count + " scenarios passed; zero provider requests.");

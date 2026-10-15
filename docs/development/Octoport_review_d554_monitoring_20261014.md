@@ -82,3 +82,14 @@ The existing command writer compacts completed RESULT receipts from previous Wor
 Local source checks and generated-worker results are separate from native PostgreSQL and installed acceptance. The previous exact `13cfa4c6` receipts are historical and do not approve these new source changes. The final candidate requires fresh exact-SHA CI and independent review. The repairs do not establish production deployment or server disk reclamation.
 
 The compactor resolves receipt and retry-approval dependencies to a fixed point before removing any completed history. An insertion-order regression preserves a transitive retry chain rooted in UNKNOWN. The source writer/ledger suite runs explicitly in I1 CI in addition to generated source/package runtime tests.
+
+
+## Independent follow-up: confirmed COPY and stopped reservations
+
+Independent reviewers rejected `5017d56d` on confirmed COPY capacity and a delayed scheduled reservation. The accepted no-orphan-timer observation remains scoped to its original startup failure case.
+
+COPY approval `consumedBy` names a delivery, while RETRY names an execution. Compaction now validates the COPY delivery's confirmed state, execution, confirmation, context, buffer, expiry and revision before removing completed previous-Work history. Unknown delivery outcomes, pending send intents, missing or inconsistent links, unknown approval kinds, partial provider execution and transitive retry ancestry remain durable fences. A real writer test executes reserve, provider intent/result, preview, confirmation, delivery intent and confirmed outcome. A 666-COPY plus two-result fixture reaches 2000 markers and then admits three commands in a new Work. The composed worker repeats that boundary using actual Finish, Start and restart, with no provider requests.
+
+Every scheduled or forced reservation carries the scheduler lifecycle across the asynchronous store call. A stopped or failed startup cannot dispatch its late reservation. A conditional `releaseUnstartedRun` write clears only its matching lease, restores due scheduled work while preserving earlier retry deadlines, and leaves prior results intact. It cannot clear a replacement owner's run. Cancellation storage failure is reported and retains the lease without dispatch or fabricated success. Read-only NOT_DUE/ALREADY_RUNNING responses do not mask a different lane's storage error. Work whose runner was already entered continues to settle through the existing result path.
+
+New source regressions reproduce both independent negatives before the repair. Four new isolated native PostgreSQL scenarios cover stop before/after acquisition, conditional ownership/history/deadline preservation, and a trigger-rejected cancellation. Their final exact-SHA CI result must be recorded separately from local in-memory validation. The branch incorporates published main `5b6e42dd`, preserving both upstream R3 source suite invocations alongside the ledger writer suite.

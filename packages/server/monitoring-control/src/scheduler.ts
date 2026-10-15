@@ -56,16 +56,23 @@ export class IndependentMonitoringScheduler {
     if (this.starting) return this.starting;
     const lifecycle = ++this.lifecycle;
     const pending = (async () => {
-      await this.options.store.ensureDefaults(this.clock.now());
-      if (lifecycle !== this.lifecycle)
-        throw new Error("MONITORING_START_STOPPED");
-      // A rejected initial tick must propagate without leaving periodic work.
-      await this.tick();
-      if (lifecycle !== this.lifecycle)
-        throw new Error("MONITORING_START_STOPPED");
-      this.timer = setInterval(() => {
-        void this.tick().catch(() => this.reportBackgroundFailure());
-      }, this.tickMs);
+      try {
+        await this.options.store.ensureDefaults(this.clock.now());
+        this.assertLifecycle(lifecycle);
+        // A rejected initial tick must propagate without leaving periodic work.
+        await this.tickForLifecycle(lifecycle);
+        this.assertLifecycle(lifecycle);
+        this.timer = setInterval(() => {
+          void this.tickForLifecycle(lifecycle).catch(() =>
+            this.reportBackgroundFailure(),
+          );
+        }, this.tickMs);
+      } catch (error) {
+        // Other lanes can still be awaiting their store reservation when one
+        // lane rejects. They must release, rather than dispatch after failure.
+        if (lifecycle === this.lifecycle) ++this.lifecycle;
+        throw error;
+      }
     })();
     this.starting = pending;
     const clearStarting = () => {
@@ -105,7 +112,7 @@ export class IndependentMonitoringScheduler {
   }
 
   async runNow(lane: MonitoringLane): Promise<MonitoringRunAcknowledgement> {
-    return this.begin(lane, "FORCED");
+    return this.begin(lane, "FORCED", this.lifecycle);
   }
 
   async runNowAndWait(lane: MonitoringLane): Promise<MonitoringRunResult> {
@@ -125,9 +132,19 @@ export class IndependentMonitoringScheduler {
   }
 
   async tick(): Promise<void> {
+    await this.tickForLifecycle(this.lifecycle);
+  }
+
+  private assertLifecycle(lifecycle: number): void {
+    if (lifecycle !== this.lifecycle)
+      throw new Error("MONITORING_START_STOPPED");
+  }
+
+  private async tickForLifecycle(lifecycle: number): Promise<void> {
+    this.assertLifecycle(lifecycle);
     await Promise.all(
       MONITORING_LANES.map(async (lane) => {
-        const acknowledgement = await this.begin(lane, "SCHEDULED");
+        const acknowledgement = await this.begin(lane, "SCHEDULED", lifecycle);
         if (acknowledgement.kind === "STARTED")
           await this.active.get(acknowledgement.runId);
       }),
@@ -137,16 +154,37 @@ export class IndependentMonitoringScheduler {
   private async begin(
     lane: MonitoringLane,
     source: "SCHEDULED" | "FORCED",
+    lifecycle: number,
   ): Promise<MonitoringRunAcknowledgement> {
+    this.assertLifecycle(lifecycle);
     const result = await this.options.store.startRun({
       lane,
       source,
       now: this.clock.now(),
       leaseMs: this.leaseMs,
     });
+    // Responses without a new reservation have no effect to cancel. Let them
+    // settle without masking a different lane's actual cancellation write error.
     if (result.kind === "NOT_DUE") return { kind: "NOT_DUE", lane };
     if (result.kind === "ALREADY_RUNNING")
       return { kind: "ALREADY_RUNNING", lane, runId: result.runId };
+    if (lifecycle !== this.lifecycle) {
+      if (result.kind === "STARTED") {
+        try {
+          await this.options.store.releaseUnstartedRun({
+            lane,
+            runId: result.run.runId,
+            now: this.clock.now(),
+          });
+        } catch (error) {
+          // Keep the lease and original storage failure visible; never dispatch
+          // or fabricate a monitoring result when cancellation is uncertain.
+          this.reportBackgroundFailure(lane);
+          throw error;
+        }
+      }
+      throw new Error("MONITORING_START_STOPPED");
+    }
     const work = this.execute(result.run);
     this.active.set(result.run.runId, work);
     // Handle both branches without creating an unobserved rejected finally promise.

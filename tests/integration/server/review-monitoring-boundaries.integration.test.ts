@@ -823,5 +823,229 @@ describe.sequential(
       expect((await retryStore.get("WILDBERRIES"))?.nextRetryAt).toBeNull();
       await scheduler.stop();
     });
+    it.each(["before", "after"] as const)(
+      "native stop %s claim prevents dispatch and restores due work",
+      async (stage) => {
+        await scoped.query("TRUNCATE monitoring_lane_schedules");
+        const now = new Date("2026-10-15T01:00:00Z"),
+          store = createPostgresMonitoringScheduleStore(scoped);
+        const original = store.startRun.bind(store);
+        let release!: () => void,
+          entered!: () => void,
+          block = true;
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const acquired = new Promise<void>((resolve) => {
+          entered = resolve;
+        });
+        store.startRun = async (input) => {
+          if (input.lane === "LLM" && block) {
+            block = false;
+            await store.scheduleEarlier(
+              "LLM",
+              new Date(now.valueOf() - 1),
+              now,
+            );
+            const reserved =
+              stage === "after" ? await original(input) : undefined;
+            entered();
+            await gate;
+            return reserved ?? original(input);
+          }
+          return original(input);
+        };
+        const result = {
+          status: "FAILED" as const,
+          code: "SYNTHETIC_RECOVERY_CONTROL",
+          summary: "Synthetic recovery invocation",
+        };
+        const runner = vi.fn(async () => result);
+        const scheduler = new IndependentMonitoringScheduler({
+          store,
+          clock: { now: () => now },
+          runners: { LLM: runner, SWAGGER_API: async () => result },
+        });
+        try {
+          const starting = scheduler.start(),
+            rejected = expect(starting).rejects.toThrow(
+              "MONITORING_START_STOPPED",
+            );
+          await acquired;
+          await scheduler.stop();
+          release();
+          await rejected;
+          expect(runner).not.toHaveBeenCalled();
+          const stopped = await store.getState("LLM");
+          expect(stopped.activeRun).toBeNull();
+          expect(stopped.lastResult).toBeNull();
+          expect(stopped.nextRunAt.valueOf()).toBeLessThanOrEqual(
+            now.valueOf(),
+          );
+          await scheduler.start();
+          expect(runner).toHaveBeenCalledTimes(1);
+          expect((await store.getState("LLM")).activeRun).toBeNull();
+          expect((await store.getState("LLM")).lastResult?.status).toBe(
+            "FAILED",
+          );
+        } finally {
+          release();
+          await scheduler.stop();
+        }
+      },
+      30000,
+    );
+
+    it("native reservation release preserves a replacement owner, prior result and earlier retry", async () => {
+      await scoped.query("TRUNCATE monitoring_lane_schedules");
+      const store = createPostgresMonitoringScheduleStore(scoped),
+        now = new Date("2026-10-15T01:00:00Z");
+      await store.ensureDefaults(now);
+      const prior = await store.startRun({
+        lane: "SWAGGER_API",
+        source: "FORCED",
+        now,
+        leaseMs: 100,
+      });
+      if (prior.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
+      await store.finishRun({
+        lane: "SWAGGER_API",
+        runId: prior.run.runId,
+        now,
+        result: {
+          status: "SUCCEEDED",
+          code: null,
+          summary: "prior synthetic result",
+        },
+      });
+      await store.scheduleEarlier(
+        "SWAGGER_API",
+        new Date(now.valueOf() - 1),
+        now,
+      );
+      const old = await store.startRun({
+        lane: "SWAGGER_API",
+        source: "SCHEDULED",
+        now,
+        leaseMs: 100,
+      });
+      if (old.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
+      const later = new Date(now.valueOf() + 101);
+      const replacement = await store.startRun({
+        lane: "SWAGGER_API",
+        source: "FORCED",
+        now: later,
+        leaseMs: 100,
+      });
+      if (replacement.kind !== "STARTED")
+        throw new Error("CONTROL_NOT_STARTED");
+      const before = await store.getState("SWAGGER_API");
+      expect(
+        await store.releaseUnstartedRun({
+          lane: "SWAGGER_API",
+          runId: old.run.runId,
+          now: later,
+        }),
+      ).toBe(false);
+      expect(await store.getState("SWAGGER_API")).toEqual(before);
+      expect(
+        await store.releaseUnstartedRun({
+          lane: "SWAGGER_API",
+          runId: replacement.run.runId,
+          now: later,
+        }),
+      ).toBe(true);
+      await store.scheduleEarlier(
+        "SWAGGER_API",
+        new Date(now.valueOf() - 1),
+        later,
+      );
+      const claim = await store.startRun({
+        lane: "SWAGGER_API",
+        source: "SCHEDULED",
+        now: later,
+        leaseMs: 100,
+      });
+      if (claim.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
+      const retry = new Date(now.valueOf() - 500);
+      await store.scheduleEarlier("SWAGGER_API", retry, later);
+      expect(
+        await store.releaseUnstartedRun({
+          lane: "SWAGGER_API",
+          runId: claim.run.runId,
+          now: later,
+        }),
+      ).toBe(true);
+      const after = await store.getState("SWAGGER_API");
+      expect(after.activeRun).toBeNull();
+      expect(after.nextRunAt).toEqual(retry);
+      expect(after.lastResult).toEqual(before.lastResult);
+      expect(after.lastRunAt).toEqual(before.lastRunAt);
+    });
+
+    it("native rejected cancellation keeps lease and original storage error without executing", async () => {
+      await scoped.query("TRUNCATE monitoring_lane_schedules");
+      await scoped.query(`CREATE FUNCTION ${schema}.reject_unstarted_release() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'SYNTHETIC_RELEASE_WRITE_FAILURE'; END $$`);
+      await scoped.query(`CREATE TRIGGER reject_unstarted_release BEFORE UPDATE ON ${schema}.monitoring_lane_schedules
+        FOR EACH ROW WHEN (OLD.active_run_id IS NOT NULL AND NEW.active_run_id IS NULL
+          AND NEW.last_result IS NOT DISTINCT FROM OLD.last_result) EXECUTE FUNCTION ${schema}.reject_unstarted_release()`);
+      const now = new Date("2026-10-15T01:00:00Z"),
+        store = createPostgresMonitoringScheduleStore(scoped);
+      const original = store.startRun.bind(store);
+      let release!: () => void, entered!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const acquired = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      store.startRun = async (input) => {
+        if (input.lane !== "LLM") return original(input);
+        await store.scheduleEarlier("LLM", new Date(now.valueOf() - 1), now);
+        const result = await original(input);
+        entered();
+        await gate;
+        return result;
+      };
+      const result = {
+        status: "FAILED" as const,
+        code: null,
+        summary: "synthetic",
+      };
+      const runner = vi.fn(async () => result),
+        diagnostic = vi.fn();
+      const scheduler = new IndependentMonitoringScheduler({
+        store,
+        clock: { now: () => now },
+        onError: diagnostic,
+        runners: { LLM: runner, SWAGGER_API: async () => result },
+      });
+      try {
+        const starting = scheduler.start(),
+          rejected = expect(starting).rejects.toMatchObject({ code: "P0001" });
+        await acquired;
+        await scheduler.stop();
+        release();
+        await rejected;
+        expect(runner).not.toHaveBeenCalled();
+        const state = await store.getState("LLM");
+        expect(state.activeRun).not.toBeNull();
+        expect(state.lastResult).toBeNull();
+        expect(diagnostic).toHaveBeenCalledWith({
+          code: "MONITORING_BACKGROUND_FAILED",
+          lane: "LLM",
+        });
+      } finally {
+        release();
+        await scheduler.stop();
+        await scoped.query(
+          `DROP TRIGGER reject_unstarted_release ON ${schema}.monitoring_lane_schedules`,
+        );
+        await scoped.query(
+          `DROP FUNCTION ${schema}.reject_unstarted_release()`,
+        );
+      }
+    }, 30000);
   },
 );

@@ -36,8 +36,27 @@
         nonempty(receipt.context.workSessionId) && receipt.context.workSessionId !== context.workSessionId &&
         Array.isArray(receipt.items) && receipt.items.length > 0 && receipt.items.every(item => item.state === "RESULT")
       ).map(([id]) => id));
-      for (const delivery of Object.values(data.deliveries)) {
-        if (delivery.state !== "CONFIRMED") removable.delete(delivery.executionId);
+      const sameContext = (left, right) => object(left) && object(right) && canonicalJson(left) === canonicalJson(right);
+      function confirmedDelivery(id, delivery) {
+        const receipt = data.receipts[delivery?.executionId];
+        return Boolean(receipt && delivery.state === "CONFIRMED" && delivery.deliveryId === id &&
+          sameContext(delivery.context, receipt.context) && delivery.expiresAt === receipt.payloadExpiresAt &&
+          nonempty(delivery.bufferDigest) && (receipt.deliveryBufferDigest === delivery.bufferDigest ||
+            receipt.items.some(item => item.state === "RESULT" && item.bufferDigest === delivery.bufferDigest)));
+      }
+      function completedCopy(id, approval) {
+        const delivery = data.deliveries[approval.consumedBy];
+        const receipt = data.receipts[approval.executionId];
+        return Boolean(approval.kind === "COPY" && approval.confirmationId === id && delivery && receipt &&
+          confirmedDelivery(approval.consumedBy, delivery) && delivery.executionId === approval.executionId &&
+          delivery.confirmationId === id && sameContext(approval.context, receipt.context) &&
+          approval.bufferDigest === delivery.bufferDigest && approval.expiresAt === delivery.expiresAt &&
+          Number.isSafeInteger(approval.deliveryRevision) && delivery.deliveryRevision === approval.deliveryRevision + 1);
+      }
+      for (const [id, delivery] of Object.entries(data.deliveries)) {
+        const approval = data.approvals[delivery.confirmationId];
+        if (!confirmedDelivery(id, delivery) || (delivery.original !== true &&
+            (!approval || !completedCopy(delivery.confirmationId, approval)))) removable.delete(delivery.executionId);
       }
       // Resolve all receipt/approval dependencies together to a fixed point.
       // A retained uncertain effect protects every linked execution, regardless
@@ -48,22 +67,33 @@
         for (const [id, receipt] of Object.entries(data.receipts)) {
           if (!removable.has(id) && removable.delete(receipt.predecessor)) changed = true;
         }
-        for (const approval of Object.values(data.approvals)) {
-          const target = approval.executionId || approval.predecessor;
-          if (!removable.has(target) || (approval.consumedBy && !removable.has(approval.consumedBy))) {
-            if (removable.delete(target)) changed = true;
-            if (removable.delete(approval.consumedBy)) changed = true;
+        for (const [id, approval] of Object.entries(data.approvals)) {
+          if (approval.kind === "COPY") {
+            // COPY consumes a deliveryId, while RETRY consumes an executionId.
+            // A missing, uncertain or mismatched delivery remains a durable fence.
+            if (!removable.has(approval.executionId) || (approval.consumedBy && !completedCopy(id, approval)))
+              if (removable.delete(approval.executionId)) changed = true;
+          } else if (approval.kind === "RETRY") {
+            if (!removable.has(approval.predecessor) || (approval.consumedBy && !removable.has(approval.consumedBy))) {
+              if (removable.delete(approval.predecessor)) changed = true;
+              if (removable.delete(approval.consumedBy)) changed = true;
+            }
+          } else {
+            for (const target of [approval.executionId, approval.predecessor, approval.consumedBy])
+              if (removable.delete(target)) changed = true;
           }
         }
       } while (changed);
       for (const [id, approval] of Object.entries(data.approvals)) {
-        if (removable.has(approval.executionId || approval.predecessor) &&
+        if (approval.kind === "COPY" && removable.has(approval.executionId) &&
+            (!approval.consumedBy || completedCopy(id, approval))) delete data.approvals[id];
+        else if (approval.kind === "RETRY" && removable.has(approval.predecessor) &&
             (!approval.consumedBy || removable.has(approval.consumedBy))) delete data.approvals[id];
       }
-      for (const id of removable) delete data.receipts[id];
       for (const [id, delivery] of Object.entries(data.deliveries)) {
         if (delivery.state === "CONFIRMED" && removable.has(delivery.executionId)) delete data.deliveries[id];
       }
+      for (const id of removable) delete data.receipts[id];
       const origins = new Set([...Object.values(data.receipts), ...Object.values(data.approvals)]
         .map(record => record.blockOriginKey));
       for (const id of Object.keys(data.origins)) if (!origins.has(id)) delete data.origins[id];

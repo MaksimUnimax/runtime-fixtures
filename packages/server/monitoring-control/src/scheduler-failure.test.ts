@@ -223,3 +223,378 @@ describe("reviewer A startup timer ownership", () => {
     }
   });
 });
+
+describe("reviewer A stop during pending run reservation", () => {
+  it.each(["before", "after"] as const)(
+    "stop %s durable acquisition prevents late work and releases only its reservation",
+    async (stage) => {
+      vi.useFakeTimers();
+      const now = new Date("2026-10-15T01:00:00Z");
+      const store = new InMemoryMonitoringScheduleStore();
+      const original = store.startRun.bind(store);
+      let release!: () => void, entered!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const claimed = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      let block = true;
+      store.startRun = async (input) => {
+        if (input.lane === "LLM" && block) {
+          block = false;
+          await store.scheduleEarlier(
+            "LLM",
+            new Date(now.valueOf() - 1000),
+            now,
+          );
+          const reserved =
+            stage === "after" ? await original(input) : undefined;
+          entered();
+          await gate;
+          return reserved ?? original(input);
+        }
+        return original(input);
+      };
+      const result = {
+        status: "SUCCEEDED" as const,
+        code: null,
+        summary: "synthetic",
+      };
+      const runner = vi.fn(async () => result);
+      const scheduler = new IndependentMonitoringScheduler({
+        store,
+        clock: { now: () => now },
+        tickMs: 25,
+        runners: { LLM: runner, SWAGGER_API: async () => result },
+      });
+      try {
+        const starting = scheduler.start();
+        const rejected = expect(starting).rejects.toThrow(
+          "MONITORING_START_STOPPED",
+        );
+        await claimed;
+        expect(runner).not.toHaveBeenCalled();
+        await scheduler.stop();
+        release();
+        await rejected;
+        expect(runner).not.toHaveBeenCalled();
+        const state = await store.getState("LLM");
+        expect(state.activeRun).toBeNull();
+        expect(state.lastResult).toBeNull();
+        expect(state.nextRunAt.valueOf()).toBeLessThanOrEqual(now.valueOf());
+        expect(vi.getTimerCount()).toBe(0);
+        await scheduler.start();
+        expect(runner).toHaveBeenCalledTimes(1);
+        expect((await store.getState("LLM")).activeRun).toBeNull();
+        expect((await scheduler.runNowAndWait("SWAGGER_API")).status).toBe(
+          "SUCCEEDED",
+        );
+        await scheduler.stop();
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        release();
+        await scheduler.stop();
+        vi.useRealTimers();
+      }
+    },
+  );
+  it.each(["SCHEDULED", "FORCED"] as const)(
+    "stop fences an already pending %s request",
+    async (source) => {
+      const now = new Date("2026-10-15T01:00:00Z");
+      const store = new InMemoryMonitoringScheduleStore();
+      const result = {
+        status: "SUCCEEDED" as const,
+        code: null,
+        summary: "synthetic",
+      };
+      const runner = vi.fn(async () => result);
+      const scheduler = new IndependentMonitoringScheduler({
+        store,
+        clock: { now: () => now },
+        runners: { LLM: runner, SWAGGER_API: async () => result },
+      });
+      await scheduler.start();
+      await store.scheduleEarlier("LLM", new Date(now.valueOf() - 1000), now);
+      const original = store.startRun.bind(store);
+      let release!: () => void, entered!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const claimed = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      store.startRun = async (input) => {
+        const reservation = await original(input);
+        if (input.lane === "LLM") {
+          entered();
+          await gate;
+        }
+        return reservation;
+      };
+      try {
+        const pending =
+          source === "SCHEDULED"
+            ? scheduler.tick()
+            : scheduler.runNowAndWait("LLM");
+        const rejected = expect(pending).rejects.toThrow(
+          "MONITORING_START_STOPPED",
+        );
+        await claimed;
+        await scheduler.stop();
+        release();
+        await rejected;
+        expect(runner).not.toHaveBeenCalled();
+        expect((await store.getState("LLM")).activeRun).toBeNull();
+        expect((await store.getState("LLM")).lastResult).toBeNull();
+      } finally {
+        release();
+        await scheduler.stop();
+      }
+    },
+  );
+});
+
+it("reservation release preserves a replacement owner, prior result and earlier retry", async () => {
+  const now = new Date("2026-10-15T01:00:00Z"),
+    store = new InMemoryMonitoringScheduleStore();
+  await store.ensureDefaults(now);
+  const prior = await store.startRun({
+    lane: "LLM",
+    source: "FORCED",
+    now,
+    leaseMs: 100,
+  });
+  if (prior.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
+  await store.finishRun({
+    lane: "LLM",
+    runId: prior.run.runId,
+    now,
+    result: { status: "SUCCEEDED", code: null, summary: "prior control" },
+  });
+  await store.scheduleEarlier("LLM", new Date(now.valueOf() - 1), now);
+  const old = await store.startRun({
+    lane: "LLM",
+    source: "SCHEDULED",
+    now,
+    leaseMs: 100,
+  });
+  if (old.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
+  const later = new Date(now.valueOf() + 101);
+  const replacement = await store.startRun({
+    lane: "LLM",
+    source: "FORCED",
+    now: later,
+    leaseMs: 100,
+  });
+  if (replacement.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
+  const before = await store.getState("LLM");
+  expect(
+    await store.releaseUnstartedRun({
+      lane: "LLM",
+      runId: old.run.runId,
+      now: later,
+    }),
+  ).toBe(false);
+  expect(await store.getState("LLM")).toEqual(before);
+  expect(
+    await store.releaseUnstartedRun({
+      lane: "LLM",
+      runId: replacement.run.runId,
+      now: later,
+    }),
+  ).toBe(true);
+  const retry = new Date(now.valueOf() - 500);
+  await store.scheduleEarlier("LLM", retry, later);
+  const scheduled = await store.startRun({
+    lane: "LLM",
+    source: "SCHEDULED",
+    now: later,
+    leaseMs: 100,
+  });
+  if (scheduled.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
+  await store.scheduleEarlier("LLM", retry, later);
+  expect(
+    await store.releaseUnstartedRun({
+      lane: "LLM",
+      runId: scheduled.run.runId,
+      now: later,
+    }),
+  ).toBe(true);
+  const after = await store.getState("LLM");
+  expect(after.activeRun).toBeNull();
+  expect(after.nextRunAt).toEqual(retry);
+  expect(after.lastResult).toEqual(before.lastResult);
+  expect(after.lastRunAt).toEqual(before.lastRunAt);
+});
+it("restart while an old claim is pending cannot dispatch the old generation", async () => {
+  vi.useFakeTimers();
+  const now = new Date("2026-10-15T01:00:00Z"),
+    store = new InMemoryMonitoringScheduleStore();
+  const original = store.startRun.bind(store);
+  let release!: () => void,
+    entered!: () => void,
+    block = true;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const enteredPromise = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  store.startRun = async (input) => {
+    if (input.lane === "LLM" && block) {
+      block = false;
+      await store.scheduleEarlier("LLM", new Date(now.valueOf() - 1), now);
+      const result = await original(input);
+      entered();
+      await gate;
+      return result;
+    }
+    return original(input);
+  };
+  const result = {
+    status: "SUCCEEDED" as const,
+    code: null,
+    summary: "synthetic",
+  };
+  const runner = vi.fn(async () => result);
+  const scheduler = new IndependentMonitoringScheduler({
+    store,
+    clock: { now: () => now },
+    runners: { LLM: runner, SWAGGER_API: async () => result },
+  });
+  try {
+    const oldStart = scheduler.start(),
+      rejected = expect(oldStart).rejects.toThrow("MONITORING_START_STOPPED");
+    await enteredPromise;
+    await scheduler.stop();
+    await Promise.all([scheduler.start(), scheduler.start()]);
+    expect(vi.getTimerCount()).toBe(1);
+    release();
+    await rejected;
+    expect(runner).not.toHaveBeenCalled();
+    expect((await store.getState("LLM")).activeRun).toBeNull();
+    await scheduler.tick();
+    expect(runner).toHaveBeenCalledTimes(1);
+  } finally {
+    release();
+    await scheduler.stop();
+    vi.useRealTimers();
+  }
+});
+it("failed startup invalidates another lane's still pending reservation", async () => {
+  const now = new Date("2026-10-15T01:00:00Z"),
+    store = new InMemoryMonitoringScheduleStore();
+  const original = store.startRun.bind(store),
+    originalRelease = store.releaseUnstartedRun.bind(store);
+  let release!: () => void, acquired!: () => void, compensated!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const entered = new Promise<void>((resolve) => {
+    acquired = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    compensated = resolve;
+  });
+  store.startRun = async (input) => {
+    if (input.lane === "LLM") throw new Error("SYNTHETIC_FIRST_LANE_FAILURE");
+    await store.scheduleEarlier(input.lane, new Date(now.valueOf() - 1), now);
+    const result = await original(input);
+    acquired();
+    await gate;
+    return result;
+  };
+  store.releaseUnstartedRun = async (input) => {
+    const result = await originalRelease(input);
+    compensated();
+    return result;
+  };
+  const result = {
+    status: "SUCCEEDED" as const,
+    code: null,
+    summary: "synthetic",
+  };
+  const runner = vi.fn(async () => result);
+  const scheduler = new IndependentMonitoringScheduler({
+    store,
+    clock: { now: () => now },
+    runners: { LLM: runner, SWAGGER_API: runner },
+  });
+  try {
+    const starting = scheduler.start(),
+      rejected = expect(starting).rejects.toThrow(
+        "SYNTHETIC_FIRST_LANE_FAILURE",
+      );
+    await entered;
+    await rejected;
+    release();
+    await released;
+    expect(runner).not.toHaveBeenCalled();
+    expect((await store.getState("SWAGGER_API")).activeRun).toBeNull();
+    expect((await store.getState("SWAGGER_API")).lastResult).toBeNull();
+  } finally {
+    release();
+    await scheduler.stop();
+  }
+});
+it("failed cancellation keeps the durable lease and storage error without dispatch or fake success", async () => {
+  const now = new Date("2026-10-15T01:00:00Z"),
+    store = new InMemoryMonitoringScheduleStore();
+  const original = store.startRun.bind(store),
+    originalRelease = store.releaseUnstartedRun.bind(store);
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const acquired = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  store.startRun = async (input) => {
+    if (input.lane !== "LLM") return original(input);
+    await store.scheduleEarlier(input.lane, new Date(now.valueOf() - 1), now);
+    const result = await original(input);
+    entered();
+    await gate;
+    return result;
+  };
+  store.releaseUnstartedRun = async () => {
+    throw new Error("SYNTHETIC_RELEASE_WRITE_FAILURE");
+  };
+  const result = {
+    status: "SUCCEEDED" as const,
+    code: null,
+    summary: "synthetic",
+  };
+  const runner = vi.fn(async () => result),
+    diagnostic = vi.fn();
+  const scheduler = new IndependentMonitoringScheduler({
+    store,
+    clock: { now: () => now },
+    onError: diagnostic,
+    runners: { LLM: runner, SWAGGER_API: async () => result },
+  });
+  try {
+    const starting = scheduler.start(),
+      rejected = expect(starting).rejects.toThrow(
+        "SYNTHETIC_RELEASE_WRITE_FAILURE",
+      );
+    await acquired;
+    await scheduler.stop();
+    release();
+    await rejected;
+    expect(runner).not.toHaveBeenCalled();
+    const state = await store.getState("LLM");
+    expect(state.activeRun).not.toBeNull();
+    expect(state.lastResult).toBeNull();
+    expect(diagnostic).toHaveBeenCalledWith({
+      code: "MONITORING_BACKGROUND_FAILED",
+      lane: "LLM",
+    });
+    await originalRelease({ lane: "LLM", runId: state.activeRun!.runId, now });
+  } finally {
+    release();
+    await scheduler.stop();
+  }
+});

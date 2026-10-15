@@ -25,8 +25,26 @@ try {
   const context = await worker.call("captureBatchContext", key,
     'OZON_API_V1 {"operation":"seller_info","params":{}}', "capacity-old-command");
   assert.ok(context);
+  const completedInput = { conversationKey: key, context, blockOriginKey: digest("confirmed-source-origin"),
+    blockVersion: digest("confirmed-source-block"), items: [{ ordinal: 0, inputHash: digest("confirmed-source-input") }] };
+  const completed = await invoke("reserveCommand", completedInput);
+  const provider = await invoke("beginProviderAttempt", { ...completedInput, executionId: completed.executionId, ordinal: 0 });
+  const payload = "complete synthetic COPY result", bufferDigest = digest(payload);
+  await invoke("recordProviderOutcome", { ...completedInput, executionId: completed.executionId, ordinal: 0,
+    providerAttemptId: provider.providerAttemptId, outcome: "RESULT", bufferDigest });
+  await worker.call(`(async () => manualOperationRecords.mutate(${JSON.stringify(key)}, current => ({ ...current,
+    r3_execution_id: ${JSON.stringify(completed.executionId)}, outgoing_text: ${JSON.stringify(payload)},
+    execution_context: ${JSON.stringify(context)}, payload_expires_at_ms: ${completed.payloadExpiresAt},
+    status: MANUAL_OPERATION_STATUSES.COMPLETED })))`);
+  const preview = await invoke("previewCopy", { ...completedInput, executionId: completed.executionId });
+  const copy = await invoke("confirmCopy", { ...completedInput, confirmationId: preview.confirmationId, confirmed: true });
+  assert.equal((await invoke("beginCopyDelivery", { ...completedInput, deliveryId: copy.deliveryId })).send, true);
+  await invoke("recordCopyOutcome", { ...completedInput, deliveryId: copy.deliveryId, outcome: "CONFIRMED" });
+  const template = await worker.call(`(async () => (await getManualOperation(${JSON.stringify(key)})).r3_commands)`);
+  assert.equal(template.approvals[preview.confirmationId].consumedBy, copy.deliveryId);
+  assert.equal(template.deliveries[copy.deliveryId].state, "CONFIRMED");
   const data = { schema: 2, origins: {}, receipts: {}, approvals: {}, deliveries: {} };
-  for (let i = 0; i < 2000; i++) {
+  for (let i = 0; i < 668; i++) {
     const executionId = "history-" + i, blockOriginKey = digest("origin-" + i);
     data.origins[blockOriginKey] = { approvalRevision: 0 };
     data.receipts[executionId] = { executionId, commandKey: digest("command-" + i), blockOriginKey,
@@ -34,6 +52,16 @@ try {
       payloadExpiresAt: 1, predecessor: null,
       items: [{ ordinal: 0, inputHash: digest("input-" + i), itemId: "item-" + i,
         state: "RESULT", providerAttemptId: "attempt-" + i, bufferDigest: digest("result-" + i) }] };
+  }
+  for (let i = 0; i < 666; i++) {
+    const executionId = "history-" + i, confirmationId = "copy-approval-" + i, deliveryId = "copy-delivery-" + i;
+    data.receipts[executionId].payloadExpiresAt = completed.payloadExpiresAt;
+    data.receipts[executionId].items[0].bufferDigest = bufferDigest;
+    data.receipts[executionId].deliveryRevision = 1;
+    data.approvals[confirmationId] = { ...structuredClone(template.approvals[preview.confirmationId]),
+      confirmationId, executionId, consumedBy: deliveryId };
+    data.deliveries[deliveryId] = { ...structuredClone(template.deliveries[copy.deliveryId]),
+      deliveryId, executionId, confirmationId };
   }
   await worker.call(`(async () => manualOperationRecords.mutate(${JSON.stringify(key)}, current =>
     ({ ...current, r3_commands: ${JSON.stringify(data)} })))`);
@@ -49,6 +77,9 @@ try {
   input.context = nextContext;
   const reserved = await invoke("reserveCommand", input);
   assert.equal(reserved.duplicate, false);
+  for (let i = 1; i < 3; i++) assert.equal((await invoke("reserveCommand", {
+    ...input, blockOriginKey: digest("new-work-command-" + i),
+  })).duplicate, false);
   const attempt = { ...input, executionId: reserved.executionId, ordinal: 0 };
   assert.equal((await invoke("beginProviderAttempt", attempt)).dispatch, true);
   assert.equal(worker.network.length, 0);
@@ -56,9 +87,11 @@ try {
   worker = await makeWorker(runtime, { backing, seedAuthority: false });
   assert.equal((await invoke("beginProviderAttempt", attempt)).dispatch, false);
   const stored = await worker.call(`(async () => (await getManualOperation(${JSON.stringify(key)})).r3_commands)`);
-  assert.equal(Object.keys(stored.receipts).length, 1);
+  assert.equal(Object.keys(stored.receipts).length, 3);
+  assert.equal(Object.keys(stored.approvals).length, 0);
+  assert.equal(Object.keys(stored.deliveries).length, 0);
   assert.equal(stored.receipts[reserved.executionId].items[0].state, "PROVIDER_INTENT");
   assert.equal(worker.network.length, 0);
   console.log(JSON.stringify({ status: "PASS", level: "GENERATED_WORKER_SYNTHETIC_NOT_INSTALLED",
-    seededCompletedMarkers: 2000, actualFinishStart: true, restartDuplicateFenced: true, liveProviderCalls: 0 }));
+    seededCompletedMarkers: 2000, confirmedCopyTriples: 666, actualCopyLedgerAPI: true, newWorkReservations: 3, actualFinishStart: true, restartDuplicateFenced: true, liveProviderCalls: 0 }));
 } finally { worker.close(); }
