@@ -102,7 +102,8 @@ function fixture(name, guardMode = "normal") {
     uuid: () => name + "-store-" + (++serial),
     assertTransferContext: assertContext,
     ...(guardMode === "missing" ? {} : {
-      assertBackupContext: guardMode === "async" ? async () => true : assertContext,
+      assertBackupContext: guardMode === "async" ? async () => true :
+        guardMode === "permissive" ? () => true : assertContext,
     }),
   };
   const catalog = realm.SellerAgentsStoreCatalog.create(ports);
@@ -221,6 +222,27 @@ for (const [name, invalidContext] of [
     await rejectsCode(
       () => f.catalog.applyBackupImport(payload, plan, invalidContext),
       ["BACKUP_CONTEXT_GUARD_INVALID", "AUTH_GENERATION_CHANGED"],
+    );
+    assert.equal(f.writes(), 0);
+    assert.deepEqual(f.snapshot(), before);
+  });
+}
+for (const [name, makeContext] of [
+  ["date", () => new Date(0)],
+  ["map", () => new Map()],
+  ["set", () => new Set()],
+  ["regexp", () => /synthetic/],
+  ["class_instance", () => new (class SyntheticContext {})()],
+  ["custom_prototype", () => Object.create({ synthetic: true })],
+  ["throwing_proxy", () => new Proxy({}, { getPrototypeOf() { throw new Error("SYNTHETIC_PROTO_TRAP"); } })],
+]) {
+  await check("non-plain context rejected with permissive guard: " + name, async () => {
+    const f = fixture("nonplain-" + name, "permissive");
+    const plan = await f.catalog.planBackupImport(payload);
+    const before = f.snapshot();
+    await rejectsCode(
+      () => f.catalog.applyBackupImport(payload, plan, makeContext()),
+      ["BACKUP_CONTEXT_GUARD_INVALID"],
     );
     assert.equal(f.writes(), 0);
     assert.deepEqual(f.snapshot(), before);

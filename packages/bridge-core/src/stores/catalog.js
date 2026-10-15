@@ -84,13 +84,23 @@
       if (!store || store.accountId !== id || store.lifecycleState === "TOMBSTONED") fail("STORE_NOT_FOUND");
       return structuredClone(store);
     }
+    function plainBackupContext(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      try {
+        // Plain objects from another JavaScript realm are valid, but a Date,
+        // Map, class instance or a custom prototype is never an auth context.
+        const prototype = Object.getPrototypeOf(value);
+        return prototype === null ||
+          (Object.getPrototypeOf(prototype) === null &&
+           Object.getOwnPropertyDescriptor(prototype, "constructor")?.value?.name === "Object");
+      } catch (_) { return false; }
+    }
     async function mutate(fn, transferContext = null, backupContext = null, backupContextSupplied = false) {
       function assertCurrent() {
         if (transferContext) assertTransferContext?.(transferContext);
         if (backupContextSupplied) {
           // An explicit null/undefined is not the legacy two-argument call.
-          if (!backupContext || typeof backupContext !== "object" || Array.isArray(backupContext))
-            fail("BACKUP_CONTEXT_GUARD_INVALID");
+          if (!plainBackupContext(backupContext)) fail("BACKUP_CONTEXT_GUARD_INVALID");
           if (typeof assertBackupContext !== "function") fail("BACKUP_CONTEXT_GUARD_REQUIRED");
           if (assertBackupContext(backupContext) !== true) fail("BACKUP_CONTEXT_GUARD_INVALID");
         }
