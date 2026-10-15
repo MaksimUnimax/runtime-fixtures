@@ -335,10 +335,115 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     expect(remaining.rows[0]?.count).toBe("2");
   });
 
+  it("rejects status mutation of an anonymized case without new audit or signal", async () => {
+    const created = await service.createCase(userId, {
+      accountId,
+      category: "OTHER",
+      description: "Synthetic case deleted with its account",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const caseId = created.value.caseId;
+
+    const anonymized = await service.anonymizeAccount(accountId);
+    expect(anonymized.cases).toBe(1);
+    const transitioned = await service.transitionCase(
+      "SUPPORT",
+      supportPrincipalId,
+      caseId,
+      { status: "TRIAGED" },
+    );
+    expect(transitioned).toEqual({ ok: false, code: "FORBIDDEN" });
+
+    const stored = await runtime.query<{
+      status: string;
+      account_id: string | null;
+      description: string;
+    }>("SELECT status,account_id,description FROM feedback_cases WHERE id=$1", [
+      caseId,
+    ]);
+    expect(stored.rows[0]).toEqual({
+      status: "NEW",
+      account_id: null,
+      description: "[Feedback removed after account deletion]",
+    });
+    const mutations = await runtime.query<{
+      audit_count: string;
+      signal_count: string;
+    }>(
+      `SELECT
+        (SELECT count(*)::text FROM audit_events WHERE target_id=$1 AND action='SUPPORT_CASE_STATUS_CHANGED') AS audit_count,
+        (SELECT count(*)::text FROM feedback_signal_events WHERE subject_id=$1 AND event='feedback_case_triaged') AS signal_count`,
+      [caseId],
+    );
+    expect(mutations.rows[0]).toEqual({ audit_count: "0", signal_count: "0" });
+  });
+
+  it("distinguishes fixed elapsed-day retention from calendar-day DST arithmetic", async () => {
+    const elapsed = await runtime.transaction(async (tx) => {
+      await tx.query("SELECT set_config('TimeZone', 'America/New_York', true)");
+      const result = await tx.query<{
+        fixed_seconds: number;
+        calendar_seconds: number;
+      }>(
+        `SELECT
+          EXTRACT(EPOCH FROM (
+            TIMESTAMPTZ '2026-03-08 12:00:00-04'
+            - (TIMESTAMPTZ '2026-03-08 12:00:00-04' - INTERVAL '24 hours')
+          ))::int AS fixed_seconds,
+          EXTRACT(EPOCH FROM (
+            TIMESTAMPTZ '2026-03-08 12:00:00-04'
+            - (TIMESTAMPTZ '2026-03-08 12:00:00-04' - INTERVAL '1 day')
+          ))::int AS calendar_seconds`,
+      );
+      return result.rows[0];
+    });
+    expect(elapsed).toEqual({
+      fixed_seconds: 86_400,
+      calendar_seconds: 82_800,
+    });
+  });
+
+  it("does not purge recent data when the application clock runs ahead of PostgreSQL", async () => {
+    const clock = await runtime.query<{ db_now: Date }>(
+      "SELECT transaction_timestamp() AS db_now",
+    );
+    const databaseNow = clock.rows[0]!.db_now;
+    const recent = new Date(databaseNow.getTime() - 12 * 60 * 60_000);
+    await runtime.query(
+      `INSERT INTO feedback_cases(category,description,status,closed_at)
+       VALUES('OTHER','synthetic recent clock cap case','CLOSED',$1::timestamptz)`,
+      [recent],
+    );
+    await runtime.query(
+      `INSERT INTO feedback_signal_events(event,idempotency_key,payload_hash,occurred_at)
+       VALUES('registration_started','synthetic-db-clock-cap',repeat('c',64),$1::timestamptz)`,
+      [recent],
+    );
+
+    const purged = await service.purgeExpired({
+      now: new Date(databaseNow.getTime() + 30 * 86_400_000),
+      closedRetentionDays: 1,
+      signalRetentionDays: 1,
+      batchSize: 100,
+      statementTimeoutMs: 5_000,
+    });
+    expect(purged).toEqual({ cases: 0, signals: 0 });
+    const result = await runtime.query<{ cases: string; signals: string }>(
+      `SELECT
+        (SELECT count(*)::text FROM feedback_cases) AS cases,
+        (SELECT count(*)::text FROM feedback_signal_events) AS signals`,
+    );
+    expect(result.rows[0]).toEqual({ cases: "1", signals: "1" });
+  });
+
   it("deletes retention rows in bounded batches and preserves the exact cutoff", async () => {
-    const now = new Date("2030-01-01T00:00:00.000Z");
-    const cutoff = new Date("2029-12-31T00:00:00.000Z");
-    const older = new Date("2029-12-30T23:59:59.999Z");
+    const clock = await runtime.query<{ db_now: Date }>(
+      "SELECT transaction_timestamp() AS db_now",
+    );
+    const now = clock.rows[0]!.db_now;
+    const cutoff = new Date(now.getTime() - 86_400_000);
+    const older = new Date(cutoff.getTime() - 1);
     await runtime.query(
       `INSERT INTO feedback_cases(category,description,status,closed_at)
        SELECT 'OTHER','retention batch fixture','CLOSED',$1::timestamptz
@@ -395,6 +500,25 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     await expect(
       service.purgeExpired({ ...input, statementTimeoutMs: 30_001 }),
     ).rejects.toThrow("statementTimeoutMs");
+    for (const days of [-1, 0, 3_651, 1.5, Number.NaN]) {
+      await expect(
+        service.purgeExpired({ ...input, closedRetentionDays: days }),
+      ).rejects.toThrow("closedRetentionDays");
+    }
+    for (const days of [-1, 0, 3_651, Number.POSITIVE_INFINITY]) {
+      await expect(
+        service.purgeExpired({ ...input, signalRetentionDays: days }),
+      ).rejects.toThrow("signalRetentionDays");
+    }
+    await expect(
+      service.purgeExpired({ ...input, now: new Date(Number.NaN) }),
+    ).rejects.toThrow("now");
+    await expect(
+      service.purgeExpired({
+        ...input,
+        now: new Date(-8_640_000_000_000_000),
+      }),
+    ).rejects.toThrow("cutoff");
   });
 
   it("stores one account milestone under concurrent retry and calculates an isolated funnel", async () => {
