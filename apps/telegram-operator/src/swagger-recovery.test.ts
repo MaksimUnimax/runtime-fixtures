@@ -184,7 +184,7 @@ describe("review main109ce9df public WB recovery", () => {
     const save = vi
       .spyOn(restarted.store, "saveInventory")
       .mockRejectedValueOnce(new Error("SYNTHETIC_WRITE_FAILURE"));
-    f.fetcher.mockClear();
+    vi.mocked(f.fetcher).mockClear();
     expect(
       (
         await runApiWatchReport({
