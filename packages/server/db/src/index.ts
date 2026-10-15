@@ -99,7 +99,16 @@ export {
   createSyncRepository,
   createSyncSnapshotReader,
 } from "./sync-repository.js";
-export { createCredentialTransferRepository } from "./credential-transfer-repository.js";
+export {
+  createCredentialTransferRepository,
+  createEpochFencedCredentialTransferRepository,
+} from "./credential-transfer-repository.js";
+export {
+  createCredentialTransferEpochFence,
+  type CredentialTransferWriterEpoch,
+  type CredentialTransferEpochFence,
+} from "./credential-transfer-epoch-fence.js";
+export { assertCredentialTransferFenceRuntime } from "./credential-transfer-fence-readiness.js";
 export { createFeedbackSupportRepository } from "./feedback-support-repository.js";
 export {
   ADMIN_AUDIT_RETENTION_ACTIONS,
