@@ -167,6 +167,40 @@ def safe_stored_chatgpt_candidate_observation(value):
     return {**{key: value[key] for key in keys}, "read_failed": False}
 
 
+def safe_post_abort_signed_snapshot_observation(value):
+    """Verify only sanitized *late* signature hints, never a Work Start grant.
+
+    This read happens after a selected request has already failed. Even a
+    genuine signed envelope here cannot prove authorization at abort time,
+    identity lease ownership, monotonic TTL, or why the fetch was canceled.
+    """
+    signed = (
+        "post_abort_signed_envelope_verified",
+        "post_abort_signed_account_matches_expected",
+        "post_abort_signed_chatgpt_resolved",
+        "post_abort_signed_profile_material_valid",
+        "post_abort_signed_unexpired_wall_clock_only",
+    )
+    fixed = ("post_abort_probe_read_failed",
+             "at_abort_grant_entitlement_proven")
+    denied = {**{key: False for key in signed},
+              "post_abort_probe_read_failed": True,
+              "at_abort_grant_entitlement_proven": False}
+    if not isinstance(value, dict) or set(value) != set(signed) | set(fixed):
+        return denied
+    if any(type(value[key]) is not bool for key in signed + fixed):
+        return denied
+    if value["at_abort_grant_entitlement_proven"]:
+        return denied
+    if value["post_abort_probe_read_failed"] and any(value[key] for key in signed):
+        return denied
+    if not value["post_abort_signed_envelope_verified"] and any(
+        value[key] for key in signed[1:]
+    ):
+        return denied
+    return {key: value[key] for key in signed + fixed}
+
+
 def read_completed_bootstrap_response(response, context, completed_requests, failed_requests=None):
     # BrowserContext "response" fires on headers, before the HTTP body finishes.
     # A requestfailed event is terminal; an already aborted request can never
@@ -906,13 +940,22 @@ def run(runtime, output):
                         "bootstrap_observer_counts": counts,
                     }
                     try:
-                        diagnostic = worker.evaluate("""async tabId => {
+                        diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId}) => {
                           const status = await SellerAgentsControlClient.status();
                           const code = String(status?.lastError?.code || "");
                           // Purely read the persisted record. This does NOT verify
                           // its signature, runtime identity, expiry or Work permission.
                           // A late storage read has no write or revocation side effect.
                           let stored = {read_failed: true};
+                          let lateSigned = {
+                            post_abort_signed_envelope_verified: false,
+                            post_abort_signed_account_matches_expected: false,
+                            post_abort_signed_chatgpt_resolved: false,
+                            post_abort_signed_profile_material_valid: false,
+                            post_abort_signed_unexpired_wall_clock_only: false,
+                            post_abort_probe_read_failed: true,
+                            at_abort_grant_entitlement_proven: false,
+                          };
                           let storageTimer;
                           try {
                             const values = await Promise.race([
@@ -938,10 +981,48 @@ def run(runtime, output):
                                 record.authority?.payload?.account?.id === saved.authority.payload.account.id,
                               read_failed: false,
                             };
+                            if (record?.authority?.envelope && trust && typeof expectedAccountId === "string") {
+                              // Read-only, bounded, cryptographic verification of the
+                              // persisted envelope AFTER failure. No authority API
+                              // call, no network, no signature material in output.
+                              let verifyTimer;
+                              try {
+                                const probe = async () => {
+                                  const verified = await SellerAgentsBootstrapVerifier.verifyV2(record.authority.envelope, trust);
+                                  const signed = verified?.ok === true ? verified.payload : null;
+                                  const signedChatGPT = Boolean(signed?.ai?.status === "RESOLVED" &&
+                                    signed?.ai?.detected?.family === "chatgpt" &&
+                                    signed?.ai?.detected?.surface === "web" &&
+                                    signed?.ai?.detected?.variant === null);
+                                  const profile = signedChatGPT ? signed?.ai?.profile : null;
+                                  let materialValid = false;
+                                  if (profile && SellerAgentsSignedAiProfileConsumer.validMaterialShape(profile))
+                                    materialValid = await SellerAgentsSignedAiProfileConsumer.validMaterial(profile) === true;
+                                  const expiry = signed?.expiresAt && Date.parse(signed.expiresAt);
+                                  return {
+                                    post_abort_signed_envelope_verified: verified?.ok === true,
+                                    post_abort_signed_account_matches_expected: Boolean(signed && signed.account?.id === expectedAccountId),
+                                    post_abort_signed_chatgpt_resolved: signedChatGPT,
+                                    post_abort_signed_profile_material_valid: materialValid,
+                                    post_abort_signed_unexpired_wall_clock_only: Boolean(signed && Number.isFinite(expiry) && expiry > Date.now()),
+                                    post_abort_probe_read_failed: false,
+                                    at_abort_grant_entitlement_proven: false,
+                                  };
+                                };
+                                lateSigned = await Promise.race([
+                                  probe(),
+                                  new Promise((_, reject) => {
+                                    verifyTimer = setTimeout(() => reject(new Error("LATE_SIGNATURE_PROBE_DEADLINE")), 1200);
+                                  }),
+                                ]);
+                              } catch (_) { /* Never export verifier errors or claim a grant. */ }
+                              finally { if (verifyTimer !== undefined) clearTimeout(verifyTimer); }
+                            }
                           } catch (_) { /* Never serialize exceptions or retry authorizations. */ }
                           finally { if (storageTimer !== undefined) clearTimeout(storageTimer); }
                           return {
                             stored_chatgpt_candidate: stored,
+                            post_abort_signed_snapshot: lateSigned,
                             pending: Boolean(status?.pending),
                             authenticated: status?.authenticated === true,
                             workAllowed: status?.workAllowed === true,
@@ -950,13 +1031,21 @@ def run(runtime, output):
                             lastStart: Number.isInteger(tabId) && typeof saLastStartDiagnostic === "function"
                               ? await saLastStartDiagnostic(tabId) : null
                           };
-                        }""", locals().get("chat_tab_id"))
+                        }""", {
+                            "tabId": locals().get("chat_tab_id"),
+                            "trust": packaged_config["trustBundle"],
+                            "expectedAccountId": locals().get("second_identity", {}).get("account"),
+                        })
                         snapshot = safe_stored_chatgpt_candidate_observation(
                             diagnostic.pop("stored_chatgpt_candidate", None)
+                        )
+                        late_signed = safe_post_abort_signed_snapshot_observation(
+                            diagnostic.pop("post_abort_signed_snapshot", None)
                         )
                         result["failure_diagnostic"] = {
                             "stage": stage, **diagnostic,
                             "stored_chatgpt_candidate_unverified": snapshot,
+                            "post_abort_signed_snapshot_not_grant": late_signed,
                         }
                         if bootstrap_envelope is not None:
                             result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelope)

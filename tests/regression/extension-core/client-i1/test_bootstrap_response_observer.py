@@ -122,6 +122,153 @@ class BootstrapObserverTest(unittest.TestCase):
         self.assertNotIn("signed_work_allowed", value)
 
 
+    def test_late_signed_snapshot_projection_is_fixed_boolean_only(self):
+        late = {
+            "post_abort_signed_envelope_verified": True,
+            "post_abort_signed_account_matches_expected": True,
+            "post_abort_signed_chatgpt_resolved": True,
+            "post_abort_signed_profile_material_valid": True,
+            "post_abort_signed_unexpired_wall_clock_only": True,
+            "post_abort_probe_read_failed": False,
+            "at_abort_grant_entitlement_proven": False,
+        }
+        self.assertEqual(module.safe_post_abort_signed_snapshot_observation(late), late)
+        self.assertNotIn("signed_work_allowed", late)
+        self.assertFalse(late["at_abort_grant_entitlement_proven"])
+
+    def test_late_signed_snapshot_cannot_promote_bad_fields_or_secrets(self):
+        valid = {
+            "post_abort_signed_envelope_verified": True,
+            "post_abort_signed_account_matches_expected": True,
+            "post_abort_signed_chatgpt_resolved": True,
+            "post_abort_signed_profile_material_valid": True,
+            "post_abort_signed_unexpired_wall_clock_only": True,
+            "post_abort_probe_read_failed": False,
+            "at_abort_grant_entitlement_proven": False,
+        }
+        expected = {
+            **{k: False for k in valid if k != "post_abort_probe_read_failed"},
+            "post_abort_probe_read_failed": True,
+        }
+        for bad in (
+            None, "SYNTHETIC_PRIVATE_TOKEN",
+            {**valid, "access_token": "SYNTHETIC_PRIVATE_TOKEN"},
+            {**valid, "post_abort_signed_envelope_verified": 1},
+            {**valid, "post_abort_signed_account_matches_expected": "true"},
+            {**valid, "at_abort_grant_entitlement_proven": True},
+            {k: v for k, v in valid.items()
+             if k != "post_abort_signed_profile_material_valid"},
+        ):
+            with self.subTest(source_type=type(bad).__name__):
+                result = module.safe_post_abort_signed_snapshot_observation(bad)
+                self.assertEqual(result, expected)
+                self.assertNotIn("SYNTHETIC_PRIVATE_TOKEN", str(result))
+
+    def test_late_signed_snapshot_cannot_claim_signed_grant_on_failed_probe(self):
+        minimal = {
+            "post_abort_signed_envelope_verified": False,
+            "post_abort_signed_account_matches_expected": False,
+            "post_abort_signed_chatgpt_resolved": False,
+            "post_abort_signed_profile_material_valid": False,
+            "post_abort_signed_unexpired_wall_clock_only": False,
+            "post_abort_probe_read_failed": True,
+            "at_abort_grant_entitlement_proven": False,
+        }
+        self.assertEqual(module.safe_post_abort_signed_snapshot_observation(minimal), minimal)
+        for bad in (
+            {**minimal, "post_abort_signed_account_matches_expected": True},
+            {**minimal, "post_abort_probe_read_failed": True,
+             "post_abort_signed_envelope_verified": True},
+        ):
+            result = module.safe_post_abort_signed_snapshot_observation(bad)
+            self.assertEqual(result, minimal)
+            self.assertFalse(result["at_abort_grant_entitlement_proven"])
+
+    def test_embedded_post_abort_signed_probe_has_bounded_boolean_surface(self):
+        # Run the exact worker.evaluate code without a browser or real signer.
+        # This synthetic mock never establishes true signed Work authority.
+        import json
+        import os
+        import subprocess
+
+        source = Path(__file__).with_name("installed_local_integration.py").read_text()
+        marker = 'diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId}) => {'
+        self.assertEqual(source.count(marker), 1)
+        embedded = "async ({tabId, trust, expectedAccountId}) => {" + source.split(marker, 1)[1].split('"""', 1)[0]
+        node = r"""
+import vm from "node:vm";
+import fs from "node:fs";
+import assert from "node:assert/strict";
+const {code} = JSON.parse(fs.readFileSync(0, "utf8"));
+for (const mode of ["valid", "invalid", "error", "missing", "other_family"]) {
+  const id = "SYNTHETIC_EXPECTED_ACCOUNT";
+  const profile = {syntheticMaterial:"SOURCE_TEST_ONLY"};
+  let verifications = 0;
+  const saved = {seller_agents_control_auth_v2:{
+    generation: 5, authority:{payload:{account:{id}}},
+    grants:mode === "missing" ? {} : {scope:{authority:{
+      requestedAi:"chatgpt", workAllowed:true,
+      envelope:{synthetic:"NOT_REAL_SIGNED_ENVELOPE"},
+      payload:{account:{id}, ai:{status:"RESOLVED", profile}}
+    }}}
+  }};
+  const context = {
+    chrome:{storage:{local:{get:async()=>saved}}},
+    SellerAgentsControlClient:{status:async()=>({authenticated:true,workAllowed:true,pending:false})},
+    SellerAgentsBootstrapVerifier:{verifyV2:async(e,trust)=>{
+      verifications++;
+      assert.equal(e.synthetic,"NOT_REAL_SIGNED_ENVELOPE");
+      assert.equal(trust.kind,"SYNTHETIC_PUBLIC_TRUST");
+      if(mode==="error") throw new Error("PRIVATE_SYNTHETIC_SIGNER_ERROR");
+      if(mode==="invalid") return {ok:false,error:"MALFORMED"};
+      return {ok:true,payload:{account:{id},ai:{
+        status:"RESOLVED", detected:{family:mode==="other_family"?"alice":"chatgpt",surface:"web",variant:null},
+        profile
+      },expiresAt:new Date(Date.now()+3600000).toISOString()}};
+    }},
+    SellerAgentsSignedAiProfileConsumer:{
+      validMaterialShape:p=>p===profile,
+      validMaterial:async p=>p===profile
+    },setTimeout,clearTimeout
+  };
+  const fn = vm.runInNewContext("(" + code + ")",context);
+  const result = await fn({tabId:1,trust:{kind:"SYNTHETIC_PUBLIC_TRUST"},expectedAccountId:id});
+  const row=result.post_abort_signed_snapshot;
+  const output=JSON.stringify(result);
+  assert.equal(row.at_abort_grant_entitlement_proven,false);
+  assert.equal(Object.keys(row).length,7);
+  assert.ok(Object.values(row).every(x=>typeof x==="boolean"));
+  assert.ok(!output.includes("NOT_REAL_SIGNED_ENVELOPE"));
+  assert.ok(!output.includes("PRIVATE_SYNTHETIC"));
+  assert.ok(!output.includes(id));
+  if(mode==="valid"){
+    assert.equal(row.post_abort_signed_envelope_verified,true);
+    assert.equal(row.post_abort_signed_profile_material_valid,true);
+    assert.equal(row.post_abort_signed_chatgpt_resolved,true);
+    assert.equal(row.post_abort_signed_unexpired_wall_clock_only,true);
+  }else if(mode==="invalid"){
+    assert.equal(row.post_abort_signed_envelope_verified,false);
+    assert.equal(row.post_abort_probe_read_failed,false);
+  }else if(mode==="error"||mode==="missing"){
+    assert.equal(row.post_abort_probe_read_failed,true);
+    assert.equal(row.post_abort_signed_envelope_verified,false);
+  }else if(mode==="other_family"){
+    assert.equal(row.post_abort_signed_envelope_verified,true);
+    assert.equal(row.post_abort_signed_chatgpt_resolved,false);
+    assert.equal(row.post_abort_signed_profile_material_valid,false);
+  }
+  assert.equal(verifications,mode==="missing"?0:1);
+}
+process.stdout.write("LATE_SIGNED_VM_5_PASS");
+"""
+        completed = subprocess.run(
+            [os.environ.get("SA_NODE_BIN", "node"), "--input-type=module", "-e", node],
+            input=json.dumps({"code": embedded}), text=True,
+            capture_output=True, timeout=20, check=False,
+        )
+        self.assertEqual(completed.returncode, 0, "LATE_SIGNED_VM_REGRESSION")
+        self.assertEqual(completed.stdout, "LATE_SIGNED_VM_5_PASS")
+
     def test_already_finished_response_does_not_wait_or_call_finished(self):
         response = FakeResponse({"keyId": "fixture", "payload": "fixture"})
         context = FakeContext()
