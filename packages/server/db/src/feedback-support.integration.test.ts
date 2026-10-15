@@ -4,6 +4,7 @@ import { FeedbackSupportService } from "@product/feedback-support";
 import {
   createFeedbackSupportRepository,
   createDatabaseRuntime,
+  type DatabaseQuery,
   type DatabaseRuntime,
 } from "./index.js";
 import { runMigrations } from "./migrations.js";
@@ -142,6 +143,218 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
       "storageState",
     );
   });
+
+  it("revokes former member access to case list, detail and user followups", async () => {
+    const created = await service.createCase(userId, {
+      accountId,
+      category: "OTHER",
+      description: "Synthetic case before membership revocation",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const caseId = created.value.caseId;
+
+    expect(await service.listOwnCases({ userId })).toHaveLength(1);
+    expect((await service.getOwnCase({ userId, caseId })).ok).toBe(true);
+    const originalReply = await service.addUserFollowup(userId, caseId, {
+      description: "Synthetic authorized reply",
+    });
+    expect(originalReply.ok).toBe(true);
+
+    const denied = async () => {
+      expect(await service.listOwnCases({ userId })).toEqual([]);
+      expect(await service.getOwnCase({ userId, caseId })).toEqual({
+        ok: false,
+        code: "FORBIDDEN",
+      });
+      expect(
+        await service.addUserFollowup(userId, caseId, {
+          description: "Synthetic reply after losing account access",
+        }),
+      ).toEqual({ ok: false, code: "FORBIDDEN" });
+      const saved = await runtime.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM feedback_followups WHERE case_id=$1",
+        [caseId],
+      );
+      expect(saved.rows[0]?.count).toBe("1");
+    };
+
+    await runtime.query(
+      "DELETE FROM account_memberships WHERE account_id=$1 AND user_id=$2",
+      [accountId, userId],
+    );
+    await denied();
+
+    await runtime.query(
+      "INSERT INTO account_memberships(account_id,user_id,role) VALUES($1,$2,'OWNER')",
+      [accountId, userId],
+    );
+    await runtime.query("UPDATE accounts SET status='SUSPENDED' WHERE id=$1", [
+      accountId,
+    ]);
+    await denied();
+
+    await runtime.query("UPDATE accounts SET status='ACTIVE' WHERE id=$1", [
+      accountId,
+    ]);
+    expect(await service.listOwnCases({ userId })).toHaveLength(1);
+    expect((await service.getOwnCase({ userId, caseId })).ok).toBe(true);
+  });
+
+  it("denies new feedback case and onboarding signal writes after membership revocation or account suspension", async () => {
+    const testSignal = {
+      event: "first_start" as const,
+      accountId,
+      idempotencyKey: "synthetic-write-lease-after-revocation",
+      productVersion: "0.2.4",
+    };
+    const attemptWrites = async () => {
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: "Synthetic case after revoked account access",
+        }),
+      ).resolves.toEqual({ ok: false, code: "ACCOUNT_FORBIDDEN" });
+      await expect(service.recordSignal(userId, testSignal)).resolves.toEqual({
+        ok: false,
+        code: "INVALID_REQUEST",
+      });
+      const saved = await runtime.query<{ cases: string; signals: string }>(
+        `SELECT
+          (SELECT count(*)::text FROM feedback_cases WHERE created_by_user_id=$1) AS cases,
+          (SELECT count(*)::text FROM feedback_signal_events WHERE account_id=$2) AS signals`,
+        [userId, accountId],
+      );
+      expect(saved.rows[0]).toEqual({ cases: "0", signals: "0" });
+    };
+
+    await runtime.query(
+      "DELETE FROM account_memberships WHERE account_id=$1 AND user_id=$2",
+      [accountId, userId],
+    );
+    await attemptWrites();
+
+    await runtime.query(
+      "INSERT INTO account_memberships(account_id,user_id,role) VALUES($1,$2,'OWNER')",
+      [accountId, userId],
+    );
+    await runtime.query("UPDATE accounts SET status='SUSPENDED' WHERE id=$1", [
+      accountId,
+    ]);
+    await attemptWrites();
+
+    await runtime.query("UPDATE accounts SET status='ACTIVE' WHERE id=$1", [
+      accountId,
+    ]);
+    const allowedCase = await service.createCase(userId, {
+      accountId,
+      category: "OTHER",
+      description: "Synthetic authorized case after access returned",
+    });
+    expect(allowedCase.ok).toBe(true);
+    const allowedSignal = await service.recordSignal(userId, testSignal);
+    expect(allowedSignal).toEqual({ ok: true, value: { accepted: true } });
+  });
+
+  it.each(["case", "signal"] as const)(
+    "keeps membership revocation waiting through concurrent %s writes",
+    async (kind) => {
+      let revealMembership!: () => void;
+      let releaseMembership!: () => void;
+      const membershipChecked = new Promise<void>((resolve) => {
+        revealMembership = resolve;
+      });
+      const allowWriter = new Promise<void>((resolve) => {
+        releaseMembership = resolve;
+      });
+      const gatedRuntime = {
+        transaction: async <T>(run: (tx: DatabaseQuery) => Promise<T>) =>
+          runtime.transaction(async (tx) =>
+            run({
+              query: async <
+                Row extends Record<string, unknown> = Record<string, unknown>,
+              >(
+                sql: string,
+                values?: unknown[],
+              ): Promise<{ rows: Row[] }> => {
+                const result = await tx.query<Row>(sql, values);
+                if (sql.startsWith("SELECT m.id FROM account_memberships")) {
+                  expect(sql).toContain("FOR SHARE OF m,a");
+                  revealMembership();
+                  await allowWriter;
+                }
+                return result;
+              },
+            }),
+          ),
+      } as unknown as DatabaseRuntime;
+      const leasedRepository = createFeedbackSupportRepository(gatedRuntime);
+      const writer =
+        kind === "case"
+          ? leasedRepository.createCase({
+              userId,
+              body: {
+                accountId,
+                category: "OTHER",
+                severity: "LOW",
+                marketplace: "NONE",
+                description: "Synthetic concurrent case writer",
+              },
+              description: "Synthetic concurrent case writer",
+              diagnostics: null,
+              correlationId: "synthetic-concurrent-case",
+            })
+          : leasedRepository.recordSignal({
+              userId,
+              body: {
+                accountId,
+                event: "first_start",
+                idempotencyKey: "synthetic-concurrent-signal-lease",
+              },
+              correlationId: "synthetic-concurrent-signal",
+            });
+      let guardTimer: ReturnType<typeof setTimeout> | undefined;
+      let committedResult: unknown;
+      try {
+        await Promise.race([
+          membershipChecked,
+          new Promise<void>((_, reject) => {
+            guardTimer = setTimeout(
+              () =>
+                reject(
+                  new Error("feedback writer did not reach membership lease"),
+                ),
+              4_000,
+            );
+          }),
+        ]);
+        if (guardTimer) clearTimeout(guardTimer);
+        const attemptedRevocation = runtime.transaction(async (tx) => {
+          await tx.query("SET LOCAL lock_timeout = '300ms'");
+          await tx.query(
+            "DELETE FROM account_memberships WHERE account_id=$1 AND user_id=$2",
+            [accountId, userId],
+          );
+        });
+        await expect(attemptedRevocation).rejects.toMatchObject({
+          code: "55P03",
+        });
+      } finally {
+        if (guardTimer) clearTimeout(guardTimer);
+        releaseMembership();
+        committedResult = await writer;
+      }
+      if (kind === "case") {
+        expect(committedResult).toMatchObject({
+          caseId: expect.any(String),
+        });
+      } else {
+        expect(committedResult).toBe("ACCEPTED");
+      }
+    },
+    15_000,
+  );
 
   it("fails closed when support mutation authority is revoked after route admission", async () => {
     const created = await service.createCase(userId, {
@@ -335,10 +548,115 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     expect(remaining.rows[0]?.count).toBe("2");
   });
 
+  it("rejects status mutation of an anonymized case without new audit or signal", async () => {
+    const created = await service.createCase(userId, {
+      accountId,
+      category: "OTHER",
+      description: "Synthetic case deleted with its account",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const caseId = created.value.caseId;
+
+    const anonymized = await service.anonymizeAccount(accountId);
+    expect(anonymized.cases).toBe(1);
+    const transitioned = await service.transitionCase(
+      "SUPPORT",
+      supportPrincipalId,
+      caseId,
+      { status: "TRIAGED" },
+    );
+    expect(transitioned).toEqual({ ok: false, code: "FORBIDDEN" });
+
+    const stored = await runtime.query<{
+      status: string;
+      account_id: string | null;
+      description: string;
+    }>("SELECT status,account_id,description FROM feedback_cases WHERE id=$1", [
+      caseId,
+    ]);
+    expect(stored.rows[0]).toEqual({
+      status: "NEW",
+      account_id: null,
+      description: "[Feedback removed after account deletion]",
+    });
+    const mutations = await runtime.query<{
+      audit_count: string;
+      signal_count: string;
+    }>(
+      `SELECT
+        (SELECT count(*)::text FROM audit_events WHERE target_id=$1 AND action='SUPPORT_CASE_STATUS_CHANGED') AS audit_count,
+        (SELECT count(*)::text FROM feedback_signal_events WHERE subject_id=$1 AND event='feedback_case_triaged') AS signal_count`,
+      [caseId],
+    );
+    expect(mutations.rows[0]).toEqual({ audit_count: "0", signal_count: "0" });
+  });
+
+  it("distinguishes fixed elapsed-day retention from calendar-day DST arithmetic", async () => {
+    const elapsed = await runtime.transaction(async (tx) => {
+      await tx.query("SELECT set_config('TimeZone', 'America/New_York', true)");
+      const result = await tx.query<{
+        fixed_seconds: number;
+        calendar_seconds: number;
+      }>(
+        `SELECT
+          EXTRACT(EPOCH FROM (
+            TIMESTAMPTZ '2026-03-08 12:00:00-04'
+            - (TIMESTAMPTZ '2026-03-08 12:00:00-04' - INTERVAL '24 hours')
+          ))::int AS fixed_seconds,
+          EXTRACT(EPOCH FROM (
+            TIMESTAMPTZ '2026-03-08 12:00:00-04'
+            - (TIMESTAMPTZ '2026-03-08 12:00:00-04' - INTERVAL '1 day')
+          ))::int AS calendar_seconds`,
+      );
+      return result.rows[0];
+    });
+    expect(elapsed).toEqual({
+      fixed_seconds: 86_400,
+      calendar_seconds: 82_800,
+    });
+  });
+
+  it("does not purge recent data when the application clock runs ahead of PostgreSQL", async () => {
+    const clock = await runtime.query<{ db_now: Date }>(
+      "SELECT transaction_timestamp() AS db_now",
+    );
+    const databaseNow = clock.rows[0]!.db_now;
+    const recent = new Date(databaseNow.getTime() - 12 * 60 * 60_000);
+    await runtime.query(
+      `INSERT INTO feedback_cases(category,description,status,closed_at)
+       VALUES('OTHER','synthetic recent clock cap case','CLOSED',$1::timestamptz)`,
+      [recent],
+    );
+    await runtime.query(
+      `INSERT INTO feedback_signal_events(event,idempotency_key,payload_hash,occurred_at)
+       VALUES('registration_started','synthetic-db-clock-cap',repeat('c',64),$1::timestamptz)`,
+      [recent],
+    );
+
+    const purged = await service.purgeExpired({
+      now: new Date(databaseNow.getTime() + 30 * 86_400_000),
+      closedRetentionDays: 1,
+      signalRetentionDays: 1,
+      batchSize: 100,
+      statementTimeoutMs: 5_000,
+    });
+    expect(purged).toEqual({ cases: 0, signals: 0 });
+    const result = await runtime.query<{ cases: string; signals: string }>(
+      `SELECT
+        (SELECT count(*)::text FROM feedback_cases) AS cases,
+        (SELECT count(*)::text FROM feedback_signal_events) AS signals`,
+    );
+    expect(result.rows[0]).toEqual({ cases: "1", signals: "1" });
+  });
+
   it("deletes retention rows in bounded batches and preserves the exact cutoff", async () => {
-    const now = new Date("2030-01-01T00:00:00.000Z");
-    const cutoff = new Date("2029-12-31T00:00:00.000Z");
-    const older = new Date("2029-12-30T23:59:59.999Z");
+    const clock = await runtime.query<{ db_now: Date }>(
+      "SELECT transaction_timestamp() AS db_now",
+    );
+    const now = clock.rows[0]!.db_now;
+    const cutoff = new Date(now.getTime() - 86_400_000);
+    const older = new Date(cutoff.getTime() - 1);
     await runtime.query(
       `INSERT INTO feedback_cases(category,description,status,closed_at)
        SELECT 'OTHER','retention batch fixture','CLOSED',$1::timestamptz
@@ -395,6 +713,25 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     await expect(
       service.purgeExpired({ ...input, statementTimeoutMs: 30_001 }),
     ).rejects.toThrow("statementTimeoutMs");
+    for (const days of [-1, 0, 3_651, 1.5, Number.NaN]) {
+      await expect(
+        service.purgeExpired({ ...input, closedRetentionDays: days }),
+      ).rejects.toThrow("closedRetentionDays");
+    }
+    for (const days of [-1, 0, 3_651, Number.POSITIVE_INFINITY]) {
+      await expect(
+        service.purgeExpired({ ...input, signalRetentionDays: days }),
+      ).rejects.toThrow("signalRetentionDays");
+    }
+    await expect(
+      service.purgeExpired({ ...input, now: new Date(Number.NaN) }),
+    ).rejects.toThrow("now");
+    await expect(
+      service.purgeExpired({
+        ...input,
+        now: new Date(-8_640_000_000_000_000),
+      }),
+    ).rejects.toThrow("cutoff");
   });
 
   it("stores one account milestone under concurrent retry and calculates an isolated funnel", async () => {

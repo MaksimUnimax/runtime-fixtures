@@ -62,11 +62,26 @@ const caseColumns = `id,account_id,created_by_user_id,device_id,created_at,updat
 const iso = (value: Date | string) => new Date(value).toISOString();
 const MAX_RETENTION_BATCH_SIZE = 1_000;
 const MAX_RETENTION_STATEMENT_TIMEOUT_MS = 30_000;
+const MAX_RETENTION_DAYS = 3_650;
 
 function validateRetentionPurgeInput(input: {
+  now: Date;
+  closedRetentionDays: number;
+  signalRetentionDays: number;
   batchSize: number;
   statementTimeoutMs: number;
 }): void {
+  if (!(input.now instanceof Date) || !Number.isFinite(input.now.getTime()))
+    throw new Error("retention now must be a valid Date");
+  for (const [field, days] of [
+    ["closedRetentionDays", input.closedRetentionDays],
+    ["signalRetentionDays", input.signalRetentionDays],
+  ] as const) {
+    if (!Number.isInteger(days) || days < 1 || days > MAX_RETENTION_DAYS)
+      throw new Error(
+        `retention ${field} must be an integer between 1 and ${MAX_RETENTION_DAYS}`,
+      );
+  }
   if (
     !Number.isInteger(input.batchSize) ||
     input.batchSize < 1 ||
@@ -132,6 +147,24 @@ async function loadCase(
     [caseId],
   );
   return result.rows[0];
+}
+
+// A case creator must still belong to its active account. Lock the membership
+// and account for user mutation/read transactions so a concurrent revocation
+// cannot commit between this check and the protected case operation.
+async function activeUserCaseMembership(
+  query: DatabaseQuery,
+  accountId: string | null,
+  userId: string,
+  lock: boolean,
+): Promise<boolean> {
+  if (accountId === null) return false;
+  const result = await query.query<{ id: string }>(
+    `SELECT m.id FROM account_memberships AS m JOIN accounts AS a ON a.id=m.account_id
+     WHERE m.account_id=$1 AND m.user_id=$2 AND a.status='ACTIVE'${lock ? " FOR SHARE OF m,a" : ""}`,
+    [accountId, userId],
+  );
+  return Boolean(result.rows[0]);
 }
 
 async function followups(
@@ -265,11 +298,15 @@ export function createFeedbackSupportRepository(
   return {
     async createCase(input) {
       return runtime.transaction(async (tx) => {
-        const account = await tx.query<{ id: string }>(
-          `SELECT a.id FROM accounts a JOIN account_memberships m ON m.account_id=a.id WHERE a.id=$1 AND a.status='ACTIVE' AND m.user_id=$2`,
-          [input.body.accountId, input.userId],
-        );
-        if (!account.rows[0]) return { kind: "ACCOUNT_FORBIDDEN" as const };
+        if (
+          !(await activeUserCaseMembership(
+            tx,
+            input.body.accountId,
+            input.userId,
+            true,
+          ))
+        )
+          return { kind: "ACCOUNT_FORBIDDEN" as const };
         if (input.body.deviceId) {
           const device = await tx.query<{ id: string }>(
             `SELECT id FROM devices WHERE id=$1 AND account_id=$2`,
@@ -344,17 +381,36 @@ export function createFeedbackSupportRepository(
     },
     async listOwnCases(input) {
       const result = await runtime.query<CaseRow>(
-        `SELECT ${caseColumns} FROM feedback_cases WHERE created_by_user_id=$1 AND ($2::feedback_case_status IS NULL OR status=$2) ORDER BY created_at DESC,id DESC LIMIT 100`,
+        `SELECT ${caseColumns} FROM feedback_cases
+         WHERE created_by_user_id=$1
+           AND EXISTS (
+             SELECT 1 FROM account_memberships AS m
+             JOIN accounts AS a ON a.id=m.account_id
+             WHERE m.account_id=feedback_cases.account_id AND m.user_id=$1 AND a.status='ACTIVE'
+           )
+           AND ($2::feedback_case_status IS NULL OR status=$2)
+         ORDER BY created_at DESC,id DESC LIMIT 100`,
         [input.userId, input.status ?? null],
       );
       return result.rows.map(mapCase);
     },
     async getOwnCase(input) {
-      const row = await loadCase(runtime, input.caseId);
-      if (!row) return { kind: "NOT_FOUND" as const };
-      if (row.created_by_user_id !== input.userId)
-        return { kind: "FORBIDDEN" as const };
-      return withFollowups(row, await followups(runtime, input.caseId));
+      return runtime.transaction(async (tx) => {
+        const row = await loadCase(tx, input.caseId, true);
+        if (!row) return { kind: "NOT_FOUND" as const };
+        if (row.created_by_user_id !== input.userId)
+          return { kind: "FORBIDDEN" as const };
+        if (
+          !(await activeUserCaseMembership(
+            tx,
+            row.account_id,
+            input.userId,
+            true,
+          ))
+        )
+          return { kind: "FORBIDDEN" as const };
+        return withFollowups(row, await followups(tx, input.caseId));
+      });
     },
     async addFollowup(input) {
       return runtime.transaction(async (tx) => {
@@ -373,7 +429,13 @@ export function createFeedbackSupportRepository(
           return { kind: "FORBIDDEN" as const };
         if (
           input.actorType === "USER" &&
-          row.created_by_user_id !== input.actorId
+          (row.created_by_user_id !== input.actorId ||
+            !(await activeUserCaseMembership(
+              tx,
+              row.account_id,
+              input.actorId,
+              true,
+            )))
         )
           return { kind: "FORBIDDEN" as const };
         if (
@@ -444,6 +506,12 @@ export function createFeedbackSupportRepository(
           return { kind: "FORBIDDEN" as const };
         const row = await loadCase(tx, input.caseId, true);
         if (!row) return { kind: "NOT_FOUND" as const };
+        if (
+          row.account_id === null &&
+          row.created_by_user_id === null &&
+          row.description === "[Feedback removed after account deletion]"
+        )
+          return { kind: "FORBIDDEN" as const };
         if (!statusTransitionAllowed(row.status, input.status))
           return { kind: "INVALID_TRANSITION" as const };
         const closedAt = input.status === "CLOSED" ? new Date() : null;
@@ -507,11 +575,15 @@ export function createFeedbackSupportRepository(
           ))
         )
           return "RATE_LIMITED" as const;
-        const account = await tx.query<{ id: string }>(
-          `SELECT a.id FROM accounts a JOIN account_memberships m ON m.account_id=a.id WHERE a.id=$1 AND a.status='ACTIVE' AND m.user_id=$2`,
-          [input.body.accountId, input.userId],
-        );
-        if (!account.rows[0]) return "CONFLICT" as const;
+        if (
+          !(await activeUserCaseMembership(
+            tx,
+            input.body.accountId,
+            input.userId,
+            true,
+          ))
+        )
+          return "CONFLICT" as const;
         if (input.body.deviceId) {
           const device = await tx.query<{ id: string }>(
             `SELECT id FROM devices WHERE id=$1 AND account_id=$2`,
@@ -650,6 +722,11 @@ export function createFeedbackSupportRepository(
       const signalBefore = new Date(
         input.now.getTime() - input.signalRetentionDays * 86_400_000,
       );
+      if (
+        !Number.isFinite(closedBefore.getTime()) ||
+        !Number.isFinite(signalBefore.getTime())
+      )
+        throw new Error("retention cutoff must be a valid Date");
       return runtime.transaction(async (tx) => {
         await tx.query("SELECT set_config('statement_timeout', $1, true)", [
           `${input.statementTimeoutMs}ms`,
@@ -657,7 +734,7 @@ export function createFeedbackSupportRepository(
         const result = await tx.query<{ cases: number; signals: number }>(
           `WITH case_candidates AS (
              SELECT id FROM feedback_cases
-             WHERE status='CLOSED' AND closed_at IS NOT NULL AND closed_at < $1
+             WHERE status='CLOSED' AND closed_at IS NOT NULL AND closed_at < LEAST($1::timestamptz, transaction_timestamp() - ($4::integer * INTERVAL '24 hours'))
              ORDER BY closed_at ASC, id ASC
              LIMIT $3
              FOR UPDATE SKIP LOCKED
@@ -668,7 +745,7 @@ export function createFeedbackSupportRepository(
              RETURNING 1
            ), signal_candidates AS (
              SELECT id FROM feedback_signal_events
-             WHERE occurred_at < $2
+             WHERE occurred_at < LEAST($2::timestamptz, transaction_timestamp() - ($5::integer * INTERVAL '24 hours'))
              ORDER BY occurred_at ASC, id ASC
              LIMIT $3
              FOR UPDATE SKIP LOCKED
@@ -681,7 +758,13 @@ export function createFeedbackSupportRepository(
            SELECT
              (SELECT count(*)::int FROM deleted_cases) AS cases,
              (SELECT count(*)::int FROM deleted_signals) AS signals`,
-          [closedBefore, signalBefore, input.batchSize],
+          [
+            closedBefore,
+            signalBefore,
+            input.batchSize,
+            input.closedRetentionDays,
+            input.signalRetentionDays,
+          ],
         );
         return result.rows[0] ?? { cases: 0, signals: 0 };
       });
