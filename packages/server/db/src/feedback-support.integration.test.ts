@@ -379,10 +379,71 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     expect(mutations.rows[0]).toEqual({ audit_count: "0", signal_count: "0" });
   });
 
+  it("distinguishes fixed elapsed-day retention from calendar-day DST arithmetic", async () => {
+    const elapsed = await runtime.transaction(async (tx) => {
+      await tx.query("SELECT set_config('TimeZone', 'America/New_York', true)");
+      const result = await tx.query<{
+        fixed_seconds: number;
+        calendar_seconds: number;
+      }>(
+        `SELECT
+          EXTRACT(EPOCH FROM (
+            TIMESTAMPTZ '2026-03-08 12:00:00-04'
+            - (TIMESTAMPTZ '2026-03-08 12:00:00-04' - INTERVAL '24 hours')
+          ))::int AS fixed_seconds,
+          EXTRACT(EPOCH FROM (
+            TIMESTAMPTZ '2026-03-08 12:00:00-04'
+            - (TIMESTAMPTZ '2026-03-08 12:00:00-04' - INTERVAL '1 day')
+          ))::int AS calendar_seconds`,
+      );
+      return result.rows[0];
+    });
+    expect(elapsed).toEqual({
+      fixed_seconds: 86_400,
+      calendar_seconds: 82_800,
+    });
+  });
+
+  it("does not purge recent data when the application clock runs ahead of PostgreSQL", async () => {
+    const clock = await runtime.query<{ db_now: Date }>(
+      "SELECT transaction_timestamp() AS db_now",
+    );
+    const databaseNow = clock.rows[0]!.db_now;
+    const recent = new Date(databaseNow.getTime() - 12 * 60 * 60_000);
+    await runtime.query(
+      `INSERT INTO feedback_cases(category,description,status,closed_at)
+       VALUES('OTHER','synthetic recent clock cap case','CLOSED',$1::timestamptz)`,
+      [recent],
+    );
+    await runtime.query(
+      `INSERT INTO feedback_signal_events(event,idempotency_key,payload_hash,occurred_at)
+       VALUES('registration_started','synthetic-db-clock-cap',repeat('c',64),$1::timestamptz)`,
+      [recent],
+    );
+
+    const purged = await service.purgeExpired({
+      now: new Date(databaseNow.getTime() + 30 * 86_400_000),
+      closedRetentionDays: 1,
+      signalRetentionDays: 1,
+      batchSize: 100,
+      statementTimeoutMs: 5_000,
+    });
+    expect(purged).toEqual({ cases: 0, signals: 0 });
+    const result = await runtime.query<{ cases: string; signals: string }>(
+      `SELECT
+        (SELECT count(*)::text FROM feedback_cases) AS cases,
+        (SELECT count(*)::text FROM feedback_signal_events) AS signals`,
+    );
+    expect(result.rows[0]).toEqual({ cases: "1", signals: "1" });
+  });
+
   it("deletes retention rows in bounded batches and preserves the exact cutoff", async () => {
-    const now = new Date("2030-01-01T00:00:00.000Z");
-    const cutoff = new Date("2029-12-31T00:00:00.000Z");
-    const older = new Date("2029-12-30T23:59:59.999Z");
+    const clock = await runtime.query<{ db_now: Date }>(
+      "SELECT transaction_timestamp() AS db_now",
+    );
+    const now = clock.rows[0]!.db_now;
+    const cutoff = new Date(now.getTime() - 86_400_000);
+    const older = new Date(cutoff.getTime() - 1);
     await runtime.query(
       `INSERT INTO feedback_cases(category,description,status,closed_at)
        SELECT 'OTHER','retention batch fixture','CLOSED',$1::timestamptz

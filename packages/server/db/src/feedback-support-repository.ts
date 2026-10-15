@@ -683,7 +683,7 @@ export function createFeedbackSupportRepository(
         const result = await tx.query<{ cases: number; signals: number }>(
           `WITH case_candidates AS (
              SELECT id FROM feedback_cases
-             WHERE status='CLOSED' AND closed_at IS NOT NULL AND closed_at < $1
+             WHERE status='CLOSED' AND closed_at IS NOT NULL AND closed_at < LEAST($1::timestamptz, transaction_timestamp() - ($4::integer * INTERVAL '24 hours'))
              ORDER BY closed_at ASC, id ASC
              LIMIT $3
              FOR UPDATE SKIP LOCKED
@@ -694,7 +694,7 @@ export function createFeedbackSupportRepository(
              RETURNING 1
            ), signal_candidates AS (
              SELECT id FROM feedback_signal_events
-             WHERE occurred_at < $2
+             WHERE occurred_at < LEAST($2::timestamptz, transaction_timestamp() - ($5::integer * INTERVAL '24 hours'))
              ORDER BY occurred_at ASC, id ASC
              LIMIT $3
              FOR UPDATE SKIP LOCKED
@@ -707,7 +707,13 @@ export function createFeedbackSupportRepository(
            SELECT
              (SELECT count(*)::int FROM deleted_cases) AS cases,
              (SELECT count(*)::int FROM deleted_signals) AS signals`,
-          [closedBefore, signalBefore, input.batchSize],
+          [
+            closedBefore,
+            signalBefore,
+            input.batchSize,
+            input.closedRetentionDays,
+            input.signalRetentionDays,
+          ],
         );
         return result.rows[0] ?? { cases: 0, signals: 0 };
       });
