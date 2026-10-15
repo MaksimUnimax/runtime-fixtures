@@ -335,6 +335,50 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     expect(remaining.rows[0]?.count).toBe("2");
   });
 
+  it("rejects status mutation of an anonymized case without new audit or signal", async () => {
+    const created = await service.createCase(userId, {
+      accountId,
+      category: "OTHER",
+      description: "Synthetic case deleted with its account",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const caseId = created.value.caseId;
+
+    const anonymized = await service.anonymizeAccount(accountId);
+    expect(anonymized.cases).toBe(1);
+    const transitioned = await service.transitionCase(
+      "SUPPORT",
+      supportPrincipalId,
+      caseId,
+      { status: "TRIAGED" },
+    );
+    expect(transitioned).toEqual({ ok: false, code: "FORBIDDEN" });
+
+    const stored = await runtime.query<{
+      status: string;
+      account_id: string | null;
+      description: string;
+    }>("SELECT status,account_id,description FROM feedback_cases WHERE id=$1", [
+      caseId,
+    ]);
+    expect(stored.rows[0]).toEqual({
+      status: "NEW",
+      account_id: null,
+      description: "[Feedback removed after account deletion]",
+    });
+    const mutations = await runtime.query<{
+      audit_count: string;
+      signal_count: string;
+    }>(
+      `SELECT
+        (SELECT count(*)::text FROM audit_events WHERE target_id=$1 AND action='SUPPORT_CASE_STATUS_CHANGED') AS audit_count,
+        (SELECT count(*)::text FROM feedback_signal_events WHERE subject_id=$1 AND event='feedback_case_triaged') AS signal_count`,
+      [caseId],
+    );
+    expect(mutations.rows[0]).toEqual({ audit_count: "0", signal_count: "0" });
+  });
+
   it("deletes retention rows in bounded batches and preserves the exact cutoff", async () => {
     const now = new Date("2030-01-01T00:00:00.000Z");
     const cutoff = new Date("2029-12-31T00:00:00.000Z");

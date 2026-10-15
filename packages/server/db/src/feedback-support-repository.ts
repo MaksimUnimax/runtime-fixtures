@@ -444,6 +444,12 @@ export function createFeedbackSupportRepository(
           return { kind: "FORBIDDEN" as const };
         const row = await loadCase(tx, input.caseId, true);
         if (!row) return { kind: "NOT_FOUND" as const };
+        if (
+          row.account_id === null &&
+          row.created_by_user_id === null &&
+          row.description === "[Feedback removed after account deletion]"
+        )
+          return { kind: "FORBIDDEN" as const };
         if (!statusTransitionAllowed(row.status, input.status))
           return { kind: "INVALID_TRANSITION" as const };
         const closedAt = input.status === "CLOSED" ? new Date() : null;
