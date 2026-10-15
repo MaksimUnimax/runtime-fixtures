@@ -983,6 +983,82 @@ describe("D3S2-2A control-plane foundation", () => {
     });
   });
 
+  it.each([
+    {
+      name: "invalid expiry date",
+      expiresAt: new Date(Number.NaN),
+      now: new Date("2026-09-18T10:00:00.000Z"),
+      code: "TRANSFER_INVALID",
+    },
+    {
+      name: "invalid current clock",
+      expiresAt: new Date("2026-09-18T10:01:00.000Z"),
+      now: new Date(Number.NaN),
+      code: "TRANSFER_INVALID",
+    },
+    {
+      name: "already-expired reservation",
+      expiresAt: new Date("2026-09-18T10:00:00.000Z"),
+      now: new Date("2026-09-18T10:00:00.000Z"),
+      code: "TRANSFER_EXPIRED",
+    },
+    {
+      name: "unbranded Date proxy",
+      expiresAt: new Proxy(new Date("2026-09-18T10:01:00.000Z"), {}),
+      now: new Date("2026-09-18T10:00:00.000Z"),
+      code: "TRANSFER_INVALID",
+    },
+  ])("rejects non-finite relay timestamps or expired TTL ($name)", (case_) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T10:00:00.000Z"));
+    const relay = new EphemeralTransferRelay();
+    try {
+      expect(() =>
+        relay.reserve(
+          packet(id, "synthetic"),
+          accountA,
+          source.deviceId,
+          case_.expiresAt,
+          case_.now,
+        ),
+      ).toThrowError(case_.code);
+      expect(relay.statsForTests()).toMatchObject({
+        packets: 0,
+        reserved: 0,
+        envelopeBytes: 0,
+      });
+    } finally {
+      relay.clear();
+    }
+  });
+
+  it("bounds long native relay timeout delays and keeps the TTL scheduled", async () => {
+    vi.useFakeTimers();
+    const at = new Date("2026-09-18T10:00:00.000Z");
+    vi.setSystemTime(at);
+    const expiry = new Date(at.getTime() + 0x7fffffff + 60_000);
+    const timer = vi.spyOn(globalThis, "setTimeout");
+    const relay = new EphemeralTransferRelay();
+    try {
+      const reservation = relay.reserve(
+        packet(id, "synthetic"),
+        accountA,
+        source.deviceId,
+        expiry,
+        at,
+      );
+      expect(reservation).toBeGreaterThan(0);
+      expect(timer).toHaveBeenCalledWith(expect.any(Function), 0x7fffffff);
+      expect(relay.statsForTests().reserved).toBe(1);
+      await vi.advanceTimersByTimeAsync(0x7fffffff);
+      expect(relay.statsForTests().reserved).toBe(1);
+      await vi.advanceTimersByTimeAsync(60_001);
+      expect(relay.statsForTests().reserved).toBe(0);
+    } finally {
+      relay.clear();
+    }
+  });
+
   it("expires relay bytes on its timer without request traffic", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-18T10:00:00.000Z"));
