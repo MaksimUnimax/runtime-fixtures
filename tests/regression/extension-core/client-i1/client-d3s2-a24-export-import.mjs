@@ -1,3 +1,4 @@
+import "./client-catalog-backup-context-boundary.mjs";
 import "./client-backup-canonical-roundtrip.mjs";
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
