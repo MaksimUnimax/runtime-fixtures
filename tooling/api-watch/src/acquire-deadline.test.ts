@@ -68,6 +68,77 @@ describe("C03 acquisition deadline", () => {
     expect(listenerRemoved).toBe(true);
   });
 
+  it("bounds cancellation even when an oversized body stream never settles cancel", async () => {
+    let cancelCalls = 0;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry: { ...entry, maximumBytes: 8 },
+          timeoutMs: 30,
+          fetcher: async () =>
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controller.enqueue(new Uint8Array(16));
+                },
+                cancel() {
+                  cancelCalls += 1;
+                  return new Promise<void>(() => undefined);
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            ),
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 180);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("BODY_CANCEL_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+      expect(cancelCalls).toBe(1);
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+    }
+  });
+
+  it("bounds a stalled body read even if an injected adapter ignores its signal", async () => {
+    let cancelCalls = 0;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry,
+          timeoutMs: 30,
+          fetcher: async () =>
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controller.enqueue(new TextEncoder().encode("{"));
+                },
+                cancel() {
+                  cancelCalls += 1;
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            ),
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 180);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("BODY_READ_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      expect(cancelCalls).toBe(1);
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+    }
+  });
+
   it("does not hang past the total deadline when redirect-body cancellation never settles", async () => {
     let requests = 0;
     const signals: AbortSignal[] = [];

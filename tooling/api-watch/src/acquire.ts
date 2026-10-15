@@ -413,7 +413,13 @@ function artifactTypeFor(url: string): ExpectedArtifactType {
 async function readBoundedBody(
   response: Response,
   maximumBytes: number,
+  signal: AbortSignal,
 ): Promise<Uint8Array> {
+  if (signal.aborted)
+    throw new DOMException(
+      "Official source acquisition timed out",
+      "AbortError",
+    );
   const advertised = response.headers.get("content-length");
   if (advertised && Number(advertised) > maximumBytes)
     throw new Error("SOURCE_TOO_LARGE");
@@ -423,23 +429,35 @@ async function readBoundedBody(
     return bytes;
   }
   const reader = response.body.getReader();
+  // A stream adapter can ignore request abortion, and cancel() itself can
+  // never settle. Keep both the read and cleanup within the same deadline.
+  let removeAbortListener: () => void = () => undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    const onAbort = () =>
+      reject(
+        new DOMException("Official source acquisition timed out", "AbortError"),
+      );
+    signal.addEventListener("abort", onAbort, { once: true });
+    removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+    if (signal.aborted) onAbort();
+  });
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
     while (true) {
-      const next = await reader.read();
+      const next = await Promise.race([reader.read(), aborted]);
       if (next.done) break;
       total += next.value.byteLength;
-      if (total > maximumBytes) {
-        await reader.cancel("SOURCE_TOO_LARGE");
-        throw new Error("SOURCE_TOO_LARGE");
-      }
+      if (total > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
       chunks.push(next.value);
     }
   } catch (error) {
-    await reader.cancel(error).catch(() => undefined);
+    // Do not await untrusted stream cancellation after a failed/aborted read.
+    // The acquisition owner aborts the transport in its outer finally block.
+    void reader.cancel(error).catch(() => undefined);
     throw error;
   } finally {
+    removeAbortListener();
     reader.releaseLock();
   }
   const bytes = new Uint8Array(total);
@@ -670,6 +688,7 @@ export async function acquireOfficialSource(input: {
       bytes = await readBoundedBody(
         response,
         Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
+        controller.signal,
       );
     } catch (error) {
       if (controller.signal.aborted)
