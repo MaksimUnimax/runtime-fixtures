@@ -1,3 +1,4 @@
+import { completeOperatorPipeline } from "./operator-receipt.js";
 import type {
   MonitoringCoverage,
   MonitoringLaneRunner,
@@ -639,14 +640,29 @@ export async function runApiWatchReport(input: {
         scheduleEarlier: dependencies.scheduleEarlier,
         now: currentTime(dependencies),
       });
+    if (pass.operatorCandidate)
+      await completeOperatorPipeline({
+        candidate: pass.operatorCandidate,
+        reportId: report.reportId,
+        store: dependencies.store,
+        reportStore,
+        quarantineDir:
+          dependencies.quarantineDir ??
+          process.env.SWAGGER_QUARANTINE_DIR ??
+          "/var/lib/octoport/api-watch/quarantine",
+      });
     return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
-    await reportStore.transitionReport({
-      reportId: report.reportId,
-      state: "FAILED",
-      at: currentTime(dependencies),
-      counts: { overallImpactSeverity: null },
-    });
+    // A terminal transition may commit before its ACK or a later pipeline step
+    // fails. Without a completion receipt the exact artifact remains resumable.
+    const persisted = await reportStore.getReport(report.reportId);
+    if (persisted?.state === "RUNNING")
+      await reportStore.transitionReport({
+        reportId: report.reportId,
+        state: "FAILED",
+        at: currentTime(dependencies),
+        counts: { overallImpactSeverity: null },
+      });
     return reportResult("FAILED");
   }
 }
