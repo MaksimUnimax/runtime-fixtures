@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { domainToASCII } from "node:url";
+import { toASCII } from "tr46";
 
 export const BETA_MODES = ["CLOSED", "OPEN", "PAUSED"] as const;
 export type BetaMode = (typeof BETA_MODES)[number];
@@ -195,9 +195,17 @@ function validNormalizedEmail(value: string): boolean {
   )
     return false;
   const domain = value.slice(value.lastIndexOf("@") + 1);
-  // DNS limits apply to IDNA A-label octets, not Unicode code units.
-  // Keep the normalized identity unchanged while validating its DNS target.
-  const asciiDomain = domainToASCII(domain);
+  // Strict UTS #46 rejects invalid bidi/joiner and Punycode labels.
+  // Check DNS A-label octets while retaining the original Unicode identity.
+  const asciiDomain = toASCII(domain, {
+    checkBidi: true,
+    checkHyphens: true,
+    checkJoiners: true,
+    useSTD3ASCIIRules: true,
+    transitionalProcessing: false,
+    verifyDNSLength: true,
+    ignoreInvalidPunycode: false,
+  });
   return (
     !!asciiDomain &&
     asciiDomain.length <= 253 &&

@@ -174,6 +174,13 @@ describe("S1.1 beta admission domain", () => {
       "reviewer@a_b.test",
       "reviewer@a!b.test",
       "reviewer@a+b.test",
+      "reviewer@a\u05d0.example",
+      "reviewer@\u05d0a.example",
+      "reviewer@ab\u200dcd.example",
+      "reviewer@ab\u200ccd.example",
+      "reviewer@xn--.example",
+      "reviewer@ab--cd.example",
+      `reviewer@${[63, 63, 63, 62].map((n, i) => String.fromCharCode(97 + i).repeat(n)).join(".")}`,
       `reviewer@${"a".repeat(64)}.test`,
       `reviewer@${"ü".repeat(64)}.test`,
       `reviewer@${["a", "b", "c", "d"].map((letter) => letter.repeat(63)).join(".")}`,
@@ -188,6 +195,8 @@ describe("S1.1 beta admission domain", () => {
     expect(invitations).toBe(0);
     const validTargets = [
       "reviewer+tag@bücher.example",
+      "reviewer@\u05e9\u05dc\u05d5\u05dd.example",
+      `reviewer@${[63, 63, 63, 61].map((n, i) => String.fromCharCode(97 + i).repeat(n)).join(".")}`,
       `reviewer@${"a".repeat(63)}.test`,
       `reviewer@${"ü".repeat(50)}.test`,
     ];
@@ -197,7 +206,7 @@ describe("S1.1 beta admission domain", () => {
         normalizedIdentityTarget,
       });
     }
-    expect(invitations).toBe(3);
+    expect(invitations).toBe(5);
     expect(forwardedTargets).toEqual(validTargets);
   });
 });
