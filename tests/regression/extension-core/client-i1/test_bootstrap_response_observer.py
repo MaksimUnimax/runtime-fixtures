@@ -1,5 +1,7 @@
 """Offline checks for bounded, completed signed bootstrap HTTP observation."""
 import importlib.util
+import os
+import subprocess
 from pathlib import Path
 import unittest
 
@@ -589,6 +591,180 @@ process.stdout.write("LATE_SIGNED_VM_8_PASS");
         self.assertEqual(response.calls, [])
         self.assertEqual(context.waits, [])
 
+
+
+    def test_work_start_abort_trace_projection_rejects_sensitive_and_unproven(self):
+        sample = {
+            "schema_version": 1, "probe_installed": True, "observer_error": False,
+            "bootstrap_fetch_count": 1, "bootstrap_fetch_overflow": False,
+            "unique_bootstrap_fetch": True,
+            "request_signal_initially_aborted": False,
+            "request_signal_abort_event_seen": True,
+            "request_controller_abort_seen": True,
+            "request_controller_abort_age_ms": 141,
+            "synchronous_scheduler_retire_reason": "BOOTSTRAP_CONTEXT_CHANGED",
+        }
+        fixed = module.safe_work_start_causal_abort_probe(sample)
+        self.assertFalse(fixed["read_failed"])
+        self.assertFalse(fixed["selected_network_request_identity_proven"])
+        self.assertFalse(fixed["at_abort_grant_entitlement_proven"])
+        self.assertEqual(fixed["request_controller_abort_age_ms"], 141)
+        self.assertEqual(fixed["synchronous_scheduler_retire_reason"], "BOOTSTRAP_CONTEXT_CHANGED")
+        cases = [
+            dict(sample, probe_installed=False),
+            dict(sample, observer_error=True),
+            dict(sample, bootstrap_fetch_count=True),
+            dict(sample, bootstrap_fetch_overflow=True),
+            dict(sample, unique_bootstrap_fetch=False),
+            dict(sample, request_signal_abort_event_seen=False),
+            dict(sample, request_controller_abort_age_ms=180001),
+            dict(sample, request_controller_abort_age_ms="PRIVATE_ID"),
+            dict(sample, synchronous_scheduler_retire_reason="PRIVATE_REASON"),
+            dict(sample, at_abort_grant_entitlement_proven=True),
+            dict(sample, extra_url="PRIVATE_URL"),
+        ]
+        for invalid in cases:
+            rejected = module.safe_work_start_causal_abort_probe(invalid)
+            self.assertTrue(rejected["read_failed"])
+            self.assertFalse(rejected["at_abort_grant_entitlement_proven"])
+            self.assertFalse(rejected["selected_network_request_identity_proven"])
+            self.assertNotIn("PRIVATE_", str(rejected))
+        self.assertTrue(module.safe_work_start_causal_abort_probe(None)["read_failed"])
+        ambiguous = {
+            **sample, "bootstrap_fetch_count": 2, "unique_bootstrap_fetch": False,
+            "request_signal_abort_event_seen": False,
+            "request_controller_abort_seen": False,
+            "request_controller_abort_age_ms": None,
+            "synchronous_scheduler_retire_reason": "NONE",
+        }
+        self.assertFalse(module.safe_work_start_causal_abort_probe(ambiguous)["read_failed"])
+        self.assertFalse(module.safe_work_start_causal_abort_probe(ambiguous)["unique_bootstrap_fetch"])
+
+    def test_work_start_abort_probe_node_vm_uses_no_network(self):
+        # Isolated VM mocks fetch and uses a subclassed AbortController,
+        # never touching the browser, public network, real tokens or user data.
+        js = r"""
+const assert = require("node:assert/strict"), vm=require("node:vm");
+const source=process.argv[1];
+function setup() {
+  const sentinel={ok:true}, calls=[];
+  class PrivateController extends AbortController {}
+  const box={URL,performance,AbortController:PrivateController,
+    fetch(...args){calls.push(args);return sentinel;}};
+  vm.createContext(box);
+  assert.equal(vm.runInContext(source,box)().installed,true);
+  return {box,sentinel,calls};
+}
+function ac(f){return new f.box.AbortController();}
+function send(f,controller) {
+  const url="http://127.0.0.1:43100/v1/bootstrap?PRIVATE_URL";
+  const opts={signal:controller.signal,headers:{Authorization:"PRIVATE_AUTH"}};
+  assert.equal(f.box.fetch(url,opts),f.sentinel);
+  assert.equal(f.calls.at(-1)[0],url);
+  assert.equal(f.calls.at(-1)[1],opts);
+}
+{
+  const f=setup(), lease=ac(f), physical=ac(f);
+  lease.signal.addEventListener("abort",()=>physical.abort());
+  f.box.fetch("https://chatgpt.com/other?PRIVATE_OTHER");
+  send(f,physical);
+  lease.abort(Object.assign(new Error("PRIVATE_ERROR"),{code:"BOOTSTRAP_CONTEXT_CHANGED"}));
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.bootstrap_fetch_count,1);
+  assert.equal(r.unique_bootstrap_fetch,true);
+  assert.equal(r.request_signal_abort_event_seen,true);
+  assert.equal(r.request_controller_abort_seen,true);
+  assert.equal(r.observer_error,false);
+  assert.equal(r.synchronous_scheduler_retire_reason,"BOOTSTRAP_CONTEXT_CHANGED");
+  assert.ok(Number.isInteger(r.request_controller_abort_age_ms));
+  assert.ok(!JSON.stringify(r).includes("PRIVATE"));
+}
+{
+  const f=setup(), c=ac(f);send(f,c);c.abort();
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.synchronous_scheduler_retire_reason,"NONE");
+  assert.equal(r.request_controller_abort_seen,true);
+}
+{
+  const f=setup(), unrelated=ac(f), physical=ac(f);
+  send(f,physical);
+  unrelated.abort(Object.assign(new Error("PRIVATE"),{code:"AUTH_GENERATION_CHANGED"}));
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.request_controller_abort_seen,false);
+  assert.equal(r.synchronous_scheduler_retire_reason,"NONE");
+}
+{
+  const f=setup();
+  send(f,ac(f));send(f,ac(f));
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.bootstrap_fetch_count,2);
+  assert.equal(r.unique_bootstrap_fetch,false);
+  assert.equal(r.synchronous_scheduler_retire_reason,"NONE");
+}
+{
+  const f=setup();
+  for(let n=0;n<9;n++)send(f,ac(f));
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.bootstrap_fetch_count,9);
+  assert.equal(r.bootstrap_fetch_overflow,true);
+}
+{
+  const f=setup();f.box.fetch("http://127.0.0.1:43100/v1/bootstrap-other");
+  assert.equal(f.box.__saI1WorkStartAbortProbe.read().bootstrap_fetch_count,0);
+}
+{
+  const f=setup(), lease=ac(f), physical=ac(f);
+  lease.signal.addEventListener("abort",()=>physical.abort());
+  send(f,physical);
+  const tricky={get code(){throw new Error("PRIVATE_GETTER");}};
+  lease.abort(tricky);
+  assert.equal(physical.signal.aborted,true);
+  const report=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(report.request_signal_abort_event_seen,true);
+  assert.equal(report.request_controller_abort_seen,true);
+  assert.equal(report.observer_error,true);
+  assert.equal(report.synchronous_scheduler_retire_reason,"NONE");
+}
+{
+  const f=setup();
+  const tricky={get signal(){throw new Error("PRIVATE_SIGNAL_GETTER");}};
+  assert.equal(
+    f.box.fetch("http://127.0.0.1:43100/v1/bootstrap?PRIVATE",tricky),
+    f.sentinel);
+  const report=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(report.bootstrap_fetch_count,1);
+  assert.equal(report.unique_bootstrap_fetch,false);
+  assert.equal(report.request_controller_abort_seen,false);
+  assert.ok(!JSON.stringify(report).includes("PRIVATE_"));
+}
+{
+  const f=setup();
+  const source={get url(){throw new Error("PRIVATE_URL_GETTER");}};
+  assert.equal(f.box.fetch(source,{method:"POST"}),f.sentinel);
+  const report=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(report.observer_error,true);
+  assert.equal(report.bootstrap_fetch_count,0);
+  assert.ok(!JSON.stringify(report).includes("PRIVATE"));
+}
+{
+  const f=setup();
+  const signal={aborted:false,get addEventListener(){throw new Error("PRIVATE_SIGNAL_GETTER");}};
+  assert.equal(f.box.fetch("http://127.0.0.1:43100/v1/bootstrap?PRIVATE",{signal}),f.sentinel);
+  const report=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(report.observer_error,true);
+  assert.equal(report.bootstrap_fetch_count,1);
+  assert.ok(!JSON.stringify(report).includes("PRIVATE"));
+}
+process.stdout.write("A06_WORKSTART_ABORT_VM_10_CASES_PASS\n");
+"""
+        result = subprocess.run(
+            [os.environ.get("SA_NODE_BIN", "node"), "-e", js,
+             module.WORK_START_CAUSAL_OBSERVER_JS],
+            text=True, capture_output=True, timeout=12, check=False,
+        )
+        self.assertEqual(result.returncode, 0, (result.stdout[-700:], result.stderr[-700:]))
+        self.assertIn("A06_WORKSTART_ABORT_VM_10_CASES_PASS", result.stdout)
+        self.assertNotIn("PRIVATE", result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

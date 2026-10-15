@@ -147,6 +147,151 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
     return counts
 
 
+WORK_START_CAUSAL_OBSERVER_JS = r"""() => {
+  // Test-only worker-local observer. Keep all URL/account/signal identities in memory.
+  if (globalThis.__saI1WorkStartAbortProbe) return {installed:false};
+  const nativeFetch = globalThis.fetch;
+  const nativeAbort = AbortController.prototype.abort;
+  if (typeof nativeFetch !== "function" || typeof nativeAbort !== "function")
+    return {installed:false};
+  const allowed = new Set([
+    "BOOTSTRAP_CONTEXT_CHANGED", "BOOTSTRAP_WAITER_CANCELLED",
+    "BOOTSTRAP_ACTIVE_EXPIRED", "BOOTSTRAP_QUEUE_WAIT_EXPIRED",
+    "BOOTSTRAP_WORKER_RETIRED", "BOOTSTRAP_SECURITY_QUARANTINE",
+    "BOOTSTRAP_SECURITY_COMMIT_UNKNOWN", "AUTH_GENERATION_CHANGED",
+  ]);
+  const checkedCode = value => {
+    try { return value && typeof value === "object" && allowed.has(value.code) ? value.code : null; }
+    catch (_) { observerError = true; return null; } // Never prevent a real abort.
+  };
+  const age = started => {
+    try {
+      const delta = performance.now() - started;
+      return Number.isFinite(delta) && delta >= 0 && delta <= 180000 ? Math.round(delta) : null;
+    } catch (_) { observerError = true; return null; }
+  };
+  const tracked = new WeakMap(), requests = [];
+  let count = 0, truncated = false, activeSchedulerReason = null, observerError = false;
+  const safeRead = () => {
+    const one = count === 1 && !truncated && requests.length === 1 ? requests[0] : null;
+    return {
+      schema_version: 1,
+      probe_installed: true,
+      observer_error: observerError,
+      bootstrap_fetch_count: Math.min(count, 9),
+      bootstrap_fetch_overflow: truncated,
+      unique_bootstrap_fetch: one !== null,
+      request_signal_initially_aborted: one?.initiallyAborted === true,
+      request_signal_abort_event_seen: one?.abortEvent === true,
+      request_controller_abort_seen: one?.controllerAbort === true,
+      request_controller_abort_age_ms: one?.controllerAbortAge ?? null,
+      synchronous_scheduler_retire_reason: one?.schedulerReason || "NONE",
+    };
+  };
+  globalThis.fetch = function(...args) {
+    // Classification is transient. Never persist, print or return an endpoint.
+    // Even malformed proxy inputs must not change the real fetch invocation.
+    try {
+      const input = args[0];
+      const source = typeof input === "string" ? input : input?.url;
+      if (new URL(source).pathname === "/v1/bootstrap") {
+        count += 1;
+        if (count <= 8) {
+          const signal = args[1]?.signal || args[0]?.signal;
+          const row = {started:performance.now(), initiallyAborted:signal?.aborted === true,
+            abortEvent:false, controllerAbort:false, controllerAbortAge:null, schedulerReason:"NONE"};
+          requests.push(row);
+          if (signal && typeof signal.addEventListener === "function") {
+            tracked.set(signal, row);
+            if (signal.aborted) row.abortEvent = true;
+            else signal.addEventListener("abort", () => { row.abortEvent = true; }, {once:true});
+          }
+        } else truncated = true;
+      }
+    } catch (_) { observerError = true; /* Native fetch still runs. */ }
+    return Reflect.apply(nativeFetch, this, args);
+  };
+  AbortController.prototype.abort = function(reason) {
+    const before = activeSchedulerReason;
+    try {
+      const schedulerCode = checkedCode(reason);
+      if (schedulerCode) activeSchedulerReason = schedulerCode;
+      const row = tracked.get(this.signal);
+      if (row) {
+        row.controllerAbort = true;
+        row.controllerAbortAge = age(row.started);
+        // Only synchronous nesting hints a scheduler cause for this fetch.
+        row.schedulerReason = activeSchedulerReason || "NONE";
+      }
+    } catch (_) { observerError = true; activeSchedulerReason = before; }
+    try { return Reflect.apply(nativeAbort, this, arguments); }
+    finally { activeSchedulerReason = before; }
+  };
+  Object.defineProperty(globalThis, "__saI1WorkStartAbortProbe", {
+    value:Object.freeze({read:safeRead}), configurable:true,
+  });
+  return {installed:true};
+}"""
+
+
+def safe_work_start_causal_abort_probe(value):
+    """Projection of test-only worker-local abort observation, never raw signals.
+
+    A single worker bootstrap fetch can be correlated by timing with the selected
+    browser Request, but cannot itself prove identical Request identity or signed
+    grant at cancellation time. This projection deliberately contains neither.
+    """
+    fields = ("probe_installed", "observer_error", "bootstrap_fetch_overflow", "unique_bootstrap_fetch",
+              "request_signal_initially_aborted", "request_signal_abort_event_seen",
+              "request_controller_abort_seen")
+    allowed = {"NONE", "BOOTSTRAP_CONTEXT_CHANGED", "BOOTSTRAP_WAITER_CANCELLED",
+               "BOOTSTRAP_ACTIVE_EXPIRED", "BOOTSTRAP_QUEUE_WAIT_EXPIRED",
+               "BOOTSTRAP_WORKER_RETIRED", "BOOTSTRAP_SECURITY_QUARANTINE",
+               "BOOTSTRAP_SECURITY_COMMIT_UNKNOWN", "AUTH_GENERATION_CHANGED"}
+    denied = {"schema_version": 1, **{name: False for name in fields},
+              "bootstrap_fetch_count": 0, "request_controller_abort_age_ms": None,
+              "synchronous_scheduler_retire_reason": "NONE", "read_failed": True,
+              "selected_network_request_identity_proven": False,
+              "at_abort_grant_entitlement_proven": False}
+    expected = set(denied) - {"read_failed", "selected_network_request_identity_proven",
+                              "at_abort_grant_entitlement_proven"}
+    if not isinstance(value, dict) or set(value) != expected:
+        return denied
+    if type(value.get("schema_version")) is not int or value["schema_version"] != 1:
+        return denied
+    if any(type(value.get(name)) is not bool for name in fields):
+        return denied
+    count = value.get("bootstrap_fetch_count")
+    age_ms = value.get("request_controller_abort_age_ms")
+    if type(count) is not int or not 0 <= count <= 9:
+        return denied
+    if age_ms is not None and (type(age_ms) is not int or not 0 <= age_ms <= 180000):
+        return denied
+    if value.get("synchronous_scheduler_retire_reason") not in allowed:
+        return denied
+    if value["probe_installed"] is not True or value["observer_error"] is True:
+        return denied
+    if value["bootstrap_fetch_overflow"] != (count == 9):
+        return denied
+    if value["unique_bootstrap_fetch"] != (count == 1 and not value["bootstrap_fetch_overflow"]):
+        return denied
+    if value["request_controller_abort_seen"] and not value["request_signal_abort_event_seen"]:
+        return denied
+    if not value["unique_bootstrap_fetch"] and (
+        value["request_signal_initially_aborted"] or value["request_signal_abort_event_seen"] or
+        value["request_controller_abort_seen"] or age_ms is not None or
+        value["synchronous_scheduler_retire_reason"] != "NONE"
+    ):
+        return denied
+    if not value["request_controller_abort_seen"] and age_ms is not None:
+        return denied
+    if not value["request_controller_abort_seen"] and value["synchronous_scheduler_retire_reason"] != "NONE":
+        return denied
+    return {**{name: value[name] for name in expected}, "read_failed": False,
+            "selected_network_request_identity_proven": False,
+            "at_abort_grant_entitlement_proven": False}
+
+
 def safe_stored_chatgpt_candidate_observation(value):
     """Store snapshot hints only; no signature, grant or Work authority is verified.
 
@@ -577,6 +722,9 @@ def run(runtime, output):
 
                     stage = _mark_stage(output, "work_start", started)
                     stage = _mark_stage(output, "work_start_start_click_begin", started)
+                    # Observe only this own disposable worker between explicit Start
+                    # and teardown. Do not change product source or verifier.
+                    work_start_trace_install = worker.evaluate(WORK_START_CAUSAL_OBSERVER_JS)
                     work_start_header_count = len(bootstrap_http_responses)
                     bootstrap_window = "work_start_window"
                     work_start_started_at = time.monotonic()
@@ -944,6 +1092,8 @@ def run(runtime, output):
                     selected_failed = counts["selected_request_failed"] is True and locals().get("bootstrap_response") is not None
                     try:
                         diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId, selectedFailed}) => {
+                          const causal = selectedFailed === true && globalThis.__saI1WorkStartAbortProbe?.read
+                            ? globalThis.__saI1WorkStartAbortProbe.read() : null;
                           const status = await SellerAgentsControlClient.status();
                           const code = String(status?.lastError?.code || "");
                           // Purely read the persisted record. This does NOT verify
@@ -1036,6 +1186,7 @@ def run(runtime, output):
                           finally { if (storageTimer !== undefined) clearTimeout(storageTimer); }
                           return {
                             stored_chatgpt_candidate: stored,
+                            ...(selectedFailed === true ? {work_start_causal_abort_probe: causal} : {}),
                             ...(selectedFailed === true ? {post_abort_signed_snapshot: lateSigned} : {}),
                             pending: Boolean(status?.pending),
                             authenticated: status?.authenticated === true,
@@ -1051,6 +1202,7 @@ def run(runtime, output):
                             "expectedAccountId": locals().get("second_identity", {}).get("account"),
                             "selectedFailed": selected_failed,
                         })
+                        causal_candidate = diagnostic.pop("work_start_causal_abort_probe", None)
                         snapshot = safe_stored_chatgpt_candidate_observation(
                             diagnostic.pop("stored_chatgpt_candidate", None)
                         )
@@ -1060,6 +1212,9 @@ def run(runtime, output):
                             "stored_chatgpt_candidate_unverified": snapshot,
                         }
                         if selected_failed:
+                            result["failure_diagnostic"]["work_start_causal_abort_trace_not_grant"] = (
+                                safe_work_start_causal_abort_probe(causal_candidate)
+                            )
                             result["failure_diagnostic"]["post_abort_signed_snapshot_not_grant"] = (
                                 safe_post_abort_signed_snapshot_observation(late_candidate)
                             )
