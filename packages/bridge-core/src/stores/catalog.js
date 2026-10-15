@@ -7,6 +7,7 @@
     write,
     currentAccount,
     assertTransferContext,
+    assertBackupContext,
     normalizeCredentials,
     revision,
     uuid,
@@ -83,9 +84,16 @@
       if (!store || store.accountId !== id || store.lifecycleState === "TOMBSTONED") fail("STORE_NOT_FOUND");
       return structuredClone(store);
     }
-    async function mutate(fn, transferContext = null) {
-      return lock.run(async () => {
+    async function mutate(fn, transferContext = null, backupContext = null) {
+      function assertCurrent() {
         if (transferContext) assertTransferContext?.(transferContext);
+        if (backupContext !== null) {
+          if (typeof assertBackupContext !== "function") fail("BACKUP_CONTEXT_GUARD_REQUIRED");
+          if (assertBackupContext(backupContext) !== true) fail("BACKUP_CONTEXT_GUARD_INVALID");
+        }
+      }
+      return lock.run(async () => {
+        assertCurrent();
         const { id, all } = await state();
         if (transferContext && transferContext.accountId !== id) fail("ACCOUNT_CHANGED");
         const scope = structuredClone(
@@ -96,13 +104,13 @@
         const next = { ...all, accounts: { ...all.accounts, [id]: scope } };
         // Synchronous fence immediately before the storage call: no later
         // account/generation can be selected by this queued import.
-        if (transferContext) assertTransferContext?.(transferContext);
+        assertCurrent();
         await write({ [key]: next });
         const saved = (await read(key))[key];
         if (canonicalJson(saved) !== canonicalJson(next))
           fail("STORE_WRITE_NOT_CONFIRMED");
         if (id !== (await account())) fail("ACCOUNT_CHANGED");
-        if (transferContext) assertTransferContext?.(transferContext);
+        assertCurrent();
         return result;
       });
     }
@@ -214,7 +222,7 @@
       });
       return { accountId: id, classifications, safeStoreIds: classifications.filter((row) => row.kind === "IMPORT_NEW").map((row) => row.storeId) };
     }
-    async function applyBackupImport(payload, expectedPlan) {
+    async function applyBackupImport(payload, expectedPlan, backupContext = null) {
       return mutate(async (scope, id) => {
         if (payload?.accountBinding?.accountId !== id || expectedPlan?.accountId !== id) fail("ACCOUNT_CHANGED");
         const current = scope.stores || {};
@@ -246,7 +254,7 @@
           imported.push(publicStore(store));
         }
         return { imported, classifications: actual };
-      });
+      }, null, backupContext);
     }
     async function remove(id) {
       return mutate((scope) => {
