@@ -111,6 +111,17 @@ def _mark_stage(output, name, started):
         raise ValueError("UNRECOGNIZED_INSTALLED_STAGE")
     progress = {"schema_version": 1, "stage": name,
                 "elapsed_seconds": round(time.monotonic() - started, 3)}
+    if name in {"browser_context_close", "subprocess_cleanup"}:
+        # Preserve the last fixed Work Start marker if cleanup itself stalls.
+        # Never forward arbitrary data from this file into an uploaded artifact.
+        try:
+            previous = json.loads((output / "progress.json").read_text(encoding="utf8"))
+        except (OSError, json.JSONDecodeError):
+            previous = None
+        if isinstance(previous, dict):
+            origin = previous.get("work_start_origin") or previous.get("stage")
+            if isinstance(origin, str) and origin.startswith("work_start_") and origin in _SAFE_STAGES:
+                progress["work_start_origin"] = origin
     temp = output / ".progress.json.tmp"
     with temp.open("w", encoding="utf8") as stream:
         stream.write(json.dumps(progress, ensure_ascii=False) + "\n")
