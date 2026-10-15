@@ -175,6 +175,11 @@ const secretPatterns: readonly [RegExp, string][] = [
 // escaped keys like "access\u005ftoken" are equivalent to "access_token".
 const quotedJsonField =
   /("(?:\\.|[^"\\\r\n])*")(\s*:\s*")(?:(?:\\.)|[^"\\\r\n])*(?=")/gu;
+// Diagnostics may contain JSON scalar values or JS-style single-quoted maps.
+const quotedJsonScalarField =
+  /("(?:\\.|[^"\\\r\n])*")(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*[,}\]])/gu;
+const singleQuotedField =
+  /('(?:\\.|[^'\\\r\n])*')(\s*:\s*')(?:(?:\\.)|[^'\\\r\n])*(?=')/gu;
 const sensitiveJsonKey =
   /(?:password|passwd|secret|token|api[_-]?key|authorization)$/iu;
 
@@ -195,9 +200,33 @@ export function redactAccidentalSecrets(input: string): string {
         : field;
     },
   );
+  const scalarRedacted = jsonRedacted.replace(
+    quotedJsonScalarField,
+    (field, encodedKey: string, delimiter: string) => {
+      let key: unknown;
+      try {
+        key = JSON.parse(encodedKey);
+      } catch {
+        return encodedKey + delimiter + '"[REDACTED_SECRET]"';
+      }
+      return typeof key === "string" && sensitiveJsonKey.test(key)
+        ? encodedKey + delimiter + '"[REDACTED_SECRET]"'
+        : field;
+    },
+  );
+  const pseudoJsonRedacted = scalarRedacted.replace(
+    singleQuotedField,
+    (field, encodedKey: string, delimiter: string) => {
+      const key = encodedKey.slice(1, -1);
+      // Escaped pseudo-JSON keys have no unambiguous identity.
+      return key.includes("\\") || sensitiveJsonKey.test(key)
+        ? encodedKey + delimiter + "[REDACTED_SECRET]"
+        : field;
+    },
+  );
   return secretPatterns.reduce(
     (value, [pattern, replacement]) => value.replace(pattern, replacement),
-    jsonRedacted,
+    pseudoJsonRedacted,
   );
 }
 
