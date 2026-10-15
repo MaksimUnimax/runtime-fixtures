@@ -94,9 +94,15 @@ export function createTelegramTransport(
       }
       return {
         updates: mapped,
-        nextOffset: mapped.length
-          ? mapped[mapped.length - 1]!.updateId + 1
-          : offset,
+        // Unsupported updates are still consumed. A full raw page must not
+        // hide every subsequent operator command behind an unchanged offset.
+        nextOffset: updates.reduce(
+          (next, update) =>
+            Number.isSafeInteger(update.update_id) && update.update_id >= 0
+              ? Math.max(next ?? 0, update.update_id + 1)
+              : next,
+          offset,
+        ),
       };
     },
     async downloadFile(fileId: string) {
