@@ -839,7 +839,7 @@
     "old": "  function positionOwnButton(record) {\n    if (!record?.button || !record?.binding?.root?.isConnected) return false;\n    const adapter = OzonAIAdapters.ADAPTERS[record.binding.adapter_id] || currentAIAdapter();\n    const anchor = adapter?.geometryAnchor(record.binding.root) || record.binding.root;\n    if (!(anchor instanceof Element) || !anchor.isConnected) return false;\n    const rect = anchor.getBoundingClientRect();\n    const button = record.button;\n    const width = Math.max(68, button.getBoundingClientRect().width || 68);\n    const height = 32;\n    const outsideLeft = rect.right + 10;\n    const roomOutside = outsideLeft + width <= window.innerWidth - 8;\n    let left;\n    let top;\n    if (roomOutside) {\n      left = outsideLeft;\n      top = Math.max(8, Math.min(window.innerHeight - height - 8, rect.top + 4));\n    } else {\n      left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + 8));\n      top = Math.max(8, Math.min(window.innerHeight - height - 8, rect.top + 46));\n    }\n    button.style.left = `${Math.round(left)}px`;\n    button.style.top = `${Math.round(top)}px`;\n    const onScreen = rect.bottom >= 0 && rect.top <= window.innerHeight && rect.right >= 0 && rect.left <= window.innerWidth;\n    button.style.display = onScreen ? \"block\" : \"none\";\n    return true;\n  }\n\n",
     "old_sha256": "0c10432e2e27f1b10dda3d8bffecdb8f363384b4f40257c0d5e21fd1effacbe9",
     "new_source": "apps/extension/src/content/position-own-button.js",
-    "new_sha256": "bc2cb9e8869b7d1d8e49ee64eb7be5235f7901642916f8a20a051094da7ee631"
+    "new_sha256": "7ccb0bb30b6aa0a6aba8dad0b36f82ca7180c8b0be5c02540ed84d95b6e2b996"
   },
   {
     "target": "content_script.js",
