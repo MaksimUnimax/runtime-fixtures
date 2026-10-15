@@ -7,7 +7,7 @@ the private key remains in that API process and is never copied to the package.
 from pathlib import Path
 import argparse, faulthandler, hashlib, json, os, re, subprocess, tempfile, time, urllib.request, uuid
 from urllib.parse import urlparse
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 ROOT = Path(__file__).resolve().parents[4]
 NODE = os.environ.get("SA_NODE_BIN", "node")
@@ -60,12 +60,22 @@ def wait_until(check, label, timeout=30):
         time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {label}; last={last!r}")
 
-def read_completed_bootstrap_response(response):
-    # BrowserContext "response" fires before the response body has finished.
-    # Parsing JSON from inside that callback can hide a valid signed response.
-    error = response.finished()
-    if error is not None:
-        raise RuntimeError("signed AI bootstrap HTTP response did not complete")
+def read_completed_bootstrap_response(response, context, completed_requests):
+    # BrowserContext "response" fires on headers, before the HTTP body finishes.
+    # response.finished() can wait indefinitely when a request remains pending.
+    # A requestfinished listener is installed before authentication so that
+    # completion immediately preceding this read cannot be missed.
+    request = response.request
+    if not any(finished is request for finished in completed_requests):
+        try:
+            context.wait_for_event(
+                "requestfinished",
+                predicate=lambda finished: finished is request,
+                timeout=30000,
+            )
+        except PlaywrightTimeoutError:
+            # Fixed error text: never retain a request URL/body/token in CI.
+            raise RuntimeError("signed AI bootstrap HTTP response did not complete") from None
     try:
         envelope = response.json()
     except Exception:
@@ -243,8 +253,17 @@ def run(runtime, output):
                     context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
                     control_responses = []
                     bootstrap_http_responses = []
+                    completed_bootstrap_requests = []
                     bootstrap_envelope = None
                     authorization_ids = set()
+                    def observe_completed_bootstrap(request):
+                        parsed = urlparse(request.url)
+                        if (parsed.netloc == f"127.0.0.1:{api_port}" and
+                                parsed.path == "/v1/bootstrap" and request.method == "POST"):
+                            # Volatile request handles only, never a durable response body.
+                            completed_bootstrap_requests.append(request)
+                    context.on("requestfinished", observe_completed_bootstrap)
+
                     def observe_control(response):
                         parsed = urlparse(response.url)
                         if parsed.netloc == f"127.0.0.1:{api_port}" and parsed.path.startswith("/v1/"):
@@ -420,7 +439,9 @@ def run(runtime, output):
                     )
                     stage = _mark_stage(output, "work_start_bootstrap_wait_done", started)
                     stage = _mark_stage(output, "work_start_bootstrap_body_begin", started)
-                    bootstrap_envelope = read_completed_bootstrap_response(bootstrap_response)
+                    bootstrap_envelope = read_completed_bootstrap_response(
+                        bootstrap_response, context, completed_bootstrap_requests
+                    )
                     stage = _mark_stage(output, "work_start_bootstrap_body_done", started)
                     stage = _mark_stage(output, "work_start_profile_eval_begin", started)
                     signed_profile = worker.evaluate("""async ({envelope, trust, extensionVersion, expectedAccountId}) => {
