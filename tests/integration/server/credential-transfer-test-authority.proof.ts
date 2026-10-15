@@ -6,7 +6,7 @@ import {
 } from "../../../packages/server/db/src/index.js";
 import { createCredentialTransferTestAuthority } from "./helpers/credential-transfer-test-authority.js";
 
-/** Actual migrated49 C/CI database, no live input and no trigger disablement. */
+/** Actual migrated50 C/CI database, no live input and no trigger disablement. */
 export async function proveCredentialTransferTestAuthority(
   connectionString: string,
   expectedDatabase:
@@ -85,7 +85,7 @@ export async function proveCredentialTransferTestAuthority(
     const baseline = await db.query<{ n: string }>(
       "SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations",
     );
-    check("migrated_49_required", baseline.rows[0]?.n === "49");
+    check("migrated_50_required", baseline.rows[0]?.n === "50");
     const due = await db.query<{ n: string }>(
       "SELECT count(*)::text AS n FROM public.credential_transfer_requests WHERE expires_at<=$1 AND state NOT IN ('COMPLETED','CANCELLED','EXPIRED')",
       [new Date(now.getTime() + 301_000)],
@@ -370,7 +370,7 @@ export async function proveCredentialTransferTestAuthority(
       const end = await db.query<{ n: string }>(
         "SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations",
       );
-      cleanup.journalStill49 = end.rows[0]?.n === "49";
+      cleanup.journalStill50 = end.rows[0]?.n === "50";
     } catch (cleanupError) {
       error = new AggregateError(
         [error, cleanupError],

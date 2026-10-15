@@ -16,7 +16,7 @@ import {
 } from "../../../packages/server/db/src/index.js";
 import { createCredentialTransferTestAuthority } from "./helpers/credential-transfer-test-authority.js";
 
-/** Existing PR50 signed-bearer ACK response-loss case, adapted to migration49.
+/** Existing PR50 signed-bearer ACK response-loss case, adapted to migration50.
  * No old/new process-restart or owner-login scenario is implemented here.
  */
 export async function proveSignedBearerAckWithTransferAuthority(

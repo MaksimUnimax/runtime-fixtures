@@ -80,7 +80,7 @@ export async function proveCredentialTransferLateStop(
     const journal = await db.query<{ n: string }>(
       "SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations",
     );
-    check("actual_migrated49_required", journal.rows[0]?.n === "49");
+    check("actual_migrated50_required", journal.rows[0]?.n === "50");
     await db.transaction(async (tx) => {
       await tx.query("INSERT INTO public.users(id) VALUES($1)", [user]);
       await tx.query("INSERT INTO public.accounts(id) VALUES($1)", [account]);
@@ -257,11 +257,11 @@ export async function proveCredentialTransferLateStop(
       );
       return left.rows[0]?.n === "0";
     });
-    await cleanupStep("context_empty_and_journal49_preserved", async () => {
+    await cleanupStep("context_empty_and_journal50_preserved", async () => {
       const row = await db.query<{ context: string; migrations: string }>(
         "SELECT (SELECT count(*)::text FROM octoport_transfer_fence.authorized_transactions) AS context,(SELECT count(*)::text FROM drizzle.__drizzle_migrations) AS migrations",
       );
-      return row.rows[0]?.context === "0" && row.rows[0]?.migrations === "49";
+      return row.rows[0]?.context === "0" && row.rows[0]?.migrations === "50";
     });
     await cleanupStep("database_closed", async () => {
       await db.close();

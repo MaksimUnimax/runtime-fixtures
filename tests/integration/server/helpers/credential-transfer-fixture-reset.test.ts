@@ -15,6 +15,7 @@ function fixture(
     guardEnabled?: boolean;
     badClaim?: boolean;
     failReset?: boolean;
+    cascadeExtra?: { schema_name: string; table_name: string };
   } = {},
 ) {
   const calls: string[] = [];
@@ -29,6 +30,15 @@ function fixture(
           is_superuser: options.superuser ?? true,
           direct_session: options.directSession ?? true,
         },
+      ];
+    } else if (sql.includes("WITH RECURSIVE closure")) {
+      const targets = (values?.[0] ?? []) as string[];
+      rows = [
+        ...targets.map((table_name) => ({
+          schema_name: "public",
+          table_name,
+        })),
+        ...(options.cascadeExtra ? [options.cascadeExtra] : []),
       ];
     } else if (sql.includes("FROM pg_trigger")) {
       rows = [{ guard_enabled: options.guardEnabled ?? true }];
@@ -61,7 +71,7 @@ describe("fenced integration-only fixture reset", () => {
     const sql = "TRUNCATE accounts,users RESTART IDENTITY CASCADE";
     const f = fixture();
     await resetTransferProtectedTestFixture(f.database, sql);
-    expect(f.calls[4]).toBe(sql);
+    expect(f.calls[6]).toBe(sql);
   });
   it.each(["octoport_a_test", "octoport_b_test", "seller_agents_i1_client"])(
     "does not touch other role-owned database %s",
@@ -89,12 +99,14 @@ describe("fenced integration-only fixture reset", () => {
   it("uses the real epoch claim, authorization, and unchanged TRUNCATE in one transaction", async () => {
     const f = fixture();
     await resetTransferProtectedTestFixture(f.database, RESET);
-    expect(f.calls).toHaveLength(5);
+    expect(f.calls).toHaveLength(7);
     expect(f.calls[0]).toContain("current_database()");
-    expect(f.calls[1]).toContain("credential_transfer_epoch_guard");
-    expect(f.calls[2]).toContain("claim_writer(");
-    expect(f.calls[3]).toContain("authorize_writer(");
-    expect(f.calls[4]).toBe(RESET);
+    expect(f.calls[1]).toBe("SET LOCAL search_path=public,pg_temp");
+    expect(f.calls[2]).toContain("WITH RECURSIVE closure");
+    expect(f.calls[3]).toContain("credential_transfer_epoch_guard");
+    expect(f.calls[4]).toContain("claim_writer(");
+    expect(f.calls[5]).toContain("authorize_writer(");
+    expect(f.calls[6]).toBe(RESET);
     expect(f.calls.join(" ")).not.toMatch(
       /DISABLE TRIGGER|DROP TRIGGER|GRANT /i,
     );
@@ -113,19 +125,52 @@ describe("fenced integration-only fixture reset", () => {
     ).rejects.toThrow("TRANSFER_FIXTURE_RESET_DATABASE_OR_ROLE_DENIED");
     expect(f.calls).toHaveLength(1);
   });
+  it.each([
+    [
+      "new public referencing table",
+      { schema_name: "public", table_name: "unexpected_future_table" },
+    ],
+    [
+      "cross-schema referencing table",
+      { schema_name: "private_fixture", table_name: "audit_events" },
+    ],
+  ])("rejects unsafe CASCADE closure: %s", async (_name, cascadeExtra) => {
+    const f = fixture({ cascadeExtra });
+    await expect(
+      resetTransferProtectedTestFixture(f.database, RESET),
+    ).rejects.toThrow("TRANSFER_FIXTURE_RESET_CASCADE_SCOPE_DENIED");
+    expect(f.calls).toHaveLength(3);
+    expect(f.calls[2]).toContain("WITH RECURSIVE closure");
+    expect(f.calls.join(" ")).not.toContain("claim_writer(");
+  });
+  it("includes inheritance and partition descendants in the affected closure", async () => {
+    const f = fixture({
+      cascadeExtra: {
+        schema_name: "public",
+        table_name: "unexpected_inherited_descendant",
+      },
+    });
+    await expect(
+      resetTransferProtectedTestFixture(f.database, RESET),
+    ).rejects.toThrow("TRANSFER_FIXTURE_RESET_CASCADE_SCOPE_DENIED");
+    expect(f.calls).toHaveLength(3);
+    expect(f.calls[2]).toContain("pg_catalog.pg_inherits");
+    expect(f.calls.join(" ")).not.toContain("claim_writer(");
+  });
+
   it("rejects an inactive guard before claiming", async () => {
     const f = fixture({ guardEnabled: false });
     await expect(
       resetTransferProtectedTestFixture(f.database, RESET),
     ).rejects.toThrow("TRANSFER_FIXTURE_RESET_GUARD_NOT_ACTIVE");
-    expect(f.calls).toHaveLength(2);
+    expect(f.calls).toHaveLength(4);
   });
   it("rejects an invalid epoch claim", async () => {
     const f = fixture({ badClaim: true });
     await expect(
       resetTransferProtectedTestFixture(f.database, RESET),
     ).rejects.toThrow("TRANSFER_FIXTURE_RESET_CLAIM_INVALID");
-    expect(f.calls).toHaveLength(3);
+    expect(f.calls).toHaveLength(5);
   });
   it.each([
     "DELETE FROM users",
@@ -151,6 +196,6 @@ describe("fenced integration-only fixture reset", () => {
     await expect(
       resetTransferProtectedTestFixture(f.database, RESET),
     ).rejects.toThrow("INTENTIONAL_RESET_FAILURE");
-    expect(f.calls).toHaveLength(5);
+    expect(f.calls).toHaveLength(7);
   });
 });

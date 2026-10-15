@@ -10,8 +10,9 @@ import {
 /**
  * Test-only adapter for a previously migrated disposable database.
  * It does not disable the trigger, change product admission, or grant access to
- * private tables. SESSION AUTHORIZATION is an explicit superuser test adapter;
- * it is NOT evidence of a genuine runtime login or permission provisioning.
+ * private tables. The temporary role has LOGIN capability but no credential;
+ * SESSION AUTHORIZATION is an explicit superuser test adapter. It is NOT
+ * evidence of a genuine network login or permission provisioning.
  */
 export async function createCredentialTransferTestAuthority(
   administrator: DatabaseRuntime,
@@ -148,7 +149,7 @@ export async function createCredentialTransferTestAuthority(
   try {
     await administrator.transaction(async (tx) => {
       await tx.query(
-        `CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`,
+        `CREATE ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`,
       );
       await tx.query(
         `GRANT USAGE ON SCHEMA public,octoport_transfer_fence TO ${role}`,

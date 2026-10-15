@@ -20,6 +20,17 @@ describe("required repository grants before API election", () => {
         (item) => item.rejected && !item.electionChanged,
       ),
     ).toBe(true);
+    expect(result.excessObservations).toHaveLength(11);
+    expect(
+      result.excessObservations.every(
+        (item) => item.rejected && !item.electionChanged,
+      ),
+    ).toBe(true);
+    expect(result.membershipObservation).toEqual({
+      rejected: true,
+      electionChanged: false,
+      setOption: true,
+    });
     expect(result.checks.filter((item) => !item.passed)).toEqual([]);
     expect(result.failureTypes).toEqual([]);
     expect(Object.values(result.cleanup).every(Boolean)).toBe(true);

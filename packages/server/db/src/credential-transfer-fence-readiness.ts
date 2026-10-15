@@ -2,9 +2,17 @@ import type { DatabaseQuery } from "./index.js";
 
 /** No schema changes, grants or credentials are produced by this admission check. */
 export const TRANSFER_FENCE_RUNTIME_CHECK_SQL = `
-WITH caller AS (
-  SELECT oid,rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls
+WITH RECURSIVE caller AS (
+  SELECT oid,rolcanlogin,rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls
   FROM pg_catalog.pg_roles WHERE rolname=current_user
+), reachable_roles(roleid) AS (
+  SELECT m.roleid
+  FROM pg_catalog.pg_auth_members m
+  JOIN caller c ON c.oid=m.member
+  UNION
+  SELECT m.roleid
+  FROM pg_catalog.pg_auth_members m
+  JOIN reachable_roles r ON m.member=r.roleid
 ), relations AS (
   SELECT oid,relowner,relnamespace,relkind,relpersistence,relhasrules,relhassubclass,relispartition,relrowsecurity FROM pg_catalog.pg_class
   WHERE oid IN (pg_catalog.to_regclass('public.credential_transfer_requests'),
@@ -25,14 +33,19 @@ WITH caller AS (
 )
 SELECT
   current_user=session_user AS direct_session_identity,
-  (SELECT count(*)=1 AND bool_and(NOT (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)) FROM caller) AS restricted_role,
+  (SELECT count(*)=1 AND bool_and(rolcanlogin AND NOT (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)) FROM caller) AS restricted_role,
   (SELECT count(*)=3 AND bool_and(relkind='r' AND relpersistence='p' AND NOT relhasrules AND NOT relhassubclass AND NOT relispartition AND NOT relrowsecurity) FROM relations) AS expected_relations,
   (SELECT count(*)=4 AND bool_and(prosecdef AND coalesce(proconfig @> ARRAY['search_path=pg_catalog, pg_temp'],false)) FROM routines) AS safe_functions,
   NOT EXISTS(SELECT 1 FROM owners WHERE pg_catalog.pg_has_role(current_user,owner,'MEMBER')) AS cannot_assume_owner,
-  coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('octoport_transfer_fence'),'USAGE'),false)
-    AND NOT coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('octoport_transfer_fence'),'CREATE'),true) AS private_schema_usage_only,
+  NOT EXISTS(SELECT 1 FROM reachable_roles) AS no_role_memberships,
+  coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('public'),'USAGE'),false)
+    AND NOT coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('public'),'CREATE'),true)
+    AND coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('octoport_transfer_fence'),'USAGE'),false)
+    AND NOT coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('octoport_transfer_fence'),'CREATE'),true) AS schema_usage_without_create,
   coalesce(pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure('octoport_transfer_fence.claim_writer(uuid)'),'EXECUTE'),false)
     AND coalesce(pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure('octoport_transfer_fence.authorize_writer(bigint,uuid)'),'EXECUTE'),false) AS can_call_entry_functions,
+  NOT coalesce(pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure('octoport_transfer_fence.guard_transfer_statement()'),'EXECUTE'),true)
+    AND NOT coalesce(pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure('octoport_transfer_fence.clear_transaction_authorization()'),'EXECUTE'),true) AS cannot_call_internal_functions,
   -- Comma-separated privilege inquiries mean ANY; every repository privilege
   -- must be present. This is validation only, never automatic provisioning.
   coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('public'),'USAGE'),false)
@@ -41,11 +54,37 @@ SELECT
     AND coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'UPDATE'),false)
     AND coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'DELETE'),false)
     AND coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'SELECT'),false) AS required_repository_privileges,
-  NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'INSERT,UPDATE,DELETE,TRUNCATE'),true)
-    AND NOT coalesce(pg_catalog.has_any_column_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'INSERT,UPDATE'),true)
-    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'),true)
-    AND NOT coalesce(pg_catalog.has_any_column_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'SELECT,INSERT,UPDATE,REFERENCES'),true) AS no_direct_epoch_mutation,
-  NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'TRUNCATE'),true) AS cannot_truncate_requests,
+  NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'SELECT'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'INSERT'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'UPDATE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'DELETE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'TRUNCATE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'REFERENCES'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'TRIGGER'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'MAINTAIN'),true)
+    AND NOT coalesce(pg_catalog.has_any_column_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'SELECT,INSERT,UPDATE,REFERENCES'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'SELECT'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'INSERT'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'UPDATE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'DELETE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'TRUNCATE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'REFERENCES'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'TRIGGER'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'MAINTAIN'),true)
+    AND NOT coalesce(pg_catalog.has_any_column_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'SELECT,INSERT,UPDATE,REFERENCES'),true) AS no_direct_fence_table_privileges,
+  NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'TRUNCATE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'REFERENCES'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'TRIGGER'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'MAINTAIN'),true)
+    AND NOT coalesce(pg_catalog.has_any_column_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'REFERENCES'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'INSERT'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'UPDATE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'DELETE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'TRUNCATE'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'REFERENCES'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'TRIGGER'),true)
+    AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'MAINTAIN'),true)
+    AND NOT coalesce(pg_catalog.has_any_column_privilege(current_user,pg_catalog.to_regclass('public.devices'),'INSERT,UPDATE,REFERENCES'),true) AS repository_privilege_ceiling,
   NOT EXISTS(SELECT 1 FROM routines p,
     LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
     WHERE a.grantee=0 AND a.privilege_type='EXECUTE') AS functions_not_public,
@@ -83,11 +122,13 @@ const REQUIRED = [
   "transaction_context_structure",
   "safe_functions",
   "cannot_assume_owner",
-  "private_schema_usage_only",
+  "no_role_memberships",
+  "schema_usage_without_create",
   "can_call_entry_functions",
+  "cannot_call_internal_functions",
   "required_repository_privileges",
-  "no_direct_epoch_mutation",
-  "cannot_truncate_requests",
+  "no_direct_fence_table_privileges",
+  "repository_privilege_ceiling",
   "functions_not_public",
   "mandatory_statement_trigger",
 ] as const;
