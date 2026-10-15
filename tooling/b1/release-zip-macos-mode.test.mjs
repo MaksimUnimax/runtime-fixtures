@@ -30,7 +30,10 @@ function syntheticZip(creatorHost, unixMode, name = "worker.js") {
 test("regular Unix and macOS ZIP file modes remain accepted", () => {
   for (const host of [3, 19]) {
     const entries = readZip(syntheticZip(host, 0o100644));
-    assert.equal(entries.get("worker.js")?.toString("utf8"), "synthetic inert data");
+    assert.equal(
+      entries.get("worker.js")?.toString("utf8"),
+      "synthetic inert data",
+    );
   }
 });
 
@@ -39,7 +42,10 @@ test("macOS ZIP with unspecified file mode remains accepted", () => {
 });
 
 test("macOS ZIP directory type with slash-terminated name remains accepted", () => {
-  assert.equal(readZip(syntheticZip(19, 0o040755, "assets/")).get("assets/")?.length, 0);
+  assert.equal(
+    readZip(syntheticZip(19, 0o040755, "assets/")).get("assets/")?.length,
+    0,
+  );
 });
 
 test("Unix and macOS ZIP symbolic links are rejected as special entries", () => {
