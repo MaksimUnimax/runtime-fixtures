@@ -454,7 +454,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   });
 
   it("inspects a real 0052-only retention schema before repair admission exists", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
 
@@ -508,7 +510,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   });
 
   it("backfills post-0052 rows emitted without retention receipts", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({
@@ -624,7 +628,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   });
 
   it("backfills durable receipts and compact projection from a real 0051 legacy row", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
 
@@ -719,7 +725,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   });
 
   it("runs the maintenance command across bounded 0051 legacy continuation without replay side effects", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({
@@ -876,7 +884,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   });
 
   it("reconciles legacy incidents silently, pages past pins, and prunes eligible old payload", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({
@@ -1156,7 +1166,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   });
 
   it("does not reopen an older legacy BROKEN incident behind a newer processed HEALTHY state", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({
@@ -1248,7 +1260,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   });
 
   it("resolves the last decisive HEALTHY behind a newer projected UNKNOWN", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({
@@ -1365,7 +1379,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   });
 
   it("preserves the last decisive BROKEN behind repeated projected UNKNOWN states", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({
@@ -1490,7 +1506,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   it.each(["HEALTHY", "BROKEN"] as const)(
     "preserves a late older decisive %s after three newer UNKNOWN compact states",
     async (decisiveState) => {
-      await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+      await runtime.query(
+        "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+      );
       await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
       await runtime.query("CREATE SCHEMA public");
       await runMigrations({ connectionString });
@@ -1679,7 +1697,9 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
   );
 
   it("resolves a silent legacy incident without emitting a recovery-only notification", async () => {
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({

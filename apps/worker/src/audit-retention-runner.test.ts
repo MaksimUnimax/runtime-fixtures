@@ -28,7 +28,7 @@ describe("AuditRetentionRunner", () => {
   it("uses the fixed 90-day window and one bounded batch per tick", async () => {
     const purgeExpired = vi.fn(async () => 500);
     const runner = new AuditRetentionRunner(
-      { purgeExpired } as never,
+      { purgeExpired },
       60_000,
       () => new Date("2026-09-23T08:00:00.000Z"),
     );
@@ -48,7 +48,7 @@ describe("AuditRetentionRunner", () => {
       const purgeExpired = vi.fn(async () => {
         throw new Error("initial retention failure");
       });
-      const runner = new AuditRetentionRunner({ purgeExpired } as never, 100);
+      const runner = new AuditRetentionRunner({ purgeExpired }, 100);
       await expect(runner.start()).rejects.toThrow("initial retention failure");
       await vi.advanceTimersByTimeAsync(1_000);
       expect(purgeExpired).toHaveBeenCalledOnce();
@@ -68,7 +68,7 @@ describe("AuditRetentionRunner", () => {
         .mockRejectedValueOnce(new Error("periodic failure"))
         .mockResolvedValueOnce(0);
       const runner = new AuditRetentionRunner(
-        { purgeExpired } as never,
+        { purgeExpired },
         1_000,
         undefined,
         onError,
@@ -82,6 +82,32 @@ describe("AuditRetentionRunner", () => {
       await vi.advanceTimersByTimeAsync(999);
       expect(purgeExpired).toHaveBeenCalledTimes(2);
       await vi.advanceTimersByTimeAsync(1);
+      expect(purgeExpired).toHaveBeenCalledTimes(3);
+      await runner.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps active periodic work moving when async error reporting never settles", async () => {
+    vi.useFakeTimers();
+    try {
+      const purgeExpired = vi
+        .fn<() => Promise<number>>()
+        .mockResolvedValueOnce(0)
+        .mockRejectedValueOnce(new Error("private repository detail"))
+        .mockResolvedValueOnce(0);
+      const onError = vi.fn(() => new Promise<void>(() => undefined));
+      const runner = new AuditRetentionRunner(
+        { purgeExpired },
+        1_000,
+        undefined,
+        onError,
+      );
+      await runner.start();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(onError).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(1_000);
       expect(purgeExpired).toHaveBeenCalledTimes(3);
       await runner.stop();
     } finally {
@@ -104,7 +130,7 @@ describe("AuditRetentionRunner", () => {
         active -= 1;
       }
     });
-    const runner = new AuditRetentionRunner({ purgeExpired } as never);
+    const runner = new AuditRetentionRunner({ purgeExpired });
     const first = runner.tick();
     const second = runner.tick();
     expect(purgeExpired).toHaveBeenCalledOnce();
@@ -128,7 +154,7 @@ describe("AuditRetentionRunner", () => {
     vi.useFakeTimers();
     try {
       const purgeExpired = vi.fn(async () => 500);
-      const runner = new AuditRetentionRunner({ purgeExpired } as never, 1_000);
+      const runner = new AuditRetentionRunner({ purgeExpired }, 1_000);
       await runner.start();
       await vi.advanceTimersByTimeAsync(1_000);
       expect(purgeExpired).toHaveBeenCalledTimes(2);

@@ -1,61 +1,24 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 umask 0022
-
-SOURCE_DIR="${1:-}"
-RELEASE_ROOT="${2:-}"
 NODE_BIN="${OCTOPORT_NODE_BIN:-/root/.nvm/versions/node/v24.20.0/bin/node}"
 PNPM_BIN="${OCTOPORT_PNPM_BIN:-/root/.nvm/versions/node/v24.20.0/bin/pnpm}"
-
-fail() {
-  printf '[octoport-ops-release] ERROR: %s\n' "$*" >&2
-  exit 1
-}
-
-[[ "${EUID}" -eq 0 ]] || fail "run as root"
-[[ -n "${SOURCE_DIR}" && -n "${RELEASE_ROOT}" ]] ||
-  fail "usage: $0 <clean-source-checkout> <release-root>"
-[[ "${SOURCE_DIR}" = /* && "${RELEASE_ROOT}" = /* ]] ||
-  fail "source and release root must be absolute paths"
-case "${RELEASE_ROOT}" in
-  /root|/root/*|/home|/home/*|/run/user|/run/user/*)
-    fail "release root is incompatible with ProtectHome=yes"
-    ;;
-esac
-[[ -x "${NODE_BIN}" ]] || fail "pinned Node binary is not executable"
-[[ -x "${PNPM_BIN}" ]] || fail "pinned pnpm binary is not executable"
-
-for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs; do
-  command -v "${command_name}" >/dev/null 2>&1 ||
-    fail "missing required command: ${command_name}"
-done
-
-SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd -P)"
-mkdir -p "${RELEASE_ROOT}"
-RELEASE_ROOT="$(cd -- "${RELEASE_ROOT}" && pwd -P)"
-
-head_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD)"
-tree_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD^{tree})"
-[[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]] ||
-  fail "source checkout must be clean"
-
-target="${RELEASE_ROOT}/${head_sha}"
-[[ ! -e "${target}" ]] || fail "release already exists: ${target}"
-tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-${head_sha}.XXXXXX")"
-chmod 0755 "${tmp}"
-success=0
-cleanup() {
-  if [[ "${success}" -ne 1 ]]; then
-    rm -rf -- "${tmp}"
-    [[ ! -e "${target}" ]] || rm -rf -- "${target}"
-  fi
-}
-trap cleanup EXIT
-
-git -C "${SOURCE_DIR}" archive --format=tar "${head_sha}" |
+fail() { printf '[octoport-ops-release] ERROR: %s\n' "$*" >&2; exit 1; }
+build_stage() {
+  [[ "$(stat -f -c %T "${tmp}")" == tmpfs ]] || fail "build stage requires a bounded tmpfs"
+  python3 -B - "${tmp}" <<'BOUNDS'
+import os, sys
+fs = os.statvfs(sys.argv[1])
+if fs.f_blocks * fs.f_frsize > 1024**3 or fs.f_files > 65536:
+    raise SystemExit("OPS_STAGE_FILESYSTEM_LIMIT_MISSING")
+BOUNDS
+  mkdir -p "${tmp}/.build-tmp" "${tmp}/.build-cache"
+  export TMPDIR="${tmp}/.build-tmp" XDG_CACHE_HOME="${tmp}/.build-cache"
+python3 -B "${helper}" inputs "${SOURCE_DIR}" >"${tmp}/RELEASE_INPUT_PATHS"
+mapfile -t release_paths <"${tmp}/RELEASE_INPUT_PATHS"
+git -C "${SOURCE_DIR}" archive --format=tar "${head_sha}" -- "${release_paths[@]}" |
   tar -xf - -C "${tmp}"
-mkdir -p "${tmp}/.runtime"
-install -m 0555 "${NODE_BIN}" "${tmp}/.runtime/node"
+python3 -B "${helper}" stage-node "${NODE_BIN}" "${tmp}" "${RELEASE_ROOT}"
 
 export PATH="$(dirname "${NODE_BIN}"):${PATH}"
 (
@@ -79,7 +42,7 @@ entry="${tmp}/apps/telegram-operator/dist/main.js"
 set +e
 startup_output="$(
   cd "${tmp}" &&
-    env -i HOME=/tmp PATH=/usr/bin:/bin       "${tmp}/.runtime/node" "${tsx_cli}" "${entry}" 2>&1
+    env -i HOME=/tmp TMPDIR=/tmp XDG_CACHE_HOME=/tmp/.cache PATH=/usr/bin:/bin       "${tmp}/.runtime/node" "${tsx_cli}" "${entry}" 2>&1
 )"
 startup_status=$?
 set -e
@@ -90,6 +53,8 @@ grep -q "TELEGRAM_OPERATOR_CONFIGURATION_MISSING" <<<"${startup_output}" ||
 if grep -Eq "ERR_MODULE_NOT_FOUND|ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING"   <<<"${startup_output}"; then
   fail "release dependency closure is incomplete"
 fi
+
+rm -rf -- "${tmp}/.build-tmp" "${tmp}/.build-cache"
 
 chmod -R go-w "${tmp}"
 
@@ -127,12 +92,138 @@ fi
 if find "${tmp}" ! -user root -print -quit | grep -q .; then
   fail "release must be root-owned"
 fi
-mv "${tmp}" "${target}"
-python3 "${target}/tooling/operations/verify_ops_release.py" \
-  --expected-source-sha "${head_sha}" \
-  --expected-source-tree "${tree_sha}" \
-  "${target}" >/dev/null ||
+}
+[[ "${EUID}" -eq 0 ]] || fail "run as root"
+if [[ "${1:-}" == "--build-stage" ]]; then
+  [[ "$#" -eq 7 ]] || fail "internal build stage arguments missing"
+  SOURCE_DIR="$2"; tmp="$3"; publish_tmp="$4"; RELEASE_ROOT="$5"; head_sha="$6"; tree_sha="$7"
+  [[ "$(git -C "${SOURCE_DIR}" rev-parse HEAD)" == "${head_sha}" ]] || fail "source changed before build"
+  helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
+  build_stage
+  exit 0
+fi
+locked=0
+if [[ "${1:-}" == --locked ]]; then locked=1; shift; fi
+SOURCE_DIR="${1:-}"
+RELEASE_ROOT="${2:-}"
+[[ -n "${SOURCE_DIR}" && -n "${RELEASE_ROOT}" ]] ||
+  fail "usage: $0 <clean-source-checkout> <release-root>"
+[[ "${SOURCE_DIR}" = /* && "${RELEASE_ROOT}" = /* ]] || fail "paths must be absolute"
+case "${RELEASE_ROOT}" in
+  /root|/root/*|/home|/home/*|/run/user|/run/user/*) fail "release root is incompatible with ProtectHome=yes" ;;
+esac
+[[ -x "${NODE_BIN}" && -x "${PNPM_BIN}" ]] || fail "pinned Node/pnpm must be executable"
+for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs flock mktemp basename dirname stat systemd-run systemctl mount umount mountpoint findmnt; do
+  command -v "${command_name}" >/dev/null 2>&1 || fail "missing required command: ${command_name}"
+done
+SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd -P)"
+helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
+if [[ "${locked}" -eq 0 ]]; then
+  # The helper validates every ancestor and opens O_NOFOLLOW without truncation,
+  # retaining one exclusive descriptor across exec for this finite preparation.
+  exec python3 -B "${helper}" locked-exec "${SOURCE_DIR}" "${RELEASE_ROOT}"
+fi
+python3 -B "${helper}" validate-lock "${RELEASE_ROOT}" 9
+RELEASE_ROOT="$(cd -- "${RELEASE_ROOT}" && pwd -P)"
+head_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD)"
+tree_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD^{tree})"
+[[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]] || fail "source checkout must be clean"
+export PATH="$(dirname "${NODE_BIN}"):${PATH}"
+store_path="$(cd "${SOURCE_DIR}" && "${PNPM_BIN}" store path)"
+[[ "${store_path}" = /* ]] || fail "dependency store must be absolute"
+store_root="$(dirname "${store_path}")"
+corepack_home="${COREPACK_HOME:-${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/node/corepack}"
+python3 -B "${helper}" budget "${RELEASE_ROOT}"
+target="${RELEASE_ROOT}/${head_sha}"
+[[ ! -e "${target}" ]] || fail "release already exists"
+tmp=""
+tmp_identity=""
+stage_mount_source=""
+publish_tmp=""
+publish_identity=""
+unit=""
+build_description=""
+success=0
+cleanup() {
+  # The description binds the unit to this invocation's private stage. A
+  # colliding pre-existing unit must never be stopped by failure cleanup.
+  if [[ -n "${unit}" && "$(systemctl show "${unit}" -p Description --value 2>/dev/null)" == "${build_description}" ]]; then
+    case "$(systemctl show "${unit}" -p ActiveState --value 2>/dev/null)" in
+      active|activating|reloading|deactivating) systemctl stop "${unit}";;
+    esac
+  fi
+  if [[ -n "${tmp}" ]]; then
+    if mountpoint -q "${tmp}"; then
+      if [[ "$(findmnt -rn -M "${tmp}" -o SOURCE)" != "${stage_mount_source}" ]]; then
+        printf '[octoport-ops-release] preserve unexpected stage mount %s\n' "${tmp}" >&2
+        return 1
+      fi
+      umount -- "${tmp}" || return 1
+    fi
+    if [[ -d "${tmp}" && ! -L "${tmp}" &&
+          "$(stat -c '%d:%i' "${tmp}" 2>/dev/null)" == "${tmp_identity}" ]]; then
+      rm -rf -- "${tmp}"
+    fi
+  fi
+  if [[ "${success}" -ne 1 ]]; then
+    if [[ -n "${publish_tmp}" && -d "${publish_tmp}" && ! -L "${publish_tmp}" &&
+          "$(stat -c '%d:%i' "${publish_tmp}" 2>/dev/null)" == "${publish_identity}" ]]; then
+      rm -rf -- "${publish_tmp}"
+    fi
+    # rename preserves device/inode identity. This also owns the target if a
+    # signal arrives immediately after mv, before the next shell command.
+    if [[ -n "${publish_identity}" && -d "${target}" && ! -L "${target}" &&
+          "$(stat -c '%d:%i' "${target}" 2>/dev/null)" == "${publish_identity}" ]]; then
+      rm -rf -- "${target}"
+    fi
+  fi
+}
+trap cleanup EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-${head_sha}.XXXXXX")"
+tmp_identity="$(stat -c '%d:%i' "${tmp}")"
+publish_tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-publish-${head_sha}.XXXXXX")"
+publish_identity="$(stat -c '%d:%i' "${publish_tmp}")"
+unit="octoport-ops-build-$(basename "${tmp}").service"
+build_description="Octoport ops build ${head_sha} stage ${tmp}"
+[[ "$(systemctl show "${unit}" -p LoadState --value)" == not-found ]] || fail "build unit already exists"
+# The bounded host tmpfs survives the build namespace. Only the trusted parent
+# exports it after the entire build cgroup has stopped; the build cannot write
+# the host-backed export directory at any point.
+stage_mount_source="octoport-ops-stage-$(basename "${tmp}")"
+mount -t tmpfs -o rw,size=1073741824,nr_inodes=65536,mode=0755,nodev,nosuid "${stage_mount_source}" "${tmp}"
+printf '[octoport-ops-release] bounded build unit=%s size=1073741824 inodes=65536 private_store_metadata_size=1048576 inodes=256 private_runtime_tmp_size=16777216 inodes=4096\n' "${unit}"
+systemd-run --unit="${unit}" --description="${build_description}" --quiet --wait --pipe --service-type=exec \
+  --property=RuntimeMaxSec=900 --property=KillMode=control-group --property=TimeoutStopSec=5s \
+  --property=SendSIGKILL=yes --property=OOMPolicy=stop --property=MemoryAccounting=yes \
+  --property=MemoryMax=2147483648 --property=MemorySwapMax=0 --property=TasksMax=1024 \
+  --property=ProtectSystem=strict --property=ProtectHome=read-only \
+  --property=NoNewPrivileges=yes --property=CapabilityBoundingSet= \
+  --property=PrivateDevices=yes --property=ProtectKernelTunables=yes --property=ProtectControlGroups=yes \
+  --property="TemporaryFileSystem=${store_path}/projects:rw,size=1048576,nr_inodes=256,mode=0755" \
+  --property=TemporaryFileSystem=/tmp:rw,size=16777216,nr_inodes=4096,mode=1777 \
+  --property="ReadWritePaths=${tmp} ${store_path}/projects /tmp" \
+  --property="ReadOnlyPaths=${SOURCE_DIR} ${store_root} ${corepack_home} ${publish_tmp} /var/tmp" \
+  --setenv=COREPACK_ENABLE_NETWORK=0 \
+  --setenv="OCTOPORT_NODE_BIN=${NODE_BIN}" --setenv="OCTOPORT_PNPM_BIN=${PNPM_BIN}" \
+  --setenv="npm_config_store_dir=${store_root}" --setenv="COREPACK_HOME=${corepack_home}" \
+  /bin/bash "${SOURCE_DIR}/infra/production/scripts/prepare-octoport-ops-release.sh" \
+  --build-stage "${SOURCE_DIR}" "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${head_sha}" "${tree_sha}"
+# No build/test process can write publish_tmp. Export only after systemd has
+# completed and stopped the finite cgroup; the helper enforces admission again.
+python3 -B "${helper}" export-stage "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${NODE_BIN}"
+umount -- "${tmp}"
+# Read-only bind mounts can prevent same-filesystem hardlinks inside the
+# sandbox. Reuse verified Node after the bounded build exits, before publication.
+[[ -f "${publish_tmp}/.runtime/node" && ! -L "${publish_tmp}/.runtime/node" ]] ||
+  fail "exported Node payload missing"
+rm -f -- "${publish_tmp}/.runtime/node"
+python3 -B "${helper}" stage-node "${NODE_BIN}" "${publish_tmp}" "${RELEASE_ROOT}"
+mv -T -n "${publish_tmp}" "${target}"
+[[ ! -e "${publish_tmp}" ]] || fail "release target appeared during preparation"
+python3 -B "${target}/tooling/operations/verify_ops_release.py" \
+  --expected-source-sha "${head_sha}" --expected-source-tree "${tree_sha}" "${target}" >/dev/null ||
   fail "prepared release failed self-verification"
 success=1
-trap - EXIT
-printf '[octoport-ops-release] prepared %s source=%s tree=%s\n'   "${target}" "${head_sha}" "${tree_sha}"
+printf '[octoport-ops-release] prepared %s source=%s tree=%s\n' "${target}" "${head_sha}" "${tree_sha}"

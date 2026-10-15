@@ -17,7 +17,7 @@ const BASE = new Date("2026-09-28T19:00:00.000Z");
 
 async function resetDatabase(): Promise<void> {
   await runtime.query(
-    "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+    "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
   );
   await runMigrations({ connectionString: connectionString! });
 }

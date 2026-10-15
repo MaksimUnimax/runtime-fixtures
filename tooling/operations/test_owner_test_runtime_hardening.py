@@ -81,6 +81,69 @@ class HardeningAuditTest(unittest.TestCase):
         self.assertEqual(hardening._cpu_quota_usec("1min 30s"), 90_000_000)
         self.assertEqual(hardening._cpu_quota_usec("1h30min"), 5_400_000_000)
 
+    def test_dynamic_user_does_not_override_explicit_root_identity(self) -> None:
+        for user in ("root", " root "):
+            for group in ("", "root", "octoport-owner-test"):
+                with self.subTest(user=user, group=group):
+                    snapshot = base_snapshot(
+                        User=user, Group=group, DynamicUser="yes",
+                        ProtectSystem="strict", ProtectHome="yes",
+                        MemoryHigh="536870912", MemoryMax="805306368",
+                        CPUQuotaPerSecUSec="2s", TasksMax="256",
+                    )
+                    config = hardening.normalize_configuration(snapshot)
+                    self.assertTrue(config["dynamicUser"])
+                    self.assertEqual(config["identityClass"], "ROOT_OR_UNSET")
+                    self.assertIn(
+                        "SERVICE_IDENTITY_ROOT_OR_UNSET",
+                        hardening.configuration_gaps(snapshot),
+                    )
+
+    def test_dynamic_root_cannot_produce_aggregate_baseline_pass(self) -> None:
+        snapshot = base_snapshot(
+            User="root", Group="root", DynamicUser="yes",
+            ProtectSystem="strict", ProtectHome="yes",
+            MemoryHigh="536870912", MemoryMax="805306368",
+            CPUQuotaPerSecUSec="2s", TasksMax="256",
+        )
+        result = hardening.audit_units(
+            samples=1, interval_seconds=0,
+            runner=FakeRunner({unit: [snapshot] for unit in hardening.UNITS}),
+            monotonic_ns=lambda: 1,
+        )
+        self.assertEqual(result["status"], "HARDENING_GAPS_FOUND")
+        self.assertEqual(
+            result["gaps"],
+            [{"unit": unit, "code": "SERVICE_IDENTITY_ROOT_OR_UNSET"}
+             for unit in hardening.UNITS],
+        )
+        self.assertFalse(result["mutationPerformed"])
+        self.assertFalse(result["secretMaterialRead"])
+        self.assertEqual(result["capacityProof"], "NOT_PROVEN_SHORT_WINDOW")
+
+    def test_nonroot_and_implicit_dynamic_users_keep_existing_configuration_class(self) -> None:
+        for user in ("", "octoport-owner-test"):
+            with self.subTest(user=user):
+                snapshot = base_snapshot(
+                    User=user, Group="", DynamicUser="yes",
+                    ProtectSystem="strict", ProtectHome="yes",
+                    MemoryHigh="536870912", MemoryMax="805306368",
+                    CPUQuotaPerSecUSec="2s", TasksMax="256",
+                )
+                config = hardening.normalize_configuration(snapshot)
+                self.assertEqual(config["identityClass"], "DYNAMIC")
+                self.assertEqual(hardening.configuration_gaps(snapshot), [])
+
+    def test_unset_static_identity_remains_root_and_numeric_zero_fails_closed(self) -> None:
+        self.assertEqual(
+            hardening.normalize_configuration(base_snapshot(User=""))["identityClass"],
+            "ROOT_OR_UNSET",
+        )
+        for user in ("0", "000", "0x0"):
+            with self.subTest(user=user):
+                with self.assertRaisesRegex(hardening.HardeningAuditError, "SERVICE_USER_INVALID"):
+                    hardening.normalize_configuration(base_snapshot(User=user, DynamicUser="yes"))
+
     def test_nonroot_unit_with_unpinned_working_directory_is_not_accepted(self) -> None:
         for working in ("/root/private/runtime", "/srv/octoport/current"):
             with self.subTest(working=working):
@@ -211,6 +274,46 @@ class HardeningAuditTest(unittest.TestCase):
                 [0, 1_000_000_000],
             )
 
+    def test_cpu_rates_use_each_units_counter_observation_interval(self) -> None:
+        # Every synthetic service consumes one CPU-nanosecond per wall-nanosecond.
+        # Variable systemctl latency must not turn another unit's interval into
+        # this unit's denominator. No real process or systemctl is involved.
+        for delays in ((1, 9, 1, 1, 1, 1), (1, 1, 1, 9, 1, 1), (1, 1, 1, 1, 1, 1)):
+            with self.subTest(delays=delays):
+                elapsed_ns = 0
+                pending_delays = iter(delays)
+                observed_at: dict[str, list[int]] = {
+                    unit: [] for unit in hardening.UNITS
+                }
+
+                def delayed_show(
+                    args: list[str], **kwargs: object,
+                ) -> subprocess.CompletedProcess[str]:
+                    nonlocal elapsed_ns
+                    elapsed_ns += next(pending_delays) * 1_000_000_000
+                    observed_at[args[2]].append(elapsed_ns)
+                    snapshot = base_snapshot(CPUUsageNSec=str(elapsed_ns))
+                    return subprocess.CompletedProcess(args, 0, show_text(snapshot), "")
+
+                result = hardening.audit_units(
+                    samples=2, interval_seconds=0,
+                    runner=delayed_show, sleeper=lambda _: None,
+                    monotonic_ns=lambda: elapsed_ns,
+                )
+                self.assertEqual(result["capacityProof"], "NOT_PROVEN_SHORT_WINDOW")
+                self.assertFalse(result["mutationPerformed"])
+                self.assertFalse(result["secretMaterialRead"])
+                for unit in hardening.UNITS:
+                    with self.subTest(unit=unit):
+                        observed = result["units"][unit]["observed"]
+                        own_elapsed = observed_at[unit][1] - observed_at[unit][0]
+                        expected = round(
+                            (observed["cpuUsageEndNSec"] - observed["cpuUsageStartNSec"])
+                            * 100 / own_elapsed, 3,
+                        )
+                        self.assertEqual(expected, 100.0)
+                        self.assertEqual(observed["averageCpuPercent"], expected)
+
     def test_sampling_reports_only_observation_not_capacity_proof(self) -> None:
         first = base_snapshot()
         second = base_snapshot(
@@ -221,7 +324,7 @@ class HardeningAuditTest(unittest.TestCase):
         runner = FakeRunner(
             {unit: [first, second] for unit in hardening.UNITS},
         )
-        times = iter([0, 1_000_000_000])
+        times = iter([0] * len(hardening.UNITS) + [1_000_000_000] * len(hardening.UNITS))
         sleeps: list[float] = []
         result = hardening.audit_units(
             samples=2,

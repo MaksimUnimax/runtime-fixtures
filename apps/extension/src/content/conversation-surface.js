@@ -53,19 +53,27 @@
     const allQwenRoots = provider === "qwen" ? [...document.querySelectorAll('.desktop-layout-content-inner')] : [];
     const qwenRoots = allQwenRoots.filter((node) => node.isConnected && node.getClientRects().length > 0 &&
         !node.closest('[aria-hidden="true"], [hidden]'));
-    const qwenRoot = qwenRoots.length === 1 && mainRoots.length === 1 && roots.size <= 1 &&
+    const qwenRoot = allMainRoots.length === 1 && qwenRoots.length === 1 && mainRoots.length === 1 && roots.size <= 1 &&
       composer?.composer?.isConnected && qwenRoots[0].contains(mainRoots[0]) &&
       qwenRoots[0].contains(composer.composer) && messages.every((node) => mainRoots[0].contains(node))
       ? qwenRoots[0] : null;
-    // The same parent also survives a brief fully empty remount frame. Keep
-    // only the already pending empty Start's reference through that frame.
-    // With no main, composer or messages surfaceConfirmed stays false: this
-    // preserves observation, never permission to send or retry. Hidden or
-    // duplicate surfaces, history, replacement parents and ended Starts fail.
+    // Qwen also keeps the SAME old main/composer briefly while that main has
+    // no client rect. Retain only an already pending empty Start, with the
+    // original nodes and exact prompt still present, on the observed route.
+    // This and the fully empty remount frame suspend confirmation; neither
+    // authorizes Send, retry, hidden history or a replacement surface.
+    const qwenPartialGap = allMainRoots.length === 1 && mainRoots.length === 0 &&
+      pending?.qwenInitialMain === allMainRoots[0] && allMainRoots[0].isConnected &&
+      pending.qwenInitialComposer === composer?.composer && composer?.composer?.isConnected &&
+      composerRoot === allMainRoots[0] && pending.root.contains(composer.composer) &&
+      !allMainRoots[0].closest('[aria-hidden="true"], [hidden]') &&
+      !composer.composer.closest('[aria-hidden="true"], [hidden]') &&
+      text(composer.composer.value) === pending.text;
     const qwenGapRoot = pending?.emptySurface && pending.initialPath === "/" && pathname === "/c/new-chat" &&
       !pending.witnessId && pending.baseline.size === 0 &&
       allQwenRoots.length === 1 && qwenRoots.length === 1 && pending.root === qwenRoots[0] &&
-      allMainRoots.length === 0 && !composer && observedMessages.length === 0 ? qwenRoots[0] : null;
+      observedMessages.length === 0 &&
+      ((allMainRoots.length === 0 && !composer) || qwenPartialGap) ? qwenRoots[0] : null;
     if (qwenGapRoot) pending.qwenRemountGap = true;
     const root = aliceNoMainRoot ? document.body : qwenRoot || qwenGapRoot || (
       roots.size === 1 ? [...roots][0] :
@@ -84,33 +92,53 @@
       const item = active?.closest?.(".ChatListItem[id]");
       if (item?.id) explicitIds.push(item.id);
     }
-    let startWitness = null, startWitnessMessageId = null;
+    const messageIds = inSurface.map((node) => adapter.messageId(node)).filter(Boolean);
+    let startWitness = null, startWitnessMessageId = null, renamePreviousId = null;
     if (pending && roots.size <= 1 && (pending.root === root || pending.witnessId)) {
       for (const node of adapter.userMessages?.() || []) {
         // Never discover a new witness on another root, or in hidden history.
         if (!inSurface.includes(node)) continue;
         const id = adapter.messageId(node);
-        if (id && (!pending.witnessId || id === pending.witnessId) &&
-            !pending.baseline.has(id) && text(adapter.messageText(node)) === pending.text) {
+        if (!id || pending.baseline.has(id) || text(adapter.messageText(node)) !== pending.text) continue;
+        if (!pending.witnessId || id === pending.witnessId) {
+          if (pending.witnessNode && pending.witnessNode !== node) pending.renameUnavailable = true;
+          pending.witnessNode ||= node;
           pending.witnessId = id;
+          pending.witnessRoot = root; pending.witnessPath = pathname;
           startWitness = pending.intentId;
           startWitnessMessageId = id;
+          break;
+        }
+        // Primary guest trace: the same owned node receives its server UUID
+        // 571 ms after /c/guest. Never infer this continuity from text alone.
+        if (provider === "qwen" && pending.emptySurface && pending.initialPath === "/" &&
+            pending.baseline.size === 0 && !pending.renameUnavailable &&
+            node === pending.witnessNode && root === pending.witnessRoot && root === qwenRoot &&
+            pathname === "/c/guest" && pathname === pending.witnessPath &&
+            explicitIds.length === 0 && messageIds.filter(value => value === id).length === 1) {
+          renamePreviousId = pending.witnessId;
+          startWitness = pending.intentId; startWitnessMessageId = id;
           break;
         }
       }
     }
     const canonicalHref = document.querySelector('link[rel="canonical"][href]')?.href || "";
-    const messageIds = inSurface.map((node) => adapter.messageId(node)).filter(Boolean);
-    const surfaceConfirmed = Boolean(root && roots.size <= 1 &&
+    if (provider === "qwen" && pending?.witnessNode && !startWitness) pending.renameUnavailable = true;
+    const surfaceConfirmed = Boolean(!qwenGapRoot && root && roots.size <= 1 &&
       (composer?.composer?.isConnected || inSurface.length));
     lastInput = { origin, provider, pathname, canonicalHref,
       explicitIds, requiresExplicitId: provider === "alice", root,
-      surfaceConfirmed, hasMessages: inSurface.length > 0, messageIds, startWitness, startWitnessMessageId,
+      qwenInitialMain: qwenRoot ? mainRoots[0] : null, qwenInitialComposer: qwenRoot ? composer.composer : null,
+      surfaceConfirmed, hasMessages: inSurface.length > 0, messageIds, startWitness, startWitnessMessageId, renamePreviousId,
       conflict: roots.size > 1 ? "multiple_conversation_surfaces" : null };
     return lastInput;
   }
   function read(adapter) {
     const input = capture(adapter);
+    if (input.renamePreviousId && tracker.renameStartMessage(input, input.renamePreviousId)) {
+      pending.witnessId = input.startWitnessMessageId;
+      pending.renameUnavailable = true;
+    }
     const identity = tracker.observe(input);
     const digest = locatorDigest();
     if (!digest.digest) return { ...identity, conversation_id: null, status: "unknown", source: digest.failed ? "surface_proof_unavailable" : "surface_proof_pending" };
@@ -136,6 +164,7 @@
     tracker.beginStart(intentId);
     pending = { intentId: String(intentId), text: text(prompt), root: lastInput.root,
       emptySurface: lastInput.surfaceConfirmed && !lastInput.hasMessages, initialPath: lastInput.pathname,
+      qwenInitialMain: lastInput.qwenInitialMain, qwenInitialComposer: lastInput.qwenInitialComposer,
       baseline: new Set((adapter.userMessages?.() || []).map((node) => adapter.messageId(node)).filter(Boolean)) };
     return identity;
   }

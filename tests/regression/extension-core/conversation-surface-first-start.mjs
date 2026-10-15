@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
-import { webcrypto } from "node:crypto";
+import { webcrypto, createHash } from "node:crypto";
 const root = path.resolve(import.meta.dirname, "../../..");
 const source = (name) => fs.readFileSync(path.join(root, name), "utf8");
 function composedSource(name, target) {
@@ -10,12 +10,19 @@ function composedSource(name, target) {
   for (const patch of JSON.parse(source("apps/extension/application-patches.json"))) {
     if (patch.target !== target) continue;
     assert.equal(result.split(patch.old).length - 1, 1, `Unique composed patch: ${target}`);
-    result = result.replace(patch.old, patch.new);
+    let replacement = patch.new;
+    if (patch.new_source !== undefined) {
+      assert.equal(patch.new_source, "apps/extension/src/content/position-own-button.js");
+      replacement = source(patch.new_source) + "\n";
+      assert.equal(createHash("sha256").update(replacement).digest("hex"), patch.new_sha256);
+    }
+    result = result.replace(patch.old, replacement);
   }
   return result;
 }
 
 function fixture(provider = "alice") {
+  let clock = 0;
   class Node {
     constructor(parent = null, { id = "", text = "", main = false, hidden = false } = {}) {
       Object.assign(this, { parent, id, text, main, hidden, isConnected: true });
@@ -27,7 +34,7 @@ function fixture(provider = "alice") {
       }
       return null;
     }
-    getClientRects() { return this.hidden || !this.isConnected ? [] : [{}]; }
+    getClientRects() { return this.hidden || this.noRect || !this.isConnected ? [] : [{}]; }
     getAttribute() { return null; }
   }
   let body = new Node(), mains = [], users = [], assistants = [];
@@ -37,7 +44,7 @@ function fixture(provider = "alice") {
   const adapter = { id: provider, composerContext: () => composer.isConnected ? ({ root: composerRoot, composer }) : null,
     userMessages: () => users, assistantMessages: () => assistants,
     messageId: (node) => node.id, messageText: (node) => node.text };
-  const context = { URL, TextEncoder, crypto: webcrypto,
+  const context = { URL, TextEncoder, crypto: webcrypto, Date: class extends Date { static now() { return clock; } },
     location: { origin: provider === "qwen" ? "https://chat.qwen.ai" : "https://alice.yandex.ru", pathname: "/", search: "", hash: "" },
     document: { get body() { return body; }, querySelectorAll: selector => selector === ".desktop-layout-content-inner" ? desktopRoots : mains, querySelector: () => null } };
   vm.createContext(context);
@@ -45,6 +52,10 @@ function fixture(provider = "alice") {
     "apps/extension/src/background/compat/conversation-identity.js",
     "apps/extension/src/content/conversation-surface.js"]) vm.runInContext(source(file), context);
   return { api: context.SellerAgentsConversationSurface, adapter, context, Node,
+    get user() { return users[0]; }, get assistant() { return assistants[0]; },
+    advanceTime(ms) { clock += ms; },
+    replaceUserNode() { users[0] = new Node(users[0].parent, { id: users[0].id, text: users[0].text }); },
+    explicitIdentity(id) { desktopRoots[0].getAttribute = key => key === "data-chat-id" ? id : null; },
     addMessages(text = "Начальная инструкция") {
       if (provider === "qwen") {
         if (mains[0]) mains[0].isConnected = false;
@@ -60,6 +71,25 @@ function fixture(provider = "alice") {
       for (const main of mains) main.isConnected = false;
       mains = []; composer.isConnected = false; users = []; assistants = [];
       context.location.pathname = "/c/new-chat";
+    },
+    partialRemountGap() {
+      mains[0].noRect = true;
+      composer.value = "Начальная инструкция";
+      context.location.pathname = "/c/new-chat";
+    },
+    alterPartialGap(kind) {
+      if (kind === "replacement main") {
+        mains[0] = new Node(desktopRoots[0], { main: true }); mains[0].noRect = true;
+        composerRoot.parent = mains[0];
+      }
+      if (kind === "replacement composer") {
+        const other = new Node(composerRoot); other.value = composer.value;
+        adapter.composerContext = () => ({ root: composerRoot, composer: other });
+      }
+      if (kind === "cleared prompt") composer.value = "";
+      if (kind === "hidden old main") mains[0].hidden = true;
+      if (kind === "hidden composer") composer.hidden = true;
+      if (kind === "extra main") mains.push(new Node(desktopRoots[0], { main: true }));
     },
     hiddenMainInGap() { mains = [new Node(desktopRoots[0], { main: true, hidden: true })]; },
     hiddenMessageInGap() { users = [new Node(desktopRoots[0], { id: "hidden-1", text: "History", hidden: true })]; },
@@ -198,6 +228,38 @@ cases.push(["Qwen remount of a nonempty conversation cannot retain first-Start c
   assert.notEqual(gap.surface_id, before.surface_id);
 }]);
 
+// Installed 0.2.18 primary trace: the SAME main loses its client rect while
+// the SAME composer retains the pending prompt, before both are remounted.
+cases.push(["Qwen partial remount retains observation but never authorizes effects", async () => {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "intent-partial", "Начальная инструкция");
+  f.partialRemountGap();
+  for (let frame = 0; frame < 3; frame += 1) {
+    const gap = await f.api.ready(f.adapter);
+    assert.equal(gap.surface_id, before.surface_id);
+    assert.equal(gap.status, "unknown");
+    assert.equal(gap.conversation_id, null);
+  }
+  f.addMessages(); f.context.location.pathname = "/c/new-chat";
+  const witnessed = await f.api.ready(f.adapter);
+  assert.equal(witnessed.status, "confirmed");
+  assert.equal(witnessed.surface_id, before.surface_id);
+  f.context.location.pathname = "/c/guest";
+  assert.equal((await f.api.ready(f.adapter)).surface_id, before.surface_id);
+}]);
+for (const kind of ["replacement main", "replacement composer", "cleared prompt",
+  "hidden old main", "hidden composer", "extra main"]) {
+  cases.push([`Qwen partial remount rejects ${kind}`, async () => {
+    const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+    f.api.beginStart(f.adapter, "intent-partial", "Начальная инструкция");
+    f.partialRemountGap(); f.alterPartialGap(kind);
+    const gap = await f.api.ready(f.adapter);
+    assert.notEqual(gap.surface_id, before.surface_id);
+    f.addMessages();
+    assert.notEqual((await f.api.ready(f.adapter)).surface_id, before.surface_id);
+  }]);
+}
+
 // Exercise the real Alice adapter against the observed author/bubble/control structure.
 class AliceElement {
   constructor({ role = null, body = false, text = "", hidden = false } = {}) {
@@ -306,6 +368,102 @@ for (const code of ["WORK_START_SEND_OUTCOME_UNKNOWN_NO_RETRY", "WORK_START_SEND
     assert.equal(f.calls.length, 1); assert.equal(f.watches.size, 0); assert.equal(f.events.at(-1).reason, code);
   }]);
 }
+
+async function qwenRenameFixture(activeBeforeGuest = false) {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "rename-intent", "Начальная инструкция");
+  f.partialRemountGap();
+  assert.equal((await f.api.ready(f.adapter)).source, "pending_route_continuity");
+  f.addMessages("");
+  f.assistant.id = "";
+  f.context.location.pathname = "/c/new-chat";
+  await f.api.ready(f.adapter);
+  f.user.text = "Начальная инструкция";
+  assert.equal((await f.api.ready(f.adapter)).status, "confirmed");
+  if (activeBeforeGuest) f.api.endStart("rename-intent", "active_visible");
+  f.context.location.pathname = "/c/guest";
+  const guest = await f.api.ready(f.adapter);
+  assert.equal(guest.status, "confirmed");
+  assert.equal(guest.surface_id, before.surface_id);
+  return { f, before };
+}
+for (const active of [false, true]) cases.push(["Qwen ID rename preserves owned node " + (active ? "after active_visible" : "while pending"), async () => {
+  const { f, before } = await qwenRenameFixture();
+  if (active) f.api.endStart("rename-intent", "active_visible");
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  const after = await f.api.ready(f.adapter);
+  assert.equal(after.status, "confirmed");
+  assert.equal(after.surface_id, before.surface_id);
+  assert.equal(after.conversation_id, "local:" + before.surface_id);
+  assert.deepEqual(Array.from(after.identity_evidence.message_ids), ["user-server", "assistant-server"]);
+  assert.equal((await f.api.ready(f.adapter)).status, "confirmed");
+}]);
+for (const [kind, alter] of [
+  ["replacement node with the same text", f => f.replaceUserNode()],
+  ["changed text", f => { f.user.text = "Другой запрос"; }],
+  ["hidden node", f => { f.user.hidden = true; }],
+  ["disconnected node", f => { f.user.isConnected = false; }],
+  ["replaced root", f => f.replaceDesktopRoot()],
+  ["ambiguous roots", f => f.duplicateDesktopRoot()],
+  ["changed route", f => { f.context.location.pathname = "/c/other"; }],
+  ["changed origin", f => { f.context.location.origin = "https://example.invalid"; }],
+  ["cancelled Start", f => f.api.endStart("rename-intent", "cancelled")],
+  ["timed out Start", f => f.api.endStart("rename-intent", "response_timeout")],
+  ["expired observation", f => f.advanceTime(120001)],
+  ["duplicate current ID", f => { f.assistant.id = "user-server"; }],
+  ["conflicting external identity", f => f.explicitIdentity("different-conversation")],
+]) cases.push(["Qwen ID rename refuses " + kind, async () => {
+  const { f, before } = await qwenRenameFixture();
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  alter(f);
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id,
+    "unproved ID replacement cannot continue the owned Start");
+}]);
+cases.push(["Qwen ID rename is single-use even after active_visible", async () => {
+  const { f, before } = await qwenRenameFixture();
+  f.api.endStart("rename-intent", "active_visible");
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  assert.equal((await f.api.ready(f.adapter)).status, "confirmed");
+  f.user.id = "user-third"; f.assistant.id = "assistant-third";
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id);
+}]);
+cases.push(["Qwen ID rename cannot revive after a witnessed text mismatch", async () => {
+  const { f, before } = await qwenRenameFixture();
+  f.user.text = "Different"; await f.api.ready(f.adapter);
+  f.user.text = "Начальная инструкция";
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id);
+}]);
+
+cases.push(["Qwen ID rename survives active_visible before guest route promotion", async () => {
+  const { f, before } = await qwenRenameFixture(true);
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  const after = await f.api.ready(f.adapter);
+  assert.equal(after.status, "confirmed");
+  assert.equal(after.surface_id, before.surface_id);
+  assert.deepEqual(Array.from(after.identity_evidence.message_ids), ["user-server", "assistant-server"]);
+}]);
+
+cases.push(["Qwen ID rename early-active retention never permits another final route", async () => {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "rename-intent", "Начальная инструкция");
+  f.addMessages(); f.context.location.pathname = "/c/new-chat";
+  assert.equal((await f.api.ready(f.adapter)).surface_id, before.surface_id);
+  f.api.endStart("rename-intent", "active_visible");
+  f.context.location.pathname = "/c/another";
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id);
+}]);
+cases.push(["Qwen ID rename completed guest promotion cannot authorize later navigation", async () => {
+  const { f, before } = await qwenRenameFixture(true);
+  f.context.location.pathname = "/c/another";
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id);
+}]);
+
 const results = [];
 for (const [name, run] of cases) {
   try { await run(); results.push({ name, status: "PASS" }); }

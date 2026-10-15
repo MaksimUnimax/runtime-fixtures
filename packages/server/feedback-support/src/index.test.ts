@@ -103,6 +103,75 @@ describe("B2 feedback/support safety foundation", () => {
     },
   );
 
+  it.each([
+    ["password", "synthetic-password-private-001"],
+    ["access_token", "synthetic-access-token-private-002"],
+    ["refresh_token", "synthetic-refresh-token-private-003"],
+    ["apiKey", "synthetic-api-key-private-004"],
+    ["clientSecret", "synthetic-client-secret-private-005"],
+  ])(
+    "redacts quoted JSON credential field %s without losing safe metadata",
+    (key, value) => {
+      const text = `report: {"${key}":"${value}","requestId":"request-99"}`;
+      const sanitized = sanitizeFeedbackText(text);
+      expect(sanitized).not.toContain(value);
+      expect(sanitized).toContain(`"${key}":"[REDACTED_SECRET]"`);
+      expect(sanitized).toContain('"requestId":"request-99"');
+    },
+  );
+
+  it("fails closed for invalid JSON key escapes without removing safe metadata", () => {
+    const raw =
+      '{"access_token\\q":"synthetic-malformed-key-private","requestId":"request-kept"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("synthetic-malformed-key-private");
+    expect(sanitized).toContain('"access_token\\q":"[REDACTED_SECRET]"');
+    expect(sanitized).toContain('"requestId":"request-kept"');
+  });
+
+  it("redacts JSON credential keys encoded with Unicode escapes", () => {
+    const raw =
+      '{"access\\u005ftoken":"synthetic-escaped-key-secret","requestId":"request-escaped"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("synthetic-escaped-key-secret");
+    expect(sanitized).toContain('"access\\u005ftoken":"[REDACTED_SECRET]"');
+    expect(sanitized).toContain('"requestId":"request-escaped"');
+  });
+
+  it("redacts escaped JSON credential strings without leaking a suffix", () => {
+    const raw =
+      '{"access_token":"synthetic-head\\"synthetic-tail","status":"ok"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("synthetic-head");
+    expect(sanitized).not.toContain("synthetic-tail");
+    expect(sanitized).toContain('"access_token":"[REDACTED_SECRET]"');
+    expect(sanitized).toContain('"status":"ok"');
+  });
+
+  it("redacts JSON credentials before the user case repository call", async () => {
+    const secret = "synthetic-private-credential-value";
+    let forwarded: { description: string } | undefined;
+    const repo = {
+      createCase: async (input: { description: string }) => {
+        forwarded = input;
+        throw new Error("SYNTHETIC_REPOSITORY_SENTINEL");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repo);
+    await expect(
+      service.createCase("00000000-0000-4000-8000-000000000001", {
+        accountId: "00000000-0000-4000-8000-000000000002",
+        category: "OTHER",
+        description: `support: {"access_token":"${secret}","requestId":"r-1"}`,
+      }),
+    ).rejects.toThrow("SYNTHETIC_REPOSITORY_SENTINEL");
+    expect(forwarded?.description).not.toContain(secret);
+    expect(forwarded?.description).toContain(
+      '"access_token":"[REDACTED_SECRET]"',
+    );
+    expect(forwarded?.description).toContain('"requestId":"r-1"');
+  });
+
   it("keeps ordinary support text that is not an auth header", () => {
     expect(sanitizeFeedbackText("authorization failed for test browser")).toBe(
       "authorization failed for test browser",

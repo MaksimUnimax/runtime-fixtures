@@ -300,6 +300,109 @@
       return write(next);
     });
   }
+  // The control service publishes a strict sync v1 response contract.
+  // Validate all nested fields and the entire batch before any local/catalog
+  // effects; partial checks on only the selected row are not sufficient.
+  const syncPlain = value => value !== null && typeof value === "object" && !Array.isArray(value);
+  const syncFields = (value, allowed, required) => syncPlain(value) &&
+    Object.keys(value).every(key => allowed.includes(key)) &&
+    required.every(key => Object.prototype.hasOwnProperty.call(value, key));
+  const syncOptional = (value, key, valid) =>
+    !Object.prototype.hasOwnProperty.call(value, key) || valid(value[key]);
+  const syncInt = value => typeof value === "number" && Number.isSafeInteger(value);
+  const syncNonnegative = value => syncInt(value) && value >= 0;
+  const syncNullable = valid => value => value === null || valid(value);
+  const syncString = max => value => typeof value === "string" && value.length >= 1 && value.length <= max;
+  const syncNullableString = max => syncNullable(syncString(max));
+  const syncEnum = values => value => values.includes(value);
+  const syncArray = (valid, max) => value => Array.isArray(value) && value.length <= max && value.every(valid);
+  const syncCode = value => typeof value === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(value);
+  const syncUuid = value => typeof value === "string" &&
+    /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i.test(value);
+  const syncOrigin = syncEnum(["ozon", "wildberries"]);
+  const syncOrderProvenance = syncEnum(["AI_ORDERED", "CLIENT_APPROXIMATE", "SERVER_RECEIVE_FALLBACK"]);
+  const syncKinds = ["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER", "STORE_UPSERT", "STORE_TOMBSTONE"];
+  const syncDeliveryOrder = value =>
+    syncFields(value, ["aiOrderId", "clientDeliveredAtMs", "clientSequence", "orderProvenance", "serverReceiveAtMs"], []) &&
+    syncOptional(value, "aiOrderId", syncNullableString(240)) &&
+    syncOptional(value, "clientDeliveredAtMs", syncNullable(syncInt)) &&
+    syncOptional(value, "clientSequence", syncNullable(syncNonnegative)) &&
+    syncOptional(value, "orderProvenance", syncOrderProvenance) &&
+    syncOptional(value, "serverReceiveAtMs", syncNullable(syncInt));
+  const syncMarker = value =>
+    syncFields(value, ["installationId", "deliveryMarkerId", "bindingId", "bindingRevision", "storeId",
+      "marketplace", "workGeneration", "aiOrderId", "clientDeliveredAtMs", "clientSequence",
+      "orderProvenance", "serverReceiveAtMs", "revoked"],
+      ["installationId", "deliveryMarkerId", "bindingId", "bindingRevision", "storeId",
+        "marketplace", "orderProvenance", "serverReceiveAtMs"]) &&
+    syncUuid(value.installationId) && syncString(128)(value.deliveryMarkerId) &&
+    syncNullableString(128)(value.bindingId) && syncNonnegative(value.bindingRevision) &&
+    syncNullableString(128)(value.storeId) && syncNullable(syncOrigin)(value.marketplace) &&
+    syncOptional(value, "workGeneration", syncNullableString(160)) &&
+    syncOptional(value, "aiOrderId", syncNullableString(240)) &&
+    syncOptional(value, "clientDeliveredAtMs", syncNullable(syncInt)) &&
+    syncOptional(value, "clientSequence", syncNullable(syncNonnegative)) &&
+    syncOrderProvenance(value.orderProvenance) && syncInt(value.serverReceiveAtMs) &&
+    syncOptional(value, "revoked", item => typeof item === "boolean");
+  const syncPreferred = value =>
+    syncFields(value, ["state", "installationId", "reason"], ["state", "installationId"]) &&
+    syncEnum(["UNSET", "VALID_CURRENT", "REPLACEMENT_REQUIRED"])(value.state) &&
+    syncNullable(syncUuid)(value.installationId) &&
+    syncOptional(value, "reason", syncNullable(syncCode));
+  const syncReconciliation = value =>
+    syncFields(value, ["classification", "preferred", "markers", "observedInstallationIds", "serverReceiveAtMs"],
+      ["classification", "preferred", "markers", "observedInstallationIds"]) &&
+    syncEnum(["IN_SYNC", "SERVER_AHEAD_COMPATIBLE", "LOCAL_PENDING", "SAME_BINDING_MERGEABLE",
+      "EXPLICIT_BINDING_CONFLICT", "LOCAL_FINISH_SUPERSEDED_BY_NEWER_EXPLICIT_BINDING",
+      "SERVER_FINISH_WINS_OVER_LATE_DELIVERY", "STALE_DELIVERY_OBSOLETE",
+      "REQUIRES_EXPLICIT_USER_REBIND_RESOLUTION", "UNKNOWN_REMOTE_INSTALLATION_STATE"])(value.classification) &&
+    syncPreferred(value.preferred) && syncArray(syncMarker, 8)(value.markers) &&
+    syncArray(syncUuid, 16)(value.observedInstallationIds) &&
+    syncOptional(value, "serverReceiveAtMs", syncNullable(syncInt));
+  const syncState = value => value === null || (
+    syncFields(value, ["kind", "conversationKeyDigest", "bindingId", "bindingRevision", "storeId",
+      "marketplace", "credentialRevision", "deliveryMarkerId", "bindingState", "workGeneration",
+      "deliveryOrder", "reconciliation", "name", "providerAccountId", "providerIdentityState",
+      "metadataRevision", "lifecycleState"],
+      ["kind", "conversationKeyDigest", "bindingId", "bindingRevision", "storeId",
+        "marketplace", "credentialRevision"]) &&
+    syncEnum(syncKinds)(value.kind) &&
+    typeof value.conversationKeyDigest === "string" && /^[a-f0-9]{64}$/.test(value.conversationKeyDigest) &&
+    syncNullableString(128)(value.bindingId) && syncNonnegative(value.bindingRevision) &&
+    syncNullableString(128)(value.storeId) && syncNullable(syncOrigin)(value.marketplace) &&
+    syncNullableString(128)(value.credentialRevision) &&
+    syncOptional(value, "deliveryMarkerId", syncNullableString(128)) &&
+    syncOptional(value, "bindingState", syncEnum(["BOUND", "FINISHED"])) &&
+    syncOptional(value, "workGeneration", syncNullableString(160)) &&
+    syncOptional(value, "deliveryOrder", syncDeliveryOrder) &&
+    syncOptional(value, "reconciliation", syncReconciliation) &&
+    syncOptional(value, "name", syncString(80)) &&
+    syncOptional(value, "providerAccountId", syncNullableString(128)) &&
+    syncOptional(value, "providerIdentityState", syncEnum(["CONFIRMED", "UNCONFIRMED"])) &&
+    syncOptional(value, "metadataRevision", syncNonnegative) &&
+    syncOptional(value, "lifecycleState", syncEnum(["ACTIVE", "TOMBSTONED"])) &&
+    bytes(value) <= 4096
+  );
+  const syncResult = value =>
+    syncFields(value, ["requestId", "mutationId", "entityId", "outcome", "serverRevision", "serverState", "code"],
+      ["requestId", "mutationId", "entityId", "outcome", "serverRevision", "serverState", "code"]) &&
+    syncUuid(value.requestId) && syncString(320)(value.mutationId) && syncString(128)(value.entityId) &&
+    syncEnum(["ACK", "CONFLICT", "RETRY"])(value.outcome) &&
+    syncNonnegative(value.serverRevision) && syncState(value.serverState) &&
+    syncNullable(syncCode)(value.code);
+  const syncSnapshot = value =>
+    syncFields(value, ["entityId", "serverRevision", "serverState"], ["entityId", "serverRevision", "serverState"]) &&
+    typeof value.entityId === "string" &&
+    (/^conversation:[a-f0-9]{64}$/.test(value.entityId) ||
+      (/^store:.{1,122}$/s.test(value.entityId) &&
+        [...value.entityId.slice("store:".length)].every(char => char.charCodeAt(0) > 31 && char.charCodeAt(0) !== 127))) &&
+    syncNonnegative(value.serverRevision) && syncState(value.serverState);
+  const syncResponseValid = value =>
+    syncFields(value, ["syncVersion", "results", "snapshots"], ["syncVersion", "results"]) &&
+    value.syncVersion === VERSION && syncArray(syncResult, MAX_BATCH)(value.results) &&
+    syncOptional(value, "snapshots", syncArray(syncSnapshot, MAX_BATCH)) &&
+    (!value.snapshots || new Set(value.snapshots.map(row => row.entityId)).size === value.snapshots.length) &&
+    bytes(value) <= 256 * 1024;
   async function syncNow(reason = "scheduled") {
     if (syncFlight) return syncFlight;
     syncFlight = (async () => {
@@ -312,22 +415,51 @@
       await markBatch(selected, entry => ({ status: "IN_FLIGHT", attempts: entry.attempts + 1, attempt_worker_id: String(globalThis.WORKER_SESSION_ID || "worker-unknown"), lastAttemptAt: now, lastError: null }));
       try {
         const result = await SellerAgentsControlClient.synchronizeMetadata({ syncVersion: VERSION, entries: selected.map(wireEntry) });
-        if (!result || result.syncVersion !== VERSION || !Array.isArray(result.results)) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
-        const byRequest = new Map(result.results.map(row => [row?.requestId, row]));
-        if (byRequest.size !== selected.length || selected.some(entry => !byRequest.has(entry.requestId))) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
+        if (!syncResponseValid(result) || result.results.length !== selected.length)
+          throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
+        const byRequest = new Map(result.results.map(row => [row.requestId, row]));
+        if (byRequest.size !== result.results.length || selected.some(entry => !byRequest.has(entry.requestId)))
+          throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
         const responseAuth = await identity().catch(() => null);
         if (!responseAuth || responseAuth.accountId !== auth.accountId || responseAuth.installationId !== auth.installationId) throw Object.assign(new Error("SYNC_RESPONSE_CONTEXT_STALE"), { code: "SYNC_RESPONSE_CONTEXT_STALE" });
         await mutate(async () => {
           const current = await read();
-          for (const entry of selected) {
+          // Validate the WHOLE response before any catalog or journal side
+          // effects. An invalid later row must not partially apply an earlier
+          // store ACK while the batch is ultimately reported as failed.
+          const batch = selected.map(entry => {
             const row = byRequest.get(entry.requestId), live = current.entries[entry.entryId];
-            if (!live || row.mutationId !== live.mutationId || row.entityId !== (live.wireEntityId || live.entityId)) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
+            if (!live || row.mutationId !== live.mutationId || row.entityId !== (live.wireEntityId || live.entityId) ||
+                !["ACK", "CONFLICT", "RETRY"].includes(row.outcome) ||
+                typeof row.serverRevision !== "number" ||
+                !Number.isSafeInteger(row.serverRevision) || row.serverRevision < 0 ||
+                (row.outcome === "ACK" && row.serverRevision < live.baseRevision) ||
+                (row.serverState != null && (typeof row.serverState !== "object" ||
+                  Array.isArray(row.serverState) || bytes(row.serverState) > 4096)) ||
+                (row.code != null && (typeof row.code !== "string" || row.code.length > 128)))
+              throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
+            return { row, live };
+          });
+          for (const { row, live } of batch) {
             const slot = stateSlot(live.accountId, live.entityId);
             const priorRevision = integer(current.serverRevisions[slot]) || 0;
-            if (Number(row.serverRevision) < priorRevision) continue;
+            if (row.serverRevision < priorRevision) {
+              // A later snapshot/ACK already established newer server truth.
+              // Do not overwrite it or leave the original intent stuck IN_FLIGHT:
+              // retain the local desired mutation for explicit reconciliation.
+              live.status = "CONFLICT";
+              live.conflict = {
+                serverRevision: priorRevision,
+                serverState: clone(current.serverStates[slot] || null),
+                classification: "SYNC_STALE_REPLY_SUPERSEDED",
+              };
+              live.nextAttemptAt = 0;
+              live.lastError = "SYNC_STALE_REPLY_SUPERSEDED";
+              continue;
+            }
             if (row.outcome === "ACK") {
-              if (!Number.isSafeInteger(Number(row.serverRevision)) || Number(row.serverRevision) < live.baseRevision) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
-              current.serverRevisions[slot] = Number(row.serverRevision);
+              // All ACK revisions were validated with the whole batch above.
+              current.serverRevisions[slot] = row.serverRevision;
               const newerExplicit = Object.values(current.entries).some(entry => entry.accountId === live.accountId && entry.entityId === live.entityId && entry.localSequence > live.localSequence && ["BINDING_UPSERT", "FINISH"].includes(entry.kind));
               let lateDeliveryClass = null;
               if (live.kind === "DELIVERY_MARKER" && row.serverState && current.serverStates[slot]) {

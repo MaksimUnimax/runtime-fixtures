@@ -359,7 +359,9 @@ async function expectRejectedWithoutRun(
 describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
   beforeAll(async () => {
     await runtime.ready();
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({ connectionString });

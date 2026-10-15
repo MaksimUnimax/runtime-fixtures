@@ -105,7 +105,13 @@ async function executeManualCommand(
   if (r3Prepared) requestToken = recovery?.context.requestId || r3Prepared.requestToken;
   if (r3Enabled && !await SellerAgentsControlClient.canWork(liveIdentity))
     throw Object.assign(new Error("Work policy blocked"), { code: "WORK_POLICY_BLOCKED" });
-  const promptTree = r3Enabled ? await saPromptTreeForExchange(liveIdentity, true) : { pin: null };
+  const promptTree = { pin: null };
+  if (r3Enabled && workSession.state === OzonWorkSessionModel.STATES.ACTIVE_VISIBLE) {
+    if (!Object.prototype.hasOwnProperty.call(workSession, "prompt_tree"))
+      throw saError("WORK_PROMPT_TREE_PIN_MISSING_START_REQUIRED");
+    if (workSession.prompt_tree)
+      promptTree.pin = await SellerAgentsControlClient.validatePromptTreePin(liveIdentity, workSession.prompt_tree);
+  }
   if (r3Prepared && promptTree.pin) r3Prepared.source.promptTree = { aiId: promptTree.pin.aiId, version: promptTree.pin.version, sha256: promptTree.pin.sha256 };
   const executionContext = await captureBatchContext(
     key,

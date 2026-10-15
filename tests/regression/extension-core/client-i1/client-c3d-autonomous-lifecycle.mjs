@@ -206,6 +206,62 @@ await test("C3D-18", "missing marketplace capability denies selected context", a
   finally { await close(f); }
 });
 
+for (const finished of [false, true]) await test(`C3D-19-${finished ? "finished" : "paused"}`, "explicit same-store new Start replaces an inactive stale auth generation without replay", async () => {
+  const f = await autonomousFixture({ bound: true });
+  try {
+    const currentGeneration = await f.worker.call("SellerAgentsControlClient.generation");
+    const oldBinding = f.backing.local[BINDINGS][f.key];
+    oldBinding.store_context.authGeneration = currentGeneration - 1;
+    f.backing.local[SESSIONS][f.key].finished = finished;
+    const oldBindingId = oldBinding.binding_id;
+    const result = await start(f);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.accepted, true, JSON.stringify(result));
+    await complete(f);
+    const next = f.backing.local[BINDINGS][f.key];
+    assert.notEqual(next.binding_id, oldBindingId);
+    assert.equal(next.store_context.authGeneration, currentGeneration);
+    assert.equal(f.worker.messages.filter(message => message.type === "OZ_WORK_SEND_INITIAL_PROMPT").length, 1);
+    assert.equal(f.worker.network.length, 0);
+    assert.equal(f.worker.messages.some(message => message.type === "OZ_EXECUTE_COMMAND"), false);
+  } finally { await close(f); }
+});
+await test("C3D-20", "stale inactive Resume does not acquire a new grant or send a prompt", async () => {
+  const f = await autonomousFixture({ bound: true });
+  try {
+    f.backing.local[BINDINGS][f.key].store_context.authGeneration = (await f.worker.call("SellerAgentsControlClient.generation")) - 1;
+    const result = await f.worker.popup({ type: "SA_WORK_RESUME", conversation_key: f.key, tab_id: f.worker.tabId });
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal(result.code, "EXECUTION_CONTEXT_CHANGED");
+    assert.equal(f.worker.messages.some(message => message.type === "OZ_WORK_SEND_INITIAL_PROMPT"), false);
+    assert.equal(f.worker.network.length, 0);
+  } finally { await close(f); }
+});
+for (const field of ["accountId", "credentialRevision", "policyRevision"]) await test(`C3D-21-${field}`, "new Start still rejects a changed account, key revision or privacy policy", async () => {
+  const f = await autonomousFixture({ bound: true });
+  try {
+    const pinned = f.backing.local[BINDINGS][f.key].store_context;
+    pinned.authGeneration = (await f.worker.call("SellerAgentsControlClient.generation")) - 1;
+    pinned[field] = "different-" + pinned[field];
+    const result = await start(f);
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal(result.code, "EXECUTION_CONTEXT_CHANGED");
+    assert.equal(f.worker.messages.some(message => message.type === "OZ_WORK_SEND_INITIAL_PROMPT"), false);
+    assert.equal(f.worker.network.length, 0);
+  } finally { await close(f); }
+});
+await test("C3D-22", "active stale same-store Start remains blocked before another prompt", async () => {
+  const f = await autonomousFixture({ bound: true, state: "active_visible" });
+  try {
+    f.backing.local[BINDINGS][f.key].store_context.authGeneration = (await f.worker.call("SellerAgentsControlClient.generation")) - 1;
+    const result = await start(f);
+    assert.equal(result.accepted, false, JSON.stringify(result));
+    assert.equal(result.code, "WORK_SESSION_ALREADY_ACTIVE");
+    assert.equal(f.worker.messages.some(message => message.type === "OZ_WORK_SEND_INITIAL_PROMPT"), false);
+    assert.equal(f.worker.network.length, 0);
+  } finally { await close(f); }
+});
+
 const failures = results.filter(result => result.status === "FAIL");
 console.log(JSON.stringify({ status: failures.length ? "FAIL" : "PASS", scope: "C3D_AUTONOMOUS_START_RESUME_REBIND", results, failureBatch: failures }, null, 2));
 if (failures.length) process.exitCode = 1;

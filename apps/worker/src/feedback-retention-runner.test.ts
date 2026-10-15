@@ -54,6 +54,7 @@ describe("FeedbackRetentionRunner", () => {
     expect(purgeExpired).toHaveBeenCalledOnce();
     await runner.stop();
     await runner.stop();
+    await expect(runner.tick()).rejects.toThrow("WORKER_STOPPING");
   });
 
   it("reports a later rejection, keeps it handled, and waits before retrying", async () => {
@@ -88,6 +89,33 @@ describe("FeedbackRetentionRunner", () => {
       await runner.stop();
     } finally {
       process.off("unhandledRejection", onUnhandled);
+      vi.useRealTimers();
+    }
+  });
+
+  it("continues active scheduling without awaiting a pending async error sink", async () => {
+    vi.useFakeTimers();
+    try {
+      const purgeExpired = vi
+        .fn<() => Promise<{ cases: number; signals: number }>>()
+        .mockResolvedValueOnce({ cases: 0, signals: 0 })
+        .mockRejectedValueOnce(new Error("private repository detail"))
+        .mockResolvedValueOnce({ cases: 0, signals: 0 });
+      const onError = vi.fn(() => new Promise<void>(() => undefined));
+      const runner = new FeedbackRetentionRunner(
+        { purgeExpired },
+        { closedDays: 90, signalDays: 180 },
+        1_000,
+        undefined,
+        onError,
+      );
+      await runner.start();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(onError).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(purgeExpired).toHaveBeenCalledTimes(3);
+      await runner.stop();
+    } finally {
       vi.useRealTimers();
     }
   });
@@ -164,6 +192,7 @@ describe("FeedbackRetentionRunner", () => {
       resolveSlow({ cases: 0, signals: 0 });
       await stopped;
       expect(stopSettled).toBe(true);
+      await expect(runner.tick()).rejects.toThrow("WORKER_STOPPING");
       await vi.advanceTimersByTimeAsync(10_000);
       expect(purgeExpired).toHaveBeenCalledTimes(2);
     } finally {

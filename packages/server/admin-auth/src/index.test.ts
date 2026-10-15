@@ -295,6 +295,178 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
     ).createAdminSession(portal, "corr");
     expect(result).toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
   });
+  it("rejects an invalid portal timestamp before issuing a token or writing", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => new Date("2030-01-01T00:00:00Z"),
+      token,
+    );
+    expect(
+      await admin.createAdminSession(
+        { ...portal, createdAt: new Date(Number.NaN) },
+        "corr",
+      ),
+    ).toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects an invalid current clock before issuing a token or writing", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => new Date(Number.NaN),
+      token,
+    );
+    expect(await admin.createAdminSession(portal, "corr")).toEqual({
+      ok: false,
+      code: "ADMIN_REAUTH_REQUIRED",
+    });
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects runtime portal timestamps that are not Date objects", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => new Date("2030-01-01T00:00:00Z"),
+      token,
+    );
+    for (const malformed of [
+      "2030-01-01T00:00:00Z",
+      null,
+      1_893_456_000_000,
+      { getTime: () => 1_893_456_000_000 },
+    ]) {
+      await expect(
+        admin.createAdminSession(
+          { ...portal, createdAt: malformed as unknown as Date },
+          "corr",
+        ),
+      ).resolves.toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
+    }
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects a runtime clock that is not a Date before side effects", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => "2030-01-01T00:00:00Z" as unknown as Date,
+      token,
+    );
+    await expect(admin.createAdminSession(portal, "corr")).resolves.toEqual({
+      ok: false,
+      code: "ADMIN_REAUTH_REQUIRED",
+    });
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects Date-prototype and Proxy receivers without side effects", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => new Date("2030-01-01T00:00:00Z"),
+      token,
+    );
+    for (const malformed of [
+      Object.create(Date.prototype) as Date,
+      new Proxy(new Date("2030-01-01T00:00:00Z"), {}),
+    ]) {
+      await expect(
+        admin.createAdminSession({ ...portal, createdAt: malformed }, "corr"),
+      ).resolves.toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
+    }
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects an unbranded Date clock without creating a session", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    for (const malformed of [
+      Object.create(Date.prototype) as Date,
+      new Proxy(new Date("2030-01-01T00:00:00Z"), {}),
+    ]) {
+      const admin = new AdminAuthService(repo, keys, () => malformed, token);
+      await expect(admin.createAdminSession(portal, "corr")).resolves.toEqual({
+        ok: false,
+        code: "ADMIN_REAUTH_REQUIRED",
+      });
+    }
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("reads genuine Date internal values without calling overridden getTime", async () => {
+    const repo = repository();
+    const validDate = new Date("2030-01-01T00:00:00Z");
+    const override = vi.fn(() => {
+      throw new Error("date getTime override must not run");
+    });
+    validDate.getTime = override;
+    const admin = service(repo, () => validDate);
+    const result = await admin.createAdminSession(
+      { ...portal, createdAt: validDate },
+      "corr",
+    );
+    expect(result.ok).toBe(true);
+    expect(override).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).toHaveBeenCalledOnce();
+  });
+  it("rejects session expiry overflow before issuing a token or writing", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const extreme = new Date(8_640_000_000_000_000);
+    const admin = new AdminAuthService(repo, keys, () => extreme, token);
+    await expect(
+      admin.createAdminSession({ ...portal, createdAt: extreme }, "corr"),
+    ).resolves.toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("accepts the last representable session expiry when within the 15-minute boundary", async () => {
+    const repo = repository();
+    const time = new Date(8_640_000_000_000_000 - ADMIN_SESSION_TTL_MS);
+    const admin = service(repo, () => time);
+    const result = await admin.createAdminSession(
+      { ...portal, createdAt: time },
+      "corr",
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.createAdminSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createdAt: time,
+        expiresAt: new Date(8_640_000_000_000_000),
+      }),
+    );
+  });
+  it("uses one verified clock instant for the elevation age and expiry", async () => {
+    const repo = repository();
+    const initial = new Date("2030-01-01T00:15:00Z");
+    const now = vi
+      .fn()
+      .mockReturnValueOnce(initial)
+      .mockReturnValueOnce(new Date("2020-01-01T00:00:00Z"));
+    const result = await service(repo, now).createAdminSession(portal, "corr");
+    expect(result.ok).toBe(true);
+    expect(now).toHaveBeenCalledTimes(1);
+    expect(repo.createAdminSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createdAt: initial,
+        now: initial,
+        expiresAt: new Date(initial.getTime() + ADMIN_SESSION_TTL_MS),
+      }),
+    );
+  });
   it("projects only the safe subject and calculated permissions", async () => {
     const result = await service().authenticateAdminSession("token");
     expect(result.ok).toBe(true);

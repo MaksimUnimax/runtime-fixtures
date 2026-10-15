@@ -13,7 +13,7 @@ describe.sequential("canonical product and monitoring migration intake", () => {
 
   it("upgrades the observed 22-entry owner-test prefix to current0059 without losing rows", async () => {
     await runtime.query(
-      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
     );
     const directory = await mkdtemp(join(tmpdir(), "octoport-prefix22-"));
     try {
@@ -87,7 +87,7 @@ describe.sequential("canonical product and monitoring migration intake", () => {
 
   it("upgrades the preserved 23-entry product prefix without losing rows", async () => {
     await runtime.query(
-      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
     );
     const directory = await mkdtemp(join(tmpdir(), "octoport-prefix-"));
     try {
@@ -155,13 +155,13 @@ describe.sequential("canonical product and monitoring migration intake", () => {
       ).toEqual([{ count: 1 }]);
     } finally {
       await runtime.query(
-        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+        "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
       );
     }
   });
   it("rejects untracked application objects before creating migration history", async () => {
     await runtime.query(
-      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
     );
     await runtime.query("CREATE TABLE untracked_probe(id integer PRIMARY KEY)");
     try {
@@ -184,14 +184,14 @@ describe.sequential("canonical product and monitoring migration intake", () => {
       ).toBe("untracked_probe");
     } finally {
       await runtime.query(
-        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+        "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
       );
     }
   });
 
   it("rejects an untracked enum-only schema before creating migration history", async () => {
     await runtime.query(
-      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
     );
     await runtime.query("CREATE TYPE untracked_state AS ENUM ('ACTIVE')");
     try {
@@ -214,14 +214,14 @@ describe.sequential("canonical product and monitoring migration intake", () => {
       ).toBe(true);
     } finally {
       await runtime.query(
-        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+        "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
       );
     }
   });
 
   it("rejects an untracked function-only schema before creating migration history", async () => {
     await runtime.query(
-      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
     );
     await runtime.query(
       "CREATE FUNCTION untracked_probe() RETURNS integer LANGUAGE sql AS 'SELECT 1'",
@@ -246,14 +246,14 @@ describe.sequential("canonical product and monitoring migration intake", () => {
       ).toBe(true);
     } finally {
       await runtime.query(
-        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+        "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
       );
     }
   });
 
   it("rejects the observed historical hybrid lineage without mutating it", async () => {
     await runtime.query(
-      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
     );
     const root = await mkdtemp(join(tmpdir(), "octoport-hybrid-"));
     const legacyDirectory = join(root, "legacy");
@@ -343,7 +343,7 @@ describe.sequential("canonical product and monitoring migration intake", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
       await runtime.query(
-        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+        "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
       );
     }
   });
