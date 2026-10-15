@@ -552,8 +552,10 @@ export function readZip(bytes) {
 
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     const fileType = unixMode & 0xf000;
+    // OS X (ZIP creator host 19) also uses POSIX file type bits.
+    const unixLikeCreator = [3, 19].includes(madeBy >>> 8);
     if (
-      madeBy >> 8 === 3 &&
+      unixLikeCreator &&
       fileType !== 0 &&
       fileType !== 0x8000 &&
       fileType !== 0x4000
@@ -564,7 +566,7 @@ export function readZip(bytes) {
     // An explicit Unix type must agree with the entry name. Otherwise a ZIP
     // can pass preflight as a file but be installed as a directory (or vice versa).
     if (
-      madeBy >> 8 === 3 &&
+      unixLikeCreator &&
       ((fileType === 0x4000 && !isDirectory) ||
         (fileType === 0x8000 && isDirectory))
     ) {
