@@ -178,6 +178,7 @@ export async function makeWorker(directory, options = {}) {
     alarmListeners = [],
     alarmEntries = new Map(),
     timers = new Set();
+  let workerClosed = false;
   const backing = options.backing || { local: {}, session: {} };
   const timerScale =
     Number.isFinite(options.timerScale) && options.timerScale > 0
@@ -848,9 +849,10 @@ export async function makeWorker(directory, options = {}) {
       });
     },
     setTimeout(fn, ms, ...args) {
+      if (workerClosed) return undefined;
       const timer = setTimeout(() => {
         timers.delete(timer);
-        fn(...args);
+        if (!workerClosed) fn(...args);
       }, ms * timerScale);
       timers.add(timer);
       return timer;
@@ -860,6 +862,7 @@ export async function makeWorker(directory, options = {}) {
       clearTimeout(timer);
     },
     setInterval(fn, ms, ...args) {
+      if (workerClosed) return undefined;
       const timer = setInterval(fn, ms * timerScale, ...args);
       timers.add(timer);
       return timer;
@@ -1116,6 +1119,7 @@ export async function makeWorker(directory, options = {}) {
       return active.binding.conversation_key;
     },
     close() {
+      workerClosed = true;
       for (const timer of timers) {
         clearTimeout(timer);
         clearInterval(timer);

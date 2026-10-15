@@ -356,7 +356,17 @@ with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w",
         if mode=="zip_opaque_local_gap" and index==1:
             z.fp.write(b"C01_NONPRIVATE_UNCHECKED_LOCAL_GAP")
             z.start_dir=z.fp.tell()
-        if mode=="unix_directory_for_file" and name=="worker.js":
+        if mode=="dos_directory_for_file" and name=="worker.js":
+            info=zipfile.ZipInfo(name)
+            info.create_system=0
+            info.external_attr=0x10
+            z.writestr(info,value)
+        elif mode=="unix_low_directory_bit_regular_file" and name=="worker.js":
+            info=zipfile.ZipInfo(name)
+            info.create_system=3
+            info.external_attr=(0o100644<<16)|0x10
+            z.writestr(info,value)
+        elif mode=="unix_directory_for_file" and name=="worker.js":
             info=zipfile.ZipInfo(name)
             info.create_system=3
             info.external_attr=(0o040755<<16)
@@ -675,7 +685,7 @@ function expectPrepareFailure(name, browserMode, expectedFailure) {
 
 test("repository release facts use current contract/version/migration tag", () => {
   const facts = productFacts();
-  assert.equal(facts.productVersion, "0.2.29");
+  assert.equal(facts.productVersion, "0.2.30");
   assert.equal(facts.contractVersion, "control_plane_v2");
   assert.equal(facts.migrationLevel, 59);
 });
@@ -1153,6 +1163,22 @@ test("valid declared Chromium and Firefox icon remains accepted", () => {
 });
 expectPrepareFailure("private-key material is rejected", "secret");
 expectPrepareFailure("forbidden secret file is rejected", "secretfile");
+expectPrepareFailure(
+  "ZIP DOS directory attribute on regular file path is rejected",
+  "dos_directory_for_file",
+  /ZIP DOS directory attribute\/path mismatch/,
+);
+test("Unix-created regular ZIP file with low attribute bit 0x10 is valid", () => {
+  const value = fixture({
+    chromium: { mode: "unix_low_directory_bit_regular_file" },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure(
   "ZIP Unix directory mode on regular file path is rejected",
   "unix_directory_for_file",

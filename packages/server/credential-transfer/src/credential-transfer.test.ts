@@ -983,6 +983,233 @@ describe("D3S2-2A control-plane foundation", () => {
     });
   });
 
+  it.each([
+    { name: "invalid Date", now: new Date(Number.NaN) },
+    {
+      name: "unbranded Date proxy",
+      now: new Proxy(new Date("2026-09-18T10:00:00.000Z"), {}),
+    },
+  ])("rejects $name in activate before mutating reserved packet", ({ now }) => {
+    vi.useFakeTimers();
+    const at = new Date("2026-09-18T10:00:00.000Z");
+    vi.setSystemTime(at);
+    const spy = vi.spyOn(globalThis, "setTimeout");
+    const relay = new EphemeralTransferRelay();
+    const prepared = packet(idFor(1), "clock-activation");
+    try {
+      const reservation = relay.reserve(
+        prepared,
+        accountA,
+        source.deviceId,
+        new Date(at.getTime() + 60_000),
+        at,
+      );
+      const beforeTimers = spy.mock.calls.length;
+      expect(() =>
+        relay.activate(prepared.requestId, reservation, prepared, now),
+      ).toThrowError("TRANSFER_INVALID");
+      expect(spy).toHaveBeenCalledTimes(beforeTimers);
+      expect(relay.statsForTests()).toMatchObject({ packets: 1, reserved: 1 });
+      expect(relay.get(prepared.requestId, at)).toBeUndefined();
+      expect(
+        relay.activate(prepared.requestId, reservation, prepared, at),
+      ).toBe(true);
+      expect(relay.get(prepared.requestId, at)).toMatchObject(prepared);
+    } finally {
+      relay.clear();
+    }
+  });
+
+  it("rejects invalid release time while preserving a reservation", () => {
+    vi.useFakeTimers();
+    const at = new Date("2026-09-18T10:00:00.000Z");
+    vi.setSystemTime(at);
+    const relay = new EphemeralTransferRelay();
+    const prepared = packet(idFor(2), "clock-release");
+    try {
+      const reservation = relay.reserve(
+        prepared,
+        accountA,
+        source.deviceId,
+        new Date(at.getTime() + 60_000),
+        at,
+      );
+      expect(() =>
+        relay.release(prepared.requestId, reservation, new Date(Number.NaN)),
+      ).toThrowError("TRANSFER_INVALID");
+      expect(relay.statsForTests().reserved).toBe(1);
+      relay.release(prepared.requestId, reservation, at);
+      expect(relay.statsForTests().reserved).toBe(0);
+    } finally {
+      relay.clear();
+    }
+  });
+
+  it("rejects invalid delete time without destroying an active packet", () => {
+    vi.useFakeTimers();
+    const at = new Date("2026-09-18T10:00:00.000Z");
+    vi.setSystemTime(at);
+    const relay = new EphemeralTransferRelay();
+    const prepared = packet(idFor(3), "clock-delete");
+    try {
+      const reservation = relay.reserve(
+        prepared,
+        accountA,
+        source.deviceId,
+        new Date(at.getTime() + 60_000),
+        at,
+      );
+      expect(
+        relay.activate(prepared.requestId, reservation, prepared, at),
+      ).toBe(true);
+      const invalid = new Proxy(at, {});
+      expect(() => relay.delete(prepared.requestId, invalid)).toThrowError(
+        "TRANSFER_INVALID",
+      );
+      expect(relay.has(prepared.requestId, at)).toBe(true);
+      relay.delete(prepared.requestId, at);
+      expect(relay.has(prepared.requestId, at)).toBe(false);
+    } finally {
+      relay.clear();
+    }
+  });
+
+  it.each([
+    {
+      name: "get",
+      call: (relay: EphemeralTransferRelay, requestId: string, bad: Date) =>
+        relay.get(requestId, bad),
+    },
+    {
+      name: "has",
+      call: (relay: EphemeralTransferRelay, requestId: string, bad: Date) =>
+        relay.has(requestId, bad),
+    },
+    {
+      name: "isDelivered",
+      call: (relay: EphemeralTransferRelay, requestId: string, bad: Date) =>
+        relay.isDelivered(requestId, bad),
+    },
+    {
+      name: "pinDelivered",
+      call: (relay: EphemeralTransferRelay, requestId: string, bad: Date) =>
+        relay.pinDelivered(requestId, idFor(7), bad),
+    },
+    {
+      name: "prune",
+      call: (relay: EphemeralTransferRelay, _requestId: string, bad: Date) =>
+        relay.prune(bad),
+    },
+  ])(
+    "rejects invalid $name clock without changing live packet state",
+    ({ call }) => {
+      vi.useFakeTimers();
+      const at = new Date("2026-09-18T10:00:00.000Z");
+      vi.setSystemTime(at);
+      const relay = new EphemeralTransferRelay();
+      const prepared = packet(idFor(4), "clock-read", idFor(7));
+      try {
+        const reservation = relay.reserve(
+          prepared,
+          accountA,
+          source.deviceId,
+          new Date(at.getTime() + 60_000),
+          at,
+        );
+        expect(
+          relay.activate(prepared.requestId, reservation, prepared, at),
+        ).toBe(true);
+        expect(() =>
+          call(relay, prepared.requestId, new Date(Number.NaN)),
+        ).toThrowError("TRANSFER_INVALID");
+        expect(relay.statsForTests()).toMatchObject({
+          packets: 1,
+          reserved: 0,
+        });
+        expect(relay.isDelivered(prepared.requestId, at)).toBe(false);
+        expect(relay.has(prepared.requestId, at)).toBe(true);
+      } finally {
+        relay.clear();
+      }
+    },
+  );
+
+  it.each([
+    {
+      name: "invalid expiry date",
+      expiresAt: new Date(Number.NaN),
+      now: new Date("2026-09-18T10:00:00.000Z"),
+      code: "TRANSFER_INVALID",
+    },
+    {
+      name: "invalid current clock",
+      expiresAt: new Date("2026-09-18T10:01:00.000Z"),
+      now: new Date(Number.NaN),
+      code: "TRANSFER_INVALID",
+    },
+    {
+      name: "already-expired reservation",
+      expiresAt: new Date("2026-09-18T10:00:00.000Z"),
+      now: new Date("2026-09-18T10:00:00.000Z"),
+      code: "TRANSFER_EXPIRED",
+    },
+    {
+      name: "unbranded Date proxy",
+      expiresAt: new Proxy(new Date("2026-09-18T10:01:00.000Z"), {}),
+      now: new Date("2026-09-18T10:00:00.000Z"),
+      code: "TRANSFER_INVALID",
+    },
+  ])("rejects non-finite relay timestamps or expired TTL ($name)", (case_) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T10:00:00.000Z"));
+    const relay = new EphemeralTransferRelay();
+    try {
+      expect(() =>
+        relay.reserve(
+          packet(id, "synthetic"),
+          accountA,
+          source.deviceId,
+          case_.expiresAt,
+          case_.now,
+        ),
+      ).toThrowError(case_.code);
+      expect(relay.statsForTests()).toMatchObject({
+        packets: 0,
+        reserved: 0,
+        envelopeBytes: 0,
+      });
+    } finally {
+      relay.clear();
+    }
+  });
+
+  it("bounds long native relay timeout delays and keeps the TTL scheduled", async () => {
+    vi.useFakeTimers();
+    const at = new Date("2026-09-18T10:00:00.000Z");
+    vi.setSystemTime(at);
+    const expiry = new Date(at.getTime() + 0x7fffffff + 60_000);
+    const timer = vi.spyOn(globalThis, "setTimeout");
+    const relay = new EphemeralTransferRelay();
+    try {
+      const reservation = relay.reserve(
+        packet(id, "synthetic"),
+        accountA,
+        source.deviceId,
+        expiry,
+        at,
+      );
+      expect(reservation).toBeGreaterThan(0);
+      expect(timer).toHaveBeenCalledWith(expect.any(Function), 0x7fffffff);
+      expect(relay.statsForTests().reserved).toBe(1);
+      await vi.advanceTimersByTimeAsync(0x7fffffff);
+      expect(relay.statsForTests().reserved).toBe(1);
+      await vi.advanceTimersByTimeAsync(60_001);
+      expect(relay.statsForTests().reserved).toBe(0);
+    } finally {
+      relay.clear();
+    }
+  });
+
   it("expires relay bytes on its timer without request traffic", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-18T10:00:00.000Z"));
