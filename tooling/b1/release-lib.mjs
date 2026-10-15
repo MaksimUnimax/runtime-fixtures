@@ -538,6 +538,18 @@ export function readZip(bytes) {
       }
     }
 
+    // Only DOS/FAT creator host 0 gives the low external-attribute byte
+    // DOS directory semantics. Unix-created ZIPs may use this byte differently.
+    // Reject DOS-marked directories masquerading as files, but do not require
+    // the optional flag on slash-terminated directory entries.
+    if (
+      madeBy >>> 8 === 0 &&
+      !isDirectory &&
+      (externalAttributes & 0x10) !== 0
+    ) {
+      fail("ZIP DOS directory attribute/path mismatch");
+    }
+
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     const fileType = unixMode & 0xf000;
     if (
@@ -990,6 +1002,22 @@ function ensureNoStoreDevelopmentMaterial(entries, manifest, reachable) {
       ) {
         fail("Package popup surface contains development-only material");
       }
+    }
+  }
+
+  // Popup modules and styles can import additional packaged code that the
+  // immediate HTML src/href scan does not enumerate. Check every executable
+  // text asset, rather than trusting a partial import graph. ZIP entries and
+  // total unpacked bytes are already bounded by readZip.
+  for (const [name, data] of entries) {
+    if (!/\.(?:js|mjs|cjs|html?|css)$/i.test(name)) continue;
+    if (
+      STORE_BACKGROUND_FORBIDDEN_MARKERS.some((marker) =>
+        data.includes(marker),
+      ) ||
+      STORE_POPUP_FORBIDDEN_MARKERS.some((marker) => data.includes(marker))
+    ) {
+      fail("Package executable asset contains development-only material");
     }
   }
 }
