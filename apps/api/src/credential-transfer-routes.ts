@@ -36,7 +36,7 @@ function principal(request: FastifyRequest): ExtensionPrincipal {
 
 // Fastify validates body UUIDs before the handler. A body must not redirect a
 // route addressing another transfer; UUID letter case does not change identity.
-function assertRequestIdentity(request: FastifyRequest): void {
+function assertRequestIdentity(request: FastifyRequest): string {
   const { requestId } = request.params as { requestId: string };
   const body = request.body as { requestId: string };
   if (requestId.toLowerCase() !== body.requestId.toLowerCase()) {
@@ -46,6 +46,7 @@ function assertRequestIdentity(request: FastifyRequest): void {
       409,
     );
   }
+  return requestId.toLowerCase();
 }
 
 export function registerCredentialTransferRoutes(
@@ -185,9 +186,10 @@ export function registerCredentialTransferRoutes(
       },
     },
     async (request) => {
-      assertRequestIdentity(request);
+      const requestId = assertRequestIdentity(request);
+      const body = request.body as Record<string, unknown>;
       const result = (await handle(() =>
-        service.submit(principal(request), request.body),
+        service.submit(principal(request), { ...body, requestId }),
       )) as { request: unknown };
       return result.request;
     },
@@ -228,9 +230,10 @@ export function registerCredentialTransferRoutes(
       },
     },
     async (request) => {
-      assertRequestIdentity(request);
+      const requestId = assertRequestIdentity(request);
+      const body = request.body as Record<string, unknown>;
       return handle(() =>
-        service.acknowledge(principal(request), request.body),
+        service.acknowledge(principal(request), { ...body, requestId }),
       );
     },
   );

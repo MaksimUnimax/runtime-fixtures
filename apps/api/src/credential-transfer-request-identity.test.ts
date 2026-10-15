@@ -217,4 +217,35 @@ describe("credential transfer request identity at HTTP ingress", () => {
       expect(response.json()).toMatchObject({ requestId: SECOND });
     },
   );
+
+  it.each(["packet", "ack"] as const)(
+    "normalizes uppercase UUID body for %s service lookup",
+    async (kind) => {
+      const f = await fixture();
+      if (kind === "ack") await f.deliverSecond();
+      const before = await f.snapshot();
+      const spy = vi.spyOn(
+        f.service,
+        kind === "packet" ? "submit" : "acknowledge",
+      );
+      const response = await f.app.inject({
+        method: "POST",
+        url: `/v1/credential-transfers/${SECOND}/${kind}`,
+        headers: headers(kind),
+        payload: payload(kind, SECOND.toUpperCase()),
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        requestId: SECOND,
+        state: kind === "packet" ? "PACKET_AVAILABLE_EPHEMERAL" : "COMPLETED",
+      });
+      expect(spy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ requestId: SECOND }),
+      );
+      const after = await f.snapshot();
+      expect(after[0]).toEqual(before[0]);
+      expect(after[1]?.revision).toBe((before[1]?.revision ?? 0) + 1);
+    },
+  );
 });
