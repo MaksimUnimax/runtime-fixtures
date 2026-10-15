@@ -988,7 +988,17 @@ def run(runtime, output):
                               let verifyTimer;
                               try {
                                 const probe = async () => {
-                                  const verified = await SellerAgentsBootstrapVerifier.verifyV2(record.authority.envelope, trust);
+                                  // Mirror the accepted client's V2/V3 envelope
+                                  // dispatch. A signed V3 subscription snapshot
+                                  // is not itself a materialized ChatGPT Work grant.
+                                  const envelope = record.authority.envelope;
+                                  const verified = envelope?.envelopeVersion === "bootstrap_envelope_v3" &&
+                                      typeof SellerAgentsBootstrapVerifier.verifyV3 === "function"
+                                    ? await SellerAgentsBootstrapVerifier.verifyV3(envelope, trust)
+                                    : envelope?.envelopeVersion === "bootstrap_envelope_v2" &&
+                                        typeof SellerAgentsBootstrapVerifier.verifyV2 === "function"
+                                      ? await SellerAgentsBootstrapVerifier.verifyV2(envelope, trust)
+                                      : { ok: false };
                                   const signed = verified?.ok === true ? verified.payload : null;
                                   const signedChatGPT = Boolean(signed?.ai?.status === "RESOLVED" &&
                                     signed?.ai?.detected?.family === "chatgpt" &&

@@ -200,7 +200,7 @@ import vm from "node:vm";
 import fs from "node:fs";
 import assert from "node:assert/strict";
 const {code} = JSON.parse(fs.readFileSync(0, "utf8"));
-for (const mode of ["valid", "invalid", "error", "missing", "other_family"]) {
+for (const mode of ["valid_v2", "valid_v3", "invalid", "error", "missing", "other_family", "unsupported"]) {
   const id = "SYNTHETIC_EXPECTED_ACCOUNT";
   const profile = {syntheticMaterial:"SOURCE_TEST_ONLY"};
   let verifications = 0;
@@ -208,7 +208,9 @@ for (const mode of ["valid", "invalid", "error", "missing", "other_family"]) {
     generation: 5, authority:{payload:{account:{id}}},
     grants:mode === "missing" ? {} : {scope:{authority:{
       requestedAi:"chatgpt", workAllowed:true,
-      envelope:{synthetic:"NOT_REAL_SIGNED_ENVELOPE"},
+      envelope:{envelopeVersion: mode==="valid_v3" ? "bootstrap_envelope_v3" :
+        mode==="unsupported" ? "unexpected_format" : "bootstrap_envelope_v2",
+        synthetic:"NOT_REAL_SIGNED_ENVELOPE"},
       payload:{account:{id}, ai:{status:"RESOLVED", profile}}
     }}}
   }};
@@ -217,6 +219,7 @@ for (const mode of ["valid", "invalid", "error", "missing", "other_family"]) {
     SellerAgentsControlClient:{status:async()=>({authenticated:true,workAllowed:true,pending:false})},
     SellerAgentsBootstrapVerifier:{verifyV2:async(e,trust)=>{
       verifications++;
+      assert.equal(e.envelopeVersion,"bootstrap_envelope_v2");
       assert.equal(e.synthetic,"NOT_REAL_SIGNED_ENVELOPE");
       assert.equal(trust.kind,"SYNTHETIC_PUBLIC_TRUST");
       if(mode==="error") throw new Error("PRIVATE_SYNTHETIC_SIGNER_ERROR");
@@ -225,6 +228,13 @@ for (const mode of ["valid", "invalid", "error", "missing", "other_family"]) {
         status:"RESOLVED", detected:{family:mode==="other_family"?"alice":"chatgpt",surface:"web",variant:null},
         profile
       },expiresAt:new Date(Date.now()+3600000).toISOString()}};
+    }, verifyV3:async(e,trust)=>{
+      verifications++;
+      assert.equal(e.envelopeVersion,"bootstrap_envelope_v3");
+      assert.equal(trust.kind,"SYNTHETIC_PUBLIC_TRUST");
+      return {ok:true,payload:{account:{id},localClientAuthority:true,
+        contractVersion:"control_plane_v3",
+        expiresAt:new Date(Date.now()+3600000).toISOString()}};
     }},
     SellerAgentsSignedAiProfileConsumer:{
       validMaterialShape:p=>p===profile,
@@ -241,7 +251,7 @@ for (const mode of ["valid", "invalid", "error", "missing", "other_family"]) {
   assert.ok(!output.includes("NOT_REAL_SIGNED_ENVELOPE"));
   assert.ok(!output.includes("PRIVATE_SYNTHETIC"));
   assert.ok(!output.includes(id));
-  if(mode==="valid"){
+  if(mode==="valid_v2"){
     assert.equal(row.post_abort_signed_envelope_verified,true);
     assert.equal(row.post_abort_signed_profile_material_valid,true);
     assert.equal(row.post_abort_signed_chatgpt_resolved,true);
@@ -252,14 +262,17 @@ for (const mode of ["valid", "invalid", "error", "missing", "other_family"]) {
   }else if(mode==="error"||mode==="missing"){
     assert.equal(row.post_abort_probe_read_failed,true);
     assert.equal(row.post_abort_signed_envelope_verified,false);
-  }else if(mode==="other_family"){
+  }else if(mode==="valid_v3"||mode==="other_family"){
     assert.equal(row.post_abort_signed_envelope_verified,true);
     assert.equal(row.post_abort_signed_chatgpt_resolved,false);
     assert.equal(row.post_abort_signed_profile_material_valid,false);
+  }else if(mode==="unsupported"){
+    assert.equal(row.post_abort_signed_envelope_verified,false);
+    assert.equal(row.post_abort_signed_chatgpt_resolved,false);
   }
-  assert.equal(verifications,mode==="missing"?0:1);
+  assert.equal(verifications,mode==="missing"||mode==="unsupported"?0:1);
 }
-process.stdout.write("LATE_SIGNED_VM_5_PASS");
+process.stdout.write("LATE_SIGNED_VM_7_PASS");
 """
         completed = subprocess.run(
             [os.environ.get("SA_NODE_BIN", "node"), "--input-type=module", "-e", node],
@@ -267,7 +280,7 @@ process.stdout.write("LATE_SIGNED_VM_5_PASS");
             capture_output=True, timeout=20, check=False,
         )
         self.assertEqual(completed.returncode, 0, "LATE_SIGNED_VM_REGRESSION")
-        self.assertEqual(completed.stdout, "LATE_SIGNED_VM_5_PASS")
+        self.assertEqual(completed.stdout, "LATE_SIGNED_VM_7_PASS")
 
     def test_already_finished_response_does_not_wait_or_call_finished(self):
         response = FakeResponse({"keyId": "fixture", "payload": "fixture"})
