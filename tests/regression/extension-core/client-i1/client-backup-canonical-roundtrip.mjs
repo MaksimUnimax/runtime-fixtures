@@ -88,4 +88,84 @@ await run("credential change after preview rejects stale plan without overwritin
   await assert.rejects(() => f.catalog.applyBackupImport(payload, plan), error => error.code === "IMPORT_PLAN_STALE");
   assert.deepEqual(f.snapshot(), changed);
 });
+// Backup conversion must not silently discard malformed optional credentials.
+const incompletePerformance = [
+  { clientId: "200", clientSecret: "" },
+  { clientId: "", clientSecret: "synthetic-performance-secret" },
+  { clientId: "200" },
+  { clientSecret: "synthetic-performance-secret" },
+  { clientId: null, clientSecret: "synthetic-performance-secret" },
+  { clientId: false, clientSecret: false },
+  { clientId: 0, clientSecret: 0 },
+  { clientId: 0, clientSecret: "" },
+  { clientId: false, clientSecret: "" },
+  { clientId: {}, clientSecret: "" },
+  { clientId: "x".repeat(8193), clientSecret: "" },
+];
+const performanceError = error => [
+  "BACKUP_PERFORMANCE_CLIENT_ID_INVALID",
+  "BACKUP_PERFORMANCE_CLIENT_SECRET_INVALID",
+  "BACKUP_PERFORMANCE_CREDENTIALS_INVALID",
+].includes(error?.code);
+const canonicalBackup = value => value && typeof value === "object"
+  ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalBackup(value[key])}`).join(",")}}`
+  : JSON.stringify(value);
+async function legacyPerformance(performance) {
+  const credentials = { seller_client_id: "100", seller_api_key: "synthetic-seller-key",
+    performance_client_id: performance.clientId, performance_client_secret: performance.clientSecret };
+  const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(canonicalBackup(credentials)));
+  return JSON.stringify({ format: "ozon-bridge-credentials-backup", backup_version: 2,
+    exported_at: "2026-10-13T00:00:00.000Z", extension_version: "0.1.12", extension_id: "synthetic-extension",
+    contains_secrets: true, credentials_sha256: [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join(""), credentials });
+}
+await run("partial or malformed Performance export rejects without changing local stores", async () => {
+  const f = fixture(); await seed(f.catalog);
+  for (const performance of [...incompletePerformance, [], "invalid", 0, false]) {
+    const changed = f.snapshot(); const store = Object.values(changed[key].accounts[account].stores)[0];
+    store.credentials.performance = structuredClone(performance); f.replace(changed);
+    const before = f.snapshot(); const stores = await f.catalog.backupSnapshot();
+    assert.throws(() => backup.payloadFromStores(account, stores), performanceError,
+      "malformed present Performance data must not become an absent optional credential");
+    assert.deepEqual(f.snapshot(), before);
+  }
+});
+await run("legacy v2 malformed Performance rejects before preview or write", async () => {
+  const f = fixture(); await seed(f.catalog); const before = f.snapshot(); let previewCalls = 0;
+  // A missing field is already rejected by the legacy adapter's exact-key rule.
+  for (const performance of incompletePerformance.filter(value => Object.hasOwn(value, "clientId") && Object.hasOwn(value, "clientSecret"))) {
+    const input = await legacyPerformance(performance);
+    await assert.rejects(async () => {
+      const decoded = await backup.decrypt(input, "unused", account);
+      previewCalls++;
+      const plan = await f.catalog.planBackupImport(decoded.payload);
+      await f.catalog.applyBackupImport(decoded.payload, plan);
+    }, performanceError);
+    assert.equal(previewCalls, 0);
+    assert.deepEqual(f.snapshot(), before);
+  }
+});
+await run("all previously empty optional Performance representations stay empty", async () => {
+  const f = fixture(); await seed(f.catalog, false);
+  for (const performance of [undefined, null, {}, { clientId: "", clientSecret: "", present: false },
+    { clientId: null, clientSecret: null }, { clientId: "", clientSecret: null }]) {
+    const stores = await f.catalog.backupSnapshot(); stores[0].credentials.performance = performance;
+    assert.equal(backup.payloadFromStores(account, stores).stores[0].credentials.performance, null);
+  }
+});
+await run("legacy v2 Seller-only and complete Performance remain importable and idempotent", async () => {
+  for (const performance of [{ clientId: "", clientSecret: "" }, { clientId: null, clientSecret: null },
+    { clientId: "200", clientSecret: "synthetic-performance-secret" }]) {
+    const f = fixture(); const input = await legacyPerformance(performance);
+    const decoded = await backup.decrypt(input, "unused", account);
+    assert.equal(decoded.payload.stores[0].credentials.performance === null, !performance.clientId);
+    const plan = await f.catalog.planBackupImport(decoded.payload);
+    assert.equal((await f.catalog.applyBackupImport(decoded.payload, plan)).imported.length, 1);
+    const before = f.snapshot(); const repeated = await backup.decrypt(input, "unused", account);
+    const repeatPlan = await f.catalog.planBackupImport(repeated.payload);
+    assert.equal(repeatPlan.classifications[0].kind, "SAME_CURRENT");
+    assert.equal((await f.catalog.applyBackupImport(repeated.payload, repeatPlan)).imported.length, 0);
+    assert.deepEqual(f.snapshot(), before);
+  }
+});
+
 console.log(JSON.stringify({ status: "PASS", checks, sourceOnly: true }));

@@ -51,6 +51,14 @@
     if (!value || typeof value !== "object" || Array.isArray(value)) fail(`BACKUP_${name}_INVALID`);
     return value;
   };
+  function optionalPerformance(value) {
+    if (value == null) return null;
+    object(value, "PERFORMANCE_CREDENTIALS");
+    const empty = (part) => part == null || part === "";
+    // Optional means absent, not a partial or malformed pair silently dropped.
+    if (empty(value.clientId) && empty(value.clientSecret)) return null;
+    return { clientId: string(value.clientId, "PERFORMANCE_CLIENT_ID"), clientSecret: string(value.clientSecret, "PERFORMANCE_CLIENT_SECRET") };
+  }
   function depth(value, level = 0) {
     if (level > LIMITS.maxDepth) fail("BACKUP_RESOURCE_LIMIT");
     if (value && typeof value === "object") for (const child of Object.values(value)) depth(child, level + 1);
@@ -110,7 +118,7 @@
   function payloadFromStores(accountId, stores) {
     return validatePayload({ payloadVersion: PAYLOAD_VERSION, accountBinding: { accountId }, createdAt: new Date().toISOString(), stores: stores.filter((store) => (store.lifecycleState || "ACTIVE") === "ACTIVE" && !metadataOnly(store)).map((store) => ({
       storeId: store.id, label: store.name, marketplace: store.marketplace, providerAccountId: store.providerIdentityState === "CONFIRMED" ? store.providerAccountId : null, providerIdentityState: store.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : "UNCONFIRMED", credentialRevision: store.credentialRevision, metadataRevision: Number.isSafeInteger(store.metadataRevision) ? store.metadataRevision : 0,
-      credentials: store.marketplace === "ozon" ? { type: "ozon", version: 1, seller: { clientId: store.credentials?.seller?.clientId || "", apiKey: store.credentials?.seller?.apiKey || "" }, performance: store.credentials?.performance?.clientId && store.credentials?.performance?.clientSecret ? { clientId: store.credentials.performance.clientId, clientSecret: store.credentials.performance.clientSecret } : null } : { type: "wildberries", version: 1, token: store.credentials?.token || "", tokenType: "personal" },
+      credentials: store.marketplace === "ozon" ? { type: "ozon", version: 1, seller: { clientId: store.credentials?.seller?.clientId || "", apiKey: store.credentials?.seller?.apiKey || "" }, performance: optionalPerformance(store.credentials?.performance) } : { type: "wildberries", version: 1, token: store.credentials?.token || "", tokenType: "personal" },
     })) }, accountId);
   }
   function headerFromFields(value) {
@@ -171,7 +179,7 @@
       exactKeys(incoming, ["seller_client_id", "seller_api_key", "performance_client_id", "performance_client_secret"]); if (value.contains_secrets !== true) fail("BACKUP_LEGACY_INVALID");
       if (await checksum(incoming) !== String(value.credentials_sha256 || "").toLowerCase()) fail("BACKUP_CHECKSUM_MISMATCH");
       const seller = string(incoming.seller_client_id, "SELLER_CLIENT_ID"), apiKey = string(incoming.seller_api_key, "SELLER_API_KEY");
-      const performance = incoming.performance_client_id && incoming.performance_client_secret ? { clientId: string(incoming.performance_client_id, "PERFORMANCE_CLIENT_ID"), clientSecret: string(incoming.performance_client_secret, "PERFORMANCE_CLIENT_SECRET") } : null;
+      const performance = optionalPerformance({ clientId: incoming.performance_client_id, clientSecret: incoming.performance_client_secret });
       return validatePayload(await make("ozon", { type: "ozon", version: 1, seller: { clientId: seller, apiKey }, performance }, "Ozon"), accountId);
     }
     if (value.format === "wildberries-bridge-seller-credentials-backup" && [1, 2].includes(value.backup_version)) {
