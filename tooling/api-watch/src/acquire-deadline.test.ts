@@ -139,6 +139,40 @@ describe("C03 acquisition deadline", () => {
     }
   });
 
+  it("bounds a bodyless adapter whose arrayBuffer ignores the shared signal", async () => {
+    let arrayBufferCalls = 0;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const response = new Response(null, {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+    Object.defineProperty(response, "arrayBuffer", {
+      value: () => {
+        arrayBufferCalls += 1;
+        return new Promise<ArrayBuffer>(() => undefined);
+      },
+    });
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry,
+          timeoutMs: 30,
+          fetcher: async () => response,
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 180);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("BODYLESS_ARRAYBUFFER_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      expect(arrayBufferCalls).toBe(1);
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+    }
+  });
+
   it("does not hang past the total deadline when redirect-body cancellation never settles", async () => {
     let requests = 0;
     const signals: AbortSignal[] = [];

@@ -423,14 +423,9 @@ async function readBoundedBody(
   const advertised = response.headers.get("content-length");
   if (advertised && Number(advertised) > maximumBytes)
     throw new Error("SOURCE_TOO_LARGE");
-  if (!response.body) {
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
-    return bytes;
-  }
-  const reader = response.body.getReader();
-  // A stream adapter can ignore request abortion, and cancel() itself can
-  // never settle. Keep both the read and cleanup within the same deadline.
+  // An adapter can also expose no body but still return a never-settling
+  // arrayBuffer(). The same deadline must bound both response representations.
+  // Stream cancel() itself is untrusted and must never delay the error path.
   let removeAbortListener: () => void = () => undefined;
   const aborted = new Promise<never>((_resolve, reject) => {
     const onAbort = () =>
@@ -441,32 +436,43 @@ async function readBoundedBody(
     removeAbortListener = () => signal.removeEventListener("abort", onAbort);
     if (signal.aborted) onAbort();
   });
-  const chunks: Uint8Array[] = [];
-  let total = 0;
   try {
-    while (true) {
-      const next = await Promise.race([reader.read(), aborted]);
-      if (next.done) break;
-      total += next.value.byteLength;
-      if (total > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
-      chunks.push(next.value);
+    if (!response.body) {
+      const bytes = new Uint8Array(
+        await Promise.race([response.arrayBuffer(), aborted]),
+      );
+      if (bytes.byteLength > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
+      return bytes;
     }
-  } catch (error) {
-    // Do not await untrusted stream cancellation after a failed/aborted read.
-    // The acquisition owner aborts the transport in its outer finally block.
-    void reader.cancel(error).catch(() => undefined);
-    throw error;
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (true) {
+        const next = await Promise.race([reader.read(), aborted]);
+        if (next.done) break;
+        total += next.value.byteLength;
+        if (total > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
+        chunks.push(next.value);
+      }
+    } catch (error) {
+      // Do not await untrusted stream cancellation after a failed/aborted read.
+      // The acquisition owner aborts the transport in its outer finally block.
+      void reader.cancel(error).catch(() => undefined);
+      throw error;
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
   } finally {
     removeAbortListener();
-    reader.releaseLock();
   }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
 }
 
 function isAccessControlPage(bytes: Uint8Array): boolean {
