@@ -538,6 +538,18 @@ export function readZip(bytes) {
       }
     }
 
+    // Only DOS/FAT creator host 0 gives the low external-attribute byte
+    // DOS directory semantics. Unix-created ZIPs may use this byte differently.
+    // Reject DOS-marked directories masquerading as files, but do not require
+    // the optional flag on slash-terminated directory entries.
+    if (
+      (madeBy >>> 8) === 0 &&
+      !isDirectory &&
+      (externalAttributes & 0x10) !== 0
+    ) {
+      fail("ZIP DOS directory attribute/path mismatch");
+    }
+
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     const fileType = unixMode & 0xf000;
     if (
