@@ -112,6 +112,51 @@ class BootstrapObserverTest(unittest.TestCase):
         self.assertEqual(context.waits, [("requestfinished", 30000)])
         self.assertEqual(response.calls, [])
 
+    def test_safe_phase_counts_distinguish_latest_extra_pending_response(self):
+        first, second, latest = [
+            FakeResponse(request=FakeRequest(url="http://127.0.0.1:43100/v1/bootstrap?SECRET_PRIVATE_VALUE"))
+            for _ in range(3)
+        ]
+        observed = module.safe_bootstrap_event_counts(
+            [first, second, latest],
+            [first.request, second.request],
+            [], 1, 2,
+        )
+        self.assertEqual(observed, {
+            "schema_version": 1,
+            "http_200_count": 3,
+            "requestfinished_200_count": 2,
+            "requestfailed_200_count": 0,
+            "selected_request_finished": False,
+            "selected_request_failed": False,
+            "selected_response_phase": "after_work_start",
+        })
+        self.assertNotIn("SECRET_PRIVATE_VALUE", str(observed))
+
+    def test_event_identity_not_merely_same_request_url(self):
+        selected = FakeResponse()
+        other = FakeRequest(url=selected.request.url)
+        counts = module.safe_bootstrap_event_counts([selected], [other], [other], 0, 1)
+        self.assertEqual(counts["requestfinished_200_count"], 0)
+        self.assertEqual(counts["requestfailed_200_count"], 0)
+        self.assertFalse(counts["selected_request_finished"])
+        self.assertFalse(counts["selected_request_failed"])
+        self.assertEqual(counts["selected_response_phase"], "second_activation")
+
+    def test_safe_counts_show_failure_without_leaking_request_errors(self):
+        selected = FakeResponse(request=FakeRequest(url="http://127.0.0.1:43100/v1/bootstrap?PRIVATE_DATA"))
+        counts = module.safe_bootstrap_event_counts([selected], [], [selected.request], None, 0)
+        self.assertEqual(counts["requestfailed_200_count"], 1)
+        self.assertTrue(counts["selected_request_failed"])
+        self.assertFalse(counts["selected_request_finished"])
+        self.assertNotIn("PRIVATE_DATA", str(counts))
+
+    def test_safe_counts_no_http_response_does_not_guess_phase(self):
+        counts = module.safe_bootstrap_event_counts([], [], [], None, None)
+        self.assertEqual(counts["selected_response_phase"], "none")
+        self.assertEqual(counts["http_200_count"], 0)
+        self.assertFalse(counts["selected_request_finished"])
+
 
 if __name__ == "__main__":
     unittest.main()

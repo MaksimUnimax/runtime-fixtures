@@ -60,6 +60,36 @@ def wait_until(check, label, timeout=30):
         time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {label}; last={last!r}")
 
+def safe_bootstrap_event_counts(responses, finished, failed, second_activation_at=None, work_start_at=None):
+    # Only fixed keys, numbers, booleans and allowlisted phase labels leave CI.
+    # No request URL, header, body, token or account/subject identity is stored.
+    counts = {
+        "schema_version": 1,
+        "http_200_count": len(responses),
+        "requestfinished_200_count": sum(
+            any(done is response.request for done in finished) for response in responses
+        ),
+        "requestfailed_200_count": sum(
+            any(error is response.request for error in failed) for response in responses
+        ),
+        "selected_request_finished": bool(responses) and any(
+            done is responses[-1].request for done in finished
+        ),
+        "selected_request_failed": bool(responses) and any(
+            error is responses[-1].request for error in failed
+        ),
+        "selected_response_phase": "none",
+    }
+    if responses:
+        if isinstance(work_start_at, int) and len(responses) > work_start_at:
+            counts["selected_response_phase"] = "after_work_start"
+        elif isinstance(second_activation_at, int) and len(responses) > second_activation_at:
+            counts["selected_response_phase"] = "second_activation"
+        else:
+            counts["selected_response_phase"] = "first_activation"
+    return counts
+
+
 def read_completed_bootstrap_response(response, context, completed_requests):
     # BrowserContext "response" fires on headers, before the HTTP body finishes.
     # response.finished() can wait indefinitely when a request remains pending.
@@ -254,6 +284,9 @@ def run(runtime, output):
                     control_responses = []
                     bootstrap_http_responses = []
                     completed_bootstrap_requests = []
+                    failed_bootstrap_requests = []
+                    second_activation_header_count = None
+                    work_start_header_count = None
                     bootstrap_envelope = None
                     authorization_ids = set()
                     def observe_completed_bootstrap(request):
@@ -263,6 +296,13 @@ def run(runtime, output):
                             # Volatile request handles only, never a durable response body.
                             completed_bootstrap_requests.append(request)
                     context.on("requestfinished", observe_completed_bootstrap)
+
+                    def observe_failed_bootstrap(request):
+                        parsed = urlparse(request.url)
+                        if (parsed.netloc == f"127.0.0.1:{api_port}" and
+                                parsed.path == "/v1/bootstrap" and request.method == "POST"):
+                            failed_bootstrap_requests.append(request)
+                    context.on("requestfailed", observe_failed_bootstrap)
 
                     def observe_control(response):
                         parsed = urlparse(response.url)
@@ -389,6 +429,7 @@ def run(runtime, output):
                     popup.locator("#confirmation").wait_for()
                     popup.locator("#confirmation #confirm").click()
                     popup.wait_for_function("() => document.querySelector('#auth-start').offsetParent !== null && document.querySelector('#account').innerText.includes('Вход не выполнен')")
+                    second_activation_header_count = len(bootstrap_http_responses)
                     second_identity = activate(fixture_email("two", namespace))
                     assert second_identity["accessBasis"] == "BETA"
                     assert popup.locator("#account").inner_text() != first_account
@@ -403,6 +444,7 @@ def run(runtime, output):
 
                     stage = _mark_stage(output, "work_start", started)
                     stage = _mark_stage(output, "work_start_start_click_begin", started)
+                    work_start_header_count = len(bootstrap_http_responses)
                     popup.click("#start")
                     stage = _mark_stage(output, "work_start_start_click_done", started)
                     stage = _mark_stage(output, "work_start_prompt_wait_begin", started)
@@ -684,8 +726,15 @@ def run(runtime, output):
                     bff_counts = {"otp_request_202": sum(1 for endpoint, status in bff if endpoint == "/v1/auth/otp/request" and status == 202), "otp_verify_200": sum(1 for endpoint, status in bff if endpoint == "/v1/auth/otp/verify" and status == 200), "logout_204": sum(1 for endpoint, status in bff if endpoint == "/v1/auth/logout" and status == 204)}
                     assert control_counts == {"device_start": 2, "exchange": 2, "bootstrap": 3}
                     assert bff_counts == {"otp_request_202": 2, "otp_verify_200": 2, "logout_204": 1}
+                    counts = safe_bootstrap_event_counts(
+                        bootstrap_http_responses, completed_bootstrap_requests,
+                        failed_bootstrap_requests, second_activation_header_count,
+                        work_start_header_count,
+                    )
+                    print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result.update(
                         status="PASS",
+                        bootstrap_observer_counts=counts,
                         installed_acceptance=True,
                         access_basis="BETA_SYNTHETIC_FIXTURE",
                         email_delivery_tested=False,
@@ -740,9 +789,16 @@ def run(runtime, output):
                         beta_unchanged=True,
                     )
                 except Exception:
+                    counts = safe_bootstrap_event_counts(
+                        bootstrap_http_responses, completed_bootstrap_requests,
+                        failed_bootstrap_requests, second_activation_header_count,
+                        work_start_header_count,
+                    )
+                    print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result["failure_observation"] = {
                         "bootstrap_http_200_events": len(bootstrap_http_responses),
                         "bootstrap_body_parsed": bootstrap_envelope is not None,
+                        "bootstrap_observer_counts": counts,
                     }
                     try:
                         diagnostic = worker.evaluate("""async tabId => {
