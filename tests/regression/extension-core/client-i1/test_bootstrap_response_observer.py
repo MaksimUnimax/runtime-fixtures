@@ -169,6 +169,17 @@ class BootstrapObserverTest(unittest.TestCase):
         self.assertEqual(counts["selected_request_event_window"], "unobserved")
         self.assertNotIn("SECRET", str(counts))
 
+    def test_missing_header_snapshots_report_unobserved_not_earlier_phase(self):
+        response = FakeResponse()
+        counts = module.safe_bootstrap_event_counts(
+            [response], [], [],
+            [(response.request, "second_activation_window")],
+            None, None,
+        )
+        self.assertEqual(counts["selected_response_observed_window"], "unobserved")
+        self.assertEqual(counts["selected_request_event_window"], "second_activation_window")
+        self.assertEqual(counts["http_200_count"], 1)
+
     def test_safe_counts_no_http_response_does_not_guess_phase(self):
         counts = module.safe_bootstrap_event_counts([], [], [], [], None, None)
         self.assertEqual(counts["selected_response_observed_window"], "none")

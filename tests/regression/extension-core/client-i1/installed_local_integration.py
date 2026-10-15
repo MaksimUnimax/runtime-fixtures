@@ -86,8 +86,10 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
             counts["selected_response_observed_window"] = "after_work_start_marker"
         elif isinstance(second_activation_at, int) and len(responses) > second_activation_at:
             counts["selected_response_observed_window"] = "after_second_activation_marker"
-        else:
+        elif isinstance(second_activation_at, int):
             counts["selected_response_observed_window"] = "before_second_activation_marker"
+        else:
+            counts["selected_response_observed_window"] = "unobserved"
         # Only request events determine the *request* observation window;
         # receiving HTTP 200 later does not retrospectively change its origin.
         label = next(
