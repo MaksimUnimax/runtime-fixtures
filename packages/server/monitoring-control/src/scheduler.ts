@@ -28,6 +28,10 @@ export type IndependentMonitoringSchedulerOptions = {
   tickMs?: number;
   notifier?: MonitoringNotifier;
   notificationRetryDelaysMs?: readonly number[];
+  onError?: (event: {
+    code: "MONITORING_BACKGROUND_FAILED";
+    lane?: MonitoringLane;
+  }) => void | Promise<void>;
 };
 
 export class IndependentMonitoringScheduler {
@@ -36,6 +40,8 @@ export class IndependentMonitoringScheduler {
   private readonly tickMs: number;
   private readonly active = new Map<string, Promise<void>>();
   private timer: ReturnType<typeof setInterval> | undefined;
+  private starting: Promise<void> | undefined;
+  private lifecycle = 0;
 
   public constructor(
     private readonly options: IndependentMonitoringSchedulerOptions,
@@ -45,15 +51,42 @@ export class IndependentMonitoringScheduler {
     this.tickMs = options.tickMs ?? 1_000;
   }
 
-  async start(): Promise<void> {
-    await this.options.store.ensureDefaults(this.clock.now());
-    this.timer = setInterval(() => void this.tick(), this.tickMs);
-    await this.tick();
+  start(): Promise<void> {
+    if (this.timer) return Promise.resolve();
+    if (this.starting) return this.starting;
+    const lifecycle = ++this.lifecycle;
+    const pending = (async () => {
+      try {
+        await this.options.store.ensureDefaults(this.clock.now());
+        this.assertLifecycle(lifecycle);
+        // A rejected initial tick must propagate without leaving periodic work.
+        await this.tickForLifecycle(lifecycle);
+        this.assertLifecycle(lifecycle);
+        this.timer = setInterval(() => {
+          void this.tickForLifecycle(lifecycle).catch(() =>
+            this.reportBackgroundFailure(),
+          );
+        }, this.tickMs);
+      } catch (error) {
+        // Other lanes can still be awaiting their store reservation when one
+        // lane rejects. They must release, rather than dispatch after failure.
+        if (lifecycle === this.lifecycle) ++this.lifecycle;
+        throw error;
+      }
+    })();
+    this.starting = pending;
+    const clearStarting = () => {
+      if (this.starting === pending) this.starting = undefined;
+    };
+    void pending.then(clearStarting, clearStarting);
+    return pending;
   }
 
   async stop(): Promise<void> {
+    ++this.lifecycle;
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+    this.starting = undefined;
   }
 
   async status(lane: MonitoringLane): Promise<MonitoringLaneState> {
@@ -79,7 +112,7 @@ export class IndependentMonitoringScheduler {
   }
 
   async runNow(lane: MonitoringLane): Promise<MonitoringRunAcknowledgement> {
-    return this.begin(lane, "FORCED");
+    return this.begin(lane, "FORCED", this.lifecycle);
   }
 
   async runNowAndWait(lane: MonitoringLane): Promise<MonitoringRunResult> {
@@ -99,9 +132,19 @@ export class IndependentMonitoringScheduler {
   }
 
   async tick(): Promise<void> {
+    await this.tickForLifecycle(this.lifecycle);
+  }
+
+  private assertLifecycle(lifecycle: number): void {
+    if (lifecycle !== this.lifecycle)
+      throw new Error("MONITORING_START_STOPPED");
+  }
+
+  private async tickForLifecycle(lifecycle: number): Promise<void> {
+    this.assertLifecycle(lifecycle);
     await Promise.all(
       MONITORING_LANES.map(async (lane) => {
-        const acknowledgement = await this.begin(lane, "SCHEDULED");
+        const acknowledgement = await this.begin(lane, "SCHEDULED", lifecycle);
         if (acknowledgement.kind === "STARTED")
           await this.active.get(acknowledgement.runId);
       }),
@@ -111,20 +154,61 @@ export class IndependentMonitoringScheduler {
   private async begin(
     lane: MonitoringLane,
     source: "SCHEDULED" | "FORCED",
+    lifecycle: number,
   ): Promise<MonitoringRunAcknowledgement> {
+    this.assertLifecycle(lifecycle);
     const result = await this.options.store.startRun({
       lane,
       source,
       now: this.clock.now(),
       leaseMs: this.leaseMs,
     });
+    // Responses without a new reservation have no effect to cancel. Let them
+    // settle without masking a different lane's actual cancellation write error.
     if (result.kind === "NOT_DUE") return { kind: "NOT_DUE", lane };
     if (result.kind === "ALREADY_RUNNING")
       return { kind: "ALREADY_RUNNING", lane, runId: result.runId };
+    if (lifecycle !== this.lifecycle) {
+      if (result.kind === "STARTED") {
+        try {
+          await this.options.store.releaseUnstartedRun({
+            lane,
+            runId: result.run.runId,
+            now: this.clock.now(),
+          });
+        } catch (error) {
+          // Keep the lease and original storage failure visible; never dispatch
+          // or fabricate a monitoring result when cancellation is uncertain.
+          this.reportBackgroundFailure(lane);
+          throw error;
+        }
+      }
+      throw new Error("MONITORING_START_STOPPED");
+    }
     const work = this.execute(result.run);
     this.active.set(result.run.runId, work);
-    void work.finally(() => this.active.delete(result.run.runId));
+    // Handle both branches without creating an unobserved rejected finally promise.
+    // The original promise remains rejected for callers waiting on this run.
+    void work.then(
+      () => this.active.delete(result.run.runId),
+      () => {
+        this.active.delete(result.run.runId);
+        this.reportBackgroundFailure(lane);
+      },
+    );
     return { kind: "STARTED", lane, runId: result.run.runId, source };
+  }
+
+  private reportBackgroundFailure(lane?: MonitoringLane): void {
+    try {
+      void Promise.resolve(
+        this.options.onError?.({ code: "MONITORING_BACKGROUND_FAILED", lane }),
+      ).catch(() => {
+        // An asynchronous diagnostic failure is contained too.
+      });
+    } catch {
+      // Diagnostic callbacks must not recreate an unhandled rejection.
+    }
   }
 
   private async execute(run: MonitoringRun): Promise<void> {

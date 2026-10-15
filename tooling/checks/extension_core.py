@@ -35,6 +35,7 @@ def main():
     try:
         runner.run("core-composed-version-policy", [sys.executable, "-B", ROOT / "tests/regression/extension-core/test-composed-version-policy.py"])
         runner.run("core-conversation-surface-first-start", ["node", ROOT / "tests/regression/extension-core/conversation-surface-first-start.mjs"])
+        runner.run("core-a05-externalized-own-button-differential", ["node", ROOT / "tests/regression/extension-core/a05-externalized-own-button-patch.mjs"])
         runner.run("core-button-anchor-occlusion", ["node", ROOT / "tests/regression/extension-core/button-anchor-occlusion.mjs"])
         runner.run("core-qwen-adapter", ["node", ROOT / "tests/regression/extension-core/qwen-adapter.mjs"])
         runner.run("core-qwen-code-reader", ["node", ROOT / "tests/regression/extension-core/qwen-code-reader.mjs"])
@@ -64,6 +65,7 @@ def main():
             runner.run(label + "-ozon-search-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-search-guidance-readiness.mjs", runtime])
             runner.run(label + "-conversation-binding-lifecycle", ["node", ROOT / "tests/regression/extension-core/conversation-binding-lifecycle.mjs", runtime])
             runner.run(label + "-worker", ["node", ROOT / "tests/regression/extension-core/worker-lifecycle.mjs", runtime])
+            runner.run(label + "-worker-harness-close-timers", ["node", ROOT / "tests/regression/extension-core/worker-harness-close-timers.mjs", runtime])
             runner.run(label + "-context", ["node", ROOT / "tests/regression/extension-core/batch-context.mjs", runtime])
             runner.run(label + "-attachment-port-idle", ["node", ROOT / "tests/regression/extension-core/attachment-port-idle.mjs", runtime])
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])

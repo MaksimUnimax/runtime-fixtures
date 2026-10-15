@@ -49,7 +49,7 @@ function revokeFirefoxTechnicalConsentFromClick() {
     .catch(() => { $("status").textContent = "Не удалось изменить разрешение"; })
     .finally(() => { $("firefox-technical-revoke").disabled = false; refreshFirefoxTechnicalConsent().catch(() => null); });
 }
-const texts = { PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разрешил подключиться к странице. Проверьте разрешение расширения для этого сайта и повторите Start", PAGE_RUNTIME_RECOVERY_UNAVAILABLE: "Эта сборка не поддерживает восстановление связи со страницей", PAGE_TAB_UNAVAILABLE: "Вкладка закрыта или недоступна", PAGE_RUNTIME_NOT_PACKAGED: "В сборке отсутствует обработчик этой страницы", ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
+const texts = { TAB_MESSAGE_TIMEOUT: "Вкладка ИИ не отвечает. После восстановления связи проверьте состояние работы; повторная отправка не выполнялась.", PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разрешил подключиться к странице. Проверьте разрешение расширения для этого сайта и повторите Start", PAGE_RUNTIME_RECOVERY_UNAVAILABLE: "Эта сборка не поддерживает восстановление связи со страницей", PAGE_TAB_UNAVAILABLE: "Вкладка закрыта или недоступна", PAGE_RUNTIME_NOT_PACKAGED: "В сборке отсутствует обработчик этой страницы", ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
   CREDENTIAL_REJECTED: "Ключ отклонён (401). Причина и срок действия не подтверждены", ACCESS_DENIED: "Недостаточно прав (403)",
   CHECK_FAILED: "Не удалось проверить: сеть, ответ площадки или формат запроса", STORE_CHANGE_CONFIRMATION_REQUIRED: "Подтвердите смену магазина",
   WORK_SESSION_ALREADY_ACTIVE: "Этот магазин уже подключён", STORE_NOT_FOUND: "Магазин удалён. Откройте список заново",
@@ -349,13 +349,17 @@ if (!durableImportMode) $("backup-file").onclick = event => {
 };
 $("keys-download").onclick = () => openKeyFiles("download");
 $("keys-upload").onclick = () => openKeyFiles("upload");
-function invalidateBackupReview() {
+function invalidateBackupReview(inputChanged = false) {
   backupSelectionRevision++; backupText = ""; backupPreview = null;
   $("backup-preview-result").hidden = true;
+  if (inputChanged) {
+    $("backup-status").textContent = "Файл или пароль изменились. Проверьте файл заново.";
+    $("status").textContent = "";
+  }
 }
-$("backup-import-password").oninput = invalidateBackupReview;
+$("backup-import-password").oninput = () => invalidateBackupReview(true);
 $("backup-file").onchange = () => {
-  invalidateBackupReview();
+  invalidateBackupReview(true);
   $("backup-status").textContent = $("backup-file").files?.length ? "Файл выбран. Введите пароль и нажмите «Проверить файл»." : "";
 };
 function downloadBackup(name, value) {

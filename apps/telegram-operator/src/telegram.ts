@@ -1,4 +1,9 @@
 import {
+  WB_BUNDLE_DOCUMENT_KEY,
+  WB_BUNDLE_OFFICIAL_URL,
+  WB_BUNDLE_VERSION,
+} from "@product/api-watch";
+import {
   DEFAULT_NO_SESSION_CADENCE,
   HealthScheduleCadenceSchema,
 } from "@product/health";
@@ -107,6 +112,12 @@ function keyboard(lane: MonitoringLane): TelegramKeyboard {
               {
                 text: "Pending source requests",
                 callback_data: "monitor:SWAGGER_API:pending",
+              },
+            ],
+            [
+              {
+                text: "New WB source request",
+                callback_data: "monitor:SWAGGER_API:new",
               },
             ],
           ]
@@ -237,6 +248,21 @@ export class TelegramOperatorService {
             ? `Swagger upload duplicate: ${result.artifact.requestId}`
             : result.code,
       );
+      if (
+        (result.kind === "CANDIDATE_READY" ||
+          (result.kind === "DUPLICATE" &&
+            result.artifact.status === "CANDIDATE_READY")) &&
+        result.artifact.sourceFamily === "WILDBERRIES"
+      ) {
+        // Candidate registration is durable; the normal report consumer also
+        // resumes after process loss or a concurrent active run.
+        const wake = await this.options.scheduler.runNow("SWAGGER_API");
+        if (wake.kind === "ALREADY_RUNNING")
+          await this.options.scheduler.scheduleEarlier(
+            "SWAGGER_API",
+            new Date(),
+          );
+      }
       return;
     }
     if (!parsed) return;
@@ -267,6 +293,15 @@ export class TelegramOperatorService {
         return this.changeInterval(chatId, "SWAGGER_API", parsed.argument);
       case "swagger_pending":
         return this.sendPending(chatId);
+      case "swagger_new":
+        if (parsed.argument) {
+          await this.options.transport.sendMessage(
+            chatId,
+            "Use /swagger_new to request one official WB bundle.",
+          );
+          return;
+        }
+        return this.createWbRequest(chatId);
       case "swagger_upload":
         await this.options.transport.sendMessage(
           chatId,
@@ -287,7 +322,9 @@ export class TelegramOperatorService {
     data: string,
   ): Promise<void> {
     const match =
-      /^monitor:(LLM|SWAGGER_API):(status|run|interval|pending)$/.exec(data);
+      /^monitor:(LLM|SWAGGER_API):(status|run|interval|pending|new)$/.exec(
+        data,
+      );
     if (!match) {
       await this.options.transport.answerCallback(callbackId, "DENIED");
       return;
@@ -297,6 +334,13 @@ export class TelegramOperatorService {
     await this.options.transport.answerCallback(callbackId, "OK");
     if (action === "status") return this.sendStatus(chatId, lane);
     if (action === "run") return this.sendRunAcknowledgement(chatId, lane);
+    if (action === "new") {
+      if (lane !== "SWAGGER_API") {
+        await this.options.transport.sendMessage(chatId, "DENIED");
+        return;
+      }
+      return this.createWbRequest(chatId);
+    }
     if (action === "pending") {
       if (lane !== "SWAGGER_API") {
         await this.options.transport.sendMessage(chatId, "DENIED");
@@ -309,6 +353,28 @@ export class TelegramOperatorService {
       `Use /${lane === "LLM" ? "llm" : "swagger"}_interval <${intervalRangeLabel(lane)}>.`,
       keyboard(lane),
     );
+  }
+
+  private async createWbRequest(chatId: string): Promise<void> {
+    if (!this.options.swaggerHandoff) {
+      await this.options.transport.sendMessage(
+        chatId,
+        "Swagger handoff unavailable.",
+      );
+      return;
+    }
+    // The public action has one fixed family/URL/version; command arguments
+    // cannot replace authority or reopen a historical request.
+    await this.options.swaggerHandoff.renewRequest({
+      sourceFamily: "WILDBERRIES",
+      officialUrl: WB_BUNDLE_OFFICIAL_URL,
+      documentKey: WB_BUNDLE_DOCUMENT_KEY,
+      bundleVersion: WB_BUNDLE_VERSION,
+      expectedArtifactType: "JSON",
+      blockerReason:
+        "Explicit operator request for one complete official WB bundle.",
+    });
+    return this.sendPending(chatId);
   }
 
   private async sendPending(chatId: string): Promise<void> {
@@ -442,6 +508,15 @@ export class TelegramOperatorService {
           this.offset = Math.max(this.offset ?? -1, update.updateId + 1);
           await this.handleUpdate(update);
         }
+        // Apply raw-page progress only after the mapped batch is handled.
+        // On failure, the per-update fence above preserves at-most-once handling
+        // while leaving the unprocessed tail available for the next poll.
+        if (
+          response.nextOffset !== undefined &&
+          Number.isSafeInteger(response.nextOffset) &&
+          response.nextOffset >= 0
+        )
+          this.offset = Math.max(this.offset ?? -1, response.nextOffset);
       } catch (error) {
         this.options.logger?.("telegram_poll_failed", {
           error:

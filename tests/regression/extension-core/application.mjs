@@ -1092,5 +1092,91 @@ for (const s of deliveryWitnessCases) await test('R3-chatgpt-delivery-' + s.name
  assert.ok(commits<=1,'durable send commit stays one-shot');
  if(s.ack) assert.equal(acks[0].confirmed_user_turn_id,'new');
 });
+await test('APP-58-unresponsive-identity-does-not-hold-popup-or-finish', async () => {
+  let blockedTab = null; const lateReplies = [];
+  const s = await setup({ identityResponse: (_message, id) => id === blockedTab
+    ? new Promise(resolve => lateReplies.push(resolve)) : undefined });
+  try {
+    const store = await s.save(wb('FIXTURE_IDENTITY_DEADLINE'));
+    const active = await s.start(store);
+    const known = await s.popup('SA_POPUP_STATE');
+    const before = await s.worker.call('workSessionFor', active.key);
+    const promptCount = s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length;
+    s.worker.addTab(s.worker.tabId + 1, 'independent-healthy-dialogue');
+    blockedTab = s.worker.tabId;
+    const finish = s.popup('OZ_WORK_FINISH', { conversation_key: active.key,
+      surface_id: known.identity.surface_id || 'fixture-observed-surface' });
+    const snapshot = s.popup('SA_SUPPORT_SNAPSHOT');
+    const healthy = await s.popup('SA_POPUP_STATE', { tab_id: s.worker.tabId + 1 });
+    assert.equal(healthy.page.runtimeStatus, 'ready');
+    const [finished, diagnostic] = await Promise.all([finish, snapshot]);
+    assert.equal(finished.ok, false); assert.equal(finished.code, 'TAB_MESSAGE_TIMEOUT');
+    assert.equal(diagnostic.ok, true); assert.equal(diagnostic.snapshot.page.runtimeStatus, 'unavailable');
+    assert.equal(diagnostic.snapshot.page.lastErrorCode, 'TAB_MESSAGE_TIMEOUT');
+    assert.equal(diagnostic.snapshot.page.transportClass, 'RESPONSE_TIMEOUT');
+    const after = await s.worker.call('workSessionFor', active.key);
+    assert.equal(after.state, before.state); assert.equal(after.revision, before.revision);
+    assert.equal(s.worker.network.length, 0); assert.equal(lateReplies.length, 2);
+    for (const resolve of lateReplies) resolve({ ok: true, identity: s.worker.identity });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(finished.ok, false); assert.equal(diagnostic.snapshot.page.runtimeStatus, 'unavailable');
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, promptCount);
+    blockedTab = null;
+    const restored = await s.popup('SA_POPUP_STATE');
+    assert.equal(restored.work.state, before.state); assert.equal(restored.page.runtimeStatus, 'ready');
+  } finally { s.worker.close(); }
+});
+await test('APP-59-identity-deadline-preserves-mutating-message-outcomes', async () => {
+  const workerSource = fs.readFileSync(path.join(runtime, 'service_worker.js'), 'utf8');
+  const begin = workerSource.indexOf('const TAB_MESSAGE_TRANSPORT_CLASSES');
+  const end = workerSource.indexOf('async function stopWatch(', begin);
+  assert.ok(begin >= 0 && end > begin);
+  let sequence = 0; const timers = new Map(), callbacks = [], sent = [];
+  const context = { Set, Promise, chrome: { runtime: { lastError: null }, tabs: {
+    sendMessage(id, message, callback) { sent.push({ id, message }); callbacks.push(callback); }
+  } }, setTimeout(fn, ms) { const id = ++sequence; timers.set(id, { fn, ms }); return id; },
+  clearTimeout(id) { timers.delete(id); } };
+  vm.createContext(context);
+  vm.runInContext(workerSource.slice(begin, end) + '\nglobalThis.send=tabMessage;', context);
+  const reading = context.send(1, { type: 'OZ_GET_IDENTITY' });
+  assert.equal(timers.size, 1); const deadline = [...timers.values()][0];
+  assert.equal(deadline.ms, 3000); deadline.fn();
+  const timedOut = await reading;
+  assert.equal(timedOut.code, 'TAB_MESSAGE_TIMEOUT'); assert.equal(timedOut.transport_class, 'RESPONSE_TIMEOUT');
+  context.chrome.runtime.lastError = { message: 'FIXTURE_PRIVATE_LATE_TRANSPORT_TEXT' };
+  callbacks[0]({ ok: true, identity: { conversation_id: 'late-old-dialogue' } });
+  assert.equal(timedOut.ok, false); assert.ok(!JSON.stringify(timedOut).includes('PRIVATE'));
+  context.chrome.runtime.lastError = null;
+  const mutation = context.send(1, { type: 'OZ_WORK_SEND_INITIAL_PROMPT' });
+  assert.equal(timers.size, 0, 'mutating message receives no new deadline or retry');
+  callbacks[1]({ ok: true, sent: true }); assert.equal((await mutation).sent, true);
+  const successfulRead = context.send(1, { type: 'OZ_GET_IDENTITY' });
+  callbacks[2]({ ok: true, identity: { conversation_id: 'current-dialogue' } });
+  assert.equal((await successfulRead).identity.conversation_id, 'current-dialogue');
+  assert.equal(timers.size, 0); assert.equal(sent.length, 3);
+  context.chrome.tabs.sendMessage = () => { throw new Error('FIXTURE_PRIVATE_SYNC_EXCEPTION'); };
+  const failed = await context.send(1, { type: 'OZ_GET_IDENTITY' });
+  assert.equal(failed.transport_class, 'SYNC_SEND_EXCEPTION'); assert.equal(timers.size, 0);
+  assert.ok(!JSON.stringify(failed).includes('PRIVATE'));
+});
+await test('APP-60-identity-timeout-start-does-not-inject-or-send', async () => {
+  let blocked = false; const replies = [];
+  const s = await setup({ identityResponse: () => blocked
+    ? new Promise(resolve => replies.push(resolve)) : undefined });
+  try {
+    const store = await s.save(wb('FIXTURE_TIMEOUT_START_NO_REPLAY'));
+    blocked = true;
+    const result = await s.popup('SA_WORK_START', { store_id: store.id });
+    assert.equal(result.ok, false); assert.equal(result.code, 'TAB_MESSAGE_TIMEOUT');
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, 0);
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_SIGNED_AI_PROFILE_ENSURE').length, 0);
+    assert.equal(s.worker.network.length, 0);
+    assert.equal(Object.keys(await s.worker.call('getPendingWorkStarts')).length, 0);
+    for (const resolve of replies) resolve({ ok: true, identity: s.worker.identity });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, 0);
+    assert.equal(Object.keys(await s.worker.call('getPendingWorkStarts')).length, 0);
+  } finally { s.worker.close(); }
+});
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker, popup, attachment port and content delivery watcher; simulated browser and provider; not installed live acceptance' },null,2));

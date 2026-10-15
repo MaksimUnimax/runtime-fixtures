@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { acquireOfficialSource } from "./acquire.js";
+import { compareAuthorityRecordOrder } from "./authority-order.js";
 import type {
   AuthorityRecord,
   FamilyManifest,
@@ -120,6 +121,7 @@ export async function runDocumentAuthorityPass(input: {
   pendingStore: SwaggerSourceStore;
   fetcher?: typeof fetch;
   now?: () => Date;
+  skipOperatorBlocked?: boolean;
 }): Promise<{
   documents: SourceDocumentAuthority[];
   records: AuthorityRecord[];
@@ -133,6 +135,14 @@ export async function runDocumentAuthorityPass(input: {
   const documents: SourceDocumentAuthority[] = [];
   const records: AuthorityRecord[] = [];
   const outcomes: Awaited<ReturnType<typeof acquireOfficialSource>>[] = [];
+  // Scheduled wakes of another family must not refetch an operator-held family.
+  // Use only the latest exact configured document/URL evidence. An explicit
+  // operator pass or a newly configured URL may establish fresh authority.
+  const priorAuthority = input.skipOperatorBlocked
+    ? (await input.store.listAuthorityRecords()).sort((a, b) =>
+        compareAuthorityRecordOrder(b, a),
+      )
+    : [];
   let wbBundleRequestCreated = false;
   for (const entry of input.registry.list()) {
     const configuredDocuments = entry.documents?.length
@@ -146,12 +156,40 @@ export async function runDocumentAuthorityPass(input: {
             },
           ]
         : [undefined];
+    const operatorHeld = configuredDocuments.some((document) => {
+      const prior = priorAuthority.find(
+        (record) =>
+          record.sourceFamily === entry.sourceFamily &&
+          // A consumed bundle is historical input, not a new official probe.
+          // Other verified operator authority retains its existing precedence.
+          !(
+            record.acquisitionMode === "OPERATOR_SUPPLIED" &&
+            typeof record.safeProvenance.bundleArtifactId === "string"
+          ) &&
+          record.officialUrl === (document?.officialUrl ?? entry.officialUrl) &&
+          (record.safeProvenance.documentKey ?? null) ===
+            (document?.documentKey ?? null),
+      );
+      return (
+        prior?.failureClassification === "OPERATOR_SOURCE_REQUIRED" &&
+        prior.authorityStatus === "AUTHORITY_BLOCKED"
+      );
+    });
     for (const document of configuredDocuments) {
-      const fetchedOutcome = await acquireOfficialSource({
-        entry,
-        document,
-        fetcher: input.fetcher,
-      });
+      const fetchedOutcome: Awaited<ReturnType<typeof acquireOfficialSource>> =
+        operatorHeld
+          ? {
+              kind: "OPERATOR_SOURCE_REQUIRED",
+              sourceFamily: entry.sourceFamily,
+              officialUrl: document?.officialUrl ?? entry.officialUrl,
+              blockerReason:
+                "Automatic acquisition of this family is held pending operator source authority.",
+            }
+          : await acquireOfficialSource({
+              entry,
+              document,
+              fetcher: input.fetcher,
+            });
       const outcome = document
         ? { ...fetchedOutcome, documentKey: document.documentKey }
         : fetchedOutcome;
@@ -171,49 +209,31 @@ export async function runDocumentAuthorityPass(input: {
                   "CANCELLED",
                 );
             }
-            const existing = await input.pendingStore.findOpenRequest(
-              "WILDBERRIES",
-              WB_BUNDLE_OFFICIAL_URL,
-              now(),
-              WB_BUNDLE_DOCUMENT_KEY,
-            );
-            if (!existing)
-              await input.pendingStore.createRequest({
-                requestId: "WILDBERRIES:WB_OPENAPI_BUNDLE",
-                sourceFamily: "WILDBERRIES",
-                documentKey: WB_BUNDLE_DOCUMENT_KEY,
-                bundleVersion: WB_BUNDLE_VERSION,
-                officialUrl: WB_BUNDLE_OFFICIAL_URL,
-                expectedArtifactType: "JSON",
-                createdAt: now(),
-                blockerReason:
-                  "One complete official Wildberries bundle is required after individual official documents require operator access.",
-              });
+            await input.pendingStore.ensureRequest({
+              sourceFamily: "WILDBERRIES",
+              documentKey: WB_BUNDLE_DOCUMENT_KEY,
+              bundleVersion: WB_BUNDLE_VERSION,
+              officialUrl: WB_BUNDLE_OFFICIAL_URL,
+              expectedArtifactType: "JSON",
+              createdAt: now(),
+              blockerReason:
+                "One complete official Wildberries bundle is required after individual official documents require operator access.",
+            });
             wbBundleRequestCreated = true;
           }
         } else {
           const officialUrl = document?.officialUrl ?? entry.officialUrl;
           if (officialUrl) {
-            const existing = await input.pendingStore.findOpenRequest(
-              entry.sourceFamily,
+            await input.pendingStore.ensureRequest({
+              sourceFamily: entry.sourceFamily,
+              documentKey: document?.documentKey,
               officialUrl,
-              now(),
-              document?.documentKey,
-            );
-            if (!existing)
-              await input.pendingStore.createRequest({
-                requestId: document
-                  ? `${entry.sourceFamily}:${document.documentKey}`
-                  : undefined,
-                sourceFamily: entry.sourceFamily,
-                documentKey: document?.documentKey,
-                officialUrl,
-                expectedArtifactType:
-                  document?.expectedArtifactTypes.join(",") ??
-                  entry.expectedArtifactTypes.join(","),
-                createdAt: now(),
-                blockerReason: outcome.blockerReason,
-              });
+              expectedArtifactType:
+                document?.expectedArtifactTypes.join(",") ??
+                entry.expectedArtifactTypes.join(","),
+              createdAt: now(),
+              blockerReason: outcome.blockerReason,
+            });
           }
         }
       }
@@ -239,6 +259,7 @@ export async function runDocumentAuthorityPass(input: {
         safeProvenance: {
           ...(document ? { documentKey: document.documentKey } : {}),
           finalUrl: accepted ? outcome.finalUrl : null,
+          ...(operatorHeld ? { operatorFamilyHeld: true } : {}),
         },
         failureClassification: accepted ? null : outcome.kind,
       });

@@ -89,6 +89,9 @@ export type SwaggerUploadValidation =
 export type SwaggerHandoffService = {
   maxUploadBytes: number;
   listPending(): Promise<SwaggerSourceRequest[]>;
+  renewRequest(
+    input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+  ): Promise<SwaggerSourceRequest>;
   upload(input: SwaggerUploadInput): Promise<SwaggerUploadResult>;
 };
 
@@ -104,6 +107,14 @@ export interface SwaggerSourceStore {
     expiresAt?: Date | null;
     blockerReason: string;
   }): Promise<SwaggerSourceRequest>;
+  // Automatic discovery reuses history; only createRequest explicitly renews it.
+  ensureRequest(
+    input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+  ): Promise<SwaggerSourceRequest>;
+  renewRequest(
+    input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+  ): Promise<SwaggerSourceRequest>;
+  listReadyRequests(): Promise<SwaggerSourceRequest[]>;
   getRequest(requestId: string): Promise<SwaggerSourceRequest | undefined>;
   listPending(now: Date): Promise<SwaggerSourceRequest[]>;
   findOpenRequest(
@@ -129,6 +140,55 @@ export interface SwaggerSourceStore {
       expectedStatuses?: SwaggerSourceRequestStatus[];
     },
   ): Promise<boolean | void>;
+}
+
+// Explicit generations carry a durable order independent of wall-clock changes.
+// Historical request IDs are generation zero and are never rewritten.
+export function swaggerRequestGeneration(
+  request: SwaggerSourceRequest,
+): number {
+  const match = request.requestId.match(
+    /:generation:([1-9][0-9]*):[0-9a-f-]+$/,
+  );
+  const value = match ? Number(match[1]) : 0;
+  if (!Number.isSafeInteger(value))
+    throw new Error("SWAGGER_REQUEST_GENERATION_INVALID");
+  return value;
+}
+function nextRequestId(related: SwaggerSourceRequest[]): string {
+  const next = Math.max(0, ...related.map(swaggerRequestGeneration)) + 1;
+  if (!Number.isSafeInteger(next))
+    throw new Error("SWAGGER_REQUEST_GENERATION_INVALID");
+  return "swagger:generation:" + next + ":" + randomUUID();
+}
+function sameRequestIdentity(
+  request: SwaggerSourceRequest,
+  input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+): boolean {
+  return (
+    request.sourceFamily === input.sourceFamily &&
+    request.officialUrl === input.officialUrl &&
+    request.documentKey === (input.documentKey ?? null) &&
+    request.bundleVersion === (input.bundleVersion ?? null)
+  );
+}
+function isOpenRequest(request: SwaggerSourceRequest): boolean {
+  return [
+    "PENDING_OPERATOR_UPLOAD",
+    "UPLOAD_RECEIVED",
+    "QUARANTINED",
+    "VALIDATION_FAILED",
+  ].includes(request.status);
+}
+function compareReadyRequests(
+  a: SwaggerSourceRequest,
+  b: SwaggerSourceRequest,
+): number {
+  return (
+    swaggerRequestGeneration(b) - swaggerRequestGeneration(a) ||
+    b.createdAt.valueOf() - a.createdAt.valueOf() ||
+    a.requestId.localeCompare(b.requestId)
+  );
 }
 
 class SwaggerRequestFinalizedError extends Error {
@@ -187,6 +247,74 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
       throw new Error("SWAGGER_REQUEST_ALREADY_EXISTS");
     this.state.requests.set(request.requestId, request);
     return cloneRequest(request);
+  }
+
+  async ensureRequest(
+    input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+  ) {
+    const related = [...this.state.requests.values()].filter(
+      (request) =>
+        request.sourceFamily === input.sourceFamily &&
+        request.officialUrl === input.officialUrl &&
+        request.documentKey === (input.documentKey ?? null) &&
+        request.bundleVersion === (input.bundleVersion ?? null),
+    );
+    const priority = (request: SwaggerSourceRequest) =>
+      [
+        "PENDING_OPERATOR_UPLOAD",
+        "UPLOAD_RECEIVED",
+        "QUARANTINED",
+        "VALIDATION_FAILED",
+      ].includes(request.status)
+        ? 0
+        : request.status === "CANDIDATE_READY"
+          ? 1
+          : 2;
+    related.sort((a, b) => priority(a) - priority(b));
+    if (related[0]) return cloneRequest(related[0]);
+    // No await between the history check and the synchronous map insertion.
+    return this.createRequest(input);
+  }
+
+  async renewRequest(
+    input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+  ) {
+    const at = input.createdAt ?? new Date();
+    const related = [...this.state.requests.values()].filter((request) =>
+      sameRequestIdentity(request, input),
+    );
+    for (const request of related) {
+      if (
+        request.status === "PENDING_OPERATOR_UPLOAD" &&
+        request.expiresAt &&
+        request.expiresAt <= at
+      )
+        request.status = "EXPIRED";
+    }
+    // An invalid registered artifact is immutable history. Only explicit renewal
+    // can leave it behind; an empty/in-flight request is still coalesced.
+    const failedWithArtifact = new Set(
+      [...this.state.artifacts.values()]
+        .filter((artifact) => artifact.status === "VALIDATION_FAILED")
+        .map((artifact) => artifact.requestId),
+    );
+    const open = related
+      .sort(compareReadyRequests)
+      .find(
+        (request) =>
+          isOpenRequest(request) && !failedWithArtifact.has(request.requestId),
+      );
+    // Check and synchronous insertion share one turn even across store instances.
+    return open
+      ? cloneRequest(open)
+      : this.createRequest({ ...input, requestId: nextRequestId(related) });
+  }
+
+  async listReadyRequests() {
+    return [...this.state.requests.values()]
+      .filter((request) => request.status === "CANDIDATE_READY")
+      .sort(compareReadyRequests)
+      .map(cloneRequest);
   }
 
   async getRequest(requestId: string) {
@@ -316,8 +444,9 @@ type RequestRow = {
 };
 type ArtifactRow = Omit<
   SwaggerArtifact,
-  "parserResult" | "validationResult"
+  "parserResult" | "validationResult" | "sizeBytes"
 > & {
+  sizeBytes: number | string;
   parserResult: unknown;
   validationResult: unknown;
 };
@@ -340,9 +469,27 @@ function mapRequest(row: RequestRow): SwaggerSourceRequest {
   };
 }
 
+export function parseSwaggerSizeBytes(rawSize: unknown): number {
+  const sizeBytes =
+    typeof rawSize === "string" && /^(0|[1-9][0-9]*)$/.test(rawSize)
+      ? Number(rawSize)
+      : typeof rawSize === "number"
+        ? rawSize
+        : Number.NaN;
+  if (
+    !Number.isSafeInteger(sizeBytes) ||
+    sizeBytes < 0 ||
+    sizeBytes > MAX_SWAGGER_UPLOAD_BYTES
+  )
+    throw new Error("SWAGGER_ARTIFACT_SIZE_INVALID");
+  return sizeBytes;
+}
+
 function mapArtifact(row: ArtifactRow): SwaggerArtifact {
+  const sizeBytes = parseSwaggerSizeBytes(row.sizeBytes);
   return {
     ...row,
+    sizeBytes,
     sourceFamily: SwaggerSourceFamilySchema.parse(row.sourceFamily),
     status: z
       .enum(["VALIDATION_FAILED", "CANDIDATE_READY", "DUPLICATE"])
@@ -359,34 +506,137 @@ function mapArtifact(row: ArtifactRow): SwaggerArtifact {
   };
 }
 
+async function insertSwaggerRequest(
+  query: SwaggerSourceSqlQuery,
+  input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+): Promise<SwaggerSourceRequest> {
+  const requestId = input.requestId ?? randomUUID();
+  const inserted = await query.query<RequestRow>(
+    `${requestProjection} WHERE request_id=$1`,
+    [requestId],
+  );
+  if (inserted.rows[0]) throw new Error("SWAGGER_REQUEST_ALREADY_EXISTS");
+  const createdAt = input.createdAt ?? new Date();
+  const write = await query.query<RequestRow>(
+    `INSERT INTO swagger_source_requests(request_id,source_family,official_url,document_key,bundle_version,expected_artifact_type,created_at,status,expires_at,blocker_reason) VALUES($1,$2,$3,$4,$5,$6,$7,'PENDING_OPERATOR_UPLOAD',$8,$9) RETURNING request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",bundle_version AS "bundleVersion",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason"`,
+    [
+      requestId,
+      input.sourceFamily,
+      input.officialUrl,
+      input.documentKey ?? null,
+      input.bundleVersion ?? null,
+      input.expectedArtifactType,
+      createdAt,
+      input.expiresAt ?? null,
+      input.blockerReason.slice(0, 500),
+    ],
+  );
+  if (!write.rows[0]) throw new Error("SWAGGER_REQUEST_CREATE_FAILED");
+  return mapRequest(write.rows[0]);
+}
+
 export function createPostgresSwaggerSourceStore(
   runtime: SwaggerSourceSqlRuntime,
 ): SwaggerSourceStore {
   return {
     async createRequest(input) {
-      const requestId = input.requestId ?? randomUUID();
-      const inserted = await runtime.query<RequestRow>(
-        `${requestProjection} WHERE request_id=$1`,
-        [requestId],
-      );
-      if (inserted.rows[0]) throw new Error("SWAGGER_REQUEST_ALREADY_EXISTS");
-      const createdAt = input.createdAt ?? new Date();
-      const write = await runtime.query<RequestRow>(
-        `INSERT INTO swagger_source_requests(request_id,source_family,official_url,document_key,bundle_version,expected_artifact_type,created_at,status,expires_at,blocker_reason) VALUES($1,$2,$3,$4,$5,$6,$7,'PENDING_OPERATOR_UPLOAD',$8,$9) RETURNING request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",bundle_version AS "bundleVersion",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason"`,
-        [
-          requestId,
+      return insertSwaggerRequest(runtime, input);
+    },
+    async ensureRequest(input) {
+      return runtime.transaction(async (query) => {
+        const identity = JSON.stringify([
           input.sourceFamily,
           input.officialUrl,
           input.documentKey ?? null,
           input.bundleVersion ?? null,
-          input.expectedArtifactType,
-          createdAt,
-          input.expiresAt ?? null,
-          input.blockerReason.slice(0, 500),
-        ],
+        ]);
+        // Lock the absent-row case too: concurrent report passes get one generation.
+        await query.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          ["octoport-swagger-auto-request-v1:" + identity],
+        );
+        const related = await query.query<RequestRow>(
+          `${requestProjection} WHERE source_family=$1 AND official_url=$2 AND document_key IS NOT DISTINCT FROM $3::text AND bundle_version IS NOT DISTINCT FROM $4::text ORDER BY CASE WHEN status IN ('PENDING_OPERATOR_UPLOAD','UPLOAD_RECEIVED','QUARANTINED','VALIDATION_FAILED') THEN 0 WHEN status='CANDIDATE_READY' THEN 1 ELSE 2 END,created_at DESC,request_id LIMIT 1`,
+          [
+            input.sourceFamily,
+            input.officialUrl,
+            input.documentKey ?? null,
+            input.bundleVersion ?? null,
+          ],
+        );
+        // Terminal history is never reopened or overwritten by automatic discovery.
+        return related.rows[0]
+          ? mapRequest(related.rows[0])
+          : insertSwaggerRequest(query, input);
+      });
+    },
+    async renewRequest(input) {
+      return runtime.transaction(async (query) => {
+        const identity = JSON.stringify([
+          input.sourceFamily,
+          input.officialUrl,
+          input.documentKey ?? null,
+          input.bundleVersion ?? null,
+        ]);
+        // Same identity lock as automatic discovery, including the absent-row case.
+        await query.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          ["octoport-swagger-auto-request-v1:" + identity],
+        );
+        const related = await query.query<RequestRow>(
+          requestProjection +
+            " WHERE source_family=$1 AND official_url=$2 AND document_key IS NOT DISTINCT FROM $3::text AND bundle_version IS NOT DISTINCT FROM $4::text FOR UPDATE",
+          [
+            input.sourceFamily,
+            input.officialUrl,
+            input.documentKey ?? null,
+            input.bundleVersion ?? null,
+          ],
+        );
+        const requests = related.rows.map(mapRequest);
+        const at = input.createdAt ?? new Date();
+        for (const request of requests) {
+          if (
+            request.status === "PENDING_OPERATOR_UPLOAD" &&
+            request.expiresAt &&
+            request.expiresAt <= at
+          ) {
+            await query.query(
+              "UPDATE swagger_source_requests SET status='EXPIRED' WHERE request_id=$1 AND status='PENDING_OPERATOR_UPLOAD'",
+              [request.requestId],
+            );
+            request.status = "EXPIRED";
+          }
+        }
+        const failedWithArtifact = new Set(
+          (
+            await query.query<{ requestId: string }>(
+              `SELECT DISTINCT request_id AS "requestId" FROM swagger_source_artifacts WHERE request_id=ANY($1::text[]) AND status='VALIDATION_FAILED'`,
+              [requests.map((request) => request.requestId)],
+            )
+          ).rows.map((row) => row.requestId),
+        );
+        const open = requests
+          .sort(compareReadyRequests)
+          .find(
+            (request) =>
+              isOpenRequest(request) &&
+              !failedWithArtifact.has(request.requestId),
+          );
+        return (
+          open ??
+          insertSwaggerRequest(query, {
+            ...input,
+            requestId: nextRequestId(requests),
+          })
+        );
+      });
+    },
+    async listReadyRequests() {
+      const result = await runtime.query<RequestRow>(
+        requestProjection + " WHERE status='CANDIDATE_READY'",
       );
-      if (!write.rows[0]) throw new Error("SWAGGER_REQUEST_CREATE_FAILED");
-      return mapRequest(write.rows[0]);
+      return result.rows.map(mapRequest).sort(compareReadyRequests);
     },
     async getRequest(requestId) {
       const result = await runtime.query<RequestRow>(
@@ -938,6 +1188,8 @@ export function createSwaggerHandoffService(options: {
   return {
     maxUploadBytes,
     listPending,
+    renewRequest: (input: Parameters<SwaggerSourceStore["createRequest"]>[0]) =>
+      options.store.renewRequest({ ...input, createdAt: now() }),
     upload,
   } satisfies SwaggerHandoffService;
 }

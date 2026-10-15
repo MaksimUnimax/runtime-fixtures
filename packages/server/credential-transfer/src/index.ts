@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   TransferAckV1Schema,
   TransferCreateRequestV1Schema,
@@ -89,6 +90,7 @@ type RelayReservation = {
   sourceDeviceId: string;
   expiresAt: number;
   envelopeBytes: number;
+  envelopeSha256: string;
   packetId: string;
   reservationId: number;
 };
@@ -108,6 +110,18 @@ const DEFAULT_RELAY_LIMITS: EphemeralTransferRelayOptions = {
 };
 
 const MAX_PACKET_ENVELOPE_BYTES = 131072;
+const MAX_NATIVE_TIMER_DELAY_MS = 0x7fffffff;
+
+function finiteTimestamp(value: Date): number {
+  let timestamp: number;
+  try {
+    timestamp = Date.prototype.getTime.call(value);
+  } catch {
+    throw new TransferError("TRANSFER_INVALID");
+  }
+  if (!Number.isFinite(timestamp)) throw new TransferError("TRANSFER_INVALID");
+  return timestamp;
+}
 
 /** Process-memory-only relay. It deliberately has no serialization, queue, cache, or logging hook. */
 export class EphemeralTransferRelay {
@@ -129,14 +143,30 @@ export class EphemeralTransferRelay {
     expiresAt: Date,
     now = new Date(),
   ): number {
-    const envelopeBytes = new TextEncoder().encode(packet.envelope).byteLength;
+    // Reject invalid/expired clock inputs before touching an existing packet
+    // or reservation. A NaN expiry would otherwise survive every TTL prune.
+    const nowMs = finiteTimestamp(now);
+    const expiresAtMs = finiteTimestamp(expiresAt);
+    if (expiresAtMs <= nowMs) throw new TransferError("TRANSFER_EXPIRED");
+    const safeNow = new Date(nowMs);
+
+    // Read caller-controlled fields once so getters cannot change the
+    // reserved identity or ciphertext during quota checks.
+    const snapshot = {
+      requestId: packet.requestId,
+      packetId: packet.packetId,
+      envelope: packet.envelope,
+    };
+    const envelopeBytes = new TextEncoder().encode(
+      snapshot.envelope,
+    ).byteLength;
     if (envelopeBytes > MAX_PACKET_ENVELOPE_BYTES)
       throw new TransferError("TRANSFER_PACKET_TOO_LARGE");
-    this.prune(now);
+    this.prune(safeNow);
 
-    const existing = this.packets.get(packet.requestId);
+    const existing = this.packets.get(snapshot.requestId);
     if (
-      this.reservations.has(packet.requestId) ||
+      this.reservations.has(snapshot.requestId) ||
       (existing &&
         (existing.deliveredToRecipient ||
           existing.accountId !== accountId ||
@@ -163,16 +193,20 @@ export class EphemeralTransferRelay {
     )
       throw new TransferError("TRANSFER_CONFLICT");
 
+    const envelopeSha256 = createHash("sha256")
+      .update(snapshot.envelope, "utf8")
+      .digest("hex");
     const reservationId = this.nextReservationId++;
-    this.reservations.set(packet.requestId, {
+    this.reservations.set(snapshot.requestId, {
       accountId,
       sourceDeviceId,
-      expiresAt: expiresAt.getTime(),
+      expiresAt: expiresAtMs,
       envelopeBytes,
-      packetId: packet.packetId,
+      envelopeSha256,
+      packetId: snapshot.packetId,
       reservationId,
     });
-    this.scheduleExpiry(now);
+    this.scheduleExpiry(safeNow);
     return reservationId;
   }
 
@@ -182,42 +216,51 @@ export class EphemeralTransferRelay {
     packet: TransferPacketV1,
     now = new Date(),
   ): boolean {
+    // Reject an invalid clock before looking up or mutating a reservation.
+    const safeNow = new Date(finiteTimestamp(now));
     const reservation = this.reservations.get(requestId);
     if (!reservation || reservation.reservationId !== reservationId)
       return false;
-    if (reservation.expiresAt <= now.getTime()) {
+    if (reservation.expiresAt <= safeNow.getTime()) {
       this.reservations.delete(requestId);
-      this.scheduleExpiry(now);
+      this.scheduleExpiry(safeNow);
       return false;
     }
-    // A direct caller must not activate bytes or identity different from
-    // those charged during reserve(), even though the service passes the
-    // same validated packet through both operations.
+    // A caller may expose mutable getters. Validate a single immutable
+    // snapshot and store that exact same snapshot, never spread the caller.
+    const snapshot = {
+      requestId: packet.requestId,
+      packetId: packet.packetId,
+      envelope: packet.envelope,
+    };
     if (
-      packet.requestId !== requestId ||
-      packet.packetId !== reservation.packetId ||
-      new TextEncoder().encode(packet.envelope).byteLength !==
-        reservation.envelopeBytes
+      snapshot.requestId !== requestId ||
+      snapshot.packetId !== reservation.packetId ||
+      new TextEncoder().encode(snapshot.envelope).byteLength !==
+        reservation.envelopeBytes ||
+      createHash("sha256").update(snapshot.envelope, "utf8").digest("hex") !==
+        reservation.envelopeSha256
     )
       return false;
     this.reservations.delete(requestId);
     this.packets.set(requestId, {
-      ...packet,
+      ...snapshot,
       accountId: reservation.accountId,
       sourceDeviceId: reservation.sourceDeviceId,
       expiresAt: reservation.expiresAt,
       envelopeBytes: reservation.envelopeBytes,
       deliveredToRecipient: false,
     });
-    this.scheduleExpiry(now);
+    this.scheduleExpiry(safeNow);
     return true;
   }
 
   release(requestId: string, reservationId: number, now = new Date()): void {
+    const safeNow = new Date(finiteTimestamp(now));
     const reservation = this.reservations.get(requestId);
     if (reservation?.reservationId === reservationId) {
       this.reservations.delete(requestId);
-      this.scheduleExpiry(now);
+      this.scheduleExpiry(safeNow);
     }
   }
 
@@ -243,9 +286,10 @@ export class EphemeralTransferRelay {
   }
 
   delete(requestId: string, now = new Date()): void {
+    const safeNow = new Date(finiteTimestamp(now));
     const removedPacket = this.packets.delete(requestId);
     const removedReservation = this.reservations.delete(requestId);
-    if (removedPacket || removedReservation) this.scheduleExpiry(now);
+    if (removedPacket || removedReservation) this.scheduleExpiry(safeNow);
   }
 
   clear(): void {
@@ -256,20 +300,21 @@ export class EphemeralTransferRelay {
   }
 
   prune(now: Date): number {
+    const nowMs = finiteTimestamp(now);
     let removed = 0;
     for (const [requestId, packet] of this.packets) {
-      if (packet.expiresAt <= now.getTime()) {
+      if (packet.expiresAt <= nowMs) {
         this.packets.delete(requestId);
         removed += 1;
       }
     }
     for (const [requestId, reservation] of this.reservations) {
-      if (reservation.expiresAt <= now.getTime()) {
+      if (reservation.expiresAt <= nowMs) {
         this.reservations.delete(requestId);
         removed += 1;
       }
     }
-    if (removed) this.scheduleExpiry(now);
+    if (removed) this.scheduleExpiry(new Date(nowMs));
     return removed;
   }
 
@@ -327,13 +372,19 @@ export class EphemeralTransferRelay {
       earliest = Math.min(earliest, reservation.expiresAt);
     if (!Number.isFinite(earliest)) return;
     this.clockOffsetMs = Date.now() - now.getTime();
-    this.timer = setTimeout(
-      () => {
-        this.timer = undefined;
-        this.prune(new Date(Date.now() - this.clockOffsetMs));
-      },
-      Math.max(0, earliest - now.getTime()),
+    // Native timers clamp larger delays to 1 ms; cap and reschedule instead
+    // of repeatedly waking for an expiry still far in the future.
+    const delay = Math.max(
+      0,
+      Math.min(MAX_NATIVE_TIMER_DELAY_MS, earliest - now.getTime()),
     );
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      const nextNow = new Date(Date.now() - this.clockOffsetMs);
+      // A long timer can fire before actual expiry; preserve the remaining
+      // bounded timer even when the first prune removes no packets.
+      if (this.prune(nextNow) === 0) this.scheduleExpiry(nextNow);
+    }, delay);
     this.timer.unref?.();
   }
 

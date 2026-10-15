@@ -142,12 +142,13 @@ function store1PackageEvidence(): Store1PackageSignatureEvidence {
     contractVersion: STORE1_CONTRACT,
     trustBundle,
   };
+  // Match the real composer: the packaged config is an executable prefix,
+  // not an inert marker after other script text or inside a comment.
   const serviceWorker = Buffer.from(
-    VERIFIER_SOURCE +
-      "\n" +
-      "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
+    "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
       JSON.stringify(JSON.stringify(packagedConfig)) +
-      ";",
+      ";\n" +
+      VERIFIER_SOURCE,
   );
   return extractStore1PackageSignatureEvidenceFromEntries(
     authority,
