@@ -1,12 +1,14 @@
-"""Bounded tests of the actual backup installer environment parser.
+"""Bounded tests of the actual backup installer preflight fragments.
 
-Only its parsing fragment is executed; no live PostgreSQL, systemd, /etc files,
-backup destinations, user creation, privileged system modification, or secrets.
+Only the configuration parser and PostgreSQL-client version checks are executed;
+no live PostgreSQL, systemd, /etc files, backup destinations, privileged host
+modification, or secrets.
 """
 
 from __future__ import annotations
 
 import re
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -160,6 +162,104 @@ class BackupInstallerConfigParserTests(unittest.TestCase):
         self.assertIn(f"FIRST={VALID_VALUES[0]}", result.stdout)
         self.assertIn(f"LAST={VALID_VALUES[4]}", result.stdout)
         self.assertNotIn("BACKUP_CONFIG_REJECTED", result.stderr)
+
+
+def actual_installer_client_version_fragment() -> str:
+    source = INSTALLER.read_text()
+    command_check = source.index(
+        "for command_name in pg_dump pg_restore findmnt runuser systemd-analyze systemctl; do"
+    )
+    start = source.index("\ndone\n", command_check) + len("\ndone\n")
+    end = source.index('\nid "${BACKUP_USER}"', start)
+    # Execute only the installer preflight between command presence and identity
+    # checks. Never execute its root, systemd, mount, or database operations.
+    return source[start:end]
+
+
+class BackupInstallerPostgresClientVersionTests(unittest.TestCase):
+    def run_client_preflight(
+        self,
+        *,
+        dump_version: str = "pg_dump (PostgreSQL) 18.0",
+        restore_version: str = "pg_restore (PostgreSQL) 18.0",
+        dump_exit: int = 0,
+        restore_exit: int = 0,
+    ) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory(prefix="octoport-b05-client-version-") as temp:
+            bin_dir = Path(temp) / "bin"
+            bin_dir.mkdir()
+            for command, output, exit_code in (
+                ("pg_dump", dump_version, dump_exit),
+                ("pg_restore", restore_version, restore_exit),
+            ):
+                executable = bin_dir / command
+                executable.write_text(
+                    '#!/bin/sh\n'
+                    'if [ "$1" != "--version" ]; then exit 96; fi\n'
+                    + "printf '%s\\n' " + shlex.quote(output) + "\n"
+                    + f"exit {exit_code}\n"
+                )
+                executable.chmod(0o755)
+            script = (
+                "set -Eeuo pipefail\n"
+                'fail() { printf "BACKUP_CLIENT_REJECTED:%s\\n" "$*" >&2; exit 87; }\n'
+                + actual_installer_client_version_fragment()
+                + '\nprintf "CLIENT_VERSION_PREFLIGHT_PASSED\\n"\n'
+            )
+            return subprocess.run(
+                ["/bin/bash", "-c", script],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                env={
+                    "PATH": str(bin_dir) + ":/usr/bin:/bin",
+                    "LC_ALL": "C",
+                },
+                check=False,
+            )
+
+    def assert_client_rejected(self, result: subprocess.CompletedProcess[str]) -> None:
+        self.assertEqual(result.returncode, 87, result.stdout + result.stderr)
+        self.assertIn("BACKUP_CLIENT_REJECTED:", result.stderr)
+        self.assertNotIn("CLIENT_VERSION_PREFLIGHT_PASSED", result.stdout)
+
+    def test_matching_pg18_clients_pass(self) -> None:
+        result = self.run_client_preflight(
+            dump_version="pg_dump (PostgreSQL) 18.0",
+            restore_version="pg_restore (PostgreSQL) 18.3",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("CLIENT_VERSION_PREFLIGHT_PASSED", result.stdout)
+
+    def test_pg18_distro_patch_suffix_passes(self) -> None:
+        result = self.run_client_preflight(
+            dump_version="pg_dump (PostgreSQL) 18.1 (Ubuntu 18.1-1)",
+            restore_version="pg_restore (PostgreSQL) 18.0",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_older_pg_dump_is_rejected_before_installer_writes(self) -> None:
+        result = self.run_client_preflight(dump_version="pg_dump (PostgreSQL) 17.9")
+        self.assert_client_rejected(result)
+        self.assertIn("pg_dump", result.stderr)
+
+    def test_older_pg_restore_is_rejected_before_installer_writes(self) -> None:
+        result = self.run_client_preflight(restore_version="pg_restore (PostgreSQL) 17.9")
+        self.assert_client_rejected(result)
+        self.assertIn("pg_restore", result.stderr)
+
+    def test_unreviewed_newer_major_is_rejected(self) -> None:
+        result = self.run_client_preflight(dump_version="pg_dump (PostgreSQL) 19.0")
+        self.assert_client_rejected(result)
+
+    def test_unexpected_version_output_is_rejected(self) -> None:
+        result = self.run_client_preflight(dump_version="PostgreSQL 18.0")
+        self.assert_client_rejected(result)
+
+    def test_version_command_failure_is_rejected(self) -> None:
+        result = self.run_client_preflight(restore_exit=3)
+        self.assert_client_rejected(result)
+        self.assertIn("pg_restore", result.stderr)
 
 
 if __name__ == "__main__":
