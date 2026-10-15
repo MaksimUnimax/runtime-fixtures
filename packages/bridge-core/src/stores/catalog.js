@@ -87,12 +87,10 @@
     function plainBackupContext(value) {
       if (!value || typeof value !== "object" || Array.isArray(value)) return false;
       try {
-        // Plain objects from another JavaScript realm are valid, but a Date,
-        // Map, class instance or a custom prototype is never an auth context.
+        // The caller creates this context inside the same service-worker realm.
+        // Do not trust constructor names or forged foreign/custom prototypes.
         const prototype = Object.getPrototypeOf(value);
-        return prototype === null ||
-          (Object.getPrototypeOf(prototype) === null &&
-           Object.getOwnPropertyDescriptor(prototype, "constructor")?.value?.name === "Object");
+        return prototype === null || prototype === Object.prototype;
       } catch (_) { return false; }
     }
     async function mutate(fn, transferContext = null, backupContext = null, backupContextSupplied = false) {

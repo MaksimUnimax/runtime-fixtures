@@ -124,7 +124,12 @@ function fixture(name, guardMode = "normal") {
       generation++;
       if (otherAccount) accountId = B;
     },
-    context: () => ({ accountId, generation }),
+    // Create an authentic plain object in the same VM realm as the catalog,
+    // matching how the real extension worker constructs its backup context.
+    context: () => vm.runInContext(
+      "({accountId:" + JSON.stringify(accountId) + ",generation:" + generation + "})",
+      realm,
+    ),
   };
 }
 let cases = 0;
@@ -234,6 +239,12 @@ for (const [name, makeContext] of [
   ["regexp", () => /synthetic/],
   ["class_instance", () => new (class SyntheticContext {})()],
   ["custom_prototype", () => Object.create({ synthetic: true })],
+  ["forged_object_constructor", () => {
+    const forgedPrototype = Object.create(null);
+    Object.defineProperty(forgedPrototype, "constructor", { value: function Object() {} });
+    return Object.create(forgedPrototype);
+  }],
+  ["foreign_realm_plain", () => vm.runInNewContext("({accountId:'synthetic',generation:1})")],
   ["throwing_proxy", () => new Proxy({}, { getPrototypeOf() { throw new Error("SYNTHETIC_PROTO_TRAP"); } })],
 ]) {
   await check("non-plain context rejected with permissive guard: " + name, async () => {
