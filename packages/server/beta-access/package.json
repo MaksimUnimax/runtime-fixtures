@@ -12,5 +12,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "tr46": "7.0.0"
+  },
+  "devDependencies": {
+    "@types/tr46": "5.0.1"
   }
 }
