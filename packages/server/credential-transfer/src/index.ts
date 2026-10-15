@@ -216,12 +216,14 @@ export class EphemeralTransferRelay {
     packet: TransferPacketV1,
     now = new Date(),
   ): boolean {
+    // Reject an invalid clock before looking up or mutating a reservation.
+    const safeNow = new Date(finiteTimestamp(now));
     const reservation = this.reservations.get(requestId);
     if (!reservation || reservation.reservationId !== reservationId)
       return false;
-    if (reservation.expiresAt <= now.getTime()) {
+    if (reservation.expiresAt <= safeNow.getTime()) {
       this.reservations.delete(requestId);
-      this.scheduleExpiry(now);
+      this.scheduleExpiry(safeNow);
       return false;
     }
     // A caller may expose mutable getters. Validate a single immutable
@@ -249,15 +251,16 @@ export class EphemeralTransferRelay {
       envelopeBytes: reservation.envelopeBytes,
       deliveredToRecipient: false,
     });
-    this.scheduleExpiry(now);
+    this.scheduleExpiry(safeNow);
     return true;
   }
 
   release(requestId: string, reservationId: number, now = new Date()): void {
+    const safeNow = new Date(finiteTimestamp(now));
     const reservation = this.reservations.get(requestId);
     if (reservation?.reservationId === reservationId) {
       this.reservations.delete(requestId);
-      this.scheduleExpiry(now);
+      this.scheduleExpiry(safeNow);
     }
   }
 
@@ -283,9 +286,10 @@ export class EphemeralTransferRelay {
   }
 
   delete(requestId: string, now = new Date()): void {
+    const safeNow = new Date(finiteTimestamp(now));
     const removedPacket = this.packets.delete(requestId);
     const removedReservation = this.reservations.delete(requestId);
-    if (removedPacket || removedReservation) this.scheduleExpiry(now);
+    if (removedPacket || removedReservation) this.scheduleExpiry(safeNow);
   }
 
   clear(): void {
@@ -296,20 +300,21 @@ export class EphemeralTransferRelay {
   }
 
   prune(now: Date): number {
+    const nowMs = finiteTimestamp(now);
     let removed = 0;
     for (const [requestId, packet] of this.packets) {
-      if (packet.expiresAt <= now.getTime()) {
+      if (packet.expiresAt <= nowMs) {
         this.packets.delete(requestId);
         removed += 1;
       }
     }
     for (const [requestId, reservation] of this.reservations) {
-      if (reservation.expiresAt <= now.getTime()) {
+      if (reservation.expiresAt <= nowMs) {
         this.reservations.delete(requestId);
         removed += 1;
       }
     }
-    if (removed) this.scheduleExpiry(now);
+    if (removed) this.scheduleExpiry(new Date(nowMs));
     return removed;
   }
 
