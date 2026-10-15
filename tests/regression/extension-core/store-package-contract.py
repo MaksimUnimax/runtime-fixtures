@@ -2,6 +2,7 @@
 from pathlib import Path
 import importlib.util
 import json
+import subprocess
 import struct
 import zlib
 import tempfile
@@ -18,6 +19,18 @@ def load(name, relative):
 
 composed = load("store_composed", "tooling/build/extension_composed.py")
 firefox = load("store_firefox", "tooling/build/extension_firefox.py")
+
+
+def verify_firefox_contract(runtime: Path) -> None:
+    # Run the existing Firefox-specific manifest test against an actual
+    # Firefox package derivative, not the common Chromium manifest.
+    subprocess.run(
+        ["node", str(ROOT / "tests/regression/extension-core/firefox-package-contract.mjs"), str(runtime)],
+        cwd=ROOT,
+        check=True,
+        timeout=45,
+    )
+
 
 PUBLIC_KEY = "MCowBQYDK2VwAyEAFG3DxyJOAU0cI1T50i6+tDUonQ74Qzw1Ra6USuEWYRg="
 FINGERPRINT = "69e2ddf7c78d4221d06b65be0212063b923e4e827c2e271385fef0d04cce85dc"
@@ -132,6 +145,11 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert b'development: config.environment === "LOCAL DEVELOPMENT"' in development_worker
     assert (development_runtime / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
     assert (development_extracted / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
+    firefox_development = root / "firefox-development-runtime"
+    firefox_development_receipt = firefox.build(development_runtime, firefox_development)
+    assert firefox_development_receipt["build_mode"] == "development"
+    assert firefox_development_receipt["package"]["repeat_archive_match"] is True
+    verify_firefox_contract(firefox_development)
 
     auth = write_authority(root, authority())
     runtime, extracted, receipt = composed.build(
@@ -187,6 +205,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
 
     firefox_receipt = firefox.build(runtime, root / "firefox-runtime")
+    verify_firefox_contract(root / "firefox-runtime")
     firefox_manifest = json.loads(
         (root / "firefox-runtime" / "manifest.json").read_text(encoding="utf-8")
     )
