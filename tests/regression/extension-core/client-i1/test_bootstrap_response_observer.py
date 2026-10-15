@@ -317,6 +317,55 @@ class BootstrapObserverTest(unittest.TestCase):
         self.assertEqual(counts["http_200_count"], 0)
         self.assertFalse(counts["selected_request_finished"])
 
+    def test_selected_failed_before_read_short_circuits_without_body_or_wait(self):
+        response = FakeResponse({"keyId": "fixture"}, request=FakeRequest(failure="net::ERR_ABORTED"))
+        context = FakeContext(error=PlaywrightTimeoutError("PRIVATE_ABORT_REASON"))
+        with self.assertRaisesRegex(RuntimeError, "HTTP request failed before completion") as raised:
+            module.read_completed_bootstrap_response(
+                response, context, [], [response.request]
+            )
+        self.assertNotIn("PRIVATE_ABORT_REASON", str(raised.exception))
+        self.assertEqual(context.waits, [])
+        self.assertEqual(response.calls, [])
+
+    def test_unrelated_failed_request_at_same_url_does_not_block_signed_read(self):
+        response = FakeResponse({"keyId": "synthetic", "payload": "synthetic"})
+        unrelated = FakeRequest(url=response.request.url, failure="net::ERR_ABORTED")
+        context = FakeContext()
+        self.assertEqual(module.read_completed_bootstrap_response(
+            response, context, [response.request], [unrelated]
+        ), response.payload)
+        self.assertEqual(context.waits, [])
+        self.assertEqual(response.calls, ["json"])
+
+    def test_observed_failure_after_bounded_wait_rejects_without_body_leak(self):
+        response = FakeResponse({"keyId": "fixture"})
+        failed_requests = []
+        class LateFailContext(FakeContext):
+            def wait_for_event(self, event, predicate, timeout):
+                self.waits.append((event, timeout))
+                failed_requests.append(response.request)
+                raise PlaywrightTimeoutError("SYNTHETIC_SECRET_URL")
+        context = LateFailContext()
+        with self.assertRaisesRegex(RuntimeError, "HTTP request failed before completion") as raised:
+            module.read_completed_bootstrap_response(
+                response, context, [], failed_requests
+            )
+        self.assertNotIn("SYNTHETIC_SECRET_URL", str(raised.exception))
+        self.assertEqual(context.waits, [("requestfinished", 30000)])
+        self.assertEqual(response.calls, [])
+
+    def test_finished_and_failed_same_selected_request_is_never_accepted(self):
+        response = FakeResponse({"keyId": "fixture"})
+        context = FakeContext()
+        with self.assertRaisesRegex(RuntimeError, "HTTP request failed before completion"):
+            module.read_completed_bootstrap_response(
+                response, context, [response.request], [response.request]
+            )
+        self.assertEqual(response.calls, [])
+        self.assertEqual(context.waits, [])
+
+
 
 if __name__ == "__main__":
     unittest.main()
