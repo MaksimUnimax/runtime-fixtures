@@ -291,7 +291,19 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
       )
         request.status = "EXPIRED";
     }
-    const open = related.find(isOpenRequest);
+    // An invalid registered artifact is immutable history. Only explicit renewal
+    // can leave it behind; an empty/in-flight request is still coalesced.
+    const failedWithArtifact = new Set(
+      [...this.state.artifacts.values()]
+        .filter((artifact) => artifact.status === "VALIDATION_FAILED")
+        .map((artifact) => artifact.requestId),
+    );
+    const open = related
+      .sort(compareReadyRequests)
+      .find(
+        (request) =>
+          isOpenRequest(request) && !failedWithArtifact.has(request.requestId),
+      );
     // Check and synchronous insertion share one turn even across store instances.
     return open
       ? cloneRequest(open)
@@ -596,7 +608,21 @@ export function createPostgresSwaggerSourceStore(
             request.status = "EXPIRED";
           }
         }
-        const open = requests.find(isOpenRequest);
+        const failedWithArtifact = new Set(
+          (
+            await query.query<{ requestId: string }>(
+              `SELECT DISTINCT request_id AS "requestId" FROM swagger_source_artifacts WHERE request_id=ANY($1::text[]) AND status='VALIDATION_FAILED'`,
+              [requests.map((request) => request.requestId)],
+            )
+          ).rows.map((row) => row.requestId),
+        );
+        const open = requests
+          .sort(compareReadyRequests)
+          .find(
+            (request) =>
+              isOpenRequest(request) &&
+              !failedWithArtifact.has(request.requestId),
+          );
         return (
           open ??
           insertSwaggerRequest(query, {

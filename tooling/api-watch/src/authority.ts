@@ -1,3 +1,4 @@
+import { operatorPipelineConsumed } from "./operator-receipt.js";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
@@ -14,6 +15,7 @@ import type {
   ApiWatchSqlRuntime,
   ApiWatchSqlQuery,
   ApiWatchStore,
+  ApiWatchReportStore,
   AuthorityPassResult,
   AuthorityRecord,
   AuthorityRecordInput,
@@ -343,13 +345,19 @@ export function createPostgresApiWatchStore(
       return result.rows[0] ? mapAuthority(result.rows[0]) : undefined;
     },
     async saveSnapshot(metadata) {
-      const existing = await runtime.query<Record<string, unknown>>(
-        `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots WHERE source_family=$1 AND document_key IS NOT DISTINCT FROM $2 AND sha256=$3`,
-        [metadata.sourceFamily, metadata.documentKey ?? null, metadata.sha256],
-      );
+      const findExisting = () =>
+        runtime.query<Record<string, unknown>>(
+          `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots WHERE source_family=$1 AND document_key IS NOT DISTINCT FROM $2 AND sha256=$3`,
+          [
+            metadata.sourceFamily,
+            metadata.documentKey ?? null,
+            metadata.sha256,
+          ],
+        );
+      const existing = await findExisting();
       if (existing.rows[0]) return mapSnapshot(existing.rows[0]);
       const result = await runtime.query<Record<string, unknown>>(
-        `INSERT INTO api_watch_snapshots(snapshot_id,source_family,sha256,size_bytes,spec_version,official_url,acquisition_mode,created_at,authority_record_id,artifact_path,document_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey"`,
+        `INSERT INTO api_watch_snapshots(snapshot_id,source_family,sha256,size_bytes,spec_version,official_url,acquisition_mode,created_at,authority_record_id,artifact_path,document_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING RETURNING snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey"`,
         [
           metadata.snapshotId,
           metadata.sourceFamily,
@@ -364,8 +372,12 @@ export function createPostgresApiWatchStore(
           metadata.documentKey ?? null,
         ],
       );
-      if (!result.rows[0]) throw new Error("API_WATCH_SNAPSHOT_CREATE_FAILED");
-      return mapSnapshot(result.rows[0]);
+      if (result.rows[0]) return mapSnapshot(result.rows[0]);
+      // The competing complete pipeline may publish the same immutable snapshot
+      // after our pre-read. Keep its provenance; never update an accepted row.
+      const committed = await findExisting();
+      if (committed.rows[0]) return mapSnapshot(committed.rows[0]);
+      throw new Error("API_WATCH_SNAPSHOT_CREATE_FAILED");
     },
     async listSnapshots() {
       const result = await runtime.query<Record<string, unknown>>(
@@ -483,6 +495,7 @@ export async function runAuthorityPass(input: {
   now?: () => Date;
   skipOperatorBlocked?: boolean;
   quarantineDir?: string;
+  reportStore?: ApiWatchReportStore;
 }): Promise<AuthorityPassResult> {
   const ready = await input.pendingStore.listReadyRequests();
   const request = ready.find(
@@ -497,22 +510,45 @@ export async function runAuthorityPass(input: {
             entry.documents?.length === 13,
         ),
   );
+  const quarantineDir =
+    input.quarantineDir ??
+    process.env.SWAGGER_QUARANTINE_DIR ??
+    "/var/lib/octoport/api-watch/quarantine";
   let operator: AuthorityPassResult | undefined;
-  if (request) {
+  const artifact = request
+    ? (await input.pendingStore.listArtifacts(request.requestId)).find(
+        (candidate) => candidate.status === "CANDIDATE_READY",
+      )
+    : undefined;
+  // Consider only the newest ready generation. Never fall back to older bytes
+  // after its receipt proves that the full report pipeline finished.
+  if (
+    request &&
+    artifact &&
+    !(await operatorPipelineConsumed({ ...input, artifact, quarantineDir }))
+  ) {
     const review = await evaluateOperatorCandidate({
       ...input,
       requestId: request.requestId,
-      quarantineDir:
-        input.quarantineDir ??
-        process.env.SWAGGER_QUARANTINE_DIR ??
-        "/var/lib/octoport/api-watch/quarantine",
+      quarantineDir,
     });
     if (
       review.kind === "AUTHORITY_ACCEPTED" &&
       review.outcomes &&
       review.records
     ) {
-      operator = { outcomes: review.outcomes, records: review.records };
+      operator = {
+        outcomes: review.outcomes,
+        records: review.records,
+        operatorCandidate: {
+          artifact: {
+            artifactId: artifact.artifactId,
+            requestId: artifact.requestId,
+            sha256: artifact.sha256,
+          },
+          records: review.records,
+        },
+      };
     }
   }
   const registry = operator
@@ -526,6 +562,9 @@ export async function runAuthorityPass(input: {
     : input.registry;
   const pass = await runDocumentAuthorityPass({ ...input, registry });
   return {
+    ...(operator?.operatorCandidate
+      ? { operatorCandidate: operator.operatorCandidate }
+      : {}),
     outcomes: [...pass.outcomes, ...(operator?.outcomes ?? [])],
     records: [...pass.records, ...(operator?.records ?? [])],
   };
