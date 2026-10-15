@@ -298,11 +298,15 @@ export function createFeedbackSupportRepository(
   return {
     async createCase(input) {
       return runtime.transaction(async (tx) => {
-        const account = await tx.query<{ id: string }>(
-          `SELECT a.id FROM accounts a JOIN account_memberships m ON m.account_id=a.id WHERE a.id=$1 AND a.status='ACTIVE' AND m.user_id=$2`,
-          [input.body.accountId, input.userId],
-        );
-        if (!account.rows[0]) return { kind: "ACCOUNT_FORBIDDEN" as const };
+        if (
+          !(await activeUserCaseMembership(
+            tx,
+            input.body.accountId,
+            input.userId,
+            true,
+          ))
+        )
+          return { kind: "ACCOUNT_FORBIDDEN" as const };
         if (input.body.deviceId) {
           const device = await tx.query<{ id: string }>(
             `SELECT id FROM devices WHERE id=$1 AND account_id=$2`,
@@ -571,11 +575,15 @@ export function createFeedbackSupportRepository(
           ))
         )
           return "RATE_LIMITED" as const;
-        const account = await tx.query<{ id: string }>(
-          `SELECT a.id FROM accounts a JOIN account_memberships m ON m.account_id=a.id WHERE a.id=$1 AND a.status='ACTIVE' AND m.user_id=$2`,
-          [input.body.accountId, input.userId],
-        );
-        if (!account.rows[0]) return "CONFLICT" as const;
+        if (
+          !(await activeUserCaseMembership(
+            tx,
+            input.body.accountId,
+            input.userId,
+            true,
+          ))
+        )
+          return "CONFLICT" as const;
         if (input.body.deviceId) {
           const device = await tx.query<{ id: string }>(
             `SELECT id FROM devices WHERE id=$1 AND account_id=$2`,
