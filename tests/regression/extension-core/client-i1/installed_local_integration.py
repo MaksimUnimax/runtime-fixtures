@@ -60,9 +60,16 @@ def wait_until(check, label, timeout=30):
         time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {label}; last={last!r}")
 
-def safe_bootstrap_event_counts(responses, finished, failed, started, second_activation_at=None, work_start_at=None):
+def safe_bootstrap_event_counts(responses, finished, failed, started, second_activation_at=None, work_start_at=None, selected_response=None):
     # Only fixed keys, numbers, booleans and allowlisted phase labels leave CI.
     # No request URL, header, body, token or account/subject identity is stored.
+    # Report the response actually selected for signed body verification.
+    # A later response event may append to the list during that verification.
+    selected_request = selected_response.request if selected_response is not None else None
+    selected_index = next(
+        (index for index, response in enumerate(responses) if response is selected_response),
+        None,
+    ) if selected_response is not None else None
     counts = {
         "schema_version": 1,
         "http_200_count": len(responses),
@@ -72,28 +79,30 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
         "requestfailed_200_count": sum(
             any(error is response.request for error in failed) for response in responses
         ),
-        "selected_request_finished": bool(responses) and any(
-            done is responses[-1].request for done in finished
+        "selected_request_finished": selected_request is not None and any(
+            done is selected_request for done in finished
         ),
-        "selected_request_failed": bool(responses) and any(
-            error is responses[-1].request for error in failed
+        "selected_request_failed": selected_request is not None and any(
+            error is selected_request for error in failed
         ),
         "selected_response_observed_window": "none",
         "selected_request_event_window": "unobserved",
     }
-    if responses:
-        if isinstance(work_start_at, int) and len(responses) > work_start_at:
-            counts["selected_response_observed_window"] = "after_work_start_marker"
-        elif isinstance(second_activation_at, int) and len(responses) > second_activation_at:
-            counts["selected_response_observed_window"] = "after_second_activation_marker"
-        elif isinstance(second_activation_at, int):
-            counts["selected_response_observed_window"] = "before_second_activation_marker"
+    if selected_response is not None:
+        if selected_index is not None:
+            if isinstance(work_start_at, int) and selected_index >= work_start_at:
+                counts["selected_response_observed_window"] = "after_work_start_marker"
+            elif isinstance(second_activation_at, int) and selected_index >= second_activation_at:
+                counts["selected_response_observed_window"] = "after_second_activation_marker"
+            elif isinstance(second_activation_at, int):
+                counts["selected_response_observed_window"] = "before_second_activation_marker"
+            else:
+                counts["selected_response_observed_window"] = "unobserved"
         else:
             counts["selected_response_observed_window"] = "unobserved"
-        # Only request events determine the *request* observation window;
-        # receiving HTTP 200 later does not retrospectively change its origin.
+        # Request-event phase is independent of late HTTP response arrival.
         label = next(
-            (phase for request, phase in reversed(started) if request is responses[-1].request),
+            (phase for request, phase in reversed(started) if request is selected_request),
             None,
         )
         if label in {"first_activation_window", "second_activation_window", "work_start_window"}:
@@ -753,6 +762,7 @@ def run(runtime, output):
                         bootstrap_http_responses, completed_bootstrap_requests,
                         failed_bootstrap_requests, observed_bootstrap_request_windows,
                         second_activation_header_count, work_start_header_count,
+                        bootstrap_response,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result.update(
@@ -816,6 +826,7 @@ def run(runtime, output):
                         bootstrap_http_responses, completed_bootstrap_requests,
                         failed_bootstrap_requests, observed_bootstrap_request_windows,
                         second_activation_header_count, work_start_header_count,
+                        locals().get("bootstrap_response"),
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
                     result["failure_observation"] = {
