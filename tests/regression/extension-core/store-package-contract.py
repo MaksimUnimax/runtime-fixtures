@@ -2,6 +2,9 @@
 from pathlib import Path
 import importlib.util
 import json
+import subprocess
+import struct
+import zlib
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -17,6 +20,18 @@ def load(name, relative):
 composed = load("store_composed", "tooling/build/extension_composed.py")
 firefox = load("store_firefox", "tooling/build/extension_firefox.py")
 
+
+def verify_firefox_contract(runtime: Path) -> None:
+    # Run the existing Firefox-specific manifest test against an actual
+    # Firefox package derivative, not the common Chromium manifest.
+    subprocess.run(
+        ["node", str(ROOT / "tests/regression/extension-core/firefox-package-contract.mjs"), str(runtime)],
+        cwd=ROOT,
+        check=True,
+        timeout=45,
+    )
+
+
 PUBLIC_KEY = "MCowBQYDK2VwAyEAFG3DxyJOAU0cI1T50i6+tDUonQ74Qzw1Ra6USuEWYRg="
 FINGERPRINT = "69e2ddf7c78d4221d06b65be0212063b923e4e827c2e271385fef0d04cce85dc"
 
@@ -25,7 +40,7 @@ def authority(control="https://api.octoport.ru", portal="https://app.octoport.ru
     return {
         "schemaVersion": "octoport_release_authority_v1",
         "source": {"head": "0" * 40, "tree": "1" * 40},
-        "productVersion": "0.2.26",
+        "productVersion": "0.2.27",
         "contractVersion": "control_plane_v2",
         "migrationLevel": 48,
         "environment": "PREPRODUCTION",
@@ -74,6 +89,49 @@ def declared_resources(manifest):
     return resources
 
 
+def verify_rgba_png(path, dimension):
+    """Decode the exact icon PNG payload, not just its IHDR/CRC or file presence."""
+    raw = path.read_bytes()
+    assert raw.startswith(b"\x89PNG\r\n\x1a\n"), f"PNG_SIGNATURE_INVALID:{path}"
+    offset = 8
+    header = None
+    image_data = bytearray()
+    ended = False
+    while offset < len(raw):
+        assert len(raw) - offset >= 12, f"PNG_CHUNK_TRUNCATED:{path}"
+        length = int.from_bytes(raw[offset:offset + 4], "big")
+        assert 0 <= length <= 1024 * 1024, f"PNG_CHUNK_OVERSIZE:{path}"
+        stop = offset + 12 + length
+        assert stop <= len(raw), f"PNG_CHUNK_TRUNCATED:{path}"
+        kind = raw[offset + 4:offset + 8]
+        payload = raw[offset + 8:offset + 8 + length]
+        checksum = int.from_bytes(raw[offset + 8 + length:stop], "big")
+        assert zlib.crc32(kind + payload) & 0xffffffff == checksum, f"PNG_CRC_MISMATCH:{path}"
+        if kind == b"IHDR":
+            assert offset == 8 and header is None and length == 13
+            header = struct.unpack(">IIBBBBB", payload)
+        elif kind == b"IDAT":
+            image_data.extend(payload)
+        elif kind == b"IEND":
+            assert length == 0 and stop == len(raw), f"PNG_IEND_INVALID:{path}"
+            ended = True
+        offset = stop
+        if ended:
+            break
+    assert header == (dimension, dimension, 8, 6, 0, 0, 0), f"PNG_RGBA8_DIMENSIONS_INVALID:{path}"
+    assert ended and image_data, f"PNG_DATA_MISSING:{path}"
+    decoded = zlib.decompress(bytes(image_data))
+    stride = 4 * dimension + 1
+    assert len(decoded) == stride * dimension, (
+        f"PNG_PIXEL_DATA_TRUNCATED:{path}:expected={stride * dimension}:actual={len(decoded)}"
+    )
+    assert all(decoded[row * stride] <= 4 for row in range(dimension)), f"PNG_FILTER_INVALID:{path}"
+
+
+for _dimension in (16, 48, 128):
+    verify_rgba_png(ROOT / f"apps/extension/src/assets/octoport-{_dimension}.png", _dimension)
+
+
 with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     root = Path(temp)
     verifier_source = (ROOT / "packages/control-client/src/crypto.js").read_bytes()
@@ -82,11 +140,16 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     development_runtime, development_extracted, development_receipt = composed.build(
         root / "development"
     )
-    assert development_receipt["version"] == "0.2.26"
+    assert development_receipt["version"] == "0.2.27"
     development_worker = (development_runtime / "service_worker.js").read_bytes()
     assert b'development: config.environment === "LOCAL DEVELOPMENT"' in development_worker
     assert (development_runtime / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
     assert (development_extracted / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
+    firefox_development = root / "firefox-development-runtime"
+    firefox_development_receipt = firefox.build(development_runtime, firefox_development)
+    assert firefox_development_receipt["build_mode"] == "development"
+    assert firefox_development_receipt["package"]["repeat_archive_match"] is True
+    verify_firefox_contract(firefox_development)
 
     auth = write_authority(root, authority())
     runtime, extracted, receipt = composed.build(
@@ -101,9 +164,11 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
         "128": "icons/octoport-128.png",
     }
     assert manifest["action"]["default_icon"] == manifest["icons"]
-    for icon in manifest["icons"].values():
+    for size, icon in manifest["icons"].items():
         assert (runtime / icon).is_file()
         assert (extracted / icon).read_bytes() == (runtime / icon).read_bytes()
+        verify_rgba_png(runtime / icon, int(size))
+        verify_rgba_png(extracted / icon, int(size))
     assert "https://api.octoport.ru/*" in manifest["host_permissions"]
     assert "https://app.octoport.ru/*" in manifest["host_permissions"]
     assert not any(value.startswith("http://127.0.0.1") for value in manifest["host_permissions"])
@@ -135,16 +200,19 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "BETA · результаты сразу в ИИ · буфер до 1 часа" in popup
     assert receipt["build_mode"] == "store"
     assert receipt["environment"] == "PREPRODUCTION"
-    assert receipt["package"]["name"] == "OCTOPORT_v0.2.26_CHROMIUM_STORE.zip"
+    assert receipt["package"]["name"] == "OCTOPORT_v0.2.27_CHROMIUM_STORE.zip"
     assert receipt["package"]["repeat_archive_match"] is True
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
 
     firefox_receipt = firefox.build(runtime, root / "firefox-runtime")
+    verify_firefox_contract(root / "firefox-runtime")
     firefox_manifest = json.loads(
         (root / "firefox-runtime" / "manifest.json").read_text(encoding="utf-8")
     )
     assert firefox_receipt["build_mode"] == "store"
-    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.26_FIREFOX_STORE.zip"
+    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.27_FIREFOX_STORE.zip"
+    for size, icon in firefox_manifest["icons"].items():
+        verify_rgba_png(root / "firefox-runtime" / icon, int(size))
     assert firefox_manifest["browser_specific_settings"]["gecko"]["id"] == "octoport@octoport.ru"
     assert firefox_manifest["browser_specific_settings"]["gecko"]["data_collection_permissions"] == {
         "required": [

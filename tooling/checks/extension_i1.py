@@ -39,6 +39,16 @@ def main():
         runner.run("start-entry-lifecycle", [node, ROOT / "tests/regression/extension-core/client-i1/client-start-entry-lifecycle.mjs", ROOT])
         runner.run("i1-release-preflight-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-release-preflight.mjs", ROOT])
         runner.run("i1-r3-ledger-writer-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-r3-command-ledger.mjs"])
+        # Existing source regressions for operator R3 feedback must run on
+        # every exact candidate, not remain unreferenced standalone scripts.
+        # Run once before packaging: both validate source modules rather than
+        # an installed/browser-specific runtime.
+        runner.run("i1-r3-finish-terminal-source", [
+            node, ROOT / "tests/regression/extension-core/client-i1/client-r3-work-lifecycle.mjs"
+        ])
+        runner.run("i1-r3-parallel-bootstrap-source", [
+            node, ROOT / "tests/regression/extension-core/client-i1/client-r3-parallel-authority.mjs"
+        ])
         source, extracted, receipt = composed.build(output / "package")
         assert receipt["stage"] == "I1-C1" and receipt["version"] == expected_version
         result["composition"] = receipt

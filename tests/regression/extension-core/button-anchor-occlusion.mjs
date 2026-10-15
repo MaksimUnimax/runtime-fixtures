@@ -1,12 +1,21 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 let source = fs.readFileSync(fileURLToPath(new URL("../../../apps/extension/src/imported/ozon-v0.1.22/content_script.js", import.meta.url)), "utf8");
 const patches = JSON.parse(fs.readFileSync(fileURLToPath(new URL("../../../apps/extension/application-patches.json", import.meta.url)), "utf8"));
 for (const patch of patches.filter(row => row.target === "content_script.js")) {
   assert.equal(source.split(patch.old).length - 1, 1, "exact reviewed composition patch anchor");
-  source = source.replace(patch.old, patch.new);
+  let replacement = patch.new;
+  if (patch.new_source !== undefined) {
+    assert.equal(patch.new_source, "apps/extension/src/content/position-own-button.js");
+    replacement = fs.readFileSync(
+      fileURLToPath(new URL("../../../" + patch.new_source, import.meta.url)), "utf8"
+    ) + "\n";
+    assert.equal(createHash("sha256").update(replacement).digest("hex"), patch.new_sha256);
+  }
+  source = source.replace(patch.old, replacement);
 }
 const start = source.indexOf("  function positionOwnButton(record) {");
 const end = source.indexOf("  function scheduleOwnButtonPositioning()", start);

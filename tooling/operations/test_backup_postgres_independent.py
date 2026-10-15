@@ -20,6 +20,7 @@ from backup_postgres_independent import (
     run_backup,
     verify_independent_mounts,
     _verified_backup_directories,
+    _apply_retention,
 )
 
 
@@ -386,6 +387,57 @@ class BackupPostgresIndependentTest(unittest.TestCase):
                 which=lambda name: f"/fixture/{name}",
             )
         self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
+    def test_symlinked_backups_and_members_do_not_count_as_verified(self) -> None:
+        # These fixtures are all valid if symlinks are followed, but none is
+        # a backup produced wholly inside the independently mounted target.
+        outside = Path(self.temp.name)
+        linked_directory = self._existing_backup(
+            91, "2026-09-11T00:00:00Z", b"directory-symlink",
+        )
+        actual_directory = outside / "external-backup-directory"
+        linked_directory.rename(actual_directory)
+        linked_directory.symlink_to(actual_directory, target_is_directory=True)
+
+        linked_manifest = self._existing_backup(
+            92, "2026-09-12T00:00:00Z", b"manifest-symlink",
+        )
+        actual_manifest = outside / "external-manifest.json"
+        (linked_manifest / "manifest.json").rename(actual_manifest)
+        (linked_manifest / "manifest.json").symlink_to(actual_manifest)
+
+        linked_archive = self._existing_backup(
+            93, "2026-09-13T00:00:00Z", b"archive-symlink",
+        )
+        actual_archive = outside / "external-database.dump"
+        (linked_archive / "database.dump").rename(actual_archive)
+        (linked_archive / "database.dump").symlink_to(actual_archive)
+
+        good = self._existing_backup(
+            94, "2026-09-14T00:00:00Z", b"real-owned-backup",
+        )
+
+        def runner(argv, **_kwargs):
+            self.assertEqual(str(argv[0]), "/fixture/pg_restore")
+            return subprocess.CompletedProcess(
+                argv, 0, "; archive\n1; 0 0 TABLE public users fixture\n", "",
+            )
+
+        verified = _verified_backup_directories(
+            self.dest, pg_restore="/fixture/pg_restore", runner=runner,
+        )
+        self.assertEqual([path for _stamp, path in verified], [good])
+        # Retention must ignore the symlinked candidates rather than trying
+        # to delete a linked directory or displacing the genuine backup.
+        removed = _apply_retention(
+            self.dest, 1, pg_restore="/fixture/pg_restore", runner=runner,
+        )
+        self.assertEqual(removed, [])
+        self.assertTrue(good.is_dir())
+        self.assertTrue(linked_directory.is_symlink())
+        self.assertTrue(actual_directory.is_dir())
+        self.assertTrue(actual_manifest.is_file())
+        self.assertTrue(actual_archive.is_file())
 
     def test_missing_backup_tools_fail_closed(self) -> None:
         with self.assertRaisesRegex(BackupError, "POSTGRES_BACKUP_TOOLS_MISSING"):
