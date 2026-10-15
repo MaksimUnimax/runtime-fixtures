@@ -7,7 +7,7 @@ the private key remains in that API process and is never copied to the package.
 from pathlib import Path
 import argparse, faulthandler, hashlib, json, os, re, subprocess, tempfile, time, urllib.request, uuid
 from urllib.parse import urlparse
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 ROOT = Path(__file__).resolve().parents[4]
 NODE = os.environ.get("SA_NODE_BIN", "node")
@@ -60,12 +60,22 @@ def wait_until(check, label, timeout=30):
         time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {label}; last={last!r}")
 
-def read_completed_bootstrap_response(response):
-    # BrowserContext "response" fires before the response body has finished.
-    # Parsing JSON from inside that callback can hide a valid signed response.
-    error = response.finished()
-    if error is not None:
-        raise RuntimeError("signed AI bootstrap HTTP response did not complete")
+def read_completed_bootstrap_response(response, context, completed_requests):
+    # BrowserContext "response" fires on headers, before the HTTP body finishes.
+    # response.finished() can wait indefinitely when a request remains pending.
+    # A requestfinished listener is installed before authentication so that
+    # completion immediately preceding this read cannot be missed.
+    request = response.request
+    if not any(finished is request for finished in completed_requests):
+        try:
+            context.wait_for_event(
+                "requestfinished",
+                predicate=lambda finished: finished is request,
+                timeout=30000,
+            )
+        except PlaywrightTimeoutError:
+            # Fixed error text: never retain a request URL/body/token in CI.
+            raise RuntimeError("signed AI bootstrap HTTP response did not complete") from None
     try:
         envelope = response.json()
     except Exception:
@@ -84,6 +94,14 @@ def file_sha256(path):
 
 # CI uploads output even after cancellation: never include any tokens, keys,
 # fixture identities or provider response bodies in durable stage metadata.
+_WORK_START_STEPS = (
+    "start_click", "prompt_wait", "binding_wait", "state_wait",
+    "bootstrap_wait", "bootstrap_body", "profile_eval",
+    "private_page_probe", "sent_prompt_read", "private_storage_read",
+    "support_click", "support_wait", "support_read",
+    "worker_sentinel_read", "pre_restart_state",
+)
+
 _SAFE_STAGES = frozenset({
     "database_migrate", "api_ready_wait", "browser_config",
     "package_compose", "portal_ready_wait", "browser_start",
@@ -91,7 +109,11 @@ _SAFE_STAGES = frozenset({
     "activation_preview", "activation_approval", "bootstrap_observed",
     "work_start", "browser_restart", "browser_context_close",
     "subprocess_cleanup", "completed",
-})
+}) | frozenset(
+    f"work_start_{step}_{phase}"
+    for step in _WORK_START_STEPS
+    for phase in ("begin", "done")
+)
 
 
 def _mark_stage(output, name, started):
@@ -99,6 +121,17 @@ def _mark_stage(output, name, started):
         raise ValueError("UNRECOGNIZED_INSTALLED_STAGE")
     progress = {"schema_version": 1, "stage": name,
                 "elapsed_seconds": round(time.monotonic() - started, 3)}
+    if name in {"browser_context_close", "subprocess_cleanup"}:
+        # Preserve the last fixed Work Start marker if cleanup itself stalls.
+        # Never forward arbitrary data from this file into an uploaded artifact.
+        try:
+            previous = json.loads((output / "progress.json").read_text(encoding="utf8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            previous = None
+        if isinstance(previous, dict):
+            origin = previous.get("work_start_origin") or previous.get("stage")
+            if isinstance(origin, str) and origin.startswith("work_start_") and origin in _SAFE_STAGES:
+                progress["work_start_origin"] = origin
     temp = output / ".progress.json.tmp"
     with temp.open("w", encoding="utf8") as stream:
         stream.write(json.dumps(progress, ensure_ascii=False) + "\n")
@@ -220,8 +253,17 @@ def run(runtime, output):
                     context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
                     control_responses = []
                     bootstrap_http_responses = []
+                    completed_bootstrap_requests = []
                     bootstrap_envelope = None
                     authorization_ids = set()
+                    def observe_completed_bootstrap(request):
+                        parsed = urlparse(request.url)
+                        if (parsed.netloc == f"127.0.0.1:{api_port}" and
+                                parsed.path == "/v1/bootstrap" and request.method == "POST"):
+                            # Volatile request handles only, never a durable response body.
+                            completed_bootstrap_requests.append(request)
+                    context.on("requestfinished", observe_completed_bootstrap)
+
                     def observe_control(response):
                         parsed = urlparse(response.url)
                         if parsed.netloc == f"127.0.0.1:{api_port}" and parsed.path.startswith("/v1/"):
@@ -360,8 +402,13 @@ def run(runtime, output):
                     popup.wait_for_function("() => document.querySelector('#stores').innerText.includes('Аккаунт B WB')")
 
                     stage = _mark_stage(output, "work_start", started)
+                    stage = _mark_stage(output, "work_start_start_click_begin", started)
                     popup.click("#start")
+                    stage = _mark_stage(output, "work_start_start_click_done", started)
+                    stage = _mark_stage(output, "work_start_prompt_wait_begin", started)
                     wait_until(lambda: chat.evaluate("() => window.sent.length > 0"), "installed Work Start prompt")
+                    stage = _mark_stage(output, "work_start_prompt_wait_done", started)
+                    stage = _mark_stage(output, "work_start_binding_wait_begin", started)
                     active_surface = wait_until(
                         lambda: popup.evaluate('''async tabId => {
                           const state = await chrome.runtime.sendMessage({type:"SA_POPUP_STATE", tab_id:tabId});
@@ -369,9 +416,11 @@ def run(runtime, output):
                         }''', chat_tab_id),
                         "confirmed active conversation binding",
                     )
+                    stage = _mark_stage(output, "work_start_binding_wait_done", started)
                     assert active_surface["identity"]["conversation_id"] == fixture_conversation_id
                     conversation_key = active_surface["conversation_key"]
                     assert conversation_key == f"https://chatgpt.com|{fixture_conversation_id}"
+                    stage = _mark_stage(output, "work_start_state_wait_begin", started)
                     work_state = wait_until(
                         lambda: worker.evaluate("""async key => {
                           const stored = await chrome.storage.local.get('ozmb_work_sessions_v1');
@@ -382,11 +431,19 @@ def run(runtime, output):
                         }""", conversation_key),
                         "installed Work Start activation",
                     )
+                    stage = _mark_stage(output, "work_start_state_wait_done", started)
+                    stage = _mark_stage(output, "work_start_bootstrap_wait_begin", started)
                     bootstrap_response = wait_until(
                         lambda: bootstrap_http_responses[-1] if bootstrap_http_responses else None,
                         "signed AI bootstrap HTTP 200 observation",
                     )
-                    bootstrap_envelope = read_completed_bootstrap_response(bootstrap_response)
+                    stage = _mark_stage(output, "work_start_bootstrap_wait_done", started)
+                    stage = _mark_stage(output, "work_start_bootstrap_body_begin", started)
+                    bootstrap_envelope = read_completed_bootstrap_response(
+                        bootstrap_response, context, completed_bootstrap_requests
+                    )
+                    stage = _mark_stage(output, "work_start_bootstrap_body_done", started)
+                    stage = _mark_stage(output, "work_start_profile_eval_begin", started)
                     signed_profile = worker.evaluate("""async ({envelope, trust, extensionVersion, expectedAccountId}) => {
                       const observed = SellerAgentsBrowserIdentity.current();
                       const verified = await SellerAgentsBootstrapVerifier.verifyV2(envelope, trust);
@@ -411,6 +468,7 @@ def run(runtime, output):
                         "extensionVersion": packaged_config["extensionVersion"],
                         "expectedAccountId": second_identity["account"],
                     })
+                    stage = _mark_stage(output, "work_start_profile_eval_done", started)
                     if not (
                         signed_profile.get("verified") is True
                         and signed_profile.get("accountMatches") is True
@@ -424,22 +482,34 @@ def run(runtime, output):
                         raise RuntimeError(f"signed AI profile verification failed: {signed_profile}")
 
                     page_private_marker = "octoport-private-page-" + uuid.uuid4().hex
+                    stage = _mark_stage(output, "work_start_private_page_probe_begin", started)
                     chat.evaluate("""marker => {
                       const probe = document.createElement('div');
                       probe.id = 'octoport-private-probe';
                       probe.textContent = marker;
                       document.body.appendChild(probe);
                     }""", page_private_marker)
+                    stage = _mark_stage(output, "work_start_private_page_probe_done", started)
+                    stage = _mark_stage(output, "work_start_sent_prompt_read_begin", started)
                     sent_prompt = chat.evaluate("() => String(window.sent?.[0] || '')")
+                    stage = _mark_stage(output, "work_start_sent_prompt_read_done", started)
+                    stage = _mark_stage(output, "work_start_private_storage_read_begin", started)
                     private_storage = worker.evaluate("""async () => {
                       const stored = await chrome.storage.local.get('seller_agents_stores_v1');
                       const accounts = stored.seller_agents_stores_v1?.accounts || {};
                       return {storeIds:Object.values(accounts).flatMap(account => Object.keys(account?.stores || {})).sort()};
                     }""")
 
+                    stage = _mark_stage(output, "work_start_private_storage_read_done", started)
+                    stage = _mark_stage(output, "work_start_support_click_begin", started)
                     popup.click("#support-generate")
+                    stage = _mark_stage(output, "work_start_support_click_done", started)
+                    stage = _mark_stage(output, "work_start_support_wait_begin", started)
                     popup.locator("#support-snapshot").wait_for(state="visible")
+                    stage = _mark_stage(output, "work_start_support_wait_done", started)
+                    stage = _mark_stage(output, "work_start_support_read_begin", started)
                     support_snapshot = json.loads(popup.locator("#support-snapshot").input_value())
+                    stage = _mark_stage(output, "work_start_support_read_done", started)
                     privacy = support_snapshot.get("privacy", {})
                     if not privacy or any(value is not False for value in privacy.values()):
                         raise RuntimeError("support snapshot privacy contract failed")
@@ -465,8 +535,11 @@ def run(runtime, output):
                         if forbidden and forbidden in serialized_snapshot:
                             raise RuntimeError("support snapshot leaked private page, prompt, account, store, credential, device, session, or conversation data")
 
+                    stage = _mark_stage(output, "work_start_worker_sentinel_read_begin", started)
                     worker_sentinel_after = worker.evaluate("globalThis.__saI1WorkerSentinel")
+                    stage = _mark_stage(output, "work_start_worker_sentinel_read_done", started)
                     same_worker = worker_sentinel == worker_sentinel_after
+                    stage = _mark_stage(output, "work_start_pre_restart_state_begin", started)
                     before_restart = worker.evaluate("""async key => {
                       const status = await SellerAgentsControlClient.status();
                       const authority = await SellerAgentsControlClient.getAuthority();
@@ -489,6 +562,7 @@ def run(runtime, output):
                         origin:row?.origin || null,
                       };
                     }""", conversation_key)
+                    stage = _mark_stage(output, "work_start_pre_restart_state_done", started)
                     assert before_restart["authenticated"] is True and before_restart["workAllowed"] is True
                     assert before_restart["accountId"] == second_identity["account"]
                     assert before_restart["deviceId"] == second_identity["device"]
