@@ -148,7 +148,17 @@ async function fixture(wake = true) {
       updateId: ++updateId,
       message: { chatId: "42", userId, text },
     });
-  const upload = (id: string, version = "1") =>
+  const renewButton = () =>
+    bot.handleUpdate({
+      updateId: ++updateId,
+      callbackQuery: {
+        id: "synthetic-renew",
+        chatId: "42",
+        userId: "7",
+        data: "monitor:SWAGGER_API:new",
+      },
+    });
+  const upload = (id: string, version = "1", payload = bundleBytes(version)) =>
     bot.handleUpdate({
       updateId: ++updateId,
       message: {
@@ -158,7 +168,7 @@ async function fixture(wake = true) {
         document: {
           fileId: "synthetic",
           fileName: "bundle.json",
-          bytes: bundleBytes(version),
+          bytes: payload,
         },
       },
     });
@@ -176,6 +186,7 @@ async function fixture(wake = true) {
     messages,
     command,
     upload,
+    renewButton,
     first,
   };
 }
@@ -431,4 +442,117 @@ describe.sequential("review main109ce9df native WB operator boundaries", () => {
       await readFile(join(f.deps.quarantineDir, artifact.quarantineFilename)),
     ).toEqual(Buffer.from(bundleBytes()));
   });
+
+  describe("review main299d6113 WB next observation", () => {
+    it("renews a failed artifact once through repeated/concurrent bot actions and accepts corrected bytes", async () => {
+      const f = await fixture();
+      const bad = new TextEncoder().encode("{}");
+      await f.upload(f.first.requestId, "1", bad);
+      expect(
+        (await f.deps.pendingStore.getRequest(f.first.requestId))?.status,
+      ).toBe("VALIDATION_FAILED");
+      const [old] = await f.deps.pendingStore.listArtifacts(f.first.requestId);
+      expect(old?.parserResult.errorCode).toBe("WB_BUNDLE_VERSION_INVALID");
+      await f.command("/swagger_new", "unauthorized");
+      await Promise.all([
+        f.command("/swagger_new"),
+        f.renewButton(),
+        f.command("/swagger_new"),
+      ]);
+      await f.command("/swagger_new");
+      const waiting = (
+        await f.deps.pendingStore.listPending(new Date())
+      ).filter((x) => x.status === "PENDING_OPERATOR_UPLOAD");
+      expect(waiting).toHaveLength(1);
+      const next = waiting[0]!;
+      expect(next.requestId).not.toBe(f.first.requestId);
+      await f.upload(next.requestId);
+      await vi.waitFor(
+        async () => {
+          const state = await f.scheduleStore.getState("SWAGGER_API");
+          expect(state.activeRun).toBeNull();
+          expect(state.lastResult?.status).toBe("SUCCEEDED");
+        },
+        { timeout: 15000 },
+      );
+      expect(await f.deps.store.listSnapshots()).toHaveLength(13);
+      expect(
+        await f.deps.pendingStore.listArtifacts(f.first.requestId),
+      ).toEqual([old]);
+      expect(
+        await readFile(join(f.deps.quarantineDir, old!.quarantineFilename)),
+      ).toEqual(Buffer.from(bad));
+      expect(
+        (await f.deps.pendingStore.getRequest(f.first.requestId))?.status,
+      ).toBe("VALIDATION_FAILED");
+      expect(
+        await f.deps.pendingStore.listArtifacts(next.requestId),
+      ).toHaveLength(1);
+      expect(
+        f.messages.some((x) => x.includes("REQUEST_ARTIFACT_ALREADY_RECEIVED")),
+      ).toBe(false);
+      expect(
+        (await f.deps.pendingStore.listArtifacts(next.requestId))[0]?.sizeBytes,
+      ).toBe(bundleBytes().byteLength);
+    });
+
+    it("a completed bot candidate permits forced official v2 and never replays historical v1", async () => {
+      const f = await fixture();
+      await f.upload(f.first.requestId);
+      await vi.waitFor(
+        async () => {
+          const state = await f.scheduleStore.getState("SWAGGER_API");
+          expect(state.activeRun).toBeNull();
+          expect(state.lastResult?.status).toBe("SUCCEEDED");
+        },
+        { timeout: 15000 },
+      );
+      const original = await f.deps.store.listSnapshots();
+      expect(original).toHaveLength(13);
+      vi.mocked(f.deps.fetcher).mockClear();
+      vi.mocked(f.deps.fetcher).mockImplementation(async (url) =>
+        officialV2(url),
+      );
+      const result = await f.scheduler.runNowAndWait("SWAGGER_API");
+      expect(result.status).toBe("SUCCEEDED");
+      expect(f.deps.fetcher).toHaveBeenCalledTimes(13);
+      const report = await f.deps.reportStore.getReport(
+        "api-watch:" +
+          (await f.scheduleStore.getState("SWAGGER_API")).lastResult!.runId,
+      );
+      expect(report?.sources).toHaveLength(13);
+      expect(
+        report?.sources.every(
+          (x) => x.changeMode === "CHANGED" && x.addedCount === 1,
+        ),
+      ).toBe(true);
+      expect(report?.addedCount).toBe(13);
+      expect(await f.deps.store.listSnapshots()).toHaveLength(26);
+      expect(
+        (await f.deps.pendingStore.getRequest(f.first.requestId))?.status,
+      ).toBe("CANDIDATE_READY");
+      vi.mocked(f.deps.fetcher).mockClear();
+      await f.scheduler.runNowAndWait("SWAGGER_API");
+      expect(f.deps.fetcher).toHaveBeenCalledTimes(13);
+      const nextReport = await f.deps.reportStore.getReport(
+        "api-watch:" +
+          (await f.scheduleStore.getState("SWAGGER_API")).lastResult!.runId,
+      );
+      expect(
+        nextReport?.sources.every((x) => x.changeMode === "NO_CHANGE"),
+      ).toBe(true);
+      expect(await f.deps.store.listSnapshots()).toHaveLength(26);
+    });
+  });
 });
+
+function officialV2(input: Parameters<typeof fetch>[0]): Response {
+  const index = productionSourceRegistry
+    .get("WILDBERRIES")
+    .documents!.findIndex((doc) => doc.officialUrl === String(input));
+  if (index < 0) throw new Error("UNEXPECTED_SYNTHETIC_URL");
+  return new Response(
+    `openapi: 3.0.3\ninfo:\n  title: WB ${index}\n  version: '2'\npaths:\n  /document-${index}:\n    get:\n      responses:\n        '200':\n          description: ok\n  /added-${index}:\n    post:\n      responses:\n        '200':\n          description: new\n`,
+    { headers: { "content-type": "application/yaml" } },
+  );
+}
