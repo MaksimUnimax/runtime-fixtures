@@ -939,8 +939,11 @@ def run(runtime, output):
                         "bootstrap_body_parsed": bootstrap_envelope is not None,
                         "bootstrap_observer_counts": counts,
                     }
+                    # Verify late signatures only for the exact selected request
+                    # that was observed failed. Other I1 errors remain generic.
+                    selected_failed = counts["selected_request_failed"] is True and locals().get("bootstrap_response") is not None
                     try:
-                        diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId}) => {
+                        diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId, selectedFailed}) => {
                           const status = await SellerAgentsControlClient.status();
                           const code = String(status?.lastError?.code || "");
                           // Purely read the persisted record. This does NOT verify
@@ -981,7 +984,8 @@ def run(runtime, output):
                                 record.authority?.payload?.account?.id === saved.authority.payload.account.id,
                               read_failed: false,
                             };
-                            if (record?.authority?.envelope && trust && typeof expectedAccountId === "string") {
+                            if (selectedFailed === true && record?.authority?.envelope &&
+                                trust && typeof expectedAccountId === "string") {
                               // Read-only, bounded, cryptographic verification of the
                               // persisted envelope AFTER failure. No authority API
                               // call, no network, no signature material in output.
@@ -1032,7 +1036,7 @@ def run(runtime, output):
                           finally { if (storageTimer !== undefined) clearTimeout(storageTimer); }
                           return {
                             stored_chatgpt_candidate: stored,
-                            post_abort_signed_snapshot: lateSigned,
+                            ...(selectedFailed === true ? {post_abort_signed_snapshot: lateSigned} : {}),
                             pending: Boolean(status?.pending),
                             authenticated: status?.authenticated === true,
                             workAllowed: status?.workAllowed === true,
@@ -1045,18 +1049,20 @@ def run(runtime, output):
                             "tabId": locals().get("chat_tab_id"),
                             "trust": packaged_config["trustBundle"],
                             "expectedAccountId": locals().get("second_identity", {}).get("account"),
+                            "selectedFailed": selected_failed,
                         })
                         snapshot = safe_stored_chatgpt_candidate_observation(
                             diagnostic.pop("stored_chatgpt_candidate", None)
                         )
-                        late_signed = safe_post_abort_signed_snapshot_observation(
-                            diagnostic.pop("post_abort_signed_snapshot", None)
-                        )
+                        late_candidate = diagnostic.pop("post_abort_signed_snapshot", None)
                         result["failure_diagnostic"] = {
                             "stage": stage, **diagnostic,
                             "stored_chatgpt_candidate_unverified": snapshot,
-                            "post_abort_signed_snapshot_not_grant": late_signed,
                         }
+                        if selected_failed:
+                            result["failure_diagnostic"]["post_abort_signed_snapshot_not_grant"] = (
+                                safe_post_abort_signed_snapshot_observation(late_candidate)
+                            )
                         if bootstrap_envelope is not None:
                             result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelope)
                     except Exception:

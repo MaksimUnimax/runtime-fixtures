@@ -192,15 +192,15 @@ class BootstrapObserverTest(unittest.TestCase):
         import subprocess
 
         source = Path(__file__).with_name("installed_local_integration.py").read_text()
-        marker = 'diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId}) => {'
+        marker = 'diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId, selectedFailed}) => {'
         self.assertEqual(source.count(marker), 1)
-        embedded = "async ({tabId, trust, expectedAccountId}) => {" + source.split(marker, 1)[1].split('"""', 1)[0]
+        embedded = "async ({tabId, trust, expectedAccountId, selectedFailed}) => {" + source.split(marker, 1)[1].split('"""', 1)[0]
         node = r"""
 import vm from "node:vm";
 import fs from "node:fs";
 import assert from "node:assert/strict";
 const {code} = JSON.parse(fs.readFileSync(0, "utf8"));
-for (const mode of ["valid_v2", "valid_v3", "invalid", "error", "missing", "other_family", "unsupported"]) {
+for (const mode of ["valid_v2", "valid_v3", "invalid", "error", "missing", "other_family", "unsupported", "not_selected"]) {
   const id = "SYNTHETIC_EXPECTED_ACCOUNT";
   const profile = {syntheticMaterial:"SOURCE_TEST_ONLY"};
   let verifications = 0;
@@ -242,7 +242,12 @@ for (const mode of ["valid_v2", "valid_v3", "invalid", "error", "missing", "othe
     },setTimeout,clearTimeout
   };
   const fn = vm.runInNewContext("(" + code + ")",context);
-  const result = await fn({tabId:1,trust:{kind:"SYNTHETIC_PUBLIC_TRUST"},expectedAccountId:id});
+  const result = await fn({tabId:1,trust:{kind:"SYNTHETIC_PUBLIC_TRUST"},expectedAccountId:id,selectedFailed:mode!=="not_selected"});
+  if(mode==="not_selected"){
+    assert.equal(result.post_abort_signed_snapshot,undefined);
+    assert.equal(verifications,0,"unrelated I1 errors must not verify a signed snapshot");
+    continue;
+  }
   const row=result.post_abort_signed_snapshot;
   const output=JSON.stringify(result);
   assert.equal(row.at_abort_grant_entitlement_proven,false);
@@ -272,7 +277,7 @@ for (const mode of ["valid_v2", "valid_v3", "invalid", "error", "missing", "othe
   }
   assert.equal(verifications,mode==="missing"||mode==="unsupported"?0:1);
 }
-process.stdout.write("LATE_SIGNED_VM_7_PASS");
+process.stdout.write("LATE_SIGNED_VM_8_PASS");
 """
         completed = subprocess.run(
             [os.environ.get("SA_NODE_BIN", "node"), "--input-type=module", "-e", node],
@@ -280,7 +285,7 @@ process.stdout.write("LATE_SIGNED_VM_7_PASS");
             capture_output=True, timeout=20, check=False,
         )
         self.assertEqual(completed.returncode, 0, "LATE_SIGNED_VM_REGRESSION")
-        self.assertEqual(completed.stdout, "LATE_SIGNED_VM_7_PASS")
+        self.assertEqual(completed.stdout, "LATE_SIGNED_VM_8_PASS")
 
     def test_already_finished_response_does_not_wait_or_call_finished(self):
         response = FakeResponse({"keyId": "fixture", "payload": "fixture"})
