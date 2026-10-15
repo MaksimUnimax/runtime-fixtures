@@ -20,8 +20,14 @@
       left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + 8));
       top = Math.max(8, Math.min(window.innerHeight - height - 8, rect.top + 46));
     }
-    button.style.left = `${Math.round(left)}px`;
-    button.style.top = `${Math.round(top)}px`;
+    const positions = [{ left: Math.round(left), top: Math.round(top) }];
+    // A short, full-width code block can put the in-block position over the
+    // response footer. Try the space above its right edge without covering
+    // native controls or allowing an offscreen action.
+    if (!roomOutside) positions.push({
+      left: Math.round(Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))),
+      top: Math.round(rect.top - height - 8)
+    });
     const onScreen = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
     // A viewport intersection alone does not prove that the native anchor is
     // visible: chat footers, login banners and scroll containers can cover it.
@@ -36,20 +42,19 @@
     // Protect native controls across the whole action rectangle, including
     // edge overlaps that an anchor-center test cannot detect. Shadow buttons
     // are not in this document query. Normal scroll/DOM updates re-evaluate it.
+    let placement = null;
     if (uncovered) {
-      const actionLeft = Math.round(left);
-      const actionTop = Math.round(top);
-      const controls = document.querySelectorAll('button, input, textarea, select, a[href], [role="button"], [role="dialog"], [aria-modal="true"]');
-      for (const control of controls) {
-        if (!visible(control)) continue;
-        const bounds = control.getBoundingClientRect();
-        if (actionLeft < bounds.right && actionLeft + width > bounds.left &&
-            actionTop < bounds.bottom && actionTop + height > bounds.top) {
-          uncovered = false;
-          break;
-        }
-      }
+      const controls = Array.from(document.querySelectorAll('button, input, textarea, select, a[href], [role="button"], [role="dialog"], [aria-modal="true"]'))
+        .filter(visible).map(control => control.getBoundingClientRect());
+      placement = positions.find(({ left: actionLeft, top: actionTop }) =>
+        actionLeft >= 8 && actionTop >= 8 && actionLeft + width <= window.innerWidth - 8 &&
+        actionTop + height <= window.innerHeight - 8 && !controls.some(bounds =>
+          actionLeft < bounds.right && actionLeft + width > bounds.left &&
+          actionTop < bounds.bottom && actionTop + height > bounds.top));
     }
-    button.style.display = uncovered ? "block" : "none";
+    const position = placement || positions[0];
+    button.style.left = `${position.left}px`;
+    button.style.top = `${position.top}px`;
+    button.style.display = placement ? "block" : "none";
     return true;
   }
