@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { toASCII } from "tr46";
 
 export const BETA_MODES = ["CLOSED", "OPEN", "PAUSED"] as const;
 export type BetaMode = (typeof BETA_MODES)[number];
@@ -194,11 +195,31 @@ function validNormalizedEmail(value: string): boolean {
   )
     return false;
   const domain = value.slice(value.lastIndexOf("@") + 1);
-  return domain
-    .split(".")
-    .every(
-      (label) => !!label && !label.startsWith("-") && !label.endsWith("-"),
-    );
+  // Strict UTS #46 rejects invalid bidi/joiner and Punycode labels.
+  // Check DNS A-label octets while retaining the original Unicode identity.
+  const asciiDomain = toASCII(domain, {
+    checkBidi: true,
+    checkHyphens: true,
+    checkJoiners: true,
+    useSTD3ASCIIRules: true,
+    transitionalProcessing: false,
+    verifyDNSLength: true,
+    ignoreInvalidPunycode: false,
+  });
+  return (
+    !!asciiDomain &&
+    asciiDomain.length <= 253 &&
+    asciiDomain
+      .split(".")
+      .every(
+        (label) =>
+          !!label &&
+          label.length <= 63 &&
+          /^[a-z0-9-]+$/.test(label) &&
+          !label.startsWith("-") &&
+          !label.endsWith("-"),
+      )
+  );
 }
 
 export class BetaAdmissionService {
