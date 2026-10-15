@@ -50,6 +50,17 @@ class ApprovedCopyTests(unittest.TestCase):
             self.assertIn('API-токены', (ROOT / name).read_text())
         for name, terms in {'index.html':['топ товаров','бизнес-состояние','сырые отчёты'], 'privacy.html':['ревизии реквизитов','операционные и административные метаданные','финансовых переходов','сырые отчёты'], 'support.html':['полные экспорты','сырые отчёты','бете']}.items():
             for term in terms: self.assertIn(term, (ROOT / name).read_text(), (name, term))
+    def test_beta_scope_disclosures_are_visible(self):
+        copy = visible(self.home)
+        for disclosure in (
+            'В закрытой бете поддержка ИИ зависит от проверенной версии',
+            'ChatGPT Standard и Work проверяются отдельно',
+            'Qwen проходит гостевой тест',
+            'Внешний поиск возможен лишь средствами выбранной нейросети',
+            'При недостающих расходах это частичная оценка, а не полная прибыль.',
+        ):
+            self.assertIn(disclosure, copy)
+
     def test_install_instructions_unchanged_byte_for_byte(self):
         html = (ROOT / 'install.html').read_text()
         main = re.search(r'<main\b.*?</main>', html, re.S).group()
