@@ -99,6 +99,7 @@ const saCatalog = SellerAgentsStoreCatalog.create({
   read: storageGet, write: storageSet,
   currentAccount: () => SellerAgentsControlClient.currentAccount(),
   assertTransferContext: context => SellerAgentsControlClient.assertCredentialTransferContext(context),
+  assertBackupContext: context => SellerAgentsControlClient.assertBackupContext(context),
   uuid: () => crypto.randomUUID(),
   normalizeCredentials(marketplace, input, previous = {}) {
     if (marketplace === "wildberries") return { token: SellerAgentsWBReference.credentials.normalizeSellerCredentials({ token: input.token || previous.token, tokenType: "personal" }, { required: true }).token };
@@ -230,12 +231,13 @@ async function saBackupExport(message) {
   return { ok: true, backup, fileName: "seller-agents-store-backup-v1.json", storeCount: payload.stores.length, skippedStoreCount };
 }
 async function saBackupDecodeAndPlan(message) {
-  const accountId = await saBackupAccount();
+  const backupContext = await SellerAgentsControlClient.captureBackupContext();
+  const { accountId } = backupContext;
   const decoded = await SellerAgentsStoreBackup.decrypt(message.backup, String(message.password || ""), accountId);
-  if (accountId !== await saBackupAccount()) throw saError("ACCOUNT_CHANGED");
+  SellerAgentsControlClient.assertBackupContext(backupContext);
   const plan = await saCatalog.planBackupImport(decoded.payload);
-  if (accountId !== await saBackupAccount()) throw saError("ACCOUNT_CHANGED");
-  return { accountId, decoded, plan };
+  SellerAgentsControlClient.assertBackupContext(backupContext);
+  return { accountId, decoded, plan, backupContext };
 }
 function saBackupPublicPlan(decoded, plan) {
   const result = SellerAgentsStoreBackup.summary(decoded.payload, plan.classifications);
@@ -247,9 +249,9 @@ async function saBackupPreview(message) {
 }
 async function saBackupImport(message) {
   if (message.apply !== true) throw saError("BACKUP_EXPLICIT_ACTION_REQUIRED");
-  const { accountId, decoded, plan } = await saBackupDecodeAndPlan(message);
-  const result = await saCatalog.applyBackupImport(decoded.payload, plan);
-  if (accountId !== await saBackupAccount()) throw saError("ACCOUNT_CHANGED");
+  const { decoded, plan, backupContext } = await saBackupDecodeAndPlan(message);
+  const result = await saCatalog.applyBackupImport(decoded.payload, plan, backupContext);
+  SellerAgentsControlClient.assertBackupContext(backupContext);
   for (const store of result.imported) void saRecordStoreMetadata(store);
   return { ok: true, preview: saBackupPublicPlan(decoded, plan), imported: result.imported.map((store) => ({ id: store.id, name: store.name, marketplace: store.marketplace, credentialRevision: store.credentialRevision })), classifications: result.classifications.map((row) => ({ storeId: row.storeId, kind: row.kind })) };
 }
