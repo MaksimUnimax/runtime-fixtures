@@ -565,14 +565,43 @@ export async function acquireOfficialSource(input: {
   let responseToClose: Response | undefined;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // An injected transport can ignore AbortSignal even before headers arrive.
+  // Bound the entire request promise, not just redirect cleanup and body read.
+  let removeHeaderAbortListener: () => void = () => undefined;
+  const headersAborted = new Promise<never>((_resolve, reject) => {
+    const onAbort = () =>
+      reject(
+        new DOMException("Official source acquisition timed out", "AbortError"),
+      );
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+    removeHeaderAbortListener = () =>
+      controller.signal.removeEventListener("abort", onAbort);
+    if (controller.signal.aborted) onAbort();
+  });
   try {
     try {
       while (true) {
-        response = await fetcher(currentUrl, {
-          method: "GET",
-          redirect: "manual",
-          signal: controller.signal,
-        });
+        const pendingHeaders = Promise.resolve().then(() =>
+          fetcher(currentUrl, {
+            method: "GET",
+            redirect: "manual",
+            signal: controller.signal,
+          }),
+        );
+        // A late response after timeout is no longer owned by the caller.
+        // Discard its body without awaiting possibly stuck cancellation.
+        void pendingHeaders.then(
+          (lateResponse) => {
+            if (!controller.signal.aborted) return;
+            try {
+              void lateResponse.body?.cancel().catch(() => undefined);
+            } catch {
+              // Best-effort cleanup of an untrusted transport response.
+            }
+          },
+          () => undefined,
+        );
+        response = await Promise.race([pendingHeaders, headersAborted]);
         responseToClose = response;
         if (![301, 302, 303, 307, 308].includes(response.status)) break;
         const location = response.headers.get("location");
@@ -797,6 +826,7 @@ export async function acquireOfficialSource(input: {
     // Do not await a trusted test adapter's possibly unbounded cancellation.
     controller.abort();
     clearTimeout(timer);
+    removeHeaderAbortListener();
     void responseToClose?.body?.cancel().catch(() => undefined);
   }
 }

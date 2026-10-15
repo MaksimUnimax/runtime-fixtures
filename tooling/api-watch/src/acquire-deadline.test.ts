@@ -218,6 +218,56 @@ describe("C03 acquisition deadline", () => {
     }
   });
 
+  it("bounds a stalled header fetcher and cancels a response arriving after timeout", async () => {
+    let requests = 0;
+    let lateCancelCalls = 0;
+    let completeHeaders: ((response: Response) => void) | undefined;
+    let requestSignal: AbortSignal | undefined;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry,
+          timeoutMs: 30,
+          fetcher: async (_input, init) => {
+            requests += 1;
+            requestSignal = init?.signal ?? undefined;
+            return new Promise<Response>((resolve) => {
+              completeHeaders = resolve;
+            });
+          },
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 180);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("FETCHER_HEADERS_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      expect(requests).toBe(1);
+      expect(requestSignal?.aborted).toBe(true);
+      completeHeaders?.(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            cancel() {
+              lateCancelCalls += 1;
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+      await vi.waitFor(() => expect(lateCancelCalls).toBe(1), {
+        timeout: 150,
+        interval: 5,
+      });
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+      // Release the injected adapter even when the negative test fails.
+      completeHeaders?.(new Response(null, { status: 204 }));
+    }
+  });
+
   it("uses one abort-aware deadline across redirect hops", async () => {
     vi.useFakeTimers();
     try {
