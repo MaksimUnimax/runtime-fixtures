@@ -1,0 +1,9 @@
+# Backup activation context — single P2 repair
+
+The public backup import previously called the catalog with two arguments and did not configure its optional context guard. A queued operation could therefore outlive its original activation even when the account ID remained the same.
+
+The control client now captures a frozen account/device/session/generation context before backup decryption. Its synchronous backup assertion reuses the existing credential-transfer ownership and generation checks. The runtime validates the original context across decryption and planning, passes it as the catalog's third import argument, and configures `assertBackupContext`. The existing catalog barrier immediately before storage invocation and its readback remain unchanged.
+
+Validation uses the actual composed and extracted development worker with disposable synthetic browser/storage/transport ports, manufactured encrypted backups and the real signature verifier. Eight focused public-path checks pass, including ordinary import, confirmation cancellation, signed-out and account mismatch refusal, storage failure, immutable context invalidation, generation cancellation, and reset followed by signed reactivation in the same account. Invalidated pending imports add zero catalog writes. The focused regression is included in the standard Extension CI composition and extracted-package runs.
+
+Local catalog context checks (25), canonical roundtrips (6), A24 (17 grouped cases), and the generated application suite pass. No provider requests, installed-browser operation, live service, working database, policy change or Tester R3 operation was performed. Earlier preparation fixture failures and the original installed-browser NOT_PASS remain recorded in the existing review-fix evidence. Independent exact-candidate review, required CI and ordinary publication are separate acceptance steps.
