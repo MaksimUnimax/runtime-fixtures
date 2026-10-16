@@ -4,7 +4,6 @@ import { createHash, createPublicKey } from "node:crypto";
 import {
   closeSync,
   constants as fsConstants,
-  copyFileSync,
   existsSync,
   fstatSync,
   lstatSync,
@@ -1310,12 +1309,16 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   }
 
   return {
-    filename: basename(actualPath),
-    sha256: sha256(bytes),
-    bytes: bytes.length,
-    inventoryCount: entries.size,
-    version: manifest.version,
-    browser,
+    metadata: {
+      filename: basename(actualPath),
+      sha256: sha256(bytes),
+      bytes: bytes.length,
+      inventoryCount: entries.size,
+      version: manifest.version,
+      browser,
+    },
+    // The same bytes are published; do not reopen mutable input ZIP files.
+    validatedBytes: bytes,
   };
 }
 
@@ -1340,9 +1343,13 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
 
   const authorityReceipt = readAuthority(authorityPath, output);
   const authority = authorityReceipt.value;
-  const packages = {
+  const checked = {
     chromium: checkPackage(chromium, "chromium", authority),
     firefox: checkPackage(firefox, "firefox", authority),
+  };
+  const packages = {
+    chromium: checked.chromium.metadata,
+    firefox: checked.firefox.metadata,
   };
 
   if (packages.chromium.filename === packages.firefox.filename) {
@@ -1350,13 +1357,11 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
   }
 
   mkdirSync(output, { recursive: false });
-  for (const source of [chromium, firefox]) {
-    const sourcePath = realpathSync(resolve(source));
-    copyFileSync(
-      sourcePath,
-      join(output, basename(sourcePath)),
-      fsConstants.COPYFILE_EXCL,
-    );
+  for (const browser of ["chromium", "firefox"]) {
+    const { metadata, validatedBytes } = checked[browser];
+    writeFileSync(join(output, metadata.filename), validatedBytes, {
+      flag: "wx",
+    });
   }
 
   const result = {
@@ -1439,7 +1444,9 @@ export function preflight({ authorityPath, candidateDir }) {
     if (!existsSync(packagePath)) {
       fail("Candidate package is missing");
     }
-    const actual = checkPackage(packagePath, browser, authority, candidateRoot);
+    const actual = checkPackage(
+      packagePath, browser, authority, candidateRoot,
+    ).metadata;
     if (
       row.filename !== actual.filename ||
       row.sha256 !== actual.sha256 ||
