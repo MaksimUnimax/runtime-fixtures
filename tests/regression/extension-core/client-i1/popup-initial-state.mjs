@@ -100,4 +100,116 @@ export async function verifyPopupInitialState(candidate) {
   await assert.rejects(vm.runInContext("action(send)", ctx), /label/);
   assert.equal(vm.runInContext("busy", ctx), false, "render failure cannot latch busy");
   assert.equal(requests, 1, "render failure happens before request dispatch");
+  await verifyPopupRefreshNotifications(source);
+}
+
+async function verifyPopupRefreshNotifications(source) {
+  const refreshStart = source.indexOf("function scheduleRefresh()");
+  const refreshEnd = source.indexOf("function closeCard()", refreshStart);
+  const listenerStart = source.indexOf("chrome.storage.onChanged.addListener(");
+  const listenerEnd = source.indexOf("\n});", listenerStart) + "\n});".length;
+  assert.ok(refreshStart >= 0 && refreshEnd > refreshStart && listenerStart >= 0 && listenerEnd > listenerStart);
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const credentials = { accessToken: "SYNTHETIC_NEVER_REAL", deviceId: "00000000-0000-4000-8000-000000000001", sessionId: "00000000-0000-4000-8000-000000000002" };
+  const cacheClock = { cacheVersion: "control_cache_clock_v1", effectiveTimeMs: 1000, trustedServerTimeMs: 900,
+    owner: { controlApiOrigin: "https://control.invalid", portalOrigin: "https://portal.invalid", contractVersion: "control_plane_v2",
+      deviceId: credentials.deviceId, sessionId: credentials.sessionId } };
+  const auth = { authStateSchema: 2, credentials, cacheClock: clone(cacheClock),
+    grants: { "fixture-alice": { grantEpoch: 1, authority: { workAllowed: true, payload: { expiresAt: 9000 } },
+      cacheClock: clone(cacheClock) } }, lastError: null };
+  const timers = new Map(), pending = [], rendered = [];
+  let timerId = 0, listener, requests = 0;
+  const ctx = {
+    URL,
+    chrome: { storage: { onChanged: { addListener(fn) { listener = fn; } } } },
+    setTimeout(fn) { timers.set(++timerId, fn); return timerId; },
+    clearTimeout(id) { timers.delete(id); },
+    $: () => ({}), refreshFirefoxTechnicalConsent: async () => {},
+    render() { rendered.push(vm.runInContext("state", ctx)); },
+    request(type) {
+      assert.equal(type, "SA_POPUP_STATE"); requests++;
+      const oldValue = clone(auth);
+      auth.cacheClock.effectiveTimeMs++;
+      auth.grants["fixture-alice"].cacheClock.effectiveTimeMs++;
+      // A status read checkpoints time before its delayed response reaches
+      // the popup. Use the actual storage listener and refresh functions.
+      listener({ seller_agents_control_auth_v2: { oldValue, newValue: clone(auth) } }, "local");
+      return new Promise(resolve => pending.push(resolve));
+    }
+  };
+  vm.createContext(ctx);
+  vm.runInContext("let state, refreshTimer, refreshRequested=false, refreshGeneration=0, busy=false, tabId=12, selectedId='', marketplace='ozon'; const durableImportMode=false;\n" +
+    source.slice(refreshStart, refreshEnd) + source.slice(listenerStart, listenerEnd), ctx);
+  const runTimers = () => { const batch = [...timers.values()]; timers.clear(); for (const fn of batch) fn(); };
+  const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+  const snapshot = { auth: { authenticated: true, workAllowed: true }, context: {}, stores: [], work: { state: "active_visible" } };
+  const initial = vm.runInContext("refresh(true)", ctx);
+  for (let i = 0; i < 4; i++) {
+    runTimers();
+    const resolve = pending.shift();
+    if (resolve) resolve(snapshot);
+    await settle();
+    if (!timers.size && !pending.length) break;
+  }
+  assert.equal(requests, 1, "a status clock checkpoint must not perpetually supersede initial popup state");
+  await initial;
+  assert.equal(rendered.length, 1);
+  assert.equal(rendered[0], snapshot);
+  assert.equal(timers.size, 0);
+  const changed = mutate => { const oldValue = clone(auth), newValue = clone(auth); mutate(newValue); return { oldValue, newValue }; };
+  const authChanges = [
+    changed(value => { value.credentials.accessToken = "SYNTHETIC_ROTATED"; }),
+    changed(value => { value.grants["fixture-alice"].authority.workAllowed = false; value.grants["fixture-alice"].grantEpoch++; }),
+    changed(value => { value.grants["fixture-alice"].authority.payload.expiresAt = 1001; }),
+    changed(value => { delete value.grants["fixture-alice"]; }),
+    changed(value => { value.grants["fixture-other"] = clone(value.grants["fixture-alice"]); }),
+    changed(value => { value.lastError = { code: "AUTH_REQUIRED" }; }),
+    changed(value => { value.newPolicyField = false; }),
+    changed(value => { value.cacheClock.effectiveTimeMs--; }),
+    changed(value => { value.grants["fixture-alice"].cacheClock.effectiveTimeMs--; }),
+    changed(value => { value.cacheClock = { effectiveTimeMs: "malformed" }; }),
+    { oldValue: clone(auth), newValue: null },
+    { newValue: clone(auth) },
+    { oldValue: clone(auth), newValue: { authStateSchema: 3 } }
+  ];
+  const staleResponse = vm.runInContext("refresh()", ctx), renderedBeforeAuthChange = rendered.length;
+  listener({ seller_agents_control_auth_v2: authChanges[1] }, "local");
+  pending.shift()(snapshot); await staleResponse;
+  assert.equal(rendered.length, renderedBeforeAuthChange, "auth change invalidates a pending response before debounce fires");
+  runTimers();
+  const denied = { ...snapshot, auth: { authenticated: false, workAllowed: false } };
+  pending.shift()(denied); await settle();
+  assert.equal(rendered.at(-1), denied);
+  for (const mutate of [
+    clock => { clock.owner = null; },
+    clock => { clock.owner.deviceId = "00000000-0000-4000-8000-000000000099"; },
+    clock => { clock.owner.controlApiOrigin = "not-an-origin"; },
+    clock => { clock.cacheVersion = "future-clock"; },
+    clock => { clock.trustedServerTimeMs = 9000; },
+    clock => { clock.unknownClockField = true; }
+  ]) {
+    const oldValue = clone(auth); mutate(oldValue.cacheClock);
+    const newValue = clone(oldValue); newValue.cacheClock.effectiveTimeMs++;
+    authChanges.push({ oldValue, newValue });
+  }
+  for (const change of authChanges) {
+    const before = requests;
+    listener({ seller_agents_control_auth_v2: change }, "local"); runTimers();
+    assert.equal(requests, before + 1, "auth, authority and malformed-state changes must still refresh");
+    pending.shift()(snapshot); await settle();
+    assert.equal(timers.size, 0, "the requested refresh must settle without feeding itself");
+  }
+  for (const key of ["seller_agents_stores_v1", "ozmb_work_sessions_v1", "ozmb_pending_work_starts_v1", "ozmb_conversation_bindings", "ozmb_manual_operations"]) {
+    const before = requests;
+    listener({ [key]: { oldValue: {}, newValue: { changed: true } } }, "local"); runTimers();
+    assert.equal(requests, before + 1, key + " must still refresh");
+    const next = { ...snapshot, auth: { authenticated: false, workAllowed: false } };
+    pending.shift()(next); await settle();
+    assert.equal(rendered.at(-1), next);
+    assert.equal(timers.size, 0);
+  }
+  const before = requests;
+  listener({ unrelated: { newValue: 1 } }, "local");
+  listener({ seller_agents_control_auth_v2: authChanges[0] }, "sync"); runTimers();
+  assert.equal(requests, before, "unrelated storage areas and keys do not read popup state");
 }
