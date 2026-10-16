@@ -194,23 +194,24 @@ function popupFixture(fragment = "", { openFails = false } = {}) {
   return { ctx, calls, node, flush: async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); },
     timers: () => { const work = [...timers.values()]; timers.clear(); work.forEach(fn => fn()); } };
 }
-await run("POPUP-IMPORT-OPEN", "upload opens the durable native panel; export stays in the current form", async () => {
+await run("POPUP-IMPORT-OPEN", "import and export stay in the current popup form", async () => {
   const f = popupFixture(); await f.flush();
   assert.equal(f.calls.queries, 1);
   const messagesBefore = f.calls.messages.length;
   await f.node("keys-upload").onclick();
-  assert.deepEqual(f.calls.panels, [{ windowId: 4 }]);
-  assert.equal(f.calls.closes, 1);
-  assert.deepEqual(f.calls.focuses, []);
+  assert.deepEqual(f.calls.panels, []);
+  assert.equal(f.calls.closes, 0);
+  assert.deepEqual(f.calls.focuses, ["backup-file"]);
+  assert.equal(f.node("backup-file").onclick, undefined, "native picker click must not be intercepted");
   await f.node("keys-download").onclick();
   assert.equal(f.calls.focuses.at(-1), "backup-password");
-  assert.deepEqual(f.calls.scrolls, ["backup"]);
+  assert.deepEqual(f.calls.scrolls, ["backup", "backup"]);
   assert.equal(f.calls.opens.length, 0);
   assert.equal(f.calls.fileClicks, 0);
   assert.equal(f.calls.messages.length, messagesBefore, "focus alone never imports or exports credentials");
   assert.equal(typeof f.node("backup-file").onchange, "function");
 });
-await run("POPUP-IMPORT-PANEL-DENIED", "native panel refusal stays visible without opening a tab or file picker", async () => {
+await run("POPUP-IMPORT-NO-PANEL", "popup file selection is independent of side panel availability", async () => {
   const f = popupFixture("", { openFails: true }); await f.flush();
   const messagesBefore = f.calls.messages.length;
   await f.node("keys-upload").onclick();
@@ -219,7 +220,8 @@ await run("POPUP-IMPORT-PANEL-DENIED", "native panel refusal stays visible witho
   assert.equal(f.calls.opens.length, 0);
   assert.equal(f.calls.fileClicks, 0);
   assert.equal(f.calls.messages.length, messagesBefore);
-  assert.match(f.node("status").textContent, /Не удалось открыть панель/);
+  assert.deepEqual(f.calls.focuses, ["backup-file"]);
+  assert.equal(f.node("backup-file").onclick, undefined);
 });
 await run("POPUP-IMPORT-ISOLATION", "durable import surface emits only explicit account backup requests", async () => {
   const f = popupFixture("#backup-import"); await f.flush();

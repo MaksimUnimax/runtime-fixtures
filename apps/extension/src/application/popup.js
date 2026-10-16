@@ -322,31 +322,9 @@ $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
 async function openKeyFiles(mode) {
-  if (mode === "upload" && !durableImportMode) {
-    try {
-      // Call from the click handler, before any await, to retain the user gesture.
-      // A side panel survives the native file chooser; an action popup may not.
-      const sidebar = globalThis.browser?.sidebarAction;
-      if (typeof sidebar?.open === "function") await sidebar.open();
-      else if (typeof chrome.sidePanel?.open === "function" && Number.isInteger(windowId)) {
-        await chrome.sidePanel.open({ windowId });
-      } else {
-        throw new Error("IMPORT_PANEL_UNAVAILABLE");
-      }
-      globalThis.close?.();
-    } catch (_) {
-      $("status").textContent = "Не удалось открыть панель загрузки ключей в расширении. Обновите расширение и браузер и повторите.";
-      $("backup-status").textContent = $("status").textContent;
-    }
-    return;
-  }
   $("backup").scrollIntoView({ block: "start", behavior: "smooth" });
   $(mode === "upload" ? "backup-file" : "backup-password").focus();
 }
-if (!durableImportMode) $("backup-file").onclick = event => {
-  event.preventDefault();
-  return openKeyFiles("upload");
-};
 $("keys-download").onclick = () => openKeyFiles("download");
 $("keys-upload").onclick = () => openKeyFiles("upload");
 function invalidateBackupReview(inputChanged = false) {
