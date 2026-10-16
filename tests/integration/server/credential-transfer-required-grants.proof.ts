@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  attemptProofCleanup,
+  combineProofFailures,
+} from "./helpers/credential-transfer-proof-lifecycle.js";
+import {
   createDatabaseRuntime,
   createCredentialTransferEpochFence,
   type DatabaseRuntime,
@@ -329,6 +333,8 @@ export async function proveCredentialTransferRequiredGrants(
     let ancestorCreated = false;
     let membershipGranted = false;
     let ancestorGranted = false;
+    let membershipFailure: unknown;
+    let membershipCleanupErrors: unknown[] = [];
     try {
       await administrator.query(
         `CREATE ROLE ${membershipRole} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`,
@@ -391,19 +397,47 @@ export async function proveCredentialTransferRequiredGrants(
       check("role_membership:admission_rejected", rejected);
       check("role_membership:not_ready", !membershipAdmission.isReady());
       check("role_membership:no_epoch_election", !changed);
+    } catch (error) {
+      membershipFailure = error;
     } finally {
-      membershipAdmission.stop();
-      if (membershipGranted)
-        await administrator.query(`REVOKE ${membershipRole} FROM ${ownRole}`);
-      if (ancestorGranted)
-        await administrator.query(
-          `REVOKE ${ancestorRole} FROM ${membershipRole}`,
-        );
-      if (ancestorCreated)
-        await administrator.query(`DROP ROLE ${ancestorRole}`);
-      if (parentCreated)
-        await administrator.query(`DROP ROLE ${membershipRole}`);
+      membershipCleanupErrors = await attemptProofCleanup([
+        () => membershipAdmission.stop(),
+        async () => {
+          if (membershipGranted)
+            await administrator.query(
+              `REVOKE ${membershipRole} FROM ${ownRole}`,
+            );
+        },
+        async () => {
+          if (ancestorGranted)
+            await administrator.query(
+              `REVOKE ${ancestorRole} FROM ${membershipRole}`,
+            );
+        },
+        async () => {
+          if (ancestorCreated)
+            await administrator.query(`DROP ROLE ${ancestorRole}`);
+        },
+        async () => {
+          if (parentCreated)
+            await administrator.query(`DROP ROLE ${membershipRole}`);
+        },
+        async () => {
+          const remaining = await administrator.query<{ count: string }>(
+            "SELECT count(*)::text AS count FROM pg_catalog.pg_roles WHERE rolname=ANY($1::text[])",
+            [[membershipRole, ancestorRole]],
+          );
+          cleanup.temporary_parent_roles_absent =
+            remaining.rows[0]?.count === "0";
+        },
+      ]);
     }
+    if (membershipFailure !== undefined || membershipCleanupErrors.length)
+      throw combineProofFailures(
+        membershipFailure,
+        membershipCleanupErrors,
+        "REQUIRED_GRANTS_MEMBERSHIP_OR_CLEANUP_FAILED",
+      );
     const membershipRemoved = await administrator.query<{ count: string }>(
       "SELECT count(*)::text AS count FROM pg_catalog.pg_roles WHERE rolname=ANY($1::text[])",
       [[membershipRole, ancestorRole]],
@@ -423,7 +457,12 @@ export async function proveCredentialTransferRequiredGrants(
       membershipRestored.stop();
     }
   } catch (error) {
-    failureTypes.push(error instanceof Error ? error.name : typeof error);
+    for (const failure of error instanceof AggregateError
+      ? error.errors
+      : [error])
+      failureTypes.push(
+        failure instanceof Error ? failure.name : typeof failure,
+      );
   } finally {
     if (authority) {
       try {

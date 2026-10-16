@@ -176,7 +176,7 @@ export async function proveCredentialTransferLateStop(
         [requestId],
       );
       check(
-        stage.method + "_visible_from_independent_connection_before_stop",
+        stage.method + "_visible_to_later_pool_query_before_stop",
         before.rows[0]?.state === stage.state,
       );
       allowed = false;

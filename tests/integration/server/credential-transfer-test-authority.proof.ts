@@ -5,6 +5,11 @@ import {
   createCredentialTransferRepository,
 } from "../../../packages/server/db/src/index.js";
 import { createCredentialTransferTestAuthority } from "./helpers/credential-transfer-test-authority.js";
+import {
+  attemptProofCleanup,
+  combineProofFailures,
+  waitForProofEntry,
+} from "./helpers/credential-transfer-proof-lifecycle.js";
 
 /** Actual migrated50 C/CI database, no live input and no trigger disablement. */
 export async function proveCredentialTransferTestAuthority(
@@ -39,6 +44,10 @@ export async function proveCredentialTransferTestAuthority(
   const checks: { name: string; passed: boolean }[] = [];
   let release: (() => void) | undefined;
   let error: unknown;
+  let primaryError: unknown;
+  let pending: Promise<string> | undefined;
+  let disposing: Promise<void> | undefined;
+  const cleanupErrors: unknown[] = [];
   let requestsCleared = false;
   const cleanup: Record<string, boolean> = {};
   const now = new Date("2000-01-01T00:00:00.000Z");
@@ -302,17 +311,18 @@ export async function proveCredentialTransferTestAuthority(
     const releasePromise = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const pending = current.transaction(async (tx) => {
+    pending = current.transaction(async (tx) => {
       await tx.query("SELECT 1");
       entered();
       await releasePromise;
       return "finished";
     });
-    await enteredPromise;
+    await waitForProofEntry(enteredPromise, pending);
     let disposed = false;
-    const disposing = current.dispose().then(() => {
+    disposing = current.dispose().then(() => {
       disposed = true;
     });
+    void disposing.catch(() => undefined);
     check(
       "dispose_immediately_removes_new_work_admission",
       !current.isActive(),
@@ -333,51 +343,80 @@ export async function proveCredentialTransferTestAuthority(
     check("dispose_is_idempotent_and_complete", disposed);
     check("final_context_empty", await contextEmpty());
   } catch (caught) {
+    primaryError = caught;
     error = caught;
   } finally {
-    release?.();
-    try {
-      if (!requestsCleared && current?.isActive()) {
-        await current.transaction((tx) =>
-          tx.query(
-            "DELETE FROM public.credential_transfer_requests WHERE request_id=ANY($1::uuid[])",
+    cleanupErrors.push(
+      ...(await attemptProofCleanup([
+        () => release?.(),
+        async () => {
+          if (pending) await pending;
+        },
+        async () => {
+          if (disposing) await disposing;
+        },
+        async () => {
+          if (!requestsCleared && current?.isActive()) {
+            await current.transaction((tx) =>
+              tx.query(
+                "DELETE FROM public.credential_transfer_requests WHERE request_id=ANY($1::uuid[])",
+                [ids],
+              ),
+            );
+            requestsCleared = true;
+          }
+        },
+        ...authorities.map((authority) => () => authority.dispose()),
+        async () => {
+          const remaining = await db.query<{ n: string }>(
+            "SELECT count(*)::text AS n FROM public.credential_transfer_requests WHERE request_id=ANY($1::uuid[])",
             [ids],
-          ),
-        );
-        requestsCleared = true;
-      }
-      for (const authority of authorities) await authority.dispose();
-      const remaining = await db.query<{ n: string }>(
-        "SELECT count(*)::text AS n FROM public.credential_transfer_requests WHERE request_id=ANY($1::uuid[])",
-        [ids],
-      );
-      cleanup.ownRequestsAbsent = remaining.rows[0]?.n === "0";
-      if (cleanup.ownRequestsAbsent) {
-        await db.transaction(async (tx) => {
-          await tx.query("DELETE FROM devices WHERE id=ANY($1::uuid[])", [
-            [recipientId, sourceId],
-          ]);
-          await tx.query("DELETE FROM accounts WHERE id=$1", [account]);
-          await tx.query("DELETE FROM users WHERE id=$1", [user]);
-        });
-      }
-      const roles = await db.query<{ n: string }>(
-        "SELECT count(*)::text AS n FROM pg_roles WHERE rolname=ANY($1::text[])",
-        [authorities.map((a) => a.role)],
-      );
-      cleanup.ownRolesAbsent = roles.rows[0]?.n === "0";
-      cleanup.privateContextEmpty = await contextEmpty();
-      const end = await db.query<{ n: string }>(
-        "SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations",
-      );
-      cleanup.journalStill50 = end.rows[0]?.n === "50";
-    } catch (cleanupError) {
-      error = new AggregateError(
-        [error, cleanupError],
-        "R9_PROOF_OR_CLEANUP_FAILED",
-      );
-    }
-    await db.close();
+          );
+          cleanup.ownRequestsAbsent = remaining.rows[0]?.n === "0";
+        },
+        async () => {
+          // Seed removal depends on proven absence of all owned requests.
+          if (cleanup.ownRequestsAbsent) {
+            await db.transaction(async (tx) => {
+              await tx.query("DELETE FROM devices WHERE id=ANY($1::uuid[])", [
+                [recipientId, sourceId],
+              ]);
+              await tx.query("DELETE FROM accounts WHERE id=$1", [account]);
+              await tx.query("DELETE FROM users WHERE id=$1", [user]);
+            });
+          }
+        },
+        async () => {
+          const seed = await db.query<{ n: string }>(
+            "SELECT ((SELECT count(*) FROM devices WHERE id=ANY($1::uuid[]))+(SELECT count(*) FROM accounts WHERE id=$2)+(SELECT count(*) FROM users WHERE id=$3))::text AS n",
+            [[recipientId, sourceId], account, user],
+          );
+          cleanup.ownSeedAbsent = seed.rows[0]?.n === "0";
+        },
+        async () => {
+          const roles = await db.query<{ n: string }>(
+            "SELECT count(*)::text AS n FROM pg_roles WHERE rolname=ANY($1::text[])",
+            [authorities.map((authority) => authority.role)],
+          );
+          cleanup.ownRolesAbsent = roles.rows[0]?.n === "0";
+        },
+        async () => {
+          cleanup.privateContextEmpty = await contextEmpty();
+        },
+        async () => {
+          const end = await db.query<{ n: string }>(
+            "SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations",
+          );
+          cleanup.journalStill50 = end.rows[0]?.n === "50";
+        },
+        () => db.close(),
+      ])),
+    );
+    error = combineProofFailures(
+      error,
+      cleanupErrors,
+      "R9_PROOF_OR_CLEANUP_FAILED",
+    );
   }
   const ok =
     !error &&
@@ -393,6 +432,10 @@ export async function proveCredentialTransferTestAuthority(
     passed: checks.filter((x) => x.passed).length,
     cleanup,
     error: error instanceof Error ? error.message : null,
+    primaryError: primaryError instanceof Error ? primaryError.message : null,
+    cleanupErrors: cleanupErrors.map((failure) =>
+      failure instanceof Error ? failure.message : typeof failure,
+    ),
     limits: [
       "Test-only SESSION AUTHORIZATION, not genuine runtime login",
       "No main startup, HTTP, original B tests or installed scenario executed",

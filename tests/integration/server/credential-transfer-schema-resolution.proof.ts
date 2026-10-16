@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  attemptProofCleanup,
+  reconcileReservedProofResource,
+} from "./helpers/credential-transfer-proof-lifecycle.js";
+import {
   assertCredentialTransferFenceRuntime,
   createCredentialTransferEpochFence,
   createDatabaseRuntime,
@@ -20,7 +24,8 @@ export async function proveCredentialTransferSchemaResolution(
     | Awaited<ReturnType<typeof createCredentialTransferTestAuthority>>
     | undefined;
   let fence: ReturnType<typeof createCredentialTransferEpochFence> | undefined;
-  let created = false;
+  let reservedAbsent = false;
+  let creationAttempted = false;
   let failure: unknown;
   const cleanupErrors: unknown[] = [];
   const record = (name: string, passed: boolean, detail: unknown = null) => {
@@ -39,6 +44,8 @@ export async function proveCredentialTransferSchemaResolution(
     );
     if (fresh.rows[0]?.n !== "0")
       throw new Error("SHADOW_SCHEMA_ALREADY_EXISTS");
+    reservedAbsent = true;
+    creationAttempted = true;
     await administrator.transaction(async (tx) => {
       await tx.query(`CREATE SCHEMA ${schema} AUTHORIZATION ${role}`);
       await tx.query(
@@ -52,7 +59,6 @@ export async function proveCredentialTransferSchemaResolution(
       );
       await tx.query(`GRANT SELECT ON ${schema}.devices TO ${role}`);
     });
-    created = true;
     // Emulates a connection/session search_path, NOT a changed login or real
     // deployment. Entry functions remain explicitly schema-qualified.
     const inSession = <T>(action: (tx: DatabaseQuery) => Promise<T>) =>
@@ -118,36 +124,64 @@ export async function proveCredentialTransferSchemaResolution(
       `SELECT pg_catalog.to_regclass('credential_transfer_requests')=pg_catalog.to_regclass('${schema}.credential_transfer_requests') AS shadow`,
     );
     record(
-      "separate_unfenced_connection_context_remains_unmodified",
+      "later_unfenced_transaction_context_remains_unmodified",
       next.rows[0]?.shadow === true,
     );
   } catch (error) {
     failure = error;
   }
-  fence?.deactivate();
-  if (created) {
+  cleanupErrors.push(
+    ...(await attemptProofCleanup([() => fence?.deactivate()])),
+  );
+  if (creationAttempted && authority) {
+    let shadowAbsent = false;
+    const expectedOwner = authority.role;
     try {
-      await administrator.query(`DROP SCHEMA ${schema} CASCADE`);
-      const remaining = await administrator.query<{ n: string }>(
-        "SELECT count(*)::text AS n FROM pg_catalog.pg_namespace WHERE nspname=$1",
-        [schema],
-      );
-      record("only_owned_shadow_schema_removed", remaining.rows[0]?.n === "0");
+      const removed = await reconcileReservedProofResource({
+        previouslyAbsent: reservedAbsent,
+        creationAttempted,
+        inspect: async () => {
+          const result = await administrator.query<{ owner: string }>(
+            "SELECT r.rolname AS owner FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_roles r ON r.oid=n.nspowner WHERE n.nspname=$1",
+            [schema],
+          );
+          shadowAbsent = result.rows.length === 0;
+          return shadowAbsent
+            ? "absent"
+            : result.rows[0]?.owner === expectedOwner
+              ? "owned"
+              : "foreign";
+        },
+        removeOwned: () =>
+          administrator.transaction(async (tx) => {
+            if (!/^c06_test_[0-9a-f]{32}$/.test(expectedOwner))
+              throw new Error("INVALID_OWN_TEST_ROLE");
+            // Execute as the observed owner, so an unowned replacement cannot be dropped.
+            await tx.query(`SET LOCAL ROLE ${expectedOwner}`);
+            await tx.query(`DROP SCHEMA ${schema} CASCADE`);
+          }),
+      });
+      shadowAbsent = removed;
     } catch (error) {
       cleanupErrors.push(error);
     }
+    record("only_owned_shadow_schema_removed", shadowAbsent);
   }
   try {
     await authority?.dispose();
-    if (authority) {
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  if (authority) {
+    try {
       const remaining = await administrator.query<{ n: string }>(
         "SELECT count(*)::text AS n FROM pg_catalog.pg_roles WHERE rolname=$1",
         [authority.role],
       );
       record("owned_test_role_removed", remaining.rows[0]?.n === "0");
+    } catch (error) {
+      cleanupErrors.push(error);
     }
-  } catch (error) {
-    cleanupErrors.push(error);
   }
   try {
     const context = await administrator.query<{ n: string }>(

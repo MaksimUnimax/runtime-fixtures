@@ -619,7 +619,7 @@ export async function proveCredentialTransferEpochHandoff(
     failureTypes: failures,
     limits: [
       "Two independent actual PostgreSQL pools and product service/repository instances, not two OS API processes or a pooler",
-      "Explicit test SESSION AUTHORIZATION using temporary NOLOGIN roles; no new LOGIN/password/HBA or live changes",
+      "Explicit test SESSION AUTHORIZATION using temporary LOGIN-capable roles without credentials; not real network LOGIN, password/HBA or live acceptance",
       "A transaction admitted before handoff may finish before election and its already-committed result may arrive later; this proof does not promise network response cancellation",
       "No process restart, pre-ACK restart, old binary, partition, restore/rollback or complete original four-P1 acceptance",
       "Only owned synthetic records; monotonic writer epoch advances as in existing C proofs and is not reset",
