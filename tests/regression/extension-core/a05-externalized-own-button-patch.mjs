@@ -8,7 +8,20 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const read = filename => readFileSync(path.join(root, filename), "utf8");
 const hash = source => createHash("sha256").update(source).digest("hex");
 const patches = JSON.parse(read("apps/extension/application-patches.json"));
-assert.equal(patches.length, 176);
+// Preserve the accepted A05 patch inventory while explicitly pinning the two
+// independent JSON API redirect guards. This is not a general count relaxation.
+const transportPatches = patches.filter(patch => patch.target === "shared/provider_transport_core.js");
+assert.equal(transportPatches.length, 2, "only Seller and Performance transport overlays");
+assert.deepEqual(
+  transportPatches.map(patch => patch.old.match(/async function (execute(?:Performance)?JsonOnce)\(/)?.[1]).sort(),
+  ["executeJsonOnce", "executePerformanceJsonOnce"],
+);
+for (const patch of transportPatches) {
+  assert.deepEqual(Object.keys(patch).sort(), ["new", "old", "target"]);
+  assert.equal(patch.old.includes('redirect: "error"'), false, "preimage must lack the redirect fence");
+  assert.equal(patch.new.includes('redirect: "error"'), true, "replacement must reject redirects");
+}
+assert.equal(patches.length, 176 + transportPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];
