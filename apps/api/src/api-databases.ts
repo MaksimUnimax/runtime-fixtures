@@ -31,6 +31,9 @@ export async function createApiDatabases<T extends ClosableDatabase>(
       ]);
       for (const key of url.searchParams.keys())
         if (!tlsFields.has(key)) throw new Error();
+      // Prevent the driver's legacy malformed-URI repair from re-encoding any
+      // already validated identity when a TLS query contains invalid escapes.
+      decodeURI(url.toString());
       decodeURIComponent(url.username);
       decodeURIComponent(url.password);
       decodeURIComponent(url.hostname);

@@ -139,6 +139,10 @@ describe("API database role separation", () => {
     "postgres://transfer:fixture@/test",
     "postgres://transfer:fixture@127.0.0.1:5432/",
     "postgres://transfer:fixture@127.0.0.1:5432/test#fragment",
+    "postgres://transfer:fixture@127.0.0.1:5432/test?sslmode=invalid%",
+    "postgres://transfer:fixture@127.0.0.1:5432/test?sslmode=invalid%2",
+    "postgres://transfer:fixture@127.0.0.1:5432/test?sslmode=invalid%GG",
+    "postgres://transfer:fixture@127.0.0.1:5432/test?sslmode=invalid%E0%A4",
     "postgres://transfer:fixture@127.0.0.1:5432/test%2Fother",
   ])(
     "rejects incomplete or different effective endpoints without opening pools",
