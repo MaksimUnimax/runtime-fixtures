@@ -102,12 +102,32 @@ def import_via_popup_ui(fixture: BrowserFixture, backup: Path):
     assert not popup.is_closed() and popup.url == popup_url
     assert set(fixture.context.pages) == pages
     assert popup.locator("#start").count() == 1
-    # This fixture verifies the installed popup document; OS action-popup lifetime
-    # is checked in the primary native owner scenario, not inferred from this tab.
+    # This fixture verifies the popup document and real DOM FileList. OS
+    # action-popup lifetime is checked in the primary native owner scenario.
+    assert popup.evaluate("typeof globalThis.showOpenFilePicker === 'function'"), "Chromium fixture must expose the standard read picker"
+    popup.evaluate("globalThis.fixtureOriginalPicker=globalThis.showOpenFilePicker; globalThis.showOpenFilePicker=undefined")
     with popup.expect_file_chooser() as chooser:
         popup.click("#backup-file")
     chooser.value.set_files(str(backup))
     assert popup.locator("#backup-file").evaluate("(input) => input.files[0]?.name") == backup.name
+    # The API-absent route above still uses the ordinary input picker. Now
+    # exercise handle -> genuine FileList -> the existing explicit import UI.
+    popup.evaluate("""file => {
+      globalThis.fixturePickerCalls=0;
+      globalThis.showOpenFilePicker=async () => {
+        fixturePickerCalls++;
+        return [{getFile:async () => {
+          globalThis.fixturePickerFile=new File([file.text],file.name,{type:"application/json"});
+          return fixturePickerFile;
+        }}];
+      };
+    }""", {"name": backup.name, "text": backup.read_text(encoding="utf-8")})
+    popup.click("#backup-file")
+    popup.wait_for_function("Boolean(globalThis.fixturePickerFile) && document.getElementById('backup-file').files[0] === fixturePickerFile")
+    assert popup.evaluate("fixturePickerCalls") == 1
+    assert popup.locator("#backup-file").evaluate("(input) => input.files[0] instanceof File")
+    assert not popup.is_closed() and popup.url == popup_url and set(fixture.context.pages) == pages
+    popup.evaluate("() => { globalThis.showOpenFilePicker=globalThis.fixtureOriginalPicker; }")
     popup.locator("#backup-import-password").fill(PASSWORD)
     popup.click("#backup-preview")
     wait_for(lambda: not popup.locator("#backup-preview-result").is_hidden(), "popup preview")

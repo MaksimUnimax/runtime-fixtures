@@ -159,18 +159,20 @@ await run("EX-68..EX-74", "secret lifetime/privacy boundaries contain no plainte
 
 
 const popupSource = fs.readFileSync(new URL("../../../../apps/extension/src/application/popup.js", import.meta.url), "utf8");
-function popupFixture(fragment = "", { openFails = false } = {}) {
-  const nodes = new Map(), calls = { queries: 0, messages: [], opens: [], listeners: [], fileClicks: 0, focuses: [], scrolls: [], panels: [], closes: 0 };
+function popupFixture(fragment = "", { openFails = false, picker = null, auth = null } = {}) {
+  const nodes = new Map(), calls = { queries: 0, messages: [], opens: [], listeners: [], fileClicks: 0, focuses: [], scrolls: [], panels: [], closes: 0, pickers: [] };
   const node = id => {
     if (!nodes.has(id)) nodes.set(id, { id, value: "", hidden: false, files: [], disabled: false,
       focus() { calls.focuses.push(id); }, scrollIntoView() { calls.scrolls.push(id); }, click() { if (id === "backup-file") calls.fileClicks++; },
       closest: selector => node(id + selector), querySelector: selector => node(id + selector),
       replaceChildren(...children) { calls.visibleRoots = children.map(x => x.id); },
-      reset() {}, appendChild() {}, remove() {} });
+      reset() {}, appendChild() {}, remove() {}, dispatchEvent(event) { if (event.type === "change") this.onchange?.(event); return true; } });
     return nodes.get(id);
   };
   const timers = new Map(); let timerId = 0, uuid = 0;
-  const ctx = { console, URL, Blob, navigator: { userAgent: "Chromium" }, location: { hash: fragment }, close: () => { calls.closes++; },
+  const ctx = { console, URL, Blob, Event, navigator: { userAgent: "Chromium" }, location: { hash: fragment }, close: () => { calls.closes++; },
+    showOpenFilePicker: picker ? options => { calls.pickers.push(options); return picker(options); } : undefined,
+    DataTransfer: class { constructor() { this.files = []; this.items = { add: file => this.files.push(file) }; } },
     crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuid).padStart(12, "0")}` },
     document: { getElementById: node, querySelector: node },
     setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id),
@@ -179,7 +181,7 @@ function popupFixture(fragment = "", { openFails = false } = {}) {
       tabs: { query: async () => { calls.queries++; return [{ id: 7, windowId: 4 }]; }, create: async ({url}) => { if (openFails) throw new Error("create rejected"); const id = 100 + calls.opens.length; calls.opens.push({ url, id }); return { id }; } },
       runtime: { getURL: path => "chrome-extension://fixture/" + path, sendMessage: async request => {
         calls.messages.push(request);
-        if (request.type === "SA_POPUP_STATE") return { ok: true, context: {}, stores: [] };
+        if (request.type === "SA_POPUP_STATE") return { ok: true, ...(auth ? { auth: { ...auth } } : {}), context: {}, stores: [] };
         if (request.type === "SA_BACKUP_PREVIEW") return { ok: true, preview: { classifications: [], storeCount: 1,
           marketplaces: ["ozon"], safeImportCount: 1, rejectedCount: 0 } };
         if (request.type === "SA_BACKUP_IMPORT") return { ok: true, imported: ["synthetic-store"] };
@@ -222,6 +224,57 @@ await run("POPUP-IMPORT-NO-PANEL", "popup file selection is independent of side 
   assert.equal(f.calls.messages.length, messagesBefore);
   assert.deepEqual(f.calls.focuses, ["backup-file"]);
   assert.equal(f.node("backup-file").onclick, undefined);
+});
+await run("POPUP-IMPORT-FILE-HANDLE", "native handle selection retains one file and still requires explicit preview and apply", async () => {
+  let reads = 0, prevented = 0;
+  const file = { name: "synthetic-keys.json", size: 32, text: async () => { reads++; return "synthetic-encrypted-backup"; } };
+  const f = popupFixture("", { picker: async () => [{ getFile: async () => file }], auth: { authenticated: true, accountId: "fixture-account" } }); await f.flush();
+  const messagesBefore = f.calls.messages.length;
+  await f.node("backup-file").onclick?.({ preventDefault() { prevented++; } });
+  assert.equal(f.node("backup-file").files[0], file, "selected native handle must reach the existing popup file input");
+  assert.equal(prevented, 1); assert.equal(f.calls.pickers.length, 1); assert.equal(reads, 0);
+  assert.equal(f.calls.messages.length, messagesBefore, "selection does not preview or import credentials");
+  assert.equal(f.calls.opens.length, 0); assert.equal(f.calls.panels.length, 0); assert.equal(f.calls.closes, 0);
+  await f.node("backup-preview").onclick(); assert.equal(reads, 1);
+  assert.equal(f.calls.messages.filter(row => row.type === "SA_BACKUP_PREVIEW").length, 1);
+  await f.node("backup-import").onclick();
+  const imports = f.calls.messages.filter(row => row.type === "SA_BACKUP_IMPORT");
+  assert.equal(imports.length, 1);
+  assert.equal(imports[0].backup, "synthetic-encrypted-backup");
+  assert.equal(vm.runInContext("backupPreview", f.ctx), null);
+});
+await run("POPUP-IMPORT-PICKER-CANCEL", "cancel, failure and repeat click preserve the old selection without implicit fallback or import", async () => {
+  let reject, fail = false;
+  const f = popupFixture("", { picker: () => fail ? Promise.reject(new Error("synthetic-picker-failure")) : new Promise((resolve, rejectPicker) => { reject = rejectPicker; }) }); await f.flush();
+  const oldFile = { name: "old-selected.json" }; f.node("backup-file").files = [oldFile];
+  const messagesBefore = f.calls.messages.length;
+  const pending = f.node("backup-file").onclick?.({ preventDefault() {} });
+  await f.node("backup-file").onclick?.({ preventDefault() {} });
+  assert.equal(f.calls.pickers.length, 1, "one user selection cannot open a second picker while pending");
+  reject(Object.assign(new Error("cancelled"), { name: "AbortError" })); await pending;
+  assert.equal(f.node("backup-file").files[0], oldFile);
+  fail = true; await f.node("backup-file").onclick({ preventDefault() {} });
+  assert.equal(f.calls.pickers.length, 2, "cancel releases the picker for a later explicit click");
+  assert.match(f.node("backup-status").textContent, /Не удалось выбрать файл/);
+  assert.equal(f.node("backup-file").files[0], oldFile);
+  assert.equal(f.calls.messages.length, messagesBefore); assert.equal(f.calls.fileClicks, 0);
+});
+await run("POPUP-IMPORT-PICKER-CONTEXT", "a late file selection cannot replace a newer password or account context", async () => {
+  for (const change of ["password", "account", "signout"]) {
+    let resolve;
+    const f = popupFixture("", { picker: () => new Promise(done => { resolve = done; }) }); await f.flush();
+    vm.runInContext("state.auth={authenticated:true,accountId:'fixture-account'}", f.ctx);
+    const oldFile = { name: "old-selected.json" }; f.node("backup-file").files = [oldFile];
+    const messagesBefore = f.calls.messages.length;
+    const pending = f.node("backup-file").onclick?.({ preventDefault() {} });
+    assert.equal(typeof resolve, "function");
+    if (change === "password") f.node("backup-import-password").oninput();
+    else vm.runInContext(change === "account" ? "state.auth.accountId='other-fixture-account'" : "state.auth={authenticated:false}", f.ctx);
+    resolve([{ getFile: async () => ({ name: "late-file.json", size: 32, text() { throw new Error("late file must not be read"); } }) }]); await pending;
+    assert.equal(f.node("backup-file").files[0], oldFile);
+    assert.match(f.node("backup-status").textContent, /Выберите файл заново/);
+    assert.equal(f.calls.messages.length, messagesBefore);
+  }
 });
 await run("POPUP-IMPORT-ISOLATION", "durable import surface emits only explicit account backup requests", async () => {
   const f = popupFixture("#backup-import"); await f.flush();
