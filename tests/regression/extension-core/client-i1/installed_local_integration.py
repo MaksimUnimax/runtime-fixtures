@@ -147,6 +147,216 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
     return counts
 
 
+WORK_START_CAUSAL_OBSERVER_JS = r"""() => {
+  // Test-only worker-local observer. Keep all URL/account/signal identities in memory.
+  if (globalThis.__saI1WorkStartAbortProbe) return {installed:false};
+  const nativeFetch = globalThis.fetch;
+  const nativeAbort = AbortController.prototype.abort;
+  if (typeof nativeFetch !== "function" || typeof nativeAbort !== "function")
+    return {installed:false};
+  const allowed = new Set([
+    "BOOTSTRAP_CONTEXT_CHANGED", "BOOTSTRAP_WAITER_CANCELLED",
+    "BOOTSTRAP_ACTIVE_EXPIRED", "BOOTSTRAP_QUEUE_WAIT_EXPIRED",
+    "BOOTSTRAP_WORKER_RETIRED", "BOOTSTRAP_SECURITY_QUARANTINE",
+    "BOOTSTRAP_SECURITY_COMMIT_UNKNOWN", "AUTH_GENERATION_CHANGED",
+  ]);
+  const checkedCode = value => {
+    try { return value && typeof value === "object" && allowed.has(value.code) ? value.code : null; }
+    catch (_) { observerError = true; return null; } // Never prevent a real abort.
+  };
+  const age = started => {
+    try {
+      const delta = performance.now() - started;
+      return Number.isFinite(delta) && delta >= 0 && delta <= 180000 ? Math.round(delta) : null;
+    } catch (_) { observerError = true; return null; }
+  };
+  const tracked = new WeakMap(), requests = [];
+  let count = 0, truncated = false, activeSchedulerReason = null, observerError = false;
+  const safeRead = () => {
+    const one = count === 1 && !truncated && requests.length === 1 ? requests[0] : null;
+    return {
+      schema_version: 1,
+      probe_installed: true,
+      observer_error: observerError,
+      bootstrap_fetch_count: Math.min(count, 9),
+      bootstrap_fetch_overflow: truncated,
+      unique_bootstrap_fetch: one !== null,
+      request_signal_initially_aborted: one?.initiallyAborted === true,
+      request_signal_abort_event_seen: one?.abortEvent === true,
+      request_controller_abort_seen: one?.controllerAbort === true,
+      request_controller_abort_age_ms: one?.controllerAbortAge ?? null,
+      synchronous_scheduler_retire_reason: one?.schedulerReason || "NONE",
+    };
+  };
+  globalThis.fetch = function(...args) {
+    // Classification is transient. Never persist, print or return an endpoint.
+    // Even malformed proxy inputs must not change the real fetch invocation.
+    try {
+      const input = args[0];
+      const source = typeof input === "string" ? input : input?.url;
+      if (new URL(source).pathname === "/v1/bootstrap") {
+        count += 1;
+        if (count <= 8) {
+          const signal = args[1]?.signal || args[0]?.signal;
+          const row = {started:performance.now(), initiallyAborted:signal?.aborted === true,
+            abortEvent:false, controllerAbort:false, controllerAbortAge:null, schedulerReason:"NONE"};
+          requests.push(row);
+          if (signal && typeof signal.addEventListener === "function") {
+            tracked.set(signal, row);
+            if (signal.aborted) row.abortEvent = true;
+            else signal.addEventListener("abort", () => { row.abortEvent = true; }, {once:true});
+          }
+        } else truncated = true;
+      }
+    } catch (_) { observerError = true; /* Native fetch still runs. */ }
+    return Reflect.apply(nativeFetch, this, args);
+  };
+  AbortController.prototype.abort = function(reason) {
+    const before = activeSchedulerReason;
+    try {
+      const schedulerCode = checkedCode(reason);
+      if (schedulerCode) activeSchedulerReason = schedulerCode;
+      const row = tracked.get(this.signal);
+      if (row) {
+        row.controllerAbort = true;
+        row.controllerAbortAge = age(row.started);
+        // Only synchronous nesting hints a scheduler cause for this fetch.
+        row.schedulerReason = activeSchedulerReason || "NONE";
+      }
+    } catch (_) { observerError = true; activeSchedulerReason = before; }
+    try { return Reflect.apply(nativeAbort, this, arguments); }
+    finally { activeSchedulerReason = before; }
+  };
+  Object.defineProperty(globalThis, "__saI1WorkStartAbortProbe", {
+    value:Object.freeze({read:safeRead}), configurable:true,
+  });
+  return {installed:true};
+}"""
+
+
+def require_work_start_causal_probe_installed(value):
+    """Fail closed if disposable I1 diagnostic hook installation is unconfirmed.
+
+    No unexpected status, URL, token, exception detail or sender identity
+    is ever included in the failed assertion.
+    """
+    if type(value) is not dict or set(value) != {"installed"} or value["installed"] is not True:
+        raise RuntimeError("I1_WORK_START_CAUSAL_PROBE_INSTALL_UNCONFIRMED")
+    return True
+
+
+def safe_work_start_causal_abort_probe(value):
+    """Projection of test-only worker-local abort observation, never raw signals.
+
+    A single worker bootstrap fetch can be correlated by timing with the selected
+    browser Request, but cannot itself prove identical Request identity or signed
+    grant at cancellation time. This projection deliberately contains neither.
+    """
+    fields = ("probe_installed", "observer_error", "bootstrap_fetch_overflow", "unique_bootstrap_fetch",
+              "request_signal_initially_aborted", "request_signal_abort_event_seen",
+              "request_controller_abort_seen")
+    allowed = {"NONE", "BOOTSTRAP_CONTEXT_CHANGED", "BOOTSTRAP_WAITER_CANCELLED",
+               "BOOTSTRAP_ACTIVE_EXPIRED", "BOOTSTRAP_QUEUE_WAIT_EXPIRED",
+               "BOOTSTRAP_WORKER_RETIRED", "BOOTSTRAP_SECURITY_QUARANTINE",
+               "BOOTSTRAP_SECURITY_COMMIT_UNKNOWN", "AUTH_GENERATION_CHANGED"}
+    denied = {"schema_version": 1, **{name: False for name in fields},
+              "bootstrap_fetch_count": 0, "request_controller_abort_age_ms": None,
+              "synchronous_scheduler_retire_reason": "NONE", "read_failed": True,
+              "selected_network_request_identity_proven": False,
+              "at_abort_grant_entitlement_proven": False}
+    expected = set(denied) - {"read_failed", "selected_network_request_identity_proven",
+                              "at_abort_grant_entitlement_proven"}
+    if not isinstance(value, dict) or set(value) != expected:
+        return denied
+    if type(value.get("schema_version")) is not int or value["schema_version"] != 1:
+        return denied
+    if any(type(value.get(name)) is not bool for name in fields):
+        return denied
+    count = value.get("bootstrap_fetch_count")
+    age_ms = value.get("request_controller_abort_age_ms")
+    if type(count) is not int or not 0 <= count <= 9:
+        return denied
+    if age_ms is not None and (type(age_ms) is not int or not 0 <= age_ms <= 180000):
+        return denied
+    if value.get("synchronous_scheduler_retire_reason") not in allowed:
+        return denied
+    if value["probe_installed"] is not True or value["observer_error"] is True:
+        return denied
+    if value["bootstrap_fetch_overflow"] != (count == 9):
+        return denied
+    if value["unique_bootstrap_fetch"] != (count == 1 and not value["bootstrap_fetch_overflow"]):
+        return denied
+    if value["request_controller_abort_seen"] and not value["request_signal_abort_event_seen"]:
+        return denied
+    if not value["unique_bootstrap_fetch"] and (
+        value["request_signal_initially_aborted"] or value["request_signal_abort_event_seen"] or
+        value["request_controller_abort_seen"] or age_ms is not None or
+        value["synchronous_scheduler_retire_reason"] != "NONE"
+    ):
+        return denied
+    if not value["request_controller_abort_seen"] and age_ms is not None:
+        return denied
+    if not value["request_controller_abort_seen"] and value["synchronous_scheduler_retire_reason"] != "NONE":
+        return denied
+    return {**{name: value[name] for name in expected}, "read_failed": False,
+            "selected_network_request_identity_proven": False,
+            "at_abort_grant_entitlement_proven": False}
+
+
+def safe_stored_chatgpt_candidate_observation(value):
+    """Store snapshot hints only; no signature, grant or Work authority is verified.
+
+    This is a fixed-boolean projection of an untrusted persisted record, NOT
+    proof that the canceled Work Start acquisition was optional.
+    """
+    keys = ("stored_record_present", "stored_record_ambiguous",
+            "stored_work_allowed_claim", "stored_ai_resolved_claim",
+            "stored_envelope_present", "stored_profile_present",
+            "stored_same_generation_claim", "stored_same_account_claim")
+    denied = {**{key: False for key in keys}, "read_failed": True}
+    if not isinstance(value, dict) or value.get("read_failed") is not False:
+        return denied
+    if set(value) != set(keys) | {"read_failed"}:
+        return denied
+    if any(type(value[key]) is not bool for key in keys):
+        return denied
+    return {**{key: value[key] for key in keys}, "read_failed": False}
+
+
+def safe_post_abort_signed_snapshot_observation(value):
+    """Verify only sanitized *late* signature hints, never a Work Start grant.
+
+    This read happens after a selected request has already failed. Even a
+    genuine signed envelope here cannot prove authorization at abort time,
+    identity lease ownership, monotonic TTL, or why the fetch was canceled.
+    """
+    signed = (
+        "post_abort_signed_envelope_verified",
+        "post_abort_signed_account_matches_expected",
+        "post_abort_signed_chatgpt_resolved",
+        "post_abort_signed_profile_material_valid",
+        "post_abort_signed_unexpired_wall_clock_only",
+    )
+    fixed = ("post_abort_probe_read_failed",
+             "at_abort_grant_entitlement_proven")
+    denied = {**{key: False for key in signed},
+              "post_abort_probe_read_failed": True,
+              "at_abort_grant_entitlement_proven": False}
+    if not isinstance(value, dict) or set(value) != set(signed) | set(fixed):
+        return denied
+    if any(type(value[key]) is not bool for key in signed + fixed):
+        return denied
+    if value["at_abort_grant_entitlement_proven"]:
+        return denied
+    if value["post_abort_probe_read_failed"] and any(value[key] for key in signed):
+        return denied
+    if not value["post_abort_signed_envelope_verified"] and any(
+        value[key] for key in signed[1:]
+    ):
+        return denied
+    return {key: value[key] for key in signed + fixed}
+
+
 def read_completed_bootstrap_response(response, context, completed_requests, failed_requests=None):
     # BrowserContext "response" fires on headers, before the HTTP body finishes.
     # A requestfailed event is terminal; an already aborted request can never
@@ -523,6 +733,10 @@ def run(runtime, output):
 
                     stage = _mark_stage(output, "work_start", started)
                     stage = _mark_stage(output, "work_start_start_click_begin", started)
+                    # Observe only this own disposable worker between explicit Start
+                    # and teardown. Do not change product source or verifier.
+                    work_start_trace_install = worker.evaluate(WORK_START_CAUSAL_OBSERVER_JS)
+                    require_work_start_causal_probe_installed(work_start_trace_install)
                     work_start_header_count = len(bootstrap_http_responses)
                     bootstrap_window = "work_start_window"
                     work_start_started_at = time.monotonic()
@@ -885,11 +1099,107 @@ def run(runtime, output):
                         "bootstrap_body_parsed": bootstrap_envelope is not None,
                         "bootstrap_observer_counts": counts,
                     }
+                    # Verify late signatures only for the exact selected request
+                    # that was observed failed. Other I1 errors remain generic.
+                    selected_failed = counts["selected_request_failed"] is True and locals().get("bootstrap_response") is not None
                     try:
-                        diagnostic = worker.evaluate("""async tabId => {
+                        diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId, selectedFailed}) => {
+                          const causal = selectedFailed === true && globalThis.__saI1WorkStartAbortProbe?.read
+                            ? globalThis.__saI1WorkStartAbortProbe.read() : null;
                           const status = await SellerAgentsControlClient.status();
                           const code = String(status?.lastError?.code || "");
+                          // Purely read the persisted record. This does NOT verify
+                          // its signature, runtime identity, expiry or Work permission.
+                          // A late storage read has no write or revocation side effect.
+                          let stored = {read_failed: true};
+                          let lateSigned = {
+                            post_abort_signed_envelope_verified: false,
+                            post_abort_signed_account_matches_expected: false,
+                            post_abort_signed_chatgpt_resolved: false,
+                            post_abort_signed_profile_material_valid: false,
+                            post_abort_signed_unexpired_wall_clock_only: false,
+                            post_abort_probe_read_failed: true,
+                            at_abort_grant_entitlement_proven: false,
+                          };
+                          let storageTimer;
+                          try {
+                            const values = await Promise.race([
+                              chrome.storage.local.get("seller_agents_control_auth_v2"),
+                              new Promise((_, reject) => {
+                                storageTimer = setTimeout(() => reject(new Error("STORAGE_SNAPSHOT_DIAG_DEADLINE")), 1200);
+                              }),
+                            ]);
+                            const saved = values?.seller_agents_control_auth_v2;
+                            const records = saved?.grants && typeof saved.grants === "object" && !Array.isArray(saved.grants)
+                              ? Object.values(saved.grants) : [];
+                            const matches = records.filter(record => record?.authority?.requestedAi === "chatgpt");
+                            const record = matches.length === 1 ? matches[0] : null;
+                            stored = {
+                              stored_record_present: record !== null,
+                              stored_record_ambiguous: matches.length > 1,
+                              stored_work_allowed_claim: record?.authority?.workAllowed === true,
+                              stored_ai_resolved_claim: record?.authority?.payload?.ai?.status === "RESOLVED",
+                              stored_envelope_present: Boolean(record?.authority?.envelope),
+                              stored_profile_present: Boolean(record?.authority?.payload?.ai?.profile),
+                              stored_same_generation_claim: record != null && record.authority?.generation === saved?.generation,
+                              stored_same_account_claim: record != null && Boolean(saved?.authority?.payload?.account?.id) &&
+                                record.authority?.payload?.account?.id === saved.authority.payload.account.id,
+                              read_failed: false,
+                            };
+                            if (selectedFailed === true && record?.authority?.envelope &&
+                                trust && typeof expectedAccountId === "string") {
+                              // Read-only, bounded, cryptographic verification of the
+                              // persisted envelope AFTER failure. No authority API
+                              // call, no network, no signature material in output.
+                              let verifyTimer;
+                              try {
+                                const probe = async () => {
+                                  // Mirror the accepted client's V2/V3 envelope
+                                  // dispatch. A signed V3 subscription snapshot
+                                  // is not itself a materialized ChatGPT Work grant.
+                                  const envelope = record.authority.envelope;
+                                  const verified = envelope?.envelopeVersion === "bootstrap_envelope_v3" &&
+                                      typeof SellerAgentsBootstrapVerifier.verifyV3 === "function"
+                                    ? await SellerAgentsBootstrapVerifier.verifyV3(envelope, trust)
+                                    : envelope?.envelopeVersion === "bootstrap_envelope_v2" &&
+                                        typeof SellerAgentsBootstrapVerifier.verifyV2 === "function"
+                                      ? await SellerAgentsBootstrapVerifier.verifyV2(envelope, trust)
+                                      : { ok: false };
+                                  const signed = verified?.ok === true ? verified.payload : null;
+                                  const signedChatGPT = Boolean(signed?.ai?.status === "RESOLVED" &&
+                                    signed?.ai?.detected?.family === "chatgpt" &&
+                                    signed?.ai?.detected?.surface === "web" &&
+                                    signed?.ai?.detected?.variant === null);
+                                  const profile = signedChatGPT ? signed?.ai?.profile : null;
+                                  let materialValid = false;
+                                  if (profile && SellerAgentsSignedAiProfileConsumer.validMaterialShape(profile))
+                                    materialValid = await SellerAgentsSignedAiProfileConsumer.validMaterial(profile) === true;
+                                  const expiry = signed?.expiresAt && Date.parse(signed.expiresAt);
+                                  return {
+                                    post_abort_signed_envelope_verified: verified?.ok === true,
+                                    post_abort_signed_account_matches_expected: Boolean(signed && signed.account?.id === expectedAccountId),
+                                    post_abort_signed_chatgpt_resolved: signedChatGPT,
+                                    post_abort_signed_profile_material_valid: materialValid,
+                                    post_abort_signed_unexpired_wall_clock_only: Boolean(signed && Number.isFinite(expiry) && expiry > Date.now()),
+                                    post_abort_probe_read_failed: false,
+                                    at_abort_grant_entitlement_proven: false,
+                                  };
+                                };
+                                lateSigned = await Promise.race([
+                                  probe(),
+                                  new Promise((_, reject) => {
+                                    verifyTimer = setTimeout(() => reject(new Error("LATE_SIGNATURE_PROBE_DEADLINE")), 1200);
+                                  }),
+                                ]);
+                              } catch (_) { /* Never export verifier errors or claim a grant. */ }
+                              finally { if (verifyTimer !== undefined) clearTimeout(verifyTimer); }
+                            }
+                          } catch (_) { /* Never serialize exceptions or retry authorizations. */ }
+                          finally { if (storageTimer !== undefined) clearTimeout(storageTimer); }
                           return {
+                            stored_chatgpt_candidate: stored,
+                            ...(selectedFailed === true ? {work_start_causal_abort_probe: causal} : {}),
+                            ...(selectedFailed === true ? {post_abort_signed_snapshot: lateSigned} : {}),
                             pending: Boolean(status?.pending),
                             authenticated: status?.authenticated === true,
                             workAllowed: status?.workAllowed === true,
@@ -898,8 +1208,28 @@ def run(runtime, output):
                             lastStart: Number.isInteger(tabId) && typeof saLastStartDiagnostic === "function"
                               ? await saLastStartDiagnostic(tabId) : null
                           };
-                        }""", locals().get("chat_tab_id"))
-                        result["failure_diagnostic"] = {"stage": stage, **diagnostic}
+                        }""", {
+                            "tabId": locals().get("chat_tab_id"),
+                            "trust": packaged_config["trustBundle"],
+                            "expectedAccountId": locals().get("second_identity", {}).get("account"),
+                            "selectedFailed": selected_failed,
+                        })
+                        causal_candidate = diagnostic.pop("work_start_causal_abort_probe", None)
+                        snapshot = safe_stored_chatgpt_candidate_observation(
+                            diagnostic.pop("stored_chatgpt_candidate", None)
+                        )
+                        late_candidate = diagnostic.pop("post_abort_signed_snapshot", None)
+                        result["failure_diagnostic"] = {
+                            "stage": stage, **diagnostic,
+                            "stored_chatgpt_candidate_unverified": snapshot,
+                        }
+                        if selected_failed:
+                            result["failure_diagnostic"]["work_start_causal_abort_trace_not_grant"] = (
+                                safe_work_start_causal_abort_probe(causal_candidate)
+                            )
+                            result["failure_diagnostic"]["post_abort_signed_snapshot_not_grant"] = (
+                                safe_post_abort_signed_snapshot_observation(late_candidate)
+                            )
                         if bootstrap_envelope is not None:
                             result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelope)
                     except Exception:
