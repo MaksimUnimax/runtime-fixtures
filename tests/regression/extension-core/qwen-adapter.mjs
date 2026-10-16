@@ -65,6 +65,12 @@ await test("attachment input must belong to the unchanged empty composer",()=>{
  const f=fixture(),input=new Element();input.files=[];f.container.queries.set('input[type="file"]',[input]);
  const surface=f.adapter.attachmentSurface();assert.equal(surface.input,input);
  const file={name:"report.txt"};f.adapter.attachFiles(surface,[file]);assert.equal(f.attachments.length,1);
+ f.composer.value="user draft entered while file bytes were loading";
+ assert.equal(f.adapter.attachmentSurface(),null);
+ assert.throws(()=>f.adapter.attachFiles(surface,[file]),/TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE/);
+ assert.equal(f.composer.value,"user draft entered while file bytes were loading");
+ assert.equal(f.attachments.length,1,"draft entered after preflight must prevent file assignment");
+ f.composer.value="";
  assert.throws(()=>f.adapter.attachFiles(surface,[{name:"report.pdf"}]),/TARGET_AI_FILE_TYPE_UNSUPPORTED/);
  assert.throws(()=>f.adapter.attachFiles(surface,[file,file]),/TARGET_AI_FILE_TYPE_UNSUPPORTED/);
  f.container.queries.set('input[type="file"]',[new Element()]);

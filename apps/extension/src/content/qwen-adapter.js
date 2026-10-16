@@ -38,7 +38,7 @@
     const attachmentCards = root => [...root.querySelectorAll(".file-card-list .fileitem-btn")];
     const attachmentSurface = () => {
       const context = composerContext();
-      if (!context?.root?.isConnected || !context.composer?.isConnected || attachmentCards(context.root).length) return null;
+      if (!context?.root?.isConnected || !context.composer?.isConnected || readComposerText(context.composer).trim() || attachmentCards(context.root).length) return null;
       const inputs = [...context.root.querySelectorAll('input[type="file"]')];
       if (inputs.length !== 1) return null;
       const input = inputs[0];
