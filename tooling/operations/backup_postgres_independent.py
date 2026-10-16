@@ -97,9 +97,12 @@ def parse_database_url(value: str) -> DatabaseConnection:
     if not database:
         raise BackupError("DATABASE_URL_DATABASE_MISSING")
     try:
-        port = parsed.port or 5432
+        configured_port = parsed.port
     except ValueError as error:
         raise BackupError("DATABASE_URL_PORT_INVALID") from error
+    port = 5432 if configured_port is None else configured_port
+    if not 1 <= port <= 65535:
+        raise BackupError("DATABASE_URL_PORT_INVALID")
 
     query = parse_qs(parsed.query, keep_blank_values=True)
     unknown = sorted(set(query) - set(ALLOWED_QUERY_ENV))
