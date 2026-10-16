@@ -363,7 +363,9 @@ function safePackageFilename(filename) {
   return (
     typeof filename === "string" &&
     filename === basename(filename) &&
-    /^[A-Za-z0-9][A-Za-z0-9._-]*\.zip$/i.test(filename)
+    /^[A-Za-z0-9][A-Za-z0-9._-]*\.zip$/i.test(filename) &&
+    // The output ZIP filename is a Windows path segment too.
+    !unsafeWindowsZipSegment(filename)
   );
 }
 
@@ -1402,6 +1404,16 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
     chromium: checked.chromium.metadata,
     firefox: checked.firefox.metadata,
   };
+
+  // A reserved DOS device basename (for example CON.zip) can be written
+  // on POSIX but cannot be safely materialized on a Windows release host.
+  // Validate both filenames before creating any output directory.
+  if (
+    !safePackageFilename(packages.chromium.filename) ||
+    !safePackageFilename(packages.firefox.filename)
+  ) {
+    fail("Unsafe package filename");
+  }
 
   // Reject output basenames that collide on case-insensitive filesystems.
   // The same candidate must remain portable across release hosts.
