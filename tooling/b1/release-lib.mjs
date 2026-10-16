@@ -10,9 +10,11 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  rmdirSync,
   readSync,
   realpathSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -1335,6 +1337,55 @@ function candidateManifestPath(candidateDir) {
   return { candidateRoot, path };
 }
 
+// Track exactly the files created by this prepare call. On a write error,
+// never delete a pre-existing file or a replacement placed by another writer.
+function writeExclusiveCandidateOutput(path, bytes, ownedFiles) {
+  const flags =
+    fsConstants.O_WRONLY |
+    fsConstants.O_CREAT |
+    fsConstants.O_EXCL |
+    (fsConstants.O_NOFOLLOW ?? 0);
+  const fd = openSync(path, flags, 0o666);
+  try {
+    const identity = fstatSync(fd);
+    ownedFiles.push({ path, dev: identity.dev, ino: identity.ino });
+    writeFileSync(fd, bytes);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function discardOwnedCandidateOutput(output, directoryIdentity, ownedFiles) {
+  for (const owned of ownedFiles.reverse()) {
+    try {
+      const current = lstatSync(owned.path);
+      if (
+        current.isFile() &&
+        !current.isSymbolicLink() &&
+        current.dev === owned.dev &&
+        current.ino === owned.ino
+      ) {
+        unlinkSync(owned.path);
+      }
+    } catch {
+      // Preserve the original prepare error; leave unverified material intact.
+    }
+  }
+  try {
+    const current = lstatSync(output);
+    if (
+      current.isDirectory() &&
+      current.dev === directoryIdentity.dev &&
+      current.ino === directoryIdentity.ino
+    ) {
+      // This succeeds only if the directory contains no other files.
+      rmdirSync(output);
+    }
+  } catch {
+    // Unknown external files/consumers must never be cleaned recursively.
+  }
+}
+
 export function prepare({ authorityPath, outputDir, chromium, firefox }) {
   const output = resolve(outputDir);
   if (existsSync(output)) {
@@ -1357,29 +1408,38 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
   }
 
   mkdirSync(output, { recursive: false });
-  for (const browser of ["chromium", "firefox"]) {
-    const { metadata, validatedBytes } = checked[browser];
-    writeFileSync(join(output, metadata.filename), validatedBytes, {
-      flag: "wx",
-    });
+  const directoryIdentity = lstatSync(output);
+  const ownedFiles = [];
+  try {
+    for (const browser of ["chromium", "firefox"]) {
+      const { metadata, validatedBytes } = checked[browser];
+      writeExclusiveCandidateOutput(
+        join(output, metadata.filename),
+        validatedBytes,
+        ownedFiles,
+      );
+    }
+
+    const result = {
+      schemaVersion: CANDIDATE_SCHEMA,
+      authoritySha256: authorityReceipt.sha256,
+      source: authority.source,
+      productVersion: authority.productVersion,
+      contractVersion: authority.contractVersion,
+      migrationLevel: authority.migrationLevel,
+      packages,
+    };
+
+    writeExclusiveCandidateOutput(
+      join(output, "B1_RC_MANIFEST.json"),
+      Buffer.from(JSON.stringify(result, null, 2) + "\n"),
+      ownedFiles,
+    );
+    return result;
+  } catch (error) {
+    discardOwnedCandidateOutput(output, directoryIdentity, ownedFiles);
+    throw error;
   }
-
-  const result = {
-    schemaVersion: CANDIDATE_SCHEMA,
-    authoritySha256: authorityReceipt.sha256,
-    source: authority.source,
-    productVersion: authority.productVersion,
-    contractVersion: authority.contractVersion,
-    migrationLevel: authority.migrationLevel,
-    packages,
-  };
-
-  writeFileSync(
-    join(output, "B1_RC_MANIFEST.json"),
-    JSON.stringify(result, null, 2) + "\n",
-    { flag: "wx" },
-  );
-  return result;
 }
 
 export function preflight({ authorityPath, candidateDir }) {
