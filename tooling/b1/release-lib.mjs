@@ -4,7 +4,6 @@ import { createHash, createPublicKey } from "node:crypto";
 import {
   closeSync,
   constants as fsConstants,
-  copyFileSync,
   existsSync,
   fstatSync,
   lstatSync,
@@ -538,10 +537,24 @@ export function readZip(bytes) {
       }
     }
 
+    // Only DOS/FAT creator host 0 gives the low external-attribute byte
+    // DOS directory semantics. Unix-created ZIPs may use this byte differently.
+    // Reject DOS-marked directories masquerading as files, but do not require
+    // the optional flag on slash-terminated directory entries.
+    if (
+      madeBy >>> 8 === 0 &&
+      !isDirectory &&
+      (externalAttributes & 0x10) !== 0
+    ) {
+      fail("ZIP DOS directory attribute/path mismatch");
+    }
+
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     const fileType = unixMode & 0xf000;
+    // OS X (ZIP creator host 19) also uses POSIX file type bits.
+    const unixLikeCreator = [3, 19].includes(madeBy >>> 8);
     if (
-      madeBy >> 8 === 3 &&
+      unixLikeCreator &&
       fileType !== 0 &&
       fileType !== 0x8000 &&
       fileType !== 0x4000
@@ -552,7 +565,7 @@ export function readZip(bytes) {
     // An explicit Unix type must agree with the entry name. Otherwise a ZIP
     // can pass preflight as a file but be installed as a directory (or vice versa).
     if (
-      madeBy >> 8 === 3 &&
+      unixLikeCreator &&
       ((fileType === 0x4000 && !isDirectory) ||
         (fileType === 0x8000 && isDirectory))
     ) {
@@ -992,6 +1005,22 @@ function ensureNoStoreDevelopmentMaterial(entries, manifest, reachable) {
       }
     }
   }
+
+  // Popup modules and styles can import additional packaged code that the
+  // immediate HTML src/href scan does not enumerate. Check every executable
+  // text asset, rather than trusting a partial import graph. ZIP entries and
+  // total unpacked bytes are already bounded by readZip.
+  for (const [name, data] of entries) {
+    if (!/\.(?:js|mjs|cjs|html?|css)$/i.test(name)) continue;
+    if (
+      STORE_BACKGROUND_FORBIDDEN_MARKERS.some((marker) =>
+        data.includes(marker),
+      ) ||
+      STORE_POPUP_FORBIDDEN_MARKERS.some((marker) => data.includes(marker))
+    ) {
+      fail("Package executable asset contains development-only material");
+    }
+  }
 }
 
 function escapedIdentifierChar(source, offset, expected) {
@@ -1280,12 +1309,16 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   }
 
   return {
-    filename: basename(actualPath),
-    sha256: sha256(bytes),
-    bytes: bytes.length,
-    inventoryCount: entries.size,
-    version: manifest.version,
-    browser,
+    metadata: {
+      filename: basename(actualPath),
+      sha256: sha256(bytes),
+      bytes: bytes.length,
+      inventoryCount: entries.size,
+      version: manifest.version,
+      browser,
+    },
+    // The same bytes are published; do not reopen mutable input ZIP files.
+    validatedBytes: bytes,
   };
 }
 
@@ -1310,9 +1343,13 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
 
   const authorityReceipt = readAuthority(authorityPath, output);
   const authority = authorityReceipt.value;
-  const packages = {
+  const checked = {
     chromium: checkPackage(chromium, "chromium", authority),
     firefox: checkPackage(firefox, "firefox", authority),
+  };
+  const packages = {
+    chromium: checked.chromium.metadata,
+    firefox: checked.firefox.metadata,
   };
 
   if (packages.chromium.filename === packages.firefox.filename) {
@@ -1320,13 +1357,11 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
   }
 
   mkdirSync(output, { recursive: false });
-  for (const source of [chromium, firefox]) {
-    const sourcePath = realpathSync(resolve(source));
-    copyFileSync(
-      sourcePath,
-      join(output, basename(sourcePath)),
-      fsConstants.COPYFILE_EXCL,
-    );
+  for (const browser of ["chromium", "firefox"]) {
+    const { metadata, validatedBytes } = checked[browser];
+    writeFileSync(join(output, metadata.filename), validatedBytes, {
+      flag: "wx",
+    });
   }
 
   const result = {
@@ -1409,7 +1444,12 @@ export function preflight({ authorityPath, candidateDir }) {
     if (!existsSync(packagePath)) {
       fail("Candidate package is missing");
     }
-    const actual = checkPackage(packagePath, browser, authority, candidateRoot);
+    const actual = checkPackage(
+      packagePath,
+      browser,
+      authority,
+      candidateRoot,
+    ).metadata;
     if (
       row.filename !== actual.filename ||
       row.sha256 !== actual.sha256 ||
