@@ -24,14 +24,19 @@ export async function verifyPopupInitialState(candidate) {
   };
   let requests = 0, release;
   const storeRequests = [];
-  const ctx = { $: node, renderOnboarding() {}, refresh: async () => {},
+  const ctx = { $: node, navigator: { userAgent: "Chromium" }, renderOnboarding() {}, refresh: async () => {},
     actionSuccessText: () => "done", scheduleRefresh() {}, renderRecovery() {}, startStatusText: () => null,
     texts: { AUTH_REQUIRED: "fixture auth required" }, document: { createElement: () => ({}) },
     request: async (type, fields) => { storeRequests.push({ type, fields }); return { store: { id: "fixture-store" } }; },
     send: () => { requests++; return new Promise(resolve => { release = resolve; }); } };
   vm.createContext(ctx);
-  vm.runInContext("let state, busy=false, actionGeneration=0, refreshGeneration=0, refreshRequested=false, r3Review=null, marketplace='ozon', selectedId='', editingId=null, confirmAction=null;\n" +
-    source.slice(actionStart, actionEnd) + source.slice(renderStart, renderEnd) +
+  // This isolated render fixture has no native browser channel; evaluate the
+  // actual capability check so render and its dependencies stay in sync.
+  const pickerStart = source.indexOf("function nativeBackupPickerAvailable()");
+  const pickerEnd = source.indexOf("async function ensureNativeBackupBridge()", pickerStart);
+  assert.ok(pickerStart >= 0 && pickerEnd > pickerStart);
+  vm.runInContext("const durableImportMode=false; let state, busy=false, actionGeneration=0, refreshGeneration=0, refreshRequested=false, r3Review=null, marketplace='ozon', selectedId='', editingId=null, confirmAction=null;\n" +
+    source.slice(pickerStart, pickerEnd) + source.slice(actionStart, actionEnd) + source.slice(renderStart, renderEnd) +
     source.slice(source.indexOf("function selected()"), source.indexOf("function onboardingModel")) +
     source.slice(source.indexOf("function closeCard()"), source.indexOf('for (const id of ["ozon", "wildberries"])', source.indexOf("function closeCard()"))) +
     source.slice(source.indexOf('$("add").onclick'), source.indexOf('$("start").onclick')), ctx);
