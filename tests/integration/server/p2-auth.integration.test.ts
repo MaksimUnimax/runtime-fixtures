@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -34,7 +35,8 @@ async function q<T extends Record<string, unknown> = Record<string, unknown>>(
   return db.query<T>(text, values);
 }
 async function clear() {
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE audit_events,auth_rate_limit_buckets,otp_email_jobs,otp_challenges,portal_sessions,user_identities,account_memberships,accounts,users CASCADE",
   );
   await q(
@@ -1112,6 +1114,6 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
           "SELECT count(*)::text count FROM drizzle.__drizzle_migrations",
         )
       ).rows[0]!.count,
-    ).toBe("48");
+    ).toBe("50");
   });
 });

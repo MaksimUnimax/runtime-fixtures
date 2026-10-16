@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "../../../../tests/integration/server/helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -108,7 +109,8 @@ describe.sequential(
     }, 60_000);
     beforeEach(async () => {
       now = start;
-      await db.query(
+      await resetTransferProtectedTestFixture(
+        db,
         "TRUNCATE admin_sessions,admin_role_grants,admin_principals,audit_events,portal_sessions,user_identities,accounts,users CASCADE",
       );
     });

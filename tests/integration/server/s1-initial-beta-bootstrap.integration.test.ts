@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it, afterAll } from "vitest";
 import { BetaAdmissionService } from "../../../packages/server/beta-access/src/index.js";
@@ -24,7 +25,8 @@ async function q<T extends Record<string, unknown> = Record<string, unknown>>(
 }
 
 async function reset() {
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE beta_admission_mutations,beta_admission_state,audit_events,admin_role_grants,admin_principals,users CASCADE",
   );
   await q(

@@ -68,6 +68,111 @@ describe("C03 acquisition deadline", () => {
     expect(listenerRemoved).toBe(true);
   });
 
+  it("bounds cancellation even when an oversized body stream never settles cancel", async () => {
+    let cancelCalls = 0;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry: { ...entry, maximumBytes: 8 },
+          timeoutMs: 30,
+          fetcher: async () =>
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controller.enqueue(new Uint8Array(16));
+                },
+                cancel() {
+                  cancelCalls += 1;
+                  return new Promise<void>(() => undefined);
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            ),
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 180);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("BODY_CANCEL_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+      expect(cancelCalls).toBe(1);
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+    }
+  });
+
+  it("bounds a stalled body read even if an injected adapter ignores its signal", async () => {
+    let cancelCalls = 0;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry,
+          timeoutMs: 30,
+          fetcher: async () =>
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controller.enqueue(new TextEncoder().encode("{"));
+                },
+                cancel() {
+                  cancelCalls += 1;
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            ),
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 180);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("BODY_READ_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      expect(cancelCalls).toBe(1);
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+    }
+  });
+
+  it("bounds a bodyless adapter whose arrayBuffer ignores the shared signal", async () => {
+    let arrayBufferCalls = 0;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const response = new Response(null, {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+    Object.defineProperty(response, "arrayBuffer", {
+      value: () => {
+        arrayBufferCalls += 1;
+        return new Promise<ArrayBuffer>(() => undefined);
+      },
+    });
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry,
+          timeoutMs: 30,
+          fetcher: async () => response,
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 180);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("BODYLESS_ARRAYBUFFER_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      expect(arrayBufferCalls).toBe(1);
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+    }
+  });
+
   it("does not hang past the total deadline when redirect-body cancellation never settles", async () => {
     let requests = 0;
     const signals: AbortSignal[] = [];
@@ -110,6 +215,56 @@ describe("C03 acquisition deadline", () => {
       expect(signals[0]?.aborted).toBe(true);
     } finally {
       if (watchdog) clearTimeout(watchdog);
+    }
+  });
+
+  it("bounds a stalled header fetcher and cancels a response arriving after timeout", async () => {
+    let requests = 0;
+    let lateCancelCalls = 0;
+    let completeHeaders: ((response: Response) => void) | undefined;
+    let requestSignal: AbortSignal | undefined;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry,
+          timeoutMs: 30,
+          fetcher: async (_input, init) => {
+            requests += 1;
+            requestSignal = init?.signal ?? undefined;
+            return new Promise<Response>((resolve) => {
+              completeHeaders = resolve;
+            });
+          },
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 180);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("FETCHER_HEADERS_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      expect(requests).toBe(1);
+      expect(requestSignal?.aborted).toBe(true);
+      completeHeaders?.(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            cancel() {
+              lateCancelCalls += 1;
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+      await vi.waitFor(() => expect(lateCancelCalls).toBe(1), {
+        timeout: 150,
+        interval: 5,
+      });
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+      // Release the injected adapter even when the negative test fails.
+      completeHeaders?.(new Response(null, { status: 204 }));
     }
   });
 
