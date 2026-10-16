@@ -120,6 +120,52 @@ describe("B2 feedback/support safety foundation", () => {
     },
   );
 
+  it.each([
+    [
+      '{"password":123456,"requestId":"safe-101"}',
+      "123456",
+      '"requestId":"safe-101"',
+    ],
+    [
+      '{"clientSecret":-12.5e3,"requestId":"safe-102"}',
+      "-12.5e3",
+      '"requestId":"safe-102"',
+    ],
+    [
+      "{'access_token':'synthetic-private-B456','requestId':'safe-103'}",
+      "synthetic-private-B456",
+      "'requestId':'safe-103'",
+    ],
+    [
+      "{'clientSecret':'synthetic-private-C789','requestId':'safe-104'}",
+      "synthetic-private-C789",
+      "'requestId':'safe-104'",
+    ],
+  ])(
+    "redacts scalar or single-quoted diagnostic secret while preserving safe metadata: %s",
+    (raw, secret, safe) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain(secret);
+      expect(sanitized).toContain("[REDACTED_SECRET]");
+      expect(sanitized).toContain(safe);
+    },
+  );
+
+  it("preserves valid JSON structure after masking numeric credential values", () => {
+    const raw = '{"password":123456,"requestId":"safe-105"}';
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-105",
+    });
+  });
+
+  it("preserves both pseudo-JSON quote delimiters around a masked value", () => {
+    const raw = "{'clientSecret':'synthetic-private-C789'}";
+    expect(sanitizeFeedbackText(raw)).toBe(
+      "{'clientSecret':'[REDACTED_SECRET]'}",
+    );
+  });
+
   it("fails closed for invalid JSON key escapes without removing safe metadata", () => {
     const raw =
       '{"access_token\\q":"synthetic-malformed-key-private","requestId":"request-kept"}';
