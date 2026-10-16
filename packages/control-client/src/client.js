@@ -1625,6 +1625,19 @@
         !validAuthOwnership()) throw error("AUTH_GENERATION_CHANGED");
     return true;
   }
+  // Backup authority is pinned once before crypto and remains synchronous at
+  // the catalog write barrier, including logout/re-login to the same account.
+  function assertBackupContext(context) {
+    return assertCredentialTransferContext(context);
+  }
+  async function captureBackupContext() {
+    await init();
+    const accountId = state.authority?.payload?.account?.id;
+    if (!state.credentials || !accountId) throw error("AUTH_REQUIRED");
+    const context = Object.freeze(contextForState({ accountId }));
+    assertBackupContext(context);
+    return context;
+  }
   function transferRecordMatches(record, auth) {
     return Boolean(record && record.accountId === auth.accountId && record.recipientDeviceId === auth.credentials.deviceId && record.sessionId === auth.sessionId);
   }
@@ -1885,7 +1898,7 @@
     const detected = await promptTreeDetected(identity);
     return treeCache().validatePinned(detected, pin);
   }
-  const api = { getPromptTree, validatePromptTreePin, restore: init, status: async (identity = null) => { await init(); const decision = await workDecisionFor(identity); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async (identity = null) => { await init(); const decision = await workDecisionFor(identity); return isCurrentScopedDecision(decision); }, getAuthority: authorityFor, canContinueCached, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, assertCredentialTransferContext, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, acquireBootstrapPreflight, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
+  const api = { getPromptTree, validatePromptTreePin, restore: init, status: async (identity = null) => { await init(); const decision = await workDecisionFor(identity); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async (identity = null) => { await init(); const decision = await workDecisionFor(identity); return isCurrentScopedDecision(decision); }, getAuthority: authorityFor, canContinueCached, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, captureBackupContext, assertBackupContext, createCredentialTransfer, assertCredentialTransferContext, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, acquireBootstrapPreflight, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
   consentApi?.onWithdrawal?.(handleTechnicalPermissionWithdrawal);
   globalThis.SellerAgentsControlClient = Object.freeze(api);
 })();

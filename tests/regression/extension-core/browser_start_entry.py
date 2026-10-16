@@ -239,6 +239,10 @@ def main():
             })""")
             assert len(observed_turns["user"]) == 1, observed_turns
             assert len(observed_turns["assistant"]) == 1, observed_turns
+            # These must be two independent witnesses: a duplicate turn ID
+            # plus an unrelated proof ID must never make first Start pass.
+            assert (observed_turns["user"][0] and observed_turns["assistant"][0] and
+                    observed_turns["user"][0] != observed_turns["assistant"][0]), observed_turns
             proof_ids = set(proof["message_ids"])
             assert len(proof_ids) >= 2, proof
             assert set(observed_turns["user"] + observed_turns["assistant"]) <= proof_ids, proof
