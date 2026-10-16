@@ -69,6 +69,21 @@ class BackupPostgresIndependentTest(unittest.TestCase):
                 self.config.database_url + "?options=unsupported"
             )
 
+    def test_explicit_zero_port_is_rejected_instead_of_defaulted(self) -> None:
+        # A configured port zero must not silently redirect pg_dump to 5432.
+        for scheme in ("postgresql", "postgres"):
+            with self.subTest(scheme=scheme):
+                with self.assertRaisesRegex(BackupError, "DATABASE_URL_PORT_INVALID"):
+                    parse_database_url(
+                        f"{scheme}://fixture:fixture_pw@127.0.0.1:0/octoport"
+                    )
+
+    def test_absent_and_valid_explicit_ports_keep_existing_meanings(self) -> None:
+        implicit = "postgresql://fixture:fixture_pw@127.0.0.1/octoport"
+        explicit = "postgresql://fixture:fixture_pw@127.0.0.1:5433/octoport"
+        self.assertEqual(parse_database_url(implicit).port, 5432)
+        self.assertEqual(parse_database_url(explicit).port, 5433)
+
     def test_independent_mount_guard_rejects_same_storage(self) -> None:
         with self.assertRaisesRegex(
             BackupError, "BACKUP_DESTINATION_NOT_INDEPENDENT"
