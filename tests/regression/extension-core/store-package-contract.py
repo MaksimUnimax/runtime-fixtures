@@ -156,6 +156,13 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
         root / "chromium", mode="store", release_authority=auth
     )
     manifest = json.loads((runtime / "manifest.json").read_text(encoding="utf-8"))
+    # The owner requires file import in the original toolbar popup, never a side panel.
+    # Validate the actual generated manifest in both build modes.
+    development_manifest = json.loads((development_runtime / "manifest.json").read_text(encoding="utf-8"))
+    assert "sidePanel" not in development_manifest.get("permissions", [])
+    assert "side_panel" not in development_manifest
+    assert "sidePanel" not in manifest.get("permissions", [])
+    assert "side_panel" not in manifest
     assert manifest["name"] == "Октопорт — Ozon + Wildberries"
     assert manifest["action"]["default_title"] == "Октопорт"
     assert manifest["icons"] == {
@@ -209,6 +216,8 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     firefox_manifest = json.loads(
         (root / "firefox-runtime" / "manifest.json").read_text(encoding="utf-8")
     )
+    assert "sidePanel" not in firefox_manifest.get("permissions", [])
+    assert "side_panel" not in firefox_manifest
     assert firefox_receipt["build_mode"] == "store"
     assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.37_FIREFOX_STORE.zip"
     for size, icon in firefox_manifest["icons"].items():

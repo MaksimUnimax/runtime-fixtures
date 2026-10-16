@@ -121,6 +121,20 @@ class VersionPolicyTests(unittest.TestCase):
             {k: v for k, v in current.items() if k not in ("native_backup_panel", "qwen_guest")},
         )
 
+    def test_original_toolbar_popup_replaces_panel_from_0237(self):
+        previous = route.version_route_profile("0.2.36", "0.2.36")
+        current = route.version_route_profile("0.2.37", "0.2.37")
+        self.assertTrue(previous["native_backup_panel"])
+        self.assertFalse(current["native_backup_panel"])
+        self.assertTrue(previous["qwen_guest"])
+        self.assertTrue(current["qwen_guest"])
+        self.assertTrue(previous["page_entry_recovery"])
+        self.assertTrue(current["page_entry_recovery"])
+        self.assertEqual(
+            {key: value for key, value in previous.items() if key != "native_backup_panel"},
+            {key: value for key, value in current.items() if key != "native_backup_panel"},
+        )
+
     def test_unknown_and_future_not_in_recipe_rejected(self):
         for version in (
             "0.2.14",
