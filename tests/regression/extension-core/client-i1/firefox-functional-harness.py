@@ -246,11 +246,20 @@ def action_text(driver):
     )
 
 
+def action_ready(driver):
+    return driver.execute_script(
+        """
+        const button=document.querySelector('#ozon-bridge-own-button-host')?.shadowRoot?.querySelector('.ozon-bridge-block-action');
+        return !!(button && button.isConnected && !button.disabled);
+        """
+    )
+
+
 def click_action(driver):
     return driver.execute_script(
         """
         const button=document.querySelector('#ozon-bridge-own-button-host')?.shadowRoot?.querySelector('.ozon-bridge-block-action');
-        if(!button) return false;
+        if(!button || !button.isConnected || button.disabled) return false;
         button.click();
         return true;
         """
@@ -595,7 +604,8 @@ def run(args):
             stage = "command_button_wait"
             wait.until(
                 lambda d: action_count(d) == 1
-                and action_text(d).strip().upper() in {"WB", "WILDBERRIES"}
+                and action_text(d).strip() == "Октопорт"
+                and action_ready(d)
             )
             provider_before_command = sum(row["host"] in PROVIDER_HOSTS for row in state.rows)
             stage = "command_click"
@@ -753,7 +763,8 @@ def run(args):
             stage = "ozon_command_button_wait"
             wait.until(
                 lambda d: action_count(d) == 1
-                and action_text(d).strip().upper() == "OZON"
+                and action_text(d).strip() == "Октопорт"
+                and action_ready(d)
             )
             provider_before_ozon_command = sum(
                 row["host"] in PROVIDER_HOSTS for row in state.rows
@@ -863,6 +874,10 @@ def run(args):
                     result["failureChat"] = {
                         "actionCount": action_count(driver),
                         "actionText": action_text(driver),
+                        "ownButtonDisabled": driver.execute_script(
+                            "const b=document.querySelector('#ozon-bridge-own-button-host')?.shadowRoot?.querySelector('.ozon-bridge-block-action'); return b?b.disabled:null"),
+                        "ownButtonBridgeBusyTitle": driver.execute_script(
+                            "const b=document.querySelector('#ozon-bridge-own-button-host')?.shadowRoot?.querySelector('.ozon-bridge-block-action'); return !!b?.title?.includes('bridge занят')"),
                         "sentCount": driver.execute_script("return Array.isArray(window.sent)?window.sent.length:null"),
                         "readyState": driver.execute_script("return document.readyState"),
                         "scriptCount": driver.execute_script("return document.scripts.length"),
