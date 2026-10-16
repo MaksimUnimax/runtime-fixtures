@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import subprocess
@@ -12,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import backup_postgres_independent as backup_module
 from backup_postgres_independent import (
     BackupConfig,
     BackupError,
@@ -476,6 +478,141 @@ class BackupPostgresIndependentTest(unittest.TestCase):
             )
         self.assertEqual(sentinel.read_text(), "preserve")
         self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
+    def test_dangling_symlink_final_name_collision_fails_closed(self) -> None:
+        # Path.exists() is false for a dangling symlink, but its directory
+        # entry still occupies the chosen immutable backup name.
+        body = b"collision-dangling-link"
+        digest = hashlib.sha256(body).hexdigest()
+        final = self.dest / f"backup-20260925T153000Z-{digest[:12]}"
+        unknown_target = self.dest / "preserve-unknown-target"
+        final.symlink_to(unknown_target)
+        self.assertTrue(final.is_symlink())
+        self.assertFalse(final.exists())
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            if args[0] == "/fixture/pg_dump":
+                Path(args[args.index("--file") + 1]).write_bytes(body)
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[0] == "/fixture/pg_restore":
+                return subprocess.CompletedProcess(
+                    args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+                )
+            raise AssertionError(args)
+
+        with self.assertRaisesRegex(BackupError, "BACKUP_DESTINATION_COLLISION"):
+            run_backup(
+                self.config,
+                mount_lookup=self.mount_lookup,
+                device_id=self.device_id,
+                disk_free=lambda _path: 10**9,
+                runner=runner,
+                which=lambda name: f"/fixture/{name}",
+                now=lambda: datetime(
+                    2026, 9, 25, 15, 30, 0, tzinfo=timezone.utc
+                ),
+            )
+        self.assertTrue(final.is_symlink())
+        self.assertEqual(final.readlink(), unknown_target)
+        self.assertFalse(unknown_target.exists())
+        self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
+    def test_racing_final_name_creation_is_not_replaced(self) -> None:
+        body = b"collision-concurrent-empty-directory"
+        digest = hashlib.sha256(body).hexdigest()
+        final = self.dest / f"backup-20260925T154500Z-{digest[:12]}"
+        sentinel = final / "preserve.txt"
+        publisher = backup_module._publish_directory_noreplace
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            if args[0] == "/fixture/pg_dump":
+                Path(args[args.index("--file") + 1]).write_bytes(body)
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[0] == "/fixture/pg_restore":
+                return subprocess.CompletedProcess(
+                    args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+                )
+            raise AssertionError(args)
+
+        def inject_race_before_atomic_publish(temporary, destination):
+            self.assertEqual(destination, final)
+            destination.mkdir()
+            sentinel.write_text("preserve-existing-entry")
+            return publisher(temporary, destination)
+
+        with patch(
+            "backup_postgres_independent._publish_directory_noreplace",
+            side_effect=inject_race_before_atomic_publish,
+        ):
+            with self.assertRaisesRegex(
+                BackupError, "BACKUP_DESTINATION_COLLISION"
+            ):
+                run_backup(
+                    self.config,
+                    mount_lookup=self.mount_lookup,
+                    device_id=self.device_id,
+                    disk_free=lambda _path: 10**9,
+                    runner=runner,
+                    which=lambda name: f"/fixture/{name}",
+                    now=lambda: datetime(
+                        2026, 9, 25, 15, 45, 0, tzinfo=timezone.utc
+                    ),
+                )
+        self.assertEqual(sentinel.read_text(), "preserve-existing-entry")
+        self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
+    def test_atomic_publication_unavailable_fails_closed(self) -> None:
+        body = b"synthetic-atomic-publish-unsupported"
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            if args[0] == "/fixture/pg_dump":
+                Path(args[args.index("--file") + 1]).write_bytes(body)
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[0] == "/fixture/pg_restore":
+                return subprocess.CompletedProcess(
+                    args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+                )
+            raise AssertionError(args)
+
+        with patch(
+            "backup_postgres_independent.ctypes.CDLL",
+            side_effect=OSError("renameat2 unavailable"),
+        ):
+            with self.assertRaisesRegex(
+                BackupError, "BACKUP_ATOMIC_PUBLISH_UNAVAILABLE"
+            ):
+                run_backup(
+                    self.config,
+                    mount_lookup=self.mount_lookup,
+                    device_id=self.device_id,
+                    disk_free=lambda _path: 10**9,
+                    runner=runner,
+                    which=lambda name: f"/fixture/{name}",
+                    now=lambda: datetime(
+                        2026, 9, 25, 16, 0, 0, tzinfo=timezone.utc
+                    ),
+                )
+        self.assertFalse(list(self.dest.glob("backup-*")))
+        self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
+    def test_atomic_publish_unexpected_errno_is_bounded(self) -> None:
+        with patch("backup_postgres_independent.ctypes.CDLL") as loader:
+            loader.return_value.renameat2.return_value = -1
+            with patch(
+                "backup_postgres_independent.ctypes.get_errno",
+                return_value=errno.EACCES,
+            ):
+                with self.assertRaisesRegex(
+                    BackupError, "BACKUP_DESTINATION_PUBLISH_FAILED"
+                ):
+                    backup_module._publish_directory_noreplace(
+                        self.dest / "synthetic-staged",
+                        self.dest / "synthetic-final",
+                    )
+        loader.assert_called_once_with(None, use_errno=True)
 
     def test_empty_restore_listing_is_rejected_and_cleaned(self) -> None:
         def runner(argv, **_kwargs):
