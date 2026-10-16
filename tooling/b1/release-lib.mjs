@@ -1445,7 +1445,10 @@ export function preflight({ authorityPath, candidateDir }) {
       fail("Candidate package is missing");
     }
     const actual = checkPackage(
-      packagePath, browser, authority, candidateRoot,
+      packagePath,
+      browser,
+      authority,
+      candidateRoot,
     ).metadata;
     if (
       row.filename !== actual.filename ||
