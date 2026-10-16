@@ -190,6 +190,83 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         )
 
 
+    def test_nonobject_json_manifests_do_not_count_as_verified(self) -> None:
+        verified = self._existing_backup(
+            77, "2026-09-16T00:00:00Z", b"one-verified-archive"
+        )
+        damaged = []
+        for index, value in enumerate((None, [], "partial-record", 0)):
+            path = self.dest / f"backup-corrupt-type-{index}"
+            path.mkdir()
+            (path / "manifest.json").write_text(json.dumps(value) + "\n")
+            (path / "database.dump").write_bytes(b"synthetic-unverified")
+            damaged.append(path)
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            self.assertEqual(args[0], "/fixture/pg_restore")
+            return subprocess.CompletedProcess(
+                args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+            )
+
+        listed = _verified_backup_directories(
+            self.dest, pg_restore="/fixture/pg_restore", runner=runner
+        )
+        self.assertEqual([path for _, path in listed], [verified])
+        self.assertEqual(
+            _apply_retention(
+                self.dest, 1, pg_restore="/fixture/pg_restore", runner=runner
+            ),
+            [],
+        )
+        self.assertTrue(verified.exists())
+        self.assertTrue(all(path.exists() for path in damaged))
+
+    def test_backup_success_preserves_corrupt_manifest_shape_and_valid_retention(
+        self,
+    ) -> None:
+        verified = [
+            self._existing_backup(
+                index, f"2026-09-{index + 10:02d}T00:00:00Z",
+                f"previous-good-{index}".encode(),
+            )
+            for index in range(7)
+        ]
+        malformed = self.dest / "backup-json-null-shape"
+        malformed.mkdir()
+        (malformed / "manifest.json").write_text("null\n")
+        (malformed / "database.dump").write_bytes(b"keep-unknown-evidence")
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            if args[0] == "/fixture/pg_dump":
+                Path(args[args.index("--file") + 1]).write_bytes(b"new-good")
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[0] == "/fixture/pg_restore":
+                return subprocess.CompletedProcess(
+                    args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+                )
+            raise AssertionError(args)
+
+        result = run_backup(
+            self.config,
+            mount_lookup=self.mount_lookup,
+            device_id=self.device_id,
+            disk_free=lambda _path: 10**9,
+            runner=runner,
+            which=lambda name: f"/fixture/{name}",
+            now=lambda: datetime(2026, 10, 1, 12, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["retainedSuccessful"], 7)
+        self.assertFalse(verified[0].exists())
+        self.assertTrue(all(path.exists() for path in verified[1:]))
+        self.assertTrue(malformed.exists())
+        self.assertEqual(
+            (malformed / "manifest.json").read_text(), "null\n"
+        )
+        self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
     def test_unverified_manifest_does_not_displace_verified_backups(self) -> None:
         verified = [
             self._existing_backup(
