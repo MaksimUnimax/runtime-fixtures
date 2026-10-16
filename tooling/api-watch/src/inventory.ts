@@ -253,24 +253,96 @@ function securityFingerprint(
   return fingerprint({ requirements, schemes }, "literal");
 }
 
-function parametersFingerprint(
+// Operation parameters override Path Item parameters with the same name and
+// location (OAS 2 and 3). Resolve local references before identifying them.
+function effectiveParameters(
   operation: Record<string, unknown>,
-  pathParameters: unknown[],
+  pathParameters: readonly unknown[],
+  root: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const effective = new Map<string, Record<string, unknown>>();
+  let unresolvedIndex = 0;
+  const add = (raw: unknown) => {
+    const parameter = asObject(localRef(raw, root));
+    const identity =
+      typeof parameter.name === "string" && typeof parameter.in === "string"
+        ? JSON.stringify([
+            parameter.in === "header"
+              ? parameter.name.toLowerCase()
+              : parameter.name,
+            parameter.in,
+          ])
+        : "unresolved:" + unresolvedIndex++;
+    effective.set(identity, parameter);
+  };
+  for (const parameter of pathParameters) add(parameter);
+  for (const parameter of Array.isArray(operation.parameters)
+    ? operation.parameters
+    : [])
+    add(parameter);
+  return [...effective.values()];
+}
+
+function parametersFingerprint(
+  parameters: readonly Record<string, unknown>[],
   root: Record<string, unknown>,
 ): string {
-  const all = [
-    ...pathParameters,
-    ...(Array.isArray(operation.parameters) ? operation.parameters : []),
-  ];
-  const projected = all
-    .map((raw) => {
-      const parameter = asObject(localRef(raw, root));
+  const openapi3 =
+    typeof root.openapi === "string" && /^3\./u.test(root.openapi);
+  const projected = parameters
+    .map((parameter) => {
+      // Header field names are case-insensitive on the wire. Canonicalize both
+      // override identity and fingerprints, but not path/query/cookie names.
+      const serialized =
+        parameter.in === "header" && typeof parameter.name === "string"
+          ? { ...parameter, name: parameter.name.toLowerCase() }
+          : parameter;
+      const locationStyle =
+        parameter.in === "query" || parameter.in === "cookie"
+          ? "form"
+          : parameter.in === "path" || parameter.in === "header"
+            ? "simple"
+            : null;
+      const effectiveStyle =
+        typeof parameter.style === "string" ? parameter.style : locationStyle;
       return Object.fromEntries(
-        Object.entries(parameter)
-          .filter(
-            ([key]) =>
-              key !== "description" && key !== "example" && key !== "examples",
-          )
+        Object.entries(serialized)
+          .filter(([key, value]) => {
+            if (
+              key === "description" ||
+              key === "example" ||
+              key === "examples"
+            )
+              return false;
+            // OAS 3 parameter serialization uses location-dependent defaults.
+            // Drop only an explicit default so older hashes for omitted fields stay unchanged.
+            if (openapi3) {
+              if (key === "style" && value === locationStyle) return false;
+              if (
+                key === "explode" &&
+                typeof value === "boolean" &&
+                effectiveStyle !== null &&
+                value === (effectiveStyle === "form")
+              )
+                return false;
+            }
+            if (value !== false) return true;
+            // Explicit default false has the same meaning as omission.
+            // Retain required:false on path parameters: OAS requires true there.
+            if (key === "required" && parameter.in !== "path") return false;
+            if (!openapi3) {
+              if (parameter.in === "query" && key === "allowEmptyValue")
+                return false;
+              return true;
+            }
+            if (key === "deprecated") return false;
+            if (
+              parameter.in === "query" &&
+              (key === "allowEmptyValue" || key === "allowReserved")
+            )
+              return false;
+            return true;
+          })
           .sort(([a], [b]) => a.localeCompare(b)),
       );
     })
@@ -280,17 +352,14 @@ function parametersFingerprint(
 
 function requestFingerprint(
   operation: Record<string, unknown>,
-  parameters: unknown[],
+  parameters: readonly Record<string, unknown>[],
   root: Record<string, unknown>,
 ): string | null {
   if (operation.requestBody !== undefined)
     return schemaFingerprint(operation.requestBody, root);
-  const bodies = [
-    ...parameters,
-    ...(Array.isArray(operation.parameters) ? operation.parameters : []),
-  ]
-    .filter((raw) => asObject(raw).in === "body")
-    .map((raw) => asObject(raw).schema ?? null);
+  const bodies = parameters
+    .filter((parameter) => parameter.in === "body")
+    .map((parameter) => parameter.schema ?? null);
   return bodies.length
     ? schemaFingerprint(bodies, root, "node", "schema")
     : null;
@@ -304,7 +373,60 @@ function responseFingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
         const response = asObject(localRef(raw, root));
-        return [status, response.schema ?? response.content ?? null];
+        const body = response.schema ?? response.content ?? null;
+        // Response headers are contract fields, not just response annotations.
+        // HTTP header names are case-insensitive; OAS ignores Content-Type here.
+        const headers = Object.entries(asObject(response.headers))
+          .filter(([name]) => name.toLowerCase() !== "content-type")
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([name, rawHeader]) => {
+            const header = asObject(localRef(rawHeader, root));
+            const normalized = Object.fromEntries(
+              Object.entries(header).filter(([key, value]) => {
+                if (
+                  key === "description" ||
+                  key === "example" ||
+                  key === "examples"
+                )
+                  return false;
+                if (
+                  value === false &&
+                  (key === "required" || key === "deprecated")
+                )
+                  return false;
+                if (key === "style" && value === "simple") return false;
+                if (
+                  key === "explode" &&
+                  value === false &&
+                  (header.style === undefined || header.style === "simple")
+                )
+                  return false;
+                return true;
+              }),
+            );
+            return [name.toLowerCase(), normalized] as const;
+          });
+        // Two differently cased HTTP header names are one wire-level header.
+        // Do not silently discard either conflicting declaration: represent
+        // only ambiguous maps as an array, preserving prior ordinary hashes.
+        const seenHeaderNames = new Set<string>();
+        const hasCaseCollision = headers.some(([name]) => {
+          const repeated = seenHeaderNames.has(name);
+          seenHeaderNames.add(name);
+          return repeated;
+        });
+        // Preserve prior fingerprints for responses without semantic headers.
+        return [
+          status,
+          headers.length > 0
+            ? {
+                body,
+                headers: hasCaseCollision
+                  ? headers
+                  : Object.fromEntries(headers),
+              }
+            : body,
+        ];
       }),
     ),
     "named-fields",
@@ -341,20 +463,11 @@ function securityReferences(
 
 function hasRequestBody(
   operation: Record<string, unknown>,
-  pathParameters: unknown[],
+  parameters: readonly Record<string, unknown>[],
 ): boolean {
   if (operation.requestBody && typeof operation.requestBody === "object")
     return true;
-  const operationParameters = Array.isArray(operation.parameters)
-    ? operation.parameters
-    : [];
-  return [...pathParameters, ...operationParameters].some(
-    (parameter) =>
-      parameter &&
-      typeof parameter === "object" &&
-      !Array.isArray(parameter) &&
-      (parameter as Record<string, unknown>).in === "body",
-  );
+  return parameters.some((parameter) => parameter.in === "body");
 }
 
 export function buildCompleteOperationInventory(input: {
@@ -372,7 +485,6 @@ export function buildCompleteOperationInventory(input: {
     const pathParameterValues = Array.isArray(pathItem.parameters)
       ? pathItem.parameters
       : [];
-    const pathParameters = pathParameterValues.length;
     for (const method of HTTP_METHODS) {
       const operation = pathItem[method.toLowerCase()];
       if (
@@ -383,6 +495,11 @@ export function buildCompleteOperationInventory(input: {
         continue;
       const op = operation as Record<string, unknown>;
       const normalized = normalizedPath(path);
+      const parameters = effectiveParameters(
+        op,
+        pathParameterValues,
+        document.root,
+      );
       const summary = typeof op.summary === "string" ? op.summary : null;
       const responses = asObject(op.responses);
       const operationPath = `${input.sourceFamily}:${method}:${normalized}`;
@@ -401,21 +518,11 @@ export function buildCompleteOperationInventory(input: {
             ? null
             : createHash("sha256").update(summary).digest("hex"),
         securitySchemeReferences: securityReferences(op, document.root),
-        requestBodyPresent: hasRequestBody(op, pathParameterValues),
-        parameterCount:
-          pathParameters +
-          (Array.isArray(op.parameters) ? op.parameters.length : 0),
+        requestBodyPresent: hasRequestBody(op, parameters),
+        parameterCount: parameters.length,
         responseStatusKeys: Object.keys(responses).sort(),
-        parameterSchemaSha256: parametersFingerprint(
-          op,
-          pathParameterValues,
-          document.root,
-        ),
-        requestSchemaSha256: requestFingerprint(
-          op,
-          pathParameterValues,
-          document.root,
-        ),
+        parameterSchemaSha256: parametersFingerprint(parameters, document.root),
+        requestSchemaSha256: requestFingerprint(op, parameters, document.root),
         responseSchemaSha256: responseFingerprint(responses, document.root),
         securityRequirementsSha256: securityFingerprint(op, document.root),
       });

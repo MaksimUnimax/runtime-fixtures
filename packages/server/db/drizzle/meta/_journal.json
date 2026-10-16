@@ -337,6 +337,20 @@
       "when": 1791630000000,
       "tag": "0059_ai_prompt_trees",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791907800000,
+      "tag": "0060_credential_transfer_epoch_fence",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791907801000,
+      "tag": "0061_credential_transfer_function_acl_hardening",
+      "breakpoints": true
     }
   ]
 }

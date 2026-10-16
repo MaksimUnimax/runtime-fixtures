@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -26,7 +27,8 @@ const roles: AdminRole[] = [
 ];
 
 async function clean() {
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE admin_sessions,admin_role_grants,admin_principals,audit_events,sessions,devices,account_memberships,user_identities,portal_sessions,accounts,users CASCADE",
   );
 }

@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -37,7 +38,8 @@ const createdAt = new Date("2030-09-06T12:00:00.000Z");
 const occurredAt = new Date("2030-09-07T12:05:00.000Z");
 
 async function clean() {
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE billing_reconciliation_jobs,checkout_intents,billing_events,subscription_transitions,payments,subscriptions,price_sale_assignments,account_entitlement_overrides,price_revisions,plan_entitlements,prices,plan_revisions,entitlement_definitions,plans,audit_events,account_memberships,accounts,users CASCADE",
   );
   clock = new Date("2030-09-07T12:10:00.000Z");

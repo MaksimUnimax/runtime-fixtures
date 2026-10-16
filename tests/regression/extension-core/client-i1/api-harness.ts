@@ -9,9 +9,13 @@ import {
 import { readFileSync, writeFileSync } from "node:fs";
 import { createApiApp } from "../../../../apps/api/src/app.js";
 import {
+  createI1TransferFixtureLifecycle,
+  createI1SignalCleanup,
+  requireI1DisposableDatabase,
+} from "./transfer-fixture-lifecycle.js";
+import {
   createAuthRepository,
   createBetaAdmissionRepository,
-  createCredentialTransferRepository,
   createDatabaseRuntime,
   createDeviceAuthorizationRepository,
   createDeviceManagementRepository,
@@ -26,6 +30,7 @@ import {
 import {
   DeviceManagementService,
   PreEntitlementDeviceLimitResolver,
+  type DeviceLimitResolver,
 } from "@product/device-management";
 import {
   ExtensionAuthService,
@@ -38,6 +43,7 @@ import {
 import type { BootstrapAiResolutionService } from "@product/bootstrap";
 import { profileRevisionFingerprint } from "@product/adapter-registry";
 import {
+  signBootstrapSnapshot,
   signBootstrapSnapshotV2,
   signHealthClaimV1,
   verifyBootstrapEnvelopeV2,
@@ -125,6 +131,11 @@ const accessSigning = {
   keyId: fixtureKeyId,
 };
 const database = createDatabaseRuntime(process.env.DATABASE_URL!);
+const i1Transfer = createI1TransferFixtureLifecycle(
+  database,
+  requireI1DisposableDatabase(process.env.DATABASE_URL),
+);
+let harnessClosing = false;
 const betaAdmission = new BetaAdmissionService(
   createBetaAdmissionRepository(database),
 );
@@ -138,7 +149,7 @@ const deviceAuth = new DeviceAuthorizationService(
   createDeviceAuthorizationRepository(database),
   deriveDeviceAuthKeys(root),
 );
-const deviceLimitResolver =
+const deviceLimitResolver: DeviceLimitResolver =
   process.env.SA_I1_ALLOW_TWO_DEVICES === "1"
     ? {
         resolve: async () => ({
@@ -397,6 +408,8 @@ const bootstrap = new BootstrapService(
     }),
   },
   {
+    sign: async (keyId, payload) =>
+      signBootstrapSnapshot(payload, keyId, signing.privateKey),
     signV2: async (keyId, payload) =>
       signBootstrapSnapshotV2(payload, keyId, signing.privateKey),
     signHealth: async (keyId, claim) =>
@@ -427,7 +440,7 @@ const bootstrap = new BootstrapService(
   fixtureLocalClientAuthority,
 );
 const r5cTransferService = new R5CTestCredentialTransferService(
-  createCredentialTransferRepository(database),
+  i1Transfer.repository,
 );
 const app = createApiApp({
   config: {
@@ -437,7 +450,7 @@ const app = createApiApp({
     apiPort,
     workerReadyDelayMs: 0,
   },
-  isInfrastructureReady: async () => true,
+  isInfrastructureReady: async () => !harnessClosing && i1Transfer.isReady(),
   authService: auth,
   deviceAuthorizationService: deviceAuth,
   deviceManagementService: deviceManagement,
@@ -454,7 +467,7 @@ const safeNetworkEvents: Array<{
 }> = [];
 if (networkEvidencePath)
   app.addHook("onResponse", async (request, reply) => {
-    const rawPath = request.url.split("?", 1)[0];
+    const rawPath = request.url.split("?", 1)[0]!;
     if (!rawPath.startsWith("/v1/")) return;
     const path = rawPath.replace(
       /^\/v1\/device-authorizations\/[0-9a-f-]{36}(?=\/|$)/i,
@@ -610,7 +623,7 @@ async function prepareExistingFixtureAccounts(): Promise<void> {
     );
     if (collision.rows.length)
       throw new Error(
-        `fixture UUID collision in ${collision.rows[0].table_name}`,
+        `fixture UUID collision in ${collision.rows[0]!.table_name}`,
       );
     await tx.query("INSERT INTO users(id) VALUES($1),($2)", userIds);
     await tx.query("INSERT INTO accounts(id) VALUES($1),($2)", accountIds);
@@ -632,7 +645,7 @@ async function prepareExistingFixtureAccounts(): Promise<void> {
     capacity: number;
     admitted: number;
   }>("SELECT mode,capacity,admitted FROM beta_admission_state WHERE id=1");
-  const before = betaBefore.rows[0],
+  const before = betaBefore.rows[0]!,
     after = betaAfter.rows[0];
   const unchanged = Boolean(
     after &&
@@ -659,7 +672,52 @@ async function prepareExistingFixtureAccounts(): Promise<void> {
       }),
     );
 }
+let closePromise: Promise<void> | undefined;
+function closeHarness(): Promise<void> {
+  harnessClosing = true;
+  if (closePromise) return closePromise;
+  closePromise = (async () => {
+    const errors: unknown[] = [];
+    try {
+      await app.close();
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await i1Transfer.stop();
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await database.close();
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length)
+      throw new AggregateError(errors, "I1_HARNESS_CLEANUP_FAILED");
+  })();
+  return closePromise;
+}
+let harnessSignalled = false;
+const finishSignalCleanup = createI1SignalCleanup(
+  closeHarness,
+  (code, reason) => {
+    if (code !== 0) console.error(`I1_HARNESS_SIGNAL_CLEANUP_${reason}`);
+    process.exit(code);
+  },
+);
+const onTerminationSignal = () => {
+  harnessSignalled = true;
+  harnessClosing = true;
+  if (process.env.SA_I1_LIFECYCLE_EVIDENCE === "1")
+    console.log("I1_HARNESS_TERMINATION_REQUESTED");
+  finishSignalCleanup();
+};
+process.once("SIGINT", onTerminationSignal);
+process.once("SIGTERM", onTerminationSignal);
 void (async () => {
+  await i1Transfer.start();
+  if (harnessClosing) throw new Error("I1_HARNESS_STOPPED_BEFORE_LISTEN");
   if (fixtureKeysPath && !persistedKeys)
     writeFileSync(
       fixtureKeysPath,
@@ -695,13 +753,19 @@ void (async () => {
       JSON.stringify(publicTrustBundle),
     );
   await prepareExistingFixtureAccounts();
+  if (harnessClosing) throw new Error("I1_HARNESS_STOPPED_BEFORE_LISTEN");
   await app.listen({ host: "127.0.0.1", port: apiPort });
-  process.once("SIGINT", async () => {
-    await app.close();
-    await database.close();
-  });
-  process.once("SIGTERM", async () => {
-    await app.close();
-    await database.close();
-  });
-})();
+  if (harnessClosing) await closeHarness();
+})().catch(async (error: unknown) => {
+  try {
+    await closeHarness();
+  } catch (cleanupError) {
+    throw new AggregateError(
+      [error, cleanupError],
+      "I1_HARNESS_START_AND_CLEANUP_FAILED",
+    );
+  }
+  // The signal owner decides exit after cleanup; a late setup continuation
+  // cannot convert successful requested shutdown into an unhandled rejection.
+  if (!harnessSignalled) throw error;
+});

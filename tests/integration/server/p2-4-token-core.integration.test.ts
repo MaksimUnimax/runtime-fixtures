@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -31,7 +32,8 @@ const service = () =>
     signingKey,
   );
 async function truncate() {
-  await query(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE audit_events,auth_rate_limit_buckets,refresh_tokens,sessions,devices,device_authorizations,portal_sessions,user_identities,account_memberships,accounts,users CASCADE",
   );
 }
