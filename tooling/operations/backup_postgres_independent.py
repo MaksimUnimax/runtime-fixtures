@@ -146,19 +146,22 @@ def lookup_mount(
     path: Path,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> MountIdentity:
-    completed = runner(
-        [
-            "findmnt",
-            "--json",
-            "--output",
-            "TARGET,SOURCE,FSTYPE",
-            "--target",
-            str(path),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        completed = runner(
+            [
+                "findmnt",
+                "--json",
+                "--output",
+                "TARGET,SOURCE,FSTYPE",
+                "--target",
+                str(path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise BackupError("BACKUP_MOUNT_LOOKUP_INVALID") from error
     try:
         payload = json.loads(completed.stdout)
         item = payload["filesystems"][0]
