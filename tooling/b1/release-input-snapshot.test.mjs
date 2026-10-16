@@ -298,3 +298,27 @@ test("a failed prepare preserves external files in the output directory", () => 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+
+test("release package filenames differing only by case are rejected before output creation", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-casefold-output-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const firstDir = join(root, "first");
+    const secondDir = join(root, "second");
+    mkdirSync(firstDir);
+    mkdirSync(secondDir);
+    const chromium = join(firstDir, "Release.ZIP");
+    const firefox = join(secondDir, "release.zip");
+    fs.copyFileSync(packages.chromium, chromium);
+    fs.copyFileSync(packages.firefox, firefox);
+    const outputDir = join(root, "prepared");
+    assert.throws(
+      () => prepare({ authorityPath, outputDir, chromium, firefox }),
+      /Package filenames .*case-insensitive collision/,
+    );
+    assert.equal(fs.existsSync(outputDir), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

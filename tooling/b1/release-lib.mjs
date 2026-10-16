@@ -1403,8 +1403,13 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
     firefox: checked.firefox.metadata,
   };
 
-  if (packages.chromium.filename === packages.firefox.filename) {
-    fail("Package filenames must be distinct");
+  // Reject output basenames that collide on case-insensitive filesystems.
+  // The same candidate must remain portable across release hosts.
+  if (
+    packages.chromium.filename.normalize("NFC").toLowerCase() ===
+    packages.firefox.filename.normalize("NFC").toLowerCase()
+  ) {
+    fail("Package filenames have a case-insensitive collision");
   }
 
   mkdirSync(output, { recursive: false });
