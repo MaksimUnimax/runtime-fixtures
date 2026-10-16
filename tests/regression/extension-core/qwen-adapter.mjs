@@ -95,4 +95,19 @@ await test("a filename or upload spinner is insufficient; exact finished TXT car
  assert.equal(f.adapter.attachmentReady([{filename:"report.pdf"}]),false);assert.equal(f.adapter.attachmentReady(),false);
  f.setComposers([f.composer,new Element()]);assert.equal(f.adapter.attachmentReady(descriptors),false);
 });
+await test("composed Qwen profile routes complete reports at the UTF16 cutoff",()=>{
+ const source=readFileSync(root+"apps/extension/src/imported/ozon-v0.1.22/shared/ai_delivery_capabilities.js","utf8");
+ const patches=JSON.parse(readFileSync(root+"apps/extension/application-patches.json","utf8")).filter(p=>p.target==="shared/ai_delivery_capabilities.js");
+ let composed=source;
+ for(const p of patches){assert.equal(composed.split(p.old).length,2);composed=composed.replace(p.old,p.new);}
+ const box={URL,TextEncoder};runInNewContext(composed,box);
+ const capabilities=box.OzonAIDeliveryCapabilities;
+ assert.equal(capabilities.adapterIdForOrigin("https://chat.qwen.ai"),"qwen");
+ assert.equal(capabilities.generatedTextDecision("qwen","a".repeat(4096)).representation,"plain_text");
+ assert.equal(capabilities.generatedTextDecision("qwen","a".repeat(4097)).representation,"text_document");
+ assert.equal(capabilities.generatedTextDecision("qwen","😀".repeat(2049)).representation,"text_document");
+ assert.equal(capabilities.fileDispatchDecision("qwen",{filename:"full-report.txt",byte_length:16384}).dispatch_allowed,true);
+ assert.equal(capabilities.fileDispatchDecision("qwen",{filename:"other.pdf",byte_length:16384}).dispatch_allowed,false);
+ assert.equal(capabilities.profile("qwen").max_files_per_turn,1);
+});
 console.log(JSON.stringify({level:"SOURCE",passed,installed:"NOT_RUN",providerCalls:0,sendCalls:0}));
