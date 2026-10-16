@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "stage": "I1-C1",
-  "version": "0.2.36",
+  "version": "0.2.37",
   "purpose": "LOCAL_DEVELOPMENT_CANDIDATE_DEVICE_AUTH_SIGNED_ACCOUNT_BINDING",
   "control_api_origin": "http://127.0.0.1:43100",
   "portal_origin": "http://127.0.0.1:43101",
@@ -62,6 +62,7 @@
     "packages/bridge-core/src/execution/observed-quota.js",
     "apps/extension/src/background/context/runtime-context.js",
     "apps/extension/src/application/technical-scheduler.js",
+    "apps/extension/src/background/backup-file-selection.js",
     "apps/extension/src/background/compat/qwen-code-reader.js"
   ],
   "worker_initializer": {

@@ -280,4 +280,106 @@ await run("POPUP-IMPORT-SENDER", "import route admits only explicit preview/impo
     assert.equal(box.saBackupImportSender({url}, "SA_BACKUP_IMPORT"), false);
 });
 
+
+const pickerSource = fs.readFileSync(new URL("../../../../apps/extension/src/background/backup-file-selection.js", import.meta.url), "utf8");
+function pickerFixture() {
+  const channels = new Map(), timers = new Map(), opens = [], storage = [];
+  let connect, timerId = 0, epoch = 1, now = 1000, active = true, focused = true, uuid = 0;
+  class Channel {
+    constructor(name) { this.name = name; this.sent = []; channels.set(name, this); }
+    postMessage(data) { this.sent.push(structuredClone(data)); }
+    close() { this.closed = true; }
+  }
+  const ctx = { File, BroadcastChannel: Channel, Date: { now: () => now },
+    crypto: { randomUUID: () => "picker-" + ++uuid },
+    setTimeout: (fn, ms) => { timers.set(++timerId, {fn, ms}); return timerId; },
+    clearTimeout: id => timers.delete(id),
+    SellerAgentsControlClient: {
+      captureBackupContext: async () => ({ epoch }),
+      assertBackupContext: context => { if (context.epoch !== epoch) throw new Error("STALE"); }
+    },
+    chrome: {
+      runtime: { id: "fixture", getURL: p => "chrome-extension://fixture/" + p,
+        onConnect: { addListener: fn => { connect = fn; } } },
+      storage: { onChanged: { addListener: fn => storage.push(fn) } },
+      tabs: { get: async id => ({ id, windowId: 4, active }) },
+      windows: { get: async () => ({ focused }) },
+      action: { openPopup: async options => { opens.push(options); } }
+    }
+  };
+  vm.createContext(ctx); vm.runInContext(pickerSource, ctx, {filename: "backup-file-selection.js"});
+  const flush = async () => { for (let i = 0; i < 40; i++) await Promise.resolve(); };
+  async function popup(url = "chrome-extension://fixture/popup.html") {
+    let message, disconnect;
+    const replies = [], port = { name: "SA_BACKUP_FILE_PICKER_V1", sender: {id: "fixture", url},
+      postMessage: data => replies.push(data), disconnect: () => { port.rejected = true; },
+      onMessage: {addListener: fn => {message = fn;}}, onDisconnect: {addListener: fn => {disconnect = fn;}} };
+    connect(port);
+    const send = async (type, values = {}) => { message({type, requestId: replies.length + 1, ...values}); await flush(); return replies.at(-1); };
+    if (port.rejected) return {port};
+    const hello = await send("hello", {windowId: 4, tabId: 7});
+    const channel = channels.get(hello.channel);
+    return {port, send, channel, close: async () => {disconnect(); await flush();}};
+  }
+  return { popup, opens, flush,
+    invalidate() {epoch++; storage.forEach(fn => fn({seller_agents_control_auth_v2: {}}, "local"));},
+    active(value) {active = value;}, focused(value) {focused = value;},
+    advance(ms) {now += ms;},
+    expire(ms) {for (const [id, timer] of [...timers]) if (timer.ms === ms) {timers.delete(id); timer.fn();}},
+    result(p, id, file = new File(["synthetic"], "keys.json")) {
+      p.channel.onmessage({data: {type: "result", pickId: id, file, password: "synthetic-password"}});
+    }
+  };
+}
+await run("POPUP-FILE-RAM-RESTORE", "native File survives popup destruction and is restored once only to its original surface", async () => {
+  const f = pickerFixture(), first = await f.popup(), pick = await first.send("prepare");
+  f.result(first, pick.pickId); await first.close();
+  assert.equal(f.opens.length, 1); assert.equal(f.opens[0].windowId, 4);
+  const restored = await f.popup(); await restored.send("ready");
+  const data = restored.channel.sent[0];
+  assert.equal(data.file.name, "keys.json"); assert.equal(data.password, "synthetic-password");
+  assert.equal(await data.file.text(), "synthetic");
+  await restored.send("restored", {pickId: data.pickId}); await restored.close();
+  const next = await f.popup(); await next.send("ready");
+  assert.equal(next.channel.sent.length, 0); assert.equal(f.opens.length, 1);
+});
+await run("POPUP-FILE-RAM-LATE-RESULT", "queued File received after disconnect is retained without replay", async () => {
+  const f = pickerFixture(), p = await f.popup(), pick = await p.send("prepare");
+  await p.close(); f.result(p, pick.pickId); await f.flush();
+  f.result(p, pick.pickId); await f.flush(); assert.equal(f.opens.length, 1);
+  const late = pickerFixture(), q = await late.popup(), old = await q.send("prepare");
+  await q.close(); late.advance(5001); late.expire(5000); late.result(q, old.pickId); await late.flush();
+  assert.equal(late.opens.length, 0);
+});
+await run("POPUP-FILE-RAM-FENCES", "account, tab, focus, nonce and sender fences reject stale recovery", async () => {
+  for (const change of ["account", "tab", "focus", "nonce", "expired"]) {
+    const f = pickerFixture(), p = await f.popup(), pick = await p.send("prepare");
+    f.result(p, change === "nonce" ? "wrong" : pick.pickId);
+    if (change === "account") f.invalidate();
+    if (change === "tab") f.active(false);
+    if (change === "focus") f.focused(false);
+    if (change === "expired") f.advance(1501);
+    await p.close(); assert.equal(f.opens.length, 0, change);
+  }
+  const f = pickerFixture();
+  for (const url of ["https://example.com/popup.html", "chrome-extension://fixture/popup.html#backup-import", "chrome-extension://other/popup.html"])
+    assert.equal((await f.popup(url)).port.rejected, true);
+});
+await run("POPUP-FILE-RAM-CANCEL-CLEAR", "cancel, size bound, explicit clear and replaced selections keep import explicit", async () => {
+  for (const mode of ["cancel", "large", "clear", "replace"]) {
+    const f = pickerFixture(), p = await f.popup(), pick = await p.send("prepare");
+    const file = mode === "cancel" ? null : new File([mode === "large" ? new Uint8Array(8 * 1024 * 1024 + 1) : "synthetic"], "keys.json");
+    f.result(p, pick.pickId, file);
+    if (mode === "clear") await p.send("clear", {pickId: pick.pickId});
+    if (mode === "replace") {await p.send("prepare"); f.result(p, pick.pickId, file);}
+    await p.close();
+    assert.equal(f.opens.length, mode === "clear" || mode === "replace" ? 0 : 1, mode);
+    if (mode === "cancel" || mode === "large") {
+      const q = await f.popup(); await q.send("ready");
+      assert.equal(q.channel.sent[0].file, null);
+      assert.equal(q.channel.sent[0].error, mode === "large" ? "BACKUP_FILE_TOO_LARGE" : null);
+    }
+  }
+});
+
 console.log(JSON.stringify({ suite: "A24", cases: results.length, results }, null, 2));
