@@ -195,3 +195,106 @@ test("unchanged synthetic packages prepare and preflight with metadata only", ()
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+
+test("simulated write failure removes only files created by prepare", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-write-failure-"));
+  const originalWrite = fs.writeFileSync;
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const outputDir = join(root, "prepared");
+    let writes = 0;
+    fs.writeFileSync = (destination, ...rest) => {
+      if (typeof destination === "number" || String(destination).endsWith(".zip")) {
+        writes += 1;
+        if (writes === 2) {
+          if (typeof destination === "number") {
+            // Model a write that creates partial bytes before throwing EIO.
+            originalWrite(destination, Buffer.from("partial"));
+          }
+          const error = new Error("synthetic ZIP write failure");
+          error.code = "EIO";
+          throw error;
+        }
+      }
+      return originalWrite(destination, ...rest);
+    };
+    syncBuiltinESMExports();
+    try {
+      assert.throws(
+        () => prepare({
+          authorityPath,
+          outputDir,
+          chromium: packages.chromium,
+          firefox: packages.firefox,
+        }),
+        { code: "EIO" },
+      );
+    } finally {
+      fs.writeFileSync = originalWrite;
+      syncBuiltinESMExports();
+    }
+    assert.equal(writes, 2);
+    assert.equal(fs.existsSync(outputDir), false, "failed prepare left partial candidate output");
+    const prepared = prepare({
+      authorityPath,
+      outputDir,
+      chromium: packages.chromium,
+      firefox: packages.firefox,
+    });
+    assert.equal(prepared.packages.chromium.sha256, sha(readFileSync(packages.chromium)));
+    assert.equal(preflight({ authorityPath, candidateDir: outputDir }).status, "PASS");
+  } finally {
+    fs.writeFileSync = originalWrite;
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+
+test("a failed prepare preserves external files in the output directory", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-foreign-file-"));
+  const originalWrite = fs.writeFileSync;
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const outputDir = join(root, "prepared");
+    const foreign = join(outputDir, "not-owned.txt");
+    let writes = 0;
+    fs.writeFileSync = (destination, ...rest) => {
+      if (typeof destination === "number" || String(destination).endsWith(".zip")) {
+        writes += 1;
+        if (writes === 2) {
+          originalWrite(foreign, "unrelated data");
+          const error = new Error("synthetic ZIP write failure");
+          error.code = "EIO";
+          throw error;
+        }
+      }
+      return originalWrite(destination, ...rest);
+    };
+    syncBuiltinESMExports();
+    try {
+      assert.throws(
+        () => prepare({
+          authorityPath,
+          outputDir,
+          chromium: packages.chromium,
+          firefox: packages.firefox,
+        }),
+        { code: "EIO" },
+      );
+    } finally {
+      fs.writeFileSync = originalWrite;
+      syncBuiltinESMExports();
+    }
+    assert.equal(writes, 2);
+    assert.equal(readFileSync(foreign, "utf8"), "unrelated data");
+    assert.equal(fs.existsSync(join(outputDir, "chromium.zip")), false);
+    assert.equal(fs.existsSync(join(outputDir, "firefox.zip")), false);
+    assert.equal(fs.existsSync(join(outputDir, "B1_RC_MANIFEST.json")), false);
+  } finally {
+    fs.writeFileSync = originalWrite;
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
