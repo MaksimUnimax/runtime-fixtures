@@ -194,6 +194,8 @@ def verify_independent_mounts(
 
     if not config.destination.is_dir() or not config.destination_mount.is_dir():
         raise BackupError("BACKUP_DESTINATION_NOT_DIRECTORY")
+    if not config.database_data_path.is_dir() or not config.database_data_mount.is_dir():
+        raise BackupError("DATABASE_DATA_NOT_DIRECTORY")
     if not _inside(config.destination, config.destination_mount):
         raise BackupError("BACKUP_DESTINATION_OUTSIDE_MOUNT")
     if not _inside(config.database_data_path, config.database_data_mount):
