@@ -67,6 +67,66 @@ describe("runMigrations", () => {
       }),
     ).rejects.toThrow(failure);
   });
+  for (const stage of ["history", "migration"] as const) {
+    for (const cleanupFails of [false, true]) {
+      it(`preserves undefined ${stage} rejection when cleanup ${cleanupFails ? "fails" : "succeeds"}`, async () => {
+        const close = vi.fn<() => Promise<void>>();
+        if (cleanupFails) close.mockRejectedValue(new Error("close failed"));
+        else close.mockResolvedValue(undefined);
+        const runtime = createRuntime(close);
+        const migrator = vi.fn().mockResolvedValue(undefined);
+        if (stage === "history")
+          vi.mocked(runtime.query).mockRejectedValue(undefined);
+        else migrator.mockRejectedValue(undefined);
+
+        await expect(
+          runMigrations({
+            connectionString: "postgres://example.invalid/test",
+            createRuntime: () => runtime,
+            migrator,
+          }),
+        ).rejects.toBeUndefined();
+
+        expect(close).toHaveBeenCalledOnce();
+        if (stage === "history") expect(migrator).not.toHaveBeenCalled();
+        else expect(migrator).toHaveBeenCalledOnce();
+      });
+    }
+  }
+
+  it.each([null, false, 0, "", new Error("migration failed")])(
+    "preserves original rejection value %s ahead of cleanup failure",
+    async (failure) => {
+      const close = vi
+        .fn<() => Promise<void>>()
+        .mockRejectedValue(new Error("close failed"));
+      await expect(
+        runMigrations({
+          connectionString: "postgres://example.invalid/test",
+          createRuntime: () => createRuntime(close),
+          migrator: vi.fn().mockRejectedValue(failure),
+        }),
+      ).rejects.toBe(failure);
+      expect(close).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([undefined, null, new Error("close failed")])(
+    "propagates cleanup rejection %s after a successful migration",
+    async (failure) => {
+      const close = vi.fn<() => Promise<void>>().mockRejectedValue(failure);
+      const migrator = vi.fn().mockResolvedValue(undefined);
+      await expect(
+        runMigrations({
+          connectionString: "postgres://example.invalid/test",
+          createRuntime: () => createRuntime(close),
+          migrator,
+        }),
+      ).rejects.toBe(failure);
+      expect(migrator).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+    },
+  );
 });
 
 describe("Stream-2 migration receipts", () => {
