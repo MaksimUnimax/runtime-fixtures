@@ -322,3 +322,62 @@ test("release package filenames differing only by case are rejected before outpu
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+
+test("Win32 device-name release ZIP basenames fail before output creation", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-win32-filename-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    for (const [index, filename] of [
+      "CON.zip",
+      "nul.ZIP",
+      "AUX.zip",
+      "Com1.zip",
+      "lpt9.zip",
+      "CON.suffix.zip",
+    ].entries()) {
+      const folder = join(root, "case-" + index);
+      mkdirSync(folder);
+      const reserved = join(folder, filename);
+      fs.copyFileSync(packages.chromium, reserved);
+      const outputDir = join(folder, "prepared");
+      assert.throws(
+        () => prepare({
+          authorityPath,
+          outputDir,
+          chromium: reserved,
+          firefox: packages.firefox,
+        }),
+        /Unsafe package filename/,
+        filename + " is not portable on Windows",
+      );
+      assert.equal(fs.existsSync(outputDir), false, filename);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+
+test("preflight refuses a forged Win32 device-name package manifest", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-win32-preflight-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const candidateDir = join(root, "prepared");
+    prepare({ authorityPath, outputDir: candidateDir, ...packages });
+    const manifestPath = join(candidateDir, "B1_RC_MANIFEST.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    fs.renameSync(
+      join(candidateDir, manifest.packages.chromium.filename),
+      join(candidateDir, "NUL.zip"),
+    );
+    manifest.packages.chromium.filename = "NUL.zip";
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.throws(
+      () => preflight({ authorityPath, candidateDir }),
+      /Invalid package metadata/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
