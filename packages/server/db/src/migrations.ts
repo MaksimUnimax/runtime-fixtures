@@ -84,19 +84,21 @@ export async function runMigrations({
   migrationsDirectory = migrationsFolder,
 }: RunMigrationsOptions): Promise<void> {
   const runtime = createRuntime(connectionString);
+  let migrationFailed = false;
   let migrationFailure: unknown;
   try {
     await assertMigrationHistory(runtime, migrationsDirectory);
     await migrator(runtime.db, { migrationsFolder: migrationsDirectory });
   } catch (error) {
+    migrationFailed = true;
     migrationFailure = error;
   }
 
   try {
     await runtime.close();
   } catch (closeError) {
-    if (migrationFailure === undefined) throw closeError;
+    if (!migrationFailed) throw closeError;
   }
 
-  if (migrationFailure !== undefined) throw migrationFailure;
+  if (migrationFailed) throw migrationFailure;
 }
