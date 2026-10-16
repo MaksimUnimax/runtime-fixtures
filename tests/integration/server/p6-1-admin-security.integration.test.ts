@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -34,7 +35,8 @@ async function q<T extends Record<string, unknown> = Record<string, unknown>>(
   return db.query<T>(text, values);
 }
 async function clear() {
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE admin_sessions,admin_role_grants,admin_principals,audit_events,portal_sessions,user_identities,accounts,users CASCADE",
   );
 }
@@ -106,11 +108,11 @@ describe.sequential("P6.1 admin security foundation on real PostgreSQL", () => {
       "admin_sessions",
     ]);
   });
-  it("includes the complete current migration journal through 0059", async () => {
+  it("includes the complete current migration journal through 0061", async () => {
     const rows = await q<{ count: string }>(
       "SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations",
     );
-    expect(rows.rows[0]!.count).toBe("48");
+    expect(rows.rows[0]!.count).toBe("50");
   });
   it("principal user binding is unique", async () => {
     const u = await user();

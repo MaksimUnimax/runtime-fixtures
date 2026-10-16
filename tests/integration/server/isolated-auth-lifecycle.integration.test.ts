@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApiApp } from "../../../apps/api/src/app.js";
 import {
@@ -62,7 +63,8 @@ let deviceNow = new Date();
 const exchangeCalls: Array<{ deviceCode: string; key: string | null }> = [];
 
 async function clear(): Promise<void> {
-  await db.query(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE audit_events,auth_rate_limit_buckets,refresh_tokens,sessions,devices,device_authorizations,otp_email_jobs,otp_challenges,portal_sessions,user_identities,account_memberships,accounts,users CASCADE",
   );
   await db.query(

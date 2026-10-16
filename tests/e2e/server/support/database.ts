@@ -1,6 +1,7 @@
 import { createDatabaseRuntime } from "@product/db";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { resetTransferProtectedTestFixture } from "../../../integration/server/helpers/credential-transfer-fixture-reset.js";
 
 function databaseUrl(): string {
   const value = process.env.DATABASE_URL;
@@ -35,7 +36,9 @@ export async function resetE2eDatabase(): Promise<void> {
   try {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        await database.query(`TRUNCATE TABLE
+        await resetTransferProtectedTestFixture(
+          database,
+          `TRUNCATE
           refresh_tokens, portal_sessions, otp_email_jobs, otp_challenges,
             device_authorizations, sessions, devices, account_memberships,
             user_identities, accounts, users, audit_events,
@@ -57,7 +60,8 @@ export async function resetE2eDatabase(): Promise<void> {
             ai_variants,
             ai_surfaces,
             ai_adapters
-          RESTART IDENTITY CASCADE`);
+          RESTART IDENTITY CASCADE`,
+        );
         break;
       } catch (error) {
         const code =
@@ -110,7 +114,10 @@ export async function resetE2eDatabase(): Promise<void> {
 export async function resetE2eBootstrapSigningMetadata(): Promise<void> {
   const database = createDatabaseRuntime(assertE2eDatabase());
   try {
-    await database.query("TRUNCATE signing_keys CASCADE");
+    await resetTransferProtectedTestFixture(
+      database,
+      "TRUNCATE signing_keys CASCADE",
+    );
   } finally {
     await database.close();
   }
