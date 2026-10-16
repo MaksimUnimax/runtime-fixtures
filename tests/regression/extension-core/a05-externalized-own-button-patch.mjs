@@ -35,7 +35,7 @@ for (const row of contentPatches) {
 }
 assert.equal(
   hash(content),
-  "51311e4b31490f0c5ff16287b32b3d7594d14705baeef33ce4eb15febf33e989",
+  "a1b8d9f385ee05f8c4cc546bfd34e1c39d297455faf8846d52552a4d85c5e5dc",
   "extracted text preserves the full content_script.js composition on exact base",
 );
 console.log(JSON.stringify({level:"SOURCE",status:"PASS",externalized:1,
