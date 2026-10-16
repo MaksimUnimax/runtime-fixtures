@@ -69,6 +69,26 @@ class BackupPostgresIndependentTest(unittest.TestCase):
                 self.config.database_url + "?options=unsupported"
             )
 
+    def test_malformed_bracketed_ipv6_authority_is_normalized(self) -> None:
+        # urllib.parse raises ValueError before the backup CLI can report
+        # a bounded BackupError for a malformed URL authority.
+        for scheme in ("postgresql", "postgres"):
+            with self.subTest(scheme=scheme):
+                with self.assertRaisesRegex(
+                    BackupError, "DATABASE_URL_AUTHORITY_INVALID"
+                ):
+                    parse_database_url(
+                        f"{scheme}://fixture:synthetic@[::1/synthetic"
+                    )
+
+    def test_valid_bracketed_ipv6_authority_remains_supported(self) -> None:
+        parsed = parse_database_url(
+            "postgresql://fixture:synthetic@[::1]:5433/synthetic"
+        )
+        self.assertEqual(parsed.host, "::1")
+        self.assertEqual(parsed.port, 5433)
+        self.assertEqual(parsed.database, "synthetic")
+
     def test_explicit_zero_port_is_rejected_instead_of_defaulted(self) -> None:
         # A configured port zero must not silently redirect pg_dump to 5432.
         for scheme in ("postgresql", "postgres"):

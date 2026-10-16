@@ -88,10 +88,18 @@ def require_environment(environment: Mapping[str, str]) -> BackupConfig:
 
 
 def parse_database_url(value: str) -> DatabaseConnection:
-    parsed = urlparse(value)
+    try:
+        parsed = urlparse(value)
+    except ValueError as error:
+        raise BackupError("DATABASE_URL_AUTHORITY_INVALID") from error
     if parsed.scheme not in {"postgresql", "postgres"}:
         raise BackupError("DATABASE_URL_SCHEME_INVALID")
-    if not parsed.hostname or parsed.username is None:
+    try:
+        host = parsed.hostname
+        username = parsed.username
+    except ValueError as error:
+        raise BackupError("DATABASE_URL_AUTHORITY_INVALID") from error
+    if not host or username is None:
         raise BackupError("DATABASE_URL_AUTHORITY_INVALID")
     database = unquote(parsed.path.lstrip("/"))
     if not database:
@@ -115,10 +123,10 @@ def parse_database_url(value: str) -> DatabaseConnection:
         pg_environment[ALLOWED_QUERY_ENV[key]] = values[0]
 
     return DatabaseConnection(
-        host=parsed.hostname,
+        host=host,
         port=port,
         database=database,
-        user=unquote(parsed.username),
+        user=unquote(username),
         password=unquote(parsed.password) if parsed.password is not None else None,
         pg_environment=pg_environment,
     )
