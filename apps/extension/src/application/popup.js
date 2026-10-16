@@ -238,6 +238,7 @@ function render() {
   renderRecovery();
 }
 function scheduleRefresh() {
+  refreshGeneration++; // Invalidate an older response before the debounce delay.
   refreshRequested = true;
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
@@ -257,6 +258,45 @@ async function refresh(first = false) {
   if (first && state.context.store_id) { const current = state.stores.find(s => s.id === state.context.store_id); if (current) { selectedId = current.id; marketplace = current.marketplace; } }
   render();
   await refreshFirefoxTechnicalConsent();
+}
+function popupAuthChangeNeedsRefresh(change) {
+  // Status reads durably advance these clocks themselves. Reacting to that
+  // progress starts another read and can invalidate every pending response.
+  // Keep every other field, including denial/expiry and unknown policy data.
+  const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
+  try {
+    const snapshot = (value, previous) => {
+      if (!record(value) || value.authStateSchema !== 2 || !record(value.grants)) throw new Error("AUTH_NOTIFICATION_SHAPE");
+      const clock = (current, prior) => {
+        if (current === null && prior == null) return null;
+        const keys = (entry, names) => record(entry) && Object.keys(entry).length === names.length && names.every(key => Object.hasOwn(entry, key));
+        const millis = time => Number.isSafeInteger(time) && time >= 0 && time <= 8640000000000000;
+        const uuid = id => typeof id === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id);
+        const origin = text => typeof text === "string" && new URL(text).origin === text;
+        const owner = current?.owner;
+        if (!keys(current, ["cacheVersion", "owner", "trustedServerTimeMs", "effectiveTimeMs"]) ||
+            current.cacheVersion !== "control_cache_clock_v1" ||
+            !keys(owner, ["controlApiOrigin", "portalOrigin", "contractVersion", "deviceId", "sessionId"]) ||
+            !origin(owner.controlApiOrigin) || !origin(owner.portalOrigin) || typeof owner.contractVersion !== "string" || !owner.contractVersion ||
+            !uuid(owner.deviceId) || !uuid(owner.sessionId) || owner.deviceId !== value.credentials?.deviceId || owner.sessionId !== value.credentials?.sessionId ||
+            !millis(current.trustedServerTimeMs) || !millis(current.effectiveTimeMs) || current.effectiveTimeMs < current.trustedServerTimeMs ||
+            (prior && current.effectiveTimeMs < prior.effectiveTimeMs)) throw new Error("AUTH_NOTIFICATION_CLOCK");
+        const { effectiveTimeMs, ...other } = current;
+        return other;
+      };
+      return { ...value, cacheClock: clock(value.cacheClock, previous?.cacheClock),
+        grants: Object.fromEntries(Object.entries(value.grants).map(([key, grant]) => {
+          if (!record(grant)) throw new Error("AUTH_NOTIFICATION_GRANT");
+          return [key, { ...grant, cacheClock: clock(grant.cacheClock, previous?.grants?.[key]?.cacheClock) }];
+        })) };
+    };
+    const before = snapshot(change?.oldValue);
+    const after = snapshot(change?.newValue, change.oldValue);
+    return JSON.stringify(before) !== JSON.stringify(after);
+  } catch (_) {
+    // Missing, malformed and future schemas always request a fresh decision.
+    return true;
+  }
 }
 function closeCard() { $("card").reset(); $("card").hidden = true; editingId = null; }
 function storeControlsAllowed() {
@@ -395,7 +435,9 @@ firefoxPermissionEvents?.onRemoved?.addListener(() => refreshFirefoxTechnicalCon
 chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => { tabId = tabs[0]?.id; windowId = tabs[0]?.windowId; return refresh(true); }).catch(e => { $("status").textContent = e.message; });
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !Object.keys(changes).some(key => ["seller_agents_control_auth_v2", "seller_agents_stores_v1", "ozmb_work_sessions_v1", "ozmb_pending_work_starts_v1", "ozmb_conversation_bindings", "ozmb_manual_operations"].includes(key))) return;
+  if (area !== "local" || !Object.keys(changes).some(key => key === "seller_agents_control_auth_v2"
+    ? popupAuthChangeNeedsRefresh(changes[key])
+    : ["seller_agents_stores_v1", "ozmb_work_sessions_v1", "ozmb_pending_work_starts_v1", "ozmb_conversation_bindings", "ozmb_manual_operations"].includes(key))) return;
   scheduleRefresh();
 });
 

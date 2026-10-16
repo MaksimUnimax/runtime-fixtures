@@ -40,7 +40,7 @@ def authority(control="https://api.octoport.ru", portal="https://app.octoport.ru
     return {
         "schemaVersion": "octoport_release_authority_v1",
         "source": {"head": "0" * 40, "tree": "1" * 40},
-        "productVersion": "0.2.33",
+        "productVersion": "0.2.34",
         "contractVersion": "control_plane_v2",
         "migrationLevel": 48,
         "environment": "PREPRODUCTION",
@@ -140,7 +140,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     development_runtime, development_extracted, development_receipt = composed.build(
         root / "development"
     )
-    assert development_receipt["version"] == "0.2.33"
+    assert development_receipt["version"] == "0.2.34"
     development_worker = (development_runtime / "service_worker.js").read_bytes()
     assert b'development: config.environment === "LOCAL DEVELOPMENT"' in development_worker
     assert (development_runtime / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
@@ -200,7 +200,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "BETA · результаты сразу в ИИ · буфер до 1 часа" in popup
     assert receipt["build_mode"] == "store"
     assert receipt["environment"] == "PREPRODUCTION"
-    assert receipt["package"]["name"] == "OCTOPORT_v0.2.33_CHROMIUM_STORE.zip"
+    assert receipt["package"]["name"] == "OCTOPORT_v0.2.34_CHROMIUM_STORE.zip"
     assert receipt["package"]["repeat_archive_match"] is True
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
 
@@ -210,7 +210,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
         (root / "firefox-runtime" / "manifest.json").read_text(encoding="utf-8")
     )
     assert firefox_receipt["build_mode"] == "store"
-    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.33_FIREFOX_STORE.zip"
+    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.34_FIREFOX_STORE.zip"
     for size, icon in firefox_manifest["icons"].items():
         verify_rgba_png(root / "firefox-runtime" / icon, int(size))
     assert firefox_manifest["browser_specific_settings"]["gecko"]["id"] == "octoport@octoport.ru"
