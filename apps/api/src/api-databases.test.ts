@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
+import { createRequire } from "node:module";
 import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
 import { createApiDatabases } from "./api-databases.js";
@@ -99,6 +100,125 @@ describe("API database role separation", () => {
       expect(factory).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    "user",
+    "password",
+    "host",
+    "hostaddr",
+    "port",
+    "database",
+    "options",
+    "service",
+    "connectionString",
+    "ssl",
+  ])(
+    "rejects unsupported driver field %s in either URL before allocation",
+    async (key) => {
+      for (const side of ["application", "transfer"]) {
+        const application = new URL(applicationUrl);
+        const transfer = new URL(transferUrl);
+        (side === "application" ? application : transfer).searchParams.set(
+          key,
+          "inert-fixture",
+        );
+        const factory = vi.fn(() => ({ close: async () => {} }));
+        await expect(
+          createApiDatabases(
+            application.toString(),
+            transfer.toString(),
+            factory,
+          ),
+        ).rejects.toThrow("API_DATABASE_ROLE_OR_ENDPOINT_SEPARATION_REQUIRED");
+        expect(factory).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it.each([
+    "postgres://transfer:fixture@/test",
+    "postgres://transfer:fixture@127.0.0.1:5432/",
+    "postgres://transfer:fixture@127.0.0.1:5432/test#fragment",
+    "postgres://transfer:fixture@127.0.0.1:5432/test%2Fother",
+  ])(
+    "rejects incomplete or different effective endpoints without opening pools",
+    async (url) => {
+      const factory = vi.fn(() => ({ close: async () => {} }));
+      await expect(
+        createApiDatabases(applicationUrl, url, factory),
+      ).rejects.toThrow("API_DATABASE_ROLE_OR_ENDPOINT_SEPARATION_REQUIRED");
+      expect(factory).not.toHaveBeenCalled();
+    },
+  );
+
+  it("passes explicit validated identities and default ports to the actual pinned pg parser", async () => {
+    // Load the DB package's existing pinned driver. Parsing opens no pool/socket.
+    const databaseRequire = createRequire(
+      new URL("../../../packages/server/db/package.json", import.meta.url),
+    );
+    const driverRequire = createRequire(databaseRequire.resolve("pg"));
+    const ConnectionParameters = driverRequire(
+      "./connection-parameters.js",
+    ) as new (config: { connectionString: string }) => {
+      user: string;
+      host: string;
+      port: number;
+      database: string;
+    };
+    const parsed: Array<{
+      user: string;
+      host: string;
+      port: number;
+      database: string;
+    }> = [];
+    vi.stubEnv("PGPORT", "6543");
+    vi.stubEnv("PGUSER", "environment-role");
+    vi.stubEnv("PGDATABASE", "environment-database");
+    try {
+      const factory = vi.fn((url: string) => {
+        const parameters = new ConnectionParameters({ connectionString: url });
+        parsed.push({
+          user: parameters.user,
+          host: parameters.host,
+          port: parameters.port,
+          database: parameters.database,
+        });
+        return { close: async () => {} };
+      });
+      const pools = await createApiDatabases(
+        "postgres://application:fixture@127.0.0.1/test?sslmode=verify-full",
+        "postgres://transfer:fixture@127.0.0.1/test?sslmode=verify-full",
+        factory,
+      );
+      expect(parsed).toEqual([
+        {
+          user: "application",
+          host: "127.0.0.1",
+          port: 5432,
+          database: "test",
+        },
+        { user: "transfer", host: "127.0.0.1", port: 5432, database: "test" },
+      ]);
+      expect(
+        factory.mock.calls.every(([url]) => new URL(url).port === "5432"),
+      ).toBe(true);
+      await pools.closeDatabases();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("retains supported TLS certificate parameters without inspecting files in validation", async () => {
+    const application =
+      applicationUrl + "?sslmode=verify-full&sslrootcert=%2Finert%2Fca.pem";
+    const transfer =
+      transferUrl +
+      "?sslmode=verify-full&sslcert=%2Finert%2Fclient.pem&sslkey=%2Finert%2Fclient.key";
+    const factory = vi.fn(() => ({ close: async () => {} }));
+    const pools = await createApiDatabases(application, transfer, factory);
+    expect(factory.mock.calls).toEqual([[application], [transfer]]);
+    await pools.closeDatabases();
+  });
 
   it("closes both pools once even when one close fails", async () => {
     const failure = new Error("application close");

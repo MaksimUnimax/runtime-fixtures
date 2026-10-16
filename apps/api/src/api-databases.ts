@@ -15,17 +15,39 @@ export async function createApiDatabases<T extends ClosableDatabase>(
   let application: URL;
   let transfer: URL;
   try {
-    application = new URL(applicationUrl);
-    transfer = new URL(transferUrl);
-    const postgres = (url: URL) =>
-      url.protocol === "postgres:" || url.protocol === "postgresql:";
-    if (!postgres(application) || !postgres(transfer)) throw new Error();
-    if (!application.username || !transfer.username) throw new Error();
+    const normalize = (value: string) => {
+      const url = new URL(value);
+      if (url.protocol !== "postgres:" && url.protocol !== "postgresql:")
+        throw new Error();
+      if (!url.username || !url.hostname || !url.pathname.slice(1) || url.hash)
+        throw new Error();
+      // pg copies query parameters into its connection configuration. Accept
+      // only TLS fields, which cannot replace LOGIN, host, port or database.
+      const tlsFields = new Set([
+        "sslmode",
+        "sslcert",
+        "sslkey",
+        "sslrootcert",
+      ]);
+      for (const key of url.searchParams.keys())
+        if (!tlsFields.has(key)) throw new Error();
+      decodeURIComponent(url.username);
+      decodeURIComponent(url.password);
+      decodeURIComponent(url.hostname);
+      decodeURI(url.pathname.slice(1));
+      // An omitted port otherwise falls back to PGPORT in pg. Materialize the
+      // validated default in the exact URL passed to the runtime factory.
+      if (!url.port) url.port = "5432";
+      return url;
+    };
+    application = normalize(applicationUrl);
+    transfer = normalize(transferUrl);
     if (
-      application.hostname !== transfer.hostname ||
-      (application.port || "5432") !== (transfer.port || "5432") ||
-      decodeURIComponent(application.pathname) !==
-        decodeURIComponent(transfer.pathname)
+      decodeURIComponent(application.hostname) !==
+        decodeURIComponent(transfer.hostname) ||
+      application.port !== transfer.port ||
+      decodeURI(application.pathname.slice(1)) !==
+        decodeURI(transfer.pathname.slice(1))
     )
       throw new Error();
     if (
@@ -37,10 +59,10 @@ export async function createApiDatabases<T extends ClosableDatabase>(
     // Never expose either connection string or credentials in a diagnostic.
     throw new Error("API_DATABASE_ROLE_OR_ENDPOINT_SEPARATION_REQUIRED");
   }
-  const database = createRuntime(applicationUrl);
+  const database = createRuntime(application.toString());
   let transferDatabase: T;
   try {
-    transferDatabase = createRuntime(transferUrl);
+    transferDatabase = createRuntime(transfer.toString());
   } catch (error) {
     try {
       await database.close();
