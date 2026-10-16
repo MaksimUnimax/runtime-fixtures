@@ -470,8 +470,11 @@ await test("R3-durable-import-panel-rejects-stale-file-password-account-preview"
   const first = source.indexOf("async function openKeyFiles(mode)"), last = source.indexOf("function downloadBackup", first);
   const preview = source.indexOf('$("backup-preview").onclick'), end = source.indexOf("if (durableImportMode) {", preview);
   assert.ok(first >= 0 && last > first && preview > last && end > preview);
-  vm.runInContext('let backupText="",backupPreview=null,backupSelectionRevision=0; const durableImportMode=true; let state={auth:{accountId:"fixture"}};\n' +
-    source.slice(first, last) + source.slice(preview, end), ctx);
+  const pickerStart = source.indexOf("function nativeBackupPickerAvailable()");
+  const pickerEnd = source.indexOf("async function ensureNativeBackupBridge()", pickerStart);
+  assert.ok(pickerStart >= 0 && pickerEnd > pickerStart);
+  vm.runInContext('let nativeBackupBridge=null,nativeBackupPickerPending=false,backupText="",backupPreview=null,backupSelectionRevision=0; const durableImportMode=true; let state={auth:{accountId:"fixture"}};\n' +
+    source.slice(pickerStart, pickerEnd) + source.slice(first, last) + source.slice(preview, end), ctx);
   await node("keys-upload").onclick(); assert.equal(tabs, 0); assert.equal(node("backup-file").focused, true);
   assert.equal(node("backup-file").onclick, undefined, "native picker is not replaced with tab navigation");
   const fileA = { size: 10, text: async () => "file-A" }, fileB = { size: 10, text: async () => "file-B" };

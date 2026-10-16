@@ -6,14 +6,17 @@ const root = path.resolve(import.meta.dirname, "../../..");
 const source = fs.readFileSync(path.join(root, "apps/extension/src/application/popup.js"), "utf8");
 const first = source.indexOf("async function openKeyFiles(mode)"), last = source.indexOf('function invalidateBackupReview(', first);
 assert.ok(first >= 0 && last > first, "native import entry extraction bounds");
-const entry = source.slice(first, last), rows = [];
+const pickerStart = source.indexOf("function nativeBackupPickerAvailable()");
+const pickerEnd = source.indexOf("async function ensureNativeBackupBridge()", pickerStart);
+assert.ok(pickerStart >= 0 && pickerEnd > pickerStart);
+const entry = source.slice(pickerStart, pickerEnd) + source.slice(first, last), rows = [];
 async function test(name, run) { try { await run(); rows.push({ name, status: "PASS" }); }
 catch (error) { rows.push({ name, status: "FAIL", error: error.message }); } }
 function fixture({ durable = false, firefox = false, deny = false } = {}) {
   const nodes = new Map(), calls = [];
   const node = id => { if (!nodes.has(id)) nodes.set(id, { focus() { calls.push("focus:" + id); }, scrollIntoView() { calls.push("scroll:" + id); } }); return nodes.get(id); };
   const open = options => { calls.push(options ? "chrome:" + options.windowId : "firefox"); return deny ? Promise.reject(new Error("denied")) : Promise.resolve(); };
-  const ctx = { $: node, chrome: { sidePanel: { open } }, browser: firefox ? { sidebarAction: { open } } : undefined,
+  const ctx = { $: node, navigator: { userAgent: firefox ? "Firefox/155" : "Chromium" }, chrome: { sidePanel: { open } }, browser: firefox ? { sidebarAction: { open } } : undefined,
     close: () => calls.push("close") };
   vm.createContext(ctx); vm.runInContext("const durableImportMode=" + durable + "; const windowId=4;\n" + entry, ctx);
   return { ctx, node, calls };

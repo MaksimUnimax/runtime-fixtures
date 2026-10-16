@@ -4,6 +4,8 @@ const BACKUP_IMPORT_FRAGMENT = "#backup-import";
 const durableImportMode = globalThis.location?.hash === BACKUP_IMPORT_FRAGMENT;
 let tabId, windowId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
 let backupText = "", backupPreview = null, backupSelectionRevision = 0;
+let nativeBackupBridge = null, nativeBackupBridgeFlight = null;
+let nativeBackupPickerPending = false, nativeBackupPickId = null;
 let r3Review = null;
 let actionGeneration = 0, refreshGeneration = 0;
 let refreshTimer, refreshRequested = false;
@@ -197,6 +199,7 @@ function render() {
   $("compatibility-note").textContent = updateRecommended ? `Подписанная конфигурация рекомендует обновить расширение. Текущая версия пока разрешена.${extensionCompatibility.minimumVersion ? ` Минимально допустимая версия: ${extensionCompatibility.minimumVersion}.` : ""}` : "";
   renderOnboarding();
   if (!authenticated) { closeCard(); confirmAction = null; $("confirmation").hidden = true; selectedId = ""; $("r3-recovery").hidden = true; $("r3-review").hidden = true; r3Review = null; return; }
+  if (nativeBackupPickerAvailable()) void ensureNativeBackupBridge().catch(() => null);
   for (const id of ["ozon", "wildberries"]) $(id).setAttribute("aria-pressed", String(id === marketplace));
   const choices = state.stores.filter(s => s.marketplace === marketplace);
   if (!choices.some(x => x.id === selectedId)) selectedId = choices[0]?.id || "";
@@ -361,8 +364,131 @@ $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
 $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
+function nativeBackupPickerAvailable() {
+  return !durableImportMode && !/Firefox\/\d/i.test(navigator.userAgent || "") &&
+    typeof globalThis.BroadcastChannel === "function" &&
+    typeof chrome.runtime.connect === "function" &&
+    typeof chrome.action?.openPopup === "function" &&
+    typeof $("backup-file").showPicker === "function";
+}
+async function ensureNativeBackupBridge() {
+  if (nativeBackupBridge) return nativeBackupBridge;
+  if (nativeBackupBridgeFlight) return nativeBackupBridgeFlight;
+  if (!nativeBackupPickerAvailable() || !Number.isInteger(tabId) || !Number.isInteger(windowId) || !state?.auth?.authenticated)
+    throw new Error("PICKER_CONTEXT_CHANGED");
+  nativeBackupBridgeFlight = (async () => {
+    const port = chrome.runtime.connect({ name: "SA_BACKUP_FILE_PICKER_V1" });
+    const requests = new Map();
+    const revision = backupSelectionRevision, initialPassword = $("backup-import-password").value;
+    let channel = null, sequence = 0, disconnected = false;
+    const post = message => {
+      if (disconnected) return false;
+      try { port.postMessage(message); return true; } catch (_) { return false; }
+    };
+    const call = type => new Promise((resolve, reject) => {
+      const requestId = ++sequence;
+      const timeout = setTimeout(() => {
+        requests.delete(requestId); reject(new Error("PICKER_CONTEXT_CHANGED"));
+      }, 3000);
+      requests.set(requestId, { resolve, reject, timeout });
+      if (!post({ type, requestId, windowId, tabId })) {
+        clearTimeout(timeout); requests.delete(requestId); reject(new Error("PICKER_CONTEXT_CHANGED"));
+      }
+    });
+    const bridge = {
+      async prepare() {
+        const response = await call("prepare");
+        nativeBackupPickId = response.pickId;
+      },
+      result() {
+        if (!channel || !nativeBackupPickId || disconnected) return;
+        channel.postMessage({ type: "result", pickId: nativeBackupPickId,
+          file: $("backup-file").files?.[0] || null, password: $("backup-import-password").value });
+      },
+      clear() {
+        if (nativeBackupPickId) post({ type: "clear", pickId: nativeBackupPickId });
+        nativeBackupPickId = null;
+      }
+    };
+    port.onMessage.addListener(message => {
+      if (message?.ok === true && message.type === "hello") {
+        channel = new BroadcastChannel(message.channel);
+        channel.onmessage = event => {
+          const data = event.data;
+          if (data?.type !== "restore") return;
+          if (nativeBackupPickerPending || nativeBackupPickId ||
+              revision !== backupSelectionRevision || $("backup-import-password").value !== initialPassword) {
+            post({ type: "clear", pickId: data.pickId }); return;
+          }
+          if (data.file !== null && !(data.file instanceof File)) return;
+          const transfer = new DataTransfer();
+          if (data.file) transfer.items.add(data.file);
+          $("backup-file").files = transfer.files;
+          $("backup-import-password").value = typeof data.password === "string" ? data.password : "";
+          $("backup-file").dispatchEvent(new Event("change", { bubbles: true }));
+          $("backup").scrollIntoView({ block: "start" });
+          if (data.error === "BACKUP_FILE_TOO_LARGE") $("backup-status").textContent = "Файл больше 8 MiB";
+          post({ type: "restored", pickId: data.pickId });
+        };
+        post({ type: "ready" });
+      }
+      const request = requests.get(message?.requestId);
+      if (!request) return;
+      clearTimeout(request.timeout); requests.delete(message.requestId);
+      if (message.ok === true) request.resolve(message);
+      else request.reject(new Error("PICKER_CONTEXT_CHANGED"));
+    });
+    // Messages, rather than an idle port, keep MV3 alive while the OS chooser
+    // is open. The timer exists only for this live popup and makes no requests.
+    const heartbeat = setInterval(() => post({ type: "ping" }), 20000);
+    port.onDisconnect.addListener(() => {
+      void chrome.runtime.lastError;
+      disconnected = true; clearInterval(heartbeat); channel?.close();
+      for (const request of requests.values()) {
+        clearTimeout(request.timeout); request.reject(new Error("PICKER_CONTEXT_CHANGED"));
+      }
+      requests.clear();
+      if (nativeBackupBridge === bridge) nativeBackupBridge = null;
+    });
+    try {
+      await call("hello");
+      nativeBackupBridge = bridge;
+      return bridge;
+    } catch (error) {
+      clearInterval(heartbeat); channel?.close();
+      try { port.disconnect(); } catch (_) { /* already disconnected */ }
+      throw error;
+    }
+  })().finally(() => { nativeBackupBridgeFlight = null; });
+  return nativeBackupBridgeFlight;
+}
+if (nativeBackupPickerAvailable()) {
+  $("backup-file").addEventListener("click", async event => {
+    event.preventDefault();
+    if (nativeBackupPickerPending) return;
+    nativeBackupPickerPending = true;
+    try {
+      const bridge = await ensureNativeBackupBridge();
+      await bridge.prepare();
+      // The standard input's native chooser retains the original action UI.
+      // Only the selected File is cloned to RAM before Chromium discards it.
+      $("backup-file").showPicker();
+    } catch (_) {
+      nativeBackupPickerPending = false;
+      nativeBackupBridge?.clear();
+      $("backup-status").textContent = "Не удалось подготовить выбор файла. Выберите файл заново.";
+    }
+  });
+  $("backup-file").addEventListener("cancel", () => {
+    if (nativeBackupPickerPending) nativeBackupBridge?.result();
+    nativeBackupPickerPending = false;
+  });
+}
 async function openKeyFiles(mode) {
   $("backup").scrollIntoView({ block: "start", behavior: "smooth" });
+  if (mode === "upload" && nativeBackupPickerAvailable()) {
+    try { await ensureNativeBackupBridge(); } catch (_) { /* click reports the exact failure */ }
+  }
   $(mode === "upload" ? "backup-file" : "backup-password").focus();
 }
 $("keys-download").onclick = () => openKeyFiles("download");
@@ -375,14 +501,16 @@ function invalidateBackupReview(inputChanged = false) {
     $("status").textContent = "";
   }
 }
-$("backup-import-password").oninput = () => invalidateBackupReview(true);
+$("backup-import-password").oninput = () => { nativeBackupBridge?.clear(); invalidateBackupReview(true); };
 $("backup-file").onchange = () => {
+  if (nativeBackupPickerPending) nativeBackupBridge?.result();
+  nativeBackupPickerPending = false;
   invalidateBackupReview(true);
   $("backup-status").textContent = $("backup-file").files?.length ? "Файл выбран. Введите пароль и нажмите «Проверить файл»." : "";
 };
-// Use the input's native chooser in the original action popup. Intercepting
-// the click with showOpenFilePicker gives the dialog a different parent on
-// Chromium/Linux and can close the popup before its promise returns.
+// Chromium can deliver the FileList and immediately destroy the action popup.
+// The prepared channel retains that File in RAM and restores only this same
+// native toolbar surface; file text is read solely by explicit Preview below.
 function downloadBackup(name, value) {
   const url = URL.createObjectURL(new Blob([value], { type: "application/json" }));
   const link = document.createElement("a"); link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
@@ -401,6 +529,7 @@ $("backup-export").onclick = () => action(async () => {
   $("backup-status").textContent = `Экспортировано магазинов: ${response.storeCount}. Пропущено без локальных ключей: ${response.skippedStoreCount || 0}. Скачивание запрошено: ${response.fileName}. Проверьте завершение в загрузках браузера.`;
 });
 $("backup-preview").onclick = () => action(async () => {
+  nativeBackupBridge?.clear();
   const file = $("backup-file").files?.[0];
   if (!file) throw new Error("Выберите файл копии");
   if (file.size > 8 * 1024 * 1024) throw new Error("Файл больше 8 MiB");
