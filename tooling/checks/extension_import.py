@@ -109,7 +109,9 @@ def version_route_profile(version, current_version=None):
     return {"marketplace_hosts": patch >= 3, "control_hosts": patch >= 4,
             "corrective_ports": patch >= 1, "application_worker": patch >= 4,
             "page_entry_recovery": patch >= 12,
-            "native_backup_panel": patch >= 16, "qwen_guest": patch >= 16,
+            # Historical 0.2.16–0.2.36 used the auxiliary import panel;
+            # 0.2.37+ returns to the original toolbar popup only.
+            "native_backup_panel": 16 <= patch < 37, "qwen_guest": patch >= 16,
             "version_files": 8 if patch >= 4 else (9 if patch == 3 else 10)}
 
 
