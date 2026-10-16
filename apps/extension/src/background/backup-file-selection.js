@@ -145,11 +145,10 @@
         if (entry?.claimed === endpoint) discard(entry);
         return;
       }
-      if (entry.hasResult && Date.now() - entry.resultAt > RETURN_WINDOW_MS) {
-        discard(entry); return;
-      }
       entry.cleanup = setTimeout(() => discard(entry), entry.hasResult ? 60000 : LATE_RESULT_MS);
-      if (entry.hasResult) void reopen(entry);
+      // A slow teardown must not lose the File. Retain it for the next normal
+      // opening, but do not reopen after a later deliberate popup close.
+      if (entry.hasResult && Date.now() - entry.resultAt <= RETURN_WINDOW_MS) void reopen(entry);
     });
   });
 })();

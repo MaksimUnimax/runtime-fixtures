@@ -361,6 +361,14 @@ await run("POPUP-FILE-RAM-FENCES", "account, tab, focus, nonce and sender fences
     if (change === "expired") f.advance(1501);
     await p.close(); assert.equal(f.opens.length, 0, change);
   }
+  const delayed = pickerFixture(), original = await delayed.popup(), selected = await original.send("prepare");
+  delayed.result(original, selected.pickId); delayed.advance(2000); await original.close();
+  assert.equal(delayed.opens.length, 0, "later deliberate close must not reopen");
+  const recovered = await delayed.popup(); await recovered.send("ready");
+  assert.equal(recovered.channel.sent[0].file.name, "keys.json", "slow teardown retains the selected File");
+  delayed.expire(60000);
+  const expired = await delayed.popup(); await expired.send("ready");
+  assert.equal(expired.channel.sent.length, 0, "bounded RAM retention expires");
   const f = pickerFixture();
   for (const url of ["https://example.com/popup.html", "chrome-extension://fixture/popup.html#backup-import", "chrome-extension://other/popup.html"])
     assert.equal((await f.popup(url)).port.rejected, true);
