@@ -127,7 +127,7 @@ def import_via_popup_ui(fixture: BrowserFixture, backup: Path):
     assert popup.evaluate("fixturePickerCalls") == 1
     assert popup.locator("#backup-file").evaluate("(input) => input.files[0] instanceof File")
     assert not popup.is_closed() and popup.url == popup_url and set(fixture.context.pages) == pages
-    popup.evaluate("globalThis.showOpenFilePicker=globalThis.fixtureOriginalPicker")
+    popup.evaluate("() => { globalThis.showOpenFilePicker=globalThis.fixtureOriginalPicker; }")
     popup.locator("#backup-import-password").fill(PASSWORD)
     popup.click("#backup-preview")
     wait_for(lambda: not popup.locator("#backup-preview-result").is_hidden(), "popup preview")
