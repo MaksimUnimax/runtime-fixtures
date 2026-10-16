@@ -186,7 +186,10 @@ export function createApiApp(
 
   app.addHook("onSend", async (request, reply) => {
     reply.header("x-request-id", correlationId(request));
-    if (request.url.startsWith("/v1/admin/"))
+    if (
+      request.url.startsWith("/v1/admin/") ||
+      request.url.startsWith("/v1/auth/")
+    )
       reply.header("cache-control", "no-store");
   });
   app.setErrorHandler((error, request, reply) => {
