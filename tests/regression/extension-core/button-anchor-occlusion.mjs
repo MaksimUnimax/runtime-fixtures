@@ -89,4 +89,50 @@ run("Multiline code at viewport top does not get an in-code fallback", {
 run("Covered one-line command does not gain a floating fallback", {
   rootAnchor:true,rect:{left:324,top:410,width:892,height:22},covered:true
 });
-console.log(JSON.stringify({status:"PASS",cases:passed,scope:"SOURCE geometry; no live/browser acceptance"}));
+// A provider portal outside main must restore actions without a user scroll.
+// Geometry itself is exercised above; this checks the real observer/event wiring.
+const observerStart=source.indexOf("  function startManualObserver() {");
+const observerEnd=source.indexOf("  function applyManualMode(",observerStart);
+assert.ok(observerStart>=0&&observerEnd>observerStart);
+for(const trigger of ["childList","attributes","transitionend","animationend","messageChildList","mainAdded"]){
+  const html=new Element({}),main=new Element({},html),portal=new Element({},html),events=new Map();
+  let callback,observed,options,placements=0,rescans=0,covered=true,shown=false;
+  const place=()=>{placements++;shown=!covered;};
+  const context={
+    current:()=>true,manualEnabled:true,observer:null,manualConversationKey:"current",
+    conversationKeyFromLocation:()=>"current",syncAllState:()=>assert.fail("unchanged conversation"),
+    decorateExistingBindings:place,scheduleManualRescan:()=>{rescans++;place();},scheduleOwnButtonPositioning:place,
+    document:{documentElement:html,body:html,querySelector:()=>main},
+    window:{addEventListener:(name,fn,capture)=>events.set(name,{fn,capture})},
+    MutationObserver:class{
+      constructor(fn){callback=fn;}
+      observe(target,opts){observed=target;options=opts;}
+    }
+  };
+  vm.createContext(context);
+  vm.runInContext(source.slice(observerStart,observerEnd)+"\nstartManualObserver();",context);
+  assert.equal(shown,false,"covered action stays hidden");
+  assert.equal(placements,1);
+  covered=false;
+  if(trigger==="childList"){
+    // The removed login portal is a sibling of main.
+    if(observed===html&&options.childList&&options.subtree)callback([{type:trigger,target:portal,addedNodes:[]}]);
+  }else if(trigger==="attributes"){
+    // Some providers retain the portal and change only its visibility class.
+    if(observed===html&&options.attributes&&options.attributeFilter.includes("class"))
+      callback([{type:trigger,attributeName:"class",target:portal}]);
+  }else if(trigger==="messageChildList"){
+    callback([{type:"childList",target:main,addedNodes:[]}]);
+  }else if(trigger==="mainAdded"){
+    callback([{type:"childList",target:html,addedNodes:[main]}]);
+  }else{
+    assert.equal(events.get(trigger)?.capture,true,"capture CSS completion outside main");
+    events.get(trigger)?.fn();
+  }
+  assert.equal(shown,true,trigger+" restores action without scroll or a new Start");
+  assert.equal(placements,2,trigger+" schedules one placement for this event");
+  assert.equal(rescans,["messageChildList","mainAdded"].includes(trigger)?1:0,
+    "only message structure changes rescan the chat");
+  passed++;console.log("PASS provider portal "+trigger+" restores the existing action");
+}
+console.log(JSON.stringify({status:"PASS",cases:passed,scope:"SOURCE geometry and portal events; no live/browser acceptance"}));
