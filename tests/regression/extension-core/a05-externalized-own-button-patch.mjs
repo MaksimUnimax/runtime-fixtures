@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const read = filename => readFileSync(path.join(root, filename), "utf8");
 const hash = source => createHash("sha256").update(source).digest("hex");
 const patches = JSON.parse(read("apps/extension/application-patches.json"));
-assert.equal(patches.length, 175);
+assert.equal(patches.length, 176);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];
