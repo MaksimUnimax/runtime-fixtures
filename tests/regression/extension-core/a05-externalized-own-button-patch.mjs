@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const read = filename => readFileSync(path.join(root, filename), "utf8");
 const hash = source => createHash("sha256").update(source).digest("hex");
 const patches = JSON.parse(read("apps/extension/application-patches.json"));
-assert.equal(patches.length, 172);
+assert.equal(patches.length, 175);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];
@@ -27,7 +27,7 @@ assert.ok(replacement.endsWith("  }\n\n"));
 
 let content = read("apps/extension/src/imported/ozon-v0.1.22/content_script.js");
 const contentPatches = patches.filter(row => row.target === "content_script.js");
-assert.equal(contentPatches.length, 65);
+assert.equal(contentPatches.length, 68);
 for (const row of contentPatches) {
   assert.equal(content.split(row.old).length - 1, 1, "one baseline preimage per patch");
   const replacementText = row.new_source ? read(row.new_source) + "\n" : row.new;
@@ -35,7 +35,7 @@ for (const row of contentPatches) {
 }
 assert.equal(
   hash(content),
-  "eaf618e7621c1cb1f300aea4b3a7b54f65c942a518078b40d261075bb3f2c53c",
+  "51311e4b31490f0c5ff16287b32b3d7594d14705baeef33ce4eb15febf33e989",
   "extracted text preserves the full content_script.js composition on exact base",
 );
 console.log(JSON.stringify({level:"SOURCE",status:"PASS",externalized:1,

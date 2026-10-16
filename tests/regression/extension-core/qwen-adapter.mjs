@@ -18,15 +18,16 @@ function fixture(){
  let composers=[],reply={ok:true,text:"OZON_HELP_V2 "+JSON.stringify({topic:"account_access"})},onRead=null,requests=[];
  const location={origin:"https://chat.qwen.ai"},document={querySelectorAll:s=>s==="textarea.message-input-textarea"?composers:[]};
  const attachments=[];
- const box={Element,HTMLElement:Element,HTMLInputElement:Element,location,document,OzonWebFileAttachment:{setInputFiles:(input,files)=>{attachments.push({input,files});return files;}},chrome:{runtime:{sendMessage:async r=>{requests.push(r);onRead?.();return reply;}}}};
+ const box={Element,HTMLElement:Element,HTMLInputElement:Element,location,document,OzonWebFileAttachment:{setInputFiles:()=>{throw new Error("Hidden Qwen input has no initialized upload callback");},dispatchFileDrop:(target,files)=>{attachments.push({target,files});return files;}},chrome:{runtime:{sendMessage:async r=>{requests.push(r);onRead?.();return reply;}}}};
  runInNewContext(readFileSync(root+"apps/extension/src/content/qwen-adapter.js","utf8"),box);
  const adapter=box.SellerAgentsQwenAdapter.create({visible:e=>e.visible,readComposerText:e=>e.value||"",setComposerText:(e,v)=>{e.value=v;}});
- const composer=new Element(),container=new Element(),send=new Element({"aria-label":"Send","type":"submit"}),stop=new Element({"aria-label":"Stop"});
+ const composer=new Element(),container=new Element(),dropRoot=new Element(),send=new Element({"aria-label":"Send","type":"submit"}),stop=new Element({"aria-label":"Stop"});
+ container.parents.set(".chat-content",dropRoot);
  composer.parents.set(".message-input-container",container);container.queries.set(SEND,[send]);composers=[composer];
  const section=new Element();section.selectors.add(M);section.selectors.add(A);
  const body=new Element({"data-msg-id":"public-assistant-1"});body.parents.set(M,section);section.queries.set("[data-msg-id]",[body]);
  const block=new Element();block.textContent="TRUNCATED_VISIBLE_LINES";block.parents.set(M,section);block.parents.set(A,section);section.queries.set(CODE,[block]);
- return {adapter,location,composer,container,send,stop,section,body,block,requests,attachments,
+ return {adapter,location,composer,container,dropRoot,send,stop,section,body,block,requests,attachments,
   setComposers:v=>{composers=v;},setReply:v=>{reply=v;},onRead:f=>{onRead=f;}};
 }
 let passed=0;async function test(name,fn){await fn();passed++;console.log("PASS "+name);}
@@ -61,10 +62,19 @@ await test("replacement during asynchronous code read cancels the old block",asy
  const f=fixture();f.onRead(()=>{f.section.queries.set(CODE,[new Element()]);});
  await assert.rejects(f.adapter.readCodeTextAsync(f.block),/QWEN_CODE_CONTEXT_CHANGED/);
 });
-await test("attachment input must belong to the unchanged empty composer",()=>{
+await test("attachment drops once on the unchanged empty composer's visible chat surface",()=>{
  const f=fixture(),input=new Element();input.files=[];f.container.queries.set('input[type="file"]',[input]);
  const surface=f.adapter.attachmentSurface();assert.equal(surface.input,input);
+ assert.equal(surface.kind,"drag_drop_v1");assert.equal(surface.target,f.dropRoot);
  const file={name:"report.txt"};f.adapter.attachFiles(surface,[file]);assert.equal(f.attachments.length,1);
+ assert.equal(f.attachments[0].target,f.dropRoot);assert.equal(f.attachments[0].files[0],file);
+ f.dropRoot.visible=false;assert.equal(f.adapter.attachmentSurface(),null);
+ assert.throws(()=>f.adapter.attachFiles(surface,[file]),/TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE/);
+ f.dropRoot.visible=true;f.dropRoot.isConnected=false;assert.equal(f.adapter.attachmentSurface(),null);
+ f.dropRoot.isConnected=true;f.container.parents.set(".chat-content",new Element());
+ assert.throws(()=>f.adapter.attachFiles(surface,[file]),/TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE/);
+ f.container.parents.delete(".chat-content");assert.equal(f.adapter.attachmentSurface(),null);
+ f.container.parents.set(".chat-content",f.dropRoot);
  f.composer.value="user draft entered while file bytes were loading";
  assert.equal(f.adapter.attachmentSurface(),null);
  assert.throws(()=>f.adapter.attachFiles(surface,[file]),/TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE/);
@@ -115,5 +125,6 @@ await test("composed Qwen profile routes complete reports at the UTF16 cutoff",(
  assert.equal(capabilities.fileDispatchDecision("qwen",{filename:"full-report.txt",byte_length:16384}).dispatch_allowed,true);
  assert.equal(capabilities.fileDispatchDecision("qwen",{filename:"other.pdf",byte_length:16384}).dispatch_allowed,false);
  assert.equal(capabilities.profile("qwen").max_files_per_turn,1);
+ assert.equal(capabilities.profile("qwen").attachment_strategy,"drag_drop_v1");
 });
 console.log(JSON.stringify({level:"SOURCE",passed,installed:"NOT_RUN",providerCalls:0,sendCalls:0}));

@@ -43,7 +43,11 @@
       if (inputs.length !== 1) return null;
       const input = inputs[0];
       if (!(input instanceof HTMLInputElement) || !input.isConnected || input.disabled || input.files?.length) return null;
-      return { kind: "file_input_v1", input, root: context.root };
+      // Qwen's hidden input installs its upload callback only after the native
+      // file-dialog action. Its visible chat drop surface is independently ready.
+      const target = context.root.closest(".chat-content");
+      if (!target?.isConnected || !visible(target)) return null;
+      return { kind: "drag_drop_v1", input, root: context.root, target };
     };
     const attachmentPreview = filename => {
       const context = composerContext();
@@ -90,11 +94,12 @@
       attachmentSurface,
       attachFiles(surface, files) {
         const current = attachmentSurface();
-        if (!current || surface?.kind !== current.kind || surface.root !== current.root || surface.input !== current.input)
+        if (!current || surface?.kind !== current.kind || surface.root !== current.root ||
+            surface.input !== current.input || surface.target !== current.target)
           fail("TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE");
         if (!Array.isArray(files) || files.length !== 1 || !/\.txt$/i.test(String(files[0]?.name || "")))
           fail("TARGET_AI_FILE_TYPE_UNSUPPORTED");
-        return globalThis.OzonWebFileAttachment.setInputFiles(current.input, files);
+        return globalThis.OzonWebFileAttachment.dispatchFileDrop(current.target, files);
       },
       attachmentPreview,
       attachmentReady(descriptors) {
