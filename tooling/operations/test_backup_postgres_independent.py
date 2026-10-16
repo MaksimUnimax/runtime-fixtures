@@ -106,6 +106,56 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         self.assertEqual(parse_database_url(implicit).port, 5432)
         self.assertEqual(parse_database_url(explicit).port, 5433)
 
+    def test_findmnt_nonzero_exit_is_bounded(self) -> None:
+        def failing_findmnt(argv, **kwargs):
+            raise subprocess.CalledProcessError(
+                32, argv, stderr="synthetic findmnt mount lookup failure"
+            )
+
+        with self.assertRaisesRegex(
+            BackupError, "BACKUP_MOUNT_LOOKUP_INVALID"
+        ):
+            backup_module.lookup_mount(
+                self.dest_mount, runner=failing_findmnt
+            )
+
+    def test_findmnt_executable_missing_is_bounded(self) -> None:
+        def missing_findmnt(argv, **kwargs):
+            raise FileNotFoundError("synthetic findmnt missing")
+
+        with self.assertRaisesRegex(
+            BackupError, "BACKUP_MOUNT_LOOKUP_INVALID"
+        ):
+            backup_module.lookup_mount(
+                self.dest_mount, runner=missing_findmnt
+            )
+
+    def test_findmnt_successful_response_keeps_mount_identity(self) -> None:
+        def successful_findmnt(argv, **kwargs):
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                json.dumps(
+                    {
+                        "filesystems": [
+                            {
+                                "target": str(self.dest_mount),
+                                "source": "/dev/fixture-independent-disk",
+                                "fstype": "ext4",
+                            }
+                        ]
+                    }
+                ),
+                "",
+            )
+
+        result = backup_module.lookup_mount(
+            self.dest_mount, runner=successful_findmnt
+        )
+        self.assertEqual(result.target, self.dest_mount.resolve())
+        self.assertEqual(result.source, "/dev/fixture-independent-disk")
+        self.assertEqual(result.filesystem_type, "ext4")
+
     def test_independent_mount_guard_rejects_same_storage(self) -> None:
         with self.assertRaisesRegex(
             BackupError, "BACKUP_DESTINATION_NOT_INDEPENDENT"
