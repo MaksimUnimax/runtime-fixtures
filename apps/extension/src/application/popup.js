@@ -380,6 +380,37 @@ $("backup-file").onchange = () => {
   invalidateBackupReview(true);
   $("backup-status").textContent = $("backup-file").files?.length ? "Файл выбран. Введите пароль и нажмите «Проверить файл»." : "";
 };
+if (typeof globalThis.showOpenFilePicker === "function") {
+  let pickerPending = false;
+  $("backup-file").onclick = async event => {
+    if (typeof globalThis.showOpenFilePicker !== "function") return;
+    event.preventDefault();
+    if (pickerPending) return;
+    pickerPending = true;
+    const revision = backupSelectionRevision, accountId = state?.auth?.accountId || null;
+    const authenticated = state?.auth?.authenticated === true;
+    try {
+      const [handle] = await globalThis.showOpenFilePicker({
+        multiple: false, types: [{ description: "Файл ключей JSON", accept: { "application/json": [".json"] } }]
+      });
+      const file = await handle.getFile();
+      if (revision !== backupSelectionRevision || accountId !== (state?.auth?.accountId || null) ||
+          authenticated !== (state?.auth?.authenticated === true)) {
+        $("backup-status").textContent = "Файл, пароль или аккаунт изменились. Выберите файл заново.";
+        return;
+      }
+      // Keep the same File input and explicit preview/import fences. Neither
+      // the handle nor credential text is persisted by file selection.
+      const transfer = new DataTransfer(); transfer.items.add(file);
+      $("backup-file").files = transfer.files;
+      $("backup-file").dispatchEvent(new Event("change", { bubbles: true }));
+    } catch (error) {
+      if (error?.name !== "AbortError") $("backup-status").textContent = "Не удалось выбрать файл. Повторите выбор.";
+    } finally {
+      pickerPending = false;
+    }
+  };
+}
 function downloadBackup(name, value) {
   const url = URL.createObjectURL(new Blob([value], { type: "application/json" }));
   const link = document.createElement("a"); link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
