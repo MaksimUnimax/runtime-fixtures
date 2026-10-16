@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -381,6 +383,32 @@ def _apply_retention(
         _fsync_directory(destination)
     return removed
 
+def _publish_directory_noreplace(temporary: Path, final: Path) -> None:
+    # Linux renameat2(RENAME_NOREPLACE) makes the immutable backup name
+    # collision decision atomic, including empty directories and symlinks.
+    # An exists() precheck followed by rename() can overwrite a concurrent
+    # empty directory; never downgrade to replace-on-rename behavior.
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = libc.renameat2
+    except (AttributeError, OSError) as error:
+        raise BackupError("BACKUP_ATOMIC_PUBLISH_UNAVAILABLE") from error
+    renameat2.argtypes = [
+        ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    # AT_FDCWD=-100, RENAME_NOREPLACE=1 from Linux renameat2(2).
+    if renameat2(-100, os.fsencode(temporary), -100, os.fsencode(final), 1) == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number in (errno.EEXIST, errno.ENOTEMPTY):
+        raise BackupError("BACKUP_DESTINATION_COLLISION")
+    if error_number in (errno.ENOSYS, errno.EINVAL, errno.EOPNOTSUPP):
+        raise BackupError("BACKUP_ATOMIC_PUBLISH_UNAVAILABLE")
+    raise BackupError("BACKUP_DESTINATION_PUBLISH_FAILED")
+
+
 def run_backup(
     config: BackupConfig,
     *,
@@ -456,9 +484,7 @@ def run_backup(
 
         stamp = created_at.strftime("%Y%m%dT%H%M%SZ")
         final = config.destination / f"backup-{stamp}-{digest[:12]}"
-        if final.exists():
-            raise BackupError("BACKUP_DESTINATION_COLLISION")
-        temporary.rename(final)
+        _publish_directory_noreplace(temporary, final)
         _fsync_directory(config.destination)
         removed = _apply_retention(
             config.destination,
