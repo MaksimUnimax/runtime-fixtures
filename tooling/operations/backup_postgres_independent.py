@@ -321,6 +321,8 @@ def _verified_backup_directories(
             continue
         try:
             manifest = json.loads(manifest_path.read_text())
+            if not isinstance(manifest, dict):
+                continue
             if manifest.get("format") != "octoport-postgres-backup-v1":
                 continue
             if manifest.get("pgRestoreListVerified") is not True:
