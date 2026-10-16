@@ -89,6 +89,7 @@ export function registerAuthRoutes(
         body: OtpVerifyBodyV1Schema,
         response: {
           200: OtpVerifyResponseV1Schema,
+          400: ApiErrorEnvelopeV1Schema,
           401: ApiErrorEnvelopeV1Schema,
           403: ApiErrorEnvelopeV1Schema,
           429: ApiErrorEnvelopeV1Schema,
@@ -112,6 +113,17 @@ export function registerAuthRoutes(
         typeof idempotencyKey === "string" ? idempotencyKey : undefined,
       );
       if (!result.ok) throw error(result.code);
+      // An idempotent OTP replay must never extend the original session.
+      // Keep both browser cookie lifetimes within the stored session expiry.
+      const remainingCookieSeconds = Math.min(
+        7 * 24 * 60 * 60,
+        Math.floor((result.value.expiresAt.getTime() - Date.now()) / 1_000),
+      );
+      if (
+        !Number.isFinite(remainingCookieSeconds) ||
+        remainingCookieSeconds <= 0
+      )
+        throw error("AUTH_OTP_INVALID");
       const options = {
         path: "/",
         sameSite: "strict" as const,
@@ -120,12 +132,12 @@ export function registerAuthRoutes(
       reply.setCookie(sessionCookie, result.value.sessionToken, {
         ...options,
         httpOnly: true,
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: remainingCookieSeconds,
       });
       reply.setCookie(csrfCookie, auth.csrf(result.value.sessionToken), {
         ...options,
         httpOnly: false,
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: remainingCookieSeconds,
       });
       reply.header("cache-control", "no-store");
       return {
