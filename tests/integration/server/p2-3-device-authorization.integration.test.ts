@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -37,7 +38,8 @@ const start = (key = `key-${randomUUID().replaceAll("-", "")}`) =>
   service().start(body, key, "198.51.100.25", `test-${randomUUID()}`);
 
 async function truncate() {
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE audit_events,auth_rate_limit_buckets,refresh_tokens,sessions,devices,device_authorizations,portal_sessions,user_identities,account_memberships,accounts,users CASCADE",
   );
 }

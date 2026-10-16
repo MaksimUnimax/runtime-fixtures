@@ -396,18 +396,48 @@ export class EphemeralTransferRelay {
 
 export class CredentialTransferService {
   private readonly inFlightRequests = new Set<string>();
+  private stopped = false;
 
   public constructor(
     private readonly repository: TransferRepository,
     private readonly relay = new EphemeralTransferRelay(),
     private readonly now: () => Date = () => new Date(),
+    private readonly isAvailable: () => boolean = () => true,
   ) {}
+
+  /** Terminal local stop: discard opaque packets; never undo a committed DB write. */
+  public stop(): void {
+    this.stopped = true;
+    this.relay.clear();
+  }
+
+  private assertRunning(): void {
+    if (this.stopped || !this.isAvailable()) {
+      this.stop();
+      throw new TransferError("TRANSFER_CONFLICT");
+    }
+  }
+
+  /** Guard continuations, not just entry. No extra DB request or hidden retry. */
+  private async repositoryStep<T>(operation: () => Promise<T>): Promise<T> {
+    this.assertRunning();
+    try {
+      const result = await operation();
+      this.assertRunning();
+      return result;
+    } catch (error) {
+      if (!this.stopped && !this.isAvailable()) this.stop();
+      // A lost/ambiguous DB reply retains its original failure, even on stop.
+      throw error;
+    }
+  }
 
   /** Fail closed on overlapping mutations of one request, without an unbounded queue. */
   private async forRequest<T>(
     requestId: string,
     operation: () => Promise<T>,
   ): Promise<T> {
+    this.assertRunning();
     if (this.inFlightRequests.has(requestId))
       throw new TransferError("TRANSFER_CONFLICT");
     this.inFlightRequests.add(requestId);
@@ -425,23 +455,31 @@ export class CredentialTransferService {
     const request = TransferCreateRequestV1Schema.parse(input);
     if (request.recipientDeviceId !== principal.deviceId)
       throw new TransferError("TRANSFER_DEVICE_REVOKED");
-    return this.repository.create({ principal, request, now: this.now() });
+    return this.repositoryStep(() =>
+      this.repository.create({ principal, request, now: this.now() }),
+    );
   }
 
   public read(principal: ExtensionPrincipal, requestId: string) {
-    return this.repository.read({ principal, requestId, now: this.now() });
+    return this.repositoryStep(() =>
+      this.repository.read({ principal, requestId, now: this.now() }),
+    );
   }
 
   public listForSource(principal: ExtensionPrincipal) {
-    return this.repository.listForSource({ principal, now: this.now() });
+    return this.repositoryStep(() =>
+      this.repository.listForSource({ principal, now: this.now() }),
+    );
   }
 
   public async sourceSeen(principal: ExtensionPrincipal, requestId: string) {
-    const current = await this.repository.readForSource({
-      principal,
-      requestId,
-      now: this.now(),
-    });
+    const current = await this.repositoryStep(() =>
+      this.repository.readForSource({
+        principal,
+        requestId,
+        now: this.now(),
+      }),
+    );
     if (
       !current ||
       (current.sourceDeviceId && current.sourceDeviceId !== principal.deviceId)
@@ -456,20 +494,24 @@ export class CredentialTransferService {
       // the packet. Keep the durable prepared state and the same relay packet,
       // rather than turning the request back into SOURCE_SEEN.
       if (this.relay.has(requestId, this.now())) {
-        const prepared = await this.repository.readForSource({
-          principal,
-          requestId,
-          now: this.now(),
-        });
+        const prepared = await this.repositoryStep(() =>
+          this.repository.readForSource({
+            principal,
+            requestId,
+            now: this.now(),
+          }),
+        );
         if (prepared?.state !== "PACKET_AVAILABLE_EPHEMERAL")
           throw new TransferError("TRANSFER_CONFLICT");
         return prepared;
       }
-      return this.repository.markSourceSeen({
-        principal,
-        requestId,
-        now: this.now(),
-      });
+      return this.repositoryStep(() =>
+        this.repository.markSourceSeen({
+          principal,
+          requestId,
+          now: this.now(),
+        }),
+      );
     });
   }
 
@@ -489,11 +531,13 @@ export class CredentialTransferService {
     // a reserved packet is waiting for its durable mark to settle.
     return this.forRequest(packet.requestId, async () => {
       const now = this.now();
-      const current = await this.repository.read({
-        principal,
-        requestId: packet.requestId,
-        now,
-      });
+      const current = await this.repositoryStep(() =>
+        this.repository.read({
+          principal,
+          requestId: packet.requestId,
+          now,
+        }),
+      );
       if (!current) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
       if (current.sourceDeviceId !== principal.deviceId)
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
@@ -506,11 +550,13 @@ export class CredentialTransferService {
         now,
       );
       try {
-        await this.repository.markPacketAvailable({
-          principal,
-          requestId: packet.requestId,
-          now: this.now(),
-        });
+        await this.repositoryStep(() =>
+          this.repository.markPacketAvailable({
+            principal,
+            requestId: packet.requestId,
+            now: this.now(),
+          }),
+        );
       } catch (error) {
         this.relay.release(packet.requestId, reservationId, this.now());
         throw error;
@@ -525,21 +571,25 @@ export class CredentialTransferService {
       )
         throw new TransferError("TRANSFER_EXPIRED");
       return {
-        request: await this.repository.read({
-          principal,
-          requestId: packet.requestId,
-          now: this.now(),
-        }),
+        request: await this.repositoryStep(() =>
+          this.repository.read({
+            principal,
+            requestId: packet.requestId,
+            now: this.now(),
+          }),
+        ),
       };
     });
   }
 
   public async receive(principal: ExtensionPrincipal, requestId: string) {
-    const request = await this.repository.read({
-      principal,
-      requestId,
-      now: this.now(),
-    });
+    const request = await this.repositoryStep(() =>
+      this.repository.read({
+        principal,
+        requestId,
+        now: this.now(),
+      }),
+    );
     if (!request) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
     return this.forRequest(requestId, async () => {
       const packet = this.relay.get(requestId, this.now());
@@ -550,11 +600,13 @@ export class CredentialTransferService {
           request.sourceDeviceId)
       )
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
-      await this.repository.markDelivered({
-        principal,
-        requestId,
-        now: this.now(),
-      });
+      await this.repositoryStep(() =>
+        this.repository.markDelivered({
+          principal,
+          requestId,
+          now: this.now(),
+        }),
+      );
       if (!this.relay.pinDelivered(requestId, packet.packetId, this.now()))
         throw new TransferError("SOURCE_OFFLINE");
       return TransferPacketV1Schema.parse({
@@ -567,41 +619,48 @@ export class CredentialTransferService {
 
   public async acknowledge(principal: ExtensionPrincipal, input: unknown) {
     const ack = TransferAckV1Schema.parse(input);
-    const request = await this.repository.read({
-      principal,
-      requestId: ack.requestId,
-      now: this.now(),
-    });
+    const request = await this.repositoryStep(() =>
+      this.repository.read({
+        principal,
+        requestId: ack.requestId,
+        now: this.now(),
+      }),
+    );
     if (!request || request.recipientDeviceId !== principal.deviceId)
       throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
     return this.forRequest(ack.requestId, async () => {
       const packet = this.relay.get(ack.requestId, this.now());
       if (!packet || packet.packetId !== ack.packetId)
         throw new TransferError("TRANSFER_REPLAY");
-      const result = await this.repository.acknowledge({
-        principal,
-        ack,
-        now: this.now(),
-      });
+      const result = await this.repositoryStep(() =>
+        this.repository.acknowledge({
+          principal,
+          ack,
+          now: this.now(),
+        }),
+      );
       this.relay.delete(ack.requestId, this.now());
       return result;
     });
   }
 
   public async cancel(principal: ExtensionPrincipal, requestId: string) {
-    const result = await this.repository.cancel({
-      principal,
-      requestId,
-      now: this.now(),
-    });
+    const result = await this.repositoryStep(() =>
+      this.repository.cancel({
+        principal,
+        requestId,
+        now: this.now(),
+      }),
+    );
     this.relay.delete(requestId, this.now());
     return result;
   }
 
   public expireDue() {
+    this.assertRunning();
     const now = this.now();
     this.relay.prune(now);
-    return this.repository.expireDue(now);
+    return this.repositoryStep(() => this.repository.expireDue(now));
   }
 
   public relayForTests() {

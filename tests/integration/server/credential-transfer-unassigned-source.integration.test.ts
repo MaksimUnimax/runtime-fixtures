@@ -6,11 +6,11 @@ import {
   EphemeralTransferRelay,
 } from "../../../packages/server/credential-transfer/src/index.js";
 import {
-  createCredentialTransferRepository,
   createDatabaseRuntime,
   type DatabaseRuntime,
 } from "../../../packages/server/db/src/index.js";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
+import { createCredentialTransferTestAuthority } from "./helpers/credential-transfer-test-authority.js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString)
@@ -18,8 +18,33 @@ if (!connectionString)
 let db: DatabaseRuntime;
 const ownedAccounts: string[] = [];
 const ownedUsers: string[] = [];
+let authority:
+  | Awaited<ReturnType<typeof createCredentialTransferTestAuthority>>
+  | undefined;
+const services = new Set<CredentialTransferService>();
+
+function testAuthority() {
+  if (!authority) throw new Error("TRANSFER_TEST_AUTHORITY_NOT_INITIALIZED");
+  return authority;
+}
+
+function createService(
+  repository: ConstructorParameters<typeof CredentialTransferService>[0],
+  now: () => Date,
+) {
+  const currentAuthority = testAuthority();
+  const service = new CredentialTransferService(
+    repository,
+    new EphemeralTransferRelay(),
+    now,
+    currentAuthority.isActive,
+  );
+  services.add(service);
+  return service;
+}
 
 async function fixture(assigned = false) {
+  const currentAuthority = testAuthority();
   const accountId = randomUUID(),
     userId = randomUUID();
   await db.query("INSERT INTO users(id) VALUES($1)", [userId]);
@@ -40,13 +65,9 @@ async function fixture(assigned = false) {
     (typeof principals)[number],
     (typeof principals)[number],
   ];
-  const repository = createCredentialTransferRepository(db);
+  const repository = currentAuthority.repository;
   let clock = new Date("2026-10-08T00:00:00.000Z");
-  const service = new CredentialTransferService(
-    repository,
-    new EphemeralTransferRelay(),
-    () => clock,
-  );
+  const service = createService(repository, () => clock);
   const requestId = randomUUID();
   await service.create(recipient, {
     requestId,
@@ -74,27 +95,69 @@ describe.sequential(
   "credential transfer with the production PostgreSQL repository",
   () => {
     beforeAll(async () => {
+      const database = decodeURIComponent(
+        new URL(connectionString!).pathname.slice(1),
+      );
+      if (
+        database !== "octoport_a_test" &&
+        database !== "octoport_b_test" &&
+        database !== "octoport_c_test" &&
+        database !== "product_control_plane_test"
+      )
+        throw new Error("TRANSFER_TEST_DATABASE_NOT_ALLOWED");
       db = createDatabaseRuntime(connectionString!);
       await db.ready();
+      const identity = await db.query<{
+        database_name: string;
+        direct_session: boolean;
+        is_superuser: boolean;
+      }>(`SELECT current_database() AS database_name,
+          current_user=session_user AS direct_session,
+          (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS is_superuser`);
+      const administrator = identity.rows[0];
+      if (
+        identity.rows.length !== 1 ||
+        administrator?.database_name !== database ||
+        administrator.direct_session !== true ||
+        administrator.is_superuser !== true
+      )
+        throw new Error("TRANSFER_TEST_DATABASE_OR_ADMINISTRATOR_MISMATCH");
       await runMigrations({ connectionString: connectionString! });
+      authority = await createCredentialTransferTestAuthority(db, database);
     });
     afterAll(async () => {
+      if (!db) return;
       try {
-        await db.query(
-          "DELETE FROM credential_transfer_requests WHERE account_id=ANY($1::uuid[])",
-          [ownedAccounts],
-        );
-        await db.query("DELETE FROM devices WHERE account_id=ANY($1::uuid[])", [
-          ownedAccounts,
-        ]);
-        await db.query("DELETE FROM accounts WHERE id=ANY($1::uuid[])", [
-          ownedAccounts,
-        ]);
-        await db.query("DELETE FROM users WHERE id=ANY($1::uuid[])", [
-          ownedUsers,
-        ]);
+        for (const service of services) service.stop();
+        services.clear();
+        if (ownedAccounts.length > 0) {
+          await testAuthority().transaction((tx) =>
+            tx.query(
+              "DELETE FROM public.credential_transfer_requests WHERE account_id=ANY($1::uuid[])",
+              [ownedAccounts],
+            ),
+          );
+        }
+        if (ownedAccounts.length > 0) {
+          await db.query(
+            "DELETE FROM devices WHERE account_id=ANY($1::uuid[])",
+            [ownedAccounts],
+          );
+          await db.query("DELETE FROM accounts WHERE id=ANY($1::uuid[])", [
+            ownedAccounts,
+          ]);
+        }
+        if (ownedUsers.length > 0) {
+          await db.query("DELETE FROM users WHERE id=ANY($1::uuid[])", [
+            ownedUsers,
+          ]);
+        }
       } finally {
-        await db.close();
+        try {
+          await authority?.dispose();
+        } finally {
+          await db?.close();
+        }
       }
     });
 
@@ -163,9 +226,8 @@ describe.sequential(
           return committedRow;
         },
       };
-      const service = new CredentialTransferService(
+      const service = createService(
         gatedRepository,
-        new EphemeralTransferRelay(),
         () => new Date("2026-10-08T00:00:00.000Z"),
       );
       const packet = {
@@ -271,9 +333,8 @@ describe.sequential(
             return;
           }
           if (request.method === "GET" && request.url === "/test-only/state") {
-            const restarted = new CredentialTransferService(
-              createCredentialTransferRepository(db),
-              new EphemeralTransferRelay(),
+            const restarted = createService(
+              testAuthority().repository,
               () => new Date("2026-10-08T00:00:00.000Z"),
             );
             const row = await restarted.read(f.recipient, f.requestId);
