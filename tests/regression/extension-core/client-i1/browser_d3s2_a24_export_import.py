@@ -94,31 +94,31 @@ def import_via_ui(fixture: BrowserFixture, backup: Path, password: str = PASSWOR
     return summary
 
 
-def import_via_durable_ui(fixture: BrowserFixture, backup: Path):
-    popup_url = fixture.popup.url
-    with fixture.context.expect_page() as opened:
-        fixture.popup.click("#keys-upload")
-    durable = opened.value
-    durable.wait_for_load_state("domcontentloaded")
-    assert durable.url == popup_url + "#backup-import"
-    assert durable.evaluate("window.name") == ""
-    assert durable.evaluate("window.opener === null")
-    assert durable.locator("#start").count() == 0
-    fixture.popup.close()  # The chooser/import must outlive the action document.
-    durable.locator("#backup-file").set_input_files(str(backup))
-    durable.locator("#backup-import-password").fill(PASSWORD)
-    durable.click("#backup-preview")
-    wait_for(lambda: not durable.locator("#backup-preview-result").is_hidden(), "durable preview")
-    summary = durable.locator("#backup-summary").inner_text()
-    durable.click("#backup-import")
-    wait_for(lambda: "Импорт завершён: добавлено 4" in durable.locator("#backup-status").inner_text(), "durable apply")
-    assert durable.locator("#backup-import-password").input_value() == ""
-    durable.reload(wait_until="domcontentloaded")
-    assert durable.locator("#start").count() == 0  # Reload stays an import-only page.
-    durable.close()
-    fixture.popup = fixture.context.new_page()
-    fixture.popup.goto(popup_url, wait_until="domcontentloaded")
+def import_via_popup_ui(fixture: BrowserFixture, backup: Path):
+    popup = fixture.popup
+    popup_url = popup.url
+    pages = set(fixture.context.pages)
+    popup.click("#keys-upload")
+    assert not popup.is_closed() and popup.url == popup_url
+    assert set(fixture.context.pages) == pages
+    assert popup.locator("#start").count() == 1
+    # This fixture verifies the installed popup document; OS action-popup lifetime
+    # is checked in the primary native owner scenario, not inferred from this tab.
+    with popup.expect_file_chooser() as chooser:
+        popup.click("#backup-file")
+    chooser.value.set_files(str(backup))
+    assert popup.locator("#backup-file").evaluate("(input) => input.files[0]?.name") == backup.name
+    popup.locator("#backup-import-password").fill(PASSWORD)
+    popup.click("#backup-preview")
+    wait_for(lambda: not popup.locator("#backup-preview-result").is_hidden(), "popup preview")
+    summary = popup.locator("#backup-summary").inner_text()
+    popup.click("#backup-import")
+    wait_for(lambda: "Импорт завершён: добавлено 4" in popup.locator("#backup-status").inner_text(), "popup apply")
+    assert popup.locator("#backup-import-password").input_value() == ""
+    assert not popup.is_closed() and popup.url == popup_url
+    assert set(fixture.context.pages) == pages
     fixture.reload_popup()
+    assert fixture.popup.locator("#start").count() == 1
     return summary
 
 
@@ -147,13 +147,13 @@ def run_runtime(runtime: Path, private_key: Path, output: Path) -> dict:
             target = BrowserFixture(runtime, private_key, server, output / "same-account-clean")
             target.open(pw); target.reset()
             baseline_requests = len(server.requests)
-            summary = import_via_durable_ui(target, backup)
+            summary = import_via_popup_ui(target, backup)
             state = target.state()
             assert len(state["stores"]) == 4
             assert any("Ozon Seller-only" in row["name"] for row in state["stores"])
             raw = target.storage()
             assert not raw.get(SESSIONS) and not raw.get(BINDINGS) and not raw.get(MANUAL)
-            rows.append({"id": "installed-durable-import-after-original-popup-close", "status": "PASS", "summary": summary, "work_sessions": 0})
+            rows.append({"id": "installed-popup-import-without-new-page", "status": "PASS", "summary": summary, "work_sessions": 0})
             target.reload_popup()
             target.popup.locator("#backup-file").set_input_files(str(backup))
             target.popup.locator("#backup-import-password").fill("wrong-password")
