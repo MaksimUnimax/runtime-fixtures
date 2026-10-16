@@ -374,6 +374,11 @@ await run("POPUP-FILE-RAM-FENCES", "account, tab, focus, nonce and sender fences
     assert.equal((await f.popup(url)).port.rejected, true);
 });
 await run("POPUP-FILE-RAM-CANCEL-CLEAR", "cancel, size bound, explicit clear and replaced selections keep import explicit", async () => {
+  const bounded = pickerFixture(), stillOpen = await bounded.popup(), retained = await stillOpen.send("prepare");
+  bounded.result(stillOpen, retained.pickId); bounded.expire(60000);
+  await stillOpen.close(); assert.equal(bounded.opens.length, 0, "RAM expires even while original popup remains open");
+  const afterExpiry = await bounded.popup(); await afterExpiry.send("ready");
+  assert.equal(afterExpiry.channel.sent.length, 0);
   for (const mode of ["cancel", "large", "clear", "replace"]) {
     const f = pickerFixture(), p = await f.popup(), pick = await p.send("prepare");
     const file = mode === "cancel" ? null : new File([mode === "large" ? new Uint8Array(8 * 1024 * 1024 + 1) : "synthetic"], "keys.json");

@@ -56,11 +56,9 @@
       } else entry.file = file;
       entry.password = data.password;
       entry.hasResult = true; entry.resultAt = Date.now();
-      if (endpoint.disconnected) {
-        clearTimeout(entry.cleanup);
-        entry.cleanup = setTimeout(() => discard(entry), 60000);
-        void reopen(entry);
-      }
+      clearTimeout(entry.cleanup);
+      entry.cleanup = setTimeout(() => discard(entry), 60000);
+      if (endpoint.disconnected) void reopen(entry);
     } catch (_) { discard(entry); }
   }
   chrome.storage?.onChanged?.addListener((changes, area) => {
@@ -145,7 +143,7 @@
         if (entry?.claimed === endpoint) discard(entry);
         return;
       }
-      entry.cleanup = setTimeout(() => discard(entry), entry.hasResult ? 60000 : LATE_RESULT_MS);
+      if (!entry.hasResult) entry.cleanup = setTimeout(() => discard(entry), LATE_RESULT_MS);
       // A slow teardown must not lose the File. Retain it for the next normal
       // opening, but do not reopen after a later deliberate popup close.
       if (entry.hasResult && Date.now() - entry.resultAt <= RETURN_WINDOW_MS) void reopen(entry);
