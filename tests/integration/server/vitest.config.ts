@@ -13,6 +13,7 @@ export default defineConfig({
       // Keep test-fixture cleanup faults in the normal server integration run.
       "tests/integration/server/helpers/credential-transfer-test-authority.test.ts",
       "tests/integration/server/helpers/credential-transfer-fixture-reset.test.ts",
+      "tests/integration/server/helpers/credential-transfer-proof-lifecycle.test.ts",
     ],
   },
 });
