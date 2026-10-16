@@ -11,31 +11,34 @@ async function test(name, run) { try { await run(); rows.push({ name, status: "P
 catch (error) { rows.push({ name, status: "FAIL", error: error.message }); } }
 function fixture({ durable = false, firefox = false, deny = false } = {}) {
   const nodes = new Map(), calls = [];
-  const node = id => { if (!nodes.has(id)) nodes.set(id, { focus() { calls.push("focus:" + id); }, scrollIntoView() {} }); return nodes.get(id); };
+  const node = id => { if (!nodes.has(id)) nodes.set(id, { focus() { calls.push("focus:" + id); }, scrollIntoView() { calls.push("scroll:" + id); } }); return nodes.get(id); };
   const open = options => { calls.push(options ? "chrome:" + options.windowId : "firefox"); return deny ? Promise.reject(new Error("denied")) : Promise.resolve(); };
   const ctx = { $: node, chrome: { sidePanel: { open } }, browser: firefox ? { sidebarAction: { open } } : undefined,
     close: () => calls.push("close") };
   vm.createContext(ctx); vm.runInContext("const durableImportMode=" + durable + "; const windowId=4;\n" + entry, ctx);
   return { ctx, node, calls };
 }
-await test("Chrome upload opens the same-window panel before closing popup", async () => {
-  const f = fixture(); await f.node("keys-upload").onclick(); assert.deepEqual(f.calls, ["chrome:4", "close"]);
+await test("upload stays in the action popup and focuses its native file input", async () => {
+  const f = fixture(); await f.node("keys-upload").onclick();
+  assert.deepEqual(f.calls, ["scroll:backup", "focus:backup-file"]);
 });
-await test("direct file click in popup is redirected to the durable panel", async () => {
-  const f = fixture(); let prevented = 0;
-  await f.node("backup-file").onclick({ preventDefault() { prevented++; } });
-  assert.equal(prevented, 1); assert.deepEqual(f.calls, ["chrome:4", "close"]);
+await test("the native file input is not intercepted or redirected", async () => {
+  const f = fixture(); assert.equal(f.node("backup-file").onclick, undefined);
+  assert.deepEqual(f.calls, []);
 });
-await test("Firefox uses its declared sidebar without creating a tab", async () => {
-  const f = fixture({ firefox: true }); await f.node("keys-upload").onclick(); assert.deepEqual(f.calls, ["firefox", "close"]);
+await test("Firefox also keeps the import in the action popup", async () => {
+  const f = fixture({ firefox: true }); await f.node("keys-upload").onclick();
+  assert.deepEqual(f.calls, ["scroll:backup", "focus:backup-file"]);
 });
-await test("panel refusal stays visible and does not close or fall back to another route", async () => {
+await test("popup import does not depend on side panel permission", async () => {
   const f = fixture({ deny: true }); await f.node("keys-upload").onclick();
-  assert.deepEqual(f.calls, ["chrome:4"]); assert.match(f.node("status").textContent, /Не удалось открыть/);
+  assert.deepEqual(f.calls, ["scroll:backup", "focus:backup-file"]);
 });
-await test("durable panel retains the ordinary native file input", async () => {
-  const f = fixture({ durable: true }); await f.node("keys-upload").onclick();
-  assert.deepEqual(f.calls, ["focus:backup-file"]); assert.equal(f.node("backup-file").onclick, undefined);
+await test("export focuses its password without changing the selected import file", async () => {
+  const f = fixture(), files = [{ name: "selected-backup.json" }]; f.node("backup-file").files = files;
+  await f.node("keys-download").onclick();
+  assert.deepEqual(f.calls, ["scroll:backup", "focus:backup-password"]);
+  assert.equal(f.node("backup-file").files, files);
 });
 console.log(JSON.stringify({ evidenceType: "SOURCE", results: rows }, null, 2));
 if (rows.some(row => row.status !== "PASS")) process.exitCode = 1;

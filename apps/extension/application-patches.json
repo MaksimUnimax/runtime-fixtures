@@ -822,7 +822,7 @@
   {
     "target": "shared/ai_delivery_capabilities.js",
     "old": "    qwen: Object.freeze({ id: \"qwen\", status: \"planned\", plain_text_max_chars: null, attachments_supported: true, accepted_extensions: Object.freeze([\"pdf\", \"xlsx\", \"xls\"]), max_file_bytes: null, max_files_per_turn: null, attachment_strategy: \"pending\" }),",
-    "new": "    qwen: Object.freeze({ id: \"qwen\", status: \"implemented\", plain_text_max_chars: null, attachments_supported: false, accepted_extensions: Object.freeze([]), max_file_bytes: null, max_files_per_turn: null, attachment_strategy: \"pending_guest_verification\" }),"
+    "new": "    // Conservative transport cutoff below the observed successful guest bootstrap; not a provider maximum.\n    qwen: Object.freeze({ id: \"qwen\", status: \"implemented\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: null, max_files_per_turn: 1, attachment_strategy: \"file_input_v1\" }),"
   },
   {
     "target": "content_script.js",
