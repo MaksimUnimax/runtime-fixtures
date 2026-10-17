@@ -503,3 +503,29 @@ Last actual resource measurement remains 2026-10-17T08:20:55.722968Z: root free 
 
 Audit ID remains CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z. audit_complete=false. The 12 original obligation routes remain tracked; bounded results explicitly marked fulfilled above are not reopened, and their distinct historical/installed/owner residuals remain OPEN where stated. No test, reproduction, source mutation, live/DB/security operation, owner cleanup or foreign WIP edit occurred.
 
+
+
+## Свежий read-only admission R7/R8 и актуальные узкие решения владельца
+
+**Измерено UTC: 2026-10-17T09:04:24.467092Z. Запись отчёта: 2026-10-17T09:04:30.209262176Z.**
+
+### Ресурсный расчёт — тест не запускался
+
+- /root: free 25,990 MiB; inode free 3,956,326.
+- /dev/shm: free 5,378 MiB.
+- MemAvailable=5,683,052 kB = 5,549.86 MiB; memory PSI some/full avg10=0.00.
+- Существующий /root/octoport-control/disk-allocations: 1,573 JSON, 0 malformed; CLOSED 1,502, HELD 51, OPEN 20; active reserve 16,971 MiB.
+- Диск после active reserves и floor 3,072 MiB: 25,990 − 16,971 − 3,072 = 5,947 MiB; B04 demand 5,120 MiB; margin 827 MiB — PASS.
+- E2E memory requirement: 4,096 × 1.15 + 1,024 = 5,734.4 MiB. Actual 5,549.86 MiB; delta −184.54 MiB — FAIL. По сравнению с 08:20:55Z память уменьшилась с 5,669.83 до 5,549.86 MiB; дефицит вырос с 64.57 до 184.54 MiB. Это свежий фактический FAIL, а не основание снижать бюджет или резервы.
+- В snapshot процессов нет playwright test, pnpm test:e2e, admin-safety.spec.ts или api-harness.ts. Никаких тестов, worktree, DB, port bindings, cleanup или resource mutations не выполнялось. Свободные процессы не останавливались. Разрешения владельца на один тест и disposable DB остаются действующими; ближайшее действие — только повторное read-only измерение после естественного изменения доступной памяти.
+
+### Узкие решения, которые действительно нужны владельцу/issuer
+
+1. C06 / release 0.2.37: нужно не общее разрешение, а подлинная octoport_release_authority_v1 для exact source/tree и соответствующий target catalog (два distinct canonical HTTPS origins, Ed25519 public trust bundle и current target catalog), а также назвать единственного release owner для exact 0.2.37 submission. Предлагаемое действие: владелец/issuer выдаёт или указывает существующий неизменённый authority receipt и catalog; C валидирует их на exact tree. Если не предоставлено: Store submission остаётся PREPARING — НЕ ГОТОВО К SUBMIT; Контроллер не создаёт authority, ключи, подписи или catalog и не меняет C WIP.
+2. R3 / exact 0.2.15 personal release: требуется отдельное решение владельца, кто является единственным release owner и разрешает ли он bounded publication финального reviewed ZIP/hash после обязательных gates. Предлагаемое действие: назвать одного ответственного и точный artifact/hash, без нового Tester и без переключения роли. Если не предоставлено: R3 остаётся технически частично подтверждённым, но owner acceptance/publication не объявляется завершённой; existing Tester сохраняет original-popup Start/Finish acceptance.
+3. B04 resource hold/capacity: это сейчас не дополнительное решение владельца в этом диалоге, а две конкретные внешние зависимости — native platform clearance/receipt для исходной точной hold-операции и подтверждённая дополнительная usable capacity от владельца/provider тома. Старое число 4,242 MiB относится к исходной операции и не считается текущим измерением. Предлагаемое действие: соответствующие platform/provider custodians возвращают native receipt и новый capacity evidence; Контроллер пересчитывает только после получения. Если не предоставлено: B04 остаётся OPEN; hold не повторять, cap/reserves не снижать, owner cleanup не трогать.
+4. R7/R8: дополнительное решение владельца сейчас не требуется — обе разрешающие записи (один тест, отдельная disposable DB/уникальные порты) уже есть. Блок исключительно физический: MemAvailable ниже действующего E2E budget на 184.54 MiB. Предлагаемое действие: ждать естественного освобождения памяти и делать свежий read-only замер; при FAIL не создавать среду и не запускать тест.
+
+Исторические зависимости R14, private C test-environment refusal, 29 September publication correlation, config provenance и original bound review payload остаются запросами к их первичным custodians, а не новыми решениями владельца и не новыми development gates. Для P2-3 остаётся только документированная защитная граница: durable state transitions должны быть монотонными или условными по ожидаемой revision, два независимых relay не должны терять packet/import state или допускать duplicate delivery, а submit/receive/ACK должны сохранять идемпотентность и actor binding; в этом шаге нет нового воспроизведения, теста или source change.
+
+Audit ID и evidence map из предыдущего раздела не изменены; audit_complete=false, исходные 12 обязательств остаются учтены по их текущим статусам.
