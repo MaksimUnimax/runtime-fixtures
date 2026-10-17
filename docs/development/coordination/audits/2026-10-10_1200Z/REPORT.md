@@ -325,3 +325,28 @@ RESOURCE_POLICY.md устанавливает E2E budget 4,096 MiB, учитыв
 4. Только после PASS exact-source, single-writer, DB guard, disk and memory gates — один Playwright test с точным полным title и `retries=0`. При неизвестном исходе не повторять.
 
 Ни worktree, ни disposable DB/volume, ни тест не создавались в этом интервале; новые процессы E2E не обнаружены. Разрешения владельца 05:25Z и 06:21Z остаются действующими. Audit ID прежний, `audit_complete=false`, 12 оригинальных исходов OPEN.
+
+## Дополнение — независимый C06/B status readback и свежий resource gate
+
+**UTC-время дополнения: 2026-10-17T08:13:40.661068872Z.**
+
+### Независимый остаток аудита без изменения чужого WIP
+
+- Current main остаётся 68f8fb5040667b6ba25b1cc91f69f2fdfae759f9. Все пять exact-main push workflows terminal SUCCESS: Server 39014778605, Extension 39014778618, Extension I1-C1 client 39014778594, Documentation 39014778615, Coordination/release safety 39014778612. Runs не перезапускались.
+- PR194 подтверждён как merged/closed, не draft; head 3234aa7a0cbdfb5d06daebec7eb21c0c562a03b0, updated 2026-10-17T08:04:57Z. Публичный review list пуст. B role state обновлён в 08:10:38.974Z на отдельную задачу B05_OFFSITE_POLICY_SYMLINK_RACE_20261017; создана её отдельная OPEN allocation на 128 MiB в /dev/shm/octoport-b-source-tasks/b05-policy-symlink-race-main-20261017. B WIP не изменялся.
+- A role state 08:11:45.144Z остаётся A04_B08_PR196_NATIVE_I1_TERMINAL_NEGATIVE_SOURCE_ACCEPTED_C1_WIP_HELD; исторический selected I1 abort+141ms по-прежнему UNKNOWN по caller/grant/lease. Не повторять его и не перехватывать A/Tester.
+- C role state 08:08:39.619Z остаётся C06_OPEN после PR198/main39. Прочитан B_TO_C_STORE0_MAIN6B_CATALOG_AUTHORITY_CURRENTITY_20261016.json; последний вложенный B→C source-only факт от 06:40Z не подтверждает принятую exact-source octoport_release_authority_v1. Текущий draft docs/product/readiness/CHROME_STORE_0_2_37_SUBMISSION_DRAFT_20261017.md на main 68f8 имеет blob 56e073f2fd02792d87619a430d4ee1e573db0a7a и статус PREPARING — НЕ ГОТОВО К SUBMIT. Release-lib blob a5067f268558f3bb6aeece77fe412b52933aa3ce — validator/preparer, не authority. В проверенных первичных источниках нет принятой exact-main PREPRODUCTION authority, подписанного Store ZIP, принятой target catalog или original-popup Start/Finish. Это ограниченный read-only вывод, не утверждение глобального отсутствия authority.
+- Целевой test tests/e2e/server/admin-safety.spec.ts на exact main 68f8 остаётся blob 7c0f40a0f9c3d40e0112a13edbb5b6d2fb86f095; целевой процесс не найден. Dirty B api-harness.ts остаётся только в B worktree и не копируется.
+
+### Свежий ресурсный readback — 2026-10-17T08:11:20.973068Z
+
+- /root: 25,992 MiB свободно, 3,956,416 inode свободно. /dev/shm: 5,432 MiB свободно. MemAvailable=5,854,504 kB=5,717.3 MiB; memory PSI some/full avg10=0.00.
+- disk-allocations: 1,573 JSON, 0 malformed; CLOSED 1,501, HELD 51, OPEN 21; суммарный действующий резерв 17,099 MiB. Доступно после резервов и floor 3,072 MiB: 25,992−17,099−3,072=5,821 MiB. B04 threshold 5,120 MiB пройден с запасом 701 MiB; inode floor пройден.
+- E2E memory gate FAIL: 4,096 MiB budget × 1.15 = 4,710.4 MiB; плюс обязательные 1,024 MiB MemAvailable = минимум 5,734.4 MiB. Фактически 5,717.3 MiB; дефицит около 17.1 MiB даже до учёта неиспользованной части параллельных test budgets. Бюджет/резерв не снижался, чужие процессы не останавливались.
+- Новая OPEN allocation B-B05-POLICY-SYMLINK-RACE-20261017.json появилась 08:10:38.968301Z, reserve 128 MiB; она уже включена в сумму 17,099 MiB.
+
+### Следующий шаг
+
+Worktree, disposable DB и R7/R8 test пока не создавать/не запускать: memory gate не PASS. Продолжить независимую read-only работу и повторить ресурсный readback после естественного изменения доступной памяти. Не останавливать dot/Chrome/чужие процессы, не трогать owner cleanup, не снижать резервы. При PASS — зарегистрировать только собственный bounded resource в существующем учёте, создать detached worktree на exact main 68f8, отдельную loopback-only disposable PostgreSQL и три уникальных порта; затем ровно один Playwright test с retries=0. Неизвестный исход не повторять.
+
+Статус прежний: Audit ID CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z, audit_complete=false, 12 original outcomes OPEN.
