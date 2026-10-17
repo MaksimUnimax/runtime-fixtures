@@ -16,6 +16,7 @@ import { test } from "node:test";
 import {
   prepare,
   preflight,
+  readAuthority,
   productFacts,
   sourceIdentity,
 } from "./release-lib.mjs";
@@ -115,6 +116,64 @@ function makeFixture(root) {
   }
   return { authorityPath, packages };
 }
+
+test("authority is consumed via a bounded fd snapshot, never unbounded path reopen", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-authority-fd-"));
+  const originalRead = fs.readFileSync;
+  let unboundedAuthorityRead = false;
+  try {
+    const { authorityPath } = makeFixture(root);
+    fs.readFileSync = (path, ...args) => {
+      if (String(path) === authorityPath) {
+        unboundedAuthorityRead = true;
+        throw Error("UNBOUNDED_AUTHORITY_FILE_READ");
+      }
+      return originalRead(path, ...args);
+    };
+    syncBuiltinESMExports();
+
+    const receipt = readAuthority(authorityPath, join(root, "prepared"));
+    assert.equal(receipt.value.schemaVersion, "octoport_release_authority_v1");
+    assert.equal(unboundedAuthorityRead, false);
+  } finally {
+    fs.readFileSync = originalRead;
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("authority mutation during bounded fd read fails closed", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-authority-mutation-"));
+  const originalRead = fs.readSync;
+  let mutated = false;
+  try {
+    const { authorityPath } = makeFixture(root);
+    const identity = fs.statSync(authorityPath);
+    fs.readSync = (fd, ...args) => {
+      const current = fs.fstatSync(fd);
+      if (
+        !mutated &&
+        current.dev === identity.dev &&
+        current.ino === identity.ino
+      ) {
+        mutated = true;
+        fs.appendFileSync(authorityPath, " ");
+      }
+      return originalRead(fd, ...args);
+    };
+    syncBuiltinESMExports();
+
+    assert.throws(
+      () => readAuthority(authorityPath, join(root, "prepared")),
+      /Authority file changed during bounded read/,
+    );
+    assert.equal(mutated, true);
+  } finally {
+    fs.readSync = originalRead;
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("prepared package bytes always equal bytes validated before copying", () => {
   const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-snapshot-"));

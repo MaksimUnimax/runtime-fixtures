@@ -276,12 +276,13 @@ export function readAuthority(file, candidateDir) {
     fail("Authority must be outside the candidate directory");
   }
 
-  const authorityStat = statSync(authorityPath);
-  if (!authorityStat.isFile() || authorityStat.size > MAX_AUTHORITY_BYTES) {
-    fail("Authority file is invalid or too large");
-  }
-
-  const bytes = readFileSync(authorityPath);
+  // Read the same bounded regular-file descriptor once. A size check before
+  // readFileSync(path) can reopen a replaced or growing authority without a cap.
+  const bytes = readBoundedRegularFile(
+    authorityPath,
+    MAX_AUTHORITY_BYTES,
+    "Authority file",
+  );
   let authority;
   try {
     authority = JSON.parse(bytes.toString("utf8"));
@@ -1202,13 +1203,13 @@ function validatePackagedConfig(config, authority) {
   }
 }
 
-function readBoundedRegularFile(path, maxBytes) {
+function readBoundedRegularFile(path, maxBytes, label = "Package input") {
   const noFollow = fsConstants.O_NOFOLLOW ?? 0;
   const fd = openSync(path, fsConstants.O_RDONLY | noFollow);
   try {
     const before = fstatSync(fd);
-    if (!before.isFile()) fail("Package input must be a regular file");
-    if (before.size > maxBytes) fail("Package input exceeds size limit");
+    if (!before.isFile()) fail(`${label} must be a regular file`);
+    if (before.size > maxBytes) fail(`${label} exceeds size limit`);
 
     const bytes = Buffer.allocUnsafe(before.size + 1);
     let total = 0;
@@ -1226,9 +1227,9 @@ function readBoundedRegularFile(path, maxBytes) {
       after.size !== before.size ||
       total !== before.size
     ) {
-      fail("Package input changed during bounded read");
+      fail(`${label} changed during bounded read`);
     }
-    if (total > maxBytes) fail("Package input exceeds size limit");
+    if (total > maxBytes) fail(`${label} exceeds size limit`);
     return bytes.subarray(0, total);
   } finally {
     closeSync(fd);
