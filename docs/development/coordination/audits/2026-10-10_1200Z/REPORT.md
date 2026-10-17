@@ -374,3 +374,25 @@ The existing PostgreSQL integration test around lines 207–275 explicitly exerc
 Do not create the test worktree, disposable PostgreSQL, or E2E webServers yet: memory gate is FAIL. No budget/reserve reduction, owner cleanup, browser/process stop, or existing DB use. Continue only independent read-only obligations and re-read resources after natural change. If the memory gate later passes, re-check the exact main ref and target blobs (without repeating fetch if still current), register only the bounded owned resource in the existing registry, create one clean detached copy and one loopback-only disposable database with unique ports, then run the single authorized R7/R8 test with retries=0. An unknown test outcome must not be repeated.
 
 Audit ID remains CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z; `audit_complete=false`; 12 original outcomes remain OPEN.
+
+## Дополнение — current-main API Watch readback и сохранённый memory block
+
+**UTC-время: 2026-10-17T08:20:23.360075280Z.**
+
+### Независимый source-currentity результат P2-1/P2-2
+
+На exact main 68f8 GitHub readback подтверждает текущие blobs `tooling/api-watch/src/acquire.ts=df68a1535e7cd98a1ef50287804d2ba682cdf2a9` и `tooling/api-watch/src/acquire.test.ts=4329b3504b475a7627be8a12284a3000dc0ce340`; они отличаются от исторических main7f blobs, поэтому старые hashes не являются текущими. В текущем source сохранены полная проверка набора DNS-адресов, native `HttpsAgent` с `autoSelectFamily=true`, `keepAlive=false`, `maxCachedSessions=0`, и привязка lookup к исходному TLS hostname/SNI. В текущем test-файле есть сценарии endless TLS response для 429/5xx, проверка закрытия сокета и общего deadline. Это read-only source/currentity проверка, тесты не запускались; exact-main 68f8 CI уже имеет 5/5 SUCCESS.
+
+Точное ограничение evidence сохраняется: сам test-файл описывает fake-wire TLS unit harness и прямо не является доказательством реального TCP-сценария «первая проверенная адресация падает, вторая успешна». Этот readback не отзывает ранее принятую source/main7f приёмку P2-1/P2-2, но не расширяет её до неподтверждённого реального TCP-fallback evidence.
+
+### R7/R8 resource gate — последняя оценка без повторного теста
+
+Свежий resource readback 2026-10-17T08:17:55.061225Z показал `MemAvailable=5,579.85 MiB`, минимум E2E `5,734.4 MiB`, дефицит `154.55 MiB`; disk usable `5,820 MiB`, B04 headroom `700 MiB`, inode floor PASS. Это FAIL для тяжёлого E2E по памяти; тест, worktree и DB не запускались/не создавались. Не снижать budget, не освобождать чужие процессы, не изменять существующие DB/live/security.
+
+### Текущий остаток
+
+1. R7/R8 — разрешение владельца на один тест и отдельную DB действует; блокирует только физический memory gate. Следующий шаг — независимая работа и новый readback после естественного изменения MemAvailable; при PASS продолжить clean worktree/DB/ports и один тест, при неизвестном исходе не повторять.
+2. P2-3 sourceSeen/submit — source-level race candidate подтверждён чтением exact-main blobs; существующий integration test покрывает same-service fence, не независимый второй relay. Требуется разрешённый PostgreSQL delayed-commit proof и узкое исправление в существующем Controller scope; новых тестов/изменений не делалось.
+3. C06 release — accepted exact-main authority, signed Store ZIP, target catalog acceptance и original-popup Start/Finish остаются UNKNOWN/OPEN в проверенных первичных источниках; C остаётся единственным package/release author, Tester — installed original popup, B/Ops — read-only.
+
+Audit ID прежний; `audit_complete=false`; исходные 12 обязательств OPEN.
