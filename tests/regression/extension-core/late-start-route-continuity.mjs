@@ -105,6 +105,81 @@ test("history replacement on the same path suspends identity", () => {
   const changed = f.tracker.observe({ ...f.witnessed, messageIds: ["other-user", "other-assistant"], startWitness: null });
   assert.equal(changed.conversation_id, null);
 });
+
+// B08 source boundary: two trackers in ONE shared module realm, unlike the
+// single-tracker late-route cases above. This does not claim installed
+// parallel Ozon/WB stores or live owner authority.
+function parallelPending() {
+  const box = { URL, TextEncoder };
+  vm.createContext(box); vm.runInContext(source, box);
+  let surfaceSequence = 0;
+  const core = box.SellerAgentsConversationIdentity;
+  function make({ provider, origin, account, intent, witness }) {
+    const tracker = core.createTracker({ newToken: () => "parallel-surface-" + ++surfaceSequence });
+    const root = {};
+    const before = {
+      origin, provider, accountScope: account, root,
+      pathname: "/", surfaceConfirmed: true, hasMessages: false, messageIds: []
+    };
+    assert.equal(tracker.observe(before).status, "unknown");
+    tracker.beginStart(intent);
+    const observed = { ...before, hasMessages: true,
+      messageIds: [witness, "assistant-placeholder"],
+      startWitness: intent, startWitnessMessageId: witness };
+    const bound = tracker.observe(observed);
+    assert.equal(bound.status, "confirmed");
+    function route(path = "/opaque/route", patch = {}) {
+      return tracker.observe({ ...observed, pathname: path,
+        messageIds: [witness, "assistant-complete"], ...patch });
+    }
+    return { tracker, before, observed, bound, route, root, intent, witness };
+  }
+  return { make };
+}
+test("two parallel providers retain their own witnessed Start, regardless of completion order", () => {
+  for (const first of ["a", "b"]) {
+    const p = parallelPending();
+    const a = p.make({ provider: "chatgpt", origin: "https://chatgpt.com",
+      account: "account-a", intent: "start-a", witness: "user-a" });
+    const b = p.make({ provider: "alice", origin: "https://alice.yandex.ru",
+      account: "account-b", intent: "start-b", witness: "user-b" });
+    assert.notEqual(a.bound.conversation_id, b.bound.conversation_id);
+    const completed = first === "a" ? a : b, pending = first === "a" ? b : a;
+    completed.tracker.endStart(completed.intent, { retainWitness: true });
+    assert.equal(completed.route("/completed").conversation_id, completed.bound.conversation_id);
+    // The other dialogue's independent pending permit must still promote.
+    assert.equal(pending.route("/still-pending").conversation_id, pending.bound.conversation_id);
+    pending.tracker.endStart(pending.intent, { retainWitness: true });
+    assert.notEqual(pending.route("/different-chat").conversation_id, pending.bound.conversation_id);
+  }
+});
+test("cancelling one of two pending Starts neither promotes it nor retires the other", () => {
+  const p = parallelPending();
+  const a = p.make({ provider: "chatgpt", origin: "https://chatgpt.com",
+    account: "account-a", intent: "start-a", witness: "user-a" });
+  const b = p.make({ provider: "alice", origin: "https://alice.yandex.ru",
+    account: "account-b", intent: "start-b", witness: "user-b" });
+  a.tracker.endStart(a.intent);
+  assert.notEqual(a.route("/cancelled").conversation_id, a.bound.conversation_id);
+  assert.equal(b.route("/legitimate-other-dialogue").conversation_id, b.bound.conversation_id);
+  assert.notEqual(a.route("/later-stale-message").conversation_id, b.bound.conversation_id);
+});
+test("account switch and return cannot resurrect stale Start or disrupt another tracker", () => {
+  const p = parallelPending();
+  const a = p.make({ provider: "chatgpt", origin: "https://chatgpt.com",
+    account: "account-a", intent: "same-intent", witness: "same-witness" });
+  const b = p.make({ provider: "chatgpt", origin: "https://chatgpt.com",
+    account: "account-b", intent: "same-intent", witness: "same-witness" });
+  // Equal textual witness/intent IDs in distinct documents are not shared authority.
+  assert.notEqual(a.bound.conversation_id, b.bound.conversation_id);
+  a.tracker.endStart(a.intent, { retainWitness: true });
+  const changed = a.tracker.observe({ ...a.observed, accountScope: "account-b" });
+  assert.notEqual(changed.conversation_id, a.bound.conversation_id);
+  const returned = a.tracker.observe(a.observed);
+  assert.notEqual(returned.conversation_id, a.bound.conversation_id);
+  assert.equal(b.route("/b-still-own").conversation_id, b.bound.conversation_id);
+});
+
 return results;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
