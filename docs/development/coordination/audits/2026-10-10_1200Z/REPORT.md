@@ -58,3 +58,35 @@
 - Отчёт создан в отдельной ветке от точного main SHA, чтобы не делать прямой main-write при недоступности чтения branch protection. Его содержание должно быть независимо прочитано с GitHub после записи.
 - В этом интервале не запускались tests, review, CI, браузер, live/DB, cleanup или новые исполнители. A/B/C source и WIP не изменялись. Удалённые `errors.json`/`events.jsonl` не читались и не восстанавливались.
 - **Следующий разрешённый шаг:** выполнить readback созданного GitHub файла; затем прочитать текущие CI run `39003977042`/`39003977057` как read-only, получить свежий ограниченный ресурсный снимок для B04 и сверить приоритетный документ/role states для всех оставшихся 12 исходов. Не повторять завершённые проверки; фиксировать точное время и обновлять этот же файл не реже одного раза в 10 минут.
+
+## Дополнение — readback и свежий CI exact main 724
+
+Наблюдаемый readback отчёта: GitHub вернул файл длиной 10,844 символа, blob SHA 148f932a1776050f4cd8fed463cd544741a32d3f; URL/ветка совпадают с указанными выше. Создание и чтение подтверждены, это не означает завершения аудита.
+
+### Текущий main и C06
+
+Последний проверенный ref main остаётся 724e814db7174149d8d440ec053bc1ed8ba59776, PR193 merged 2026-10-17T04:49:00Z. По API все пять обязательных push-workflows exact SHA имеют успешный набор первой серии:
+
+- Server CI — https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39003977042, SUCCESS; оба job (ci-plan, server) SUCCESS.
+- Extension CI — https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39003977057, SUCCESS; все шесть job SUCCESS.
+- Documentation CI — https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39003977046, SUCCESS.
+- Coordination and release safety — https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39003977045, SUCCESS.
+- Extension I1-C1 client — https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39003977051, SUCCESS.
+
+Текущая запись C от 2026-10-17T05:11:22.447807Z также подтверждает C06_PR193_SOURCE_FINAL_5OF5_13OF13_TEMP_KEEP_FD193_RELEASE_GATES_OPEN. Успешная SOURCE/main CI-проверка не закрывает release authority, точную подписанную Store-сборку, установленную проверку или Tester R3 original-popup acceptance.
+
+### Дополнительные отдельные run IDs того же SHA
+
+Обнаружена вторая серия на том же exact SHA 724e814d: Documentation CI run 39005405457 и Coordination and release safety run 39005405442 SUCCESS; Server CI run 39005405476, Extension CI run 39005405497 и Extension I1-C1 client run 39005405515 terminal CANCELLED. Все пять указывают на тот же head SHA и run_attempt=1. Первая серия остаётся полным набором 5/5 SUCCESS; вторую не использую как замену и не перезапускаю. Причина повторного запуска той же комбинации SHA/event не установлена (UNKNOWN); точный недостающий источник — первичная запись GitHub push/check-suite/event dispatch для этой второй серии. Это требует отдельного read-only расследования, не изменения продуктового кода и не повторного CI.
+
+### Обновлённые роли (срез по серверным role states)
+
+- A, 2026-10-17T05:11:51.757964Z: текущая задача сменилась на A04_B08_SAME_MARKETPLACE_PARALLEL_TWO_STORE_ADMISSION_TEST_20261017; статус A04_B08_TWO_OZON_STORES_NEW_SOURCE_RED_UNDER_ANALYSIS. Это новый текущий WIP A; не трогать его source/tests. Прежний PR192 остаётся принятым на SOURCE/CI; установленная B08 проверка остаётся отдельной работой Тестера.
+- B, последнее доступное обновление 2026-10-17T05:03:32.655944Z: B05 owner-test PostgreSQL restore stream, local44 PASS на exact e9376093e4666e4a60644c15ea2e7fb19b995530, review pending. Отдельный PR194 остаётся DRAFT/open; shared codex2 reviewer status pending, текущий процесс не запускать повторно. WIP B не изменять.
+- C, 2026-10-17T05:11:22.447807Z: PR193 postmerge exact main CI 5/5 and 13/13 accepted at SOURCE level; temporary worktree must remain until its recorded open FD/consumer lifecycle check; release/installed gates remain OPEN.
+
+### Самоаудит и следующий шаг
+
+Файл создан и независимо прочитан; report blob SHA 148f932a1776050f4cd8fed463cd544741a32d3f. В текущем запуске не запускались продуктовые tests/review/CI, браузер, live/DB операции или cleanup; A/B/C source и WIP не менялись. Серверный read-only snapshot одним составным start_process вызовом был отклонён системой безопасности OpenAI до выполнения команды; полученный текст отказа: «Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.» Причина отказа и точные внутренние критерии не раскрыты (UNKNOWN). Не повторял этот составной вызов и не пытался обходить отказ; использовал только уже разрешённые read_file, get_file_info, list_processes и GitHub read-only endpoints. Свежий полный ресурсный снимок B04 этим не получен.
+
+Следующий разрешённый шаг: (1) прочитать первичную metadata второй серии GitHub runs/check suites без rerun; (2) проверить B04 только через отдельные штатные read-only источники, не повторяя отклонённый составной вызов; (3) продолжить исходные 12 open outcomes и сохранить в этом же отчёте следующий фактический readback. Обновление отчёта — не позднее 10 минут после этого дополнения.
