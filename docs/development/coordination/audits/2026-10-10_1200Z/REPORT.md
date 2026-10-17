@@ -302,3 +302,26 @@ GitHub REPORT.md обновлён в этой ветке; main не изменя
 После нового прямого разрешения владельца 07:39Z проверено: предыдущая попытка завершилась платформенным отказом до исполнения; процесса fetch/test в полёте не было; существующий `controllers/coordination.lock` свободен. Выполнена ровно одна разрешённая команда: `flock -x /root/octoport-control/controllers/coordination.lock git -C /root/octoport-main fetch --no-tags origin main`. Первичный результат: exit code 0; `main -> FETCH_HEAD`. Readback подтвердил `FETCH_HEAD=984fa34e61c2c16bd16e792b5b9753c1dd0e78ee`, дерево `ad30a7783486d960d5a130dcc79d01a25d312353`, родители `39effb4bac621f54921545549d276592c3f22e21` и `db6014ed0412c9cb8c10e08e9e76a94b7bd8c08d`; `refs/remotes/origin/main` и GitHub `main` совпадают на 984fa. Текущий branch/HEAD `/root/octoport-main` остался `work/c-integration` / `5ca599941881b7682eec5b8317033fafe34e278c`; checkout/merge не выполнялись, target-path status чист, никаких рабочих файлов не изменено. В B worktree по-прежнему есть изменённый `tests/e2e/server/support/api-harness.ts`; его не трогали.
 
 Дальше: создать отдельный чистый immutable test worktree от точного `984fa34e61c2c16bd16e792b5b9753c1dd0e78ee` после проверки актуального resource admission и всех релевантных locks/claims. Существующие 351 worktree сохраняются; `/dev/shm` имеет 5,509 MiB свободно, root 25,994 MiB; allocation registry содержит 1,572 валидных записей, 71 OPEN/HELD с резервом 16,971 MiB. До отдельной регистрации ресурса и проверки DB/ports тест не запускать. Владелец уже разрешил отдельную disposable DB/уникальные порты и ровно один тест; эти ворота остаются обязательными.
+
+## Дополнение — current main 68f8 подтверждён, целевые E2E файлы не менялись
+
+**UTC-время: 2026-10-17T07:56:07.799267858Z.**
+
+После последнего сохранённого результата Git-fetch `984fa34e...` GitHub main продвинулся на merge PR194 до `68f8fb5040667b6ba25b1cc91f69f2fdfae759f9` (2026-10-17T07:44:45Z). Локальный объект `68f8fb50` уже доступен через `refs/remotes/origin/main`; повторный fetch не выполнялся. Родители `984fa34e...` и `3234aa7a...`; дельта от `984fa34e` затрагивает только `tooling/operations/offsite_backup_policy.py` и `tooling/operations/test_offsite_backup_policy.py`.
+
+GitHub и локальный `git rev-parse <current-main>:<path>` совпали по целевым blob: `tests/e2e/server/admin-safety.spec.ts=7c0f40a0f9c3d40e0112a13edbb5b6d2fb86f095`, `tests/e2e/server/support/database.ts=f9ba3ad4175f8f913cce0549f5f769d387277be6`, `tests/e2e/server/playwright.config.ts=613e7538bb55b5c639df0cfaf837ed91b0d26d3f`, `fixtures.ts=d4cc89f4448a6e5ca03c7812e5cf2f6797350c7e`, `global-setup.ts=c5744b5475a40a26d7cdb731fe9893076f80a71e`, `api-harness.ts=4fac2d472e33fdda78872a459a46d24c7ce084b5`. Все целевые файлы идентичны `984fa34e`; чужой dirty B `api-harness.ts` сохраняется только в B worktree и не копируется в новую копию.
+
+### Ресурсный допуск — пока не пройден для E2E
+
+Последний read-only срез: `/root` свободно 25,993 MiB, `/dev/shm` свободно 5,472 MiB, inode root свободно 3,956,461, `MemAvailable=5,782,928 kB` (около 5,647 MiB), memory pressure `some/full avg10=0.00`. Existing allocation registry: 1,572 JSON, 0 malformed, 20 OPEN + 51 HELD, действующий резерв 16,971 MiB. Расчёт диска `25,993 - 16,971 - 3,072 = 5,950 MiB`, то есть на 830 MiB выше B04 threshold 5,120 MiB.
+
+RESOURCE_POLICY.md устанавливает E2E budget 4,096 MiB, учитывать 15% peak margin и сохранять не менее 1,024 MiB MemAvailable сверх ожидаемого прироста. Расчётный максимум с margin — 4,710 MiB; вместе с обязательным остатком требуется 5,734 MiB. Сейчас MemAvailable около 5,647 MiB, дефицит примерно 87 MiB, поэтому тяжёлый E2E запуск пока запрещён ресурсным допуском. Нельзя снижать бюджет/резерв или останавливать чужой Chrome/dot ради прохождения. До DB/test нужно дождаться естественного освобождения памяти или выполнить только разрешённую безопасную независимую работу; затем измерить снова.
+
+### Следующий шаг
+
+1. Не повторять fetch: exact main `68f8fb50` и все target blobs доступны локально.
+2. Прочитать и применить формат существующего disk-allocations учёта и ROLE/checkpoint; перед записью сверить coordination/resource-admission locks и единственного автора. Выбрать отдельный временный путь с сохранением всех 351 существующих worktrees, dirty B file и refs.
+3. После resource gate создать чистый detached worktree на exact `68f8fb5040667b6ba25b1cc91f69f2fdfae759f9`, затем отдельную loopback-only disposable PostgreSQL и три свободных уникальных E2E порта; ни одна существующая БД не используется.
+4. Только после PASS exact-source, single-writer, DB guard, disk and memory gates — один Playwright test с точным полным title и `retries=0`. При неизвестном исходе не повторять.
+
+Ни worktree, ни disposable DB/volume, ни тест не создавались в этом интервале; новые процессы E2E не обнаружены. Разрешения владельца 05:25Z и 06:21Z остаются действующими. Audit ID прежний, `audit_complete=false`, 12 оригинальных исходов OPEN.
