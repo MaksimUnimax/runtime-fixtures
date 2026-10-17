@@ -3,8 +3,11 @@ import hashlib
 import json
 import os
 import importlib.util
+import subprocess
+import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -122,27 +125,30 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
             replacement = self.serialized("https://api-b.example.test")
             self.assertEqual(len(original), len(replacement))
             file.write_bytes(original)
-            real_reader = composed.baseline.read_json
+            original_json_loads = json.loads
             changed = []
 
-            def replace_after_parse(path):
-                parsed = real_reader(path)
-                if Path(path) == file:
+            def overwrite_after_parse(text, *args, **kwargs):
+                parsed = original_json_loads(text, *args, **kwargs)
+                if isinstance(parsed, dict) and parsed.get("schemaVersion") == "octoport_release_authority_v1" and not changed:
                     file.write_bytes(replacement)
                     changed.append(True)
                 return parsed
 
-            with patch.object(composed.baseline, "read_json", replace_after_parse):
+            with patch.object(composed.json, "loads", overwrite_after_parse):
                 config, digest = composed.store_config(file, {"version": "0.2.37"})
+            self.assertEqual(changed, [True], "Test must actually replace the source pathname")
+            self.assertEqual(file.read_bytes(), replacement)
+            self.assertNotEqual(hashlib.sha256(original).digest(), hashlib.sha256(replacement).digest())
             self.assertEqual(config["controlApiOrigin"], "https://api-a.example.test")
             self.assertEqual(
                 digest, hashlib.sha256(original).hexdigest(),
                 "Store receipt must hash bytes actually used to create packaged config",
             )
-            # Legacy parser path can be swapped; a single snapshot need not call it.
-            self.assertLessEqual(len(changed), 1)
 
     def test_store_authority_same_size_write_during_fd_read_fails_closed(self):
+        if not hasattr(os, "pwrite"):
+            self.skipTest("synthetic concurrent overwrite requires os.pwrite")
         with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-mutation-") as temp:
             file = Path(temp) / "synthetic.json"
             original = self.serialized("https://api-a.example.test")
@@ -170,6 +176,51 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, "changed during"):
                     composed.store_config(file, {"version": "0.2.37"})
             self.assertTrue(changed, "The authority descriptor must actually be read")
+
+    def test_store_authority_same_size_rewrite_between_reads_ignores_coarse_stat(self):
+        if not hasattr(os, "pwrite"):
+            self.skipTest("coarse timestamp simulated concurrent write requires os.pwrite")
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-store-coarse-clock-") as temp:
+            file = Path(temp) / "synthetic.json"
+            original = self.serialized("https://api-a.example.test")
+            replacement = self.serialized("https://api-b.example.test")
+            self.assertEqual(len(original), len(replacement))
+            file.write_bytes(original)
+            identity = file.stat()
+            real_fstat = os.fstat
+            real_lseek = os.lseek
+            changed = []
+
+            def coarse_timestamp_fstat(fd):
+                state = real_fstat(fd)
+                if state.st_ino != identity.st_ino or state.st_dev != identity.st_dev:
+                    return state
+                # Model a filesystem where equal-length writes do not advance
+                # mtime/ctime at the granularity observed by fstat.
+                return SimpleNamespace(
+                    st_mode=state.st_mode, st_dev=state.st_dev, st_ino=state.st_ino,
+                    st_size=state.st_size, st_mtime_ns=identity.st_mtime_ns,
+                    st_ctime_ns=identity.st_ctime_ns,
+                )
+
+            def mutate_after_first_read(fd, offset, whence):
+                current = real_fstat(fd)
+                if not changed and current.st_dev == identity.st_dev and current.st_ino == identity.st_ino:
+                    writer = os.open(file, os.O_WRONLY)
+                    try:
+                        os.pwrite(writer, replacement, 0)
+                    finally:
+                        os.close(writer)
+                    changed.append(True)
+                return real_lseek(fd, offset, whence)
+
+            with patch.object(composed.os, "fstat", coarse_timestamp_fstat), patch.object(
+                composed.os, "lseek", mutate_after_first_read
+            ):
+                with self.assertRaisesRegex(AssertionError, "changed during"):
+                    composed.store_config(file, {"version": "0.2.37"})
+            self.assertEqual(changed, [True], "Coarse-stat regression must really change bytes")
+            self.assertEqual(file.read_bytes(), replacement)
 
     def test_store_authority_open_swap_to_symlink_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-link-") as temp:
@@ -202,6 +253,18 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
             # O_NONBLOCK prevents the open() call waiting for an absent writer.
             with self.assertRaisesRegex(AssertionError, "regular file"):
                 composed.store_config(fifo, {"version": "0.2.37"})
+
+    def test_store_composer_refuses_optimized_python_before_any_build(self):
+        with patch.dict(os.environ, {"PYTHONDONTWRITEBYTECODE": "1"}):
+            proc = subprocess.run(
+                [sys.executable, "-O", "-c",
+                 "import runpy; runpy.run_path(" +
+                 repr(str(ROOT / "tooling/build/extension_composed.py")) +
+                 ", run_name='not_a_full_build')"],
+                capture_output=True, text=True, timeout=8,
+            )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("EXTENSION_COMPOSITION_ASSERTIONS_DISABLED", proc.stderr)
 
     def test_store_authority_input_larger_than_one_megabyte_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-cap-") as temp:

@@ -132,35 +132,50 @@ def read_store_authority_snapshot(path):
     # This only establishes internal bytes/hash identity, not genuine authority
     # issuer acceptance, an Ed25519 signing permission or Store approval.
     no_follow = getattr(os, "O_NOFOLLOW", 0)
-    assert no_follow, "Secure store authority file opening is unavailable"
+    if not no_follow:
+        raise AssertionError("Secure store authority file opening is unavailable")
     flags = os.O_RDONLY | no_follow | getattr(os, "O_NONBLOCK", 0)
     flags |= getattr(os, "O_CLOEXEC", 0)
     descriptor = None
     try:
         descriptor = os.open(path, flags)
         before = os.fstat(descriptor)
-        assert stat.S_ISREG(before.st_mode), "Store authority must be a regular file"
-        assert 0 <= before.st_size <= MAX_STORE_AUTHORITY_BYTES, "Store authority too large"
-        payload = bytearray()
-        while len(payload) <= MAX_STORE_AUTHORITY_BYTES:
-            chunk = os.read(
-                descriptor,
-                min(65536, MAX_STORE_AUTHORITY_BYTES + 1 - len(payload)),
-            )
-            if not chunk:
-                break
-            payload.extend(chunk)
+        if not stat.S_ISREG(before.st_mode):
+            raise AssertionError("Store authority must be a regular file")
+        if not 0 <= before.st_size <= MAX_STORE_AUTHORITY_BYTES:
+            raise AssertionError("Store authority too large")
+
+        def bounded_bytes():
+            payload = bytearray()
+            while len(payload) <= MAX_STORE_AUTHORITY_BYTES:
+                chunk = os.read(
+                    descriptor,
+                    min(65536, MAX_STORE_AUTHORITY_BYTES + 1 - len(payload)),
+                )
+                if not chunk:
+                    break
+                payload.extend(chunk)
+            if len(payload) > MAX_STORE_AUTHORITY_BYTES:
+                raise AssertionError("Store authority too large")
+            return bytes(payload)
+
+        # A same-sized rewrite can evade mtime/ctime on coarse-clock filesystems.
+        # Compare two bounded reads on the SAME no-follow descriptor, not paths.
+        primary = bounded_bytes()
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        confirmed = bounded_bytes()
         after = os.fstat(descriptor)
-        assert (
+        if not (
             stat.S_ISREG(after.st_mode)
             and before.st_dev == after.st_dev
             and before.st_ino == after.st_ino
-            and before.st_size == after.st_size == len(payload)
+            and before.st_size == after.st_size == len(primary) == len(confirmed)
             and before.st_mtime_ns == after.st_mtime_ns
             and before.st_ctime_ns == after.st_ctime_ns
-        ), "Store authority changed during verified read"
-        assert len(payload) <= MAX_STORE_AUTHORITY_BYTES, "Store authority too large"
-        return bytes(payload)
+            and primary == confirmed
+        ):
+            raise AssertionError("Store authority changed during verified read")
+        return primary
     except OSError as error:
         raise AssertionError("Invalid store release authority file") from error
     finally:
