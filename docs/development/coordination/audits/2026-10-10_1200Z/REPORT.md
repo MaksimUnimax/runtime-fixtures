@@ -396,3 +396,11 @@ Audit ID remains CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z; `audit_complete=fa
 3. C06 release — accepted exact-main authority, signed Store ZIP, target catalog acceptance и original-popup Start/Finish остаются UNKNOWN/OPEN в проверенных первичных источниках; C остаётся единственным package/release author, Tester — installed original popup, B/Ops — read-only.
 
 Audit ID прежний; `audit_complete=false`; исходные 12 обязательств OPEN.
+
+## Финальное дополнение — свежий resource readback после независимой работы
+
+**UTC-время: 2026-10-17T08:20:55.722968Z.**
+
+GitHub main повторно подтверждён на `68f8fb5040667b6ba25b1cc91f69f2fdfae759f9`; целевой тестовый процесс отсутствует. Resource readback: root free 25,990 MiB; inode free 3,956,355; /dev/shm free 5,393 MiB; MemAvailable 5,805,908 kB = 5,669.83 MiB; memory PSI some/full avg10=0.00. Registry remains 1,573 JSON, 0 malformed, CLOSED 1,501 / HELD 51 / OPEN 21, active reserve 17,099 MiB. Disk usable after reserve and 3,072 MiB floor = 5,819 MiB; B04 margin 699 MiB, disk and inode gates PASS.
+
+E2E memory gate remains **FAIL**: required 5,734.4 MiB, available 5,669.83 MiB, deficit 64.57 MiB before parallel-test budget remainder. This is better than the prior 154.55 MiB deficit but still below threshold. Do not create the temporary worktree or DB and do not run the single R7/R8 test. Continue read-only independent audit; remeasure only after a meaningful natural resource change. All prior owner permissions remain in force; they do not override the physical resource policy. No test or DB operation was started.
