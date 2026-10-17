@@ -890,5 +890,20 @@
     "target": "shared/provider_transport_core.js",
     "old": "  async function executePerformanceJsonOnce({ fetchImpl, request, now = () => Date.now() }) {\n    if (typeof fetchImpl !== \"function\") fail(\"FETCH_IMPL_MISSING\", \"fetchImpl обязателен.\");\n    if (!request || typeof request !== \"object\") fail(\"INVALID_REQUEST\", \"Trusted request object обязателен.\");\n    if (!/^https:\\/\\/api-performance\\.ozon\\.ru\\//.test(String(request.url || \"\"))) fail(\"UNTRUSTED_REQUEST_HOST\", \"Разрешён только fixed Ozon Performance API host.\");\n    if (!/^(GET|POST)$/.test(String(request.method || \"\"))) fail(\"UNTRUSTED_REQUEST_METHOD\", \"Performance bridge допускает только заранее зафиксированные GET/POST read/auth methods.\");\n\n    const started = now();\n    let response;\n    try {\n      response = await fetchImpl(request.url, {\n        method: request.method,\n        headers: request.headers,\n        body: request.method === \"GET\" ? undefined : request.body\n      });",
     "new": "  async function executePerformanceJsonOnce({ fetchImpl, request, now = () => Date.now() }) {\n    if (typeof fetchImpl !== \"function\") fail(\"FETCH_IMPL_MISSING\", \"fetchImpl обязателен.\");\n    if (!request || typeof request !== \"object\") fail(\"INVALID_REQUEST\", \"Trusted request object обязателен.\");\n    if (!/^https:\\/\\/api-performance\\.ozon\\.ru\\//.test(String(request.url || \"\"))) fail(\"UNTRUSTED_REQUEST_HOST\", \"Разрешён только fixed Ozon Performance API host.\");\n    if (!/^(GET|POST)$/.test(String(request.method || \"\"))) fail(\"UNTRUSTED_REQUEST_METHOD\", \"Performance bridge допускает только заранее зафиксированные GET/POST read/auth methods.\");\n\n    const started = now();\n    let response;\n    try {\n      response = await fetchImpl(request.url, {\n        method: request.method,\n        headers: request.headers,\n        body: request.method === \"GET\" ? undefined : request.body,\n        // The fixed API host must not redirect requests carrying provider headers.\n        redirect: \"error\"\n      });"
+  },
+  {
+    "target": "shared/ozon_contract.js",
+    "old": "        if (!Array.isArray(frame.source) && rejectTransportKeys && FORBIDDEN_TRANSPORT_KEYS.has(normalizedKey(key))) {",
+    "new": "        if (!Array.isArray(frame.source) && rejectTransportKeys &&\n            (key === \"__proto__\" || FORBIDDEN_TRANSPORT_KEYS.has(normalizedKey(key)))) {"
+  },
+  {
+    "target": "shared/ozon_contract.js",
+    "old": "        if (primitive.primitive) {\n          frame.target[key] = primitive.value;\n          continue;\n        }",
+    "new": "        if (primitive.primitive) {\n          // Provider JSON may have an own \"__proto__\" key; bracket writes into\n          // plain {} would invoke the inherited setter and lose that value.\n          Object.defineProperty(frame.target, key, {\n            value: primitive.value, enumerable: true, writable: true, configurable: true,\n          });\n          continue;\n        }"
+  },
+  {
+    "target": "shared/ozon_contract.js",
+    "old": "        const childTarget = Array.isArray(child) ? [] : {};\n        frame.target[key] = childTarget;\n        stack.push({ source: child, target: childTarget, path: childPath });",
+    "new": "        const childTarget = Array.isArray(child) ? [] : {};\n        Object.defineProperty(frame.target, key, {\n          value: childTarget, enumerable: true, writable: true, configurable: true,\n        });\n        stack.push({ source: child, target: childTarget, path: childPath });"
   }
 ]

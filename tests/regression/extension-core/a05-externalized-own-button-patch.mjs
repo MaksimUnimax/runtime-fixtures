@@ -21,7 +21,27 @@ for (const patch of transportPatches) {
   assert.equal(patch.old.includes('redirect: "error"'), false, "preimage must lack the redirect fence");
   assert.equal(patch.new.includes('redirect: "error"'), true, "replacement must reject redirects");
 }
-assert.equal(patches.length, 176 + transportPatches.length);
+// The entire accepted 178-recipe baseline must remain byte-for-byte stable;
+// counting recipes alone cannot detect replacing an unrelated accepted patch.
+assert.equal(
+  hash(JSON.stringify(patches.slice(0, 176 + transportPatches.length))),
+  "b8a94250b86e77be79347a2b8d37563eef6918f716ee8262da54467a7bde1ee4",
+  "pin the complete original A05/transport composer inventory",
+);
+// A04 adds exactly three reviewed Ozon grouped-result JSON property overlays.
+// Pin both preimages and replacements rather than weakening the A05 inventory guard.
+const groupedResultPatches = patches.filter(patch => patch.target === "shared/ozon_contract.js");
+assert.equal(groupedResultPatches.length, 3, "only the accepted Ozon JSON own-key overlays");
+assert.deepEqual(groupedResultPatches.map(patch => [hash(patch.old), hash(patch.new)]), [
+  ["de977049fe188bce48fdc32df214867384616f6c6043a2dabb8da605c97ced5c", "e45657bdc13b3defa99c5a10fd1214caf2dc925da3022b8c6941ae14dc6a4be4"],
+  ["9b0e9cd3db262fead5fe49df362c67d6b8e93386fcdd3e8adf1bce4f630d67e5", "add2b522fb406a259115c6c795e469a9ee9c1c5c46d97f860577b38ee7816c4a"],
+  ["9199df7bdf5ff2b40d78f513747be33e653f6f62484fc593fb7eaf7154cc5dd0", "4e258bf72d73bf39d0180c5dd4084534ba5ecbd12cb107a7161ae37616052878"],
+], "pin all three independently reviewed A04 OzonContract recipes");
+for (const row of groupedResultPatches) {
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+}
+assert.deepEqual(patches.slice(-3), groupedResultPatches, "append A04 overlays after accepted A05 inventory");
+assert.equal(patches.length, 176 + transportPatches.length + groupedResultPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];
