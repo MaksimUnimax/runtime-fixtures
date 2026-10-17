@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import json
 import subprocess
 import sys
@@ -380,6 +379,50 @@ class OffsiteBackupPolicyTest(unittest.TestCase):
             self.assertEqual(diagnostic["status"], "FAIL")
             self.assertIn(diagnostic["code"], accepted_codes)
             self.assertEqual(set(diagnostic), {"status", "code"})
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_oversized_regular_policy_never_reads_file_unbounded(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "oversized-policy.json"
+            # A sparse regular file has the rejected logical size without
+            # allocating the whole payload or putting real data in the fixture.
+            with path.open("wb") as output:
+                output.truncate(16 * 1024 * 1024)
+            with patch.object(
+                Path, "read_bytes", side_effect=AssertionError("FULL_FILE_READ_USED")
+            ) as original_read:
+                with self.assertRaisesRegex(
+                    PolicyError, "POLICY_FILE_SIZE_INVALID"
+                ):
+                    load_policy(path)
+            original_read.assert_not_called()
+
+    def test_policy_file_size_exact_64k_boundary_and_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "limit-policy.json"
+            valid = json.dumps(pending_policy(), sort_keys=True).encode("utf-8")
+            self.assertLess(len(valid), 65536)
+            exact_limit = valid + b" " * (65536 - len(valid))
+            path.write_bytes(exact_limit)
+            self.assertEqual(load_policy(path)["status"], "OWNER_DECISION_REQUIRED")
+
+            path.write_bytes(exact_limit + b" ")
+            with self.assertRaisesRegex(PolicyError, "POLICY_FILE_SIZE_INVALID"):
+                load_policy(path)
+            script = Path(__file__).with_name("offsite_backup_policy.py")
+            result = subprocess.run(
+                [sys.executable, "-B", str(script), str(path)],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=12,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stdout, "")
+            self.assertEqual(
+                json.loads(result.stderr),
+                {"status": "FAIL", "code": "POLICY_FILE_SIZE_INVALID"},
+            )
             self.assertNotIn("Traceback", result.stderr)
 
     def test_load_policy_rejects_duplicate_keys_before_validation(self) -> None:
