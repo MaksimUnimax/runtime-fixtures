@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import sys
 import zipfile
 from urllib.parse import urlsplit
@@ -22,6 +23,7 @@ spec = importlib.util.spec_from_file_location("extension_baseline", ROOT / "tool
 baseline = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(baseline)
 RECIPE = ROOT / "apps/extension/composition.json"
+MAX_STORE_AUTHORITY_BYTES = 1024 * 1024
 STORE_VISIBLE_BRAND_TARGETS = (
     "popup.html",
     "popup.js",
@@ -125,10 +127,50 @@ def validate_trust_bundle(bundle):
     assert active >= 1
 
 
+def read_store_authority_snapshot(path):
+    """Read one regular, size-bounded release authority input as one snapshot."""
+    # This only establishes internal bytes/hash identity, not genuine authority
+    # issuer acceptance, an Ed25519 signing permission or Store approval.
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    assert no_follow, "Secure store authority file opening is unavailable"
+    flags = os.O_RDONLY | no_follow | getattr(os, "O_NONBLOCK", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    descriptor = None
+    try:
+        descriptor = os.open(path, flags)
+        before = os.fstat(descriptor)
+        assert stat.S_ISREG(before.st_mode), "Store authority must be a regular file"
+        assert 0 <= before.st_size <= MAX_STORE_AUTHORITY_BYTES, "Store authority too large"
+        payload = bytearray()
+        while len(payload) <= MAX_STORE_AUTHORITY_BYTES:
+            chunk = os.read(
+                descriptor,
+                min(65536, MAX_STORE_AUTHORITY_BYTES + 1 - len(payload)),
+            )
+            if not chunk:
+                break
+            payload.extend(chunk)
+        after = os.fstat(descriptor)
+        assert (
+            stat.S_ISREG(after.st_mode)
+            and before.st_dev == after.st_dev
+            and before.st_ino == after.st_ino
+            and before.st_size == after.st_size == len(payload)
+            and before.st_mtime_ns == after.st_mtime_ns
+            and before.st_ctime_ns == after.st_ctime_ns
+        ), "Store authority changed during verified read"
+        assert len(payload) <= MAX_STORE_AUTHORITY_BYTES, "Store authority too large"
+        return bytes(payload)
+    except OSError as error:
+        raise AssertionError("Invalid store release authority file") from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
 def store_config(authority_path, recipe):
-    authority_path = Path(authority_path)
-    assert authority_path.is_file() and not authority_path.is_symlink()
-    authority = baseline.read_json(authority_path)
+    authority_bytes = read_store_authority_snapshot(Path(authority_path))
+    authority = json.loads(authority_bytes.decode("utf-8"))
     assert isinstance(authority, dict) and set(authority) == {
         "schemaVersion", "source", "productVersion", "contractVersion", "migrationLevel",
         "environment", "origins", "trustBundle"
@@ -156,7 +198,7 @@ def store_config(authority_path, recipe):
         "contractVersion": authority["contractVersion"],
         "trustBundle": authority["trustBundle"],
     }
-    return config, baseline.sha256(authority_path.read_bytes())
+    return config, baseline.sha256(authority_bytes)
 
 
 def compose(directory, mode="development", release_authority=None):
@@ -417,6 +459,7 @@ if __name__ == "__main__":
     _, _, receipt = build(
         args.output.resolve(),
         mode=args.mode,
-        release_authority=args.release_authority.resolve() if args.release_authority else None,
+        # Preserve the supplied final component for O_NOFOLLOW.
+        release_authority=args.release_authority if args.release_authority else None,
     )
     print(receipt["package"])
