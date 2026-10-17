@@ -21,6 +21,10 @@ on:
       - "tooling/operations/test_backup_postgres_independent.py"
       - "tooling/operations/offsite_backup_policy.py"
       - "tooling/operations/test_offsite_backup_policy.py"
+      - "tooling/operations/verify_ops_release.py"
+      - "tooling/operations/test_verify_ops_release.py"
+      - "tooling/operations/deploy_owner_test.py"
+      - "tooling/operations/test_deploy_owner_test.py"
       - "tooling/checks/server-import-check.mjs"
       - "infra/local/**"
       - "infra/production/scripts/install-octoport-postgres-backup.sh"
@@ -117,6 +121,10 @@ jobs:
         run: |
           python3 -B -m unittest discover -s tooling/operations -p 'test_backup_postgres_independent.py' -v
           python3 -B -m unittest discover -s tooling/operations -p 'test_offsite_backup_policy.py' -v
+      - name: Verify ops release and legacy owner-test restore safeguards
+        run: |
+          python3 -B -m unittest discover -s tooling/operations -p 'test_verify_ops_release.py' -v
+          python3 -B -m unittest discover -s tooling/operations -p 'test_deploy_owner_test.py' -v
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck

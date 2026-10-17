@@ -787,5 +787,31 @@ class LegacyArchiveInputStreamingTests(unittest.TestCase):
         self.assertNotIn("input_bytes", events[2][1])
 
 
+class NativeServerOperationsCoverage(unittest.TestCase):
+    def test_server_ci_targets_actual_ops_sources_and_runs_their_tests(self):
+        workflow = (
+            Path(__file__).resolve().parents[2] / ".github/workflows/server-ci.yml"
+        ).read_text()
+        self.assertIn("  pull_request:\n    paths:\n", workflow)
+        pr_paths = workflow.split("  pull_request:\n    paths:\n", 1)[1].split(
+            "\n  push:\n", 1
+        )[0]
+        for relative in (
+            "tooling/operations/verify_ops_release.py",
+            "tooling/operations/test_verify_ops_release.py",
+            "tooling/operations/deploy_owner_test.py",
+            "tooling/operations/test_deploy_owner_test.py",
+        ):
+            with self.subTest(path=relative):
+                self.assertIn('      - "' + relative + '"', pr_paths)
+        for name in ("test_verify_ops_release.py", "test_deploy_owner_test.py"):
+            with self.subTest(test=name):
+                self.assertIn(
+                    "python3 -B -m unittest discover -s tooling/operations "
+                    "-p '" + name + "' -v",
+                    workflow,
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
