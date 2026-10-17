@@ -577,3 +577,34 @@ R3 currentity-check завершён: исторический target 0.2.15 н�
 Нового успешного read-only resource snapshot в этом продолжении нет. Последнее подтверждённое численное измерение остаётся от 2026-10-17T09:34:52.882398Z и является историческим, а не текущим состоянием: MemAvailable 5,524.29 MiB при требовании 5,734.4 MiB (дельта −210.11 MiB); disk usable после active reserves и floor 5,945 MiB при B04 demand 5,120 MiB (маржа +825 MiB). По этим последним данным память FAIL, диск PASS; текущий допуск не подтверждён.
 
 В этом шаге не менялись ресурсы, резервы, реестр allocations, процессы, worktrees, БД, ports, source/live/security; тест не запускался. Бюджет и резервы не снижать. Следующий допустимый шаг — один новый read-only замер только когда он доступен без обхода ограничений; при PASS сообщить готовность, но не запускать тест в рамках самого замера. Ответ владельца по C06 остаётся pending.
+
+
+## GitHub-only delta — новые опубликованные release-source результаты после checkpoint
+
+**UTC:** 2026-10-17T13:48:48.788Z.
+
+### Последняя запись и защита от дубля
+
+Перед обновлением GitHub readback подтвердил существующий REPORT.md blob `a9ddb2c31f7efab1e261f5b87b35b4d5699e52c3`, 87,922 символа; ветка отчёта по-прежнему указывает на commit `923dd8ce73cfbbe44486fce22fbe6191346aa1f1`. С момента checkpoint `2026-10-17T10:00:01.009Z` конкурирующих записей в report branch не опубликовано. Новая запись добавляется один раз к этому SHA; прежняя карта 12 обязательств не пересобирается.
+
+### Подтверждённые новые GitHub результаты
+
+- `main` сейчас `434788a71b31b199d77994812abc023a1f2bb639` (merge PR203, 2026-10-17T13:00:41Z). Сравнительно с прошлым checkpoint main `68f8fb5040667b6ba25b1cc91f69f2fdfae759f9` опубликованы и объединены PR201, PR202 и PR203.
+- **PR201** — [Chrome-only B1 packaging](https://github.com/MaksimUnimax/runtime-fixtures/pull/201), merge `389cde2046cc68b663830c9ea399f03d3e3cdf2b`. Добавлен явный `--channel chrome`, manifest `releaseScope: CHROME_ONLY`; default two-browser flow остаётся strict. В PR body зафиксированы исправленные два P2 и exact-source independent review PASS_SOURCE_SCOPED, 0 P0/P1/P2, с последующими native CI evidence. Это source/package scope, не настоящая authority или Store acceptance.
+- **PR202** — [Chrome-only source и сохранённая dual-browser дорожка](https://github.com/MaksimUnimax/runtime-fixtures/pull/202), merge `8373f464157d316d9573e2d6cb0b2091d2fe0c54`. Изменён только Store readiness draft. Он явно разделяет immutable `389cde2/tree 3dd1b6e` Chrome-only source и исторический `39effb4/tree d11caed` dual-browser source, запрещая переносить authority между ними.
+- **PR203** — [Firefox-only B1 candidate support](https://github.com/MaksimUnimax/runtime-fixtures/pull/203), merge/current main `434788a71b31b199d77994812abc023a1f2bb639`. Пять изменённых путей только в `tooling/b1` и `tooling/server`: `--channel firefox`, `releaseScope: FIREFOX_ONLY`, strict single-browser preflight и негативная проверка, что Firefox-only manifest нельзя интерпретировать как Opera target. PR body публикует 149/149 B1 tests PASS, Opera transition consumer 14/14 PASS после исправления среды, exact-source review PASS_SOURCE_SCOPED и 5/5 native CI workflows / 13/13 jobs SUCCESS. Никаких тестов или review повторно не запускалось в этом аудите.
+- **Текущий exact-main CI** на SHA `434788a71b31b199d77994812abc023a1f2bb639`: Server [39034807528](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39034807528) SUCCESS (2/2 jobs), Extension [39034807512](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39034807512) SUCCESS (6/6), I1-C1 client [39034807501](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39034807501) SUCCESS (3/3), Documentation [39034807604](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39034807604) SUCCESS (1/1), Coordination/release safety [39034807507](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39034807507) SUCCESS (1/1). Итого 5/5 workflows и 13/13 jobs, все `run_attempt=1`; existing runs только прочитаны, rerun не выполнялся.
+
+### Сверка с открытым C06
+
+Текущий `docs/product/readiness/CHROME_STORE_0_2_37_SUBMISSION_DRAFT_20261017.md` на main `434788a` имеет тот же blob `dabafc2aae23f41601bc362865107a79b9f3914b`, который опубликован PR202. Его явный статус по-прежнему `PREPARING — НЕ ГОТОВО К SUBMIT`. Он документирует Chrome-only source lane `389cde2/tree 3dd1b6e` и отдельно историческую dual-browser lane `39effb/tree d11caed`; PR203 добавляет Firefox-only source capability, но не изменяет сам Chrome readiness draft и не меняет приоритет Chrome-first.
+
+Эти публикации закрывают только source-level возможность выбора одно- или двухбраузерного scope в B1. Они **не** предоставляют genuine accepted `octoport_release_authority_v1` для точного source/tree, два действительных PREPRODUCTION HTTPS origins, issuer-approved Ed25519 trust bundle, актуальный target catalog/reviewer normal login, реальный подписанный Store ZIP или installed original-popup acceptance. Ответ владельца на уже переданный вопрос о местонахождении существующей C06 authority/catalog всё ещё не получен; разрешением это не считается. Не менялись PR153/маркетинговые тексты, publisher, DB/service/live/security или C WIP.
+
+### Другие обязательства и границы
+
+Из новых main merges нет evidence, которое само по себе закрывало бы B03/P2-3, B04 OTP admission, PR48/29-September original transport correlations, R14/C private-environment raw replies, historical config provenance или original bound review payload. PR200 (`fix(backup): reject offsite policy swaps during guarded open`) по состоянию на последний опубликованный PR list остаётся DRAFT/open и не считается принятым результатом. B01/R3 и чужие source/tests/WIP не затрагивались.
+
+R7/R8 resource gate не обновлён: отказанный серверный замер не повторялся и не обходился. Последнее подтверждённое измерение остаётся `2026-10-17T09:34:52.882398Z`: MemAvailable 5,524.29 MiB при E2E требовании 5,734.4 MiB (FAIL по последним известным данным), disk usable 5,945 MiB при B04 demand 5,120 MiB (PASS). Свежий допуск не подтверждён.
+
+Следующий разрешённый шаг: дождаться ответа владельца по C06 existing authority/catalog; по R7/R8 не повторять отклонённый server call и не обходить отказ. Доступный GitHub-only delta обработан без повторного тестирования/review/CI. Audit ID прежний, `audit_complete=false`; карта и принятые результаты сохранены.
