@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 from datetime import datetime, timezone
 from pathlib import Path
@@ -155,6 +156,37 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         self.assertEqual(result.target, self.dest_mount.resolve())
         self.assertEqual(result.source, "/dev/fixture-independent-disk")
         self.assertEqual(result.filesystem_type, "ext4")
+
+    def test_pgdata_regular_file_is_not_a_valid_data_directory(self) -> None:
+        self.db_data.rmdir()
+        self.db_data.write_bytes(b"not-a-PostgreSQL-data-directory")
+        with self.assertRaisesRegex(
+            BackupError, "DATABASE_DATA_NOT_DIRECTORY"
+        ):
+            verify_independent_mounts(
+                self.config,
+                mount_lookup=self.mount_lookup,
+                device_id=self.device_id,
+                disk_free=lambda _path: 1024,
+            )
+
+    def test_pgdata_mount_regular_file_is_not_a_valid_mount_root(self) -> None:
+        # Keep the actual PGDATA path a valid directory to isolate the
+        # second condition: the configured mount root must be a directory.
+        invalid_mount = self.db_mount.parent / "pgdata-mount-file"
+        invalid_mount.write_bytes(b"not-a-mounted-PostgreSQL-data-directory")
+        self.assertTrue(self.db_data.is_dir())
+        self.assertFalse(invalid_mount.is_dir())
+        config = replace(self.config, database_data_mount=invalid_mount)
+        with self.assertRaisesRegex(
+            BackupError, "DATABASE_DATA_NOT_DIRECTORY"
+        ):
+            verify_independent_mounts(
+                config,
+                mount_lookup=self.mount_lookup,
+                device_id=self.device_id,
+                disk_free=lambda _path: 1024,
+            )
 
     def test_independent_mount_guard_rejects_same_storage(self) -> None:
         with self.assertRaisesRegex(
