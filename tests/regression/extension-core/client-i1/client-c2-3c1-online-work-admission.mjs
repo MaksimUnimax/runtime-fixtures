@@ -195,6 +195,80 @@ await run("C1-28", "two simultaneous Start attempts have one lifecycle transitio
 await run("C1-29", "two simultaneous Resume attempts have one lifecycle transition", async () => { const f = await fixture({ bound: true }); try { const [one, two] = await Promise.all([resume(f), resume(f)]); assert.equal(one.ok, true); assert.equal(two.ok, true); assert.equal((await f.worker.call("workSessionFor", f.key)).state, "active_visible"); assert.equal(healthCalls(f).length, 1); } finally { await close(f); } });
 await run("C1-30", "parallel different dialogues remain independent", async () => { const f = await fixture(); try { const second = f.worker.addTab(88, "second-dialogue"); const [one, two] = await Promise.all([start(f), f.worker.popup({ type: "SA_WORK_START", store_id: f.store.id, tab_id: 88, confirm_change: false, start_intent_id: "second" })]); assert.equal(one.ok, true); assert.equal(two.ok, true); assert.equal(healthCalls(f).length, 2); } finally { await close(f); } });
 await run("C1-31", "parallel different stores remain isolated", async () => { const f = await fixture(); try { const second = await f.worker.popup({ type: "SA_STORE_SAVE", store: { marketplace: "wildberries", name: "WB second", credentials: { token: "SECOND" } } }); f.worker.addTab(89, "store-dialogue"); const [one, two] = await Promise.all([start(f), f.worker.popup({ type: "SA_WORK_START", store_id: second.store.id, tab_id: 89, confirm_change: false, start_intent_id: "store-second" })]); assert.equal(one.ok, true); assert.equal(two.ok, true); assert.equal(healthCalls(f).length, 2); } finally { await close(f); } });
+// B08-03 source intersection: two distinct Ozon credentials in one account
+// are admitted for independent, simultaneously pending ChatGPT conversations.
+// Health is synthetic and must not become command execution authority.
+await run("C1-31B", "parallel same-marketplace stores pin distinct conversation and credential contexts", async () => {
+  const f = await fixture({ gated: true });
+  try {
+    const saved = await f.worker.popup({
+      type: "SA_STORE_SAVE",
+      store: { marketplace: "ozon", name: "Ozon second store",
+        credentials: { seller: { clientId: "SECOND_TEST_CLIENT", apiKey: "SECOND_TEST_KEY" }, performance: {} } },
+    });
+    assert.equal(saved.ok, true, "second synthetic Ozon store must be accepted");
+    const other = saved.store;
+    assert.equal(f.store.marketplace, "ozon");
+    assert.equal(other.marketplace, f.store.marketplace);
+    assert.equal(typeof f.worker.accountId, "string");
+    assert(f.worker.accountId.length > 0, "expected actual signed fixture account");
+    assert.equal(f.store.accountId, f.worker.accountId);
+    assert.equal(other.accountId, f.worker.accountId);
+    assert.notEqual(other.id, f.store.id, "two stores need separate durable IDs");
+    assert.notEqual(other.credentialRevision, f.store.credentialRevision,
+      "one store must not inherit the other store's credential revision");
+    const tabB = 90;
+    const second = f.worker.addTab(tabB, "same-account-second-ozon-dialogue");
+    const secondKey = second.identity.origin + "|" + second.identity.conversation_id;
+    assert.notEqual(f.key, secondKey, "the conversations must remain independent");
+
+    const firstAdmission = start(f, { start_intent_id: "parallel-ozon-first" });
+    const secondAdmission = f.worker.popup({
+      type: "SA_WORK_START", store_id: other.id, tab_id: tabB,
+      confirm_change: false, start_intent_id: "parallel-ozon-second",
+    });
+    await until(() => healthCalls(f).length === 2,
+      "both same-marketplace independent signed Health requests in flight");
+    // The runtime must await Health before *either* lifecycle mutation.
+    // Seeing two HTTP observers in flight does not imply a durable pending Start.
+    const beforeRelease = await f.worker.call("getPendingWorkStarts");
+    assert.equal(beforeRelease[f.worker.tabId] || null, null,
+      "first tab cannot persist a pending Start before its Health observation");
+    assert.equal(beforeRelease[tabB] || null, null,
+      "second tab cannot persist a pending Start before its Health observation");
+
+    f.release();
+    const admitted = await Promise.all([firstAdmission, secondAdmission]);
+    assert(admitted.every(value => value?.ok === true), "both Starts must be admitted");
+    assert.equal(healthCalls(f).length, 2, "neither tab may share the other's signed Health acquisition");
+    const afterRelease = await f.worker.call("getPendingWorkStarts");
+    const first = afterRelease[f.worker.tabId];
+    const secondPending = afterRelease[tabB];
+    assert(first && secondPending, "both tabs must retain distinct post-Health Start records");
+    assert.notEqual(first.intent_id, secondPending.intent_id);
+    assert.equal(first.store_context?.storeId, f.store.id);
+    assert.equal(secondPending.store_context?.storeId, other.id);
+    assert.equal(first.store_context?.credentialRevision, f.store.credentialRevision);
+    assert.equal(secondPending.store_context?.credentialRevision, other.credentialRevision);
+    assert.equal(first.store_context?.marketplace, "ozon");
+    assert.equal(secondPending.store_context?.marketplace, "ozon");
+    assert.equal(first.store_context?.accountId, f.worker.accountId);
+    assert.equal(secondPending.store_context?.accountId, f.worker.accountId);
+    assert.equal(first.conversation_key, f.key, "first tab must retain exact original dialogue");
+    assert.equal(secondPending.conversation_key, secondKey, "second tab must retain exact second dialogue");
+    assert.notEqual(first.conversation_key, secondPending.conversation_key);
+    const durable = f.backing.local[PENDING] || {};
+    assert.deepEqual(Object.keys(durable).sort(),
+      [String(f.worker.tabId), String(tabB)].sort(), "no missing or foreign durable pending entry");
+    assert.deepEqual(clone(durable[String(f.worker.tabId)]), clone(first),
+      "first pending Start must match actual persisted storage");
+    assert.deepEqual(clone(durable[String(tabB)]), clone(secondPending),
+      "second pending Start must match actual persisted storage");
+  } finally {
+    f.release?.();
+    await close(f);
+  }
+});
 await run("C1-32", "B2 result is not persisted as execution authority", async () => { const f = await fixture(); try { await activeStart(f); assert.equal(JSON.stringify(f.backing.local).includes("online_work_authority_decision"), false); } finally { await close(f); } });
 await run("C1-33", "B2 executionAuthority remains false", async () => { const f = await fixture(); try { const r = await activeStart(f); assert.equal(r.ok, true); assert.equal(JSON.stringify(f.backing.local).includes('"executionAuthority":true'), false); } finally { await close(f); } });
 await run("C1-34", "Start admission makes zero marketplace calls", async () => { const f = await fixture(); try { await start(f); assert.equal(f.calls.some(row => row.url.includes("ozon.ru") || row.url.includes("wildberries")), false); } finally { await close(f); } });
