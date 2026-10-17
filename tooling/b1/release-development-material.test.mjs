@@ -113,6 +113,7 @@ function fixture(mode) {
               browser_specific_settings: {
                 gecko: {
                   id: "octoport@octoport.ru",
+                  strict_min_version: "140.0",
                   data_collection_permissions: {
                     required: ["websiteContent"],
                     optional: ["technicalAndInteraction"],

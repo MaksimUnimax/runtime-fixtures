@@ -1258,6 +1258,27 @@ function readBoundedRegularFile(path, maxBytes, label = "Package input") {
   }
 }
 
+function validateFirefoxBuiltInConsentMinimum(manifest) {
+  // Mozilla's built-in data consent only exists on desktop Firefox 140+.
+  // The accepted Octoport Firefox carrier does not provide older-version
+  // custom consent; reject release ZIPs that would install without consent.
+  const minimum = manifest.browser_specific_settings?.gecko?.strict_min_version;
+  const match =
+    typeof minimum === "string"
+      ? /^([1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(minimum)
+      : null;
+  const major = match ? Number(match[1]) : NaN;
+  const minor = match ? Number(match[2]) : NaN;
+  if (
+    !match ||
+    !Number.isSafeInteger(major) ||
+    !Number.isSafeInteger(minor) ||
+    major < 140
+  ) {
+    fail("Firefox built-in data consent requires Firefox 140 or newer");
+  }
+}
+
 function validateFirefoxDataCollection(manifest) {
   const disclosure =
     manifest.browser_specific_settings?.gecko?.data_collection_permissions;
@@ -1337,6 +1358,7 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
     if (manifest.browser_specific_settings?.gecko?.id !== FIREFOX_STORE_ID) {
       fail("Firefox package stable extension ID mismatch");
     }
+    validateFirefoxBuiltInConsentMinimum(manifest);
     validateFirefoxDataCollection(manifest);
   }
   // A manifest declaration is not evidence that its icon exists or decodes.
