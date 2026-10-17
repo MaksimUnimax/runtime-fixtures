@@ -679,3 +679,77 @@ No new published result here closes B03/P2-3, B04 or historical transport/proven
 I1-C1 run 39063250394 остаётся terminal FAILURE, run_attempt=1 на exact main db531. В job Installed local API / portal / PostgreSQL acceptance завершился FAILURE шаг Run set +e (19:38:32–19:39:01Z); jobs ci-plan и client-i1 успешны. Причина из доступного API summary UNKNOWN. Ни rerun, ни воспроизведение не выполнялись.
 
 PR207 остаётся draft/open; его WIP не затрагивался. Ответ владельца по C06 authority/catalog отсутствует. Ресурсный отказ не повторялся и не обходился; свежего R7/R8 измерения нет. Последнее известное измерение остаётся историческим FAIL по памяти. Серверные вызовы, tests/reproduction/review/CI runs, source/live/DB/security, cleanup и изменения чужого WIP не выполнялись. Карта 12 обязательств сохранена; audit_complete=false.
+
+
+## Продолжение единственного Контроллера — документальный GitHub delta
+
+**UTC checkpoint:** 2026-10-17T23:28:42.021Z. **Audit ID прежний; audit_complete=false.**
+
+### Передача, последний исход и граница проверки
+
+Прямое поручение владельца от 2026-10-17T23:22Z и текущий перенос назначают этот диалог единственным преемником завершённого ответа. Старый диалог и чаты Controller/Tester/A/B/C не открывались. Новые исполнители, включая серверный codex2, не запускались.
+
+REPORT.md прочитан полностью: 105,127 символов, blob `8b117ec8044975dbd82430122d4bb218ef353b4f`. Непосредственно перед записью повторное чтение подтвердило тот же blob и report ref `5d16a38bfcfb426741a20f8e95307c481793d6fe`, commit 2026-10-17T22:35:52Z, author MaksimUnimax, parent `faafb08cf4b23ab8b8f26bb8de1f105427867bca`. Опубликованных конкурирующих commits этой ветки между checkpoint и pre-write не обнаружено; текущий audit directory содержит только REPORT.md. Других собственных операций записи в этом продолжении не было; неизвестная запись не повторяется. Для этой одной записи используется проверенный blob SHA. Исторические исправления 13:48 и 18:51 не менялись.
+
+Это проверка единственного автора в доступном GitHub scope с прямой передачей владельца. Серверные процессы, coordination.lock, role states и чужой local dirty/WIP — **NOT_RECHECKED**: серверные вызовы запрещены текущим поручением. Отсутствие новых GitHub commits не объявляется доказательством отсутствия серверного процесса. Продуктовые пути и чужие ветки не изменяются.
+
+### Доступные правила и непроверенный серверный канон
+
+На immutable main `db531677d1df06029020318342752c76e3a04058` полностью прочитаны AGENTS.md; coordination/README.md, START_HERE.md, START_CONTROLLER.md, PROMPT_CONTROLLER.md, WORK_METHOD.md, PROTOCOL.md, PRE_AUDIT_SELF_ERROR_GATE.md, ORGANIZATION_AUDIT_POLICY.md, RESOURCE_POLICY.md, DISK_LIFECYCLE.md, CODEX.md, PLAN.md, OWNERSHIP.json, CONTINUOUS_ROADMAP_POLICY.md, UNATTENDED_CONTINUATION_POLICY.md, STORE_POLICY.md и RELEASE_DELIVERY_BOUNDARY.md; также SPEC.md и MINIMUM_SPEC.md. AGENTS.md report branch совпадает с main, blob `aafefe8ab91d513f3be0b65c4ce5cf46426be1bd`; в проверенных каталогах-предках REPORT.md дополнительных AGENTS.md нет.
+
+Основные проверенные GitHub blobs: START_HERE `700cb7509cf980c232b3337e295f65765d3680dd`; PROMPT_CONTROLLER `c2bf79cd3a9f5a3ea41cbcc02ef09127bd077f54`; WORK_METHOD `21f493f81f416e6d8a4eeed18727ebd8f05feef5`; PROTOCOL `8bfaa6e26ecd3f9966f7afe7ab9eabcc30c63052`; PRE_AUDIT_SELF_ERROR_GATE `9f5020d4e154986ff3b18d9eca26ea2d120b8806`; ORGANIZATION_AUDIT_POLICY `1963de0c247b636d531052fb232f894cca2bd762`; RESOURCE_POLICY `90b693abc11b45e3c72173abbf71de9f930beb13`; DISK_LIFECYCLE `5c37f5d413e8f9008ae23d33455db4579d22cba7`.
+
+Текущее содержимое серверного /root/octoport-control/current-prompts, PRIORITY_TASKS.md, PROMPT_DOT_ASSISTANT.md и оперативных resource/coordination документов **не проверено заново**; равенство GitHub-копий серверному канону не предполагается. Более позднее прямое поручение владельца определяет этот узкий scope. Старые требования читать/восстанавливать errors.json/events.jsonl и делать server/test/review/CI/resource действия здесь не применяются: эти действия прямо запрещены владельцем. Реестры не читались, не восстанавливались и не создавались.
+
+### Опубликованный delta после 22:35:47.440Z
+
+- [main ref](https://api.github.com/repos/MaksimUnimax/runtime-fixtures/git/ref/heads/main) остаётся `db531677d1df06029020318342752c76e3a04058`. Main commits API с since=2026-10-17T22:35:47Z вернул пустой список. Нового принятого main результата после checkpoint в этом источнике нет.
+- PR search updated>=2026-10-17T22:35:47Z вернул пустой список; repository issues API с тем же since также вернул пустой список. Это ограниченный вывод по опубликованным PR/issues, не утверждение об отсутствии локальной работы A/B/C.
+- [PR208](https://github.com/MaksimUnimax/runtime-fixtures/pull/208) остаётся merged, updated_at=2026-10-17T19:37:14Z, exact candidate `658944402ef97573aab04210c49b90bbb462fb82`. Его body по-прежнему заявляет второй independent review RUNNING; прямой reviews API вернул [], объединённый comments/review timeline вернул []. **Нового опубликованного независимого verdict в этих записях нет.** Merge не заменяет отсутствующий exact-source verdict. Новый review не выполнялся и не запрашивался.
+- [I1-C1 run 39063250394](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39063250394) остаётся completed/FAILURE, run_attempt=1, push, head_sha=`db531677d1df06029020318342752c76e3a04058`; updated_at=2026-10-17T19:41:15Z, то есть до checkpoint. Нового исхода нет. Сохраняется уже проверенный failure job Installed local API / portal / PostgreSQL acceptance, step Run set +e; причина **UNKNOWN**. Старые jobs/logs/артефакты повторно не исследовались; rerun/reproduction отсутствуют. Прежние остальные 4/5 SUCCESS не перепроверялись и не превращают этот exact main в 5/5 PASS.
+- Repository Actions API с created>2026-10-17T22:35:47Z вернул total_count=0, workflow_runs=[]. Новых опубликованных runs в этом временном срезе нет. Созданные раньше runs не перечислялись заново; адресный I1 readback приведён выше.
+- Дополнительный необязательный запрос repository-wide commit comments `/comments?per_page=30` не дал пригодного результата: Promise rejected, точный текст причины в сохранённой проекции отсутствует (**UNKNOWN**). Он не повторялся. Поэтому глобальное отсутствие новых commit comments не заявляется; адресные PR208 comments проверены отдельно успешно.
+
+### Десять пунктов процедуры — только доступная документальная часть
+
+1. **Первичный исход:** установлены report version/history, current main, отсутствие нового main/PR/issues/run delta в перечисленных API и неизменность опубликованных PR208/I1 записей. Точные SHA/run/timestamps указаны выше.
+2. **Полномочия:** прямая передача владельца покрывает продолжение этого отчёта и чтение опубликованного GitHub evidence. Сервер, tests/reproduction/review/CI launches и helper запрещены; старое разрешение одного R7/R8 теста не расширяет текущий шаг.
+3. **Прежний успешный способ:** существующий GitHub REPORT.md и его успешная предыдущая версия подтверждены; продолжается та же ветка и файл. Новая проверка или приёмка продукта из этого не выводится.
+4. **Классификация:** PR208 verdict — NOT_PUBLISHED_IN_CHECKED_RECORDS; I1 cause — UNKNOWN; серверный канон/процессы/ресурсы — NOT_RECHECKED; C06 authority/catalog — OPEN. Это разные границы, общий запрет GitHub из них не выводится.
+5. **Дубли/автор/WIP:** прямое назначение единственного преемника, неизменённые report ref/blob/history и отсутствие второй собственной записи проверены. Серверный single-writer не объявляется подтверждённым; чужой WIP не затрагивается.
+6. **Доступное действие:** полный перенос документального контекста выполнен; новые сведения добавляются только в существующий REPORT.md. Исторические правки, принятые bounded результаты и source не повторяются. Исправление продуктовой причины в этом scope не выполнялось.
+7. **Проверка той же границы:** pre-write readback совпал с checkpoint. Новая запись принимается только после последующего GitHub readback с совпадением content/blob и проверкой parent commit; при неизвестном исходе повтор записи запрещён.
+8. **Наблюдаемый прогресс:** сохранена непрерывность аудита и установлен фактический нулевой опубликованный delta в проверенных источниках. Нового product/test/review/installed PASS нет; зависимая работа не объявляется возобновлённой.
+9. **Остаток/ответственные:** существующая карта 12 маршрутов и отдельный R7/R8 сохраняются. Ближайшие действия ниже означают получение уже существующего evidence от его хранителя; новые тесты/исполнители/изменения полномочий здесь не разрешаются.
+10. **Учёт:** только тот же REPORT.md, UTC checkpoint, optimistic blob guard и обязательный readback. Новый error registry, серверный checkpoint или фоновой контроль не создаются.
+
+### Сопровождение существующей карты 12 обязательств
+
+Исходные подробные evidence/closure conditions карты 08:48 сохранены вместе с более поздними уточнениями, включая R3 currentity 09:20. Ни один остаток не закрывается этим продолжением. Для A/B/C проверен только новый опубликованный delta; их текущие server task/progress/idle причины — NOT_RECHECKED, ответственными остаются существующие авторы.
+
+| № карты | Сохранённый исход и уровень | Ответственный / точный внешний источник; ближайший допустимый шаг |
+|---|---|---|
+| 1 | B03/P2-3 sourceSeen-submit — OPEN; новых доказательств нет | Существующий адресный author/runtime owner по PRIORITY_TASKS.md#DOT-20261015-02. Получить уже опубликованный результат, если он появится. Новые тесты P2-3 не заказывать и не запускать; сохраняются требования монотонных/условных durable transitions, revision, actor binding, idempotent submit/receive/ACK и отсутствия duplicate delivery. |
+| 2 | Pre-ACK relay loss — bounded SOURCE FULFILLED; runtime/installed остаток OPEN | Существующие OPERATOR/A: точный пакет и уже существующая installed IndexedDB/browser durability при relay loss до ACK, без повторного импорта. Не повторять PR50 SOURCE proof и не писать runtime.js/client.js. |
+| 3 | B04 OTP/admission — OPEN; свежего ресурса нет | Хранитель исходного native platform disposition/hold receipt и provider/volume owner — usable capacity evidence; существующий B04 author — уже имеющиеся четыре regression outcomes. Отказанную hold-операцию не повторять, owner cleanup не перехватывать. Старый capacity snapshot не текущий. |
+| 4 | A05 atomic publication — bounded FULFILLED; отдельный исторический/production остаток сохранён | Существующий A/первичный хранитель соответствующего отдельного evidence. PR143/source/package publication не переоткрывать; отдельный production PASS не выводить. |
+| 5 | PR48/PR50 — SOURCE FULFILLED; origin/installed OPEN | Исходный publisher/platform — native request/reply или delivery correlation PR48; существующий installed owner — точный package/installed receipt. Не выполнять новый push или PR48 retry. |
+| 6 | C06 — accepted source composition; release OPEN | Владелец/issuer/B-Ops указывает существующие genuine exact-source octoport_release_authority_v1 и target catalog, distinct real HTTPS origins и утверждённый Ed25519 trust; C сохраняет package/release scope. Ответ владельца на прежний вопрос отсутствует. |
+| 7 | R3 — full original-popup acceptance OPEN | Существующий Tester под управлением владельца: exact current reviewed package и original-popup normal-auth Start/Finish/выдача. 0.2.15 не восстанавливается как отдельная активная release-задача; позднее уточнение о текущем 0.2.37 сохранено. Контроллер не назначает и не запускает Тестера. |
+| 8 | R14 — historical raw-response recovery OPEN | Исходный C/platform custodian: immutable combined request/envelope/native raw response или authoritative delivery correlation. Только исходное evidence; без retry и нового development gate. |
+| 9 | C private test-environment refusal — OPEN | Исходный C/platform custodian: original platform reply, request/operation ID и native disposition. Защищённый файл не читать/не удалять, cleanup не повторять. |
+| 10 | 29 September publication origin — OPEN | Исходный publisher/platform: immutable request/reply или native correlation commit 59dfab94 с двумя точными push runs. Не делать новый push или повтор прежнего безрезультатного поиска. |
+| 11 | Historical config drift provenance — OPEN | Исходный B/config custodian: immutable before/after bytes/hashes, actor, edit time, provenance. Не reset конфигурации и не приписывать автора догадкой. |
+| 12 | Original bound review bytes — OPEN | Исходный B/reviewer/platform: точные immutable bytes SHA-256 12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175 и source metadata. Не реконструировать review и не заказывать новый вместо исходного. |
+
+**Отдельный R7/R8:** последнее успешное измерение остаётся историческим, 2026-10-17T09:34:52.882398Z: MemAvailable 5,524.29 MiB < 5,734.4 MiB — FAIL; disk usable 5,945 MiB >= 5,120 MiB — PASS. Свежий допуск **UNKNOWN/не подтверждён**. Отказанный серверный ресурсный вызов не повторён и не обойдён ни другим инструментом, ни формой запроса. Ровно один ранее разрешённый тест не запускался здесь; новое разрешение на его запуск из этого отчёта не возникает. Возврат зависит от допустимого первичного ресурсного evidence и применимых single-writer/source/isolation ворот в отдельно разрешённом продолжении.
+
+### Объём работы, организация и публикация
+
+С последнего checkpoint в проверенном срезе: **0 новых main commits, 0 обновлённых PR/issues и 0 новых workflow runs**; новых product PASS и закрытых обязательств — 0. Выполнены полное чтение отчёта, восстановление применимых GitHub правил, проверка передачи/версии/дубля, адресный published-status readback и документальное сопровождение прежней карты. Это результат документального продолжения, не функциональный прогресс потоков.
+
+Организационный остаток: у merged PR208 по-прежнему не опубликован независимый exact-candidate verdict в проверенных PR records, хотя body сохраняет RUNNING/DO NOT MERGE. Почему merge состоялся и где находится первичный финальный verdict — UNKNOWN. Следующее действие существующего C/review custodian — предоставить уже имеющийся immutable verdict для exact 6589444 и provenance; новый review этим отчётом не назначается. I1-C1 exact main остаётся отрицательным; его причинное evidence находится у существующего A/runtime/OPERATOR owner, не у нового второго исполнителя. Документальный перенос не объявляется устранением этих причин или ORG-006.
+
+**Публикация:** Chrome — PREPARING / НЕ ГОТОВО К SUBMIT; Firefox AMO — PREPARING / НЕ ГОТОВО К SUBMIT. Нужны подлинные exact-source authority/catalog/trust, matching signed ZIP/XPI и publisher/reviewer evidence, затем установленная original-popup приёмка существующего Тестера. C сохраняет release scope; владельцу/issuer требуется ответить на уже переданный вопрос о существующих authority/catalog. Новое общее согласование не создаётся. Иные каналы заново не проверялись и PASS не получают.
+
+Разрешённые независимые документальные действия этого среза исчерпаны. Следующий содержательный шаг — чтение действительно нового опубликованного evidence либо получение перечисленных исходных доказательств от их хранителей. Никаких server calls, tests/reproduction/review/CI launches, source/live/DB/security изменений, cleanup, auth/purchases/limits/schedules или чужого WIP в этом продолжении не было. Аудит остаётся незавершённым; фоновой работы после завершения ответа не обещается.
