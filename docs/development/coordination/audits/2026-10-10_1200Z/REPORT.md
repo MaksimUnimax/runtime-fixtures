@@ -529,3 +529,28 @@ Audit ID remains CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z. audit_complete=fal
 Исторические зависимости R14, private C test-environment refusal, 29 September publication correlation, config provenance и original bound review payload остаются запросами к их первичным custodians, а не новыми решениями владельца и не новыми development gates. Для P2-3 остаётся только документированная защитная граница: durable state transitions должны быть монотонными или условными по ожидаемой revision, два независимых relay не должны терять packet/import state или допускать duplicate delivery, а submit/receive/ACK должны сохранять идемпотентность и actor binding; в этом шаге нет нового воспроизведения, теста или source change.
 
 Audit ID и evidence map из предыдущего раздела не изменены; audit_complete=false, исходные 12 обязательств остаются учтены по их текущим статусам.
+
+
+## Дополнение — R3/0.2.15 currentity и свежий read-only ресурсный замер
+
+**Проверка R3/версии: 2026-10-17T09:18:47.343995486Z. Ресурсное измерение: 2026-10-17T09:18:57.314448Z. Запись отчёта: 2026-10-17T09:20:18.638048865Z.**
+
+### R3 / 0.2.15 — историческая версия цели; R3 acceptance остаётся отдельной границей
+
+Точечное чтение актуального `/root/octoport-control/controller-notices/PRIORITY_TASKS.md` подтвердило: файл содержит 985 строк, mtime 2026-10-17T02:07:09.521149Z; точных упоминаний `0.2.15` — ноль. Текущий основной пункт `DOT-20261015-02`, version 10, last update 2026-10-17T01:57:22.420236Z, говорит, что исправленный ZIP 0.2.37 и сценарии уже выданы владельцу; при этом личная R3/browser acceptance остаётся у существующего Tester, не у Контроллера. Самый свежий C role state readback 2026-10-17T09:17:42.806478Z подтверждает `C06_PR199_MAIN563_SOURCE_CI_5OF5_13OF13_ACCEPTED_TEMP_RETIRED_STORE_PREPARING` и следующий шаг: real accepted PREPRODUCTION authority для выбранного immutable 39effb4/tree d11ca B1 packager плюс Tester R3 original-popup normal-auth Start/Finish; PR153 owner marketing copy pending.
+
+Вывод по currentity: **не подтверждено, что 0.2.15 остаётся отдельной действующей release-задачей; в актуальных управляющих документах она не найдена, а current release/version work перешла к 0.2.37. При этом R3 как installed original-popup Start/Finish acceptance не отменена и остаётся отдельной границей Тестера.** Это не разрешение публикации, не новый Tester assignment и не вывод о завершённой R3. Никаких чатов Тестера не открывали; работу, браузер, пакет и WIP Тестера не меняли. Публикация не запускалась.
+
+### Свежий read-only ресурсный замер R7/R8
+
+- `/root`: свободно 25,990 MiB; inode свободно 3,956,305.
+- `/dev/shm`: свободно 5,415 MiB.
+- `MemAvailable=5,705,160 kB = 5,571.45 MiB`; memory PSI `some/full avg10=0.00`.
+- Существующий allocation registry: 1,573 JSON, 0 malformed; CLOSED 1,502, HELD 51, OPEN 20; active reserve 16,971 MiB.
+- Диск после active reserves и floor 3,072 MiB: `25,990 − 16,971 − 3,072 = 5,947 MiB`; B04 demand 5,120 MiB; margin **827 MiB — PASS**.
+- E2E memory requirement: `4,096 × 1.15 + 1,024 = 5,734.4 MiB`. Actual `5,571.45 MiB`; delta **−162.95 MiB — FAIL**. Сравнение с 09:04:24Z: MemAvailable вырос с 5,549.86 до 5,571.45 MiB, но порог всё ещё не достигнут на 162.95 MiB. Память не освобождали принудительно, бюджет/резервы не снижали.
+- В snapshot нет `playwright test`, `pnpm ... test:e2e`, `admin-safety.spec.ts` или `api-harness.ts`. На этом шаге не создавались worktree/DB/ports и не запускался тест.
+
+### Следующий разрешённый шаг
+
+R3 currentity-check завершён: исторический target 0.2.15 не подтверждён как отдельная активная задача в актуальных управляющих документах; current 0.2.37 release path и отдельная R3 original-popup acceptance сохранены раздельно. Следующее действие Контроллера — только ещё один read-only ресурсный замер после естественного изменения MemAvailable; пока E2E gate FAIL, не создавать среду и не запускать R7/R8. Для C06 ждём ответ владельца на уже переданный запрос о местонахождении существующей authority/catalog; молчание не является разрешением и authority не изготавливается. Другие чаты, WIP, source/live/DB/security и owner cleanup не тронуты.
