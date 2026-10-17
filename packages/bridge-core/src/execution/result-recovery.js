@@ -79,7 +79,12 @@
       const output = {};
       for (const [childKey, childValue] of Object.entries(value)) {
         const next = sanitize(childValue, childKey, seen);
-        if (next !== undefined) output[childKey] = next;
+        // Treat all JSON keys (including "__proto__") as own data. A bracket
+        // assignment on {} may instead change the prototype and silently lose
+        // the provider field, even though recovery would report it as reusable.
+        if (next !== undefined) Object.defineProperty(output, childKey, {
+          value: next, enumerable: true, writable: true, configurable: true,
+        });
       }
       return output;
     }
