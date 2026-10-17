@@ -359,6 +359,33 @@ test("Win32 device-name release ZIP basenames fail before output creation", () =
 });
 
 
+
+test("preflight refuses archives with case-insensitively colliding names", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-casefold-preflight-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const candidateDir = join(root, "prepared");
+    prepare({ authorityPath, outputDir: candidateDir, ...packages });
+    const manifestPath = join(candidateDir, "B1_RC_MANIFEST.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const chromium = "Release.ZIP";
+    const firefox = "release.zip";
+    fs.renameSync(join(candidateDir, manifest.packages.chromium.filename), join(candidateDir, chromium));
+    fs.renameSync(join(candidateDir, manifest.packages.firefox.filename), join(candidateDir, firefox));
+    manifest.packages.chromium.filename = chromium;
+    manifest.packages.firefox.filename = firefox;
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.throws(
+      () => preflight({ authorityPath, candidateDir }),
+      /Package filenames have a case-insensitive collision/,
+    );
+    assert.equal(fs.existsSync(join(candidateDir, chromium)), true);
+    assert.equal(fs.existsSync(join(candidateDir, firefox)), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("preflight refuses a forged Win32 device-name package manifest", () => {
   const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-win32-preflight-"));
   try {

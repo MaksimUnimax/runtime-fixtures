@@ -369,6 +369,16 @@ function safePackageFilename(filename) {
   );
 }
 
+// Apply the same portable filename identity at preparation and preflight.
+function collidingPackageFilenames(first, second) {
+  return (
+    typeof first === "string" &&
+    typeof second === "string" &&
+    first.normalize("NFC").toLowerCase() ===
+      second.normalize("NFC").toLowerCase()
+  );
+}
+
 function decodeZipName(bytes, utf8) {
   if (!utf8) return bytes.toString("latin1");
   try {
@@ -1417,10 +1427,7 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
 
   // Reject output basenames that collide on case-insensitive filesystems.
   // The same candidate must remain portable across release hosts.
-  if (
-    packages.chromium.filename.normalize("NFC").toLowerCase() ===
-    packages.firefox.filename.normalize("NFC").toLowerCase()
-  ) {
+  if (collidingPackageFilenames(packages.chromium.filename, packages.firefox.filename)) {
     fail("Package filenames have a case-insensitive collision");
   }
 
@@ -1491,6 +1498,17 @@ export function preflight({ authorityPath, candidateDir }) {
     !exactKeys(manifest.packages, ["chromium", "firefox"])
   ) {
     fail("Candidate source, authority, or product facts are stale");
+  }
+
+  // A modified candidate can bypass prepare(), so revalidate both names
+  // together before accepting files on a case-sensitive host for a Win32 release.
+  if (
+    collidingPackageFilenames(
+      manifest.packages.chromium?.filename,
+      manifest.packages.firefox?.filename,
+    )
+  ) {
+    fail("Package filenames have a case-insensitive collision");
   }
 
   for (const browser of ["chromium", "firefox"]) {
