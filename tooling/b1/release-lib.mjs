@@ -1404,17 +1404,29 @@ function discardOwnedCandidateOutput(output, directoryIdentity, ownedFiles) {
   }
 }
 
-function releaseBrowsers(chromiumOnly) {
-  if (typeof chromiumOnly !== "boolean") {
+function releaseBrowsers(chromiumOnly, firefoxOnly) {
+  if (
+    typeof chromiumOnly !== "boolean" ||
+    typeof firefoxOnly !== "boolean" ||
+    (chromiumOnly && firefoxOnly)
+  ) {
     fail("Candidate browser scope is invalid");
   }
-  return chromiumOnly ? ["chromium"] : ["chromium", "firefox"];
+  if (chromiumOnly) return ["chromium"];
+  if (firefoxOnly) return ["firefox"];
+  return ["chromium", "firefox"];
 }
 
-export function prepare({ authorityPath, outputDir, chromium, firefox, chromiumOnly = false }) {
-  const browsers = releaseBrowsers(chromiumOnly);
+export function prepare({
+  authorityPath, outputDir, chromium, firefox,
+  chromiumOnly = false, firefoxOnly = false,
+}) {
+  const browsers = releaseBrowsers(chromiumOnly, firefoxOnly);
   if (chromiumOnly && firefox !== undefined) {
     fail("Chrome-only candidate cannot include Firefox input");
+  }
+  if (firefoxOnly && chromium !== undefined) {
+    fail("Firefox-only candidate cannot include Chromium input");
   }
   const output = resolve(outputDir);
   if (existsSync(output)) {
@@ -1423,8 +1435,8 @@ export function prepare({ authorityPath, outputDir, chromium, firefox, chromiumO
 
   const authorityReceipt = readAuthority(authorityPath, output);
   const authority = authorityReceipt.value;
-  // Chrome-first Store review does not depend on an unrelated Firefox ZIP.
-  // Each included archive still passes the exact same B1 authority and ZIP checks.
+  // A single-browser Store candidate does not depend on the other browser's ZIP.
+  // Every included archive retains the same B1 authority and ZIP validations.
   const checked = {};
   const packages = {};
   for (const browser of browsers) {
@@ -1472,7 +1484,9 @@ export function prepare({ authorityPath, outputDir, chromium, firefox, chromiumO
       productVersion: authority.productVersion,
       contractVersion: authority.contractVersion,
       migrationLevel: authority.migrationLevel,
-      ...(chromiumOnly ? { releaseScope: "CHROME_ONLY" } : {}),
+      ...(chromiumOnly
+        ? { releaseScope: "CHROME_ONLY" }
+        : firefoxOnly ? { releaseScope: "FIREFOX_ONLY" } : {}),
       packages,
     };
 
@@ -1488,8 +1502,12 @@ export function prepare({ authorityPath, outputDir, chromium, firefox, chromiumO
   }
 }
 
-export function preflight({ authorityPath, candidateDir, chromiumOnly = false }) {
-  const browsers = releaseBrowsers(chromiumOnly);
+export function preflight({
+  authorityPath, candidateDir, chromiumOnly = false, firefoxOnly = false,
+}) {
+  const browsers = releaseBrowsers(chromiumOnly, firefoxOnly);
+  const scopedBrowser = browsers.length === 1 ? browsers[0] : null;
+  const expectedScope = chromiumOnly ? "CHROME_ONLY" : "FIREFOX_ONLY";
   const { candidateRoot, path } = candidateManifestPath(candidateDir);
   const authorityReceipt = readAuthority(authorityPath, candidateRoot);
   const authority = authorityReceipt.value;
@@ -1517,9 +1535,9 @@ export function preflight({ authorityPath, candidateDir, chromiumOnly = false })
       "contractVersion",
       "migrationLevel",
       "packages",
-      ...(chromiumOnly ? ["releaseScope"] : []),
+      ...(scopedBrowser ? ["releaseScope"] : []),
     ]) ||
-    (chromiumOnly && manifest.releaseScope !== "CHROME_ONLY") ||
+    (scopedBrowser && manifest.releaseScope !== expectedScope) ||
     manifest.schemaVersion !== CANDIDATE_SCHEMA ||
     manifest.authoritySha256 !== authorityReceipt.sha256 ||
     !exactKeys(manifest.source, ["head", "tree"]) ||
@@ -1589,20 +1607,23 @@ export function preflight({ authorityPath, candidateDir, chromiumOnly = false })
     }
   }
 
-  // A CHROME_ONLY receipt must describe the exact directory that will be
-  // submitted: even an undeclared Firefox ZIP beside the verified archive
-  // must not silently ride along after the per-file content checks.
-  if (chromiumOnly) {
+  // A single-browser receipt must cover the exact directory delivered to
+  // the reviewer; undeclared files cannot ride alongside the validated ZIP.
+  if (scopedBrowser) {
     const expectedFiles = [
       "B1_RC_MANIFEST.json",
-      manifest.packages.chromium.filename,
+      manifest.packages[scopedBrowser].filename,
     ].sort();
     const candidateFiles = readdirSync(candidateRoot).sort();
     if (
       candidateFiles.length !== expectedFiles.length ||
       candidateFiles.some((name, index) => name !== expectedFiles[index])
     ) {
-      fail("Chrome-only candidate contains undeclared files");
+      fail(
+        scopedBrowser === "chromium"
+          ? "Chrome-only candidate contains undeclared files"
+          : "Firefox-only candidate contains undeclared files",
+      );
     }
   }
 
@@ -1610,7 +1631,7 @@ export function preflight({ authorityPath, candidateDir, chromiumOnly = false })
     status: "PASS",
     productionMutation: "NOT_PERFORMED",
     evidenceLevel: "PACKAGE",
-    ...(chromiumOnly ? { releaseScope: "CHROME_ONLY" } : {}),
+    ...(scopedBrowser ? { releaseScope: expectedScope } : {}),
     source: authority.source,
     productVersion: authority.productVersion,
     contractVersion: authority.contractVersion,

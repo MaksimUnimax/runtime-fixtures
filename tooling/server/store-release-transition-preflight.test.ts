@@ -271,6 +271,18 @@ describe("STORE release transition preflight", () => {
     ).toThrow("RELEASE_TRANSITION_BROWSER_SCOPE_CONFLICT");
   });
 
+  it("rejects a Firefox-only manifest as an Opera release target", () => {
+    const fixture = target();
+    const manifest = JSON.parse(
+      readFileSync(fixture.manifest, "utf8"),
+    ) as Record<string, unknown>;
+    manifest.releaseScope = "FIREFOX_ONLY";
+    writeFileSync(fixture.manifest, JSON.stringify(manifest));
+    expect(() =>
+      readStoreReleaseTransitionTarget(fixture.manifest, fixture.zip),
+    ).toThrow("RELEASE_TRANSITION_BROWSER_SCOPE_CONFLICT");
+  });
+
   it("rejects package bytes that do not match the candidate manifest", () => {
     const fixture = target();
     writeFileSync(fixture.zip, "different-bytes");
