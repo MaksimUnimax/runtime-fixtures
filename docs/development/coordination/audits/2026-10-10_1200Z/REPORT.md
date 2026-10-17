@@ -568,3 +568,12 @@ R3 currentity-check завершён: исторический target 0.2.15 н�
 - E2E memory requirement: `4,096 × 1.15 + 1,024 = 5,734.4 MiB`; actual `5,524.29 MiB`; margin `−210.11 MiB` — **FAIL**.
 - Combined R7/R8 admission: **FAIL** (memory gate). No test/worktree/DB/port was started or created; no resource/registry/reserve mutation or foreign process stop occurred.
 - Next step: end this admission step. Repeat only after a meaningful natural change in available memory; do not reduce budgets/reserves. C06 owner response remains pending; no authority/catalog assumed.
+
+
+## R7/R8 — checkpoint статуса измерения (без новых численных данных)
+
+Время записи UTC: 2026-10-17T10:00:01.009Z.
+
+Нового успешного read-only resource snapshot в этом продолжении нет. Последнее подтверждённое численное измерение остаётся от 2026-10-17T09:34:52.882398Z и является историческим, а не текущим состоянием: MemAvailable 5,524.29 MiB при требовании 5,734.4 MiB (дельта −210.11 MiB); disk usable после active reserves и floor 5,945 MiB при B04 demand 5,120 MiB (маржа +825 MiB). По этим последним данным память FAIL, диск PASS; текущий допуск не подтверждён.
+
+В этом шаге не менялись ресурсы, резервы, реестр allocations, процессы, worktrees, БД, ports, source/live/security; тест не запускался. Бюджет и резервы не снижать. Следующий допустимый шаг — один новый read-only замер только когда он доступен без обхода ограничений; при PASS сообщить готовность, но не запускать тест в рамках самого замера. Ответ владельца по C06 остаётся pending.
