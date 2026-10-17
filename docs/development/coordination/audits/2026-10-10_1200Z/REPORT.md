@@ -608,3 +608,27 @@ R3 currentity-check завершён: исторический target 0.2.15 н�
 R7/R8 resource gate не обновлён: отказанный серверный замер не повторялся и не обходился. Последнее подтверждённое измерение остаётся `2026-10-17T09:34:52.882398Z`: MemAvailable 5,524.29 MiB при E2E требовании 5,734.4 MiB (FAIL по последним известным данным), disk usable 5,945 MiB при B04 demand 5,120 MiB (PASS). Свежий допуск не подтверждён.
 
 Следующий разрешённый шаг: дождаться ответа владельца по C06 existing authority/catalog; по R7/R8 не повторять отклонённый server call и не обходить отказ. Доступный GitHub-only delta обработан без повторного тестирования/review/CI. Audit ID прежний, `audit_complete=false`; карта и принятые результаты сохранены.
+
+
+## GitHub-only delta — новые PR204/206 результаты и current-main CI
+
+**UTC:** 2026-10-17T18:51:02.939Z.
+
+### Проверка single-writer / последнего результата
+
+Перед записью REPORT.md прочитан из целевой ветки; текущий blob SHA `2eff77735b52054f8acc7bfa277d77812e620a01`, длина 93,453 символа. Report branch ref остаётся `923dd8ce73cfbbe44486fce22fbe6191346aa1f1`, то есть с момента последнего report commit не было конкурирующего опубликованного изменения. Последний report commit `c3e2365e1ff7c74ca8b109d79bb2583940faef37` и его readback подтверждены; повтор записи с неизвестным исходом отсутствует. Используется этот blob SHA как optimistic concurrency guard.
+
+### Новые опубликованные результаты после main 434788a
+
+- **PR204** [Firefox AMO data-collection declaration](https://github.com/MaksimUnimax/runtime-fixtures/pull/204) merged 2026-10-17T14:06:52Z as `453ce3c35a3bf670fc898af82f5fa40114b63bef`. Exact source candidate `2b3f9a654de87c703a86ca38c3aa8997a3ed08e5`; four B1 validation/test paths. It validates Firefox `browser_specific_settings.gecko.data_collection_permissions` categories and rejects missing/invalid categories. PR evidence states author-side B1 suites 155/155 PASS and independent exact-source review PASS_SOURCE_SCOPED; the PR was merged after the review/CI gates described in its primary body. This is Firefox AMO package validation, not a signed AMO XPI, installed Firefox acceptance, or Chrome Store authority.
+- **PR206** [Firefox 140 built-in consent minimum](https://github.com/MaksimUnimax/runtime-fixtures/pull/206) merged 2026-10-17T15:55:48Z as current main `9ac9d33385bc68083131591147eb0b65181bb4b5`. It adds strict validation of canonical stable numeric Gecko `strict_min_version` with minimum 140.0, including valid 140.0.1 and rejection of missing/below-140/prerelease versions. PR body records the prior candidate's one P2 and the accepted successor's independent PASS_SOURCE_SCOPED (0 P0/P1/P2), focused regression 3/3 and B1 suites 158/158 PASS; current-main workflows are checked separately below. This closes the bounded Firefox AMO validator source gate only, not store/installed acceptance.
+- Current exact-main SHA `9ac9d33385bc68083131591147eb0b65181bb4b5` has all five push workflows terminal SUCCESS, all `run_attempt=1`: Server [39047195830](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39047195830) 2/2 jobs; Extension [39047195846](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39047195846) 6/6; Extension I1-C1 [39047195817](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39047195817) 3/3; Documentation [39047195826](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39047195826) 1/1; Coordination/Safety [39047195819](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39047195819) 1/1. Total 5/5 workflows, 13/13 jobs. Existing runs were read only; no rerun.
+- PR205 `fix(recovery): preserve own JSON keys in grouped Ozon results (A04)` remains DRAFT/open and is not an accepted published result. It belongs to A04's existing owner/WIP; this audit does not take it over.
+
+### Effect on the existing obligation map
+
+The newly accepted PR204/206 results advance the Firefox AMO validator source lane under C01. They do not close C06/Chrome-first release readiness. Exact-main readback of `docs/product/readiness/CHROME_STORE_0_2_37_SUBMISSION_DRAFT_20261017.md` remains the same blob `dabafc2aae23f41601bc362865107a79b9f3914b`, with explicit `PREPARING — НЕ ГОТОВО К SUBMIT`. PR202 remains the only latest change to that draft, preserving separate Chrome-only `389cde2/tree 3dd1b6e` and historical dual-browser `39effb/tree d11caed` lanes. PR204/206 do not provide genuine accepted exact-source `octoport_release_authority_v1`, distinct real PREPRODUCTION HTTPS origins, issuer-approved Ed25519 trust bundle, accepted target catalog/reviewer normal login, signed Store ZIP, or Chrome original-popup installed acceptance. Owner response to the existing authority/catalog location question remains pending; silence is not authorization.
+
+No new published result in this GitHub delta closes B03/P2-3, B04, the historical original-transport/provenance/payload obligations, or R7/R8 resource admission. The rejected server resource call was not repeated or bypassed. Latest measured R7/R8 state remains the historical 2026-10-17T09:34:52.882398Z snapshot: MemAvailable 5,524.29 MiB vs E2E requirement 5,734.4 MiB (FAIL on last known measurement); disk usable 5,945 MiB vs B04 5,120 MiB (PASS). Fresh admission is not established.
+
+No tests, reproduction, review, CI, server calls, source/live/DB/security actions, cleanup, or foreign WIP changes were performed. No old chats, PR97/131/134, errors.json, or events.jsonl were accessed. The original 12-obligation map is preserved; `audit_complete=false`.
