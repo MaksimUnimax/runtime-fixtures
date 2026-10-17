@@ -175,6 +175,66 @@ test("authority mutation during bounded fd read fails closed", () => {
   }
 });
 
+
+test("authority FIFO refuses non-regular input without blocking open", { skip: process.platform === "win32" }, () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-authority-fifo-"));
+  try {
+    const fifo = join(root, "authority.fifo");
+    const created = spawnSync("mkfifo", [fifo], { encoding: "utf8" });
+    assert.equal(created.status, 0, created.stderr);
+
+    const imported = JSON.stringify(new URL("./release-lib.mjs", import.meta.url).href);
+    const script = "import { readAuthority } from " + imported +
+      "; try { readAuthority(process.argv[1], process.argv[2]); process.exitCode = 2; }" +
+      " catch (error) { console.error(error.message); process.exitCode = 1; }";
+    const child = spawnSync(process.execPath, [
+      "--input-type=module", "--eval", script, fifo, join(root, "prepared"),
+    ], { timeout: 1500, encoding: "utf8" });
+
+    assert.equal(child.error, undefined, "authority FIFO read timed out before type rejection");
+    assert.equal(child.status, 1, child.stderr);
+    assert.match(child.stderr, /Authority file must be a regular file/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("authority same-size concurrent rewrite fails bounded fd metadata verification", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-authority-same-size-"));
+  const originalRead = fs.readSync;
+  let mutated = false;
+  try {
+    const { authorityPath } = makeFixture(root);
+    const identity = fs.statSync(authorityPath);
+    fs.readSync = (fd, ...args) => {
+      const current = fs.fstatSync(fd);
+      if (!mutated && current.dev === identity.dev && current.ino === identity.ino) {
+        mutated = true;
+        const writer = fs.openSync(authorityPath, "r+");
+        try {
+          fs.writeSync(writer, "{", 0, "utf8");
+          const changed = new Date(Date.now() + 60_000);
+          fs.futimesSync(writer, changed, changed);
+        } finally {
+          fs.closeSync(writer);
+        }
+      }
+      return originalRead(fd, ...args);
+    };
+    syncBuiltinESMExports();
+
+    assert.throws(
+      () => readAuthority(authorityPath, join(root, "prepared")),
+      /Authority file changed during bounded read/,
+    );
+    assert.equal(mutated, true);
+  } finally {
+    fs.readSync = originalRead;
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("prepared package bytes always equal bytes validated before copying", () => {
   const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-snapshot-"));
   const originalCopy = fs.copyFileSync;

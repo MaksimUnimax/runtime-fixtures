@@ -1205,13 +1205,15 @@ function validatePackagedConfig(config, authority) {
 
 function readBoundedRegularFile(path, maxBytes, label = "Package input") {
   const noFollow = fsConstants.O_NOFOLLOW ?? 0;
-  const fd = openSync(path, fsConstants.O_RDONLY | noFollow);
+  // Opening a FIFO for read blocks before fstat can reject non-regular input.
+  const nonBlock = fsConstants.O_NONBLOCK ?? 0;
+  const fd = openSync(path, fsConstants.O_RDONLY | noFollow | nonBlock);
   try {
-    const before = fstatSync(fd);
+    const before = fstatSync(fd, { bigint: true });
     if (!before.isFile()) fail(`${label} must be a regular file`);
-    if (before.size > maxBytes) fail(`${label} exceeds size limit`);
+    if (before.size > BigInt(maxBytes)) fail(`${label} exceeds size limit`);
 
-    const bytes = Buffer.allocUnsafe(before.size + 1);
+    const bytes = Buffer.allocUnsafe(Number(before.size) + 1);
     let total = 0;
     while (total < bytes.length) {
       const read = readSync(fd, bytes, total, bytes.length - total, null);
@@ -1219,13 +1221,15 @@ function readBoundedRegularFile(path, maxBytes, label = "Package input") {
       total += read;
     }
 
-    const after = fstatSync(fd);
+    const after = fstatSync(fd, { bigint: true });
     if (
       !after.isFile() ||
       after.dev !== before.dev ||
       after.ino !== before.ino ||
       after.size !== before.size ||
-      total !== before.size
+      after.mtimeNs !== before.mtimeNs ||
+      after.ctimeNs !== before.ctimeNs ||
+      BigInt(total) !== before.size
     ) {
       fail(`${label} changed during bounded read`);
     }
