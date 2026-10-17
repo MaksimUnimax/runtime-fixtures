@@ -777,7 +777,7 @@ test("Firefox AMO minimum version rejects missing 140 floor in built-in consent"
 });
 
 test("Firefox AMO minimum version rejects old or malformed Firefox versions", () => {
-  for (const version of ["139.0", "139.9", "140", "140.0a1", "invalid"]) {
+  for (const version of ["139.0", "139.9", "139.9.9", "140", "140.0a1", "invalid"]) {
     const value = fixture({ firefox: { firefoxMinVersion: version } });
     try {
       assert.throws(
@@ -791,7 +791,7 @@ test("Firefox AMO minimum version rejects old or malformed Firefox versions", ()
 });
 
 test("Firefox AMO minimum version keeps 140.0 and newer releases valid", () => {
-  for (const version of ["140.0", "142.0"]) {
+  for (const version of ["140.0", "140.0.1", "140.0.1.0", "142.0"]) {
     const value = fixture({ firefox: { firefoxMinVersion: version } });
     try {
       const { output, result } = prepare(value);

@@ -1263,17 +1263,18 @@ function validateFirefoxBuiltInConsentMinimum(manifest) {
   // The accepted Octoport Firefox carrier does not provide older-version
   // custom consent; reject release ZIPs that would install without consent.
   const minimum = manifest.browser_specific_settings?.gecko?.strict_min_version;
+  // Accept canonical numeric Gecko release version components (major.minor,
+  // optionally patch/build). A prerelease such as 140.0a1 is not a 140.0
+  // stable minimum and needs separate consent-compatibility acceptance.
   const match =
     typeof minimum === "string"
-      ? /^([1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(minimum)
+      ? /^([1-9][0-9]*)\.(0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}$/.exec(minimum)
       : null;
-  const major = match ? Number(match[1]) : NaN;
-  const minor = match ? Number(match[2]) : NaN;
+  const releaseParts = match ? minimum.split(".").map(Number) : [];
   if (
     !match ||
-    !Number.isSafeInteger(major) ||
-    !Number.isSafeInteger(minor) ||
-    major < 140
+    releaseParts.some((part) => !Number.isSafeInteger(part)) ||
+    releaseParts[0] < 140
   ) {
     fail("Firefox built-in data consent requires Firefox 140 or newer");
   }
