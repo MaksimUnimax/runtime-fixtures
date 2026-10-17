@@ -585,7 +585,7 @@ R3 currentity-check завершён: исторический target 0.2.15 н�
 
 ### Последняя запись и защита от дубля
 
-Перед обновлением GitHub readback подтвердил существующий REPORT.md blob `a9ddb2c31f7efab1e261f5b87b35b4d5699e52c3`, 87,922 символа; ветка отчёта по-прежнему указывает на commit `923dd8ce73cfbbe44486fce22fbe6191346aa1f1`. С момента checkpoint `2026-10-17T10:00:01.009Z` конкурирующих записей в report branch не опубликовано. Новая запись добавляется один раз к этому SHA; прежняя карта 12 обязательств не пересобирается.
+Перед обновлением GitHub readback подтвердил существующий REPORT.md blob `2eff77735b52054f8acc7bfa277d77812e620a01`, 93,453 символа; report-branch ref на момент этого readback был `c3e2365e1ff7c74ca8b109d79bb2583940faef37` (commit от 2026-10-17T13:48:52Z). `923dd8ce73cfbbe44486fce22fbe6191346aa1f1` — более ранний commit от 10:00:18Z, не текущий ref на момент подготовки дополнения. С момента предыдущего report commit `c3e2365e...` до pre-write readback не было конкурирующих report-branch commits. Новая запись добавляется один раз к проверенному blob SHA; прежняя карта 12 обязательств не пересобирается.
 
 ### Подтверждённые новые GitHub результаты
 
@@ -632,3 +632,33 @@ The newly accepted PR204/206 results advance the Firefox AMO validator source la
 No new published result in this GitHub delta closes B03/P2-3, B04, the historical original-transport/provenance/payload obligations, or R7/R8 resource admission. The rejected server resource call was not repeated or bypassed. Latest measured R7/R8 state remains the historical 2026-10-17T09:34:52.882398Z snapshot: MemAvailable 5,524.29 MiB vs E2E requirement 5,734.4 MiB (FAIL on last known measurement); disk usable 5,945 MiB vs B04 5,120 MiB (PASS). Fresh admission is not established.
 
 No tests, reproduction, review, CI, server calls, source/live/DB/security actions, cleanup, or foreign WIP changes were performed. No old chats, PR97/131/134, errors.json, or events.jsonl were accessed. The original 12-obligation map is preserved; `audit_complete=false`.
+
+
+## GitHub-only delta — PR208 и exact-main CI после PR204/206
+
+**UTC:** 2026-10-17T21:50:28.940Z.
+
+### Исправление одного устаревшего утверждения в истории отчёта
+
+Первичная branch history подтверждает последовательность `923dd8ce73cfbbe44486fce22fbe6191346aa1f1` (2026-10-17T10:00:18Z) → `c3e2365e1ff7c74ca8b109d79bb2583940faef37` (13:48:52Z) → `314427aff16bd7dc399d87103156ab9ab3e4dea4` (18:51:09Z). Непосредственно перед этой записью branch ref был `314427af...`; файл REPORT.md имел blob `08eec99244d804a0f0e9a92c56eb8bcc049ef2ea` (98,282 символа). Исправлено только устаревшее утверждение в предыдущем разделе о pre-write ref/blob: оно ссылалось на 923dd8ce и более старый blob a9ddb2, хотя на тот момент последним report commit был c3e2365e и фактический blob был 2eff777. Исторические commits не переписывались; новый commit добавляется к текущему `314427af...`.
+
+### Новый опубликованный результат: PR208
+
+- PR208 [Firefox AMO 0.2.37 readiness/signing gates](https://github.com/MaksimUnimax/runtime-fixtures/pull/208) merged 2026-10-17T19:37:14Z as main `db531677d1df06029020318342752c76e3a04058`. Добавлен только документ `docs/product/readiness/FIREFOX_AMO_0_2_37_SUBMISSION_DRAFT_20261017.md`, blob `3198992b8e13f058e18c47330ec8861fc6a50c20`. Документ явно имеет статус `PREPARING — НЕ ГОТОВО К SUBMIT` и разделяет B1 source validator от реальной Mozilla authority/signature, AMO upload, listing/reviewer login и установленной Firefox acceptance.
+- На точном PR208 candidate `658944402ef97573aab04210c49b90bbb462fb82` пять native workflows теперь terminal SUCCESS, все `run_attempt=1`: Server [39061598007](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39061598007), Extension [39061598105](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39061598105), I1-C1 [39061598128](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39061598128), Documentation [39061597989](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39061597989), Coordination/Safety [39061598123](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39061598123). Эти existing runs прочитаны, не перезапускались.
+- В PR208 API readback review list, issue comments и review comments пусты. Его body на момент публикации говорит, что второй independent exact-source read-only review ещё RUNNING и verdict не заявлен. Поэтому **опубликованного независимого review verdict в этих PR208 records не подтверждено**; нельзя задним числом считать этот gate закрытым по одному merge. Это фиксация наблюдаемого GitHub evidence, не новый review и не вывод о причине merge.
+
+### Новое exact-main CI состояние после PR208
+
+На current main `db531677d1df06029020318342752c76e3a04058` все пять push workflows завершены, но итог **4/5 SUCCESS, 1/5 FAILURE**, не 5/5:
+- Server CI [39063250378](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39063250378) SUCCESS.
+- Extension CI [39063250352](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39063250352) SUCCESS.
+- Documentation CI [39063250366](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39063250366) SUCCESS.
+- Coordination/release safety [39063250379](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39063250379) SUCCESS.
+- Extension I1-C1 [39063250394](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39063250394) FAILURE. Job `Installed local API / portal / PostgreSQL acceptance` failed at step `Run set +e`; other jobs `ci-plan` and `client-i1` in that workflow succeeded. The API summary does not establish the underlying cause, so it remains UNKNOWN. Existing run only read; no rerun or log reproduction.
+
+### Effect on C06 and original obligations
+
+PR208 advances only the documentation/source-readiness record for Firefox AMO. The new Firefox draft and existing Chrome draft both remain `PREPARING — НЕ ГОТОВО К SUBMIT`; no genuine accepted exact-source PREPRODUCTION authority, issuer-approved trust bundle, target catalog, signed Store ZIP/XPI, publisher submission or installed original-popup acceptance is established by this merge. The owner’s answer on the existing C06 authority/catalog location request remains pending; silence is not authorization.
+
+No new published result here closes B03/P2-3, B04 or historical transport/provenance/payload dependencies. R7/R8 remains without a fresh resource measurement; the previously rejected server call was not repeated or bypassed. No server calls, tests, reproductions, review/CI runs, source/live/DB/security changes, cleanup or foreign WIP changes were performed in this continuation. The 12-obligation map remains intact; `audit_complete=false`.
