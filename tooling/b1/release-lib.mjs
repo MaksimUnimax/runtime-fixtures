@@ -37,6 +37,23 @@ const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 256 * 1024 * 1024;
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
 const FIREFOX_STORE_ID = "octoport@octoport.ru";
+const FIREFOX_REQUIRED_DATA_TYPES = new Set([
+  "authenticationInfo",
+  "bookmarksInfo",
+  "browsingActivity",
+  "financialAndPaymentInfo",
+  "healthInfo",
+  "locationInfo",
+  "personalCommunications",
+  "personallyIdentifyingInfo",
+  "searchTerms",
+  "websiteActivity",
+  "websiteContent",
+]);
+const FIREFOX_OPTIONAL_DATA_TYPES = new Set([
+  ...FIREFOX_REQUIRED_DATA_TYPES,
+  "technicalAndInteraction",
+]);
 const STORE_REVIEW_ENVIRONMENT = "PREPRODUCTION";
 const STORE_BACKGROUND_FORBIDDEN_MARKERS = [
   Buffer.from("LOCAL DEVELOPMENT"),
@@ -1241,6 +1258,49 @@ function readBoundedRegularFile(path, maxBytes, label = "Package input") {
   }
 }
 
+function validateFirefoxDataCollection(manifest) {
+  const disclosure =
+    manifest.browser_specific_settings?.gecko?.data_collection_permissions;
+  const invalid = () => fail("Firefox data collection declaration invalid");
+  if (
+    !disclosure ||
+    typeof disclosure !== "object" ||
+    Array.isArray(disclosure) ||
+    !Object.hasOwn(disclosure, "required") ||
+    Object.keys(disclosure).some(
+      (key) => key !== "required" && key !== "optional",
+    )
+  ) {
+    invalid();
+  }
+  const required = disclosure.required;
+  const optional = Object.hasOwn(disclosure, "optional")
+    ? disclosure.optional
+    : [];
+  if (
+    !Array.isArray(required) ||
+    required.length === 0 ||
+    !Array.isArray(optional) ||
+    required.some(
+      (type) =>
+        typeof type !== "string" ||
+        (type !== "none" && !FIREFOX_REQUIRED_DATA_TYPES.has(type)),
+    ) ||
+    optional.some(
+      (type) =>
+        typeof type !== "string" || !FIREFOX_OPTIONAL_DATA_TYPES.has(type),
+    ) ||
+    new Set(required).size !== required.length ||
+    new Set(optional).size !== optional.length ||
+    optional.some((type) => required.includes(type)) ||
+    required.includes("none")
+  ) {
+    // Octoport transfers selected marketplace data to third-party AI;
+    // claiming no required or optional data transfer is not valid for it.
+    invalid();
+  }
+}
+
 function checkPackage(file, browser, authority, expectedRoot = null) {
   const supplied = resolve(file);
   if (lstatSync(supplied).isSymbolicLink()) {
@@ -1273,11 +1333,11 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   ) {
     fail("Package manifest version does not match release authority");
   }
-  if (
-    browser === "firefox" &&
-    manifest.browser_specific_settings?.gecko?.id !== FIREFOX_STORE_ID
-  ) {
-    fail("Firefox package stable extension ID mismatch");
+  if (browser === "firefox") {
+    if (manifest.browser_specific_settings?.gecko?.id !== FIREFOX_STORE_ID) {
+      fail("Firefox package stable extension ID mismatch");
+    }
+    validateFirefoxDataCollection(manifest);
   }
   // A manifest declaration is not evidence that its icon exists or decodes.
   // Check the same bounded ZIP member bytes the browser would install.
@@ -1418,8 +1478,12 @@ function releaseBrowsers(chromiumOnly, firefoxOnly) {
 }
 
 export function prepare({
-  authorityPath, outputDir, chromium, firefox,
-  chromiumOnly = false, firefoxOnly = false,
+  authorityPath,
+  outputDir,
+  chromium,
+  firefox,
+  chromiumOnly = false,
+  firefoxOnly = false,
 }) {
   const browsers = releaseBrowsers(chromiumOnly, firefoxOnly);
   if (chromiumOnly && firefox !== undefined) {
@@ -1451,7 +1515,9 @@ export function prepare({
   // A reserved DOS device basename (for example CON.zip) can be written
   // on POSIX but cannot be safely materialized on a Windows release host.
   // Validate every output filename before creating any output directory.
-  if (browsers.some((browser) => !safePackageFilename(packages[browser].filename))) {
+  if (
+    browsers.some((browser) => !safePackageFilename(packages[browser].filename))
+  ) {
     fail("Unsafe package filename");
   }
 
@@ -1459,7 +1525,10 @@ export function prepare({
   // The same candidate must remain portable across release hosts.
   if (
     browsers.length === 2 &&
-    collidingPackageFilenames(packages.chromium.filename, packages.firefox.filename)
+    collidingPackageFilenames(
+      packages.chromium.filename,
+      packages.firefox.filename,
+    )
   ) {
     fail("Package filenames have a case-insensitive collision");
   }
@@ -1486,7 +1555,9 @@ export function prepare({
       migrationLevel: authority.migrationLevel,
       ...(chromiumOnly
         ? { releaseScope: "CHROME_ONLY" }
-        : firefoxOnly ? { releaseScope: "FIREFOX_ONLY" } : {}),
+        : firefoxOnly
+          ? { releaseScope: "FIREFOX_ONLY" }
+          : {}),
       packages,
     };
 
@@ -1503,7 +1574,10 @@ export function prepare({
 }
 
 export function preflight({
-  authorityPath, candidateDir, chromiumOnly = false, firefoxOnly = false,
+  authorityPath,
+  candidateDir,
+  chromiumOnly = false,
+  firefoxOnly = false,
 }) {
   const browsers = releaseBrowsers(chromiumOnly, firefoxOnly);
   const scopedBrowser = browsers.length === 1 ? browsers[0] : null;

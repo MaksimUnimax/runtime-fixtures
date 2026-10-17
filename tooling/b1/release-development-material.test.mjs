@@ -111,7 +111,13 @@ function fixture(mode) {
         ...(browser === "firefox"
           ? {
               browser_specific_settings: {
-                gecko: { id: "octoport@octoport.ru" },
+                gecko: {
+                  id: "octoport@octoport.ru",
+                  data_collection_permissions: {
+                    required: ["websiteContent"],
+                    optional: ["technicalAndInteraction"],
+                  },
+                },
               },
             }
           : {}),
