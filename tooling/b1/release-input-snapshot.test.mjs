@@ -353,6 +353,182 @@ test("prepared package bytes always equal bytes validated before copying", () =>
 });
 
 // Existing stable package preparation and its consumer keep the same contract.
+
+test("Chrome-only explicit B1 mode prepares and preflights only the Chromium archive", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-chrome-first-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const outputDir = join(root, "chrome-prepared");
+    const result = prepare({
+      authorityPath,
+      outputDir,
+      chromium: packages.chromium,
+      chromiumOnly: true,
+    });
+    assert.deepEqual(Object.keys(result.packages), ["chromium"]);
+    assert.equal(result.releaseScope, "CHROME_ONLY");
+    assert.equal(sha(readFileSync(join(outputDir, "chromium.zip"))), result.packages.chromium.sha256);
+    assert.equal(fs.existsSync(join(outputDir, "firefox.zip")), false);
+    const verified = preflight({ authorityPath, candidateDir: outputDir, chromiumOnly: true });
+    assert.equal(verified.status, "PASS");
+    assert.equal(verified.releaseScope, "CHROME_ONLY");
+    assert.throws(
+      () => preflight({ authorityPath, candidateDir: outputDir }),
+      /Candidate source, authority, or product facts are stale/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Chrome-only CLI explicitly selects one browser and legacy preflight stays strict", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-chrome-cli-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const outputDir = join(root, "chrome-prepared");
+    const prepared = spawnSync(
+      process.execPath,
+      [
+        join(process.cwd(), "tooling/b1/prepare-release-candidate.mjs"),
+        "--authority", authorityPath, "--out", outputDir,
+        "--chromium", packages.chromium, "--channel", "chrome",
+      ],
+      { encoding: "utf8", timeout: 15000, maxBuffer: 4096 },
+    );
+    assert.equal(prepared.status, 0, prepared.stderr);
+    const receipt = JSON.parse(prepared.stdout);
+    assert.equal(receipt.status, "PREPARED");
+    assert.deepEqual(Object.keys(receipt.packages), ["chromium"]);
+    assert.equal(receipt.releaseScope, "CHROME_ONLY");
+    const checked = spawnSync(
+      process.execPath,
+      [
+        join(process.cwd(), "tooling/b1/release-preflight.mjs"),
+        outputDir, "--authority", authorityPath, "--channel", "chrome",
+      ],
+      { encoding: "utf8", timeout: 15000, maxBuffer: 4096 },
+    );
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.equal(JSON.parse(checked.stdout).status, "PASS");
+    assert.equal(JSON.parse(checked.stdout).releaseScope, "CHROME_ONLY");
+    const legacy = spawnSync(
+      process.execPath,
+      [join(process.cwd(), "tooling/b1/release-preflight.mjs"),
+       outputDir, "--authority", authorityPath],
+      { encoding: "utf8", timeout: 15000, maxBuffer: 4096 },
+    );
+    assert.equal(legacy.status, 1);
+    assert.equal(JSON.parse(legacy.stderr).status, "FAIL");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Chrome-only scope rejects extra browser metadata and modified Chromium bytes", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-chrome-tamper-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const outputDir = join(root, "chrome-prepared");
+    const result = prepare({
+      authorityPath, outputDir, chromium: packages.chromium,
+      chromiumOnly: true,
+    });
+    const manifestPath = join(outputDir, "B1_RC_MANIFEST.json");
+    const manifest = JSON.parse(readFileSync(manifestPath));
+    manifest.packages.firefox = { ...result.packages.chromium, browser: "firefox" };
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.throws(
+      () => preflight({ authorityPath, candidateDir: outputDir, chromiumOnly: true }),
+      /Candidate source, authority, or product facts are stale/,
+    );
+    delete manifest.packages.firefox;
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    writeFileSync(join(outputDir, "chromium.zip"), "tampered");
+    assert.throws(
+      () => preflight({ authorityPath, candidateDir: outputDir, chromiumOnly: true }),
+      /Package|ZIP|archive|extension/i,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+
+test("Chrome-only must fail closed on invalid ZIP, false authority, or unsupported channel", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-chrome-invalid-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    assert.throws(
+      () => prepare({
+        authorityPath, outputDir: join(root, "ambiguous-browser-input"),
+        chromium: packages.chromium, firefox: packages.firefox,
+        chromiumOnly: true,
+      }),
+      /Chrome-only candidate cannot include Firefox input/,
+    );
+    assert.equal(fs.existsSync(join(root, "ambiguous-browser-input")), false);
+    const invalidPackage = join(root, "not-an-extension.zip");
+    writeFileSync(invalidPackage, "NOT_AN_EXTENSION");
+    const rejectedOutput = join(root, "rejected-package");
+    assert.throws(
+      () => prepare({
+        authorityPath, outputDir: rejectedOutput, chromium: invalidPackage,
+        chromiumOnly: true,
+      }),
+      /ZIP|archive|extension|Package/i,
+    );
+    assert.equal(fs.existsSync(rejectedOutput), false);
+
+    const unsupported = spawnSync(
+      process.execPath,
+      [
+        join(process.cwd(), "tooling/b1/prepare-release-candidate.mjs"),
+        "--authority", authorityPath, "--out", join(root, "unsupported"),
+        "--chromium", packages.chromium, "--channel", "unknown",
+      ],
+      { encoding: "utf8", timeout: 15000, maxBuffer: 4096 },
+    );
+    assert.equal(unsupported.status, 1);
+    assert.equal(JSON.parse(unsupported.stderr).status, "FAIL");
+
+    const authority = JSON.parse(readFileSync(authorityPath));
+    authority.environment = "LOCAL_DEV";
+    writeFileSync(authorityPath, JSON.stringify(authority));
+    assert.throws(
+      () => prepare({
+        authorityPath, outputDir: join(root, "bad-authority"),
+        chromium: packages.chromium, chromiumOnly: true,
+      }),
+      /Invalid authority schema/,
+    );
+    assert.equal(fs.existsSync(join(root, "bad-authority")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+
+test("Chrome-only rejects undeclared archive files even when manifest is unchanged", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-chrome-unlisted-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const outputDir = join(root, "chrome-prepared");
+    const receipt = prepare({
+      authorityPath, outputDir, chromium: packages.chromium, chromiumOnly: true,
+    });
+    assert.equal(receipt.releaseScope, "CHROME_ONLY");
+    // A hidden sibling archive must never be accepted as part of a Chrome-only
+    // candidate, regardless of its bytes or browser identity.
+    writeFileSync(join(outputDir, "firefox.zip"), "NOT_AN_EXTENSION");
+    assert.throws(
+      () => preflight({ authorityPath, candidateDir: outputDir, chromiumOnly: true }),
+      /Chrome-only candidate contains undeclared files/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("unchanged synthetic packages prepare and preflight with metadata only", () => {
   const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-preflight-"));
   try {
