@@ -205,3 +205,19 @@
 Разрешения владельца от 05:25Z (один R7/R8 тест) и 06:21Z (одна отдельная disposable DB и уникальные порты) остаются действующими. Они не отменяют необходимость exact source, single-writer/lock и безопасного ресурса. Существующие A/B/C/owner/live БД, WIP, security и dot не затрагивались; неизвестного результата теста нет, так как тест не запускался. Аудит остаётся IN_PROGRESS, исходные 12 открытых исходов не закрыты.
 
 Следующий разрешённый шаг: после штатного получения точного Git-объекта и подтверждения чистого изолированного worktree перейти к ресурсному допуску, отдельной БД, уникальным портам и одному тесту без retries; если fetch по-прежнему недоступен, продолжать независимый аудит без попыток обхода.
+
+## Дополнение — exact-main CI прочитан, Git-fetch остаётся блокером
+
+**UTC-время дополнения: 2026-10-17T07:07:21.472775748Z.**
+
+### Независимый результат по main
+
+GitHub ref main остаётся exact SHA `d12b4c855ee15d89237cc9ab2de1362d4a35167e`. Все пять push workflows для этого exact SHA завершились SUCCESS (run_attempt=1): Documentation CI [39009560147](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39009560147), Coordination and release safety [39009560040](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39009560040), Extension I1-C1 client [39009560027](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39009560027), Extension CI [39009560000](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39009560000), Server CI [39009560187](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39009560187). Это SOURCE/CI результат, не тест R7/R8 и не разрешение использовать устаревший локальный checkout.
+
+### Остающийся блок
+
+Локальные worktree `/root/octoport-main` и `/root/runtime-fixtures` всё ещё не содержат Git object d12b4c855ee15d89237cc9ab2de1362d4a35167e. Одна штатная команда `flock -x /root/octoport-control/controllers/coordination.lock git -C /root/octoport-main fetch --no-tags origin main` была отклонена до выполнения; я не пробовал альтернативный маршрут получения того же объекта. Поэтому отдельный точный worktree, disposable PostgreSQL и тест не созданы. Требуемая зависимость остаётся прежней: разрешённое исполнение этого стандартного Git-fetch либо наличие точного объекта в уже доступном локальном Git object database.
+
+### Ближайший шаг
+
+После появления exact Git object продолжить только с чистой отдельной временной копией и неизменённым B WIP. Затем проверить свободные порты, резерв/память и отдельный loopback-only PostgreSQL, выполнить ровно один R7/R8 test без retries. Независимо от этого продолжить аудит оставшихся исходов; полный аудит IN_PROGRESS.
