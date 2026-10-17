@@ -813,3 +813,29 @@ R7/R8 resource call **не повторён и не обойдён**. Измер
 **Публикация:** Chrome — PREPARING / НЕ ГОТОВО К SUBMIT; Firefox AMO — PREPARING / НЕ ГОТОВО К SUBMIT. Нужны существующие accepted exact-source authority/catalog/trust и реальный соответствующий подписанный пакет, reviewer/publisher evidence и original-popup acceptance существующего Тестера. Ответа владельца по authority/catalog нет. Другие каналы не получают новый PASS.
 
 Следующий шаг этого же аудита — завершить доступную документальную сверку действующих START/HANDOFF и адресных остатков, сохранять один текущий checkpoint и читать действительно новые evidence существующих авторов. Новые tests/review/CI/helpers, source/live/DB/security, cleanup, auth/кредиты/расписания не менялись. Успешная запись этого отчёта требует отдельного readback.
+
+
+## Заключительный серверный delta того же продолжения
+
+**UTC:** 2026-10-17T23:49:21.589Z. Последний содержательный role/API срез — 23:44–23:47 UTC; более поздние исходы не предполагаются. Это не новый аудит и не окончательная приёмка.
+
+После предыдущего раздела получены новые первичные записи существующих авторов:
+
+- **A:** обновление23:44:05Z уже фиксирует собственный R6 Yandex source после R4/R5 REWORK. R6 source SHA-256 `0227ee663aae070e6a96bdb47926c79cf640b69ab2ca912ee8e704dd2234598a`; один существующий read-only Luna/xhigh review PID2774998, IN_FLIGHT в этой записи. Browser не запускался. R5 terminal negative автор уже принял в своей записи23:40:53Z; прежний адресный next «прочитать R5» фактически пройден самим A, не Контроллером. R6 review не повторялся и outcome не выдумывается.
+- **C:** существующий exact `a488d66e...` получил **PASS_SOURCE_SCOPED**. Первичный verdict `logs/C/C01_STORE_AUTHORITY_ATOMIC_EXACT_A488_INDEPENDENT_LUNA_REVIEW_RESULT_20261017.txt` прочитан, 3,680 байт, SHA-256 `fe4ae3af5d137c1087303a271ed822bd2ca96f4d8ddb36f64f5a63bfabb5f409` лично совпал. Reviewer оценивает переданные immutable diff/excerpts двух файлов, checkout недоступен; независимого тестового прогона нет. Прежний d29a negative сохранён.
+- [PR209](https://github.com/MaksimUnimax/runtime-fixtures/pull/209) теперь подтверждён через GitHub как **OPEN/DRAFT, unmerged**, head a488, base db531. Его три existing native pull_request runs лично прочитаны: Documentation [39079780687](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39079780687) SUCCESS; Extension [39079780630](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39079780630) IN_PROGRESS; I1-C1 [39079780640](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39079780640) FAILURE, attempt1. C primary/PR body локализует job117534216188 и выбранный WorkStart request ABORTED+142ms, физический инициатор UNKNOWN. Это отдельный run от main db531 ABORT164; причины не склеиваются.
+- Server CI и Coordination отсутствуют среди трёх найденных PR209 runs; C/PR body объясняют это path filters. Отсутствие не равно PASS. Контроллер не выполнял dispatch, rerun, нового review или source tests. **PR209 NOT_READY_FOR_MAIN**, C сохраняет draft и свой scope. Отрицательный I1 остаётся у существующих A/Tester/runtime владельцев.
+- **B:** новых доказательств независимого review PR200 нет; прочитанное исходное сообщение reviewer остаётся отказом без verdict. Auth/profile/подписка не менялись, альтернативный reviewer не запускался.
+
+Завершено чтение указанных START_A/B/C, объявленных HANDOFF_A/B/C, AGENTS, Chrome-first и OPERATOR правил. HANDOFF от5октября — исторический: команды control.py и чтения errors из него отменены текущими START_HERE/WORK_METHOD и прямым запретом владельца; они не выполнялись. По отдельному Win32v8 primary existing C подтверждён точный отказ22:17:31.408006Z для outer filename255/256 теста, без PID/unit confirmation. Original request/correlation/native disposition остаётся недостающим первичным источником уC/platform; сборка/тест не повторялись. Свежего runtime/installed/Store результата из этого не возникает.
+
+**Фактический эффект продолжения:** ошибочный общий GitHub-only scope и устаревший dot-as-Controller progress pointer исправлены в собственных существующих рабочих документах; обнаружены и проверены существующие первичные review/CI результаты, которые отсутствовали в прежнем GitHub-only срезе. Наблюдаемый прогресс A/C принадлежит их действующим авторам. Новых product/tests/review/CI/helper запусков Контроллера — 0; закрытых исходов исходной карты — 0.
+
+Существующие DOT02v10 и checkpoint дополнены новым delta под тем же coordination.lock/hash guards. Отдельный последующий server readback подтвердил:
+- FINAL_RESUME_CHECKPOINT.json SHA-256 `4ecb5928498e07066fcf066035be8c8147e253be9c77db97dd863108e5636f7b`, 1,551,975 байт;
+- PRIORITY_TASKS.md SHA-256 `96bbf78afd2a9e0e2a7b6aa64951e3cb6d8914e9e2eb56bba47282aa98d1417e`, 633,381 байт;
+- current_progress_record=`controller_owner_server_resume_20261017`, original current_required_outcomes_report сохранён, все остальные checkpoint поля сохранены, audit_complete=false. Чужие role/source/tests/WIP не записывались.
+
+Доступные документальные подшаги этого серверного среза выполнены. Точные внешние остатки: existing A — исход своего текущего R6 review и causal primary I1; existing C — terminal уже существующего Extension run и сохранённые PR209/C06 ворота; B — поддержанный disposition существующего reviewer отказа; владелец/issuer — ответ о существующих genuine exact-source C06 authority/catalog; существующий Tester — original-popup B01/R3 приёмка; первичные custodians — прежние Win32/WB/transport/config/original-review-bytes доказательства из карты12. По R7/R8 адресный отказ не повторять и не обходить, свежего допуска нет. Никакой новый общий STOP, фоновой запуск, расписание, новый реестр или новая задача вместо прежних обязательств не создаются.
+
+**Публикация:** Chrome и Firefox AMO остаются PREPARING / НЕ ГОТОВО К SUBMIT. Source-review PASS и draft PR209 этого статуса не меняют. Полный аудит остаётся открытым.
