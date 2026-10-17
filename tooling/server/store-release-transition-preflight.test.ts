@@ -259,11 +259,11 @@ describe("STORE release transition preflight", () => {
     );
   });
 
-
   it("rejects a Chrome-only manifest as an Opera release target", () => {
     const fixture = target();
-    const manifest = JSON.parse(readFileSync(fixture.manifest, "utf8")) as
-      Record<string, unknown>;
+    const manifest = JSON.parse(
+      readFileSync(fixture.manifest, "utf8"),
+    ) as Record<string, unknown>;
     manifest.releaseScope = "CHROME_ONLY";
     writeFileSync(fixture.manifest, JSON.stringify(manifest));
     expect(() =>
