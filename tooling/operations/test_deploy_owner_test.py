@@ -644,5 +644,148 @@ class QuiesceBoundary(unittest.TestCase):
 
 
 
+
+class LegacyArchiveInputStreamingTests(unittest.TestCase):
+    """Synthetic only: no Docker, PostgreSQL, systemd, network or real credentials."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="octoport-b-pgstream-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.archive = self.root / "fake-archive.dump"
+        self.archive.write_bytes(b"synthetic pg_restore stdin fixture")
+
+    def test_run_streams_file_descriptor_without_full_bytes_read(self):
+        observations = {}
+
+        def fake_process(args, **kwargs):
+            source = kwargs.get("stdin")
+            self.assertIsNotNone(source)
+            self.assertFalse(source.closed)
+            self.assertIsNone(kwargs.get("input"))
+            observations["sample"] = source.read()
+            observations["source"] = source
+            return deploy.subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+
+        with patch.object(deploy.subprocess, "run", side_effect=fake_process):
+            with patch.object(
+                Path, "read_bytes", side_effect=AssertionError("FULL_BACKUP_READ")
+            ) as full_read:
+                result = deploy.run(
+                    ["docker", "exec", "-i", "synthetic-container", "pg_restore"],
+                    stdin_file=self.archive,
+                    timeout=8,
+                )
+            full_read.assert_not_called()
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(observations["sample"], b"synthetic pg_restore stdin fixture")
+        self.assertTrue(observations["source"].closed)
+
+    def test_real_finite_child_receives_archive_bytes_from_file(self):
+        # This is a local Python echo child, not docker, a database or a service.
+        child = deploy.run(
+            [deploy.sys.executable, "-B", "-c",
+             "import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())"],
+            stdin_file=self.archive, timeout=5,
+        )
+        self.assertEqual(child.returncode, 0)
+        self.assertEqual(child.stdout, b"synthetic pg_restore stdin fixture")
+
+    def test_unavailable_archive_fails_before_starting_child(self):
+        missing = self.root / "missing.dump"
+        with patch.object(deploy.subprocess, "run") as started:
+            with self.assertRaises(FileNotFoundError):
+                deploy.run(["not-started"], stdin_file=missing)
+            started.assert_not_called()
+
+    def test_docker_pg_passes_file_stdin_with_interactive_flag(self):
+        with patch.object(deploy, "run", return_value=None) as command:
+            deploy.docker_pg(["pg_restore", "--list"], stdin_file=self.archive, timeout=60)
+        self.assertEqual(
+            command.call_args.args[0][:4],
+            ["docker", "exec", "-i", deploy.DB_CONTAINER],
+        )
+        self.assertEqual(command.call_args.kwargs["stdin_file"], self.archive)
+        self.assertIsNone(command.call_args.kwargs["input_bytes"])
+
+    def test_run_rejects_ambiguous_stdin_before_any_subprocess(self):
+        with patch.object(deploy.subprocess, "run") as launched:
+            with self.assertRaisesRegex(RuntimeError, "RUN_STDIN_AMBIGUOUS"):
+                deploy.run(["unused"], input_bytes=b"bytes", stdin_file=self.archive)
+            launched.assert_not_called()
+
+    def test_backup_live_streams_its_pg_restore_archive_check(self):
+        events = []
+
+        def fake_docker(args, **kwargs):
+            events.append((list(args), dict(kwargs)))
+            if args[0] == "pg_dump":
+                kwargs["stdout_file"].write_bytes(b"synthetic dump")
+            return deploy.subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+
+        with patch.object(deploy, "BACKUPS", self.root / "backups"):
+            with patch.object(deploy, "docker_pg", side_effect=fake_docker):
+                with patch.object(
+                    Path, "read_bytes", side_effect=AssertionError("FULL_BACKUP_READ")
+                ) as full_read:
+                    result = deploy.backup_live("fixture", "fixture_db", "safe")
+                full_read.assert_not_called()
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0][0][0], "pg_dump")
+        self.assertEqual(events[1][0][:2], ["pg_restore", "--list"])
+        self.assertEqual(events[1][1].get("stdin_file"), result)
+        self.assertNotIn("input_bytes", events[1][1])
+
+    def test_isolated_restore_streams_archive_and_retains_cleanup(self):
+        events = []
+
+        def fake_docker(args, **kwargs):
+            events.append((list(args), dict(kwargs)))
+            return deploy.subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+
+        def prefix(url, count):
+            return {"applied": count}
+
+        with patch.object(deploy, "docker_pg", side_effect=fake_docker):
+            with patch.object(deploy, "check_migration_prefix", side_effect=prefix):
+                with patch.object(deploy, "migrate", return_value=None):
+                    with patch.object(
+                        Path, "read_bytes", side_effect=AssertionError("FULL_BACKUP_READ")
+                    ) as full_read:
+                        result = deploy.restore_isolated(
+                            "fixture", "postgres://fixture@127.0.0.1/fixture",
+                            self.archive, "20261017T040000Z",
+                        )
+                    full_read.assert_not_called()
+        self.assertEqual((result["before"], result["after"]), (22, 40))
+        self.assertEqual([x[0][0] for x in events],
+                         ["createdb", "pg_restore", "dropdb"])
+        self.assertEqual(events[1][1].get("stdin_file"), self.archive)
+        self.assertEqual(events[-1][0][:3], ["dropdb", "--if-exists", "--force"])
+
+    def test_legacy_rollback_restores_from_stream_without_full_read(self):
+        events = []
+
+        def fake_docker(args, **kwargs):
+            events.append((list(args), dict(kwargs)))
+            return deploy.subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+
+        with patch.object(deploy, "docker_pg", side_effect=fake_docker):
+            with patch.object(deploy, "docker_psql_scalar", return_value="22"):
+                with patch.object(
+                    Path, "read_bytes", side_effect=AssertionError("FULL_BACKUP_READ")
+                ) as full_read:
+                    count = deploy.restore_live_backup(
+                        "fixture", "fixture_db", self.archive,
+                        {"encoding": "UTF8", "collate": "C", "ctype": "C"},
+                    )
+                full_read.assert_not_called()
+        self.assertEqual(count, 22)
+        self.assertEqual([x[0][0] for x in events],
+                         ["dropdb", "createdb", "pg_restore"])
+        self.assertEqual(events[2][1].get("stdin_file"), self.archive)
+        self.assertNotIn("input_bytes", events[2][1])
+
+
 if __name__ == "__main__":
     unittest.main()
