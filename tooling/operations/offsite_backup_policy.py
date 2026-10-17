@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import errno
 import json
+import os
+import stat
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -239,15 +242,52 @@ def validate_policy(value: Any) -> dict[str, Any]:
     return _validate_recorded(destination, objectives)
 
 
+def _file_revision(info: os.stat_result) -> tuple[int, ...]:
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
 def load_policy(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         _fail("POLICY_FILE_INVALID")
+    # Both the pathname and the opened descriptor must identify the same
+    # regular file. A symlink or a different file inserted after the initial
+    # type checks must never silently substitute another owner's decision.
+    if not all(hasattr(os, flag) for flag in ("O_NOFOLLOW", "O_NONBLOCK", "O_CLOEXEC")):
+        _fail("POLICY_FILE_UNREADABLE")
+    descriptor = -1
     try:
-        # One extra byte distinguishes an oversized file without reading it all.
-        with path.open("rb") as source:
+        checked = path.lstat()
+        if not stat.S_ISREG(checked.st_mode):
+            _fail("POLICY_FILE_INVALID")
+        descriptor = os.open(
+            path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+        )
+        stream = os.fdopen(descriptor, "rb")
+        descriptor = -1
+        with stream as source:
+            opened = os.fstat(source.fileno())
+            if not stat.S_ISREG(opened.st_mode) or (
+                _file_revision(opened) != _file_revision(checked)
+            ):
+                _fail("POLICY_FILE_INVALID")
+            # One extra byte distinguishes oversize without an unbounded read.
             raw = source.read(MAX_POLICY_BYTES + 1)
+            if _file_revision(os.fstat(source.fileno())) != _file_revision(opened):
+                _fail("POLICY_FILE_INVALID")
     except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise PolicyError("POLICY_FILE_INVALID") from error
         raise PolicyError("POLICY_FILE_UNREADABLE") from error
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
     if not raw or len(raw) > MAX_POLICY_BYTES:
         _fail("POLICY_FILE_SIZE_INVALID")
     try:
