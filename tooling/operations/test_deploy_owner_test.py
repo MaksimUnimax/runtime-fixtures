@@ -811,6 +811,14 @@ class NativeServerOperationsCoverage(unittest.TestCase):
                     "-p '" + name + "' -v",
                     workflow,
                 )
+        # The verifier is intentionally root-only; exercise actual root-owned
+        # fixtures on the disposable CI runner without passing workflow secrets.
+        self.assertIn(
+            "sudo -n env -i HOME=/tmp PATH=/usr/bin:/bin /usr/bin/python3 -B "
+            "-m unittest discover -s tooling/operations "
+            "-p 'test_verify_ops_release.py' -v",
+            workflow,
+        )
 
 
 if __name__ == "__main__":
