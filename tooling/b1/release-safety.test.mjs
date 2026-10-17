@@ -508,6 +508,11 @@ function makeZip(path, browser, options = {}) {
           browser_specific_settings: {
             gecko: {
               id: options.firefoxId ?? FIREFOX_STORE_ID,
+              ...(Object.hasOwn(options, "firefoxMinVersion")
+                ? options.firefoxMinVersion === null
+                  ? {}
+                  : { strict_min_version: options.firefoxMinVersion }
+                : { strict_min_version: "140.0" }),
               ...(Object.hasOwn(options, "firefoxDataCollection")
                 ? options.firefoxDataCollection === null
                   ? {}
@@ -755,6 +760,46 @@ test("Firefox AMO data consent accepts the existing Firefox build categories", (
     assert.equal(preflight(value, output).status, "PASS");
   } finally {
     cleanup(value);
+  }
+});
+
+
+test("Firefox AMO minimum version rejects missing 140 floor in built-in consent", () => {
+  const value = fixture({ firefox: { firefoxMinVersion: null } });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /Firefox built-in data consent requires Firefox 140 or newer/,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Firefox AMO minimum version rejects old or malformed Firefox versions", () => {
+  for (const version of ["139.0", "139.9", "139.9.9", "140", "140.0a1", "invalid"]) {
+    const value = fixture({ firefox: { firefoxMinVersion: version } });
+    try {
+      assert.throws(
+        () => prepare(value),
+        /Firefox built-in data consent requires Firefox 140 or newer/,
+      );
+    } finally {
+      cleanup(value);
+    }
+  }
+});
+
+test("Firefox AMO minimum version keeps 140.0 and newer releases valid", () => {
+  for (const version of ["140.0", "140.0.1", "140.0.1.0", "142.0"]) {
+    const value = fixture({ firefox: { firefoxMinVersion: version } });
+    try {
+      const { output, result } = prepare(value);
+      assert.equal(result.packages.firefox.browser, "firefox");
+      assert.equal(preflight(value, output).status, "PASS");
+    } finally {
+      cleanup(value);
+    }
   }
 });
 
