@@ -286,3 +286,11 @@ GitHub REPORT.md обновлён в этой ветке; main не изменя
 На commit `b8d0f643d5340b81c1317d667263e733439ce09d` три из пяти workflow были terminal SUCCESS: Docs `39012677716`, Coordination `39012677695`, Extension I1-C1 `39012677728`; Server `39012677700` и Extension CI `39012677692` оставались IN_PROGRESS при последнем чтении 2026-10-17T07:18:38Z. Эти существующие runs не перезапускались. Следующий readback проверит их исход; этот статус не относится к продуктовой main d12 CI, которая уже 5/5 SUCCESS.
 
 Общий статус неизменен: `audit_complete=false`, 12 исходных обязательств OPEN. Это продолжение того же Audit ID, без нового исполнителя, source mutation, тестового повтора или изменения чужих ресурсов.
+
+## Финальный checkpoint продолжения
+
+**UTC-время: 2026-10-17T07:22:40.677228092Z.**
+
+После последнего readback REPORT.md имеет blob SHA `95035565843c2ab3cbc3abd1e2f9a9a0553bffb0` и длину 46041 символов. GitHub `main` ref при текущей проверке: `39effb4bac621f54921545549d276592c3f22e21`; report branch ref: `48fc065bcc2ff9d370b13bae161af8191eb44590`. Последний известный результат exact-main d12 остаётся 5/5 push workflows SUCCESS. Существующие report-branch CI runs `39012677700` Server CI и `39012677692` Extension CI всё ещё `in_progress` на commit `b8d0f643d5340b81c1317d667263e733439ce09d`; повторно не запускались. Прочие три run этого commit: Docs `39012677716` SUCCESS, Coordination `39012677695` SUCCESS, Extension I1-C1 `39012677728` SUCCESS.
+
+Операция exact-main fetch по-прежнему не исполнена из-за предыдущего platform refusal; альтернативного получения того же объекта не предпринималось. Тест R7/R8, одноразовая БД и временная копия не создавались. Единственный точный внешний блок остаётся разрешённое исполнение стандартного Git-fetch либо наличие exact object в разрешённой локальной Git database. Разрешения владельца на один тест и отдельную disposable DB уже получены. A/B/C WIP, dirty B `api-harness.ts`, существующие базы, live/security и dot не затрагивались. Audit ID прежний, `audit_complete=false`, 12 оригинальных исходов OPEN.
