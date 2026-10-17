@@ -222,6 +222,66 @@ test("cancelling same-account same-provider Start cannot cancel a second indepen
   assert.notEqual(a.route("/c/stale-after-cancellation").conversation_id, b.bound.conversation_id);
 });
 
+
+// B08-04 intersection: the same AI/account/local IDs are open in separate
+// documents while one document remounts its DOM. This test uses two actual
+// trackers in one VM realm; it does not assert store or installed popup state.
+test("same-account parallel Start survives one document remount without borrowing the sibling witness", () => {
+  for (const remountFirst of ["a", "b"]) {
+    const p = parallelPending();
+    const opts = { provider: "chatgpt", origin: "https://chatgpt.com",
+      account: "same-account", intent: "same-start", witness: "same-user-local-id" };
+    const a = p.make(opts), b = p.make(opts);
+    assert.match(a.bound.conversation_id, /^local:/);
+    assert.match(b.bound.conversation_id, /^local:/);
+    assert.notEqual(a.bound.conversation_id, b.bound.conversation_id);
+    const remounted = remountFirst === "a" ? a : b;
+    const sibling = remountFirst === "a" ? b : a;
+    remounted.tracker.endStart(remounted.intent, { retainWitness: true });
+    const recovered = remounted.route("/c/remounted-document", { root: {} });
+    assert.equal(recovered.status, "confirmed");
+    assert.equal(recovered.identity_scope, "document");
+    assert.equal(recovered.conversation_id, remounted.bound.conversation_id);
+    assert.notEqual(recovered.conversation_id, sibling.bound.conversation_id);
+    const stillPending = sibling.route("/c/other-still-pending");
+    assert.equal(stillPending.status, "confirmed");
+    assert.equal(stillPending.conversation_id, sibling.bound.conversation_id);
+    sibling.tracker.endStart(sibling.intent, { retainWitness: true });
+    assert.notEqual(remounted.route("/c/new-after-remount").conversation_id, sibling.bound.conversation_id);
+    assert.notEqual(sibling.route("/c/new-sibling-dialogue").conversation_id, remounted.bound.conversation_id);
+  }
+});
+test("unproved remount isolates a new local ID or conflicts, without consuming the sibling Start", () => {
+  const cases = [
+    { patch: { root: {}, startWitnessMessageId: "foreign-user-local-id",
+        messageIds: ["foreign-user-local-id", "assistant-complete"] },
+      status: "confirmed", source: "local_surface", scope: "document" },
+    { patch: { root: {}, conflict: "multiple_conversation_surfaces" },
+      status: "conflict", source: "multiple_conversation_surfaces", scope: "none" }
+  ];
+  for (const { patch, status, source, scope } of cases) {
+    const p = parallelPending();
+    const opts = { provider: "chatgpt", origin: "https://chatgpt.com",
+      account: "same-account", intent: "same-start", witness: "same-user-local-id" };
+    const a = p.make(opts), b = p.make(opts);
+    a.tracker.endStart(a.intent, { retainWitness: true });
+    const rejected = a.route("/c/unproved-remount", patch);
+    assert.equal(rejected.status, status);
+    assert.equal(rejected.source, source);
+    assert.equal(rejected.identity_scope, scope);
+    if (status === "conflict") assert.equal(rejected.conversation_id, null);
+    else assert.match(rejected.conversation_id, /^local:/);
+    assert.notEqual(rejected.conversation_id, a.bound.conversation_id);
+    assert.notEqual(rejected.conversation_id, b.bound.conversation_id);
+    const sibling = b.route("/c/legitimate-sibling");
+    assert.equal(sibling.status, "confirmed");
+    assert.equal(sibling.conversation_id, b.bound.conversation_id);
+    const stale = a.route("/c/stale-after-rejection");
+    assert.notEqual(stale.conversation_id, a.bound.conversation_id);
+    assert.notEqual(stale.conversation_id, b.bound.conversation_id);
+  }
+});
+
 return results;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
