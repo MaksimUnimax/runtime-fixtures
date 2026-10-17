@@ -6,7 +6,7 @@ import { prepare } from "./release-lib.mjs";
 
 function usage() {
   throw new Error(
-    "Usage: prepare-release-candidate.mjs --authority <external.json> --out <candidate-dir> --chromium <zip> --firefox <zip>",
+    "Usage: prepare-release-candidate.mjs --authority <external.json> --out <candidate-dir> --chromium <zip> --firefox <zip> OR --authority <external.json> --out <candidate-dir> --chromium <zip> --channel chrome",
   );
 }
 try {
@@ -15,15 +15,20 @@ try {
     const k = process.argv[i],
       v = process.argv[i + 1];
     if (!k?.startsWith("--") || !v) usage();
-    args[k.slice(2)] = v;
+    const key = k.slice(2);
+    if (Object.hasOwn(args, key)) usage();
+    args[key] = v;
   }
-  if (Object.keys(args).sort().join() !== "authority,chromium,firefox,out")
-    usage();
+  const keys = Object.keys(args).sort().join();
+  const chromiumOnly =
+    keys === "authority,channel,chromium,out" && args.channel === "chrome";
+  if (!chromiumOnly && keys !== "authority,chromium,firefox,out") usage();
   const result = prepare({
     authorityPath: resolve(args.authority),
     outputDir: resolve(args.out),
     chromium: resolve(args.chromium),
-    firefox: resolve(args.firefox),
+    ...(chromiumOnly ? {} : { firefox: resolve(args.firefox) }),
+    chromiumOnly,
   });
   console.log(
     JSON.stringify({

@@ -5,13 +5,22 @@ import { resolve } from "node:path";
 import { preflight } from "./release-lib.mjs";
 
 try {
-  if (process.argv.length !== 5 || process.argv[3] !== "--authority")
+  const chromiumOnly =
+    process.argv.length === 7 &&
+    process.argv[5] === "--channel" &&
+    process.argv[6] === "chrome";
+  if (
+    process.argv[3] !== "--authority" ||
+    (process.argv.length !== 5 && !chromiumOnly)
+  ) {
     throw new Error(
-      "Usage: release-preflight.mjs <candidate-dir> --authority <external.json>",
+      "Usage: release-preflight.mjs <candidate-dir> --authority <external.json> [--channel chrome]",
     );
+  }
   const result = preflight({
     candidateDir: resolve(process.argv[2]),
     authorityPath: resolve(process.argv[4]),
+    chromiumOnly,
   });
   console.log(JSON.stringify(result));
 } catch (error) {

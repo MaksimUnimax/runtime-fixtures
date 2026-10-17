@@ -1403,7 +1403,18 @@ function discardOwnedCandidateOutput(output, directoryIdentity, ownedFiles) {
   }
 }
 
-export function prepare({ authorityPath, outputDir, chromium, firefox }) {
+function releaseBrowsers(chromiumOnly) {
+  if (typeof chromiumOnly !== "boolean") {
+    fail("Candidate browser scope is invalid");
+  }
+  return chromiumOnly ? ["chromium"] : ["chromium", "firefox"];
+}
+
+export function prepare({ authorityPath, outputDir, chromium, firefox, chromiumOnly = false }) {
+  const browsers = releaseBrowsers(chromiumOnly);
+  if (chromiumOnly && firefox !== undefined) {
+    fail("Chrome-only candidate cannot include Firefox input");
+  }
   const output = resolve(outputDir);
   if (existsSync(output)) {
     fail("Candidate output directory must not already exist");
@@ -1411,28 +1422,32 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
 
   const authorityReceipt = readAuthority(authorityPath, output);
   const authority = authorityReceipt.value;
-  const checked = {
-    chromium: checkPackage(chromium, "chromium", authority),
-    firefox: checkPackage(firefox, "firefox", authority),
-  };
-  const packages = {
-    chromium: checked.chromium.metadata,
-    firefox: checked.firefox.metadata,
-  };
+  // Chrome-first Store review does not depend on an unrelated Firefox ZIP.
+  // Each included archive still passes the exact same B1 authority and ZIP checks.
+  const checked = {};
+  const packages = {};
+  for (const browser of browsers) {
+    checked[browser] = checkPackage(
+      browser === "chromium" ? chromium : firefox,
+      browser,
+      authority,
+    );
+    packages[browser] = checked[browser].metadata;
+  }
 
   // A reserved DOS device basename (for example CON.zip) can be written
   // on POSIX but cannot be safely materialized on a Windows release host.
-  // Validate both filenames before creating any output directory.
-  if (
-    !safePackageFilename(packages.chromium.filename) ||
-    !safePackageFilename(packages.firefox.filename)
-  ) {
+  // Validate every output filename before creating any output directory.
+  if (browsers.some((browser) => !safePackageFilename(packages[browser].filename))) {
     fail("Unsafe package filename");
   }
 
   // Reject output basenames that collide on case-insensitive filesystems.
   // The same candidate must remain portable across release hosts.
-  if (collidingPackageFilenames(packages.chromium.filename, packages.firefox.filename)) {
+  if (
+    browsers.length === 2 &&
+    collidingPackageFilenames(packages.chromium.filename, packages.firefox.filename)
+  ) {
     fail("Package filenames have a case-insensitive collision");
   }
 
@@ -1440,7 +1455,7 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
   const directoryIdentity = lstatSync(output);
   const ownedFiles = [];
   try {
-    for (const browser of ["chromium", "firefox"]) {
+    for (const browser of browsers) {
       const { metadata, validatedBytes } = checked[browser];
       writeExclusiveCandidateOutput(
         join(output, metadata.filename),
@@ -1456,6 +1471,7 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
       productVersion: authority.productVersion,
       contractVersion: authority.contractVersion,
       migrationLevel: authority.migrationLevel,
+      ...(chromiumOnly ? { releaseScope: "CHROME_ONLY" } : {}),
       packages,
     };
 
@@ -1471,7 +1487,8 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
   }
 }
 
-export function preflight({ authorityPath, candidateDir }) {
+export function preflight({ authorityPath, candidateDir, chromiumOnly = false }) {
+  const browsers = releaseBrowsers(chromiumOnly);
   const { candidateRoot, path } = candidateManifestPath(candidateDir);
   const authorityReceipt = readAuthority(authorityPath, candidateRoot);
   const authority = authorityReceipt.value;
@@ -1499,7 +1516,9 @@ export function preflight({ authorityPath, candidateDir }) {
       "contractVersion",
       "migrationLevel",
       "packages",
+      ...(chromiumOnly ? ["releaseScope"] : []),
     ]) ||
+    (chromiumOnly && manifest.releaseScope !== "CHROME_ONLY") ||
     manifest.schemaVersion !== CANDIDATE_SCHEMA ||
     manifest.authoritySha256 !== authorityReceipt.sha256 ||
     !exactKeys(manifest.source, ["head", "tree"]) ||
@@ -1507,7 +1526,7 @@ export function preflight({ authorityPath, candidateDir }) {
     manifest.productVersion !== authority.productVersion ||
     manifest.contractVersion !== authority.contractVersion ||
     manifest.migrationLevel !== authority.migrationLevel ||
-    !exactKeys(manifest.packages, ["chromium", "firefox"])
+    !exactKeys(manifest.packages, browsers)
   ) {
     fail("Candidate source, authority, or product facts are stale");
   }
@@ -1515,6 +1534,7 @@ export function preflight({ authorityPath, candidateDir }) {
   // A modified candidate can bypass prepare(), so revalidate both names
   // together before accepting files on a case-sensitive host for a Win32 release.
   if (
+    browsers.length === 2 &&
     collidingPackageFilenames(
       manifest.packages.chromium?.filename,
       manifest.packages.firefox?.filename,
@@ -1523,7 +1543,7 @@ export function preflight({ authorityPath, candidateDir }) {
     fail("Package filenames have a case-insensitive collision");
   }
 
-  for (const browser of ["chromium", "firefox"]) {
+  for (const browser of browsers) {
     const row = manifest.packages[browser];
     if (
       !exactKeys(row, [
@@ -1572,6 +1592,7 @@ export function preflight({ authorityPath, candidateDir }) {
     status: "PASS",
     productionMutation: "NOT_PERFORMED",
     evidenceLevel: "PACKAGE",
+    ...(chromiumOnly ? { releaseScope: "CHROME_ONLY" } : {}),
     source: authority.source,
     productVersion: authority.productVersion,
     contractVersion: authority.contractVersion,
