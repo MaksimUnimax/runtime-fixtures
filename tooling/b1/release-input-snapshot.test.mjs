@@ -243,6 +243,70 @@ test("authority same-size concurrent rewrite fails bounded fd metadata verificat
   }
 });
 
+
+test("manifest bounded descriptor avoids unbounded readFileSync path reopen", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-manifest-fd-"));
+  const originalRead = fs.readFileSync;
+  let reopened = false;
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const candidateDir = join(root, "prepared");
+    assert.equal(prepare({
+      authorityPath, outputDir: candidateDir,
+      chromium: packages.chromium, firefox: packages.firefox,
+    }).packages.chromium.browser, "chromium");
+    const manifestPath = join(candidateDir, "B1_RC_MANIFEST.json");
+    fs.readFileSync = (path, ...args) => {
+      if (String(path) === manifestPath) {
+        reopened = true;
+        return originalRead(path, ...args);
+      }
+      return originalRead(path, ...args);
+    };
+    syncBuiltinESMExports();
+
+    assert.equal(preflight({ authorityPath, candidateDir }).status, "PASS");
+    assert.equal(reopened, false);
+  } finally {
+    fs.readFileSync = originalRead;
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("manifest mutation during bounded descriptor read fails closed", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-manifest-mutation-"));
+  const originalRead = fs.readSync;
+  let mutated = false;
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const candidateDir = join(root, "prepared");
+    prepare({ authorityPath, outputDir: candidateDir,
+      chromium: packages.chromium, firefox: packages.firefox });
+    const manifestPath = join(candidateDir, "B1_RC_MANIFEST.json");
+    const identity = fs.statSync(manifestPath);
+    fs.readSync = (fd, ...args) => {
+      const current = fs.fstatSync(fd);
+      if (!mutated && current.dev === identity.dev && current.ino === identity.ino) {
+        mutated = true;
+        fs.appendFileSync(manifestPath, " ");
+      }
+      return originalRead(fd, ...args);
+    };
+    syncBuiltinESMExports();
+
+    assert.throws(
+      () => preflight({ authorityPath, candidateDir }),
+      /Candidate manifest changed during bounded read/,
+    );
+    assert.equal(mutated, true);
+  } finally {
+    fs.readSync = originalRead;
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("prepared package bytes always equal bytes validated before copying", () => {
   const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-snapshot-"));
   const originalCopy = fs.copyFileSync;
