@@ -235,3 +235,54 @@ GitHub ref main остаётся exact SHA `d12b4c855ee15d89237cc9ab2de1362d4a35
 ### Контроллер и следующий шаг
 
 GitHub REPORT.md обновлён в этой ветке; main не изменялся. Exact-main local fetch остаётся блокированным и не обходится. Не запускались новый codex2, другие исполнители, тесты, Docker, DB или source writes; существующие A/B/C worktrees и dirty B api-harness.ts не изменялись. R7/R8 остаётся разрешённым, но ждёт exact immutable source: нельзя тестировать на старом `/root/octoport-main` HEAD `5ca59994` или mirror `030ce4bb` вместо main d12b. После штатно разрешённого получения объекта продолжить отдельную копию/DB/ports и единственный тест. Остальные исходные 12 обязательств остаются OPEN; полный аудит IN_PROGRESS.
+
+## Дополнение — применение действующей 10-пунктовой процедуры к текущим блокам
+
+**UTC-время дополнения: 2026-10-17T07:21:41.780649849Z.**
+
+Источник процедуры: `/root/octoport-control/current-prompts/PROMPT_DOT_ASSISTANT.md`, раздел «КАЖДОЕ ЧТЕНИЕ: ВСЕ STOP, ОТКАЗЫ И БЛОКИ С ПРОВЕРКОЙ КАЖДОГО ДЕЙСТВИЯ»; применены именно его пункты 1–10. Не создавался новый реестр ошибок.
+
+### ОБЯЗАТЕЛЬНЫЙ РЕЗУЛЬТАТ ЗАБЛОКИРОВАН: exact-main Git object не получен
+
+1. **ВЫПОЛНЕНО с уточнением времени.** Точная операция: `flock -x /root/octoport-control/controllers/coordination.lock git -C /root/octoport-main fetch --no-tags origin main`. RDC-инструмент вернул дословно: «Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.» Точный UTC timestamp самого отказа не был возвращён; последний доступный предшествующий server readback — 2026-10-17T07:04:32.147Z, последующая запись отчёта — 2026-10-17T07:06:05.602153940Z; момент отказа находится между ними.
+2. **ВЫПОЛНЕНО.** Прямое разрешение владельца на один тест (05:25Z) и отдельную одноразовую DB/уникальные порты (06:21Z) уже действует. Команду получения точного main запросил владелец; дополнительного разрешения владельца на тест/DB не требуется. Отдельное разрешение платформы на исполнение fetch не подтверждено.
+3. **НЕ ВЫПОЛНЕНО.** В доступных первичных записях нет подтверждённого ранее успешного исполнения этой же команды в этом текущем scope. Успешный GitHub REST readback `refs/heads/main=d12b4c855ee15d89237cc9ab2de1362d4a35167e` — только удалённый ref, не доказательство наличия локального Git object.
+4. **ВЫПОЛНЕНО.** Классификация: отказ платформы до исполнения, не Git exit code и не ошибка сетевого fetch. Не объявляется недоступность GitHub вообще.
+5. **ВЫПОЛНЕНО в проверенном объёме.** До вызова были проверены coordination/resource lock-файлы и `fuser` не показал держателей; список процессов не показал целевой Playwright/E2E тест или git fetch/worktree add. Существующий codex2 процесс не запускался заново и не трогался. Сохранён чужой dirty файл `tests/e2e/server/support/api-harness.ts` в `/root/octoport-control/worktrees/B/s2-repair-operator-view-20261001`.
+6. **ВЫПОЛНЕНО в разрешённой границе.** После отказа не предпринимался альтернативный fetch, clone, archive download или иная попытка получить тот же объект. Выполнена независимая read-only работа: exact-main CI, A/B/C и C06 evidence. Саму причину отказа без нового разрешённого источника устранить нельзя.
+7. **ВЫПОЛНЕНО для отчёта; НЕ ВЫПОЛНЕНО для локального объекта.** Повторный GitHub readback подтвердил `main=d12b4c855ee15d89237cc9ab2de1362d4a35167e`; REPORT.md прочитан после записи. Локальный object/readback невозможен, так как fetch не выполнялся.
+8. **ВЫПОЛНЕНО.** Независимый прогресс подтверждён: main d12b имеет 5/5 push workflows SUCCESS; актуальные A/B/C states и C06 authority primary прочитаны. R7/R8 test, отдельная DB и временная копия не создавались.
+9. **ВЫПОЛНЕНО.** Обязательный результат остаётся OPEN. Ответственный за продолжение — текущий Контроллер. Точная зависимость: штатное исполнение этого Git-fetch должно стать разрешённым либо exact object должен уже присутствовать в разрешённой локальной Git object database. Возврат к тесту возможен только после точного immutable source и чистой отдельной копии; после этого применяются уже выданные разрешения на DB/порты и ровно один тест.
+10. **ВЫПОЛНЕНО.** Результат записан в этот же GitHub REPORT.md с readback. Новые `errors.json`/`events.jsonl`, журналы ошибок, per-ID реестры и архивы не создавались.
+
+### СОСТОЯНИЕ НЕ ПОДТВЕРЖДЕНО: R7/R8 узкий тест не выполнен
+
+1. **ВЫПОЛНЕНО.** Исходная граница — run 38927206293 / job 117061746921, полный результат 201 passed / 1 failed; timeout 60,000 ms на `tests/e2e/server/admin-safety.spec.ts:317`, browser/page/context уже закрыт. Причина закрытия — UNKNOWN. Текущий exact test blob на main d12 остаётся `7c0f40a0f9c3d40e0112a13edbb5b6d2fb86f095` по последнему доступному GitHub readback.
+2. **ВЫПОЛНЕНО.** Владелец 05:25Z разрешил ровно один тест при выполнении условий; 06:21Z разрешил отдельную одноразовую DB и уникальные порты. Эти разрешения не требуют повторного вопроса.
+3. **НЕ ВЫПОЛНЕНО.** Успешного первичного результата того же теста в доступных источниках нет; единственный найденный исход — исходный timeout. Повтор неизвестного результата не делается.
+4. **ВЫПОЛНЕНО.** Это технический E2E timeout с закрытым page/context/browser, а не доказанный дефект Operator reason UI; точная первопричина остаётся UNKNOWN.
+5. **ВЫПОЛНЕНО частично.** Целевого процесса теста не найдено; точный test blob неизменен между failing SHA и main d12. В одном B worktree остаётся чужой dirty `api-harness.ts`; он не менялся. Single-writer/claim inventory для immutable d12 worktree нельзя завершить до получения объекта.
+6. **НЕ ВЫПОЛНЕНО.** Тест не запускался, потому что exact-main Git fetch был заблокирован до исполнения. Никакого теста на устаревшем `/root/octoport-main` или mirror не выполняли.
+7. **ВЫПОЛНЕНО для исходных артефактов; НЕ ВЫПОЛНЕНО для повторной границы.** В предыдущей проверке два опубликованных GitHub артефакта исходного job не содержали `error-context.md`, а файл отсутствовал в трёх проверенных server roots. Повторной границы пока нет, следовательно результат не может быть принят.
+8. **ВЫПОЛНЕНО.** Независимый audit progress — exact-main d12 5/5 CI и актуальные role states; это не прогресс R7/R8 test itself.
+9. **ВЫПОЛНЕНО.** R7/R8 остаётся OPEN. Следующий допустимый шаг после разрешённого exact fetch — чистая временная копия на d12, изолированная одноразовая loopback PostgreSQL и три уникальных E2E webServer порта; после PASS ворот ровно один Playwright test с `retries=0`. Если исход теста станет неизвестен, не повторять.
+10. **ВЫПОЛНЕНО.** Обновление сделано в существующем REPORT.md; не создан новый error registry. Readback после записи обязателен и выполняется в этой же сессии.
+
+### НЕЗАВЕРШЁННЫЙ C06 RELEASE AUTHORITY — отдельная текущая граница
+
+1. **ВЫПОЛНЕНО.** Прочитан `/root/octoport-control/peer-handoffs/C/B_TO_C_STORE0_MAIN6B_CATALOG_AUTHORITY_CURRENTITY_20261016.json`, обновлённый 2026-10-17T06:42Z; C получил его 06:45:48Z. Он содержит `B_TO_C_C06_D12_NATIVE_I1_SOURCE_ONLY_CURRENTITY_20261017` и terminal readback exact d12 5/5/13-of-13.
+2. **ВЫПОЛНЕНО.** C остаётся единственным source/package author; B/Ops предоставляет только существующее read-only доказательство; Tester сохраняет original-popup R3. Владелец не выдавал новую release authority в проверенном источнике.
+3. **ВЫПОЛНЕНО.** e8de exact-main CI 5/5 и development ZIP `fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89` не заменяют authority для d12/tree `3fc58b09293319d9fc9c35fbf730d7134d68e8f1`. d12 I1 synthetic success [39009560027](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39009560027) не доказывает owner/original-popup acceptance и не объясняет main83 ABORTED+141ms.
+4. **ВЫПОЛНЕНО.** Классификация: `UNKNOWN_NO_GENUINE_ACCEPTED_OCTOPORT_RELEASE_AUTHORITY_V1_FOR_D12`; ограниченный поиск не позволяет утверждать глобальное отсутствие authority.
+5. **ВЫПОЛНЕНО.** C role state подтверждает `C01_PR197_MAIN_D12_POSTMERGE_5OF5_13OF13_SOURCE_ACCEPTED_TEMP_CLOSED_C06_OPEN`. PR197 [merged](https://github.com/MaksimUnimax/runtime-fixtures/pull/197), изменения только `tooling/b1/release-input-snapshot.test.mjs` и `tooling/b1/release-lib.mjs`; существующий B→C receipt получен. Чужой C WIP не изменялся.
+6. **НЕПРИМЕНИМО для локального исправления Контроллера.** Нельзя создавать authority, ключи/подписи, origins, catalog или Store package от имени владельца/issuer; это было бы выходом за полномочия. Разрешённая работа здесь — только read-only верификация.
+7. **ВЫПОЛНЕНО.** GitHub draft `docs/product/readiness/CHROME_STORE_0_2_37_SUBMISSION_DRAFT_20261017.md` на d12 имеет blob `56e073f2fd02792d87619a430d4ee1e573db0a7a` и прямо говорит `PREPARING — НЕ ГОТОВО К SUBMIT`; `tooling/b1/release-lib.mjs` на d12 имеет blob `f480aea3f5ba1e9488f5eba8719f59cdca14c3ff`. Повторный GitHub readback этих источников успешен.
+8. **ВЫПОЛНЕНО.** Достигнут SOURCE/main CI результат 5/5 и 13/13; authority, signed Store ZIP, catalog/target acceptance и Tester original-popup START/FINISH остаются OPEN.
+9. **ВЫПОЛНЕНО.** Ответственный — существующий C, источник authority — B/Ops/владелец в разрешённой границе. Следующий шаг — предоставить/найти уже принятую authority для точного d12/tree3fc58 с двумя distinct canonical HTTPS origins, Ed25519 public trust bundle и актуальным target catalog; затем C validates, а Tester separately completes original-popup acceptance. Никакого нового handoff/assignment не создаётся.
+10. **ВЫПОЛНЕНО.** Состояние зафиксировано в том же отчёте; отдельный реестр ошибок/блоков не создан.
+
+### Состояние GitHub REPORT branch CI на момент предыдущего readback
+
+На commit `b8d0f643d5340b81c1317d667263e733439ce09d` три из пяти workflow были terminal SUCCESS: Docs `39012677716`, Coordination `39012677695`, Extension I1-C1 `39012677728`; Server `39012677700` и Extension CI `39012677692` оставались IN_PROGRESS при последнем чтении 2026-10-17T07:18:38Z. Эти существующие runs не перезапускались. Следующий readback проверит их исход; этот статус не относится к продуктовой main d12 CI, которая уже 5/5 SUCCESS.
+
+Общий статус неизменен: `audit_complete=false`, 12 исходных обязательств OPEN. Это продолжение того же Audit ID, без нового исполнителя, source mutation, тестового повтора или изменения чужих ресурсов.
