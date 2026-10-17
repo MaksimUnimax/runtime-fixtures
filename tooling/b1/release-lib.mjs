@@ -1476,9 +1476,16 @@ export function preflight({ authorityPath, candidateDir }) {
   const authorityReceipt = readAuthority(authorityPath, candidateRoot);
   const authority = authorityReceipt.value;
 
+  // The earlier path stat can become stale. Bind the size limit and bytes
+  // to one verified descriptor, rather than reopening an unbounded path.
+  const manifestBytes = readBoundedRegularFile(
+    path,
+    MAX_CANDIDATE_MANIFEST_BYTES,
+    "Candidate manifest",
+  );
   let manifest;
   try {
-    manifest = JSON.parse(readFileSync(path, "utf8"));
+    manifest = JSON.parse(manifestBytes.toString("utf8"));
   } catch {
     fail("Candidate manifest is invalid JSON");
   }
