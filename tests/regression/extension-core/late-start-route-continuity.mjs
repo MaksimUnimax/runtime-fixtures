@@ -160,7 +160,10 @@ test("cancelling one of two pending Starts neither promotes it nor retires the o
   const b = p.make({ provider: "alice", origin: "https://alice.yandex.ru",
     account: "account-b", intent: "start-b", witness: "user-b" });
   a.tracker.endStart(a.intent);
-  assert.notEqual(a.route("/cancelled").conversation_id, a.bound.conversation_id);
+  const cancelled = a.route("/cancelled");
+  assert.notEqual(cancelled.conversation_id, a.bound.conversation_id);
+  assert.notEqual(cancelled.conversation_id, b.bound.conversation_id,
+    "cancelled Start must not inherit the other document's conversation");
   assert.equal(b.route("/legitimate-other-dialogue").conversation_id, b.bound.conversation_id);
   assert.notEqual(a.route("/later-stale-message").conversation_id, b.bound.conversation_id);
 });
@@ -178,6 +181,45 @@ test("account switch and return cannot resurrect stale Start or disrupt another 
   const returned = a.tracker.observe(a.observed);
   assert.notEqual(returned.conversation_id, a.bound.conversation_id);
   assert.equal(b.route("/b-still-own").conversation_id, b.bound.conversation_id);
+});
+
+// B08-03 same-AI, same-account parallel surfaces: local message IDs may
+// coincide across documents. A retained Start witness never authorizes
+// another document's route even when provider/account/intent/text agree.
+// Store selection/credential isolation is a separate application test.
+test("same-account same-provider same-local-message Starts preserve each independent route in both finish orders", () => {
+  for (const first of ["a", "b"]) {
+    const p = parallelPending();
+    const opts = { provider: "chatgpt", origin: "https://chatgpt.com",
+      account: "same-account", intent: "same-start", witness: "same-user-local-id" };
+    const a = p.make(opts), b = p.make(opts);
+    assert.notEqual(a.root, b.root);
+    assert.notEqual(a.bound.conversation_id, b.bound.conversation_id,
+      "same local message/intent text across two documents cannot alias bindings");
+    const completed = first === "a" ? a : b;
+    const pending = first === "a" ? b : a;
+    completed.tracker.endStart(completed.intent, { retainWitness: true });
+    assert.equal(completed.route("/c/first-finished").conversation_id, completed.bound.conversation_id);
+    assert.equal(pending.route("/c/second-pending").conversation_id, pending.bound.conversation_id);
+    pending.tracker.endStart(pending.intent, { retainWitness: true });
+    assert.notEqual(completed.route("/c/new-finished-dialogue").conversation_id, pending.bound.conversation_id);
+    assert.notEqual(pending.route("/c/new-pending-dialogue").conversation_id, completed.bound.conversation_id);
+  }
+});
+test("cancelling same-account same-provider Start cannot cancel a second independent document", () => {
+  const p = parallelPending();
+  const opts = { provider: "chatgpt", origin: "https://chatgpt.com",
+    account: "same-account", intent: "same-start", witness: "same-user-local-id" };
+  const a = p.make(opts), b = p.make(opts);
+  assert.notEqual(a.bound.conversation_id, b.bound.conversation_id);
+  a.tracker.endStart(a.intent); // Explicit cancel without retaining witness.
+  const cancelled = a.route("/c/cancelled");
+  assert.notEqual(cancelled.conversation_id, a.bound.conversation_id);
+  assert.notEqual(cancelled.conversation_id, b.bound.conversation_id,
+    "cancelled same-account Start must not inherit the second document's binding");
+  assert.equal(b.route("/c/still-pending").conversation_id, b.bound.conversation_id);
+  b.tracker.endStart(b.intent, { retainWitness: true });
+  assert.notEqual(a.route("/c/stale-after-cancellation").conversation_id, b.bound.conversation_id);
 });
 
 return results;
