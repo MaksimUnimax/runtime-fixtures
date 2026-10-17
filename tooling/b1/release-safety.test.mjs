@@ -506,7 +506,22 @@ function makeZip(path, browser, options = {}) {
     ...(browser === "firefox"
       ? {
           browser_specific_settings: {
-            gecko: { id: options.firefoxId ?? FIREFOX_STORE_ID },
+            gecko: {
+              id: options.firefoxId ?? FIREFOX_STORE_ID,
+              ...(Object.hasOwn(options, "firefoxDataCollection")
+                ? options.firefoxDataCollection === null
+                  ? {}
+                  : {
+                      data_collection_permissions:
+                        options.firefoxDataCollection,
+                    }
+                : {
+                    data_collection_permissions: {
+                      required: ["websiteContent"],
+                      optional: ["technicalAndInteraction"],
+                    },
+                  }),
+            },
           },
         }
       : {}),
@@ -712,6 +727,127 @@ test("correct synthetic Chromium and Firefox candidate prepares and passes", () 
     assert.equal(result2.evidenceLevel, "PACKAGE");
     assert.equal(result2.productionMutation, "NOT_PERFORMED");
     assert.equal(result2.externalAcceptance, "NOT_CLAIMED");
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Firefox AMO data consent accepts the existing Firefox build categories", () => {
+  const value = fixture({
+    firefox: {
+      firefoxDataCollection: {
+        required: [
+          "authenticationInfo",
+          "personallyIdentifyingInfo",
+          "browsingActivity",
+          "websiteContent",
+          "searchTerms",
+          "financialAndPaymentInfo",
+          "personalCommunications",
+        ],
+        optional: ["technicalAndInteraction"],
+      },
+    },
+  });
+  try {
+    const { output, result } = prepare(value);
+    assert.equal(result.packages.firefox.browser, "firefox");
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Firefox AMO data consent rejects duplicates and missing required values", () => {
+  for (const declaration of [
+    { required: [] },
+    { required: ["websiteContent", "websiteContent"] },
+    { required: ["websiteContent"], optional: ["websiteContent"] },
+    {
+      required: ["none", "websiteContent"],
+      optional: ["technicalAndInteraction"],
+    },
+    {
+      required: ["none"],
+      optional: ["technicalAndInteraction"],
+    },
+    {
+      required: ["websiteContent"],
+      optional: ["technicalAndInteraction", "technicalAndInteraction"],
+    },
+  ]) {
+    const value = fixture({ firefox: { firefoxDataCollection: declaration } });
+    try {
+      assert.throws(
+        () => prepare(value),
+        /Firefox data collection declaration invalid/,
+      );
+    } finally {
+      cleanup(value);
+    }
+  }
+});
+
+test("Firefox AMO data consent must be declared for a new listed extension", () => {
+  const value = fixture({ firefox: { firefoxDataCollection: null } });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /Firefox data collection declaration invalid/,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Firefox AMO data consent rejects unknown required categories", () => {
+  const value = fixture({
+    firefox: {
+      firefoxDataCollection: {
+        required: ["websiteContent", "notAMozillaCategory"],
+        optional: ["technicalAndInteraction"],
+      },
+    },
+  });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /Firefox data collection declaration invalid/,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Firefox AMO data consent disallows none without optional data in Octoport", () => {
+  // Octoport transfers a user-selected marketplace report to external AI.
+  const value = fixture({
+    firefox: { firefoxDataCollection: { required: ["none"], optional: [] } },
+  });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /Firefox data collection declaration invalid/,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Firefox AMO data consent rejects unknown optional categories", () => {
+  const value = fixture({
+    firefox: {
+      firefoxDataCollection: {
+        required: ["websiteContent"],
+        optional: ["unrecognizedOptionalType"],
+      },
+    },
+  });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /Firefox data collection declaration invalid/,
+    );
   } finally {
     cleanup(value);
   }
