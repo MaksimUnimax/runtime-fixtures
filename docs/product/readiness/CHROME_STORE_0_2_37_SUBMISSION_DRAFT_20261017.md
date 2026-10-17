@@ -1,10 +1,10 @@
 # Chrome Web Store — точная подготовка Octoport 0.2.37 (C06 / STORE-0)
 
-**PREPARING — НЕ ГОТОВО К SUBMIT.** Проверено 17 октября 2026 года. Это внутренний материал для подготовки карточки и проверки издателя; не подписанный Store ZIP, не подтверждённая установка, не новая release authority и не изменение PR153/текстов сайта.
+**PREPARING — НЕ ГОТОВО К SUBMIT.** Проверено 17 октября 2026 года. Для следующей защищённой подготовки выбран неизменяемый `main 39effb4…`, tree `d11caed…`; ниже отдельно сохранены исторические доказательства `e8de`. Это внутренний материал для подготовки карточки и проверки издателя; не подписанный Store ZIP, не подтверждённая установка, не новая release authority и не изменение PR153/текстов сайта.
 
 ## Источник и степень доказательства
 
-- Репозиторий `MaksimUnimax/runtime-fixtures`. Принятый SOURCE/CI: `main e8de8435828834981755f200ec91ad6e9a17cbf1`, tree `4545cd0f7579c9217bb2fda523c36521b5b43e30` (PR190).
+- Репозиторий `MaksimUnimax/runtime-fixtures`. **Исторический** принятый SOURCE/CI: `main e8de8435828834981755f200ec91ad6e9a17cbf1`, tree `4545cd0f7579c9217bb2fda523c36521b5b43e30` (PR190).
 - Пять native push workflows exact SHA и 13/13 jobs: **COMPLETED / SUCCESS**. Server CI `38999328190`, Extension CI `38999328170`, Extension I1-C1 `38999328196`, Documentation `38999328172`, Coordination/Safety `38999328204`.
 - Точный GitHub Extension CI artifact `12088142874` — внешний ZIP доказательств и пакета. Внутри: `SELLER_AGENTS_I1_C1_v0.2.37_LOCAL_DEVELOPMENT.zip`, 2 603 866 байт, 41 файл, SHA256 `fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89`.
 - Внутренний ZIP побайтно совпадает с предыдущим `main 4fb72f89`. Различие `4fb72f89→e8de8435` — только `tests/regression/extension-core/late-start-route-continuity.mjs`; runtime и manifest расширения не менялись.
@@ -28,6 +28,15 @@
 | `main 4fb72f89` | [12084617260](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/38989381029/artifacts/12084617260) | `7c821c72f6ec24f02b0579d91c3a34bd0be0f1f234a6838199089ab53917de48` | Побайтно тот же ZIP SHA256 `fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89` |
 
 Внешние ZIP различаются, поскольку содержат run-specific логи и доказательства; *одинаковы только вложенные development ZIP*. GitHub артефакты имеют ограниченный срок доступности (e8de до 31.10.2026, 03:36:58 UTC; 4fb до 31.10.2026, 01:08:11 UTC). Точное исходное API-свидетельство исполнителя C и 13 идентификаторов jobs сохранены вне Git: `/root/octoport-control/logs/C/C06_STORE0_E8DE_NATIVE5_ARTIFACT_PROVENANCE_20261017.json`, SHA256 `e6256bb9e4138af1caddfc084282408ea0d93d92559884251fc964e614adeb3b`. Это **не** самостоятельный независимый повтор CI, не Store/installed/live PASS и не основание использовать development ZIP вместо PREPRODUCTION-пакета.
+
+## Выбранная неизменяемая SOURCE-база для защищённого Store-кандидата (17.10.2026)
+
+- **Выбранный checkout сборщика:** `39effb4bac621f54921545549d276592c3f22e21`, дерево `d11caedb7d811180a57524359386567df9842b33`. Здесь приняты [PR197](https://github.com/MaksimUnimax/runtime-fixtures/pull/197) (чтение release authority) и [PR198](https://github.com/MaksimUnimax/runtime-fixtures/pull/198) (чтение candidate manifest). Фиксация проверенной immutable SOURCE-базы не выдаёт полномочия для подписи, публикации или production.
+- Для exact `main 39effb4…` после слияния PR198: **5/5 GitHub CI workflows и 13/13 реальных jobs SUCCESS** с первой попытки: [Server](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39013380184), [Extension](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39013380197), [I1-C1](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39013380227), [Documentation](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39013380175), [Coordination/Safety](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39013380193). Независимое review PR198: `PASS_SOURCE_SCOPED` (0 P0/P1/P2), без претензии на установленную или магазинную приёмку.
+- [GitHub Extension artifact `12093394062`](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39013380197/artifacts/12093394062): внешний ZIP 3 117 596 байт, SHA256 `b427a15bedde03acdcfa0a97dd089d728b95d8729d2dba211c6111f4bb77d1c8`. Внутри — только development ZIP версии `0.2.37`, 41 файл, 2 603 866 байт, SHA256 `fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89`. CRC и 176/176 core gates PASS; одинаковые байты не подтверждают подпись, Store и ручную установку.
+- `tooling/b1/release-lib.mjs` при проверке authority сверяет `authority.source.head/tree` с фактическими HEAD/tree **запущенного checkout сборщика**. Для выбранного `39effb4…` требуется реальная принятая PREPRODUCTION authority с точными `39effb4bac621f54921545549d276592c3f22e21` / `d11caedb7d811180a57524359386567df9842b33`. Историческая authority `e8de8435/tree4545` не подходит для нового защищённого checkout. Выбор другого checkout требует его собственной подлинной authority.
+- Позднейший `main 68f8fb5040667b6ba25b1cc91f69f2fdfae759f9` содержит изменения B05 PR194/195. B1 и runtime расширения по проверенным blob SHA не изменились, однако полный HEAD другой. **Не подменять** замороженный исходник новым HEAD автоматически ради документационного или серверного обновления.
+- **Открыто:** подлинная принятая `octoport_release_authority_v1` для `39effb4/tree d11caed`, два реальных канонических HTTPS origins, согласованный публичный Ed25519 trust bundle, целевой каталог/reviewer normal login, точный Store ZIP и установленная приёмка оригинального Chrome popup — `UNKNOWN/NOT ACCEPTED`. Синтетические test keys I1 не подходят. B/Ops в разрешённой read-only области сообщает только первичный источник или честное `UNKNOWN`.
 
 ## Статические факты точного development manifest
 
@@ -87,7 +96,7 @@
 
 ## Доказуемый минимальный путь к первой Chrome-подаче
 
-1. **Authority.** Existing B/Ops в разрешённых read-only границах находит настоящую принятую `octoport_release_authority_v1` для точных `e8de8435` / tree `4545cd0`, `0.2.37`, `control_plane_v2`, migration `61`, среды `PREPRODUCTION`, двух разных канонических HTTPS origins и подлинного публичного Ed25519 trust bundle. Нет первичного доказательства — статус `UNKNOWN`; старую authority, loopback и новые ключи не выдумывать.
+1. **Authority.** Existing B/Ops в разрешённых read-only границах находит настоящую принятую `octoport_release_authority_v1` для **выбранного** `39effb4bac621f54921545549d276592c3f22e21` / tree `d11caedb7d811180a57524359386567df9842b33`, `0.2.37`, `control_plane_v2`, migration `61`, среды `PREPRODUCTION`, двух разных канонических HTTPS origins и подлинного публичного Ed25519 trust bundle. Историческая `e8de/tree4545` authority невзаимозаменяема; без первичного документа — `UNKNOWN`. Loopback и новые ключи не выдумывать.
 2. **Store package.** C подготавливает иной ZIP, связанный с принятой authority, правильной identity и конфигурацией; проводит B1 `prepare`/`preflight`, независимое review, проверку точного исходника/составленных байтов. Изменения permissions/имени/доверия не скрывать под повторной выдачей developer ZIP.
 3. **Целевой сервер.** B/Ops подтверждает реальный `target_artifact_sha256`, release/catalog/profile compatibility и обычный reviewer device/auth flow. Ни синтетический API, ни source CI не заменяет установленный сервер; live/DB требуют собственных полномочий и восстановления.
 4. **Оригинальный Chrome popup.** Назначенный Тестер R3 проверяет **точный установленный ZIP** в Google Chrome: штатный NORMAL_DEVICE_FLOW и `authenticated=true`, `workAllowed`, Start для одной подтверждённой AI-поверхности, явный click на безопасный read-only запрос Ozon/WB, результат в том же диалоге ровно один раз, Finish и no-replay после UNKNOWN. Не использовать отдельные окна, sidebar или новую вкладку вместо исходного popup.
@@ -99,7 +108,7 @@
 
 | Gate | Фактическое состояние | Ответственный/следующее событие |
 |---|---|---|
-| Authority `e8de/tree4545` + HTTPS/trust | `UNKNOWN`; принятого первичного файла нет | B/Ops — read-only источник; C — точная валидация |
+| Authority **выбранного** `39effb4/tree d11caed` + HTTPS/trust | `UNKNOWN`; принятого первичного файла нет, историческая `e8de` не подходит | B/Ops — read-only источник; C — точная валидация |
 | Store ZIP | `NOT CREATED / NOT ACCEPTED` | C после authority, B1 и независимого review |
 | Catalog + reviewer normal login | Не доказаны на этом ZIP | B/Ops — истинное целевое состояние; Тестер — установленный сценарий |
 | Chrome original popup Start → read-only data → Finish | `NOT ACCEPTED` | Тестер R3, отдельный точный artifact и журнал |
