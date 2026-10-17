@@ -10,6 +10,25 @@
 - Внутренний ZIP побайтно совпадает с предыдущим `main 4fb72f89`. Различие `4fb72f89→e8de8435` — только `tests/regression/extension-core/late-start-route-continuity.mjs`; runtime и manifest расширения не менялись.
 - 176 общих CI-gates и целостность исходного ZIP подтверждают **SOURCE/PACKAGE**. Они не подтверждают установленный Google Chrome, реальную авторизацию, маркетплейсы, Store signature, публикацию или проверку владельца.
 
+### Первичные ссылки и хеши (исправление независимого P2)
+
+Пять GitHub Actions **push** workflows на точном `e8de8435828834981755f200ec91ad6e9a17cbf1` (состояние `completed/success`) и их **13/13** завершённых `success` jobs были проверены исполнителем C по API; это внешние результаты, которые сторонний SOURCE-reviewer не должен подменять собственным тестом:
+
+| Workflow | Прямая GitHub Actions ссылка | Завершённые jobs |
+|---|---|---:|
+| Server CI | [38999328190](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/38999328190) | 2/2 |
+| Extension CI | [38999328170](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/38999328170) | 6/6 |
+| Extension I1-C1 client | [38999328196](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/38999328196) | 3/3 |
+| Documentation CI | [38999328172](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/38999328172) | 1/1 |
+| Coordination/Safety | [38999328204](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/38999328204) | 1/1 |
+
+| Источник ZIP | GitHub artifact | GitHub outer ZIP SHA256 | Внутренний development ZIP |
+|---|---|---|---|
+| `main e8de8435` | [12088142874](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/38999328170/artifacts/12088142874) | `f64f587c13bd5b69fb9c841fd635be86117f4b5569d98873fd010e57f8fc24ff` | 2 603 866 байт, 41 файл, SHA256 `fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89` |
+| `main 4fb72f89` | [12084617260](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/38989381029/artifacts/12084617260) | `7c821c72f6ec24f02b0579d91c3a34bd0be0f1f234a6838199089ab53917de48` | Побайтно тот же ZIP SHA256 `fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89` |
+
+Внешние ZIP различаются, поскольку содержат run-specific логи и доказательства; *одинаковы только вложенные development ZIP*. GitHub артефакты имеют ограниченный срок доступности (e8de до 31.10.2026, 03:36:58 UTC; 4fb до 31.10.2026, 01:08:11 UTC). Точное исходное API-свидетельство исполнителя C и 13 идентификаторов jobs сохранены вне Git: `/root/octoport-control/logs/C/C06_STORE0_E8DE_NATIVE5_ARTIFACT_PROVENANCE_20261017.json`, SHA256 `e6256bb9e4138af1caddfc084282408ea0d93d92559884251fc964e614adeb3b`. Это **не** самостоятельный независимый повтор CI, не Store/installed/live PASS и не основание использовать development ZIP вместо PREPRODUCTION-пакета.
+
 ## Статические факты точного development manifest
 
 | Поле | Проверенное значение |
@@ -63,6 +82,8 @@
 В Chrome Web Store dashboard заполнять Privacy Practices, обоснования разрешений и публичные ссылки только на основе подтверждённого пакета. Свойства кабинета/видимость/поля подписи **UNKNOWN**, если нет фактического dashboard readback. Общая регистрация publisher account уже была подтверждена владельцем — повторно не требовать.
 
 Применимые официальные инструкции: [Chrome Web Store troubleshooting and disclosure](https://developer.chrome.com/docs/webstore/troubleshooting/), [publish](https://developer.chrome.com/docs/webstore/publish/), [API/dashboard prerequisites](https://developer.chrome.com/docs/webstore/using-api). Конкретные поля сверять в действующем кабинете, а не выдумывать.
+
+**Актуальная политика Chrome Web Store (с 01.08.2026):** [обновление Google от 01.07.2026](https://developer.chrome.com/blog/cws-policy-updates-2026) отдельно требует раскрывать сбор/передачу данных и их изменения, собирать лишь необходимое для заявленного единого назначения и не обходить защитные ограничения AI-сервисов. Для Octoport это **дополнительный проверяемый выпускной gate**, а не автоматический PASS: реальный установленный пользовательский сценарий должен использовать явный click, поддерживаемую AI-поверхность и штатные ограничения, без скрытого обхода правил ИИ.
 
 ## Доказуемый минимальный путь к первой Chrome-подаче
 
