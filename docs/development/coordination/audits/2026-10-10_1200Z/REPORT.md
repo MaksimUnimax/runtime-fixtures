@@ -404,3 +404,102 @@ Audit ID прежний; `audit_complete=false`; исходные 12 обяза�
 GitHub main повторно подтверждён на `68f8fb5040667b6ba25b1cc91f69f2fdfae759f9`; целевой тестовый процесс отсутствует. Resource readback: root free 25,990 MiB; inode free 3,956,355; /dev/shm free 5,393 MiB; MemAvailable 5,805,908 kB = 5,669.83 MiB; memory PSI some/full avg10=0.00. Registry remains 1,573 JSON, 0 malformed, CLOSED 1,501 / HELD 51 / OPEN 21, active reserve 17,099 MiB. Disk usable after reserve and 3,072 MiB floor = 5,819 MiB; B04 margin 699 MiB, disk and inode gates PASS.
 
 E2E memory gate remains **FAIL**: required 5,734.4 MiB, available 5,669.83 MiB, deficit 64.57 MiB before parallel-test budget remainder. This is better than the prior 154.55 MiB deficit but still below threshold. Do not create the temporary worktree or DB and do not run the single R7/R8 test. Continue read-only independent audit; remeasure only after a meaningful natural resource change. All prior owner permissions remain in force; they do not override the physical resource policy. No test or DB operation was started.
+
+## Evidence map — 12 исходных обязательств и точные условия закрытия
+
+**UTC: 2026-10-17T08:48:17.224450055Z.**
+
+### Исход последней операции записи
+
+Последняя успешная запись REPORT.md до этого дополнения была выполнена; GitHub readback подтвердил blob SHA 7c5298794c8651a416a1e2bac99c554acf30e69d и длину 63,619 символов, конец файла — checkpoint 2026-10-17T08:20:55.722968Z. Между той записью и текущим readback других операций update_file не было. Более ранняя попытка подготовить эту карту в текущем диалоге не дошла до вызова GitHub update_file из-за синтаксической ошибки в локально формируемом коде; состояние удалённого файла не менялось. Текущая запись выполняется по проверенному blob SHA как optimistic concurrency guard.
+
+Ниже — сопоставление 12 исходных маршрутов из серверного checkpoint FINAL_RESUME_CHECKPOINT.json → controller_user_resume_20261015.continuation_after_0650.current_product_boundaries. Это документальная карта существующих evidence и условий закрытия, не новый журнал ошибок и не новое распределение ownership. Там, где bounded sub-result уже принят, он не переоткрывается; его оставшаяся installed/owner/history граница указана отдельно.
+
+### 1. B03 / P2 sourceSeen-submit durable-state race — OPEN
+
+- Evidence: exact-main 68f8 blobs packages/server/credential-transfer/src/index.ts (7744316f52ea81c86f42b8f3d50ace5fd51bb895), packages/server/db/src/credential-transfer-repository.ts (d1b1096d463b57f8b28fc6273cd3a79e6cd6b9a1), existing tests/integration/server/credential-transfer-unassigned-source.integration.test.ts (97cb7ef60992f66a7aeab934df041b1329ee5007). Source review found an instance-local inFlightRequests fence and a durable markSourceSeen transition that can overwrite PACKET_AVAILABLE_EPHEMERAL / DELIVERED_TO_RECIPIENT; existing delayed-submit coverage exercises the same service instance, not two independent API relays.
+- Closure condition: only after separately authorized same-boundary true-PostgreSQL evidence for delayed markPacketAvailable after durable commit with concurrent sourceSeen, accepted submit followed by successful receive, inverse ordering and actor/account/cancel/TTL controls; then a narrowly scoped source repair, independent review, exact-head CI, accepted main and relevant installed acceptance.
+- External dependency / boundary: current author/task authority is canonical only in PRIORITY_TASKS.md#DOT-20261015-02. This task did not reproduce the issue, modify source, or create a new test. Do not repeat the separately denied compound creation; preserve the one-author/runtime boundary.
+
+### 2. Pre-ACK recipient result / relay loss — bounded SOURCE result FULFILLED; full runtime acceptance OPEN
+
+- Evidence fulfilled: accepted PR50 / merge 6441c777 includes tests/integration/server/b03-real-bearer-ack.integration.test.ts, blob 3f2dc534878f2ea3e30ca0953520baddee4c8b30, with real signed-bearer HTTP ACK response-loss and PostgreSQL GET/COMPLETED revision assertions. Existing primary /root/octoport-control/logs/B/DOT_B03_PREACK_7CF_20261016.log SHA-256 c81183c4bbbbcd61a49ec2533ec98e62d536704c8a96300c9f71ec74963cf991 records exact-main 7cfafdae, revision 4, one import, two honest pending recoveries and a separate COMPLETED revision-5 control.
+- Closure condition for remaining result: demonstrate durable imported recipient result across relay restart/loss before ACK, preserve packet/device/request binding, truthful UI recovery and no duplicate import, with matching actor/order and installed IndexedDB/browser durability; accepted main and the correct installed consumer must match.
+- External dependency / boundary: existing OPERATOR/A runtime WIP and exact scope in PRIORITY_TASKS.md#DOT-20261015-02. No edits to apps/extension/src/application/runtime.js or packages/control-client/src/client.js; no B01/R3 takeover and no repeat of the already fulfilled SOURCE test.
+
+### 3. B04 / four OTP regressions and admission — OPEN
+
+- Evidence: original checkpoint plus RESUME_1255_OWNER_EXACT_OPEN_OPERATIONS.json retain the exact platform hold operation: disk_lifecycle.py hold --role B --id b6df9782058d47338f13ae746a3123bb --hours2 with the original finite consumer/reason. Primary refusal time 2026-10-08T12:33:07.256Z; cause UNKNOWN; no native hold receipt. The capacity operation recorded a minimum of 4,242 MiB additional usable space, followed by fresh capacity readback preserving the 3,072 MiB floor and all active reservations. Current four-regression author/source/WIP/test/CI and the exact return condition are canonical only in PRIORITY_TASKS.md#DOT-20261015-02; the old “disk passes” snapshot is obsolete.
+- Closure condition: platform clearance and native hold/readback preserving WIP/full 96 MiB, then the same admitted begin path; provider/volume owner supplies the required additional usable space; Controller performs fresh native capacity/admission and the original B04 regression boundary returns PASS with evidence.
+- External dependencies / boundary: platform permission for the exact ordinary hold and provider/volume capacity are distinct. Do not proxy/rename the operation, lower cap/reserves, retry the refused call or take owner cleanup.
+
+### 4. A05 atomic two-ref publication — bounded result FULFILLED; historical/production acceptance separate
+
+- Evidence: PR143 / merge c98533d7ebbb4dfe8abd0e04bd2d9dfc2831552a; independent PASS_SOURCE027 on base 9eb, same tree 0d8c9a9a, parents 9eb+027; five pre-merge and five post-merge workflows, 13 jobs per group, SUCCESS; actual timer-close SOURCE/PACKAGE PASS.
+- Closure condition: the bounded A05 publication outcome is already met; no further source/publish/CI action is required for that bounded item. Any distinct owner-installed/deployment/production acceptance requires its own authority and primary evidence, not inference from this result.
+- External dependency / boundary: historical safety classification remains UNKNOWN separately. Preserve original 7bf refs/WIP; do not reopen A05 or create a duplicate publication.
+
+### 5. PR48 historical publication refusal / PR50 ACK response-loss test — SOURCE deliverable FULFILLED; origin and installed residual OPEN
+
+- Evidence fulfilled: accepted PR50 / merge 6441c777 supplies the real HTTP ACK response-loss test with signed bearer and PostgreSQL/GET completed-state assertions, blob 3f2dc534878f2ea3e30ca0953520baddee4c8b30. PR48's fixture was different and used synthetic auth; PR48b50 remains open/unmerged. Original PR48 refusal and known commit/run/archive evidence are preserved.
+- Closure condition: source delivery is already fulfilled by PR50; do not require another PR48 merge to redeliver it. Close the historical refusal/origin only with the original publisher/platform request/reply or native delivery correlation. Installed-owner acceptance needs its own exact package/installed evidence.
+- External dependency / boundary: original publisher/platform transport evidence is missing. Do not retry PR48 or create a new push.
+
+### 6. C06 singleton / Store release authority — bounded source composition ACCEPTED; release gate OPEN
+
+- Evidence: bounded C03/C06 source composition and PR130 / main 44d453170415fffa899d1d5b1b644561bf83aa50 were accepted with independent review and five exact post-merge workflows / 13 jobs. On current main 68f8 all five push workflows were SUCCESS, but the exact draft docs/product/readiness/CHROME_STORE_0_2_37_SUBMISSION_DRAFT_20261017.md (blob 56e073f2fd02792d87619a430d4ee1e573db0a7a) says PREPARING — НЕ ГОТОВО К SUBMIT. The release-lib is a validator/preparer, not issuer authority; the checked B→C handoff leaves genuine exact-source authority UNKNOWN.
+- Closure condition: accepted octoport_release_authority_v1 for exact current source/tree, two distinct canonical HTTPS origins, Ed25519 public trust bundle and current target catalog; matching signed Store ZIP/hash and receipt; separate installed original-popup Start/Finish acceptance by the existing Tester plus applicable rollback/privilege/network gates.
+- External dependency / boundary: issuer/owner authority and target catalog are not present in checked primary sources. C remains sole package/release author; B/Ops is read-only; Tester retains installed original-popup acceptance. Do not manufacture keys/signatures/origins/catalog or repeat accepted source composition.
+
+### 7. R3 personal owner technical flow — partial technical receipts; full owner acceptance OPEN
+
+- Evidence: narrow installed-synthetic, guest and Finish-no-replay receipts exist; they do not prove full owner acceptance of the exact package/browser.
+- Closure condition: owner designates the sole exact 0.2.15 release owner and authorizes bounded publication of final reviewed source/ZIP/hash after required gates; the existing Tester separately completes the exact original-popup authentication Start/Finish flow, with the correct installed artifact and no replay.
+- External dependency / boundary: owner’s release-authority decision and Tester’s own acceptance remain separate. Controller must not command Tester, operate the browser or create another tester. Answer tuning remains after complete technical-product acceptance, not an invented early mechanics gate.
+
+### 8. R14 original refusal — historical native-response recovery OPEN; not a current development gate
+
+- Evidence: the original C/platform combined request/envelope/native raw-response recovery remains absent. Current B05 restore/app revision 731 acceptance is preserved; the historical cause is UNKNOWN.
+- Closure condition: original C/platform custodian provides the immutable combined request, envelope and native raw response or authoritative delivery correlation sufficient to bind the refusal to the exact operation.
+- External dependency / boundary: C/platform original evidence only. No retry of the refused operation, no reconstructed response, and no new broad development gate from this historical UNKNOWN.
+
+### 9. C private test-environment refusal — guarded deletion remains untouched; original response dependency OPEN
+
+- Evidence: the original guarded deletion request was previously recovered, but the original raw reply/ID is missing. The protected file remains unread and undeleted.
+- Closure condition: the custodian supplies the original platform reply and request/operation ID and its native disposition; any later deletion requires the separately applicable exact authority and guard.
+- External dependency / boundary: original custodian/platform response. No cleanup retry, no file read/delete, no broad C stop and no new engineering task derived from the historical refusal.
+
+### 10. 29 September publication origin — historical correlation OPEN; not a current development gate
+
+- Evidence: known commit 59dfab94, two push-run records and archived evidence are retained; original publisher/platform transport request/reply or native delivery correlation is missing.
+- Closure condition: original publisher/platform supplies the immutable request/reply or native delivery correlation binding 59dfab94 to the two exact push runs.
+- External dependency / boundary: original publisher/platform evidence. No new push and no repetition of the already unsuccessful unchanged search; the historical UNKNOWN does not gate unrelated current development.
+
+### 11. Historical configuration drift — provenance OPEN; no reset authorized
+
+- Evidence: known hash disagreement is retained but does not establish cause, actor or edit time.
+- Closure condition: original B/config custodian provides immutable before/after configuration bytes (or native immutable versions), their hashes, actor identity, edit time and change provenance.
+- External dependency / boundary: B/config custodian. No config reset, inferred attribution or retired organizational procedure.
+
+### 12. Original bound review bytes — immutable payload dependency OPEN
+
+- Evidence: the original reviewer/platform needs the exact immutable payload whose SHA-256 is 12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175. A reconstructed review or another unsuccessful search is not evidence.
+- Closure condition: original B/reviewer/platform supplies the exact immutable payload bytes and source metadata, and the bytes verify against the recorded SHA-256.
+- External dependency / boundary: original reviewer/platform evidence. Do not reconstruct, paraphrase as if original, or repeat the unsuccessful search.
+
+### Separate current R7/R8 gate — unchanged
+
+Last actual resource measurement remains 2026-10-17T08:20:55.722968Z: root free 25,990 MiB; active reservations 17,099 MiB; disk usable after reservations and 3,072 MiB floor 5,819 MiB (B04 margin 699 MiB); MemAvailable 5,669.83 MiB versus E2E requirement 5,734.4 MiB, deficit 64.57 MiB before parallel-test budget remainder. This is a memory-gate FAIL, not a request to lower budget. Owner permissions for one R7/R8 test and one isolated disposable database/unique ports remain valid but do not override the resource gate. No test, reproduction, temporary worktree, database, source/live/security change or cleanup was performed for this map. At PASS only: one immutable exact-main detached copy, one loopback-only disposable PostgreSQL, three unique ports, one test with retries=0; unknown outcome is never repeated.
+
+### External dependencies summary
+
+- Platform permission/native receipt for the exact B04 hold; provider/volume owner’s additional usable capacity.
+- Original C/platform refusal payloads for R14 and the C private test environment, without retries.
+- Original publisher/platform transport correlation for PR48 and 29 September.
+- B/config custodian’s immutable before/after bytes and provenance; B/reviewer/platform’s exact payload matching SHA-256 12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175.
+- Owner/issuer’s exact-source C06 release authority/catalog and exact 0.2.15 release-owner decision; existing Tester’s original-popup acceptance.
+- Separately authorized true-PostgreSQL P2-3 boundary proof and source/main/installed acceptance; the OPERATOR/A-owned runtime/installed residuals in items 2 and 5 remain outside Controller’s source authority.
+- For R7/R8, natural memory availability must pass the existing budget; no budget/reserve changes or foreign process stops.
+
+Audit ID remains CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z. audit_complete=false. The 12 original obligation routes remain tracked; bounded results explicitly marked fulfilled above are not reopened, and their distinct historical/installed/owner residuals remain OPEN where stated. No test, reproduction, source mutation, live/DB/security operation, owner cleanup or foreign WIP edit occurred.
+
