@@ -12,6 +12,7 @@ import {
   readFileSync,
   rmdirSync,
   readSync,
+  readdirSync,
   realpathSync,
   statSync,
   unlinkSync,
@@ -1585,6 +1586,23 @@ export function preflight({ authorityPath, candidateDir, chromiumOnly = false })
       row.version !== actual.version
     ) {
       fail("Package metadata differs from archive bytes");
+    }
+  }
+
+  // A CHROME_ONLY receipt must describe the exact directory that will be
+  // submitted: even an undeclared Firefox ZIP beside the verified archive
+  // must not silently ride along after the per-file content checks.
+  if (chromiumOnly) {
+    const expectedFiles = [
+      "B1_RC_MANIFEST.json",
+      manifest.packages.chromium.filename,
+    ].sort();
+    const candidateFiles = readdirSync(candidateRoot).sort();
+    if (
+      candidateFiles.length !== expectedFiles.length ||
+      candidateFiles.some((name, index) => name !== expectedFiles[index])
+    ) {
+      fail("Chrome-only candidate contains undeclared files");
     }
   }
 

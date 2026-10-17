@@ -507,6 +507,28 @@ test("Chrome-only must fail closed on invalid ZIP, false authority, or unsupport
   }
 });
 
+
+test("Chrome-only rejects undeclared archive files even when manifest is unchanged", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-chrome-unlisted-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const outputDir = join(root, "chrome-prepared");
+    const receipt = prepare({
+      authorityPath, outputDir, chromium: packages.chromium, chromiumOnly: true,
+    });
+    assert.equal(receipt.releaseScope, "CHROME_ONLY");
+    // A hidden sibling archive must never be accepted as part of a Chrome-only
+    // candidate, regardless of its bytes or browser identity.
+    writeFileSync(join(outputDir, "firefox.zip"), "NOT_AN_EXTENSION");
+    assert.throws(
+      () => preflight({ authorityPath, candidateDir: outputDir, chromiumOnly: true }),
+      /Chrome-only candidate contains undeclared files/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("unchanged synthetic packages prepare and preflight with metadata only", () => {
   const root = mkdtempSync(join(tmpdir(), "octoport-synthetic-preflight-"));
   try {
