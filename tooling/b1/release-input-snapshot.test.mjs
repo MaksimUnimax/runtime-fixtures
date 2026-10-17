@@ -206,15 +206,23 @@ test("authority same-size concurrent rewrite fails bounded fd metadata verificat
   try {
     const { authorityPath } = makeFixture(root);
     const identity = fs.statSync(authorityPath);
+    const originalBytes = readFileSync(authorityPath);
+    const keyIdOffset = originalBytes.indexOf("synthetic-c01");
+    assert.ok(keyIdOffset >= 0, "fixture authority must contain a valid key ID");
+    const lastKeyIdByteOffset = keyIdOffset + "synthetic-c0".length;
     fs.readSync = (fd, ...args) => {
       const current = fs.fstatSync(fd);
       if (!mutated && current.dev === identity.dev && current.ino === identity.ino) {
         mutated = true;
         const writer = fs.openSync(authorityPath, "r+");
         try {
-          fs.writeSync(writer, "{", 0, "utf8");
+          fs.writeSync(writer, "2", lastKeyIdByteOffset, "utf8");
           const changed = new Date(Date.now() + 60_000);
           fs.futimesSync(writer, changed, changed);
+          const changedBytes = readFileSync(authorityPath);
+          assert.equal(changedBytes.byteLength, originalBytes.byteLength);
+          assert.notDeepEqual(changedBytes, originalBytes);
+          assert.equal(JSON.parse(changedBytes.toString()).trustBundle.keys[0].keyId, "synthetic-c02");
         } finally {
           fs.closeSync(writer);
         }
