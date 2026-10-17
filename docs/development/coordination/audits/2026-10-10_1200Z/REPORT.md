@@ -554,3 +554,17 @@ Audit ID и evidence map из предыдущего раздела не изм�
 ### Следующий разрешённый шаг
 
 R3 currentity-check завершён: исторический target 0.2.15 не подтверждён как отдельная активная задача в актуальных управляющих документах; current 0.2.37 release path и отдельная R3 original-popup acceptance сохранены раздельно. Следующее действие Контроллера — только ещё один read-only ресурсный замер после естественного изменения MemAvailable; пока E2E gate FAIL, не создавать среду и не запускать R7/R8. Для C06 ждём ответ владельца на уже переданный запрос о местонахождении существующей authority/catalog; молчание не является разрешением и authority не изготавливается. Другие чаты, WIP, source/live/DB/security и owner cleanup не тронуты.
+
+
+## R7/R8 — один свежий read-only resource admission
+
+Измерено UTC: 2026-10-17T09:34:52.882398Z. Запись отчёта UTC: 2026-10-17T09:35:17.883633141Z.
+
+- `/root` свободно 25,988 MiB; inode свободно 3,956,257.
+- `/dev/shm` свободно 5,375 MiB.
+- `MemAvailable=5,656,872 kB = 5,524.29 MiB`; memory PSI `some/full avg10=0.00`.
+- Текущий существующий allocation registry: 1,573 JSON, 0 malformed; CLOSED 1,502, HELD 51, OPEN 20; active reserve 16,971 MiB.
+- Диск после действующих резервов и floor 3,072 MiB: `25,988 − 16,971 − 3,072 = 5,945 MiB`; B04 demand 5,120 MiB; margin `+825 MiB` — **PASS**.
+- E2E memory requirement: `4,096 × 1.15 + 1,024 = 5,734.4 MiB`; actual `5,524.29 MiB`; margin `−210.11 MiB` — **FAIL**.
+- Combined R7/R8 admission: **FAIL** (memory gate). No test/worktree/DB/port was started or created; no resource/registry/reserve mutation or foreign process stop occurred.
+- Next step: end this admission step. Repeat only after a meaningful natural change in available memory; do not reduce budgets/reserves. C06 owner response remains pending; no authority/catalog assumed.
