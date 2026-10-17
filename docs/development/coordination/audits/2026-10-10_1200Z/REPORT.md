@@ -585,7 +585,7 @@ R3 currentity-check завершён: исторический target 0.2.15 н�
 
 ### Последняя запись и защита от дубля
 
-Перед обновлением GitHub readback подтвердил существующий REPORT.md blob `2eff77735b52054f8acc7bfa277d77812e620a01`, 93,453 символа; report-branch ref на момент этого readback был `c3e2365e1ff7c74ca8b109d79bb2583940faef37` (commit от 2026-10-17T13:48:52Z). `923dd8ce73cfbbe44486fce22fbe6191346aa1f1` — более ранний commit от 10:00:18Z, не текущий ref на момент подготовки дополнения. С момента предыдущего report commit `c3e2365e...` до pre-write readback не было конкурирующих report-branch commits. Новая запись добавляется один раз к проверенному blob SHA; прежняя карта 12 обязательств не пересобирается.
+Перед обновлением GitHub readback подтвердил существующий REPORT.md blob `a9ddb2c31f7efab1e261f5b87b35b4d5699e52c3`, 87,922 символа; report-branch ref на момент этого readback был `923dd8ce73cfbbe44486fce22fbe6191346aa1f1` (commit от 2026-10-17T10:00:18Z). Это состояние до commit `c3e2365e1ff7c74ca8b109d79bb2583940faef37`, созданного в 13:48:52Z и содержащего последующее дополнение. С момента ref `923dd8ce...` до pre-write readback не было конкурирующих report-branch commits. Новая запись добавляется один раз к проверенному blob SHA; прежняя карта 12 обязательств не пересобирается.
 
 ### Подтверждённые новые GitHub результаты
 
@@ -616,7 +616,7 @@ R7/R8 resource gate не обновлён: отказанный серверны
 
 ### Проверка single-writer / последнего результата
 
-Перед записью REPORT.md прочитан из целевой ветки; текущий blob SHA `2eff77735b52054f8acc7bfa277d77812e620a01`, длина 93,453 символа. Report branch ref остаётся `923dd8ce73cfbbe44486fce22fbe6191346aa1f1`, то есть с момента последнего report commit не было конкурирующего опубликованного изменения. Последний report commit `c3e2365e1ff7c74ca8b109d79bb2583940faef37` и его readback подтверждены; повтор записи с неизвестным исходом отсутствует. Используется этот blob SHA как optimistic concurrency guard.
+Перед записью REPORT.md прочитан из целевой ветки; текущий blob SHA `2eff77735b52054f8acc7bfa277d77812e620a01`, длина 93,453 символа. Report branch ref на тот момент был `c3e2365e1ff7c74ca8b109d79bb2583940faef37` (commit от 2026-10-17T13:48:52Z); с момента этого последнего report commit до pre-write readback не было конкурирующего опубликованного изменения. Последний report commit `c3e2365e1ff7c74ca8b109d79bb2583940faef37` и его readback подтверждены; повтор записи с неизвестным исходом отсутствует. Используется этот blob SHA как optimistic concurrency guard.
 
 ### Новые опубликованные результаты после main 434788a
 
@@ -662,3 +662,20 @@ No tests, reproduction, review, CI, server calls, source/live/DB/security action
 PR208 advances only the documentation/source-readiness record for Firefox AMO. The new Firefox draft and existing Chrome draft both remain `PREPARING — НЕ ГОТОВО К SUBMIT`; no genuine accepted exact-source PREPRODUCTION authority, issuer-approved trust bundle, target catalog, signed Store ZIP/XPI, publisher submission or installed original-popup acceptance is established by this merge. The owner’s answer on the existing C06 authority/catalog location request remains pending; silence is not authorization.
 
 No new published result here closes B03/P2-3, B04 or historical transport/provenance/payload dependencies. R7/R8 remains without a fresh resource measurement; the previously rejected server call was not repeated or bypassed. No server calls, tests, reproductions, review/CI runs, source/live/DB/security changes, cleanup or foreign WIP changes were performed in this continuation. The 12-obligation map remains intact; `audit_complete=false`.
+
+
+## Follow-up readback — исправление исторических pre-write значений и опубликованные статусы
+
+**UTC:** 2026-10-17T22:35:47.440Z.
+
+### Исторические значения подтверждены прямым чтением REPORT.md на immutable commits
+
+На commit 923dd8ce73cfbbe44486fce22fbe6191346aa1f1 GitHub вернул blob a9ddb2c31f7efab1e261f5b87b35b4d5699e52c3, 87,922 символа. На commit c3e2365e1ff7c74ca8b109d79bb2583940faef37 вернулся blob 2eff77735b52054f8acc7bfa277d77812e620a01, 93,453 символа. На commit 314427aff16bd7dc399d87103156ab9ab3e4dea4 вернулся blob 08eec99244d804a0f0e9a92c56eb8bcc049ef2ea, 98,282 символа. Следовательно, pre-write record в разделе 13:48 должен ссылаться на a9ddb2/923dd8; pre-write record в разделе 18:51 — на 2eff777/c3e2365. Обе записи исправлены, Git history не переписывалась.
+
+### Новые опубликованные результаты после checkpoint faafb08
+
+Текущий main по-прежнему db531677d1df06029020318342752c76e3a04058; новых main commits после checkpoint нет. PR208 reviews, issue comments и review comments через GitHub API возвращают пустые списки. Поэтому опубликованного независимого verdict по exact candidate 658944402ef97573aab04210c49b90bbb462fb82 нет; текст RUNNING в PR не является финальным PASS.
+
+I1-C1 run 39063250394 остаётся terminal FAILURE, run_attempt=1 на exact main db531. В job Installed local API / portal / PostgreSQL acceptance завершился FAILURE шаг Run set +e (19:38:32–19:39:01Z); jobs ci-plan и client-i1 успешны. Причина из доступного API summary UNKNOWN. Ни rerun, ни воспроизведение не выполнялись.
+
+PR207 остаётся draft/open; его WIP не затрагивался. Ответ владельца по C06 authority/catalog отсутствует. Ресурсный отказ не повторялся и не обходился; свежего R7/R8 измерения нет. Последнее известное измерение остаётся историческим FAIL по памяти. Серверные вызовы, tests/reproduction/review/CI runs, source/live/DB/security, cleanup и изменения чужого WIP не выполнялись. Карта 12 обязательств сохранена; audit_complete=false.
