@@ -350,3 +350,27 @@ RESOURCE_POLICY.md устанавливает E2E budget 4,096 MiB, учитыв
 Worktree, disposable DB и R7/R8 test пока не создавать/не запускать: memory gate не PASS. Продолжить независимую read-only работу и повторить ресурсный readback после естественного изменения доступной памяти. Не останавливать dot/Chrome/чужие процессы, не трогать owner cleanup, не снижать резервы. При PASS — зарегистрировать только собственный bounded resource в существующем учёте, создать detached worktree на exact main 68f8, отдельную loopback-only disposable PostgreSQL и три уникальных порта; затем ровно один Playwright test с retries=0. Неизвестный исход не повторять.
 
 Статус прежний: Audit ID CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z, audit_complete=false, 12 original outcomes OPEN.
+
+## Дополнение — P2-3 source-only recheck и свежий ресурсный gate
+
+**UTC-время дополнения: 2026-10-17T08:17:55.061225Z.**
+
+### Независимая проверка P2-3 sourceSeen/submit race на exact main
+
+Текущий main 68f8, GitHub blob `packages/server/credential-transfer/src/index.ts=7744316f52ea81c86f42b8f3d50ace5fd51bb895`; `packages/server/db/src/credential-transfer-repository.ts=d1b1096d463b57f8b28fc6273cd3a79e6cd6b9a1`; существующий PostgreSQL integration test `tests/integration/server/credential-transfer-unassigned-source.integration.test.ts=97cb7ef60992f66a7aeab934df041b1329ee5007`.
+
+Read-only source evidence: service `forRequest` (lines 435–449) is an instance-local `inFlightRequests` Set. `sourceSeen` (475–515) protects only the current service's relay and then calls repository `markSourceSeen`. Repository `markSourceSeen` (206–230) still allows durable states `PACKET_AVAILABLE_EPHEMERAL` and `DELIVERED_TO_RECIPIENT` and unconditionally writes `SOURCE_SEEN`/increments revision. Therefore a second service instance with a distinct empty in-memory relay can pass its local fence and attempt to reset the durable state while the first instance has committed `PACKET_AVAILABLE_EPHEMERAL` but has not yet activated its relay. This remains a source-level race candidate, not a reproduced runtime result.
+
+The existing PostgreSQL integration test around lines 207–275 explicitly exercises `sourceSeen` against the same `service` instance during a delayed submit; the local fence returns `TRANSFER_CONFLICT`. It does not exercise a second service instance with an independent relay during the same post-commit/pre-activation interval. The separate new-relay ACK test around lines 355–390 verifies committed ACK response loss, not this sourceSeen race. No test was run or added; no source file was changed. P2-3 remains OPEN pending the specifically required true-PostgreSQL delayed-commit/concurrent-sourceSeen proof and a permitted source repair/review. Existing source claimant boundary is preserved; no second author or cross-role write.
+
+### Последний resource readback — 2026-10-17T08:17:55.061225Z
+
+- `/root` free 25,991 MiB; free inodes 3,956,366. `/dev/shm` free 5,393 MiB. `MemAvailable=5,713,764 kB = 5,579.85 MiB`; memory PSI some/full avg10=0.00.
+- Resource registry remains 1,573 JSON / 0 malformed; CLOSED 1,501, HELD 51, OPEN 21; active reserve 17,099 MiB. Disk usable after active reserves and 3,072 MiB floor = `25,991 − 17,099 − 3,072 = 5,820 MiB`, which exceeds B04 demand 5,120 MiB by 700 MiB. Inode floor passes.
+- E2E gate still FAIL: required baseline is `4,096 × 1.15 + 1,024 = 5,734.4 MiB`; current 5,579.85 MiB; deficit **154.55 MiB**, before additional unspent parallel-test budgets. No R7/R8 test process is running.
+
+### Остаток и следующий шаг
+
+Do not create the test worktree, disposable PostgreSQL, or E2E webServers yet: memory gate is FAIL. No budget/reserve reduction, owner cleanup, browser/process stop, or existing DB use. Continue only independent read-only obligations and re-read resources after natural change. If the memory gate later passes, re-check the exact main ref and target blobs (without repeating fetch if still current), register only the bounded owned resource in the existing registry, create one clean detached copy and one loopback-only disposable database with unique ports, then run the single authorized R7/R8 test with retries=0. An unknown test outcome must not be repeated.
+
+Audit ID remains CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z; `audit_complete=false`; 12 original outcomes remain OPEN.
