@@ -5,8 +5,13 @@ import type { DatabaseRuntime } from "./index.js";
 const FUTURE = new Date("2040-01-01T00:00:00.000Z");
 function replayFixture() {
   const sqls: string[] = [];
-  const query = async (sql: string) => {
+  const auditInserts: { sql: string; params?: unknown[] }[] = [];
+  const query = async (sql: string, params?: unknown[]) => {
     sqls.push(sql);
+    if (sql.startsWith("INSERT INTO audit_events(")) {
+      auditInserts.push({ sql, params });
+      return { rows: [] };
+    }
     if (sql.startsWith("INSERT INTO auth_rate_limit_buckets")) {
       return { rows: [{ count: 1 }] };
     }
@@ -37,7 +42,7 @@ function replayFixture() {
     transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
       callback({ query }),
   } as unknown as DatabaseRuntime;
-  return { repository: createAuthRepository(runtime), sqls };
+  return { repository: createAuthRepository(runtime), sqls, auditInserts };
 }
 function input(verify: (identity: string, artifact: string) => boolean) {
   return {
@@ -53,7 +58,7 @@ function input(verify: (identity: string, artifact: string) => boolean) {
 }
 describe("consumed OTP replay code validation (synthetic repository boundary)", () => {
   it("rejects wrong code even with an existing matching idempotency key", async () => {
-    const { repository, sqls } = replayFixture();
+    const { repository, sqls, auditInserts } = replayFixture();
     const verify = vi.fn(() => false);
     const result = await repository.verifyOtp(input(verify));
     expect(result).toEqual({ ok: false, code: "AUTH_OTP_INVALID" });
@@ -69,9 +74,15 @@ describe("consumed OTP replay code validation (synthetic repository boundary)", 
         sql.includes("UPDATE otp_challenges SET attempt_count"),
       ),
     ).toBe(false);
+    expect(auditInserts).toHaveLength(1);
+    expect(auditInserts[0]?.sql).toContain("AUTH_OTP_VERIFY_FAILED");
+    expect(auditInserts[0]?.params).toEqual([
+      "synthetic-consumed-challenge",
+      "synthetic-request",
+    ]);
   });
   it("preserves correct-code replay of the still-active original session", async () => {
-    const { repository } = replayFixture();
+    const { repository, auditInserts } = replayFixture();
     const verify = vi.fn(() => true);
     const result = await repository.verifyOtp(input(verify));
     expect(result).toEqual({
@@ -82,5 +93,6 @@ describe("consumed OTP replay code validation (synthetic repository boundary)", 
       "seller@example.test",
       "synthetic-stored-artifact",
     );
+    expect(auditInserts).toHaveLength(0);
   });
 });
