@@ -1160,3 +1160,72 @@ Original progress pointer/map12 сохранены, marker нового собс
 **Точные внешние зависимости:** B — два terminal exact227 выше, full required jobs и CI route/provenance, затем только при принятом результате его собственный consumer-safe lifecycle; A/runtime — физические причины прежних I1 failures; A — R14 evidence/собственный lifecycle и отдельно более новый exact package; владелец/C/publisher — genuine C06 authority/catalog, пакет, Opera policy applicability и установленная reviewer/owner приёмка; остальные прежние custodians — исходная карта12. По C06 нового решения владельца нет. Chrome/Firefox/Opera submission **НЕ ГОТОВО**.
 
 Own launches tests/review/browser/CI/helper=**0/0/0/0/0**; own merge/cancel/source changes=0. R7/R8 ресурсный отказ не повторялся, не переформулировался и не обходился; нового допуска нет. Tester/B01/R3, чужие source/tests/WIP, live/DB/security, owner cleanup, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/расписания не трогались; новых реестров, эксплуатаций и воспроизведений обхода доступа нет. Доступный узкий документальный шаг выполнен; дальнейшие факты зависят от существующих владельцев. REPORT write требует отдельного readback.
+
+
+## Продолжение 2026-10-18T01:54:32.055Z — exact227 CI-only финал5/5 workflows,13/13 jobs и новый ответ B
+
+Предшественник: checkpoint01:40 UTC / REPORT `d35e875dc17974464579ff5e5e9625e594927bee`, blob `5f51a6492799b7d3cf7612aab65cd21db23426e8`. Последняя запись и существующий checkpoint подтверждены; неизвестных собственных исходов не повторялось. **Тот же аудит; audit_complete=false; PLAN/WIP, исходная карта12, прежние bounded acceptance и отрицательные исходы сохранены.**
+
+Шаг ограничен финалами уже существующих postmerge exact227 runs, обязательными native jobs и новым B published route/disposition. Сам PR211 merge, закрытые candidate737 проверки/provenance, A/C и неизменный канон заново не проверялись.
+
+### Единственный автор, locks и сохранность WIP
+
+Easyscript Online подтверждён штатным RDC list_devices. Собственные checkpoint/PRIORITY_TASKS до записи совпали с980152b3/959940d1; REPORT ref оставалсяd35e875d. Target file/Controller/coordination fuser пуст; nonblocking coordination.lock свободен. Native session — только защищённый старый PID2354613; существующие codex2 процессы не запускались и не перезапускались. В проверенном scope второго автора Controller target files или собственной операции в полёте не обнаружено.
+
+После cutoff01:40Z новых файлов в проверенных B04 task logs, controller-notices, Controller/DOT-addressed peer-handoffs и changed claims не найдено. Server B.json остался на01:24:52Z, SHA256 `ed37e9aacd9762824e48589964c0116bec1c9a7186927c73ed94ac924f82abfd`; новый ответ автора получен через существующий PR211. Source/tests/worktrees/allocations и B.json Контроллер не менял. Собственные документы обновлялись отдельно от чужого авторитетного state.
+
+### Финалы и все обязательные native jobs exact merge SHA
+
+Точный merge SHA **`22700f7951199a215ba8154e6f8e1da4374227e0`**, CI-ref `controller/ci-b04-pr211-main227-20261018`, event=push, attempt1. Два ранее незакрытых run теперь terminal:
+- [Extension39086609484](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39086609484): **SUCCESS**, updated01:40:55Z;
+- [Server39086609551](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39086609551): **SUCCESS**, updated01:45:30Z.
+
+Все пять native job collections лично прочитаны для полного postmerge job evidence; каждый из13 jobs имеет head22700 и completed/success:
+
+| Workflow/run | Jobs SUCCESS | GitHub native job IDs |
+|---|---:|---|
+| Documentation39086609493 | 1/1 | 117554407600 |
+| Coordination39086609485 | 1/1 | 117554407429 |
+| I1-C139086609480 | 3/3 | 117554407551,117554434254,117554434269 |
+| Extension39086609484 | 6/6 | 117554407639,117554434537,117554434550,117554434552,117554434571,117554434581 |
+| Server39086609551 | 2/2 | 117554407837,117554436487 |
+
+Итого **5/5 workflows и13/13 jobs SUCCESS**. В Server job117554436487 pnpm typecheck SUCCESS. Job117554434269 «Installed local API / portal / PostgreSQL acceptance» и его Run set +e — SUCCESS **в CI fixture**; это не установленная owner/live/реальная целевая PG/mailbox приёмка.
+
+Никаких dispatch/rerun/cancel, новых tests/review/browser/helper не выполнялось. Старые candidate737 successes не подставлялись вместо этих merge227 job outcomes. Новый green не объясняет исторические I1 failures других SHA.
+
+### Новый published B primary: принята точная CI-only provenance, не main-push
+
+В body [PR211](https://github.com/MaksimUnimax/runtime-fixtures/pull/211) появился раздел **B04 PR211 exact merge-SHA postmerge CI terminal readback — 01:47 UTC**, issuer existing stream B source owner, observed01:47:06Z; issue updated01:48:07Z. Отдельных новых PR comments послеcutoff нет.
+
+B принимает **SOURCE_IN_MAIN + exact merge-SHA CI-only5/5 workflows13/13 jobs** и называет ровно указанный CI-ref. Снимок полного нового опубликованного раздела сохранён в существующем собственном checkpoint, SHA256 UTF-8 text **`28f7aad3bfb3d734d594d6cc6a1910e15182ec32f9f18d54595420af5f7ed73d`**, независимый readback hash совпал.
+
+Для проверки новой route-заявки выполнен только read-only полный head_sha inventory: total_count=5, найдено5, все push на `controller/ci-b04-pr211-main227-20261018`, все exact227/attempt1/SUCCESS; **main-branch push runs0 observed**. GitHub actor — MaksimUnimax. Это подтверждённый технический маршрут существующего CI и опубликованный B source/CI disposition. Авторство процесса/credential/token не доказано одним префиксом ветки.
+
+Причина отсутствия автоматического main-push workflow event остаётся **UNKNOWN**. B прямо обозначает token-recursion explanation лишь возможной гипотезой; она не принята за доказанную причину. Авторизации/токены не исследовались и не менялись. Важная граница результата: **EXACT_MERGE_SHA_NATIVE_CI_PASS_ON_CI_REF; AUTOMATIC_MAIN_PUSH_NOT_OBSERVED**. Полный текущий5/13 CI результат принят в этом точном scope; main-push evidence и owner/installed/live acceptance им не изготовлены.
+
+### Новый lifecycle/отказанный state outcome B — чужие операции не повторять
+
+По тому же published B primary его чистый временный B04 source worktree был удалён native non-force git worktree remove после reader-free process/cwd/fd/mmap scan; canonical83 dirty WIP и immutable refs/receipts сохранены. B сообщает примерно39.22MiB фактического tmpfs reclaim. **Это авторский опубликованный результат, не новое измерение/cleanup Контроллера.**
+
+Зарегистрированный резерв **128MiB остаётся OPEN**. B сообщает:
+1. exact atomic allocation close/update был явно отказан safety platform;
+2. последующая отдельная попытка обновить B.json тоже отказана, поэтому server role state не был ложно изменён;
+3. release128MiB, повтор или proxy отказанного close не заявлены.
+
+Точный текст platform refusal в прочитанном опубликованном primary отсутствует — **UNKNOWN**, не реконструирован догадкой. Контроллер не повторял эти операции, не проверял их другой формой и не редактировал ни allocation, ни B.json. Запись наблюдения в собственный Controller checkpoint не изменяет чужой state и не освобождает резерв. Responsible — existing B/platform-supported disposition; допустим только поддержанный отдельный исход у владельца scope, не обход отказа.
+
+### Проверенный собственный документальный результат и остатки
+
+Под существующим coordination.lock, fresh fuser/SHA guards и одним marker ответа обновлены только собственные latest_author_delta/B observation и ответ того же DOT-20261015-02 v10. Приоритет текущей проекции: SOURCE_IN_MAIN_AND_EXACT_MERGE_CI_ONLY5/5_13/13_ACCEPTED, отдельный OPEN128/refused-close/role-update остаток; старая B.json pending-проекция не выдана за новый фактический CI итог. A/C, original map/history и все прочие checkpoint fields сохранены.
+
+Независимый RDC readback:
+- `FINAL_RESUME_CHECKPOINT.json` этого Controller-аудита — SHA256 **`d61f6cf349dd178d954d3c9945ac02d3f942a39c9b8c61fd783a6994e152abfe`**, 1647660 bytes;
+- `/root/octoport-control/controller-notices/PRIORITY_TASKS.md` — SHA256 **`b57f06c2c8a08b58f968219984496459d41d3473868e6c6216b8a2d2088c1a1d`**, 655171 bytes.
+Original progress pointer/map12 сохранены, новый marker один, audit_complete=false.
+
+Объём нового прогресса: два terminal CI, полный exact22713-job evidence и новый B source/route disposition подтверждены; ожидание этих CI закрыто. Организационные проблемы: automatic main event origin UNKNOWN; B server state отстаёт от опубликованного результата из-за отдельного заявленного platform refusal; физическое удаление tmpfs worktree не равно освобождению зарегистрированного128MiB резерва. Никакая из этих границ не скрыта словом DONE.
+
+**Точные оставшиеся зависимости:** existing B/platform — поддержанный исход отказанного allocation close и B.json state write, сохранность evidence/собственный lifecycle; A/runtime — физические причины прежних I1 failures; A — R14 own evidence/пакетная currentity; владелец/C/publisher — genuine C06 authority/catalog, точный пакет, Opera policy applicability и установленная reviewer/owner приёмка; historical custodians — прочие исходные обязательства карты12. C06 нового ответа владельца нет. **Chrome/Firefox/Opera submission НЕ ГОТОВО.**
+
+Own launches tests/review/browser/CI/helper=**0/0/0/0/0**; merge/cancel/source/resource mutations=0. Ресурсный отказ R7/R8 не повторялся, не переформулировался и не обходился, нового допуска нет. Tester/B01/R3, live/DB/security, owner cleanup, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/расписания не трогались; новых реестров и эксплуатаций/воспроизведений обхода доступа нет. Доступный узкий документальный шаг завершён; следующие изменения требуют фактического нового исхода существующих владельцев. REPORT publication требует отдельного readback.
