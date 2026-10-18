@@ -890,3 +890,66 @@ Hash прежнего handoff `peer-handoffs/A/C_TO_A_PR208_MAINDB531_INSTALLED_
 Доступный связанный документальный остаток этого среза обработан. Следующие зависимости: собственный native/browser результат A при его отдельно действующих воротах; original same-request I1 initiator/AbortSignal/grant evidence уA/runtime owner; недостающие exact CI и принятый I1 результат для возможной интеграции PR209 существующимC; прежний reviewer disposition уB; genuine exact-source C06 authority/catalog отвладельца/issuer и original-popup acceptance существующегоТестера; исторические исходные transport/config/review-bytes упрежнихcustodians. Последние неизменённые записи не перепроверялись без новых evidence.
 
 R7/R8 ресурсный вызов не повторялся и не переформулировался; свежего допуска нет. C06 нового ответа владельца нет. Source/tests/WIP, Тестер/B01/R3, live/DB/security, cleanup, старые чаты, PR97/131/134, errors/events не трогались; новых эксплуатаций/воспроизведений обхода доступа нет. **Chrome/Firefox submission: PREPARING / НЕ ГОТОВО К SUBMIT.** Следующее изменение отчёта — только по новому разрешённому факту; новая запись требует отдельного GitHub readback.
+
+
+## Продолжение того же аудита 2026-10-18T00:57:52.508Z — новые исходы после 00:08:40 UTC
+
+Предшественник: REPORT commit `555c123501e3b6c2f2a2bf38cc1655273c45da0c`, blob `81a512552975190cbe4c6965bf94bfb128c03d58`. Это продолжение существующего аудита, не новый проход. **audit_complete=false; исходная карта 12 обязательств, PLAN/WIP и ограниченные принятые результаты сохранены.** Текущий main при проверке: `db531677d1df06029020318342752c76e3a04058`.
+
+### Последний исход, единственный автор и границы чтения
+
+Штатный список RDC подтвердил Easyscript Online (`9dab7ad2-9d63-43a3-b106-a5840d79ccc1`). До записей REPORT/ref, собственный checkpoint и PRIORITY_TASKS совпали с последним завершённым состоянием; новой операции Контроллера или второго автора в проверенных процессах/claims/locks не обнаружено. Execution-claims пусты, holders целевых файлов отсутствовали; существующий защищённый старый driver не изменялся. Чужие исходники, tests и WIP сохранены. Неизменные правила и прежние принятые проверки не запускались и повторно целиком не читались.
+
+Проверены только новые первичные результаты существующих A/B/C и связанные опубликованные GitHub-срезы после 2026-10-18T00:08:40Z. В проверенных controller-notices и Controller/DOT-addressed именах peer-handoffs новых файлов после cutoff нет; существующий PRIORITY_TASKS до собственного ответа не изменился. Ранние C03-currentity/Yandex R7B intake до cutoff не засчитаны новым прогрессом. Отсутствие отдельного адресного файла не подменяет фактические новые ответы авторов ниже.
+
+### A — terminal R13 и отдельно ограниченный R11
+
+Существующие отрицательные R9/R10 сохранены. R11 source-review и выполненный самим A конечный native no-extension/no-owner запуск дали **PASS_LAUNCH_ONLY**, verified 00:37:41.124719Z. Primary подтверждает закрытие браузера, ноль оставшихся процессов и сохранённый профиль; extension_loaded=false, owner_auth=false. Это не установленная/ручная приёмка 0.2.37. Причина исходного launch failure остаётся **UNKNOWN**, поскольку одновременно изменялись окружение/профиль/время; единственная причинная связь не доказана.
+
+Проверены существующие:
+- `/root/octoport-control/logs/A/a03-yandex-main30764-0237-20261016/R11_YANDEX26_NATIVE_FINITE_SYSTEMD_RESULT_20261018.json`, SHA256 `336e1066fca46e0be75073236ca3d75a0b4775af8197e10334ed902d08fdd3a0`;
+- primary `R11_YANDEX26_EMPTY_DBUS_STANDALONE_RESULT_20261018.json` в том же каталоге, SHA256 `b3aba1c72a9a8a8af75ca260e0556dfd1c48021d032901c643e6350c655932f9`.
+
+R12 и последний R13 guest short-profile test-source review: **REWORK_REQUIRED**. R13 завершён 00:48:42.517518Z, native_test_run=false; receipt `R13_YANDEX26_MAIN30764_GUEST_SHORT_PATH_EXACT_REVIEW_20261018_RESULT.json` в том же каталоге, SHA256 `443475d7ee1acff323624dd4d9e97fa15d807c531f15e6243d8580b4aa02d84d`; verdict SHA256 `b1f938f4d2d32193bd589423fff423631966b2f70525d6edae5c221d5fcc02d1`. Материальный остаток: ошибка cleanup после частичного удаления может оставить неполные failure evidence. Exit0 не превращён в PASS. Ответственный — существующий A: собственная source/evidence-retention доработка и её фактический исход; Контроллер не запускает guest/native тест и не чистит профиль.
+
+### B — PR211 R2 принят только на уровне source
+
+Новый B04 ограничен двумя repository/test файлами, **SOURCE_SYNTHETIC** с mock DatabaseRuntime; реальная PostgreSQL/HTTP/owner OTP/installed/live приёмка не заявлена. Прежняя адресно отказанная вставка четырёх HTTP tests не возобновлялась. Initial exact `9bd5cddf3fb094f56c6f90d0500435382bc5c1c0`: независимый **REQUEST_CHANGES/P2** (failure audit event) сохранён, несмотря на его уже состоявшиеся пять push CI SUCCESS.
+
+Исправленный R2 `73715e906df5db76afe58d015821048cda6417d1` получил **ACCEPT_SOURCE_SCOPED** 00:49:30.754393Z. Проверены receipt `/root/octoport-control/logs/B/B04_CONSUMED_OTP_REPLAY_20261018/B04_PR211_EXACT737_INDEPENDENT_SOURCE_REVIEW_PASS_R2_20261018.json`, SHA256 `972a1a2d0a1c43e52cb6d6a16493133e472ffacb882fbc1602db6461b06d0e4a`, и привязка verdict SHA256 `c9d1e811229d0c85a2798227ab5bc6c7dd041d975bed1e5c3990e3f71f0111bf`. Это фактический immutable two-file/direct-consumer review; reviewer tests не запускал. Старое отдельное ограничение review PR200 не отменено этим другим результатом.
+
+[PR211](https://github.com/MaksimUnimax/runtime-fixtures/pull/211) опубликован с head737/base db531, **draft/unmerged**. Уже существующие local synthetic2/2, format/lint/diff не повторялись. GitHub-срез примерно 00:54 UTC для exact737:
+
+| Event | Workflow / run | Состояние, attempt1 |
+|---|---|---|
+| push | Documentation 39084352030 | SUCCESS |
+| push | Coordination/release safety 39084352044 | SUCCESS |
+| push | I1-C1 39084352034 | IN_PROGRESS |
+| push | Extension 39084352144 | IN_PROGRESS |
+| push | Server 39084352063 | IN_PROGRESS |
+| pull_request | Documentation 39084250179 | SUCCESS |
+| pull_request | Server 39084250180 | IN_PROGRESS |
+
+Итого пять push: **2 SUCCESS / 3 IN_PROGRESS**, полный 5/5 PASS не подтверждён. Старые зелёные проверки9bd не перенесены на737. Ответственный — существующий B: потребить уже идущие exact737 CI и представить реальные оставшиеся acceptance/integration evidence. Контроллер ничего не dispatch/rerun/merge.
+
+### C — Opera PR210, ограниченная готовность документа
+
+[PR210](https://github.com/MaksimUnimax/runtime-fixtures/pull/210): head `5e6954ee03251d762aaad06031d157989a798822`, base db531, **draft/unmerged**. Документ `docs/product/readiness/OPERA_ADDONS_0_2_37_SUBMISSION_DRAFT_20261018.md`, blob `d35a803def62581e5f03e71d03604eebb7747726`, явно **PREPARING / НЕ ГОТОВО К SUBMIT**. Прежние отрицательные doc-candidates сохранены; третий limited source-review — **PASS_SOURCE_SCOPED**, 00:38:24Z.
+
+Прочитан существующий `/root/octoport-control/logs/C/C06_OPERA_ADDONS_PR210_EXACT5E6_THIRD_SOURCE_REVIEW_RESULT_20261018.txt`, SHA256 `c81bd9492e9017054c049a67e7d87f5056540a47892b8973091fc806a78716a8`. Ограничение reviewer: полный предоставленный текст, без самостоятельной аутентификации checkout/OID/blob; пакет/dashboard/Opera-install им не принимались. Связь фактического GitHub документа/blob проверена отдельно Контроллером.
+
+На exact5e6 найден только Documentation CI **39083114079 SUCCESS**, attempt1; другие четыре не объявлены PASS. Опубликованный body фиксирует private-data inventory и **PRIVACY_POLICY_FIT=UNKNOWN**: остаются exact-package evidence и внешнее уполномоченное publisher/moderator disposition перед Submit. Это фиксация текущего документа, не самостоятельное толкование политики Контроллером. Внешних сообщений не отправлялось, scope продукта не изменён.
+
+Ответственные: существующий C — собственный draft/integration/package evidence; владелец/уполномоченный publisher — настоящий issuer/catalog и решение по внешним условиям. **C06 нового ответа владельца нет.** PR209 scoped source/Extension acceptance сохранена; его прежний I1 FAILURE +142ms UNKNOWN и main I1 +164ms UNKNOWN остаются отдельными, не повторялись и не погашены новым документом.
+
+### Документальный результат и ближайшие зависимости
+
+Под существующим coordination.lock с nonblocking захватом, проверкой SHA текущих версий и единственного собственного marker обновлены только существующие собственные checkpoint/ответ DOT-20261015-02 v10:
+- `FINAL_RESUME_CHECKPOINT.json` в каталоге этого Controller-аудита: SHA256 **`e215acefe3972ed1b8d1b004e25a785d8e1227cc7a3bfddcb0ef5e78f623f2c2`**, 1577311 bytes;
+- `/root/octoport-control/controller-notices/PRIORITY_TASKS.md`: SHA256 **`147dd6e906eb7ada394f2a85c66f392d2ada59abd602e1c45f566b74a76a11a9`**, 641213 bytes.
+
+Независимый RDC readback обоих SHA/размеров совпал; current_progress_record и original12 сохранены, audit_complete=false, чужие role/source/tests/WIP не переписывались. Последние terminal R13/B737 review вытеснили только устаревшие собственные IN_FLIGHT-проекции, отрицательная история не удалена. Предыдущее отдельное наблюдение B/PR200 сохранено внутри собственного B observation.
+
+Ближайшие разрешённые зависимости: A — его R13 source/evidence-retention исход; B — финалы уже идущего exact737 CI и отдельно реальные acceptance/integration gates; C — exact PR210/package/privacy/publisher условия; A/runtime — первичный причинный разбор существующего I1; владелец — genuine C06 authority/catalog; исторические custodians — оставшиеся исходы прежней карты. Контроллер выполняет следующий документальный шаг только по новым фактам этих владельцев.
+
+Собственные новые launches: tests=0, reviews=0, browsers=0, CI=0, helpers=0. Адресный R7/R8 ресурсный отказ не повторялся, не переформулировался и не обходился; свежего допуска нет, старое измерение остаётся историческим. B01/R3/Тестер, live/DB/security, owner cleanup, авторизации/кредиты/расписания, старые чаты, PR97/131/134 и errors.json/events.jsonl не трогались; новых реестров и наступательных воспроизведений нет. **Chrome/Firefox/Opera submission не готово.** REPORT публикуется по тому же URL; результат записи подтверждается отдельным readback.
