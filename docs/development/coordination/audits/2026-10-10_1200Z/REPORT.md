@@ -1255,3 +1255,254 @@ C03 deadline source уже present, C02 WIP73 не сливать; C04 installed
 Последний A state02:33:52: Firefox current package parity ONLY, candidate26f63332…/primaryb281c621… лично hash verified,42members/40of41common identical; nativeFirefox=false, AMO/ownerrelease NOT_ACCEPTED. C02:34:17 признаёт3guest браузера иFirefox SOURCE_ONLY. B newPG guard238d1c02… подтверждён, zero assertions/22sharedbeforeEach failures, новый128OPEN отделён от старого отказанного128OPEN. PR139/145/189/191/200/207/209/210 currentmetadata draft/open; PR190/196 source merged, исторические I1 causes не закрыты. PR208 published review list пуст.
 
 Новых продуктовых/серверных/ресурсных запусков нет; доступное завершение этого прохода — собственные documentary corrections, readback и итог того же REPORT. Audit_complete=false, authority/catalog/R3/PG/исторические первичные остатки остаются у существующих владельцев.
+
+
+## Полный доступный аудит потоков A/B/C — итог документального прохода 2026-10-18T02:45:51.160Z
+
+Продолжен исходный аудит с checkpoint01:54:32Z / ce67f57c, без нового исполнителя, нового PLAN или параллельного аудита. Промежуточные21961c99 иce18ee77 опубликованы вовремя и независимо перечитаны. Текущая сверка main02:43:54Z: **22700f7951199a215ba8154e6f8e1da4374227e0**, без новых main изменений с исходного checkpoint.
+
+**Доступный документальный проход выполнен; продуктовый аудит НЕ завершён, audit_complete=false.** Указанные ниже «ВЫПОЛНЕНО» относятся к конкретному действию процедуры/наблюдению, а не автоматически к заблокированному продуктовому исходу. Невыполненные технические/установленные результаты явно оставлены открытыми. Это действующий продуктовый отчёт, не новый реестр ошибок, архив или программный audit gate.
+
+### Охват, актуальные поручения и состояние авторов
+
+Рассмотрены текущие задачи и actual worktree изменения всех A/B/C; existing evidence/review/CI; DOT01 и действующая DOT02v10 с поздними прямыми owner-командами; все12 исходных маршрутов и scoped accepted результаты; все10 пунктов точной процедуры для каждой применимой группы препятствий; реальные новые результаты, организационные причины и next/owners. OPERATOR/Tester/R3/live/DB/security — прямо исключённые владельцем границы: их чаты, браузеры, сервисы и исходники не инспектировались. Это не утверждение об их недоступности или текущем успехе.
+
+Канон полностью повторно не читался. Для полного прохода извлечены применимые sections PROMPT_CONTROLLER/ORGANIZATION_AUDIT_POLICY, активная постановка DOT01/DOT02 и точный источник10пунктов: `/root/octoport-control/current-prompts/PROMPT_DOT_ASSISTANT.md`, раздел «КАЖДОЕ ЧТЕНИЕ: ВСЕ STOP, ОТКАЗЫ И БЛОКИ…», строки438–459. Поздняя отмена errors.json/events.jsonl/новых реестров14Oct применяется к пункту10; старые registry-инструкции/примеры не исполнялись.
+
+DOT02 версия10 сохранена, но старый header «dot выполняет функции Контроллера» не текущий authority: по прямой команде владельца этот диалог — единственный Controller/REPORT/checkpoint writer, dot18Oct02:18–19 — read-only сопровождение и отдельный собственный аудит. DOT01/PR144 bounded SOURCE mainb68 с прежними review/5+5CI принят ранее и не переоткрыт. DOT02 старое ожидание PR190 source publication устарело: GitHub PR190 closed/merged17Oct03:34:43Z, exact583791e2→e8de8435; A собственная запись принимает SOURCE/main/postmerge5/13. Сам тест/review/CI не повторялся. PR188 SOURCE/main принят ранее и не проверялся повторно. Исторические raw/authority/installed остатки этим не погашены.
+
+| Поток | Фактический HEAD / branch | WIP | Текущий предмет и последний role primary |
+| --- | --- | --- | --- |
+| A | 09e12fab47a5fad36cfbd2edca282362d940af54 / work/a02-transfer-recovery-source-20261011 | 81 dirty; index lock absent | A03 Firefox current development package parity ONLY, native hold; updated02:33:52Z. Guest3browser evidence и A04/I1 отдельны. |
+| B | 0885f4995d5da1d8f6dccc1072a97703faa2d24a / work/b-backend | 83 dirty; index lock absent | B04 real-PG WIP/fixture guard refusal; updated02:27:33Z. PR211 SOURCE+CI-only принят, старый128 resource close не повторять. |
+| C | 5ca599941881b7682eec5b8317033fafe34e278c / work/c-integration | 73 dirty; index lock absent | C06 current3guest + FirefoxSOURCEONLY; PR210/PR209 release/I1 gates; updated02:34:17Z. |
+
+Git status выполнялся read-only с GIT_OPTIONAL_LOCKS=0, без refresh/reset/checkout/fetch/clean. Старые canonical HEAD/WIP не выданы за текущий main. Реальный новый B test WIP подтверждён отдельно: base/head22700, branch work/b04-consumed-otp-real-pg-main227-20261018, один изменённый `tests/integration/server/p2-auth.integration.test.ts`,66 additions и untracked cache; source/test contents не менялись Контроллером.
+
+### A — подтверждённые новые scoped результаты и review границы
+
+Три existing native guest/privacy результата относятся к одному **LOCAL DEVELOPMENT0.2.37 ZIP SHA256 fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89**. Его extension-input continuity db531→227 установлена существующим A/C comparison двух backend-only файлов, переиспользована здесь; это не тест новых server/login semantics.
+
+| Браузер / уровень | Лично проверенный native receipt SHA256 | Лично проверенный primary SHA256 |
+| --- | --- | --- |
+| Yandex26 — INSTALLED_SYNTHETIC_GUEST_PRIVACY_PASS | b356b484ee785c626fb54fe999dabbe0e9aac558ba2135c78dc1ba9445b2cc8b | 6a95dff7e09663f48ed342654f0f43144f8d3e70b81dc011d7c7dbc15c7aebec |
+| Chrome147 — INSTALLED_SYNTHETIC_GUEST_PRIVACY_PASS | c5d49f507434b5fc414db1fd7d61f6390c95631a1a6f8dcfa75f42ec13dbbe4b | c3e6c2868ddc2fd9426831c117c6dbdaedc668cf3e315216404dbea9b1c34bf9 |
+| Opera136 — INSTALLED_SYNTHETIC_GUEST_PRIVACY_PASS | 864673c00247d96f8db21565490c4d1ced816cbb69eaf5669cff54b4e1b86b05 | eccbbe01db3eb20ccc35824efabe5babc92fe5676bb7bdac23cd7378c9eafca9 |
+
+Существующие test-source review receipts R15 b22d88be…, R16 3ea57ce7…, R19 unitR2 cc3e85c1… прочитаны, SHA совпали и дают PASS_TEST_SOURCE_SCOPED. Native/primary R15/R16 и новый R19 также лично прочитаны/hash matched; R19 receipt сформирован02:25:21Z, original unit inactive/collected, MainPID0/Resultsuccess при read-only проверке. Старые OperaR17/R18/R19 REWORK_REQUIRED сохранены, последнее PASS относится только к исправленному unitR2/source и последующему native outcome; ADMITTED/RUNNING не выданы за PASS. Профили/носители сохранены авторами, Controller не чистил.
+
+В primary guest receipt проверяются именно exact development package, worker, settled signed-out UI/support privacy и закрытие browser; owner_authenticated/credentials_seeded=false. Native/worker startup egress exhaustively zero не заявлен. Owner auth, original toolbar-popup work flow, provider business result, signed Store carrier, Windows/live не приняты.
+
+Firefox: existing primary `logs/A/a04-parallel-dialogue-main7f-20261017/A03_FIREFOX_MAIN227_PACKAGE_PARITY_READONLY_20261018.json`, SHA256 **b281c621b09ed6f9e1be58a7c3febca71e44717c4c9bb1c3bc35f19158d687d3**, лично совпал. Candidate **26f633323c6b2259f1708d0b4ec1fe238cad27b8236f2a491451d7d1e3a5d125** имеет42members,40/41common bytes identical с текущим Chromium carrier; manifest отличается, Firefox background отдельный. CRC/duplicate/unsafe-member checks — существующий SOURCE/PACKAGE parity primary. **native_firefox_launched=false, owner_release_ready=false, signed_AMO NOT_PROVEN. Это НЕ четвёртый installed guest PASS.** Исторический адресный Firefox functional/update отказ не повторять.
+
+A04 R4 exactlocal **6f8d54fc0505e97dd2f23fd2a25a3bbad14925e1** остаётся UNREVIEWED; raw refusal primary376460235cf10bcd3ee71a32da7ba82abde876e2ba0d8cef560009ff1e2ddd44 прочитан/hash matched. Его дословный ответ: «Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.» Author10/10 source/extracted не independent review. PR207 draft143563 unchanged. PR139 drafta7a92ed6 и original I1 physical cause сохраняются; PR196 источник merged, его historical failure не погашен. На PR208 список опубликованных GitHub reviews пуст; ранее найденный local rejected/untrusted review не превращён в опубликованный независимый verdict.
+
+### B — принятый SOURCE/CI отдельно от нового real-PG отказа
+
+PR211 source/main227 и exact merge-SHA CI-only5/5 workflows/13jobs SUCCESS переиспользованы из ce67 и собственного сохранённого B published primary; source merge/candidate737/закрытые CI заново не проверялись. Почему automatic main-push event не наблюдался — UNKNOWN; CI-only route не переименован в main push.
+
+Прежний B-B04-CONSUMED-OTP-REPLAY-CODE-20261018 **128MiB OPEN** и точные platform refusals allocation close/state write сохранены; Controller не редактировал эти файлы и не использовал альтернативную форму. B нового отдельного task record02:27 не доказывает отмену старого адресного отказа и одновременно не позволяет объявить весь B.json вообще недоступным.
+
+Новый независимый existing B real-PG attempt: primary
+`/root/octoport-control/logs/B/B04_CONSUMED_OTP_REAL_PG_20261018/B04_REAL_PG_TEST_GUARD_DENIAL_RESULT_20261018.json`,
+SHA256 **238d1c02e2c3c6001600ced29172ebcdf5753c807bec06f237433fc817999789**, лично совпал. R1 environment failure без test collection был исправлен самим B; R2 остановлен source fixture guard **TRANSFER_FIXTURE_RESET_DATABASE_OR_ROLE_DENIED**. **22 shared beforeEach failures / zero new test-body assertions**, не22 доказанных auth дефекта. TargetB намеренно исключён guard независимо от его DB privileges. Другой actor/DB, имитация CI, guard-edit ради пропуска или новый runner не допустимы как обход.
+
+Важный предел primary: runMigrations могли исполниться в собственной disposableDB до отказанного reset; exact migration-journal delta **NOT_INDEPENDENTLY_PROVEN**. Отказ TRUNCATE не выдаётся за отсутствие всех предыдущих side effects. Controller DB не инспектировал/не менял. Новый test-only WIP и **отдельный B-B04-OTP-REPLAY-REALPG-20261018128MiB OPEN** сохранены; это не прежний отказанный резерв и не128MiB освобождённого места.
+
+PR200 draft516840b9 остаётся без independent code review: лично прочитан stdout SHA8253f157f5ffc6fed4d68ad70aa85b3fd9c0791ae5145e4d1bdfe648b963c5f5, reviewer остановился на невозможности проверить требуемый authorized profile; exit0 не verdict. PR145 draft6be57 сохраняет R6 REQUEST_CHANGES и адресный edit refusal. PR189 draft3eda и PR191 draft53de сохраняют отдельные original I1 causal holds; новые соседние green SHA не причина старых abort. B05 host PG18/independent backup/full restore/rollback/old-writer drain — отдельный B/Ops/owner gate, не принят из source CI.
+
+### C — actual downstream consumption, source continuity и open release/installed gates
+
+C existing record02:29:30Z принял original A OperaR19, а текущий C metadata02:34:17Z явно содержит **Chrome147/Yandex26/Opera136 GUEST_PASS, FIREFOX SOURCE_PARITY_ONLY**. Поэтому A→C фактический guest intake подтверждён; новый C browser/test/review запуск не требуется и не поручался. Новые C source-only records02:22:57/02:26:21 подтверждают условное исключение development localhost из Store manifest только при genuine authority и реальных HTTPS origins и существующих Ozon host consumers (swagger/report whitelist); это source reasoning автора C, не actual signed ZIP/проверка политики/разрешение удалить host permission.
+
+GitHub PR209 **draft/open a488d66e…**, PR210 **draft/open5e6954ee…**. PR209 retains scoped source/Extension evidence и original own-SHA I1 +142ms failure, не переносит currentmain227 I1 PASS. PR210 scoped SOURCE PASS + Documentation SUCCESS; остальные4 NOT_TRIGGERED по document-only PR filters. C06 actual issuer/catalog/trust/target receipt и Opera private-data policy fit **UNKNOWN/NOT_ACCEPTED**; нового owner ответа нет. Chrome/Firefox/Opera submission **НЕ ГОТОВО**.
+
+C02 historical73WIP не merge/reset/clean. C03 existing total acquisition deadline already implemented/current source, повторной реализации/test не требуется. C04 installed retention unit promotion и C05 current full PostgreSQL18 backup/restore+application rollback ещё B/Ops authority+actual outcome; C06 singleton SOURCE PR130 accepted не равен runtime privileged installation. Старое C02 назначение Controller cleanup отменено поздней передачей cleanup владельцу и текущими прямыми границами.
+
+### Исходная карта12 — сохранены bounded результаты и точные остатки
+
+Ни один выполненный scoped результат не переоткрывается ради новой проверки, ни один installed/history остаток не закрывается по SOURCE. Это представление прежних12 product routes, а не новый error registry/очередь/программный gate.
+
+| Исходный маршрут | Переиспользованный bounded результат | Что остаётся | Ответственный / ближайшее допустимое условие |
+| --- | --- | --- | --- |
+| B03 sourceSeen-submit | bounded SOURCE/PG принят | durable/no-double-delivery/true-loss retry across2relays+installedactor order | existing B/runtime; supported original guard dispositions, затем separately authorized physical proof |
+| Pre-ACK recipient result | dot exact7cfafdae VM_REAL_PG_HTTP bounded fulfilled, logc81183c4… | installed IndexedDB/browser durability и другие actor/two-relay outcomes | B/runtime + owner/Tester в своих областях; старый VM test не повторять |
+| B04 four OTP regressions | originalrequirements+WIP preserved; PR211 SOURCE/main227 CI-only5/13 принят | старые4HTTPtests refusal отдельно; новый realPG test NOT_ACCEPTED/sharedguard;2 distinct128OPEN | B/security-contract/platform; не retarget actor/DB, не закрывать прежнюю allocation |
+| A05 atomic2ref publication | FULFILLED + PR143/mainc985 SOURCE accepted | historical classificationUNKNOWN отдельно, не новый development gate | original custodian при новом primary; accepted source/review/CI не повторять |
+| PR48 source delivery | FULFILLED через PR50/main6441 exacttestblob3f2dc534…; PR48не нужен повторmerge | historical refusal/origin и installed-owner отдельно | B/originalplatform + owner runtime; source уже доставлен |
+| C06 singleton | PR130/main44d453 SOURCE+review+5/13 ACCEPTED | realprivileges/network/fencing/lateHTTP/rollback/multihost иinstalledconsumer | B/Ops/owner/C, только actual authority+evidence, source не переоткрывать |
+| R3 personal technical flow | узкие guest/Finish/no-replay retained; currentdev3guest не R3 | owner/Tester originalpopup/auth/Start/result/Finish and package manual verdict | owner/Tester; Controller не управляет браузером/чатом/источниками |
+| R14 original refusal | B05rev731 boundedrestore/app принят | original combinedrequest/envelope/native rawresponse missing | C/platform originalcustodian; no replay |
+| C private env refusal | fileне читался/не удалялся; прежний guard retained | originalrawreply/ID missing | original C/tool custodian; no cleanup/read bypass |
+| Sep29 publication origin | known59dfab94/pushruns retained | originaltransportrequest/reply/nativecorrelation missing | original publisher/platform; no newpush/repeatedsearch |
+| Historical config drift | knownhashdisagreement retained | immutable before/after+actor/edit/time missing | original B/configcustodian; no reset |
+| Original bound review bytes | originalpayloadSHA12d92447… obligation retained | immutable originalreviewpayload missing | original B/reviewer/platform; no reconstruction/newreview |
+
+### Все десять пунктов действующей процедуры — по каждой группе текущих границ
+
+Ниже пункты1–10 соответствуют точному каноническому разделу, а не придуманному списку10тем. Для нескольких явно названных подграниц одной группы одинаковые поздние ограничения/guard/readback действия применены к каждой; индивидуальные источники, missing primary и владельцы перечислены в1/3/9. Нет молчаливого превращения независимого прогресса в устранение блока. Отказанные исходные операции не повторялись ради формального пункта7.
+
+
+### ОТКАЗ: R7/R8 — РЕСУРСНЫЙ ВЫЗОВ И ЕДИНСТВЕННЫЙ ТЕСТ
+
+1. ВЫПОЛНЕНО как учёт: R7/R8 test NOT_STARTED. Дословный исход отказанного ресурcного вызова/полный argv в переиспользуемом checkpoint отсутствует — UNKNOWN, хранитель исходного Controller/platform response. Последнее измерение17Oct09:34:52Z=12:34:52МСК историческое.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: историческая память5524.29MiB <5734.4 FAIL; диск5945/5120 PASS. Это не нынешний допуск и не завершённый test; старое разрешение не является запуском.
+4. ВЫПОЛНЕНО: адресный отказ конкретного ресурcного вызова, не недоступность всего RDC/GitHub; fresh admission UNKNOWN.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО техническое устранение: новая ресурсная проверка/тест запрещены, cap/резервы не менялись. ВЫПОЛНЕНО: собственный статус сохранён честно NOT_STARTED/UNKNOWN.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: нового R7/R8 результата нет; A guest и B CI не заменяют его.
+9. ВЫПОЛНЕНО: OPEN. Owner/platform custodians — поддержанное адресное решение исходного refusal/admission; до изменения прямых условий никакого повтора/обхода.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### ОТКАЗ: B04 PR211 ALLOCATION CLOSE И STATE WRITE
+
+1. ВЫПОЛНЕНО как учёт: опубликованный B primary01:47:06Z=04:47:06МСК сообщает два отказа: atomic close прежнего128MiB allocation и отдельный B.json update. Raw response/точные call-ID/argv не опубликованы — UNKNOWN, B/platform custodians.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: B сообщает normal non-force worktree removal; источник/CI принят. Удаление около39.22MiB физически не освобождает зарегистрированный128MiB резерв.
+4. ВЫПОЛНЕНО: две точные запрещённые операции; не общий запрет любых будущих B.json записей. Новый отдельный B04-PG task документирован B02:27; прежний PR211 state не закрыт.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО allocation/state устранение: не повторялось и не проксировалось. ВЫПОЛНЕНО собственное разделение SOURCE+CI accepted, reservation OPEN и более позднего отдельного B-PG task.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: нет primary успешного close; резерв128OPEN. CI5/13 остаётся выполненным, не пересчитан в освобождённый ресурс.
+9. ВЫПОЛНЕНО: Existing B/platform-supported disposition exact двух отказов. Controller не меняет B.json/allocation, не запрашивает широкое согласие как обход.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### ОТКАЗ: НОВЫЙ B04 REAL-PG FIXTURE RESET
+
+1. ВЫПОЛНЕНО как учёт: primary238d1c02… observed18Oct02:26:33Z=05:26:33МСК; exact error TRANSFER_FIXTURE_RESET_DATABASE_OR_ROLE_DENIED. R2:22beforeEach failures,0 test-body assertions. Exact source/args — в существующем B task primary; секреты не переносились.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: R1 не собрал tests из-за missing dependency; B исправил environment, R2 дошёл до конкретного guard. PR211 mock/CI PASS не эквивалентен этой реальной PG границе.
+4. ВЫПОЛНЕНО: доказанный source security-fixture guard для targetB, не22auth product failures и не отказ всего PostgreSQL/MCP. Предшествующий migration delta UNKNOWN.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО guard обход/repair: запрещены другой DB/actor, имитация CI и изменение guard ради теста. ВЫПОЛНЕНО документальное разделение нового WIP и нового128OPEN от старого128OPEN.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: дальнейший тест не принят; single test-only file66insertions+cache WIP сохранён. Возможные до-guard migration effects не объявлены нулевыми.
+9. ВЫПОЛНЕНО: Existing B + security-contract owner/platform — конкретное поддержанное решение для этой границы, затем только отдельно разрешённый шаг. Никакого нового теста в этом аудите.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### ОБЯЗАТЕЛЬНЫЙ РЕЗУЛЬТАТ НЕ ПОДТВЕРЖДЁН: ИСТОРИЧЕСКИЕ I1 ABORT CAUSES
+
+1. ВЫПОЛНЕНО как учёт: PR1893eda +142ms; PR209a488 +142ms; прежний mainDb531 +164ms; PR196 и прочие отрицательные SHA сохраняются раздельно. Не хватает exact selected Request→physical AbortSignal caller и grant/lease-at-abort.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: source diagnostics/A06 и текущий main227 CI5/13 известны; общий browser-start refusal встречался и в PASS, не доказывает причину selected abort. Postfailure active не доказывает grant в момент ошибки.
+4. ВЫПОЛНЕНО: causal evidence gap UNKNOWN, не разрешение на новый native retry или перенос green соседнего SHA.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО физическое causal устранение — primary не поступил. ВЫПОЛНЕНО снятие собственных stale premerge/CI ожиданий без закрытия causal obligations.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: PR190 source merged и PR196 merged не переписывают их historical failures; PR189/139/209 остаются draft; PR208 published review verdict не найден.
+9. ВЫПОЛНЕНО: Existing A/runtime; Tester/owner лишь в своей области. Ближайший шаг — existing original trace/request correlation, без нового I1. Controller не перехватывает runtime/Tester.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### ОТКАЗЫ: ЧУЖИЕ SOURCE/REVIEW И FIREFOX NATIVE ГРАНИЦЫ
+
+1. ВЫПОЛНЕНО как учёт: A04 R4 refusal17Oct19:23:31Z=22:23:31МСК raw37646023… проверен; B200 stdout8253f157… exit0/NONE проверен; B145 test-edit отказ, A02 transfer-source read, B03 fixture/source setup и Firefox full-functional refusal сохранены у авторов. Для не переоткрытых raw args/ID — прежние custodians/UNKNOWN.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: A04 local6f8d54fc author10/10 не independent review; B200 exact516 CI не verdict; B145 R6 REQUEST_CHANGES; A02 bounded vault и B03 partial VM proof — отдельны; Firefox parity не native.
+4. ВЫПОЛНЕНО: адресные ограничения конкретных методов/границ, не глобальный STOP A/B/C. R4 explicit platform; B200 reviewer profile refusal; B145 edit; Firefox denied native. Другие author tasks продолжаются.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО запрещённое устранение: review/helper/source/read/native повторы не запускались. ВЫПОЛНЕНО сохранение unreviewed R4 local WIP и точных scope, без второго автора/alternate route.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: A independently получил3guest PASS и Firefox source parity. Это разрешённый отдельный прогресс, не закрытие перечисленных отказов.
+9. ВЫПОЛНЕНО: Existing A/B и original platform/reviewer/security custodians — поддержанный exact disposition. PR207143563, PR200516, PR1456be57 остаются drafts; ни CI dispatch, ни reviewer замена не поручались.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### СОСТОЯНИЕ НЕ ПОДТВЕРЖДЕНО: C WIN32/WB REFUSAL SEQUENCE
+
+1. ВЫПОЛНЕНО как учёт: Win32 primary16Oct22:17:31Z=17Oct01:17:31МСК без подтверждённого PID/unit; WB readback23:56:03Z предшествует refusal-record23:56:43Z. Exact request/correlation/native disposition отсутствуют.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: существующие source/WIP patch3000b4a4… и поздний PR209 bounded SOURCE/Extension proof сохранены; раннее чтение не стало post-refusal проверкой.
+4. ВЫПОЛНЕНО: original platform refusal/sequence evidence gap; внутренний causal origin UNKNOWN, не запрет всех C source действий.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО исходное native устранение; повтор denied build/package runner не делался. ВЫПОЛНЕНО собственное уточнение chronology и отдельного source acceptance.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: PR209 current drafta488/I1 FAIL не закрыт новым main green. C продолжает независимый SOURCE readiness, а не повтор отказа.
+9. ВЫПОЛНЕНО: Existing C/platform original custodians — уже существующий exact request/raw response/correlation/PID timeline. Не создавать заново evidence через новую попытку.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### ОБЯЗАТЕЛЬНЫЙ УСТАНОВЛЕННЫЙ РЕЗУЛЬТАТ НЕ ПОДТВЕРЖДЁН: B03/C04/C05/C06
+
+1. ВЫПОЛНЕНО как учёт: B03 two-real-relay/installed actor durability; C04 retention unit promotion; B05/C05 PG18 client/backup/full restore+rollback, safe old-writer drain; C06 real restricted LOGIN/network/late-HTTP/fencing остаются unproved. Live/DB/owner maintenance не исследовались.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: PR50/preACK sourceVM, B05 rev731 и C06/PR130 singleton SOURCE_ACCEPTED сохранены. C03 total deadline уже присутствует, не реализуется заново. SOURCE/CI не equivalent installed consumer.
+4. ВЫПОЛНЕНО: раздельные installed/runtime/maintenance authority и evidence границы, не глобальная source остановка. Старое C02 cleanup назначение Controller отменено поздним owner cleanup scope.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО installed/live/DB изменение — запрещено текущим scope. ВЫПОЛНЕНО разделение всех bounded source результатов и точных remaining consumers/owners.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: новые3guest/CI/source-doc facts установлены, но не проверяют эти actual host/database/two-relay эффекты.
+9. ВЫПОЛНЕНО: B/Ops/owner — точная существующая authority, PG18-supported tools/independent backup destination/full recovery proof, unit-only promotion/rollback; C независимо читает результат только после разрешённого действия. Controller не присваивает maintenance/cleanup.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### ОБЯЗАТЕЛЬНЫЙ RELEASE/OWNER РЕЗУЛЬТАТ НЕ ПОДТВЕРЖДЁН: C06 И R3
+
+1. ВЫПОЛНЕНО как учёт: C06 genuine signed authority/catalog/origins/trustBundle/target proof, Opera privacy-policy fit, original owner popup normal auth→Start→safe result→Finish и signed Store/AMO carrier не приняты. Нового owner authority/catalog ответа нет.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: A R15/R16/R19 exact development guest/privacy PASS, Firefox42-member/40-of41 parity и C source document PR210 PASS — точно ограниченные прошлые/новые результаты.
+4. ВЫПОЛНЕНО: внешняя trusted release/publisher/owner acceptance граница, не отсутствие браузеров. Тестер/B01/R3 вне Controller scope; business-answer tuning не новый ранний gate.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО missing owner/native release acceptance; ничего не подписывалось/не создавались authority или credentials. ВЫПОЛНЕНО актуализация3guest+FirefoxPARITY_ONLY и C consumed R19.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: C02:29:30 принял R19,02:34 metadata признаёт Firefox source-only. Store НЕ ГОТОВО; neither currentFirefox native nor owner manual PASS не изготовлены.
+9. ВЫПОЛНЕНО: Owner/C/publisher — genuine exact authority/catalog и Opera field/destination policy decision; owner/Tester — только свой original popup/package/manual criteria. Не требуется новое широкое поручение Controller.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### СОСТОЯНИЕ НЕ ПОДТВЕРЖДЕНО: ИСТОРИЧЕСКИЕ PRIMARY GAPS
+
+1. ВЫПОЛНЕНО как учёт: R14 combined native envelope/raw response; C private guarded-delete raw reply/ID; Sep29 publisher transport59dfab94; config before/after bytes+actor/edit/time; original B review payloadSHA12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175 остаются missing/UNKNOWN.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: прежние immutable source/CI/archived product evidence переиспользованы; новая история/реконструкция не создавалась.
+4. ВЫПОЛНЕНО: не доказанные исторические origin/primary gaps, а не нынешний blanket development gate.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. НЕ ВЫПОЛНЕНО восстановление отсутствующих originals; неизменные поиски, новые push/review/delete, errors/events и архивы не запускались. Доступная own фиксация сохранена.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: новых original primary не поступило; нынешний A/B/C прогресс их не заменяет и не обнуляет.
+9. ВЫПОЛНЕНО: R14 C/platform; private-env original C/tool; Sep29 original publisher/platform; config B/config custodian; review original B/reviewer/platform. Только исходные immutable первичные данные, без повторной операции.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### СОСТОЯНИЕ УЧЁТА: СОБСТВЕННЫЕ STALE PROJECTIONS И READ-ONLY HOLDER
+
+1. ВЫПОЛНЕНО как учёт: прежний Controller full A snapshot оставался R14, C lacked current3guest; v10 premerge PR190 устарел; fuser PID2339387 мог ошибочно выглядеть вторым автором. Эти поля не продуктовые ошибки/новый реестр.
+2. ВЫПОЛНЕНО: поздняя команда владельца разрешает документальный аудит и запрещает новые tests/review/CI/browser/helper; адресные запреты сохранены, повторное общее согласие не запрашивалось.
+3. ВЫПОЛНЕНО: успешный способ — native RDC readonly metadata/evidence + GitHub, existing coordination.lock/SHA guards/readback; baselinece67 и interim21961 подтверждены.
+4. ВЫПОЛНЕНО: доступная собственная documentary/coordination причина, не source/runtime defect. Read-only currentfd293 и63 deleted O_RDONLY descriptor — не writable author.
+5. ВЫПОЛНЕНО: версии own файлов, процессы, HEAD/dirty A81/B83/C73 и один автор сверены; PID2339387 O_RDONLY, writable0; чужой WIP сохранён.
+6. ВЫПОЛНЕНО: own A/B/C snapshots, current12 summaries, scope/owner notes и полная10-step application обновлены в existing docs. Чужие fd/processes/WIP не чистились; начальный избыточный вывод заменён bounded projection.
+7. ВЫПОЛНЕНО для документальной границы: собственная запись проверяется независимым readback. Исходная запрещённая операция не повторялась; чтение не равно её продуктовому завершению.
+8. ВЫПОЛНЕНО как проверка эффекта: ВЫПОЛНЕНО: actual3guest/A-C consumption/newBguard подтверждены первичными данными; stale pending/merge поля не используются как текущие. Registry gate не создавался.
+9. ВЫПОЛНЕНО: Controller завершает лишь доступный documentary проход после readback. Все реальные product residuals выше OPEN, audit_complete=false; dot read-only сопровождение не второй REPORT writer.
+10. НЕПРИМЕНИМО: новый реестр/архив/каноническая запись ошибки не поручены и прямо запрещены; только существующие продуктовые REPORT/checkpoint/поручение.
+
+
+### Реально выполненное собственное исправление, readback и объём прогресса
+
+Исправлены только текущие собственные documentary projections:
+- A: obsolete R14-only/Opera ADMITTED → personally verified3current-development guest receipts + Firefox SOURCEONLY/native hold; старые negatives сохранены;
+- B: PR211 SOURCE+CI accepted отделён от прежнего OPEN128/refused statewrite и нового real-PG guard/другого OPEN128/WIP; 22 fixture failures не названы auth regressions, migration delta UNKNOWN сохранён;
+- C: current R19 consumption/Firefox parity, actual PR209/210 status, authority/privacy/installed ограничения; старые cleanup/ownership фразы не стали текущим поручением;
+- DOT01/source accepted и PR190 merged result не переоткрыты; DOT02v10 same-ID и поздняя Controller/dot role separation сохранены;
+- current12 и все10 procedure actions зафиксированы в existing checkpoint и ответе того же задания, без новых файлов реестра/архивов.
+
+Перед записью независимо проверены current writable FDs: **0**, read-only current FDs3 допустимы; O_RDONLY reader не объявлен вторым автором, его процесс/старые deleted descriptors не закрывались. Использован существующий coordination.lock nonblocking, exact SHA guards, короткая atomic own запись. Чужие role/source/tests/worktrees/allocations не менялись.
+
+Независимый RDC readback02:43:15Z:
+- `FINAL_RESUME_CHECKPOINT.json` этого Controller-аудита — SHA256 **b19d702a0eb63da366a593ebd952f691d86deaae3def5afaef8edc40bccabb7c**,1696831bytes;
+- `/root/octoport-control/controller-notices/PRIORITY_TASKS.md` — SHA256 **3506db7ecbf4ca1763b668652354086d02dc1d0766afbf475f9df8f838512f83**,659924bytes.
+Original progress pointer и исходная map string byte-content сохранены; новый own marker один. Объект latest_full_accessible_ABC_audit — текущий product audit внутри прежнего checkpoint, не новая база/реестр/приёмщик.
+
+**Прогресс относительно ce67:** впервые в этом Controller full-pass лично подтверждены current-package Yandex/Chrome/Opera primary outcomes (Yandex — ранее выполненный существующий результат, не новый run сейчас), новый Opera terminal и C consumption, current Firefox source parity, новый B real-PG guard/реальный сохранённый WIP, снята stale PR190/source expectation. Новых продуктовых SOURCE merges с main227 не появилось. Review/CI/tests выполнены существующими авторами ранее, Controller только прочитал evidence; продуктовые результаты не симулировались.
+
+**Организационные проблемы:** stale subfields PENDING/NOT_ATTEMPTED не должны перекрывать поздние terminal primary; read-only holder нельзя считать writer; specific source/review/state refusal нельзя расширять на всё MCP/весь поток или снимать общим разрешением; отдельные B128 reservations нельзя смешивать; старые cleanup assignments не действуют; первые крупные сборы вывода требовали bounded projection, способ скорректирован без нового self-error registry. Глобального STOP по этим отказам не объявлено, источники A/B/C фактически продолжались.
+
+**Проверенные ближайшие внешние остатки:** A/runtime — original selected AbortSignal/grant-at-abort primary; A/platform — exact R4 review и Firefox native denied scope; B/security-contract — supported disposition нового fixture reset guard; B/platform — старые exact allocation/state write refusals, оба128OPEN сохранены раздельно; B/Ops/owner — PG18/backup/restore/rollback/old-writer drain/retention promotion/real two-relay effects; C/owner/publisher — genuine authority/catalog, exact approved package, Opera field/destination policy and manual installed/reviewer acceptance; C/platform — original Win32/WB execution/correlation evidence; original custodians — оставшиеся historical raw/bound bytes. Разрешённого Controller source/test/live/DB действия для закрытия этих точных границ сейчас нет; доступные независимые documentary actions выше доведены до результата.
+
+Own launches tests/review/CI/browser/helper=**0/0/0/0/0**. R7/R8 fresh admission не установлен; старое измерение не новый допуск, resource call/test не повторялись/не обходились. B allocation/state отказанные writes и новый fixture reset не повторялись/не проксировались. Tester/B01/R3, owner cleanup, live/DB/security, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/сбросы/расписания не трогались. Новых исполнителей, error registries, архивов, gate или расписаний не создано. **Audit_complete=false.** Результат этой итоговой REPORT записи подтверждается отдельным GitHub readback; будущий шаг — только новый фактический разрешённый исход в сохранённом scope.
