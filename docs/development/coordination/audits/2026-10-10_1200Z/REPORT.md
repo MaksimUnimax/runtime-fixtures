@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-18T07:07:33.286000Z; последний результат — раздел «Продолжение с REPORTd3034c25». Предыдущие датированные разделы сохраняются как история.
+- **Состояние на:** 2026-10-18T07:22:25.582376Z; последний результат — раздел «Продолжение с REPORT5d532f6e». Предыдущие датированные разделы сохраняются как история.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** `main=22700f7951199a215ba8154e6f8e1da4374227e0` — свежий GitHub ref readback перед публикацией этого продолжения; source compatibility не переоценивалась.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA-256 `7b7b13e8b32a8ab2b7db783ef6916bb036c59b789a54038e3851c2b982cf1808`, 2,122,598 bytes; запись 2026-10-18T07:07:17.666538Z, независимый readback 07:07:33.286000Z; `audit_complete=false`.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA-256 `77eb5bef48b963fb9e12012a9e67a29a10eec1396616fdaac7bab3550c7a54f6`, 2,132,250 bytes; запись 2026-10-18T07:22:13.017412Z, независимый readback 07:22:25.582376Z; `audit_complete=false`.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -3374,3 +3374,107 @@ Original14/исторические12 open boundaries и PLAN/history сохра
 REPORT тот же path/branch, exactblob CAS/expected parentd3034c25/[skip ci], затем отдельный full-content/blob/parent/ref readback. Unknown mutation не повторялась. Содержательный итог каждой роли также прямо в диалоге.
 
 **Новых Controller tests/review/CI/VM/browser/helper/merge=0/0/0/0/0/0/0.** No exploitation/reproduction/access-bypass/live/DB/security/auth/resources/cleanup; Tester/B01/R3/чужие active source/tests/WIP/oldchats/PR97/131/134/errors/events не тронуты. Новых registries/archives/schedules/credits/resets/authorizations нет. **audit_complete=false.**
+
+
+## Продолжение с REPORT5d532f6e — PR215 Server terminal SUCCESS; два workflows, remaining gates OPEN
+
+**Срез собственных документов: 2026-10-18T07:22:25.582376Z.** То же незавершённое поручение, не второй аудит/писатель. Сначала проверены completed REPORT5d532f6e541cd7a4bdccc7ba873babfb667b5e0a/blobcc77fc332ef206f9802ebd8a8babdf6399808b62, fullcontent, автор MaksimUnimax/date07:08:59Z/parentd3034c25 и fresh branch ref. Перед новой публикацией ref остаётся5d532f6e; свежий main22700f7951199a215ba8154e6f8e1da4374227e0. Easyscript ping07:19:59.758Z, retained background calls0, session inventory только protected driver2354613, его не трогали. Read-only metadata PID2856391 штатно дочитан после running, не запущен повторно.
+
+Own checkpoint/priority exact previoushash7b7b13e8/46695a37 совпали; target writableFD0, locks свободны на preflight/readback и получены на собственную короткую запись. Canonical A/B/C HEAD09e12fab/0885f499/5ca59994, WIP81/83/73 сохранены. Все core canon SHA START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/PRE_AUDIT/ORGANIZATION_AUDIT_POLICY совпадают с прочитанными версиями. Поздние owner ограничения сохранены. Source/local evidence PR215, accepted A/C checks и существующее C instruction не перечитывались/не отправлялись повторно.
+
+### Новый terminal и необходимые границы приёмки B
+
+Самостоятельно прочитан GitHub run **39105820383**, workflow .github/workflows/server-ci.yml:
+- head **60fd0c00b08cf5be1e4a5a371a429488e7dad572**;
+- event **pull_request**, attempt **1**;
+- status **completed**, conclusion **success**, updated **2026-10-18T07:13:53Z**.
+Это готовый original terminal после прежнего snapshotIN_PROGRESS. Не retry/rerun и не новый CI запуск.
+
+Самостоятельно прочитаны оба actual jobs:
+- **ci-plan117611309994 — completed SUCCESS**;
+- **server117611337489 — completed SUCCESS**.
+
+В server job SUCCESS у lint, format:check, typecheck, unit, exact integration-source record, complete integration suite, db:migrate, OpenAPI, bridge guard, build и E2E steps. Frozen server import verifier — **SKIPPED**, не объявлен выполненным. Новый original job log117611337489 прочитан только для necessary checkout/native boundary. Это обычный завершённый Server job этого PR; forbidden original artifacts-route/targets и old I1 result.json не запрашивались и не обходились.
+
+**Фактический checkout не PR head, а synthetic merge:** log06:57:00.3955628Z печатает **d16cd1681e200b7f2711d5042568f7c645a3aaef**, refs/remotes/pull/215/merge. GitHub Git-commit primary отдельно подтвердил:
+- parents **22700f7951199a215ba8154e6f8e1da4374227e0 + 60fd0c00b08cf5be1e4a5a371a429488e7dad572**;
+- tree **6af69c8277c16b4b9cefa0e214aa408f67036a01**, точно совпадает с previously accepted candidate60fd tree.
+Это bound native CI на том же дереве, **не merge в main**.
+
+Новые native строки этого job:
+- beta-access src/index.test.ts — **6/6 PASS**,06:59:13Z;
+- complete integration — **1970/1970 PASS,86 files**,07:06:02Z;
+- browser server E2E — **202 PASS**,07:13:47Z.
+Это чтение существующих доказательств, не выполнение тестов Контроллером. CI isolated integration/migration не является owner/Tester R3, установленной/live приёмкой или отменой конкретного fullPG отказа иной операции/кандидата.
+
+**Теперь приняты Docs+Server — 2/5 workflows.** Docs39105820388 exact60fd SUCCESS reused из прежнего REPORT, не перечитан. Remaining Extension/I1/Safety gates не приняты, полного five/13 acceptance нет. Сохраняются прежнее Draft/unmerged disposition и отсутствие готовности к protected integration. Никакой dispatch, обход path-filter, alternate-SHA substitution или merge не выполнен.
+
+Прежние SOURCE/local evidence PR215 **REUSED_NOT_RECHECKED**. Их ограничения неизменны: local console не печатает SHA, receipt даёт author association, independent source/review binding отдельно. Новый exact-tree native PASS добавляет самостоятельную CI границу, **не ставит SHA задним числом в старые local logs**.
+
+PR212 exact3978 и PR214 exact0f9 — другие source trees. Новый PR215 Server green не закрывает их отдельные negatives/gates; historical GitHub/I1 physical cause остаётся **UNKNOWN**. PR212 fullPG/B05/entitlement/другие exact refusals не повторены и не отменены.
+
+### A — десять пунктов
+
+1. **ВЫПОЛНЕНО В ДОСТУПНОМ ОБЪЁМЕ:** после прежнего07:07:33среза новых completed addressed A документов в checked logs/peer set нет; A.json5c87718c/06:54:26 unchanged. Текущий предмет PR205/C3E/A06 сохранён.
+2. **ВЫПОЛНЕНО:** documentary scope, old exact refusals/owner/Tester boundaries сохранены, launches0.
+3. **ВЫПОЛНЕНО:** accepted R26/R22R23/R24/source/package evidence reused NOT_RECHECKED, повторного source/native/browser/review чтения нет.
+4. **ВЫПОЛНЕНО:** source/package/test-source/installed и full owner acceptance различены; pending exactfive и C3E не закрыты чужим Server green.
+5. **ВЫПОЛНЕНО:** fresh state/hash/HEAD09e12fab/WIP81 и own writer/version/locks проверены; чужой source/tests/WIP untouched.
+6. **ВЫПОЛНЕНО В СВОЁМ SCOPE:** own current projection сохранена; **НЕ ВЫПОЛНЕНО:** C3E/full queue/transport/storage/owner/Store/exactfive/protection, нового ready материала для их закрытия нет.
+7. **НЕПРИМЕНИМО:** repeat accepted checks без оснований; own новая запись independently read back.
+8. **НЕ НАБЛЮДЕНО:** новый самостоятельный completed A outcome; unchanged metadata не объявлена простоем.
+9. **ВЫПОЛНЕНО:** existing A source/harness/causal scope, C consumer, owner/Tester personal acceptance сохраняются; следующий return только genuinely new ready qualified document/disposition, без Controller launch.
+10. **НЕПРИМЕНИМО К ERROR-УЧЁТУ:** same checkpoint/DOT02/REPORT, no new registry/archive/errors/events.
+
+A06 **AUTHOR_PROJECTION** сохраняется; original result independently unread, cause UNKNOWN. Forbidden artifacts-route/адресные targets и их альтернативы не запрашивались. Active-state sample не single-request/lease/cause proof, runtimehash не ZIPidentity. C3E OPEN_UNFIXED и owner/Store/fullchain границы остаются отдельными.
+
+### B — десять пунктов
+
+1. **ВЫПОЛНЕНО:** original PR21560fd Server run/attempt/terminal/time/job scope определены; прежний own IN_PROGRESS/terminalUNKNOWN заменён на verifiedSUCCESS, прежний snapshot сохранён исторически.
+2. **ВЫПОЛНЕНО:** новый ready terminal разрешён к чтению; все artifacts/fullPG/R7R8/B05/entitlement/иные exact refusals сохранены. Новых tests/review/CI/helper/merge0.
+3. **ВЫПОЛНЕНО:** ready run→jobs→original checkout log→Git commit tree method reused без CI execution; SOURCE/local/Docs и старые PR214/212 checks не перечитаны.
+4. **ВЫПОЛНЕНО:** workflow metadatahead60fd, actualsyntheticd16, matchingtree, native scopes и installed/live/main границы различены;2of5 не full acceptance, green не причинность старого failure.
+5. **ВЫПОЛНЕНО:** B e4fa0c96/06:58:24/HEAD0885f499/WIP83 unchanged, fresh own guards/locks/FD0; B.json всё ещё old Server wait, не перехвачен.
+6. **ВЫПОЛНЕНО В СВОЁМ SCOPE:** own checkpoint/DOT02/REPORT Server wait исправлен и native qualification добавлена; **НЕ ВЫПОЛНЕНО:** missing exact gates/protection/installed-owner/full product acceptance.
+7. **ВЫПОЛНЕНО:** новый terminal/jobs/checkout-tree/native lines independently corroborated и own record readback; **НЕПРИМЕНИМО:** повтор review/test или retrieval forbidden targets ради proof.
+8. **ВЫПОЛНЕНО:** один новый Server terminal workflow/два jobs, не статус RUNNING. Docs/старый source/local не counted новым объёмом.
+9. **ВЫПОЛНЕНО:** existing B/CI custodian остаётся автором consumption/projection/remaining-gate disposition; ближайший return документальный готовый результат, не новый dispatch/merge. Исторические causal custodians/UNKNOWN сохранены.
+10. **НЕПРИМЕНИМО К РЕЕСТРУ:** только same own docs, source/WIP/resources/auth/foreignfields и original12 сохраняются; нового registry/archive нет.
+
+Причина прежнего собственного ожидания известна: на прошлой фактической проверке run был IN_PROGRESS, теперь есть original terminal. Причина того, что B.json ещё не отражает terminal, **UNKNOWN**; отсутствие author update не доказательство inactivity и не основание на повторную отправку. Missing workflow gates не приписаны failure или success без их результата. FullPG отказ и PR212 original cause сохраняются, несмотря на отдельный PR215 integration1970 PASS.
+
+### C — десять пунктов
+
+1. **ВЫПОЛНЕНО В ДОСТУПНОМ ОБЪЁМЕ:** C31d0588d/05:08:31 unchanged, новых completed addressed документов/ACK после прежнего среза нет.
+2. **ВЫПОЛНЕНО:** C03-R4/C05/liveDB/Store/owner/Tester/exact refusal boundaries сохранены.
+3. **ВЫПОЛНЕНО:** accepted exact9845workflows13jobs и existing instruction reused NOT_RECHECKED; неизвестные отправки не повторены.
+4. **ВЫПОЛНЕНО:** stale3SUCCESS2RUNNING не current CI block, ACK absence не idle. External C06 отдельно от independent documentary work.
+5. **ВЫПОЛНЕНО:** C HEAD5ca59994/WIP73/statehash/time и own singlewriter checks verified; C.json/source/tests untouched.
+6. **ВЫПОЛНЕНО В СВОЁМ SCOPE:** own current projection/return сохранены; **НЕ НАБЛЮДЕНО:** новый authored consumption/ACK/integration disposition, нового поручения вместо результата нет.
+7. **НЕПРИМЕНИМО:** повтор5/13/existing instruction без new basis; own новая запись read back.
+8. **НЕ НАБЛЮДЕНО:** новый самостоятельный completed C outcome; старый SUCCESS не посчитан новым прогрессом.
+9. **ВЫПОЛНЕНО:** existing C own documentary consumption/projection/integration disposition остаётся доступным независимо от C06 owner genuine authority/catalog. Ответ C06 должен содержать source.head/tree, approved HTTPS origins/trustBundle, targetcatalog/acceptance exact version/hash/contract. Original B01/R3 у owner/Tester.
+10. **НЕПРИМЕНИМО К РЕЕСТРУ:** same PLAN/map12/task/DOT02/REPORT, no duplicate send/новый registry/перехват.
+
+### Объём, организация и открытые исходы
+
+**Объём после5d532f6e:** один новый native Server terminal, два actual jobs и necessary original checkout/tree/native evidence. Accepted Docs/source/local/A/C checks не повторены. Новых completed A/C документов нет. Product fix/CI execution/merge Контроллера0. Норматив темпа этого ограниченного documentary интервала не задан — NOT_ESTABLISHED.
+
+**Оргпроблемы:** own stale Server wait исправлен, чужой author state не заменён.2terminalworkflows не five native readiness. Synthetic PR merge требуется связывать по tree, не выдавать за main merge. New native green не объясняет old signed I1 abort/Serverfailure и не отменяет отказ другой exact операции. Stale projection/ACK absence не доказательство простоя; external C06 genuine authority не оправдание отменить independent documentary work.
+
+**Ответственные/следующий допустимый шаг:** existing B фиксирует фактическое consumption/remaininggate disposition в своём scope; A/C возвращают только новые qualified completed documents/dispositions, без Controller repeat send или запусков. Нового решения owner/B-Ops C06 нет; точный внешний недостающий набор source.head/tree+HTTPSorigins/trustBundle+targetcatalog/acceptance остаётся прежним. Authority/catalog/credentials не изготовлены.
+
+Original14/исторические12 open boundaries и PLAN/history сохранены: B03durable/two-relay/actor/installed, B04WIP/refusals, fulfilled A05/PR50/C06SOURCE не переоткрыты; ownerR3 и historical R14/private-env/publish-origin/config-drift/originalreviewbytes gaps с прежними custody/условиями. Win32/WB/C03-R4/PR207/R7R8/fullPG/B05/entitlement/artifacttargets и все иные exact refusals **NOT_RECHECKED** и не обойдены.
+
+### Собственная запись и readback
+
+**07:22:13.017412 UTC:** own successor_delta_PR215_SERVER_TERMINAL_20261018 и Controller reply того же DOT02v10 записаны под existing coordination/CONTROLLER/target locks, expectedversions/freshroles/WIP81-83-73/targetFD0. Assertions сохранили все root-fields вне своего currentobject, original current_product_boundaries string,12/auditfalse и priority content кроме точного own insert. Locks отпущены до сети.
+
+**Независимый RDC readback07:22:25.582376 UTC:**
+- checkpoint **77eb5bef48b963fb9e12012a9e67a29a10eec1396616fdaac7bab3550c7a54f6**,2,132,250bytes;
+- PRIORITY_TASKS **498582d8fde1a7683f2f79f12b79bbdb523f41c43d0dfadba5b51fba03ac7b5f**,719,098bytes;
+- content/hash assertions MATCH, marker1, Serverterminal/tree/2of5/oldchecksNOTRECHECKED/map12/no-launch match; all locks free.
+
+REPORT — sole existing path/branch, blobCAS/expectedparent5d532f6e/[skip ci], затем отдельный full-content/blob/parent/ref readback. Unknown writes не повторялись. Содержательный итог по каждой роли также прямо в диалоге.
+
+**Новых Controller tests/review/CI/VM/browser/helper/merge=0/0/0/0/0/0/0.** No exploitation/reproduction/accessbypass/live/DB/security/auth/resources/ownercleanup; Tester/B01/R3, foreignsource/tests/WIP, oldchats/PR97/131/134/errors/events не тронуты. Новых registries/archives/schedules/credits/resets/authorizations нет. **audit_complete=false.**
