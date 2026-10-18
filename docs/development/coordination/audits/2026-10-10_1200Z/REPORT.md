@@ -1506,3 +1506,140 @@ Original progress pointer и исходная map string byte-content сохра
 **Проверенные ближайшие внешние остатки:** A/runtime — original selected AbortSignal/grant-at-abort primary; A/platform — exact R4 review и Firefox native denied scope; B/security-contract — supported disposition нового fixture reset guard; B/platform — старые exact allocation/state write refusals, оба128OPEN сохранены раздельно; B/Ops/owner — PG18/backup/restore/rollback/old-writer drain/retention promotion/real two-relay effects; C/owner/publisher — genuine authority/catalog, exact approved package, Opera field/destination policy and manual installed/reviewer acceptance; C/platform — original Win32/WB execution/correlation evidence; original custodians — оставшиеся historical raw/bound bytes. Разрешённого Controller source/test/live/DB действия для закрытия этих точных границ сейчас нет; доступные независимые documentary actions выше доведены до результата.
 
 Own launches tests/review/CI/browser/helper=**0/0/0/0/0**. R7/R8 fresh admission не установлен; старое измерение не новый допуск, resource call/test не повторялись/не обходились. B allocation/state отказанные writes и новый fixture reset не повторялись/не проксировались. Tester/B01/R3, owner cleanup, live/DB/security, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/сбросы/расписания не трогались. Новых исполнителей, error registries, архивов, gate или расписаний не создано. **Audit_complete=false.** Результат этой итоговой REPORT записи подтверждается отдельным GitHub readback; будущий шаг — только новый фактический разрешённый исход в сохранённом scope.
+
+
+## Продолжение полного доступного аудита A/B/C — 2026-10-18T03:06:40.988Z
+
+Продолжен тот же аудит с завершённого REPORT **2db5602a8f77ac4fd17321ec16001bef2a9b5cdb**, blob **a455322d5f1e835cf96164a4b964ca4f814c8098**. Исходная карта12, PLAN, принятые evidence, прежние10 групп применения процедуры и WIP сохранены. Новый независимый аудит или исполнитель не создавался; dot остаётся отдельным read-only сопровождающим, единственный автор этого REPORT/checkpoint — действующий Контроллер.
+
+Это новый **потреблённый documentary delta**, а не утверждение, что каждый receipt создан после Git commit2db. A receipt02:45:43 и опубликованное уточнение PR209 body02:45:36 предшествуют commit02:45:51, но отсутствовали в завершённом полном срезе02:40:41.941Z и теперь проверены по прямым указателям. B/C последующие записи датированы ниже. Неизменный канон целиком повторно не читался.
+
+### Последний исход, авторство, текущие задачи и сохранность
+
+Штатный список RDC подтвердил Easyscript Online, device9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Native sessions показывают только прежний protected driver2354613; он не тронут. Прежние codex2/app-server процессы не перезапускались и не использовались. Own checkpoint/priority до записи точно совпали с прошлым readback: b19d702a… /3506db7e…. Coordination.lock доступен; execution-claims directory пуст. При короткой собственной записи writable holders **0**, read-only holder **1** допустим: PID2339387, O_RDONLY. Он не объявлен вторым писателем и не остановлен. Дублирующей собственной операции или неизвестного исхода предыдущей записи не обнаружено.
+
+| Поток | Текущая задача / последняя авторская запись | HEAD / сохранённый WIP |
+| --- | --- | --- |
+| A | A06-I1-THREE-ORIGINAL-JOBS-MIXED-CLOCK-104MS-CALLBACK-20261018; 2026-10-18T02:49:59.868923+00:00 | 09e12fab47a5fad36cfbd2edca282362d940af54;81 dirty |
+| B | B05_OWNER_TEST_RUNTIME_HARDENING_CURRENTITY_20261018; 2026-10-18T02:49:27.051482+00:00 | 0885f4995d5da1d8f6dccc1072a97703faa2d24a;83 dirty |
+| C | C06_STORE0_EXACT_RELEASE_AUTHORITY_INSTALLED_REVIEWER_READINESS_20261017; 2026-10-18T02:50:47.428441+00:00 | 5ca599941881b7682eec5b8317033fafe34e278c;73 dirty |
+
+Git metadata читалась с GIT_OPTIONAL_LOCKS=0, без fetch/checkout/reset/clean/source edits. Canonical WIP и отдельный ранее сохранённый B real-PG test WIP не изменялись. Root task B переключён самим B на read-only hardening; это не завершение старого B04 теста/ресурсных обязательств.
+
+### Лично прочитанные первичные данные
+
+| Existing primary | UTC | SHA256 / bytes |
+| --- | --- | --- |
+| A06_I1_PR196_PR208_PR209_THREE_CALLBACK_104MS_MIXED_CLOCKS_20261018.json | 02:45:43.123180 | b6e774e2fa3aa39a56621f7ca7c952ae2753ea8c2e31f395e08ffb33191d0d67 /7500 |
+| A_TO_EXISTING_TESTER_A06_PR196_PR208_PR209_MIXED_CLOCK_CALLBACK104_SOURCE_20261018.json | 02:49:59.868923 | 6bfe27cbf32a94779e68557d5d4ab6bdf166278f0d94e3bce176ec722721625b /3376 |
+| B05_INSTALLED_OWNER_TEST_READONLY_HARDENING_21_GAPS_20261018.json | 02:49:27.051482 | 6a73e87dcc17ec30afc9629b312a92c13b16f8f6d25d63e364737b3c375ea35c /5173 |
+| B underlying OWNER_TEST_RUNTIME_MAIN227_2SAMPLE_R1.json | тот же observation | 0ab40cc802a669ce69ccac7bcb3734ab2bb9ae0509c5f88e75d1ce90b3739f73 /4889 |
+
+Полные пути A receipt: `/root/octoport-control/logs/A/a06-pr139-hmac-correlation-20261017/A06_I1_PR196_PR208_PR209_THREE_CALLBACK_104MS_MIXED_CLOCKS_20261018.json`; handoff: `/root/octoport-control/peer-handoffs/A/A_TO_EXISTING_TESTER_A06_PR196_PR208_PR209_MIXED_CLOCK_CALLBACK104_SOURCE_20261018.json`; B receipt: `/root/octoport-control/logs/B/B05_OWNER_TEST_HARDENING_CURRENTITY_20261018/B05_INSTALLED_OWNER_TEST_READONLY_HARDENING_21_GAPS_20261018.json`; underlying: `/root/octoport-control/logs/B/B05_OWNER_TEST_HARDENING_CURRENTITY_20261018/OWNER_TEST_RUNTIME_MAIN227_2SAMPLE_R1.json`. Hash links между A↔handoff↔C и B↔underlying совпали. Контроллер не запускал auditor/host sampling/units: прочитаны уже существующие JSON evidence.
+
+### A — mixed clocks и существующий адресный handoff
+
+Existing A сравнил уже состоявшиеся failed native I1 jobs: PR196 run39007737902/job117323571620 selected ABORTED+141ms; PR208 run39063250394/job117485461747 +164ms; PR209 run39079780640/job117534216188 +142ms. Их rounded click-wall durations37/60/38ms вычтены из monotonic callback ages, получены одинаковые residual104ms. **Разные часы, события и доставка callback/stdout не доказывают физическую задержку104ms или100ms abort timer.** Controller не перечитывал/перезапускал принятые CI jobs; эти значения потреблены из нового точного A primary.
+
+A отдельно отмечает source100ms polling/debounce как возможные механизмы наблюдения, без доказанной причинности. Client30s и parallel60s source deadlines не дают фактического времени их arming в исходном failure. PR211 successful selected Request остаётся отдельным control, не ретроактивным PASS трёх отрицательных исходов. Physical first AbortSignal/caller, signed grant/lease at abort, same-request transport termination и browser teardown остаются **UNKNOWN/NOT_CAPTURED**.
+
+Existing A handoff существует и его primary SHA совпал; `recipient_ack=NOT_OBSERVED` в проверенном документе. Это не новый task/authority и не доказательство получения/действия Тестером. Его чаты, B01/R3/browser/WIP не инспектировались. Единственная роль Controller здесь — правильный собственный учёт; никаких новых instrumentation/review/run поручений не создано.
+
+### B — фактический installed snapshot и его пределы
+
+Existing B primary и underlying совпали: **READ_ONLY_HOST_OBSERVATION**,2samples с **intervalSeconds0.25**, `capacityProof=NOT_PROVEN_SHORT_WINDOW`, `mutationPerformed=false`. Для owner-test API/Worker/Portal7 одинаковых категорий дают **21 gap rows**, а не21 независимо доказанную уязвимость: identity ROOT_OR_UNSET, group unset, ProtectSystem/ProtectHome weak, unbounded MemoryHigh/MemoryMax/CPUquota. Auditor class ROOT_OR_UNSET не подменён новым самостоятельным UID-исследованием Controller. TasksMax19045 — observed configuration, не рекомендация final limit.
+
+Наличие уже accepted SOURCE nonroot/resource-guardrail scripts и proposed ceilings не значит installed promotion. Два коротких samples не доказывают representative workload capacity, достаточность памяти/CPU/tasks, production suitability или свежий R7/R8 admission. Никакого нового чтения live units/ресурсов/DB/auth/security или изменения от Controller не было.
+
+B/Ops остаётся installed owner; C — independent consumer. Проверенный C delta не содержит ACK именно нового B receipt; это **NOT_OBSERVED_IN_CHECKED_C_DELTA**, не глобальное утверждение, что ответа нигде нет. Старый C04 retention handoff относится к другому installed boundary и не даёт полномочий переключать три службы. PG18 host-client/независимый backup/recovery/full rollback, pinned source-to-installed release, user/group/private-state permission rehearsal, отдельное maintenance scope/window/single author и representative workload остаются внешними воротами. Ни одно не выполняется автоматически по read-only evidence.
+
+Прежние B04 fixture guard, ноль assertions, migration delta UNKNOWN, separate old/new128OPEN и точные allocation/state refusals полностью сохранены. Переключение author root task не доказывает их закрытие и не разрешает retry/proxy/другой actor/DB/CI route.
+
+### C — provenance граница compiler/B1 и принятие A
+
+Лично прочитаны C.json nodes:
+- `c01_store_authority_snapshot_same_bytes_20261017/store_compiler_vs_b1_actual_head_tree_authority_gate_20261018`,02:46:57.446257Z;
+- `c01_pr211_main227_source_continuity_native_I1_variability_20261018/A06_three_failed_original_I1_mixed_clock_104ms_caveat_20261018`,02:50:47.428441Z.
+
+Первый — **existing C source analysis**, также опубликованный в [PR209](https://github.com/MaksimUnimax/runtime-fixtures/pull/209) body, updated02:45:36Z; это не новый независимый Controller code review/test. Exact a488 composer blobebea62f783b27df64530b95970e6a0ca4dbc8cfc обеспечивает один bounded/no-follow descriptor, same-byte snapshot и format source.head/tree. Он **не сравнивает** эти format-valid значения с actual Git HEAD/tree. Отдельный later B1 main227 release-lib blob5ff7c55c8252515038b3b2b57601b55806dbf2ef в prepare/preflight читает HEAD/tree **запущенного checkout** и отвергает несовпадение authority. Integrity receipt hash сам не является issuer/publisher authorization.
+
+Даже actual B1 source pin не доказывает совпадение произвольного переданного ZIP с checkout: необходима прежняя genuine owner/B-Ops authority chain, clean pinned build, exact source/package inventory, независимая установленная приёмка. Controller не создавал synthetic authority/trust/key/catalog, не строил ZIP и не запускал B1. Это документальное уточнение стадий, не новая P0/P1/P2 finding/эксплуатация/воспроизведение.
+
+Второй C node использует тот же verified A SHA b6e774e2… и прямо снимает гипотезу fixed100ms как недоказанную; causal UNKNOWN и отрицательные исходы сохранены. **PR209 a488 DRAFT/I1FAIL** остаётся; PR2105e6 DRAFT/SOURCE-only и Store NO SUBMIT тоже. Genuine C06 authority/catalog нового owner ответа не имеет.
+
+### GitHub delta и адресные ответы
+
+Fresh main **22700f7951199a215ba8154e6f8e1da4374227e0** неизменен. Metadata currentPR139/145/189/191/200/205/207/209/210 показывает прежние draft/head и отсутствие новых updates после02:45:51Z; PR209 qualification выше стала новой потреблённой evidence, хотя его body timestamp раньше commit2db. GET comments с since02:45:51Z по PR139,145,189,191,200,205,207,209,210,211 дал **0 новых адресных comments** во всей проверенной выборке. Это не утверждение об отсутствии любых сообщений вне этих существующих маршрутов. Новых tasks/handoffs в checked A/B/C peer directories, кроме указанного A handoff, не найдено.
+
+Accepted exact737/exact227 CI, merge PR211, reviews/guest/native results не перепроверялись и не запускались. Старые SOURCE/package/guest/CI scoped acceptances не стали installed/manual/Store acceptance. Original12 и старые unresolved primary custodians не обнулены.
+
+### Десять пунктов действующей процедуры для нового delta
+
+Смысл и источник10пунктов — прежний уже прочитанный PROMPT_DOT_ASSISTANT438–459; неизменный канон не перечитывался полностью. Ниже статусы конкретных действий, а не продуктовый PASS. Пункт10 ограничен поздней прямой отменой error registries. Старые10 групп предыдущего полного прохода сохранены без повторных запрещённых действий.
+
+#### A / I1 и адресный handoff
+
+1. Учтены exact primary A06 от02:45:43.123180Z и handoff02:49:59.868923Z с SHA; исходные три selected WorkStart ABORTED и один успешный control не запускались заново. Физический первичный abort, grant/lease at abort и raw same-clock связь остаются UNKNOWN.
+2. Действует прямой запрет новых tests/review/CI/browser/helper и повторов адресных отказов. Handoff — фактический указатель, не новое разрешение или поручение Тестеру; его граница сохранена.
+3. Повторно использованы принятые исходные I1 failures и PR211 success. Три rounded residual104ms получены вычитанием GitHub stdout wall duration из monotonic callback age; это разные часы/события.
+4. Классификация: доказанная методическая оговорка измерения и causal UNKNOWN, а не доказанный100ms таймер/новый product defect/новый tool refusal. Доставка callback и flush stdout не физическое начало отмены.
+5. Последняя REPORT2db/blob a455, checkpoint b19d/priority3506 и read-only держатель проверены; новых own операций/дубля не обнаружено. A HEAD/WIP81 не менялись.
+6. Доступное исправление — собственные I1/role/next проекции получают mixed-clock caveat и existing handoff/ACK NOT_OBSERVED. Popup/scheduler/harness/браузер не меняются; отказанный review/native не повторяется.
+7. Primary b6e774e2… и handoff6bfe27cb… прочитаны/hash verified; C accepted same SHA. Same-request first AbortSignal/physical cause не доказаны, исходная продуктовая граница не закрыта.
+8. Фактический прогресс — устранён недостоверный вывод о фиксированном таймере, известный existing-owner handoff учтён; нет нового продукта/теста/ACK/PASS.
+9. Ответственный A за harness evidence; исходный установленный popup остаётся у Тестера без перехвата. Возврат по существующему разрешённому primary same-clock selected Request↔lease/AbortSignal/arming/transport/teardown; не новый запрос запуска от Контроллера. ACK NOT_OBSERVED только в проверенном author handoff.
+10. Новых реестров/архивов/errors/events нет по прямому запрету владельца; результаты — только существующие собственные product docs.
+
+#### B / installed hardening observation
+
+1. Receipt02:49:27.051482Z SHA6a73e87d… и underlying audit0ab40cc8… описывают API/Worker/Portal, два samples с interval0.25s,21 gap rows=7категорий×3службы. Это существующее host observation, не новая Controller проверка служб.
+2. Read-only source evidence не даёт live/install/security/auth полномочий. Новых systemd/DB/service/resource вызовов от Контроллера нет; R7/R8 и Bfixture/allocation/state запреты сохранены.
+3. Принятые source guardrails остаются SOURCE_PROPOSAL_NOT_CURRENT_LIVE_CONFIG. Текущий короткий installed snapshot не равен прежнему source PASS и не переносит budget/admission на R7/R8.
+4. Классификация: READ_ONLY_HOST_OBSERVATION/HARDENING_GAPS_FOUND; capacity NOT_PROVEN_SHORT_WINDOW, не21 доказанная уязвимость/эксплуатация/production capacity proof. ROOT_OR_UNSET — класс auditor, не отдельное исследование пользователя процесса.
+5. B canonical83WIP/previousrealPG test WIP/оба distinct128OPEN сохранены. Новая B root task не снимает конкретный прежний state-write отказ; неизвестный migration delta не объявлен zero.
+6. Выполнимое исправление — собственные B/C04/B05 boundaries разделяют accepted SOURCE и фактически наблюдаемые units. Никаких лимитов/users/groups/units/guard изменений, ретраев или обхода.
+7. Underlying4889bytes SHA0ab40cc8… совпал с receipt:21rows,2samples,interval0.25,mutationPerformed=false,capacityProof NOT_PROVEN_SHORT_WINDOW. Сам installed hardening/restore/representative workload PASS не достигнут.
+8. Реальный прогресс — свежий ограниченный evidence выявляет7повторяющихся gaps по3units и явное отсутствие installed promotion; новых product/source merges или исправленных units нет.
+9. Existing B/Ops — единственный installed author; C independent consumer. Перед возможной будущей отдельной live операцией нужны scoped authority/window/single author, PG18 независимый backup/recovery/rollback, pinned source-to-installed identity, permission rehearsal и representative workload. Ничего из этого Controller не запускает. C ACK нового B receipt в проверенном C delta NOT_OBSERVED; прежний C04 handoff отдельный.
+10. Новые реестры/архивы ошибок не создаются; запись ограничена действующим checkpoint/REPORT и тем же v10 поручением.
+
+#### C / compiler–B1 provenance и принятие A
+
+1. Подтверждены existing C nodes02:46:57.446257Z и02:50:47.428441Z; exact PR209 a488/body note и B1 main227 identities. PR209 собственный I1 ABORTED+142 остаётся FAIL; старые CI не повторялись.
+2. Source-stage analysis не создаёт genuine issuer/signing/catalog/owner acceptance или merge authority. Запрет build/test/review/CI/browser/helper и fake authority сохранён.
+3. Принятый same-descriptor byte snapshot обеспечивает integrity входа. C уточняет: compiler проверяет format head/tree, B1 prepare/preflight сравнивает с Git HEAD/tree launched checkout. Это разные уже существующие gates.
+4. Классификация: documentary source-authority qualification, не новый P0/P1/P2 или выполненная приёмка. Сам B1 source match не доказывает arbitrary ZIP↔checkout; exact clean source/package inventory всё ещё требуется.
+5. C HEAD/WIP73 сохраняются; новые C records не второй REPORT writer. Main227 и PR209a488/PR2105e6 неизменны; новых адресных GitHub comments в проверенных10PR нет.
+6. Собственная C проекция квалифицирована: compiler receipt digest не publisher approval; clean pinned checkout, exact package, genuine B/Ops authority, B1 и installed acceptance раздельны. Чужой PR/source/authority не изменяются.
+7. Published PR209 body provenance note и C node/hash A receipt согласованы. Это readback existing C source analysis, не новый Controller независимый code review или запуск B1.
+8. Фактический прогресс — C исключил ложный перенос compiler integrity в real source authority и принял mixed-clock caveat A. PR209 остаётся DRAFT/I1FAIL; Store release NOT_ACCEPTED.
+9. Existing C/publisher+B/Ops/owner держат genuine authority/catalog/package chain, A держит I1 causal evidence, Tester только свой original popup. Нового ответа C06 нет; return condition — реальные разрешённые первичные evidence владельцев, без повторов отказов.
+10. По позднему запрету нет нового registry/archive/errors/events; только существующий product report/checkpoint/v10 ответ.
+
+### Собственный фактический результат, независимый readback и прогресс
+
+В коротком existing coordination.lock выполнена **только** собственная documentary правка с exact version/SHA guards, fresh role hash guards и writable-FD check: current A/B/C tasks, I1 causal caveat/handoff scope, B installed-vs-source snapshot, C compiler/B1/issuer qualification, all10 actions×3newgroups и ближайшие внешние остатки. Existing report append сохраняет историю; current checkpoint pointers, original12 string/list и прежние10boundary notes сохранены. Другие root fields checkpoint не менялись (assertion), чужие role/source/test/allocation/units — без writes.
+
+Независимый RDC readback **03:05:02.685407Z** подтвердил:
+- own `FINAL_RESUME_CHECKPOINT.json` — **ee7292e4bd55b8aa3078695fea453e2df6bb7bd4f7179f9032959c1d892c49dd**,1759886bytes;
+- existing `PRIORITY_TASKS.md` sameDOT-20261015-02v10 response — **d63b14926547edd15e7b95d02ed14e6a1418f96c73769fdcdac6b6d146764d1c**,663459bytes;
+- current pointer прежний, original routes12, previous boundarynotes10, new groups3×10, marker1, own launches0, audit_complete=false; coordination lock free after write.
+
+REPORT branch перед этой записью снова **2db5602a**; последний commit author MaksimUnimax/date02:45:51Z, единственный changed pathREPORT. Unknown write не повторён: предыдущий terminal/readback подтверждён до новой записи. Эта запись получает отдельный full-content/blob/parent/branch readback после успешного API результата.
+
+**Объём реального прогресса:** подтверждены3новых primary receipts+underlying, существующая A→Tester передача без ACK,2новыхC qualifications/consumption и отсутствие новых addressedGitHub replies в проверенных10PR. Исправлены own stale role tasks и недостаточно квалифицированные I1/installed/provenance projections. Новых SOURCE merges, tests/reviews/CI, product fixes, установленных promotion или owner/manual acceptance нет.
+
+**Организационные проблемы:** нельзя смешивать часы и физическую causal attribution; count повторяющихся gaps не count доказанных vulnerabilities; accepted source guardrails не installed runtime; compiler bytes/hash integrity не publisher authority; B1 launched checkout pin не arbitraryZIP equality; task switch не отменяет точный старый отказ/OPENreservation. Первичный сбор role projection дал избыточный вывод; перед решением извлечены bounded fields, без нового self-error registry. dot read-only не второй writer.
+
+| Проверенный остаток | Ответственный / ближайший допустимый исход |
+| --- | --- |
+| I1 original same-request cancellation/grant/lease UNKNOWN; Tester ACK NOT_OBSERVED в handoff | Existing A harness evidence; исходный popup у Тестера. Только уже разрешённый новый опубликованный primary/ACK, без Controller run/review/instrumentation. |
+| A04R4 review и Firefox native точные отказы | Existing A/platform supported disposition; не повтор/альтернативный helper/browser. |
+| B04 fixture guard, separate two128OPEN, старые allocation/state отказы | Existing B/security-contract/platform: точный допустимый исход; исходные WIP/резервы сохранены, обход/прокси/повтор запрещены. |
+| B fresh21gap rows/capacity not proven, C04 retention/C05 restore, PG18backup/app rollback/old writer drain | Existing B/Ops/owner: отдельные authority/window/sole author/pinned release/permissions/backup/recovery/representative workload; C independent readback. Controller live/DB не действует. |
+| C06 genuine authority/catalog, exact approved package/privacy/publisher/manual installed | Owner/B-Ops + existing C/publisher; ответа authority нет, synthetic нельзя; Store NOT_READY. |
+| PR209 own I1 FAIL и exact gates; PR210 own fourCI NOT_TRIGGERED/policy gate | Existing C source owner + A originalI1 evidence owner. Успех другого SHA не приёмка этих drafts; Controller не dispatch/rerun/merge. |
+| CWin32/WB original execution/correlation и оставшиеся original12 primary | Existing C/platform и указанные в прежней карте custodians; только исходные разрешённые evidence, без denied reproduction. |
+| R7/R8 fresh admission отсутствует, test NOT_STARTED | Прежняя адресная resource-call refusal сохраняется; историческое memory FAIL не свежий допуск. Никакого повторного измерения/теста/обхода. |
+
+Независимые доступные documentary действия этого delta доведены до проверенного результата. **Audit_complete=false.** Own launches tests/review/CI/browser/helper=**0/0/0/0/0**. Tester/B01/R3, чужой source/tests/WIP, live/DB/security/auth, owner cleanup, старые чаты, PR97/131/134, errors.json/events.jsonl не тронуты. Новых реестров/архивов/расписаний, кредитных/лимитных/авторизационных изменений нет. Продолжение возможно по действительно новому разрешённому первичному исходу, а не повтору закрытых проверок или адресных отказов.
