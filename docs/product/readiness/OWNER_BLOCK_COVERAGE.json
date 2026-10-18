@@ -285,7 +285,7 @@
       "refs": "SA-OBS-01; TR-17; Q1C-HEALTH-27; Health C01..C13/H0..H3; PLAN C04; P8",
       "technical": "Тестер проверяет расписание, ограниченное время/ресурсы, единственность запуска, очистку и независимые auth/no-session lanes. Health не использует личные клиентские сессии и не обходит защиту ИИ.",
       "condition": "Основная приёмка бесплатной беты",
-      "status": "SOURCE 126 + LOCAL_BROWSER 7 PASS; live API read successful with empty/stale observations; full B03 OPEN",
+      "status": "126 SOURCE + 7 LOCAL_BROWSER PASS; deployed Health API disconnected from existing monitor database; full B03 OPEN",
       "ownerResult": "Не проводилось / не сообщён",
       "candidate": "Будет указан перед выдачей",
       "dependencies": "Для выдачи владельцу принят B02. Необходимые зависимости готовятся заранее; пригодные результаты используются дальше без повторения неизменных действий.",
@@ -316,7 +316,7 @@
         "report": "OWNER_BLOCK_ACCEPTANCE.md#b03-health-что-работает-что-сломано-и-что-не-проверено",
         "limitations": [
           "Human Health screen still unverified: existing browser admin/me HTTP401, normal login not submitted",
-          "Authenticated Health target read empty and diagnostics stale; cause of absent eligible observations UNKNOWN",
+          "Product Health reads empty/stale because no read integration with existing monitor DB; monitor rows/status not read",
           "No deployed scoped maintenance switch demonstrated",
           "Full nine authenticated and three guest live matrix remains open"
         ],
@@ -378,7 +378,7 @@
               "retryingExecutionCount": 0
             }
           },
-          "underlyingMissingDataCause": "UNKNOWN; targets are derived from eligible persisted health_runs, not complete configured-target inventory",
+          "underlyingMissingDataCause": "PROVEN_ROUTING_GAP: producer and product Health API use different databases; current rows/health in monitor DB remain UNKNOWN, not queried",
           "newGrantCreated": false,
           "permissionsExpanded": false,
           "humanSessionCreated": false,
@@ -386,7 +386,7 @@
           "directDbAccess": false,
           "healthRunTriggered": false,
           "maintenanceChanged": false,
-          "nextAction": "Designated Health owner must identify a permitted test scope and existing supported producer path with saved observation; human Health UI still requires normal health.read login; scoped maintenance path remains unproven.",
+          "nextAction": "Owner must address source handoff of the narrowly specified Health read-only database wiring from B/Ops to Tester or retain existing B/Ops author; no global database switch, schedule change or unapproved deployment.",
           "evidence": [
             {
               "file": "B03_HEALTH_NATIVE_READ_20261018T0906Z.log",
@@ -400,7 +400,28 @@
               "file": "B03_HEALTH_AUTHORIZED_READBACK_20261018.json",
               "sha256": "cc9a0d85efdeedd67a5acecc8cd404f4e5c26adfa95eba54104308f64b14e545"
             }
-          ]
+          ],
+          "runtimeRoutingCheckpoint": {
+            "observedAt": "2026-10-18T09:21:30.373820+00:00",
+            "sourceHead": "021f0c4ddd0135898dea1b367cb9a63908ad1d36",
+            "freshMain": "22700f7951199a215ba8154e6f8e1da4374227e0",
+            "apiDatabase": "product_control_plane",
+            "producerDatabase": "octoport_monitor_pilot",
+            "notificationsDatabase": "octoport_monitor_pilot",
+            "actualProcessEnvironmentMatchedConfig": true,
+            "installedBundleWiringConfirmed": true,
+            "monitorRowsRead": false,
+            "liveDatabaseConnected": false,
+            "secretsPrinted": false,
+            "sourceChanged": false,
+            "testsRerun": false,
+            "servicesRestarted": false,
+            "sourceOwnerHandoffRequired": true,
+            "sourceOwner": "Existing B/Ops boundary; Tester has no addressed source transfer yet",
+            "proposedFix": "Separate bounded read-only Health database runtime; keep product auth and all write/product repositories on original database; no guard bypass or whole-API database switch",
+            "evidence": "B03_HEALTH_RUNTIME_ROUTING_20261018.json",
+            "evidenceSha256": "09aa6f5352b3c5b320377aeddbe1a0dc2accfd113979395d13763d067e56e739"
+          }
         }
       }
     },
@@ -20622,7 +20643,7 @@
     "readyForManualTests": true,
     "manualHandoffScope": "IMPORT_CORRECTION_AND_B01_SCENARIOS_WITH_PROVIDER_BLOCKERS",
     "currentPreparation": "B03",
-    "currentPreparationStatus": "SOURCE_BROWSER_PASS_LIVE_API_READ_EMPTY_STALE_FULL_BLOCK_OPEN",
+    "currentPreparationStatus": "SOURCE_BROWSER_PASS_HEALTH_READ_MODEL_ROUTING_GAP_CONFIRMED_OPEN",
     "currentPreparationAuthority": "18.10.2026, прямая команда владельца в текущем диалоге: продолжить следующий доступный блок без авторизации — Health или кабинеты. Тестер приступил к B03 в границах проверок без аккаунтов. Это адресное изменение очередности подготовки: B01 остаётся открытым, B02 не начат, ручная приёмка ни одного блока не подменяется. Вход в AI, изменение live/DB, кабинетов, полномочий и расписаний не выполняются. Дополнения: 18.10 08:47:01Z разрешён существующий тестовый Health live scope через штатный доступ; 09:03:42Z отдельно разрешена ровно одна штатная ротация существующего служебного ключа и ограниченные Health reads. Ротация исполнена 09:06:42Z, новые grant и права не создавались. Прежние запреты сохраняются вне этого узкого исключения."
   },
   "runHistory": [
