@@ -953,3 +953,87 @@ R12 и последний R13 guest short-profile test-source review: **REWORK_R
 Ближайшие разрешённые зависимости: A — его R13 source/evidence-retention исход; B — финалы уже идущего exact737 CI и отдельно реальные acceptance/integration gates; C — exact PR210/package/privacy/publisher условия; A/runtime — первичный причинный разбор существующего I1; владелец — genuine C06 authority/catalog; исторические custodians — оставшиеся исходы прежней карты. Контроллер выполняет следующий документальный шаг только по новым фактам этих владельцев.
 
 Собственные новые launches: tests=0, reviews=0, browsers=0, CI=0, helpers=0. Адресный R7/R8 ресурсный отказ не повторялся, не переформулировался и не обходился; свежего допуска нет, старое измерение остаётся историческим. B01/R3/Тестер, live/DB/security, owner cleanup, авторизации/кредиты/расписания, старые чаты, PR97/131/134 и errors.json/events.jsonl не трогались; новых реестров и наступательных воспроизведений нет. **Chrome/Firefox/Opera submission не готово.** REPORT публикуется по тому же URL; результат записи подтверждается отдельным readback.
+
+
+## Продолжение 2026-10-18T01:11:09.368Z — финалы exact737, A R14 и новый документальный ответ C
+
+Предыдущий завершённый checkpoint: 2026-10-18T00:57:52Z, REPORT commit `68be0f44aa844d5124c72fa7bc71c904617f618e`, blob `c0e7b62f09391bb8ab2fc122d3abc6923e0189d0`. Предыдущая запись полностью подтверждена readback; её исход не повторялся. **Тот же аудит; audit_complete=false; исходная карта 12 обязательств, PLAN/WIP, отрицательная история и ограниченные принятые результаты сохранены.**
+
+### Проверка продолжения и единственного автора
+
+Easyscript Online подтверждён штатным RDC list_devices. REPORT/ref, собственные checkpoint и PRIORITY_TASKS до записи точно совпали с предыдущими SHA. В native RDC sessions только защищённый старый PID2354613; существующие codex2 процессы не запускались, не перезапускались и не присваивались Контроллером. Target file/CONTROLLER/coordination fuser не показал holders; собственная запись выполнена с nonblocking coordination.lock и SHA guards. Операции Контроллера в полёте или второго автора собственных целевых документов в проверенном срезе не обнаружено. Core-rule mtimes остались Oct11/14/15; полного повторного чтения канона не было. Source/tests/WIP A/B/C и их документы роли не менялись.
+
+**Уточнение прежней общей формулировки «execution-claims пусты»:** рекурсивная проверка обнаружила два вложенных A claims:
+- `controllers/execution-claims/A/5b243ecb8021bcf8f9f9aad3cf91ce8a4748072f377dcbca9b7a6eafb07f5bc7.json`, mtime 2026-09-30T05:36:53Z;
+- `controllers/execution-claims/A/5e926f2a4a464410740d552d7de43ed3c889ea001011c7a9579015be4d7471bc.json`, mtime 2026-09-30T05:30:38Z.
+
+Они сохраняют историческое RUNNING по старым A tasks, свежая активность **UNKNOWN**. Прежняя фраза не доказывает отсутствия вложенных записей. Это не claims текущего Controller scope; они не снимались, не исправлялись и не использованы как разрешение на новую работу. Существующий A/runtime custodian отвечает за их актуальность.
+
+Новых адресных файлов после cutoff00:57:52Z в проверенных controller-notices и Controller/DOT-named peer-handoffs не найдено; PRIORITY_TASKS до собственного ответа был неизменён. Новые первичные ответы существующих авторов проверены отдельно ниже.
+
+### B — прежний push exact737 завершён 5/5 workflows, 13/13 jobs SUCCESS
+
+Точный кандидат PR211: `73715e906df5db76afe58d015821048cda6417d1`. Рассматривался **первоначальный** push-набор на `controller/ci-b04-consumed-otp-737-20261018`; все run attempt1, exact head737. Уже принятые tests/review не повторялись; прочитаны существующие финальные GitHub outcomes/jobs.
+
+| Workflow | Run | Jobs SUCCESS | Фактический итог |
+|---|---:|---:|---|
+| Documentation | 39084352030 | 1/1 | SUCCESS |
+| Coordination/release safety | 39084352044 | 1/1 | SUCCESS |
+| Extension I1-C1 | 39084352034 | 3/3 | SUCCESS, terminal00:55:14Z |
+| Extension | 39084352144 | 6/6 | SUCCESS, terminal01:04:15Z |
+| Server | 39084352063 | 2/2 | SUCCESS, terminal01:05:07Z |
+
+Итого **5/5 workflows и13/13 jobs SUCCESS**. Server job117547718749 содержит SUCCESS для pnpm lint/typecheck/test/build/test:e2e. Тем самым прежний UNKNOWN clean CI typecheck для exact737 разрешён **в этом CI-окружении**; старый изолированный dependency/typecheck FAIL остаётся историческим фактом. I1 job117547717396 «Installed local API / portal / PostgreSQL acceptance» — SUCCESS в CI fixture; это не установленная owner/live/реальная целевая PG-приёмка. Отдельный PR-triggered Server run39084250180 также завершился SUCCESS01:07:19Z.
+
+Ранее проверенный exact737 независимый verdict **ACCEPT_SOURCE_SCOPED** сохранён; старый exact9bd REQUEST_CHANGES/P2 не удалён и его CI не использован для acceptance737. Новые зелёные CI не объясняют исторические I1 failures других SHA.
+
+Свежий [PR211](https://github.com/MaksimUnimax/runtime-fixtures/pull/211) metadata readback01:09 UTC: **READY/open, draft=false, merged=false**, updated01:09:10Z; head737, base `db531677d1df06029020318342752c76e3a04058`. Этот переход сделан существующим внешним автором, не Контроллером. Main отдельно подтверждён всё ещё db531. Контроллер PR не переводил, не объединял и source не правил. Следующий integration/current-main/protected-merge шаг — существующий B в его scope, после его собственных актуальных gates; CI PASS не выдаётся за owner/auth/HTTP/целевой PG/installed/live acceptance.
+
+**Отдельные дополнительные runs:** GitHub уже содержал ещё один push-набор на том же SHA, branch `controller/ci-b04-consumed-otp-73715e-20261018`, created01:03:04Z. Actor/triggering_actor MaksimUnimax; роль инициатора **UNKNOWN в проверенных серверных evidence**. В последнем срезе Docs39085041140, Safety39085041144 и I139085041145 SUCCESS; Server39085041162 и Extension39085041137 IN_PROGRESS, attempt1. Это не новый запуск Контроллера, и он не нужен для доказательства уже завершённого первоначального5/13 набора. Ничего не dispatch/cancel/rerun. Существующий B как PR/source owner отвечает за provenance/координацию и потребление исходов этих уже существующих runs.
+
+### A — R14 source и выполненный автором installed-synthetic guest/privacy PASS
+
+После R13 REWORK найден R14. Его review завершён00:53:48Z, native receipt сформирован **00:57:20.924621Z**, а A role/currentity опубликован **00:59:47.763854Z**, после cutoff. Это новый подтверждённый здесь результат существующего A, а не новая выполненная в этом продолжении проверка.
+
+Лично прочитаны существующие receipt/verdict/primary и проверены SHA256 в `/root/octoport-control/logs/A/a03-yandex-main30764-0237-20261016/`:
+- `R14_YANDEX26_MAIN30764_GUEST_SHORT_PATH_EXACT_REVIEW_20261018_RESULT.json`: `b66cbe881464e7ea48ab86102087d3773ab2a5cf80fd8c578437cdcaddbb14d9`, **PASS_TEST_SOURCE_SCOPED**;
+- соответствующий `...VERDICT.txt`: `33c0d9268c40545e18ccd6fa78c54050bee47379d6cfc3a4dbbb60ae6ee5b1ff`;
+- `R14_YANDEX26_MAIN30764_NATIVE_INSTALLED_GUEST_RESULT_20261018.json`: `bdafaf2f7e3630315c06b4de75917ff18d420c7a4323d6c86394a0a60cfcdab2`;
+- `INSTALLED_YANDEX26_MAIN30764_GUEST_R14_SHORT_PATH_RESULT_20261018.json`: `e486ec7afe418df05aa11ebc4a469e55a6a565bb6125a50e2bee891205855b0c`.
+
+R14 устранил именно test-source retention gap: stage/profile не удаляются при любом исходе. R13 отрицательный verdict сохранён. Source `458e9bb3375cfce26e0d64e5952fc5d7e0ab8b4c5d87e1ff3c6b74ce2ceead03`, unit `b29ad05a20eabe8dd99ec9a0ca9724f752befb882b4f0f68639cd15bfb6770ef` привязаны existing review.
+
+Native итог **PASS_INSTALLED_SYNTHETIC_GUEST_PRIVACY**: Yandex26.8.1.1111, local-development0.2.37 source `30764c5a9b94cf60026c69f3137fa8ecdcf8fdf5`, исходный exact ZIP SHA256 `91d8a55dfc59e3ccbf1cd626659b53b0c2d8d085fb05e618dae5a8d812bca719`, 41 verified files, exact MV3 worker, settled signed-out guest, support snapshot after click, six privacy flags false/UUID absent. Browser closed, remaining processes0 **по авторскому postflight**, профиль/carrier сохранены для evidence. Source/unit/browser не запускались Контроллером.
+
+Строгие пределы: owner_authenticated=false, credentials_seeded=false; не доказаны preauth opening window, normal login/WorkStart, provider calls, Store-signed package, Windows или zero startup/worker egress. Короткий socket path сильно поддерживает test-owned length hypothesis, но окружение/тайминг также различаются — **единственная исходная причина UNKNOWN**. R11 launch-only и старые R1/R3 failures сохранены.
+
+A currentity00:59:47Z отдельно указывает отличие application-patches.json между tested30764 и main db531; **current-main exact-package byte identity UNKNOWN, не строилась/не сравнивалась**. Acceptance R14 не перенесён на main/Store. Существующий A сохраняет собственный stage и его отдельный consumer-safe lifecycle; более новый exact package и owner/Tester installed auth/Start остаются отдельными владельцами/условиями. Контроллер не чистит и не перехватывает их работу.
+
+### C — установлена причина четырёх отсутствующих CI PR210
+
+Новый C record `C.json#/c06_opera_addons_store0_github_source_task_20261018/native_pr_path_filter_causality_20261018`, issued01:03:39.410739Z, и опубликованный body [PR210](https://github.com/MaksimUnimax/runtime-fixtures/pull/210) прочитаны. Это документальный ответ о причинах, не новый run.
+
+Первые trigger-блоки пяти frozen-main db531 YAML лично сверены с GitHub blobs:
+documentation.yml `03eb10fcb08efc74533cc2ecaceba9d257fb9ee6`;
+server-ci.yml `27d7debb8ee3350fe293fdd91467b2397b419ea8`;
+extension-ci.yml `a542dc2abbf9cb7bc78e3d97d8965c6d0786f165`;
+extension-i1-ci.yml `53c330d19ff2d3f9ab67c69158a479dccbec8576`;
+coordination.yml `4bbd20683ffd92834166dc182576a1be1c4cebea`.
+
+Единственный readiness Markdown PR210 подходит unfiltered Documentation pull_request и не подходит PR path filters остальных четырёх. Уточнённый исход: **Docs39083114079 SUCCESS; другие4 NOT_TRIGGERED из-за path mismatch, не PASS**. Причина отсутствия теперь подтверждена source-документально. Определённый workflow_dispatch не означает запуск или разрешение на него. Контроллер не dispatch/rerun и не меняет пути ради триггера.
+
+PR210 по readback01:06 остаётся draft/unmerged, exact5e6 scoped source PASS; прежние отрицательные reviews сохранены. Действующие integration CI gates, историческая I1 причинность, реальная Opera privacy-policy fit/authority/catalog/package/installed proof остаются отдельными. C06 нового ответа владельца нет; внешние Opera правила не интерпретировались здесь заново.
+
+### Собственные документы, объём прогресса и организационные остатки
+
+Под существующим coordination.lock, SHA guards и одним marker ответа обновлены только собственные поля existing checkpoint и ответ того же DOT-20261015-02 v10; все остальные checkpoint поля/исходная карта и foreign WIP сохранены. Независимый RDC readback:
+- `FINAL_RESUME_CHECKPOINT.json` этого Controller-аудита — SHA256 **`a6be0fc4eeb9c112c8b4349ee672c347b9cfbbe05576bb5b337d22dd95a31cbe`**, 1601115 bytes;
+- `/root/octoport-control/controller-notices/PRIORITY_TASKS.md` — SHA256 **`ef0623dd0d6325cfaa9d9e39d07eae7eefddb69952979a8884719a2d74d583ec`**, 645397 bytes.
+
+Прогресс с прошлого отчёта: закрыты неизвестные финалы трёх прежних push CI exact737 и установлены полные5/13 результаты; подтверждён отдельный PR-Server/READY transition; добавлен ограниченный фактический A R14 installed-synthetic исход; установлена source-причина четырёх NOT_TRIGGERED C CI. Ни один чужой test/review не выполнен заново, исходные12 обязательств не объявлены полностью закрытыми.
+
+Организационные проблемы в проверенном срезе: исторические вложенные RUNNING claims не показывают свежую активность; дополнительный same-SHA push CI набор не имеет установленной роли-инициатора в прочитанных evidence. Их не исправляли чужой мутацией; первая ответственность у соответствующих A/runtime custodian и B PR/source owner. Нет доказательства второго Controller-аудита; префикс CI branch сам по себе не устанавливает роль исполнителя.
+
+Ближайшие внешние зависимости: **B** — собственные актуальные protected integration/current-main gates и исходы/provenance дополнительных уже идущих CI; **A** — сохранённые R14 evidence/own lifecycle и отдельно пакет новее30764; **A/runtime** — физическая причина прежних I1 failures, не закрытая новым green; **владелец/C/уполномоченный publisher** — genuine C06 authority/catalog, exact signed package, Opera privacy-policy disposition и установленная reviewer/owner приёмка; прежние historical custodians — остальные пункты исходной карты.
+
+Own launches tests/review/browser/CI/helper = **0/0/0/0/0**. R7/R8 ресурсный отказ не повторялся, не переформулировался и не обходился; исторические чужие admission поля не дают нового допуска. B01/R3/Тестер, live/DB/security, owner cleanup, source/tests/WIP, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/расписания не трогались. Новых реестров и наступательных воспроизведений нет. **Chrome/Firefox/Opera submission НЕ ГОТОВО; audit_complete=false.** Следующий документальный шаг — только новый фактический исход существующих владельцев; REPORT readback после этой записи обязателен.
