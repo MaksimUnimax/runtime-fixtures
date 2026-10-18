@@ -2192,3 +2192,160 @@ Existingcoordination.lock nonblocking, expectedownSHA/freshrolehash/writableFD0:
 | B R2/worktree/fixture/allocation/state/backup/installed, R7/R8 и historical12 | Прежние existingB/platform/B-Ops/owner/othercustodians; факты/отказы переиспользованы, не повторены/не обойдены. FreshR7admissionнет/testNOTSTARTED. |
 
 Доступный documentary остаток этого прохода доведён до readback. **Audit_complete=false.** Own new tests/review/CI/VM/browser/helper/merge=**0/0/0/0/0/0/0**. Tester/B01/R3, чужиеsource/tests/WIP, ownercleanup, live/DB/security/auth/resources, oldchats, PR97/131/134, errors.json/events.jsonl не тронуты. Новыхреестров/архивов/расписаний/кредитов/покупок/авторизаций/сбросов нет; все адресныеотказы сохраняются.
+
+
+---
+
+## 2026-10-18 04:34:04 UTC — продолжение того же аудита после REPORT 4879f6b8: B06 exact PR212, A package parity и C точный receipt ACK
+
+**audit_complete=false.** Existing PLAN/WIP/map12/принятые evidence сохранены. Этот append — текущая квалификация новых фактов; он уточняет исторические snapshots предыдущих append, не запускает параллельный аудит. Владелец не сообщал нового C06 authority/catalog решения.
+
+### Последний исход, единственный автор и WIP
+
+Штатный RDC: Easyscript ONLINE, прежний protected Controller driver и существующие codex2 daemons только прочитаны как metadata, не запускались/не перехватывались. REPORT исходно и непосредственно перед записью: **4879f6b8297f772d53cc637087f00c0338afc412**, blob **bb460b229dbb4bf14c521d703b4875b03e663ef0**; commit author MaksimUnimax, only REPORT file. Собственные checkpoint SHA08bcbab8…/priority7c869fd0… совпали с прошлым readback. Собственной операции с неизвестным исходом/дубля/второго писателя REPORT/checkpoint в проверенном наборе не обнаружено. Coordination lock свободен, writable target FD0, execution claims empty; перед собственной записью lock nonblocking + expected hashes + повторная FD/version проверка.
+
+WIP metadata (GIT_OPTIONAL_LOCKS=0, без source read/edit/test): A HEAD09e12fab47a5fad36cfbd2edca282362d940af54 /81dirty; B HEAD0885f4995d5da1d8f6dccc1072a97703faa2d24a /83dirty; C HEAD5ca599941881b7682eec5b8317033fafe34e278c /73dirty. Foreign source/tests/role docs/worktrees не менялись. Main22700f7951199a215ba8154e6f8e1da4374227e0; принятые PR211/main227 проверки не повторялись.
+
+**Важное новое currentity:** B сам обновил existing B.json **04:23:01.034094Z**, SHA7083de13e8a56158a44edc862237d203489320e2917ab3a24a8a3a78cd724ab2, effective task B06_STORE_METADATA_CANONICAL_IDENTITY_20261018. Прежний B05/03:54:48 — исторический snapshot, не текущий простой. Controller не записывал B.json и не повторял/обходил прежнюю отказанную task-specific state/allocation/worktree операцию. Новая собственная B06 работа не отменяет прежние конкретные B05/R7R8/A отказы.
+
+### B — PR212 SOURCE/local evidence и состоявшийся исход исходного Server CI
+
+[PR212](https://github.com/MaksimUnimax/runtime-fixtures/pull/212): **DRAFT**, head **e06e64881659419965b013d075be63e35f9bb608**, base main22700f79. Exact files metadata подтверждает ровно два файла: reconciliation.ts +14/-0 и d3s2-store-metadata.test.ts +80/-0. Controller не выполнял новый source review, patch/test edits или merge. Protective scope existing B — сохранение canonical metadata identity; независимый exact review **не принят**, published PR reviews0, author receipt PENDING_NOT_ATTEMPTED. **Не merge-ready.**
+
+Первичный existing author receipt:
+
+`/root/octoport-control/logs/B/B06_STORE_METADATA_IDENTITY_20261018/B06_PR212_EXACT_E06_SOURCE_LOCAL_AND_DRAFT_20261018.json`, **1f4549c0f7ab0634a345e9c76b1e8d026f53031d05e1d3622640ea3a3734c706**, 4847bytes, observed04:23:01Z.
+
+В том же existing directory лично прочитаны готовые logs, без повторного выполнения:
+
+| Existing log | SHA256 | Исход |
+| --- | --- | --- |
+| RED_STORE_IDENTITY_R1.log | 72816916aacfa6dee87a9d76f3a8c211a3c3dd17cd498f901c3271549587e60f | 3 новых FAIL /8 прежних PASS; exit1 |
+| GREEN_STORE_SYNC_R1.log | 595189d4c74a3540046164215a7e5f73559f140ea1f33b4a87e5d56bacd5def9 | 22/22; exit0 |
+| CONTRACT_SYNC_CONSUMER_R1.log | c6b98c79ea0953856d932e30c5b08d06824137b1646e9b45b09e5dc9610fb0ee | 8/8; exit0 |
+
+**Logs не печатают source SHA.** Exacte06 связь заявлена PR и author primary, где зафиксированы log hashes; это authored chain, не независимая attestation source-at-execution. Original full argv/startUTC локальных запусков в прочитанном наборе не подтверждены. Отдельные local tsc/lint/format raw primary **NOT_SEPARATELY_VERIFIED**. При этом новая отдельная GitHub primary evidence exacte06 подтверждает completed SUCCESS steps lint/format:check/typecheck/pnpm test в исходном Server job; это не общий PASS.
+
+**Исходный Server39096629540 attempt1 завершён FAILURE, updated04:26:50Z.** ci-plan117584340655 SUCCESS, server117584368136 FAILURE. Failed step19 **Run complete integration suite** (04:21:50–04:26:43); existing decoded job log лично прочитан read-only. Summary **85filesPASS/1FAIL, 1969testsPASS/1FAIL**. Failed test:
+
+`packages/server/db/src/sync.integration.test.ts > C3E real PostgreSQL sync acceptance > keeps store metadata keyed by its existing entity ID`.
+
+Assertion: ожидался прежний canonical entity ID, получен пустой результат. Exit1; step20 сохранения inputs/results SUCCESS, subsequent migrate/OpenAPI/bridge/build/E2E **SKIPPED**, не PASS. **Root cause и корректный fix UNKNOWN**, existing B должен дать фактическое disposition; Controller не переносит 1969 PASS в integration PASS и не приписывает причину только по assertion.
+
+### Новые уже существовавшие exacte06 push runs и provenance
+
+Inventory GET обнаружил пять новых existing runs, created **04:24:55Z**, branch **controller/ci-b06-store-identity-e06-20261018**, event push, attempt1, actor и triggering_actor **MaksimUnimax**, exacte06. Controller не создавал ref/dispatch/rerun, ничего не запускал/отменял. Account установлен, initiating role/token/route **UNKNOWN**; префикс controller сам по себе не доказывает второго Контроллера. REPORT branch/version/target-writer guards оставались согласованными.
+
+Последний inventory read около04:29UTC; RUNNING не равно PASS:
+
+| Existing run | Workflow | Event / attempt | Фактический исход на срезе |
+| --- | --- | --- | --- |
+| [39097003621](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39097003621) | Server CI | push; attempt 1 | IN_PROGRESS |
+| [39097003633](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39097003633) | Documentation CI | push; attempt 1 | SUCCESS |
+| [39097003613](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39097003613) | Extension CI | push; attempt 1 | IN_PROGRESS |
+| [39097003624](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39097003624) | Coordination and release safety | push; attempt 1 | SUCCESS |
+| [39097003612](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39097003612) | Extension I1-C1 client | push; attempt 1 | FAILURE |
+| [39096629533](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39096629533) | Documentation CI | pull_request; attempt 1 | SUCCESS |
+| [39096629540](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39096629540) | Server CI | pull_request; attempt 1 | FAILURE |
+
+**I1 push39097003612 FAILURE**, updated04:29:14Z: ci-plan117585430314 SUCCESS, client-i1 job117585455152 SUCCESS, Installed local API / portal / PostgreSQL acceptance job117585455162 FAILURE, step14 **Run set +e**. Готовый primary log прочитан; actual installed stage failed bootstrap read: selected_failure_class **ABORTED**, **+142ms** после WorkStart, selected request failed=true/finished=false, runtime error «signed AI bootstrap HTTP request failed before completion», exit1. Предшествующие synthetic cleanup-test намеренные refusal outputs не объявлены причиной actual installed failure. Physical cause **UNKNOWN**; это не физический timer proof и не доказанная causal regression B06. Старое A mixed-clocks ограничение остаётся; новых воспроизведений/тестов не было.
+
+На срезе новые push **Server39097003621 и Extension39097003613 IN_PROGRESS**, терминального исхода тогда нет; дальнейший существующий completed outcome — внешняя зависимость. Docs39097003633 и Coordination39097003624 SUCCESS не дают 5/5. Дополнительный новый PR212 comment since04:18:22 в проверенном GET наборе0. Инициатор existing CI/role-route должен быть квалифицирован existing author/custodian без Controller auth probing/нового запуска.
+
+### A — новый receipt0d87: package parity, не новое выполнение/исправление
+
+Лично прочитан и hash matched existing receipt **04:20:23.059182Z**:
+
+`/root/octoport-control/logs/A/a04-c3e-sequence-main563-20261017/A04_C3E_MAIN227_CLIENT_DEV_ZIP_SOURCE_PARITY_20261018.json`, **0d87b37cfaf2262e75095b3f8b15a98b25bf0fbae9c08e537e6166b9d8b3230c** (3701bytes).
+
+Он связывает current main227 runtime/journal полные bytes с прежним development ZIP **fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89**, compiled application **e052902229e683233aaa527c9b726b3176abcc9108a0bc5c17210bf389429ef9**. Runtime SHAe0284148…/149764bytes, journal2fe16b13…/49176bytes. Это **SOURCE/PACKAGE BYTE PARITY ONLY**, уточнение прежнего marker/entry trace. Controller не открывал ZIP/не сравнивал bytes заново и не повторял старую isolated normalize/compact диагностику.
+
+Existing factual handoffs read/hash matched:
+
+- C: `/root/octoport-control/peer-handoffs/C/A_TO_EXISTING_C_A04_C3E_MAIN227_EXACT_ZIP_SOURCE_RISK_20261018.json`, **c402b8c61723a513849138d4d48ade0a4b1843d3ad6a495e5b7bf628d4cd1a73**.
+- Tester: `/root/octoport-control/peer-handoffs/A/A_TO_EXISTING_TESTER_A04_C3E_MAIN227_EXACT_ZIP_SOURCE_RISK_20261018.json`, **82e38aa8b17cd6b2998953ea387b26d7e63c9b1870158b0401dcc28b01443d46**.
+
+No new runtime/fix/installed/delete/loss/Store PASS. Предыдущий d6a exact isolated-functions negative/его partial argv-start provenance не переоценивались, not fullworker/storage/installedFAIL и не доказанная реальная потеря. A-specific C3E/native/R13 refusals сохранены.
+
+### C — получены два разных доказательства, ACK нового0d87 теперь подтверждён
+
+Предыдущий source-function proof **d6a16a00219f36bd6fecaafabd5623e260e1757b8e0f6fb6ac6aa88b1cb956c2** C принял record **04:18:47.463921Z**. Это один исход.
+
+**Новый0d87 parity receipt** отдельно принят existing C record **04:26:16.545502Z**:
+
+`C.json#/c06_store0_chrome_submission_draft_20261017/A04_main227_store_delete_tombstone_durable_ack_source_risk_consumed_20261018/A04_main227_exact_compiled_dev_zip_source_byte_parity_20261018`.
+
+Record **C06_A04_MAIN227_CI_DEV0237_EXACT_COMPILED_SOURCE_BYTES_DURABILITY_RISK_20261018** явно ссылается на0d87+c402, те же ZIPfbedd/applicatione052/runtime/journal hashes, fullbyte-equality true. [PR210](https://github.com/MaksimUnimax/runtime-fixtures/pull/210) body updated **04:25:12Z** также содержит0d87+c402. Поэтому current **C_ACK0d87 CONFIRMED**, закрыт только этот documentary receipt-delivery остаток. Dated A04:20 ACKNOTOBSERVED не переписан задним числом; новый C исход записан в собственной проекции. **Tester ACK0d87 NOT_OBSERVED** в проверенном наборе, обращения/перехвата роли не было.
+
+Current C level **SOURCE_AND_PACKAGE_BYTE_PARITY_GUEST_DEV_ONLY**; installed_browser_real_store_delete_executed=false, real user loss NOT_PROVEN, genuine Store package NOT_AVAILABLE_OR_ACCEPTED. C06 authority/catalog NO_NEW_OWNER_REPLY, Chrome/Firefox submission **НЕ ГОТОВО**, NOSUBMIT. Previous guest/grouped-Ozon/privacy evidence переиспользованы в прежнем scope, не проверялись заново.
+
+### Десять пунктов действующей процедуры для новых A/B/C
+
+Существующий неизменный канон целиком повторно не перечитывался; действующая ранее прочитанная10-point процедура применена к трём новым группам. Пункт10 исполняется с последующим прямым запретом owner на errors/events/newregistries; собственные productdocs не реестр ошибок.
+
+#### B06 PR212 SOURCE/local/CI и currentity/provenance
+
+1. Исходные три existing log прочитаны с hash/count/exit; новый B primary04:23:01 привязывает их к e06. Полный original argv/start не подтверждён, SHA в логах не напечатан. GitHub exact-SHA run/job/step primary получен read-only.
+2. Новых tests/review/CI/VM/browser/helper/merge, auth/live/DB/security/resources/cleanup нет; конкретные R7/R8, B05, A C3E/native/R13 отказы не отменены и не повторены.
+3. Main227/PR211 accepted evidence и прошлые B05 checks переиспользованы, не повторены. Локальные green22/22 и contract8/8 не заменяют exact integration.
+4. Red3FAIL/8PASS→green22/22 authored chain. Original Server FAILURE на integration 1/1970; failed canonical identity assertion подтверждена, rootcause UNKNOWN. Push I1 ABORTED+142ms не доказывает физическую причину/таймер/B06causality.
+5. REPORT4879/blobbb46, собственные expected hashes/lock/FD/claims/процессы проверены; роли A/B/C продолжают свой WIP. Новый B.json04:23 — запись existing B, не Controller и не обход прежнего task-specific отказа.
+6. Исправлен только собственный documentary current-task B06 и статус CI; source/tests/state/resources и технический productfix Controller не менял. Ближайшая protective обязанность B — квалифицировать existing integration discrepancy, сохранять canonical identity и DRAFT.
+7. Local logs readback/hash и PR two-file exact metadata corroborated; local quality rawoutputs отдельно UNKNOWN, но GitHub lint/format/typecheck/unit steps exacte06 SUCCESS. Это не общий workflow PASS. Собственные doc writes с независимым readback.
+8. Прогресс B06 source/local реальный, независимый review не принят, merge-ready=false. Два pending push Server/Extension не PASS; Docs/Coord SUCCESS, I1 FAILURE. Инициатор-account известен, role/route UNKNOWN, prefixcontroller не доказательство дубля.
+9. Existing B — integration disposition/source review/provenance existing CI; existing A/runtime custodian — I1 cause в прежнем scope. Controller только принимает новые completed evidence; не запускает CI/review/helper и не требует покупки/смены auth.
+10. Только существующие checkpoint/priority/REPORT; originalmap12/oldboundaries/acceptedfacts сохранены. errors/events/newregistry/archive/schedule запрещены.
+
+#### A package parity existing 0d87 receipt
+
+1. Receipt04:20:23 SHA0d87 и два factual handoff SHA c402/82e38 лично read/hash matched. Это existing source/package byte comparison; original comparison argv/start не подтверждён, сравнение не повторялось.
+2. Новых tests/review/CI/VM/browser/helper/merge, auth/live/DB/security/resources/cleanup нет; конкретные R7/R8, B05, A C3E/native/R13 отказы не отменены и не повторены.
+3. Предыдущий d6a exact isolated-function negative и старый accepted devZIPfbedd reused. Новый receipt уточняет full runtime/journal byte parity с applicatione052; не новый diagnostic execution/acceptedfix.
+4. SOURCE_PACKAGE_BYTE_PARITY_ONLY; fullworker/storage/installed/real-user-loss/fix PASS не доказаны. Не переводить старый negative отдельных функций в установленный продуктовый FAIL.
+5. Собственные locks/CAS/single-writer, A81 WIP/HEAD сохранены; source/tests/package/profile и хэнд-оффы других авторов не менялись.
+6. В собственной Aprojection package relationship уточнена, уровни source/package/runtime/installed сохранены. Protective durable ACK/no unresolved loss остаются требованиями source/runtime владельца.
+7. Primary SHA0d87 и handoffs c402/82e38 readback; C поздний consumer проверен отдельно по exact SHA, Tester ACK не найден в проверенном наборе. Full source/ZIP execution не повторялось.
+8. Реальный прогресс — точная привязка существующего main source к прежнему devZIP; fixes/runtime/installed/Store новых PASS нет.
+9. Existing A/original runtime owner — поддержанный exact fix/review disposition; original Tester scope остаётся у Тестера. Новый Tester ACK0d87 NOT_OBSERVED, Controller не контактирует/не запускает.
+10. Только существующие собственные docs; original12/старые evidence/refusal не сброшены, новых реестров/архивов нет.
+
+#### C distinct d6a/0d87 release consumption
+
+1. C previousd6a consumer04:18:47 и new0d87 consumer04:26:16 прочитаны как отдельные existing records. PR210body04:25:12 подтверждает0d87+c402. Не подменять receipt hash временем соседней записи.
+2. Новых tests/review/CI/VM/browser/helper/merge, auth/live/DB/security/resources/cleanup нет; конкретные R7/R8, B05, A C3E/native/R13 отказы не отменены и не повторены.
+3. Old guest/browser/package accepted evidence reused без repeat. d6a isolated source-function proof принят C ранее;0d87 fullbyte parity принят позднее, эти outcomes не тождественны.
+4. ConsumerACK0d87 CONFIRMED, installed/delete/loss/productfix/Store acceptance не следует. Release remains PREPARING/NOT_READY; authority/catalog noownerreply.
+5. C73WIP/HEAD/PR210head5e6 сохранены, foreign C.json/body не редактировались; own current projection под locks/CAS.
+6. Закрыт только собственный устаревший documentary C_ACK_NOT_OBSERVED для exact0d87; dated A primary ACKNOTOBSERVED оставлен как исторический факт. Tester ACK не закрыт.
+7. Точные A primary/handoff/ZIP/application hashes Cconsumer совпадают; existing GitHub body и role record взаимно corroborate. Никакой сборки/запуска/переоценки продукта.
+8. Документальная передача доказательства C завершена. Дефект не исправлен, installed/full multi-store/privacy/Store PASS не создан.
+9. Existing C/owner/B-Ops/publisher — genuine authority/catalog, accepted exact artifact/privacy/reviewer/manual gates; A/runtime owner и Tester остаются в своих scopes. Только новый существующий primary снимает соответствующий hold.
+10. Существующие productdocs only; никакого errors/events/newregistry/archive/нового task/helper/schedule. Audit_complete=false, карта12/принятые проверки сохранены.
+
+### Собственные документы: конкретный результат и независимый readback
+
+Под existing coordination.lock после target FD/version guards **04:32:19Z** обновлены только owncurrentrecord существующего checkpoint и own sameDOT02v10 reply в existing PRIORITY_TASKS.md. Originalmapstring/12обязательств/10oldboundaries и rootfields вне current Controller record сохранены assertions; старые acceptedfacts не сброшены. Bcurrent projection обоснованно обновлена на новый B06, старые B05refusals/evidence сохранены, foreign B.json untouched. Уточнены A package scope, C exacthash ACK и CI actual failures/UNKNOWN.
+
+Отдельный RDC readback **04:32:38.730198Z**:
+
+- `FINAL_RESUME_CHECKPOINT.json` — **afc3768ecb2559b090611170e6fb1569035d27bc9020fff33fef528715681520**, 1945016bytes.
+- Existing `PRIORITY_TASKS.md` — **769d5c7434049d8034468e0c4c0f271a20b16f9f732d82ea4709bd9ff3945001**, 680495bytes.
+- Marker CONTROLLER_EXISTING_AUDIT_20261018T0430_B06_PARITY_C_ACK1; 3groups×10; original12; delta projections match; lockfreeafter; auditfalse. Checkpoint legacy readback field written PENDING at write-time; **фактический независимый readback завершён указанным отдельным вызовом**, подтверждён этим REPORT.
+
+REPORT перед записью freshref4879f6b8 совпал; blobCAS/skip-ci используется, затем независимый fullcontent/blob/parent/ref readback. Неизвестные исходы записей не повторялись.
+
+**Объём прогресса:** квалифицированы B06 primary/local evidence и точный отрицательный Server integration outcome; выявлены новые existing native runs и точный I1 failure; current Bselfupdate и Cnew0d87 consumption подтверждены. Product fixes/new execution/installed/Store acceptance0.
+
+**Организационные проблемы:** authored log-to-SHA chain не независимый source-at-execution proof; local green не полный integration; completed quality steps не workflowPASS; synthetic negative не primary actual failure; Controller-prefixedCI ref не role provenance/secondwriterproof; устаревший Bstate snapshot не текущий простой; получениеd6a не получение0d87. Каждое уточнение выполнено в ownscope без зависимости от external blocked gates.
+
+| Проверенный открытый исход | Ответственный / ближайший разрешённый документальный шаг |
+| --- | --- |
+| PR212 integration canonical-store assertion FAILURE; rootcause/fix UNKNOWN; independent exact review notaccepted, DRAFT | Existing B/source custodian предоставляет disposition existingfailure и accepted supportedreview evidence; Controller не исправляет source, не запускает review/test/CI/merge и не обходит B05refusal. |
+| Push Server39097003621/Extension39097003613 IN_PROGRESS на срезе; Docs/Coord SUCCESS, I1 FAILURE | Actual existing CI initiator/B публикует уже состоявшийся terminal result/job evidence; только read-only later outcome, без rerun/cancel/dispatch. |
+| CI accountMaksimUnimax установлен, initiatingrole/route UNKNOWN | Existing B/actual CI custodian даёт existing provenance record; no auth/token/profile probe. Prefixcontroller не доказывает duplicateController. |
+| I1selectedABORTED+142ms: physical cause UNKNOWN, no timer/B06causality proof | Existing A/runtime/evidence custodian в прежнем scope; Controller только новый permitted existingprimary, без воспроизведения/запуска/повтораотказов. |
+| A package parity/source negative есть; accepted corrected fullworker/storage/installed durability outcome отсутствует, Tester ACK0d87NOTOBSERVED | Existing A/original runtime owner/sole original Tester в прежних scopes; no Controller sourcefix/test/contact/takeover. Полный old diagnostic argv/start UNKNOWN остаётся прежним documentary provenance остатком. |
+| C_ACK0d87 закрыт только как получение; exact genuine authority/catalog/privacy/approved artifact/manual/Store открыты | Owner/B-Ops/existing C/publisher. C06 нового ответа владельца нет, Chrome/Firefox НЕ ГОТОВО/NOSUBMIT; source/package PASS не installed/manual. |
+| PR205native/integration, PR207HOLD, B04/B05backup/installed/review/admission/state/allocation, R7/R8 и historicalmap12 | Прежние существующие авторы/platform/B-Ops/owner; принятые результаты и конкретные отказы сохранены. Нет свежего R7admission, testNOTSTARTED; ни отказ, ни unknownoperation не повторены/обойдены. |
+
+Доступные документальные действия этого прохода доведены до фактической записи/readback. **audit_complete=false**. Controller tests/review/CI/VM/browser/helper/merge = **0/0/0/0/0/0/0**. Tester/B01/R3, чужие source/tests/WIP, live/DB/security/auth/resources/ownercleanup, oldchats, PR97/131/134, errors.json/events.jsonl не тронуты. Новых реестров/архивов/расписаний/кредитов/покупок/авторизаций/сбросов нет.
