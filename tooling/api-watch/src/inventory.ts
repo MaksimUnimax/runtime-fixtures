@@ -434,8 +434,9 @@ function responseFingerprint(
 }
 
 function normalizedPath(path: string): string {
-  const withSlash = path.startsWith("/") ? path : `/${path}`;
-  return withSlash.replace(/\/{2,}/g, "/") || "/";
+  // OpenAPI paths are appended verbatim to their server URL. A repeated slash
+  // denotes an empty segment and may identify a different endpoint.
+  return path.startsWith("/") ? path : `/${path}`;
 }
 
 function stringList(value: unknown): string[] {
