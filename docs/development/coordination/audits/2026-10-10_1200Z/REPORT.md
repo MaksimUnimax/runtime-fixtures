@@ -1037,3 +1037,56 @@ PR210 по readback01:06 остаётся draft/unmerged, exact5e6 scoped source
 Ближайшие внешние зависимости: **B** — собственные актуальные protected integration/current-main gates и исходы/provenance дополнительных уже идущих CI; **A** — сохранённые R14 evidence/own lifecycle и отдельно пакет новее30764; **A/runtime** — физическая причина прежних I1 failures, не закрытая новым green; **владелец/C/уполномоченный publisher** — genuine C06 authority/catalog, exact signed package, Opera privacy-policy disposition и установленная reviewer/owner приёмка; прежние historical custodians — остальные пункты исходной карты.
 
 Own launches tests/review/browser/CI/helper = **0/0/0/0/0**. R7/R8 ресурсный отказ не повторялся, не переформулировался и не обходился; исторические чужие admission поля не дают нового допуска. B01/R3/Тестер, live/DB/security, owner cleanup, source/tests/WIP, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/расписания не трогались. Новых реестров и наступательных воспроизведений нет. **Chrome/Firefox/Opera submission НЕ ГОТОВО; audit_complete=false.** Следующий документальный шаг — только новый фактический исход существующих владельцев; REPORT readback после этой записи обязателен.
+
+
+## Продолжение 2026-10-18T01:22:57.046Z — два дополнительных CI exact737 и подтверждённый ответ B
+
+Предыдущий завершённый отчёт: `c43bbb70b95c61b857d9486279a9371b0762d438`, blob `d62c3da17709ac710ef15bc572fbb8f5bd63b0c1`; его readback и существующий checkpoint совпали. Это тот же незавершённый аудит, не параллельный проход. **audit_complete=false; PLAN/WIP, исходная карта12 и прежние bounded acceptance сохранены.** Проверялись только два указанных existing runs, их provenance и связанные existing B integration replies; A/C и неизменный канон заново не оценивались.
+
+### Последний исход, locks и scope
+
+Штатный RDC list_devices подтвердил Easyscript Online, device `9dab7ad2-9d63-43a3-b106-a5840d79ccc1`. Перед записью собственные файлы совпали с прежними SHA a6be0fc4/ef0623dd; fuser целевых файлов, Controller и coordination locks пуст, nonblocking coordination.lock свободен. Native RDC session — только защищённый старый PID2354613; существующие codex2 процессы не трогались. Нового собственного запуска/записи в полёте, другого автора Controller target files или новых changed claims в проверенном scope не найдено. Исторические A claims не снимались и не переоценивались.
+
+После cutoff01:11:18Z новых файлов в проверенных controller-notices/Controller-DOT peer-handoff scopes не найдено; PRIORITY_TASKS до собственного ответа совпал с прошлым readback. Чужие source/tests/WIP и B.json не изменялись. Неизвестный исход прошлой записи не повторялся.
+
+### Финалы двух уже существовавших дополнительных runs
+
+Оба run принадлежат exact head `73715e906df5db76afe58d015821048cda6417d1`, branch `controller/ci-b04-consumed-otp-73715e-20261018`, created2026-10-18T01:03:04Z, attempt1:
+
+| Workflow | Run | Новый terminal outcome |
+|---|---:|---|
+| Extension CI | [39085041137](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39085041137) | completed / SUCCESS, updated01:15:11Z |
+| Server CI | [39085041162](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39085041162) | completed / SUCCESS, updated01:19:55Z |
+
+Первый Server readback ещё был IN_PROGRESS. Затем его существующие jobs117549701671 и117549724657 показали completed/success, последний completed01:19:54Z; отдельный run readback подтвердил SUCCESS01:19:55Z. Не выполнялись dispatch, restart, cancellation или повтор теста.
+
+С учётом трёх ранее принятых SUCCESS у второго redundant-набора теперь **5/5 workflows SUCCESS**; это только завершение его фактического учёта. Повторный набор не засчитан дополнительной продуктовой приёмкой. Основанием exact737 acceptance остаются прежние первоначальные5/5 workflows и13/13 jobs и существующий ACCEPT_SOURCE_SCOPED; они заново не запускались и целиком не проверялись. Чужой текущий CI PASS не закрывает исторические I1 physical-cause UNKNOWN на других SHA или owner/installed/live acceptance.
+
+### Инициатор и решение существующего B
+
+Прочитан `B.json#/B04_CONSUMED_OTP_REPLAY_VERIFICATION_20261018/exact737_first_native5` и указанный существующий primary:
+`/root/octoport-control/logs/B/B04_CONSUMED_OTP_REPLAY_20261018/B04_PR211_EXACT737_FIRST_NATIVE5_ACCEPTED_DUPLICATE_RECONCILIATION_20261018.json`,
+SHA256 **`9c228c707c257aa98c500048100ef4eebda287d7f3c1105126aca9df81e251ff`**, 4929 bytes, лично совпал. Соответствующий append-only ответ существующего B опубликован и в body [PR211](https://github.com/MaksimUnimax/runtime-fixtures/pull/211).
+
+Receipt recorded01:11:08.170550Z — за10 секунд до финального readback предыдущего продолжения, но после его последнего B-role среза. Новым здесь является подтверждение ранее неучтённого ответа, не новая якобы выполненная сейчас операция.
+
+B прямо атрибутирует себе второй non-force CI-only ref push и объясняет причину: preflight проверял предполагаемое имя новой ветки/PR checks, но не перечислил все уже существовавшие push runs неизменного exact SHA. Поэтому повторно создал набор01:03. Исправление в существующем ответе B: получен полный head_sha inventory, для acceptance использован первоначальный полный5/13 набор, дальнейшие CI не запускались, существовавшие дубли не отменялись. Отрицательное операционное evidence сохранено.
+
+Таким образом прежнее **UNKNOWN роли-инициатора** заменено на **existing B, author-attributed собственным receipt и совпадающей PR publication**. GitHub actor/triggering_actor — MaksimUnimax. Это авторская атрибуция с первичным документом, а не вывод по префиксу `controller/**`; префикс не доказывает второго Контроллера. Доказательств параллельного Controller-аудита не найдено.
+
+B текущий документальный статус: **EXACT737 SOURCE_AND_NATIVE5_PR_CHECKS_ACCEPTED / PROTECTED_MERGE_PENDING**. Его receipt сохраняет canonical B HEAD0885f499 и83 dirty, два source-файла, reservation128MiB OPEN, no owner/live/DB scope. Эти WIP/ресурсные поля приняты как existing author record; измерения, cleanup и повторные проверки чужого дерева не выполнялись.
+
+Свежий GitHub срез около01:20 UTC: PR211 **READY/open/draft=false/merged=false**, head737/base db531, mergeable_state clean; main отдельно **`db531677d1df06029020318342752c76e3a04058`**. Merge commit фактически не заявлен. Clean metadata не доказывает выполнения всех protected gates. Ответ B задаёт следующий шаг в его scope: свежая current-main/protection/expected-head проверка, нормальная разрешённая integration, затем только при фактически состоявшемся merge — postmerge evidence. Контроллер не merge, не запускает postmerge CI, не вмешивается в source или обслуживание владельца.
+
+### Собственный документальный результат и остатки
+
+Под существующим coordination.lock с SHA guards и проверкой отсутствия holders обновлены только existing собственный `latest_author_delta`/B observation и ответ того же DOT-20261015-02 v10. В них закрыто устаревшее ожидание двух CI и UNKNOWN provenance; первоначальные результаты и отрицательная история сохранены. Независимый RDC readback подтвердил:
+- `FINAL_RESUME_CHECKPOINT.json` этого Controller-аудита — SHA256 **`e959042fa85b4beafd592eac7aa5bfbf749df248587e339764cc82aed837ea63`**, 1613838 bytes;
+- `/root/octoport-control/controller-notices/PRIORITY_TASKS.md` — SHA256 **`ccb926c05444ee3ce6e61399c62fb0565afb7061a86ae38c709617b8f6e5f794`**, 648948 bytes.
+Current progress pointer/original map сохранены, marker нового собственного ответа один, audit_complete=false.
+
+Объём нового прогресса: подтверждены два terminal CI и существующий ответ B с причиной/исправлением дубля; дальнейший integration статус уточнён, merge не состоялся в проверенном срезе. Организационная проблема — подтверждённый B пропуск полного exact-SHA run inventory перед повторной CI-ref публикацией; документальная correction есть, дополнительного запуска или внешнего вмешательства Контроллер не сделал. Ожидание дополнительного CI больше не внешняя зависимость.
+
+**Точные ближайшие зависимости:** existing **B** — его protected current-main/expected-head integration и фактический postmerge исход при настоящем merge; **A/runtime** — физические причины прежних I1 failures; **A** — сохранённый R14 evidence/собственный lifecycle и отдельно более новый exact package; **владелец/C/уполномоченный publisher** — genuine C06 authority/catalog, точный пакет, Opera policy applicability и установленная reviewer/owner приёмка; остальные historical custodians — прежние обязательства карты12. C06 нового решения владельца нет. Chrome/Firefox/Opera submission **НЕ ГОТОВО**.
+
+Own launches tests/review/browser/CI/helper=**0/0/0/0/0**; отмен/новых merge/source-правок нет. Ресурсный R7/R8 отказ не повторялся, не переформулировался и не обходился, нового допуска нет. Tester/B01/R3, live/DB/security, owner cleanup, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/расписания не трогались; новых реестров и эксплуатаций/воспроизведений обхода доступа нет. Доступный ограниченный документальный шаг завершён; следующее изменение требует нового фактического результата существующих владельцев. Результат этой записи REPORT подтверждается отдельным readback.
