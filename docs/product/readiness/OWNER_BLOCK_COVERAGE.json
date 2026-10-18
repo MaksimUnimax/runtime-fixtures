@@ -322,7 +322,28 @@
           "Missing local zod link repaired by offline frozen pnpm install",
           "Direct Playwright CLI omitted pnpm NODE_PATH; corrected standard bin shim"
         ],
-        "evidenceRoot": "/root/octoport-control/controllers/audits/EXTENSION-LIVE-CONTINUE-20261007T090339Z"
+        "evidenceRoot": "/root/octoport-control/controllers/audits/EXTENSION-LIVE-CONTINUE-20261007T090339Z",
+        "liveAccessCheckpoint": {
+          "date": "2026-10-18",
+          "ownerPermissionAt": "2026-10-18T08:47:01Z",
+          "liveHealthUrl": "https://app.octoport.ru/admin/health",
+          "humanSessionRead": "GET /admin/api/control-plane/v1/admin/me HTTP401",
+          "httpBody": "NOT_CAPTURED",
+          "exactAuthCause": "UNKNOWN",
+          "healthScreen": "EMPTY_NO_VISIBLE_CONTROLS",
+          "normalLogin": "AVAILABLE_EMAIL_OTP_NOT_SUBMITTED",
+          "browserTab": 16,
+          "lastOperation": "B03_HEALTH_LOGIN_READY_20261018 OBSERVED",
+          "operationsInFlight": false,
+          "maintenanceToggle": "NOT_REACHED_HEALTH_UI_READ_ONLY",
+          "machineRead": "NOT_STARTED_STANDARD_CLIENT_REQUIRES_ROTATION",
+          "machineNextOperation": "POST /v1/admin/maintenance-credential/rotate then GET /v1/admin/health/targets?limit=1",
+          "rotationOwnerDecision": "REQUIRED_PRIOR_NO_AUTH_CHANGES_RESTRICTION_RETAINED",
+          "credentialsChanged": false,
+          "sourceChanged": false,
+          "newTestsRun": false,
+          "ownerAccepted": false
+        }
       }
     },
     {
@@ -20543,7 +20564,7 @@
     "readyForManualTests": true,
     "manualHandoffScope": "IMPORT_CORRECTION_AND_B01_SCENARIOS_WITH_PROVIDER_BLOCKERS",
     "currentPreparation": "B03",
-    "currentPreparationStatus": "NO_ACCOUNT_SOURCE_AND_LOCAL_BROWSER_PASS_SCOPED_FULL_BLOCK_OPEN",
+    "currentPreparationStatus": "SOURCE_AND_LOCAL_BROWSER_PASS_SCOPED_LIVE_HEALTH401_NORMAL_ACCESS_NEEDED",
     "currentPreparationAuthority": "18.10.2026, прямая команда владельца в текущем диалоге: продолжить следующий доступный блок без авторизации — Health или кабинеты. Тестер приступил к B03 в границах проверок без аккаунтов. Это адресное изменение очередности подготовки: B01 остаётся открытым, B02 не начат, ручная приёмка ни одного блока не подменяется. Вход в AI, изменение live/DB, кабинетов, полномочий и расписаний не выполняются."
   },
   "runHistory": [
