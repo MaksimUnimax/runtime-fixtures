@@ -2077,3 +2077,118 @@ Fresh REPORTref04:04:42 по-прежнему **55284ec6**; baselineauthorMaksim
 | CWin32/WB originalprimary и historical12custodians; R7/R8freshadmissionнет/testNOTSTARTED | Прежняя карта/точныевладельцы; только genuinelynew permitted existingevidence, без deniedmeasurement/reproduction/proxy. |
 
 Доступный документальный остаток этого прохода доведён до проверенного результата. **Audit_complete=false.** Own tests/review/CI/browser/helper/merge=**0/0/0/0/0/0**. Tester/B01/R3, чужиеsource/tests/WIP, live/DB/security/auth/resources, ownercleanup, старыечаты, PR97/131/134, errors.json/events.jsonl не тронуты. Новых реестров/архивов/расписаний/покупок/авторизаций/кредитов/сбросов нет; адресныеотказы не повторялись/не обходились.
+
+
+## Новые A/C evidence того же документального аудита — 2026-10-18T04:17:42.324Z
+
+Продолжен завершённый **REPORT d31a9eb9eba1bb172ece4ec3aee228ef6c49e3d1**, blob **d21aaf7e8bdbdc27029036fb35dac2450e7dabf1**. Последний terminal/readback, отсутствие собственной операции/дубля, текущие версии и единственный автор собственных документов проверены. PLAN, map12, принятые результаты, previous10boundarynotes и чужой WIP сохранены. Нового аудита/исполнителя нет; dot остаётся read-only. Неизменный канон и принятые проверки не перечитывались/не запускались.
+
+### Preflight и область прохода
+
+Easyscript Online через штатный list_devices; device9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Native sessions содержат прежний protecteddriver2354613; он и existingcodex2/app-server не использовались/не менялись. Own checkpoint **b3a05dd3…** и priority **10bdd3bc…** совпали с предыдущим readback. Coordination.lock свободен, execution-claims пуст, targetFDholders0; неизвестного исхода собственной записи/конкурирующего собственного writer не найдено.
+
+Read-only GIT_OPTIONAL_LOCKS=0 metadata: A09e12fab…/81dirty, B0885f499…/83dirty, C5ca59994…/73dirty; прежние canonicalbranches, no fetch/reset/checkout/clean/source/test edits. Main **22700f7951199a215ba8154e6f8e1da4374227e0**. RoleB hash **f15ba9e6…**, updated03:54:48, прежний: новых Bфактов в этом проходе не запрашивали; R2 refusal и остальные accepted/held границы переиспользованы.
+
+CurrentA task04:08:21 — publicPR205 source-review currentity с C3E riskOPEN; currentC04:07:46 — existing releaseconsumer/static package trace. Controller scope — только чтение существующих A/C evidence, завершённых stdout и documentary correction своих файлов. No new tests/review/CI/VM/browser/helper/merge/exploitation/reproduction/live/DB/security/auth/resources.
+
+### A — лично проверены receipt и исходные terminal outputs
+
+Primary `/root/octoport-control/logs/A/a04-c3e-sequence-main563-20261017/A04_C3E_MAIN227_VALID_NORMALIZE_COMPACT_CROSSACCOUNT_LOSS_SOURCE_20261018.json`, issued **2026-10-18T04:05:47.021739Z**, **5179bytes**, SHA256 **d6a16a00219f36bd6fecaafabd5623e260e1757b8e0f6fb6ac6aa88b1cb956c2** лично прочитан/hash matched.
+
+Для проверки происхождения Controller через штатный **RDC read_process_output** прочитал **уже сохранённые исходные завершённые outputs**, а не запускал команды заново:
+
+| Existing PID | Terminal outcome | Содержимое / предел |
+| --- | --- | --- |
+| 2820104 | exit0, runtime0.09s | Scoped exact-source-function synthetic negative, no network/files/git mutations; fullworker/storage/installed не проверены |
+| 2820402 | exit0, runtime0.10s | Exactnormalize/compact valid-structure corroboration, unresolved RETRY_WAIT loss; fullstorage/worker/installed не проверены |
+
+Оба source stdout согласованы с receipt: в одной существующей синтетической arrangement exact mainnormalize принимает исходную и результирующую структуры, а compact теряет незавершённую **RETRY_WAIT** запись другой syntheticaccount. **Успешные assertions/status PASS_SOURCE_FUNCTION… подтверждают наличие отрицательного поведения в изолированной границе; это НЕ product PASS.** Actual storage adapter/write, полный worker eventpath, текущий installed popup и реальные user/provider данные не выполнялись/не измерены. Это **не full current-main runtime/storage/installed FAIL** и не evidence реальной потери пользовательских данных/эксплуатации. Exact product fix и независимый review этого нового functiondiagnostic **не приняты**.
+
+**Полный первоначальный argv и точное время старта исходных вызовов в прочитанном наборе отсутствуют — UNKNOWN.** Receipt содержит частичное описание метода, но Controller не выдаёт его за исходный полный request и не выводит startUTC из PID/mtime/runtime/issuetime. Хранитель недостающего originalrequest/provenance — existing A/исходный transportcustodian. Повторный запуск ради восстановления запрещён, старые чаты не открывались.
+
+Прежний localR12 full-flownegative сохраняет свой localR8 journal scope. Новый d6a proof добавляет **отдельную current-main exact-function negative evidence**, не ретроактивный full-flow replay R12 и не acceptedlocalR8fix. Отказанные C3E independentreview/R13 STORE_SAVE preparation не повторялись/не дробились/не перенаправлялись.
+
+Защитные требования остаются: durableintent/подтверждённый результат до положительного deleteACK, fail-closed или честный ограниченный UNKNOWN при недоказанном commit, no-loss unresolved операций при capacity, account/entity fences; без скрытых credential restore и авто-повторов unknown/503 внешних операций. Техническое исправление в этом проходе не выполнялось и scope исходного runtimeowner/Тестера не перехватывался.
+
+Existing sourcehand-off hashes проверены без создания новых задач:
+- A→C `A_TO_EXISTING_C_A04_C3E_MAIN227_CROSSACCOUNT_EVICTION_VALID_JOURNAL_20261018.json` — **8efd3e12357ccf77f7c40bb4143cde4538ec9a648cd0c6a014e083936a0e77d4**,1421bytes;
+- A→existingTester `A_TO_EXISTING_TESTER_A04_C3E_MAIN227_CROSSACCOUNT_EVICTION_VALID_JOURNAL_20261018.json` — **c93c62748ae01a6b2a5ea0b6f958638d7e514231b54ba90281cfb2cf42796d2a**,1429bytes.
+
+ACKNOT_OBSERVED — поле проверенного Arecord, не глобальный вывод. Эти factual указатели не создают нового Tester/C поручения или разрешения на запуск.
+
+### PR205 — публикация уже принятого SOURCE-review
+
+Лично прочитан [PR205](https://github.com/MaksimUnimax/runtime-fixtures/pull/205), updated **04:07:04Z**: head **d0a1a8272a90e52fe0944755276a72145b71a98b**, OPEN/DRAFT, mergedfalse. Новая секция публикует **ранее принятый** current-main227 SOURCE review03:18:59, receipt **e4baee282535f47e0ba7ba1b96975333a096589ddcd31078f16b955ed9805ec7**, verdict **e23784f89a16f02788ccb71b363386443d7da2bd0714852cbc83420730516a19**. Source review/test results не перечитывались и не запускались заново.
+
+Body change — **не новыйreview, неCI, неmerge**. Existingbody по-прежнему оставляет native5workflows/13jobs и integrationOPEN; намерение/branch/capability не фактический run. Последний принятый CIinventory сохраняет свой прежний as-of; нового inventory/job/provenance запроса здесь нет и старые данные не названы свежими. Никакого dispatch/rerun/merge или иной роли Controller в sourcepublication не было. PR207HOLD/I1causalUNKNOWN/групповойOzonpackage negative сохранены без повтора.
+
+### C — потребление source risk и static package entry trace
+
+Прочитан existing C.json record **04:05:08.847939Z** `c06_store0_chrome_submission_draft_20261017/A04_main227_store_delete_tombstone_durable_ack_source_risk_consumed_20261018`. Он потребляет **прежний A receipt a89178f3…/handoff2ec9a223…**, включает delete/journal durability source risk в release-readiness и явно оставляет currentoriginalinstalledscenarioUNKNOWN_NOT_TESTED/realuserlossNOT_PROVEN. Это factual C consumer, не новая sourcefix/test/управляющаякоманда.
+
+Child record **04:07:46.399918Z** `actual_A_dev_zip_service_worker_entry_reachability_20261018` фиксирует **static exact-package trace**:
+- тот же developmentZIP **fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89**;
+- manifest workerentry `service_worker_entry.js`, SHA256 **895daa2b1e11c2129e5d075bf738313fd5a689e1a0b30ab4a11dcbbb075866fc**;
+- entry imports application, member SHA256 **e052902229e683233aaa527c9b726b3176abcc9108a0bc5c17210bf389429ef9**; riskpatterns присутствуют по existing C static readback.
+
+Это уточняет **наличие/достижимость кода**, не исполнение насыщенного handler/journal, не actualstorage/worker/installed reproduction. Controller прочитал Crecord, не повторял ZIP parsing/source execution/browser; полная исходная Creaderargv не выдумана. New d6a exact-function proof появился позднее consumer04:05:08 и был отправлен A новым handoff; checkedCrecord ссылается на a891, поэтому его нельзя объявлять ACK нового d6a. ACK остаётся только фактически наблюдаемым, не сгенерированным Controller.
+
+Release disposition C: affecteddelete/sync **NOT_ACCEPTED_AS_SAFE_FULL_MULTI_STORE_RELEASE_BEHAVIOR** при текущем уровне доказательства. Не заявлять fixed/safe behavior без соответствующего accepted exactartifact; без скрытого урезания ownerapprovedlisting/productscope. PreviousgroupedOzonnegative/guestprivacyPASSl evels/PR210body qualifiers сохранены и не проверялись заново. Genuine C06authority/catalog **NO_NEW_OWNER_REPLY**, installedmanual/privacy/Store gatesOPEN, NOSUBMIT.
+
+### Адресные documentary остатки и десять пунктов процедуры
+
+GET newcomments since **04:06:15Z** по существующим A/C PR139/205/207/209/210 — **0** в проверенной выборке. PR210 exact5e6/DRAFT/bodyupdated03:56:53 без нового изменения, newsource/package tests не запускались. Checked peerA/C новые файлы только два A d6a factualhandoffs выше; Bpeer/старые результаты не запрашивались повторно. Приоритетное поручение sameDOT02v10, originalmap12/pointer/acceptedfacts сохранены.
+
+Действующая ранее прочитанная10-point процедура применена к двум новым A/C группам. Поздний direct запрет errors/events/newregistries действует для пункта10; статусы documentary действия не productPASS.
+
+#### A — normalize/compact negative и публикация прежнего PR205 review
+
+1. Receipt04:05:47.021739Z/d6a16a00… лично прочитан; existing terminaloutputs2820104/2820402 retrieved read-only, exit0 runtime0.09/0.10s. Полные первоначальные argv/startUTC отсутствуют в прочитанном наборе — UNKNOWN, не восстановлены поPID/mtime.
+2. Действуют запреты новых tests/review/CI/VM/browser/helper/merge и originalC3E/R13 refusal. Existing A evidence, original runtime-owner и Tester ownscope не переданы Контроллеру; sourcehandoffs не новый task/grant.
+3. Прежний staticA a891…/localR12 negative переиспользован. Новый proof уточняет exact currentnormalize/compact boundary; fullworker/storage/installed proof отсутствует. LocalR8 не acceptedfix.
+4. PASS_SOURCE_FUNCTION_DIAGNOSTIC — успешное подтверждение отрицательного поведения отдельных функций, не productPASS. Зафиксирована потеря unresolvedRETRY_WAIT инойsyntheticaccount при validnormalization, не fullruntime FAIL/реальнаяпотеряданных/эксплуатация.
+5. OwnREPORTd31/blobd21a + checkpointb3a05/priority10bdd matched priorreadback; lockfree/writable0/claims empty/owninflightnone; A81/B83/C73 WIP сохранены.
+6. Собственная проекция повышена со staticrisk до verified isolated-source-function negative, с явным пределом доказательства. Защитное требование — durableack/failclosed/no unresolvedloss/accountentityfences; техническийfix/reproducer не выполнялся.
+7. Receipt и исходные завершённые outputs согласованы; PIDoutput read не повторный запуск. NewhandoffSHA8efd3e12…/c93c6274… совпали; ACKNOT_OBSERVED только вArecord. Полная исходная argv/start provenance UNKNOWN.
+8. Фактический прогресс: отрицательная current source-function граница теперь подтверждена оригинальными outputs. PR205body04:07:04 только опубликовал уже принятый SOURCEreview; headd0a1/DRAFT/unmerged и nativegateOPEN, без новогоreview/CI/merge.
+9. Existing A/исходный runtimeowner держат исправление и supported exact reviewdisposition; Controller ждёт новый разрешённый existingprimary/consumerACK. Нужны exact corrected/fullboundary proofs по прежним gates, без Controller launch/retry/обхода.
+10. Только существующие productcheckpoint/REPORT/v10ответ; errors/events/newregistry/archive запрещены. Original12/previous10notes и принятые результаты сохранены.
+
+#### C — release consumer и static exact-package entry trace
+
+1. C record04:05:08.847939Z потребляет A a891…; child04:07:46.399918Z даёт statictrace acceptedZIP serviceworker entry→application. Это existing C.json evidence, не новый Controller code review/test/ZIP inspection.
+2. Existing C releaseconsumer/A source/originalTester остаются в своих scopes; no newruntime/browser/VM/CI/merge/authority/catalog operation. C06новогоownerответа нет; всеspecificrefusals сохранены.
+3. Прежние guest/groupedOzonnegative/package receipts reused без reread/replay. Sourcepattern A a891… принят C; новыйd6a…proof отдельно handed, егоACKне выдуман. Firstrelease scope не урезан автоматически.
+4. Static reachability в exactdevelopmentZIP подтверждает наличие/entryconnection, не срабатывание saturatedhandler/storage/fullworker. Releaseassessment NOT_ACCEPTEDSAFEFULLMULTISTORE, не measuredinstalledFAIL.
+5. Current C73WIP/main227/oldZIP/profiles не менялись; ownlocks/singlewriter guards проверены. Brolehash/update03:54unchanged; B R2/journal/ACL/mount и PR205/207 acceptedchecks не повторялись.
+6. Собственная Cprojection фиксирует consumerqualification и statictrace с сохранением product/manualUNKNOWN. Запрет заявлять safe/fixedbehavior без соответствующего exactartifact, без unapprovedlisting/source scope changes.
+7. C.json trace refs/shas read: entry895daa2b…/applicatione0529022…, ZIPfbedd0b7…. Controller не открывал архив и не воспроизводил execution. PR205newpublicbody SOURCEonly квалифицирован, не новаяCIevidence.
+8. Реальный прогресс C — риск включён в release-readiness и sourceentryreachability уточнена. Не исправление, не installed/native/StorePASS. Старый groupednegative/guest scope остаётся прежним.
+9. Existing C/owner/B-Ops/publisher genuine authority/catalog/exactapprovedartifact/privacy; original Tester manualscope untouched. Existing A supportedfix/review and consumerhandoffACK возвращаются только по новому факту; no new actions ordered here.
+10. No newregistry/archive/errors/events/schedule/auth/resources/credits; существующие собственные docs only, карта12/oldboundaries retained.
+
+### Собственная запись, readback и прогресс
+
+Existingcoordination.lock nonblocking, expectedownSHA/freshrolehash/writableFD0: обновлены **только** собственные A/C projections, уровень exact-function negative, originalargv/startUNKNOWN, Cconsumer/statictrace и publicPR205source-review scope. Original12/list/mapstring/previous10notes сохранены; Bпроекция **побайтно по JSON значению не менялась**; rootfields вне owncurrentrecord не менялись (assertions). Чужие role/source/tests/WIP/resources/auth/live/DB не менялись.
+
+Независимый RDC readback **04:16:08.122993Z**:
+- own `FINAL_RESUME_CHECKPOINT.json` — **08bcbab85285ce96083865de59e74f4503fd1bcbb3c52c2346de41eada1ac54e**,1923451bytes;
+- existing `PRIORITY_TASKS.md` sameDOT02v10 reply — **7c869fd0bc5293f5f571f39679fe452b64c609ad1b7f7075b263a8ad9d1c3416**,678332bytes;
+- previouspointer/original12/old10notes,2newgroups×10, marker1, fullruntimeNOTTESTED/argvUNKNOWN/Bunchanged/launches0/audit_completefalse. Lock свободен после записи.
+
+Перед REPORTappend freshref **d31a9eb9**; authorMaksimUnimax/date04:06:15Z/onlyREPORTfile подтверждены. Используется existingblobCAS; после записи — отдельный full-content/blob/parent/refreadback. Unknownwrite не повторялась.
+
+**Объём прогресса:** новый Areceipt и originalcompletedoutputcorroboration уточняют current isolatedfunction negative; C releaseassessment/staticentrytrace и publicPR205 prior-reviewreadback подтверждены. **Новых исправлений, fullruntime/storage/installed проверок, CI/review/VM/helper/merge и product/manual/StorePASS0.**
+
+**Организационные проблемы:** diagnosticPASS подтверждаетnegative, не correctness; validnormalize не no-loss; staticreachability не installedexecution; publicbodyedit неrun; partialmethod не fulloriginalargv/start. Consumerстарогоreceipt нельзя объявить ACK нового. Missingruntimeproof/одна dependency не отменили доступные documentary действия, но и не создали право повторить refusedoperation.
+
+| Проверенный внешний остаток | Ответственный / ближайший разрешённый документальный исход |
+| --- | --- |
+| Exactfunction negative есть; corrected/fullworker/storage/installed no-loss/durableACK acceptance отсутствует | Existing A/source evidence и исходный runtimeowner; supportedexactreview/source scope. Принять только новый разрешённый primary, без Controllerfix/test/VM/R13retry. |
+| Полныйoriginalargv/startUTC PID2820104/2820402 UNKNOWN | Existing A/originaltransportcustodian предоставляет существующий originalrequest если он доступен; не реконструкция/новыйrun/oldchat search. |
+| ACK newd6a handoffs NOT_OBSERVED вArecord, Cconsumerпокаa891/statictrace | Existing recipients в прежних scopes; Controller ждёт фактический documentaryack/qualifiednewprimary, не создаёт новую задачу. |
+| PR205 publicSOURCEonly/native5/integrationOPEN; PR207/I1 previousholds | Existing A/actualexistingCIinitiator/runtimeowner, по прежним returnconditions; не новаяCIпроверка/dispatch/merge в этом проходе. |
+| C exactapprovedartifact/authority/catalog/privacy/owner-manual/Store | Owner/B-Ops/existingC/publisher; TesteroriginalpopuponlyTester. PreviousgroupedOzonnegative/guestscopeсохранены, C06noanswer/NOSUBMIT. |
+| B R2/worktree/fixture/allocation/state/backup/installed, R7/R8 и historical12 | Прежние existingB/platform/B-Ops/owner/othercustodians; факты/отказы переиспользованы, не повторены/не обойдены. FreshR7admissionнет/testNOTSTARTED. |
+
+Доступный documentary остаток этого прохода доведён до readback. **Audit_complete=false.** Own new tests/review/CI/VM/browser/helper/merge=**0/0/0/0/0/0/0**. Tester/B01/R3, чужиеsource/tests/WIP, ownercleanup, live/DB/security/auth/resources, oldchats, PR97/131/134, errors.json/events.jsonl не тронуты. Новыхреестров/архивов/расписаний/кредитов/покупок/авторизаций/сбросов нет; все адресныеотказы сохраняются.
