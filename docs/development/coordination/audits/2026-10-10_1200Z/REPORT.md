@@ -839,3 +839,54 @@ R7/R8 resource call **не повторён и не обойдён**. Измер
 Доступные документальные подшаги этого серверного среза выполнены. Точные внешние остатки: existing A — исход своего текущего R6 review и causal primary I1; existing C — terminal уже существующего Extension run и сохранённые PR209/C06 ворота; B — поддержанный disposition существующего reviewer отказа; владелец/issuer — ответ о существующих genuine exact-source C06 authority/catalog; существующий Tester — original-popup B01/R3 приёмка; первичные custodians — прежние Win32/WB/transport/config/original-review-bytes доказательства из карты12. По R7/R8 адресный отказ не повторять и не обходить, свежего допуска нет. Никакой новый общий STOP, фоновой запуск, расписание, новый реестр или новая задача вместо прежних обязательств не создаются.
 
 **Публикация:** Chrome и Firefox AMO остаются PREPARING / НЕ ГОТОВО К SUBMIT. Source-review PASS и draft PR209 этого статуса не меняют. Полный аудит остаётся открытым.
+
+
+## Исходы прежних A R6 / PR209 Extension и новый связанный delta
+
+**UTC:** 2026-10-18T00:08:40.521Z. Продолжение того же аудита с checkpoint23:49:21 UTC / `ddf2b10c`; audit_complete=false.
+
+### Последний исход, единственный автор и scope
+
+Перед работой report ref/blob совпали с checkpoint: `ddf2b10ca3fc8868c7bfc62dc6900f10e7b0b73d` / `a68045336b4086343c4723c23838a168de4ec5eb`, 136,474 символа. Серверные checkpoint SHA4ecb5928 и priority SHA96bbf78a также совпали. Незавершённой собственной записи нет; её повтор не выполнялся. Easyscript подтверждён Online штатным списком; успешное чтение выполнено на прежнем device9dab7ad2. Existing coordination/resource locks и целевые файлы не имели fuser holders; текущих JSON execution-claims не найдено. Protected driverPID2354613 оставлен. Правила не изменились по servermtime; полного повторного чтения правил, истории и принятых проверок не было.
+
+### A — исход уже начатого R6 установлен; последующее source-only продолжение автора
+
+| Существующий этап | Первичный итог | Время UTC и уровень |
+|---|---|---|
+| R6 review PID2774998 | NOT_ACCEPTED, exit124, timeout=true, verdict=null | Завершён17.10 в23:46:37.235492Z, то есть **до** предыдущего checkpoint. Это ранее состоявшийся исход, подтверждённый сейчас, не новый запуск после23:49. Browser не запускался. |
+| R7B exact R6 source review | REWORK_REQUIRED, exit0 | Завершён17.10 в23:56:58.752328Z существующим A/codex2. Исход R6 не переименован в PASS; отрицательные R4/R5 сохранены. |
+| R8 revised test-source review | PASS_TEST_SOURCE_SCOPED, exit0 | Завершён18.10 в00:04:07.276898Z. Receipt прямо указывает native_test_run=false и product_source_unchanged=true. Это review исходника диагностического теста, не Yandex/installed/owner PASS. |
+
+Первичные файлы находятся в прежнем каталоге `/root/octoport-control/logs/A/a03-yandex-main30764-0237-20261016/`:
+- R6_YANDEX26_EMPTY_DBUS_INDEPENDENT_REVIEW_RESULT_20261017.json — SHA256 `6108e22404e50ee165f75f1f91ec4a080d00b47e10559e196cba0efae1f19c4d`.
+- R7B_YANDEX26_R6_EXACT_LIMITED_INDEPENDENT_REVIEW_20261017_RESULT.json — `33c02899015d789585e8b030699e7304a54f581bad94afadb3e3f9c212d26014`.
+- R8_YANDEX26_EXACT_INDEPENDENT_SOURCE_REVIEW_20261018_RESULT.json — `d69f91ce8d01876c611ccd53878fe84f227fd14b9b0b7f8560ae2a8c1000f784`.
+- R8_YANDEX26_EXACT_INDEPENDENT_SOURCE_REVIEW_20261018_VERDICT.txt — `e1380359faf0b5f705679e757cd0afc2b51e5980d2042749cecfeefa74518234`.
+- Reviewed R8 source — `40ab66847fd109fcf3f86c10504066ffa082276c23d29516351c03d56bfcb7a9`; finite unit spec — `223b016af3e211dc5e621458ab70dc9594217ac26a550f89f182f9e8e610bda0`.
+
+Receipt/verdict прочитаны, перечисленные новые hashes лично совпали с файлами. R8 reviewer сохраняет остаточный риск конкурентной замены OUTPUT после initial exclusive creation; source-only verdict не доказывает zero startup egress, установленное расширение, marketplace или production. Эти оговорки не скрыты. Контроллер не выполнял review, не запускал исходник/unit/browser/helper и не выдавал новое разрешение на такой запуск. Existing A сохраняет исходники и любой отдельно допускаемый следующий шаг.
+
+### C — Extension CI terminal SUCCESS, общий PR209 gate отрицательный
+
+[Extension run39079780630](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39079780630) exact a488 завершён **17.10.2026 23:50:25Z, SUCCESS, attempt1**. GitHub Jobs API подтвердил **6/6 SUCCESS**: ci-plan117534194230; common core117534220772; WB nodes117534220793; WB browsers117534220815; Ozon117534220855; native Chromium fixture117534220856. Последний WB-browser job завершён23:50:24Z.
+
+[PR209](https://github.com/MaksimUnimax/runtime-fixtures/pull/209) остаётся **OPEN/DRAFT, unmerged**, head `a488d66e36a8641fb508055af9d73246655b192b`, base `db531677d1df06029020318342752c76e3a04058`. Все три найденных native runs terminal: Documentation39079780687 SUCCESS, Extension39079780630 SUCCESS, I1-C1[39079780640](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39079780640) FAILURE/attempt1. Existing job117534216188 и выбранный ABORTED+142ms сохраняются; причина UNKNOWN. Server CI и Coordination в проверенном наборе не запускались; отсутствующие runs не получают PASS. **5/5 exact successes нет; NOT_READY_FOR_MAIN сохранён.** Dispatch/rerun не выполнялись.
+
+Existing C уже записал terminal outcome в свой native_terminal_delta_20261018 и PR body; Controller не создавал повторный handoff. Новый существующий C→A документ от00:00:37.279502Z сообщает bounded static consumer observation: installed I1 использовал development composition, поэтому store-only authority snapshot branch не выполнялся. Это наблюдение C, также опубликованное в PR209 body, не диагноз физического abort и не waiver failed I1.
+
+Hash прежнего handoff `peer-handoffs/A/C_TO_A_PR208_MAINDB531_INSTALLED_I1_ABORT164_20261017.json` лично подтверждён: `00662b4af1e4b2b1745b381a551d28845139e2a05f1e7707b2c3c6ddb92c66f3`. Его новые source-exclusion/PR209 записи сохраняют recipient_ack=NOT_OBSERVED; получение A не выдумывается. Причинный runtime scope остаётся у существующих A/Tester; новую команду Тестеру не передавали.
+
+### Собственный документальный результат и readback
+
+В том же DOT-20261015-02 v10 и существующем controller_owner_server_resume_20261017 прежние in-flight состояния заменены подтверждёнными исходами. Изменены только собственные поля/ответ Контроллера. Перед записью под controllers/coordination.lock повторно совпали оба исходных SHA; применены hash guards, duplicate marker guard и проверка current_progress_record. Все остальные поля checkpoint, original current_required_outcomes_report, PLAN/WIP и карта12 сохранены. Чужие role/source/tests не записывались.
+
+Запись и отдельный последующий server readback подтвердили:
+- FINAL_RESUME_CHECKPOINT.json: SHA256 `3137f2e519035b53f0aaf3a16c057122c6981ebbc340a538762031cc787b88fd`, 1,560,589 байт.
+- PRIORITY_TASKS.md: SHA256 `76ae5c1533cfded4b363228e2562b3e37b9e6192789f8ef95558b3711f792a93`, 636,869 байт.
+- Новая квитанция одна; current_progress_record прежний; audit_complete=false; Controller reviews/tests/browser/CI/helper launches=0.
+
+**Объём:** установлены исходы двух прежних операций; дополнительно проверены уже выполненное автором R7B/R8 продолжение и существующий C source-exclusion handoff. Два устаревших ожидания исхода устранены в собственной проекции, но **ни один из12 продуктовых/исторических остатков этим не закрыт**. Прогресс source A и CI C принадлежит существующим авторам, не Контроллеру. Нового полного или параллельного аудита нет.
+
+Доступный связанный документальный остаток этого среза обработан. Следующие зависимости: собственный native/browser результат A при его отдельно действующих воротах; original same-request I1 initiator/AbortSignal/grant evidence уA/runtime owner; недостающие exact CI и принятый I1 результат для возможной интеграции PR209 существующимC; прежний reviewer disposition уB; genuine exact-source C06 authority/catalog отвладельца/issuer и original-popup acceptance существующегоТестера; исторические исходные transport/config/review-bytes упрежнихcustodians. Последние неизменённые записи не перепроверялись без новых evidence.
+
+R7/R8 ресурсный вызов не повторялся и не переформулировался; свежего допуска нет. C06 нового ответа владельца нет. Source/tests/WIP, Тестер/B01/R3, live/DB/security, cleanup, старые чаты, PR97/131/134, errors/events не трогались; новых эксплуатаций/воспроизведений обхода доступа нет. **Chrome/Firefox submission: PREPARING / НЕ ГОТОВО К SUBMIT.** Следующее изменение отчёта — только по новому разрешённому факту; новая запись требует отдельного GitHub readback.
