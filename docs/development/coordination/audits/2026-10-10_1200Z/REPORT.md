@@ -1810,3 +1810,135 @@ REPORT перед публикацией снова **5345bdd8**, authorMaksimUn
 | R7/R8 fresh admission отсутствует/testNOT_STARTED | Exact resource refusal остаётся; историческое memoryFAIL не новый допуск, измерение/тест/обход не повторялись. |
 
 Доступный documentary остаток этого прохода доведён до проверенного результата. **Audit_complete=false.** Own tests/review/CI/browser/helper/merge=**0/0/0/0/0/0**. Live/DB/security/auth/units/packages, Tester/B01/R3, чужие source/tests/WIP, ownercleanup, старыечаты, PR97/131/134, errors.json/events.jsonl не тронуты. Новых реестров/архивов/расписаний/покупок/авторизаций/кредитов/сбросов нет. Возврат по действительно новому разрешённому primary владельца, без имитации progress или повтора адресного отказа.
+
+
+## Новый доступный delta того же аудита A/B/C — 2026-10-18T03:52:37.409Z
+
+Продолжен завершённый **REPORT18334b2611f199756f120f59d4559f13c912f93e**, blob **9f3d08accc512b89b2b7cc4c44816a315af6fa99**. Последний terminal/readback, собственные версии и отсутствие дубля/операции в полёте проверены до новых действий. Original PLAN, map12, прежние accepted evidence,10boundarynotes и WIP сохранены. Нового параллельного аудита/исполнителя нет; dot read-only, автор REPORT/checkpoint один. Неизменный канон не перечитывался целиком.
+
+### Последний исход и scope записи
+
+Easyscript Online подтверждён штатным list_devices; device9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Native sessions — прежний protected driver2354613, оставлен без изменений. Existing codex2/app-server не запускался/не использовался. Own checkpoint7e524dba…/prioritya05c86cc… совпали с предыдущим независимым readback; coordination.lock свободен, execution-claims пуст; writable holders0, одинO_RDONLY PID2339387 допустим, не второй писатель. Own очередной операции/неизвестного исхода не обнаружено.
+
+A canonical09e12fab…/81dirty; B0885f499…/83dirty; C5ca59994…/73dirty, branches прежние. Read-only gitmetadata GIT_OPTIONAL_LOCKS=0; без fetch/checkout/reset/clean/source/test changes. Current main **22700f7951199a215ba8154e6f8e1da4374227e0**. Свежие author tasks: A publicPR207HOLD03:46:46.818718Z; B independentmountprerequisite03:45:38.735339Z; C currentrelease/VMnode03:34:32.575979Z. Иные live/DB/resource/security/auth действия Controller не предпринимал.
+
+### PR205 — фактический inventory и неизвестный исход предполагаемого запроса
+
+**Read-only GitHub observation03:45:58.217Z:** exact **d0a1a8272a90e52fe0944755276a72145b71a98b** имеет только три старых workflows17Oct:
+
+| Run | Workflow | Event / created UTC | Итог в inventory |
+| --- | --- | --- | --- |
+| 39045752154 | Extension CI | pull_request /2026-10-17T15:35:58Z | completed/success |
+| 39045752125 | Documentation CI | pull_request /2026-10-17T15:35:58Z | completed/success |
+| 39045752132 | Extension I1-C1 client | pull_request /2026-10-17T15:35:58Z | completed/success |
+
+Новых exact-head runs в этой коллекции нет; repository `event=workflow_dispatch, created>=2026-10-18T03:00:00Z` — **total_count0**. Job logs/accepted tests/старыеCI не перечитывались и не выполнялись. Это актуальная проверка адресного неопределённого CI исхода, не новый запуск.
+
+Existing handoff03:26:38 `/root/octoport-control/peer-handoffs/C/A_TO_EXISTING_C_PR205_MAIN227_INDEPENDENT_COMPAT_PASS_NATIVE5_OPEN_20261018.json` hash **c2d4633daa0eeb10e857b389f427bdb687379c88129df37db98efe151b72ac60** не изменился; его уже прочитанное содержание переиспользовано. A current record хранит `NOT_CONFIRMED_OR_STARTED` и C ACK `NOT_OBSERVED` в проверенном scope. После03:26:39 в checked A04 PR205 evidence directory новых CI/dispatch/native/request receipts не обнаружено.
+
+A documented **planned ref** `work/a04-result-recovery-ownkeys-main453-20261017` известен из существующего factual capability record. Он **не доказательство фактически отправленного нового запроса**. Если такой запрос где-либо существовал, его actual acknowledgement/correlation, фактические targetSHA/ref и новые runIDs **UNKNOWN/NOT_OBSERVED** в проверенных источниках. Source candidateSHA известен; новые runs не изготавливаются из старых. Возможность workflow_dispatch в YAML, запрос намерения/план и SOURCE verdict не исполненный CI. Не объявлять RUNNING/PASS, не запускать dispatch/retry/alternate credentials/controllerCIref ради исправления учёта. Existing A/инициатор настоящего существующего запроса сохраняет обязанность предъявить его фактический исход.
+
+PR205 остаётся DRAFT exactd0a1, новый current-main source compatibility PASS03:18:59 принят на source уровне и не повторялся. Mandatory native5/13 и integration OPEN. PR205 GitHub body/metadata updated17Oct16:51:27 не содержит нового фактического запуска.
+
+### A — backup guard уже включён, PR207 public HOLD стал явным
+
+Лично прочитан новый A receipt03:35:56.473537Z `/root/octoport-control/logs/A/A04_BACKUP_QUEUED_MAIN227_PR144_SOURCE_AND_CI_CURRENTITY_20261018.json`, SHA256 **cc31c29f86f3262de3468a546231dd63be38d6c38f15ddc7efc17cd5666a3a1f**,4110bytes. Он фиксирует включение старой backup queue activation fence **через отдельный PR144**, sourcehead262adc7371d60b82028e5c382ec5e7f63e36b1c9 → mergeb68d4b688e0f6b145e79db48cee3676406b1501d, accepted previously. Original local08d777f3… сам не ancestor main; функциональность subsumed отдельно, старый WIP сохранён. **Отдельно перепубликовывать/сливать08d не требуется.** Данные о pinned existing db531 source/package CI взяты из нового A primary, jobs/tests Controller не перепроверял. Это не новая main227native5/ownerLIVE backup/import acceptance; исторический PR87I1cancelled и точный archive-copy/platform отказ остаются отдельно.
+
+Ещё более поздний new A record03:46:46.818718Z и published [PR207](https://github.com/MaksimUnimax/runtime-fixtures/pull/207) body updated03:45:20Z лично подтверждены: **publicHOLD original143563f8 даже после green nativeCI**. Известный отрицательный outcome/егоSHA5197cbfc… сохранён; local successor6f8d54fc… unreviewed после exactR4 refusal37646023…. Новый current factual header явно ограничивает старую формулировку «native5 alone затем merge», оставленную в историческом appendix. Это **документальная правка existing A**, не новая reproduction/test/source/review. Controller её не редактировал и не перехватывал. Existing PR207 source/review/native holds и originalI1 physical cause UNKNOWN не сняты.
+
+### B — только новые receipts03:42/03:45, без повторения старых backup/PG18 проверок
+
+Лично прочитан existing B primary03:42:12.248638Z `/root/octoport-control/logs/B/B04_CONSUMED_OTP_REAL_PG_20261018/B01_B04_MAIN227_DISPOSABLE_PG18_MIGRATION_AND_ACL_READONLY_20261018.json`, SHA256 **32d204c17eb16bf169dcfe9df6b900db3102368db211f04d4120682ce9afb7ad**,4115bytes. Scope — **собственный B disposable PG**, не Tester/B01/R3/owner-test/live. Controller читает готовый JSON, не SQL/catalog/DB/ACL или source: исходный B сам ранее выполнил bounded read-only observation.
+
+Факт на момент B receipt: текущий own-disposable migration journal **50/50 SHA256/epoch** соответствует main227; четыре transfer-fence functions имеют ожидаемые type signatures, **0PUBLIC EXECUTE**. Первый B comparator ошибочно учитывал argument names; исправленное сравнение типов дало scopedPASS. Это локальная expectation ошибка автора observation, не доказанная productACL/security ошибка. **Каким запуском/когда применены migrations, actual priorR2 delta/causation UNKNOWN**. Новый current-state primary уточняет прежнее «совсем неизвестен текущий journal», но не превращает historical causal UNKNOWN в ноль sideeffects и не принимает wrong-codeOTP regression. Fixture reset guard,0newOTPassertions, WIP и два128OPEN сохраняются. MainPR211SOURCE+exactCI reused без повтора.
+
+Новый B primary03:45:38.735339Z `/root/octoport-control/logs/B/B05_OWNER_TEST_HARDENING_CURRENTITY_20261018/B05_NO_SEPARATE_MOUNT_CURRENTITY_20261018.json`, SHA256 **b783d74bbf7503952ddbe17e0e580cc41214f63d4f56991766e4caba7d446c96**,3544bytes: existing findmnt/lsblk observation автора — **0separate durable data mounts,0networkbackup mounts**, единственный durable data filesystemrootext4. Это конкретный **NO_AVAILABLE_VERIFIED_INDEPENDENT_MOUNT_FOR_HOST_BACKUP_RUNNER** при существующем `verify_independent_mounts`, не свежее Controller resource admission/измерение R7/R8. Source guard не ослаблять, PGDATA/mount/source не менять.
+
+Receipt прямо не включает remote/object-store inventory/credentials/backup creation/restore. Поэтому не доказано отсутствие **любого** legitimate existing protected destination/approvedstrategy за пределами этой hostmount ветви. Owner12Oct no-new-media-purchase решение сохранено: новый носитель не покупать/не требовать; B/Ops/owner ищет допустимую существующую защищённую стратегию и доказывает currentbackup/isolatedrestore/app rollback в своей точной разрешённой границе, C consumer. Docker-contained tool path остаётся отдельным условным путём, не разрешением обойти deniedmaintenancepreflight. **Старые03:26:31 и03:29:10 receipts не перечитывались/проверки не повторялись**; их уже принятые оговорки сохранены. B own-source admission/fixture/allocation/state/review exact refusals остаются.
+
+### C — PACKAGE_PLUS_OFFLINE_VM и отдельно опубликованные дополнительные claims
+
+Лично прочитан C primary03:34:32.575979Z `/root/octoport-control/logs/C/C06_WB_ACTUAL_PACKAGED_VM_OPERATION_DENIAL_20261018.json`, SHA256 **f177b78ab56449646b158caf24e00e1a4f415be0d239e403e27aaaa18a81c80c**,4011bytes. Same accepted local-development ZIP **fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89**, archived WB bundle **86546b9dea3b74e2ab60035c273330066287a5d59de117f4cfa8579edd6b5c4d**. Existing C offlineVM: four selected direct-PII aliases дали **OPERATION_BLOCKED**; один разрешённый request object сформирован, **не исполнялся**. No fetch/network/credentials/browser, package unchanged. Terminal secondattempt exit0 после supplied standard URL primitives.
+
+Первое `URLSearchParams` missing было **localrunner environment issue**, не product bug или platform denial. OPERATION_BLOCKED — ожидаемый product guard result, не safety tool отказ. Controller VM/ZIP/tests не повторял и не воспроизводил обход. Уровень **PACKAGE_PLUS_OFFLINE_VM_EXECUTION_NOT_INSTALLED_OR_LIVE_AUTH**: не реальные171 business operations, не token/account entitlement, не полноценная privacy policy/installed/manual/Store acceptance.
+
+**Дополнительный new published delta**, найденный при read-only [PR210](https://github.com/MaksimUnimax/runtime-fixtures/pull/210) body updated03:45:09Z: existing C сообщает ещё exhaustive resolution187aliases →171accepted/16blocked/0surprises,152standard+19customer_safe; один per-store personal-disabled consumer отказал PERSONAL_DATA_DISABLED до credential/transport(0reads/0fetch). Эти данные учтены **как published C author claims**, отдельно от лично hash-verified f177…JSON. Отдельного matchingextraJSON в narrowcheckedroot C06_WB inventory не обнаружено; это не утверждение, что его нигде нет, и не основание повторятьVM. Publishedbody qualification прочитана, нового independent Controller execution/code review нет.
+
+Privacy labelstandard не означает «не private», один personal-data guard не доказывает полную redaction/consent/recipientdisclosure. Официальные policy interpretation/site-deployed facts не перепроверялись/не выдумывались. Genuine authority/catalog/signing/targetHTTPS/exactsignedpackage/normalownerStart→result→Finish **NOT_PROVEN**, Opera policy fitUNKNOWN, NO SUBMIT. PR2105e6DRAFT, PR209a488DRAFT/I1FAIL и compiler/B1 distinctions сохранены, C06 нового owner ответа нет.
+
+### Адресные остатки и organisational scope
+
+GET comments since03:34:20Z по existingPR139/145/189/191/200/205/207/209/210/211: **0новых addressedcomments** в проверенной выборке. Checked A/B/C peer-handoff directories не содержат новых файлов после03:29:57; unchanged A→C addendum принят без повторного чтения содержимого. Controller notices кроме ownprioritymtime новых файлов в проверенной выборке не показали. Это scoped observation, не отсутствие всех external сообщений.
+
+DOT02v10/own progresspointer/map12 и принятые DOT01/PR144/A05/PR50/C06source/R6DONE не переоткрыты. Tester/B01/R3 chats/browser/WIP/source не инспектировались. Source helper/CI/merge не запускались; чужие документы не исправлялись. Existing C publicbody и A publicHOLD — их авторские действия, Controller только прочитал подтверждённые результаты.
+
+### Десять пунктов процедуры для нового delta
+
+Применён прежний уже прочитанный источник10пунктов; неизменный канон целиком не повторялся. Пункт10 выполняется с учётом позднего прямого запрета errors/events/newregistries. Статус documentary шага не продуктовый PASS; unknown/blocked technical outcomes остаются открыты.
+
+#### A: exact PR205 CI unknown, PR144 guard inclusion, PR207 public HOLD
+
+1. Primary A03:35:56.473537Z cc31c29f… confirms old guard included viaPR144; PR207 public correction03:45:20Z/role03:46:46Z; currentCI inventory03:45:58Z exactd0a1 has only3oldPR runs. Actual new request/correlation/targetref/newrunIDs UNKNOWN/NOT_OBSERVED.
+2. Controller no dispatch/review/tests/helper/merge authority in this pass; existing exact R4/native/platform refusals remain. Planned A ref is not actual dispatch receipt; no credentials/controller-ref workaround.
+3. Accepted original3automaticPR workflows and PR144source/package evidence reused, not rerun. Old08d need not be separately published. New PR205SOURCE verdict does not supply native5.
+4. CI capability/request-intent≠execution. Inventory3oldpull_request runs, repo workflow_dispatch since03:00 zero. PR207 actualpublic HOLD even if old native green; not newproducttestfinding.
+5. Own REPORT18334/blob9f3d and own7e524/a05c matched previous terminal; one writer/no own in-flight action; A81/B83/C73 WIP/old08d retained, no force/cleanup.
+6. Own A current projections explicitly record CI NOT_CONFIRMED_OR_STARTED, planned vs actualref, no duplicate guard publish, and visible PR207HOLD. No foreign source/PR/CI mutation.
+7. Read/hash A primary and unchanged handoffc2d4633d…; GET PR207 body confirms actual HOLD; CI collections contain only historical runIDs39045752154/125/132. No original dispatch outcome beyond checkedscope is invented.
+8. Real progress is stale guard-publication expectation resolved and explicit public HOLD/current CI absence documented, not a new CI run/merge/ownerLIVE backup acceptance.
+9. Existing A holds PR205 native5/13/request-outcome acceptance; maintainer of genuine existing request supplies ack/targetSHA+ref/runIDs if it exists. No new dispatch by Controller. PR207 newcandidate reviewed via supported exact refusal disposition; originalI1/grant/live owner remains.
+10. No new registry/archive/errors/events; only existing own productcheckpoint/REPORT/samev10 response. Original12/accepted boundaries preserved.
+
+#### B: new own-disposable journal/ACL and independent mount evidence
+
+1. New B receipt03:42:12.248638Z SHA32d204c1… current disposable journal50/50 and4ACL; new03:45:38.735339Z SHAb783d74b… independently mounted durable destination0. Older03:26/29 backup/client receipts not rerun.
+2. Controller reads existing B primary only; no SQL/DB/catalog/mount/resource/security call. B fixture/allocation/state/source-admission and R7/R8 exact refusals remain; no Tester/B01/R3 takeover.
+3. Prior PR211SOURCE+CI accepted reused. New currentjournal snapshot qualifies prior totalUNKNOWN but cannot attribute historical R2 migrations. Oldbackup/host-Docker distinction retained without new checks.
+4. Current own-disposable journal/ACL PASS only. First comparator mismatch in B harness is not actual PUBLIC grant defect; corrected source-type compare recorded. Host mount0 is specific host-backup-runner constraint, not proof no legitimate destination exists anywhere.
+5. Existing B83WIP/B04testWIP andtwo128OPEN preserved. New B task is authored by B, not Controller and not cancellation of old holds. No Controller DB/service/backup/resource write.
+6. Own documentary correction: current disposable50/50/4functions are known at receipt time, actor/time/delta of prior migration remain UNKNOWN. Specific host-independent mount gate OPEN; do not weaken verify_independent_mounts or buy storage.
+7. Primary hashes match role links; no queries/findmnt/lsblk repeated. Bguard-deniedOTP assertions remain0/notaccepted; isolatedrestore/currentbackup/installedunits not proved. No remote/object-store inventory in receipt.
+8. Actual progress: new bounded current disposable schema/ACL evidence and concrete hostmount prerequisite. Not wrong-code OTPPASS, production/installed/recovery/admission success.
+9. Existing B/security-contract/platform owns refusedreset/disposition; existing B/Ops/owner owns legitimate existing protected destination or supported approved strategy+currentbackup/isolatedrestore/app rollback, C consumer. No new purchase/mount change/DB or Docker workaround.
+10. No new registry/archive/error ledger/backup/schedule. Existing productdocs only; earlier refusals and original12 retained.
+
+#### C: existing package+offlineVM outcomes and additional published qualifications
+
+1. New03:34:32.575979Z primaryf177b78a… exactfbedd0b7ZIP:4selectedOPERATION_BLOCKED andoneunexecutedrequest; terminal0 afterlocalrunnercorrection. PR210body03:45:09 adds exhaustive187/171/16 andoneper-store guard claims.
+2. No new VM/test/browser/network/CI/helper/review/source/merge/Store actions by Controller. GenuineC06 authority/catalog reply still absent; A archive/Tester originalpopup untouched.
+3. Existing ZIP/static/3guest evidence reused. Local missingURLSearchParams firstattempt was runner issue; ownerC corrected and savedterminal, Controller does not replay. Currentaccepted guest/package not wholeprivacyPASS.
+4. PACKAGE_PLUS_OFFLINE_VM only. Expected OPERATION_BLOCKED and PERSONAL_DATA_DISABLED are product guard outcomes, not platformrefusals. Standard privacy metadata not proof non-private. Additional PR body claims are author-published, no distinct extra JSON found in narrowcheckedC06_WB root inventory.
+5. C WIP73/PR2105e6draft/PR209a488draft preserved. Existinghash/version checks and no competing ownwriter; no actualprofile/ZIP/provider action.
+6. Own C evidence level upgraded to package+offlineVM for exactprimary, with separate published-only extra claims. No blanket171business/installed/privacy/StorePASS, no new authority/permission.
+7. f177b78a hash matches Crole; PR210 published body agrees fourdenials/requestnotexecuted and qualifies187resolution+perstoreguard. Controller read onlyreceipt/body, did not independently run/inspect underlyingVM or package.
+8. Actual progress: existing compiled package behavior witnessed by C at offlinelevel, not liveHTTP, realtokenpermission, fieldredaction/customerconsent/Opera policy. C source and package only accepted to their levels.
+9. Existing C/publisher/B-Ops/owner genuineauthority/catalog/exactapprovedsignedpackage/privacydisclosure plus original Tester manualauth/Start/result/Finish; PR209I1causalA and ownexactnativegatesremain. Await genuinelynewpermittedprimary, noVMrerun.
+10. No new registry/archive/errors/events/schedule. ExistingownREPORT/checkpoint/prioritynote only; original12/oldboundarynotes/ownerrestrictions preserved.
+
+### Собственный результат и readback
+
+В existing coordination.lock nonblocking, exactownversion+freshrolehash guards, writableFD0/O_RDONLY1 выполнена собственная documentary правка: PR205 actualinventory/requestUNKNOWN и native5OPEN; already-subsumedPR144guard/no duplicatepublish; explicit publicPR207HOLD; B currentdisposablejournal vs historicalcausation и specificmountgate; C exactofflineprimary vs published-onlyextra claims; текущие tasks/owners/next. Старые accepted results, originalmapstring/list12 и previous10boundarynotes сохранены; все rootfields checkpoint внеowncurrentrecord сравнены и не менялись. Foreign A/B/C.json/source/tests/WIP/allocations/units/resources не изменялись.
+
+Independent RDC readback **03:50:52.990793Z**:
+- own `FINAL_RESUME_CHECKPOINT.json` — **7d87991b2676dfa80a7d7d32cc6930e49a87bdac4d7571da0fdbc5337c87cc3e**,1885742bytes;
+- existing `PRIORITY_TASKS.md` sameDOT02v10 response — **73d5a12336312cb76c716b22704cc910bc689efc64a643caa971b4adce6f36ef**,671740bytes;
+- original12/previous10/3newgroups×10, marker1, PR2053oldruns/dispatch0/stateNOT_CONFIRMED_OR_STARTED, Cpackageofflinelevel, ownlaunches0, audit_completefalse. Lock свободен после записи.
+
+REPORT freshref03:50:54 по-прежнему **18334b26**; lastauthorMaksimUnimax/date03:34:20Z/onlyREPORTfile. Это следующий append с existingblobCAS, отдельным full-content/blob/parent/ref readback после успешной записи. Неизвестный исход не повторялся.
+
+**Объём прогресса:** 4новых hash-verified A/B/C receipts, актуальный exactCIinventory, publicPR207HOLD, existingAguard inclusion/no duplicate, Bcurrentstate/prerequisite, Cofflineoutcomes+qualifiedpublishedextras. **Новых SOURCE fixes/merges, nativeCI, backup/restore, installed/manual/Store acceptance0.** План/запрос CI не назван исполнением.
+
+**Организационные проблемы:** plannedref/capability не actualrequest/run; нельзя снова публиковать уже включённый guard ради закрытия stale ожидания; PR207 oldsourcegreen не снимает knownnegativeHOLD; currentjournal не historicalattribution; hostmountgate не тотальный запрет всех backupstrategies и не покупка поумолчанию; productpolicyBLOCKED не platformrefusal; offline/sourceprivacymetadata не fullprivacy/StorePASS. Receipt-level verification отделена от published-only extra claims; foreign author state не исправлялся Controller.
+
+| Точный внешний остаток | Ответственный / ближайший допустимый исход |
+| --- | --- |
+| PR205 новыйCIнеподтверждён; actualrequestack/targetSHA/ref/newrunIDsUNKNOWN, exactnative5/13/integrationOPEN | Existing A/действительныйинициатор существующего запроса предъявляет факт исхода; Controller не dispatch/retry/merge и не подменяет ref/старыеruns. |
+| PR207 original143563 HOLD, local6f8unreviewed/exactR4 refusal; I1 physical AbortSignal/grantUNKNOWN | Existing A/platform supported exactdisposition и A/runtime evidence в своей границе; не повторныйreview/native/reproducer. |
+| A old08d guard ужеsubsumedPR144, но originalPR87cancelled/refusal/ownerLIVEbackupimportOPEN | Existing A/исходный runtimeowner; не duplicatepublish, не ControllerWIPcleanup/manualtest. |
+| B fixture/allocation/state/source-admission/review отказы, два128OPEN, OTPassertions0; historicalR2migrationactorUNKNOWN | Existing B/securitycontract/platform, сохранитьWIP; currentdisposable50/50+4ACL не закрывает исходные отказы/OTP. |
+| B hostindependentmount0; currentprotectedbackup/restore/app rollback/installedpromotionNOT_PROVEN | Existing B/Ops/owner legitimateexistingprotectedstrategy or supportedapprovedalternative, Cconsumer; no newmedia purchase, no weakeningguard/mount/DB/Docker bypass. |
+| C genuineauthority/catalog/approvedsignedpackage/privacy/publisher/manualacceptance; PR209I1FAIL/PR210owngates | Owner/B-Ops/existingC/publisher; TesteroriginalpopuponlyTester; no newVM/CI/browser/StoreSubmit. Offlinelevelнеbusiness/installedprivacyPASS. |
+| C04/C05/CWin32/WB historicalprimary и original12raw/boundbytes | Existing owners/custodians в прежней карте, without repeated acceptedchecks or deniedreproduction. |
+| R7/R8freshadmission отсутствует/testNOT_STARTED | Addressed resourcecallrefusal сохраняется; Bmountreceipt не новыйControlleradmission/measurement, историческийmemoryFAILне допуск. |
+
+Доступные независимые documentary действия этого прохода доведены до проверенного результата. **Audit_complete=false.** Own tests/review/CI/browser/helper/merge=**0/0/0/0/0/0**. Live/DB/security/auth/resources, Tester/B01/R3, чужойsource/tests/WIP, ownercleanup, oldchats, PR97/131/134, errors.json/events.jsonl не тронуты; новыхреестров/архивов/расписаний/кредитов/покупок/авторизаций/сбросов нет. Дальнейший шаг — только genuinelynew permitted primary исход, не имитацияprogress/повторнеизвестногозапуска/обходконкретногоотказа.
