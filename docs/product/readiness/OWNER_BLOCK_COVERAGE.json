@@ -285,7 +285,7 @@
       "refs": "SA-OBS-01; TR-17; Q1C-HEALTH-27; Health C01..C13/H0..H3; PLAN C04; P8",
       "technical": "Тестер проверяет расписание, ограниченное время/ресурсы, единственность запуска, очистку и независимые auth/no-session lanes. Health не использует личные клиентские сессии и не обходит защиту ИИ.",
       "condition": "Основная приёмка бесплатной беты",
-      "status": "В плане",
+      "status": "Доступная часть без аккаунтов проверена; полный B03 открыт",
       "ownerResult": "Не проводилось / не сообщён",
       "candidate": "Будет указан перед выдачей",
       "dependencies": "Для выдачи владельцу принят B02. Необходимые зависимости готовятся заранее; пригодные результаты используются дальше без повторения неизменных действий.",
@@ -294,7 +294,36 @@
       "roadmap": "S0/S1/S3; PLAN C04; Health C01..13/H0..3",
       "ownerPrevious": "B02",
       "scopeBoundary": "Проверяется техническое поведение. Настройка, самостоятельность и смысл бизнес-ответов ИИ исключены из критериев этого блока.",
-      "previousBlockV2": "B16"
+      "previousBlockV2": "B16",
+      "latestTesterPreparation": {
+        "date": "2026-10-18",
+        "sourceHead": "72a902642c8bce999c95fc76710e76825f1cc3c2",
+        "comparedMain": "22700f7951199a215ba8154e6f8e1da4374227e0",
+        "healthDiff": "NONE",
+        "level": [
+          "SOURCE",
+          "LOCAL_BROWSER_SYNTHETIC"
+        ],
+        "sourcePassed": 126,
+        "browserPassed": 7,
+        "browser": "Chrome for Testing 151.0.7922.34/Linux/headless/loopback",
+        "liveAcceptance": false,
+        "ownerAccepted": false,
+        "aiLoginPerformed": false,
+        "sourceChanged": false,
+        "productBuildCreated": false,
+        "report": "OWNER_BLOCK_ACCEPTANCE.md#b03-health-что-работает-что-сломано-и-что-не-проверено",
+        "limitations": [
+          "Live Health screen with health.read not checked",
+          "No deployed maintenance switch",
+          "Full nine authenticated and three guest live matrix remains open"
+        ],
+        "preparationFailures": [
+          "Missing local zod link repaired by offline frozen pnpm install",
+          "Direct Playwright CLI omitted pnpm NODE_PATH; corrected standard bin shim"
+        ],
+        "evidenceRoot": "/root/octoport-control/controllers/audits/EXTENSION-LIVE-CONTINUE-20261007T090339Z"
+      }
     },
     {
       "id": "B04",
@@ -20429,7 +20458,7 @@
   "knownSourceLimitations": [
     "AI-TREE canonicalProcedure is empty in all nine input matrix rows; see R3 implementation document and A33-A40 for criteria."
   ],
-  "documentVersion": "3.2",
+  "documentVersion": "3.3",
   "currentRun": {
     "sourceHead": "ddd38b983b0cd1bffaa3821f48cde319ec7f131e",
     "buildHead": "ddd38b983b0cd1bffaa3821f48cde319ec7f131e",
@@ -20512,7 +20541,10 @@
     "browserFixture": "EXACT_ADE_COMMON_CORE_AND_NATIVE_CHROMIUM_CI_PASS; REAL_UNINSPECTED_ORIGINAL_POPUP37_IMPORT_PASS",
     "ciHead": "ade601851f6925400c840cbf1429bf858d619a53",
     "readyForManualTests": true,
-    "manualHandoffScope": "IMPORT_CORRECTION_AND_B01_SCENARIOS_WITH_PROVIDER_BLOCKERS"
+    "manualHandoffScope": "IMPORT_CORRECTION_AND_B01_SCENARIOS_WITH_PROVIDER_BLOCKERS",
+    "currentPreparation": "B03",
+    "currentPreparationStatus": "NO_ACCOUNT_SOURCE_AND_LOCAL_BROWSER_PASS_SCOPED_FULL_BLOCK_OPEN",
+    "currentPreparationAuthority": "18.10.2026, прямая команда владельца в текущем диалоге: продолжить следующий доступный блок без авторизации — Health или кабинеты. Тестер приступил к B03 в границах проверок без аккаунтов. Это адресное изменение очередности подготовки: B01 остаётся открытым, B02 не начат, ручная приёмка ни одного блока не подменяется. Вход в AI, изменение live/DB, кабинетов, полномочий и расписаний не выполняются."
   },
   "runHistory": [
     {
@@ -20797,7 +20829,7 @@
       "Отдельная будущая коммерция"
     ]
   ],
-  "ownerScopeDecision": "16.10.2026 06:49 +05: сначала основное взаимодействие с тремя гостевыми ИИ, следующим блоком все ИИ с авторизацией, затем Health для наблюдения за изменениями. Далее магазины и остальной функционал на всех ИИ. Настройка ответов — только после всей техники.",
+  "ownerScopeDecision": "18.10.2026, прямая команда владельца в текущем диалоге: продолжить следующий доступный блок без авторизации — Health или кабинеты. Тестер приступил к B03 в границах проверок без аккаунтов. Это адресное изменение очередности подготовки: B01 остаётся открытым, B02 не начат, ручная приёмка ни одного блока не подменяется. Вход в AI, изменение live/DB, кабинетов, полномочий и расписаний не выполняются.\nИсторическое решение: 16.10.2026 06:49 +05: сначала основное взаимодействие с тремя гостевыми ИИ, следующим блоком все ИИ с авторизацией, затем Health для наблюдения за изменениями. Далее магазины и остальной функционал на всех ИИ. Настройка ответов — только после всей техники.",
   "legacyBlockMapping": {
     "B01": "B01",
     "B02": "B07",
