@@ -285,7 +285,7 @@
       "refs": "SA-OBS-01; TR-17; Q1C-HEALTH-27; Health C01..C13/H0..H3; PLAN C04; P8",
       "technical": "Тестер проверяет расписание, ограниченное время/ресурсы, единственность запуска, очистку и независимые auth/no-session lanes. Health не использует личные клиентские сессии и не обходит защиту ИИ.",
       "condition": "Основная приёмка бесплатной беты",
-      "status": "Доступная часть без аккаунтов проверена; полный B03 открыт",
+      "status": "SOURCE 126 + LOCAL_BROWSER 7 PASS; live API read successful with empty/stale observations; full B03 OPEN",
       "ownerResult": "Не проводилось / не сообщён",
       "candidate": "Будет указан перед выдачей",
       "dependencies": "Для выдачи владельцу принят B02. Необходимые зависимости готовятся заранее; пригодные результаты используются дальше без повторения неизменных действий.",
@@ -302,7 +302,8 @@
         "healthDiff": "NONE",
         "level": [
           "SOURCE",
-          "LOCAL_BROWSER_SYNTHETIC"
+          "LOCAL_BROWSER_SYNTHETIC",
+          "LIVE_API_READ_SCOPED"
         ],
         "sourcePassed": 126,
         "browserPassed": 7,
@@ -314,8 +315,9 @@
         "productBuildCreated": false,
         "report": "OWNER_BLOCK_ACCEPTANCE.md#b03-health-что-работает-что-сломано-и-что-не-проверено",
         "limitations": [
-          "Live Health screen with health.read not checked",
-          "No deployed maintenance switch",
+          "Human Health screen still unverified: existing browser admin/me HTTP401, normal login not submitted",
+          "Authenticated Health target read empty and diagnostics stale; cause of absent eligible observations UNKNOWN",
+          "No deployed scoped maintenance switch demonstrated",
           "Full nine authenticated and three guest live matrix remains open"
         ],
         "preparationFailures": [
@@ -336,13 +338,69 @@
           "lastOperation": "B03_HEALTH_LOGIN_READY_20261018 OBSERVED",
           "operationsInFlight": false,
           "maintenanceToggle": "NOT_REACHED_HEALTH_UI_READ_ONLY",
-          "machineRead": "NOT_STARTED_STANDARD_CLIENT_REQUIRES_ROTATION",
-          "machineNextOperation": "POST /v1/admin/maintenance-credential/rotate then GET /v1/admin/health/targets?limit=1",
-          "rotationOwnerDecision": "REQUIRED_PRIOR_NO_AUTH_CHANGES_RESTRICTION_RETAINED",
-          "credentialsChanged": false,
+          "machineRead": "COMPLETED_EXIT0_TARGETS_EMPTY_DIAGNOSTICS_STALE",
+          "machineNextOperation": null,
+          "rotationOwnerDecision": "AUTHORIZED_ONCE_COMPLETED",
+          "credentialsChanged": true,
           "sourceChanged": false,
           "newTestsRun": false,
-          "ownerAccepted": false
+          "ownerAccepted": false,
+          "rotationOwnerPermissionAt": "2026-10-18T09:03:42Z",
+          "rotationAuthorityConsumed": true,
+          "rotationCount": 1,
+          "credentialRotatedAt": "2026-10-18T09:06:42.199645+00:00",
+          "credentialExpiresAt": "2026-11-17T09:06:42.250Z",
+          "credentialPendingRotation": false,
+          "secondRotation": false,
+          "machineTargets": {
+            "path": "/v1/admin/health/targets?limit=1",
+            "pid": 2868414,
+            "exit": 0,
+            "result": {
+              "items": [],
+              "nextCursor": null
+            }
+          },
+          "machineDiagnostics": {
+            "path": "/v1/admin/health/diagnostics/summary?window=24h",
+            "pid": 2868524,
+            "exit": 0,
+            "generatedAt": "2026-10-18T09:07:49.887Z",
+            "stale": true,
+            "currentTargets": [],
+            "latestHealthObservationAt": null,
+            "allStateCounts": 0,
+            "activeIncidentCount": 0,
+            "scheduler": {
+              "latestSuccessfulScheduledRunAt": null,
+              "latestFailedScheduledExecutionAt": null,
+              "overdueDueTargetCount": 0,
+              "retryingExecutionCount": 0
+            }
+          },
+          "underlyingMissingDataCause": "UNKNOWN; targets are derived from eligible persisted health_runs, not complete configured-target inventory",
+          "newGrantCreated": false,
+          "permissionsExpanded": false,
+          "humanSessionCreated": false,
+          "schedulesChanged": false,
+          "directDbAccess": false,
+          "healthRunTriggered": false,
+          "maintenanceChanged": false,
+          "nextAction": "Designated Health owner must identify a permitted test scope and existing supported producer path with saved observation; human Health UI still requires normal health.read login; scoped maintenance path remains unproven.",
+          "evidence": [
+            {
+              "file": "B03_HEALTH_NATIVE_READ_20261018T0906Z.log",
+              "sha256": "5161be3cf67abed4c6ffa7d6886b5608f4334216f0e9b9f4fb3617fa868e5053"
+            },
+            {
+              "file": "B03_HEALTH_DIAGNOSTICS_SUMMARY_20261018.log",
+              "sha256": "c0f9d10b88969fcd0b49bba6da71733b9e1281743ba2698978a315a745a5be65"
+            },
+            {
+              "file": "B03_HEALTH_AUTHORIZED_READBACK_20261018.json",
+              "sha256": "cc9a0d85efdeedd67a5acecc8cd404f4e5c26adfa95eba54104308f64b14e545"
+            }
+          ]
         }
       }
     },
@@ -20564,8 +20622,8 @@
     "readyForManualTests": true,
     "manualHandoffScope": "IMPORT_CORRECTION_AND_B01_SCENARIOS_WITH_PROVIDER_BLOCKERS",
     "currentPreparation": "B03",
-    "currentPreparationStatus": "SOURCE_AND_LOCAL_BROWSER_PASS_SCOPED_LIVE_HEALTH401_NORMAL_ACCESS_NEEDED",
-    "currentPreparationAuthority": "18.10.2026, прямая команда владельца в текущем диалоге: продолжить следующий доступный блок без авторизации — Health или кабинеты. Тестер приступил к B03 в границах проверок без аккаунтов. Это адресное изменение очередности подготовки: B01 остаётся открытым, B02 не начат, ручная приёмка ни одного блока не подменяется. Вход в AI, изменение live/DB, кабинетов, полномочий и расписаний не выполняются."
+    "currentPreparationStatus": "SOURCE_BROWSER_PASS_LIVE_API_READ_EMPTY_STALE_FULL_BLOCK_OPEN",
+    "currentPreparationAuthority": "18.10.2026, прямая команда владельца в текущем диалоге: продолжить следующий доступный блок без авторизации — Health или кабинеты. Тестер приступил к B03 в границах проверок без аккаунтов. Это адресное изменение очередности подготовки: B01 остаётся открытым, B02 не начат, ручная приёмка ни одного блока не подменяется. Вход в AI, изменение live/DB, кабинетов, полномочий и расписаний не выполняются. Дополнения: 18.10 08:47:01Z разрешён существующий тестовый Health live scope через штатный доступ; 09:03:42Z отдельно разрешена ровно одна штатная ротация существующего служебного ключа и ограниченные Health reads. Ротация исполнена 09:06:42Z, новые grant и права не создавались. Прежние запреты сохраняются вне этого узкого исключения."
   },
   "runHistory": [
     {
