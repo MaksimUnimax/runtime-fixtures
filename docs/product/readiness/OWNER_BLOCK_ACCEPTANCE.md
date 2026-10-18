@@ -350,6 +350,28 @@ python3 tooling/server/maintenance-client.py --credential-file /root/octoport-co
 
 B03 остаётся OPEN, ручная приёмка владельца не проводилась. B01 ZIP 0.2.37 сохранён, B01 не принят, B02 не начат.
 
+### Установленный разрыв подключения Health — 18.10.2026, 09:21 UTC
+
+После прямого требования владельца довести продукт до рабочего состояния продолжено исследование конкретного пустого ответа. Повторных Health GET, ротации и прежних тестов не было. HEAD собственной чистой копии — `021f0c4ddd0135898dea1b367cb9a63908ad1d36`; свежий remote main — `22700f7951199a215ba8154e6f8e1da4374227e0`. В затронутых API main и Health read repositories между ними diff пуст: готового подключения monitor DB в текущем main нет.
+
+**Причина отсутствия данных существующего сборщика в этом API установлена:** действующий сборщик и Health API используют разные базы. Это подтверждено безопасными координатами `DATABASE_URL` именно работающих процессов, конфигурацией их services и wiring установленного JS. Пароли, пользователи подключения и полные URL не выводились и не сохранялись; соединений с БД не открывалось.
+
+| Действующий процесс | Подключение и установленный пакет |
+|---|---|
+| API PID 910694, `seller-agents-owner-test-api.service` | `127.0.0.1:55432/product_control_plane`; каталог `1f06985ab207cd4371a680a1dba621d7a4d2f393`; `apps/api/dist/main.js` SHA256 `ae2dabedeba2ed10adfbc5ab5a8f5dc88ce9b15453f53f9a8310957c5eb71404` |
+| Сборщик PID 1709660, `octoport-telegram-operator.service` | `127.0.0.1:55432/octoport_monitor_pilot`; каталог `12efab2f780ad7b9b7556b7b50e6d6e345f000fa`; `apps/telegram-operator/dist/main.js` SHA256 `69dbd95a928b01c77ac2cd621b8f2f7c0c9cdf069c29584711483d111aed48e1` |
+| Уведомления PID 2008615, `octoport-health-notifications.service` | Та же `octoport_monitor_pilot`; каталог `c2e715501161d421b1641bb697c7ee7786d84960` |
+
+В установленном API `createHealthAdminReadRepository(database)`, `createHealthNotificationAdminReadRepository(database)` и `createHealthDiagnosticsReadRepository(database)` получают основной product pool. В установленном сборщике `createPostgresDurableNoSessionHealthRuntime(database, ...)` получает monitor pool. Конфигурации отдельного Health read pool в проверенном API нет. Поэтому данные этого изолированного сборщика не могут появиться через проверенные product Health repositories. Пустой ответ не доказывает пустую monitor DB или остановленный сборщик: её строки сейчас не читались; ограниченное чтение journal за 2 часа также не вернуло строк и не даёт PASS мониторингу.
+
+Разделение было намеренным: действующий B12 production preflight жёстко привязан к `octoport_monitor_pilot` (receipt `B12_MONITOR_PILOT_AUTHORITY_PROVISIONING.md`). **Переключать весь API на monitor DB, переносить туда product auth либо направлять сборщик в product DB и обходить этот guard нельзя.**
+
+**Конкретное предлагаемое исправление:** отдельное подключение только для чтения Health targets/incidents/notifications/diagnostics из существующей monitor DB, с сохранением product auth и остальных product repositories на основной БД. Исходная точка — `apps/api/src/main.ts`, отдельная ограниченная Health read runtime/config и связанные существующие тесты. Необходимы проверка схемы и прав на чтение, ограничение pool/timeout, корректное завершение обоих подключений, явный отказ при ошибке маршрута; ошибка подключения не должна превращаться в пустой успешный ответ. Проверки должны различать две базы, подтвердить прежнюю product auth и отсутствие переноса write repositories. После независимого review и пяти exact-SHA CI — проверенный серверный пакет; установленный код меняется только после отдельной готовой и рассмотренной выкладки.
+
+**Граница авторства:** по текущим A/B/C records активные задачи другие, однако действующее поручение Тестера не передавало ему серверную/DB работу B/Ops и прямо запрещает её перехват. Это не технический отказ RDC/GitHub: read-only диагностика завершилась успешно. Требуется адресное решение владельца, передающее именно описанную source-связку Тестеру либо оставляющее её существующему B/Ops. Общие права на DB, новые роли, миграции, расписания и замена всех services этим не запрашиваются. До решения нет source-правки или live-мутации; проверенный пакет пока не создан. Ручной экран также сохраняет отдельный незавершённый обычный вход.
+
+Первичный файл в существующем audit-каталоге: `B03_HEALTH_RUNTIME_ROUTING_20261018.json`, SHA256 `09aa6f5352b3c5b320377aeddbe1a0dc2accfd113979395d13763d067e56e739`. Он содержит точные строки wiring исходника/установленного bundle, PID, координаты без секретов и пределы вывода. Существующий checkpoint и прежние результаты сохранены. B03 OPEN, B01 не принят, B02 не начат.
+
 ## B04. API Watch: изменения Ozon и Wildberries
 
 **Этап:** Техника. **Статус:** В плане.
