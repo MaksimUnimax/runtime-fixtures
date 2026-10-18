@@ -1090,3 +1090,73 @@ Current progress pointer/original map сохранены, marker нового с
 **Точные ближайшие зависимости:** existing **B** — его protected current-main/expected-head integration и фактический postmerge исход при настоящем merge; **A/runtime** — физические причины прежних I1 failures; **A** — сохранённый R14 evidence/собственный lifecycle и отдельно более новый exact package; **владелец/C/уполномоченный publisher** — genuine C06 authority/catalog, точный пакет, Opera policy applicability и установленная reviewer/owner приёмка; остальные historical custodians — прежние обязательства карты12. C06 нового решения владельца нет. Chrome/Firefox/Opera submission **НЕ ГОТОВО**.
 
 Own launches tests/review/browser/CI/helper=**0/0/0/0/0**; отмен/новых merge/source-правок нет. Ресурсный R7/R8 отказ не повторялся, не переформулировался и не обходился, нового допуска нет. Tester/B01/R3, live/DB/security, owner cleanup, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/расписания не трогались; новых реестров и эксплуатаций/воспроизведений обхода доступа нет. Доступный ограниченный документальный шаг завершён; следующее изменение требует нового фактического результата существующих владельцев. Результат этой записи REPORT подтверждается отдельным readback.
+
+
+## Продолжение 2026-10-18T01:40:00.266Z — PR211 SOURCE merged; существующий postmerge ещё не принят
+
+Предыдущий завершённый checkpoint01:22:57Z / REPORT `71e8cb27965cef4c54df314b349776fc5cb53b28`, blob `445a0cb36fb2ebb2e01dba17ff5fbdb77c09d89a` подтверждён readback. **Тот же аудит; audit_complete=false; PLAN/WIP, исходная карта12, принятые ограниченные результаты и отрицательная история сохранены.** Узкий шаг: новое B integration evidence и уже существующий exact-merge CI, без нового общего аудита A/C.
+
+### Последний исход и отсутствие дубля собственной записи
+
+Штатный RDC подтвердил Easyscript Online. Собственные checkpoint/PRIORITY_TASKS до записи совпали с прошлым readback e959042f/ccb926c0; REPORT branch оставался71e8cb27. Target file/Controller/coordination fuser пуст, nonblocking coordination.lock свободен. В native sessions — только старый защищённый PID2354613; существующие codex2 процессы не трогались. Нового собственного вызова/записи в полёте, второго автора целевых Controller-документов или новых changed claims в проверенном scope не обнаружено.
+
+После cutoff01:22:57Z новых Controller/DOT-addressed файлов в проверенных notices/peer-handoffs нет; новый фактический B receipt01:24:52Z находится в существующем task log. Чужие source/tests/WIP и B.json не менялись. Закрытые дополнительные exact737 CI и их provenance заново не проверялись; неизменный канон целиком не перечитывался.
+
+### Фактический merge существующего B
+
+[PR211](https://github.com/MaksimUnimax/runtime-fixtures/pull/211) теперь **CLOSED / MERGED**, draft=false:
+- reviewed source head `73715e906df5db76afe58d015821048cda6417d1`;
+- merge SHA **`22700f7951199a215ba8154e6f8e1da4374227e0`**;
+- merge event **2026-10-18T01:21:09Z**, GitHub metadata updated01:23:24Z.
+
+Сам merge произошёл до прежнего checkpoint, но после прежнего Controller GitHub-среза около01:20Z; новый опубликованный/серверный terminal readback подтверждён здесь. Прежняя unmerged-проекция больше не текущий исход. Контроллер merge не отправлял и не повторял.
+
+Лично прочитан новый существующий primary:
+`/root/octoport-control/logs/B/B04_CONSUMED_OTP_REPLAY_20261018/B04_PR211_EXACT227_MERGE_READBACK_20261018.json`,
+recorded01:24:52.454849Z, SHA256 **`aff46e8055502836fb0ac18a9e4412281bb1bc582ab4b5976a709c59e0bcbac1`**, 3630 bytes, hash совпал. Его содержание согласуется с опубликованным body PR211.
+
+По receipt исходный expected-head ordinary merge request B вернул **ReadTimeout / UNKNOWN**. B второй merge request не отправлял; независимые PR/ref/commit readbacks подтвердили результат. В этом продолжении GitHub PR, main ref и immutable Git commit также лично подтвердили состоявшийся merge; транспортный timeout не принят за неуспех и не повторён.
+
+Native Git object22700 имеет parents:
+`db531677d1df06029020318342752c76e3a04058` +
+`73715e906df5db76afe58d015821048cda6417d1`,
+tree **`129193bdb63444dca2bbdd63d592762bad5399fc`**, точно совпадающий с reviewed candidate tree. Commit files — ровно:
+`packages/server/db/src/auth-repository.ts` и
+`packages/server/db/src/auth-repository.consumed-replay.test.ts`.
+При начальной текущей GitHub-сверке main указывает на тот же22700.
+
+B receipt описывает normal protected expected-head merge после его собственных accepted SOURCE/native/PR gates и29/29 recorded checks. Это принятие существующего авторского terminal evidence, не новое независимое review или повтор защищённых проверок Контроллером. Старое поле B04 `main_merge=NOT_ATTEMPTED` осталось исторически несогласованным с новым `protected_merge_readback`; в собственной проекции приоритет отдан timestamped terminal primary. Чужой файл не переписывался.
+
+Уровень результата — **SOURCE_IN_MAIN**. Installed owner API/реальный OTP, target PG recovery, Chrome/Tester/Store/live/production из этого merge не следуют. По author receipt canonical B83 dirty и own allocation128MiB OPEN сохранены; собственный lifecycle остаётся у B, контроллер не измерял/не чистил ресурс.
+
+### Только существующие postmerge runs на exact22700
+
+GitHub head_sha query нашёл пять уже созданных native workflows на **том же merge SHA22700**, created01:28:24Z, event=push, attempt1. Срез 2026-10-18T01:37:52.097Z:
+
+| Workflow | Run | Фактическое состояние |
+|---|---:|---|
+| Documentation | [39086609493](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39086609493) | SUCCESS |
+| Coordination/release safety | [39086609485](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39086609485) | SUCCESS |
+| Extension I1-C1 | [39086609480](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39086609480) | SUCCESS, updated01:32:18Z |
+| Extension | [39086609484](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39086609484) | IN_PROGRESS |
+| Server | [39086609551](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39086609551) | IN_PROGRESS |
+
+Итого **3 SUCCESS / 2 IN_PROGRESS**; полный postmerge PASS **НЕ ПРИНЯТ**, все обязательные terminal jobs ещё не подтверждены. Старые candidate737 successes не перенесены на merge22700. Исторические failures I1 других SHA не объяснены новым green.
+
+Точный branch этих runs — **`controller/ci-b04-pr211-main227-20261018`**, не `main`. Это существующие native runs на merge SHA через CI-ref; main-branch push provenance не заявлен. GitHub actor/triggering_actor MaksimUnimax. Прочитанный B merge receipt описывал более ранний срез с0 visible runs и не устанавливает роль-инициатора нового01:28 CI-ref. Префикс controller не доказывает второго Контроллера; авторство новой CI-ref не приписано роли без primary.
+
+Ни CI-ref, ни workflows Контроллер не создавал, не dispatch/rerun/cancel. Ближайший конкретный остаток existing B: фактические terminal **Server39086609551** и **Extension39086609484**, все необходимые job evidence и подтверждение существующего CI provenance/route в своём source/postmerge scope. До этого postmerge acceptance pending. Controller не подменяет B и не запускает недостающую проверку.
+
+### Документальное действие и внешние остатки
+
+Под существующим coordination.lock с pre-write fuser/SHA guards изменены только existing собственные latest_author_delta/B observation и ответ того же DOT-20261015-02 v10. Own current B projection теперь CLOSED_MERGED/SOURCE_IN_MAIN227/postmerge3+2, A/C и прежние map/history поля сохранены. Независимый RDC readback:
+- `FINAL_RESUME_CHECKPOINT.json` этого Controller-аудита — SHA256 **`980152b32fb98dea49e49510fcdc2c4a328639dc8b246dbd365906cea32b5658`**, 1625451 bytes;
+- `/root/octoport-control/controller-notices/PRIORITY_TASKS.md` — SHA256 **`959940d147b581095c9fb86f9ddc8c6e0b4cde26b5dbbed94fbf82b5c2ff38a5`**, 652157 bytes.
+
+Original progress pointer/map12 сохранены, marker нового собственного ответа один, audit_complete=false. Новый прогресс — подтверждён реальный B SOURCE merge и его exact reviewed-tree scope, устранена собственная stale unmerged-проекция, установлен существующий partial postmerge с точными remaining IDs. Tests/review не выполнялись заново.
+
+Организационные остатки: старое B scalar `main_merge=NOT_ATTEMPTED` расходится с новым terminal receipt и должно читаться как историческое; provenance/route нового CI-ref пока не установлен серверным primary. Они не исправлялись перезаписью чужого WIP и не выданы за параллельный Controller-аудит. Existing B остаётся владельцем собственного documentary/source lifecycle и postmerge результата.
+
+**Точные внешние зависимости:** B — два terminal exact227 выше, full required jobs и CI route/provenance, затем только при принятом результате его собственный consumer-safe lifecycle; A/runtime — физические причины прежних I1 failures; A — R14 evidence/собственный lifecycle и отдельно более новый exact package; владелец/C/publisher — genuine C06 authority/catalog, пакет, Opera policy applicability и установленная reviewer/owner приёмка; остальные прежние custodians — исходная карта12. По C06 нового решения владельца нет. Chrome/Firefox/Opera submission **НЕ ГОТОВО**.
+
+Own launches tests/review/browser/CI/helper=**0/0/0/0/0**; own merge/cancel/source changes=0. R7/R8 ресурсный отказ не повторялся, не переформулировался и не обходился; нового допуска нет. Tester/B01/R3, чужие source/tests/WIP, live/DB/security, owner cleanup, старые чаты, PR97/131/134, errors.json/events.jsonl, авторизации/кредиты/расписания не трогались; новых реестров, эксплуатаций и воспроизведений обхода доступа нет. Доступный узкий документальный шаг выполнен; дальнейшие факты зависят от существующих владельцев. REPORT write требует отдельного readback.
