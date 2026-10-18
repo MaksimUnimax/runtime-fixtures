@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-18T06:01:15.447226Z; последний результат — раздел «Продолжение с REPORT1c35fe4a». Предыдущие датированные разделы сохраняются как история.
+- **Состояние на:** 2026-10-18T06:16:00.628086Z; последний результат — раздел «Продолжение с REPORT4d05e178». Предыдущие датированные разделы сохраняются как история.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** `main=22700f7951199a215ba8154e6f8e1da4374227e0` — свежий GitHub ref readback перед публикацией этого продолжения; source compatibility не переоценивалась.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA-256 `029197ca13d646563774bb70657a30a41929e4d593d23e1587d27ad635c4a7ae`, 2,082,085 bytes; запись 2026-10-18T06:00:56.424607Z, независимый readback 06:01:15.447226Z; `audit_complete=false`.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA-256 `2ef76f9b87f5d5a2da0c4b5e1d89fcb73e799fc954bd15d3eeb757fa9327c7f9`, 2,087,442 bytes; запись 2026-10-18T06:15:37.410141Z, независимый readback 06:16:00.628086Z; `audit_complete=false`.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -2859,3 +2859,122 @@ Accepted R2 относится к immutable **3978e1b70892e33dea81757a99bccf3ba3
 Предыдущий REPORT1c35/blob6519d5db и его завершённый исход проверены, неизвестная запись не повторялась. Эта публикация использует тот же REPORT, exact blob CAS/`[skip ci]`, expected parent1c35; после публикации — отдельный full-content/blob/parent/ref readback.
 
 **Новых tests/review/CI/VM/browser/helper/merge=0/0/0/0/0/0/0.** Не выполнялись эксплуатация/воспроизведение обходов, live/DB/security/auth/resources/cleanup, вмешательство в Tester/B01/R3/чужие source/tests/WIP, старые чаты/PR97/131/134, errors/events. Новых реестров/архивов/расписаний/кредитов/сбросов/авторизаций нет. **audit_complete=false.**
+
+
+## Продолжение с REPORT4d05e178 — 18.10.2026, 06:16 UTC
+
+Продолжен тот же аудит с завершённого `4d05e178e3a032f9a98a992cb5d351b60e59885b`; **audit_complete=false**. Последний ref/blob, author MaksimUnimax, commit06:03:33 UTC и parent1c35fe4a подтверждены. Исход записи известен; дубля не было. RDC ping06:12:07 UTC, retained background calls0, прежний driver2354613 сохранён. Canonical A/B/C HEAD и WIP **81/83/73** не изменены; writable FD собственных документов0; существующие locks свободны до короткой записи.
+
+### Новый результат B и его пределы
+
+После среза dot06:09 появился отдельный **[Draft PR214](https://github.com/MaksimUnimax/runtime-fixtures/pull/214)**. GitHub подтверждает head **`0f9ff215e071a43029ee7ba4b22cd3825ceeb94b`**, base **`22700f7951199a215ba8154e6f8e1da4374227e0`**, open/draft/unmerged,1changed file. B.json обновлён **06:10:44.917811 UTC**: прежние review-pending/not-published поля в более раннем receipt — исторический срез, не текущий результат.
+
+Immutable Git проверен только для установления scope: commit **06:02:47 UTC**, tree **ea5390849008af745aaa93e1e3c55275380fd5b5**, parent22700f79, ровно `apps/telegram-operator/src/swagger-recovery.test.ts` **+31/-9**. Exact test SHA256 **371ae058d6bbc1bb541987c3de95106940325a64836ef136a5502e1a212eb0bd** совпал с receipt. Настоящий production scheduler `packages/server/monitoring-control/src/scheduler.ts` имеет одинаковый blob **d9da3b4bea5d5716d8c4b508c929f2e00af771bf** в базе и кандидате. Это проверка неизменности путей, не новое code review или тест.
+
+| Уже выполненная автором граница | Проверенный результат |
+| --- | --- |
+| Controlled synthetic delay1250ms, прежнее ожидание | RED **1FAIL/10SKIP**, expected undefined vs SUCCEEDED, exit1 |
+| Та же задержка, исправленное ожидание | GREEN **1PASS/10SKIP**, exit0 |
+| Telegram suite | **119/119PASS**,9files, exit0 |
+| Независимый SOURCE review | Existing codex2 **gpt-6-luna/xhigh/read-only**, **ACCEPT_SOURCE_SCOPED**, exit0, **25.126s** |
+| Публикация | Отдельный PR214 Draft; PR212 exact3978 не заменён этим кандидатом |
+
+Новый тест ждёт завершения сохранения matching runId через исходный finishRun и отдельно проверяет SUCCEEDED; одного runNow ACK для PASS недостаточно. Ограничение ожидания —15s. Задержка находится в synthetic fixture; production scheduler/retry/auth/DB не менялись. Это узкий SOURCE test-reliability результат. **Историческая причина GitHub Server failure остаётся UNKNOWN**: controlled delay показывает возможность ошибки ожидания, не доказывает фактическое время/состояние прежнего GitHub background process и не объясняет I1 AbortSignal/grant/lease.
+
+### Первичные доказательства
+
+Каталог: `/root/octoport-control/logs/B/B06_TELEGRAM_SWAGGER_ASYNC_20261018/`.
+
+| Файл | SHA256 |
+| --- | --- |
+| B06_TELEGRAM_ASYNC_TEST_RED_GREEN_119PASS_SOURCE_20261018.json | `054a4f3e8221652f16526c32df6343c931c9f1e200ad1be440e696c091be0ad5` |
+| B06_PR214_EXACT0F9_INDEPENDENT_SOURCE_ACCEPTED_20261018.json | `3c3edae6431b48fe620f707f27daa6c3d3e7cea3f0abda6726d3deaa9d47cb28` |
+| TELEGRAM_ASYNC_LUNA_SOURCE_REVIEW_R1_VERDICT.txt | `250db0b16360f91f6aa54ad49085dfa6607a40ef7471e74dfc442a58547d174f` |
+| TELEGRAM_ASYNC_LUNA_SOURCE_REVIEW_R1.log | `ada24c5b2ad32aedf95ca53ea9e2feeb9c034051794af0091b1eb8f4e3628c7a` |
+
+RED log SHA **a14801f0c602e69ce53090fd1a23527bd20230c3be532131a1a0e841ff225510**, GREEN **05d75933175a2ad152304b10fd3de139d63de289a62a9fbfe98aa527ffeb6882**, suite **4b06e9997721f3600d4a2f8b17ff4e577a14f823fc2fab690de2d1b0d5cdb58f**: логи считаны, hashes/результаты/terminal совпали с receipt. Они **не содержат SHA кандидата**. Их execution→candidate связь заявлена авторским receipt; immutable diff/source hash и review проверены отдельно. Недостающий runtime-SHA proof не реконструирован и не объявлен существующим.
+
+Штатное чтение уже существующих journals подтвердило:
+- RED exit1 **05:57:41.298574 UTC**;
+- GREEN deactivated successfully **05:59:45.680545 UTC**;
+-119-suite success **06:00:56.097344 UTC**;
+-review success **06:04:19.448892 UTC**.
+
+Original review log содержит model/effort/read-only, чтение exact candidate diff и разрешённого baseline scheduler, итоговый verdict и25.126s terminal. Контроллер не запускал reviewer и не повторял source checks/lint/typecheck/tests. Дополнительные авторские lint/format/typecheck PASS не перепроверялись и не повышены до full acceptance.
+
+### Уже существующий GitHub CI PR214
+
+Свежая коллекция exact0f9 в проверенном срезе **06:13:53 UTC** содержит только два pull_request workflow, attempt1:
+
+| Workflow | Run | Результат |
+| --- | --- | --- |
+| Documentation CI | [39102992185](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39102992185) | SUCCESS, updated06:08:46 UTC |
+| Server CI | [39102992196](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39102992196) | IN_PROGRESS; ci-plan117602908693 SUCCESS, server117602930102 IN_PROGRESS |
+
+Это workflow metadata head0f9, **не пять принятых native workflows**. Actual checkout выполняющегося server job в этом проходе не подтверждался; pending не считается PASS. Остальные три workflow в полученной коллекции не обнаружены; author receipt объясняет path filters. Нового dispatch/rerun/CI-ref push/merge Контроллер не делал.
+
+PR214 SOURCE acceptance и возможный будущий green отдельного test-only SHA **не заменяют** PR2123978 Server FAILURE и старый e06 signed I1 ABORT142. PR212 SOURCE gate3978 остаётся ранее принятым; full-PG explicit refusal, B05/entitlement и прочие отказы не отменены.
+
+### B — SOURCE TEST-ONLY ПРИНЯТ; NATIVE GATES И ИСТОРИЧЕСКАЯ ПРИЧИНА НЕ ПОДТВЕРЖДЕНЫ
+
+1. **ВЫПОЛНЕНО:** задача одного test file, RED/GREEN/119 и review установлены по receipt/log/journals. Review terminal **06:04:19 UTC /09:04:19 МСК**; runtime SHA в test logs отсутствует, provenance предел указан.
+2. **ВЫПОЛНЕНО:** действуют только read-only аудит/собственные документы. Новые tests/review/CI/VM/browser/helper/merge и чужой runtime/Tester scope не выполнялись; конкретные отказы сохранены.
+3. **ВЫПОЛНЕНО:** сопоставлены RED/GREEN одинаковой synthetic delay, сохранён старый GitHub failure. Внешне одинаковый undefined не признан одинаковой физической причиной.
+4. **ВЫПОЛНЕНО:** локальная test timing weakness, SOURCE verdict, GitHub pending и historical cause UNKNOWN разделены; product scheduler unchanged.
+5. **ВЫПОЛНЕНО:** exact parent/tree/file/hash, B role06:10, PR214 head/Draft, canonical WIP83, свои версии/locks/FD0 проверены; вторых source/review исполнителей нет.
+6. **ВЫПОЛНЕНО В СВОЁМ SCOPE:** исправлены собственные проекции review pending/неопубликовано на фактические scoped acceptance/Draft PR214. **НЕ ВЫПОЛНЕНО:** original failure cause, full exact native gates/merge/installed/live; документация их не исправляет.
+7. **ВЫПОЛНЕНО:** hashes и готовые journals corroborate source evidence; existing CI metadata/jobs прочитаны без retry. После собственной записи получен независимый readback. **НЕПРИМЕНИМО:** повтор теста/review ради аудита.
+8. **ВЫПОЛНЕНО:** новое движение — distinct commit/review/PR214 и уже запущенный автором CI. Pending Server и старые отрицательные outcomes не выданы за выполненный результат.
+9. **ВЫПОЛНЕНО:** existing B/CI custodian получает уже опубликованный terminal39102992196, сохраняет negative при его наличии; no rerun. A/runtime/sole Tester остаются causal custodians старого I1; общего нового разрешения не требуется и запреты не обходятся.
+10. **НЕПРИМЕНИМО К РЕЕСТРУ ОШИБОК:** нет нового error/raw/incident/per-ID регистра, архива или scheduler; только прежние checkpoint/DOT02/REPORT.
+
+### A — ПРЕЖНИЙ R23 ПРИНЯТ В УЗКОМ SCOPE; C3E/FULL ACCEPTANCE OPEN
+
+1. **ВЫПОЛНЕНО:** R23/publicPR205/handoffe37ec709 приняты из REPORT4d05; новых A первичных фактов в проверенном наборе нет.
+2. **ВЫПОЛНЕНО:** no-new-launch/Tester/source/live границы соблюдены.
+3. **ВЫПОЛНЕНО:** SOURCE/PACKAGE/R22/R23 использованы без повторного исполнения или review.
+4. **ВЫПОЛНЕНО:** direct helper PASS не whole queue/transport/storage/no-loss/owner/Store; C3E остаётся OPEN.
+5. **ВЫПОЛНЕНО:** A.json/hash a4c95722/05:59 и WIP81 неизменны; собственной параллельной записи нет.
+6. **ВЫПОЛНЕНО В ДОКУМЕНТАЛЬНОМ SCOPE:** bounded PASS/ограничения сохранены. **НЕ ВЫПОЛНЕНО:** C3E/native5/13/full acceptance — чужой открытый продуктовый scope.
+7. **НЕПРИМЕНИМО:** повтор принятой A границы без нового основания. Собственный новый checkpoint/priority readback выполнен.
+8. **НЕ НАБЛЮДЕНО:** новый A результат/ACK C в доступных изменённых документах; старый PASS не засчитан новым объёмом.
+9. **ВЫПОЛНЕНО:** existing A/C/release/CI и оригинальный owner/Tester сохраняют адресные обязанности; возврат по новому готовому evidence/disposition, не дублировать handoff.
+10. **НЕПРИМЕНИМО К ERROR-УЧЁТУ:** поздний запрет на errors/events/новые реестры соблюдён.
+
+### C — ПРИНЯТЫЕ5/13 ПОВТОРНО НЕ ПРОВЕРЯЛИСЬ; C06 AUTHORITY/CATALOG OPEN
+
+1. **ВЫПОЛНЕНО В ДОСТУПНОМ ОБЪЁМЕ:** C.json31d0588d/05:08 неизменен; новых C адресных документов после06:03:33 в проверенном наборе нет.
+2. **ВЫПОЛНЕНО:** C03-R4/C05/live/DB/Store authority ограничения сохранены; нового owner решения C06 нет.
+3. **ВЫПОЛНЕНО:** accepted exact9845/13 из REPORT4d05 переиспользованы; CI/job/log/review не читались повторно.
+4. **ВЫПОЛНЕНО:** отсутствие receipt/authority не объявлено простоем C или общей недоступностью; handoff не равен ACK.
+5. **ВЫПОЛНЕНО:** canonical C HEAD5ca59994/WIP73 и own locks/версии/FD0 проверены; C state не менялся.
+6. **ВЫПОЛНЕНО В СВОЁМ SCOPE:** own projection учитывает новый отдельный PR214 и сохраняет accepted C result. **НЕ ВЫПОЛНЕНО:** C ACK/integration/postmerge/genuine release authority, их нельзя подписать за владельца.
+7. **НЕПРИМЕНИМО:** повтор C5/13 или запуск consumer. Независимый readback собственных документов выполнен.
+8. **НЕ НАБЛЮДЕНО:** самостоятельное новое C продолжение; старый RUNNING не засчитан новым прогрессом.
+9. **ВЫПОЛНЕНО:** owner/B-Ops предоставляют точные source.head/tree, approved HTTPS origins/trustBundle и targetcatalog/acceptance конкретного artifact; C/publisher связывают документы, original Tester/manual остаётся у владельца.
+10. **НЕПРИМЕНИМО К РЕЕСТРУ:** прежние документы и карта12 сохранены, новой очереди/регистра/архива нет.
+
+### Объём, организация и остаток
+
+**Объём после REPORT4d05:** одна новая test-only группа с controlled RED/GREEN/119 и independent SOURCE acceptance; подтверждена отдельная Draft публикация PR214 и два существующих PR workflow. Нового производственного исправления или полной приёмки нет. Темп без заданного норматива **NOT_ESTABLISHED**.
+
+**Организационные проблемы:** B old pending/not-published snapshot отстал от06:10 receipt/remote PR; собственная проекция исправлена. Execution timestamp, commit timestamp и publication — разные события. Receipt association не превращает log без SHA в runtime-SHA proof. Synthetic symptom не historical cause. Docs SUCCESS+Server IN_PROGRESS не5nativePASS; другой green SHA не объясняет старый I1.
+
+Открыто: PR214 существующий Server terminal и обязательные exact native gates/protected conditions; PR2123978 отдельные Server/I1 negatives и full-PG отказ; A C3E/full original owner acceptance; C06 genuine authority/catalog. Остальные **original14/исторические12 OPEN**, provenance/installed/two-relay/actor/R7R8/B05/entitlement/Win32/WB/PR207/C03-R4 остатки **NOT_RECHECKED** и сохранены с прежними primary/авторами/допустимыми шагами. Принятые PR50/130/143/144/A02/B05 и остальные bounded результаты не переоткрывались.
+
+Новых решений владельца по C06 нет. Минимальное внешнее решение остаётся адресным: owner/B-Ops утверждают source.head/tree, HTTPS origins/trustBundle и targetcatalog/acceptance точных version/hash/contract; это не запрос blanket-разрешения обойти конкретный отказ. Авторизации/подписи/каталог не изготовлялись; Тестеру нового задания нет.
+
+### Запись и readback
+
+**06:15:37.410141 UTC:** короткая запись своего current delta в прежнем checkpoint и Controller reply того же DOT02v10, под существующими coordination/CONTROLLER/target locks и expected hashes/role versions/WIP81-83-73/FD0. Проверкой структуры сохранены все иные root-fields, original12 и строка current_product_boundaries. Locks освобождены до сети.
+
+**Независимый RDC readback06:16:00.628086 UTC:**
+- checkpoint **`2ef76f9b87f5d5a2da0c4b5e1d89fcb73e799fc954bd15d3eeb757fa9327c7f9`**,2,087,442bytes;
+- PRIORITY_TASKS **`09de6d1db737d5d417b3a0023160233609beb2b305035b0ed63304c56c92ab4b`**,696,719bytes;
+-content/hash match, marker1, original12/PLAN/foreignfields сохранены, auditfalse, locks free, newlaunches0.
+
+Тот же REPORT обновляется exact blob CAS/`[skip ci]` с expected parent4d05e178 и отдельным full-content/blob/parent/ref readback. Неизвестная запись не повторяется.
+
+**Новых Controller tests/review/CI/VM/browser/helper/merge=0/0/0/0/0/0/0.** Source/tests/WIP, Tester/B01/R3, старые чаты/PR97/131/134, live/DB/security/auth/resources/cleanup, errors/events не тронуты. Эксплуатация/воспроизведение обходов не выполнялись. Отказы fullPG/R7R8/B05/entitlement и прочие не повторялись и не обходились. Новых реестров/архивов/расписаний/кредитов/сбросов/авторизаций нет. **audit_complete=false.**
+
+Последний read-only readback перед публикацией: Server PR214 run39102992196 всё ещё IN_PROGRESS, conclusion=null; нового terminal не опубликовано в этом ответе API. Повтора CI не было.
