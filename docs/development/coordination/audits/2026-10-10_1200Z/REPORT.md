@@ -1942,3 +1942,138 @@ REPORT freshref03:50:54 по-прежнему **18334b26**; lastauthorMaksimUnim
 | R7/R8freshadmission отсутствует/testNOT_STARTED | Addressed resourcecallrefusal сохраняется; Bmountreceipt не новыйControlleradmission/measurement, историческийmemoryFAILне допуск. |
 
 Доступные независимые documentary действия этого прохода доведены до проверенного результата. **Audit_complete=false.** Own tests/review/CI/browser/helper/merge=**0/0/0/0/0/0**. Live/DB/security/auth/resources, Tester/B01/R3, чужойsource/tests/WIP, ownercleanup, oldchats, PR97/131/134, errors.json/events.jsonl не тронуты; новыхреестров/архивов/расписаний/кредитов/покупок/авторизаций/сбросов нет. Дальнейший шаг — только genuinelynew permitted primary исход, не имитацияprogress/повторнеизвестногозапуска/обходконкретногоотказа.
+
+
+## Защитный документальный delta A/B/C — 2026-10-18T04:06:14.768Z
+
+Продолжен тот же аудит с завершённого **REPORT55284ec689e3da40506a548aaf8dc08f7743995b**, blob **d2beedce5676279b0f323ab99f1f8eae596ca031**. Последний terminal/readback, собственные версии и отсутствие дубля/операции проверены. Нового параллельного аудита/исполнителя/PLAN нет; dot read-only, единственный автор собственных REPORT/checkpoint — действующий Контроллер. Original12, предыдущие10boundarynotes, принятые evidence и WIP сохранены. Неизменный канон повторно целиком не читался.
+
+### Single writer и доступ
+
+Штатный RDC list_devices подтвердил Easyscript Online/device9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Native sessions только protecteddriver2354613; oldcodex2/app-server не запускались/не использовались/не менялись. Own checkpoint7d87991b… и priority73d5a123… совпали с прежним readback; coordination.lock свободен, execution-claims пуст, targetwritableFD0. Перед собственной записью readonlyFD0/writableFD0, exactownsha/freshrolehash guards. Конкурирующей собственной записи и неизвестного исхода прежнего действия не обнаружено.
+
+Read-only Gitmetadata с GIT_OPTIONAL_LOCKS=0: A09e12fab…/81dirty; B0885f499…/83dirty; C5ca59994…/73dirty, canonicalbranches прежние. Source/test/WIP не изменялись, fetch/reset/checkout/clean не выполнялись. Main **22700f7951199a215ba8154e6f8e1da4374227e0**. CurrentroleA03:52:56 C3E source qualification, B03:54:48 manifest review refusal, C03:58:30 package negative. New helper/test/review/CI/browser/merge от Controller не было.
+
+### Новые первичные документы и точные исходы
+
+| Primary | UTC / SHA256 / bytes |
+| --- | --- |
+| A C3E currentity JSON | 03:52:56.041436 / **a89178f38c830c52c1733e16a4842d6c5f60aeba9355a04225bebbe44b472979** /5035 |
+| B R2 refused JSON | 03:54:48.512779 / **0bd7cf8010f2ddf7ae57c6e0c97c99e60de75484579a36a23c7d37682a16e3e2** /3754 |
+| B actual R2 log | **fc8307238c5866fbbdcc07b2db006aa99b969007f3f72ca46857757410a82f69** /2251 |
+| B actual R2 verdict | **9aedcedb3bd8a155d4d71fce57e101a8ebcc45e9455791f55fa84467f21b7d99** /226 |
+| C new grouped-Ozon package negative JSON | issued03:58:30.915508, observation03:53:58.024534 / **cf8f8f80de6b6178e30df3a1334ce00472e5bfd61e2fb1d177a38ccb59fc4156** /3785 |
+| C→A existing factual handoff | 03:59:30.597282 / **fc2faa82af6a40959a3e1fd814f5b6d56ae8be02dc0602d944f9971d8d3f5290** /2837 |
+
+Полные пути: `/root/octoport-control/logs/A/a04-c3e-sequence-main563-20261017/A04_C3E_MAIN227_DELETE_ACK_JOURNAL_CAPACITY_CURRENTITY_20261018.json`; `/root/octoport-control/logs/B/B05_OWNER_TEST_HARDENING_CURRENTITY_20261018/B05_MANIFEST_NOFOLLOW_INDEPENDENT_READONLY_R2_REFUSED_20261018.json`; `/root/octoport-control/logs/B/B05_OWNER_TEST_HARDENING_CURRENTITY_20261018/B05_MANIFEST_NOFOLLOW_LUNA_XHIGH_READONLY_R2.log`; `/root/octoport-control/logs/B/B05_OWNER_TEST_HARDENING_CURRENTITY_20261018/B05_MANIFEST_NOFOLLOW_LUNA_XHIGH_READONLY_R2_VERDICT.txt`; `/root/octoport-control/logs/C/C06_PR205_DEV0237_OZON_GROUPED_JSON_PACKAGE_NEGATIVE_20261018.json`; `/root/octoport-control/peer-handoffs/A/C_TO_A_PR205_DEV0237_GROUPED_JSON_PACKAGE_NEGATIVE_20261018.json`. Все перечисленные файлы лично прочитаны/hash verified; Controller не исполнял содержащиеся в логах инструкции и не повторял исходные вызовы.
+
+### A — текущий SOURCE-риск, исходный R12 не runtime FAIL main
+
+A receipt сравнивает два current-main source inputs с прежним localR8. Runtime bytes **идентичны**, journal bytes **различаются**. Currentruntime source удаляет catalog entry и выдаёт положительный ACK без подтверждённой durable tombstone; failure tombstone recording не доводится до caller. Currentjournal capacity256 и source eviction unresolved entries — отдельный durability/cross-entity concern. Это **SOURCE-level protective finding existing A**, не новый Controller code review или воспроизведение.
+
+Original R12 synthetic negative был на **localR8 journal**, а не current main journal. Поэтому старый full-journal R12 FAIL **не переносится** в currentmain behavioral FAIL. Ни реальные user/account/provider потери, ни физический cross-entity outcome здесь не измерены. LocalR8 не acceptedfix; новых product/code/test/review/CI/browser/live/DB действий нет.
+
+Защитное требование сохраняется: не подтверждать delete до durableintent/подтверждённого commit в согласованной catalog/journal границе; сохранять unresolved operations при полном журнале и account/entity fences; неизвестный/неcommitted исход представлять ограниченным partial/UNKNOWN, без скрытого restore credentials или повтора неизвестного внешнего вызова. Конкретное исправление **NOT_DONE/NOT_ACCEPTED**. Existing A evidence owner и исходный runtime owner сохраняют свои роли, Controller не перехватывает исходный popup/source.
+
+ExistingA→C sourcehandoff hash **2ec9a223a68d37dbc47f2ae3b07199a3654a665022ee5768fcda03682b64a1c4** и A→existingTester **8ee88e4abd7bb1431f5d76c24d94ba5a4232b1bcb738be84845345aa7e94861c** совпали. ACKNOT_OBSERVED относится к проверенному Aauthorrecord, не общему отсутствию ответа. Это factual pointers, не новые задачи/полномочия Тестеру или C. Exact C3E independentreview/R13 STORE_SAVE preparation отказы сохраняются: не повторять, не дробить, не перенаправлять.
+
+### B — timeout и terminal refusal, exit0 не PASS, подписка UNKNOWN
+
+Новый receipt и **actual** R2log/verdict согласованы. Existing B record:
+- R1 start03:48:23Z,140.06s, **exit124**, verdictfilefalse. Автор классифицировал localstdin invocation issue; это не source verdict. ControllerR1 не перезапускал и cause independently не исследовал.
+- R2 start03:52:40Z,7.71s, **exit0/inactive-dead**, но actual content — **REVIEW_REFUSED_NO_SOURCE_VERDICT**, без code analysis. Modelheader existingLuna/xhigh/read-only; Controller никого не запускал.
+
+Дословный terminal refusal:
+
+> Отказываюсь: в доступном контексте подписка Plus не подтверждена и не разрешена. Согласно вашему условию, анализ не запускаю.
+
+Это подтверждает **непроверенный entitlement в доступном контексте reviewer и сработавшее условие его запроса**, а не факт отсутствия подписки у владельца/аккаунта. Фактический subscription/accountstatus **UNKNOWN, NOT_QUERIED**. Ни профиль/auth/подписка/кредиты, ни иной способ входа/проверки не трогались; нет запроса купить новую подписку. Успех unit/процесса не source review acceptance.
+
+Existing manifest source concern остаётся **MOCK_ONLY_NOT_INDEPENDENTLY_REVIEWED_NOT_FIXED**. Новый R2 не подтверждает его severity/actualexploit/correctness; patch/worktree/resource admission exact refusal также не снят. Нельзя повторять reviewer, менять модель/helper/provider/profile/auth, копировать login, обходить original worktree-resource refusal или split operation. Ответственный — existing B/request owner и поддерживаемый профильный администратор за явный supported disposition; это внешний остаток, не поручение Controller авторизоваться. Otherdisjoint documentary work выше продолжена без глобальногоSTOP.
+
+### C — per-store SOURCE qualification и новый отрицательный package-level результат
+
+PR210 per-storeguard SOURCE corroboration потреблена на source/publishedclaim уровне. Она **не новый установленный/privacy-policy/Store PASS**. В narrowchecked C06_WB root JSON inventory после предыдущего cutoff по-прежнему только прежний f177… receipt; отдельный новый terminalreceipt для additionalperstoreVM в проверенной выборке **NOT_OBSERVED**. Это не глобальный поиск/отрицание существования artifact и не повод повторитьVM. Прежние опубликованные187/171/16/oneguard claims сохраняются как authorpublished, не превращены в новый hash-verified terminal JSON.
+
+**Новый независимый от указателей dot факт:** existing C сформировал receipt03:58:30 и handoff03:59:30 по observation03:53:58. Тот же **LOCAL DEVELOPMENT0.2.37 ZIPfbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89** **не содержит unmergedPR205 correction**. На existing offline synthetic projection собственные JSON поля grouped-Ozon результата теряются, меняется prototype конкретного выходного объекта. **Object-local copy/data fidelity** negative, без доказанного globalObjectprototype изменения, эксплуатации, утечки, реальных provider данных или полного installedbrowserfailure. Controller не воспроизводилVM, не инспектировал ZIP повторно и не исполнял payload.
+
+Primary member identities: Ozoncontract **e16115dcb5766e3c2b850e3cff780c1765295f148c8f64e6bcdb677937ba5d16**, serviceworker **bcfc3e17e9aa43fd91a059cc18551d7aab77edb43908fb6cf086e9ca98390d1a**. Checked C JSON/role links/PR210 body addendum согласованы; no new independent Controller code review. **AFFECTED_GROUPED_OZON_ANALYTICS_NOT_ACCEPTED_ON_THIS_ZIP; DO_NOT_REUSE_AS_FIXED.**
+
+Это не отменяет existing Chrome/Yandex/Opera **guest/privacy** PASS на этих exactbytes и не отменяет PR205 exactd0a1 independent **SOURCE compatibility PASS**. Эти уровни не подтверждали текущий fixed groupedfeature. PR205 остаётся DRAFT/unmerged, предыдущий nativeCI inventory/requestUNKNOWN/5nativegateOPEN **переиспользован**, повторногоCI/job/provenance чтения не было. Старый ZIP не объявляется исправленным только из-за source fix в другой ветке.
+
+C→A factual handoff прочитан, ACKNOT_OBSERVED **в этом документе**, не глобальный вывод. Existing A retains PR205 source/integration, C retains evidence/listing/package qualification, Testeroriginalpopupнеперехвачен. Нельзя молча урезать обещанный feature scope: возможный narrowerfirstlisting — только в уже действующем ownerapprovedscope/STOREPOLICY, не новый Controller/C продуктовый выбор. Точный новый исправленный package/acceptednative/integration/manual/genuineauthority остаётся внешним разрешённым исходом; никакие runs здесь не поручаются.
+
+### Адресные результаты и сохранённые границы
+
+FreshPR210 body updated03:56:53Z, head5e6954ee03251d762aaad06031d157989a798822 unchanged/DRAFT; новый negative addendum подтверждён. GET existingcomments since03:52:37Z по10PR139/145/189/191/200/205/207/209/210/211 — **0новых addressedcomments** в проверенной выборке. Новые checkedpeerfiles: A→C и A→existingTester C3E source pointers, C→A package negative; не новая передача scope/исполнителя. Controller notices ownpriority прежний до нашей новой записи, иных новых checkedfiles нет.
+
+Прежние B03:26/29 prerequisites, Bjournal/ACL/mount, PR205CI и PR207HOLD не перепроверялись без новых оснований. Original12, DOT02v10/own progress pointer, bounded accepted tests/source/review/CI сохранены. Все addressedA/B/R7/R8 отказы, дваB128OPEN и C06 authority/catalog **NO_NEW_OWNER_REPLY** остаются. Новых tests/review/CI/browser/helper/merge/live/DB/security/auth/resource действий не было.
+
+### Все десять пунктов процедуры по новому delta
+
+Использован прежний уже прочитанный источник10пунктов; поздний прямой запрет errors/events/newregistries применяется к пункту10. Выполненное documentary действие не продуктовый PASS. Конкретные unknown/refused/original technical outcomes сохраняются ниже.
+
+#### A C3E delete ACK/journal capacity
+
+1. 03:52:56.041436Z receipt a89178f3…: current main227 SOURCE pattern and original R12 negative on localR8; exact current full behavior not tested. A→C/Tester factual pointers hashes verified, ACK NOT_OBSERVED only in author record.
+2. Original A evidence/Tester original-runtime ownership retained. No new test/source/review/browser/helper; exact C3E review/R13 STORE_SAVE preparation refusals remain. Handoff not new task or grant.
+3. Prior localR12 FAIL retained; current runtime bytes equal localR8, current journal bytes differ. Old result not transferred to wholemain227, localR8 not accepted fix.
+4. SOURCE durability/false-ACK/capacity risk confirmed by author analysis; no current-main runtimeFAIL, no real data loss or cross-entity physical outcome proven. Pending eviction is source concern.
+5. Own REPORT55284/blobd2be/own7d879/73d5 match prior terminal, lock free/no competing writer/no own operation; A81/B83/C73 WIP retained.
+6. Own source-level projection corrected: durable intent before confirmation, preserve unresolved entries/full-journal fences, bounded UNKNOWN if not committed. No code/test/technical fix by Controller.
+7. Primary hash and linkedhandoffhashes matched. Runtime identity/source pattern observed by A; exact installed/currentmain behavioral proof NOT_DONE. No old R12 or deniedR13 replay.
+8. Real progress is current source qualification and factual handoffs, not fix/accepted R8/current runtime acceptance/Tester ACK. PR205/207/CI statuses not rechecked.
+9. Existing A source evidence; original-runtime owner retains own scope. Needed return: actual permitted independent proof on exact current/fixed boundary and current accepted artifact, preserving cross-entity unresolved data; no new Controller task/run.
+10. No errors/events/new registry/archive; same productcheckpoint/REPORT/v10 response. Original12 and prior accepted outcomes untouched.
+
+#### B manifest independent review R1 timeout / R2 explicit refusal
+
+1. 03:54:48.512779Z receipt0bd7cf80…; R1start03:48:23Z timeout124/noverdict; R2start03:52:40Z terminal7.71s/exit0/inactive. Actuallogfc830723… and refusalverdict9aedcedb… read/hash matched.
+2. No retry/reviewer substitution/profile/auth/entitlement probing/purchase/fallback. Prior B worktree-resource refusal unchanged. Existing B owns request; supported administrator disposition is external, not new Controller authority.
+3. Previous existing manifest mock remains MOCK_ONLY/UNREVIEWED. R1 local invocation timeout not verdict; author records stdin issue. R2 was completed refusal, not a successful independent source analysis.
+4. R1 technical timeout vs R2 explicit reviewer condition refusal; exit0/unitsuccess only process outcome. Entitlement unverified in reviewer available context, actual subscription/account status UNKNOWN; no absence of subscription asserted.
+5. R2 terminal source record/log verified, no new helper by Controller; own file author/lock/WIP guards preserved. No sourceworktree/patch/resources/profile created/changed.
+6. Actual permitted fix is own review-status/next correction to REFUSED_NO_SOURCE_VERDICT, preserve supported-disposition dependency and original source-admission refusal. No source patch or authorization repair.
+7. Log/verdict literal refusal agrees receipt, modelLuna/xhigh/read-only header. No technical source verdict or code analysis; no source finding independently accepted. Profile entitlement not reverified.
+8. Real progress: existing review attempt's terminal refusal now correctly recorded. Source product still unfixed/unreviewed; no R2 retry or speculative accounting/entitlement cause.
+9. Existing B/supported codex2 profile administrator holds explicit disposition of this refusal, plus platform original worktree/resource admission; no requested new subscription. Other disjoint documentary work continued here.
+10. Only existing productdocs; no registry/error archive/events restoration/auth or credit changes; original12/refusals preserved.
+
+#### C per-store guard scope and newly observed current-ZIP grouped Ozon negative
+
+1. PR210 source qualification read; separate additional WB VM terminal JSON not observed in narrowcheckedC06_WB root scope. New groupedOzon receipt03:58:30.915508Z cf8f8f80… describes existing offlineobservation03:53:58; C→A03:59:30 fc2faa82… checked.
+2. C source/package consumer and A PR205 source owner, Tester originalpopup remain. No new VM/security reproduction/source/test/CI/browser/merge/publisher task by Controller; no ownerC06 authority reply.
+3. Existing3guestPASS/currentdevelopmentZIP preserved at guest scope; PR205 sourcePASS still accepted. Samefbedd0b7ZIP has no unmergedd0a1 correction; guest result never proved groupedJSON fix.
+4. Per-store SOURCE corroboration + published offlineclaim not installed/privacyPASS; new C JSON proves scoped offline package-negative, object-local copy/prototype issue only, not global prototype compromise/exploit/exposure/real provider loss.
+5. Immutablepackage unchanged by C/Controller; source/ZIP/browserWIP not opened or mutated by Controller. C→A factual handoff ACKNOT_OBSERVED in that document, not universal no-response claim.
+6. Own C release projection marks affected grouped analytics NOT_ACCEPTED_ON_THIS_ZIP and no reuse-as-fixed. No unilateral feature-scope cut, no release/product rewrite or new fix/instrumentation.
+7. cf8f8f80…JSON matches Cnode, Afix/head and publishedPR210 addendum. Handoff hashes align. No VM replay, no new package inspection; separate WB per-store terminal artifact not fabricated.
+8. Real progress: known current archive affected boundary newly negative at package/offlinelevel; source-ready fix not in artifact. No installed/business/Store acceptance and no global security incident claim.
+9. Existing A exact PR205 integration/native prerequisites remain as previously recorded; C exact newapprovedartifact qualification/owner-approved listing and genuineauthority/privacy; original Tester manual scope untouched. These are external conditions, not new launch orders.
+10. No new registry/archive/errors/events/schedule; previous original12, guestacceptance, journal/ACL/mount/PR205/207 observations reused without repetition.
+
+### Собственное фактическое действие и readback
+
+Только собственные projection/checkpoint/тотжеv10reply обновлены под existingcoordination.lock nonblocking/exactownSHA/freshrolehash/writableFD0. A Source-vs-runtime boundary, B terminalrefusal/actualsubscriptionUNKNOWN, C sourcecorroboration-vs-terminalreceipt и currentZIPaffectedfeatureNOTACCEPTED/handoff отражены явно. Все rootfieldscheckpoint внеownrecord сравнены/неизменны; originalmapstring/list12 и прежние10boundarynotes сохранены. Чужие role/source/tests/WIP/профили/units/resources не менялись.
+
+Independent RDC readback **04:04:42.727350Z**:
+- own `FINAL_RESUME_CHECKPOINT.json` SHA256 **b3a05dd3469c0166ada03bd7f72937fe7de9601939e520d803718574d1d93de2**,1914881bytes;
+- existing `PRIORITY_TASKS.md` sameDOT02v10 reply SHA256 **10bdd3bceb5ebbad47e85d1e7afc131743f134d5bc3ce924d402002c41927842**,675105bytes;
+- original12/previous10/3newgroups×10, marker1, A SOURCEONLY, B REFUSED_NO_SOURCEVERDICT/accountUNKNOWN, C affectedfeatureNOTACCEPTED, launches0, audit_completefalse. Lock свободен после записи.
+
+Fresh REPORTref04:04:42 по-прежнему **55284ec6**; baselineauthorMaksimUnimax/date03:52:37Z/onlyREPORTfile проверены. Запись этого append выполняется с existingblobCAS и отдельным full-content/blob/parent/ref readback. Unknownwrite не повторяется.
+
+**Объём прогресса:** новый A main-source qualification, B existingR1/R2terminal clarification с actualrefusallog+verdict, C новый affectedpackage negative+factualhandoff и publishedsourcequalification. Исправлен собственный documentary статус/next/граница данных. **Новых code fixes, runtime repro/tests, review/CI/native, source integration, installed/manual/Store acceptance нет.**
+
+**Организационные проблемы:** sourceidentity без одинакового journal не переносит runtimeFAIL; process/unitsuccess не sourceverdict; unverifiedreviewcontextentitlement не subscriptionabsence; sourcecorroboration не новейший VMterminal; гостевойZIP и unmergedsourcefix не доказывают fixedgroupedfeature. Existingguard/block/refusal нельзя смешивать или обходить; missingauthority/одна dependency не остановили независимые разрешённые documentary действия. Новых errorregistries/archive/gates нет.
+
+| Точный внешний остаток | Ответственный / ближайший разрешённый documentary исход |
+| --- | --- |
+| A currentdeleteACK/capacity SOURCErisk; exactcurrent/fullruntimefixproofнеполучен; C3E/R13 отказы | Existing A evidence и исходныйruntimeowner, supportedexactdisposition/действительная разрешённая новаяprimary. Controller source/test/review/попап не перехватывает. |
+| B R2refused/noanalysis; actualPlus/accountUNKNOWN; original sourceworktree-resource refused | Existing B/request owner + supported профильныйadministrator/platform за явный disposition. Ниreviewretry, ни profile/auth/entitlementprobe/покупка не выполняются. Sourceconcern MOCKONLY/unfixed. |
+| C currentdevZIP groupedOzon featureNOTACCEPTED; PR205fixunmerged/sourcePASSonly | Existing A source/integration/currentcorrectedartifact при прежних gates; C exactartifact/ownerapprovedlistingqualification. No duplicate/repro/CI/merge в этом проходе; ACKonlyasobserved. |
+| C perstoreguard terminalartifactnotobserved; privacy/normalinstalled/signedStore/genuineauthority/catalog | Existing C/owner/B-Ops/publisher и исходныйTester manualscope; source/publishedclaimнеacceptance. C06нетответа, NO SUBMIT. |
+| PriorPR205nativeCIrequestUNKNOWN/PR207HOLD/I1physicalcauseUNKNOWN; Bfixture/allocation/state/two128OPEN; Opsbackup/rollback/installed | Прежние existing A/B/platform/B-Ops/owner/C владельцы и returnconditions; не перепроверялись и не закрыты новым документом. |
+| CWin32/WB originalprimary и historical12custodians; R7/R8freshadmissionнет/testNOTSTARTED | Прежняя карта/точныевладельцы; только genuinelynew permitted existingevidence, без deniedmeasurement/reproduction/proxy. |
+
+Доступный документальный остаток этого прохода доведён до проверенного результата. **Audit_complete=false.** Own tests/review/CI/browser/helper/merge=**0/0/0/0/0/0**. Tester/B01/R3, чужиеsource/tests/WIP, live/DB/security/auth/resources, ownercleanup, старыечаты, PR97/131/134, errors.json/events.jsonl не тронуты. Новых реестров/архивов/расписаний/покупок/авторизаций/кредитов/сбросов нет; адресныеотказы не повторялись/не обходились.
