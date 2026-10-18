@@ -85,6 +85,86 @@ describe("D3/S2 store metadata on the existing C3E/C3F model", () => {
     });
   });
 
+  it("rejects a store metadata entity key that does not match the store identity", () => {
+    for (const entityId of ["store:other", "conversation:" + digest]) {
+      const parsed = SellerAgentsSyncEntryV1Schema.parse(entry({ entityId }));
+      expect(
+        applyStoreMetadataEntry({
+          current: null,
+          serverRevision: 0,
+          entry: parsed,
+        }),
+      ).toEqual({
+        outcome: "CONFLICT",
+        serverRevision: 0,
+        serverState: null,
+        code: "STORE_METADATA_INVALID",
+      });
+    }
+  });
+
+  it("rejects switching the store or marketplace of a durable metadata entity", () => {
+    const created = applyStoreMetadataEntry({
+      current: null,
+      serverRevision: 0,
+      entry: entry(),
+    });
+    expect(created.outcome).toBe("ACK");
+    for (const payload of [
+      store({ storeId: "another-store", metadataRevision: 2 }),
+      store({ marketplace: "wildberries", metadataRevision: 2 }),
+    ]) {
+      const parsed = SellerAgentsSyncEntryV1Schema.parse(
+        entry({ baseRevision: 1, mutationId: "device:2", payload }),
+      );
+      expect(
+        applyStoreMetadataEntry({
+          current: created.serverState,
+          serverRevision: 1,
+          entry: parsed,
+        }),
+      ).toEqual({
+        outcome: "CONFLICT",
+        serverRevision: 1,
+        serverState: created.serverState,
+        code: "STORE_METADATA_INVALID",
+      });
+    }
+  });
+
+  it("rejects a wrong-marketplace tombstone without changing a durable store", () => {
+    const created = applyStoreMetadataEntry({
+      current: null,
+      serverRevision: 0,
+      entry: entry(),
+    });
+    expect(created.outcome).toBe("ACK");
+    const parsed = SellerAgentsSyncEntryV1Schema.parse(
+      entry({
+        baseRevision: 1,
+        kind: "STORE_TOMBSTONE",
+        payload: store({
+          kind: "STORE_TOMBSTONE",
+          lifecycleState: "TOMBSTONED",
+          marketplace: "wildberries",
+          metadataRevision: 2,
+        }),
+      }),
+    );
+    expect(
+      applyStoreMetadataEntry({
+        current: created.serverState,
+        serverRevision: 1,
+        entry: parsed,
+      }),
+    ).toEqual({
+      outcome: "CONFLICT",
+      serverRevision: 1,
+      serverState: created.serverState,
+      code: "STORE_METADATA_INVALID",
+    });
+  });
+
   it("accepts first identity confirmation and fails closed on a different confirmed account", () => {
     const first = applyStoreMetadataEntry({
       current: null,
