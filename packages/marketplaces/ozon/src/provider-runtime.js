@@ -951,6 +951,9 @@
           report_text: reportText,
           provider_result: providerResult,
         });
+      // Result persistence may yield to a new store or authorization generation.
+      // Never return success to the caller after that generation is revoked.
+      if (executionGuard) await executionGuard.assertCurrent();
       return providerResult;
     }
 
