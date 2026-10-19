@@ -221,6 +221,20 @@ describe("snapshot filesystem failure cleanup", () => {
       await realFs.readdir(join(input.snapshotRoot, "OZON_SELLER")),
     ).toEqual([`${input.record.sha256}.json`]);
   });
+  it("bounds growth of an existing accepted file after descriptor stat", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    fault.growAfterStat = Buffer.from("bytes appended after the first stat");
+    fault.readFileCalls = 0;
+    fault.maxReadLength = 0;
+    await expect(promoteAcceptedSnapshot(input)).rejects.toThrow(
+      "SNAPSHOT_CONTENT_ADDRESS_COLLISION",
+    );
+    expect(fault.readFileCalls).toBe(0);
+    expect(fault.maxReadLength).toBeLessThanOrEqual(input.bytes.length + 1);
+    expect((await realFs.lstat(saved.artifactPath)).isFile()).toBe(true);
+  });
+
   it("reuses an identical raced publication without replacing its inode", async () => {
     const input = await fixture();
     fault.racedBytes = input.bytes;

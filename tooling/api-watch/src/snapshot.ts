@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, lstat, mkdir, open, unlink } from "node:fs/promises";
+import type { FileHandle } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { SwaggerSourceFamilySchema } from "@product/monitoring-control";
 import type {
@@ -47,21 +48,49 @@ async function assertExistingFile(path: string): Promise<"missing" | "file"> {
   }
 }
 
+// Both accepted reads and reuse verification must have the same bounded
+// descriptor semantics. The extra byte detects growth after the initial stat.
+async function readExactSnapshotBytes(
+  handle: FileHandle,
+  expectedSize: number,
+  mismatchCode: "SNAPSHOT_SIZE_MISMATCH" | "SNAPSHOT_CONTENT_ADDRESS_COLLISION",
+): Promise<Buffer> {
+  const buffer = Buffer.alloc(expectedSize + 1);
+  let received = 0;
+  while (received < buffer.length) {
+    const { bytesRead } = await handle.read(
+      buffer,
+      received,
+      buffer.length - received,
+      received,
+    );
+    if (bytesRead === 0) break;
+    received += bytesRead;
+  }
+  if (received !== expectedSize) throw new Error(mismatchCode);
+  return buffer.subarray(0, received);
+}
+
 async function verifyExistingSnapshot(
   path: string,
   sizeBytes: number,
   sha256: string,
 ): Promise<void> {
-  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const handle = await open(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
   try {
     const stat = await handle.stat();
     if (!stat.isFile()) throw new Error("SNAPSHOT_PATH_NOT_FILE");
-    if (
-      stat.size !== sizeBytes ||
-      createHash("sha256")
-        .update(await handle.readFile())
-        .digest("hex") !== sha256
-    )
+    if (stat.size > API_WATCH_MAX_ARTIFACT_BYTES || stat.size !== sizeBytes)
+      throw new Error("SNAPSHOT_CONTENT_ADDRESS_COLLISION");
+    const bytes = await readExactSnapshotBytes(
+      handle,
+      sizeBytes,
+      "SNAPSHOT_CONTENT_ADDRESS_COLLISION",
+    );
+    if (createHash("sha256").update(bytes).digest("hex") !== sha256)
       throw new Error("SNAPSHOT_CONTENT_ADDRESS_COLLISION");
   } finally {
     await handle.close();
@@ -208,23 +237,11 @@ export async function readAcceptedSnapshot(
       throw new Error("SNAPSHOT_TOO_LARGE");
     if (stat.size !== metadata.sizeBytes)
       throw new Error("SNAPSHOT_SIZE_MISMATCH");
-    // A writer can extend the inode after fstat. Read at most the expected
-    // bytes plus one sentinel byte instead of reading to an unbounded EOF.
-    const buffer = Buffer.alloc(metadata.sizeBytes + 1);
-    let received = 0;
-    while (received < buffer.length) {
-      const { bytesRead } = await handle.read(
-        buffer,
-        received,
-        buffer.length - received,
-        received,
-      );
-      if (bytesRead === 0) break;
-      received += bytesRead;
-    }
-    if (received !== metadata.sizeBytes)
-      throw new Error("SNAPSHOT_SIZE_MISMATCH");
-    const bytes = buffer.subarray(0, received);
+    const bytes = await readExactSnapshotBytes(
+      handle,
+      metadata.sizeBytes,
+      "SNAPSHOT_SIZE_MISMATCH",
+    );
     if (createHash("sha256").update(bytes).digest("hex") !== metadata.sha256)
       throw new Error("SNAPSHOT_DIGEST_MISMATCH");
     return bytes;
