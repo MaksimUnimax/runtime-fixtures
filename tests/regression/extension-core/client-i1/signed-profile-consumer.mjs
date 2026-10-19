@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import { makeWorker } from "../worker-harness.mjs";
+import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const results = [];
@@ -228,6 +228,7 @@ await test("PROFILE-02A-Alice-current-authority-origin-refresh-and-receipt", asy
       "https://chat.openai.com/*",
       "https://alice.yandex.ru/*",
       "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -552,8 +553,18 @@ await test("PROFILE-08-failed-ensure-blocks-Start-and-Resume-before-legacy-actio
       const key = await worker.start();
       // Pause a real, unfinished Work through valid durable transitions.
       const active = await worker.call("workSessionFor", key);
-      const errored = await worker.call("mutateWorkSession", key, active.revision, "error");
-      const paused = await worker.call("mutateWorkSession", key, errored.revision, "inactive");
+      const errored = await worker.call(
+        "mutateWorkSession",
+        key,
+        active.revision,
+        "error",
+      );
+      const paused = await worker.call(
+        "mutateWorkSession",
+        key,
+        errored.revision,
+        "inactive",
+      );
       assert.equal(paused.work_session_id, active.work_session_id);
       assert.equal(paused.terminal_state_known, true);
       assert.equal(paused.finished, false);
@@ -596,6 +607,213 @@ await test("PROFILE-08-failed-ensure-blocks-Start-and-Resume-before-legacy-actio
     } finally {
       worker.close();
     }
+  }
+});
+
+const kimiScope = Object.freeze({
+  family: "kimi",
+  surface: "web",
+  variant: null,
+});
+const kimiIdentity = Object.freeze({
+  origin: "https://www.kimi.ai",
+  ai_id: "kimi",
+  conversation_id: "kimi-fixture-dialogue",
+  status: "confirmed",
+});
+function kimiSender(worker) {
+  const url = "https://www.kimi.ai/chat/kimi-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+function appliedReceipt(request, response) {
+  const { profileKey, revision, scopeVariant, contentSha256 } =
+    response.profile;
+  return {
+    messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+    protocolVersion: request.protocolVersion,
+    requestId: request.requestId,
+    ai: request.ai,
+    status: "APPLIED",
+    authority: response.authority,
+    profile: { profileKey, revision, scopeVariant, contentSha256 },
+  };
+}
+
+await test("PROFILE-09-Kimi-wire-request-response-receipt-mirror", async () => {
+  const worker = await makeWorker(runtime);
+  try {
+    // Wire validation is distinct from granting a verified Kimi worker profile.
+    const existing = await worker.request(requestFor(), trustedSender(worker));
+    assert.equal(existing.status, "AVAILABLE");
+    const request = requestFor("kimi");
+    const response = {
+      ...plain(existing),
+      requestId: request.requestId,
+      ai: request.ai,
+    };
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validRequest",
+        request,
+      ),
+      true,
+    );
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validReceipt",
+        appliedReceipt(request, response),
+      ),
+      true,
+    );
+    assert.equal(
+      await worker.call("SellerAgentsSignedAiProfileConsumer.validRequest", {
+        ...request,
+        ai: { ...request.ai, variant: "work" },
+      }),
+      false,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+await test("PROFILE-10-Kimi-exact-origin-and-current-tab-context", async () => {
+  const worker = await makeWorker(runtime);
+  try {
+    const sender = kimiSender(worker);
+    const alias = "https://kimi.ai/chat/kimi-fixture-dialogue";
+    const wrongOrigin = await worker.request(requestFor("kimi"), {
+      ...sender,
+      url: alias,
+      tab: { id: worker.tabId, url: alias },
+    });
+    assert.equal(wrongOrigin.ok, false);
+    assert.equal(wrongOrigin.code, "SIGNED_PROFILE_SENDER_UNTRUSTED");
+
+    const wrongIdentity = await worker.request(requestFor("kimi"), sender);
+    assert.equal(wrongIdentity.status, "UNAVAILABLE");
+    assert.equal(wrongIdentity.reason, "AI_SCOPE_MISMATCH");
+
+    worker.setIdentity(kimiIdentity);
+    const noKimiAuthority = await worker.request(requestFor("kimi"), sender);
+    assert.equal(noKimiAuthority.status, "UNAVAILABLE");
+    assert.equal(noKimiAuthority.reason, "NO_VERIFIED_AUTHORITY");
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", kimiIdentity),
+      false,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+await test("PROFILE-11-Kimi-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://www.kimi.ai/chat/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(kimiIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "kimi");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+await test("PROFILE-12-Kimi-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, kimiScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(kimiScope);
+      payload.entitlements["ai.kimi"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(kimiIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: kimiScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      kimiIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), kimiScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", kimiIdentity),
+      true,
+    );
+    const request = requestFor("kimi");
+    const response = await worker.request(request, kimiSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), kimiScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          kimiSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
   }
 });
 
