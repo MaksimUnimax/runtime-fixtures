@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T02:54:55.067872Z; R2 known trust line/unknown terminal и новые A R11/C03 scoped evidence — последнее дополнение; аудит открыт.
+- **Состояние на:** 2026-10-19T03:09:11.347108Z; PR216 terminal/consumption и новые scoped A/B/C результаты — последнее дополнение; аудит открыт.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** `main=4994946608d426114081d03170abc9375c898f6f` — fresh ref; PR213 merged, tree совпал с принятым exact984. Остальные source compatibility не переоценивались.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `d7f14408c050e632255417e3a996c3d19b76b904bccaa744beb5bf2a902007b2`, 2,206,267bytes; guarded write02:54:29.743758Z, independent readback02:54:55.067872Z; `audit_complete=false`, original12open.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `e4eedc1764f5e141412d921e5614d265bc0c5f12345f3338425115895fd65c09`, 2,229,610bytes; guarded write03:08:42.801802Z, independent readback03:09:11.347108Z; `audit_complete=false`, original12open.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -3905,3 +3905,69 @@ Candidate two blobs **9803c2e7ff26840fa0b53443c699a9dd66bac7d0** inventory / **3
 - full own facts/reply MATCH, marker1/map12/PLAN/history/foreignrootfields preserved, locksFREE. R2 knownline MATCH, terminalNOT_OBSERVED/exitUNKNOWN.
 
 SameREPORT exactblob CAS92d61eeb/parent48622884 после свежего ref/author, [skip ci], затем independent fullcontent/blob/parent/ref readback до ответа. Work/GPT6.1Sol/Veryhigh сохранены по userquota86%02:44:03 без своего нового UIcheck. No schedules/credits/resets/auth changes; все exactrefusals R7R8/artifactsroute/targets/protection403/fullPG/B05/entitlement/другие сохранены. Никаких newtests/review/CI/VM/browser/helper/merge/chat/registry/archive/source/live/DB/security/cleanup; B01/R3/старыеchats/PR97/131/134/errors/events не тронуты. **audit_complete=false; original12open.**
+
+
+## Дополнение 2026-10-19T03:09:11Z — PR216 Server/Docs terminal принят в own scope; B consumption подтверждён
+
+**Тот же аудит, predecessor e86b05145c8181e018cf49718ec8a3fa5133d80e; PLAN/history/map12 сохранены, audit_complete=false.** Принятые local118/R3INLINE/main499/R2knownline+unknownterminal/R10/R11/C04handoff **NOT_RECHECKED**. Новых tests/review/CI/VM/browser/helper/merge Controller0.
+
+### Реальное снятие доступного ожидания
+
+PR216 лично проверен через GitHub: Draft/open/unmerged, exacthead **7459248beaa549901bdbace04d7c67b6fe7735e2**, base **4994946608d426114081d03170abc9375c898f6f**, создан **02:39:03Z**. Это расширение охвата ранее существовавшей публикации, **не публикация после прошлого среза/REPORT**.
+
+| Новый original workflow | Head / событие / attempt | Terminal и jobs |
+|---|---|---|
+| Server39190966425 | exact7459248 / pull_request /1 | completedSUCCESS, updated02:55:55Z; ci-plan117863458196 и server117863493769 SUCCESS |
+| Documentation39190966430 | exact7459248 / pull_request /1 | completedSUCCESS, updated02:39:14Z; documentation117863458050 SUCCESS |
+
+Оригинальный новый server joblog лично прочитан: actual checkout **c64351b1affbbb34b337ceddf6cd610e733b84c2**, synthetic merge parent499+7459248. Git commit metadata independently показывают одинаковый tree candidate/synthetic **e8eb753adb9738c3e4cbc8ee39a89647ecee7fbf**. Integration **1970PASS**, E2E **202PASS**, соответствующие steps SUCCESS; conditional frozen-import SKIPPED, не утверждается исполнение каждой optionalstep. Старые local118 не повторялись.
+
+**Снято own ожидание публикации/Server terminal, принято только2/5 native workflow.** Остальные3 обязательных gate не подтверждены; не заявлены full5/merge/installed/owner/live. Никакого rerun/dispatch/артефактного обхода нет.
+
+B consumption проверено отдельно. Сначала PR216 body до02:51:09 содержал DocsSUCCESS и исторический ServerIN_PROGRESS02:48:33. Позднее лично прочитанный B.result от **03:05:51Z**, read03:07:37, **прямо подтверждает Server+Docs terminalSUCCESS2/5**; то же записано автором в PR218 body. Первоначальный NOT_OBSERVED superseded только этой bounded authorconsumption границей. B потребил результат до Controller записи; это не эффект нового поручения. **Поручение не дублировалось.**
+
+В existing PR216 body сохранён адресный отказ отдельного progress subrecord B.json через RDC start_process: author-reported literal **Error: Command not allowed**. Raw original invocation/внутренняя причина Controller не восстанавливались, причинаUNKNOWN. Этот точный refused write не повторён/не раздроблен/не перенесён на другой tool. B.json и PRbody Controller не менялись; собственный audit observation не замена authorstate. Новый B funnel state содержит самостоятельный результат другого scope, не снимающий прежний адресный отказ.
+
+### Новые готовые A/B/C результаты
+
+**A — direct WB provider guard.** Лично прочитаны RED769d345f…/GREEN264f5654… и finalreceipt **843b57be701fc965924c1d789515be53a340ad35a74e59a97cd0d5b3185340b2** от03:04:48. Local **10bf5452141572c5a58711559aeca4d7bda65004**, base499,2paths: adapter.js + отдельный regression. Author local RED missing rejection→**3caseGREEN**, syntax/diffPASS. Receipt задаёт source/test binding; Controller source/tests не читал. Важная граница: normal WB batch уже имеет outerassertCurrent/queueownerfence по Aprimary; **user-visible normalbatch stale leak не доказан**. Independent review отсутствует; latest A03:06:03 — PREPARED_NOT_STARTED, input/payload не читался. Native/push/provider/browser/DB/owner acceptance нет. Existing A отвечает за supported exactreview/native; A06R7/R8/originalI1UNKNOWN/PR205/C3E/Store отдельно открыты.
+
+**B — отдельные funnels, PR218.** Новые completed logs лично прочитаны: RED **3FAIL/6SKIP** SHAa7d4cb74…, GREEN9, final **38PASS+TS/ESLint/Prettier/diffPASS** SHAd6dac5d4…. Новый verdict **4c83df5d906eef81353c91c19ab0f766637a648f448062a14b3816c2a2942f60** — **ACCEPT_SOURCE_SCOPED_FROM_INLINE_INPUT**. Header до usersection подтверждает Luna/xhigh/read-only; inline sourcepayload не читался. Reviewer не аутентифицировал GitSHA/байты и не запускал tests; equal-timestamp dimension tie-break остаётся неблокирующим unspecifiededge.
+
+Готовая B record связывает результаты с **c35d0ba1edb1942cec88dd9c72e777a2f584a884**, parent499, двумя feedback-support/funnels paths; binding — авторский, не independent byteverification. GitHub PR218 лично подтверждён Draft/open/unmerged, создан **03:04:41Z**, headc35/base499. Новый original Docs **39192945697**, exactc35/pull_request/attempt1, **SUCCESS03:04:56Z** независимо проверен metadata. Это **1/5**; Server39192945802 по авторскому PRbody ещёIN_PROGRESS, Controller не поллил его и terminal не предполагает. Остальные3 не подтверждены. PR216CI не перенесён на funnels. Ответственный existingB; следующий шаг — ready originalServer/оставшиеся genuine exactgates с прежними reviewlimits/currentbase, без новых запусков ради аудита.
+
+**C — PR217 old1514 negative и новый localrework различены.** GitHub лично: Draft/open/unmerged, head **1514ba2d493038ea81d1e609bdc111a4d55360b6** на read03:02:22, создан02:53:49Z. Готовый independent verdict **edecc051bbde5cb06ba9f024e6602f1055f68bb67b4d601d57bd36d60c7f755c** прочитан: **REWORK_REQUIRED,2P2** — URIfragment проверен до decode и malformed tilde escapes не отклоняются. Exact2blobs совпали по reviewer; native tests он не запускал. ExistingC unit terminal inactive/dead/Resultsuccess/ExecMainStatus0 по authorrecord — завершение review, **не ACCEPT**.
+
+Original Server **39192096651**, exact1514/pull_request/attempt1, completedFAILURE02:55:04Z; job117866961615 лично прочитан: **format:check diff.test.ts FAIL/exit1**, lintSUCCESS; typecheck/native/integration/E2ESKIPPED. OriginalCI не повторён. Новая готовая C reworkreceipt **efb9da42c6b6104c5a26ef33b8e855b56069074a01b6cde7d34dd8d892691419**,03:04:20, показывает revised2blobs720386c0…/ebe6036a…, authorPrettier2/2PASS и in-memory TS/JSONparser-stubGREEN. **Final independentreview NOT_YET**, oldGitHubhead unchanged в receipt; это не full/native/installed/CIacceptance и не стирание old1514 negatives. Последний freshC03:07:22 всё ещё новыйreworkNOT_PUBLISHED. Ответственный existingC; следующий шаг — revised exact acceptedreview/native5/normalintegration в егоscope, не originalrerun. C04/B-Ops/C05/C06/C01/R4 остаются отдельны.
+
+### Десять пунктов фактического аудита
+
+| Пункт | A | B | C |
+|---|---|---|---|
+| 1. Original facts/time | Ready RED/GREEN/receipt03:04 прочитаны. | PR216 original terminal/tree и actualconsumption; newfunnelready отдельно. | Ready review, originalCInegative, revisedlocalreceipt прочитаны. |
+| 2. Scope/permission | No Tester/runtime/provider takeover. | No deniedBjsonretry/helper/CIlaunch. | No oldR4replay/source/live/DB change. |
+| 3. Prior method | AcceptedA06/R11 NOT_RECHECKED. | local118/R3INLINE/main499/R2fix NOT_RECHECKED. | C04handoff/acceptedPR213 NOT_RECHECKED. |
+| 4. Classification | Directlocalguard, не normalbatchleak/installedPASS. |2/5PR216,1/5PR218,INLINE/authorbinding, notfull5. | REWORK/formatFAIL/stubGREEN не acceptedreview/native. |
+| 5. Last action/writer/WIP | Freshrole/task/locks/FD0/HEADdirty. | То же, existingconsumption проверено без дубля. | То же, newstate не перезаписан чужой правкой. |
+| 6. Actual own action | Currentprojection уточнена. | Stale ownPR216publication/Serverwait фактически снято. | Negative/revisedcandidate boundary внесена. |
+| 7. Same-boundary/readback | Existingreadyhashes+owndocreadback. | Actualcheckout/tree/terminal + separateowndocreadback. | Originalformatjob/reviewhash +owndocreadback, no rerun. |
+| 8. Real continuation | A local3PASS, reviewonlyprepared. | Bconsumed2/5 и создалPR218доownwrite. | C сам remediated2P2/format locally; no causalcreditController. |
+| 9. Owner/next/return | A supportedexactreview/native, originalI1/no-loss отдельно. | B originalremaininggates; no duplicate instruction/refusedstatewrite. | C revisedexactreview/native; B/Ops/owner inputs separately. |
+| 10. Registry | No errors/events/newregistry. | То же. | То же. |
+
+### Целостность, объём, организационный результат
+
+Freshcore START_HERE/PROMPT_CONTROLLER полностью совпали с ранее прочитанным текстом; exacthash9mandatoryserver документов и GitHubmain499 не изменились. Действует тот же DOT02v10 под прямой поздней передачей владельца. До первой попытки записи guard обнаружил новую Aversion и остановил действие **до mutation**; oldownhashes независимо совпали, новые Bconsumption/candidate records прочитаны. На успешной записи свежо проверены все authors/taskscopes/locks/FD0/WIP, чужиеstate/sourceпути не писались.
+
+Guardedwrite **2026-10-19T03:08:42.801802+00:00**, independent readback **2026-10-19T03:09:11.347108+00:00**:
+- checkpoint **e4eedc1764f5e141412d921e5614d265bc0c5f12345f3338425115895fd65c09**,2,229,610bytes;
+- PRIORITY_TASKS **5f045f2a88dab558580af0e63447ed39d5d93426d65a4702e41f6891f02ae129**,743,739bytes;
+- ownfullfacts/replyMATCH, marker1, foreignrootfields/PLAN/history/map12 сохранены; locksFREE. CanonicalWIP A09e74+7/B08879+4/C5ca65+8 сохранён. Исходнаяmap STRING SHAfe07ebdd… не изменилась.
+
+Объём: PR2162newterminal/3jobs/serverlog/2Git commit-tree records; A2logs+receipt/2paths; BfunnelreadyRED/GREEN/quality/INLINEverdict+PR218Docs/2paths; Cindependentreview+Serverfailure/jobs/log+localreworkreceipt/2paths. Controller product/source changes0.
+
+Оргпроблемы: датаPR216 не должна превращаться в post-reportpublication; oldServerpending не terminal; отсутствиеACK не простой; latestBconsumption supersedes earliergap. Адресный отказB.json не общий запрет всех источников и не permission обойти конкретную запись. Author/INLINE/stubGREEN не exactnative/installedacceptance. Общий PLAN не объявлен исчерпанным; все12 cause/responsible/next/return сохранены, productblocks не закрыты бумагой.
+
+**Публикация:** C06 прежнийPREPARING/NO_SUBMIT; genuineauthority/catalog/owneracceptance не появились, ownerrequest не дублирован. Selectedbrowserstore/dashboards NOT_RECHECKED; unrelatedполныйroadmap не новыйgate раннейподачи.
+
+SameREPORT exactblobCASfca8b610/parent e86b0514 послеfreshref/author, [skip ci], independentfullcontent/blob/parent/ref readback передответом. Work/GPT6.1Sol/Veryhigh по user86%quota02:54:33 без своегоUIcheck. Все адресные R7R8/artifactsroute/targets/protection403/fullPG/B05/entitlement/прочиеотказы сохранены; no newtests/review/CI/VM/browser/helper/merge/chat/schedule/registry/archive/auth/credits/reset/cleanup/source/live/DBsecurity. B01/R3/старыечаты/PR97/131/134/errors/events не тронуты. **audit_complete=false;12open.**
