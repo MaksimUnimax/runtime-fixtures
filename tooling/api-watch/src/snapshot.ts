@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { link, lstat, mkdir, open, readFile, unlink } from "node:fs/promises";
+import { link, lstat, mkdir, open, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { SwaggerSourceFamilySchema } from "@product/monitoring-control";
 import type {
@@ -195,10 +195,26 @@ export async function promoteAcceptedSnapshot(input: {
 export async function readAcceptedSnapshot(
   metadata: SnapshotMetadata,
 ): Promise<Uint8Array> {
-  const bytes = await readFile(metadata.artifactPath);
-  if (createHash("sha256").update(bytes).digest("hex") !== metadata.sha256)
-    throw new Error("SNAPSHOT_DIGEST_MISMATCH");
-  if (bytes.byteLength !== metadata.sizeBytes)
-    throw new Error("SNAPSHOT_SIZE_MISMATCH");
-  return bytes;
+  // Verify the opened descriptor, not a path that can become a symlink after
+  // publication. Nonblocking open rejects named pipes without waiting for a writer.
+  const handle = await open(
+    metadata.artifactPath,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) throw new Error("SNAPSHOT_PATH_NOT_FILE");
+    if (stat.size > API_WATCH_MAX_ARTIFACT_BYTES)
+      throw new Error("SNAPSHOT_TOO_LARGE");
+    if (stat.size !== metadata.sizeBytes)
+      throw new Error("SNAPSHOT_SIZE_MISMATCH");
+    const bytes = await handle.readFile();
+    if (createHash("sha256").update(bytes).digest("hex") !== metadata.sha256)
+      throw new Error("SNAPSHOT_DIGEST_MISMATCH");
+    if (bytes.byteLength !== metadata.sizeBytes)
+      throw new Error("SNAPSHOT_SIZE_MISMATCH");
+    return bytes;
+  } finally {
+    await handle.close();
+  }
 }

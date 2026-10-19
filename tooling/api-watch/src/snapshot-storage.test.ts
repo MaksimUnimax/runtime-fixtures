@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as Fs from "node:fs/promises";
 import { InMemoryApiWatchStore } from "./authority.js";
-import { promoteAcceptedSnapshot } from "./snapshot.js";
+import { promoteAcceptedSnapshot, readAcceptedSnapshot } from "./snapshot.js";
 import type { AuthorityRecord } from "./types.js";
 
 const fault = vi.hoisted(() => ({
@@ -115,6 +115,37 @@ async function fixture() {
     snapshotRoot: root,
   };
 }
+describe("read accepted snapshot filesystem identity", () => {
+  it("rejects a symbolic-link replacement even with identical expected bytes", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    const outside = join(input.snapshotRoot, "same-bytes.json");
+    await realFs.writeFile(outside, input.bytes);
+    await realFs.unlink(saved.artifactPath);
+    await realFs.symlink(outside, saved.artifactPath);
+    await expect(readAcceptedSnapshot(saved)).rejects.toMatchObject({
+      code: "ELOOP",
+    });
+  });
+
+  it("still reads the original accepted regular file by its recorded digest", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    expect(await readAcceptedSnapshot(saved)).toEqual(input.bytes);
+  });
+
+  it("rejects changed regular-file bytes even when the recorded length still matches", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    const altered = Buffer.from(input.bytes);
+    altered[0] = (altered[0] ?? 0) ^ 1;
+    await realFs.writeFile(saved.artifactPath, altered);
+    await expect(readAcceptedSnapshot(saved)).rejects.toThrow(
+      "SNAPSHOT_DIGEST_MISMATCH",
+    );
+  });
+});
+
 describe("snapshot filesystem failure cleanup", () => {
   it.each(["EACCES", "EIO"])(
     "propagates %s instead of treating an unchecked destination as missing",
