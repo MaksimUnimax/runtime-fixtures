@@ -203,6 +203,56 @@ describe("A4 semantic API diffs", () => {
     }
   });
 
+  it("C03 preserves distinct OpenAPI paths with empty URL segments", () => {
+    const make = (paths: Record<string, unknown>, sha256: string) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: sha256,
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.0.3",
+            info: { title: "synthetic paths", version: "1" },
+            paths,
+          }),
+        ),
+        filename: "openapi.json",
+      });
+    const operation = (operationId: string) => ({
+      get: {
+        operationId,
+        responses: { "200": { description: "ok" } },
+      },
+    });
+    const base = make({ "/orders/detail": operation("original") }, BASE_SHA);
+    const target = make(
+      {
+        "/orders/detail": operation("original"),
+        "/orders//detail": operation("additional"),
+      },
+      TARGET_SHA,
+    );
+    expect(base.operationCount).toBe(1);
+    expect(target.operationCount).toBe(2);
+    expect(target.operations.map((item) => item.identity)).toEqual([
+      "OZON_SELLER:GET:/orders//detail",
+      "OZON_SELLER:GET:/orders/detail",
+    ]);
+    const added = diffInventories({ base, target });
+    expect(added.addedCount).toBe(1);
+    expect(added.unchangedCount).toBe(1);
+    expect(added.operations.map((item) => item.state)).toEqual([
+      "ADDED",
+      "UNCHANGED",
+    ]);
+    const removed = diffInventories({ base: target, target: base });
+    expect(removed.removedCount).toBe(1);
+    expect(removed.unchangedCount).toBe(1);
+    expect(removed.operations.map((item) => item.state)).toEqual([
+      "REMOVED",
+      "UNCHANGED",
+    ]);
+  });
+
   it("C03 detects response-level local ref target changes", () => {
     const build = (responseSchema: unknown) =>
       buildCompleteOperationInventory({
