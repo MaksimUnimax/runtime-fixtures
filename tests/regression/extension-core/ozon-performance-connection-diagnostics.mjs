@@ -6,8 +6,12 @@ import vm from "node:vm";
 
 // A04 synthetic only: inspect the real provider-runtime, never contact Ozon.
 const here = path.dirname(fileURLToPath(import.meta.url));
-const source = path.resolve(here, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
-const originalTransport = path.resolve(here, "../../../apps/extension/src/imported/ozon-v0.1.22/shared/provider_transport_core.js");
+const source = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.resolve(here, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
+const originalTransport = process.argv[3]
+  ? path.resolve(process.argv[3])
+  : path.resolve(here, "../../../apps/extension/src/imported/ozon-v0.1.22/shared/provider_transport_core.js");
 const privateMarker = "INERT_R10_PRIVATE_AUTH_DIAGNOSTIC_MARKER";
 const fakeCredentials = Object.freeze({
   clientId: "INERT_R10_PERFORMANCE_CLIENT_ID",

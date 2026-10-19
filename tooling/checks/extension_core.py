@@ -59,6 +59,18 @@ def main():
         work.mkdir()
         for runtime, label, source_route in [(source, "core-source", True), (extracted, "core-package", False)]:
             original.ozon_route(runner, work, runtime, label, source_route, expected_version=original.current_composed_version())
+            # A04 safety regressions must exercise the composed runtime AND
+            # the exact extracted ZIP, not merely the repository source.
+            provider = runtime / "shared/ozon_provider.js"
+            transport = runtime / "shared/provider_transport_core.js"
+            runner.run(label + "-ozon-performance-postfetch-diagnostics",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-performance-connection-diagnostics.mjs", provider, transport])
+            runner.run(label + "-ozon-report-session-commit",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-report-session-commit.mjs", provider])
+            runner.run(label + "-ozon-report-state-error-redaction",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-report-state-error-redaction.mjs", provider])
+            runner.run(label + "-ozon-postcallback-fence",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-postcallback-fence.mjs", provider])
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
             runner.run(label + "-ozon-guidance-entitlement", ["node", ROOT / "tests/regression/extension-core/ozon-guidance-entitlement.mjs", runtime])
             runner.run(label + "-ozon-advertising-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-advertising-guidance-readiness.mjs", runtime])

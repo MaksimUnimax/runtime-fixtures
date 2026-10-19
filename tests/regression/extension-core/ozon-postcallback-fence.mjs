@@ -6,7 +6,9 @@ import path from "node:path";
 
 // Offline direct-provider source regression. No Ozon network or live credentials.
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const source = path.resolve(currentDir, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
+const source = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.resolve(currentDir, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
 const command = { operation: "roles", params: {} };
 const credential = { clientId: "FIXTURE_CLIENT", apiKey: "FIXTURE_KEY_NOT_REAL" };
 const fakeResponse = Object.freeze({

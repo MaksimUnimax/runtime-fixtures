@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const source = path.resolve(here, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
+const source = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.resolve(here, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
 const marker = "INERT_R8_STORAGE_ERROR_PRIVATE_MARKER";
 const account = { clientId: "INERT_R8_CLIENT", apiKey: "INERT_R8_NOT_REAL" };
 

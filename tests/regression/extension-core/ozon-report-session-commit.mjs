@@ -7,7 +7,9 @@ import vm from "node:vm";
 // Same first-party provider runtime as the Ozon candidate. This test uses
 // only inert fake URL/credentials and a local, explicitly controlled store.
 const here = path.dirname(fileURLToPath(import.meta.url));
-const source = path.resolve(here, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
+const source = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.resolve(here, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
 const reportUrl = "https://fixture.ozon.invalid/report.pdf";
 const fakeNow = 1_000_000;
 const credentials = { clientId: "INERT_R6_CLIENT", apiKey: "INERT_R6_NO_SECRET" };
