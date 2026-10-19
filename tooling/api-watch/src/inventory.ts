@@ -503,7 +503,9 @@ function resolvePathItem(
   // Only actual Path Item catalog positions can supply Path Items. This
   // excludes unrelated parameter/schema maps even when they contain a "get" key.
   const inPaths =
-    tokens.length === 2 && tokens[0] === "paths" && tokens[1].startsWith("/");
+    tokens.length === 2 &&
+    tokens[0] === "paths" &&
+    tokens[1]?.startsWith("/") === true;
   const inPathItems =
     typeof root.openapi === "string" &&
     /^3\.1(?:\.|$)/u.test(root.openapi) &&
