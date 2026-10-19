@@ -7,6 +7,7 @@ import vm from "node:vm";
 // A04 synthetic only: inspect the real provider-runtime, never contact Ozon.
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = path.resolve(here, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
+const originalTransport = path.resolve(here, "../../../apps/extension/src/imported/ozon-v0.1.22/shared/provider_transport_core.js");
 const privateMarker = "INERT_R10_PRIVATE_AUTH_DIAGNOSTIC_MARKER";
 const fakeCredentials = Object.freeze({
   clientId: "INERT_R10_PERFORMANCE_CLIENT_ID",
@@ -16,6 +17,7 @@ const fakeCredentials = Object.freeze({
 function fixture(mode) {
   const calls = { authTransport: 0, fetch: 0 };
   const sandbox = {
+    TextDecoder, TextEncoder,
     OzonCredentials: {
       normalizePerformanceCredentials(raw) {
         if (!raw?.clientId) {
@@ -66,12 +68,37 @@ function fixture(mode) {
       },
     },
   };
+  if (mode === "body_read_failure") {
+    // Reproduce the real first-party transport's post-fetch readResponse path.
+    vm.runInNewContext(readFileSync(originalTransport, "utf8"), sandbox, {
+      filename: "ozon-first-party-performance-transport.js",
+    });
+    const actualTransport = sandbox.ProviderTransportCore.executePerformanceJsonOnce;
+    sandbox.ProviderTransportCore = {
+      ...sandbox.ProviderTransportCore,
+      executePerformanceJsonOnce: async (arguments_) => {
+        calls.authTransport++;
+        return actualTransport(arguments_);
+      },
+    };
+  }
   vm.runInNewContext(readFileSync(source, "utf8"), sandbox, {
     filename: "ozon-performance-connection-diagnostic-under-test.js",
   });
   const provider = sandbox.OzonProviderFactory.createOzonProvider({
     now: () => 1_000_000,
-    fetchImpl: async () => { calls.fetch++; return { status: 200 }; },
+    fetchImpl: async () => {
+      calls.fetch++;
+      if (mode === "body_read_failure") {
+        return {
+          ok: true, status: 200, headers: { "content-type": "application/json" },
+          body: { getReader: () => ({ read: async () => {
+            throw new Error("INERT_R15_POSTFETCH_BODY_READ_FAILED_" + privateMarker);
+          } }) },
+        };
+      }
+      return { status: 200 };
+    },
   });
   return { provider, calls };
 }
@@ -107,6 +134,10 @@ await check("unknown", fakeCredentials, {
   ok: false, code: "PERFORMANCE_CONNECTION_TEST_FAILED", httpStatus: 0,
   authRequestPerformed: false, transportCalls: 1, fetchCalls: 0,
 });
+await check("body_read_failure", fakeCredentials, {
+  ok: false, code: "PERFORMANCE_CONNECTION_TEST_FAILED", httpStatus: 200,
+  authRequestPerformed: true, transportCalls: 1, fetchCalls: 1,
+});
 await check("success", { clientSecret: fakeCredentials.clientSecret }, {
   ok: false, code: "MISSING_PERFORMANCE_CLIENT_ID", httpStatus: 0,
   authRequestPerformed: false, transportCalls: 0, fetchCalls: 0,
@@ -130,7 +161,8 @@ const healthy = await check("success", fakeCredentials, {
 assert.equal(typeof healthy.token_expires_at_ms, "number");
 
 console.log(JSON.stringify({
-  status: "PASS", scenarios: 7,
+  status: "PASS", scenarios: 8,
+  postfetch_body_read_failure_attempt_observed: true,
   raw_error_message_hidden: true, unknown_error_code_not_reflected: true,
   preflight_auth_attempt_false: true, known_auth_error_codes_preserved: true,
   successful_token_not_returned: true, real_Ozon_auth_calls: 0,

@@ -525,7 +525,7 @@
 
     async function getPerformanceToken(
       rawPerformanceCredentials,
-      { force = false, executionGuard = null } = {},
+      { force = false, executionGuard = null, onAuthResponse = null } = {},
     ) {
       const credentials =
         globalThis.OzonCredentials.normalizePerformanceCredentials(
@@ -553,9 +553,20 @@
 
       const tokenRequest =
         globalThis.OzonCredentials.performanceTokenRequest(credentials);
+      const originalFetch = guardedFetch(executionGuard);
+      const responseAwareFetch =
+        typeof onAuthResponse === "function"
+          ? async (url, init) => {
+              const receivedResponse = await originalFetch(url, init);
+              // Observing a received response is not a second provider call.
+              // This is only used by the explicit connection diagnostic.
+              onAuthResponse(receivedResponse);
+              return receivedResponse;
+            }
+          : originalFetch;
       const response =
         await globalThis.ProviderTransportCore.executePerformanceJsonOnce({
-          fetchImpl: guardedFetch(executionGuard),
+          fetchImpl: responseAwareFetch,
           request: tokenRequest,
           now,
         });
@@ -1056,9 +1067,20 @@
     }
 
     async function testPerformanceConnection(rawPerformanceCredentials) {
+      let authResponseReceived = false;
+      let observedAuthHttpStatus = 0;
       try {
         const token = await getPerformanceToken(rawPerformanceCredentials, {
           force: true,
+          onAuthResponse: (receivedResponse) => {
+            authResponseReceived = true;
+            const responseStatus = Number(receivedResponse?.status || 0);
+            if (
+              Number.isInteger(responseStatus) &&
+              responseStatus >= 100 &&
+              responseStatus <= 599
+            ) observedAuthHttpStatus = responseStatus;
+          },
         });
         return Object.freeze({
           ok: true,
@@ -1089,7 +1111,9 @@
         const code = knownCodes.has(error?.code)
           ? error.code
           : "PERFORMANCE_CONNECTION_TEST_FAILED";
-        const rawHttpStatus = Number(error?.http_status || 0);
+        const rawHttpStatus = Number(
+          error?.http_status || observedAuthHttpStatus || 0,
+        );
         const httpStatus =
           Number.isInteger(rawHttpStatus) &&
           rawHttpStatus >= 100 &&
@@ -1104,6 +1128,7 @@
             : "Не удалось подтвердить доступ к Ozon Performance API.",
           http_status: httpStatus,
           auth_request_performed:
+            authResponseReceived === true ||
             error?.request_attempted === true ||
             error?.external_request_executed === true ||
             httpStatus > 0,
