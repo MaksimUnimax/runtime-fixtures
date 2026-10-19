@@ -1,0 +1,100 @@
+{
+  "at_utc": "2026-10-19T11:32:02.084127+00:00",
+  "previous_checkpoint_commit": "afecc57b1141d77659839b364bcab2c9e28dd06b",
+  "original_checkpoint_commit": "99752c24129a97b958f04c2465841d62ae2a5628",
+  "source_commit": "60c8884513ec6fc27f668550f6afc3b781712deb",
+  "source_parent": "436b1d4156bf3991d5e08c6c150138b9f4fe9a7e",
+  "new_main_readback": "850ff17db1fe7cdf012f30546b2f8d7225f6c0ab",
+  "new_main_two_source_paths_changed": false,
+  "files": [
+    {
+      "name": "tester-ui-answers-20261019T1110Z.json",
+      "bytes": 112336,
+      "sha256": "25e77ce5daf7b00f8d0a94090e038de9aae79634a576a0e88f36cc38056427ed",
+      "actual_format": "JSON",
+      "read_and_used": true,
+      "byte_readback": "PASS",
+      "server_path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/tester-receipts/20261019T111000Z/tester-ui-answers-20261019T1110Z.json"
+    },
+    {
+      "name": "qwen-file-ready-1100.png",
+      "bytes": 38727,
+      "sha256": "13ec552543d37766d32a2379cb122b4e84e2fd74b212204156c31d4d5f3dfe89",
+      "actual_format": "JPEG/JFIF",
+      "read_and_used": true,
+      "byte_readback": "PASS",
+      "server_path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/tester-receipts/20261019T111000Z/qwen-file-ready-1100.png"
+    },
+    {
+      "name": "deepseek-spinner-1103.png",
+      "bytes": 39999,
+      "sha256": "adfa3c43382e5cdd693c62cedbddad0dc8504667e40f9001c105ae4660ba0163",
+      "actual_format": "JPEG/JFIF",
+      "read_and_used": true,
+      "byte_readback": "PASS",
+      "server_path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/tester-receipts/20261019T111000Z/deepseek-spinner-1103.png"
+    },
+    {
+      "name": "gemini-file-ready-1108.png",
+      "bytes": 45417,
+      "sha256": "12492f5a39c562bdb8cdd5b8c766529259b54b197c48b5046110eaa91bac88d4",
+      "actual_format": "JPEG/JFIF",
+      "read_and_used": true,
+      "byte_readback": "PASS",
+      "server_path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/tester-receipts/20261019T111000Z/gemini-file-ready-1108.png"
+    },
+    {
+      "name": "claude-file-ready-1110.png",
+      "bytes": 36327,
+      "sha256": "8bc018432aaaa8cca518379d670e1c65e5264fcfe8c6ab398a0a745b1edead20",
+      "actual_format": "JPEG/JFIF",
+      "read_and_used": true,
+      "byte_readback": "PASS",
+      "server_path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/tester-receipts/20261019T111000Z/claude-file-ready-1110.png"
+    }
+  ],
+  "changes": [
+    "Add exact observed form-scoped English Ask ChatGPT contenteditable textbox fallback only after legacy candidates are absent",
+    "Require exactly one eligible candidate; exclude message/article/dialog/writing-block ancestry",
+    "Extend existing offline Chromium DOM regression; no new runner or test program"
+  ],
+  "tests": {
+    "red": "original observed_standard_form returned null on unchanged product",
+    "green1": "failed: new test probe omitted CHATGPT constants; original traceback retained",
+    "green2": "50/50 PASS after loading unchanged product constants in probe",
+    "new_context_cases": 16,
+    "existing_cases": 34,
+    "network": "PrivateNetwork=yes; all fixture requests fulfilled locally",
+    "installed_test": false
+  },
+  "source_sha256": {
+    "apps/extension/application-patches.json": "25858fe082fe5dfbfcdd9a0ca4a67480f53156e8ef61a52ace2846d9e50c977b",
+    "tests/regression/extension-core/chatgpt-dom-compat.py": "b7259f89cc12a6586d389d39fe18bb22f8d2ac3f9358f4e5d3ac0cd4c4f166da"
+  },
+  "runtime_content_sha256": "c203d65aaa09f17908ab37359f75623e55fa72effcfd97027483372ac49348de",
+  "source_review": {
+    "status": "PASS_SOURCE_SCOPED",
+    "exact_source_commit": "60c8884513ec6fc27f668550f6afc3b781712deb",
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "read_only": true,
+    "CLI": "existing codex2",
+    "session_id": "01a153ed-7c1f-7e00-a540-591ae16ae3d7",
+    "verdict_sha256": "9f26015f875dc56f08caa6c5b4a599098796f101ba252c3e3ecd75890e8ff157",
+    "terminal": "exit0 inactive cgroup empty",
+    "residual_nonblocking": "Unchanged visible() checks own opacity, not ancestor opacity; hidden clone test covers hidden attribute."
+  },
+  "server_evidence": "/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/CHATGPT_STANDARD_COMPOSER_20261019T112000Z",
+  "limits": [
+    "Source scoped; installed 0.2.37 unchanged",
+    "No repeated Send, Start or 43 installed-file comparison",
+    "B01 full original-popup flow and owner acceptance remain open",
+    "Six-site minimal remaining states are in handoff section12; hasClientRects is not visibility or actionability",
+    "Byte identity of prior AI attachment transport remains unproven; marker results do not establish corruption",
+    "No auth/security/live/DB activity or old denial retry"
+  ],
+  "owner_accepted": false,
+  "integration_head": "18240cbe2ea0ee3a475b6af6a9fba31414fcba84",
+  "reviewed_source_paths_identical_after_main_merge": true,
+  "native_CI": "NOT_YET_PUBLISHED"
+}
