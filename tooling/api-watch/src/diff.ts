@@ -148,12 +148,18 @@ export function diffInventories(input: {
       semanticOperation(operation),
     ]),
   );
+  // A duplicate identity otherwise overwrites an earlier operation and
+  // produces a misleading "UNCHANGED" result for a corrupt inventory.
+  if (base.size !== input.base.operations.length)
+    throw new Error("DIFF_DUPLICATE_OPERATION_IDENTITY");
   const target = new Map(
     input.target.operations.map((operation) => [
       operation.identity,
       semanticOperation(operation),
     ]),
   );
+  if (target.size !== input.target.operations.length)
+    throw new Error("DIFF_DUPLICATE_OPERATION_IDENTITY");
   const identities = [...new Set([...base.keys(), ...target.keys()])].sort();
   const operations: SemanticDiffOperation[] = identities
     .map((identity) => {
