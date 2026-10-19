@@ -66,6 +66,34 @@ function compare(
   });
 }
 
+describe("C03 duplicate semantic identity fail-closed", () => {
+  it("rejects duplicate identities in the base inventory rather than hiding a removal", () => {
+    const duplicated = [
+      operation({ operationId: "first" }),
+      operation({ operationId: "second" }),
+    ];
+    expect(() =>
+      diffInventories({
+        base: inventory(duplicated),
+        target: inventory([operation({ operationId: "second" })], TARGET_SHA),
+      }),
+    ).toThrow("DIFF_DUPLICATE_OPERATION_IDENTITY");
+  });
+
+  it("rejects duplicate identities in the target inventory rather than hiding an addition", () => {
+    const duplicated = [
+      operation({ operationId: "first" }),
+      operation({ operationId: "second" }),
+    ];
+    expect(() =>
+      diffInventories({
+        base: inventory([operation({ operationId: "first" })]),
+        target: inventory(duplicated, TARGET_SHA),
+      }),
+    ).toThrow("DIFF_DUPLICATE_OPERATION_IDENTITY");
+  });
+});
+
 describe("A4 semantic API diffs", () => {
   it("C03 detects requiredness, type, enum, request, response and security changes from OpenAPI", () => {
     const make = (
