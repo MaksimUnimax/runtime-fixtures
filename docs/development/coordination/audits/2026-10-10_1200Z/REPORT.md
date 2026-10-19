@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T11:29:07.542696+00:00; A PR228f2dc Extensionterminal/3of5, CactualR2+ACKconsumption/PR22903f560native4of5/12of13 наcut11:25:16, A06R14sourcePASS и AconsumptionR15 подтверждены; audit открыт.
+- **Состояние на:** 2026-10-19T12:11:35.471804+00:00; Cmain850 exactpre/postnative5/13 принят, B214closedunmerged/superseded; A230c53d3/5 и currentA2281b008R39/R40/newnative2/5 учтены. Currentmain26 metadataonly/Tester scope, audit открыт.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
-- **Основа GitHub:** `main=86a53333f3ed573f8170944eb557f4aee5509e2e`; PR227 merged10:06:44, original main native5/5+13/13 и Cconsumption10:26:41 подтверждены. Installed/live/Store, C04/C06 и original12 остаются отдельными исходами.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `edc17ef6f7921a96835d45be35911a0288c8f4678bcf161ece2871335c14461f`, 2,429,532bytes; guardedwrite11:27:51/consumptionpatch11:28:51.658554 UTC; independentreadback11:29:07.542696 UTC; `audit_complete=false`, original12OPEN.
+- **Основа GitHub:** currentref `main=26a433bed928b3b35ef264d8157e0f3a4f2873a2` (TesterPR231, только metadata); последний независимо проверенный integrationbaseline `850ff17db1fe7cdf012f30546b2f8d7225f6c0ab`, PR229/pre+postnative5/13/Cconsumption11:45:02. Приёмка850 не переносится на26; installed/live/Store/C04/C06/original12 отдельно.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `77a8d1368b1fe31ed84e69e9c3fd145aaab3fe163ed75368ddab6c13148b547c`,2,467,466bytes; guardedwrite12:11:14.753747 UTC; independentreadback12:11:35.471804 UTC; `audit_complete=false`, original12OPEN.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -4674,3 +4674,95 @@ Latest checkpoint **edc17ef6f7921a96835d45be35911a0288c8f4678bcf161ece2871335c14
 **Остаток и условие возврата:** A PR228 missingServer/Safety требует existingnativecustodian readyexactproof, не нового ControllerCI. A06c53d требует только дальнейших готовых permittedauthor/native результатов, historicalabort correlation — originalruntimecustodian. C03f560 ждёт originalServer/e2eterminal и genuine currentbase/review/protectedsourceintegration; originalnegative не подменён. B formalresponse/freeze остаётся у B/C по существующему handoff, отдельная неизвестная доставка не повторена. Installed C04/C05/C06/ownerR3 и durabletwo-relay/preACK/B04OTP исходы остаются в границах своих custodians, новые подобные проверки прямо исключены из этого прохода. Исторические publication/refusal/config/reviewbytes остатки требуют originalraw immutablecorrelation, которого в новых адресных документах не предоставлено; точные cause/responsible/next/return каждого из12 сохранены в existingmap/currentdelta. C06ownerquestion alreadyforwarded, ответа нет, повтор/authority/catalogfabrication нет.
 
 **Объём:** новый Aworkflow6jobs+readyreceipt; A06два новых scopedreviewverdict, RED/GREEN32 logs и actualconsumption; C12blobGitmetadata/новыйtestreview/5workflow13job progress и отдельный oldd89failurelog. Controller изменил только три существующих documentary назначения. **Организационные проблемы:** устаревшие собственные ожидания устранены; roleprojection может отставать от readyterminal, поэтому повторныйreview не нужен. Actualimmutableconsumption отличается от доставкиformalresponse; initialPRdate отличается от датыcurrenthead. Неполныйnativegate/внешняяauthority не повод перехватитьsource/запуститьtests. Доступные собственные documentary шаги выполнены и перечитаны; audit_complete=false, реальные12исходов остаютсяOPEN.
+
+
+## Дополнение 2026-10-19 12:11 UTC — main850 postmerge принят; B PR214 closed; A230 native и A228 новый1b008/R39/R40
+
+Тот же audit/диалог после REPORT **278184099cff57a4dca09b7d097ade7756a570f0**, не преемник и не второй writer. FreshREPORTref/blob/author/date лично совпали:27818409/7ac74f1b/MaksimUnimax/11:30:59. Server checkpoint до ownwrite exactedc17ef6/2,429,532bytes, priority716b7815. Easyscript ping **12:04:14.684 UTC**, retainedbackgroundcalls0, только protectedsession2354613 без вмешательства. Ninecanonicalrules hashes START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/PRE_AUDIT/ORG/RESOURCE/DISK/TEMP совпадают с полностью прочитанными действующими текстами; canonicalpriorityv10 и позднийowner scope сохранены. Работа/GPT-6.1Sol/Оченьвысокое, никаких quota/auth/schedule изменений.
+
+**Реально снято в своих документах:** прежние ожидания Cpre/postmergeServer и BPR214Draft/native/ACK заменены подтверждёнными SOURCE/main результатом и закрытием дублирующего PR. PR214 не переоткрывать и не добирать его historicalmissinggates как новый обязательный исход. A06PR230 и новый A04PR228head учтены раздельно, старые188/CI другогоSHA на новый не перенесены. Own checkpoint/currentnext и собственная reply действующего DOT-20261015-02v10 записаны подfourlocks; чужие role/source/tests/WIP не менялись.
+
+### C PR229 и main850 — original terminal, exacttree, actual consumption
+
+Лично проверены GitHub PR229 merged **11:30:11 UTC**, exactcandidate **03f56065544cec438cf7333a6f1838a6f77bccf3**. Его последний premergeServer **39242802975**, pushattempt1, completedSUCCESS updated **11:25:54**, jobs118027425654/118027486596 обаSUCCESS. Остальные ранее принятые четыреpremerge workflow retainedNOT_RECHECKED. Это закрывает прежнее ожидание последнегоoriginalServer, не переписывает oldd89/PR225 negative.
+
+GitAPI merge **850ff17db1fe7cdf012f30546b2f8d7225f6c0ab** лично прочитан: parentsmain86+03f560, tree **9904c873eff03f72b3c6b91502421994d7df72dd**, равный принятому candidate03tree. Bimmutabletestblob07736e2b и Csource входят в тот же точный tree; нового sourceчтения/правки Controller не было.
+
+Пять original **main850 pushattempt1** workflows и все13 individualjobmetadata лично прочитаны:
+
+| Workflow | Original run | Jobs | Terminal update UTC |
+|---|---|---|---|
+| Extension I1-C1 client | 39245095488 | 3/3 SUCCESS | 2026-10-19T11:34:44Z |
+| Extension CI | 39245095466 | 6/6 SUCCESS | 2026-10-19T11:42:23Z |
+| Server CI | 39245095668 | 2/2 SUCCESS | 2026-10-19T11:42:55Z |
+| Documentation CI | 39245095683 | 1/1 SUCCESS | 2026-10-19T11:30:23Z |
+| Coordination and release safety | 39245095510 | 1/1 SUCCESS | 2026-10-19T11:30:45Z |
+
+**5/5 workflows и13/13jobs SUCCESS**, lastterminal **11:42:55 UTC**. Existing C nestedpostmerge receipt **11:45:02.489009 UTC** лично прочитан: C уже принял SOURCE/main exactintegration и перешёл к C04/C06 ограничениям. Это actualconsumption до нашей записи, не результат нового поручения Controller. InstalledB/Ops, realprovider/Telegram, liveDBrestore/rollback, owner/Store/authority не доказаны этой CIfixture и остаются отдельными.
+
+Хронология: candidateServerterminal11:25:54 и merge11:30:11 предшествуют прежнему REPORT11:30:59; прежняя запись была ограничена consumedServermetadata11:25:16. Новое независимое подтверждение не превращает эти события в произошедшие послеREPORT. Postmerge terminal11:42:55 — отдельный более поздний исход. Все старые negative остаются за своими SHA.
+
+### Actual main уже26a433 — Tester boundary
+
+FreshGitHub mainref лично прочитан: **26a433bed928b3b35ef264d8157e0f3a4f2873a2**, mergecommit **11:58:42 UTC**, parents850ff17+eb00939e. Прочитана только commitmetadata, указывающая TesterPR231. **Tester source/tests/PR/chats/CI/B01 не инспектировались и не управлялись.** Подтверждённый main8505/13 не объявляется native/SOURCE/installed приёмкой новогоmain26. В reportheader теперь различаются currentmainmetadata и последний проверенный integrationbaseline850, вместо устаревшего утверждения, что main850 всё ещёcurrent.
+
+### B PR214 — closed unmerged/superseded, исходный blob сохранён
+
+GitHubmetadata лично подтверждает **PR214 CLOSED, merged=false, closed11:45:57 UTC**, historicalhead **d167451adc7825aea84072604b910905254240d1**. Ready B closure record **11:47:43 UTC**, path currenttask.dual_storage_test_20261019.PR214_closed_superseded_via_pr229_20261019, лично прочитан: тот же originalblob **07736e2b88824a059c957ee4a2d9c3e13923757a** принят через PR229/main850, отдельный B PR закрыт как дублирующий.
+
+**Historical Bnative остаётся2/5**, не переименован в5/5. Полные5/13 относятся CcombinedSHA/main850. Ownexpectations standaloneB214native5/новогоACK сняты; неизвестные старые message-delivery остаются историей, не новым gate закрытой sourceзадачи. Повторного поручения B/C, открытия/mergePR214 или исправления foreignB.json не было. Его старые nestedtask/pr/next ещё могут писатьDraft/oldhead — текущий результат определяется freshGitHub+новым authorclosure, не этим старым текстом; это не доказательство простоя B.
+
+B installedTelegram/B05realPG/rollback/signer/owner и остальные PLAN остаютсяOPEN. Для PR218ec2a retained2/5 NOT_RECHECKED. Найден новый existing `PR218_MAIN26_LEGACY_MERGETREE_OUTPUT_20261019.txt`,9890bytes, identitySHA256 **f4a796ecf8f77124549d811807d4a180db5ecad29ca0fdc28393ed1834877d4d**. Body может содержать source/mergehunks и не читался; matchingcompletedauthorreceipt в consumedrecord не найден. Conflict/compatibility/exitverdict не выводится из наличия файла. Это existingBsource/WIP, не повод запускать повторныйmerge-tree или новыйtask. Следующий разрешённый documentary шаг — готовый финальный authorresult/currentbase/nativeproof.
+
+### A06 PR230c53d — новые original3/5 workflows,10/13jobs
+
+PR230 лично прочитан: Draft/open, head **c53d2701724a071ed752d2f86e87fac8566fdc78**, created **11:27:15 UTC** (дата не объявлена поздней предыдущегоREPORT). Ready R17 **df3d6218c356549f9b088e625ab9ecd3e8f586d82bc8fb36152da6ec55b3c4ff**, issued **11:41:34.074658**, лично прочитан. Original pull_requestattempt1 metadata/jobs:
+- Docs **39244747372**,1jobSUCCESS;
+- Extension **39244747422**,6jobsSUCCESS;
+- I1 **39244747385**,3jobsSUCCESS.
+
+Итого **3/5 workflows,10/13jobs** на c53d; Server/Coordination отсутствуют. Это не PR228 и не fullnativeacceptance. Прежний R14SOURCE/author32 и уже принятое A06evidence не повторялись. R17 фактическое authorconsumption подтверждено отдельно. Историческая installedABORT/AbortSignal/lease/grant причина **UNKNOWN**; R7/R8/старые negative и authority ограничения сохранены. Следующий шаг — только readyexactmissinggates/currentbase evidence existingA/nativecustodian, без нового Controllerlaunch/повторногоownerrequest.
+
+### A04 — R38REWORK, отдельный новый R39core188 и ready R40SOURCE; PR228 ужена1b008
+
+Readyoriginal R38 verdict лично прочитан: exact **47b67d90a729a67491874c3918e312a1cabb1772**, **REWORK_REQUIRED**, SHA256 **83cb2482d4739416fee2331fb630d2d0259be724e97340b93230c5ce1adcb90c**. Defensiverequirement — cachedPerformance token должен сбрасываться после наблюдаемого401 при нечитаемомbody. Это SOURCE finding, не наш live/probe/эксплуатация.
+
+NewR39 originalRED **6013e8812f86f0bbd2a6dfe600f602af85a4d3b99a747c3561cb249b4dfe57f7** лично прочитан: intendedAssertion stale401token eviction failed. New9caseGREEN **da24304c178dd31869edda8bbcb2aa22cf1ab45f3509d856e8fe71a13ecd9994**, zero realcalls/installedfalse, лично прочитан.
+
+Найдено и проверено **новое отдельное** полное authorcore evidence, не перенос прежних188:
+- R39_FOCUSED_HTTP401_FULLCORE_188_AND_PACKAGE receipt SHA256 **d8bf3ac11651d1e6fbd3679b730940f69cb899447b764ee734de2d77c86686ac**, issued11:57:49.635995;
+- original R39_FULL_CORE_STDOUT SHA256 **3d9fc63f3f44b60ed05938a691f7f97aadc403777d253034cde2176979d91a64**,15733bytes, statusPASS/**188gate_processes**, zero livecalls/installedfalse;
+- originalunitjournal **11:56:48.566277 UTC Deactivated successfully**. 189 строк с prefixPASS включают добавочную summaryстроку; не объявлены189тестами.
+
+Newdevelopment ZIP **c987c41fb379fe03fb0a19718476649d0f60f1574ce270d69ce8e82a9813f474**,**2,612,224bytes**, version0.2.37; source/package/extractedprovider hash **06d028f517f116dea878dbb1510d41f1ed0c66ac09172ae135e2492345edda0d** по authorreceipt. **Граница привязки:** R39fullcore запускался на новомfixinput доcommit, receipt прямо содержит candidatePENDING_CREATION; поздний authorrecord связывает эти hashes с commit1b008. Logs сами не stamp1bSHA. Это новый authorSOURCE/PACKAGE run, не независимая wholeGitZIP приёмка и не старыйR37/47b188PASS. Active source/tests Controller не читал, ZIP не пересобирал и не скачивал artifacts.
+
+Ready R40 **PASS_SOURCE_CUMULATIVE_A04_R40_EXACT_1B008**, SHA256 **af0c40b4c7755983152eaa39377a67853c9de6581ac1a1271670f0b45b0db135**,1925bytes, exitfile0/originaljournal **12:03:40.783448 UTC**, лично прочитан. Reviewer canonicalimmutableobjects confirmed cumulative **3paths f2dc→1b008**, parent47b; SOURCEonly,188/ZIP/native/owner не выполнял. OriginalR38REWORK сохранён. ActualAterminalconsumption **12:04:51.201309** и sourceheadpublicationR42/status12:07:38 подтверждены existingrecord; не приписаны нашей записи.
+
+FreshGitHub PR228 уже Draft exact **1b00870c3aa2b56ba1b078eeecb14ee089187639**, parent47b, tree **ae37a05feb72ec647c8ab4a326318a2cd8c596b4**, commitmetadata лично проверены. Old f2dc3/5 retainedNOT_RECHECKED, **неcurrenthead**. New1b originalpull_requestattempt1:
+- Docs **39249339707 SUCCESS**, job118048989294SUCCESS;
+- I1 **39249339714 SUCCESS**, updated **12:08:50 UTC**, jobs118048989485/118049040950/118049041161SUCCESS;
+- Extension **39249339873 IN_PROGRESS** в последней consumedcollection доguardedwrite;
+- Server/Coordination отсутствуют.
+
+Таким образом newcurrenthead **2/5 terminal workflows**, не прежние3/5 и не5/13. Готовые дальнейшие exactnative/currentbase/source-packageproof принадлежат existingA; Controller ничего не dispatch/review/test/helper/publish/merge запускал. Не переносить package/native/installed/Store результат между47b/f2dc/1b или main850/26.
+
+### Все десять пунктов текущего продолжения
+
+| Пункт | Факт / предел |
+|---|---|
+| 1. Новые задачи и исходы | Cfinalpremerge/newpost8505/13, Bclosedsource disposition, A2303/10, newA38/39/40/current1b metadata personallyread; только ready evidence. |
+| 2. Полномочия | Currentcanon9hash/priorityv10/lateowner scope; чужие role/source/tests/WIP/Tester/chats/inlinepayload не перехвачены. |
+| 3. Принятое | Oldmain86/905/ACK/Cpriorreviews/A186R31 и historical source/package/installed retainedNOT_RECHECKED без новых оснований. |
+| 4. Причины/уровни | SOURCE/local/PACKAGE/native/installed отдельно; R39precommitbinding, old188/new188, currenthead/newmain и UNKNOWN ясно отмечены. |
+| 5. Автор/операции | Ref/blob/author, backgroundcalls0, protectedsessionuntouched, fourlocks/targetFDwriters0/WIPmetadata проверены; дубляownwriter нет в проверенномscope. |
+| 6. Доступное устранение | Own Cpendingpre/postServer и redundantB214Draft/native/ACKwait действительно сняты в existingdocs; newAhead ожидания исправлены. |
+| 7. Readback | Fourlockguardedwrite12:11:14.753747, separateRDC12:11:35.471804 exactbytes/map/marker/locksFREE; REPORTblobCAS и последующий pinnedfullcontent/ref/author/parent readback. |
+| 8. Consumption/эффект | C11:45/B11:47/A17/R40/R42 independentlyrecorded; rolesпродвинулисьдоownwrite, нетcausalcredit/duplicateinstructions. |
+| 9. Остатки/объём | Original12cause/responsible/next/return и PLAN сохранены; currentA/native и externalinstalled/authority boundaries перечислены. |
+| 10. Учёт/запреты | errors/events не читались; новыеregistry/archive/schedules/credits/resets/auth и executionstarts0. Bannedlog118019352572/R7R8/artifacts/fullPG/B05/entitlement/supplemental и прочие отказы без повторов/обходов. |
+
+Owncheckpoint SHA256 **77a8d1368b1fe31ed84e69e9c3fd145aaab3fe163ed75368ddab6c13148b547c**,**2,467,466bytes**; priority **029cddf560657fcf346d658d81a926b7a69562e7d79d8ba4d8cfda9b7adfd48b**,**769,884bytes**. Currentownpointer **successor_delta_MAIN850_B214_CLOSED_A1B008_A230_20261019**, marker1, fourlocksFREE, canonicalmap **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d** unchanged, original12OPEN/auditfalse. Otherrootvalues/foreignprioritybytes preserved; WIP A09e74+7/B08879+4/C5ca65+8 и noGitops сохранены, source содержимое не менялось.
+
+**Остаток/ответственные/возврат:** A230 и currentA228 требуют своих readyexactnative5/13/currentbase/provenance результатов existingA/nativecustodian, noControllerlaunch. C04/B05 installedrelease/rollback/C05realDB и C06 genuineowner authority/catalog по прежнему у B/Ops/C/owner/Tester; только готовые exactapplied/authority/owner receipts разрешены этому documentary проходу. C06 вопрос уже передан без ответа, не дублируется и authority не выдумана. PR218 futurecompatibility у B, body/sourceoutput не перехвачен. Original12durability/two-relay/preACK/B04OTP/owner и historicalrawpublication/refusal/config/reviewbytes retain свои прежние cause/responsible/next/return; новых адресных первичных доказательств для их окончательного закрытия в этом scopedinventory не предоставлено. SOURCEclosure PR229/B214 не закрывает эти отдельные исходы. Externalblock не отменяет независимую documentary работу — доступные owncorrections выполнены и перечитаны.
+
+**Объём:** C1 новыйfinalpremergeworkflow/2jobs и main8505workflows13jobs; Bclosedunmerged source task; A2303workflows10jobs; A04R38negative/new9case+newfullcore188/package/R40SOURCE и current1b первые2workflow. Controller изменил только три существующих documentary назначения. **Организационные проблемы:** собственное ожидание ужеготовогоC/B устранено; oldnestedBfields не причина возобновлятьclosedPR. Currentmain26 и acceptedintegration850 различаются; Tester scope сохранён. NewAcore привязан автором послеcommit, oldCI другогоSHA не приёмка currenthead. Неполныеnative/installed/authority не объявленыPASS и не служат поводом нового wrapper/registry/duplicateauthor. Audit_complete=false.
