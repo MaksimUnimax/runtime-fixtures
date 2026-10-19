@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   createSwaggerHandoffService,
   InMemorySwaggerSourceStore,
@@ -14,6 +16,7 @@ import {
   combineWildberriesInventories,
   familyAuthorityStatus,
   runDocumentAuthorityPass,
+  activateProductionSources,
 } from "./source-set.js";
 import { WB_BUNDLE_DOCUMENT_KEY, WB_BUNDLE_VERSION } from "./wb-bundle.js";
 import type { OperationInventory } from "./types.js";
@@ -74,6 +77,56 @@ describe("production source authority model", () => {
     expect(new Set(wb.map((document) => document.documentKey)).size).toBe(13);
     expect(new Set(wb.map((document) => document.officialUrl)).size).toBe(13);
   });
+  it("C03 does not activate snapshots with unresolved local Path Item refs", async () => {
+    const officialUrl = "https://docs.ozon.ru/api/seller/swagger.json";
+    const registry = createSourceRegistry({
+      OZON_SELLER: {
+        officialUrl,
+        documents: [
+          {
+            documentKey: "OZON_SELLER",
+            officialUrl,
+            expectedArtifactTypes: ["JSON"],
+          },
+        ],
+        requiredServerIdentity: undefined,
+        titlePattern: undefined,
+      },
+      OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+      WILDBERRIES: { officialUrl: null, documents: [] },
+    });
+    const store = new InMemoryApiWatchStore();
+    const root = await mkdtemp(
+      join(tmpdir(), "s2-c03-source-inventory-first-"),
+    );
+    try {
+      await expect(
+        activateProductionSources({
+          registry,
+          store,
+          pendingStore: new InMemorySwaggerSourceStore(),
+          snapshotRoot: root,
+          fetcher: async () =>
+            new Response(
+              JSON.stringify({
+                openapi: "3.1.0",
+                info: { title: "invalid reference", version: "1" },
+                paths: {
+                  "/orders": { $ref: "#/components/pathItems/Missing" },
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            ),
+          now: () => new Date("2026-10-19T00:00:00Z"),
+        }),
+      ).rejects.toThrow("APIWATCH_PATH_ITEM_REF_UNRESOLVED");
+      expect(await store.listSnapshots()).toHaveLength(0);
+      expect(await readdir(root)).toHaveLength(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("SRC-06 and SRC-23 bind pending requests to documentKey", async () => {
     const registry = createSourceRegistry({
       WILDBERRIES: {

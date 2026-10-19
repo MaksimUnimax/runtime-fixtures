@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -256,6 +256,49 @@ describe("A6 API-watch report lifecycle", () => {
       expect(
         (await reportStore.getReport("api-watch:partial"))?.sources,
       ).toHaveLength(3);
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 rejects invalid local Path Item refs before persisting snapshots", async () => {
+    const invalidSource = Buffer.from(
+      JSON.stringify({
+        openapi: "3.1.0",
+        info: { title: "invalid reference", version: "1" },
+        paths: { "/orders": { $ref: "#/components/pathItems/Missing" } },
+      }),
+    );
+    const server = await fixtureServer(invalidSource);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-inventory-first-"));
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(registry, root);
+      const result = await runApiWatchReport({
+        ...setup,
+        runId: "inventory-first-rejection",
+        source: "FORCED",
+      });
+      expect(result.code).toBe("API_WATCH_REPORT_FAILED");
+      expect(
+        (
+          await setup.reportStore.getReport(
+            "api-watch:inventory-first-rejection",
+          )
+        )?.state,
+      ).toBe("FAILED");
+      expect(await setup.dependencies.store.listSnapshots()).toHaveLength(0);
+      expect(setup.apiState.inventories.size).toBe(0);
+      expect(await readdir(root)).toHaveLength(0);
     } finally {
       await server.close();
       await rm(root, { recursive: true, force: true });

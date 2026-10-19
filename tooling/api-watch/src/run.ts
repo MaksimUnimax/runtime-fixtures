@@ -312,6 +312,17 @@ async function analyzeAcceptedOutcome(input: {
   const { dependencies, outcome, record, previousSnapshots } = input;
   const now = currentTime(dependencies);
   const documentKey = outcome.documentKey ?? null;
+  // Validate the semantic inventory before publishing accepted snapshot
+  // metadata. An unresolved Path Item reference must not create a partial
+  // accepted snapshot that has no corresponding inventory.
+  const filename = `accepted${extensionFor(outcome)}`;
+  const inventory = buildCompleteOperationInventory({
+    sourceFamily: outcome.sourceFamily,
+    documentKey,
+    snapshotSha256: outcome.sha256,
+    bytes: outcome.bytes,
+    filename,
+  });
   const snapshot = await promoteAcceptedSnapshot({
     record,
     bytes: outcome.bytes,
@@ -319,14 +330,6 @@ async function analyzeAcceptedOutcome(input: {
     snapshotRoot: dependencies.snapshotRoot,
     documentKey,
     now: () => now,
-  });
-  const filename = `accepted${extensionFor(outcome)}`;
-  const inventory = buildCompleteOperationInventory({
-    sourceFamily: outcome.sourceFamily,
-    documentKey,
-    snapshotSha256: snapshot.sha256,
-    bytes: outcome.bytes,
-    filename,
   });
   await dependencies.store.saveInventory(inventory);
   const baseline = dependencies.productBaselineRepository
