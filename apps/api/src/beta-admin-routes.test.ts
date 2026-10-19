@@ -321,6 +321,36 @@ describe("S1.1 beta admin route authorization", () => {
     },
   );
 
+  it.each([
+    ["STD3-invalid ASCII domain", "reader@exa_mple.test"],
+    ["left-to-right mark in email", "reader\u200etag@example.test"],
+    ["right-to-left override in email", "reader\u202etag@example.test"],
+    ["Arabic letter mark in email", "reader\u061ctag@example.test"],
+  ])(
+    "rejects an invalid beta invitation email at the HTTP boundary: %s",
+    async (_, email) => {
+      const f = fixture("ADMIN_BETA_OPERATOR");
+      try {
+        const response = await f.app.inject({
+          method: "POST",
+          url: "/v1/admin/beta/invitations",
+          headers: f.headers,
+          payload: {
+            requestId: "targeted-email-route-validation-0001",
+            expectedRevision: 1,
+            email,
+            reason: "synthetic input-validation regression",
+          },
+        });
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.code).toBe("INVALID_REQUEST");
+        expect(f.service.createIdentityInvitation).not.toHaveBeenCalled();
+      } finally {
+        await f.app.close();
+      }
+    },
+  );
+
   it("requires CSRF before targeted invitation creation reaches the service", async () => {
     const f = fixture("ADMIN_BETA_OPERATOR");
     const response = await f.app.inject({

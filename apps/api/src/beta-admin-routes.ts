@@ -10,6 +10,7 @@ import type {
   BetaIdentityInvitation,
   BetaIdentityInvitationMutationResult,
 } from "@product/beta-access";
+import { validNormalizedEmail } from "@product/beta-access";
 import { normalizeEmail } from "@product/auth";
 import type { AdminRouteGuard } from "./admin-route-guard.js";
 import {
@@ -265,7 +266,7 @@ export function registerBetaAdminRoutes(
       );
       const body = InvitationCreateBodySchema.parse(request.body);
       const email = normalizeEmail(body.email);
-      if (!email)
+      if (!email || !validNormalizedEmail(email))
         throw new ControlledError("INVALID_REQUEST", "Invalid request", 400);
       let result;
       try {
