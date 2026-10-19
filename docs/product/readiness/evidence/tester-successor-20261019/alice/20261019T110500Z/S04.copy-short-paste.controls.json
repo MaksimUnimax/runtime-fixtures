@@ -1,0 +1,25 @@
+{
+  "status": "OBSERVED",
+  "time": 1792407812.6448202,
+  "url": "https://chatgpt.com/c/6ad5f794-4094-83eb-a6e7-415bbeba3db5",
+  "title": "Проверка отображения Octoport",
+  "path": "screenshots/tester-successor-alice-copy-short-paste-20261019.png",
+  "composer": {
+    "checked": null,
+    "disabled": false,
+    "index": 79,
+    "tag": "DIV",
+    "text": "marker = \"OCTOPORT_SHORT_20261019\"\nprint(marker)\n\n",
+    "role": "textbox",
+    "aria": "Ask ChatGPT",
+    "placeholder": null,
+    "type": null,
+    "id": null,
+    "testid": null,
+    "href": ""
+  },
+  "source": "Alice first code block Copy via codeblock-action-copy nth0, followed by selection of own empty ChatGPT test draft",
+  "scope": "Paste verification only; no code execution/no Send",
+  "text_match_normalized": true,
+  "byte_identity_proven": false
+}

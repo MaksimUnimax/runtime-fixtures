@@ -1,0 +1,66 @@
+{
+  "status": "OBSERVED",
+  "time": 1792407654.4419696,
+  "url": "https://alice.yandex.ru/chat/01a13073-a042-4000-8a40-d0fe16ce8a5f/",
+  "title": "…",
+  "path": "screenshots/tester-successor-alice-test-ready-20261019.png",
+  "controls": [
+    {
+      "checked": null,
+      "disabled": false,
+      "index": 11,
+      "tag": "TEXTAREA",
+      "text": "",
+      "role": null,
+      "aria": null,
+      "placeholder": "Спросите о чём угодно",
+      "type": null,
+      "id": null,
+      "testid": "inputbase-textarea",
+      "href": ""
+    },
+    {
+      "checked": null,
+      "disabled": false,
+      "index": 12,
+      "tag": "BUTTON",
+      "text": "Меню",
+      "role": null,
+      "aria": null,
+      "placeholder": null,
+      "type": null,
+      "id": null,
+      "testid": "InputControls-More-Button",
+      "href": ""
+    },
+    {
+      "checked": null,
+      "disabled": false,
+      "index": 14,
+      "tag": "BUTTON",
+      "text": "",
+      "role": null,
+      "aria": "Распознать речь",
+      "placeholder": null,
+      "type": null,
+      "id": null,
+      "testid": "button-dictation-button",
+      "href": ""
+    },
+    {
+      "checked": null,
+      "disabled": false,
+      "index": 15,
+      "tag": "BUTTON",
+      "text": "",
+      "role": null,
+      "aria": "Отправить",
+      "placeholder": null,
+      "type": "button",
+      "id": "oknyx-button",
+      "testid": "oknyx",
+      "href": ""
+    }
+  ],
+  "scope": "Ready after one new fill; textarea actual prompt seen in screenshot; inner_text does not expose textarea value"
+}

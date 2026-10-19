@@ -1,0 +1,110 @@
+{
+  "kind": "tester-successor-provider-observations",
+  "at_utc": "2026-10-19T11:04:23.750794+00:00",
+  "previous_checkpoint_commit": "99752c24129a97b958f04c2465841d62ae2a5628",
+  "browser": "Chrome 155.0.8059.84 Linux; existing preserved driver",
+  "observations": {
+    "chatgpt": {
+      "direct_provider_send_count": 1,
+      "short_code_observed": true,
+      "long_code_markers": 120,
+      "long_copy_paste_markers_in_order": 120,
+      "composer_form_descendant_verified_by_fill": true,
+      "composer_id": null,
+      "composer_testid": null,
+      "composer_role": "textbox",
+      "composer_aria": "Ask ChatGPT",
+      "send_aria": "Send",
+      "send_type": "submit",
+      "empty_final_composer": true,
+      "extension_start_tested": false
+    },
+    "alice": {
+      "direct_provider_send_count": 1,
+      "short_code_observed": true,
+      "long_code_markers": 120,
+      "short_copy_paste_normalized_text_match": true,
+      "long_copy_clicked": true,
+      "long_clipboard_identity_measured": false,
+      "composer_testid": "inputbase-textarea",
+      "send_id": "oknyx-button",
+      "send_aria": "Отправить",
+      "transient_two_textareas_observed": true,
+      "extension_start_tested": false
+    }
+  },
+  "installed_zip": {
+    "bytes": 2567081,
+    "sha256": "4f7563baebb2a3f76d5af7aab671dbb3b5c32f47a12d26f27d59a0bfbe1502c0",
+    "files_compared": 43,
+    "mismatches": 0,
+    "version": "0.2.37"
+  },
+  "limitations": [
+    "No complete DOM ancestry exported by existing driver; no selector broadening implemented from limited controls snapshot",
+    "Native scrot access to X :103 refused authorization; no retry/bypass; toolbar popup remains untested in this continuation",
+    "No upload/big report/Start/Finish/restart/full B01 acceptance in this continuation",
+    "Copied text observation is not uploaded file byte identity",
+    "Command/screenshot identifiers are labels; actual timestamps are recorded by driver"
+  ],
+  "source_changed": false,
+  "owner_accepted": false,
+  "evidence": [
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/chatgpt/20261019T110000Z/S02.draft.controls.json",
+      "bytes": 5440,
+      "sha256": "3b11c55d384b6c6b179ecbe7ea7e9339433026a88a9f83df42082d1e9173ae16"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/chatgpt/20261019T110000Z/S03.ready.controls.json",
+      "bytes": 6431,
+      "sha256": "4246809d91242da65b0cf9a1c0e43651bdd5a952df7ef9bc5fda78cdcd470301"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/chatgpt/20261019T110000Z/S06.completed.controls.json",
+      "bytes": 11945,
+      "sha256": "8442737938aac41f3b50c5b9f53698d0e3af3cfa5e43c044facdd1767f7f2368"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/chatgpt/20261019T110000Z/S06.copy-paste.controls.json",
+      "bytes": 15306,
+      "sha256": "3a5b32c9e36c871463740021cba00bf0b645be9c344dc3425a4c30c91e9482c5"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/chatgpt/20261019T110000Z/S06.final-empty.controls.json",
+      "bytes": 12477,
+      "sha256": "0554c62bc5fd751e5cdce81671c5763a8bb33a09df99fd6b4b9dce7793b58623"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/alice/20261019T110500Z/S03.ready.controls.json",
+      "bytes": 1597,
+      "sha256": "03b10733b8d18469d1cb54bafd705c982dab3b690158e305c120940f0ce5c4c5"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/alice/20261019T110500Z/S04.copy-short-paste.controls.json",
+      "bytes": 843,
+      "sha256": "988657538fc40db187b5f0abea1ee5a628cbea54c55cae425c26cc3550c6a075"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/alice/20261019T110500Z/S06.completed.controls.json",
+      "bytes": 11837,
+      "sha256": "9c1c678c5ad1395a51b9bf0f36d25bfc3492cfec8eb6d8981702c2c72ac094bf"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/alice/20261019T110500Z/S06.copy-long.controls.json",
+      "bytes": 1258,
+      "sha256": "f7ed0ccdc3597443c715e6ccbf9924d5759e2b561a5708b4943534ca6082d1fb"
+    },
+    {
+      "path": "/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/alice/20261019T110500Z/S06.first-response.controls.json",
+      "bytes": 7664,
+      "sha256": "2c4cb629fbf1b78bd8535a7974182f9798a32e64ea1840ab293041e4637c8e07"
+    }
+  ],
+  "final_driver_result": {
+    "time": 1792407833.3879237,
+    "url": "https://chatgpt.com/c/6ad5f794-4094-83eb-a6e7-415bbeba3db5",
+    "path": "screenshots/tester-successor-all-copy-drafts-cleared-20261019.png",
+    "status": "OBSERVED"
+  }
+}

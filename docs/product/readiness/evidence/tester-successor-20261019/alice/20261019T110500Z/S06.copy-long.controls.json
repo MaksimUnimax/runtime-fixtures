@@ -1,0 +1,38 @@
+{
+  "status": "OBSERVED",
+  "time": 1792407749.0919015,
+  "url": "https://alice.yandex.ru/chat/01a13073-a042-4000-8a40-d0fe16ce8a5f/",
+  "title": "Техническая проверка отображения Octoport: OCTOPORT_TESTER_ALICE_20261019T1105Z. Ответь только двумя блоками кода без пояснений. Первый — python ровно из двух строк: marker = \"OCTOPORT_SHORT_20261019\"",
+  "path": "screenshots/tester-successor-alice-copy-long-20261019.png",
+  "controls": [
+    {
+      "checked": null,
+      "disabled": false,
+      "index": 14,
+      "tag": "BUTTON",
+      "text": "Копировать",
+      "role": null,
+      "aria": null,
+      "placeholder": null,
+      "type": "button",
+      "id": null,
+      "testid": "codeblock-action-copy",
+      "href": ""
+    },
+    {
+      "checked": null,
+      "disabled": false,
+      "index": 17,
+      "tag": "BUTTON",
+      "text": "Копировать",
+      "role": null,
+      "aria": null,
+      "placeholder": null,
+      "type": "button",
+      "id": null,
+      "testid": "codeblock-action-copy",
+      "href": ""
+    }
+  ],
+  "scope": "Long Copy clicked; clipboard identity not measured, previous clipboard had same120 markers"
+}
