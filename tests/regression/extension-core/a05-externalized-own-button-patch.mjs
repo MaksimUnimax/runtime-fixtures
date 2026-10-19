@@ -21,7 +21,16 @@ for (const patch of transportPatches) {
   assert.equal(patch.old.includes('redirect: "error"'), false, "preimage must lack the redirect fence");
   assert.equal(patch.new.includes('redirect: "error"'), true, "replacement must reject redirects");
 }
-assert.equal(patches.length, 176 + transportPatches.length);
+// Pin the one independently reviewed Standard-composer overlay explicitly;
+// retain the accepted A05 baseline and its original full-content hash below.
+const standardComposerPatches = patches.filter(row =>
+  row.target === "content_script.js" && row.old.startsWith("  function chatgptPrimaryComposerContext() {"));
+assert.equal(standardComposerPatches.length, 1, "one observed Standard composer overlay");
+const standardComposerPatch = standardComposerPatches[0];
+assert.deepEqual(Object.keys(standardComposerPatch).sort(), ["new", "old", "target"]);
+assert.equal(hash(standardComposerPatch.old), "2149944069f6f17e75d2eb9d7861906854d66b08afcf3f224b5f22e7f28e21bc");
+assert.equal(hash(standardComposerPatch.new), "dfa900cbbe80eab472d738c2125bac806252875011e64abbdffa29720b46f235");
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];
@@ -40,8 +49,10 @@ assert.ok(replacement.endsWith("  }\n\n"));
 
 let content = read("apps/extension/src/imported/ozon-v0.1.22/content_script.js");
 const contentPatches = patches.filter(row => row.target === "content_script.js");
-assert.equal(contentPatches.length, 68);
-for (const row of contentPatches) {
+assert.equal(contentPatches.length, 69);
+const baselineContentPatches = contentPatches.filter(row => row !== standardComposerPatch);
+assert.equal(baselineContentPatches.length, 68);
+for (const row of baselineContentPatches) {
   assert.equal(content.split(row.old).length - 1, 1, "one baseline preimage per patch");
   const replacementText = row.new_source ? read(row.new_source) + "\n" : row.new;
   content = content.replace(row.old, replacementText);
@@ -51,6 +62,10 @@ assert.equal(
   "51311e4b31490f0c5ff16287b32b3d7594d14705baeef33ce4eb15febf33e989",
   "extracted text preserves the full content_script.js composition on exact base",
 );
+assert.equal(content.split(standardComposerPatch.old).length - 1, 1, "one Standard composer preimage after baseline");
+content = content.replace(standardComposerPatch.old, standardComposerPatch.new);
+assert.equal(hash(content), "3ffafc00da373a1a6bf017bf62f3babc25d1a2a14f4038d9204710ed4579f2fb",
+  "exact full content after the pinned Standard composer overlay");
 console.log(JSON.stringify({level:"SOURCE",status:"PASS",externalized:1,
   patchCount:patches.length,contentPatches:contentPatches.length,
   emittedSHA256:hash(content),runtimeOrStoreInstall:"NOT_RUN"}));
