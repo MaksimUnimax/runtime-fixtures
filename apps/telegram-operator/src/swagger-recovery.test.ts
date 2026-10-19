@@ -42,7 +42,7 @@ function bytes(version = "1") {
     ),
   );
 }
-async function fixture() {
+async function fixture(swaggerDelayMs = 0) {
   const root = await mkdtemp(join(tmpdir(), "review-wb-recovery-"));
   roots.push(root);
   const handoffState = createInMemorySwaggerSourceState();
@@ -68,6 +68,7 @@ async function fixture() {
   };
   const scheduleStore = new InMemoryMonitoringScheduleStore();
   await scheduleStore.ensureDefaults(new Date());
+  const swaggerRunner = createApiWatchRunner(dependencies);
   const scheduler = new IndependentMonitoringScheduler({
     store: scheduleStore,
     runners: {
@@ -76,7 +77,12 @@ async function fixture() {
         code: null,
         summary: "synthetic",
       }),
-      SWAGGER_API: createApiWatchRunner(dependencies),
+      SWAGGER_API: async (run) => {
+        // This optional fixture delay models a busy CI worker, not provider I/O.
+        if (swaggerDelayMs > 0)
+          await new Promise((resolve) => setTimeout(resolve, swaggerDelayMs));
+        return swaggerRunner(run);
+      },
     },
   });
   const messages: string[] = [];
@@ -147,17 +153,68 @@ async function fixture() {
     first,
   };
 }
+// A stored inventory may be published by the legacy two-step writer or
+// by the atomic snapshot+inventory writer. Inject the same failure at the
+// actual persistence boundary in either reviewed source version.
+function failInventoryPersistence(
+  store: InMemoryApiWatchStore,
+  failAt: number,
+  failureCode: string,
+) {
+  // Probe an API that is deliberately absent from older store classes.
+  // Keep a callable type for vi.spyOn in both TypeScript versions.
+  const compatible = store as unknown as {
+    saveSnapshotWithInventory: (
+      metadata: Parameters<InMemoryApiWatchStore["saveSnapshot"]>[0],
+      inventory: Parameters<InMemoryApiWatchStore["saveInventory"]>[0],
+    ) => ReturnType<InMemoryApiWatchStore["saveSnapshot"]>;
+  };
+  let saves = 0;
+  if (typeof compatible.saveSnapshotWithInventory === "function") {
+    const original = compatible.saveSnapshotWithInventory.bind(compatible);
+    return vi
+      .spyOn(compatible, "saveSnapshotWithInventory")
+      .mockImplementation(async (metadata, inventory) => {
+        if (++saves === failAt) throw new Error(failureCode);
+        return original(metadata, inventory);
+      });
+  }
+  const original = store.saveInventory.bind(store);
+  return vi
+    .spyOn(store, "saveInventory")
+    .mockImplementation(async (inventory) => {
+      if (++saves === failAt) throw new Error(failureCode);
+      return original(inventory);
+    });
+}
+
 describe("review main109ce9df public WB recovery", () => {
   it("bot upload wakes the report pipeline and persists all13 snapshots/inventories without a fabricated diff", async () => {
-    const f = await fixture();
+    const f = await fixture(1250);
     const run = vi.spyOn(f.scheduler, "runNow");
+    // Bot upload acknowledges the wake before the async report finishes.
+    // Observe this run's persisted result, not a one-second timing poll.
+    let notifyFinished: (() => void) | undefined;
+    const swaggerFinished = new Promise<void>((resolve) => {
+      notifyFinished = resolve;
+    });
+    const finishRun = f.scheduleStore.finishRun.bind(f.scheduleStore);
+    vi.spyOn(f.scheduleStore, "finishRun").mockImplementation(async (input) => {
+      const persisted = await finishRun(input);
+      if (
+        input.lane === "SWAGGER_API" &&
+        persisted.lastResult?.runId === input.runId
+      ) {
+        notifyFinished?.();
+      }
+      return persisted;
+    });
     await f.upload(f.first.requestId);
     expect(run).toHaveBeenCalledWith("SWAGGER_API");
-    await vi.waitFor(async () =>
-      expect(
-        (await f.scheduleStore.getState("SWAGGER_API")).lastResult?.status,
-      ).toBe("SUCCEEDED"),
-    );
+    await swaggerFinished;
+    expect(
+      (await f.scheduleStore.getState("SWAGGER_API")).lastResult?.status,
+    ).toBe("SUCCEEDED");
     expect(
       (await f.store.listAuthorityRecords()).filter(
         (x) => x.authorityStatus === "AUTHORITY_ACCEPTED",
@@ -179,7 +236,7 @@ describe("review main109ce9df public WB recovery", () => {
     ).toBe(true);
     expect(last.coverage?.comparisonState).toBe("NOT_RUN");
     expect(f.fetcher).toHaveBeenCalledTimes(13);
-  });
+  }, 15_000);
   it("a restarted normal report consumes durable upload and resumes after snapshot persistence failure", async () => {
     const f = await fixture();
     // Suppress only the immediate wake to model process loss after durable upload.
@@ -192,9 +249,11 @@ describe("review main109ce9df public WB recovery", () => {
       pendingStore: new InMemorySwaggerSourceStore(f.handoffState),
       store: new InMemoryApiWatchStore(f.state),
     };
-    const save = vi
-      .spyOn(restarted.store, "saveInventory")
-      .mockRejectedValueOnce(new Error("SYNTHETIC_WRITE_FAILURE"));
+    const save = failInventoryPersistence(
+      restarted.store,
+      1,
+      "SYNTHETIC_WRITE_FAILURE",
+    );
     vi.mocked(f.fetcher).mockClear();
     expect(
       (
@@ -455,15 +514,10 @@ describe("review main299d6113 receipt and hold boundaries", () => {
       await f.upload(f.first.requestId);
       vi.mocked(f.dependencies.fetcher).mockClear();
       if (boundary === "inventory") {
-        const original = f.dependencies.store.saveInventory.bind(
+        failInventoryPersistence(
           f.dependencies.store,
-        );
-        let saved = 0;
-        vi.spyOn(f.dependencies.store, "saveInventory").mockImplementation(
-          async (inventory) => {
-            if (++saved === 7) throw new Error("SYNTHETIC_SEVENTH_INVENTORY");
-            return original(inventory);
-          },
+          7,
+          "SYNTHETIC_SEVENTH_INVENTORY",
         );
       } else {
         const original = f.dependencies.reportStore.transitionReport.bind(

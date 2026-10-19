@@ -318,7 +318,7 @@ describe.sequential("review main109ce9df native WB operator boundaries", () => {
     try {
       const deps = dependencies(restarted, f.root);
       const failure = vi
-        .spyOn(deps.store, "saveInventory")
+        .spyOn(deps.store, "saveSnapshotWithInventory")
         .mockRejectedValueOnce(new Error("SYNTHETIC_INVENTORY_FAILURE"));
       expect(
         (
@@ -624,14 +624,17 @@ describe.sequential("review main109ce9df native WB operator boundaries", () => {
         await f.upload(f.first.requestId);
         vi.mocked(f.deps.fetcher).mockClear();
         if (boundary === "inventory") {
-          const original = f.deps.store.saveInventory.bind(f.deps.store);
-          let saved = 0;
-          vi.spyOn(f.deps.store, "saveInventory").mockImplementation(
-            async (inventory) => {
-              if (++saved === 7) throw new Error("SYNTHETIC_SEVENTH_INVENTORY");
-              return original(inventory);
-            },
+          const original = f.deps.store.saveSnapshotWithInventory.bind(
+            f.deps.store,
           );
+          let saved = 0;
+          vi.spyOn(
+            f.deps.store,
+            "saveSnapshotWithInventory",
+          ).mockImplementation(async (metadata, inventory) => {
+            if (++saved === 7) throw new Error("SYNTHETIC_SEVENTH_INVENTORY");
+            return original(metadata, inventory);
+          });
         } else {
           const original = f.deps.reportStore.transitionReport.bind(
             f.deps.reportStore,
