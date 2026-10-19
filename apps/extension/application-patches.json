@@ -895,5 +895,70 @@
     "target": "content_script.js",
     "old": "  function chatgptPrimaryComposerContext() {\n    const selectors = [\"#prompt-textarea\", '[data-testid=\"prompt-textarea\"]', 'textarea[id*=\"prompt\" i]', 'textarea[data-testid*=\"prompt\" i]', '[contenteditable=\"true\"][id*=\"prompt\" i]', '[contenteditable=\"true\"][data-testid*=\"prompt\" i]'];\n    const candidates = [];\n    for (const selector of selectors) {\n      for (const node of document.querySelectorAll(selector)) {\n        const context = chatgptComposerContextFromNode(node);\n        if (!context) continue;\n        let score = 0;\n        if (node.id === \"prompt-textarea\") score += 1000;\n        if ((node.getAttribute(\"data-testid\") || \"\") === \"prompt-textarea\") score += 800;\n        if (context.form.closest(\"#composer-background, [data-testid*='composer' i]\")) score += 400;\n        score += Math.min(200, node.getBoundingClientRect().top);\n        candidates.push({ context, score });\n      }\n    }\n    candidates.sort((a, b) => b.score - a.score);\n    return candidates[0]?.context || null;\n  }\n",
     "new": "  function chatgptPrimaryComposerContext() {\n    const selectors = [\"#prompt-textarea\", '[data-testid=\"prompt-textarea\"]', 'textarea[id*=\"prompt\" i]', 'textarea[data-testid*=\"prompt\" i]', '[contenteditable=\"true\"][id*=\"prompt\" i]', '[contenteditable=\"true\"][data-testid*=\"prompt\" i]'];\n    const candidates = [];\n    for (const selector of selectors) {\n      for (const node of document.querySelectorAll(selector)) {\n        const context = chatgptComposerContextFromNode(node);\n        if (!context) continue;\n        let score = 0;\n        if (node.id === \"prompt-textarea\") score += 1000;\n        if ((node.getAttribute(\"data-testid\") || \"\") === \"prompt-textarea\") score += 800;\n        if (context.form.closest(\"#composer-background, [data-testid*='composer' i]\")) score += 400;\n        score += Math.min(200, node.getBoundingClientRect().top);\n        candidates.push({ context, score });\n      }\n    }\n    candidates.sort((a, b) => b.score - a.score);\n    if (candidates.length) return candidates[0].context;\n    // Observed Standard composer has no prompt id/testid. Keep this exact\n    // fallback inside its form; message editors, dialogs and ambiguity stay closed.\n    const observed = [...document.querySelectorAll('form [contenteditable=\"true\"][role=\"textbox\"][aria-label=\"Ask ChatGPT\"]')]\n      .filter(node => !node.closest('article, [role=\"article\"], [role=\"dialog\"], section[data-turn], [data-message-role], [data-message-author-role], [data-writing-block], [data-writing-block-id], #code-block-viewer'))\n      .map(chatgptComposerContextFromNode)\n      .filter(Boolean);\n    return observed.length === 1 ? observed[0] : null;\n  }\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "const AI_MODES = new Set([\"auto\", \"chatgpt\", \"alice\", \"qwen\"]);",
+    "new": "const AI_MODES = new Set([\"auto\", \"chatgpt\", \"alice\", \"qwen\", \"kimi\"]);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "const AI_MODES = Object.freeze([\"auto\", \"chatgpt\", \"alice\", \"qwen\"]);",
+    "new": "const AI_MODES = Object.freeze([\"auto\", \"chatgpt\", \"alice\", \"qwen\", \"kimi\"]);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  const QWEN = SellerAgentsQwenAdapter.create({ visible, readComposerText, setComposerText });\n  const ADAPTERS = Object.freeze({ chatgpt: CHATGPT, alice: ALICE, qwen: QWEN });",
+    "new": "  const QWEN = SellerAgentsQwenAdapter.create({ visible, readComposerText, setComposerText });\n  const KIMI = SellerAgentsKimiAdapter.create({ readComposerText, setComposerText });\n  const ADAPTERS = Object.freeze({ chatgpt: CHATGPT, alice: ALICE, qwen: QWEN, kimi: KIMI });"
+  },
+  {
+    "target": "content_script.js",
+    "old": "const baseline = adapter.id === \"qwen\" ? adapter.composerContext() : adapter.id === \"alice\" ? alicePrimaryComposerContext() : chatgptPrimaryComposerContext();",
+    "new": "const baseline = [\"qwen\", \"kimi\"].includes(adapter.id) ? adapter.composerContext() : adapter.id === \"alice\" ? alicePrimaryComposerContext() : chatgptPrimaryComposerContext();"
+  },
+  {
+    "target": "content_script.js",
+    "old": "const baseline = adapter.id === \"qwen\" ? adapter.sendButton(context) : adapter.id === \"alice\" ? aliceSendButton(context) : chatgptSendButton(context);",
+    "new": "const baseline = [\"qwen\", \"kimi\"].includes(adapter.id) ? adapter.sendButton(context) : adapter.id === \"alice\" ? aliceSendButton(context) : chatgptSendButton(context);"
+  },
+  {
+    "target": "shared/ai_delivery_capabilities.js",
+    "old": "    if (host === \"alice.yandex.ru\") return \"alice\";\n    if (host === \"chat.qwen.ai\") return \"qwen\";",
+    "new": "    if (host === \"alice.yandex.ru\") return \"alice\";\n    if (host === \"chat.qwen.ai\") return \"qwen\";\n    if (host === \"www.kimi.ai\") return \"kimi\";"
+  },
+  {
+    "target": "content_script.js",
+    "old": "return adapter.id === \"qwen\" ? adapter.sendButtonCandidates(context) : adapter.id === \"alice\" ? aliceSendButtonCandidates(context) : chatgptSendButtonCandidates(context);",
+    "new": "return [\"qwen\", \"kimi\"].includes(adapter.id) ? adapter.sendButtonCandidates(context) : adapter.id === \"alice\" ? aliceSendButtonCandidates(context) : chatgptSendButtonCandidates(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "return adapter.id === \"qwen\" ? [...(context?.root?.querySelectorAll(\"button\") || [])].filter(visible) : adapter.id === \"alice\" ? aliceAllComposerControls(context) : chatgptAllComposerControls(context);",
+    "new": "return adapter.id === \"kimi\" ? adapter.allComposerControls(context) : adapter.id === \"qwen\" ? [...(context?.root?.querySelectorAll(\"button\") || [])].filter(visible) : adapter.id === \"alice\" ? aliceAllComposerControls(context) : chatgptAllComposerControls(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "if (adapter.id === \"qwen\") {\n      const context = adapter.composerContext(), state = adapter.classifyComposerControl(context);\n      return { ...state, context, kind: state.kind === \"ready\" ? \"qwen_ready\" : state.kind };\n    }\n    return adapter.id === \"alice\" ? classifyAliceComposerControl() : classifyChatgptComposerControl();",
+    "new": "if ([\"qwen\", \"kimi\"].includes(adapter.id)) {\n      const context = adapter.composerContext(), state = adapter.classifyComposerControl(context);\n      return { ...state, context, kind: state.kind === \"ready\" ? adapter.id + \"_ready\" : state.kind };\n    }\n    return adapter.id === \"alice\" ? classifyAliceComposerControl() : classifyChatgptComposerControl();"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if (adapter.id === \"qwen\") {\n      const state = adapter.classifyComposerControl(context);\n      return state.kind === \"stop\" ? state.button : null;\n    }\n    return chatgptStopButton(context);",
+    "new": "    if ([\"qwen\", \"kimi\"].includes(adapter.id)) {\n      const state = adapter.classifyComposerControl(context);\n      return state.kind === \"stop\" ? state.button : null;\n    }\n    return chatgptStopButton(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if (adapter.id === \"qwen\") {\n      const state = adapter.classifyComposerControl(context);\n      return [\"send_active\", \"send_disabled\"].includes(state.kind) ? state.button : null;\n    }\n    return chatgptRecognizedSendControl(context);",
+    "new": "    if ([\"qwen\", \"kimi\"].includes(adapter.id)) {\n      const state = adapter.classifyComposerControl(context);\n      return [\"send_active\", \"send_disabled\"].includes(state.kind) ? state.button : null;\n    }\n    return chatgptRecognizedSendControl(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      alice_ready: \"BUTTON_ALICE_READY\",\n      qwen_ready: \"BUTTON_QWEN_READY\",",
+    "new": "      alice_ready: \"BUTTON_ALICE_READY\",\n      qwen_ready: \"BUTTON_QWEN_READY\",\n      kimi_ready: \"BUTTON_KIMI_READY\","
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  function adapterForLocation(mode = \"auto\") {\n    const normalized = normalizeMode(mode);\n    if (normalized !== \"auto\") {\n      const selected = ADAPTERS[normalized] || null;\n      return selected?.matchesLocation() ? selected : null;\n    }\n    return Object.values(ADAPTERS).find((candidate) => candidate.matchesLocation()) || null;\n  }\n",
+    "new": "  function adapterForLocation(mode = \"auto\") {\n    const normalized = normalizeMode(mode);\n    // Kimi remains staged until its profile/runtime/delivery boundary is completed.\n    // Reuse the existing planned/implemented capability status; do not grant authority.\n    const available = adapter => adapter?.id !== \"kimi\" || adapter.deliveryCapabilities()?.status === \"implemented\";\n    if (normalized !== \"auto\") {\n      const selected = ADAPTERS[normalized] || null;\n      return selected?.matchesLocation() && available(selected) ? selected : null;\n    }\n    return Object.values(ADAPTERS).find((candidate) => candidate.matchesLocation() && available(candidate)) || null;\n  }\n"
   }
 ]

@@ -1,0 +1,277 @@
+{
+  "evidenceType": "SOURCE",
+  "results": [
+    {
+      "name": "mainless first Start keeps its surface only with the owned message witness",
+      "status": "PASS"
+    },
+    {
+      "name": "same body and changed URL without the owned prompt do not authorize continuity",
+      "status": "PASS"
+    },
+    {
+      "name": "matching text on a replaced root is not a new witness",
+      "status": "PASS"
+    },
+    {
+      "name": "hidden matching message cannot prove first Start",
+      "status": "PASS"
+    },
+    {
+      "name": "multiple conversation main roots remain a conflict",
+      "status": "PASS"
+    },
+    {
+      "name": "ended Start cannot promote a later matching message",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen remount with the exact owned message",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen remount with unrelated user text",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen remount with a hidden owned message",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen remount under a replaced stable parent",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen remount with multiple desktop parents",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen remount with multiple conversation mains",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap preserves pending identity without authorizing effects",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap rejects no Start",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap rejects ended Start",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap rejects different parent",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap rejects duplicate parent",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap rejects hidden parent",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap rejects hidden main",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap rejects hidden history",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen empty remount gap rejects different origin",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen unrelated same-origin gap cannot witness the same prompt",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen unrelated landing after observed gap cannot witness the same prompt",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen query-bearing transition cannot witness the same prompt",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen remount of a nonempty conversation cannot retain first-Start continuity",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen partial remount retains observation but never authorizes effects",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen partial remount rejects replacement main",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen partial remount rejects replacement composer",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen partial remount rejects cleared prompt",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen partial remount rejects hidden old main",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen partial remount rejects hidden composer",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen partial remount rejects extra main",
+      "status": "PASS"
+    },
+    {
+      "name": "Alice exact prompt excludes author and Expand controls",
+      "status": "PASS"
+    },
+    {
+      "name": "Alice missing semantic bubble cannot witness Start",
+      "status": "PASS"
+    },
+    {
+      "name": "Alice duplicate semantic bubble cannot witness Start",
+      "status": "PASS"
+    },
+    {
+      "name": "Alice hidden semantic bubble cannot witness Start",
+      "status": "PASS"
+    },
+    {
+      "name": "Alice disconnected semantic bubble cannot witness Start",
+      "status": "PASS"
+    },
+    {
+      "name": "Alice nested_foreign_role semantic bubble cannot witness Start",
+      "status": "PASS"
+    },
+    {
+      "name": "slow worker binding allows only one in-flight observer request",
+      "status": "PASS"
+    },
+    {
+      "name": "lost worker response ends observation without a second binding or Send",
+      "status": "PASS"
+    },
+    {
+      "name": "late response cannot terminate a replacement watch",
+      "status": "PASS"
+    },
+    {
+      "name": "response watch preserves runtime disposed fence",
+      "status": "PASS"
+    },
+    {
+      "name": "response watch preserves deadline expired fence",
+      "status": "PASS"
+    },
+    {
+      "name": "response watch preserves provider identity changed fence",
+      "status": "PASS"
+    },
+    {
+      "name": "held worker callback cannot outlive deadline",
+      "status": "PASS"
+    },
+    {
+      "name": "held worker callback cannot outlive runtime disposal",
+      "status": "PASS"
+    },
+    {
+      "name": "negative waiting response WORK_START_SEND_OUTCOME_UNKNOWN_NO_RETRY never retries observation",
+      "status": "PASS"
+    },
+    {
+      "name": "negative waiting response WORK_START_SEND_NOT_ACKNOWLEDGED never retries observation",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename preserves owned node while pending",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename preserves owned node after active_visible",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses replacement node with the same text",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses changed text",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses hidden node",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses disconnected node",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses replaced root",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses ambiguous roots",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses changed route",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses changed origin",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses cancelled Start",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses timed out Start",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses expired observation",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses duplicate current ID",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename refuses conflicting external identity",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename is single-use even after active_visible",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename cannot revive after a witnessed text mismatch",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename survives active_visible before guest route promotion",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename early-active retention never permits another final route",
+      "status": "PASS"
+    },
+    {
+      "name": "Qwen ID rename completed guest promotion cannot authorize later navigation",
+      "status": "PASS"
+    }
+  ]
+}

@@ -130,8 +130,10 @@ def ozon_route(runner, work, runtime, label, source_route, expected_version="0.1
         if version_profile["native_backup_panel"] and key == "permissions":
             expected_permissions += ["sidePanel"]
         if version_profile["qwen_guest"] and key == "host_permissions":
-            assert baseline.read_json(ROOT / "apps/extension/composition.json")["ai_hosts"] == ["https://chat.qwen.ai/*"]
-            expected_permissions += ["https://chat.qwen.ai/*"]
+            ai_hosts = baseline.read_json(ROOT / "apps/extension/composition.json")["ai_hosts"]
+            # Exact owner-approved source hosts; this does not activate a provider.
+            assert ai_hosts == ["https://chat.qwen.ai/*", "https://www.kimi.ai/*"], "UNAPPROVED_AI_HOST_INVENTORY"
+            expected_permissions += ai_hosts
         if version_profile['marketplace_hosts'] and key == "host_permissions":
             expected_permissions += baseline.read_json(ROOT / "apps/extension/composition.json")["marketplace_hosts"]
         if version_profile['control_hosts'] and key == "host_permissions":

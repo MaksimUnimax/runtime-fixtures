@@ -170,7 +170,7 @@ class VersionPolicyTests(unittest.TestCase):
         ):
             self.assertEqual(route.current_composed_version(), "0.2.13")
 
-    def exercise_actual_entry(self, current, requested, mismatch=False):
+    def exercise_actual_entry(self, current, requested, mismatch=False, ai_hosts=None, manifest_ai_hosts=None):
         with tempfile.TemporaryDirectory(prefix="l1-version-route-") as temp:
             root = Path(temp)
             layout = root / "layout"
@@ -187,6 +187,8 @@ class VersionPolicyTests(unittest.TestCase):
                     "http://127.0.0.1:43101/*",
                 ],
             }
+            if manifest_ai_hosts is not None:
+                manifest["host_permissions"][1:1] = manifest_ai_hosts
             (prod / "manifest.json").write_text(json.dumps(manifest))
             for number in range(7):
                 name = "service_worker_entry.js" if number == 0 else f"s{number}.js"
@@ -199,7 +201,10 @@ class VersionPolicyTests(unittest.TestCase):
             def read_json(path):
                 text = str(path)
                 if text.endswith("apps/extension/composition.json"):
-                    return recipe(current)
+                    current_recipe = recipe(current)
+                    if ai_hosts is not None:
+                        current_recipe["ai_hosts"] = ai_hosts
+                    return current_recipe
                 if "ozon-permissions-0aa8f535" in text:
                     return {
                         "permissions": ["storage"],
@@ -220,6 +225,21 @@ class VersionPolicyTests(unittest.TestCase):
                 finally:
                     self.last_child_calls = runner.run.call_count
                     self.last_setup_calls = setup.call_count
+
+    def test_current_ai_host_inventory_is_exact(self):
+        approved = ["https://chat.qwen.ai/*", "https://www.kimi.ai/*"]
+        with self.assertRaises(ReachedPreservedBehavior):
+            self.exercise_actual_entry("0.2.37", "0.2.37", ai_hosts=approved, manifest_ai_hosts=approved)
+        self.assertEqual(self.last_child_calls, 1)
+        invalid = [approved[:1], approved + [approved[-1]], list(reversed(approved)),
+                   approved[:1] + ["https://kimi.ai/*"], approved + ["https://extra.invalid/*"]]
+        for bad in invalid:
+            for where in ("recipe", "manifest"):
+                with self.subTest(where=where, hosts=bad), self.assertRaises(AssertionError):
+                    self.exercise_actual_entry("0.2.37", "0.2.37",
+                        ai_hosts=bad if where == "recipe" else approved,
+                        manifest_ai_hosts=bad if where == "manifest" else approved)
+                self.assertEqual(self.last_child_calls, 0)
 
     def test_next_recipe_reaches_existing_behavior_after_exact_manifest_checks(self):
         with self.assertRaises(ReachedPreservedBehavior):

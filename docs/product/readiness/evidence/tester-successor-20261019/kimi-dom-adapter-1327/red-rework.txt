@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 449, in <module>
+    raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 281, in run
+    return run_kimi_adapter(runtime, output)
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 158, in run_kimi_adapter
+    check("independent_witnesses_and_effective_ui_guards",
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 154, in check
+    assert actual==expected,(name,actual,expected)
+AssertionError: ('independent_witnesses_and_effective_ui_guards', {'surface': True, 'id': '', 'users': ['', 'edit1'], 'editingText': 'UNSENT EDIT'}, {'surface': False, 'id': 'u1', 'users': ['u1'], 'editingText': ''})

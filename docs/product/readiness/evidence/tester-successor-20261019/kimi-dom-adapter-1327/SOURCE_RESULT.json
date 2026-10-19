@@ -1,0 +1,71 @@
+{
+  "recorded_at": "2026-10-19T13:39:02.271074+00:00",
+  "base_main": "32b768862e69133f9f05c556ea2df3c238e1dbfc",
+  "branch": "controller/kimi-dom-adapter-20261019",
+  "scope": "Staged Kimi DOM adapter in existing registry and consumer delegation. Ordinary work selection remains closed by existing planned capability status.",
+  "source_hashes": {
+    "apps/extension/src/content/kimi-adapter.js": "dac497cb71e8627c4f26e5f2893baff6c0d6fc6dfa7b2e8ce2fa7145f4a73b3d",
+    "apps/extension/composition.json": "6fc497d1a558fd36929c590e95fad2e330c0f327f498489a7fd81e3d691bcf2c",
+    "apps/extension/application-patches.json": "2df6d956cb1bce16eb0cc1297b34a32815cfc29a92aecb4818bbad67e1c2adc4",
+    "apps/extension/src/background/compat/conversation-identity.js": "61d3886898ca3785deabf316552df7b2d02f5b49fc698623d98d95c333b72a9e",
+    "tests/regression/extension-core/chatgpt-dom-compat.py": "76a89b0917e79a662cbacffb0231b3a481188ecabb7ceaf3f6302fafceed0490"
+  },
+  "protected_unchanged_hashes": {
+    "apps/extension/src/application/runtime.js": "e0284148e76e49e730b96776a4262b7a7fce0a5bebe61ccae66c0c87168aba20",
+    "apps/extension/src/content/signed-profile-runtime.js": "84e0fbeaf39a87c49c7e21d9da9733078f217c9b0bd25893b06b6fad736dbfa8",
+    "packages/contracts/src/signed-ai-profile.ts": "21ea13fef1f5229cfdc59c6e21a1131a5f0bb0dae22db3c24e3d685d1ff6a67e",
+    "packages/control-client/src/signed-ai-profile-consumer.js": "fca63d7905a6906ef318d4bb784dd17ca9b81f25b42a70d5c3770fcf13680729",
+    "apps/extension/src/content/kimi-code-reader.js": "89a5e229e443b0ba01bd9d5d41f078d5f85337079439d465301a93a5736e4643"
+  },
+  "source_permissions": "Only exact www.kimi.ai host added, as owner-authorized19Oct09:36. No alias or new account permission. Frozen donor and signed authority unchanged.",
+  "original_red": "KIMI_ADAPTER_NOT_REGISTERED on prior accepted ready runtime; candidate189 tree equals main32 tree. No rebuild or rerun of prior reader30.",
+  "green": {
+    "cases": 57,
+    "status": "PASS",
+    "result_sha256": "27b37db7a44f50a3cacf7a86005090fb0f42ce6cdc5401e021159c2ee1bc9fc5",
+    "composition_sha256": "2be5e712c832f7ae1714aa127669e1554257d15cebd5c8ab5e075972b78e48b8",
+    "runtime": "/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/KIMI_DOM_ADAPTER_20261019T132700Z/runtime"
+  },
+  "local_byte_identity": {
+    "status": "PASS",
+    "actual": {
+      "sameBytes": true,
+      "sha256": "631b84027d6b9e52b539c4e8373622d23032dfadc64d60af87339c9037e4f769",
+      "originalSha256": "631b84027d6b9e52b539c4e8373622d23032dfadc64d60af87339c9037e4f769",
+      "inputs": 1,
+      "changes": 1,
+      "clicks": 0,
+      "retry": "TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE"
+    }
+  },
+  "remote_provider_byte_identity": "UNKNOWN",
+  "units": [
+    {
+      "unit": "octo-tester-kimi-adapter-red-20261019t1327",
+      "Result": "exit-code",
+      "ExecMainStatus": "1",
+      "ControlGroup": "",
+      "ActiveState": "failed",
+      "cgroup_empty": true
+    },
+    {
+      "unit": "octo-tester-kimi-adapter-green-20261019t1327",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "cgroup_empty": true
+    }
+  ],
+  "new_live_provider_send_count": 0,
+  "new_attachment_import_count": 0,
+  "installed_acceptance": false,
+  "owner_acceptance": false,
+  "remaining": [
+    "Independent exact source review and five original exact-SHA CI",
+    "Full Kimi signed-profile/runtime/registry authority integration and delivery confirmation are unclaimed; ordinary work adapter remains unavailable while capability planned",
+    "Real Lexical/application adoption and provider upload outcome must be checked in authorized installed cycle; local DOM/File input is source evidence only",
+    "Complete B01 original popup/file retention/report same chat/Copy-only/hide/show/Finish/reStart without duplicate and owner manual acceptance"
+  ],
+  "preflight_error_preserved": "Initial git fetch from RDC default directory exited fatal:not a git repository, no repository mutation. Correct git -C own worktree fetch completed exit0."
+}
