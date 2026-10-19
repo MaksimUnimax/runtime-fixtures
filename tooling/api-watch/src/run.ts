@@ -327,11 +327,11 @@ async function analyzeAcceptedOutcome(input: {
     record,
     bytes: outcome.bytes,
     store: dependencies.store,
+    inventory,
     snapshotRoot: dependencies.snapshotRoot,
     documentKey,
     now: () => now,
   });
-  await dependencies.store.saveInventory(inventory);
   const baseline = dependencies.productBaselineRepository
     ? await dependencies.productBaselineRepository.read({
         sourceFamily: outcome.sourceFamily,

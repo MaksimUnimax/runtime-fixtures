@@ -287,6 +287,31 @@ describe("WB single-file operator bundle", () => {
         }),
       ).rejects.toThrow("WB_BUNDLE_AUTHORITY_PROVENANCE_MISMATCH");
       expect(await apiStore.listSnapshots()).toHaveLength(0);
+      const originalAtomicSave =
+        apiStore.saveSnapshotWithInventory.bind(apiStore);
+      let failFirstAtomicPair = true;
+      apiStore.saveSnapshotWithInventory = async (
+        metadata,
+        operationInventory,
+      ) => {
+        if (failFirstAtomicPair) {
+          failFirstAtomicPair = false;
+          throw new Error("SIMULATED_WB_FIRST_INVENTORY_SAVE_FAILURE");
+        }
+        return originalAtomicSave(metadata, operationInventory);
+      };
+      await expect(
+        promoteAcceptedWbBundle({
+          bundle: validateWbBundle(bytes, "wildberries-openapi-bundle.json"),
+          records: review.records,
+          store: apiStore,
+          snapshotRoot,
+          now: () => new Date("2026-09-22T00:00:00.000Z"),
+        }),
+      ).rejects.toThrow("SIMULATED_WB_FIRST_INVENTORY_SAVE_FAILURE");
+      expect(await apiStore.listSnapshots()).toHaveLength(0);
+      expect(apiState.inventories.size).toBe(0);
+      apiStore.saveSnapshotWithInventory = originalAtomicSave;
       const downstream = await promoteAcceptedWbBundle({
         bundle: validateWbBundle(bytes, "wildberries-openapi-bundle.json"),
         records: review.records,
