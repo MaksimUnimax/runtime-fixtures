@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-18T07:22:25.582376Z; последний результат — раздел «Продолжение с REPORT5d532f6e». Предыдущие датированные разделы сохраняются как история.
+- **Состояние на:** 2026-10-19T02:06:38.459069Z; текущий результат — раздел «Продолжение 19 октября с REPORT04379dd8». Аудит открыт, история сохранена.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
-- **Основа GitHub:** `main=22700f7951199a215ba8154e6f8e1da4374227e0` — свежий GitHub ref readback перед публикацией этого продолжения; source compatibility не переоценивалась.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA-256 `77eb5bef48b963fb9e12012a9e67a29a10eec1396616fdaac7bab3550c7a54f6`, 2,132,250 bytes; запись 2026-10-18T07:22:13.017412Z, независимый readback 07:22:25.582376Z; `audit_complete=false`.
+- **Основа GitHub:** `main=4994946608d426114081d03170abc9375c898f6f` — fresh ref; PR213 merged, tree совпал с принятым exact984. Остальные source compatibility не переоценивались.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `406acdc8ec705547fb0962e631b7cab2c81f0bb005dd203525197d7e7fcbb52d`, 2,148,767bytes; guarded write02:06:16.461250Z, independent readback02:06:38.459069Z; `audit_complete=false`.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -3478,3 +3478,24 @@ Original14/исторические12 open boundaries и PLAN/history сохра
 REPORT — sole existing path/branch, blobCAS/expectedparent5d532f6e/[skip ci], затем отдельный full-content/blob/parent/ref readback. Unknown writes не повторялись. Содержательный итог по каждой роли также прямо в диалоге.
 
 **Новых Controller tests/review/CI/VM/browser/helper/merge=0/0/0/0/0/0/0.** No exploitation/reproduction/accessbypass/live/DB/security/auth/resources/ownercleanup; Tester/B01/R3, foreignsource/tests/WIP, oldchats/PR97/131/134/errors/events не тронуты. Новых registries/archives/schedules/credits/resets/authorizations нет. **audit_complete=false.**
+
+
+## Продолжение 19 октября с REPORT04379dd8
+
+**02:06:38.459069 UTC, текущая контрольная запись активной работы.** Приоритет владельца02:03 — снимать доступные блоки первым, не обходя запреты. Владелец переносит/запускаетA/B/C; dot ведёт существующее15min расписание. Чаты/сends/расписания не тронуты. Автор/parent/ref прежнегоREPORT проверены; retainedcalls0/targetwriters0/locks/WIP81-83-73 сохранены.
+
+**Фактически выполнено в ownscope:** исправлены устаревшие ожидания consumption B/C, old C integration hold и main227 snapshot. B primary currentity_consumption01:52:34 доказывает author consumption ServerPR215/2of5; C primary ci_terminal_consumption01:53:18 — exact9845/5/13jobs. Accepted SOURCE/local/package/installed-synthetic/CI не повторялись. Неподтверждённый ACK больше не поддерживается как нынешний блок этих двух bounded результатов.
+
+**Новый C результат самостоятельно подтверждён GitHub:** PR213 merged01:57:28, merge/main4994946608d426114081d03170abc9375c898f6f, parents227+984, treeb3fc59ffa6fea0db7a9fd9d753a4271492706085 = acceptedcandidate. Это C штатная интеграция, Controllermerge0. Сохранённый C отказ GETbranchprotection403 относится к точномуGET, не повторялся/необходился и не трактуется как действующий запрет уже выполненной обычной GitHub-интеграции.
+
+Новый main499 push attempt1: Docs39187692043/Safety39187692165/I139187692113 metadataSUCCESS; Server39187692078 иExtension39187692047 IN_PROGRESS на bounded чтении после нового C02:01:59progress. Fullpostmerge5/13 не принят. Новых запусков нет.
+
+**A:** готовый A06_SELECTED_BOOTSTRAP_20261019_SOURCE_CAUSAL_DISCRIMINATOR.json SHA9ea6a717df148f15b7ac98135e47059cfe321dbe9877ab89db769653b51d030f прочитан. Это authorSOURCEtrace, возможная lease cancellation не доказанный physicalabortinitiator. ExactselectedRequest→acquisition/lease+firstabortcaller/reason/sameclock/transport/grant отсутствуют: UNKNOWN. Старый b14 и original artifacts остаются AUTHOR_PROJECTION; forbiddenroute/targets не получались. PR205d0 Draft, C3E/fiveCI/owner/Store OPEN.
+
+**B:** новый author consumption и SOURCEpathfilter disposition прочитаны, не новый CI. PR2123978/2140f9/21560fd самостоятельно видны Draft/open/unmerged. PR214/2152of5, missing3gates/protected integration open; oldPR212 negatives/fullPG/B05/entitlement/causeUNKNOWN не отменены. Capacity authorREAD_ONLY_ONLY не разрешение refusedfixture.
+
+**Документальная запись лично выполнена:** checkpoint406acdc8… и PRIORITY_TASKS be807ff81fda946a35d1fae692d6803ba2f18025832a7a69a0c7fea9b9671287,724631bytes под existinglocks/versionguards, foreignrootfields/originalmap12/PLAN сохранены assertions; independent readback02:06:38 MATCH, locksfree. Все12строк canonicalcurrent_product_boundaries получили cause/responsible/allowednext/return в собственном currentdelta; ни один productостаток не закрыт фиктивным PASS. Подробный десятипунктный итог и обоснование остатка дополняются в этом же REPORT перед завершением, без нового реестра.
+
+C06 owner/B-Ops genuine source.head/tree+approvedHTTPSorigins/trustBundle+targetcatalog/acceptance отсутствуют; owner/TesterR3 отдельно. Публикация Chrome/Opera/Firefox PREPARING/NO_SUBMIT, Yandex отдельный совместимыйbrowserproof, Safari deferred. Общий PLAN не объявлен исчерпанным; разрешённая работа A/B/C продолжается в ихscope.
+
+Новых Controller tests/review/CI/VM/browser/helper/merge/chat/schedulewrites=0. Все адресные отказы, foreignWIP/source/tests, liveDBsecurityauth, ownercleanup, старыеchats/PR97/131/134/errors/events сохранены. Новыхреестров/архивов/credits/resets/auth нет. **12open, audit_complete=false.**
