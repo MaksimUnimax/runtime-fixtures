@@ -38,6 +38,11 @@ def run_kimi(runtime: Path, output: Path):
         "opacity_ancestor_rejected": ('<div style="opacity:0">'+assistant(final("BAD"))+'</div>', []),
         "aria_hidden_rejected": ('<div aria-hidden="true">'+assistant(final("BAD"))+'</div>', []),
         "editable_code_rejected": (assistant(final("BAD",'contenteditable="true"')), []),
+        "plaintext_pre_rejected": (assistant(final("BAD",'contenteditable="plaintext-only"')), []),
+        "plaintext_ancestor_rejected": ('<div contenteditable="plaintext-only">'+assistant(final("BAD"))+'</div>', []),
+        "empty_editable_attribute_rejected": (assistant(final("BAD",'contenteditable=""')), []),
+        "editable_code_child_rejected": (assistant(final("BAD").replace('<code>','<code contenteditable="plaintext-only">')), []),
+        "editable_span_child_rejected": (assistant(final("BAD").replace('<code>BAD</code>','<code><span contenteditable="plaintext-only">BAD</span></code>')), []),
         "zero_size_pre_rejected": (assistant(final("BAD",'style="width:0;height:0;overflow:hidden"')), []),
         "ambiguous_direct_code_rejected": (assistant(final("BAD").replace("</code>","</code><code>OTHER</code>")), []),
     }

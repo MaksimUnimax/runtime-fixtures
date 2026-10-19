@@ -13,7 +13,7 @@
   const matchesLocation = () => globalThis.location?.origin === "https://www.kimi.ai";
 
   function rendered(node) {
-    if (!(node instanceof HTMLElement) || !node.isConnected || node.closest(EXCLUDED)) return false;
+    if (!(node instanceof HTMLElement) || !node.isConnected || node.isContentEditable || node.closest(EXCLUDED)) return false;
     const rect = node.getBoundingClientRect();
     if (!node.getClientRects().length || rect.width <= 0 || rect.height <= 0) return false;
     for (let parent = node; parent instanceof Element; parent = parent.parentElement) {
@@ -45,6 +45,8 @@
         final.closest(MESSAGE) !== message) return null;
     const codes = [...block.querySelectorAll(":scope > code")];
     if (codes.length !== 1 || block.querySelectorAll("code").length !== 1 ||
+        codes[0].isContentEditable ||
+        [...codes[0].querySelectorAll("[contenteditable]")].some(node => node.isContentEditable) ||
         codes[0].querySelector(MESSAGE + ", " + REASONING)) return null;
     return { message, code: codes[0] };
   }
