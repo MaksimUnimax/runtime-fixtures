@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T13:31:44.997331+00:00; currentmain32 original native5/5workflows13/13jobsSUCCESS, Server/WBwait снят. Новые A WB_R12 TEST_EVIDENCE_SCOPED ограничения/R19path-only и B_R2 PREEXISTING_NONREGRESSION_WITH_OPEN_SECURITY_RISK учтены. B identity-policy/data compatibility и C04/C06 остаются; original12OPEN,audit_complete=false.
+- **Состояние на:** 2026-10-19T14:06:05.875Z; прямое решение владельца13:46 закрывает выбор Bdomain-equivalence policy. Совместимый план документально уточнён, реальные коллизии/конкретные допуски и доставкаB UNKNOWN. Cready13:38inventory16carriers:0/16complete,max0/6source matches, not runtimeproof. ServerCP сохранён без новой записи из-за неустановленной разрешённой freshlocks/WIP процедуры после адресного отказа preflight. Original12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** currentref `main=32b768862e69133f9f05c556ea2df3c238e1dbfc`, tree `e5a9f9be2606f92fff174e03757edd08f55a9364`; originalpush/attempt1 native5/5workflows13/13jobsSUCCESS, lastterminal13:14:17. Новые два terminal/jobs проверены лично, прежние Docs/Safety/I1 сохранены NOT_RECHECKED. Tester source/tests/чат не читались; native не означает installed/live/Store/owner приёмку.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`,2561719bytes; основная ownwrite13:31:15.867694, readbackincident/disposition13:34–13:35, независимый readback2026-10-19T13:35:39.429576+00:00; PLAN/history/WIP/map12OPEN сохранены.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`; последний полный verifiedSHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`,2561719bytes, readback13:35:39.429576 UTC. В проходе14:00+ прочитан только currenttail220lines; свежий полный hash/locks/WIP не установлен, запись CP не выполнялась. Прямое ownerрешение и остаток синхронизации сохранены в этом же REPORT; это не заявление о доставке B.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -5126,3 +5126,100 @@ C06genuineauthority/target не появились в проверенной н�
 Документированный github_fetch GET https://api.github.com/repos/MaksimUnimax/runtime-fixtures/git/blobs/ebba199108f61eb57cb531ce7d70b19cce91c783 успешно вернул сразу decodedUTF8REPORT. Ошибочная локальная попытка JSON.parse этого текста дала SyntaxError: Unexpected token #,REPORT heading is not valid JSON; исправлено чтение structuredContent.content без нового запроса. Полные **801037chars** независимо совпали с предложенным содержимым. Дословная большая первичка уже находится в этом exact canonicalGitblob, не дублирована в новый архив. При диагностике один consoleprojection по ошибке вывел весь вложенный REPORT; дальнейший вывод ограничен метаданными. Это ошибка локальной обработки/вывода, не платформенный отказ и не продуктовый исход.
 
 Использован разрешённый публичный Gitdata read собственного REPORT; отказанные artifacts/targets/log118019352572 и другие адресные отказы не затронуты. Auth/live/source/tests/CI изменения не выполнялись. CPdisposition сохранён под четырьмя locks с повторной проверкой WIP/targetwriters; новый независимый process2026-10-19T13:35:39.429576+00:00 подтвердил SHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`,2561719bytes, resolution, original12OPEN/map/auditfalse и fourlocksFREE. PrioritySHA297da8d8c81bd0e305d0f8207dccf6df17323a46265b6d8116c05d67957f6710 не изменён. Это отдельная документальная поправка к известной успешной записи, а не retry неизвестной мутации. Финальный REPORT проверяется по закреплённому Gitblob с прямым сравнением текста.
+
+
+## Продолжение того же аудита — 2026-10-19T14:06:05.875Z, после REPORT a296e7b0
+
+Прямое продолжение после terminal13:36:47. Фактический доступ RDC Easyscript9dab7ad2-9d63-43a3-b106-a5840d79ccc1 подтверждён ping14:00:37.039 UTC. Работа / GPT-6.1 Sol / Очень высокое. Один и тот же незавершённый аудит, PLAN/history/WIP/original12OPEN сохранены. Этот проход ограничен новой готовой документальной дельтой и прямым решением владельца; ранее принятые проверки не повторены.
+
+### Прямое решение владельца B — прежнее ожидание ответа снято
+
+19.10.2026 **13:46 UTC** владелец ответил **«да»** на объяснение: «Я рекомендую да: учитывать эти две записи как один домен. Похожие по виду, но разные домены объединять нельзя. Перед исправлением разработчику нужно проверить, не возникнет ли конфликтов с уже существующими аккаунтами. Согласуем такой вариант?»
+
+Происхождение передано владельцем напрямую в этом диалоге: вопросdot `Sentinel_cd6baa46d4308191ad98b7c194b0568c`, ответвладельца `Sentinel_a1bbade510708191994b2aa5eb283a1d`. Контроллер не открывал owner/A/B/C/Testerчаты для подтверждения уже переданной прямой инструкции и не подменяет её отсутствующей записью PRIORITY.
+
+**Принятый контракт:** корректно эквивалентные Unicode и IDNA A-label записи одного email-домена считаются одним доменом для accounts/invitations/OTP. Похожие по виду, но разные домены не объединяются. **Никаких изменений локальной части email или произвольной нормализации.**
+
+Разрешено подготовить совместимый план и оценить конфликты existingaccounts **только по разрешённым материалам**. Не разрешены auth/DB changes, объединение аккаунтов, миграции, live/data чтения по умолчанию, изменение localpart или новые tests/review/CI в этом проходе. Старый вопрос выбора этого контракта **РЕШЁН** и больше не задаётся. Конкретные compatibilityproof/допуски остаются отдельными исходами; оригинальная карта12 не уменьшается.
+
+### B — готовый условный план прочитан и документально привязан к принятому контракту
+
+Лично полностью прочитан штатным RDCread_file готовый `/root/octoport-control/logs/B/B06_SIX_DRAFT_MAIN3F_20261019/IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md`,51lines/0remaining. Record B06_SIX_DRAFT_MAIN3F_COMPAT_20261019 / IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019, issuerexistingB, SOURCE-deriveddecisioninput, не команда/изменениеauth/source/PG/service. Время13:42:09 дано в переданном dotсрезе; сам документ предшествует13:46ownerreply, поэтому его старые условные формулировки не доказывают новое consumptionB.
+
+Из плана прочитаны только готовое описание контрактов, защитные требования, ограничения и последовательность совместимого перехода. Исходные sourcefiles, reproduction, реальные accounts/invitations/OTP/DB/secrets не читались. Указанные в плане source-derivedфакты являются авторским анализом B; независимое повторное code review здесь не выполнялось.
+
+**Фактически выполненная собственная документальная работа:** выбрана ровно принятая ДАветвь existingплана, снято ownожидание выбораequivalencepolicy, уточнены текущие разрешённые и запрещённые шаги. ForeignBдокумент не переписан и новое поручение/реестр не создано.
+
+| Часть плана | Проверенный исход в этом проходе | Точная граница |
+| --- | --- | --- |
+| Выбор domain-контракта | ВЫПОЛНЕНО владельцем13:46; oldyes/no ожидание снято | Корректно эквивалентные Unicode/IDNA формы одного домена считаются одним доменом; похожие разные домены не объединяются; localpart не меняется. |
+| Оценка existing-data конфликтов | UNKNOWN по разрешённым материалам | В готовом плане нет существующих account/invitation/challenge snapshots или утверждённого collision disposition. Никаких auth/DB/live чтений, запросов или объединения аккаунтов не выполнялось. |
+| Совместимый comparison contract | DOCUMENTARY REQUIREMENT; исполнение не начато | Единое детерминированное сравнение только domain части при утверждённых настройках; сохранить представление и прежний localpart/identifier контракт. Не подменять одной invitationkeyправкой. |
+| Связанные потребители | DESIGN REMAINDER существующегоB/security | Приглашения, account lookup, OTP/admission, reservations/locking должны применять согласованный контракт. План схемы/данных и изменения auth/DB не разрешены текущим решением. |
+| Уже выданные OTP/replay | COMPATIBILITY REQUIREMENT | Не менять произвольно вход HMAC, activechallenge и requestId/payloadhash семантику; нужен отдельный совместимый переход и безопасный исход конфликтов, без молчаливого merge. |
+| Проверки/приёмка | NOT_EXECUTED; прежние435/TS8/style12/build2/R2 NOT_RECHECKED | Готовый план перечисляет будущие проверки; это не запуск, созданиеtests, reviewer или разрешение на PG. Exactreview/native/installed допуски остаются отдельными. |
+| Доставка B | UNKNOWN | Прямая передача решения Контроллеру доказана текущим сообщением владельца; запись dot в PRIORITY не состоялась. TransferpromptB содержит контракт по сообщению владельца, но Bconsumption/ACK не установлены; чаты/новая отправка не открываются. |
+
+Оценка конфликтов по полученным разрешённым материалам: необходимо различить уже существующие identity/account коллизии и активные invitation/OTP состояния, требующие совместимого перехода. В документе **нет actualexistingdata inventory**, поэтому ни наличие реальных конфликтов, ни их отсутствие не доказано. Корректный результат этой оценки — **UNKNOWN с отсутствующим источником**, а не предположение «конфликтов нет» или разрешение запросить liveБД.
+
+Защитный план нельзя свести к замене invitationkey: должны быть согласованы сравнение доменной части, уникальность/locking и все потребители, при сохранении уже выданных OTP/replay и existingdata. Дизайн решения остаётся у existingB/security. Любое исполнение требует своих настоящих отдельных допусков; этот REPORT не выдаёт их.
+
+**Доставка решения B через серверный документ — UNKNOWN.** Владелец сообщил, что три transferprompts уже получены, в B включён контракт; сам факт передачи промпта владельцу не равен прочитанному B ACK. Чаты не открывались, дополнительной отправки не было. Отсутствие ACK не является доказательством простоя B.
+
+### C — поздно покрытый inventory16carriers: только точный source вывод
+
+Лично полностью прочитан `/root/octoport-control/logs/C/C04_MAIN32_INSTALLED_16_RELEASE_SOURCE_INVENTORY_20261019.json`,243lines/0remaining. Record **C04_MAIN32_ALL_EXISTING_16_RELEASE_CARRIERS_SOURCE_MISMATCH_20261019**, issued **13:38:09.412854 UTC**, existingC. Это документ13:38, прочитанный Контроллером позже, а не новая runtimeоперация14:00.
+
+Граница авторского inventory:16папок existing /opt/octoport/ops-releases, шесть static sourceGitblob по носителю, reviewedsourcebaseline850ff17db1fe7cdf012f30546b2f8d7225f6c0ab/currentmain32. Контроллер перечитал **только готовый JSON**, не физические releases/service/runtime/DB/provider.
+
+Лично проверены все16 entries JSON: каждый имеет matched=0; derivedcount16, максимум0, activecarrier12efab2f780ad7b9b7556b7b50e6d6e345f000fa указан автором. **Полных sourceсовпадений0/16; максимальное число совпадающих reviewedsourceфайлов0/6.** Прежнее UNKNOWN о наличии готового подходящего carrier сужено ровно до этого набора.
+
+Это **не** доказательство compiled/runtime equivalence или её отсутствия, serviceготовности, signedtarget, authority, rollback или фактической доставки. Носители вне инвентаризированного каталогаUNKNOWN. Из same/different sourcehash не делается полныйruntimeвывод.
+
+Доступное documentaryуточнение: переключение на один из этих16 известных sourceнесовпадающих носителей не подтверждает применение принятого six-file sourceнабора. Требуется source-pinned coherent package с dependency/artifactidentity в **разрешённом existingB/Ops процессе**, отдельно authority/backup/restore/rollback/loadedconsumer/delivery. Контроллер package не собирал, release не выбирал, service не трогал и полномочия не изготавливал. ExistingC — readonlyпоследующаяпроверка, existingB/Ops — единственный автор installedrelease. C04 B_ACKNOT_OBSERVED и C06authorityостаток не закрыты и handoff/query не повторены.
+
+Mainref32b768862e69133f9f05c556ea2df3c238e1dbfc отдельно сверён только metadata. Принятые5/5workflows13/13jobs **NOT_RECHECKED**. Новый PR233 Draft/open13:53:15 указан в прямой передаче как задача Тестера; его source/tests/adapter/чат не читались, новый тест/CI для него не запускался.
+
+### Новый точный STOP: что сохранено и что действительно заблокировано
+
+По прямому сообщению владельца start_process защищённого preflight dot был отклонён **до исполнения**: команда и запись в PRIORITY не выполнялись. Полный дословный платформенный ответ, точные args/ID этого отказа в текущем сообщении не предоставлены; его причина **UNKNOWN**, никаких предположений о механизме отказа не делается.
+
+**Не выполнено и не повторялось:** тот preflight, его эквивалент другой командой/формой/инструментом/исполнителем; запись решения вместоdot в PRIORITY_TASKS или B.json. Здесь вообще не вызывались start_process, edit_block/write_file для серверных изменений. Разрешённый read_file готовых документов и текущих правил не выдается за исполнение отказанного preflight.
+
+Собственный серверный CP требует freshsinglewriter/locks/WIP и короткой защищённой записи. В этом проходе такая свежая серверная проверка не выполнена неотказанным путём; известная прежняя процедура зависела от protectedprocesspreflight. **Поэтому CP не переписан обходным способом.** Это конкретный незавершённый documentaryшаг, а не утверждение, что RDC/весь серверныйscope недоступен.
+
+LastfullyverifiedCP SHA76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212/readback13:35:39 — историческая проверка. Сейчас read_fileпрочитан currenttail220lines: прежний полныйreadbackincidentresolution и12open=true сохранены в прочитанном фрагменте. Свежий полныйfilehash/serverlocks/WIP/targetFDs **NOT_RECHECKED**. Никаких чужих WIP/claims/source/tests не изменяли и не объявляли свежопроверенными.
+
+Решение владельца, рассмотренный readyплан, все реальные остатки и этот syncblock сохранены в **том же единственном REPORT** через независимую уже разрешённую GitHubпроцедуру: freshbranchref/immutablelastauthor/blob, compare-and-swap существующего файла, pinnedfullcontent/parent/refreadback. Она не выполняет серверный отказанный preflight и не меняет PRIORITY/B.json. Публикация REPORT сама по себе не доказывает доставку B и не считается записью serverCP.
+
+### Все десять пунктов: факты и пределы
+
+- 1. Последний terminalREPORTa296e7b0/blob3d6a09e4/authorMaksimUnimax13:36:05/parentf832c2fe лично сверены. Refнеизменен; retainedpendingcalls0, protectedsession2354613 untouched; неизвестных собственных операций нет.
+- 2. START_HERE/PROMPT_CONTROLLER и обязательные семь указателей полностью получены read_file с0remaining. Priorityv10 прочитан в пределах first100lines; позднее прямое решение владельца имеет приоритет над старым текстом вопроса.
+- 3. Новые actualfacts Bготовыйplan51lines и Cinventory243lines лично прочитаны штатным read_file; dotпересказ не используется вместо их чтения. Directownerreply — самостоятельный primaryinstruction.
+- 4. AacceptedR12/R19/R45 и B435/typecheck/style/build/R2, main32native5/13 сохранены NOT_RECHECKED. Никаких новых tests/review/CI/reproduction, rawsource/inlinepayload или declinedtargets.
+- 5. Уровни ownernormativepolicy/documentaryplan/sourceinventory/native/package/installed/runtime/liveStore разделены. ОтветДА не считается dataaudit, authorinventory не считаетсяruntimeequivalence.
+- 6. ExactserverSTOP соблюдён: start_processpreflight не запускался, не заменялся edit_block/write_file/другимисполнителем; PRIORITY/B.json/CP не писались. Serverfreshlocks/WIP NOT_RECHECKED, поэтому guardedserverwriteне заявлена.
+- 7. Доступная ownREPORTправка: policyquestion закрыт, ДАветвьплана уточнена, carrierUNKNOWN сужен ровно до author0/16sourcefacts; updateчерезexistingGitHubblobCAS и independentpinnedreadback. CPsyncостаток назван явно.
+- 8. Bconsumptiondirectdecision UNKNOWN, существующие prompts ведёт владелец; никакого ACKпростоя/дубляпоручения/открытиячатов. PR233Тестера не перехвачен.
+- 9. PLAN/history/WIP/исходная12OPENmap и всеcause/responsible/next/return сохранены. Новый выборpolicy закрыт отдельно, не как закрытие original12/security/installed.
+- 10. Объём и организационные проблемы/реальныйблок/ответственные/следующийдопустимыйшаг указаны; никаких новых реестров/архивов/расписаний/helpers/live/DB/security/auth/cleanup; audit_complete=false.
+
+### Остаток: причина, ответственный, следующий разрешённый шаг
+
+| Остаток | Причина / точный предел | Ответственный | Ближайшее действие / условие возврата |
+| --- | --- | --- | --- |
+| B policy choice | РЕШЕНО; ответа ждать и повторять вопрос больше не нужно | Владелецproduct/security; решение непосредственно передано Контроллеру | Сохранить ровно оговорённые границы, использовать ДАветвь уже готового плана. |
+| B compatibility/collisions | План условный; реальные конфликты и безопасный data disposition UNKNOWN | ExistingB/securityauthor; отдельный уполномоченный data custodian | Готовые разрешённые материалы/план совместимости и отдельные конкретные допуски. Возврат при подтверждённом contract-compatible design, без auth/DB полномочий по умолчанию. |
+| B delivery | Serverdocument delivery/consumption UNKNOWN; ownertransferprompt не равен ACK | Owner/dot передача; существующийB consumer | Только готовое подтверждение получения, если появится; не отправлять дубль и не открывать чат. |
+| C04 package/carrier | В авторскомinventory все16 имеют0/6 exact reviewedsource; готового совпадающего носителя в этом наборе нет | ExistingB/Ops solepackage/release owner; C readonlyverifier | Требование source-pinned coherent package/dependencies/artifactproof в разрешённом B/Ops процессе, с authority/backup/rollback/delivery; ничего не строить/устанавливать здесь. |
+| Синхронизация ownserverCP | Protectedpreflight dot отказан до исполнения; точные первичный текст/args не переданы. Freshlocks/WIP не подтверждены неотказанным путём | Controller owns ownCP; dot custodian первичного отказа | Не повторять preflight и не заменять инструмент ради того же результата. Только установленная допустимая отдельная процедура может возобновить shortlocked ownroot update. До неё CP сохранён, факты в единственном REPORT. |
+| A / original12 / C06 | Новой подходящей closure первички в этой адресной дельте нет; source/durable/owner/originalrefusal границы прежние | Исходные custodians карты12; A/runtime/owner/C/B-Ops по прежнему scope | Принятое NOT_RECHECKED; original12OPEN/cause/responsible/next/return сохранены; C06authority не выдумывать и запрос не повторять. |
+
+Original12cause/responsible/next/return и картаSHAfe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d сохраняются по последнему verifiedcheckpoint/REPORT; в этом проходе не объявлена новая полнаяhashverification. Прямой ответДА не закрывает durable/owner/originalrefusal/reviewbytes/C06 исходы. Актуальный незавершённый план — совместимость и разрешённые доказательства, не очередной вопрос о выбореpolicy.
+
+Объём нового прохода:9обязательных канонических документов полностьюread_file, priorityfirst100/1320lines, CPtail220lines, Bplan51lines, Cinventory243lines/16entries, GitHubreportref/commit/fullblob и mainrefmetadata. Aaccepted/source/tests/local/review/CI не повторены; новых широких SOURCE/данных/liveаудитов не заявлено.
+
+Организационные проблемы отдельно: неудавшаяся серверная фиксация dot и UNKNOWNдоставкаB; staleownerquestion в oldдокументах; отсутствие sourceсовпадающего carrier в точном наборе16. Собственное policyожидание снято в REPORT, условный план приведён к принятому решению, carrierнеопределённость документально сужена; serverCPsyncблок не скрыт и не обойдён. План/уведомление/REPORT не выдаются за actualdatareview/package/deployment или productPASS.
+
+Новых tests/review/CI/helper/VM/browser/merge/exploitation/accessbypass/live/DB/security/auth/cleanup/сбросов0. Alladdressedrefusals R7/R8/B.json/log118019352572/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer и protectedpreflight сохранены; никакого обхода. errors.json/events.jsonl, B01/R3, PR97/131/134 внеscope. Новых реестров/архивов/расписаний нет. Аудит IN_PROGRESS; original12OPEN.
