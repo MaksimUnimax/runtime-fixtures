@@ -627,11 +627,64 @@
         command,
         globalThis.OzonCredentials.sellerHeaders(credentials),
       );
-      const response = await globalThis.ProviderTransportCore.executeJsonOnce({
-        fetchImpl: guardedFetch(executionGuard),
-        request,
-        now,
-      });
+      if (typeof fetchImpl !== "function") {
+        const error = new Error("Ozon Seller API transport недоступен.");
+        error.code = "FETCH_IMPL_MISSING";
+        throw error;
+      }
+      // The underlying transport may reject while reading a response body
+      // after fetch already returned headers. Preserve the actual attempt and
+      // status, and do not expose arbitrary transport Error.message content.
+      let dispatchAttempted = false;
+      let responseObserved = false;
+      let observedStatus = 0;
+      let dispatchAuthorityError = null;
+      const observedFetch = async (url, init) => {
+        try {
+          if (executionGuard) {
+            if (typeof executionGuard.assertDispatchAuthority === "function")
+              await executionGuard.assertDispatchAuthority();
+            await executionGuard.assertCurrent();
+          }
+        } catch (error) {
+          dispatchAuthorityError = error;
+          throw error;
+        }
+        dispatchAttempted = true;
+        const received = await fetchImpl(url, init);
+        responseObserved = true;
+        const status = Number(received?.status);
+        if (Number.isInteger(status) && status >= 100 && status <= 599)
+          observedStatus = status;
+        return received;
+      };
+      let response;
+      try {
+        response = await globalThis.ProviderTransportCore.executeJsonOnce({
+          fetchImpl: observedFetch,
+          request,
+          now,
+        });
+      } catch (error) {
+        // The transport wraps pre-dispatch guard failures as fetch errors.
+        // Preserve the original fail-closed guard reason and no-dispatch flag.
+        if (dispatchAuthorityError) throw dispatchAuthorityError;
+        if (!dispatchAttempted) throw error;
+        const safe = new Error(
+          responseObserved
+            ? "Ozon Seller API ответ не удалось прочитать."
+            : "Ozon Seller API запрос не удалось завершить.",
+        );
+        safe.code = responseObserved
+          ? error?.code === "PROVIDER_BINARY_CONTENT_TYPE_MISMATCH"
+            ? "PROVIDER_BINARY_CONTENT_TYPE_MISMATCH"
+            : "PROVIDER_RESPONSE_READ_FAILED"
+          : "PROVIDER_FETCH_FAILED";
+        safe.http_status = observedStatus;
+        safe.external_request_executed = true;
+        safe.request_attempted = true;
+        throw safe;
+      }
       if (typeof onProviderResponse === "function")
         await onProviderResponse({ command, request, response });
       return { request, response, auth_request_performed: false };

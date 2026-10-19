@@ -71,6 +71,8 @@ def main():
                        ["node", ROOT / "tests/regression/extension-core/ozon-report-state-error-redaction.mjs", provider])
             runner.run(label + "-ozon-postcallback-fence",
                        ["node", ROOT / "tests/regression/extension-core/ozon-postcallback-fence.mjs", provider])
+            runner.run(label + "-ozon-seller-postfetch-diagnostics",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-seller-postfetch-diagnostics.mjs", provider, transport])
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
             runner.run(label + "-ozon-guidance-entitlement", ["node", ROOT / "tests/regression/extension-core/ozon-guidance-entitlement.mjs", runtime])
             runner.run(label + "-ozon-advertising-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-advertising-guidance-readiness.mjs", runtime])
