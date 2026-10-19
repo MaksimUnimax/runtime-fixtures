@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T02:22:22.621949Z; новый terminal main499 и доступные documentary блоки — см. последнее дополнение. Полный аудит открыт, история сохранена.
+- **Состояние на:** 2026-10-19T02:45:10.977215Z; новые A R10/B admin-reason R1-R3/C04 evidence — последнее дополнение; аудит открыт.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** `main=4994946608d426114081d03170abc9375c898f6f` — fresh ref; PR213 merged, tree совпал с принятым exact984. Остальные source compatibility не переоценивались.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `d4a08ddbfbfee676182cc8e7e05e7e56cac4577b650ebf1738adaf8ff5a53641`, 2,168,661bytes; guarded write02:21:39.684650Z, independent readback02:22:00.570798Z; `audit_complete=false`, original12open.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `6aac84cc02f28f5bf4445501cd50bab9644657b3a4743a6096e3a7d21e8e4880`, 2,187,654bytes; guarded update02:44:27.655656Z, independent readback02:45:10.977215Z; `audit_complete=false`, original12open.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -3717,3 +3717,95 @@ Guarded write **2026-10-19T02:21:39.684650+00:00**, отдельный RDC readb
 - own facts/reply MATCH, marker1, map SHA256 fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d; все foreign root fields/PLAN/history/12/WIP сохранены, locksFREE.
 
 Тот же REPORT обновляется exact blob CAS69e6dca1/parentf8b95bbe после свежего ref/author; [skip ci]. Independent full content/blob/parent/ref readback обязателен до итогового ответа. Новых собственных product/source/tests/review/CI/VM/browser/helper/merge/chat/automations/auth/credits/reset/cleanup/live/DB/security действий0. Все адресные GETbranchprotection403/artifactsroute/targets/fullPG/R7R8/B05/entitlement/прочие отказы сохранены, без повторов и обходов; errors/events/старые чаты/PR97/131/134 не тронуты. **audit_complete=false; карта12 и разрешённый общийPLAN сохранены.**
+
+
+## Дополнение 2026-10-19T02:45:10Z — A R10, B admin-reason R1/R3, C04 установленный потребитель
+
+**Продолжение completed a44b137c; тот же audit/PLAN/map12, audit_complete=false.** Принятые main4995/5workflows/13jobs, C consumption и снятое postmerge ожидание — **NOT_RECHECKED**. Новых тестов/review/CI/helper/VM/browser/merge Controller не запускал.
+
+### Последний исход и разрешённое устранение
+
+GitHub REPORT ref a44b137c2441b2ae598ed902bb01200e3eda1736, blob755bef473ffca2f5b5c879a4a965e90d3ba1ea70, authorMaksimUnimax02:23:53Z,parentf8b95bbe сверены. RDC Easyscript ping02:36:29.658Z подтвердил доступ; retained background calls0, защищённая сессия2354613 не тронута. Fresh main ref4994946608d426114081d03170abc9375c898f6f. Неизвестной собственной записи/параллельного Controller target writer не обнаружено; в guardedwrite чужих writableFD к целям0.
+
+Основные серверные START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/PRE_AUDIT/ORGANIZATION прочитаны в актуальных версиях, как и resource/disk/temp правила и действующее DOT02v10. Через GitHub прочитаны текущие START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/AGENTS/coordinationREADME/PLAN/OWNERSHIP/CODEX/continuous/unattended/store/release boundary/SPEC/MINIMUM_SPEC. Применимая начальная часть TEST_EXTENSION_RULES прочитана; прежняя история B01/R3 **NOT_RECHECKED**, чужой тестовый scope не принимался. Более поздняя прямая команда владельца no errors/events выше исторической GitHub ссылки; обе управляющие стороны сохранены без автоматического copy-sync.
+
+Доступное собственное действие **выполнено**: own checkpoint и Controller reply DOT02v10 отражают новые готовые A/B/C результаты вместо прежних частичных next. B R1 не выдан за source-review, новый R3 имеет буквальное INLINE ограничение, C accepted main не выдан за installed. Это проверенное documentary исправление; оно **не объявляет устранёнными product/review/installed блоки**. Роли начали новую работу до нашей записи, их progress не приписан Controller.
+
+### A — R10 local54PASS, независимое review и original I1 не закрыты
+
+Лично прочитаны ready receipt и3original logs в logs/A/a06-pr139-hmac-correlation-20261017/:
+- R10_WORKSTART_SELECTED_RESPONSE_BODY_RECHECK_LOCAL_SOURCE_RESULT_20261019.json SHA256 **abc9d33fa9a280b64984974d535c6fca27290ef4d68634edeb742823f112a4d2**, issued02:29:33.795700Z.
+- RED **c3e7cc26f26652bde61cf8103d3a6ce9d827c7274ec87ee0c96e7e9e70ee49c0**:2missing-helper AttributeError, не воспроизведение старого runtimeABORTED.
+- focused **a6707d4eff38012da33ddc34bc6dc076a3b17151cfc9aef223c8790cbe64c3da**:2PASS.
+- offline **017e4d780874b15fbff380f1b4ecb9eef054b71cb5dddb6345fb51d24ffb2fe8**:54PASS.
+
+Receipt связывает local child **9ea0a6dd22f77c742368f66eaef48c4e1bd636c5** с parenta8f55fb3 и двумя test-only paths. Новая граница — повтор unique Request/response identity после чтения HTTP body. ExactSHA/sourcehash задаёт receipt, в логах SHA нет; active source/tests Controller не читал.
+
+Independent review **NOT_OBTAINED**, R7 trust denial/R8 сохранены без повторов/смены метода. NativeI1/CI/push/merge/installed/release0. Original physical ABORTED cause **UNKNOWN**; same-request→acquisition/lease/first abort/transport/at-abort grant всё ещё не доказаны. PR205 native5/13jobs, C3E/delete/no-loss, owner/Store отдельно открыты.
+
+### B — новая работа выполнена локально; R1 UNABLE и готовый R3 INLINE различены
+
+New task B06_ADMIN_REASON_BIDI_C1_FAILCLOSED_20261019, source scope **packages/server/admin-ops/src/index.ts и index.test.ts**. B.json на02:24 остаётся SOURCE_RED_PENDING; чужая projection не перезаписывалась.
+
+Лично прочитаны completed logs в logs/B/B06_ADMIN_REASON_CONTROLS_20261019/:
+- RED_R1_ENV_NODE12: ERR_UNKNOWN_BUILTIN_MODULE до тестов; RED_R2_ENV_ZOD: missing zod/no tests. Это environment failures, **не product RED**.
+- RED_R3_ACTUAL_9FAIL.log SHA35fe24e4…:9FAIL/107SKIP, service FAILURE.
+- GREEN_R1_116PASS.log SHA8a71cf32…:116PASS.
+- QUALITY_R2_FORMAT_FAIL.log:118PASS/TS/lint, затем formatFAIL; не полный qualityPASS.
+- FINAL_118PASS_QUALITY_ALL.log SHA **ad18fc0de225ea5aee7045d0944a199148f92ecfca1a00ae7132b8ef98ee6b50**:118PASS+TS/ESLint/Prettier/diffPASS, service deactivated successfully.
+
+Логи содержат путь, **не exact commit SHA**. Reviewrequest задаёт candidate **7459248beaa549901bdbace04d7c67b6fe7735e2**, parentmain499. Отдельной ready final test/source-binding receipt на проверенном срезе не найдено.
+
+**R1:** готовый verdict SHA **8904863b55891375b78044014ec6c38f041dce91bc29e8f13eac91b57b2dfa1f**, original log856ccce7…, Luna/xhigh/read-only/session01a15203-a0b5-7511-b163-130c9c6c59c0: **UNABLE_TO_REVIEW**. Запрошенный worktree отсутствовал в runtime reviewer; git exit128, cwd/. Исходники не прочитаны, source findings нет. Это не прежний entitlement denial и не доказательство отсутствия подписки. Controller вызов не повторял.
+
+R2 input/log filenames появились02:40:43/02:41:05; terminal **NOT_OBSERVED**. Активный payload/log content не читался, неизвестный исход не повторялся.
+
+**Новый R3**, ready02:43:23, лично прочитан после обнаружения при readback: verdict SHA **01e153a545eed7fb0c103b3ea66bb95935019477492b06f817f161347a148fce**, original log **5593c39836ad56fe4cf81a236973cced1171164a470512b75da61e35b8449f64**, Luna/xhigh/read-only/session01a15209-5f62-75a2-ab11-73b33c9195fc. Буквальный итог **ACCEPT_SOURCE_SCOPED_FROM_INLINE_INPUT**: рассуждение reviewer по переданным source/diff/tests, без files/tools/repository/SHA/hash verification. Проверяется заявленная ограниченная C0/C1/DEL/Bidi_Control граница; более широкая Unicode-policy и parsing во всех routes этим не доказаны. Результаты parent tests/quality остаются parent observations.
+
+Input R3 называет exact7459248/parent499 и sourceSHA3b6a3d5a27325e5b10906b187dfbefa02ec25033230109ef3ff6880ea1681dff/testSHAaa9f6ba4cca8461745b9b8ce772925bf2f047ad0a7e55de7ee9897f810555b6c. Это **parent-supplied binding**, не независимая проверка этих байтов Controller. R3 не переименован в полный exact-repository SOURCE/CI acceptance. Own checkpoint/reply дополнены после готового R3; R1 и unknownR2 сохранены раздельно.
+
+Новая публикация/exactCI/merge не доказаны готовыми данными. Прежние PR212 negatives/UNKNOWN и PR214/2152of5 остаются без повторной проверки. Актуальный PLAN owner12Oct **снимает требование нового внешнего хранилища** как gate B05; повторный запрос такого носителя не нужен. Реальные backup/disposablePG/application/rollback proof и exact отказы сохраняются.
+
+### C — C04 old installed source/static wiring, existing handoff без повторной отправки
+
+Готовый existing C_TO_EXISTING_B_C04_MAIN499_ACTIVE_TELEGRAM_SOURCE_PARITY_20261019.json лично прочитан; SHA256 **312d2b65dcd24f9904744dcddcf82113be994b67d71bba202e6959f68de168bb**. Issued02:22:58.822962, дополнен02:25:13.259883; новая matching C role projection02:26:10.
+
+C primary сообщает active Telegram release12efab2f… со старым inventory source SHA256426d1a1c0a12c3fe663b572981c13f244c73d09aa3c3e0955793f2a7894b9299 и static package-import wiring к нему. C03 accepted main499 semantics по этому receipt **не установлены**. Это лично прочитанное авторское installed-static evidence, **не новая независимая проверка live service Controller**. Compiled/live behavior и provider impact **UNKNOWN**, реальная порча provider data не доказана.
+
+B/Ops handoff уже существует; ACK **NOT_PROVEN**, это не доказательство простоя и не повод повторить отправку. B/Ops владеет installed release/rollback/authority; C — последующим readback. C06 PREPARING/NO_SUBMIT, genuine authority/catalog и original owner acceptance не появились. Owner-запрос уже передан dot, без дубля. C01/C05 отказы и остальные unrelated границы сохраняются.
+
+### Десять пунктов — применены по каждой роли
+
+| Пункт | A | B | C |
+|---|---|---|---|
+| 1. Original задача/outcome/time | Ready R10 receipt+3logs02:29 прочитаны; old causality UNKNOWN. | Ready local logs/R1/R3 прочитаны; R2 terminal неизвестен. | Existing amended primary+matching state прочитаны; installed runtime UNKNOWN. |
+| 2. Полномочия | No review/I1/native bypass. | No new helper/review/CI/reset/entitlement action. | No live/DB/service/authority mutation. |
+| 3. Прежний метод | Accepted source/package/installed-synthetic NOT_RECHECKED. | Old accepted SOURCE/local/CI NOT_RECHECKED; прочитана новая ready evidence. | Main499/consumption/5of5/13jobs NOT_RECHECKED. |
+| 4. Классификация | Local authorPASS, unreviewed, refusal и causal gap различены. | Env errors/productRED/qualityFAIL/R1UNABLE/R3INLINE/unknownR2 раздельно. | SOURCE/staticinstalled/compiled/live различены; ACK не простой. |
+| 5. Последний вызов/автор/WIP | Fresh own targets/version/locks/FD0; A WIP сохранён. | То же B; active R2 input не перехвачен. | То же C; existing handoff не повторён. |
+| 6. Реальное own исправление | R9/52 current projection обновлена R10/54, не product gate. | New task/evidence + R1/R3 limitations внесены, не ложный ACCEPT. | C04 staticinstalled остаток внесён, не ложный installedPASS. |
+| 7. Исходная граница/readback | Existing bytes/hashes+own independent docs readback. | New verdict/log qualification+own readback; replay нет. | Existing handoff hash+own readback; live check нет. |
+| 8. Реальное продолжение | R10 ready child подтверждён. | Local118 и new independent INLINE result подтверждены. | C04 changed task и готовый source-consumer handoff подтверждены. |
+| 9. Остаток/owner/next/return | A/Tester: ready exact independent verdict+original causal primary; native/no-loss/owner отдельно. | B: original terminal/binding+genuine exact accepted review/CI; no Controller launch. | B/Ops+C: authorized installed/compiled consumer/rollback proof; owner/Tester genuine C06 отдельно. |
+| 10. Учёт ошибок | Late no errors/events/newregistry соблюдён. | То же; source/refusal evidence остаётся в existing task. | То же; новых копий истории/реестров нет. |
+
+### Остатки, объём, организационный предел
+
+Все12 canonical boundary dispositions остаются в той же own delta с cause/responsible/next/return; исходная current_product_boundaries STRING сохранена с SHAfe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d. B03/two-relay/installed durability, preACK installed, B04, A05/PR48 historical/installed остатки, C06, ownerR3 и historical original request/reply/transport/config/review bytes не закрыты новой документацией. Bounded fulfilled части не переоткрыты.
+
+Доступное Controller documentary исправление выполнено. Дальше нужны **новые завершённые primaries или реальные missing inputs** соответствующих авторов; повтор исходных отказов, новый review/helper/test/CI, deployment, чужая source-правка и cleanup запрещены этому проходу. Это ограничение собственного scope, не вывод об исчерпании общего PLAN или простое A/B/C.
+
+Объём: A2test-only paths/4readyfiles; B2новых source paths и11completed logs/verdict records с позднимR3; C1amended existing handoff+matching role record. Controller product изменений0. Все роли имеют новое фактическое продвижение до нашей коррекции; приписывать его записи Controller нельзя.
+
+Оргпроблемы: B state отстаёт от completed logs; R1UNABLE нельзя считать reviewPASS, R3INLINE нельзя расширять на repo/CI. UnknownR2 не повод нового запуска. C currentmain не равен installed consumer, existing notification не ACK. Новое внешнее хранилище не восстановлено как gate B05. C06 owner request не продублирован.
+
+**Публикация:** Chrome/Opera/Firefox — прежний PREPARING/NO_SUBMIT в доступной C projection; нет нового authoritative target/package/owner/reviewer evidence. Exact status dashboard NOT_RECHECKED, кабинеты не открывались. Yandex — browser-specific proof через совместимый каталог, Safari deferred. C+B-Ops/owner+Tester продолжают свои границы; unrelated весь roadmap не искусственный gate ранней подачи.
+
+### Защищённая запись и независимый readback
+
+Own guardedwrite02:43:05.742958Z, поздний R3 update02:44:27.655656Z; отдельный полный own-doc readback **2026-10-19T02:45:10.977215+00:00**:
+- checkpoint SHA **6aac84cc02f28f5bf4445501cd50bab9644657b3a4743a6096e3a7d21e8e4880**,2,187,654bytes;
+- PRIORITY_TASKS SHA **7cd9e107dd2bc7819acdb7ade666e2a27ea5102174dec5a3319c2b49362b9c67**,733,918bytes;
+- facts/reply MATCH, marker1, map12/PLAN/history/foreignrootfields preserved, locksFREE. WIP A74+7/B79+4/C65+8 и exact canonical HEAD09e/088/5ca сохранились.
+
+SameREPORT exact blob CAS755bef47/parenta44b137c после свежих ref/author; [skip ci], затем independent full content/blob/parent/ref readback перед ответом. Work/GPT6.1Sol/Veryhigh сохранены;86%rootUI — предоставленный user факт02:35:02, не наш новый UI check. Расписания/кредиты/сбросы/auth не менялись. Все адресные R7R8/artifacts-route/targets/protection403/fullPG/B05/entitlement/прочие отказы сохранены; B01/R3/foreignsource/WIP/live/DB/security/cleanup/старыечаты/PR97/131/134/errors/events не тронуты. **audit_complete=false;12open.**
