@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T13:15:39.408595+00:00; новое наблюдение currentmain32 metadata originalpush3/5workflows11/13jobs на срезе13:13, Server/WB ещё не terminal. Прочитаны A06R18authorcomparison, Bsixdraftlocal435/TS8/style12/build2 и R1REWORK_REQUIRED, C13:02resourcehandoff. Прежние PR218/A228/R45/Cmismatch приняты и NOT_RECHECKED; все12OPEN,audit_complete=false.
+- **Состояние на:** 2026-10-19T13:31:44.997331+00:00; currentmain32 original native5/5workflows13/13jobsSUCCESS, Server/WBwait снят. Новые A WB_R12 TEST_EVIDENCE_SCOPED ограничения/R19path-only и B_R2 PREEXISTING_NONREGRESSION_WITH_OPEN_SECURITY_RISK учтены. B identity-policy/data compatibility и C04/C06 остаются; original12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
-- **Основа GitHub:** currentref `main=32b768862e69133f9f05c556ea2df3c238e1dbfc`, tree `e5a9f9be2606f92fff174e03757edd08f55a9364`, PR232 merged13:01:10; только GitHub metadata/jobs, Tester source/tests не читались. Предыдущий main3f/PR218 native5/13 сохранён, не переносится на новый SHA. SOURCE/PACKAGE/native/installed/live/Store/owner остаются отдельными границами.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `8b66740d447f9c7883467c71306767890ca7e6e9c0a5a0fdd508f0fbb53a87c6`,2528444bytes; ownwrite2026-10-19T13:15:12.530047+00:00, independentreadback2026-10-19T13:15:39.408595+00:00; original12OPEN, PLAN/history/WIP/map сохранены.
+- **Основа GitHub:** currentref `main=32b768862e69133f9f05c556ea2df3c238e1dbfc`, tree `e5a9f9be2606f92fff174e03757edd08f55a9364`; originalpush/attempt1 native5/5workflows13/13jobsSUCCESS, lastterminal13:14:17. Новые два terminal/jobs проверены лично, прежние Docs/Safety/I1 сохранены NOT_RECHECKED. Tester source/tests/чат не читались; native не означает installed/live/Store/owner приёмку.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `0cf40057aa495732f06c70c8101f16ed638afdb94c94dbb5907ccb1e914e9b4e`,2559134bytes; ownwrite2026-10-19T13:31:15.867694+00:00, independentreadback2026-10-19T13:31:44.997331+00:00; PLAN/history/WIP/map12OPEN сохранены.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -5004,3 +5004,114 @@ FreshWIP перед ownwrite: A09e12fab74tracked+7untracked, B0885f49979+4, C5ca
 Объём: ninecanon/priority/CP,3rolemetadata, новый PR230R18document, четыре readyBфайла с boundedsummary/verdict, Cresourcehandoff/nestedmainrecord, original5workflow/13job main32metadata. Не читались source/tests/inlineinputs, refusedrawtargets, artifacts/ZIP или installed/livebytes. Новых tests/review/CI/helper/VM/browser/merge/exploitation/accessbypass запусков0.
 
 Организационные остатки: Bcanonicalpending не отражает готовых локальных результатов и отрицательногоreview, но foreignwrite запрещена; Crootmainstale не отражает nestedprogress; причины неподтверждённого ACKUNKNOWN. Ни один из этих лагов не доказывает простой. Собственные неверные ожидания исправлены и перечитаны; точные внешние полномочия и продуктовые доказательства этим не созданы. Все адресные отказы R7/R8/log118019352572/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer/deniedB.json и другие сохранены. errors.json/events.jsonl, live/DB/security/auth/cleanup, B01/R3, PR97/131/134 не затронуты; новых реестров/архивов/расписаний нет. Аудит IN_PROGRESS, PLAN/history/WIP/12исходов сохранены.
+
+
+## Продолжение того же аудита — 2026-10-19 13:32 UTC, после REPORT a264a24b
+
+Фактический новый RDCping13:27:47.650 UTC; серверный срез13:28:12–13:29:01, собственная запись2026-10-19T13:31:15.867694+00:00, независимый readback2026-10-19T13:31:44.997331+00:00. Работа / GPT-6.1 Sol / Очень высокое. Это один и тот же незавершённый аудит, не новый писатель и не новый реестр. Все12исходовOPEN, audit_complete=false.
+
+### Фактическая проверка продолжения и снятые собственные ожидания
+
+LastREPORT a264a24bbda0d35a8d64212b5afce3c12b575572/blob b39f33922741f754dfd6169fb5fadea575e74ba9, author/committerMaksimUnimax13:17:28,parentd9d09d8c, совпал с переданным terminalрезультатом. Freshref/blob/fullcontent перед записью неизменны. Pendingcalls0; retained read_file1c11bca9…13:26:10completed/errornull не инспектировался и не повторялся. Existing session2354613 защищена и не тронута. Собственной неизвестной мутации нет.
+
+Актуальные START_HERE/PROMPT_CONTROLLER и семь обязательных указателей в полном объёме загружены с Easyscript; девять SHA совпали с предыдущей полной проверкой. Применены WORK_METHOD/PROTOCOL/selferror/ORG/resource/disk/temp нормы tests/review/CI/handoff с поздними ограничениями владельца. Currentpriority DOT-20261015-02v10 сверена; PLAN и все прежние обязанности сохранены.
+
+Доступные собственные исправления выполнены:
+- Удалено актуальное ожидание Server/WBmain32: два originalterminal и8jobs лично прочитаны; вместе с уже принятыми Docs/Safety/I1 получается5/5workflows13/13jobsSUCCESS.
+- B_R2 UNKNOWN заменён готовым причинным disposition PREEXISTING_NONREGRESSION_WITH_OPEN_SECURITY_RISK; R1negative сохранён как история, его причинный охват сужен, риск не закрыт.
+- Старая абсолютная формулировка отсутствия treebinding уточнена: новый readyB13:17record называет unpublishedtreef2bf88; это authorbindingmetadata, не независимая Gitobjectauthentication.
+- Уточнены собственные границы A WB_R8/R9/R10 по готовому R12; A06R19 принят только как publishedpath-level note.
+- C13:19actualconsumption терминала отмечено; foreignrole records не менялись, existinghandoff и C06query не дублировались.
+
+Эффект ownwrite — корректный проверенный documentary next и точные ограничения. Реальные A/B/C publication/consumption/CI произошли до ownwrite; причинная заслуга их продвижения Контроллеру не приписывается. Продуктовые блоки не закрывались изменением текста.
+
+### A — WB R12 и A06 R19: новые готовые объяснения
+
+**WB PR219 exact `10bf5452141572c5a58711559aeca4d7bda65004`.** Новый раздел issued13:19:58.923 UTC лично прочитан в PRbody, updated13:20:01. Дополнительно прочитан только готовый independentverdict `logs/A/a04-wb-provider-result-fence-20261019/R12_WB_EXACT10BF_CUMULATIVE_PACKAGE_TESTS_LUNA_VERDICT_20261019.txt`,2171bytes, SHA256 `b42d2b865750355ba786b270ee36f9bee18e4a84bbbaa263a2153fc3b2db39c9`, и отдельный exitfile0. Verdict **PASS_TEST_EVIDENCE_SCOPED_A04_WB_R12_EXACT10BF**.
+
+Принят scoped обзор старых доказательств, без нового source/test/ZIP/fixturelog/browser чтения или воспроизведения:
+- **R8:** synthetic queue fail-closed с сохранением результата в memory-backed map. Старое «durably stored» не подтверждает fsync/диск/power-loss. Нормальная batch-очередь уже имела post-provider guard; R8 не изолирует новую direct-adapter проверку как причину.
+- **R9:** отказ bufferwrite и no-replay после unconfirmedwrite. Из этого не следует, что результат пережил failedwrite.
+- **R10:** fresh in-memory instances на общей fakebacking восстанавливают и доставляют один раз без refetch. Это не реальный process/browserrestart, cross-device или дисковая сохранность.
+- Frozen/dev/shm fixtureinputs не являются portableCI/owner сценариями. Reviewer не запускал тесты и не подтверждал заново executionenvironment/ZIP/CI/installed/liveowner/Store. Первичный R1PASS_SOURCE_SCOPED сохранён NOT_RECHECKED.
+
+Это уточнение напрямую сохраняет открытыми durable/realrestart части исходных обязательств; scopedPASS не повышен до installed/owner или полноты очереди.
+
+**A06 PR230 exact `c53d2701724a071ed752d2f86e87fac8566fdc78`.** Новый R19 issued13:17:35.742 UTC лично прочитан в publishedPRbody, updated13:17:39. ID A06_I1_R19_PR230_SOURCE_PATH_CURRENTITY_MAIN32B_20261019. Авторская GitHubcompare note: main499→main32 меняет42paths и не пересекает два harnessпути installed_local_integration.py/test_bootstrap_response_observer.py. Нулевое path-overlap не доказывает semanticintegration/currentpackage/installedPASS.
+
+Исторический PR230 CI3/5+10/13 относится к syntheticPRmerge84b8a380… на старомmain86. Текущая main32composition им не принята. Originalabort физическиUNKNOWN; R18/oldnegative не отменены. Контроллер не повторял compare/rawartifacts/failedtargets, source review или CI; принят только готовый новый pathscope документ. A отвечает за свой исходный harness/source; runtime-owner/owner/Tester — за установленную и причинную границы. Следующий допустимый шаг — готовая exactпервичка конкретного отсутствующего результата.
+
+### B — готовый R2, защитные требования и actualconsumption
+
+Прочитан исключительно readyverdict `/root/octoport-control/logs/B/B06_SIX_DRAFT_MAIN3F_20261019/INDEPENDENT_IDNA_BASELINE_CAUSAL_R2_VERDICT.txt`,4789bytes, SHA256 `9d090204978dd33388be6df4481228896d61087e83b553979cad6ff4f693d47f`. Rawsource, inlineinput, originalreviewlog и reproduction не читались; новый review/helper не запускался.
+
+**PREEXISTING_NONREGRESSION_WITH_OPEN_SECURITY_RISK.** По предоставленным baseline/diff R2 классифицирует различие доменных identity как уже существовавшее до PR215; локальные новые запреты controlcharacters его не вводят. Это сужает R1REWORK_REQUIRED **по причинности конкретного замечания**, но не является unconditionalSOURCE/composite/betasafety приёмкой.
+
+Остаются защитные требования:
+1. Product/securityowner определяет, считаются ли соответствующие Unicode-domain и IDNA A-label одной продуктовой account/invitationidentity.
+2. Нельзя менять только invitationkey: invitationcreation/duplicatechecks, accountlookup, OTP/admission, reservations и advisorylocking должны следовать согласованной политике.
+3. Для существующих accounts/activeinvitations/collisions требуется явная безопасная совместимость; отсутствие коллизий нельзя предполагать, записи нельзя молча объединять.
+4. Перечень syntheticconsumerassertions в R2 — требования, а не запуск/новый допуск. Реальные PostgreSQLlocking/constraints, installed/auth/liveproof остаются отдельными; прежние отказы сохранены.
+
+Reviewbounds: suppliedexcerpts, без независимой аутентификации Gitobjects и reviewer-run tests. Принятые local435/TS8/style12/build2 **NOT_RECHECKED**, не выданы за IDNAequivalence/PG или fullnative.
+
+ActualBconsumption лично подтверждено новым B.json13:17:33, status B06_SIX_DRAFT_MAIN3F_SOURCE_435_TSC8_STYLE12_BUILD2_IDNA_POLICY_OPEN и source_result в existingB06_SIX_DRAFT_MAIN3F_COMPAT_20261019. Новой записи в B.json Контроллер не делал. Authorrecord теперь называет **unpublishedtree `f2bf88d6602f25ff4d78ef3d83ce7d0b73165e60`**, base3f6689…,12paths и прежние loghashes; независимая проверка foreignGit/sourceobjects здесь не выполнялась. В ownпроекции снята абсолютная неопределённость «авторская treeпривязка отсутствует», но independentexactreview/currentbase/native/installedgates сохранены.
+
+Автор явно пишет source/compositeNOT_ACCEPTED для fullbeta до policy/datacompatibility. Предоставленная B path-disjointness main32 не равна полной интеграционной приёмке. Недостающие nativegates отдельных Draft не закрыты main32CI.
+
+**Существующий вопрос product/securityowner, требующий ответа:** считать ли соответствующие Unicode-domain и IDNA A-label **одной или разными продуктoвыми identity Octoport**? Точная операция — зафиксировать правило контракта; цель — согласовать invitation/account/OTP/admission без несовместимости existingdata; основание — готовый R2 и Bidentity_policy_owner_decisionUNKNOWN. Ожидаемый результат — явная нормативная политика для B/securitycompatibilitydesign. Это не разрешение менять auth/DB, объединять записи или запускать проверки в данном проходе; нового поручения/реестра не создано. C06ownerquery — другой существующий вопрос, он не дублируется.
+
+### C — main32terminal и отдельный installed остаток
+
+Лично подтверждены новые originalpush/attempt1 terminal exactmain32:
+
+| Workflow | Original run | Terminal updated UTC | Лично прочитанные jobs |
+| --- | --- | --- | --- |
+| Server CI | 39256628758 | 2026-10-19T13:14:17Z | 2/2 SUCCESS |
+| Extension CI | 39256628823 | 2026-10-19T13:13:23Z | 6/6 SUCCESS |
+
+Все8jobs этих двух workflowsSUCCESS; необходимые Serverstepoutcomes unit/integration/migrate/OpenAPI/bridge/build/test:e2eSUCCESS. Rawjoblogs/артефакты не запрашивались, новых счётчиков тестов из metadata не выдумано. Прежние Docs39256628768/Safety39256628787/I139256628729 и их5jobs сохранены **ACCEPTED_NOT_RECHECKED**. Суммарно **5/5workflows13/13jobsSUCCESS**, последнийterminal13:14:17. Refmain32b768862e69133f9f05c556ea2df3c238e1dbfc не изменился. Чужие source/tests/чат Тестера не открывались.
+
+Cactualconsumption лично прочитано в nested **C04_MAIN32_GITHUB_ORIGINAL_FIVE_NATIVE_THIRTEEN_JOBS_TERMINAL_20261019**, issued **13:19:06.868975 UTC**. Оно supersedes старую partialmain32 запись; старые pendingполя не принимаются за текущий исход. RootCstatus тоже terminal5/13. Existinghandoff дополнен тем же документом, SHA256 `c9c80e24737d206bea45d8bbfa37914f890d16d2e73b034b384a9f7205ebbca9`,37156bytes, updated13:19:06.868975. Прочитан новый readyrecord; handoff не отправлялся повторно.
+
+C04 oldsix-file mismatch, loadednewconsumer/retention/delivery/B_ACK и safeauthority/backup/restore/rollback остаются отдельными открытыми границами. Новая запись сохраняет **B_ACKNOT_OBSERVED**, но это не доказательство простоя. Контроллер oldinstalled/source mismatch и liveпамять/timer заново не измерял. NativeSOURCE5/13 не является разрешением install/service/DB/Storesubmit или приёмкой ownerworkflow.
+
+C06genuineauthority/target не появились в проверенной новой дельте; прежний вопрос владельцу сохранён без повторной отправки и без изготовления authority.
+
+### Десять пунктов и независимые остатки
+
+- 1 LastREPORT/CP/author/refblobparent and operationschecked; no unknownmutation or duplicatewriter; protectedsessionuntouched.
+- 2 CurrentSTART/controllerandallmandatory9canonfullyloaded/hashunchanged, priorfullreading retained; priorityv10 lateownerscope.
+- 3 RealnewA WB_R12/A06_R19 readyPRsections+verdict, B_R2readyverdict/protectiverequirements+authorconsumption, Cterminalrecord personallyread.
+- 4 Existingchecks/reviews qualifiedexactly; newtwooriginalterminals/jobs8read, old3nativeworkflows/local435NOT_RECHECKED; no newlaunches.
+- 5 SOURCE/TEST_EVIDENCE/package/native/installed/owner/Store distinct; R12memory-not-disk/processproof, R19path-not-integration.
+- 6 Freshauthors/WIP/scope/gitops/fourlocks/targetFDs/versionchecked beforeownwrite; foreignroles/source/testschatsuntouched.
+- 7 OwnServerWBpending/R2unknown/absoluteauthor-treeabsence/oldAoverclaims corrected inexistingCPpriorityREPORT withindependentreadback; noforeignB.jsonwrite.
+- 8 AuthorApublication/Bconsumption/Cterminal predatesownwrite, no causalcredit; existinghandoff andC06querynotduplicated.
+- 9 Original12causes/responsible/next/return preserved; R12directlyconfirmspersistencegap, R2notoldoriginalbytesproof; independentnewreadyworkconsumed.
+- 10 Volume/org/externalvsavailable documented; identitypolicyownerdecisionclearlyscoped; allrefusals,noerrors/events/registry/archive/schedules/helper/live/authDBcleanup; auditfalse.
+
+| Остаток | Причина/недостающая граница | Ответственный | Следующий допустимый шаг / возврат |
+| --- | --- | --- | --- |
+| A WB actual durability/restart/causality | R12 прямо ограничивает memory-backed результат; fsync/power-loss, actualprocessrestart и isolatednewguardcause не доказаны | A originalsource/harness; runtime/owner/Tester custodians | Только готовое exact evidence нужной границы; syntheticmap не закрывает durable исход. |
+| A06 current integration/originalabort | R19=zero pathoverlap, olderPRmerge/main86CI не currentmain32integration; physicalinitiator UNKNOWN | A harness; originalruntime/platform custodian | Готовые permitted exact composition/CI/causal документы; никакого повторения failed/deniedtargets. |
+| B identity/security | R2=preexisting nonregression, рискOPEN; нормативнаяequivalence policy и совместимость existingdata отсутствуют | Product/securityowner; existingB/securityauthor | Явное same/distinct policy decision → безопасный compatibilitydesign; без invitationkey-only/auth/DB changes в этом проходе. |
+| B exactcandidate/native/release | Treef2bf88 объявлен автором, независимойobjectauthentication нет; local435 не fullbeta acceptance | ExistingB/reviewer/releasecustodian | Готовый exact candidate/currentbase/review/nativeproof; уже принятыеlocalchecks не повторять. |
+| C04 installed/consumer | Nativegate выполнен; six-file mismatch, loadedruntime/retention/delivery/ACK/authority/rollback отдельно | B/Ops soleinstalledowner; C readonlyconsumer | Existinghandoff only; готовое exact authority/budget/backup/restore/rollback/consumerproof. Возврат после разрешённой целойrelease и доказанногоconsumer. |
+| C06/original12 | Новых genuineauthority/owner/originalrequest/payload/persistence доказательств нет в новой дельте | Custodians исходной карты12 без изменений | Сохранённые cause/responsible/next/return; C06запрос не дублируется, exact refusals не обходятся. |
+
+Все исходные12 cause/responsible/next/return сохранены в прежней карте и currentdelta. SHA256карты **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d**,12OPEN. Новые A scopedпояснения прямо сохраняют недостающую durable/realprocess границу; B_R2 не предоставляет originalстарыеreviewbytes/отказы; Cnative не является ownerinstalledproof. Ни один принятый boundedрезультат не отменён и ни один originalисход не закрыт текстовой правкой.
+
+Доступная независимая documentaryработа после снятия main32ожидания выполнена: Aновыеограничения/ R19currentity, Bcausality/protectivepolicy/actualconsumption/treebinding и Cterminalhandoff сверены. Другой подходящий новый originalclosureproof для12 в проверенных адресных документах не найден. Это предел конкретного охвата, не утверждение об отсутствии всей доступной работы у A/B/C.
+
+### Целостность, объём и организационные проблемы
+
+Перед ownwrite freshauthors A12:21/B13:17/C13:19 проверены. Канонический WIPunchanged: A09e12fab74tracked+7untracked; B0885f49979+4; C5ca5999465+8; unfinishedGit/indexlock отсутствуют. TargetwritableFD0. Четыре locks взяты nonblocking на короткую запись, без network/waits; после readbackFREE. CPизменён только ownroot controller_owner_server_resume_20261017, остальные rootvalues равны прежним; в priority добавлен только собственный v10ответ, остальные байты preserved.
+
+Новый независимый RDCreadback2026-10-19T13:31:44.997331+00:00: checkpointSHA256 `0cf40057aa495732f06c70c8101f16ed638afdb94c94dbb5907ccb1e914e9b4e`,2559134bytes; prioritySHA256 `297da8d8c81bd0e305d0f8207dccf6df17323a46265b6d8116c05d67957f6710`,773959bytes; ownpointer successor_delta_AWBR12_A06R19_BR2_MAIN32_TERMINAL_20261019; marker1/all10/original12/map/auditfalse/fourlocksFREE подтверждены.
+
+Объём:9canon/priority/CP,3rolemetadata, два новых PRраздела+Areadyverdict/exit, BreadyR2+authorconsumption/treebindingmetadata, Cterminal/handoffupdate, только2новыхnativeworkflowterminals и8jobs. Прежниеlocal435/TS8/style12/build2, принятыеPR218/A228/R45/oldCmismatch/DocsSafetyI1 не повторялись.
+
+Организационные остатки разделены: BreadyR2 и Cterminal уже consumedихавторами, поэтому oldunknown/pending в собственномnext устранены; authorunpublishedtree теперь указан, но independentobjectauthнепроверена; Aисторические «durable/restart» формулировки ограничены без переписывания истории. Productidentitypolicy требует нормативного решения product/securityowner, а не снятия запрета Controllerwrite. C04ACKUNKNOWN не является простоем. Доступные собственные исправления применены и перечитаны; внешние product/installed/securityauthority границы остаются до их собственного доказанного исхода.
+
+Новых tests/review/CI/helper/VM/browser/merge/exploitation/accessbypass/live/DB/security/auth/cleanup запусков0. Все адресные отказы R7/R8/log118019352572/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer/deniedB.json и прочие сохранены, не повторены и не обойдены. errors.json/events.jsonl не читались/не восстанавливались; B01/R3/PR97/131/134/чужиеsource/tests/chats вне scope. Новых реестров/архивов/расписаний нет. Аудит остаётся IN_PROGRESS.
