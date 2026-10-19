@@ -65,6 +65,8 @@ def main():
             transport = runtime / "shared/provider_transport_core.js"
             runner.run(label + "-ozon-performance-postfetch-diagnostics",
                        ["node", ROOT / "tests/regression/extension-core/ozon-performance-connection-diagnostics.mjs", provider, transport])
+            runner.run(label + "-ozon-performance-auth-business-postfetch",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-performance-operation-errors.mjs", provider, transport])
             runner.run(label + "-ozon-report-session-commit",
                        ["node", ROOT / "tests/regression/extension-core/ozon-report-session-commit.mjs", provider])
             runner.run(label + "-ozon-report-state-error-redaction",

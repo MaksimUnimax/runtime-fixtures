@@ -280,6 +280,72 @@
           }
         : fetchImpl;
 
+    // Preserve physical Performance auth/business request outcome when the
+    // first-party transport fails after fetch but before body completion.
+    // There is still exactly one fetch, no automatic retry or raw diagnostics.
+    async function executeObservedPerformanceOnce(
+      request,
+      executionGuard = null,
+      onAuthResponse = null,
+    ) {
+      if (typeof fetchImpl !== "function") {
+        const error = new Error("Ozon Performance API transport недоступен.");
+        error.code = "FETCH_IMPL_MISSING";
+        throw error;
+      }
+      let dispatchAttempted = false;
+      let responseObserved = false;
+      let observedHttpStatus = 0;
+      let dispatchAuthorityError = null;
+      const observedFetch = async (url, init) => {
+        try {
+          if (executionGuard) {
+            if (typeof executionGuard.assertDispatchAuthority === "function")
+              await executionGuard.assertDispatchAuthority();
+            await executionGuard.assertCurrent();
+          }
+        } catch (error) {
+          dispatchAuthorityError = error;
+          throw error;
+        }
+        dispatchAttempted = true;
+        const received = await fetchImpl(url, init);
+        responseObserved = true;
+        const status = Number(received?.status);
+        if (Number.isInteger(status) && status >= 100 && status <= 599)
+          observedHttpStatus = status;
+        if (typeof onAuthResponse === "function")
+          onAuthResponse(received);
+        return received;
+      };
+      try {
+        return await globalThis.ProviderTransportCore.executePerformanceJsonOnce({
+          fetchImpl: observedFetch,
+          request,
+          now,
+        });
+      } catch (error) {
+        // The underlying transport wraps authority failures as fetch errors.
+        // Never reclassify a known pre-dispatch refusal as an API request.
+        if (dispatchAuthorityError) throw dispatchAuthorityError;
+        if (!dispatchAttempted) throw error;
+        const safe = new Error(
+          responseObserved
+            ? "Ozon Performance API ответ не удалось прочитать."
+            : "Ozon Performance API запрос не удалось завершить.",
+        );
+        safe.code = responseObserved
+          ? error?.code === "PROVIDER_BINARY_CONTENT_TYPE_MISMATCH"
+            ? "PROVIDER_BINARY_CONTENT_TYPE_MISMATCH"
+            : "PROVIDER_RESPONSE_READ_FAILED"
+          : "PROVIDER_FETCH_FAILED";
+        safe.http_status = observedHttpStatus;
+        safe.request_attempted = true;
+        safe.external_request_executed = true;
+        throw safe;
+      }
+    }
+
     async function readReportSessionState({
       externalRequestExecuted = false,
     } = {}) {
@@ -553,23 +619,11 @@
 
       const tokenRequest =
         globalThis.OzonCredentials.performanceTokenRequest(credentials);
-      const originalFetch = guardedFetch(executionGuard);
-      const responseAwareFetch =
-        typeof onAuthResponse === "function"
-          ? async (url, init) => {
-              const receivedResponse = await originalFetch(url, init);
-              // Observing a received response is not a second provider call.
-              // This is only used by the explicit connection diagnostic.
-              onAuthResponse(receivedResponse);
-              return receivedResponse;
-            }
-          : originalFetch;
-      const response =
-        await globalThis.ProviderTransportCore.executePerformanceJsonOnce({
-          fetchImpl: responseAwareFetch,
-          request: tokenRequest,
-          now,
-        });
+      const response = await executeObservedPerformanceOnce(
+        tokenRequest,
+        executionGuard,
+        onAuthResponse,
+      );
       if (!response.ok) {
         clearPerformanceToken();
         const error = new Error(
@@ -788,12 +842,10 @@
         command,
         globalThis.OzonCredentials.performanceBearerHeaders(token.access_token),
       );
-      const response =
-        await globalThis.ProviderTransportCore.executePerformanceJsonOnce({
-          fetchImpl: guardedFetch(executionGuard),
-          request,
-          now,
-        });
+      const response = await executeObservedPerformanceOnce(
+        request,
+        executionGuard,
+      );
       if (typeof onProviderResponse === "function")
         await onProviderResponse({ command, request, response });
       if (response.httpStatus === 401) clearPerformanceToken();
