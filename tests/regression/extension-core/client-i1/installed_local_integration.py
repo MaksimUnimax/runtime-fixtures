@@ -176,6 +176,41 @@ def select_unique_work_start_bootstrap_response(responses, started, prior_header
         return None
 
 
+def select_work_start_bootstrap_response_or_fail(
+    responses, started, prior_header_count, failed_requests,
+):
+    """Fail immediately on an already failed Work Start Request lacking HTTP200.
+
+    The requestfailed event can arrive before any response/header event. It must
+    not be confused with a failed earlier activation having the same URL.
+    Never copy Playwright's arbitrary failure detail into diagnostic text.
+    """
+    if type(prior_header_count) is not int or prior_header_count < 0:
+        return None
+    try:
+        if prior_header_count > len(responses):
+            return None
+        current_requests = [
+            request for request, phase in started if phase == "work_start_window"
+        ]
+        failed_before_response = any(
+            any(failed is request for failed in (failed_requests or ()))
+            and not any(
+                response.request is request
+                for response in responses[prior_header_count:]
+            )
+            for request in current_requests
+        )
+    except Exception:
+        # Uninspectable event identity never permits acceptance.
+        return None
+    if failed_before_response:
+        raise RuntimeError("Work Start bootstrap HTTP request failed before response")
+    return select_unique_work_start_bootstrap_response(
+        responses, started, prior_header_count,
+    )
+
+
 def read_completed_bootstrap_response(response, context, completed_requests, failed_requests=None):
     # BrowserContext "response" fires on headers, before the HTTP body finishes.
     # A requestfailed event is terminal; an already aborted request can never
@@ -610,10 +645,11 @@ def run(runtime, output):
                     stage = _mark_stage(output, "work_start_state_wait_done", started)
                     stage = _mark_stage(output, "work_start_bootstrap_wait_begin", started)
                     bootstrap_response = wait_until(
-                        lambda: select_unique_work_start_bootstrap_response(
+                        lambda: select_work_start_bootstrap_response_or_fail(
                             bootstrap_http_responses,
                             observed_bootstrap_request_windows,
                             work_start_header_count,
+                            failed_bootstrap_requests,
                         ),
                         "unique Work Start bootstrap HTTP 200 observation",
                     )

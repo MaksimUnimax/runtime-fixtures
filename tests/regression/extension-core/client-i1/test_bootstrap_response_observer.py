@@ -184,6 +184,52 @@ class BootstrapObserverTest(unittest.TestCase):
             request=FakeRequest(url=selected.request.url))
         self.assertIsNone(pick([before, same_url_different_request], recorded, 1))
 
+    def test_work_start_request_failed_before_headers_fails_immediately(self):
+        # Prior activation has an old HTTP200, but the selected Work Start
+        # Request is terminally aborted before any headers arrive.
+        prior = FakeResponse(request=FakeRequest(
+            url="http://127.0.0.1:43100/v1/bootstrap?SECRET_PRIOR"))
+        request = FakeRequest(
+            url="http://127.0.0.1:43100/v1/bootstrap?SECRET_CURRENT",
+            failure="net::ERR_ABORTED")
+        responses = [prior]
+        started = [(prior.request, "second_activation_window"),
+                   (request, "work_start_window")]
+        with self.assertRaisesRegex(
+            RuntimeError, "Work Start bootstrap HTTP request failed before response"
+        ) as raised:
+            module.wait_until(
+                lambda: module.select_work_start_bootstrap_response_or_fail(
+                    responses, started, 1, [request]),
+                "unique Work Start response", timeout=30,
+            )
+        self.assertNotIn("SECRET_CURRENT", str(raised.exception))
+        self.assertNotIn("SECRET_PRIOR", str(raised.exception))
+
+    def test_old_request_failure_never_blocks_new_work_start_response(self):
+        old = FakeResponse(request=FakeRequest(
+            url="http://127.0.0.1:43100/v1/bootstrap?SECRET_OLD",
+            failure="net::ERR_ABORTED"))
+        active = FakeResponse(request=FakeRequest(
+            url="http://127.0.0.1:43100/v1/bootstrap?SECRET_ACTIVE"))
+        previous_failure = [old.request]
+        started = [(old.request, "second_activation_window"),
+                   (active.request, "work_start_window")]
+        picked = module.select_work_start_bootstrap_response_or_fail(
+            [old, active], started, 1, previous_failure)
+        self.assertIs(picked, active)
+
+    def test_second_failed_work_start_request_prevents_stale_success(self):
+        previous = FakeResponse()
+        first = FakeResponse()
+        failed_second = FakeRequest(failure="net::ERR_FAILED")
+        started = [(previous.request, "second_activation_window"),
+                   (first.request, "work_start_window"),
+                   (failed_second, "work_start_window")]
+        with self.assertRaisesRegex(RuntimeError, "failed before response"):
+            module.select_work_start_bootstrap_response_or_fail(
+                [previous, first], started, 1, [failed_second])
+
     def test_work_start_selected_identity_must_survive_body_read_race(self):
         # One response is initially unique; a second Work Start request appears
         # while the selected response body is read. No acceptance is possible.
