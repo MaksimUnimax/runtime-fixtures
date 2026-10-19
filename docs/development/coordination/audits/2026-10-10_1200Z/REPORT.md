@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T12:34:08.853917+00:00; currentmain3f PR218 merged12:17:07 и original postmerge5/5workflows13/13jobsSUCCESS12:31:36 проверены; предыдущийmain26 native5/13 и C00consumption подтверждены отдельно. A228exact1b3/5+10/13; R45PREPARING. C04six-file installed drift/C06authorityUNKNOWN остаются; исходные12OPEN,audit_complete=false.
+- **Состояние на:** 2026-10-19T13:15:39.408595+00:00; новое наблюдение currentmain32 metadata originalpush3/5workflows11/13jobs на срезе13:13, Server/WB ещё не terminal. Прочитаны A06R18authorcomparison, Bsixdraftlocal435/TS8/style12/build2 и R1REWORK_REQUIRED, C13:02resourcehandoff. Прежние PR218/A228/R45/Cmismatch приняты и NOT_RECHECKED; все12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
-- **Основа GitHub:** currentref `main=3f6689a1c2a0ff4cca25c83cf751ff67a540879d`, tree `86a0894bddbd79940085dafdb252cfd596fbe738`; PR218exactec2a CLOSED/MERGED, original pre/postnative5/13. Предыдущийmain26a433 native5/13 проверен только разрешёнными GitHub metadata/jobs; Tester source/tests не читались. Принятый Csourcebaseline850 сохраняет свой scope. Native PASS не означает installed/live/Store/owner приёмку.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `84277fe107e9ced6629002d257984810bf42a3f60eb05403d2c1c83897f00d97`,2492308bytes; guardedwrite12:33:43.667354 UTC; independentreadback2026-10-19T12:34:08.853917+00:00; original12OPEN, PLAN/history/WIP/map сохранены.
+- **Основа GitHub:** currentref `main=32b768862e69133f9f05c556ea2df3c238e1dbfc`, tree `e5a9f9be2606f92fff174e03757edd08f55a9364`, PR232 merged13:01:10; только GitHub metadata/jobs, Tester source/tests не читались. Предыдущий main3f/PR218 native5/13 сохранён, не переносится на новый SHA. SOURCE/PACKAGE/native/installed/live/Store/owner остаются отдельными границами.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `8b66740d447f9c7883467c71306767890ca7e6e9c0a5a0fdd508f0fbb53a87c6`,2528444bytes; ownwrite2026-10-19T13:15:12.530047+00:00, independentreadback2026-10-19T13:15:39.408595+00:00; original12OPEN, PLAN/history/WIP/map сохранены.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -4884,3 +4884,123 @@ WIPmetadata непосредственно перед записью: A09e12fab7
 Организационные проблемы разделены: чужой B.json отстаёт от actualGitHubauthorprogress, но его исправление точно отказано и запрещено; C04ACK не наблюдён, причинаUNKNOWN без нового consumptionreceipt, не доказанный простой; A отсутствующие два nativegates не закрываются счётчиком10jobs; установленный release и authority не закрываются зелёным CI. Доступный документальный остаток своего scope выполнен и перечитан. Для оставшихся12 исходов и installed/authority границ новый подходящий originalдокумент среди проверенных готовых адресных результатов не найден; это предел данного среза, не утверждение об отсутствии всей независимой работы A/B/C.
 
 Новых tests/review/CI/helper/VM/browser/merge/exploitation/accessbypass/live/DB/security/auth/cleanup запусков0. Адресные отказы R7/R8/artifacts-route/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer/targetlog118019352572 и deniedB.json/allocation сохранены, не повторены и не обойдены. Существующие поручения C/B и C06ownerquery не дублировались. Расписания/кредиты/лимиты/авторизации не менялись. Аудит остаётся IN_PROGRESS до доказанного закрытия обязательных границ.
+
+
+## Продолжение того же аудита — 2026-10-19 13:16 UTC, после REPORT d9d09d8c
+
+Новый активный проход начат фактическим RDC ping13:11:40.895 UTC. Готовые источники ограничены срезом13:12–13:13:26; ownwrite2026-10-19T13:15:12.530047+00:00, независимый серверный readback2026-10-19T13:15:39.408595+00:00. Работа / GPT-6.1 Sol / Очень высокое. Один и тот же незавершённый аудит; новый исполнитель, helper или scheduler не запускался.
+
+### Что выполнено в доступном scope
+
+Последний исход проверен: REPORT d9d09d8ced0cae29630e68a0c414a1ea50898648/blob113321df1f9a30ba9bd8a681da32d3c0fcd3a3a6, авторMaksimUnimax12:35:43,parent09c9f633. Ref, blob и полный content совпали при повторной проверке перед записью. Pending Remote MCP calls0, собственных неизвестных операций нет; существующая session2354613 не тронута. CP прежнего результата совпал с readback12:34:08.
+
+Полностью прочитаны актуальные START_HERE, PROMPT_CONTROLLER и обязательные WORK_METHOD/PROTOCOL/PRE_AUDIT_SELF_ERROR_GATE/ORGANIZATION_AUDIT_POLICY/RESOURCE_POLICY/DISK_LIFECYCLE/TEMP_WORKTREE_LIFECYCLE; все9SHA неизменны. Их tests/review/CI/handoff/resource нормы применены с поздними адресными ограничениями владельца. Прочитан действующий DOT-20261015-02 v10, приоритет и прежние обязанности сохранены; старый текст о передаче dot не отменяет позднюю прямую команду владельца действующему Контроллеру.
+
+**Реальное исправление собственных документов:** currentmain3f как последний текущий ref заменён новым наблюдением main32 с отдельным native ожиданием; B представлен новой six-draft задачей и уже готовыми локальными/отрицательными review результатами вместо одной старой pending-проекции; A06R18 отмечен как опубликованное авторское объяснение, а C04 — как новое ограниченное ресурсное наблюдение. Внесены причины/UNKNOWN, ответственные, разрешённый next и условия возврата. Это правка собственного учёта, не продуктовый ремонт или installed приёмка.
+
+Изменены только ownroot existingcheckpoint и собственный ответ в existingpriorityv10. Ни B.json, ни C.json, ни foreignsource/tests/WIP не исправлялись. Принятые PR218merge/postmerge, PR2283/5+10/13, R39/R40, oldC mismatch и R45PREPARING **NOT_RECHECKED**. Результаты A/B/C получены ими до ownwrite; собственная запись не объявляется причиной их продвижения.
+
+### A — новый готовый R18 в PR230
+
+Лично прочитан опубликованный раздел **A06 R18 — primary original installed artifact correlation (13:01 UTC)** в PR230, точный head `c53d2701724a071ed752d2f86e87fac8566fdc78`, PR updated13:02:13 UTC. Record A06_I1_R18_ORIGINAL_PR208_FAIL_VS_PR211_PR230_PR228_SUCCESS_ARTIFACT_READONLY_20261019 — **авторское документальное объяснение** четырёх уже существовавших артефактов; это не новый source verdict Контроллера.
+
+По опубликованной сверке A сопоставлены original artifacts12112680095/12095902276/12183506176/12184373552 для PR208FAIL/PR211PASS/PR230PASS/PR228PASS:
+- общий runtime_input hash не означает одинаковый ZIP;
+- между PR208 и PR211/230 совпали40/41 runtimeфайлов, изменённый участок service_worker связан с build-time synthetic trust bundle;
+- между PR208 и PR228 совпали38/41, поэтому полная binary parity для PR228 не доказана;
+- failed PR208 author projection authenticated/workAllowed/lastStart active, затем selectedABORT; positivecontrols имеют другой terminal request outcome;
+- порядок abort/context-close стадий и success другого synthetic I1 **не устанавливают физического инициатора отмены** и не доказывают ремонт production transport.
+
+Контроллер **не запрашивал исходные отказанные targets, artifacts/raw downloads/joblogs и не воспроизводил failed job**. Принят факт публикации и содержание авторского объяснения, а не независимое подтверждение его rawartifact bytes. Физическая причина остаётсяUNKNOWN; недостаёт разрешённой точной корреляции Request ↔ acquisition/lease AbortSignal ↔ transport/server close на общей шкале времени. A отвечает за свой harness/documentary scope; original runtime-owner/platform — за причинную границу. Ближайший допустимый шаг — только готовая адресная первичка этой корреляции. R18 не закрывает старый negativeI1, owner-installed/Store или исходные12.
+
+### B — новая six-draft задача и готовые результаты после старого pending
+
+B.json12:53:09 содержит B06_SIX_DRAFT_MAIN3F_COMPAT_20261019, base `3f6689a1c2a0ff4cca25c83cf751ff67a540879d`, отдельная авторская sourcecomposition шести существующих PR:
+- PR215 exact60fd0c00b08cf5be1e4a5a371a429488e7dad572;
+- PR216 exact7459248beaa549901bdbace04d7c67b6fe7735e2;
+- PR220 exact073c0ab7a61a7692a1edfbb7567663d8bbc02343;
+- PR221 exact8a8827481f1e90724fa9a64097423cc7d5a7f8c5;
+- PR223 exact715a9e606bed41eb0cfa91cf4fe9ad10ee525d8c;
+- PR224 exact2250f364e27d981c6ef532468d093f617d8f25e6.
+
+Canonical запись **SOURCE_COMPOSITION_PENDING_NOT_TESTED** — факт состояния12:53, не доказательство отсутствия последующей работы. Новые завершённые файлы в existing `logs/B/B06_SIX_DRAFT_MAIN3F_20261019/` уже появились позже. Прочитаны отдельный readyverdict и ограниченные terminalsummary строк локальных логов, хешированы полные готовые файлы; active source/test/WIP и inline review inputs не читались.
+
+| Готовый документ | Зафиксированный результат | SHA256 |
+| --- | --- | --- |
+| INDEPENDENT_CROSS_PR_LUNA_XHIGH_R1_VERDICT.txt | REWORK_REQUIRED | `a8b12fa7c5872aeaac9eb12f4901c8fd78411f26543a99ac5aafb9b492229d3b` |
+| EXACT_MAIN3F_10_TEST_FILES_435_PASS.log | 10files435PASS | `b524d03ccda0ce41e7381ff0a1a6f4aed700ce1903cf3d66e710f2e4cd070d74` |
+| EXACT_MAIN3F_TSC8_STYLE12_PASS.log | 8TSworkspaces,12qualitypathsPASS | `03abad80394c6246254b5254d0f79b47f9f8411ce9d2ca95b0602b99117a54c9` |
+| EXACT_MAIN3F_API_TELEGRAM_BUILD2_PASS.log | API+Telegram2buildPASS | `0b6569399c10e4b2283d2926b1dbca7355a402a79aad1f16936d40d0d290043a` |
+
+Логи фиксируют10testfiles/435PASS, восемь TypeScript workspaces, quality12paths и API/Telegram2build. **В этих готовых доказательствах не установлена независимая immutable привязка всего composite к exact candidate Git tree/commit.** Заявленные base3f/путь worktree и локальные счётчики не заменяют её и не доказывают совместимость с появившимся main32. Tests/CI шести отдельных PR не пересчитывались в приёмку композиции.
+
+Готовый R1 verdict3391bytes/SHAa8b12fa7c5872aeaac9eb12f4901c8fd78411f26543a99ac5aafb9b492229d3b: **REWORK_REQUIRED**. Review указывает на непоследовательную канонизацию domainidentity beta-приглашения между service/repository. Protective требование — единая каноническая identity на service boundary и у потребителей либо точное доказательство существующей защиты. HTTProuteimpact в самом verdict условен, поскольку normalizeEmailimplementation не была предоставлена; baseline-vs-introduced causal disposition этим verdict не доказан.
+
+Ограничения R1 прямо сохранены: inline input/source-scoped, независимой аутентификации Git objects и своего исполнения тестов reviewer не было; localtests авторские, непредоставленные logger callers/error serializers и internalsPR229/218 полностью не проверены. Контроллер не превращает этот verdict в полную source/integration/security приёмку и не воспроизводит описанный дефект.
+
+Отдельные filenames уже выполнявшегося R2 замечены в inventory; **active R2 input/log и inline payload не читались, новый review/helper не запускался**. Отдельный принятый R2 terminal/verdict на этом срезе отсутствует в проверенном готовом наборе. Неизвестный исход не перезапускался.
+
+Ответственный существующий B sourcecompositionauthor и custodian уже выполнявшегося review. Следующий допустимый шаг — потребить готовые exact composite identity/current-main compatibility/reviewdisposition документы в существующей задаче; не дублировать поручение или review. Исторический запрет записи B.json/allocation сохраняется; ownпроекция исправлена без foreignB.jsonправки. SOURCElocal435 не отменяет R1negative/native/install/release остатки.
+
+### C — новая ресурсная запись, текущий main32 и пределы наблюдения
+
+Лично прочитан новый existinghandoff nestedrecord **C04_MAIN3F_ACTIVE_RUNTIME_RESOURCE_READBACK_20261019**, issued13:02:10.179075 UTC, в `/root/octoport-control/peer-handoffs/B/C_TO_EXISTING_B_C04_MAIN499_ACTIVE_TELEGRAM_SOURCE_PARITY_20261019.json`. Текущий полный handoff SHA256 `100863bb9ee0e063c5b5f7907e539cf755e41810e2c2bc1ddd7db3738f267725`,30338bytes. Это обновление того же handoff, нового сообщения не создано.
+
+Автор C наблюдал old installed release12efab2f780ad7b9b7556b7b50e6d6e345f000fa, operator PID1709660, MemoryCurrent693719040bytes≈661.6MiB, systemd MemoryMax=infinity/CPUQuota=infinity, TasksCurrent36/TasksMax19045, NRestarts0. Timer active/waiting,lasttrigger **12:59:26 UTC**. Эти поля — **авторское наблюдение C**, а не live measurement Контроллера. Прочие уровни resourceзащиты этим не установлены. Systemd infinity не является разрешением назначать произвольный лимит, а timertrigger не доказывает prune/retentionreceipt или доставку сообщения. **Actual retention/delivery UNKNOWN, B_ACK NOT_OBSERVED**. Existinghandoff не отправлялся повторно.
+
+B/Ops остаётся единственным владельцем допустимой installedrelease/resources/backup/rollback операции; C — независимый readonlyconsumer после разрешённого продвижения. Ближайший разрешённый документальный шаг: ready exact source/artifactauthority + измеренные безопасные budgets/rollback + loadedconsumer/retention/deliveryproof. Ни install/restart, ни systemd/timer/limits, DB/provider/Telegram API или Store submit Контроллер не трогал. Старое six-file mismatch не измерялось повторно.
+
+В C.json готовый nestedrecord **C04_MAIN32_POST_PR232_EXTENSION_ONLY_SOURCE_CI_PROGRESS_20261019**, issued13:03:57.951761, уже знает main32, тогда как rootlatest_observed_remote_main_sha остаётсяmain3f. Это отставшая корневая проекция, **не отсутствие прогресса**. C03/sourceaccepted baseline850 сохранён; C.json не переписывался.
+
+Личный GitHub metadata readback подтверждает main `32b768862e69133f9f05c556ea2df3c238e1dbfc`, tree `e5a9f9be2606f92fff174e03757edd08f55a9364`, PR232merge13:01:10,parent3f6689a1c2a0ff4cca25c83cf751ff67a540879d/189a7503c8ec8d21f650a4ac04e75cb864eefdb0. Это разрешённые публичные commit/run/jobmetadata **чужого потока**, без чтения source/tests/чата Тестера и без source verdict.
+
+Originalpush/attempt1 main32 на boundedcut13:13:
+
+| Workflow | Original run | Состояние workflow | SUCCESS jobs |
+| --- | --- | --- | --- |
+| Documentation CI | 39256628768 | completed/success | 1/1 |
+| Server CI | 39256628758 | in_progress/— | 1/2 |
+| Extension CI | 39256628823 | in_progress/— | 5/6 |
+| Coordination and release safety | 39256628787 | completed/success | 1/1 |
+| Extension I1-C1 client | 39256628729 | completed/success | 3/3 |
+
+Итого **3/5workflows и11/13jobsSUCCESS**, Serverjob118073502307 и WBjob118073508361 ещё IN_PROGRESS. Старые C2/5+8/13 и dot11/13 — исторические срезы; собственная проекция содержит лично прочитанный bounded результат, полного5/13 не заявляет. Unknown workflow outcome не перезапускался. Новые terminal могут быть потреблены только как результаты исходных runs, без rerun.
+
+C06authority/target UNKNOWN_NOT_PROVEN и StorePREPARING_NO_SUBMIT сохранены из принятого остатка; новой authority не выдумывали, повторного ownerquery нет.
+
+### Десять пунктов, остатки, объём и организационные проблемы
+
+- 1 Lastterminal/REPORTblobparentauthor/owncheckpoint/pendingcalls/session checked, no duplicatedunknownoperation.
+- 2 CurrentSTART/controller/WORK/PROTOCOL/selferror/ORG/resources/disk/tempcanonfullyread, unchanged9hash; priorityv10 lateowner scope.
+- 3 New role task/progress/changes individuallychecked A06R18publishedPRbody, Bsixcomposition+readylogs/R1, Cresourcehandoff/newmain nestedrecord.
+- 4 Existingtests/review/CI personallyread with exactlimits; B435notimmutablecandidateproof, R1negative, R2notread/restarted.
+- 5 Main32originalpushattempt1metadata/jobs3of5+11of13; noTester source/tests/chat; native/source/package/installed/liveStore separated.
+- 6 Scope/authors/fourlocks/targetwriters/WIP/gitops/version freshbeforeownwrite; oldacceptedchecksNOT_RECHECKED.
+- 7 Ownstalemain3fcurrentpointer/Bpendingnotested-onlycoverage/A06missingdoc/Cresourceage correctedinexistingCPpriorityREPORT withindependentreadback, noforeignrolewrite.
+- 8 ActualApublication/Blocalreview/Cauthorobservations predatesownwrite; no causalcredit, duplicatehandoff/assignment/helper/review.
+- 9 Original12cause/responsible/next/return preserved and newreadydocs compared; no matchingnewclosureproof, independentscopecontinued.
+- 10 Volume/orgissues/externalvsavailableboundaries documented; allrefusals,noerrors/events/registry/archive/schedules/live/security/cleanup/newlaunches; auditfalse.
+
+| Остаток | Причина или UNKNOWN | Ответственный | Допустимый следующий шаг и условие возврата |
+| --- | --- | --- | --- |
+| A06 historical abort | R18 narrows hypotheses; physical initiator UNKNOWN, original same-clock request/lease/transport correlation absent | A harness/original runtime owner/platform | Only ready permitted original correlation; refused targets and tests not repeated; return on exact causal primary. |
+| B six-draft composition | Local logs exist, R1 REWORK_REQUIRED; immutable composite Git tree/latest-main32 compatibility not established | Existing B source author/existing reviewer | Consume ready exact binding and addressed review disposition; no second review, Controller source/test edit or B.json write. |
+| main32 native | Original Server and WB were IN_PROGRESS at bounded cut | Existing native run custodian; Controller documentary consumer | Read only completed original terminal/jobs when ready; no rerun; 5/13 required before declaring full native success. |
+| C04 installed resources/consumer | Author observation old operator/infinity systemd settings; actual retention/delivery UNKNOWN; B ACK not observed | B/Ops exclusively; C independent read-only consumer | Existing handoff only; ready exact authority/budget/rollback/loaded consumer proof before authorized promotion; no live action here. |
+| C06 authority/target | Existing UNKNOWN_NOT_PROVEN; no new owner reply | Owner and authorized release/B-Ops/C consumer | Already forwarded request retained, no duplicate; return on genuine exact authority/target/owner proof. |
+| Original 12 outcomes | No newly read document contains the missing original refusal correlation, immutable old review bytes, two-relay durable actor or owner-installed proof | Original12 custodians unchanged in canonical map | Existing exact ready evidence only; original12 dispositions/map preserved, none closed by documentary correction. |
+
+Сама исходная карта12 не изменена: SHA256 `fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d`, all12OPEN, со всеми прежними cause/responsible/next/return. Новые документы сверены с этими границами: R18неcausalclosure, Bsixнеoriginalrefusal/reviewbytesproof, Cresource/timerнеinstalledconsumer/ownerproof. Прежние fulfilledboundedresults не отменены. Это предел проверенной новой первички, не общее утверждение, будто у A/B/C нет независимой работы.
+
+Доступный собственный документальный остаток выполнен. Независимая работа в этом проходе продолжена после A06 объяснения чтением готовых Bquality/review и нового Cresourcehandoff, а не ограничена CI/REPORT. Отдельные внешние границы live/authority/runtime cause/точный неподтверждённый R2 не заменены текстовой правкой.
+
+FreshWIP перед ownwrite: A09e12fab74tracked+7untracked, B0885f49979+4, C5ca5999465+8 — неизменны; незавершённых Git/indexlocks нет. Freshroles13:15 совпали с прочитаннымиA12:21/B12:53/C13:03. TargetwritableFD0, четырe locks взяты nonblocking на короткую запись без network/waits. В CP изменён только existingownroot; остальные rootvalues равны прежним. В priority добавлен только собственный ответ DOT-20261015-02v10markerCONTROLLER_20261019_A06R18_BSIX_R1_C04RESOURCE_MAIN32, остальные байты preserved.
+
+Новый независимый RDCprocess2026-10-19T13:15:39.408595+00:00 подтвердил:
+- checkpoint SHA256 `8b66740d447f9c7883467c71306767890ca7e6e9c0a5a0fdd508f0fbb53a87c6`,2528444bytes;
+- priority SHA256 `2947c096fae8d05018fa3b1142f3858a30ad91ed50cde4065eaa6f04ca717531`,772522bytes;
+- ownpointer successor_delta_A06R18_BSIX_R1_C04RESOURCE_MAIN32_20261019, marker1, original12/map, all10, audit_complete=false; fourlocksFREE.
+
+Объём: ninecanon/priority/CP,3rolemetadata, новый PR230R18document, четыре readyBфайла с boundedsummary/verdict, Cresourcehandoff/nestedmainrecord, original5workflow/13job main32metadata. Не читались source/tests/inlineinputs, refusedrawtargets, artifacts/ZIP или installed/livebytes. Новых tests/review/CI/helper/VM/browser/merge/exploitation/accessbypass запусков0.
+
+Организационные остатки: Bcanonicalpending не отражает готовых локальных результатов и отрицательногоreview, но foreignwrite запрещена; Crootmainstale не отражает nestedprogress; причины неподтверждённого ACKUNKNOWN. Ни один из этих лагов не доказывает простой. Собственные неверные ожидания исправлены и перечитаны; точные внешние полномочия и продуктовые доказательства этим не созданы. Все адресные отказы R7/R8/log118019352572/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer/deniedB.json и другие сохранены. errors.json/events.jsonl, live/DB/security/auth/cleanup, B01/R3, PR97/131/134 не затронуты; новых реестров/архивов/расписаний нет. Аудит IN_PROGRESS, PLAN/history/WIP/12исходов сохранены.
