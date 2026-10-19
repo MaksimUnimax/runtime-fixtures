@@ -19,8 +19,17 @@ import {
   activateProductionSources,
 } from "./source-set.js";
 import { WB_BUNDLE_DOCUMENT_KEY, WB_BUNDLE_VERSION } from "./wb-bundle.js";
-import type { OperationInventory } from "./types.js";
-import { InMemoryApiWatchStore } from "./authority.js";
+import type {
+  ApiWatchSqlQuery,
+  ApiWatchSqlRuntime,
+  OperationInventory,
+  SnapshotMetadata,
+} from "./types.js";
+import {
+  createInMemoryApiWatchState,
+  createPostgresApiWatchStore,
+  InMemoryApiWatchStore,
+} from "./authority.js";
 
 const validYaml = `openapi: 3.0.3\ninfo:\n  title: Wildberries\n  version: '1'\npaths:\n  /x:\n    get:\n      responses:\n        '200':\n          description: ok\n`;
 const response = (body: string, status = 200) =>
@@ -125,6 +134,280 @@ describe("production source authority model", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("C03 rejects atomic inventory-write failure in source activation without accepted metadata", async () => {
+    const officialUrl = "https://docs.ozon.ru/api/seller/swagger.json";
+    const registry = createSourceRegistry({
+      OZON_SELLER: {
+        officialUrl,
+        documents: [
+          {
+            documentKey: "OZON_SELLER",
+            officialUrl,
+            expectedArtifactTypes: ["JSON"],
+          },
+        ],
+        requiredServerIdentity: undefined,
+        titlePattern: undefined,
+      },
+      OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+      WILDBERRIES: { officialUrl: null, documents: [] },
+    });
+    const state = createInMemoryApiWatchState();
+    const store = new InMemoryApiWatchStore(state);
+    const saved = store.saveSnapshotWithInventory.bind(store);
+    let fail = true;
+    store.saveSnapshotWithInventory = async (metadata, operationInventory) => {
+      if (fail) {
+        fail = false;
+        throw new Error("SIMULATED_ATOMIC_SNAPSHOT_INVENTORY_FAILURE");
+      }
+      return saved(metadata, operationInventory);
+    };
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-atomic-source-"));
+    const fetcher: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          openapi: "3.0.3",
+          info: { title: "Seller API", version: "1" },
+          paths: { "/orders": { get: { responses: { "200": {} } } } },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    try {
+      await expect(
+        activateProductionSources({
+          registry,
+          store,
+          pendingStore: new InMemorySwaggerSourceStore(),
+          snapshotRoot: root,
+          fetcher,
+          now: () => new Date("2026-10-19T00:00:00Z"),
+        }),
+      ).rejects.toThrow("SIMULATED_ATOMIC_SNAPSHOT_INVENTORY_FAILURE");
+      expect(await store.listSnapshots()).toHaveLength(0);
+      expect(state.inventories.size).toBe(0);
+      const retry = await activateProductionSources({
+        registry,
+        store,
+        pendingStore: new InMemorySwaggerSourceStore(),
+        snapshotRoot: root,
+        fetcher,
+        now: () => new Date("2026-10-19T00:01:00Z"),
+      });
+      expect(retry.inventories).toHaveLength(1);
+      expect(await store.listSnapshots()).toHaveLength(1);
+      expect(
+        await store.findInventory(
+          "OZON_SELLER",
+          retry.inventories[0]!.snapshotSha256,
+        ),
+      ).toBeDefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 PostgreSQL adapter commits snapshot and inventory in one transaction", async () => {
+    const sha256 = "a".repeat(64);
+    const metadata: SnapshotMetadata = {
+      snapshotId: `WILDBERRIES:${sha256}`,
+      sourceFamily: "WILDBERRIES",
+      sha256,
+      sizeBytes: 1,
+      specVersion: "3.0.3",
+      officialUrl:
+        "https://dev.wildberries.ru/api/swagger/yaml/ru/01-general.yaml",
+      acquisitionMode: "AUTOMATIC",
+      createdAt: new Date("2026-10-19T00:00:00Z"),
+      authorityRecordId: "fixture-authority",
+      artifactPath: "/synthetic/snapshot.yaml",
+      documentKey: null,
+    };
+    const completed: string[][] = [];
+    const rolledBack: string[][] = [];
+    let fail = true;
+    let scopeConflict = false;
+    let directScopeConflict = false;
+    const pairInventory: OperationInventory = {
+      ...inventory(sha256),
+      operations: inventory(sha256).operations.map((operation) => ({
+        ...operation,
+        documentKey: null,
+      })),
+    };
+    const runtime: ApiWatchSqlRuntime = {
+      async query() {
+        throw new Error("OUTSIDE_TRANSACTION_QUERY_FORBIDDEN");
+      },
+      async transaction(operation) {
+        const pending: string[] = [];
+        const scoped: ApiWatchSqlQuery = {
+          async query<
+            T extends Record<string, unknown> = Record<string, unknown>,
+          >(text: string): Promise<{ rows: T[] }> {
+            if (text.startsWith("SELECT pg_advisory_xact_lock")) {
+              pending.push("scope-lock");
+              return { rows: [] };
+            }
+            if (text.includes("document_key IS DISTINCT FROM")) {
+              pending.push("scope-check");
+              return {
+                rows: scopeConflict
+                  ? ([{ snapshotId: "other-scope" }] as unknown as T[])
+                  : [],
+              };
+            }
+            if (text.startsWith('SELECT document_key AS "documentKey"')) {
+              pending.push("cache-scope-read");
+              return {
+                rows: directScopeConflict
+                  ? ([{ documentKey: null }] as unknown as T[])
+                  : [],
+              };
+            }
+            if (text.startsWith("SELECT")) return { rows: [] };
+            if (text.startsWith("INSERT INTO api_watch_snapshots")) {
+              pending.push("snapshot");
+              return { rows: [metadata as unknown as T] };
+            }
+            if (text.startsWith("INSERT INTO api_watch_inventories")) {
+              // Fake SQL query cannot parse PostgreSQL; assert precise
+              // production UPSERT field assignment instead.
+              if (
+                !text.includes(
+                  "operation_id_present_count=EXCLUDED.operation_id_present_count,operation_id_missing_count=EXCLUDED.operation_id_missing_count",
+                ) ||
+                text.includes(
+                  "operation_id_present_count=EXCLUDED.operation_id_missing_count",
+                )
+              )
+                throw new Error("MALFORMED_INVENTORY_UPSERT_SQL");
+              pending.push("inventory");
+              if (fail) throw new Error("SIMULATED_POSTGRES_INVENTORY_FAILURE");
+              return { rows: [] };
+            }
+            throw new Error("UNEXPECTED_SQL_IN_TRANSACTION");
+          },
+        };
+        try {
+          const result = await operation(scoped);
+          completed.push(pending);
+          return result;
+        } catch (error) {
+          rolledBack.push(pending);
+          throw error;
+        }
+      },
+    };
+    const store = createPostgresApiWatchStore(runtime);
+    await expect(
+      store.saveSnapshotWithInventory(metadata, pairInventory),
+    ).rejects.toThrow("SIMULATED_POSTGRES_INVENTORY_FAILURE");
+    expect(completed).toEqual([]);
+    expect(rolledBack).toEqual([
+      [
+        "scope-lock",
+        "scope-check",
+        "snapshot",
+        "scope-lock",
+        "cache-scope-read",
+        "inventory",
+      ],
+    ]);
+    fail = false;
+    const accepted = await store.saveSnapshotWithInventory(
+      metadata,
+      pairInventory,
+    );
+    expect(accepted.snapshotId).toBe(metadata.snapshotId);
+    expect(completed).toEqual([
+      [
+        "scope-lock",
+        "scope-check",
+        "snapshot",
+        "scope-lock",
+        "cache-scope-read",
+        "inventory",
+      ],
+    ]);
+    scopeConflict = true;
+    const differentScope = { ...metadata, documentKey: "WB_OTHER" };
+    const differentInventory: OperationInventory = {
+      ...pairInventory,
+      operations: pairInventory.operations.map((operation) => ({
+        ...operation,
+        documentKey: "WB_OTHER",
+      })),
+    };
+    await expect(
+      store.saveSnapshotWithInventory(differentScope, differentInventory),
+    ).rejects.toThrow("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+    expect(rolledBack.at(-1)).toEqual(["scope-lock", "scope-check"]);
+    directScopeConflict = true;
+    await expect(store.saveInventory(differentInventory)).rejects.toThrow(
+      "API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT",
+    );
+    expect(rolledBack.at(-1)).toEqual(["scope-lock", "cache-scope-read"]);
+    expect(completed).toHaveLength(1);
+  });
+
+  it("C03 rejects same-family equal-digest snapshots under different document keys", async () => {
+    const sha256 = "b".repeat(64);
+    const store = new InMemoryApiWatchStore();
+    const metadata = (documentKey: string): SnapshotMetadata => ({
+      snapshotId: `WILDBERRIES:${documentKey}:${sha256}`,
+      sourceFamily: "WILDBERRIES",
+      sha256,
+      sizeBytes: 1,
+      specVersion: "3.0.3",
+      officialUrl:
+        "https://dev.wildberries.ru/api/swagger/yaml/ru/01-general.yaml",
+      acquisitionMode: "AUTOMATIC",
+      createdAt: new Date("2026-10-19T00:00:00Z"),
+      authorityRecordId: "synthetic",
+      artifactPath: "/synthetic/shared.yaml",
+      documentKey,
+    });
+    const scopedInventory = (documentKey: string): OperationInventory => ({
+      ...inventory(sha256),
+      operations: inventory(sha256).operations.map((operation) => ({
+        ...operation,
+        documentKey,
+      })),
+    });
+    await store.saveSnapshotWithInventory(
+      metadata("WB_A"),
+      scopedInventory("WB_A"),
+    );
+    await expect(
+      store.saveSnapshotWithInventory(
+        metadata("WB_B"),
+        scopedInventory("WB_B"),
+      ),
+    ).rejects.toThrow("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+    await expect(
+      store.saveSnapshotWithInventory(
+        metadata("WB_A"),
+        scopedInventory("WB_B"),
+      ),
+    ).rejects.toThrow("API_WATCH_SNAPSHOT_INVENTORY_IDENTITY_MISMATCH");
+    expect(await store.listSnapshots()).toHaveLength(1);
+    await expect(store.saveInventory(scopedInventory("WB_B"))).rejects.toThrow(
+      "API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT",
+    );
+    await store.saveInventory(scopedInventory("WB_A"));
+    expect(
+      (await store.findInventory("WILDBERRIES", sha256))?.operations[0]
+        ?.documentKey,
+    ).toBe("WB_A");
+    // Same document, same bytes: idempotent repetition must remain possible.
+    await store.saveSnapshotWithInventory(
+      metadata("WB_A"),
+      scopedInventory("WB_A"),
+    );
+    expect(await store.listSnapshots()).toHaveLength(1);
   });
 
   it("SRC-06 and SRC-23 bind pending requests to documentKey", async () => {

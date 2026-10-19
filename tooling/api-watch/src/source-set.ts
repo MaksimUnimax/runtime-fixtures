@@ -317,11 +317,11 @@ export async function activateProductionSources(input: {
       record,
       bytes: outcome.bytes,
       store: input.store,
+      inventory,
       snapshotRoot: input.snapshotRoot,
       documentKey: document.documentKey,
       now: input.now,
     });
-    await input.store.saveInventory(inventory);
     inventories.push(inventory);
   }
   const wbDocuments = pass.documents.filter(
