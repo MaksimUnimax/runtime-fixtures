@@ -30,7 +30,8 @@
   function ownMessage(node, role) {
     return matchesLocation() && node instanceof HTMLElement && node.matches(MESSAGE + role) &&
       !node.matches(role === USER ? ASSISTANT : USER) && !node.parentElement?.closest(MESSAGE) &&
-      !node.closest(REASONING) && !node.isContentEditable && rendered(node);
+      !node.closest(REASONING) && !node.isContentEditable && rendered(node) &&
+      ![...node.querySelectorAll("[contenteditable]")].some(n => n.isContentEditable && n.closest(MESSAGE) === node);
   }
   function txtName(name) {
     return typeof name === "string" && name.length > 4 && name.length <= 255 &&
@@ -83,7 +84,8 @@
       const id = node.getAttribute("data-archer-id") || "";
       if (!id || id.length > 256 || /[\s|\u0000-\u001f]/u.test(id)) return "";
       const turn = node.getAttribute("data-conversation-turn-id");
-      if (node.matches(USER) && turn !== null && turn !== id) return "";
+      // These are independently observed message/turn witnesses, not equal or stable chat IDs.
+      if (node.matches(USER) && turn !== null && (!turn || turn.length > 256 || /[\s|\u0000-\u001f]/u.test(turn))) return "";
       const equal = [...document.querySelectorAll(MESSAGE + "[data-archer-id]")]
         .filter(n => (ownMessage(n, USER) || ownMessage(n, ASSISTANT)) && n.getAttribute("data-archer-id") === id);
       return equal.length === 1 ? id : "";
@@ -105,7 +107,7 @@
         .filter(n => n.closest(ROOT) === context.root && !n.closest(MESSAGE));
       if (inputs.length !== 1) return null;
       const input = inputs[0];
-      if (!(input instanceof HTMLInputElement) || !input.isConnected || !input.classList.contains("hidden-input") || input.disabled || !input.multiple ||
+      if (!(input instanceof HTMLInputElement) || !input.isConnected || !input.classList.contains("hidden-input") || input.disabled || input.matches(":disabled") || !input.multiple ||
           input.getAttribute("aria-disabled") === "true" || input.closest('[inert], [role="dialog"], [aria-hidden="true"]') ||
           input.parentElement?.closest("[hidden]") || input.files?.length || input.accept !== "") return null;
       return { kind: "file_input_v1", input, root: context.root, locationHref: context.locationHref };

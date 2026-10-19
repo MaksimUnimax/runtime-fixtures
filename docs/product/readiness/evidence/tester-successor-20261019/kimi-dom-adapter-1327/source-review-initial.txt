@@ -1,0 +1,9 @@
+**REWORK_REQUIRED**
+
+Candidate `f2c1583eacef496b8e5803e00d667b0bdd6dc09e` against base `32b768862e69133f9f05c556ea2df3c238e1dbfc`.
+
+**Finding:** [`kimi-adapter.js:85-86`](/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/apps/extension/src/content/kimi-adapter.js:85) rejects a user message whenever `data-conversation-turn-id` differs from `data-archer-id`. The accepted observations establish these as separate message witnesses, not that their values must match. The synthetic test at [`chatgpt-dom-compat.py:203`](/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py:203) encodes that unsupported equality assumption. Validate the witnesses independently, or establish the equality invariant from accepted DOM evidence.
+
+The staged selection boundary currently holds: while Kimi’s capability status is `planned`, the new [`adapterForLocation` patch](/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/apps/extension/application-patches.json:900) returns null for both automatic and explicit selection. Keep that status; changing it alone would make the adapter selectable, and does not complete the outstanding signed-profile/runtime integration.
+
+The five changed source/test file hashes match `SOURCE_RESULT.json`. Its 57 passing cases are offline synthetic evidence; local File-input byte identity is recorded, while provider byte identity and installed acceptance remain unknown. I did not run tests or approve full Start/Send/upload delivery.

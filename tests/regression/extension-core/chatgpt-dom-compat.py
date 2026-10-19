@@ -155,6 +155,12 @@ def run_kimi_adapter(runtime: Path, output: Path):
                 result["cases"][name]={"status":"PASS","actual":actual}
             def state(kind, context=True):
                 return {"context":context,"kind":kind,"candidates":1 if kind=="send_active" else 0,"stop":False,"busy":kind=="busy"}
+            check("independent_witnesses_and_effective_ui_guards",
+                editor().replace('<input class="hidden-input" type="file" multiple>', '<fieldset disabled><input class="hidden-input" type="file" multiple></fieldset>')+
+                user.replace('data-conversation-turn-id="u1"','data-conversation-turn-id="turn-independent"')+
+                user.replace('data-archer-id="u1"','data-archer-id="edit1"').replace('data-conversation-turn-id="u1"','data-conversation-turn-id="edit1"').replace('<div class="segment-user">OWN TEXT</div>','<div class="segment-user" contenteditable="true">UNSENT EDIT</div>'),
+                """() => {const a=OzonAIAdapters.ADAPTERS.kimi,first=document.querySelector('[data-archer-id="u1"]'),edit=document.querySelector('[data-archer-id="edit1"]');return {surface:!!a.attachmentSurface(),id:a.messageId(first),users:a.userMessages().map(n=>a.messageId(n)),editingText:a.messageText(edit)};}""",
+                {"surface":False,"id":"u1","users":["u1"],"editingText":""})
             check("registered_but_planned_cannot_activate",editor(),"""() => ({
                 id:OzonAIAdapters.ADAPTERS.kimi.id,origin:OzonAIAdapters.ADAPTERS.kimi.matchesLocation(),
                 mode:OzonAIAdapters.normalizeMode('kimi'),auto:OzonAIAdapters.adapterForLocation()===null,
@@ -200,7 +206,8 @@ def run_kimi_adapter(runtime: Path, output: Path):
             check("message_reader_integrates_with_owned_final",editor()+user+assistant,"""() => {const a=OzonAIAdapters.ADAPTERS.kimi,m=a.assistantMessages()[0];return {users:a.userMessages().map(n=>a.messageId(n)),assistants:a.assistantMessages().map(n=>a.messageId(n)),text:a.messageText(m),code:a.findCodeBlocks(m).map(b=>a.readCodeText(b)),complete:a.messageComplete(m)};}""",{"users":["u1"],"assistants":["a1"],"text":"FINAL","code":["FINAL"],"complete":True})
             check("busy_final_is_incomplete",editor("","loading")+assistant,"() => OzonAIAdapters.ADAPTERS.kimi.messageComplete(document.querySelector('.chat-content-item-assistant'))",False)
             check("unknown_control_is_not_completion",editor("","")+assistant,"() => OzonAIAdapters.ADAPTERS.kimi.messageComplete(document.querySelector('.chat-content-item-assistant'))",False)
-            check("conflicting_turn_marker_rejected",editor()+user.replace('data-conversation-turn-id="u1"','data-conversation-turn-id="different"'),"() => OzonAIAdapters.ADAPTERS.kimi.messageId(document.querySelector('.chat-content-item-user'))","")
+            check("independent_turn_marker_accepted",editor()+user.replace('data-conversation-turn-id="u1"','data-conversation-turn-id="different"'),"() => OzonAIAdapters.ADAPTERS.kimi.messageId(document.querySelector('.chat-content-item-user'))","u1")
+            check("malformed_turn_witness_rejected",editor()+user.replace('data-conversation-turn-id="u1"','data-conversation-turn-id="bad turn"'),"() => OzonAIAdapters.ADAPTERS.kimi.messageId(document.querySelector('.chat-content-item-user'))","")
             check("duplicate_message_marker_rejected",editor()+user+user,"() => OzonAIAdapters.ADAPTERS.kimi.userMessages().map(n=>OzonAIAdapters.ADAPTERS.kimi.messageId(n))",["",""])
             check("origin_route_is_not_chat_identity",editor()+user,"""() => ({provider:BB2ConversationIdentity.providerForOrigin(location.origin),temporary:BB2ConversationIdentity.conversationIdFromPath('/chat/p930ba07'),unverified:BB2ConversationIdentity.resolve({origin:location.origin,pathname:location.pathname}).status})""",{"provider":"kimi","temporary":None,"unverified":"unknown"})
             for name,markup in [
