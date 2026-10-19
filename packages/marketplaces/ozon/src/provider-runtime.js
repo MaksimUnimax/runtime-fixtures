@@ -1070,14 +1070,43 @@
           auth_request_performed: true,
         });
       } catch (error) {
+        // Transport exceptions can contain request/body details. Expose only
+        // known public error codes and a fixed, credential-free message.
+        const knownCodes = new Set([
+          "MISSING_PERFORMANCE_CLIENT_ID",
+          "MISSING_PERFORMANCE_CLIENT_SECRET",
+          "INVALID_PERFORMANCE_CLIENT_ID",
+          "INVALID_PERFORMANCE_CLIENT_SECRET",
+          "INCOMPLETE_PERFORMANCE_CREDENTIALS",
+          "PROVIDER_FETCH_FAILED",
+          "PERFORMANCE_AUTH_FAILED",
+          "INVALID_PERFORMANCE_TOKEN_RESPONSE",
+          "FETCH_IMPL_MISSING",
+          "INVALID_REQUEST",
+          "UNTRUSTED_REQUEST_HOST",
+          "UNTRUSTED_REQUEST_METHOD",
+        ]);
+        const code = knownCodes.has(error?.code)
+          ? error.code
+          : "PERFORMANCE_CONNECTION_TEST_FAILED";
+        const rawHttpStatus = Number(error?.http_status || 0);
+        const httpStatus =
+          Number.isInteger(rawHttpStatus) &&
+          rawHttpStatus >= 100 &&
+          rawHttpStatus <= 599
+            ? rawHttpStatus
+            : 0;
         return Object.freeze({
           ok: false,
-          code: String(error?.code || "PERFORMANCE_CONNECTION_TEST_FAILED"),
-          message: String(
-            error?.message || error || "Ozon Performance API auth failed",
-          ),
-          http_status: Number(error?.http_status || 0),
-          auth_request_performed: true,
+          code,
+          message: httpStatus
+            ? `Не удалось подтвердить доступ к Ozon Performance API: HTTP ${httpStatus}.`
+            : "Не удалось подтвердить доступ к Ozon Performance API.",
+          http_status: httpStatus,
+          auth_request_performed:
+            error?.request_attempted === true ||
+            error?.external_request_executed === true ||
+            httpStatus > 0,
         });
       }
     }

@@ -1,0 +1,138 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import vm from "node:vm";
+
+// A04 synthetic only: inspect the real provider-runtime, never contact Ozon.
+const here = path.dirname(fileURLToPath(import.meta.url));
+const source = path.resolve(here, "../../../packages/marketplaces/ozon/src/provider-runtime.js");
+const privateMarker = "INERT_R10_PRIVATE_AUTH_DIAGNOSTIC_MARKER";
+const fakeCredentials = Object.freeze({
+  clientId: "INERT_R10_PERFORMANCE_CLIENT_ID",
+  clientSecret: "INERT_R10_PERFORMANCE_CLIENT_SECRET_NOT_REAL",
+});
+
+function fixture(mode) {
+  const calls = { authTransport: 0, fetch: 0 };
+  const sandbox = {
+    OzonCredentials: {
+      normalizePerformanceCredentials(raw) {
+        if (!raw?.clientId) {
+          const error = new Error("INERT_PRIVATE_R10_BAD_FIELD_" + privateMarker);
+          error.code = "MISSING_PERFORMANCE_CLIENT_ID";
+          throw error;
+        }
+        if (!raw?.clientSecret) {
+          const error = new Error(privateMarker);
+          error.code = "MISSING_PERFORMANCE_CLIENT_SECRET";
+          throw error;
+        }
+        return Object.freeze({ clientId: raw.clientId, clientSecret: raw.clientSecret });
+      },
+      performanceTokenRequest: () => ({
+        url: "https://api-performance.ozon.ru/api/client/token",
+        method: "POST", host_alias: "performance_auth",
+        body: '{"grant_type":"client_credentials"}',
+      }),
+    },
+    ProviderTransportCore: {
+      async executePerformanceJsonOnce({ fetchImpl }) {
+        calls.authTransport++;
+        // A transport failure may include content copied from the original
+        // Error.message; it must not be reflected in public diagnostics.
+        if (mode === "network") {
+          const error = new Error("Network failed: " + privateMarker);
+          error.code = "PROVIDER_FETCH_FAILED";
+          error.external_request_executed = true;
+          error.request_attempted = true;
+          throw error;
+        }
+        if (mode === "unknown") {
+          const error = new Error(privateMarker);
+          error.code = "UNKNOWN_CODE_" + privateMarker;
+          throw error;
+        }
+        await fetchImpl("https://fixture.invalid/inert");
+        if (mode === "http401")
+          return { ok: false, httpStatus: 401, parsed: {}, rawText: "", responseMeta: {} };
+        if (mode === "bad_token")
+          return { ok: true, httpStatus: 200, parsed: { token_type: "Bearer" }, rawText: "", responseMeta: {} };
+        return {
+          ok: true, httpStatus: 200,
+          parsed: { access_token: "INERT_R10_ACCESS_TOKEN_NOT_REAL", token_type: "Bearer", expires_in: 3600 },
+          rawText: "", responseMeta: {},
+        };
+      },
+    },
+  };
+  vm.runInNewContext(readFileSync(source, "utf8"), sandbox, {
+    filename: "ozon-performance-connection-diagnostic-under-test.js",
+  });
+  const provider = sandbox.OzonProviderFactory.createOzonProvider({
+    now: () => 1_000_000,
+    fetchImpl: async () => { calls.fetch++; return { status: 200 }; },
+  });
+  return { provider, calls };
+}
+
+function assertPrivateDataAbsent(result) {
+  const exposed = JSON.stringify(result);
+  assert.ok(!exposed.includes(privateMarker),
+    "public Performance diagnostics must not disclose arbitrary network/validation error content");
+  assert.ok(!exposed.includes(fakeCredentials.clientSecret),
+    "never return a Performance Client Secret");
+  assert.ok(!exposed.includes("INERT_R10_ACCESS_TOKEN_NOT_REAL"),
+    "successful connection probe must not expose an access token");
+}
+
+async function check(mode, rawCredentials, expected) {
+  const { provider, calls } = fixture(mode);
+  const result = await provider.testPerformanceConnection(rawCredentials);
+  assert.equal(result.ok, expected.ok);
+  assert.equal(result.code, expected.code);
+  assert.equal(result.http_status, expected.httpStatus);
+  assert.equal(result.auth_request_performed, expected.authRequestPerformed);
+  assert.equal(calls.authTransport, expected.transportCalls);
+  assert.equal(calls.fetch, expected.fetchCalls);
+  assertPrivateDataAbsent(result);
+  return result;
+}
+
+await check("network", fakeCredentials, {
+  ok: false, code: "PROVIDER_FETCH_FAILED", httpStatus: 0,
+  authRequestPerformed: true, transportCalls: 1, fetchCalls: 0,
+});
+await check("unknown", fakeCredentials, {
+  ok: false, code: "PERFORMANCE_CONNECTION_TEST_FAILED", httpStatus: 0,
+  authRequestPerformed: false, transportCalls: 1, fetchCalls: 0,
+});
+await check("success", { clientSecret: fakeCredentials.clientSecret }, {
+  ok: false, code: "MISSING_PERFORMANCE_CLIENT_ID", httpStatus: 0,
+  authRequestPerformed: false, transportCalls: 0, fetchCalls: 0,
+});
+await check("success", { clientId: fakeCredentials.clientId }, {
+  ok: false, code: "MISSING_PERFORMANCE_CLIENT_SECRET", httpStatus: 0,
+  authRequestPerformed: false, transportCalls: 0, fetchCalls: 0,
+});
+await check("http401", fakeCredentials, {
+  ok: false, code: "PERFORMANCE_AUTH_FAILED", httpStatus: 401,
+  authRequestPerformed: true, transportCalls: 1, fetchCalls: 1,
+});
+await check("bad_token", fakeCredentials, {
+  ok: false, code: "INVALID_PERFORMANCE_TOKEN_RESPONSE", httpStatus: 200,
+  authRequestPerformed: true, transportCalls: 1, fetchCalls: 1,
+});
+const healthy = await check("success", fakeCredentials, {
+  ok: true, code: "PERFORMANCE_CONNECTED", httpStatus: 200,
+  authRequestPerformed: true, transportCalls: 1, fetchCalls: 1,
+});
+assert.equal(typeof healthy.token_expires_at_ms, "number");
+
+console.log(JSON.stringify({
+  status: "PASS", scenarios: 7,
+  raw_error_message_hidden: true, unknown_error_code_not_reflected: true,
+  preflight_auth_attempt_false: true, known_auth_error_codes_preserved: true,
+  successful_token_not_returned: true, real_Ozon_auth_calls: 0,
+  installed_acceptance: false,
+}));
