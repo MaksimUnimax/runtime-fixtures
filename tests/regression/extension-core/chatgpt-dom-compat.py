@@ -38,7 +38,18 @@ def run(runtime: Path, output: Path):
         start=content_source.index("  function "+name+"(")
         end=content_source.index("\n  }\n",start)+5
         functions.append(content_source[start:end])
+
     constants=[line for line in content_source.splitlines() if line.startswith("  const CHATGPT_")]
+    # Probe the real selection function, not the classification-only stub below.
+    context_functions=[]
+    for name in ["visible", "chatgptInsideAssistantEditor", "chatgptComposerContextFromNode", "chatgptPrimaryComposerContext"]:
+        start=content_source.index("  function "+name+"(")
+        end=content_source.index("\n  }\n",start)+5
+        context_functions.append(content_source[start:end])
+    context_probe = "(function(){" + "\n".join(constants+context_functions) + """
+      const context=chatgptPrimaryComposerContext();
+      return context ? {composer:context.composer.getAttribute('data-probe'),form:context.form.id} : null;
+    })()"""
     composer_probe = "(function(){" + "\n".join(constants+functions) + """
       const sendButtonProfile=null, microphoneButtonProfile=null;
       function chatgptPrimaryComposerContext() {
@@ -54,6 +65,36 @@ def run(runtime: Path, output: Path):
             page=browser.new_page()
             page.route("**/*", lambda route: route.fulfill(status=200, content_type="text/html", body="<html><body></body></html>"))
             page.goto("https://fixture.invalid/")  # Secure, fully local DOM fixture for Web Crypto.
+
+            # Derived from the Tester's 19 Oct Standard UI observation: form,
+            # contenteditable textbox, aria-label, no prompt id/testid.
+            observed = '<div contenteditable="true" role="textbox" aria-label="Ask ChatGPT" data-probe="observed" style="height:24px"></div>'
+            current = '<form id="observed-form">'+observed+'<button type="submit" aria-label="Send"></button></form>'
+            legacy = '<form id="legacy-form"><textarea id="prompt-textarea" data-probe="legacy"></textarea></form>'
+            selected = {"composer":"observed","form":"observed-form"}
+            context_cases = {
+                "observed_standard_form": (current, selected),
+                "observed_hidden_clone": ('<div hidden>'+current.replace('observed-form','hidden-form')+'</div>'+current, selected),
+                "observed_multiple_forms_rejected": (current+current.replace('observed-form','other-form'), None),
+                "observed_two_fields_rejected": ('<form>'+observed+observed+'</form>', None),
+                "observed_user_message_rejected": ('<li data-message-role="user">'+current+'</li>', None),
+                "observed_assistant_message_rejected": ('<li data-message-role="assistant">'+current+'</li>', None),
+                "observed_author_role_rejected": ('<div data-message-author-role="user">'+current+'</div>', None),
+                "observed_section_turn_rejected": ('<section data-turn="user">'+current+'</section>', None),
+                "observed_article_rejected": ('<article>'+current+'</article>', None),
+                "observed_role_article_rejected": ('<div role="article">'+current+'</div>', None),
+                "observed_writing_block_rejected": ('<div data-writing-block>'+current+'</div>', None),
+                "observed_dialog_rejected": ('<div role="dialog">'+current+'</div>', None),
+                "observed_outside_form_rejected": (observed, None),
+                "unobserved_label_rejected": (current.replace('Ask ChatGPT','Edit message'), None),
+                "legacy_prompt_preserved": (legacy, {"composer":"legacy","form":"legacy-form"}),
+                "legacy_prompt_precedence": (legacy+current, {"composer":"legacy","form":"legacy-form"}),
+            }
+            for name,(html,expected) in context_cases.items():
+                page.set_content(html)
+                actual=page.evaluate(context_probe)
+                assert actual == expected, (name,actual,expected)
+                result["cases"][name]=actual
             for name,html in cases.items():
                 page.set_content(html)
                 page.evaluate(identity_source)
