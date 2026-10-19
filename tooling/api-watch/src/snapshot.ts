@@ -208,11 +208,25 @@ export async function readAcceptedSnapshot(
       throw new Error("SNAPSHOT_TOO_LARGE");
     if (stat.size !== metadata.sizeBytes)
       throw new Error("SNAPSHOT_SIZE_MISMATCH");
-    const bytes = await handle.readFile();
+    // A writer can extend the inode after fstat. Read at most the expected
+    // bytes plus one sentinel byte instead of reading to an unbounded EOF.
+    const buffer = Buffer.alloc(metadata.sizeBytes + 1);
+    let received = 0;
+    while (received < buffer.length) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        received,
+        buffer.length - received,
+        received,
+      );
+      if (bytesRead === 0) break;
+      received += bytesRead;
+    }
+    if (received !== metadata.sizeBytes)
+      throw new Error("SNAPSHOT_SIZE_MISMATCH");
+    const bytes = buffer.subarray(0, received);
     if (createHash("sha256").update(bytes).digest("hex") !== metadata.sha256)
       throw new Error("SNAPSHOT_DIGEST_MISMATCH");
-    if (bytes.byteLength !== metadata.sizeBytes)
-      throw new Error("SNAPSHOT_SIZE_MISMATCH");
     return bytes;
   } finally {
     await handle.close();

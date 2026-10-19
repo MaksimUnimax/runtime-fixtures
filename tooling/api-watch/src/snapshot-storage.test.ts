@@ -14,6 +14,9 @@ const fault = vi.hoisted(() => ({
   racedInode: 0,
   cleanup: false,
   closeFailure: undefined as Error | undefined,
+  growAfterStat: undefined as Buffer | undefined,
+  readFileCalls: 0,
+  maxReadLength: 0,
 }));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof Fs>();
@@ -32,6 +35,31 @@ vi.mock("node:fs/promises", async (importOriginal) => {
       const handle = await fs.open(...args);
       return new Proxy(handle, {
         get(target, key) {
+          if (key === "stat")
+            return async () => {
+              const observed = await target.stat();
+              if (fault.growAfterStat) {
+                const append = fault.growAfterStat;
+                fault.growAfterStat = undefined;
+                await fs.appendFile(String(args[0]), append);
+              }
+              return observed;
+            };
+          if (key === "readFile")
+            return async () => {
+              fault.readFileCalls += 1;
+              return target.readFile();
+            };
+          if (key === "read")
+            return async (
+              buffer: Buffer,
+              offset: number,
+              length: number,
+              position: number,
+            ) => {
+              fault.maxReadLength = Math.max(fault.maxReadLength, length);
+              return target.read(buffer, offset, length, position);
+            };
           if (key === "writeFile")
             return async (...values: Parameters<typeof handle.writeFile>) => {
               if (fault.stage === "write") {
@@ -80,6 +108,9 @@ afterEach(async () => {
   fault.racedBytes = undefined;
   fault.racedInode = 0;
   fault.closeFailure = undefined;
+  fault.growAfterStat = undefined;
+  fault.readFileCalls = 0;
+  fault.maxReadLength = 0;
   fault.cleanup = false;
   for (const root of roots.splice(0))
     await realFs.rm(root, { recursive: true, force: true });
@@ -132,6 +163,19 @@ describe("read accepted snapshot filesystem identity", () => {
     const input = await fixture();
     const saved = await promoteAcceptedSnapshot(input);
     expect(await readAcceptedSnapshot(saved)).toEqual(input.bytes);
+  });
+
+  it("bounds a regular-file growth race after fstat without readFile-to-EOF", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    fault.growAfterStat = Buffer.from("extra bytes after stat");
+    fault.readFileCalls = 0;
+    fault.maxReadLength = 0;
+    await expect(readAcceptedSnapshot(saved)).rejects.toThrow(
+      "SNAPSHOT_SIZE_MISMATCH",
+    );
+    expect(fault.readFileCalls).toBe(0);
+    expect(fault.maxReadLength).toBeLessThanOrEqual(input.bytes.length + 1);
   });
 
   it("rejects changed regular-file bytes even when the recorded length still matches", async () => {
