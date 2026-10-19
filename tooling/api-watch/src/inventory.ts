@@ -439,6 +439,35 @@ function normalizedPath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+const PATH_ITEM_METHOD_NAMES = new Set(
+  HTTP_METHODS.map((method) => method.toLowerCase()),
+);
+
+// A JSON Pointer can resolve to any JSON object, including non-Path Item
+// components. Never turn an unrelated object into a synthetic API operation.
+function assertReferencedPathItem(value: Record<string, unknown>): void {
+  for (const [name, field] of Object.entries(value)) {
+    if (name === "summary" || name === "description") {
+      if (typeof field !== "string")
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    } else if (name === "parameters" || name === "servers") {
+      if (!Array.isArray(field))
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    } else if (PATH_ITEM_METHOD_NAMES.has(name)) {
+      const operation = asObject(field);
+      if (
+        !Object.hasOwn(operation, "responses") ||
+        !operation.responses ||
+        typeof operation.responses !== "object" ||
+        Array.isArray(operation.responses)
+      )
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    } else if (!name.startsWith("x-")) {
+      throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    }
+  }
+}
+
 // Resolve Path Item references before enumerating methods. Schema references are
 // handled independently below; expanding only this top-level reference avoids
 // altering fingerprints for ordinary inline operations.
@@ -463,11 +492,28 @@ function resolvePathItem(
     throw new Error("APIWATCH_PATH_ITEM_REF_UNSUPPORTED");
   if (seen.has(pointer) || seen.size >= 64)
     throw new Error("APIWATCH_PATH_ITEM_REF_CYCLE_OR_DEPTH");
+  const tokens = pointer
+    .slice(1)
+    .split("/")
+    .map((segment) => {
+      if (/~(?![01])/u.test(segment))
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID");
+      return segment.replace(/~1/g, "/").replace(/~0/g, "~");
+    });
+  // Only actual Path Item catalog positions can supply Path Items. This
+  // excludes unrelated parameter/schema maps even when they contain a "get" key.
+  const inPaths =
+    tokens.length === 2 && tokens[0] === "paths" && tokens[1].startsWith("/");
+  const inPathItems =
+    typeof root.openapi === "string" &&
+    /^3\.1(?:\.|$)/u.test(root.openapi) &&
+    tokens.length === 3 &&
+    tokens[0] === "components" &&
+    tokens[1] === "pathItems";
+  if (!inPaths && !inPathItems)
+    throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
   let target: unknown = root;
-  for (const segment of pointer.slice(1).split("/")) {
-    if (/~(?![01])/u.test(segment))
-      throw new Error("APIWATCH_PATH_ITEM_REF_INVALID");
-    const key = segment.replace(/~1/g, "/").replace(/~0/g, "~");
+  for (const key of tokens) {
     const object = asObject(target);
     if (!Object.hasOwn(object, key))
       throw new Error("APIWATCH_PATH_ITEM_REF_UNRESOLVED");
@@ -482,7 +528,9 @@ function resolvePathItem(
   for (const [key] of siblings)
     if (Object.hasOwn(referenced, key))
       throw new Error("APIWATCH_PATH_ITEM_REF_CONFLICT");
-  return { ...referenced, ...Object.fromEntries(siblings) };
+  const resolved = { ...referenced, ...Object.fromEntries(siblings) };
+  assertReferencedPathItem(resolved);
+  return resolved;
 }
 
 function stringList(value: unknown): string[] {

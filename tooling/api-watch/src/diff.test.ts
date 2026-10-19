@@ -521,6 +521,57 @@ describe("A4 semantic API diffs", () => {
     );
   });
 
+  it("C03 rejects a Path Item ref into an unrelated component even with a get key", () => {
+    const build = (ref: string, pathItem: Record<string, unknown>) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "wrong target", version: "1" },
+            components: {
+              parameters: {
+                get: { name: "count", in: "query" },
+              },
+              pathItems: {
+                Shared: pathItem,
+              },
+            },
+            paths: { "/orders": { $ref: ref } },
+          }),
+        ),
+      });
+    expect(() =>
+      build("#/components/parameters", {
+        get: { responses: { "200": {} } },
+      }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    expect(() =>
+      build("#/components/pathItems/Shared", {
+        get: { name: "count", in: "query" },
+      }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    expect(() =>
+      build("#/components/pathItems/Shared", {
+        get: { responses: null },
+      }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    expect(() =>
+      build("#/components/pathItems/Shared", {
+        name: "not a path item",
+      }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    expect(
+      build("#/components/pathItems/Shared", {
+        summary: "permitted",
+        get: { responses: { "200": {} } },
+        "x-reference": true,
+      }).operations.map((operation) => operation.method),
+    ).toEqual(["GET"]);
+  });
+
   it("C03 detects response-level local ref target changes", () => {
     const build = (responseSchema: unknown) =>
       buildCompleteOperationInventory({
