@@ -110,7 +110,169 @@ def run_kimi(runtime: Path, output: Path):
     print(json.dumps({"status":"PASS","scope":result["scope"],"cases":len(result["cases"])}))
     return 0
 
+def run_kimi_adapter(runtime: Path, output: Path):
+    """New staged Kimi adapter/registry consumers; prior reader30 is not rerun."""
+    from html import escape
+    output.mkdir(parents=True, exist_ok=True)
+    files = ["shared/conversation_identity.js", "shared/web_file_attachment.js",
+             "shared/ai_delivery_capabilities.js", "shared/ai_adapters.js"]
+    sources = [(name, (runtime/name).read_text()) for name in files]
+    content = (runtime/"content_script.js").read_text()
+    functions = []
+    for name in ["primaryComposerContext", "allComposerControls", "sendButtonCandidates",
+                 "sendButton", "stopButton", "recognizedSendControl", "classifyComposerControl"]:
+        start = content.index("  function "+name+"(")
+        end = content.index("\n  }\n", start)+5
+        functions.append(content[start:end])
+    consumers = "\n".join(functions)
+    result = {"status":"RUNNING", "scope":"offline staged Kimi adapter/registry and existing consumer delegation; no activation/live UI",
+              "source_sha256":{name:hashlib.sha256(s.encode()).hexdigest() for name,s in sources},
+              "content_sha256":hashlib.sha256(content.encode()).hexdigest(), "cases":{}}
+    style = '<style>.chat-input-editor{width:300px;min-height:24px}.send-button-container{width:28px;height:28px}.hidden-input{display:none}</style>'
+    def editor(text="", control="disabled", extra="", input_attrs="multiple"):
+        return '<div class="chat-editor" data-testid="chat-editor"><div class="chat-input-editor" role="textbox" contenteditable="true">'+escape(text)+'</div><input class="hidden-input" type="file" '+input_attrs+'><div id="send" class="send-button-container '+control+'"></div>'+extra+'</div>'
+    def card(name="sample", state="success", ext="TXT"):
+        return '<div data-testid="input-attachment-list"><div class="file-card-container normal '+state+'"><p class="file-card-info-name">'+name+'</p><span class="file-ext">'+ext+'</span><div class="file-card-delete"></div></div></div>'
+    final = '<div class="toolcall-rollup__flat"><div class="markdown-container"><div class="segment-code"><div class="segment-code-content"><pre><code>FINAL</code></pre></div></div></div></div>'
+    assistant = '<div class="chat-content-item chat-content-item-assistant" data-archer-id="a1"><div class="thinking-container"><div class="toolcall-content-text">THINKING</div></div>'+final+'</div>'
+    user = '<div class="chat-content-item chat-content-item-user" data-archer-id="u1" data-conversation-turn-id="u1"><div class="segment-user">OWN TEXT</div></div>'
+    probe = """() => {const a=OzonAIAdapters.ADAPTERS.kimi,c=a.composerContext(),s=a.classifyComposerControl(c);return {context:!!c,kind:s.kind,candidates:a.sendButtonCandidates(c).length,stop:s.kind==='stop',busy:a.isGenerating()};}"""
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.route("**/*", lambda route: route.fulfill(status=200,content_type="text/html",body="<html><body></body></html>"))
+            def load(markup, url="https://www.kimi.ai/chat/1a15379f-7822-8bc6-8000-099708a3bddb"):
+                page.goto(url)
+                page.set_content(style+markup)
+                for _,source in sources:
+                    page.evaluate(source)
+                assert page.evaluate("!!globalThis.SellerAgentsKimiAdapter && !!OzonAIAdapters.ADAPTERS.kimi"), "KIMI_ADAPTER_NOT_REGISTERED"
+            def check(name, markup, expression, expected):
+                load(markup)
+                actual=page.evaluate(expression)
+                assert actual==expected,(name,actual,expected)
+                result["cases"][name]={"status":"PASS","actual":actual}
+            def state(kind, context=True):
+                return {"context":context,"kind":kind,"candidates":1 if kind=="send_active" else 0,"stop":False,"busy":kind=="busy"}
+            check("registered_but_planned_cannot_activate",editor(),"""() => ({
+                id:OzonAIAdapters.ADAPTERS.kimi.id,origin:OzonAIAdapters.ADAPTERS.kimi.matchesLocation(),
+                mode:OzonAIAdapters.normalizeMode('kimi'),auto:OzonAIAdapters.adapterForLocation()===null,
+                explicit:OzonAIAdapters.adapterForLocation('kimi')===null,
+                capability:OzonAIDeliveryCapabilities.profile('kimi').status,
+                fileAllowed:OzonAIDeliveryCapabilities.fileDispatchDecision('kimi',{filename:'sample.txt',byte_length:4}).dispatch_allowed
+            })""",{"id":"kimi","origin":True,"mode":"kimi","auto":True,"explicit":True,"capability":"planned","fileAllowed":False})
+            for name,markup,kind in [
+                ("idle_disabled_is_ready",editor(),"ready"),
+                ("text_send_enabled",editor("HELLO",""),"send_active"),
+                ("text_send_disabled",editor("HELLO"),"send_disabled"),
+                ("empty_enabled_is_unknown",editor("",""),"unknown"),
+                ("loading_is_busy_not_stop",editor("","loading",'<span class="send-loading"></span>'),"busy"),
+                ("disabled_and_loading_still_busy",editor("","disabled loading"),"busy"),
+                ("unready_upload_blocks_enabled_send",editor("","",card(state="loading")),"unknown"),
+                ("success_card_allows_observed_send",editor("","",card()),"send_active"),
+                ("two_cards_are_ambiguous",editor("","",card()+card()),"unknown"),
+                ("pointer_events_disabled",editor("HELLO","").replace('id="send"','id="send" style="pointer-events:none"'),"send_disabled"),
+                ("aria_disabled_control",editor("HELLO","").replace('id="send"','id="send" aria-disabled="true"'),"send_disabled"),
+                ("duplicate_send_controls",editor("HELLO","",'<div class="send-button-container"></div>'),"unknown"),
+                ("outside_send_is_ignored",editor()+ '<div class="send-button-container"></div>',"ready"),
+                ("assistant_fake_send_is_ignored",editor(extra='<div class="chat-content-item chat-content-item-assistant"><div class="send-button-container"></div></div>'),"ready"),
+            ]:
+                check(name,markup,probe,state(kind))
+            for name,markup in [
+                ("multiple_editors_rejected",editor()+editor()),
+                ("editor_in_user_message_rejected",'<div class="chat-content-item chat-content-item-user">'+editor()+'</div>'),
+                ("nested_editor_root_rejected",'<div class="chat-editor" data-testid="chat-editor">'+editor()+'</div>'),
+                ("dialog_editor_rejected",'<div role="dialog">'+editor()+'</div>'),
+                ("hidden_editor_rejected",'<div hidden>'+editor()+'</div>'),
+                ("transparent_ancestor_rejected",'<div style="opacity:0">'+editor()+'</div>'),
+                ("aria_disabled_editor_rejected",editor().replace('role="textbox"','role="textbox" aria-disabled="true"')),
+            ]:
+                check(name,markup,probe,state("unknown",False))
+            check("hidden_duplicate_does_not_replace_editor",'<div hidden>'+editor()+'</div>'+editor(),probe,state("ready"))
+            for name,mutation in [
+                ("old_context_replaced_root","c.root.replaceWith(c.root.cloneNode(true))"),
+                ("old_context_changed_url","history.replaceState({},'', '/chat/other')"),
+            ]:
+                check(name,editor("HELLO",""),"() => {const a=OzonAIAdapters.ADAPTERS.kimi,c=a.composerContext();"+mutation+";return a.sendButton(c)===null && a.classifyComposerControl(c).kind==='unknown';}",True)
+            check("composer_text_mutation_uses_existing_helper",editor(),"""() => {const a=OzonAIAdapters.ADAPTERS.kimi,c=a.composerContext();let inputs=0;c.composer.addEventListener('input',()=>inputs++);a.setComposerText(c.composer,'COPY ONLY');return {text:a.readComposerText(c.composer),inputs,sendClicks:document.querySelector('#send').dataset.clicked||null};}""",{"text":"COPY ONLY","inputs":1,"sendClicks":None})
+            check("busy_cannot_mutate_composer",editor("OLD","loading"),"""() => {const a=OzonAIAdapters.ADAPTERS.kimi,c=a.composerContext();try{a.setComposerText(c.composer,'BAD')}catch(e){return {code:e.code,text:c.composer.textContent}}return null}""",{"code":"COMPOSER_NOT_AVAILABLE","text":"OLD"})
+            check("message_reader_integrates_with_owned_final",editor()+user+assistant,"""() => {const a=OzonAIAdapters.ADAPTERS.kimi,m=a.assistantMessages()[0];return {users:a.userMessages().map(n=>a.messageId(n)),assistants:a.assistantMessages().map(n=>a.messageId(n)),text:a.messageText(m),code:a.findCodeBlocks(m).map(b=>a.readCodeText(b)),complete:a.messageComplete(m)};}""",{"users":["u1"],"assistants":["a1"],"text":"FINAL","code":["FINAL"],"complete":True})
+            check("busy_final_is_incomplete",editor("","loading")+assistant,"() => OzonAIAdapters.ADAPTERS.kimi.messageComplete(document.querySelector('.chat-content-item-assistant'))",False)
+            check("unknown_control_is_not_completion",editor("","")+assistant,"() => OzonAIAdapters.ADAPTERS.kimi.messageComplete(document.querySelector('.chat-content-item-assistant'))",False)
+            check("conflicting_turn_marker_rejected",editor()+user.replace('data-conversation-turn-id="u1"','data-conversation-turn-id="different"'),"() => OzonAIAdapters.ADAPTERS.kimi.messageId(document.querySelector('.chat-content-item-user'))","")
+            check("duplicate_message_marker_rejected",editor()+user+user,"() => OzonAIAdapters.ADAPTERS.kimi.userMessages().map(n=>OzonAIAdapters.ADAPTERS.kimi.messageId(n))",["",""])
+            check("origin_route_is_not_chat_identity",editor()+user,"""() => ({provider:BB2ConversationIdentity.providerForOrigin(location.origin),temporary:BB2ConversationIdentity.conversationIdFromPath('/chat/p930ba07'),unverified:BB2ConversationIdentity.resolve({origin:location.origin,pathname:location.pathname}).status})""",{"provider":"kimi","temporary":None,"unverified":"unknown"})
+            for name,markup in [
+                ("hidden_native_input_selected",editor()),
+                ("input_disabled_rejected",editor(input_attrs="multiple disabled")),
+                ("unexpected_accept_rejected",editor(input_attrs='multiple accept=".pdf"')),
+                ("second_input_rejected",editor(extra='<input type="file">')),
+                ("missing_multiple_rejected",editor(input_attrs="")),
+                ("draft_blocks_attachment",editor("DRAFT","")),
+                ("existing_card_blocks_second_attachment",editor("","",card())),
+            ]:
+                check(name,markup,"() => !!OzonAIAdapters.ADAPTERS.kimi.attachmentSurface()",name=="hidden_native_input_selected")
+            ready_probe = "() => OzonAIAdapters.ADAPTERS.kimi.attachmentReady([{filename:'sample.txt',byte_length:85}])"
+            for name,markup,expected in [
+                ("ready_card_requires_success_and_name",editor("","",card()),True),
+                ("uploading_not_ready_even_enabled",editor("","",card(state="loading")),False),
+                ("missing_success_not_ready",editor("","",card(state="normal")),False),
+                ("wrong_card_filename_rejected",editor("","",card(name="other")),False),
+                ("wrong_card_extension_rejected",editor("","",card(ext="PDF")),False),
+                ("busy_after_send_is_not_staged_ready",editor("","loading",card()),False),
+                ("user_message_card_not_composer_preview",editor()+'<div class="chat-content-item chat-content-item-user">'+card()+'</div>',False),
+            ]:
+                check(name,markup,ready_probe,expected)
+            load(editor())
+            transferred=page.evaluate("""async () => {
+                const a=OzonAIAdapters.ADAPTERS.kimi,s=a.attachmentSurface(),bytes=new Uint8Array(1024*1024);
+                for(let i=0;i<bytes.length;i++)bytes[i]=i%251;
+                let inputs=0,changes=0,clicks=0;
+                s.input.addEventListener('input',()=>inputs++);s.input.addEventListener('change',()=>changes++);
+                document.querySelector('#send').addEventListener('click',()=>clicks++);
+                a.attachFiles(s,[new File([bytes],'sample.txt',{type:'text/plain'})]);
+                const read=new Uint8Array(await s.input.files[0].arrayBuffer());
+                const hex=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',value)),x=>x.toString(16).padStart(2,'0')).join('');
+                let retry;try{a.attachFiles(s,[new File(['retry'],'sample.txt',{type:'text/plain'})])}catch(e){retry=e.code}
+                return {sameBytes:bytes.length===read.length&&bytes.every((v,i)=>v===read[i]),sha256:await hex(read),originalSha256:await hex(bytes),inputs,changes,clicks,retry};
+            }""")
+            assert transferred["sameBytes"] and transferred["sha256"]==transferred["originalSha256"],transferred
+            assert (transferred["inputs"],transferred["changes"],transferred["clicks"],transferred["retry"])==(1,1,0,"TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE"),transferred
+            result["cases"]["native_input_1mib_exact_bytes_no_send_no_replay"]={"status":"PASS","actual":transferred}
+            for name,files_expr in [
+                ("pdf_rejected","[new File(['x'],'sample.pdf',{type:'application/pdf'})]"),
+                ("over_1mib_rejected","[new File([new Uint8Array(1024*1024+1)],'sample.txt',{type:'text/plain'})]"),
+                ("two_files_rejected","[new File(['x'],'a.txt'),new File(['y'],'b.txt')]"),
+                ("wrong_mime_rejected","[new File(['x'],'sample.txt',{type:'application/octet-stream'})]"),
+            ]:
+                check(name,editor(),"() => {const a=OzonAIAdapters.ADAPTERS.kimi,s=a.attachmentSurface();let changes=0;s.input.addEventListener('change',()=>changes++);try{a.attachFiles(s,"+files_expr+")}catch(e){return {code:e.code,count:s.input.files.length,changes}}return null}",{"code":"TARGET_AI_FILE_TYPE_UNSUPPORTED","count":0,"changes":0})
+            check("stale_attachment_surface_cannot_write",editor(),"""() => {const a=OzonAIAdapters.ADAPTERS.kimi,s=a.attachmentSurface();history.replaceState({},'', '/chat/other');try{a.attachFiles(s,[new File(['x'],'a.txt')])}catch(e){return {code:e.code,count:s.input.files.length}}return null}""",{"code":"TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE","count":0})
+            load(editor("TEXT",""))
+            delegated=page.evaluate("(function(){function currentAIAdapter(){return OzonAIAdapters.ADAPTERS.kimi;}"+consumers+"""const c=primaryComposerContext();return {root:c.root.dataset.testid,send:sendButton(c)?.id,candidates:sendButtonCandidates(c).length,controls:allComposerControls(c).map(n=>n.id),stop:stopButton(c)===null,recognized:recognizedSendControl(c)?.id,kind:classifyComposerControl().kind};})()""")
+            assert delegated=={"root":"chat-editor","send":"send","candidates":1,"controls":["send"],"stop":True,"recognized":"send","kind":"send_active"},delegated
+            result["cases"]["prepared_consumers_delegate_to_actual_kimi_adapter"]={"status":"PASS","actual":delegated}
+            held=page.evaluate("(function(){function currentAIAdapter(){return OzonAIAdapters.adapterForLocation();}"+consumers+"return primaryComposerContext()===null && sendButtonCandidates(null).length===0 && classifyComposerControl().kind==='unknown';})()")
+            assert held is True
+            result["cases"]["ordinary_work_selection_stays_closed"]={"status":"PASS"}
+            for url in ["https://kimi.ai/chat/a","https://www.kimi.ai.example.invalid/chat/a","http://localhost/chat/a"]:
+                load(editor("TEXT",""),url)
+                assert page.evaluate("!OzonAIAdapters.ADAPTERS.kimi.matchesLocation() && OzonAIAdapters.ADAPTERS.kimi.composerContext()===null && OzonAIAdapters.adapterForLocation('kimi')===null"),url
+            result["cases"]["exact_owner_approved_origin_only"]={"status":"PASS"}
+        finally:
+            browser.close()
+    manifest=json.loads((runtime/"manifest.json").read_text())
+    assert any("https://www.kimi.ai/*" in row.get("matches",[]) for row in manifest.get("content_scripts",[]))
+    result["cases"]["composed_manifest_has_exact_kimi_origin"]={"status":"PASS"}
+    result["status"]="PASS"
+    (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps({"status":"PASS","scope":result["scope"],"cases":len(result["cases"])}))
+    return 0
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "kimi-adapter":
+        return run_kimi_adapter(runtime, output)
     if provider == "kimi":
         return run_kimi(runtime, output)
     output.mkdir(parents=True, exist_ok=True)
@@ -265,7 +427,8 @@ def run(runtime: Path, output: Path, provider="all"):
     assert result["cases"]["real_and_response_copy"][0]["anchors"]==["real-copy"]
     if provider == "all":
         run_kimi(runtime, output/"kimi")
-        result["additional_provider_results"] = {"kimi":"kimi/result.json"}
+        run_kimi_adapter(runtime, output/"kimi-adapter")
+        result["additional_provider_results"] = {"kimi":"kimi/result.json","kimi_adapter":"kimi-adapter/result.json"}
     result["status"]="PASS"
     (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
     print(json.dumps(result,ensure_ascii=False))
@@ -275,6 +438,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","kimi"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

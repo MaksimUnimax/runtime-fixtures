@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 443, in <module>
+    raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 275, in run
+    return run_kimi_adapter(runtime, output)
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 158, in run_kimi_adapter
+    check("registered_but_planned_cannot_activate",editor(),"""() => ({
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 152, in check
+    load(markup)
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 150, in load
+    assert page.evaluate("!!globalThis.SellerAgentsKimiAdapter && !!OzonAIAdapters.ADAPTERS.kimi"), "KIMI_ADAPTER_NOT_REGISTERED"
+AssertionError: KIMI_ADAPTER_NOT_REGISTERED
