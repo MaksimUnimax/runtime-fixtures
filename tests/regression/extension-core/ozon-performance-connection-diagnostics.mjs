@@ -68,7 +68,7 @@ function fixture(mode) {
       },
     },
   };
-  if (mode === "body_read_failure") {
+  if (mode.startsWith("body_read_failure")) {
     // Reproduce the real first-party transport's post-fetch readResponse path.
     vm.runInNewContext(readFileSync(originalTransport, "utf8"), sandbox, {
       filename: "ozon-first-party-performance-transport.js",
@@ -89,15 +89,20 @@ function fixture(mode) {
     now: () => 1_000_000,
     fetchImpl: async () => {
       calls.fetch++;
-      if (mode === "body_read_failure") {
+      if (mode.startsWith("body_read_failure")) {
         return {
           ok: true, status: 200, headers: { "content-type": "application/json" },
           body: { getReader: () => ({ read: async () => {
-            throw new Error("INERT_R15_POSTFETCH_BODY_READ_FAILED_" + privateMarker);
+            const error = new Error("INERT_POSTFETCH_BODY_READ_FAILED_" + privateMarker);
+            if (mode === "body_read_failure_bad_700") error.http_status = 700;
+            if (mode === "body_read_failure_bad_text") error.http_status = "bad";
+            if (mode === "body_read_failure_conflicting_401") error.http_status = 401;
+            throw error;
           } }) },
         };
       }
-      return { status: 200 };
+      // The stubbed 401 transport outcome must match the observed HTTP response.
+      return { status: mode === "http401" ? 401 : 200 };
     },
   });
   return { provider, calls };
@@ -138,6 +143,16 @@ await check("body_read_failure", fakeCredentials, {
   ok: false, code: "PERFORMANCE_CONNECTION_TEST_FAILED", httpStatus: 200,
   authRequestPerformed: true, transportCalls: 1, fetchCalls: 1,
 });
+for (const mode of [
+  "body_read_failure_bad_700",
+  "body_read_failure_bad_text",
+  "body_read_failure_conflicting_401",
+]) {
+  await check(mode, fakeCredentials, {
+    ok: false, code: "PERFORMANCE_CONNECTION_TEST_FAILED", httpStatus: 200,
+    authRequestPerformed: true, transportCalls: 1, fetchCalls: 1,
+  });
+}
 await check("success", { clientSecret: fakeCredentials.clientSecret }, {
   ok: false, code: "MISSING_PERFORMANCE_CLIENT_ID", httpStatus: 0,
   authRequestPerformed: false, transportCalls: 0, fetchCalls: 0,
@@ -161,8 +176,9 @@ const healthy = await check("success", fakeCredentials, {
 assert.equal(typeof healthy.token_expires_at_ms, "number");
 
 console.log(JSON.stringify({
-  status: "PASS", scenarios: 8,
+  status: "PASS", scenarios: 11,
   postfetch_body_read_failure_attempt_observed: true,
+  response_http_status_wins_invalid_or_conflicting_error_status: true,
   raw_error_message_hidden: true, unknown_error_code_not_reflected: true,
   preflight_auth_attempt_false: true, known_auth_error_codes_preserved: true,
   successful_token_not_returned: true, real_Ozon_auth_calls: 0,

@@ -1111,14 +1111,16 @@
         const code = knownCodes.has(error?.code)
           ? error.code
           : "PERFORMANCE_CONNECTION_TEST_FAILED";
-        const rawHttpStatus = Number(
-          error?.http_status || observedAuthHttpStatus || 0,
-        );
+        // The actual auth response is authoritative, even if body reading
+        // later throws an error with a conflicting or malformed status.
+        const reportedHttpStatus = authResponseReceived
+          ? observedAuthHttpStatus
+          : Number(error?.http_status || 0);
         const httpStatus =
-          Number.isInteger(rawHttpStatus) &&
-          rawHttpStatus >= 100 &&
-          rawHttpStatus <= 599
-            ? rawHttpStatus
+          Number.isInteger(reportedHttpStatus) &&
+          reportedHttpStatus >= 100 &&
+          reportedHttpStatus <= 599
+            ? reportedHttpStatus
             : 0;
         return Object.freeze({
           ok: false,
