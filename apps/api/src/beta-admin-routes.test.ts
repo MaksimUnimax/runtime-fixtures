@@ -235,6 +235,8 @@ describe("S1.1 beta admin route authorization", () => {
     ["left-to-right mark", "case\u200enote"],
     ["right-to-left override", "case\u202enote"],
     ["bidi isolate", "case\u2066note"],
+    ["line separator", "case\u2028note"],
+    ["paragraph separator", "case\u2029note"],
     ["whitespace only", "   "],
     ["over max 512", "x".repeat(513)],
   ])(
@@ -270,6 +272,8 @@ describe("S1.1 beta admin route authorization", () => {
     ["left-to-right mark", "case\u200enote"],
     ["right-to-left override", "case\u202enote"],
     ["bidi isolate", "case\u2066note"],
+    ["line separator", "case\u2028note"],
+    ["paragraph separator", "case\u2029note"],
     ["whitespace only", "   "],
     ["over max 512", "x".repeat(513)],
   ])(
