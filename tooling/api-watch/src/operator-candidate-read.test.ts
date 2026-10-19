@@ -1,4 +1,5 @@
 import { mkdtemp, rm, symlink, unlink, writeFile } from "node:fs/promises";
+import { readFile as moduleReadFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -16,12 +17,17 @@ import {
 const fault = vi.hoisted(() => ({
   appendAfterStat: undefined as Buffer | undefined,
   readFileCalls: 0,
+  moduleReadFileCalls: 0,
   maxReadLength: 0,
 }));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof Fs>();
   return {
     ...fs,
+    readFile: async (...args: Parameters<typeof fs.readFile>) => {
+      fault.moduleReadFileCalls += 1;
+      return fs.readFile(...args);
+    },
     open: async (...args: Parameters<typeof fs.open>) => {
       const handle = await fs.open(...args);
       return new Proxy(handle, {
@@ -62,6 +68,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 afterEach(() => {
   fault.appendAfterStat = undefined;
   fault.readFileCalls = 0;
+  fault.moduleReadFileCalls = 0;
   fault.maxReadLength = 0;
 });
 
@@ -148,6 +155,7 @@ describe("operator quarantine candidate file identity", () => {
     try {
       fault.appendAfterStat = Buffer.from("growth-after-stat");
       fault.readFileCalls = 0;
+      fault.moduleReadFileCalls = 0;
       fault.maxReadLength = 0;
       const result = await evaluateOperatorCandidate({
         requestId: request.requestId,
@@ -161,7 +169,22 @@ describe("operator quarantine candidate file identity", () => {
         reason: "CANDIDATE_DIGEST_MISMATCH",
       });
       expect(fault.readFileCalls).toBe(0);
+      expect(fault.moduleReadFileCalls).toBe(0);
       expect(fault.maxReadLength).toBeLessThanOrEqual(OPENAPI.length + 1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("calibrates the module-level readFile interceptor on synthetic quarantine bytes", async () => {
+    const { root, upload } = await uploadedCandidate();
+    try {
+      fault.moduleReadFileCalls = 0;
+      const bytes = await moduleReadFile(
+        join(root, upload.artifact.quarantineFilename),
+      );
+      expect(bytes).toEqual(OPENAPI);
+      expect(fault.moduleReadFileCalls).toBe(1);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
