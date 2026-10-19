@@ -1,7 +1,7 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T17:34:33.962Z; адресно потреблены C PR209 original-I1 receipt/17:23 comparison/17:28 same-harness explanation и PR234 protection403. Original PR209 FAIL/selectedABORTED/physical causeUNKNOWN сохранены; protection requirements через connector NOT_INSPECTED. Новый A R29 ready stdout:4 concurrent synthetic calls/exit0 на author-associated R28 package, не installed/native/release. Accepted Aolder/B2of5/C5of5-13of13 NOT_RECHECKED. PLAN/history/WIP/original12OPEN; server writes blocked; audit_complete=false.
+- **Состояние на:** 2026-10-19T18:04:56.674Z; новые A R30 worker-message four-binding syntheticPASS и R31 NOT_EXECUTED_PLATFORM_REFUSED потреблены отдельно. B PR236 exactbe7d/source-review13+42+2 принят scoped; уже5originalpush workflows,3/5terminalSUCCESS и11/13jobs,Server/WB ещёIN_PROGRESS на18:02:26; originalPRServer39296917343 тожеIN_PROGRESS. C3archive/static exclusions не меняют originalPR209FAIL/ABORTcauseUNKNOWN. PLAN/history/WIP/original12OPEN; server writes blocked,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** последнее ранее наблюдённое main ref dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537 — metadata only, в этом проходе не перепроверялось. Последняя принятая native baseline main32b76886 5/5 workflows и 13/13 jobs сохранена NOT_RECHECKED. Новый C candidate f08bdac7 имеет parent dcdd; scoped SOURCE не переносится на main/CI/installed. Исторические A R49 main32 и C06 exact a55 сохраняют свои версии.
@@ -6247,3 +6247,146 @@ Original12OPEN в прежней индивидуальной карте сох�
 Оргостатки: в старом охвате отсутствовал конкретный PR209 addendum; новый sincecut обнаружил A R29/C17:28, исключив повтор старого review. В REPORT уже был подробный historical403 — ошибочное представление «есть только marker» адресно исправлено сравнением полного текста, без повторного endpoint. Часть primarytooltraces сохраняется только в сокращённом author пересказе; их callIDs/time/args не восстановлены предположением. Серверные role/CP writes нельзя подменить GitHub factual text. Чаты/запуски A/B/C/Tester ведёт владелец/dot, Controller не объявляет их consumption по одной отправке.
 
 PLAN/history/WIP/original12OPEN и все acceptedbounded results сохранены; audit_complete=false. Серверныхмутаций0; новых tests/review/CI/cancel/rerun/helper/VM/browser/merge/эксплуатаций/обходов0. Protectedpreflight/checkpoint/PRIORITY/A.json/B.json/Cintent/A-R52/A-R5JSON/R29JSON/R7/R8/artifacts-route/targets/directjob118137084442/log118019352572/branchprotection403/fullPG/B05/entitlement/supplementalconsumer и прочие exactrefusals не повторялись и не обходились. Foreignsource/tests/WIP/live/DB/security/auth/cleanup/errors/events/PR97/131/134/TesterB01R3/чаты внеscope. C06authority не выдумана. Новых реестров/архивов/расписаний/авторизаций/кредитов/сбросов нет. Это завершение доступной документальной подзадачи, **не завершение аудита** и не запуск30minпаузы.
+
+
+---
+
+## Продолжение 2026-10-19T18:04:56.674Z — новая готовая A R30/R31, B PR236 exact-source и уже запущенные5CI, C original-I1 triangulation
+
+Продолжение единственного незавершённого аудита после REPORT**60cd52ad586c6ce212e4e88fcc5502c13ce37a25**, не новый писатель. Новые primary лично прочитаны Контроллером через RDC Easyscript/GitHub. Данные dot использованы как адресные указатели, не как замена собственной проверки. Принятые R28/R29/старыеCI не повторялись; документальный результат не назван product acceptance.
+
+### 1. Актуальный канон и действующий приоритет
+
+Полными запросами прочитаны current-prompts START_HERE23стр,PROMPT_CONTROLLER86,WORK_METHOD52,PROTOCOL37,PRE_AUDIT_SELF_ERROR_GATE16,ORGANIZATION_AUDIT_POLICY45,RESOURCE_POLICY29,DISK_LIFECYCLE23,TEMP_WORKTREE_LIFECYCLE27; каждый ответ0remaining. Применены один автор, bounded new-delta audit, сохранение WIP/PLAN, независимый review,5exact-SHA CI перед main/non-force/readback, раздельные SOURCE/PACKAGE/INSTALLED_SYNTHETIC/LIVE/DEPLOYMENT. Текстовая регистрация/ACK/новый SHA не заменяют приёмку.
+
+PRIORITY_TASKS canonical prefix100/1320 и перед записью prefix8:documentv28, существующее v10/исторические поручения сохранены; прочая неизменённая историяNOT_RECHECKED. Более поздние прямые запреты на errors/events, серверный protectedpreflight/CP/role/PRIORITY writes, чужой source/tests/WIP и конкретные endpoints сохраняются. Ни отменённый машинный gate, ни новый помощник, расписание или архив не создавались. Работа/GPT-6.1 Sol/Очень высокое — сохранённое указание владельца, не новое UI/quota измерение.
+
+### 2. Последний исход, операции, авторы и точная граница записи
+
+Собственный RDC ping вернул **pong17:59:08.053UTC** на device9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Начальный и предзаписный list_remote_tool_calls: **No retained background Remote MCP tool calls**. Это отличается от прошлого прохода с completedread_file и не доказывает отсутствия всех процессов. В начале list_sessions показал PID2354613 и краткий PID3176985(runtime0s); перед записью остался PID2354613,Blocked=false. Чужие команды/cwd/stdin/cgroups не исследовались, не прерывались и не принимались за доступного codex2. Новых helper запусков нет.
+
+Лично прочитан полный current REPORT blob**17beacc44339d39ee8a6340bd8ed0ce968b73acb**,979203символов; fresh branchref до анализа и перед записью сохраняет **60cd52ad**, authorMaksimUnimax17:34:53UTC,parent3972ea0d. Неизвестного исхода своей прошлой записи нет: опубликованная версия найдена. Рассмотренный собственный report scope и прямое подтверждение владельца не показывают второго писателя; это не глобальное утверждение о серверных авторах. Новая запись только в этом же GitHub REPORT, через expected-file-blob CAS; foreign/source/server mutations0.
+
+RDC metadata A.jsonmodified14:32:18.616;B.json13:42:09.930;C.json16:11:41.139. Frozen projection не отсутствие прогресса: новые A/B/C primary опубликованы отдельно. CP metadata size2561719/33110стр/modified13:35:13.936; новый полный hash/содержимое/locks/dirty не проверялись. Последний verified fullCP hash76f6932c… и PLAN/map/history/WIP сохранены. Запрет protectedpreflight не заменялся иной формой чтения/записи locks или proxywriter.
+
+### 3. A R30: новая worker-message граница на прежнем package
+
+Лично прочитан новый раздел **A04_R30_MAIN_DCDD_FOUR_DIALOGUE_STORE_BINDINGS_20261019** в
+https://github.com/MaksimUnimax/runtime-fixtures/pull/228#issuecomment-6272657314
+(готовый R30 опубликован к17:45:10; при нашем GET comment ужеupdated**17:56:15** из-за отдельного R31). ExecutionR30автора17:37–17:43UTC. Это **author SOURCE/PACKAGE worker-message integration**, не новый product SHA и не independent review.
+
+Immutable-input association в публикации A: прежний combined R28 dev ZIP**356844ea01cc8fb805aaba739aff09f2ef42e89813e702f7b901a590382cfe17**,0.2.37LOCALDEVELOPMENT,main**dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537** + PR2281b00870c / PR21910bf5452 / PR207143563f8. Controller не извлекал ZIP/не перепроверял старые41member hashes. stdout не содержит ZIP SHA; точная package привязка — готовая авторская публикация/ранее принятый R28, а не новый самостоятельный packagehash verdict.
+
+Лично RDC прочитал только3законченных stdout из existing A logs/a04-ozon-postcallback-fence-20261019:
+- R30_MAIN_DCDD_FOUR_DIALOGUE_BINDINGS_STDOUT_20261019.txt,21стр: исходный4mock dispatches,ERR_ASSERTION,nootherstoremarker,exit1.
+- R30_R1_MARKER_SCOPE_DIAGNOSTIC_STDOUT_20261019.txt,25стр: diagnostic counts и сохранённый exit1.
+- **R30_R2_EXACT_MARKER_BINDINGS_STDOUT_20261019.txt,6стр:statusPASS,exit0/success,6.559s**.
+
+A объясняет первые отрицательные результаты ошибкой fixture assertion: короткий marker совпадал с protocol label. R2 уточнил сравнение marker, product bytes неизменны. Это готовое авторское объяснение; Controller не открывал .mjs/source и не воспроизводил проблему.
+
+Финальный stdout подтверждает **ONE_SIMULATED_COMPOSED_WORKER;4stores/4dialogues; pinned marketplace/store/work;4 simultaneous mock business fetches; each result stays with its bound dialogue; no credential cross-leak; original pendingACK handshakes;external_requests0**. В отличие от прямого adapter R29, автор задействовал реальные worker message handlers и work/dialogue bindings в симуляции. Открытая ранее граница этого конкретного worker-message сценария покрыта. **installed_real_browser_acceptance=false,real_user_start_finish_acceptance=false,signed_store_release=false**. Не доказаны реальные четыре AI browser tabs, owner auth/Start-Finish, реальный provider API, durable storage/crash/release, integrated independentreview/nativeCI.
+
+### 4. A R31: новое ограничение готовности, не скрытый runtimeFAIL
+
+Прочитан только готовый **A04_R31_FINISH_ONE_OF_FOUR_PREFLIGHT_DENIED_SOURCE_BOUNDARY_20261019** в том же comment. Он отменяет лишь прежнее намерение выполнить дополнительный Finish-under-inflight сценарий. По публикации первый read-only RDC start_process preflight был отклонён **до исполнения**; новый тест/извлечение/service/profile/provider не стартовали. Авторский verdict**NOT_EXECUTED_PLATFORM_REFUSED**, поведение продукта**UNKNOWN**.
+
+Опубликован лишь prefix ответа:
+`INVALID_ARGUMENT: Error code: INVALID_ARGUMENT; Error: RuntimeException: Error calling MCP tool: ... Error: Command not allowed: python3 - <<'PY'`.
+Полный исходный ответ и команда по словам автора сохранены в его диалоге; этот чат Controller не открывал. **Exact denialtime/callID/fullargs/fulltrace в доступном comment UNKNOWN**; фрагмент не выдан за дословно полный первичный ответ. Прямой запрет повтора/дробления/сменыинструмента/автора сохраняется. Этот REPORT не воспроизводит preflight или rejected payload.
+
+Завершённый R30 покрывает4**неотменённых**диалога. Finish одного из4 при одновременно pendingfetches, с безопасным поздним результатом и сохранением остальных3, новым runtimeevidence не доказан. Опубликованные A static source/test-content observations — не выполненный тест и не product failure. NumberR31 не смешан с прежними readyF2DC review files с тем же номером. R27/R4/otherWIP KEEP. OwnerexistingA/platformcustodian; ближайшее допустимое действие — только опубликованная сохранённая первичка отказа/готовый исход в разрешённых границах, без повторного R31. Условие возврата к продуктовой приёмке — отдельное подлинное допустимое evidence, без обхода данного запрета.
+
+### 5. B PR236: exact publication и независимый scoped review потреблены
+
+Новый Draft/open,unmerged PR236:
+https://github.com/MaksimUnimax/runtime-fixtures/pull/236
+created**17:45:53**; личный PRGET подтвердил head**be7dfe8c234e0fc9962d457a41b0631b500da951**,base**dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537**,2changedfiles. Отдельный GitcommitGET подтвердил parentdcdd/tree**9138ff5db89e4ab502ca7a0396706f18ef4e3141**,authorCodex17:41:13. Это новый кандидат по уже принятому PR218, не перенос прежнего PR218CI на новый SHA.
+
+Лично прочитаны ready файлы existing logs/B/B06_FUNNEL_ORDERED_STAGE_20261019:
+- B06_FUNNEL_EQUALTIME_R2_LOCAL_EXACT_CANDIDATE_20261019.json,57стр,issued17:41:13:pre-review,independentreviewNOT_STARTED,published=false — **историческая стадия**.
+- B06_PR236_EXACT_DRAFT_PUBLISHED_SOURCE_CHECKPOINT_20261019.json,93стр,issued**17:48:02.520032UTC**:публикация exactbe7d,независимыйreview/sourcelevels и protected holds.
+- **B06_FUNNEL_EQUALTIME_R2_EXACT_SOURCE_REVIEW_VERDICT_20261019.txt,7стр,PASS_EXACT_SOURCE_SCOPED_FUNNEL_EQUALTIME_P2_FIXED**. ExactGitobjectbe7d,parentdcdd,tree9138; только funnels.ts/funnels.test.ts. Reviewerexistingcodex2Luna/xhigh, tests не запускал. Verdict author binding SHA256**dbe9ef6e642c09f94e8b398f1f3adaa29ae2980c146995ff239bb258fdac20e3**; Controller не перепроверял hash через shell и не запускал второй review.
+
+Исправление по готовым требованиям: stage progression при равных timestamp следует устойчивому порядку входных строк, сохраняет выбранную строку/identity/predecessor и правильную breakdown attribution. SQL/schema/auth/DB grants не меняются. **Детерминированный id tie-break не доказывает физическую причинность одновременных событий**.
+
+4готовых logread: actualREDtail25/196(3FAIL+10PASS),focusedGREEN10стр(**13/13**),quality22стр(**42/42** и type/style/check markers),module-fixed syntheticconsumer10стр(**2/2**). Логи сами не печатают commitSHA; точная связь дана publicationcheckpoint/review/commitmetadata, не выдумана из stdout. Ранние test syntax и missingdependency errors доassertions сохранены в readyавторском документе. Фраза verdict «не опубликовано/не смержено» относится к pre-publication review; более поздняя GitHub публикация подтверждена, а merge не доказан.
+
+SOURCE scoped gate этого exactкандидата подтверждён; локальные42/13/2 — не реальные legacyданные/PG/installed/production. Review/rawpayload/source/tests не читались. B.json не записывался. IDNAcontract остаётся решённым, implementation/auth/DB/data/collisions отдельно не разрешены.
+
+### 6. B CI: снято своё устаревшее ожидание трёх NOT_TRIGGERED
+
+Первое личное чтение original PR Server**39296917343**,pull_request,attempt1,headbe7d:IN_PROGRESS. Jobs118211702611ci-planSUCCESS /118211783011serverIN_PROGRESS,test:e2e. Docs**39296917348**,attempt1,exactheadbe7d:SUCCESS,job118211701717SUCCESS. **Новый terminal original PRServer не обнаружен**; последний отдельный read**18:02:26UTC** всё ещёIN_PROGRESS. Никакихrerun/cancel.
+
+Затем самостоятельно обнаружены готовый **B06_PR236_FIVE_NATIVE_CI_REF_STARTED_20261019.json**,80стр,issued**17:54:53.861409**, и existingPR236comment**6273565872**,updated**17:59:23**:
+https://github.com/MaksimUnimax/runtime-fixtures/pull/236#issuecomment-6273565872
+B **уже потребил** запуск5workflow/3terminal в этом comment. Старое поручение не повторялось. Авторский CI-only ref**controller/ci-b06-equal-time-be7d-20261019**,NONFORCE_NEW_REF,exactbe7d,sourceYAMLsmodified=false — существующее действие B, **не новый Controllerзапуск**.
+
+Личный workflowcollection exacthead содержит7records:2originalPR +5originalpush. Все5push attempt1/headbe7d; лично прочитаны jobs каждого run:
+| Workflow original push | Run | Проверенный исход |
+|---|---|---|
+| Documentation |39297862559|SUCCESS,1/1jobSUCCESS|
+| Coordination and release safety |39297861994|SUCCESS,1/1jobSUCCESS|
+| Extension I1-C1 |39297861975|SUCCESS,3/3jobsSUCCESS|
+| Extension |39297862442|IN_PROGRESS,5/6jobsSUCCESS;wb-browsers118215035734pendingterminal|
+| Server |39297862264|IN_PROGRESS,ci-planSUCCESS;server118215059152pendingterminal|
+
+Итого **3/5workflow terminalSUCCESS,11/13jobsSUCCESS**, не5/5. Final runmetadata18:02:26 Serverpush/Extension всё ещёIN_PROGRESS; terminal logs завершёнными не выдавались, эти joblogs не скачивались. OriginalPRServer и pushServer — разные существующие runs, не взаимозаменяемые. Source0.2.37/AZIP с этим серверным SHA не смешаны.
+
+**Устранено доступное собственное documentary ожидание «триworkflow отсутствуют» для PR236**: они уже запущены B и частично закончены. Это не снятие оставшихся2terminal/merge/release требований и не изменение PR235, который сохраняет отдельно принятые2/5. CI I1 localAPI/portal/PGjobSUCCESS относится к GitHub runner synthetic harness; не разрешение реального PostgreSQL/data access и не закрытие запрещённого fullPG/B04/ownerinstalled. Причина отсутствия terminal пока лишь IN_PROGRESS; зависание/ошибка/простой не доказаны.
+
+NextB — consumption **оригинальных** оставшихсяterminal и всех constituentjobs при появлении, безrerun. Возврат к merge gate только после5/5,13/13exactbe7d,актуальной базы/review/protectedpublication; installedconsumer/rollback/authority отдельно. Нового поручения/unknownsend нет. Allocation128MiBOPEN/temporaryWIPKEEP — authorreceipt, не своё ресурсное измерение или cleanupдопуск.
+
+### 7. C: готовое трёхстороннее сравнение уточняет исключения, не объясняет abort
+
+Лично прочитаны **только новые** readyaddenda PR209comment6269293307,updated**17:39:58**:
+https://github.com/MaksimUnimax/runtime-fixtures/pull/209#issuecomment-6269293307
+
+**THREE_ORIGINAL_I1_EXACT_ARCHIVE_TRIANGULATION**,issued17:35:51.835: добавлен успешный baseline main**dcdd**,originalrun39271442175,archiveSHA**e3b7c83e1be30b3215bf342ce4a88272585df67d0f6df4dc7e795fe9c09d64bc**, между originalPR209a488FAIL/archive8eb8 и PR234f08PASS/archivec536. По авторскому receipt все3archivehash соответствуют GitHubdigest; один runtime.js SHA не делает три ZIP одинаковыми. Controller **не читал/скачивал оригинальные archives/results/rawlogs**: это самостоятельное чтение готового C документа с пределом независимости.
+
+Авторская static triangulation: PR209/main35of41runtimefilesidentical;main/PR23440of41identical,различается generatedsyntheticpublictrustregion. Это **не нормализация/отбрасывание hash-различий при приёмке**: версии сохраняют свои SHA. Полный3-wayruntime/CI replay не выполнялся.
+
+Original selectedrequestfailed зафиксирован17Oct около**23:39:58.088Z**,harnessbrowser_context_close около**23:39:58.094Z**. Следующий после наблюдённого failure cleanup сам по себе не объясняет уже случившийся failure; более раннее ненаблюдённое событие не исключено. Это узкое временное исключение по readyCanalysis, не доказанная физическая причина.
+
+**CHATGPT_STANDARD_FALLBACK_EXCLUDED_BY_I1_FIXTURE**,17:37:51.445: C уточнил, что различия не исключительно Kimi; имеется и ChatGPTStandardfallback. По статическому unchangedfixture в данном сценарии доступен прежний primarycomposer, новыйfallback там не требуется. Из этого нельзя заключить, что все прочие source/environment изменения никогда не влияют на timing.
+
+**HTTP_BOOTSTRAP_OUTSIDE_HTTPS_FIXTURE_ROUTE**,17:39:43.183: C статически отделил HTTPSfixture interception от наблюдавшегося HTTPloopback bootstrap. Это узкое исключение конкретной гипотезы о прямом fixture-route abort, не доказательство инициатора на browser/network/socket/server уровне. Raw source/fixture payload не открывались, способ воспроизведения не предоставлялся.
+
+Итог прежний: **PR209originalFAIL,selectedABORTED+142ms,bootstrap_body_parsed=false,installed_acceptance=false,physicalcauseUNKNOWN**. LaterPASSbaseline/PR234 не ремонтирует originalFAIL и не доказывает Store-authority исправление. Нужна уже сохранённая exactrequest lifecycle первичка с инициатором/allowlisted timing; её отсутствие не разрешает blindrepeat. OwnerexistingC для sourceevidence;originalA/ownerTester установленной WorkStart/popup границы. C protection403/premergeintent и previousendpoints не повторялись; принятые C5/13 не перечитывались.
+
+### 8. Независимые остатки и исходные12: причины, владельцы, возврат
+
+C04existinghandoffmetadata40208bytes/562стр/modified13:38:09.543 неизменны. Нового готового B/OpsACK в рассмотренных публикациях/этомhandoff не обнаружено; **NOT_OBSERVED в данном охвате**, причинаconsumptionUNKNOWN. Полный handoff/старые16carriermismatch не повторялись, отправки/нового поручения нет. OwnerB/Ops/C; возврат по подлинному receipt source-pinnedcarrier/загрузки/delivery/retention/rollback/ACK, а не чтению метаданных. C06genuineauthority/catalog не появились в новой рассмотренной первичке; уже переданный запрос не повторяется. C3Edurabledelete/journal/accountretention и ownerR3 остаются отдельными.
+
+Original12 в прежней карте сохранены:
+1 B03durable/sourceSeen/no-double-delivery/two-relayactor — новые mockbindings не originalactorproof;B/A/originalruntimecustodian,только exactготовыеdurablereceipts.
+2 pre-ACKrecipientresultdurability — in-memoryworker не IndexedDB/browser/crashproof;A/B/ownerTester,готовоеoriginalinstalledevidence.
+3 B04fourOTP/PG — specificfullPG/resource/cleanupограничения;B/ownercleanup,только ранее разрешённые готовые результаты/действительный адресный допуск, не новыйPG.
+4 A05atomic2ref и5 PR48/50 — acceptedSOURCE не переоткрыт; historicalrefusal/publication/installedowner поля ждутoriginalpublisher/platform/Tester receipts.
+6 genuineC06authority/catalog/target — genuineinputневыдуман;B/Ops/C/owner,возвратпо подлиннымauthority/package/rollbackdocuments.
+7 personalownerR3 — owner/Tester,готовыйличныйвердикттолькоточнойверсии;передачаscopeнепроизошла.
+8 R14originalrefusal и9 Cprivate-testenvrefusal — originalrawreply/envelopemissing;originalC/platform/ownercleanup,чтениесохранённойпервичкибезповтора.
+10 Sep29publicationorigin —originalrequestreplycorrelationmissing;originalpublisher/platform,подлинныеIDs/время.
+11 configdrift —actor/time/beforeafterнеустановлены;originalB/configcustodian,готоваяhistoryбезauth/profile/reset.
+12 originalbound-reviewbytes — исходныйpayloadSHA12d92447…missing;originalB/reviewer/platform,готовыеoriginalbytes,не реконструкция/новыйreview.
+
+Причиныmissinghistoricalprimary там UNKNOWN, где их нет; новые Aworker/Bfunnel/Cstatic документы их не восполняют. Индивидуальные прежние owners/next/return и historicalmapSHAfe07ebdd… сохранены, не свежая hashприёмка. Это не новый реестр. Общее «доступнойработынет» из missingACK/commit не выведено: новая независимая A/B/C documentaryработа выполнена в этом проходе.
+
+### 9. Доступное собственное исправление, объём и организационные проблемы
+
+В своём REPORT фактически устраняются:
+- пробел Aworker-message coverage: R30 отделён от старого directadapterR29, новый R31nonexecution отделён от PASS и productdefect;
+- устаревшая Bpre-review/pre-publication проекция:17:41NOT_STARTED отделена от17:48exactreview/publication;
+- устаревшие три NOT_TRIGGERED для **PR236**: подтверждены существующие5pushrun/3terminal/11jobs без распространения на PR235;
+- неполный originalI1comparison: добавлены thirdbaseline и узкие временные/source-path исключения без выдуманной physicalcause.
+
+Это применение documentary уточнения и его независимый readback на исходной границе REPORT, а не исполнение чужого source/CI или productrelease. Bужеопубликовалconsumption3of5до нашегоedit; A R30/Canalysis тоже завершены ранее. Их прогресс не приписан нашей записи. Новые поручения не требовались и не отправлены.
+
+Объём:9полныхcanon;Priority100+8;fullREPORT/ref/author/parent;3основныхGitHubадресаA228/B236/C209,5дополнительныхsincecutcollections207/219/235/234/210пусты;A3readylog52стр;B2receipts150стр+verdict7+CIref80,4logtails67из238стр;publicationcomment;Bexactcommitmetadata;7workflowrecords,originalPR3jobs иpush13jobs. RoleA/B/C/CP/handoff толькоmetadata;новые source/tests/reviewprompt/payload/ZIP/archives/deniedlogs не открывались.
+
+Оргпроблемы: frozenrolefiles из-за явных refusals не успевают за GitHubготовыми результатами; это не доказательство простоя. Ранние checkpoint/reviewфразы отражают стадию времени, их нельзя переносить на последующую publication. Разные R30/R31имена/границы не взаимозаменяемы. Fulloriginaldenialtrace остаётся missing в доступном scope; текстprefix не полная причина. CIrunning не FAIL/простой, automaticcompletion или новые запуски для его ускорения не разрешены. Объём счётчиков A/B не суммируется как уникальные productсценарии:13 входит в42,2consumerотдельно;4mockbindings не4owneracceptance.
+
+### 10. Версионная запись, независимый readback и сохранение незавершённости
+
+REPORT обновляется только в прежней branch/path с exactexpectedblob**17beacc44339d39ee8a6340bd8ed0ce968b73acb**. Перед записью повторно проверены ref/ownscope/retainedoperations/Priority; серверныеlocks/WIP не объявлены установленными. Успех записи подтверждается **отдельным GET новогоGitblob с точным равенством всему intendedtext,commitauthor/parent иbranchref**. Никакого blindretry неизвестной мутации.
+
+PLAN/history/WIP/serverCP и original12OPEN сохранены. Серверныхзаписей0; tests/review/CI/cancel/rerun/helper/VM/browser/merge/эксплуатаций/обходовController0. Все exactrefusals включая новый A-R31, Cprotection403/premergeintent,A-R52/JSON/A.json,B.json,protectedpreflight/CP/PRIORITY,R7/R8,artifacts-route/targets,directjob118137084442/log118019352572/fullPG/B05/entitlement/supplementalconsumer не повторялись/не обходились. Чужиеsource/tests/WIP,live/DB/security/auth/cleanup,errors/events,PR97/131/134,B01/R3/чаты внеscope. C06authority не выдумана;IDNAimplementation/data не разрешены. Новых реестров/архивов/расписаний/авторизаций/кредитов/сбросов нет. **audit_complete=false**; завершён только доступный документальный шаг, 30minпауза аудита не начинается.
