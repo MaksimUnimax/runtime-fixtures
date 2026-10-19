@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T11:03:37.120192+00:00; main86 postmerge5/13 подтверждён; current A f2dc Docs+I1SUCCESS2/5/ExtensionRUNNING, B immutableACK выдан и собственное ожидание снято; CreadyR2/sourceprovenance и узкие historical browser/WB результаты — последние дополнения; аудит открыт.
+- **Состояние на:** 2026-10-19T11:29:07.542696+00:00; A PR228f2dc Extensionterminal/3of5, CactualR2+ACKconsumption/PR22903f560native4of5/12of13 наcut11:25:16, A06R14sourcePASS и AconsumptionR15 подтверждены; audit открыт.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** `main=86a53333f3ed573f8170944eb557f4aee5509e2e`; PR227 merged10:06:44, original main native5/5+13/13 и Cconsumption10:26:41 подтверждены. Installed/live/Store, C04/C06 и original12 остаются отдельными исходами.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `f84d854ae3bcf721c8eb52f09cc7b8a473d7b0beb5bf8d8a742a68d8fbbe1909`, 2,395,109 bytes; guarded write11:03:12.272600 UTC, independent readback11:03:37.120192 UTC; `audit_complete=false`, original12OPEN.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `edc17ef6f7921a96835d45be35911a0288c8f4678bcf161ece2871335c14461f`, 2,429,532bytes; guardedwrite11:27:51/consumptionpatch11:28:51.658554 UTC; independentreadback11:29:07.542696 UTC; `audit_complete=false`, original12OPEN.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -4591,3 +4591,86 @@ Ten-pointmethod предыдущего дополнения выполнен и 
 | C04/C05/C06 и original12 | Realinstalled/restore/authority/owner/rawhistorical источники по сохранённым отдельным причинам отсутствуют; namedcustodians прежнейкарты. | Только новые готовые exactapplied/authority/owner/originalraw receipts в действующих полномочиях. C06запрос ужепередан, ответа нет; не дублировать/неизобретатьauthority. |
 
 Дополнительный объём: четыре браузерных primary и matrix/Firefox scopedreviewreceipt, WB два449byteoriginaloutputs, currentA одинworkflow/3jobs+clientlog, один новый existingB ACK. **Организационные проблемы:** различать выданныйimmutableACK и передачуавторства; readyR2 и staleCstate; историческийguestPASS и currentrelease; новыйточныйnativeSUCCESS и всёещёmissinggates. Причина неподтверждённого CpostACK/R2consumption UNKNOWN с точным недостающим actualauthorreadback; это не доказанный простой и не причина перехватить поток. Доступные собственные documentary исправления доведены до readback; реальные продуктовые/внешние остатки не объявлены закрытыми.
+
+
+## Дополнение 2026-10-19 11:29 UTC — PR228 Extension terminal; C actual consumption/PR229; A06 R12→R14 SOURCE result
+
+Продолжение единственного REPORT **c0048d115ea47eb37abb6a874e0030955117ac74**. Версия/blob/автор лично совпали с c004/b7c88bb4/MaksimUnimax/11:04:48; новый собственный writer/unknown mutation не найден в проверенных canonical sources. Easyscript ping **11:21:50.620 UTC**, retained RDC backgroundcalls0, только protectedsession2354613 без вмешательства. Server checkpoint до записи exactf84d854a/2,395,109bytes, priorityabec7778; свой предыдущий next и фактические операции прочитаны. Все9 currentcanon hashes START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/PRE_AUDIT/ORG/RESOURCE/DISK/TEMP совпали с полностью прочитанными действующими текстами; актуальная priorityv10 unchanged, поздняя owner передача применима. Работа/GPT-6.1Sol/Оченьвысокое, новых авторизаций/ресурсов/расписаний нет.
+
+**Фактически исправлено в своём scope:** own ExtensionRUNNING заменён terminalSUCCESS; C R2/ACKconsumptionUNKNOWN заменён проверенным actualconsumption и текущим PR229 exacthead. Появившийся готовый A06R14 учтён без повторного review; actualAconsumptionR15 подтверждён отдельно. Существующие owncheckpoint/currentnext и собственная reply DOT-20261015-02v10 записаны под fourlocks с freshhash/WIP/targetFDwriters и independently read back. Чужие role/source/tests/WIP не менялись, никаких новых поручений/отправок C нет.
+
+### A PR228 — terminal Extension лично подтверждён, остаётся3/5 и10/13
+
+PR228 Draft/open/unmerged exact **f2dc17f64fc2762d0dc892eb30d0c1af5935f6b0**, baseb7b. Original Extension **39240321064**, pull_request attempt1, **completedSUCCESS updated11:02:47 UTC**; лично прочитаны все6 originaljobmetadata:118019288531,118019352268,118019352314,118019352317,118019352456,**118019352572**, всеSUCCESS.
+
+**Запрещённый targetlog118019352572 не запрашивался**, другого маршрута/формы/инструмента для него и artifacts не было. Его SUCCESS установлен по разрешённой jobmetadata; WB321/321+321/321 в readyR35 остаётся **author documentary statement**, не нашим independent logreadback.
+
+Ready **R35_F2DC_NATIVE_THREE_WORKFLOW_TEN_JOB_TERMINAL_20261019.json**, SHA256 **15a449f5e5c71747777896fe22535918b1d2bc316b66160816ec0c6d8bb6ce43**, issued **11:11:42.776470 UTC**, лично прочитан и подтверждает Aconsumption. Вместе с retainedNOT_RECHECKED Docs/I1 это **3/5 workflows,10/13jobs**; Server/Coordination отсутствуют в принятом exacthead evidence. Authorlocal186/R31 и ранее принятые SOURCE/package/installed не повторялись.
+
+Хронология: terminal11:02:47 предшествует предыдущему ownreadback11:03:37; прежний RUNNING был ограничен последней consumedmetadata11:01:30. В этом продолжении результат **впервые независимо подтверждён**, он не объявляется событием после11:03. Ответственный A/existingnativecustodian; ближайшее documentary действие — новые готовые exactmissinggates/currentbase/provenance результаты через уже существующую задачу. ExistingA nativeUI запрос не дублируется, Controller CI не запускает. Installed/Store/owner отдельно.
+
+### C — готовые R2 и B ACK реально потреблены; PR229 current03f560, новыйnative4/5
+
+Existing C record **pr229_current_native_20261019** от **11:15:39.770928 UTC** лично прочитан:
+- ready11file R2 **485272b3…** учтён как PASS_SOURCE_SCOPED; historical provenance negative сохранён отдельно;
+- **B_ACK_IMMUTABLE_SOURCE_CONSUMPTION_ONLY** и handoff7771a410 явно применены;
+- исходный B blob **07736e2b88824a059c957ee4a2d9c3e13923757a** потреблён без изменения и без передачи авторства/права параллельной правки.
+
+Лично проверены GitHub PR229 metadata, commits/compare и gitcommit: Draft/open, head **03f56065544cec438cf7333a6f1838a6f77bccf3**, tree **9904c873eff03f72b3c6b91502421994d7df72dd**, parent **d89eabe5d96ae477f88987bead4cf740dc97e7af**, base **main86a53333…**, ahead2/behind0, **12paths**. По сравнению с прежним11file composite добавлен C-owned `tests/integration/server/review-wb-handoff.integration.test.ts`, blob **6a11fe9878f638369cc64394a4617ee8589398c3**; Btestblob exact07736e2b unchanged. Содержимое чужих source/tests Controller не читал.
+
+**Точная chronology:** PR229 created **10:46:46 UTC**, то есть до прошлого среза. Initial d89 commit10:22:12; current03f560 child commit **11:09:24**. Ранее owncoverage ограничивался PR225/unreferencedobject, новой публикации после11:03 из этого не следует. В текущем REPORT исправлена только documentary полнота/хронология, Git history не менялась.
+
+Новый готовый C review **C03_PR229_MAIN86_INTEGRATION_MOCK_R2_REVIEW_RESULT_20261019.txt**, SHA256 **df7975b6ff99d0be2852b38007d89ac32aa0434e48bd78e4b3a7a871231d9611**, **PASS_SOURCE_SCOPED P0/P1/P2=0**, лично прочитан. Scope — C-owned WB faultinjection test; прежний11file review retainedNOT_RECHECKED. Review до commit, sourcebinding из Cauthorrecord совпал с GitHubblobmetadata. Это не independent wholeGit/nativeapproval и не innerSQLtransactionrollback proof: ошибка на седьмом вызове возникает **перед** originalmethod.
+
+Лично прочитаны original exact03f560 **push attempt1** workflowmetadata и все13 jobmetadata, срез последнего Server/jobread **11:25:16.760119 UTC**:
+
+| Workflow | Original run | State | Jobs |
+|---|---|---|---|
+| Extension I1-C1 client | 39242802886 | completed/success | 3/3 SUCCESS |
+| Documentation CI | 39242802859 | completed/success | 1/1 SUCCESS |
+| Server CI | 39242802975 | in_progress/PENDING | 1/2 SUCCESS |
+| Coordination and release safety | 39242802959 | completed/success | 1/1 SUCCESS |
+| Extension CI | 39242802898 | completed/success | 6/6 SUCCESS |
+
+**Итого4/5 workflows и12/13jobsSUCCESS.** Server **39242802975/job118027486596** ещё IN_PROGRESS на **Run pnpm test:e2e**. Metadata уже подтверждает SUCCESS шага **Run complete integration suite** на новомhead, но весь Server/полныйnativegate ещё неPASS. Новые integrationcounts из непрочитанного текущего log не выдуманы. Отдельные PR-event Docs39242661257/Server39242661171 не прибавлялись к пяти pushworkflowgates. Dispatch/rerun/merge Controller не выполнял.
+
+**Два разных исторических negative сохранены:** PR22529688/Server39213510491 — retainedNOT_RECHECKED; initial PR229d89/**pushServer39239956862**, attempt1, FAILURE updated **10:56:52**, лично проверен в новом адресном охвате. Originaljob **118018145843** failed Run complete integration suite; originallog лично прочитан: **1968PASS/2FAIL из1970**, C-owned WB integrationtest lines331/656, ожидался FAILED, получен SUCCEEDED. Diagnosis stalefaultinjection после перехода на atomicmethod согласован с Csource-review; это **не** отказ Bimmutabletest и не SQLrollback acceptance. Oldd89run не перезапускался и не стал зелёным задним числом. Его terminal тоже предшествует прошлому owncut: расширен охват доказательств, не дата события.
+
+### B — техническое consumption подтверждено, отдельная доставка formal C ACK не выдумана
+
+Новый B record **c_pr229_exact_test_blob_consumption_observed_20261019**, issued **11:14:44 UTC**, лично прочитан: B подтвердил exactBblob в PR22903f560. Controller независимо подтвердил тот же GitHubchangedpathblob. Поэтому own техническое ожидание потребления исходного теста снято. B сохраняет авторство и freeze; separate explicit C-response delivery toB в этом record NOT_OBSERVED. Более поздняя Bprojection11:27:34 остаётся nativeincomplete, не простаивает по определению. ActualCrecord11:15:39 подтверждает Cconsumption; получение отдельного ответа B из этого не выводится.
+
+Принятые **BimmutableACK,905local/quality,PR214d167/PR218ec2a2/5** retainedNOT_RECHECKED. Не повторялись исходные тесты/review, сообщения или неизвестная отправка. Controller Bfreeze не снимает, B/C rolefiles не меняет. Ответственные B (testauthor) и C (integration/consumption response); следующий допустимый шаг — уже существующие readyexactcandidate/native/recipient доказательства, без новой карточки или поручения.
+
+### Независимый открытый A06 scope — R12REWORK, R13author32, готовый R14PASS и Aconsumption
+
+Это новая адресная готовая дельта в существующем A06, не повтор принятого A186/R31 или originalI1.
+
+**R12** exact **23365d7699b44b48970b1d6f737e3d96805b8078**, parent499, verdict **REWORK_REQUIRED**, SHA256 **536ca56fe7aa95a75bb598c75ff239c9d87134c753c24043668e2b2118880fe0**, лично прочитан; originalsystemd terminal **11:16:41.295198 UTC**, Aconsumption11:22:52 подтверждён. Reviewer нашёл testharness gap: WorkStart requestfailed доHTTP200 не прерывал ожидание и уходил в30stimeout. Review через canonicalGitobjects, без tests/installed. Старые R7trustrefusal/R11UNKNOWN не превращены вPASS и не повторялись.
+
+**R13** authorfix exact **c53d2701724a071ed752d2f86e87fac8566fdc78**, parent23365, два harness пути; original readyRED **d9fcfc3603df8f81ddc87aea018678a8ed12b05c657299661538a2b189354eaa** и GREEN **6f3cb3b3306c125daa63889a408f8b470ef1e0bea76759253c3028da9aaf6706** лично прочитаны. RED действительно **AttributeError отсутствующего новогоhelper**, а не наблюдение исторического30sabort; GREEN **32testsOK**. Candidatebinding из authorrecord; Controller тест не запускал.
+
+**R14** ready independentverdict **PASS_SOURCE_SCOPED_A06_R14_C53D**,906bytes, SHA256 **433d44434598787d6a8d0c2ff8671e78d590d86c9f5dd9014db36a15c0976dc7**, exitfile0 и originaljournal **11:24:27.339935 UTC Deactivated successfully** лично прочитаны. Scope — exactдвухфайловый harness, privacy-safe immediate failure/Requestidentity handling; reviewer не запускал tests/native/installed.
+
+Свежий original A **R15_current_source_acceptance** от **11:26:04.665856 UTC** лично прочитан: A уже потребил exactc53d R14PASS и author32PASS; accepted **SOURCE/test harness only**, Draft/native/publication ещёнеприняты. Own next уточнён по фактическому consumption, второй review/helper не запускался. Причина исторического installedabort/Request→AbortSignal/lease/grant остаётся **UNKNOWN** до originalcustodian correlation, этот SOURCE результат её не доказывает. R7/R8/B05/fullPG/entitlement/прочие конкретные отказы сохранены без повторов/обходов.
+
+### Все десять пунктов и доступное устранение
+
+| Пункт | Проверенный результат / предел |
+|---|---|
+| 1. Задачи и фактическая новая дельта | OriginalAExtension6jobs/R35, Ccurrent12blobmetadata/consumption/newreview/native13jobs, A06readyR12/R13/R14/R15 personallyread. |
+| 2. Полномочия | Currentcanon9 hashes/priorityv10 и позднийowner scope проверены; foreignsource/tests/WIP/chats/inlinepayload не читались. |
+| 3. Принятое | Main86native5/13, B_ACK/905, прежнийC11review, A186/R31 и прочая приёмка retainedNOT_RECHECKED. |
+| 4. Причины/уровни | SOURCE/local/harnessreview/native/installed разделены. ExactSHA/time attribution и actualREDAttributeError сохранены; историческиеcauseUNKNOWN не закрыты. |
+| 5. Авторы/операции | Reportref/blob/author, unknowncalls0, protectedsessionuntouched, fourlocks/targetFDwriters0 и WIPmetadata проверены. |
+| 6. Доступное исправление | Own ExtensionRUNNING/CconsumptionUNKNOWN сняты в действующих docs; AreadyR14/R15 исключает новыйreview вownnext. Ни чужой sourceремонт, ни foreignrolewrite не выполнялись. |
+| 7. Readback | Guardedwrite11:27:51, уточнениеactualAconsumption11:28:51.658554; независимый RDC readback11:29:07.542696 exacthash/bytes/marker1/map12/locksFREE. REPORTblobCAS+последующий отдельный pinnedreadback. |
+| 8. Фактическое consumption | A_R35/A_R12/A_R15 и C_R2/B_ACK плюс Btechnicalobservation проверены отдельно; роли продвинулись до наших записей. FormalBnotificationUNKNOWN не простой/не разрешение unfreeze. |
+| 9. Остатки и объём | Original12cause/responsible/next/return сохранены без закрытия; новые residuals и boundaries перечислены ниже. |
+| 10. Сохранность/отказы | errors/events не читались; новых реестров/архивов/schedules/credits/resets/auth/source/live/DB/security/cleanup/tests/review/CI/helper/VM/browser/merge/exploitation/access-bypass нет. Banned118019352572log/любаяalternative untouched. |
+
+Latest checkpoint **edc17ef6f7921a96835d45be35911a0288c8f4678bcf161ece2871335c14461f**, **2,429,532bytes**; priority **716b7815947a58f57e443e9003666687d4db5a0f7831ed4d8ef817d062774f1f**, **767,088bytes**. Sameownrootobject, currentpointer **successor_delta_PR228_EXT_C229_CONSUMPTION_A06R14_20261019**, marker1. Independentreadback11:29:07 confirmed exactbytes/actualAconsumption/original12OPEN/auditfalse/fourlocksFREE; otherrootvalues/foreignprioritybytes preserved. Canonicalmap **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d** unchanged. WIP A09e74+7/B08879+4/C5ca65+8 сохранён, Gitopsnone; source содержимое не читалось и не менялось.
+
+**Остаток и условие возврата:** A PR228 missingServer/Safety требует existingnativecustodian readyexactproof, не нового ControllerCI. A06c53d требует только дальнейших готовых permittedauthor/native результатов, historicalabort correlation — originalruntimecustodian. C03f560 ждёт originalServer/e2eterminal и genuine currentbase/review/protectedsourceintegration; originalnegative не подменён. B formalresponse/freeze остаётся у B/C по существующему handoff, отдельная неизвестная доставка не повторена. Installed C04/C05/C06/ownerR3 и durabletwo-relay/preACK/B04OTP исходы остаются в границах своих custodians, новые подобные проверки прямо исключены из этого прохода. Исторические publication/refusal/config/reviewbytes остатки требуют originalraw immutablecorrelation, которого в новых адресных документах не предоставлено; точные cause/responsible/next/return каждого из12 сохранены в existingmap/currentdelta. C06ownerquestion alreadyforwarded, ответа нет, повтор/authority/catalogfabrication нет.
+
+**Объём:** новый Aworkflow6jobs+readyreceipt; A06два новых scopedreviewverdict, RED/GREEN32 logs и actualconsumption; C12blobGitmetadata/новыйtestreview/5workflow13job progress и отдельный oldd89failurelog. Controller изменил только три существующих documentary назначения. **Организационные проблемы:** устаревшие собственные ожидания устранены; roleprojection может отставать от readyterminal, поэтому повторныйreview не нужен. Actualimmutableconsumption отличается от доставкиformalresponse; initialPRdate отличается от датыcurrenthead. Неполныйnativegate/внешняяauthority не повод перехватитьsource/запуститьtests. Доступные собственные documentary шаги выполнены и перечитаны; audit_complete=false, реальные12исходов остаютсяOPEN.
