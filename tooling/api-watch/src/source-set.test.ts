@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -19,6 +20,7 @@ import {
   activateProductionSources,
 } from "./source-set.js";
 import { WB_BUNDLE_DOCUMENT_KEY, WB_BUNDLE_VERSION } from "./wb-bundle.js";
+import { inventoryAcceptedSnapshots } from "./inventory.js";
 import type {
   ApiWatchSqlQuery,
   ApiWatchSqlRuntime,
@@ -408,6 +410,59 @@ describe("production source authority model", () => {
       scopedInventory("WB_A"),
     );
     expect(await store.listSnapshots()).toHaveLength(1);
+  });
+
+  it("C03 rebuilds accepted WB inventory with its original documentKey", async () => {
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-scoped-rebuild-"));
+    try {
+      const bytes = Buffer.from(
+        JSON.stringify({
+          openapi: "3.1.0",
+          info: { title: "WB source", version: "1" },
+          paths: {
+            "/orders": { get: { responses: { "200": { description: "ok" } } } },
+          },
+        }),
+      );
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      const artifactPath = join(root, "source.json");
+      await writeFile(artifactPath, bytes);
+      const store = new InMemoryApiWatchStore();
+      const metadata: SnapshotMetadata = {
+        snapshotId: `WILDBERRIES:${sha256}`,
+        sourceFamily: "WILDBERRIES",
+        documentKey: "WB_A",
+        sha256,
+        sizeBytes: bytes.byteLength,
+        specVersion: "3.1.0",
+        officialUrl:
+          "https://dev.wildberries.ru/api/swagger/yaml/ru/01-general.yaml",
+        acquisitionMode: "AUTOMATIC",
+        createdAt: new Date("2026-10-19T00:00:00Z"),
+        authorityRecordId: "synthetic",
+        artifactPath,
+      };
+      await store.saveSnapshot(metadata);
+      const rebuilt = await inventoryAcceptedSnapshots({ store });
+      expect(rebuilt).toHaveLength(1);
+      expect(rebuilt[0]?.operationCount).toBe(1);
+      expect(rebuilt[0]?.operations[0]?.documentKey).toBe("WB_A");
+      expect(
+        (await store.findInventory("WILDBERRIES", sha256))?.operations[0]
+          ?.documentKey,
+      ).toBe("WB_A");
+      await expect(
+        store.saveInventory({
+          ...rebuilt[0]!,
+          operations: rebuilt[0]!.operations.map((operation) => ({
+            ...operation,
+            documentKey: "WB_B",
+          })),
+        }),
+      ).rejects.toThrow("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("SRC-06 and SRC-23 bind pending requests to documentKey", async () => {
