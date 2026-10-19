@@ -15,7 +15,7 @@
   function scopeKey(scope) { return scope ? `${scope.family}|${scope.surface}|${scope.variant ?? ""}` : ""; }
   function currentScope() {
     const value = bridge.scope?.();
-    if (!value || !["chatgpt", "alice", "qwen"].includes(value.family) || value.surface !== "web" || value.variant !== null) return null;
+    if (!value || !["chatgpt", "alice", "qwen", "kimi"].includes(value.family) || value.surface !== "web" || value.variant !== null) return null;
     return { family: value.family, surface: "web", variant: null };
   }
   function currentProfile() {
