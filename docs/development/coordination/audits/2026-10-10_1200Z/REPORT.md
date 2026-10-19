@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T15:09:27.972Z; A R49 публикация подтверждена, A.json write явно отказан, причина сверх текста UNKNOWN. C04 exact f08bdac7: готовый final local40/40 и независимый PASS_SOURCE_SCOPED; full TS inconclusive, publication/native/installed не подтверждены. B принятый IDNA contract/receipt сохранён, implementation/auth/DB не разрешены. Server checkpoint blocked; original12OPEN, audit_complete=false.
+- **Состояние на:** 2026-10-19T15:38:54.271Z; C PR234 Draft/open exactf08 опубликован15:06:35; original PR Docs/Server completedSUCCESS, Server15:23:32,3jobsSUCCESS. Пять уже существующих push workflows exactf08:3QUEUED/2IN_PROGRESS на прочитанном срезе15:35, gate открыт. A R51 готовый local synthetic composition100/100, local-only ZIP004b6eae, не release. B принятый IDNA контракт сохранён; implementation/auth/DB не разрешены. Server checkpoint blocked;12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** последнее ранее наблюдённое main ref dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537 — metadata only, в этом проходе не перепроверялось. Последняя принятая native baseline main32b76886 5/5 workflows и 13/13 jobs сохранена NOT_RECHECKED. Новый C candidate f08bdac7 имеет parent dcdd; scoped SOURCE не переносится на main/CI/installed. Исторические A R49 main32 и C06 exact a55 сохраняют свои версии.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`; последний полный verified SHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`, 2561719 bytes, readback13:35:39.429576 UTC. В текущем проходе только readonly первые20/последние90 строк; свежие полный hash/locks/WIP не установлены, запись заблокирована и не повторялась. PLAN/история/WIP/12OPEN сохранены; собственная новая дельта только в этом REPORT.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`; последний полный verified SHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`,2561719 bytes, readback13:35:39.429576 UTC. Последнее частичное readonly чтение20+90 строк было в предыдущем проходе15:05–15:10; сейчас NOT_RECHECKED. Fresh полный hash/locks/WIP не установлены, отказанный preflight/запись не повторены. PLAN/история/WIP/12OPEN сохранены, новая собственная дельта только в этом REPORT.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -5528,3 +5528,121 @@ Checkpoint прочитан readonly: первые20 и последние90 с�
 Организационные проблемы: A publication новее серверного projection из-за явно сохранённого отказа; причина отказа не угадывается. C old next/intent в том же record уже дополнен terminal exact evidence — он не причина для нового запуска. B старый root label не отменяет доказанного получения контракта. Full TS проблема C отделена от focused40. Server checkpoint sync остаётся внешне ограниченным, не скрыт новым REPORT. C04 ACK не подменён IDNA ACK, no ACK не назван простоем. Заблокированная проверка Тестера не подменена.
 
 Новых tests/review/CI/helper/VM/browser/merge/exploitation/access-bypass/live/DB/security/auth/cleanup запусков Контроллера: 0. R7/R8, log118019352572, artifacts-route/targets, branch protection403, fullPG/B05/entitlement/supplemental consumer, protected preflight, B.json и новый A.json refusal не повторены и не обойдены. errors.json/events.jsonl не читались и не восстанавливались; B01/R3 и PR97/131/134 вне scope. Единственная мутация — тот же REPORT. Независимый readback выполняется после записи; успех не выводится из одного write acknowledgement. Все12OPEN, аудит IN_PROGRESS.
+
+
+## Продолжение того же аудита — 2026-10-19T15:38:54.271Z: PR234 опубликован, original Server terminal принят; A R51 готовая локальная композиция
+
+Основание — прямое продолжение владельца после завершённого ответа15:10:36 UTC и REPORT `39da24827bb09ae56bf4a3cf4f86f3ca96114a04`. PLAN, история, принятые результаты, чужой WIP и все исходные12OPEN сохраняются. Это тот же Controller и тот же единственный REPORT. Режим задан владельцем: Работа / GPT-6.1 Sol / Очень высокое; браузерный UI в этом проходе не проверялся.
+
+### Последний исход, доступ и область единственной записи
+
+Лично сверены report ref39da2482, commit author MaksimUnimax15:09:49 UTC, parent5d390a94, полный Git blob `5919e4c09b3e382ef9f12435b3f68f45a464c9bd` — 868092 символа. Неизвестной собственной предыдущей мутации нет. Перед изменением требуется ещё один fresh ref; запись выполняется один раз по текущему blob CAS, без другого писателя в этом разрешённом scope; затем pinned full content/commit parent/ref readback.
+
+Штатный RDC ping Easyscript `9dab7ad2-9d63-43a3-b106-a5840d79ccc1` вернул pong15:33:44.525 UTC. Retained background calls пусты; в list_sessions PID2354613. Процесс не трогался. Это не доказательство отсутствия всех foreign операций. Неисправность среды dot не переносится на Easyscript или этот диалог.
+
+START_HERE/PROMPT_CONTROLLER и семь обязательных WORK_METHOD/PROTOCOL/PRE_AUDIT_SELF_ERROR_GATE/ORGANIZATION_AUDIT_POLICY/RESOURCE_POLICY/DISK_LIFECYCLE/TEMP_WORKTREE_LIFECYCLE получены полностью, 0 remaining. PRIORITY_TASKS прочитан readonly в первых100 строках: document version28, DOT-20261015-02 v10; остальные1220 строк NOT_RECHECKED. Поздние адресные запреты важнее исторических ссылок errors/events и прежних разрешений повторов.
+
+Свежие server locks/Git-WIP/claims/FDs не установлены, отказанный start_process/preflight не повторён и не заменён. Checkpoint/PRIORITY/A.json/B.json/C.json не писались. A root metadata8 строк по-прежнему updated14:32:18.549451/statusR47, а не доказательство нового действия или простоя. B root metadata4 строки прочитаны только для адресата; большие исторические owner_requests и source payload в этом проходе не читались. Все server WIP сохранены отсутствием изменений; свежая полная инвентаризация не заявляется.
+
+### C — публикация и два original PR workflow больше не pending
+
+Лично прочитана GitHub metadata https://github.com/MaksimUnimax/runtime-fixtures/pull/234 : created **15:06:35 UTC**, Draft/open, unmerged, head `f08bdac7502a2d935cadafa82e47b4321907575a`, base `dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537`, два файла. PR появился после сохранённого publication-intent15:05:22, но **до** окончания предыдущего прохода. Прежняя ограниченная формулировка «в прочитанной записи только intent» сохраняется как история охвата; текущая собственная проекция теперь PUBLICATION_CONFIRMED.
+
+Принятый exact SOURCE verdict и local40/40 не перечитывались и не запускались. Новые original PR metadata:
+- Documentation CI `39275041488`, pull_request, attempt1, exact f08; completed SUCCESS, updated15:06:50. Job `118137020262` documentation SUCCESS, completed15:06:49.
+- Server CI `39275041572`, pull_request, attempt1, exact f08; completed SUCCESS, updated**15:23:32**. Original run.jobs collection содержит два terminal SUCCESS: ci-plan `118137019858`15:06:47 и server `118137084442`15:23:32. PR связи run metadata совпадают с PR234 head/base.
+
+Step metadata server job показывает SUCCESS у pnpm typecheck, lint, format, unit, complete integration suite, migrate, OpenAPI, guard, build и e2e; frozen import step SKIPPED. Это новая native metadata, поэтому старое локальное borrowed-dependency TS inconclusive не выдаётся за отрицательный исход этого native шага. Одновременно metadata не устанавливает сама по себе фактический checkout/synthetic merge и exact integration source hashes, охват TS workspaces, количества тестов либо installed поведение. Raw original job logs Контроллером не читались; full integration/installed acceptance не объявляется по одному зелёному workflow.
+
+Current C.json tail лично прочитан: publication теперь PR234/remote exact confirmed, native currentity содержит два SUCCESS и следующий собственный CI-ref этап. В том же record есть старый checkpoint15:13 с Server in_progress и поле at_initial_query15:10; эти timestamps не принимаются за время получения позднего terminal15:23:32. Точный момент обновления mutable native block UNKNOWN. Фактическое C consumption готовых PR результатов отражено существующим последующим CI-only record; нового поручения C не требуется, чужие поля не исправлялись.
+
+### C — три workflow не отсутствуют глобально: существующий отдельный push gate ещё выполняется
+
+После исторического path-filtered PR среза C сам создал CI-only ref `controller/ci-c04-pr234-exactf08-20261019` на том же f08, без нового commit. Готовый C record issued15:28:17 сообщает ref readback и уже существующие пять original push runs. Контроллер этот ref/CI не создавал и не запускал; мнение C о полномочиях запуска не является новой командой владельца.
+
+Лично прочитаны один раз metadata всех пяти существующих run IDs; exact f08, указанная CI-only branch, event push, attempt1 совпали:
+
+| Существующий push workflow | Run | Состояние при чтении15:35 UTC |
+| --- | --- | --- |
+| Server CI | 39278252152 | QUEUED, updated15:28:31 |
+| Extension CI | 39278242955 | QUEUED, updated15:28:27 |
+| Extension I1-C1 client | 39278242934 | QUEUED, updated15:28:27 |
+| Documentation CI | 39278242979 | IN_PROGRESS, updated15:33:13 |
+| Coordination and release safety | 39278242957 | IN_PROGRESS, updated15:35:03 |
+
+На этом readback **полного terminal5/5 нет**. Pending не назван FAILURE и не доказательство простоя; причина scheduler queue UNKNOWN, данных о причине в готовых документах нет. Это отдельный push event, поэтому старые два PR SUCCESS не объявляются terminal результатами этих пяти runs. Снято ошибочное глобальное ожидание «три workflow не существуют»: на PR они path-filtered, а новые push runs уже существуют и требуют только своих готовых исходов. Dispatch/rerun/новое поручение не нужны и не выполнялись. До terminal evidence никакой main merge/installed/Store приёмки.
+
+### A — R51 уже terminal, но только локальная synthetic composed граница
+
+Лично прочитан https://github.com/MaksimUnimax/runtime-fixtures/pull/228#issuecomment-6270460785 : created15:06:54, updated**15:17:11 UTC**. Помимо первоначального плана есть готовый `R51_TERMINAL_PASS_COMPOSED_FOCUSED_20261019`. Собственное PLANNED_NOT_EXECUTED заменено на **PASS_SOURCE_COMPOSED_FOCUSED** с точной областью.
+
+Лично полностью прочитан ready receipt:
+`/root/octoport-control/logs/A/a04-ozon-postcallback-fence-20261019/R51_MAIN_DCDD_FOCUSED_RESULT_AND_LIFECYCLE_20261019.json`,
+98 строк, recorded15:16:18.319325 UTC. Inputs: main dcdd +8 immutable PR228 blobs exact `1b00870c3aa2b56ba1b078eeecb14ee089187639`, base d36. Это disposable overlay, **не новый integrated Git commit**, не PR merge и не true GitHub composition CI.
+
+Готовый focused stdout `R51_MAIN_DCDD_FOCUSED_COMBINED_STDOUT_20261019.txt` прочитан полностью двумя неперекрывающимися диапазонами200+97 строк. Контроллер разобрал готовый JSON results: 68/68 PASS; вместе с host-policy14 и двумя composed/extracted группами9+9 — **100/100**. В конце сохранены R51_FOCUSED_ALL_GATE_SUCCESS, service result success, exited/status0, runtime1.187s. Никакого повторного теста не было.
+
+Receipt сообщает development build exit0, repeat archive byte-identical и41 runtime source/extracted файлов совпали. Новый local-only ZIP:
+`004b6eae2434f0238969db28d93852316347838de583116989aca482fce622ae`, **2629412 bytes**, v0.2.37.
+ZIP не скачивался/не устанавливался, состав/hash Контроллером заново не вычислялись. Это авторское PACKAGE evidence в прочитанном receipt, не независимый PASS_PACKAGE и не прежний R45 `c987c41f...`. Receipt прямо указывает R51_zip_delivery_allowed=false, independent_review=false, installed_owner_start_finish=false, signed_store=false, production=false. R45 PREPARING/release_acceptance=null сохранены.
+
+Lifecycle receipt сообщает завершённые собственные units и удаление A-only disposable worktree/build output с сохранёнными evidence; Контроллер ресурсы/live не измерял и cleanup не выполнял. Source/Tests/Kimi WIP Тестера не открывались. R51 улучшил прежний SOURCE/PATH уровень до конечной локальной synthetic composed проверки; это по-прежнему не full native integration, independent integrated review, installed/owner/Store acceptance.
+
+A.json refusal и причина сверх текста UNKNOWN сохраняются. Новые args/call ID или точная первоначальная история отказа не представлены; replay/alternate write нет. Fresh A root updated14:32 не отменяет ready GitHub R51 и не доказывает простой. Исторический физический ABORT initiator остаётся UNKNOWN, новый100PASS его не объясняет.
+
+### B — принятую политику не возвращаем в ожидание
+
+Новой готовой продуктовой дельты B в этом срезе не установлено; принятые IDNA contract/consumption, static R1, exact-object review и local435/TS8/style12/build2 **NOT_RECHECKED**. Старый B root label POLICY_DECISION_INPUT_READY_NOT_ACCEPTED не отменяет готового addendum и доказанного получения решения. IMPLEMENTATION/AUTH_DB_NOT_AUTHORIZED и LEGACY_COLLISION_COUNTS_UNKNOWN сохраняются. Владелец implementation/product-security/data отдельно определяет допустимый следующий этап; никаких auth/DB/data операций здесь нет. C04 B/Ops ACK остаётся отдельным неподтверждённым исходом, handoff не повторён.
+
+### Техническая ошибка чтения и новый готовый C record об адресном отказе
+
+Собственный первоначальный разрешённый read:
+- tool `mcp__codex_apps__github_fetch_workflow_run_jobs`;
+- exact args `{"repo_full_name":"MaksimUnimax/runtime-fixtures","run_id":39275041572}`;
+- полный primary response: `{"content":[{"type":"text","text":"ReadTimeout: "}],"structuredContent":{"error":"ReadTimeout: ","error_code":"UNKNOWN"},"isError":true}`;
+- observed/captured15:34:40.692 UTC; точный invocation timestamp и call ID сервисом не раскрыты. Это GET, не изменяющая операция; фонового запуска CI не было.
+- proven cause сверх ReadTimeout UNKNOWN; ответа о safety denial нет.
+
+Первичный ответ сохранён и перечитан до следующего read. Штатный документированный collection GET `https://api.github.com/repos/MaksimUnimax/runtime-fixtures/actions/runs/39275041572/jobs?filter=latest&per_page=100` успешно дал именно два original jobs и шаги. Установлена требуемая граница чтения existing original run; причина timeout исходного wrapper не считается исправленной/доказанной. Исходный wrapper не повторён; это не rerun CI и не обращение к старому запрещённому target.
+
+Отдельно в уже готовом C.json прочитан `github_job_metadata_direct_fetch_denial_20261019`: C сообщает прямой GET `/actions/jobs/118137084442`, ответ **INVALID_ARGUMENT: HTTPError: 400: GitHub Fetch URL is not an allowed public GitHub repository or search endpoint**, время15:20–15:25 UTC, точное сервисное время не сохранено. Это авторская сохранённая запись, не собственный новый вызов Контроллера. Данный прямой endpoint Контроллер не вызывал. Узнав запись, дополнительных запросов к этому job/его raw logs/steps для обхода не делал; прочитанный original run.jobs collection и его собственные fields описаны выше ровно. Не смешивать этот новый C endpoint refusal с прежним log118019352572; оба сохраняют свои области. Нельзя объявлять C direct-GET отказ причиной продуктового FAIL.
+
+### Все десять пунктов и проверенное документальное исправление
+
+1. Последний completed REPORT39da/author/parent/full blob и собственные операции проверены; повторной неизвестной записи нет. Ping/calls/sessions — фактические, не пересказ dot.
+2. Девять актуальных canon получены полностью; Priority v28/addressed v10 прочитан в необходимом prefix. Поздние адресные запреты применены, governing files не правились.
+3. Задачи/авторы: existing A — bounded Ozon composition; existing C — own PR234; B — собственный compatibility план. Source/tests/WIP/чаты и Tester не читались/не перехватывались.
+4. Лично потреблены новые A comment/receipt/finished stdout, PR234 metadata, original two PR workflows и3 jobs, C consumption/current-CI pointer, пять existing push metadata. Старый SOURCE review/40local/native baselines не повторены.
+5. SOURCE/PATH, synthetic composed local100, author package, source review, native step metadata и installed/release разделены. CI typecheck/integration steps green не заменяют прочитанный exact checkout/log proof или installed acceptance.
+6. Серверные fresh locks/WIP не установлены, потому серверных записей нет. Единственный own REPORT — fresh version/author/blob CAS и independent readback; чужие role fields нетронуты.
+7. Собственные stale ожидания C publication/Server terminal и A R51 plan фактически исправлены по новой первичке; global missing-three CI уточнено до уже существующего pending push gate. Это документальное устранение, не product closure.
+8. C consumption видно в готовом updated publication/native/ref record; at_initial_query/старый checkpoint не превращены в время terminal. B принятую policy delivery не отменяем; C04 ACK не выдуман, поручения/неизвестные отправки не повторены.
+9. PLAN/history/WIP/map12 preserved. Новые100 focused/PR native metadata не дают первоначальные exact durability/two-relay/original refusal bytes/owner/authority доказательства по исходным12.
+10. Объём, причины/UNKNOWN, владельцы, следующий разрешённый шаг и условие возврата приведены ниже. Аудит IN_PROGRESS; работа не объявляется завершённой из-за окончания этого bounded documentary pass.
+
+### Остатки: доступное действие и внешняя граница
+
+| Остаток | Причина / предел | Ответственный | Ближайшее допустимое действие / условие возврата |
+| --- | --- | --- | --- |
+| C full native gate | Пять existing push runs f08 ещё не terminal; queue cause UNKNOWN | Existing C consumer / GitHub Actions platform | Потребить только их готовые original outcomes и необходимые точные jobs/source binding. Не создавать ещё ref/CI и не повторять accepted review. |
+| C full TS/integration provenance | PR Server steps SUCCESS; local borrowed-dependency TS история inconclusive; actual checkout/hashes/counts не проверены здесь | C source owner и действующий native evidence custodian | Только готовые разрешённые original source-binding/summary; refused job endpoint/log targets не повторять. Возврат к полной квалификации по доказанному exact scope. |
+| C installed / C04 ACK / C06 | Ранее installed mismatch и нет genuine package/authority/rollback/delivery; ACK не доказан | Existing B/Ops/C и владелец/назначенный Tester | Готовый source-pinned процессный receipt в их полномочиях. Не повторять handoff, не выполнять live/Store/owner flow. |
+| A release | Новый local-only synthetic composition не full native/current-main protected integration; старый exact gate3/5 сохранён без перепроверки | Existing A и уполномоченный release actor | Только готовые новые exact original outcomes; никаких dispatch/tests ради аудита. R51 ZIP не операторский кандидат. |
+| A state refusal / old ABORT | Причины сверх refusal текста и физический ABORT initiator UNKNOWN; args/ID исходного отказа отсутствуют | A original caller, dot/штатный канал платформы; original abort custodian | Только уже сохранённые первоначальные calls/replies/correlation, без replay/alternate write. Возврат после подлинной диагностики и разрешённой защищённой процедуры. |
+| B legacy IDNA | Контракт/доставка решены; collisions UNKNOWN, auth/DB/implementation не разрешены | Existing B; product/security/data owner | Разрешённые готовые compatibility материалы и конкретные последующие допуски; выбор контракта повторно не спрашивать. |
+| Server checkpoint / Priority | Отказанный preflight, fresh locks/WIP не установлены | Controller своего checkpoint, dot/платформа исходной диагностики | Только установленная неотказанная процедура с fresh one-writer/locks/WIP. Не подменять запись другим API/исполнителем. |
+
+Все исходные12 остаются OPEN на прежних индивидуальных cause/owner/next/return:
+- 1–3: новый локальный состав/CI metadata не доказывают B03 durable/two-relay, pre-ACK recipient durability и исходную B04 PG/OTP границу; A/B/назначенный Tester сохраняют свои обязанности. Вход — только готовое доказательство соответствующей исходной проверки, без новых/отказанных запусков.
+- 4–5 и8–12: A05/PR48/50, R14/private-env refusal, Sep29 origin, config drift и bound review bytes требуют первоначальных immutable bytes/transport ID/actor-time, которых новая дельта не содержит. Ответственные прежние original callers/publishers/reviewer/custodians по карте; восстановление/реконструкция не считается первичкой.
+- 6–7: C06 authority/catalog/owner release и личная R3 не закрываются A100/C native. Ответственные B/Ops/C и владелец/назначенный Tester; только подлинная готовая приёмка своей версии/границы.
+
+В доступном собственном scope исправлены конкретные текущие проекции и проверена их первичная граница; новые результаты не используются для фиктивного закрытия original12. Отсутствие ACK/commit не использовано как доказательство отсутствия работы. Другого готового документа, закрывающего перечисленные недостающие исходные proof/authority границы, в рассмотренной адресной дельте нет; это предел этого охвата, не заявление о глобальном отсутствии доступной работы.
+
+### Объём и организационные проблемы
+
+Новый объём: nine canon full; Priority first100; A root8/B root4; A R51 comment+receipt98+stdout297; C tail300 и PR234 metadata; два original PR workflow records +3 jobs с server step metadata; пять уже существующих push workflow records; existing REPORT full blob/ref/commit и единственная разрешённая CAS запись/readback. Review f08/local40/B accepted evidence не повторены; новый full CP hash/WIP audit не выполнялся. Последняя полностью проверенная карта12 и CP остаются в истории, CP не изменён.
+
+Организационные проблемы: прежний узкий срез не охватывал PR234 publication и последующий A R51 terminal; они теперь потреблены. C mutable timestamp label не равен времени позднего terminal. Три PR workflow path-filtered, но пять source-pinned push runs уже действуют: не нужны дубли поручений/новые запуски. A server metadata отстаёт из-за отдельно сохранённого отказа. Native metadata и exact source provenance не смешаны; пакет R51 не смешан с R45; C04 ACK не смешан с IDNA receipt. Технический timeout чтения jobs не превращён в сбой сервера/CI/среды dot.
+
+Контроллер не запускал tests/review/CI/helper/VM/browser/merge/exploitation/access-bypass/live/DB/security/auth/cleanup. R7/R8/log118019352572, artifacts-route/targets, branch protection403, fullPG/B05/entitlement/supplemental consumer, A.json/B.json/protected preflight и прочие точные отказы сохраняются без повтора/обхода. errors/events не читались/не восстанавливались; чужие A/B/C/Tester source/tests/WIP/чаты, B01/R3 и PR97/131/134 вне scope. C06 не придуман; новых реестров/архивов/расписаний нет. Все12OPEN; audit_complete=false.
