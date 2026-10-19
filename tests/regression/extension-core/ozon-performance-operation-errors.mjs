@@ -30,12 +30,13 @@ function jsonResponse(parsed, status = 200) {
   };
 }
 
-function unreadableResponse() {
+function unreadableResponse(status = 200) {
   return {
-    ok: true, status: 200, headers: { "content-type": "application/json" },
+    ok: status >= 200 && status < 300,
+    status, headers: { "content-type": "application/json" },
     body: { getReader: () => ({ read: async () => {
       const error = new Error(marker);
-      error.http_status = 700; // invalid; must not override received HTTP200
+      error.http_status = 700; // invalid; must never override actual HTTP200 or HTTP401
       throw error;
     } }) },
   };
@@ -87,6 +88,8 @@ function newFixture(mode) {
       if (url === TOKEN_URL) {
         calls.auth++;
         if (mode === "auth_body_failure") return unreadableResponse();
+        if (mode === "auth_body_401_after_cached" && calls.auth === 2)
+          return unreadableResponse(401);
         if (mode === "auth_network_failure") throw new Error(marker);
         return jsonResponse({
           access_token: "INERT_TOKEN", token_type: "Bearer", expires_in: 3600,
@@ -94,9 +97,10 @@ function newFixture(mode) {
       }
       assert.equal(url, DATA_URL);
       calls.business++;
-      return mode === "business_body_failure"
-        ? unreadableResponse()
-        : jsonResponse({ result: { count: 5 } });
+      if (mode === "business_body_failure") return unreadableResponse();
+      if (mode === "business_body_401_after_cached" && calls.business === 2)
+        return unreadableResponse(401);
+      return jsonResponse({ result: { count: 5 } });
     },
   });
   const guard = {
@@ -162,6 +166,48 @@ await checkError("missing_fetch", {
   code: "FETCH_IMPL_MISSING", httpStatus: 0,
   attempted: false, authCalls: 0, businessCalls: 0,
 });
+async function verifyNoStaleTokenAfterUnreadable401(mode) {
+  const { provider, safeError, calls, guard } = newFixture(mode);
+  const execute = () => provider.executeCommandObject(
+    command, null, credentials, { executionGuard: guard });
+  const first = await execute();
+  assert.equal(first.ok, true);
+  assert.equal(calls.auth, 1);
+  assert.equal(calls.business, 1);
+  if (mode === "auth_body_401_after_cached") {
+    // Explicit fresh-token connection probe sees a fetched HTTP401 whose body
+    // cannot be read, while a prior accepted token is still cached.
+    const connection = await provider.testPerformanceConnection(credentials);
+    assert.equal(connection.ok, false);
+    assert.equal(connection.http_status, 401);
+    assert.equal(connection.auth_request_performed, true);
+    assert.ok(!JSON.stringify(connection).includes(marker));
+    assert.equal(calls.auth, 2);
+    assert.equal(calls.business, 1);
+  } else {
+    await assert.rejects(execute(), (error) => {
+      const publicError = safeError(error, Number(error?.http_status || 0));
+      assert.equal(error.code, "PROVIDER_RESPONSE_READ_FAILED");
+      assert.equal(publicError.http_status, 401);
+      assert.equal(publicError.external_request_executed, true);
+      assert.ok(!JSON.stringify(publicError).includes(marker));
+      return true;
+    });
+    assert.equal(calls.auth, 1);
+    assert.equal(calls.business, 2);
+  }
+  const third = await execute();
+  assert.equal(third.ok, true);
+  assert.equal(third.http_status, 200);
+  assert.equal(calls.auth,
+    mode === "auth_body_401_after_cached" ? 3 : 2,
+    "observed unreadable HTTP401 must evict the still-TTL-valid token");
+  assert.equal(calls.business,
+    mode === "auth_body_401_after_cached" ? 2 : 3);
+}
+await verifyNoStaleTokenAfterUnreadable401("auth_body_401_after_cached");
+await verifyNoStaleTokenAfterUnreadable401("business_body_401_after_cached");
+
 const healthy = newFixture("success");
 const result = await healthy.provider.executeCommandObject(command, null, credentials, {
   executionGuard: healthy.guard,
@@ -172,8 +218,9 @@ assert.equal(healthy.calls.auth, 1);
 assert.equal(healthy.calls.business, 1);
 assert.ok(!JSON.stringify(result).includes(credentials.clientSecret));
 console.log(JSON.stringify({
-  status: "PASS", cases: 7,
+  status: "PASS", cases: 9,
   performance_auth_and_business_transport_true_attempt: true,
+  unreadable_http_401_revokes_cached_token: true,
   source_error_and_public_diagnostics_privacy_safe: true,
   predispatch_guard_remains_no_fetch: true,
   normal_business_result_ok: true,

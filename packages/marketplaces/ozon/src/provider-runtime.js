@@ -329,6 +329,10 @@
         // Never reclassify a known pre-dispatch refusal as an API request.
         if (dispatchAuthorityError) throw dispatchAuthorityError;
         if (!dispatchAttempted) throw error;
+        // A fetched 401 invalidates even an otherwise valid cached token.
+        // Body-read failure must not skip ordinary Performance revocation.
+        if (responseObserved && observedHttpStatus === 401)
+          clearPerformanceToken();
         const safe = new Error(
           responseObserved
             ? "Ozon Performance API ответ не удалось прочитать."
