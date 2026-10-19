@@ -153,6 +153,41 @@ async function fixture(swaggerDelayMs = 0) {
     first,
   };
 }
+// A stored inventory may be published by the legacy two-step writer or
+// by the atomic snapshot+inventory writer. Inject the same failure at the
+// actual persistence boundary in either reviewed source version.
+function failInventoryPersistence(
+  store: InMemoryApiWatchStore,
+  failAt: number,
+  failureCode: string,
+) {
+  // Probe an API that is deliberately absent from older store classes.
+  // Keep a callable type for vi.spyOn in both TypeScript versions.
+  const compatible = store as unknown as {
+    saveSnapshotWithInventory: (
+      metadata: Parameters<InMemoryApiWatchStore["saveSnapshot"]>[0],
+      inventory: Parameters<InMemoryApiWatchStore["saveInventory"]>[0],
+    ) => ReturnType<InMemoryApiWatchStore["saveSnapshot"]>;
+  };
+  let saves = 0;
+  if (typeof compatible.saveSnapshotWithInventory === "function") {
+    const original = compatible.saveSnapshotWithInventory.bind(compatible);
+    return vi
+      .spyOn(compatible, "saveSnapshotWithInventory")
+      .mockImplementation(async (metadata, inventory) => {
+        if (++saves === failAt) throw new Error(failureCode);
+        return original(metadata, inventory);
+      });
+  }
+  const original = store.saveInventory.bind(store);
+  return vi
+    .spyOn(store, "saveInventory")
+    .mockImplementation(async (inventory) => {
+      if (++saves === failAt) throw new Error(failureCode);
+      return original(inventory);
+    });
+}
+
 describe("review main109ce9df public WB recovery", () => {
   it("bot upload wakes the report pipeline and persists all13 snapshots/inventories without a fabricated diff", async () => {
     const f = await fixture(1250);
@@ -214,9 +249,11 @@ describe("review main109ce9df public WB recovery", () => {
       pendingStore: new InMemorySwaggerSourceStore(f.handoffState),
       store: new InMemoryApiWatchStore(f.state),
     };
-    const save = vi
-      .spyOn(restarted.store, "saveInventory")
-      .mockRejectedValueOnce(new Error("SYNTHETIC_WRITE_FAILURE"));
+    const save = failInventoryPersistence(
+      restarted.store,
+      1,
+      "SYNTHETIC_WRITE_FAILURE",
+    );
     vi.mocked(f.fetcher).mockClear();
     expect(
       (
@@ -477,15 +514,10 @@ describe("review main299d6113 receipt and hold boundaries", () => {
       await f.upload(f.first.requestId);
       vi.mocked(f.dependencies.fetcher).mockClear();
       if (boundary === "inventory") {
-        const original = f.dependencies.store.saveInventory.bind(
+        failInventoryPersistence(
           f.dependencies.store,
-        );
-        let saved = 0;
-        vi.spyOn(f.dependencies.store, "saveInventory").mockImplementation(
-          async (inventory) => {
-            if (++saved === 7) throw new Error("SYNTHETIC_SEVENTH_INVENTORY");
-            return original(inventory);
-          },
+          7,
+          "SYNTHETIC_SEVENTH_INVENTORY",
         );
       } else {
         const original = f.dependencies.reportStore.transitionReport.bind(
