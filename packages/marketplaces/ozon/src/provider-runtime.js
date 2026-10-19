@@ -236,6 +236,20 @@
     };
   }
 
+  // Compare the normalized session map without depending on key insertion
+  // order. Never include opaque URLs or inline document bytes in diagnostics.
+  function reportSessionCanonicalBytes(state) {
+    const entries = (records) =>
+      Object.entries(records || {}).sort(([a], [b]) =>
+        a < b ? -1 : a > b ? 1 : 0,
+      );
+    return JSON.stringify([
+      state.schema_version,
+      entries(state.report_code_policies),
+      entries(state.report_file_refs),
+    ]);
+  }
+
   function reportStateError(
     code,
     message,
@@ -302,6 +316,24 @@
           throw reportStateError(
             "REPORT_FILE_SESSION_STATE_WRITE_FAILED",
             `Не удалось сохранить session-state отчётов: ${String(error?.message || error || "unknown error").slice(0, 240)}`,
+            { externalRequestExecuted },
+          );
+        }
+        // A resolved session.set() is not proof that the report reference was
+        // actually retained. Re-read before returning an opaque reference to
+        // the caller; on uncertainty, never report successful completion.
+        try {
+          const persisted = await readReportSessionState({
+            externalRequestExecuted,
+          });
+          if (
+            reportSessionCanonicalBytes(persisted) !==
+            reportSessionCanonicalBytes(normalized)
+          ) throw new Error("session readback mismatch");
+        } catch (_) {
+          throw reportStateError(
+            "REPORT_FILE_SESSION_STATE_COMMIT_UNCONFIRMED",
+            "Не удалось подтвердить сохранение session-state отчётов.",
             { externalRequestExecuted },
           );
         }
