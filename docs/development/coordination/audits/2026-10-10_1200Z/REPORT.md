@@ -1,10 +1,10 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T14:36:20.547Z; B получение IDNA лично подтверждено addendum/PR215comment: DELIVERY_UNKNOWN снят для этого решения. Новый exactGitobjectreview treef2bf88 VERIFIED/PASS_SOURCE_SCOPED_WITH_KNOWN_OPEN_PREEXISTING_RISK, FULL_BETA_NOT_ACCEPTED. C PR210Draft/open head a55b5ad8 опубликован14:25:15; OperaR19 толькоsigned-outguestinstalledsynthetic, безauth/Storeприёмки. A_R47толькоpathscope; CPserverblocked; original12OPEN,audit_complete=false.
+- **Состояние на:** 2026-10-19T14:52:32.418Z; Bготовыйsection6 SOURCE_PRECHECK_COMPLETE — документальныйплан, collisionsUNKNOWN/AUTH_DB_NOT_AUTHORIZED. CexactA55docreviewPASS_SOURCE_SCOPED сограничениями, Documentation39268792738SUCCESS/1job; остальные4workflowнеподтверждены, Draft/NO_SUBMIT. A14:32metadataнеproductPASS. Freshmainrefdcdd2b51metadataonly, acceptedmain32неперенесён. ServerCPblocked, original12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
-- **Основа GitHub:** currentref `main=32b768862e69133f9f05c556ea2df3c238e1dbfc`, tree `e5a9f9be2606f92fff174e03757edd08f55a9364`; originalpush/attempt1 native5/5workflows13/13jobsSUCCESS, lastterminal13:14:17. Новые два terminal/jobs проверены лично, прежние Docs/Safety/I1 сохранены NOT_RECHECKED. Tester source/tests/чат не читались; native не означает installed/live/Store/owner приёмку.
+- **Основа GitHub:** свежий ref `main=dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537` — только metadata, без source/CI/приёмки нового SHA и без проверки Тестера. Последняя принятая nativebaseline `32b768862e69133f9f05c556ea2df3c238e1dbfc` 5/5workflows13/13jobs сохранена NOT_RECHECKED. Bstaticplan основанmain32, Creview/Docs привязаныa55b5ad8; приёмка между SHA не переносится.
 - **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`; последний полный verifiedSHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`,2561719bytes, readback13:35:39.429576 UTC. В проходе14:00+ прочитан только currenttail220lines; свежий полный hash/locks/WIP не установлен, запись CP не выполнялась. Прямое ownerрешение и остаток синхронизации сохранены в этом же REPORT; это не заявление о доставке B.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
@@ -5323,3 +5323,119 @@ Readinessдокумент `docs/product/readiness/OPERA_ADDONS_0_2_37_SUBMISSION
 Организационныепроблемы: прежнийdeliveryUNKNOWNпоBустарел и снят; новыйexactreviewнельзяобесцениватьстарымexcerptsописанием; Cintentраньшепубликациинеявляетсятекущимno-mutation; A14:13/13:24timestampsоставленыраздельно; C04ACKнеподменёнполучениемIDNA. Реальныереализация/legacydata/target/rollback/releaseграницыостаютсяотдельными. ServerCPsyncблокявный, не скрытвREPORTкаквыполненный. ЧатыA/B/C/Testerнеоткрывались, переносыведётвладелец; PR233иB01/R3нетронуты.
 
 Новыхtests/review/CI/helper/VM/browser/merge/exploitation/accessbypass/live/DB/security/auth/cleanup0. Всеexactrefusals R7/R8/log118019352572/B.json/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer/protectedpreflight и остальные сохранены,неповторены,необойдены. errors.json/events.jsonlнечитались/невосстанавливались; PR97/131/134внеscope. Новыхреестров/архивов/расписанийнет. PLAN/history/WIP/12OPENсохранены; аудитIN_PROGRESS.
+
+
+## Продолжение того же аудита — 2026-10-19T14:52:32.418Z, после REPORT b0668550
+
+Тот же незавершённый аудит, Работа / GPT-6.1 Sol / Очень высокое. Фактический RDCping14:47:42.114UTC, Easyscript9dab7ad2-9d63-43a3-b106-a5840d79ccc1. PLAN/history/WIP/12OPEN сохранены; новыхhelper/исполнителей/расписаний нет.
+
+### Последний исход, операции и собственные исправления
+
+Лично прочитан полный pinnedREPORTb0668550371ccc7a33fe8408e6944bde2ca91c2b/blob3c821c994012cdb01247dcce3ebd7145e7c98e9f,835436chars; authorMaksimUnimax14:36:21,parent07cd8c4b. Freshrefповторносверенпередwrite. Unknownownmutationнет; RemoteMCPpendingcalls0. Пристартеsessions2354613и3145805; второйимелruntime0s, владелец/назначениенеустановлены. Сессии/команды/STDINнеисследовалисьинетрогались, никакойобщейquiescenceforeignwritersнеобъявлено.
+
+Полностьюполучены currentSTART_HERE/PROMPT_CONTROLLER и обязательныеWORK_METHOD/PROTOCOL/PRE_AUDIT_SELF_ERROR_GATE/ORGANIZATION_AUDIT_POLICY/RESOURCE_POLICY/DISK_LIFECYCLE/TEMP_WORKTREE_LIFECYCLE. Currentpriorityv10прочитанreadonlyвfirst100lines; поздниепрямыеграницывладельцасохранены.
+
+ДоступныеизмененияonlyownREPORT:
+- CnewheadreviewUNKNOWN → готовый **документальный** scopedPASSa55 с явнымилимитамиhashcoverage.
+- CDocsCIнепроверен → originalexactheadDocsrun+единственныйjobSUCCESS, остальные4workflowнеприняты.
+- Bготовыйраздел6 → конкретныезащитныеcompatibilityrequirements, без dataaudit/implementation.
+- A14:32метаданныеотделеныотproductPASS.
+- ТекущийmainrefуточнёнбезпереносаCIприёмки/проверкиТестера.
+
+Это документальноеустранениеустаревшихожиданий, не ремонтпродукта. РеальныеB/Cдействияпредшествуютownwrite; ихпрогресснеприписанControllerзаписи.
+
+### B — новый раздел6 существующего плана: SOURCE precheck, не data/preflight execution
+
+Личноцеликомпрочитанготовый **раздел6** `logs/B/B06_SIX_DRAFT_MAIN3F_20261019/IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md`, строки84–114,31line/0remaining. Modified14:37:22 переданвновомlocatorсрезе; самrecord **B06_IDNA_CROSS_AUTH_COMPAT_STATIC_PREFLIGHT_R1_20261019** имеетstatus **SOURCE_PRECHECK_COMPLETE; LEGACY_COLLISION_COUNTS_UNKNOWN; AUTH_DB_NOT_AUTHORIZED**.
+
+Это авторскийREAD_ONLYGit-source-derivedcompatibility/futuretestplanнаmain32. Контроллерпрочиталтолькоготовыезащитныетребования, а не указанныеsourcefiles, rawreviewinputs илиreproduction. НазваниеSTATIC_PREFLIGHT/SOURCE_PRECHECK_COMPLETE **не означает** исполнениетестов/доступкданным/authDBпроверку.
+
+Новыеявныеинвариантыготовогоплана:
+1. **СуществующиеOTPартефакты/сессии.** Сохранитьисторическийchallenge target, verificationhash, encryptedemail ипрежниеправилапроверкидовыданногоexpiry; будущийdomaincomparisonkeyнепереписываетстарыйартефакт.
+2. **Rate/cooldown/locks.** Одинсогласованныйконтрактсравнениядляэквивалентногодоменабезreset/новогокредитастарыхbuckets, безослабленияIPограниченийирасхожденияlookup/locking.
+3. **RequestId/idempotency.** Domain-equivalenceнеразрешаетпереинтерпретироватьисторическийpayloadhashилиуспешноподменятьстарыйreplayновымнаписанием.
+4. **Legacyvalidation/длинаключа.** Старыеidentityмогутнеудовлетворятьновойстрогойдоменнойвалидации, A-labelможетрасширитьcomparisonkey. Никакихsilenttruncate, weakaliasилиавтоматическоговыбрасываниястарогопользователя; реальнаясовместимостьUNKNOWNбезразрешённыхданных.
+5. **Cutover/uniqueness/rollback.** Nullable/shadowkeyсампосебенедоказываетуникальностьприсмешанныхold/newwriters; требуетсясогласованныйfail-closedпереходсдоказаннойзащитойотнесовместимыхwritersибезопаснымrollback.
+
+Сохранённовыйprotectiveпланбудущегоprivacy-safeанализаlegacydata: толькоотдельноразрешённыематериалы, обезличенныеагрегаты, безOTPplaintext/privateuserdataизменений. **Реальныеcollisioncounts/currentDBcoverageUNKNOWN**, live/DBsnapshotнечитался. ЛюбыеfuturetestsвдокументеNOT_RUN; перечислениепроверокневыдаётновогодопуска.
+
+OwnercontractиactualBdeliveryужеaccepted **NOT_RECHECKED**, повторныйвопрос/доставкаотсутствуют. Старые435/TS8/style12/build2иindependentexactGitobjectPASS treef2bf88сохраненыNR. Contractнеразрешаетреализацию, auth/DB, accountmerge/localpartnormalization. ExistingB — будущийsourceauthorпослеточногодопуска; product/security — legacycollisiondisposition; отдельныйDB/Ops — разрешённыйdatascope/backup/rollback. СледующийдопустимыйшагController — толькоготовыедокументыконкретнойотсутствующейграницы.
+
+### C — готовый verdict по текущему указателю, только документa55
+
+В текущемC.jsonпрочитанreadyуказатель **review_R2**: result `/root/octoport-control/logs/C/C06_OPERA_ADDONS_PR210_EXACTA55_R19_SOURCE_REVIEW_RESULT_R2_20261019.txt`; verdictSHA256 **90b3eadb7b7a887a9ff279da4f371986cdaf13d13a078f4a0fea7bf22d9a507b**, DOCUMENTATION_SOURCE_SCOPED_ONLY, actualterminal inactive/success/exit0/empty-cgroup поавторскойзаписи, **completed_observed14:37:06.544483UTC**. Контроллернепроверялunit/journalнепосредственноинезапускалreview.
+
+Затемличнополностьюпрочитансамreadyresult: **PASS_SOURCE_SCOPED_EXACT_A55B5AD8**. CurrentPR210metadataдополнительноподтверждаетDraft/open/head `a55b5ad8c4ce7ade372aee1ffbdee5683399ebdd`, updated14:37:37. Новыйheadнеподменёнстарым5e6review.
+
+Границаverdict:
+- reviewerподтвердилсуществование/hash **первичногоA03R19файла**, соответствиедокументасsigned-outguestprivacyresultнаdevelopmentZIPиоговоркойstartup/workernetworknotexhaustive;
+- changedtableиfinalparagraphсогласованы: R19неestablishesauthenticated/workAllowed, Storepackage, releaseauthority, dashboardSubmitилиполнуюприёмку;
+- main32CI — другаяревизия; historicalI1ABORT+164ms/open иStoreprivate-datapolicyUNKNOWN/STORE-1NOT_ACCEPTEDсохранены;
+- **частьevidencehashesнеперепроверенаreviewer:** native-result/R2путиотсутствоваливегоscope, выбранныйC.jsonфрагментпредшествовалnestedR19. ParentCпишетосвоейболеераннейотдельнойhashсверке, ноонанеприсвоенанезависимомуreviewer.
+- Tests/runtime **неперезапускались**. Никакойproductionauthorityнеполучено.
+
+Принятименноscopedverdictдокументальногоограничениянаexacta55, не новоеinstalled/releaseapproval. СтарыеR19runtime/packageдоказательстванеслужилиповодомдляповтора. Неполныйhashcoverageне«закрыт»чтениемнепереданныхпутейилиновымreview. Доступноеownожиданиедокументальногоreviewснято, остальныеграницыостаются.
+
+### C — один новый потреблённый native terminal, без full-five acceptance
+
+Самостоятельнопрочитаны originalrunmetadata **DocumentationCI39268792738**, head **a55b5ad8c4ce7ade372aee1ffbdee5683399ebdd**, event **pull_request**, attempt **1**, completed **SUCCESS**, updated **14:25:33UTC**, иjob **118115318949 documentationcompletedSUCCESS**.
+
+Это **одинподтверждённыйworkflow/одинjob**. Server/Extension/I1-C1/Coordinationandreleasesafety — остальныечетыреобязательныхworkflow — вготовойCзаписинеconfirmed; ихприёмкавэтомпроходенеустановлена. Никакихdispatch/rerunилиновыхCIзапусков. ExactDocsSUCCESSневыдаётсяза5/5илиmerge-ready.
+
+**Хронология:** Docsterminal14:25:33уже существовалдопредыдущегоREPORT14:36:21, нораньшеКонтроллеромнебылпокрыт. Это позднеенезависимоепотреблениеготовогоterminal, не событиепосле14:36. Cverdictterminalнаблюдён14:37:06 — отдельныйболее позднийисход. PR210остаётсяDraft/NO_SUBMIT; genuineauthority/target/authenticatedStart→result→Finish/Storeнеподтверждены.
+
+### C — готовая сверка источников правил, без синхронизации
+
+Личнорассмотренreadyrecord **C_GOVERNANCE_DUAL_SOURCE_READBACK_20261019**, observed14:37:06.544483UTC, изC.json. CсравнилEasyscriptcurrentrulesипривязанныйGitHubmain32, сохранивисточникииобязательства. Егоописаннаяmaterialdivergence: вкопииGitHubWORK_METHODсохраняетсяисторическое11.10упоминаниеerrors.json/events.jsonl, тогдакакпоздняяпрямаякомандавладельца14.10запрещаетихчтение/восстановление.
+
+Правилоприменено: **поздняяадреснаякомандавладельцаимеетприоритет**; observationtime14:37невыданозаissuetimeновойownerкоманды. СамКонтроллерполностьюпрочиталактуальныеEasyscriptправила, ненеоткрывалзапрещённыереестры, непроверялвсепоследующиеGitHubкопииинесинхронизировалgoverningfilesавтоматически. Никакихперезаписейправил/новыхregistry/gates. Историческийcodex3labelнедаетдопускапомощнику; новыхзапусковнет.
+
+### A — изменение metadata без новой product acceptance
+
+ПрочитанатолькоrootmetadataпроекцияA.json: updated **14:32:18.549451UTC**, задача A04_OZON_PROVIDER_POSTRESULT_CONTEXT_FENCE_20261019, status **A04_PR228_1B008_R47_READBACK_3OF5_10OF13_R45_PREPARING**, canonicalhead09e12fab47a5fad36cfbd2edca282362d940af54. Большоеисторическоеполеresultнеиспользованокакновоедоказательство.
+
+Ниupdatedtimestamp, ниreview_pending/RUNNINGнеподтверждаютновыйproductрезультат. R47main32pathscope/R45PREPARING/acceptednative3/5+10/13сохранены **NOT_RECHECKED**, нетвыводаопростоеA. Чужиеsource/tests/WIP/чатненачитывалисьинеперехватывались.
+
+### Новый mainref: только metadata, без проверки Тестера
+
+Приобычнойсверкеcurrentmainrefв14:50UTCполучен **dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537**. Проверентолькоref; source/tree/diff/PR/CI/runtime/происхождениеэтогоновогоSHA **NOT_RECHECKED**. Принятаяmain32native5/5+13/13наdcdd **непереносится**; Bstaticplan/R47иCdocостанутсяпривязаннымиксвоимexplicitbaseline/head.
+
+НоваяrefmetadataнезаменяетотдельнуюзаблокированнуюпроверкуТестераdot. Тестер/B01/R3/PR233егоsource/tests/чат/профилинеоткрывались, UIнеиспользовался, unknownownerоперациинеповторялись. Никакихновыхпроверокновогомainрадиаудита.
+
+### Все десять пунктов фактического прохода
+
+- 1. ПоследнийterminalREPORTb0668550/blob3c821c99/fullcontent835436chars, authorMaksimUnimax14:36:21,parent07cd8c4b иfreshbranchref проверены. Pendingcalls0; session2354613protected, дополнительныйPID3145805ownershipUNKNOWN untouched; отсутствиевсехforeignоперацийнеутверждается.
+- 2. АктуальныеSTART/controller+WORK/PROTOCOL/selferror/ORG/resource/disk/temp полученыполностьюread_file0remaining; priorityfirst100/v10readonly. Позднийпрямойзапретerrors/eventsимеетприоритет, rulesнепереписывались.
+- 3. НоваяBsection6прочитанацеликом31line/0remaining; Ccurrentpointerreview_R2 иreadyverdict, governedsourcecomparisondoc, Acurrentmetadata лично рассмотрены. Dot — locator, неподлежащеекопированиеитогов.
+- 4. ГотовыйCverdictиoriginalDocsrun/job лично потреблены, безreviewruntimeCIrerun. Bcontractdelivery/exacttreereview и старые435/TS8/style12/build2/main32CI/R45 не повторялись.
+- 5. SOURCE_PRECHECK_COMPLETE = статическийплан, неdataaccess/implementation. CscopedPASS = документa55, неguest/auth/runtime/Storeповтор. DocsSUCCESS1workflow не полный5workflowgate.
+- 6. Serverlocks/WIP/claims/targetFDsNOT_RECHECKED; CP/PRIORITY/B.jsonнеписались, отказанныйstart_process/preflightнеповторён/необойдён. Только ownGitHubREPORTversionCAS.
+- 7. СобственныеpendingCdocreview/DocsCIзамененыточнымscopedPASS/1jobSUCCESS; Bcompatibilityнеопределённостьуточнена5защитнымиклассами, безproductclosure; pinnedreadbackREPORTотдельно.
+- 8. Cactualterminalconsumption14:37:06отдельноотDocs14:25:33; Aметаданные14:32неисточникproductPASS; C04ACKNOT_OBSERVEDнеподменёнBIDNAconsumption. Чаты/Тестернепроверялись иdotблокнеобходился.
+- 9. PLAN/history/WIP/map12OPEN/cause/responsible/next/returnсохранены. НовыеBstatic/Cdocнедаютнедостающиеoriginaldurability/owner/refusal/reviewbytesпруфы. Sourceauthornext/полномочияразделены.
+- 10. Объём, UNKNOWN, ответственные,next/return, orglags/новыйmainrefиCPsyncblockотражены; nohelper/tests/reviewCI/liveDBauthcleanup/errors/events/registry/archive/schedules; auditfalse.
+
+### Причины, ответственные, следующий допустимый шаг
+
+| Остаток | Причина / проверенный предел | Ответственный | Следующее действие / возврат |
+| --- | --- | --- | --- |
+| B staticcompatibility | SOURCE_PRECHECK_COMPLETE для готовогораздела6, не implementation | ExistingB solefutureauthor; product/security/DB-Ops в своихполномочиях | Разрешённые legacydata/collisiondisposition иточныедопуски; донихтолькоготовыедокументы/защитныйплан. |
+| B actuallegacydata | LEGACY_COLLISION_COUNTS_UNKNOWN; источникпользовательскихданныхнечитался | Отдельныйуполномоченныйdatacustodian/productsecurity | Privacy-safeактуальныематериалыпослеотдельногодопуска; никакихrowchanges/merge/aliasing/OTPreset. |
+| C docsourcegate | PASS_SOURCE_SCOPED_EXACT_A55B5AD8, parentclaimsнеравныreviewerhashchecks | ExistingC/readinessauthor/existingreviewer | Сохранитьэтотготовыйscopedverdict; не назначатьещёreviewтого жеhead безновогооснования. |
+| C nativegate | Documentation39268792738/job118115318949SUCCESS;4обязательныхworkflowнеподтверждены | C/существующийnativeconsumer | Толькоготовыеoriginalexactheadterminal при ихпоявлении; никакихdispatch/rerunдляаудита. |
+| C Opera/runtime/Store/C06 | Signed-outguestR19only; normalauth/StartresultFinish/targetpackage/authority/submitnotproved | A/назначенныйTester; Cdoc; B-Ops/owner releaseauthority | Подлинныеготовыеточныедоказательствасвоихграниц; Draft/NO_SUBMITсохраняется, C06неизготавливается. |
+| A metadata/R47/R45 | Updated14:32:18 при прежнейзадаче/R47; новогопродуктовогорезультатавmetadataнет | ExistingA/sourceharnessowner | Готоваяноваяexactпервичка, неповторпринятого. LastR47main32pathscope неcurrentdcddcomposition. |
+| Newmainrefdcdd | Толькоrefmetadata; происхождение/source/CI/installedNOT_RECHECKED | Действующийавторновойревизии; Controllerтолькосвойdocscope | Не переноситьmain32PASS; не подменятьзаблокированнуюпроверкуТестерачужимsource/чатом/CIаудитом. |
+| ServerCP / original12 / C04ACK | CPblockedбезfreshlocksWIP;12OPEN;новогоC04receiptнепредоставлено | ControllerownsCP; исходные12custodians; B-Ops/C | Толькоустановленнаянеотказаннаяпроцедураsync; originalexactevidenceпообязательствам; existinghandoffбезповтора. |
+
+Исходныекарта12cause/responsible/next/returnиPLAN/history/WIPсохранены. КартаSHAfe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d — последняяпровереннаяссылка, не новыйserverhashpass. Готовыеstaticplan/docreview/DocsCIнедаютнедостающуюoriginalrequest/bytes/durableactor/ownerinstalledprimaryдляэтих12; ониOPEN, audit_complete=false.
+
+### Собственный scope, объём и организационные проблемы
+
+**ServerCPостаётсязаблокированным:** start_process/protectedpreflightнеповторён, не заменёндругимисполнителем/формой; freshserverlocks/WIP/claims/FDsNOT_RECHECKED, записейбезнихнет. PRIORITY_TASKS/B.json/А/Csource/tests/governingfilesнеписались. Единственнаямутация — существующийREPORTчерезfreshknownbranchref/author/blobCAS, затемindependentpinnedfullcontent/parent/refreadback. НеустановленныйforeignPIDнетронут; singlewriterнаserverнемнимообъявлен.
+
+Объём:9mandatorycanonполностью; priorityfirst100lines/v10readonly; новыйBsection6целиком31line; Ccurrentpointertail380lines, готовыйвердикт, готоваяgovernancereconciliation; Arootmetadata; одинCexactDocsrun+одинjob; REPORTfullblob/ref/commit иmainrefmetadata. ИсторическиебольшиеполяAнеразбирались, source/reproduction/inlinepayloadнеоткрывались, старыеacceptedBcontractdelivery/exactobjectreview/local435/R45/main32CIнеповторялись.
+
+Организационныелагиразделены: старыйCнезакрытыйdocreviewполучилточныйscopedterminal, ноограниченияhashcoverageнестерты; уже существовавшийDocsterminalпотреблёнбезложнойхронологии; Bprecheckназваниебезdataauthorityнепринимаетсякакготоваяреализация; metadataAнеобъявленаproductPASS; новыйmainrefнеполучилстаруюприёмку; rulesdivergenceнепривёлкавтосинхронизации/восстановлениюerrors/events. Снятыдоступныеownдокументальныеожидания, остальныеproduct/external/serverCPграницыназваныровно.
+
+Новыхtests/review/CI/helpers/VM/browser/merge/exploitation/accessbypass/live/DB/security/auth/cleanup0. R7/R8/log118019352572/B.json/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer/protectedpreflightиостальныеexactrefusalsнеповторены/необойдены. errors.json/events.jsonlневосстанавливалисьинечитались; PR97/131/134внеscope. Новыхреестров/архивов/расписанийнет. АудитIN_PROGRESS;12OPEN.
