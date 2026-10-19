@@ -99,13 +99,27 @@ export function calculateFunnel(input: {
     if (id && row.event === first && !entry.has(id))
       entry.set(id, row.occurredAt);
   }
+  let previousReached: Map<string, FunnelSignalRecord> | undefined;
   const reached = stages.map((stage, stageIndex) => {
     const perEntity = new Map<string, FunnelSignalRecord>();
     for (const row of records) {
       if (row.event !== stage) continue;
       const id = entityId(input.funnel, row);
       const start = id ? entry.get(id) : undefined;
-      if (!id || !start || row.occurredAt < start || perEntity.has(id))
+      // A later stage counts only after this entity reached its predecessor.
+      const previousAt =
+        stageIndex === 0
+          ? start
+          : id
+            ? previousReached?.get(id)?.occurredAt
+            : undefined;
+      if (
+        !id ||
+        !start ||
+        previousAt === undefined ||
+        row.occurredAt < previousAt ||
+        perEntity.has(id)
+      )
         continue;
       perEntity.set(id, row);
     }
@@ -116,6 +130,7 @@ export function calculateFunnel(input: {
           entry.get(entityId(input.funnel, row)!)!.getTime()) /
         1000,
     );
+    previousReached = perEntity;
     return {
       stage,
       eligibleCount: entry.size,
