@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T02:45:10.977215Z; новые A R10/B admin-reason R1-R3/C04 evidence — последнее дополнение; аудит открыт.
+- **Состояние на:** 2026-10-19T02:54:55.067872Z; R2 known trust line/unknown terminal и новые A R11/C03 scoped evidence — последнее дополнение; аудит открыт.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** `main=4994946608d426114081d03170abc9375c898f6f` — fresh ref; PR213 merged, tree совпал с принятым exact984. Остальные source compatibility не переоценивались.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `6aac84cc02f28f5bf4445501cd50bab9644657b3a4743a6096e3a7d21e8e4880`, 2,187,654bytes; guarded update02:44:27.655656Z, independent readback02:45:10.977215Z; `audit_complete=false`, original12open.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `d7f14408c050e632255417e3a996c3d19b76b904bccaa744beb5bf2a902007b2`, 2,206,267bytes; guarded write02:54:29.743758Z, independent readback02:54:55.067872Z; `audit_complete=false`, original12open.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -3809,3 +3809,99 @@ Own guardedwrite02:43:05.742958Z, поздний R3 update02:44:27.655656Z; от
 - facts/reply MATCH, marker1, map12/PLAN/history/foreignrootfields preserved, locksFREE. WIP A74+7/B79+4/C65+8 и exact canonical HEAD09e/088/5ca сохранились.
 
 SameREPORT exact blob CAS755bef47/parenta44b137c после свежих ref/author; [skip ci], затем independent full content/blob/parent/ref readback перед ответом. Work/GPT6.1Sol/Veryhigh сохранены;86%rootUI — предоставленный user факт02:35:02, не наш новый UI check. Расписания/кредиты/сбросы/auth не менялись. Все адресные R7R8/artifacts-route/targets/protection403/fullPG/B05/entitlement/прочие отказы сохранены; B01/R3/foreignsource/WIP/live/DB/security/cleanup/старыечаты/PR97/131/134/errors/events не тронуты. **audit_complete=false;12open.**
+
+
+## Дополнение 2026-10-19T02:54:55Z — известная trust-строка B R2 отдельно от неизвестного terminal; A R11 и C03 RED→focused GREEN
+
+**Тот же аудит, completed predecessor48622884cf3660616710ef17f02b5fc9eb1993cd от02:46:27Z; audit_complete=false, original12open.** Принятые R10/local54, B118/quality/R3INLINE, C04handoff, main4995/5/13jobs/Cconsumption и исправленное postmerge ожидание **NOT_RECHECKED**. Это узкое продолжение по новой готовой и впервые адресно потреблённой первичке; новых tests/review/CI/VM/browser/helper/merge нет.
+
+### Сначала последний исход, версии, один автор и WIP
+
+REPORT ref/commit/blob/author/parent сверены лично:48622884/blob92d61eeb0a89690b1c9544e4262fcb0f4179bdb4, MaksimUnimax02:46:27,parenta44b137c. Пинованный полный REPORT прочитан и совпал с прежним verifiedcontent. Штатный RDC Easyscript ping **02:50:08.307Z**; устройство9dab7ad2-9d63-43a3-b106-a5840d79ccc1 доступно. Retained background calls0; protected session2354613 не тронута. Target writableFD0, coordination/CONTROLLER/целевые locksFREE; незавершённых Git markers в трёх canonical worktrees нет.
+
+Canonical WIP сохранён: A09e12fab74tracked+7untracked; B0885f49979+4; C5ca5999465+8. Own cp/pr hashes до записи совпали с завершённым checkpoint. Между чтением и первой guardedwrite изменилась C role version: guard остановил действие **до любой записи**. Независимый read02:53:48 подтвердил прежние own hashes; новый ready C GREEN прочитан, следующая запись использовала свежую Cверсию. Это исключение stalewrite, не повтор неизвестной мутации. Чаты A/B/C/Тестера/старые диалоги не открывались; запускает владелец.
+
+Актуальные серверные START_HERE/PROMPT_CONTROLLER прочитаны; exacthash всех9 применимых core/resource/disk/temp документов совпал с полностью прочитанными версиями предыдущего прохода. Действующий DOT02v10 и собственный последний ответ сверены; старый текст передачи dot не отменяет прямую позднюю передачу владельца этому soleController. Свежий GitHub main ref4994946608d426114081d03170abc9375c898f6f подтверждает неизменность прочитанных mandatory GitHub pointers/PLAN/AGENTS/SPEC. Никаких повторных принятых tests/CI/readout не делалось. Lateowner no errors/events/no-newregistry и точные адресные ограничения сохранены.
+
+### B R2 — адресное документальное упущение исправлено
+
+Лично прочитан **только** существующий короткий файл:
+`/root/octoport-control/logs/B/B06_ADMIN_REASON_CONTROLS_20261019/INDEPENDENT_LUNA_XHIGH_R2.log`
+
+- 76bytes; SHA256 **dd701e712037bba81445e9a92376e3d3af69acac5f0187ec904e9ed3c401324d**.
+- Фактический read **02:50:39.302734Z**; filesystem mtime02:41:05.297502Z.
+- Полное содержимое одной строки:
+
+> Not inside a trusted directory and --skip-git-repo-check was not specified.
+
+**Классификация: trust-check отказ известен; SOURCE-verdict нет. Отдельный terminal NOT_OBSERVED, exit UNKNOWN.** Файл не содержит original PID/unit/session/полной invocation→terminal correlation. mtime — не время запуска/завершения; характерная строка не позволяет приписать exit1 или отсутствие продолжающегося процесса. Прежняя формулировка только «R2 terminal неизвестен» была неполной по содержимому отказа; текущая own projection/checkpoint/ответ дополнены этой точной первичкой. Историческое отсутствие terminal остаётся корректным и не переписано задним числом.
+
+Именование флага в цитате — первичный текст, **не инструкция его применять**. R2 не повторялся, trust/skipflag/auth/cwd/другой runner/helper/форма не менялись. **Inline source payload не читался.** B.json и активные source/tests/WIP не менялись. R1 UNABLE и принятый ограниченный R3 INLINE не проверялись заново и не смешаны с причиной R2; выводов о subscription/entitlement нет.
+
+Ответственный за missing terminal primary — существующий B/reviewer custodian. Ближайшее допустимое действие Controller — потребить **готовый original terminal/exit/correlation**, если он предоставлен/адресно доступен. Условие возврата — доказанный terminal отдельно от trust-строки; отсутствие этого доказательства не требует нового review или отказанного запуска. Exact candidate binding/native CI и прежние Bproduct остатки сохраняются отдельно.
+
+### A R11 — новый current-main локальный кандидат, не независимая приёмка
+
+Ready receipt **R11_MAIN499_PORTABLE_WORKSTART_SELECTOR_SOURCE_RESULT_20261019.json**, SHA256 **99716d3fed6eda253e1da3f51b449575ad4d4b527fe6e6e532303dec97a61a51**, issued02:50:24.405353Z, и3original logs лично прочитаны в прежнем logs/A/a06-pr139-hmac-correlation-20261017/.
+
+Exact local candidate **23365d7699b44b48970b1d6f737e3d96805b8078**, parent **main499**, два test-only пути installed_local_integration.py/test_bootstrap_response_observer.py. R11 переносит узкую Request-phase/post-body identity проверку R9/R10 на текущую базу без переноса прежней R7/R8 instrumentation.
+
+| Новая готовая первичка | Наблюдаемый исход | SHA256 |
+|---|---|---|
+| ORIGINAL_RED |4missing-helper AttributeError, не original runtimeABORTED reproduction |01fbd3d53dbdb6d21679231761c04735f061b858d72e8b8312f6b26b2826fddf |
+| FOCUSED_GREEN |4PASS, author-only |feabb4add9e2ca3374e538560634d1ec97dc4f4ce89aab12f3d726e36ea9b2f6 |
+| OFFLINE_SUITE |29PASS, author-only current-main suite |71846c3ad14dcb97da46cdc1a06524a497a103b3d2af5a38324a314bbcf91e66 |
+
+Receipt задаёт SHA/sourcehash binding, логи exactSHA не печатают; Controller активные test/source файлы не инспектировал.29current-main cases не выданы за эквивалент всех старых54R10 cases; R10/54 не повторён и сохранён в истории. A устранил только устаревшую базу будущего локального кандидата своим действием до Controller correction.
+
+**Independent review NOT_OBTAINED; nativeI1/CI/push/merge/installed/release не приняты.** Старый R7 trust refusal/R8 сохранены без reroute. Original physical ABORTED cause **UNKNOWN**, acquisition/lease/firstabort/transport/at-abort grant не доказаны. PR205 five native gates, C3E/no-loss/owner/Store остаются отдельны.
+
+Ответственные — существующий A harness и исходный Tester/runtime/owner. Следующий шаг Controller — готовая supported exact independent/causal primary; запуск нового review/native теста этому проходу не разрешён. Возврат — принятые exact review/native/causal доказательства в соответствующей границе, не localPASS или новая base сами по себе.
+
+### C03 — новая для Controller адресная SOURCE_RED и готовый focused in-memory GREEN
+
+Новая текущая задача **C03_PATH_ITEM_LOCAL_REF_OPERATION_BLIND_SPOT_20261019**. Receipt RED SHA256 **cae729c408eecbae0b3979e020b856dc434b79098481a77d768d6614590deab7**,1945bytes, создан **02:43:55.473865Z**; task record **02:46:10.682170Z**. Оба времени **раньше** completedREPORT02:46:27; первичка впервые прочитана Controller **02:51:26.786197Z** по новому C pointer. Не утверждается, что она создана после прошлого REPORT.
+
+По author receipt exact main499 inventory blob2a2e6e3b… в in-memory TypeScript с deterministic JSON-only parser stub пропускает операции локального Path Item ref: OAS3.0.3 direct2/reference1/refOrders0; OAS3.1 direct1/reference0. Exit0 означает успешную демонстрацию SOURCE_RED, **не productPASS**. Это авторское source-isolation доказательство, не полная parser/native/provider проверка; валидность всех внешних OpenAPI сценариев Controller отдельно не ревьюировал.
+
+При freshguard появилась новая Cверсия от02:51:55.881246Z; её ready **C03_MAIN499_PATH_ITEM_LOCAL_REF_SOURCE_GREEN_20261019.json** лично прочитана02:54:00.717024Z. SHA256 **3aa4295dc5bcc9018a241159b9d115bf575c202a84c04a45f94701e2bbc50e02**,1622bytes, receipt02:51:05.803417Z.
+
+Candidate two blobs **9803c2e7ff26840fa0b53443c699a9dd66bac7d0** inventory / **34d04bb41bd064dedb00cc2379e647bca8191c18** diff.test. Author focused in-memory GREEN сообщает3.0.3 operations2/changed2 и3.1 operations1/changed1, siblingGET/POST,4invalid refs rejected, syntaxdiagnostics0. **JSON parser stub, не native Vitest/package/full parser.** Ready receipt: reviewNOT_RUN, CINOT_RUN, GitHub_candidateNOT_PUBLISHED, providerNOT_TESTED. Controller временные candidate source files не читал; будущая публикация/CI не предположены из intent.
+
+Ответственный — существующий C, его два api-watch пути. Следующий шаг C в его действующем scope — обычный exact candidate и необходимые разрешённые native/parser/consumer/review/CI до integration; Controller новых проверок/публикации кандидата не делает. Возврат — готовые exact принятые доказательства, затем нормальная integration/consumer boundary. Принятый PR213/main499 не переоткрыт новым независимым дефектом. C04/B-Ops installed остаток, C05, C06 genuine authority/catalog/owner и C01/старыйR4 отказ остаются отдельно; handoff/owner-запрос не дублировались.
+
+### Десять пунктов в текущем scope
+
+| Пункт | A | B | C |
+|---|---|---|---|
+| 1. Original task/result/time | R11 receipt+3logs прочитаны, old causal gap UNKNOWN. | Exact76-byte original R2 line/hash прочитаны; terminal primary отсутствует. | Addressed original RED и ready focusedGREEN прочитаны, их даты различены. |
+| 2. Допуск/STOP | R7/R8/native/Tester scope сохранён. | No trust bypass/review rerun/inline payload. | No R4 replay, чужой/live/provider scope. |
+| 3. Прежний successful method | AcceptedR10/54 NOT_RECHECKED; новая ready первичка отдельно. | B118/R3INLINE NOT_RECHECKED. | PR213/main499/C04handoff NOT_RECHECKED. |
+| 4. Классификация | Local authorPASS/currentbase, не independent/installed. | KNOWN trust rejection vs UNKNOWN terminal; не entitlement/sourceverdict. | Stub sourceRED/GREEN vs full native/parser/installed UNKNOWN. |
+| 5. Автор/WIP/last operation | Fresh own version/FD0/locks/HEADdirty. | То же, B.json не менялся. | Guard остановил stale version до записи; fresh delta потреблена. |
+| 6. Доступное устранение | Собственная currentcandidate projection актуализирована. | Собственное неполное описание R2 исправлено, refusal не «устранён». | Собственная currenttask/уровень доказательства актуализированы. |
+| 7. Та же граница/readback | Existing hashes и собственный doc readback, no test. | Exact line/hash отражены в cp/priority independent readback. | Ready receipt hashes+own readback, no source replay. |
+| 8. Реальное продолжение | Готовый R11 current-base результат A подтверждён. | Нового product progress не выдумано по строке отказа/old timestamp. | Existing C RED→focusedGREEN подтверждён, предшествует своей recordcorrection. |
+| 9. Причина/owner/next/return | A+Tester ready exact review/causal/native primaries; oldloss/owner отдельно. | B custodian original terminal/correlation; новых запусков нет. | C exact native/parser/review/CI primaries; B/Ops/owner inputs отдельно. |
+| 10. Реестр | Errors/events/newregistry запрещены, не использованы. | То же; краткая primary остаётся в existing task/checkpoint. | То же; активный source/WIP не копировался. |
+
+### Объём, организационные проблемы и точный предел
+
+Новая работа Controller: A4readyfiles/2test-only paths, B1original76-byte log, C2addressed ready primaries/2Csource paths; product/source/test/review/CI изменений Controller0. Все12 canonical dispositions с cause/responsible/allowednext/return сохранены, исходная map STRING SHAfe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d не изменилась. Bounded fulfilled части не переоткрыты.
+
+**Устранено:** собственное упущение known R2 refusal line в current projection и устаревший currentcandidate/task view A/C, с фактической записью/readback. **Не устранены:** trust refusal, missing R2 terminal, независимая приёмка R11, полная C03 native/integration boundary, исходные12 product/installed/historical outcomes. Смена документа не представлена как выполнение продукта.
+
+Оргпроблемы: известную stdout-строку нельзя смешивать с незавершённостью процесса; filemtime не время terminal. Новая база не снимает trusted-review отказ. Source stubGREEN не nativePASS. Guard отказал старой версии до mutation и сохранил свежую чужую работу. Нет ACK — не доказательство простоя; B stale role status не оправдывает takeover. Нового общего WAITINGINPUT и вывода об исчерпании PLAN нет.
+
+Доступный own documentary остаток выполнен. Следующие действия зависят от **готовых оригинальных terminal/review/causal/native/installed inputs существующих авторов**; Controller не вправе создавать их новым запрещённым запуском, trust обходом, source takeover или live/DB действием. C06 запрос уже у владельца, нового ответа/authority/catalog нет, повтор не отправлен.
+
+**Публикация:** прежний PREPARING/NO_SUBMIT по доступной C projection; новая Store/provider/owner evidence не поступила. Chrome/Opera/Firefox dashboards NOT_RECHECKED, Yandexbrowser-specific proof отдельно, Safarideferred. Ответственные C+B-Ops+owner+Tester продолжают конкретный выбранный срез; весь roadmap не превращён в лишний Store gate.
+
+### Guardedwrite и независимый readback
+
+Запись **2026-10-19T02:54:29.743758+00:00**, отдельный RDC readback **2026-10-19T02:54:55.067872+00:00**:
+- checkpoint SHA256 **d7f14408c050e632255417e3a996c3d19b76b904bccaa744beb5bf2a902007b2**,2,206,267bytes;
+- PRIORITY_TASKS SHA256 **3fe1a51d5848c8cdfef874769df8051a4de064ca2dd262174fc98346db09ff92**,738,629bytes;
+- full own facts/reply MATCH, marker1/map12/PLAN/history/foreignrootfields preserved, locksFREE. R2 knownline MATCH, terminalNOT_OBSERVED/exitUNKNOWN.
+
+SameREPORT exactblob CAS92d61eeb/parent48622884 после свежего ref/author, [skip ci], затем independent fullcontent/blob/parent/ref readback до ответа. Work/GPT6.1Sol/Veryhigh сохранены по userquota86%02:44:03 без своего нового UIcheck. No schedules/credits/resets/auth changes; все exactrefusals R7R8/artifactsroute/targets/protection403/fullPG/B05/entitlement/другие сохранены. Никаких newtests/review/CI/VM/browser/helper/merge/chat/registry/archive/source/live/DB/security/cleanup; B01/R3/старыеchats/PR97/131/134/errors/events не тронуты. **audit_complete=false; original12open.**
