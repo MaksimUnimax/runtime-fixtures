@@ -259,6 +259,12 @@ S03 и S04 — состояния одного ответа. S06 можно по
 - S06.completed.dom.json: [S06.completed.dom.json](dot-ai-snapshots/qwen/20261019T054900Z/S06.completed.dom.json) — application/json; 14 652 bytes; SHA256 `093952edd0dd3405dae80d0a3774ba0587226f5a99ca85d06d235e5821168c5a`; Monaco editors in DOM; readback 2026-10-19 09:25:37 UTC.
 - S09.returnA.dom.json: [S09.returnA.dom.json](dot-ai-snapshots/qwen/20261019T054900Z/S09.returnA.dom.json) — application/json; 5 514 bytes; SHA256 `2a8aadd2fa4b999558a3634ffb74744016c4242e21c015220892ded3a951aa14`; CHAT_A restored through history; readback 2026-10-19 09:25:37 UTC.
 
+
+**Ответ дота на вопросы §12 — 2026-10-19 11:09:08 UTC; проверенные файлы и новые наблюдения root.**
+- В принятом [S08.completed.dom.json](dot-ai-snapshots/qwen/20261019T054900Z/S08.completed.dom.json), `roots[1].html[0]`, сохранён контейнер `.message-input-container-area` с `textarea.message-input-textarea`, `input#filesUpload[type=file][multiple]` и отключённым Send. У этого input в данном HTML нет атрибута accept; это не заявление о политике всех состояний сайта. `#message-input-container` в этом фрагменте содержит scroll-button, а не весь composer. Встроенная отметка capture — 06:10 UTC. [S06.busy.dom.json](dot-ai-snapshots/qwen/20261019T054900Z/S06.busy.dom.json) содержит отдельный `button.stop-button[aria-label="Стоп"]`, без общего родителя.
+- Новые сообщённые root наблюдения 19.10.2026: 11:00:07 UTC — idle textarea находится в `.message-input-container-area` вместе с Send и file input. После прикрепления малого TXT к 11:01:13 UTC эта area содержит только textarea; общий родитель textarea, file input, enabled Send и Remove — внешний `.message-input-container`. Поэтому area не подтверждена как универсальный root. Малый TXT удалён без отправки, UI удаления подтверждён 11:01:14 UTC. Это текстовые наблюдения dot; отдельный новый серверный DOM/readback ими не заявлен.
+- Остаток: общий parent именно для снятого Stop и enabled Send с фактическими visible counts; реальная TXT-иконка и наблюдавшийся progress→ready до отправки. Завершённые code/Copy/A→B→A и принятые файлы повторять не требуется.
+
 ### deepseek — 20261019T061500Z
 
 - Автор и время: root передал наблюдения за 2026-10-19 06:15–06:19 UTC.
@@ -286,6 +292,13 @@ S03 и S04 — состояния одного ответа. S06 можно по
 - Серверный readback: карточка прочитана обратно из `/root/octoport-control/testing/chromium-dot/DOT_AI_SNAPSHOT_HANDOFF.md`; итоговые bytes/SHA256 сообщены root отдельно; редакция документа — 1.
 
 
+
+**Ответ дота на вопросы §12 — 2026-10-19 11:09:08 UTC; проверенные файлы и новые наблюдения root.**
+- Примеры родителей сообщений уже есть в принятом [S09.returnA.dom.json](dot-ai-snapshots/deepseek/20261019T055142Z/S09.returnA.dom.json), readback 09:25:37 UTC: `messages[0]` и `messages[2]` имеют корень `div.d29f3d7d.ds-message._63c77b1`; `messages[1]` и `messages[3]` — `div.ds-message._63c77b1` с дочерним `.ds-markdown.ds-assistant-message-main-content`. В `messages[1]` находятся оба исходных pre. Это сохранённые примеры user/assistant и привязки code к assistant; устойчивость хешированных классов ими не доказана. В этих outer-фрагментах message IDs не экспортированы. Повторная передача этих примеров не нужна.
+- Новое наблюдение root 11:02:41 UTC: origin `https://chat.deepseek.com`, наблюдавшийся path `/a/chat/s/d62ab571-7430-46e1-9443-ca471f288252`; общий parent textarea/attach/input/primary button — `div._020ab5b`. Root имеет локальный read-only снимок; на сервер он пока не передан, receipt не заявлен. Это один фактический path, не доказательство стабильности A/B/reload.
+- После одной новой синтетической отправки root в 11:03:09 UTC наблюдал disabled primary div с SVG `data-icon=spin` и пустую textarea; отдельный Stop не снят. К 11:03:21 UTC снова наблюдался disabled Send. Spin не назван Stop.
+- Остаток: отдельная подтверждённая busy/Stop-граница с composer-parent, постоянные обезличенные A/B/reload paths/markers. Input/accept, pre-send/sent карточки и длинный код уже приняты.
+
 ### gemini — 20261019T062400Z
 
 - Автор и время: root; собственный облачный браузер dot. Пакет 2026-10-19 06:24 UTC; первое согласование владельца принято в 06:29:42 UTC.
@@ -310,6 +323,12 @@ S03 и S04 — состояния одного ответа. S06 можно по
   - [S06.fenced.dom.json](dot-ai-snapshots/gemini/20261019T062400Z/S06.fenced.dom.json) — application/json; 4 397 bytes; SHA256 `2f33125b48b9164ea0aba5c3b397f4290f38d5a80e802267008afabed56b7978`.
   - [S06.long.dom.json](dot-ai-snapshots/gemini/20261019T062400Z/S06.long.dom.json) — application/json; 1 418 bytes; SHA256 `0b377194dbeb36b902042c0e2a951ee4711fa0bc6c570317dff46f9210d803ae`; исторический ранний снимок коротких code blocks; финальные 120 строк — в S06.fenced.dom.json; серверный readback 2026-10-19 08:58:05 UTC.
 
+
+**Ответ дота на вопросы §12 — 2026-10-19 11:09:08 UTC; по уже принятым данным.**
+- [S07.small.dom.json](dot-ai-snapshots/gemini/20261019T062400Z/S07.small.dom.json), пакет 06:24 UTC, уже сохраняет карточку малого TXT до отправки: `.gem-attachment-content`, `.gem-attachment-extension-label` с TXT, имя `octoport-ui-small` и кнопку `aria-label="close octoport-ui-small"`. Это preview и Remove, не самостоятельно доказанный переход upload→ready; нативного input в этом фрагменте нет.
+- В [S10.completed.dom.json](dot-ai-snapshots/gemini/20261019T062400Z/S10.completed.dom.json) сохранены два assistant-content root `div.markdown.markdown-main-panel.md-content` с `aria-busy="false"` и обезличенными ID `model-response-message-contentr_TURN_A1` / `TURN_A2`; первый содержит два pre. Это граница содержимого ответа, не сохранённый внешний parent пары user/assistant и не доказательство постоянства ID. Потребление принятых файлов подтверждено §12 в 10:53 UTC.
+- Остаток: общий composer-parent с Send/Stop; нативный input/accept и наблюдаемый признак ready в форме; внешний user/assistant parent, фактические origin и постоянные обезличенные A/B/reload paths. Sent attachment и длинный fenced code повторно не нужны.
+
 ### claude — 20261019T062100Z
 
 - Автор и время: root; собственный облачный браузер dot. Пакет 2026-10-19 06:21 UTC; основной prompt отправлен один раз в 06:21:15 UTC.
@@ -331,6 +350,12 @@ S03 и S04 — состояния одного ответа. S06 можно по
   - [S08.completed.dom.json](dot-ai-snapshots/claude/20261019T062100Z/S08.completed.dom.json) — application/json; 3 098 bytes; SHA256 `b85fad2428841d01cd08869d0b7923d3559038408caff08d359a07557e67d1a4`.
   - [S06.completed.dom.json](dot-ai-snapshots/claude/20261019T062100Z/S06.completed.dom.json) — application/json; 4 264 bytes; SHA256 `c44c78cec06c9ceb320a86cceb054c982149eab60402205d468d65534ba01440`; 120-строчный code block; серверный readback 2026-10-19 08:58:05 UTC.
   - [S08.ready.dom.json](dot-ai-snapshots/claude/20261019T062100Z/S08.ready.dom.json) — application/json; 2 848 bytes; SHA256 `1b2e013d35e4af6b3b86fecd38c19617f48ebeea3ae8b9ec6828a06f2e18d8c6`; карточка файла до отправки; серверный readback 2026-10-19 08:58:05 UTC.
+
+
+**Ответ дота на вопросы §12 — 2026-10-19 11:09:08 UTC; по уже принятым данным.**
+- В [S01.dom.json](dot-ai-snapshots/claude/20261019T062100Z/S01.dom.json) сохранён `[data-cds=ChatComposerEditor]` с `[data-testid=chat-input][contenteditable][role=textbox]`; общий parent с Send/Stop этим экспортом не показан.
+- [S08.ready.dom.json](dot-ai-snapshots/claude/20261019T062100Z/S08.ready.dom.json), readback 08:58:05 UTC, содержит имя `octoport-ui-large.txt`, TXT badge, `[data-testid=file-thumbnail][data-cds=MessageAttachmentsFile]` и `button[data-cds-attachment-remove][aria-label="Удалить: octoport-ui-large.txt"]`. Preview и Remove до отправки уже переданы. Явного progress/completion-маркера и input/accept в этом фрагменте нет; само наличие thumbnail/Remove не доказывает завершение загрузки.
+- Остаток: общий composer-parent с enabled/disabled Send и наблюдавшимся Stop; input/accept и признак окончания upload; родители user/assistant/code, фактические origin и постоянные обезличенные chat paths. Принятые ready/completed/120 строк не повторять. Короткий Copy и reload 07:27 остаются UNKNOWN.
 
 ### grok — 20261019T091100Z
 
@@ -360,6 +385,13 @@ S03 и S04 — состояния одного ответа. S06 можно по
 - Validation skipped S09.returnA.dom.json: ожидаемые 3988 bytes; SHA256 c449225cf0b249fab67243c6269abb673584d70e7fb866999fe378728ba43014; error:Error -3 while decompressing data: incorrect data check; файла нет на Easyscript.
 - Validation skipped S06.completed.dom.json: ожидаемые 8826 bytes; SHA256 c2e248c72fa3c135ba95f08562125751c4797f25810bf49cffdc75edb5eeaeb0; error:Error -3 while decompressing data: incorrect data check; файла нет на Easyscript.
 - Серверный readback: перечисленные 5 Grok DOM файлов проверены 2026-10-19 09:44:29 UTC; документ редакция 1.
+
+**Ответ дота на вопросы §12 — 2026-10-19 11:09:08 UTC; по уже принятым данным.**
+- Более поздний receipt §12 10:53 UTC подтверждает оба ранее не принятых Grok JSON и JPEG; прежние validation skipped/«файла нет» выше относятся к старым неуспешным payload и не являются текущим остатком доставки.
+- В [S08.sent.dom.json](dot-ai-snapshots/grok/20261019T091100Z/S08.sent.dom.json), readback 09:44:29 UTC, сохранён parent `div#response-OBSERVED_ID_*`, его `article[aria-labelledby="turn-heading-OBSERVED_ID_*"]` и соответствующий h2. Алиасы 5/3 относятся к `[data-testid=user-message]`, 2/6 — к `[data-testid=assistant-message]`; assistant 2 содержит оба исходных pre. В [S09.returnA.dom.json](dot-ai-snapshots/grok/20261019T091100Z/S09.returnA.dom.json), серверная доставка 10:46:18–10:46:32 UTC, перечислены те же четыре алиаса и дополнительные 1/4. Это сопоставление двух экспортов, не доказательство стабильности response IDs на полном цикле/reload.
+- [S08.ready.dom.json](dot-ai-snapshots/grok/20261019T091100Z/S08.ready.dom.json) передаёт composer, Send и attachment list отдельными полями, поэтому общего DOM-parent между ними не сохраняет. `S07.small.dom.json.files[0]` содержит только `multiple=true`; значение accept и полный input не экспортированы. У ready-карточки есть Open/Remove; `data-state=closed` у кнопки Open не является доказанным upload-ready маркером.
+- Остаток: общий composer-parent; полный file input с accept/multiple; различающий loading→ready признак и более полная identity-корреляция, только если уже сохранена. Семь JSON, JPEG, code/Copy и A→B→A повторно не нужны.
+
 ### kimi — 20261019T092200Z
 
 - Автор и время: root; Kimi восстановился в 09:22 UTC; авторизация видна. Основной запрос отправлен ровно один раз в 09:24:25 UTC. Владелец явно разрешил origin www.kimi.ai в 09:36:44 UTC.
@@ -389,6 +421,12 @@ S03 и S04 — состояния одного ответа. S06 можно по
 - S09.returnA.dom.json: [S09.returnA.dom.json](dot-ai-snapshots/kimi/20261019T092200Z/S09.returnA.dom.json) — application/json; 1462 bytes; SHA256 c564f1356d9ade652d44c679a99783e61545c3eb4b4829b6e4329c8a7cc80906; history return to CHAT_A; readback 2026-10-19 09:46:43 UTC.
 - S04.dom.json: [S04.dom.json](dot-ai-snapshots/kimi/20261019T092200Z/S04.dom.json) — application/json; 2 104 bytes; SHA256 6c92718edf8df5aedb5c94ed4e9323f2e69ffc8e15ff59892a67d2ef5135b450; readback 2026-10-19 10:06:03 UTC.
 - Серверный readback: все 8 Kimi DOM JSON проверены; последние пять прежних файлов — 2026-10-19 09:46:43 UTC, S04.dom.json — 2026-10-19 10:06:03 UTC; handoff readback в том же коротком lock; редакция документа 1.
+
+**Ответ дота на вопросы §12 — 2026-10-19 11:09:08 UTC; по уже принятым данным.**
+- В [S04.dom.json](dot-ai-snapshots/kimi/20261019T092200Z/S04.dom.json), readback 10:06:03 UTC, четыре коротких code-фрагмента: две повторённые пары с одинаковым parent class `syntax-highlighter light segment-code-content`. В [S06.completed.dom.json](dot-ai-snapshots/kimi/20261019T092200Z/S06.completed.dom.json), readback 09:46:43 UTC, все пять непосредственных parent-обёрток имеют тот же класс; пятый содержит 120 строк. По этим низким parent нельзя отличить reasoning от final.
+- `S01.dom.json.files[0]` сообщает только `multiple=true`; полного input и accept нет. Ready-карточка в `[data-testid=input-attachment-list]`, её `.file-card-container.success`/Remove и состояния Send normal/disabled/loading уже приняты, повторять их не требуется.
+- Остаток: более высокие родители reasoning/final и user/assistant; наблюдаемый постоянный message/turn marker при наличии; общий parent composer/Send/attachment и полный штатный input/accept. Стабильность ID из data-v/классов не выводится.
+
 ## 12. Потребление и уточнения — заполняет Тестер
 
 19.10.2026: запрос создан по прямой команде владельца. ChatGPT и Алиса исключены из съёмки дота; владелец сообщил об их успешном входе, самостоятельное подтверждение ещё не выполнялось. Пакетов от дота пока нет. Изменений продуктового кода/установки/Start/Send в рамках создания этого задания нет.
@@ -547,6 +585,52 @@ S03 и S04 — состояния одного ответа. S06 можно по
 - Фактическое время определяется полем `time` драйвера и `at_utc` результата, а не суффиксами имён сценариев.
 - Последнее завершённое действие: очистка только собственного неотправленного Copy-черновика; результат OBSERVED, composer пуст. Ни одного неизвестного незавершённого Send/Start оставлено не было.
 - Следующий проверяемый результат: адресное исправление подтверждённой границы ChatGPT после полноценного DOM и безопасного source-scope либо закрытие очередной доступной границы уже принятого ИИ. B01 popup/file retention/большой same-chat report/hide-show/Finish/reStart остаются открытыми до фактической установленной проверки; byte identity файла остаётся UNKNOWN.
+
+
+### 19.10.2026, 11:17 UTC — потреблён новый пакет ответов dot 11:00–11:10
+
+Преемственность проверена от `afecc57b1141d77659839b364bcab2c9e28dd06b`: последняя QA_COMMAND — очистка только собственного Copy-черновика, результат OBSERVED; новых команд браузеру не отправлялось. Существующий драйвер и автор сохранены, coordination.lock свободна при короткой проверке. Повторного Send, Start или проверки прежних 43 файлов не было.
+
+**Фактически прочитаны и приняты пять новых файлов** в собственный каталог `dot-ai-snapshots/tester-receipts/20261019T111000Z/`. JSON полностью разобран; все четыре изображения открыты. Байты перенесены из приложений напрямую, не реконструированы из описания. Размер/SHA256 и серверный readback совпали:
+
+| Оригинальное имя | Байты | SHA256 |
+|---|---:|---|
+| tester-ui-answers-20261019T1110Z.json | 112336 | `25e77ce5daf7b00f8d0a94090e038de9aae79634a576a0e88f36cc38056427ed` |
+| qwen-file-ready-1100.png | 38727 | `13ec552543d37766d32a2379cb122b4e84e2fd74b212204156c31d4d5f3dfe89` |
+| deepseek-spinner-1103.png | 39999 | `adfa3c43382e5cdd693c62cedbddad0dc8504667e40f9001c105ae4660ba0163` |
+| gemini-file-ready-1108.png | 45417 | `12492f5a39c562bdb8cdd5b8c766529259b54b197c48b5046110eaa91bac88d4` |
+| claude-file-ready-1110.png | 36327 | `8bc018432aaaa8cca518379d670e1c65e5264fcfe8c6ab398a0a745b1edead20` |
+
+JSON принят 11:16:38 UTC, четыре снимка — 11:17:12–11:17:19 UTC. **Фактический формат всех четырёх изображений JPEG/JFIF, 1180×757, несмотря на имя .png.** Оригинальные имена и байты сохранены, перекодирования нет. Первоначальная локальная проверка ожидаемого PNG magic остановила импорт до записи; после чтения действительного формата и подтверждения отсутствия файлов проверка исправлена на JPEG. Это ошибка определения формата, не обход отказа.
+
+Прочитаны новые ответы §11 версии 162200 байт / SHA256 `aee00ea65a0760c1e35ce3e6894203be952eb535375705944ef685e97a176500`. Они остаются авторскими записями dot. Ниже — уточнённый остаток после потребления JSON; прежние запросы §12 не должны приводить к повторной передаче уже принятого.
+
+| ИИ | Что теперь принято и использовано | Минимальный остаток данных |
+|---|---|---|
+| Qwen | Idle/attachment родители, input#filesUpload multiple без accept, Send/Remove снаружи inner-area. Текущий адаптер **уже** берёт внешний .message-input-container; менять его на area нельзя. | Общий родитель именно Stop; фактический завершающий TXT icon/use и отличие progress→ready. Кольцо на новом изображении само по себе не доказывает окончание upload. Не повторять file Send/Remove/code/Copy. |
+| DeepSeek | ._020ab5b связывает textarea/input/primary control; полный accept прочитан; origin/path и родители user/assistant/code получены. spin → disabled Send принят как наблюдение, не Stop. | Именно Stop в общем composer-root, если его удаётся наблюдать в уже разрешённой работе; различающие control-атрибуты и фактическая видимость. Message/turn ID — только из уже сохранённого, если имеется; иначе UNKNOWN, не новый Send ради ID. |
+| Gemini | .text-input-field как общий root, TXT/Remove/Send, описание progress→card, фактический origin/path и ближайшие message parents. inputs=[] означает лишь отсутствие в этих срезах. | Штатный file input/accept в состоянии, где он действительно существует, либо зафиксированная граница доступного upload; Stop; более высокий user/assistant root, связывающий код с ответом. Принятый TXT/Send/fenced code не повторять. |
+| Claude | file-upload input: accept="", multiple; chat-input-send; фактический origin/path; шесть role=article; code wrappers; ready-снимок до Send и меню выбора файла. | Более высокий общий composer-root, включающий input/attachment/Send/Stop; различающий user/assistant marker внутри article; наблюдаемый busy→ready, если доступен. Номер article и CSS-классы не объявлены устойчивым ID. |
+| Grok | Полный hidden input multiple без accept; цепочка composer до общего с attach/voice родителя и фактический /c path. turns=[] по узкому article-запросу не означает отсутствия сообщений. | Общий root для composer + Send + attachment + input в одном срезе и различающий upload loading→ready. Дополнительную identity-корреляцию брать только из сохранённого; 7 прежних JSON и A→B→A заново не нужны. |
+| Kimi | .chat-editor[data-testid=chat-editor] связывает редактор/input/Send; input multiple без accept. user/assistant roots, data-archer-id и user data-conversation-turn-id; thinking-container/toolcall-content-text отдельно от final markdown-container/toolcall-rollup__flat. | Для первой адресной реализации родительские границы уже достаточны; стабильность ID между состояниями остаётся UNKNOWN и должна проверяться при привязке. Повторно эти родители, code/Copy, ready/success и файлы не запрашиваются. |
+
+Для всех шести `hasClientRects` не переименован в visible/actionable/count. Browser/OS/zoom/Octoport облачного браузера остаются UNKNOWN; повтор `chrome://version` не требуется и запрещён после указанного отказа. Это не переносится на установленный Chromium Тестера.
+
+**Доступная собственная работа:** свежая проверка A06/B/C03 и WIP двух точных путей не обнаружила пересечения. В существующей рабочей копии сохранён чистый merge принятого main `86a53333…` в HEAD `436b1d4156bf3991d5e08c6c150138b9f4fe9a7e`, без сброса истории или WIP. За тем же Тестером записаны только `apps/extension/application-patches.json` и существующий `tests/regression/extension-core/chatgpt-dom-compat.py`: исправление наблюдаемого ChatGPT Standard composer без id/testid с исключением редакторов сообщений и неоднозначности. Frozen donor, установленный код, X-сессия, чужие участки и ChatGPT Work live не меняются.
+
+Следующий проверяемый результат — RED→GREEN существующей локальной DOM-проверки на фактах собственного ChatGPT-снимка из предыдущего checkpoint, затем независимое review точного source. Никаких новых runners/проверочных программ или помощников не создаётся. Установленная приёмка и ручной вердикт остаются открытыми.
+
+### 19.10.2026, 11:33 UTC — ChatGPT Standard: исправлен исходник, независимое review получено
+
+- Продолжен тот же Тестер от `afecc57b1141d77659839b364bcab2c9e28dd06b`; старые checkpoint, PLAN, принятые материалы, WIP и обязательства сохранены. Новых Send/Start и повторной сверки 43 установленных файлов не было.
+- Source commit `60c8884513ec6fc27f668550f6afc3b781712deb`: в существующем `apps/extension/application-patches.json` добавлен fallback для фактически наблюдавшегося `form [contenteditable="true"][role="textbox"][aria-label="Ask ChatGPT"]` без prompt id/testid. Прежние кандидаты имеют приоритет; неоднозначность, message/article/dialog/writing-block ancestry отвергаются. Донорский исходник не изменён.
+- Расширена существующая `tests/regression/extension-core/chatgpt-dom-compat.py`, нового runner/test program нет. RED на прежнем продукте: `observed_standard_form` возвращал null. Первый GREEN завершился ошибкой самого нового probe — не были включены константы CHATGPT; исходный traceback сохранён. После исправления probe **50/50 PASS**: 16 новых context cases + 34 прежних. Два runtime составлены только для локальной offline-проверки, установленный пакет не пересобирался и не менялся.
+- Единственный существующий `codex2 / gpt-6-luna / xhigh / read-only` после проверки занятости дал **PASS_SOURCE_SCOPED** на точный `60c88845`. Сессия `01a153ed-7c1f-7e00-a540-591ae16ae3d7`; unit `octo-tester-chatgpt-standard-source-review-20261019t1135.service` завершён exit0, cgroup пуста. Второго автора и нового помощника нет.
+- Не блокирующее ограничение review сохранено: неизменённый visible() не учитывает opacity предка; тест hidden-clone покрывает hidden, а не все способы скрытия. Это не доказательство полной UI-видимости или кликабельности.
+- Свежий main `850ff17db1fe7cdf012f30546b2f8d7225f6c0ab` интегрирован обычным merge `18240cbe2ea0ee3a475b6af6a9fba31414fcba84`; два проверенных файла побайтно прежние. Исторический чужой WIP сохранён, активные A/B/C работают в иных участках.
+- Evidence на сервере: `/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/CHATGPT_STANDARD_COMPOSER_20261019T112000Z/`: `red.log`, `green.log`, `green2-result/result.json`, `SOURCE_REVIEW_VERDICT.txt`, RED/GREEN composition receipts. Git-копия первичных результатов: `docs/product/readiness/evidence/tester-successor-20261019/chatgpt-standard-composer-1110/`.
+- Следующий проверяемый результат: non-force публикация точного кандидата и readback пяти исходных GitHub CI. До них SOURCE не объявлен полностью принятым; установленная 0.2.37 и полная B01/ручная приёмка владельца остаются отдельными незавершёнными уровнями.
+- Дополнительных повторных запросов к dot нет: актуальный минимальный остаток шести сайтов — в таблице предыдущего подпункта 11:17 UTC. Для Kimi уже достаточно родителей первого адресного изменения; его реализация и штатная проверка привязки ответа ещё не сделаны. Состояния busy/Stop/attachment остаются ровно там, где в таблице обозначены UNKNOWN.
 
 ## 13. Источники адресов и примечания к свежести
 
