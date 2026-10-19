@@ -1,7 +1,7 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T16:00:04.276Z; A PR219 R14 готовый author composed/extracted54/54, ZIPf5550408 local-only, не installed/durability/release. C push exactf08: Docs/Coord SUCCESS, остальные3IN_PROGRESS на чтении15:55; fullgate открыт. Поздно покрыт B PR2358c6759e9 Draft с inherited unchanged-byte scoped review, IDNA/security hold. R52 NOT_EXECUTED_PLATFORM_REFUSED, serverCPblocked; PLAN/WIP/history/12OPEN сохранены,audit_complete=false.
+- **Состояние на:** 2026-10-19T16:37:25.053Z; C exactf08 original push5/5 workflows13/13 jobsSUCCESS attempt1 принято, прежнее CI ожидание снято. Отдельный C premerge-intent save явно отказан, причина сверх текстаUNKNOWN; PR234Draft/unmerged на чтении16:32. B PR235exacte7bec594: ready3-path SOURCE patchPASS/local35+6; newDocsSUCCESS, ServerworkflowQUEUED с частично assigned jobs на чтении16:33,3othergateнеподтверждены. IDNA implementation/auth/DB не разрешены; A accepted evidenceNOT_RECHECKED; serverCPblocked,PLAN/history/WIP/12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** последнее ранее наблюдённое main ref dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537 — metadata only, в этом проходе не перепроверялось. Последняя принятая native baseline main32b76886 5/5 workflows и 13/13 jobs сохранена NOT_RECHECKED. Новый C candidate f08bdac7 имеет parent dcdd; scoped SOURCE не переносится на main/CI/installed. Исторические A R49 main32 и C06 exact a55 сохраняют свои версии.
@@ -5768,3 +5768,123 @@ PR235 явно сохраняет **IDNA/security no-merge/no-installed hold** �
 Оргпроблемы: A state metadata отстаёт от готовых GitHub evidence из-за явно сохранённого отказа; R52 отказ отличен от runtimeFAIL. C partial consumption уже существует, новые поручения не нужны; running не выдаётся за terminal, old queue не поддерживается. B PR235 — поздно обнаруженная публикация до прошлого cutoff, а не новое действие после него; старый root policy question не отменяет выбранный контракт. Наследуемая оценка относится только к прежним неизменённым bytes; отдельный full review остаётся открытым. Новые ZIP не смешаны. C static installed observation остаётся авторской, без собственного live аудита и без B_ACK доказательства.
 
 Серверный checkpoint/role files/PRIORITY_TASKS сохранены без записи; fresh locks/WIP не выдуманы, protected preflight не обойдён. Все конкретные R7/R8/log118019352572/direct-job118137084442/artifacts-route/targets/branch-protection403/fullPG/B05/entitlement/supplemental-consumer/A.json/B.json/R52 и прочие отказы сохранены. Errors/events не читались и не восстанавливались; B01/R3, чаты/исходники Тестера и PR97/131/134 вне scope. C06 authority не изготовлена. Новых реестров/архивов/расписаний/авторизаций/кредитов/сбросов нет. Аудит IN_PROGRESS; все12OPEN.
+
+
+## Продолжение того же аудита — 2026-10-19T16:37:25.053Z: C exact native5/13 принят; C premerge write отказан; B новый e7bec594
+
+Продолжение по прямому поручению владельца после ответа16:01:08 UTC/REPORT `1042a541f4b94d878676ad741592d65acb9ec122`. Тот же Controller/REPORT, PLAN/history/WIP и исходные12OPEN сохранены. Работа / GPT-6.1 Sol / Очень высокое задана владельцем, UI не открывался. Ни новый source author, ни helper, ни аудитирующий CI исполнитель не создавались.
+
+### Последний исход, доступ, правила и граница записи
+
+Лично проверены fresh report ref1042a541, Git author MaksimUnimax16:00:28 UTC, parenta6dac63b; полный pinned blob `56130bd3088fb95dfa5a09941f811dc19fa89c9c` прочитан,905538 символов. Исход предыдущей записи известен. Перед единственной новой записью — повторный branch ref; only own REPORT с expected blob CAS, затем independent pinned full-content/parent/ref readback. Сохранение нового audit evidence здесь не является чужим premerge intent или серверным checkpoint.
+
+Easyscript `9dab7ad2-9d63-43a3-b106-a5840d79ccc1` фактически доступен: pong**16:32:12.210 UTC**, retained background calls пусты, list_sessions PID2354613. Этот процесс не трогался; отсутствие всех чужих операций не выводится из данного списка. Серверные fresh locks/Git-WIP/claims/FDs не установлены, отказанный protected preflight не повторялся/не заменялся. Поэтому server checkpoint/PRIORITY/role files не изменяются; чужой WIP сохраняется отсутствием вмешательства, не фиктивным clean PASS.
+
+Девять обязательных current-prompts получены полностью,0 remaining: START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/PRE_AUDIT_SELF_ERROR_GATE/ORGANIZATION_AUDIT_POLICY/RESOURCE_POLICY/DISK_LIFECYCLE/TEMP_WORKTREE_LIFECYCLE. Priority prefix100 из1320 строк — readonly, document28/addressed DOT-20261015-02v10; остальная история NOT_RECHECKED. Поздние scope/STOP/errors-events запреты применены, governing files не синхронизировались.
+
+### C — собственное ожидание полного CI снято по новым original terminal
+
+Лично прочитаны только три прежде не принятых original push workflow outcomes:
+- **Server39278252152** completed SUCCESS, run.updated16:10:07 UTC;
+- **Extension39278242955** completed SUCCESS, run.updated16:08:23;
+- **I1-C139278242934** completed SUCCESS, run.updated16:07:04.
+
+У всех exact `f08bdac7502a2d935cadafa82e47b4321907575a`, eventpush, attempt1, branch `controller/ci-c04-pr234-exactf08-20261019`. Их original run.jobs collections прочитаны один раз; total_count совпадает с фактическим числом полученных jobs, у каждого matching head/attempt1/completed SUCCESS:
+- Server **2/2**:118147659681,118147750764;
+- Extension **6/6**:118147625472,118148734446,118148734451,118148734550,118148734596,118148734608;
+- I1-C1 **3/3**:118147621931,118147944963,118147945700.
+
+Новые11 job outcomes + **ранее лично принятые** Documentation39278242979/job118147622032 и Coordination39278242957/job118147620729 = **5/5 workflows и13/13 jobs SUCCESS на exactf08, attempt1**. Docs/Coord не перечитывались. Собственные старые 2/5 pending/13-not-proven заменены этим точным native CI результатом.
+
+Run.updated и job.completed сохранены как различные поля: самые поздние полученные job.completed в этих коллекциях15:43:19/15:43:17 UTC, тогда как run.updated позднее. Причина исторического рассогласования/позднего terminal UNKNOWN; не подменяется предположением о новом тесте, quota или abort. Логи/прежние отказанные direct job endpoints не читались, synthetic cleanup log не использовался вместо terminal.
+
+Квалификация — original exact native CI metadata. Название job «Installed local API / portal / PostgreSQL acceptance» само по себе не даёт owner/live installed Telegram, реальную C05 restore/rollback или R3 приёмку. Старый source-scoped review f08/local40 сохранён NOT_RECHECKED; новый reviewer, test, CI/ref/rerun не запускались. Full CI успех не объясняет исторические отказы/ABORT и не закрывает остальные original12.
+
+### C — CI PASS и отказ premerge intent сохранены раздельно
+
+Лично прочитан https://github.com/MaksimUnimax/runtime-fixtures/pull/234#issuecomment-6270940370 : created15:29:51, updated**16:15:07 UTC**. Готовое дополнение ALL_5_13_TERMINAL сообщает C consumption полного результата около16:14 UTC и отдельный отказ обычного C.json premerge-intent save. Сохранённый автором дословный ответ:
+> Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.
+
+Это цитата в готовом документе, не собственный повторный ответ Контроллера и не полный первичный tool trace. Exact args, call ID, полная исходная оболочка/точное сервисное время не проверены и в публикации не представлены; причина сверх текста **UNKNOWN**. По C author readback16:14:16 новой premerge записи нет: checkpoint `8ae334e84c354f3ea973f08ecb388178`, SHA256 `38511ef5442954afb11a196185cbd6931284bbeba7ada35fc260ebf8fe0d0b30`. Полный hash Контроллером заново не вычислялся.
+
+C.json ready tail прочитан отдельно,300 строк: в нём старый record16:11:40.977844 ещё12/13 и не все terminal. В прочитанном tail новой premerge записи не наблюдается; это не полный поиск по всему C.json. Mutable server projection и готовая GitHub публикация различаются из-за отдельно сохранённого отказа. C потребление полного результата подтверждается своим более поздним готовым комментарием; отсутствие нового поля в C.json не объявляется простоем или отсутствием CI успеха.
+
+Fresh PR234 metadata на чтении16:32: Draft/open, merged=false, headf08, basedcdd,2файла. **Контроллер не записывал intent за C, не переводил PR в Ready, не выполнял merge и не принимал postmerge.** Этот REPORT фиксирует собственный аудит и не служит заменой отказанной записи/разрешением на обход. Доступный следующий диагностический вход — уже сохранённый полный original tool trace от исходного C caller/dot/штатного канала платформы; без replay. Обычное разрешение на работу и зелёные CI не отменяют конкретного отказа.
+
+### B — новый опубликованный exact head и готовый узкий patch verdict
+
+Лично прочитаны PR235/current comment https://github.com/MaksimUnimax/runtime-fixtures/pull/235#issuecomment-6270578041 (updated16:22:58), ready receipt
+`/root/octoport-control/logs/B/B06_SIX_DRAFT_MAIN3F_20261019/B06_PR235_HTTP400_P2_FASTFORWARD_PUBLISHED_20261019.json`,
+87 строк, issued**16:12:20.160960 UTC**.
+
+Fresh PR235 Draft/open/unmerged имеет **head `e7bec59487f1147f990dbde5d5c82f74ba5893a5`**,12 total paths vs main dcdd. Git commit metadata подтверждает parent8c6759e9, tree `7e5acc53de6db3a27460d9a307b0b8eaa2134e3b`, commit author time16:08:17 (не время публикации и не доказательство запуска модели). Receipt сообщает non-force push/readback e7bec и три incremental source/test пути относительно8c:
+beta-admin HTTP route, его test и beta-access validator export. Source/diff/raw reproduction Контроллер не открывал.
+
+Защитный смысл готового исправления: HTTP route использует существующий строгий validator до service call и возвращает400 для невалидного нормализованного email; admin mutation guard сохраняет приоритет. Сам validator не изменён, auth/OTP/identity canonicalization не реализованы. Новая несовместимость контроля ввода отделена от старого preexisting STD3 расхождения; одна не объявлена причиной другой. Это статус/validation contract patch, не разрешение на использование ошибки.
+
+Готовые evidence по receipt:
+- первый runner с системным Node12 не дошёл до assertions — не продуктовый RED;
+- исправленный Node24 RED:4 новых FAIL/31 старых PASS;
+- GREEN routes **35/35**, beta-access **6/6**, два scoped typecheck и targeted lint/Prettier PASS.
+
+Контроллер прочитал только готовый tail18 из28 строк GREEN log `B06_PR235_TARGET_EMAIL_HTTP_GREEN_NODE24_20261019.log`:1test file/35PASS. Наличие ожидаемых validation/error logger строк в зелёном тесте не объявлено текущим product FAIL. В логе нет intrinsic exact Git SHA; привязка e7bec взята из ready receipt и explicit exact review, а не выдумана из stdout. Время Start19:04:38 без timezone не названо UTC. Beta6/type/style — авторские результаты из receipt/готового review; повторных запусков и новой проверки данных нет.
+
+Ready `B06_PR235_EMAIL_INPUT_HTTP_400_INDEPENDENT_REVIEW_VERDICT_20261019.txt` лично прочитан полностью,13строк:
+**PASS_SOURCE_SCOPED_EMAIL_400_ROUTE_CONTRACT_P2_FIXED**.
+Reviewer явно называет immutable e7bec, parent8c/tree7e5 и ровно три пути; не нашёл нового P0/P1/P2 в этом patch scope, сам тесты не перезапускал. Receipt сообщает existing codex2 Luna/xhigh/terminal success; Контроллер helper/unit не запускал и unit не проверял. Это узкий exact patch SOURCE verdict, не full12-path/security/beta/installed acceptance. Его старое CI0/5 отражает состояние review; ниже новая factual CI metadata.
+
+Снята собственная прежняя head projection8c для PR235. Старые435/TS8/style12/build2, inherited review и native8c PASS не перенесены на e7bec; исходные шесть Draft/история/refs сохранены.
+
+### B — прежнее «оба QUEUED / все без runner» больше не актуально целиком
+
+Лично прочитаны только два existing new-head PR runs и их3 jobs, все exacte7bec, pull_request, attempt1:
+- Documentation **39283446257 completed SUCCESS**, run.updated**16:25:23**; job **118162703154 SUCCESS**, completed16:11:12, runner назначен.
+- Server **39283446268** на чтении около16:33 остаётся workflow **QUEUED**, updated16:11:02, conclusion null.
+- В Server collection ci-plan **118162702024 IN_PROGRESS**, runner назначен; server **118162786277 QUEUED**, runner_id/name null, conclusion null. Started_at заполнен даже у queued job — это поле не принято за исполнение/terminal.
+
+Разные уровни metadata сохранены ровно: workflow QUEUED не переименован в SUCCESS или RUNNING по одному job. Причина ожидания server job/расхождения состояний **UNKNOWN**; assigned ci-plan и completed Docs уже не поддерживают общее «ни одному job не назначен runner». Не выводим billing/credit/cap/permission/outage/local-resource причину без официального evidence. Новый current B gate: **один workflow SUCCESS, Server не terminal**, три других обязательных workflow по готовому author receipt NOT_TRIGGERED_PATH_FILTER/не подтверждены здесь. Полного5/5 нет.
+
+Готовая queue diagnosis B от16:22:35 сохранена как исторический срез; новыми metadata уточнена собственная проекция. Cancellation/retry/no-op commit/новый ref/workflow edit/runner-billing/auth изменения Контроллер не делал и не поручал. Receipt's рекомендации workflow_dispatch/CI policy не являются новым поручением Контроллера. Ближайшая допустимая граница — готовый original Server terminal; официальный scheduling reason, если предъявлен уполномоченным Actions custodian. Отсутствие terminal не является test FAILURE.
+
+### B policy и A accepted результаты
+
+IDNA owner contract **решён и получен B**. Старые receipt/role формулировки про «unresolved decision» не возвращают выбор эквивалентности в UNKNOWN. Новая HTTP400 правка не реализует owner domain-equivalence контракт; implementation/auth/DB/migration/legacy-data доступ не разрешён, collisions UNKNOWN. Узкий patch verdict не снимает этот hold и отдельные broader source/security/installed/rollback гейты. Повторного вопроса о контракте нет.
+
+A root8/B root4 metadata лично прочитаны для scope/адресата; старые labels не трактуются как продуктовый verdict или отсутствие работы. Новая готовая A evidence этим поручением не представлена; R14/R51/старые CI/package/review не перечитывались (NOT_RECHECKED). Это ограничение адресного охвата, не вывод об отсутствии любой A активности.
+
+### Десять пунктов и выполненный собственный результат
+
+1. Предыдущий terminal REPORT/ref/author/parent/full blob и retained calls проверены; исход своей прошлой записи известен, повторной неизвестной мутации нет. ForeignPID нетронут.
+2. Девять mandatory canon полностью получены; Priority version/prefix прочитан; поздние exact STOP/owner запреты применены, rules не переписаны.
+3. Задачи/авторы установлены по ready docs/current PR metadata: C own PR234, B own PR235 patch, A прежний scope. Чужие source/tests/WIP/чаты/Tester не читались.
+4. Лично потреблены три новых C terminals/11jobs, ready C refusal/consumption, B receipt/scoped verdict/GREEN summary/current head/two CI runs+3jobs. Принятые Docs/Coord C, f08 SOURCE/local40 и A evidence не повторены.
+5. Квалифицированы exact native5/13, SOURCE patch, author local tests, CI metadata, PACKAGE/installed/owner/release отдельно. Ни job title, ни ready receipt не стали live authority.
+6. Server locks/WIP недоказаны: role/CP/Priority writes нет; rejected operations не повторены/не заменены. Only own REPORT fresh version/author/blob CAS и независимый readback.
+7. Доступные own stale expectations сняты: C full-CI pending закрыт доказанным5/13; B currenthead обновлён e7bec, Docs pending заменён SUCCESS, глобальное unassigned-runner ожидание уточнено. Product merge/auth/DB блок не закрыт текстом.
+8. C consumption5/13 подтверждён GitHub comment, C.json lag не выдан за простой; B publication/queue diagnosis уже существуют. Поручения, неизвестные отправки и C04 handoff не дублировались.
+9. PLAN/history/WIP/map12 cause/owner/next/return сохранены; новые CI/HTTP400 не подменяют original durability/authority/refusal/bytes доказательства.
+10. Остатки ниже имеют причину/UNKNOWN, ответственного и допустимый следующий вход/условие возврата; объём и оргпроблемы указаны. Audit incomplete, все12OPEN.
+
+### Остатки, ответственные и следующий разрешённый вход
+
+| Остаток | Причина / предел | Ответственный | Допустимый следующий вход / условие возврата |
+| --- | --- | --- | --- |
+| C premerge intent / publication | CI exact5/13 выполнен; отдельная server write safety refusal, original trace/args/IDs не проверены | Исходный C caller; dot/штатный канал платформы | Только уже сохранённый первичный trace с args/ответом/UTC/IDs для диагностики. Не replay/proxy intent/Ready/merge в этом аудите; защищённая неотказанная процедура и действующие полномочия должны быть установлены отдельно. |
+| B Server e7bec | Run QUEUED; ci-plan assigned/in_progress, server queued/unassigned; причина UNKNOWN | Existing B consumer; authorized Actions custodian | Готовый original terminal/job evidence либо официальный exact scheduling reason. Не cancel/rerun/dispatch/runner/billing reset ради аудита. |
+| B остальные native/общий source-security | Только Docs new-head SUCCESS;3 path-filtered не подтверждены, scoped patch review не full beta | Existing B и действующий release/source consumer | Только предъявленные original exact candidate outcomes/полная разрешённая evidence; никакого переноса old8c/main/f08 PASS. |
+| B IDNA/legacy | Контракт выбран; implementation не сделан/не разрешён, collisions UNKNOWN | B; product/security/data authority | Готовый совместимый план/разрешённые материалы и конкретные отдельные implementation/data допуски. Выбор контракта не спрашивать повторно. |
+| C04 installed / C05 / C06 / owner R3 | Нет новой genuine loaded-consumer/delivery/retention/restore/authority/owner первички; prior0/6 сохранён | B/Ops/C; владелец/назначенный Tester своих границ | Подлинные готовые source-pinned package/authority/rollback/owner receipts в разрешённом процессе. Не live/DB/Store/browser и не дубли handoff. |
+| A R52/A.json и Controller CP/Priority | Сохраняются exact refusals; fresh server locks/WIP не доказаны, args/IDs отсутствуют в предъявленной публикации | Исходные callers/A/Controller; dot/platform custodian | Уже сохранённые полные исходные данные и установленная неотказанная процедура, без повторения/переименования/другого писателя. |
+| Original12 | Новые CI/patch evidence не содержат недостающие original outcome proofs | Прежние owners по карте | Первоначальные immutable evidence по индивидуальным cause/next/return; не новое испытание/фиктивный closure. |
+
+Все12OPEN сохраняются в существующей карте:1–3 B03 sourceSeen/delivery, pre-ACK durability и B04 real PG/OTP не получают нужную durable/two-relay/PG первичку из нового HTTP route/CI5/13; owners A/B/назначенный Tester.4–5 и8–12 A05/two-ref, PR48/50, R14/private-env отказ, Sep29 origin, config drift и original bound-review bytes по-прежнему требуют original request/reply IDs/bytes/actor-time от прежних callers/publishers/reviewer/platform custodians.6–7 genuine C06 release/owner R3 требуют подлинных authority/catalog/owner results от B/Ops/C/владельца/Тестера. Полные индивидуальные записи сохранены; прежний map SHAfe07ebdd… — историческая verified ссылка, не новая полная проверка.
+
+Это предел новой адресной первички: готовые C terminal и B patch применены к своей границе и не закрывают иные исходы. Доступное собственное документальное исправление выполнено; оставшиеся original proof/authority/явные refusals не устраняются новым status/ACK. Отсутствие commit/ACK не использовано для вывода о глобальном простое или отсутствии независимой работы.
+
+### Объём и организационные проблемы с прошлого прохода
+
+Новый предметный прогресс: C original5/13 стал terminal; B опубликовал3-path patch/e7bec и ready scoped review/local35+6; новый Docs terminal появился после dot cut. Выполненный Controller объём:9canon full; Priority prefix100; A8/B4metadata;3new C runs/11jobs; C ready comment+role tail300 и currentPR; B ready receipt87/verdict13/finished GREEN tail18, currentPR+comment/commitmetadata,2runs+3jobs; full REPORT/ref/commit/CAS/readback. Документы/тесты других потоков не изменялись.
+
+Оргпроблемы: C CI ожидание действительно устарело и снято, но C.json12/13 и intent не могут быть обновлены Контроллером вместо отказанной C записи. Scope new refusal отделён от CI PASS. B old-head projection/старое0CI/обаqueued/all-unassigned обновлены точными свежими полями; причина очереди не угадана. Новый greenDocs и assignedci-plan не означают Serverterminal. Error logger строки в teststdout не заменяют итог35PASS. B compatibility выбор решён, а implementation/data authority не подразумеваются. A/C server lags не доказательство простоя, oldstate не источник новых полномочий.
+
+Server checkpoint/PRIORITY/role files не менялись, fresh locks/WIP не выдуманы. R7/R8/directjob118137084442/log118019352572/artifacts-route/targets/branch-protection403/fullPG/B05/entitlement/supplementalconsumer/A.json/B.json/A-R52/C-premerge/protectedpreflight и остальные точные отказы не повторялись/не обходились. Errors/events не читались/не восстанавливались; чужие source/tests/WIP/чаты, Tester/B01/R3/live/DB/security/auth/cleanup и PR97/131/134 вне scope. Новых tests/review/CI/helper/VM/browser/merge/эксплуатаций/обходов/реестров/архивов/расписаний/авторизаций/кредитов/сбросов0. Аудит IN_PROGRESS;12OPEN.
