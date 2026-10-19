@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T02:08:35.901180Z; итог текущего документального прохода — «Снятие доступных блоков 19 октября». Полный аудит открыт, история сохранена.
+- **Состояние на:** 2026-10-19T02:22:22.621949Z; новый terminal main499 и доступные documentary блоки — см. последнее дополнение. Полный аудит открыт, история сохранена.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** `main=4994946608d426114081d03170abc9375c898f6f` — fresh ref; PR213 merged, tree совпал с принятым exact984. Остальные source compatibility не переоценивались.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `406acdc8ec705547fb0962e631b7cab2c81f0bb005dd203525197d7e7fcbb52d`, 2,148,767bytes; guarded write02:06:16.461250Z, independent readback02:06:38.459069Z; `audit_complete=false`.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`, SHA256 `d4a08ddbfbfee676182cc8e7e05e7e56cac4577b650ebf1738adaf8ff5a53641`, 2,168,661bytes; guarded write02:21:39.684650Z, independent readback02:22:00.570798Z; `audit_complete=false`, original12open.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -3622,3 +3622,98 @@ ActualWIP A74tracked+7untracked/B79+4/C65+8 сохранён. Latest02:08:35role
 SameREPORT final update использует exactblob d981ec734be67960ea9cd3754f39626254e55c62/parentdfa14bbc после freshauthor/refmain499; [skip ci], затем independent fullcontent/blob/parent/ref readback. Никогда не повторять unknownmutation вслепую. Existing15min schedule ведётdot, новогоscheduler/изменения нет; Controller не обещает исполнение неактивного диалога.
 
 **Новых Controller tests/review/CI/VM/browser/helper/merge/chat/schedulewrites=0.** No exploitation/reproduction/accessbypass/liveDBsecurityauth/ownercleanup/foreignsource-tests-WIP/oldchats/PR97/131/134/errors/events. Artifactsroute/targets/fullPG/R7R8/B05/entitlement/protectionGET403 и все exactrefusals сохранены. Новых registries/archives/credits/resets/authorizations нет. **audit_complete=false, mandatory12open.**
+
+
+## Дополнение 2026-10-19T02:22:22Z — main499 postmerge ожидание снято; A06 R9 local и реальное продолжение C
+
+**Тот же аудит, sole Controller, предыдущий завершённый REPORT f8b95bbe9b719f1d4154221d864f16904888f9ff. audit_complete=false; исходные 12 открытых исходов, PLAN, прежняя история и WIP сохранены.** Приоритет владельца19Oct02:03 — фактически снимать доступные блоки. В этом проходе снято собственное устаревшее ожидание postmerge Server/Extension, а не gate чужого Draft или установленной приёмки.
+
+### Последний исход, единственный автор, операция и объём
+
+Первичный GitHub ref/commit проверен: f8b95bbe, author MaksimUnimax,02:11:13Z,parent dfa14bbc; blob69e6dca1. Fresh main ref **4994946608d426114081d03170abc9375c898f6f**. Easyscript RDC ping02:16:28 подтвердил доступ к устройству9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Retained background Remote MCP calls0; единственная защищённая сессия2354613 не затронута. Перед записью coordination/CONTROLLER/целевые locks захвачены, writableFD чужих писателей к двум целям0, версии совпали. User сообщил отсутствие нового прежнего продолжения; старые чаты для этого не открывались.
+
+Рабочие деревья сохранены: A HEAD09e12fab,74tracked+7untracked; B HEAD0885f499,79+4; C HEAD5ca59994,65+8. Это чужой активный WIP, не отсутствие задач. Чаты A/B/C и Тестера запускает/ведёт владелец; новый запуск/поручение/unknown send не повторены. Имеющийся C06 owner-запрос уже передан dot, **здесь повторно не отправляется и не формулируется как новый запрос**.
+
+Канонические START_HERE/PROMPT_CONTROLLER и обязательные WORK_METHOD/PROTOCOL/PRE_AUDIT/ORGANIZATION, resource/tests/review/CI/передача полностью прочитаны в предшествующем проходе того же исполнения; свежие хеши core шести документов совпали с прочитанными версиями. GitHub management/PLAN/SPEC и server pointers сохраняются вместе; актуальная source-of-truth команда владельца не разрешает автоматическую перепись чужих записей. Late owner запрет errors/events и новых реестров выше старых указателей.
+
+Новые прочитанные доказательства: 2 workflow terminals,8 новых job records,2 исходных уже готовых job logs; A4 готовых R9 primaries и1 main-currentity receipt; B новый ready main comparison; C новый author terminal+next. Controller product/source/test/review/CI/VM/browser/helper/merge launches **0**.
+
+### C/main499: доказанный terminal, снятый блок и отдельный release остаток
+
+| Новый workflow | Exact SHA / trigger / attempt | Terminal | Независимая необходимая граница |
+|---|---|---|---|
+| Server CI39187692078 | main499, push,1 | SUCCESS; updated02:14:33Z | ci-plan117853484734 и server117853514094 SUCCESS. Оригинальный server log показывает checkout499, integration1970PASS и e2e202PASS; обе соответствующие steps SUCCESS. Условный frozen-import step SKIPPED, не утверждается исполнение каждой optional step. |
+| Extension CI39187692047 | main499, push,1 | SUCCESS; updated02:08:19Z | Все6 jobs SUCCESS:117853484509/117853520776/117853520793/117853520846/117853520888/117853520904. Оригинальный последний WB-browser log: checkout499; source17suites/321PASS/0FAIL и package17/321/0; installed_acceptance=false. |
+
+С ранее принятыми Docs39187692043/Safety39187692165/I139187692113 это **5/5 native workflow SUCCESS**. Принятые premerge/Docs/Safety/I1 не перечитывались. Восемь новых jobs проверены непосредственно; оставшиеся пять job details этого main в этом проходе заново не читались. Новая primary C в existing C03 record от02:18:08 отдельно сообщает complete13/13 actual jobs; уровень её provenance — author primary, согласованный с нашим независимым новым8jobs/readback, не выдуманная повторная независимая проверка всех13.
+
+Собственное «main499 postmerge3/5, Server/Extension IN_PROGRESS» **исправлено** в checkpoint и own reply DOT02v10. C.json не менялся. C сам до нашей записи обновил status на C03_PR213_MAIN499_POSTMERGE_NATIVE5_SUCCESS_SOURCE_ACCEPTED_C06_STORE_BLOCKS_OPEN и next к C06. Это фактическое продолжение source-задачи C, не результат нового Controller dispatch и не наше причинное достижение. Старые nested unresolved/postmerge записи в C сохраняют исторические ожидания; текущий terminal record имеет приоритет в нашей проекции.
+
+Принята граница SOURCE/review/exact candidate CI/native protected integration/main source parity/postmerge CI. Это **не** installed watcher/provider monitoring, owner browser, Store authority/catalog, live DB или production; main499 не заменяет exact CI PR205/212/214/215.
+
+### A: новый R9 без переноса local PASS на независимую приёмку
+
+Лично прочитаны готовые файлы в logs/A/a06-pr139-hmac-correlation-20261017/:
+- R9_SELECTED_WORKSTART_RESPONSE_LOCAL_SOURCE_RESULT_20261019.json — SHA256 **7ba5a333c2147482e33052a3c5de099be6801329f022b87bc52e91eb9b3b98fc**;
+- ORIGINAL_RED —72823739be11cd0cc365e4cc51afc0bfa3ca0823292b22be21af5bb00939c52c;
+- FOCUSED_GREEN —a6707d4eff38012da33ddc34bc6dc076a3b17151cfc9aef223c8790cbe64c3da;
+- OFFLINE_SUITE —95c4913bb6692603e3be6e0acfac43a4e25ddd51fcd3e93d846e9b85a7e0cb10.
+
+Existing A receipt связывает local candidate **a8f55fb32e11c8f21907964a0848a4d1a21a7733**,2test-only paths: новый selector выбирает unique Request в work-start window и response по object identity. RED —2 AttributeError из отсутствующего нового selector, focused2PASS, offline52PASS. Это исходные локальные журналы, **exact SHA в их тексте отсутствует**: binding задаёт receipt/source hashes; Controller source/tests не инспектировал и review не выполнял.
+
+**Independent review NOT_OBTAINED**; прежний R7 CODEX_UNTRUSTED_WORK_DIRECTORY exit1 не повторялся/не обходился, R8 сохранён. Нет нового nativeI1/CI/push/merge/release acceptance. Local RED не воспроизведение исторического ABORTED; physical abort initiator **UNKNOWN**. Недостаёт same Request→acquisition/lease, first abort caller/reason same clock, teardown и verified grant at-abort. Новая helper-идентичность сама этого не доказывает.
+
+Готовый A04_PR205_MAIN499_DISJOINT_MERGE_CURRENTITY_20261019.json лично прочитан, SHA256 **2409bed47179e5a11ca569e4ee5aaf055015d7d1abaf90bc1723ab4c67a0a22f**: main499 C03 two paths и четыре PR205 paths не пересекаются. Это AUTHOR_SOURCE_DISJOINT_PATHS_ONLY, не полная совместимость/новое review/готовность merge. Exactd0/ZIPd503 и прежние source/package/installed-synthetic результаты сохранены, NOT_RECHECKED; пять native gates, C3E no-loss, normal owner/Store открыты.
+
+### B: новый main учтён; Draft gates не подменены чужим зелёным main
+
+Лично прочитан ready author source_control_reconcile_after_pr213_20261019 от02:09:03: PR212/214/215 не имеют прямого пересечения changed paths с двумя C03 paths main499. Это SOURCE comparison author record; transitive compatibility, rebase/integration и новая native приёмка **не доказаны**.
+
+PR212 exact3978 остаётся Draft: принятый SOURCE-review отдельно, original Server negative и I1 ABORTED+142ms отдельно, причинность **UNKNOWN**. PR214 exact0f9 и PR215 exact60fd остаются Draft **2/5**; их принятые SOURCE/local/Server/Docs evidence не повторялись. Три path-filter NOT_TRIGGERED workflow не становятся SUCCESS. Новый main499 Server/Extension не workflow точного кандидата B и не причина старого GitHub failure. Capacity projection не снимает fullPG/fixture/entitlement отказ и не даёт live/DB разрешение.
+
+### Десять пунктов фактического аудита по ролям
+
+| Пункт действующего метода | A | B | C |
+|---|---|---|---|
+| 1. Исходная задача, остановка, raw outcome/time | Ready R9 logs/receipt02:15:19 прочитаны; original abort primary/cause UNKNOWN. | Ready main comparison02:09 прочитан; исходные negatives сохранены. | Два exact run/job/log terminals прочитаны независимо; новая C primary02:18. |
+| 2. Действующий допуск | Только documentary; reviewR7/R8 не новый допуск. | Только ready evidence; fullPG/B05/entitlement не повторены. | Read-only существующий CI; protectionGET403 и owner scope сохранены. |
+| 3. Прежний successful method | Exact bounded source/package/guest сохранён NOT_RECHECKED. | Accepted local/SOURCE/native2of5 сохранён NOT_RECHECKED. | Native GitHub GET run/jobs/logs только для новых2; accepted3/premerge не повторены. |
+| 4. Классификация | Local PASS / no review / exact trust refusal / unknown physical cause различены. | NOT_TRIGGERED / old FAILURE / unknown cause / source disjoint различены. | Terminal SOURCE/CI success, не installed/release acceptance. |
+| 5. Последнее действие/дубли/автор/WIP | Own targets FD0 и свежие A hash/HEAD/dirty перед записью. | Та же проверка B; foreign source WIP не тронут. | Та же проверка C; авторский next учтён без dispatch. |
+| 6. Реальное доступное устранение | Собственная проекция обновлена новым R9 и main source boundary; product/review gate не закрыт. | Собственная current-main проекция уточнена; missing exact gates не fabricated. | Собственное устаревшее postmerge ожидание фактически снято. |
+| 7. Повторная проверка исходной границы/readback | Готовые bytes/hashes сверены, новый тест не запускался; own docs independent readback. | Read-only ready projection, own docs readback; исходный negative не rerun. | Same main/run/attempt/job conclusions + logs; own correction independent readback. |
+| 8. Фактическое продолжение | R9 local result и последующий A currentity record — реальные новые результаты; не installed fix. | Новый current-main disposition — реальное documentary продолжение; старые2of5 не новыйPASS. | C02:18 сам принял terminal и перешёл next к C06; не приписано нашей правке. |
+| 9. Остаток/владелец/действие/возврат | Existing A+Tester: готовый supported independent verdict и original same-request causal primary; missing native/owner/no-loss отдельно. | Existing B+authorized CI integrator: готовые genuine exact gates и original negative disposition; no audit dispatch. | C+B-Ops+owner+Tester: genuine authority/HTTPS trust/catalog и normal original owner acceptance; прежний запрос уже передан. |
+| 10. Error registry | Late owner no errors/events/new registry соблюдён. | То же. | То же; чужие организационные ошибки не записывались в новый реестр. |
+
+### Все12: доступное действие отделено от внешнего ограничения
+
+Каноническая STRING current_product_boundaries сохранена **побайтно по значению**; исходных12open, audit_complete=false. В own checkpoint новая delta сохраняет для каждой исходной границы cause/responsible/next/return. Таблица ниже не переоткрывает принятые bounded результаты.
+
+| Исходный остаток | Причина / missing boundary | Ответственный | Ближайшее допустимое действие и условие возврата |
+|---|---|---|---|
+| B03 sourceSeen-submit | Нужны durable/no-double-delivery/true-loss retry через два relay и matching installed actor; прежний bounded SOURCE/PG сохранён. | B/source и A/client; original runtime custodian | Готовый адресный original proof; новых relay/live/browser tests в этом проходе нет. Возврат: Exact durable/actor receipt и provenance, либо адресное изменение допуска владельцем; не повторять denied compound creation. |
+| Pre-ACK recipient result | Same-PG bounded result уже fulfilled; installed IndexedDB/browser durability и two-relay actor остаток отдельны. | Original A/B runtime owners; owner/Tester installed | Потребить только новый exact installed/durable receipt, если автор его предоставит. Возврат: Новая готовая первичка нужной установленной границы; старые 15 blobs/test не повторять. |
+| B04 четыре OTP regression | WIP/отказы сохранены; B сообщает достаточную capacity, это не разрешение refused PG fixture reset и не четыре PASS. | Existing B source/test owner; owner cleanup | Документальный disposition точной refused fixture границы от её custodian; без tests/cleanup/reserve edits. Возврат: Разрешённый готовый exact regression proof либо точное новое решение по отказанной операции; capacity не закрывает исход. |
+| A05 atomic two-ref publication | SOURCE/main integration fulfilled; historical safety classification UNKNOWN и installed-owner scope отдельны. | Original publisher/platform; owner installed acceptance | Сохранить fulfilled bounded acceptance; читать только новый original safety/installed proof. Возврат: Ready original request/reply correlation или owner-specific acceptance; без новой публикации/review. |
+| PR48 publication refusal / PR50 delivery | PR50 source test delivery уже fulfilled; original publication refusal и installed-owner остаток не закрыты. | Original publisher/platform; owner/Tester | Получить только существующий original transport response либо новый готовый owner receipt. Возврат: Original response/ID либо exact installed receipt; не retry PR48 и не требовать merge ради уже доставленного source test. |
+| C06 singleton / release | SOURCE composition PR130/main44 accepted; installation/privilege/network/rollback/multihost и genuine release authority/catalog отдельны. | Existing C/release, B-Ops/owner authority | Готовые source.head/tree+HTTPS/trustBundle+target catalog documents; без изготовления authority/live действий. Возврат: Авторитетный exact input и принятая установленная граница; unrelated full roadmap не ранний Store gate. |
+| Owner R3 | Личная owner техническая приёмка не передана; guest/synthetic не full owner acceptance. | Owner/Tester | Сохранить полученный явный exact package/browser verdict, если он поступит; новых команд нет. Возврат: Фактический owner verdict; чужой браузер/профиль/Start не запускать. |
+| R14 original refusal | Original combined request/envelope/native raw response отсутствует; current B05 rev731 bounded acceptance сохранён. | Original C/platform custodian | Потребить существующий raw response/ID при предоставлении, не пересоздавать запрос. Возврат: Original request/reply или immutable native correlation; UNKNOWN не gate всего development. |
+| C private test env refusal | Original guarded deletion request recovered, raw reply/ID отсутствуют; файл unread/undeleted. | Original C/platform; owner cleanup | Только предоставленный original reply/ID; cleanup/read protected file не выполнять. Возврат: Ready original platform response; не повторять delete/обходить метод. |
+| Sep29 publication origin | Commit/two runs известны; original transport request/reply correlation не дан. | Original publisher/platform | Только новый готовый original addressed proof; без повторного push/неизменного поиска. Возврат: Immutable transport correlation к59dfab94/two push runs. |
+| Historical config drift | Хеш-разногласие известно, immutable before/after+actor/edit/time отсутствуют. | Original B/config custodian | Потребить предоставленные exact before/after evidence; auth/profile/config reset не выполнять. Возврат: Original immutable bytes и actor/time correlation; никакой догадки о причине. |
+| Original bound review bytes | Нужен immutable payload SHA12d92447…; reconstructed review не замена. | Original B/reviewer/platform | Только готовые original review bytes/correlation от custodian; нового review/helper нет. Возврат: Payload с полным ожидаемым SHA либо original delivery correlation; повтор failed search не делать. |
+
+Для собственного documentary scope доступная коррекция выполнена; оставшиеся действия привязаны к missing primary/чужому product owner/явной границе выполнения, а не к отсутствию коммита или ACK. На02:22:22 hashes ролей те же, новых ready candidates в проверенных logs A/B/C, notices и peer-handoffs depth2 после02:19:35 не найдено. Это ограниченный охват; общий PLAN не объявлен исчерпанным. Готовый поддержанный первичный input — условие следующего documentary действия; запретанная операция не становится допустимой из-за отсутствия нового input.
+
+### Организационные проблемы, собственная запись и readback
+
+Снято расхождение own current projection с terminal GitHub, а не сняты объективные product gates. C stale nested unresolved list не перебивает current terminal; C сам возобновил release scope. No ACK не признак простоя. A/B disjoint path comparison полезен для currentity, но не полноценная compatibility. Локальные логи с receipt binding не независимый review. Настоящий C06 authority/catalog остаётся внешним input; нового запроса/ключа/подписи/target не создано.
+
+Guarded write **2026-10-19T02:21:39.684650+00:00**, отдельный RDC readback **2026-10-19T02:22:00.570798+00:00**:
+- checkpoint SHA256 **d4a08ddbfbfee676182cc8e7e05e7e56cac4577b650ebf1738adaf8ff5a53641**,2,168,661bytes;
+- PRIORITY_TASKS SHA256 **6055d2222dbd4a3c608cb1b92673f6f58ff866e815d6e19e0d59d5b98a7cf7a7**,729,071bytes;
+- own facts/reply MATCH, marker1, map SHA256 fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d; все foreign root fields/PLAN/history/12/WIP сохранены, locksFREE.
+
+Тот же REPORT обновляется exact blob CAS69e6dca1/parentf8b95bbe после свежего ref/author; [skip ci]. Independent full content/blob/parent/ref readback обязателен до итогового ответа. Новых собственных product/source/tests/review/CI/VM/browser/helper/merge/chat/automations/auth/credits/reset/cleanup/live/DB/security действий0. Все адресные GETbranchprotection403/artifactsroute/targets/fullPG/R7R8/B05/entitlement/прочие отказы сохранены, без повторов и обходов; errors/events/старые чаты/PR97/131/134 не тронуты. **audit_complete=false; карта12 и разрешённый общийPLAN сохранены.**
