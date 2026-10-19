@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T18:21:31.300Z; лично подтверждены новые PR236 exactbe7d pushServer/Extension terminal и отдельный PRServer: premerge5/5,13/13SUCCESS сохранены по тем же SHA/attempt1. Дополнительно verified фактический merge18:10:43 → main691807da/tree9138, authorB consumption; новые main-push3/5,11/13 на18:18:01,Server/WB ещёIN_PROGRESS. Новые A R32refusal/R33-R34readydoc квалифицированы; dotunknownAinfo не повторён. PLAN/history/WIP/original12OPEN,audit_complete=false.
+- **Состояние на:** 2026-10-19T18:34:06.125Z; лично подтверждены новые postmerge Server39300358407/Extension39300358386 terminal на main691807da:5/5 workflow,13/13 jobs SUCCESS,push attempt1. Premergebe7d и separatePRServer сохранены NOT_RECHECKED. B full consumption/receipt18:29:19 прочитаны; новые A R35/R36 и B PR235main691 path-currentity потреблены documentary-only. Installed/rollback/IDNA/data/C06 и original12OPEN сохранены; audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
-- **Основа GitHub:** лично прочитанный main ref 691807da125c0a0191b7a4541b29b51c8443011a,mergePR23618:10:43UTC,parentsdcdd2b51+be7dfe8c,tree9138ff5db89e4ab502ca7a0396706f18ef4e3141 равен принятому candidate. Exactbe7d premerge5/5,13/13SUCCESS; отдельный originalPRServerSUCCESS. Main691 postmerge3/5,11/13 на18:18:01, не полный postmergePASS/installed. Прежние main/C/A evidence NOT_RECHECKED, source/package/installed/live/authority границы сохранены.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`; последний полный verified SHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`,2561719 bytes, readback13:35:39.429576 UTC. Последнее частичное readonly чтение20+90 строк было в предыдущем проходе15:05–15:10; сейчас NOT_RECHECKED. Fresh полный hash/locks/WIP не установлены, отказанный preflight/запись не повторены. PLAN/история/WIP/12OPEN сохранены, новая собственная дельта только в этом REPORT. В предыдущем проходе (18:01 UTC) RDC get_file_info подтвердил только metadata: size2561719,33110lines,modified2026-10-19T13:35:13.936Z; содержимое/полный hash/locks не перепроверялись, записи нет.
+- **Основа GitHub:** fresh main ref 691807da125c0a0191b7a4541b29b51c8443011a. Эта postmerge push-серия теперь5/5,13/13SUCCESS: два новых terminal лично прочитаны18:30:47UTC, старыеDocs/Coord/I1 retained NOT_RECHECKED. Принятые mergePR23618:10:43/parentsdcdd+be7d/tree9138 и premergebe7d5/13 не перечитывались/не смешивались с новой серией. SOURCE/CI не installed/live/Store authority.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`; последний полный verified SHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`,2561719 bytes, readback13:35:39.429576 UTC. Последнее частичное readonly чтение20+90 строк было в предыдущем проходе15:05–15:10; сейчас NOT_RECHECKED. Fresh полный hash/locks/WIP не установлены, отказанный preflight/запись не повторены. PLAN/история/WIP/12OPEN сохранены, новая собственная дельта только в этом REPORT. Историческое чтение RDC get_file_info (18:01 UTC) подтвердило только metadata: size2561719,33110lines,modified2026-10-19T13:35:13.936Z; содержимое/полный hash/locks не перепроверялись, записи нет.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -6505,3 +6505,114 @@ Expected file blob104dbc2e7c2c10fafadc9a560743aecf16181652, прежняя branc
 Доступный остаток: existingB потребляет готовые main691 Server/WB terminal; originalA/platform custodian предоставляет только сохранённый refusal trace; B/Ops/C/owner дают подлинные installed/authority/rollback/delivery proofs. Controller потребляет новые готовые документы и исправляет собственные проекции. При прежних отказах нет допустимой server записи без свежей разрешённой locks/WIP процедуры; она не подменена GitHub текстом.
 
 PLAN/history/WIP/serverCP и12OPEN сохранены. Server mutations0; новых tests/review/CI/cancel/rerun/helpers/VM/browser/merge/эксплуатаций/обходов Controller нет. Все конкретные отказы, включая C/B403,Cintent,A R31/R32/R52/JSON/A.json,B.json,protectedpreflight/CP/PRIORITY,R7/R8,artifacts-route/targets,job118137084442/log118019352572/fullPG/B05/entitlement/supplementalconsumer, сохраняются. Чужие source/tests/WIP/live/DB/security/auth/cleanup/errors/events/PR97/131/134/B01R3/чаты вне scope. Новых реестров/архивов/расписаний/авторизаций/кредитов/сбросов нет. **Аудит не завершён; завершён доступный документальный шаг.**
+
+
+---
+
+## Продолжение 2026-10-19T18:34:06.125Z: main691 postmerge CI принят, независимые документальные остатки сохранены
+
+Тот же аудит после REPORT464fae00 и ответа18:23:51UTC. Ни новый исполнитель, ни новый аудит не создавались. Свежие результаты лично получены через RDC Easyscript и GitHub; срез dot служил указателем. Работа/GPT-6.1 Sol/Очень высокое сохранены по прямому указанию, без нового UI/quota измерения.
+
+### 1. Правила, приоритет и область продолжения
+
+Полными RDC read_file прочитаны текущие START_HERE23стр,PROMPT_CONTROLLER86,WORK_METHOD52,PROTOCOL37,PRE_AUDIT_SELF_ERROR_GATE16,ORGANIZATION_AUDIT_POLICY45,RESOURCE_POLICY29,DISK_LIFECYCLE23,TEMP_WORKTREE_LIFECYCLE27: каждый ответ0remaining. Действуют bounded audit, один автор, сохранение WIP, самостоятельное доступное исправление, независимый product review, пять exact-SHA CI/non-force/readback, отдельные SOURCE/PACKAGE/INSTALLED_SYNTHETIC/LIVE/DB полномочия. Прямые поздние запреты на errors/events и конкретные операции сохраняются.
+
+PRIORITY_TASKS canonical prefix100/1320 и предзаписный prefix8:documentv28/существующее адресноеv10. Остальные1220историческихстрок NOT_RECHECKED. PRIORITY/role/CP не записывались. Принятые оценки и неизвестные отправки не повторялись; нового организационного gate или реестра нет.
+
+### 2. Последний исход, автор и WIP
+
+OwnRDC ping вернул pong**18:30:46.713UTC**,device9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Initial и prewrite retainedcall lists:No retained background Remote MCP tool calls. list_sessions показывает чужойPID2354613,Blocked=false; его команды/cwd/stdin/ресурсы не инспектировались и не изменялись. Новых помощников нет.
+
+Полный REPORT blob**347492e291d3df280155200a65747e50a584971f**,1013972символа, прочитан. Branchref и commit подтвердили **464fae00024ef0061e9c14399fc4f60f8776ca6b**,authorMaksimUnimax18:23:19UTC,parentcf6623c4. Предзаписный ref тот же. Неизвестного исхода нашей последней записи или второго writer в собственном report scope не обнаружено. Это не вывод об отсутствии всех чужих операций.
+
+Только GitHub REPORT имеет разрешённую запись с exact expected blob CAS. Freshserverlocks/dirty/чужиеWIP через отказанный preflight не устанавливались; серверных записей нет. PLAN, уникальные данные, чужие поля, исходный CP и карта12 сохранены; полныйCP/hash не перечитывался.
+
+По прямому сообщению владельца отключение checker dot не доказывает остановку A/B/C. Собственный доступ к Easyscript подтверждён отдельно. UNKNOWN get_file_info(A.json) не повторялось и не подменялось чтением A.json; оно остаётся UNKNOWN, а не новый security-отказ. Пустой retainedlist нашей сессии не доказывает исход той чужой операции.
+
+### 3. Новые terminal именно postmerge main691
+
+Лично прочитаны только два прежде ожидавшихся workflow и необходимые constituent job collections:
+
+| Postmerge workflow | Run / attempt / event | Подтверждённый результат |
+|---|---|---|
+| Server |39300358407 /1/push|head691807da125c0a0191b7a4541b29b51c8443011a;completedSUCCESS,updated18:26:59UTC;2/2jobsSUCCESS;server118223705492 завершён18:26:58|
+| Extension |39300358386 /1/push|тот же exact691;completedSUCCESS,updated18:23:08UTC;6/6jobsSUCCESS;wb-browsers118223709096 завершён18:23:07|
+
+Оба run head/event/attempt и все8jobheads совпали; незавершённых/неуспешных обязательныхsteps в terminal collections нет. Неизменённые constituent rows не являются повторным тестированием. Старые postmerge Docs39300358379(1job),Coord39300358380(1),I1 39300358579(3) сохранены **NOT_RECHECKED**.
+
+Итог этой же серии: **5/5originalpostmergeworkflow и13/13constituentjobsSUCCESS**. Снято наше устаревшее ожидание3/5,11/13. Premerge exactbe7d5/13 и отдельный PRServer39296917343 не вызывались и не суммировались с main691. Повторно не читались PR236merge/parents/tree: эти факты приняты раньше. Freshmainref всё ещё691807da.
+
+### 4. B уже потребил полный результат
+
+Лично прочитано только новое итоговое дополнение B:
+https://github.com/MaksimUnimax/runtime-fixtures/pull/236#issuecomment-6273565872
+updated**18:29:54UTC**,раздел B06_PR236_MAIN691_POSTMERGE_NATIVE_5OF5_13OF13_20261019.
+
+Также прочитан готовый существующий receipt
+/root/octoport-control/logs/B/B06_FUNNEL_ORDERED_STAGE_20261019/**B06_PR236_MAIN691_POSTMERGE_NATIVE_5OF5_13OF13_20261019.json**,
+100стр,issued**18:29:19.543766UTC**. Published SHA256 ddff05db09856934c2ee1769f73e8da1760f2329991cdc8aa55d91f36faa8d5d — авторская custody-привязка, не новый Controller shell hash check.
+
+Receipt фиксирует SOURCE_MERGED_AND_POSTMERGE_NATIVE_CI_ACCEPTED,исходныеrun/jobIDs и5/13main691. Собственные GitHub metadata reads подтверждают недостающие terminal независимо от пересказа. **Consumption B наблюдён**, новое поручение или ACK-запрос не отправлялись. Наблюдаемый source/CI результат выполнен B до нашего edit и ему не приписан.
+
+Не заявлены installed source parity, originalB04realPGfixture,liveownerbeta,source-to-running-consumer release,restore/rollback,production.128MiB allocation/tempworktree по receipt остаютсяOPEN до доказанной безопасной lifecycle границы; CI не разрешает удаление. Cleanup остаётся вне нашего scope. Следующий B результат — собственный допустимый lifecycle/roadmap и отдельно подлинный installedconsumer/rollback proof; повторная приёмка source нужна лишь при новых основаниях.
+
+### 5. A R35: definitions найдены, отсутствующие исполнения не заменены
+
+Лично прочитаны только новые R35/R36 в
+https://github.com/MaksimUnimax/runtime-fixtures/pull/228#issuecomment-6272657314
+updated**18:28:54UTC**. Принятые R30–R34 не перепроверялись; исходники/testWIP/ZIP не открывались.
+
+**R35_THREE_EXACT_BRANCHES_MISSING_NATIVE_DISPATCH_AUDIT** сообщает авторскую проверку наличия Server/Coordination workflow files и workflow_dispatch на трёх exactheads:
+PR2281b00870c3aa2b56ba1b078eeecb14ee089187639,
+PR21910bf5452141572c5a58711559aeca4d7bda65004,
+PR207143563f8f94601b31db51a480a6b968157c8790e.
+Это шесть file/ref attestations (дваworkflow×триPR), **не шесть запущенных workflow или успешных тестов**. Сами YAML/filename APIs Controller не перечитывал.
+
+Снята лишь неизвестность о наличии определений по готовому A документу. Исполнения тех же exactheads остаются недоказанными: каждый PR сохраняет3/5workflow и10/13jobs; greenmain691 им не замена. Авторский operational Runworkflow текст — указатель для действующего уполномоченного Actions actor, не новое разрешение владельца и не поручение Контроллеру запускатьCI. Описание ограничений connector A не выдано за собственную полную проверку возможностей всех инструментов.
+
+Ответственные existingA/уполномоченный GitHub Actions actor. Допустимый в этом аудите шаг — потребление готовых original exact-head outcomes, когда они появятся. Условие возврата — реальные недостающие Server/Coordination terminal на каждом своём SHA, все обязательные jobs и остальные source/review/release gates. НовыхCIrefs/dispatch/rerun/измененийfilters/credentials нет.
+
+### 6. A R36: main-baseline consumption, не приёмка трёх Draft
+
+R36_MAIN691_EXACT_FIVE_WORKFLOWS_THIRTEEN_JOBS_TERMINAL сообщает5/5,13/13main691 и явно оставляет исходныеA PR gates открытыми. Это готовое авторское **consumption того же baseline**, не ещё один новый тестовый набор. Controller не повторял oldCI или unit/browser execution.
+
+Не доказаны собранный и принятый coherent12-path R28 candidate на текущей базе, independent integrated review, owner-installed multi-dialogue Start/Finish, signedStore/production. R31/R32/R52/refusedarchive/JSON/A.json и R4/C3E/uniqueR27 сохраняют прежний scope. Main691funnel-only изменения не превращают path parity в интеграционную приёмку extension.
+
+### 7. B PR235: новое path-currentity уточнение
+
+Прочитан только B06_PR235_MAIN691_DISJOINT_CURRENTITY_20261019 в
+https://github.com/MaksimUnimax/runtime-fixtures/pull/235#issuecomment-6270578041,
+updated**18:25:00UTC**. Старые PR2352/5CI,IDNA syntheticmatrix/source review не перечитывались.
+
+Готовый B документ сообщает PR235Draft/exacte7bec59487f1147f990dbde5d5c82f74ba5893a5,12paths и0pathoverlap с двумя funnels путями PR236/main691;mergeable/clean — его наблюдение времени публикации,не наш повторный PRAPI/semanticreview. Это ограниченная совместимость по путям, не новая fullcomposition/security/installedacceptance.
+
+**NO_MERGE/IDNA/data holds не сняты.** Owner contract U-label/A-label equivalence решён и доставлен B; implementation across account/invitation/OTP ещё не разрешена,legacycollisionsUNKNOWN,auth/DB/migration/dataaccess отдельно не разрешены. Source-disjointness не исправление identity policy. Ответственные existingB/product-security-dataowner; ближайший шаг — готовый compatibleplan/evidence и действительные точные отдельные допуски, не повторный выбор контракта. Missing3nativechecks PR235 остаются за его exactSHA,main6915/13 их не закрывает.
+
+### 8. C и исходные12: bounded scope и внешние источники
+
+Sincecut18:21:31 collections C209/C234/C210 пусты. Это отсутствие новой публикации в трёх адресных объектах, не доказательство отсутствия работы C. Причина неподтверждённого consumption/ACK — UNKNOWN. Старые C artifacts/review/CI/installedinventory/handoff не повторялись; новый C→B ACK или C06genuineauthority в рассмотренной дельте не найден. Новый запрос C06/handoff не отправлялся.
+
+Существующая индивидуальная карта original12,owners/next/return и история сохранены без нового реестра. B03/sourceSeen иpre-ACKdurability(1–2) требуют originaldurable/two-relay/installedactor receipts отB/A/runtimecustodian/ownerTester. B04fourOTP/fullPG(3) сохраняет свой адресный отказ/owner-cleanup зависимость;runnerCI не та fixture. A05two-ref/PR48-50(4–5) сохраняют принятыйSOURCE и отдельные originalrefusal/installedowner gaps.
+
+GenuineC06 и personalR3(6–7) требуют подлинных authority/catalog/target/owner proofs отB/Ops/C/owner/Tester. R14/private-envrefusals,Sep29origin,configdrift иoriginalbound-reviewbytes(8–12) ждут уже сохранённой первички rawreply/envelope/IDs/bytes/actor-time от originalcallers/publisher/reviewer/platform/configcustodian. Исторические неизвестные причины остаютсяUNKNOWN. Новый mainCI/filenameaudit не восполняет эти proofs. C3Edurabledelete/journal иotheraccountretention также не закрыты.
+
+### 9. Доступное исправление, объём и организация
+
+В единственном REPORT применено и подлежит независимому readback:
+- main691postmerge3/5,11/13 → **5/5,13/13 SUCCESS**;
+- ожидание consumptionB → **готовый опубликованный B receipt прочитан**, без нового поручения;
+- A missingworkflowdefinitions → **авторски подтверждены определения**, но шесть недостающих exact-head исполнений всё ещё не подтверждены;
+- B PR235oldbasecurrentity → **main691path-disjointness**, с сохранёнными IDNA/fullCI/installed holds;
+- отключение checker dot/UNKNOWNAmetadata не расширены до остановкиflows/securityrefusal.
+
+Объём:9canon full;Priority100+8;fullREPORT/ref/author/parent иfreshmainref;2новыхterminalrun/2jobcollections(8rows),Breadyreceipt100стр;6sincecutcommentcollections —3обновлённыхобъекта(A228,B236,B235),3пустых(C209/C234/C210). Внутри обновлённых объектов прочитаны только новые адресные разделы. Старые premergeCI/PRServer/merge,3принятыхpostmergeworkflow,A R30–R34,Blocal/review/IDNAmatrix/Cevidence NOT_RECHECKED.
+
+Оргпроблемы: frozenrole/CP проекции и разные timestamps не равны реальному простою. A36/Bfullreceipt уже показывают consumption; наш edit не был причиной их выполнения. Наличие workflowdefinition не terminalresult и не новый допуск. Source-path compatibility не semantic/inheritedidentity приёмка. РесурсноеKEEP B128MiB не CLOSED поCI; чужая cleanup не выполнялась. Ограничение окружения checker dot не приписано Easyscript: ownping/readyread успешны.
+
+### 10. Запись/readback и оставшиеся допустимые границы
+
+Expected file blob347492e291d3df280155200a65747e50a584971f, прежние branch/path REPORT, fresh ref/author иCAS. Успех подтверждается отдельными GET новогоGitblob (равенство всей intendedстроке),commitauthor/parent иbranchref. Unknownwrite не повторяется вслепую. Проверяется исходная documentary граница, не создаётся productPASS.
+
+Доступная собственная проекция mainCI доведена до результата. Следующие разрешённые источники — новые готовые original A exact-head outcomes, B совместимые планы/доказательства, C/B-Ops genuine installed/authority/rollback/delivery receipts и историческая первичка originalcallers. При прежних platformотказах нет допустимой serverwrite без fresh разрешённой locks/WIP процедуры; её не заменяет запись GitHub.
+
+PLAN/history/WIP/serverCP и12OPEN сохранены,audit_complete=false. Servermutations0; новых tests/review/CI/cancel/rerun/helpers/VM/browser/merge/эксплуатаций/обходов Controller нет. Все адресные отказы A R31/R32/R52/JSON/A.json,C/Bprotection403/Cintent,B.json,protectedpreflight/CP/PRIORITY,R7/R8,artifacts-route/targets,job118137084442/log118019352572/fullPG/B05/entitlement/supplementalconsumer сохраняются. Чужиеsource/tests/WIP/live/DB/security/auth/cleanup/errors/events/PR97/131/134/B01R3/чаты внеscope. Новых реестров/архивов/расписаний/авторизаций/кредитов/сбросов нет. Завершён доступный документальный шаг, **не весь аудит**.
