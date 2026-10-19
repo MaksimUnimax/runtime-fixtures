@@ -58,7 +58,8 @@ function compareOperation(
   return (
     a.sourceFamily.localeCompare(b.sourceFamily) ||
     a.path.localeCompare(b.path) ||
-    a.method.localeCompare(b.method)
+    a.method.localeCompare(b.method) ||
+    (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
   );
 }
 
