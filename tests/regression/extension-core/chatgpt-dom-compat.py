@@ -5,7 +5,109 @@ from pathlib import Path
 import argparse,hashlib,json
 from playwright.sync_api import sync_playwright
 
-def run(runtime: Path, output: Path):
+
+def run_kimi(runtime: Path, output: Path):
+    """Kimi reader only, from observed 19 Oct final/reasoning parent chains."""
+    from html import escape
+    output.mkdir(parents=True, exist_ok=True)
+    source = (runtime / "shared/ai_adapters.js").read_text()
+    identity_source = (runtime / "shared/conversation_identity.js").read_text()
+    result = {"status": "RUNNING", "scope": "offline Kimi final-code reader; no provider calls",
+              "source_sha256": hashlib.sha256(source.encode()).hexdigest(), "cases": {}}
+    def block(value, attrs=""):
+        return '<div class="segment-code"><div class="syntax-highlighter light segment-code-content"><pre '+attrs+'><code>'+escape(value)+'</code></pre></div></div>'
+    def final(value, attrs=""):
+        return '<div class="toolcall-rollup__part toolcall-rollup__flat"><div class="markdown-container"><div class="markdown">'+block(value, attrs)+'</div></div></div>'
+    def assistant(body, ident="a1"):
+        return '<div class="chat-content-item chat-content-item-assistant" data-archer-id="'+ident+'">'+body+'</div>'
+    def reasoning(value):
+        return '<div class="thinking-container"><div class="markdown-container toolcall-content-text">'+block(value)+'</div></div>'
+    long_text = "\n".join(f"{n:03} " + ("BEGIN_KIMI_UI" if n == 1 else "END_KIMI_UI" if n == 120 else "neutral") for n in range(1, 121))
+    cases = {
+        "observed_final_excludes_duplicate_reasoning": (assistant(reasoning('console.log("OCTOPORT_UI");')+reasoning("ALPHA\nBETA\nGAMMA")+final('console.log("OCTOPORT_UI");')+final("ALPHA\nBETA\nGAMMA")), ['console.log("OCTOPORT_UI");', "ALPHA\nBETA\nGAMMA"]),
+        "long_120_lines_exact": (assistant(final(long_text)), [long_text]),
+        "verbatim_whitespace_and_html_text": (assistant(final("  <tag>\n\tA\u00a0B\n")), ["  <tag>\n\tA\u00a0B\n"]),
+        "outside_final_rollup_rejected": (assistant('<div class="markdown-container">'+block("BAD")+'</div>'), []),
+        "toolcall_only_rejected": (assistant('<div class="toolcall-content-text">'+final("BAD")+'</div>'), []),
+        "thinking_parent_rejected": ('<div class="thinking-container">'+assistant(final("BAD"))+'</div>', []),
+        "user_message_rejected": ('<div class="chat-content-item chat-content-item-user">'+final("BAD")+'</div>', []),
+        "assistant_nested_in_user_rejected": ('<div class="chat-content-item chat-content-item-user">'+assistant(final("BAD"))+'</div>', []),
+        "nested_foreign_message_excluded": (assistant(final("OWN")+assistant(final("FOREIGN"),"nested")), ["OWN"]),
+        "multiple_messages_order": (assistant(final("FIRST"),"a1")+assistant(final("SECOND"),"a2"), ["FIRST","SECOND"]),
+        "hidden_ancestor_rejected": ('<div hidden>'+assistant(final("BAD"))+'</div>', []),
+        "opacity_ancestor_rejected": ('<div style="opacity:0">'+assistant(final("BAD"))+'</div>', []),
+        "aria_hidden_rejected": ('<div aria-hidden="true">'+assistant(final("BAD"))+'</div>', []),
+        "editable_code_rejected": (assistant(final("BAD",'contenteditable="true"')), []),
+        "zero_size_pre_rejected": (assistant(final("BAD",'style="width:0;height:0;overflow:hidden"')), []),
+        "ambiguous_direct_code_rejected": (assistant(final("BAD").replace("</code>","</code><code>OTHER</code>")), []),
+    }
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.route("**/*", lambda route: route.fulfill(status=200, content_type="text/html", body="<html><body></body></html>"))
+            page.goto("https://www.kimi.ai/chat/fixture-a")
+            for name, (markup, expected) in cases.items():
+                page.set_content(markup)
+                page.evaluate(identity_source)
+                page.evaluate(source)
+                actual = page.evaluate("""() => {
+                    const reader = globalThis.SellerAgentsKimiCodeReader;
+                    if (!reader) throw new Error("KIMI_READER_NOT_COMPOSED");
+                    return reader.assistantMessages().flatMap(m => reader.findCodeBlocks(m).map(b => reader.readCodeText(b)));
+                }""")
+                assert actual == expected, (name, actual, expected)
+                result["cases"][name] = {"status": "PASS", "blocks": len(actual)}
+            mutations = {
+                "detached_block_rejected": "b.remove()",
+                "moved_into_reasoning_rejected": "const t=document.createElement('div');t.className='thinking-container';m.append(t);t.append(b)",
+                "moved_to_other_message_rejected": "const n=m.cloneNode(false);n.setAttribute('data-archer-id','other');document.body.append(n);n.append(b.closest('.toolcall-rollup__flat'))",
+                "code_node_replacement_rejected": "b.querySelector('code').replaceWith(b.querySelector('code').cloneNode(true))",
+                "message_id_change_rejected": "m.setAttribute('data-archer-id','replacement')",
+                "chat_path_change_rejected": "history.replaceState({},'', '/chat/fixture-b')",
+                "new_hidden_parent_rejected": "m.style.display='none'",
+            }
+            for name, mutation in mutations.items():
+                page.goto("https://www.kimi.ai/chat/fixture-a")
+                page.set_content(assistant(final("CODE")))
+                page.evaluate(identity_source)
+                page.evaluate(source)
+                actual = page.evaluate("""mutation => {
+                    const r=SellerAgentsKimiCodeReader,m=r.assistantMessages()[0],b=r.findCodeBlocks(m)[0];
+                    const before=r.readCodeText(b);
+                    new Function('m','b', mutation)(m,b);
+                    return {before,after:r.readCodeText(b),anchor:r.geometryAnchor(b)!==null};
+                }""", mutation)
+                assert actual == {"before":"CODE","after":"","anchor":False}, (name,actual)
+                result["cases"][name] = {"status":"PASS"}
+            # HTTP loopback is a secure browser context, so the full bundle can
+            # initialize Web Crypto while the reader still rejects this origin.
+            for origin in ["https://kimi.ai", "https://www.kimi.ai.example.invalid", "http://localhost"]:
+                page.goto(origin+"/chat/fixture-a")
+                page.set_content(assistant(final("BAD")))
+                page.evaluate(identity_source)
+                page.evaluate(source)
+                assert page.evaluate("SellerAgentsKimiCodeReader.assistantMessages().length") == 0, origin
+            result["cases"]["exact_observed_origin_only"] = {"status":"PASS"}
+            page.goto("https://www.kimi.ai/chat/fixture-a")
+            page.set_content(assistant(final("globalThis.__kimiExecuted = true;")))
+            page.evaluate(identity_source)
+            page.evaluate(source)
+            assert page.evaluate("""() => {
+                const r=SellerAgentsKimiCodeReader,m=r.assistantMessages()[0],b=r.findCodeBlocks(m)[0];
+                return r.readCodeText(b)==="globalThis.__kimiExecuted = true;" && globalThis.__kimiExecuted===undefined;
+            }""")
+            result["cases"]["read_never_executes_code"] = {"status":"PASS"}
+        finally:
+            browser.close()
+    result["status"] = "PASS"
+    (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps({"status":"PASS","scope":result["scope"],"cases":len(result["cases"])}))
+    return 0
+
+def run(runtime: Path, output: Path, provider="all"):
+    if provider == "kimi":
+        return run_kimi(runtime, output)
     output.mkdir(parents=True, exist_ok=True)
     source=(runtime/"shared/ai_adapters.js").read_text()
     identity_source=(runtime/"shared/conversation_identity.js").read_text()
@@ -156,6 +258,9 @@ def run(runtime: Path, output: Path):
     assert result["cases"]["fenced_response_copy"][0]["anchors"]==["fenced-pre"]
     assert result["cases"]["real_and_response_copy"][0]["blocks"]==["REAL"]
     assert result["cases"]["real_and_response_copy"][0]["anchors"]==["real-copy"]
+    if provider == "all":
+        run_kimi(runtime, output/"kimi")
+        result["additional_provider_results"] = {"kimi":"kimi/result.json"}
     result["status"]="PASS"
     (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
     print(json.dumps(result,ensure_ascii=False))
@@ -165,5 +270,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
+    parser.add_argument("--provider",choices=["all","chatgpt","kimi"],default="all")
     args=parser.parse_args()
-    raise SystemExit(run(args.runtime.resolve(),args.output.resolve()))
+    raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

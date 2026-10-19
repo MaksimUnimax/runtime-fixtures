@@ -1,0 +1,51 @@
+{
+  "kind": "kimi-final-code-reader-source-result",
+  "at_utc": "2026-10-19T12:35:31.917915+00:00",
+  "base_main": "3f6689a1c2a0ff4cca25c83cf751ff67a540879d",
+  "paths": {
+    "apps/extension/src/content/kimi-code-reader.js": {
+      "sha256": "2c5621f6b38eb4353dd6c1ad55041fc08191994ac2e4f44b7892c312724d0d8d",
+      "bytes": 4012
+    },
+    "apps/extension/composition.json": {
+      "sha256": "b8da8456cafeb25c46d159ecdeb029ef712840926164d2bec68f40fd1e5215cb",
+      "bytes": 11831
+    },
+    "tests/regression/extension-core/chatgpt-dom-compat.py": {
+      "sha256": "93c63ce4f2a3dfcf391c55ace2b8bcc294a0fca51fc8694f4f654a35e03fd150",
+      "bytes": 23785
+    }
+  },
+  "author_test": {
+    "status": "PASS",
+    "cases": 25,
+    "unit": "octo-tester-kimi-reader-green2-20261019t1234",
+    "exit_code": 0,
+    "cgroup_empty": true,
+    "scope": "offline synthetic DOM using actual composed shared/ai_adapters.js; no provider calls"
+  },
+  "red": "Original runtime lacks Kimi reader: KIMI_READER_NOT_COMPOSED. First harness missing-identity error and insecure-HTTP full-bundle crypto error retained. Corrected negative uses HTTP loopback secure context; product unchanged.",
+  "composition": "One new read-only bundle input; hosts/version/permission/signed authority unchanged; no ZIP or install",
+  "observations": [
+    {
+      "path": "kimi/20261019T092200Z/S04.dom.json",
+      "sha256": "6c92718edf8df5aedb5c94ed4e9323f2e69ffc8e15ff59892a67d2ef5135b450"
+    },
+    {
+      "path": "tester-receipts/20261019T111000Z/tester-ui-answers-20261019T1110Z.json",
+      "sha256": "25e77ce5daf7b00f8d0a94090e038de9aae79634a576a0e88f36cc38056427ed"
+    }
+  ],
+  "limitations": [
+    "Kimi provider activation, Start/Send/attachment and signed profile integration remain unimplemented; reader is not in active adapter registry",
+    "No stable message/chat identity or generation-complete inference",
+    "Rendered checks are not full visibility/actionability or transport byte identity",
+    "Installed0.2.37/fullB01/owner acceptance unchanged/open"
+  ],
+  "previous_source_publication": {
+    "pr": 231,
+    "main": "26a433bed928b3b35ef264d8157e0f3a4f2873a2",
+    "premerge": "5/5 workflows,13/13 jobs SUCCESS",
+    "postmerge": "5/5 workflows,13/13 jobs SUCCESS"
+  }
+}

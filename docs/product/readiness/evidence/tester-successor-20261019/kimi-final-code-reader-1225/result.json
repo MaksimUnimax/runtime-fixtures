@@ -1,0 +1,98 @@
+{
+  "status": "PASS",
+  "scope": "offline Kimi final-code reader; no provider calls",
+  "source_sha256": "a3cd8bf95bc1b4ebb3dbe46c64587b2afa1137e63bca8646ba0dc032a4c0ebb9",
+  "cases": {
+    "observed_final_excludes_duplicate_reasoning": {
+      "status": "PASS",
+      "blocks": 2
+    },
+    "long_120_lines_exact": {
+      "status": "PASS",
+      "blocks": 1
+    },
+    "verbatim_whitespace_and_html_text": {
+      "status": "PASS",
+      "blocks": 1
+    },
+    "outside_final_rollup_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "toolcall_only_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "thinking_parent_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "user_message_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "assistant_nested_in_user_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "nested_foreign_message_excluded": {
+      "status": "PASS",
+      "blocks": 1
+    },
+    "multiple_messages_order": {
+      "status": "PASS",
+      "blocks": 2
+    },
+    "hidden_ancestor_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "opacity_ancestor_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "aria_hidden_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "editable_code_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "zero_size_pre_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "ambiguous_direct_code_rejected": {
+      "status": "PASS",
+      "blocks": 0
+    },
+    "detached_block_rejected": {
+      "status": "PASS"
+    },
+    "moved_into_reasoning_rejected": {
+      "status": "PASS"
+    },
+    "moved_to_other_message_rejected": {
+      "status": "PASS"
+    },
+    "code_node_replacement_rejected": {
+      "status": "PASS"
+    },
+    "message_id_change_rejected": {
+      "status": "PASS"
+    },
+    "chat_path_change_rejected": {
+      "status": "PASS"
+    },
+    "new_hidden_parent_rejected": {
+      "status": "PASS"
+    },
+    "exact_observed_origin_only": {
+      "status": "PASS"
+    },
+    "read_never_executes_code": {
+      "status": "PASS"
+    }
+  }
+}
