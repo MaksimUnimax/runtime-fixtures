@@ -1,7 +1,7 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T17:00:59.818Z; B exacte7bec Server39283446268SUCCESS/2jobs принято, с прежнимDocs2/5 workflows; староеqueueожидание снято,3gateоткрыты. НовыйB IDNA section7: author11syntheticvectors, не implementation/dataacceptance. C5/13/AacceptedсохраненыNOT_RECHECKED; C→B ACK и полныйpremerge trace не наблюдены в проверенных published/documentary sources. ServerCPblocked;PLAN/history/WIP/12OPEN,audit_complete=false.
+- **Состояние на:** 2026-10-19T17:16:12.387Z; поздно покрыт A PR207R5:8+8PASS/source-packageZIP94241207, declinedJSONsummaryUNKNOWN безповтора. НовыйA R28 combinedauthor108PASS/ZIP356844ea, не finalintegration/review/native/installed. C06newC3EreadyassessmentOPEN, не runtimeFAIL/authority. ПринятыеB2/5/C5/13/Aolder evidenceNOT_RECHECKED; serverCPblocked,PLAN/history/WIP/12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** последнее ранее наблюдённое main ref dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537 — metadata only, в этом проходе не перепроверялось. Последняя принятая native baseline main32b76886 5/5 workflows и 13/13 jobs сохранена NOT_RECHECKED. Новый C candidate f08bdac7 имеет parent dcdd; scoped SOURCE не переносится на main/CI/installed. Исторические A R49 main32 и C06 exact a55 сохраняют свои версии.
@@ -6000,3 +6000,125 @@ C.json premerge intent не повторялся, не переносился н
 Оргпроблемы: старое queue ожидание B снято по фактическому terminal, а причина прошлой задержки не угадана. B ready response уже существует — дубли поручений не нужны. C role state отстаёт, но полный CI принят; failure trace и delivery ACK всё ещё не подтверждены в покрытом scope. C06 authority/IDNA data permissions не подменены авторскими synthetic vectors. Отсутствие нового GitHub comment не стало доказательством простоя A/C. Большие listings выводились только ограниченными filename проекциями, их остальные записи не объявлены проверенными.
 
 Серверных изменений0; checkpoint/PLAN/history/WIP/map12 сохранены. Все exact A-R52/A.json/B.json/C-premerge/protectedpreflight/PRIORITY/R7/R8/directjob118137084442/log118019352572/artifacts-route/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer и прочие отказы сохранены. Новых tests/review/CI/helpers/VM/browser/merge/эксплуатаций/обходов/live/DB/security/auth/cleanup0. Errors/events и foreign source/tests/WIP/чаты не читались; B01/R3/PR97/131/134 не возобновлялись. Новых реестров/архивов/расписаний/авторизаций/кредитов/сбросов нет. Audit IN_PROGRESS;12OPEN.
+
+
+## Продолжение того же аудита — 2026-10-19T17:16:12.387Z: адресный PR207 R5, новый R28 combined evidence и C06/C3E readiness
+
+Продолжение после terminal ответа17:01:58 UTC и REPORT `49c59ba114d1d90fabfb3af32994035a17d349d7`, не новый Controller/аудит. PLAN/history/WIP, принятые результаты и исходные12OPEN сохранены. Работа / GPT-6.1 Sol / Очень высокое задана владельцем; UI не открывался. Новых tests/review/CI/helper/merge/installed действий Контроллера нет.
+
+### Последний исход, доступ и граница единственной записи
+
+Лично проверены fresh report ref49c59ba1, authorMaksimUnimax17:01:24 UTC, parent3c3a1830, полный pinned blob `dbfeac7dab1cb22d84e5af16638b1825a5131a5b` —940420символов. Исход прошлой записи известен. Перед own REPORT update — новый fresh ref, expected blob CAS, затем independent pinned full-content/parent/ref readback. Этот audit record не подменяет отклонённый A summary или чужой checkpoint.
+
+Easyscript `9dab7ad2-9d63-43a3-b106-a5840d79ccc1` доступен: pong**17:10:29.607 UTC**; retained background calls пусты, list_sessions PID2354613. Процесс не трогался; отсутствие всех foreign операций не заявляется. Девять mandatory current-prompts получены полностью/0remaining: START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/PRE_AUDIT_SELF_ERROR_GATE/ORGANIZATION_AUDIT_POLICY/RESOURCE_POLICY/DISK_LIFECYCLE/TEMP_WORKTREE_LIFECYCLE. Priority prefix100/1320 readonly, document28/addressedv10, остальная история NOT_RECHECKED. Поздние адресные owner scope/STOP/errors-events запреты применены.
+
+Fresh server coordination locks/Git-WIP/claims/FDs не установлены; rejected preflight не повторялся/не заменялся. Поэтому server CP/Priority/role files не пишутся. A8/B4 metadata прочитаны только для адресата; oldrootstatus не используется как доказательство текущего product outcome/простоя. Foreign source/tests/WIP не открывались.
+
+### A PR207 R5 — поздно покрытая готовая SOURCE/PACKAGE первичка
+
+Лично прочитан https://github.com/MaksimUnimax/runtime-fixtures/pull/207#issuecomment-6272283357 : created/updated**16:43:05 UTC**, observed execution16:33–16:41. Это публикация до прошлого cutoff, но PR207 не входил в прежний адресный охват PR219/228. Предыдущие выводы про отсутствие новых comments на тех двух PR не означали отсутствия A прогресса вообще; нынешняя проекция дополнена PR207.
+
+Fresh PR207 metadata: Draft/open/unmerged, exact head `143563f8f94601b31db51a480a6b968157c8790e`, base9ac9d333,2paths. R5 input main строго `dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537`; это tested immutable input, не заявление о любом более позднем main.
+
+Лично полностью прочитаны existing ready файлы:
+- `/root/octoport-control/logs/A/a04-p3-scheduler-ownkey-main9ac-20261017/R5_PR207_MAIN_DCDD_P3_COMPOSED_EXTRACTED_STDOUT_20261019.txt`,13строк;
+- `R5_PR207_MAIN_DCDD_COMPOSITION_RECEIPT_20261019.json`,745строк.
+
+В двух stdout JSON outputs Контроллер проверил statusPASS,scenarios8,failure_ids=[]: **8+8=16** scenario passes. Есть MAINdcdd/CANDIDATE143563, wake_deliveries100,duplicate_wake_runs0,payload_leak=false, update_storage_preserved=true; конечный service result success, exited/status0,runtime403ms. Это чтение уже завершённого синтетического результата, не запуск wake/expiry/reproduction. Исторические тесты/отказанный R4 не повторялись.
+
+Receipt package:
+**v0.2.37**, **2621717bytes**, SHA256
+`94241207f75dc324cc3071c4beee46110be9025ddbcfd1e67ef30cb500e20ea2`,
+repeat_archive_match=true,source_extracted_bytes_match=true,41runtime members,environmentLOCAL DEVELOPMENT,installed_acceptance=false,release_authority_sha256=null.
+ZIP не скачивался/не устанавливался, фактические package/file hashes Контроллер заново не вычислял. Это авторское SOURCE/PACKAGE evidence; наличие standard receipt не является независимым review/installed/release acceptance.
+
+Сильное byte-identity утверждение ограничено: source/extracted41 parity не означает, что весь standalone scheduler source присутствует в assembled worker как одна contiguous неизменённая подстрока. Публикация прямо предупреждает об этом. На готовом evidence фактически проверялся bundled/extracted consumer; Controller raw source/Git overlays/composer не открывал и не запускал.
+
+**R5 JSON-summary refusal сохранён отдельно.** Публикация сообщает single attempt создать `R5_PR207_MAIN_DCDD_SOURCE_PACKAGE_CONSUMER_RESULT_20261019.json` и дословную quote:
+> Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.
+
+По готовому сообщению summary не создан; bounded directory listing показывает отдельно existing ZIP/receipt/stdout. Полные original args/callID/точное время попытки не представлены, причина сверх текста UNKNOWN. Контроллер не обращался к несуществующему summary как к evidence, не создавал его/копию/другой формат и не переносил запись на иной инструмент/роль. Этот существующий REPORT ведётся по прямому разрешению владельца как собственный аудит, не как архивирование отклонённого A JSON.
+
+**R4 и native gaps не закрыты:** reviewed143563fix и unreviewed localR4 `6f8d54fc...` различаются. Независимое R4 review ранее явно отказано, нового готового accepted verdict нет. R5 не означает исправления его отдельной input-validation границы. PR207 historical exact3/5workflows/10of13 из публикации не перепроверялись; missing Server/Coord не названы PASS. Старый I1 negative/физический ABORT cause и release/owner/Store остаются открытыми.
+
+### A R28 — новая готовая совместная композиция, без подмены независимой интеграции
+
+Адресный read новых PR228 comments выявил https://github.com/MaksimUnimax/runtime-fixtures/pull/228#issuecomment-6272657314 : published**17:01:43 UTC**, execution16:53:02–16:59:33. Публикация попала после прошлого REPORT17:01:24 и до terminal ответа17:01:58, а не доказывает новую работу после того ответа.
+
+Scope по ready publication: detached main dcdd +12 original immutable nonoverlapping blobs: PR2281b00870c/8paths,PR21910bf5452/2paths,PR207143563f8/2paths. Не включены R27 unique WIP и refused/unreviewedR4. Это author synthetic composed integration, не coherent final Git commit/source promotion.
+
+Лично полностью прочитаны ready primary в existing `logs/A/a04-ozon-postcallback-fence-20261019/`:
+`R28_MAIN_DCDD_OZON_WB_P3_COMPOSITION_RECEIPT_20261019.json`745строк и
+`R28_MAIN_DCDD_OZON_WB_P3_COMPOSED_CONSUMER_STDOUT_20261019.txt`269строк.
+
+Контроллер разобрал готовые outputs: две группы (9Performance+3postcallback+27WB+8scheduler)=**47+47**, плюс host-policy**14**, всего **108 scenario passes**. В JSON statusPASS, WB27resultsPASS, scheduler failure_ids=[]; два plaintext markers3_CASES_PASS, host Ran14/OK; terminal R28_INTEGRATED_ALL_FOCUSED_GATES_PASS/exitedstatus0/runtime5.218s. Заявленное соответствие групп composed/extracted берётся из author publication и receipt; Controller не повторял код/пакетные испытания. Это новая совместная композиция; принятые R14/R51 сами по себе не перепроверялись.
+
+Receipt package:
+v0.2.37, **2630277bytes**, SHA256
+`356844ea01cc8fb805aaba739aff09f2ef42e89813e702f7b901a590382cfe17`,
+repeat_archive_match=true,source_extracted_bytes_match=true,41files,installed_acceptance=false,authoritynull.
+Это **другой ZIP**, не94241207/R5, неf5550408/R14, не004b6eae/R51, неR45c987. Хеши/готовые receipts не смешаны; hashes — прочитанные поля, не новый независимый archive-byte audit. Никакого signed/operator/Store/production package acceptance.
+
+Снята только неопределённость собственного охвата о наличии готового combined local consumer evidence. Independent combined12-path review, true final integration/current-base exact CI5/13, native missing workflows каждого исходного PR и installed ownerStart/Finish остаются отдельными открытыми границами. Не создавались reviewer/helper/CI/ref/merge; авторские рекомендации следующих действий не являются новым поручением Контроллера.
+
+### C06 — новое release-consumer дополнение C3E прочитано как защитные требования
+
+В новых PR210 comments найден updated**17:06:07 UTC** existing https://github.com/MaksimUnimax/runtime-fixtures/pull/210#issuecomment-6269834774 . Лично рассмотрен **новый** addendum `C06_PR210_C3E_MAIN_DCDD_SOURCE_RISK_20261019`, after17:02 UTC; прежние R19 guest evidence/scoped review/Documentation CI не перепроверялись.
+
+По его точному указателю прочитан готовый
+`/root/octoport-control/logs/A/a04-c3e-sequence-main563-20261017/A04_C3E_MAIN_DCDD_SOURCE_BUNDLE_CURRENTITY_20261019.json`,50строк.
+Это A SOURCE_CURRENTITY_AND_EXISTING_PACKAGE_BYTE_PARITY_ONLY, issued16:24:46.162092UTC. C comment отдельно называет передачу16:26:32; времена записи и передачи не слиты в один новый owner grant/тест. C заявляет собственную hash parity сверку; Controller прочитал ready документы и **не открывал исходники/старые reproduction**.
+
+Остаток C3E остаётся SOURCE-level concern на pinned maindcdd: готовый record сообщает неизменность двух source blobs относительноmain227 и сохраняет prior narrow in-memory evidence. Это **не** новый actual current worker/installed/user-data-loss reproduction. Дополнительное author development bundleR27 не reviewed/signed/installed package; volatile R27 source/build не тронуты.
+
+Потреблены защитные release требования без воспроизведения:
+- успешный delete outcome требует подтверждённого durable journal intent, а не одного return/локального удаления;
+- unresolved entries других аккаунтов не должны теряться при работе журнала;
+- соответствующее исправление/свои разрешённые synthetic и installed/owner/native доказательства должны быть exact/source-pinned; зелёные scheduler/WB/Ozon focused suites не заменяют эту границу.
+
+C3E OPEN/no installed safety acceptance не отменяет отдельно принятую guest-onlyR19 и не закрывает C06 authority/catalog/privacy/normal-auth/publisher/Store gates. Новый independent review/behavior PASS не объявлен. Tester остаётся original popup/runtime author, A evidence owner, C release consumer. Refused R13 STORE_SAVE/R7/R8 и другие negatives не повторялись/не обходились. Новая PR210 фактическая публикация не является заменой ранее отклонённого C premerge record.
+
+### B, C CI и другие новые документальные ответы
+
+Accepted B e7bec2/5/Server terminal и C f08native5/13 сохранены **NOT_RECHECKED**; native APIs/jobs не вызывались. IDNA contract решён/доставлен, implementation/auth/DB/legacy-data доступ не расширен. B source/local/matrix не перепроверялись.
+
+Адресный GitHub comment query since**17:01:25Z** по PR207/219/228/234/235/210: новые ответы обнаружены только PR228R28 и PR210C3E. По PR207R5 сделано отдельное owner-directed чтение старой публикации16:43:05. По PR219/234/235 returned0 changed comments. Это coverage именно этих публикаций, не всех project documents. Нового C04 ACK или полного C premerge primary trace указателя в полученной новой дельте нет; предыдущий bounded outcome сохранён, повторного большого filename scan/handoff send нет. Причина неподтверждённого ACK/trace UNKNOWN, отсутствие не равно простой.
+
+### Десять пунктов фактической процедуры
+
+1. Последний terminal REPORT/ref/author/parent/full blob и собственные calls известны; неизвестная собственная запись/второй continuation не обнаружены. ForeignPID нетронут.
+2. Полный обязательный канон и Priority prefix/version получены; late owner scope/STOP применён, rules/error files не изменялись.
+3. Existing A PR207/R5 и newcombinedR28, C release-consumer addendum, B/C принятый scope установлены по primary docs. Source/tests/WIP/чаты чужих потоков не читались.
+4. Лично потреблены R5/R28 publication+receipt+stdout, ready C3E assessment и parity doc, current PR207metadata. Старые R14/R51, B/C native и R19review/CI не повторялись.
+5. Author SOURCE/PACKAGE/reproducible ZIP, synthetic case passes, independent review/native/installed/durability/release квалифицированы отдельно. Inputs maindcdd не перенесены на любой новый main; package hashes не смешаны.
+6. Server locks/WIP недоказаны: CP/role/Priority writes0. Only own REPORT fresh expectedref/blob CAS с independent readback. Rejected summary/preflight/R4 review/role writes не повторены/не заменены.
+7. Own coverage расширен с PR219/228 до PR207; готовый совместный runtime evidenceR28 и C3E release-requirements добавлены. Новые scoped факты не названы product closure.
+8. C фактически потребил C3E source handoff в PR210; oldrolemetadata не доказательство простоя. Нового поручения C/A или unknown resend нет, ACK/trace не выдуманы.
+9. PLAN/history/WIP/map12 cause/owner/next/return сохранены. Newexpiry/composed tests не original durable/two-relay/lease/refusal-bytes/owner proofs.
+10. Объём, сроки/охват, причины/UNKNOWN, владельцы, допустимый следующий вход и независимые остатки указаны ниже; audit_complete=false.
+
+### Остатки и ближайший допустимый вход
+
+| Остаток | Причина / проверенный предел | Ответственный | Следующий разрешённый вход / возврат |
+| --- | --- | --- | --- |
+| A R5 extra-summary refusal | Явный процитированный safety denial; полные args/callID/время UNKNOWN, summary не evidence | Original A caller; dot/штатный platform custodian | Только уже сохранённая исходная история/указатель. Не создавать summary/другой архив/вариант записи и не искать обход. |
+| PR207 R4 | Отдельное независимое review отказано; R5 testsreviewed143 не доказывают acceptance unreviewedR4 | Existing A/source owner и original reviewer/custodian | Только подлинный готовый допустимый verdict, если предъявлен; нового review/публикации/R4 source чтения ради аудита нет. |
+| A native/combined integration | Исторические исходные PR3/5 не полный5/13; R28 — author disposable combination без final exact commit/review/CI | Existing A, действующий release evidence consumer | Готовые genuine exact outcomes/конечный approved source candidate; без dispatch/helper/CI/merge в этом проходе. |
+| C3E | Ready source currentity сохраняет concern; нет нового durable/non-eviction/installed proof | Original Tester popup/runtime author; C release consumer; A evidence owner | Только готовое exact reviewed proof требуемой защитной границы в своих разрешениях. Не повторять refused STORE_SAVE/R7/R8 и не трогать source/WIP. |
+| C06 release/authority | Guest-only/source-scoped evidence не authority/catalog/authenticated flow/Store | B/Ops/C, владелец/назначенный Tester | Genuine готовые source-pinned authority/package/owner/privacy/rollback inputs; без fabrication/Submit/live/browser. |
+| B native/IDNA | Принятые2/5 сохранены;3gate открыты, contract выбран, data/implementation не разрешены | Existing B; product/security/data authority | Только новые ready exact native/совместимые документы и отдельные действительные допуски; старое не повторять. |
+| C intent/ACK, Controller CP | Exact write/preflight refusals и missing published trace/ACK; fresh server locks/WIP не установлены | Original callers/C/B-Ops/Controller и dot/platform custodian | Готовая original первичка/receipt; ни proxy write, ни replay/role takeover/handoff resend. |
+
+Все исходные12 остаются OPEN по прежней индивидуальной карте.1–3(B03 delivery/sourceSeen,pre-ACK durability,B04 PG/OTP) не получают первоначальные durable/two-relay/PG receipts из R5scheduler/R28synthetic.4–5 и8–12(A05/two-ref,PR48/50,R14/private-env отказ,Sep29origin,config drift,original bound-review bytes) требуют прежние original IDs/bytes/actor-time от исходных callers/publishers/reviewer/platformcustodian.6–7(genuineC06/ownerR3) требуют B/Ops/C/owner/Tester своих подлинных результатов. Полные cause/owners/next/return сохранены; hash картыfe07ebdd… исторический verified reference, не свежая hash acceptance.
+
+Доступный own documentary шаг выполнен: новая первичка разобрана, прежний ограниченный охват уточнён, новые release requirements сохранены без чужой записи/тестов. По original12 в рассмотренной дельте нет недостающих исходных proofs. Это предел охвата, не вывод об отсутствии любой независимой работы по одному commit/ACK. Новые готовые материалы можно продолжать потреблять; audit IN_PROGRESS.
+
+### Объём и организация
+
+Учтённый A прогресс: R5 **16 scenario passes** в двух контекстах и отдельный R28 **108**; они не суммируются как124 уникальных сценария — наборы пересекаются, комбинации разные. R5latecoverage имеет execution16:33–41/publication16:43; R28execution16:53–59/publication17:01:43. C addendum17:06 — documentary release-consumption, не новый runtime test/fix. Эти chronology факты не названы работой после прошлого terminal.
+
+Controller read scope:9canon full/Priorityprefix100; A8/B4metadata; PR207/comment; две composition receipts по745строк, stdout13 и269строк; boundedR5directorynames; comments since17:01:25 по6PR; readyC3E50строк/newC06addendum; fullREPORT/ref/commit/CAS/readback. Принятые B/C CI/Aolderpackages не перечитывались, raw source/probe/exploit/review prompt/live/service/profile/deniedtargets не открывались. Package byte hashes/resource cleanup/units — author ready evidence, не новое собственное measuring.
+
+Оргпроблемы: прежний узкий PR охват не включал готовый PR207; теперь устранён coverage gap без ложного вывода о простое. Отказ optional JSONsummary не уничтожает сохранённые receipt/stdout/ZIP, но не разрешает другой summary writer. R4refusal/oldABORT/C3E не закрыты чужим focusedPASS. Совместный bundle результат не стал фиктивным final integration/review/native gate. Old Arolelabels не заменяют GitHub ready progress; C newfactualcomment не подменяет declinedserverintent.
+
+Серверных мутаций0, checkpoint/PLAN/history/WIP/map12 сохранены. Все exact R5summary/A-R52/A.json/B.json/Cpremerge/protectedpreflight/PRIORITY/R4review/R13STORE_SAVE/R7/R8/directjob118137084442/log118019352572/artifacts-route/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer и прочие отказы без повторов/обходов. Foreign source/tests/WIP/чаты, Tester/B01/R3/live/DB/security/auth/cleanup/errors/events/PR97/131/134 вне scope. Новых tests/review/CI/helpers/VM/browser/merge/эксплуатаций/реестров/архивов/расписаний/авторизаций/кредитов/сбросов нет.12OPEN,audit_complete=false.
