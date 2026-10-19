@@ -1,7 +1,7 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T18:34:06.125Z; лично подтверждены новые postmerge Server39300358407/Extension39300358386 terminal на main691807da:5/5 workflow,13/13 jobs SUCCESS,push attempt1. Premergebe7d и separatePRServer сохранены NOT_RECHECKED. B full consumption/receipt18:29:19 прочитаны; новые A R35/R36 и B PR235main691 path-currentity потреблены documentary-only. Installed/rollback/IDNA/data/C06 и original12OPEN сохранены; audit_complete=false.
+- **Состояние на:** 2026-10-19T18:55:09.986Z; C PR237exact4b2 SOURCE-review/native5/5,13/13 лично потреблены; jointPR234+237 ready authorRED→79/79 synthetic наmain691 прочитан, не combinedcommit/review/mergedCI/installed. Bcheckoutexit1GitWIPguard:KEEP/OPEN128MiB; PR235новаяpushсерияe7bec3/5,11/13 на18:52:06. Aoriginalget_file_info serverSUCCESS восстановлен по переданнойownerистории,неfreshread; deliverycauseUNKNOWN. PLAN/history/WIP/original12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** fresh main ref 691807da125c0a0191b7a4541b29b51c8443011a. Эта postmerge push-серия теперь5/5,13/13SUCCESS: два новых terminal лично прочитаны18:30:47UTC, старыеDocs/Coord/I1 retained NOT_RECHECKED. Принятые mergePR23618:10:43/parentsdcdd+be7d/tree9138 и premergebe7d5/13 не перечитывались/не смешивались с новой серией. SOURCE/CI не installed/live/Store authority.
@@ -6616,3 +6616,130 @@ Expected file blob347492e291d3df280155200a65747e50a584971f, прежние branc
 Доступная собственная проекция mainCI доведена до результата. Следующие разрешённые источники — новые готовые original A exact-head outcomes, B совместимые планы/доказательства, C/B-Ops genuine installed/authority/rollback/delivery receipts и историческая первичка originalcallers. При прежних platformотказах нет допустимой serverwrite без fresh разрешённой locks/WIP процедуры; её не заменяет запись GitHub.
 
 PLAN/history/WIP/serverCP и12OPEN сохранены,audit_complete=false. Servermutations0; новых tests/review/CI/cancel/rerun/helpers/VM/browser/merge/эксплуатаций/обходов Controller нет. Все адресные отказы A R31/R32/R52/JSON/A.json,C/Bprotection403/Cintent,B.json,protectedpreflight/CP/PRIORITY,R7/R8,artifacts-route/targets,job118137084442/log118019352572/fullPG/B05/entitlement/supplementalconsumer сохраняются. Чужиеsource/tests/WIP/live/DB/security/auth/cleanup/errors/events/PR97/131/134/B01R3/чаты внеscope. Новых реестров/архивов/расписаний/авторизаций/кредитов/сбросов нет. Завершён доступный документальный шаг, **не весь аудит**.
+
+
+---
+
+## Продолжение 2026-10-19T18:55:09.986Z: C PR237, совместная consumer-граница, B KEEP и восстановленный исторический A-result
+
+Тот же аудит после REPORT9e1dac2a/ответа18:34:58UTC. Прямая передача владельца подтверждает отсутствие другого продолжения. Новый факт проверяется лично там, где разрешён read; восстановленная история A квалифицируется отдельно по переданному происхождению. PLAN, WIP, история и original12OPEN сохраняются.
+
+### 1. Актуальные правила и приоритет
+
+Полностью прочитаны RDC current-prompts START_HERE23стр,PROMPT_CONTROLLER86,WORK_METHOD52,PROTOCOL37,PRE_AUDIT_SELF_ERROR_GATE16,ORGANIZATION_AUDIT_POLICY45,RESOURCE_POLICY29,DISK_LIFECYCLE23,TEMP_WORKTREE_LIFECYCLE27;0remaining по каждому. Действуют один автор, bounded new-delta audit, сохранение WIP, независимый review,5exact-SHA CI/non-force/readback и раздельные SOURCE/PACKAGE/INSTALLED_SYNTHETIC/LIVE/DB полномочия. Конкретный отказ не обходится другим actor/формой; поздний запрет errors/events старшей ссылкой не отменяется.
+
+PRIORITY_TASKS canonical prefix100/1320 и перед записью8:documentv28/существующее адресноеv10;остальные1220историческихстрок NOT_RECHECKED. PRIORITY/role/CP не записывались. Работа/GPT-6.1 Sol/Очень высокое сохранены по указанию, нового UI/quota измерения нет. Новых registry/gate/helper/scheduler нет.
+
+### 2. Последние исходы, один автор и WIP
+
+Собственный ping Easyscriptdevice9dab7ad2-9d63-43a3-b106-a5840d79ccc1: **pong18:49:05.805UTC**. Initial и prewrite retainedcall lists:No retained background Remote MCP tool calls. list_sessions показывает чужойPID2354613,Blocked=false;его команды/cwd/stdin/ресурсы не инспектировались/не изменялись.
+
+Полный REPORT blob**18e4442bb6c31c15b12c90443c2a62e8f9fc85f1**,1026893символа,прочитан. Ref/commit подтвердили **9e1dac2a68103c1d04559e15421f66d29903bab2**,authorMaksimUnimax18:34:29UTC,parent464fae00. Предзаписныйref тот же. Неизвестного исхода нашей прошлой записи или другого writer в своём reportscope не обнаружено;это не отсутствие всех чужих операций.
+
+Только GitHub REPORT имеет разрешённую запись через exact-file-blob CAS. Freshserverlocks/Gitdirty/чужиеWIP через отказанный preflight не устанавливались;серверных записей нет. CP/role/source/tests/WIP не читались ради захвата/ремонта. Прежний fullCP hash76f6932c…/PLAN/индивидуальнаякарта12 сохранены,не новый hash verdict.
+
+### 3. C PR237: source и текущая база разделены
+
+Личный PR237GET:
+https://github.com/MaksimUnimax/runtime-fixtures/pull/237
+OPEN/DRAFT/unmerged,head**4b2ecd791070aa9e63a88e20fd8399db302245d5**,2changedfiles. TargetbaseAPI691807da;отдельный immutableGitcommitGET подтвердил parent**dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537**,tree**f8eafa6c4ffcece1db365ed627e71dc180a167d0**. Текущий targetbase не означает,что сам4b2rebased на691. Freshmainref18:49:59 всё ещё691807da125c0a0191b7a4541b29b51c8443011a.
+
+Готовые PRbody/comment6274068383(updated**18:45:01**) описывают узкую cleanup-failure isolation правку в health-runner: mandatory первая очистка сохраняется; повторная очистка в batchcatch больше не обрывает обработку следующих targets. LocalRED1FAIL/66SKIP и67/67GREEN — авторская первичка в публикации,не новые Controllertests.
+
+Лично прочитан готовый **C04_NOSESSION_BATCH_STOP_4B2_REVIEW_RESULT_20261019.txt**,9стр:
+PASS_SOURCE_SCOPED_EXACT_4B2ECD79,existingcodex2Luna/xhigh,reviewer testsNONE. Source-only verdict не принимает installedconsumer;его фраза «nativeCIhasnotrun» относится к стадии review и уточняется последующим CI. Rawreviewlog/source/driver/testWIP не открывались. Никакого второго review.
+
+### 4. C237: все пять original push-workflow и13jobs подтверждены лично
+
+Exactheadcollection содержит7records:5push и2pull_request. Принята только originalpushseries,allattempt1/head4b2;прочитаны jobs всех5run:
+
+| Workflow | Run | Terminal / constituent jobs |
+|---|---|---|
+| Coordination |39300689158|SUCCESS,1/1|
+| I1-C1 |39300689187|SUCCESS,3/3|
+| Server |39300689186|SUCCESS,2/2;runupdated18:27:07,server118224858289completed18:27:06|
+| Extension |39300689348|SUCCESS,6/6;wb-browsers118224899674completed18:25:24|
+| Documentation |39300689136|SUCCESS,1/1|
+
+Все13jobheads совпали,всеcompleted/success. Это новая собственная приёмка exact4b2 SOURCE/native gate,не повтор acceptedPR234f08 или Bmain691/premergeCI. ДваPReventrecords не добавлены как дополнительные mandatoryworkflow. GitHubrunnerI1 localAPI/portal/PG — scopedsyntheticCI,не ownerLIVE/fullPG/реальныеданные.
+
+Существующий C fullCIreceipt18:33:27 и публикация уже потребили5/13;нет нового поручения. PR237 остаётсяDraft,самостоятельный fullCI не разрешает merge/installed/rollback и не закрывает совместную consumer-границу.
+
+Отдельно прочитано **готовое сообщение**,не исходные joblogs: C04_PR237_NATIVE_JOB_LOG_BLOB_NOT_YET_AVAILABLE_20261019. Два originalfetchjoblogs для server118224858289/wb118224899674 вернули NOT_FOUND404/BlobNotFound;сохранённые timestamps18:22:32.1464918Z/.5442745Z,requestIDs9a2ea21c-b01e-00d5-0ef6-5fdef5000000/c2829cf1-b01e-007a-23f6-5fa1ac000000. Причина отсутствияblobUNKNOWN. Это не CIjobFAIL/PASS. **Логи не запрашивались повторно и не добывались другим маршрутом**;разрешённая terminalmetadata проверка не выдаётся за восстановление отказанных logbytes.
+
+### 5. PR234+237: найден новый совместный synthetic proof, без повышения уровня
+
+В том же Ccomment лично прочитана готовая dependencyrecord18:23:53: исправление batchcontinuation может вернуть одновременно verified иunverified targets; без PR234 downstreamconsumer ошибочно объявляет такую неполную coverage успешной. Fullconsumeracceptance требует обеих правок вместе. Два отдельных greenSHA сами по себе это не доказывают.
+
+Дополнительно найден более поздний готовый **C04_PR234_PR237_CURRENT_MAIN691_COMBINED_MIXED_COVERAGE_RED_GREEN_20261019**,issued**18:43:00.441UTC**. Это не известный раньше результат и не новый запуск Контроллера. Автор C описывает temporaryoverlay4source/testpaths из reviewedf08/4b2 наmain691;3файла byte-identical originalreviewedblobs,четвёртый — исходныйreviewedtest плюс один новый experimentalcase. Общий Gitcommit/PR/sourcepublication не создан.
+
+Лично прочитаны **три новых ready local-result logs**,это не отказанные CIjoblogs:
+- C04_PR234_PR237_COMBINED_MAIN691_MIXED_RED_20261019.log:tail30из58стр,1FAIL/5SKIP,exit1 наbaseline;
+- C04_PR234_PR237_COMBINED_MAIN691_MIXED_GREEN_20261019.log:16стр,health-runner67/67+Telegram12/12=**79/79PASS**,exit0;
+- C04_PR234_PR237_COMBINED_MAIN691_QUALITY_20261019.log:7стр,exit0;формат/стиль по readyпубликации PASS.
+
+Связь этих результатов с exactoverlay — authorpublication;Controller не сверял productsourcebytes/не копировал experimentaltest/не выполнял тест. Publishedsnippet остаётся частью готового доказательства,не новый файл/запуск у Контроллера.
+
+**Снята собственная прежняя неопределённость о наличии совместного author synthetic evidence.** Это не combinedpublishedcommit,не independentreview добавленногоcase,не5CI наобщемSHA,не merged-SHAconsumer/installed/rollback/LIVE acceptance.79содержит прежние67componentcases;не79новыхуникальныхproductscenarios. Требование совместной приёмки сохранено,а не закрыто двумя отдельнымиSHA.
+
+Authorretirementrecord18:44:50 сообщает завершение собственной ephemeralcopy и сохранениеcanonicalWIP65tracked+8untracked. Это readyCсвидетельство,не физическая cleanup/FD/hash проверка Контроллера. Оно не переносит полномочия или метод на защищённый Bcheckout. Старые PR234C.json/protection403 и C01/C3E/C05/C06/StoreNO_SUBMIT остаются в силе.
+
+### 6. Bcheckout: конкретный Gitguard, KEEP, без повторного действия
+
+Лично прочитаны новое дополнение existingPR236comment6273565872(updated**18:34:23**,до прошлогоcut,ноне вошло в прежний прочитанныйраздел) и ready
+/root/octoport-control/logs/B/B06_FUNNEL_ORDERED_STAGE_20261019/**B06_PR236_WORKTREE_SAFE_CHECKOUT_REJECTED_KEEP_20261019.json**,
+41стр,recorded**18:33:54.503317UTC**. Это расширение охвата,не новая операция после старогосреза.
+
+Обычный checkout--detach exactbe7d в B-onlytempworktree вернул **exit1**. Сохранённый prefix: Git сообщает,что localchanges двух funnels paths будут overwritten;caller вывел только первые220символовstderr,остатокUNKNOWN. Отдельное время командыUNKNOWN;recordtime не подставляется вместо него.
+
+GitWIPзащита — **не OpenAIsecuritydenial** и не отмена принятого productSOURCE/CI. По readyreceipt HEAD/status/ref/symlinks/WIP после операции неизменны,force/reset/stash/retry не применялись. Почему Gitвиделконфликт при заявленном authorbytesmatch и полный physicalWIP/indexstate Controller не проверял:UNKNOWN за пределами сохранённогоprefix. Полныйstderr не реконструирован догадкой.
+
+Disposition**KEEP**,Ballocation**OPEN128MiB**. Очистка не разрешена и не выполнена;освобождение места не заявлено. Controller не исполнялcheckout/другойGitWIPrepair/осмотрфизическихfiles/FD. Следующий доступный documentaryисточник — уже сохранённый полный первичный ответ,если существует,уoriginalB/ownercustodian;не replay ради диагностики. Cretirement другого собственного эксперимента не обход этого отказа.
+
+### 7. A: исторический serverSUCCESS восстановлен по переданному происхождению
+
+Текущее прямое сообщение владельца передало результат scopedштатнойистории **18:20:51–52UTC**: найден один исходный get_file_info для /root/octoport-control/A.json,серверный результат **SUCCESS**,2067392bytes,24997lines,modified**14:32:18.616Z**. Время истории21:10:11 сопоставлено с**18:10:11UTC** по соседним известным вызовам.
+
+**Происхождение — переданная владельцем восстановленная история dot,не новый Controllerreadback или свежий metadataсрез.** CallID/полныеargs/полный оригинальныйответ в сообщении не приведены;не придуманы. Такое сопоставление времени не выдано за самостоятельное определение timezone сервера.
+
+Обновлена собственная квалификация: неизвестным был недоставленный ответ orchestration;восстановленный server-side исход известенSUCCESS. Причина недоставки всё ещёUNKNOWN. Это не новыйsecurityотказ и не основаниеповторитьA.json/get_file_info. Сам файл/егоmetadata в этомпроходе не вызывались. Независимый A.jsonwrite refusal и старые R31/R32/R52/summary запреты не сняты. Historicalattributes не используются как текущая проверка автора/WIP/locks.
+
+### 8. Независимая новая B235CI дельта:5запущены,3приняты
+
+Sincecut18:34:06 queryPR235 выявил новое опубликованное действие B,comment6270578041updated**18:49:11**. Автор уже создал CI-onlyref на **том жеe7bec59487f1147f990dbde5d5c82f74ba5893a5**. Controller не создавалref/CI. FreshPR235GET подтвердилDraft/open/unmerged/тотжеhead;старые localmatrix/review/PRServerDocs не перечитывались.
+
+Лично прочитаны новые originalpushruns/alljobs,allattempt1/exacte7bec:
+
+| Workflow | Run | Исход собственногоread18:52:06UTC |
+|---|---|---|
+| Documentation |39304801957|SUCCESS,1/1|
+| Coordination |39304801645|SUCCESS,1/1|
+| I1-C1 |39304801711|SUCCESS,3/3|
+| Server |39304801541|IN_PROGRESS,ci-planSUCCESS/server118239041118IN_PROGRESS|
+| Extension |39304801569|IN_PROGRESS,5/6SUCCESS/wb118239032237IN_PROGRESS|
+
+Итого **3/5terminalworkflow,11/13jobsSUCCESS**;устаревшее «триworkflowнеtriggered» для e7bec снято,полныйgate не объявлен. Ранние2PRworkflow — другая серия,не складываются сpush. Bужеопубликовал3/5consumption,нетповторногопоручения. Признаковfailure/hang не заявлено;сверхexecutionstate причинаожиданияUNKNOWN.
+
+**NO_MERGE/IDNA/data/securityholds остаются**,даже будущий5/13ихнеотменит. ContractU/A-equivalence решён/доставлен;implementation/auth/DB/legacycollisionaccess не разрешены,countsUNKNOWN. ExistingB/уполномоченныйCIconsumer следующийготовыйinput — originalServer/Extensionterminal;product-security-dataowner отдельно отвечает за совместимыйплан/подлинныедопуски.
+
+### 9. Остатки12, владельцы, объём и организация
+
+Original12OPEN и их прежние индивидуальные owners/next/return сохранены без нового реестра. B03/sourceSeen/two-relayactor иpre-ACKdurability требуют originaldurable/installedproofs отB/A/runtimecustodian/ownerTester;B04fourOTP/fullPG сохраняетадресныеrefusal/resource/ownercleanupгранницы. A05two-ref иPR48/50 сохраняют acceptedSOURCE иhistoricalrefusal/installedowner gaps. C06genuineauthority/catalog/target иpersonalR3 требуютподлиннойowner/B-Ops/C/Testerпервички. R14/privateenvrefusals,Sep29origin,configdrift иoriginalbound-reviewbytes ждутуже сохранённыхrawreply/envelope/IDs/bytes/actor-timeотoriginalcallers/publisher/reviewer/platform/configcustodian. ИсторическиенеизвестныепричиныUNKNOWN;новыеCI/79syntheticихнезаменяют.
+
+| Активный остаток | Причина / owner | Допустимый следующий источник и условие возврата |
+|---|---|---|
+| C04jointconsumer/release | ДваsourceSHA+authoroverlay,нетcommonpublishedcandidate/review/mergedCI/installed;C/source,B-Ops/installed | Готовыйточныйсовместныйcandidate/independentacceptance иgenuinecarrier/rollbackreceipt вразрешённыхграницах;не новаяtest/review/mergeкомандаэтогоаудита |
+| Bworktree/128MiB | Gitguardexit1,stderrtruncated,physicalWIPUNKNOWN;originalB/owner | Сохранённаяprimaryистория,KEEP;никакогоповтора/force/stash/cross-rolecleanup |
+| PR235native/security | 3/5,11/13;IDNAdata/implementationнеразрешены;B/product-security-dataowner | Готовыеoriginalterminal иотдельныеподлинныедопуски;fullCIнеpermissionmerge |
+| C06/ACK/исторические12 | Нетновыхgenuineinputsвпроверенномscope;прежниевладельцы | Существующиеreadyauthority/delivery/originaltrace;неповторятьвопрос/hand-off |
+| OwnCP | Protectedpreflightrefused,freshserverlocksнеустановлены;Controller/platform | ТолькоразрешённыйREPORT/CASиreadyprimary;неproxyserverwrite |
+
+Объём:9canonfull/Priority100+8;fullREPORT/ref/author/parent;новыйPR237/commit/mainref;7workflowrecordsC237изних5push/13jobs;5новыхPR235push/13jobs+freshPR235;Csourceverdict9стр,новыеjointlogs53из81стр,Bcheckoutreceipt41стр;готовыеPRcomments и7sincecutaddresscollections (6пусты,новыйB235). Старые Bmain691/premerge5/13,Apackages/R30–R36,C234CI/oldartifacts не повторялись. Два GitHub13-jobнабора — разныеSHA,79includes67;не суммироватькак новыеuniqueproductscenarios.
+
+Доступные собственные исправления: добавлен фактический C237nativegate;совместныйconsumer gap уточнён новымauthorproof79/79 безповышенияуровня;Bplannedcleanup заменёнKEEP;AserverresultUNKNOWN уточнёнhistoricalSUCCESSссохранённойdeliverycauseUNKNOWN;PR235NOT_TRIGGERED заменёнactualpartialpush. Организационныепроблемы — неполнаядоставкаответов,отстающиепроекции,обрезанныйstderr,разныевременанаблюдения/публикации/операции,подменаpath/local/CI результатаinstalledприёмкой. Нетдоказательстввсеобщегопростоя;недоставленныйответнеравенsecurityrefusal.
+
+### 10. Защищённая запись/readback и предел результата
+
+ТотжеREPORT/branch/path,expectedblob18e4442bb6c31c15b12c90443c2a62e8f9fc85f1,freshref/author/CAS. После записи — независимыеGETновогоGitblob(точноеравенствоintendedtext),commitauthor/parentиbranchref. Unknownwriteнеповторятьвслепую. ПроверкаисходнойdocumentaryграницынепродуктовыйPASS;foreignдействияC/Bвыполненыдо нашегоedit,неприписаныему.
+
+Servermutations0;CP/PLAN/history/WIP/original12OPEN сохранены,audit_complete=false. Новыхtests/review/CI/cancel/rerun/helpers/VM/browser/merge/эксплуатаций/обходовControllerнет. ВсеотказыA R31/R32/R52/summary/A.json,B.json/protection403,Cprotection403/premergeintent,protectedpreflight/CP/PRIORITY,R7/R8,artifacts-route/targets,job118137084442/log118019352572 иC237logblob404targets118224858289/118224899674/fullPG/B05/entitlement/supplementalconsumerнеповторялись/необходились. Чужиерабочиеsource/tests/WIP/live/DB/security/auth/cleanup/errors/events/PR97/131/134/B01R3/чатывнеscope. Новыхреестров/архивов/расписаний/авторизаций/кредитов/сбросовнет. Завершёндоступныйдокументальныйшаг,**не аудит**.
