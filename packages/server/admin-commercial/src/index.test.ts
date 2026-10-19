@@ -221,6 +221,44 @@ describe("P6.4 admin-commercial validation contracts", () => {
     },
   );
 
+  it.each([
+    ["soft hyphen", "\u00ad"],
+    ["zero-width space", "\u200b"],
+    ["zero-width non-joiner", "\u200c"],
+    ["zero-width joiner", "\u200d"],
+    ["word joiner", "\u2060"],
+    ["byte order mark", "\ufeff"],
+    ["line separator", "\u2028"],
+    ["paragraph separator", "\u2029"],
+  ])(
+    "rejects hidden format and separator reasons in all commercial mutations: %s",
+    (_, codepoint) => {
+      const invalidReason = "ticket" + codepoint + "123";
+      expect([
+        PlanCreateBodySchema.safeParse({
+          code: "starter.v1",
+          reason: invalidReason,
+        }).success,
+        PriceCreateBodySchema.safeParse({
+          planId: id,
+          code: "monthly",
+          marketKey: "ru",
+          channelKey: "web",
+          reason: invalidReason,
+        }).success,
+        PlanStatusBodySchema.safeParse({
+          expectedStatus: "DRAFT",
+          targetStatus: "ACTIVE",
+          reason: invalidReason,
+        }).success,
+        CompatibilityPublishBodySchema.safeParse({
+          ...compatibility,
+          reason: invalidReason,
+        }).success,
+      ]).toEqual([false, false, false, false]);
+    },
+  );
+
   it("keeps ordinary Unicode audit reasons and trims surrounding spaces", () => {
     expect(
       PlanCreateBodySchema.parse({

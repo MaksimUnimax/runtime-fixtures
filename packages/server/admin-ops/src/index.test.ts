@@ -93,6 +93,35 @@ describe("P6.2 admin reason contract", () => {
   );
 });
 
+it.each([
+  ["soft hyphen", "\u00ad"],
+  ["zero-width space", "\u200b"],
+  ["zero-width non-joiner", "\u200c"],
+  ["zero-width joiner", "\u200d"],
+  ["word joiner", "\u2060"],
+  ["byte order mark", "\ufeff"],
+  ["line separator", "\u2028"],
+  ["paragraph separator", "\u2029"],
+])(
+  "rejects hidden format and separator reasons in admin mutations: %s",
+  (_, codepoint) => {
+    const reason = "ticket" + codepoint + "123";
+    expect([
+      AdminReasonV1Schema.safeParse(reason).success,
+      AdminPrincipalCreateBodyV1Schema.safeParse({
+        userId: uuid,
+        initialRole: "ADMIN_OWNER",
+        reason,
+      }).success,
+      AdminPrincipalMutationBodyV1Schema.safeParse({
+        expectedRevision: 1,
+        reason,
+      }).success,
+      AdminDeviceRevokeBodyV1Schema.safeParse({ reason }).success,
+    ]).toEqual([false, false, false, false]);
+  },
+);
+
 describe("last active owner decision", () => {
   it.each([
     [0, true, true],
