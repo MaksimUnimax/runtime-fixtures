@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 
 SCHEMA_VERSION = "octoport-offsite-backup-policy-v1"
+MAX_POLICY_BYTES = 65536
 PENDING = "OWNER_DECISION_PENDING"
 RECORDED = "OWNER_DECISION_RECORDED"
 DESTINATION_CLASS = "OFF_HOST_MOUNTED_FILESYSTEM"
@@ -242,10 +243,12 @@ def load_policy(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         _fail("POLICY_FILE_INVALID")
     try:
-        raw = path.read_bytes()
+        # One extra byte distinguishes an oversized file without reading it all.
+        with path.open("rb") as source:
+            raw = source.read(MAX_POLICY_BYTES + 1)
     except OSError as error:
         raise PolicyError("POLICY_FILE_UNREADABLE") from error
-    if not raw or len(raw) > 65536:
+    if not raw or len(raw) > MAX_POLICY_BYTES:
         _fail("POLICY_FILE_SIZE_INVALID")
     try:
         value = json.loads(raw, object_pairs_hook=_object_without_duplicate_keys)

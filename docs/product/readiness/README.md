@@ -23,6 +23,7 @@
 | [OWNER_Q1_CROSSWALK.tsv](OWNER_Q1_CROSSWALK.tsv) | Все 35 старых Q1-C карточек и новое разделение автоматизации/участия человека |
 | [TECHNICAL_REGRESSION_INVENTORY.tsv](TECHNICAL_REGRESSION_INVENTORY.tsv) | 21 уже импортированный файл регрессий эталона; наличие не означает новый PASS |
 | [PUBLICATION.md](PUBLICATION.md) | Подготовка аккаунтов и поэтапный выпуск в магазинах |
+| [A06_INSTALL_UPDATE_SUPPORT_V0237.md](A06_INSTALL_UPDATE_SUPPORT_V0237.md) | Octoport 0.2.37: фактически проверенные браузеры, ограничения установки/обновления и безопасная диагностика владельца |
 | [GAPS_AND_HANDOFF.md](GAPS_AND_HANDOFF.md) | Что должны добавить A/B/C, что остаётся решением владельца |
 | [SOURCES.md](SOURCES.md) | Проверенные ревизии проекта и официальные внешние источники |
 

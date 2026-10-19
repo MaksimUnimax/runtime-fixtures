@@ -120,6 +120,17 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
         if (!c)
           return { ok: false, code: "AUTH_OTP_INVALID" } as AuthResult<never>;
         if (c.consumed_at) {
+          // The idempotency key is not proof of the original OTP. A wrong-code
+          // retry must not recover a session or exhaust the consumed challenge.
+          if (
+            !input.verify(c.normalized_identity_target, c.verification_hash)
+          ) {
+            await tx.query(
+              `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id,reason) VALUES('ANONYMOUS','AUTH_OTP_VERIFY_FAILED','OTP',$1,$2,'AUTH_OTP_INVALID')`,
+              [c.id, input.correlationId],
+            );
+            return { ok: false, code: "AUTH_OTP_INVALID" } as AuthResult<never>;
+          }
           const replay = await tx.query<{ user_id: string; expires_at: Date }>(
             `SELECT r.user_id,s.expires_at FROM otp_verify_replays r JOIN portal_sessions s ON s.id=r.portal_session_id JOIN users u ON u.id=r.user_id WHERE r.challenge_id=$1 AND r.idempotency_hash=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.status='ACTIVE'`,
             [c.id, input.idempotencyHash],

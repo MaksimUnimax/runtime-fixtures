@@ -69,6 +69,7 @@ def main():
             runner.run(label + "-context", ["node", ROOT / "tests/regression/extension-core/batch-context.mjs", runtime])
             runner.run(label + "-attachment-port-idle", ["node", ROOT / "tests/regression/extension-core/attachment-port-idle.mjs", runtime])
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])
+            runner.run(label + "-wb-token-field-name-privacy", ["node", ROOT / "tests/regression/extension-core/wb-token-field-name-privacy.mjs", runtime])
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
             runner.run(label + "-backup-runtime-context", ["node", ROOT / "tests/regression/extension-core/client-i1/client-backup-runtime-context-wiring.mjs", runtime])
             runner.run(label + "-owner-opera-start-keys", ["node", ROOT / "tests/regression/extension-core/owner-opera-start-keys.mjs", runtime])

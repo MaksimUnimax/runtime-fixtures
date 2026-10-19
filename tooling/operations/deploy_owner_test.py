@@ -6,7 +6,7 @@ author registrations, or accept the STORE package. See the paired receipt.
 """
 from __future__ import annotations
 import datetime as dt, fcntl, hashlib, json, os, re, shutil, subprocess, sys, tempfile, time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 from urllib.request import urlopen
@@ -31,16 +31,21 @@ NODE='/root/.nvm/versions/node/v24.20.0/bin/node'
 TSX='packages/server/db/node_modules/tsx/dist/cli.mjs'
 MIGRATE='packages/server/db/src/migrate.ts'
 
-def run(args, *, check=True, input_bytes=None, stdout_file=None, env=None, timeout=120, cwd=None):
-    out = subprocess.PIPE
-    fh = None
-    if stdout_file:
-        fd=os.open(str(stdout_file), os.O_CREAT|os.O_TRUNC|os.O_WRONLY, 0o600)
-        fh=os.fdopen(fd,'wb'); out=fh
-    try:
-        p=subprocess.run(args,input=input_bytes,stdout=out,stderr=subprocess.PIPE,env=env,timeout=timeout,cwd=cwd)
-    finally:
-        if fh: fh.close()
+def run(args, *, check=True, input_bytes=None, stdin_file=None, stdout_file=None, env=None, timeout=120, cwd=None):
+    if input_bytes is not None and stdin_file is not None:
+        raise RuntimeError("RUN_STDIN_AMBIGUOUS")
+    # The archive remains an open file descriptor until subprocess.run finishes.
+    # Never materialize the whole custom-format PostgreSQL dump in Python memory.
+    with ExitStack() as handles:
+        incoming = handles.enter_context(Path(stdin_file).open("rb")) if stdin_file is not None else None
+        out = subprocess.PIPE
+        if stdout_file:
+            fd = os.open(str(stdout_file), os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
+            out = handles.enter_context(os.fdopen(fd, "wb"))
+        p = subprocess.run(
+            args, input=input_bytes, stdin=incoming, stdout=out,
+            stderr=subprocess.PIPE, env=env, timeout=timeout, cwd=cwd,
+        )
     if check and p.returncode:
         raise RuntimeError(f'COMMAND_FAILED:{p.returncode}')
     return p
@@ -76,8 +81,13 @@ def db_identity(url: str):
     if not u.path or u.path=='/': raise RuntimeError('DB_NAME_MISSING')
     return u.username, u.password, u.path.lstrip('/'), u
 
-def docker_pg(args, *, input_bytes=None, stdout_file=None, timeout=120):
-    return run(['docker','exec',*(['-i'] if input_bytes is not None else []),DB_CONTAINER,*args],input_bytes=input_bytes,stdout_file=stdout_file,timeout=timeout)
+def docker_pg(args, *, input_bytes=None, stdin_file=None, stdout_file=None, timeout=120):
+    interactive = input_bytes is not None or stdin_file is not None
+    return run(
+        ['docker', 'exec', *(['-i'] if interactive else []), DB_CONTAINER, *args],
+        input_bytes=input_bytes, stdin_file=stdin_file,
+        stdout_file=stdout_file, timeout=timeout,
+    )
 
 def docker_psql_scalar(user: str, db: str, sql: str) -> str:
     p=docker_pg(['psql','-X','-v','ON_ERROR_STOP=1','-At','-U',user,'-d',db,'-c',sql])
@@ -300,7 +310,7 @@ def backup_live(user: str, db: str, stamp: str) -> Path:
     path=BACKUPS/f'owner-test-{stamp}.dump'
     docker_pg(['pg_dump','--format=custom','--no-owner','--no-privileges','--serializable-deferrable','-U',user,'-d',db],stdout_file=path,timeout=180)
     os.chmod(path,0o600)
-    docker_pg(['pg_restore','--list'],input_bytes=path.read_bytes(),timeout=60)
+    docker_pg(['pg_restore','--list'],stdin_file=path,timeout=60)
     return path
 
 def restore_isolated(user: str, base_url: str, backup: Path, stamp: str) -> dict:
@@ -308,7 +318,7 @@ def restore_isolated(user: str, base_url: str, backup: Path, stamp: str) -> dict
     # Fail if the unique name exists; never pre-delete somebody else's database.
     docker_pg(['createdb','-U',user,'-O',user,name],timeout=30)
     try:
-        docker_pg(['pg_restore','--exit-on-error','--no-owner','--no-privileges','-U',user,'-d',name],input_bytes=backup.read_bytes(),timeout=180)
+        docker_pg(['pg_restore','--exit-on-error','--no-owner','--no-privileges','-U',user,'-d',name],stdin_file=backup,timeout=180)
         isolated_url = migration_url(base_url, name)
         before = check_migration_prefix(isolated_url, 22)['applied']
         migrate(CANDIDATE_REL,migration_url(base_url,name))
@@ -328,7 +338,7 @@ def database_creation_meta(user: str, db: str) -> dict:
 def restore_live_backup(user: str, db: str, backup: Path, meta: dict) -> int:
     docker_pg(['dropdb','--if-exists','--force','-U',user,db],timeout=60)
     docker_pg(['createdb','-U',user,'-O',user,'-T','template0','-E',meta['encoding'],'--lc-collate',meta['collate'],'--lc-ctype',meta['ctype'],db],timeout=60)
-    docker_pg(['pg_restore','--exit-on-error','--no-owner','--no-privileges','-U',user,'-d',db],input_bytes=backup.read_bytes(),timeout=180)
+    docker_pg(['pg_restore','--exit-on-error','--no-owner','--no-privileges','-U',user,'-d',db],stdin_file=backup,timeout=180)
     restored=int(docker_psql_scalar(user,db,'SELECT count(*) FROM drizzle.__drizzle_migrations'))
     if restored!=22: raise RuntimeError('LIVE_BACKUP_RESTORE_COUNT_INVALID:'+str(restored))
     return restored

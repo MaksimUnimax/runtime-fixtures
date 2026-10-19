@@ -232,6 +232,12 @@ export function readStoreReleaseTransitionTarget(
   const manifest = JSON.parse(
     readFileSync(manifestPath, "utf8"),
   ) as CandidateManifest;
+  // This consumer describes an Opera transition, never a Chrome-only release.
+  // Fail closed for any explicit single-browser scope rather than treating the
+  // shared Chromium ZIP as evidence for the Opera target.
+  if (Object.hasOwn(manifest, "releaseScope")) {
+    throw new Error("RELEASE_TRANSITION_BROWSER_SCOPE_CONFLICT");
+  }
   const pkg = manifest.packages?.chromium;
   const productVersion = requiredString(
     manifest.productVersion,

@@ -305,20 +305,21 @@ export async function activateProductionSources(input: {
     );
     const record = pass.records[index];
     if (!document || !record) continue;
-    const snapshot = await promoteAcceptedSnapshot({
+    // Check semantic inventory before any accepted snapshot is persisted.
+    const inventory = buildCompleteOperationInventory({
+      sourceFamily: outcome.sourceFamily,
+      documentKey: document.documentKey,
+      snapshotSha256: outcome.sha256,
+      bytes: outcome.bytes,
+      filename: `source${outcome.artifactType === "YAML" ? ".yaml" : outcome.artifactType === "YML" ? ".yml" : ".json"}`,
+    });
+    await promoteAcceptedSnapshot({
       record,
       bytes: outcome.bytes,
       store: input.store,
       snapshotRoot: input.snapshotRoot,
       documentKey: document.documentKey,
       now: input.now,
-    });
-    const inventory = buildCompleteOperationInventory({
-      sourceFamily: outcome.sourceFamily,
-      documentKey: document.documentKey,
-      snapshotSha256: snapshot.sha256,
-      bytes: outcome.bytes,
-      filename: `source${outcome.artifactType === "YAML" ? ".yaml" : outcome.artifactType === "YML" ? ".yml" : ".json"}`,
     });
     await input.store.saveInventory(inventory);
     inventories.push(inventory);

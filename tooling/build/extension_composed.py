@@ -333,14 +333,19 @@ def compose(directory, mode="development", release_authority=None):
         ]
     # Explicit Start can attach the packaged receiver to a pre-existing AI tab.
     # Existing host permissions still determine where execution is permitted.
-    manifest["permissions"] = list(dict.fromkeys(manifest["permissions"] + ["scripting", "sidePanel"]))
+    # Extension import stays inside the toolbar popup, never a side panel.
+    manifest["permissions"] = [
+        permission
+        for permission in dict.fromkeys(manifest["permissions"] + ["scripting"])
+        if permission != "sidePanel"
+    ]
     manifest["host_permissions"] = list(
         dict.fromkeys(manifest["host_permissions"] + recipe.get("ai_hosts", []) + recipe["marketplace_hosts"] + control_hosts)
     )
     for entry in manifest["content_scripts"]:
         entry["matches"] = list(dict.fromkeys(entry["matches"] + recipe.get("ai_hosts", [])))
-    # Extension-owned import document survives the native file chooser.
-    manifest["side_panel"] = {"default_path": "popup.html#backup-import"}
+    # A donor manifest must not resurrect an auxiliary import surface.
+    manifest.pop("side_panel", None)
     baseline.write_json(manifest_path, manifest)
     if mode == "store":
         assert_no_store_brand_leaks(directory)

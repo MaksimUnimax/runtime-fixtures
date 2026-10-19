@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { verifyCompatibilityAdvisory } from "./client-compatibility-advisory.mjs";
 import { verifyPopupInitialState } from "./popup-initial-state.mjs";
 
 const runtime = path.resolve(process.argv[2]);
@@ -72,6 +73,7 @@ for (const identity of [{ai_id:null},{ai_id:"provider_future"}]) {
 }
 
 await verifyPopupInitialState(runtime); // Exercise guest privacy and auth-loss behavior, not a literal source layout.
+const advisory = verifyCompatibilityAdvisory(runtime);
 console.log(JSON.stringify({
   status: "PASS",
   scope: "A06_FIRST_RUN_ONBOARDING",
@@ -79,4 +81,5 @@ console.log(JSON.stringify({
   persistentState: false,
   browserSupportClaim: false,
   executionAuthority: false,
+  compatibilityAdvisoryCases: advisory.cases,
 }, null, 2));

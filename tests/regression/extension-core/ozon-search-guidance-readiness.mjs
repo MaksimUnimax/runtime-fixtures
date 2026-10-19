@@ -121,6 +121,66 @@ for (const relative of [
 
 assertCap21("patched");
 
+// A validated initial Seller/Performance API URL must not silently follow a
+// redirect while still carrying provider header values. Use synthetic headers
+// and an in-memory fetch stub; never perform a network request here.
+async function assertFixedProviderJsonRedirectMode() {
+  const cases = [
+    {
+      label: "Seller",
+      execute: globalThis.ProviderTransportCore.executeJsonOnce,
+      url: "https://api-seller.ozon.ru/v1/analytics/data",
+      headers: { "Client-Id": "synthetic-id", "Api-Key": "synthetic-key" },
+    },
+    {
+      label: "Performance",
+      execute: globalThis.ProviderTransportCore.executePerformanceJsonOnce,
+      url: "https://api-performance.ozon.ru/api/client/campaign",
+      headers: { Authorization: "Bearer synthetic-nonsecret" },
+    },
+  ];
+  for (const item of cases) {
+    for (const method of ["GET", "POST"]) {
+      let requests = 0;
+      const body = method === "POST" ? '{"synthetic":true}' : undefined;
+      const request = { url: item.url, method, headers: item.headers, body };
+      const result = await item.execute({
+        request,
+        fetchImpl: async (url, init) => {
+          requests += 1;
+          assert.equal(url, item.url, item.label + " must use its fixed origin");
+          assert.equal(init.redirect, "error", item.label + " must refuse HTTP redirects");
+          assert.equal(init.method, method);
+          assert.deepEqual(init.headers, item.headers);
+          assert.equal(init.body, body);
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => "application/json" },
+            text: async () => '{"ok":true}',
+          };
+        },
+      });
+      assert.equal(requests, 1, item.label + " must dispatch one physical request");
+      assert.equal(result.ok, true);
+      assert.equal(result.parsed.ok, true);
+    }
+    await assert.rejects(
+      item.execute({
+        request: { url: item.url, method: "GET", headers: item.headers },
+        fetchImpl: async (_url, init) => {
+          assert.equal(init.redirect, "error");
+          throw new Error("synthetic redirect blocked before any follow-up request");
+        },
+      }),
+      (error) => error?.code === "PROVIDER_FETCH_FAILED" &&
+        error?.external_request_executed === true,
+      item.label + " redirect must fail closed without a retry",
+    );
+  }
+}
+await assertFixedProviderJsonRedirectMode();
+
 console.log(
   JSON.stringify({
     status: "PASS",

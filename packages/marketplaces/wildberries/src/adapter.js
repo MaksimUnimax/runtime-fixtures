@@ -126,15 +126,17 @@
       safeTree(child, depth + 1, budget);
     }
   }
+  function redactCredentialText(value, secrets) {
+    return secrets.reduce((text, secret) => secret ? text.split(secret).join("[REDACTED_CREDENTIAL]") : text, value);
+  }
   function redactSecrets(value, secrets, seen = new WeakSet()) {
-    if (typeof value === "string") {
-      return secrets.reduce((text, secret) => secret ? text.split(secret).join("[REDACTED_CREDENTIAL]") : text, value);
-    }
+    if (typeof value === "string") return redactCredentialText(value, secrets);
     if (!value || typeof value !== "object") return value;
     if (seen.has(value)) return undefined;
     seen.add(value);
     if (Array.isArray(value)) return value.map((item) => redactSecrets(item, secrets, seen));
-    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redactSecrets(child, secrets, seen)]));
+    return Object.fromEntries(Object.entries(value).map(([key, child]) =>
+      [redactCredentialText(key, secrets), redactSecrets(child, secrets, seen)]));
   }
   function originalName(response) {
     const header = response?.headers?.get?.("content-disposition") || "";

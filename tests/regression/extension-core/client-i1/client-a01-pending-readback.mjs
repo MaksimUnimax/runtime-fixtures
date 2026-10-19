@@ -55,11 +55,15 @@ const options = {
 
 function harness({ alterReadback = null, denyAdmission = false, failStorage = false, pending = {}, storeContext = null } = {}) {
   const state = { pending: copy(pending) };
+  const stores = new Map([[41, storeContext || {
+    accountId: "synthetic-account", storeId: "synthetic-store", marketplace: "ozon",
+    credentialRevision: 7, policyRevision: "personal-disabled", authGeneration: "synthetic-generation"
+  }]]);
   const counts = { reads: 0, writes: 0, admissions: 0, externalRequests: 0 };
   const events = [];
   const sandbox = {
     KEYS: { PENDING_WORK_STARTS: "pending" },
-    saStarts: new Map([[41, storeContext || { accountId: "synthetic-account", storeId: "synthetic-store", marketplace: "ozon", credentialRevision: 7, policyRevision: "personal-disabled", authGeneration: "synthetic-generation" }]]),
+    saStarts: stores,
     crypto: { randomUUID: () => "synthetic-uuid" },
     OzonWorkSessionModel: { STATES: { PENDING_IDENTITY: "PENDING_IDENTITY" } },
     getPendingWorkStarts: async () => {
@@ -81,7 +85,7 @@ function harness({ alterReadback = null, denyAdmission = false, failStorage = fa
     }
   };
   const fn = runInContext(composed + "\ncreatePendingWorkStart;", createContext(sandbox));
-  return { fn, state, counts, events };
+  return { fn, state, counts, events, stores };
 }
 const hasAck = h => h.events.some(entry => entry.code === "WORK_START_PENDING_COMMIT_ACK");
 const assertFailClosed = async (mutate, label) => {
@@ -221,4 +225,89 @@ test("A01-19 optional undefined generation survives Chrome-style JSON roundtrip"
 });
 test("A01-20 changed pinned credential revision fails before ACK", async () => {
   await assertFailClosed(record => { record.store_context.credentialRevision = 8; }, "credential revision");
+});
+
+// Characterization of the currently composed pending helper only, not proof
+// that the outer popup can actually switch account/store while Start is pending.
+test("A01-21 same-surface switch to a different store never silently creates new pending work", async () => {
+  const h = harness();
+  const first = await h.fn(41, identity, options);
+  assert.equal(first.duplicate, false);
+  const pinnedContext = copy(first.transaction.store_context);
+  const pinnedStore = pinnedContext.storeId;
+  const pinnedIntent = first.transaction.intent_id;
+  const pinnedConversationKey = first.transaction.conversation_key;
+  const writes = h.counts.writes;
+  const admissions = h.counts.admissions;
+  h.stores.set(41, {
+    accountId: "synthetic-other-account",
+    storeId: "synthetic-other-store",
+    marketplace: "wildberries",
+    credentialRevision: 11,
+    policyRevision: "synthetic-other-policy",
+    authGeneration: "synthetic-other-generation"
+  });
+  const attempted = { ...options, intent_id: "synthetic-after-store-switch",
+    revision: 5, conversation_key: "synthetic-other-account-store" };
+  let second = null;
+  try {
+    second = await h.fn(41, identity, attempted);
+  } catch (error) {
+    assert.ok(["WORK_ADMISSION_CONTEXT_CHANGED", "WORK_PENDING_STORE_CHANGED",
+      "STORE_CHANGE_REQUIRES_CONFIRMATION"].includes(error?.code),
+      "a future fail-closed denial must use a recognizable code");
+  }
+  if (second) {
+    assert.equal(second.duplicate, true,
+      "a new store cannot be silently committed on the old surface");
+    assert.equal(second.transaction.intent_id, pinnedIntent);
+    assert.deepEqual(copy(second.transaction.store_context), pinnedContext);
+    assert.equal(second.transaction.store_context.storeId, pinnedStore);
+    assert.equal(second.transaction.conversation_key, pinnedConversationKey);
+    assert.notEqual(second.transaction.conversation_key, attempted.conversation_key);
+  }
+  // An explicit refusal must be just as non-mutating as a duplicate.
+  // Do not silently drop/rewrite the old pending record during a denied switch.
+  assert.equal(h.state.pending["41"]?.intent_id, pinnedIntent);
+  assert.deepEqual(copy(h.state.pending["41"]?.store_context), pinnedContext);
+  assert.equal(h.state.pending["41"]?.store_context?.storeId, pinnedStore);
+  assert.equal(h.state.pending["41"]?.conversation_key, pinnedConversationKey);
+  assert.notEqual(h.state.pending["41"]?.store_context?.storeId,
+    "synthetic-other-store", "the new store is not admitted without a new surface");
+  assert.equal(h.counts.writes, writes, "no new pending or silent deletion");
+  assert.equal(h.counts.admissions, admissions, "no second local admission");
+});
+
+test("A01-22 changed surface and store retires old pending before new local admission", async () => {
+  const h = harness();
+  const first = await h.fn(41, identity, options);
+  assert.equal(first.duplicate, false);
+  const selectedContext = {
+    accountId: "synthetic-other-account",
+    storeId: "synthetic-other-store",
+    marketplace: "wildberries",
+    credentialRevision: 11,
+    policyRevision: "synthetic-other-policy",
+    authGeneration: "synthetic-other-generation"
+  };
+  h.stores.set(41, selectedContext);
+  const laterIdentity = { ...identity, surface_id: "synthetic-new-surface",
+    conversation_id: "synthetic-new-conversation" };
+  const nextOptions = { ...options, intent_id: "synthetic-new-surface-intent",
+    revision: 5, conversation_key: "synthetic-other-account-store",
+    observed_conversation_id: "synthetic-new-conversation" };
+  const next = await h.fn(41, laterIdentity, nextOptions);
+  assert.equal(next.duplicate, false);
+  assert.deepEqual(copy(next.transaction.store_context), selectedContext);
+  assert.equal(next.transaction.store_context.accountId, selectedContext.accountId);
+  assert.equal(next.transaction.store_context.storeId, selectedContext.storeId);
+  assert.equal(next.transaction.conversation_key, "synthetic-other-account-store");
+  assert.equal(next.transaction.surface_id, laterIdentity.surface_id);
+  assert.equal(next.transaction.intent_id, nextOptions.intent_id);
+  assert.notEqual(next.transaction.intent_id, first.transaction.intent_id);
+  assert.equal(h.state.pending["41"].intent_id, nextOptions.intent_id);
+  assert.deepEqual(copy(h.state.pending["41"].store_context), selectedContext);
+  assert.equal(h.counts.writes, 3, "old pending deleted then target pending persisted");
+  assert.equal(h.counts.admissions, 2);
+  assert.ok(h.events.some(e => e.code === "WORK_PENDING_START_STALE_RETIRED"));
 });

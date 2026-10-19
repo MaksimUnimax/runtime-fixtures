@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -88,18 +90,29 @@ def require_environment(environment: Mapping[str, str]) -> BackupConfig:
 
 
 def parse_database_url(value: str) -> DatabaseConnection:
-    parsed = urlparse(value)
+    try:
+        parsed = urlparse(value)
+    except ValueError as error:
+        raise BackupError("DATABASE_URL_AUTHORITY_INVALID") from error
     if parsed.scheme not in {"postgresql", "postgres"}:
         raise BackupError("DATABASE_URL_SCHEME_INVALID")
-    if not parsed.hostname or parsed.username is None:
+    try:
+        host = parsed.hostname
+        username = parsed.username
+    except ValueError as error:
+        raise BackupError("DATABASE_URL_AUTHORITY_INVALID") from error
+    if not host or username is None:
         raise BackupError("DATABASE_URL_AUTHORITY_INVALID")
     database = unquote(parsed.path.lstrip("/"))
     if not database:
         raise BackupError("DATABASE_URL_DATABASE_MISSING")
     try:
-        port = parsed.port or 5432
+        configured_port = parsed.port
     except ValueError as error:
         raise BackupError("DATABASE_URL_PORT_INVALID") from error
+    port = 5432 if configured_port is None else configured_port
+    if not 1 <= port <= 65535:
+        raise BackupError("DATABASE_URL_PORT_INVALID")
 
     query = parse_qs(parsed.query, keep_blank_values=True)
     unknown = sorted(set(query) - set(ALLOWED_QUERY_ENV))
@@ -112,10 +125,10 @@ def parse_database_url(value: str) -> DatabaseConnection:
         pg_environment[ALLOWED_QUERY_ENV[key]] = values[0]
 
     return DatabaseConnection(
-        host=parsed.hostname,
+        host=host,
         port=port,
         database=database,
-        user=unquote(parsed.username),
+        user=unquote(username),
         password=unquote(parsed.password) if parsed.password is not None else None,
         pg_environment=pg_environment,
     )
@@ -133,19 +146,22 @@ def lookup_mount(
     path: Path,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> MountIdentity:
-    completed = runner(
-        [
-            "findmnt",
-            "--json",
-            "--output",
-            "TARGET,SOURCE,FSTYPE",
-            "--target",
-            str(path),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        completed = runner(
+            [
+                "findmnt",
+                "--json",
+                "--output",
+                "TARGET,SOURCE,FSTYPE",
+                "--target",
+                str(path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise BackupError("BACKUP_MOUNT_LOOKUP_INVALID") from error
     try:
         payload = json.loads(completed.stdout)
         item = payload["filesystems"][0]
@@ -178,6 +194,8 @@ def verify_independent_mounts(
 
     if not config.destination.is_dir() or not config.destination_mount.is_dir():
         raise BackupError("BACKUP_DESTINATION_NOT_DIRECTORY")
+    if not config.database_data_path.is_dir() or not config.database_data_mount.is_dir():
+        raise BackupError("DATABASE_DATA_NOT_DIRECTORY")
     if not _inside(config.destination, config.destination_mount):
         raise BackupError("BACKUP_DESTINATION_OUTSIDE_MOUNT")
     if not _inside(config.database_data_path, config.database_data_mount):
@@ -318,6 +336,8 @@ def _verified_backup_directories(
             continue
         try:
             manifest = json.loads(manifest_path.read_text())
+            if not isinstance(manifest, dict):
+                continue
             if manifest.get("format") != "octoport-postgres-backup-v1":
                 continue
             if manifest.get("pgRestoreListVerified") is not True:
@@ -367,6 +387,32 @@ def _apply_retention(
     if removed:
         _fsync_directory(destination)
     return removed
+
+def _publish_directory_noreplace(temporary: Path, final: Path) -> None:
+    # Linux renameat2(RENAME_NOREPLACE) makes the immutable backup name
+    # collision decision atomic, including empty directories and symlinks.
+    # An exists() precheck followed by rename() can overwrite a concurrent
+    # empty directory; never downgrade to replace-on-rename behavior.
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = libc.renameat2
+    except (AttributeError, OSError) as error:
+        raise BackupError("BACKUP_ATOMIC_PUBLISH_UNAVAILABLE") from error
+    renameat2.argtypes = [
+        ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    # AT_FDCWD=-100, RENAME_NOREPLACE=1 from Linux renameat2(2).
+    if renameat2(-100, os.fsencode(temporary), -100, os.fsencode(final), 1) == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number in (errno.EEXIST, errno.ENOTEMPTY):
+        raise BackupError("BACKUP_DESTINATION_COLLISION")
+    if error_number in (errno.ENOSYS, errno.EINVAL, errno.EOPNOTSUPP):
+        raise BackupError("BACKUP_ATOMIC_PUBLISH_UNAVAILABLE")
+    raise BackupError("BACKUP_DESTINATION_PUBLISH_FAILED")
+
 
 def run_backup(
     config: BackupConfig,
@@ -443,9 +489,7 @@ def run_backup(
 
         stamp = created_at.strftime("%Y%m%dT%H%M%SZ")
         final = config.destination / f"backup-{stamp}-{digest[:12]}"
-        if final.exists():
-            raise BackupError("BACKUP_DESTINATION_COLLISION")
-        temporary.rename(final)
+        _publish_directory_noreplace(temporary, final)
         _fsync_directory(config.destination)
         removed = _apply_retention(
             config.destination,
