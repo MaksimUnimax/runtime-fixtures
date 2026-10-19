@@ -6,6 +6,7 @@ import { SwaggerSourceFamilySchema } from "@product/monitoring-control";
 import type {
   ApiWatchStore,
   AuthorityRecord,
+  OperationInventory,
   SnapshotMetadata,
 } from "./types.js";
 import { API_WATCH_MAX_ARTIFACT_BYTES } from "./types.js";
@@ -71,6 +72,7 @@ export async function promoteAcceptedSnapshot(input: {
   record: AuthorityRecord;
   bytes: Uint8Array;
   store: ApiWatchStore;
+  inventory?: OperationInventory;
   snapshotRoot?: string;
   documentKey?: string | null;
   now?: () => Date;
@@ -87,6 +89,12 @@ export async function promoteAcceptedSnapshot(input: {
   if (sha256 !== record.sha256) throw new Error("SNAPSHOT_DIGEST_MISMATCH");
   if (record.sizeBytes !== bytes.byteLength)
     throw new Error("SNAPSHOT_SIZE_MISMATCH");
+  if (
+    input.inventory &&
+    (input.inventory.sourceFamily !== record.sourceFamily ||
+      input.inventory.snapshotSha256 !== sha256)
+  )
+    throw new Error("API_WATCH_SNAPSHOT_INVENTORY_IDENTITY_MISMATCH");
   const root = resolve(
     input.snapshotRoot ??
       process.env.API_WATCH_SNAPSHOT_ROOT ??
@@ -179,7 +187,9 @@ export async function promoteAcceptedSnapshot(input: {
     artifactPath,
     documentKey: input.documentKey ?? null,
   };
-  return store.saveSnapshot(metadata);
+  return input.inventory
+    ? store.saveSnapshotWithInventory(metadata, input.inventory)
+    : store.saveSnapshot(metadata);
 }
 
 export async function readAcceptedSnapshot(
