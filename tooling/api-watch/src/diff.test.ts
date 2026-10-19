@@ -367,12 +367,12 @@ describe("A4 semantic API diffs", () => {
           }),
         ),
       });
-    expect(() =>
-      build({ $ref: "#/components/pathItems/Missing" }),
-    ).toThrow("APIWATCH_PATH_ITEM_REF_UNRESOLVED");
-    expect(() =>
-      build({ $ref: "remote.yml#/paths/~1orders" }),
-    ).toThrow("APIWATCH_PATH_ITEM_REF_UNSUPPORTED");
+    expect(() => build({ $ref: "#/components/pathItems/Missing" })).toThrow(
+      "APIWATCH_PATH_ITEM_REF_UNRESOLVED",
+    );
+    expect(() => build({ $ref: "remote.yml#/paths/~1orders" })).toThrow(
+      "APIWATCH_PATH_ITEM_REF_UNSUPPORTED",
+    );
     expect(() =>
       build(
         { $ref: "#/components/pathItems/Shared" },
@@ -388,6 +388,137 @@ describe("A4 semantic API diffs", () => {
         { get: { responses: { "200": { description: "ref" } } } },
       ),
     ).toThrow("APIWATCH_PATH_ITEM_REF_CONFLICT");
+  });
+
+  it("C03 decodes URI-fragment local Path Item refs but rejects invalid pointer escapes", () => {
+    const operation = {
+      get: { responses: { "200": { description: "ok" } } },
+    };
+    const pathItems = Object.fromEntries([
+      ["Shared", operation],
+      ["Bad~2Name", operation],
+      ["__proto__", operation],
+      ["constructor", operation],
+    ]);
+    const build = (ref: string) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "pointers", version: "1" },
+            components: { pathItems },
+            paths: { "/orders": { $ref: ref } },
+          }),
+        ),
+      });
+    for (const ref of [
+      "#/components/pathItems/Shared",
+      "#%2Fcomponents%2FpathItems%2FShared",
+      "#/components/pathItems/Bad~02Name",
+      "#/components/pathItems/__proto__",
+      "#/components/pathItems/constructor",
+    ]) {
+      expect(build(ref).operations.map((op) => op.path)).toEqual(["/orders"]);
+    }
+    expect(() => build("#/components/pathItems/Bad~2Name")).toThrow(
+      "APIWATCH_PATH_ITEM_REF_INVALID",
+    );
+    expect(() => build("#/%ZZ")).toThrow("APIWATCH_PATH_ITEM_REF_INVALID");
+    expect(() => build("#/components/pathItems/toString")).toThrow(
+      "APIWATCH_PATH_ITEM_REF_UNRESOLVED",
+    );
+  });
+
+  it("C03 retains referenced inline fingerprints and limits local reference depth", () => {
+    const shared = {
+      parameters: [{ name: "count", in: "query", schema: { type: "integer" } }],
+      get: {
+        security: [{ bearer: [] }],
+        responses: {
+          "200": {
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { id: { type: "string" } },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const make = (referenced: boolean, sha256: string) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: sha256,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "hash parity", version: "1" },
+            components: {
+              pathItems: { Shared: shared },
+              securitySchemes: {
+                bearer: { type: "http", scheme: "bearer" },
+              },
+            },
+            paths: {
+              "/orders": referenced
+                ? { $ref: "#/components/pathItems/Shared" }
+                : shared,
+            },
+          }),
+        ),
+      });
+    const inline = make(false, BASE_SHA);
+    const referenced = make(true, TARGET_SHA);
+    expect(
+      diffInventories({ base: inline, target: referenced }).unchangedCount,
+    ).toBe(1);
+    for (const field of [
+      "parameterSchemaSha256",
+      "responseSchemaSha256",
+      "securityRequirementsSha256",
+    ] as const)
+      expect(referenced.operations[0]?.[field]).toBe(
+        inline.operations[0]?.[field],
+      );
+
+    const chain = (pathItems: Record<string, unknown>) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "bounded chain", version: "1" },
+            components: { pathItems },
+            paths: { "/orders": { $ref: "#/components/pathItems/P0" } },
+          }),
+        ),
+      });
+    expect(
+      chain({
+        P0: { $ref: "#/components/pathItems/P1" },
+        P1: { get: { responses: { "200": {} } } },
+      }).operationCount,
+    ).toBe(1);
+    const tooDeep = Object.fromEntries(
+      Array.from({ length: 66 }, (_, i) => [
+        `P${i}`,
+        i === 65
+          ? { get: { responses: { "200": {} } } }
+          : { $ref: `#/components/pathItems/P${i + 1}` },
+      ]),
+    );
+    expect(() => chain(tooDeep)).toThrow(
+      "APIWATCH_PATH_ITEM_REF_CYCLE_OR_DEPTH",
+    );
   });
 
   it("C03 detects response-level local ref target changes", () => {

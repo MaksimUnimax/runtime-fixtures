@@ -450,18 +450,23 @@ function resolvePathItem(
   const item = asObject(raw);
   if (!Object.hasOwn(item, "$ref")) return item;
   const ref = item.$ref;
-  if (typeof ref !== "string" || !ref.startsWith("#/"))
+  if (typeof ref !== "string" || !ref.startsWith("#"))
     throw new Error("APIWATCH_PATH_ITEM_REF_UNSUPPORTED");
-  if (seen.has(ref) || seen.size >= 64)
-    throw new Error("APIWATCH_PATH_ITEM_REF_CYCLE_OR_DEPTH");
+  // Percent-decode the URI fragment before splitting JSON Pointer tokens.
   let pointer: string;
   try {
-    pointer = decodeURIComponent(ref.slice(2));
+    pointer = decodeURIComponent(ref.slice(1));
   } catch {
     throw new Error("APIWATCH_PATH_ITEM_REF_INVALID");
   }
+  if (!pointer.startsWith("/"))
+    throw new Error("APIWATCH_PATH_ITEM_REF_UNSUPPORTED");
+  if (seen.has(pointer) || seen.size >= 64)
+    throw new Error("APIWATCH_PATH_ITEM_REF_CYCLE_OR_DEPTH");
   let target: unknown = root;
-  for (const segment of pointer.split("/")) {
+  for (const segment of pointer.slice(1).split("/")) {
+    if (/~(?![01])/u.test(segment))
+      throw new Error("APIWATCH_PATH_ITEM_REF_INVALID");
     const key = segment.replace(/~1/g, "/").replace(/~0/g, "~");
     const object = asObject(target);
     if (!Object.hasOwn(object, key))
@@ -470,7 +475,7 @@ function resolvePathItem(
   }
   if (!target || typeof target !== "object" || Array.isArray(target))
     throw new Error("APIWATCH_PATH_ITEM_REF_NOT_OBJECT");
-  const referenced = resolvePathItem(target, root, new Set([...seen, ref]));
+  const referenced = resolvePathItem(target, root, new Set([...seen, pointer]));
   const siblings = Object.entries(item).filter(([key]) => key !== "$ref");
   // OAS defines overlapping Path Item and referenced fields as undefined.
   // Reject ambiguity rather than silently selecting an operation or parameter.
