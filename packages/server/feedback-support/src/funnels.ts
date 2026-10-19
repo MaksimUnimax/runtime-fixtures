@@ -100,9 +100,11 @@ export function calculateFunnel(input: {
       entry.set(id, row.occurredAt);
   }
   let previousReached: Map<string, FunnelSignalRecord> | undefined;
+  let previousReachedOrder: Map<string, number> | undefined;
   const reached = stages.map((stage, stageIndex) => {
     const perEntity = new Map<string, FunnelSignalRecord>();
-    for (const row of records) {
+    const perEntityOrder = new Map<string, number>();
+    for (const [rowIndex, row] of records.entries()) {
       if (row.event !== stage) continue;
       const id = entityId(input.funnel, row);
       const start = id ? entry.get(id) : undefined;
@@ -113,15 +115,20 @@ export function calculateFunnel(input: {
           : id
             ? previousReached?.get(id)?.occurredAt
             : undefined;
+      const previousIndex = id ? previousReachedOrder?.get(id) : undefined;
       if (
         !id ||
         !start ||
         previousAt === undefined ||
         row.occurredAt < previousAt ||
+        // Stable input order (SQL: occurred_at, id) breaks equal-time ties.
+        (stageIndex > 0 &&
+          (previousIndex === undefined || rowIndex <= previousIndex)) ||
         perEntity.has(id)
       )
         continue;
       perEntity.set(id, row);
+      perEntityOrder.set(id, rowIndex);
     }
     const previous = stageIndex === 0 ? entry.size : 0;
     const durations = [...perEntity].map(
@@ -131,6 +138,7 @@ export function calculateFunnel(input: {
         1000,
     );
     previousReached = perEntity;
+    previousReachedOrder = perEntityOrder;
     return {
       stage,
       eligibleCount: entry.size,

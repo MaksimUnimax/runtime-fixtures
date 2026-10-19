@@ -81,6 +81,83 @@ describe("M1-C privacy-safe funnel calculations", () => {
     expect(FeedbackFunnelResponseV1Schema.safeParse(result).success).toBe(true);
   });
 
+  it("rejects equal-time successor before its predecessor in stable input order", () => {
+    const result = calculateFunnel({
+      funnel: "FIRST_VALUE",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("device_activated", accountA, 0),
+        row("account_created", accountA, 0),
+        row("first_store_added", accountA, 0),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 0, 0, 0,
+    ]);
+  });
+
+  it("counts equal-time successors when input tie order follows stage progression", () => {
+    const result = calculateFunnel({
+      funnel: "FIRST_VALUE",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("account_created", accountA, 0),
+        row("device_activated", accountA, 0),
+        row("first_store_added", accountA, 0, { marketplace: "OZON" }),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 1, 1, 0,
+    ]);
+  });
+
+  it("selects a later eligible same-time marketplace event rather than a preceding one", () => {
+    const result = calculateFunnel({
+      funnel: "FIRST_VALUE",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("account_created", accountA, 0),
+        row("first_store_added", accountA, 0, { marketplace: "WILDBERRIES" }),
+        row("device_activated", accountA, 0),
+        row("first_store_added", accountA, 0, { marketplace: "OZON" }),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 1, 1, 0,
+    ]);
+    expect(result.breakdowns).toContainEqual({
+      stage: "first_store_added",
+      dimension: "marketplace",
+      value: "OZON",
+      count: 1,
+    });
+    expect(result.breakdowns).not.toContainEqual({
+      stage: "first_store_added",
+      dimension: "marketplace",
+      value: "WILDBERRIES",
+      count: 1,
+    });
+  });
+
+  it("rejects same-time support triage before the corresponding case creation", () => {
+    const result = calculateFunnel({
+      funnel: "SUPPORT",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("feedback_case_triaged", accountA, 0, { subjectId: "case-tie" }),
+        row("feedback_case_created", accountA, 0, { subjectId: "case-tie" }),
+        row("feedback_case_resolved", accountA, 0, { subjectId: "case-tie" }),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 0, 0, 0,
+    ]);
+  });
+
   it("counts the first eligible event after the previous reached stage", () => {
     const result = calculateFunnel({
       funnel: "FIRST_VALUE",
