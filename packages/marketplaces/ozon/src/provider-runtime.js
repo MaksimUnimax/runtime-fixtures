@@ -289,7 +289,7 @@
       } catch (error) {
         throw reportStateError(
           "REPORT_FILE_SESSION_STATE_READ_FAILED",
-          `Не удалось прочитать session-state отчётов: ${String(error?.message || error || "unknown error").slice(0, 240)}`,
+          "Не удалось прочитать session-state отчётов.",
           { externalRequestExecuted },
         );
       }
@@ -315,7 +315,7 @@
         } catch (error) {
           throw reportStateError(
             "REPORT_FILE_SESSION_STATE_WRITE_FAILED",
-            `Не удалось сохранить session-state отчётов: ${String(error?.message || error || "unknown error").slice(0, 240)}`,
+            "Не удалось сохранить session-state отчётов.",
             { externalRequestExecuted },
           );
         }
