@@ -262,6 +262,9 @@
           response_meta: { retry_after: response.responseMeta?.retry_after || null },
           verification: binary ? "BINARY_BYTES_CAPTURED" : "STRUCTURAL_ONLY_WB_SCHEMA_PENDING" };
         if (typeof onProviderResult === "function") await onProviderResult({ command, result, report_text: report, provider_result: providerResult });
+        // The awaited result hook may outlive the original store/binding generation.
+        // Never return a stale success after that callback changes context.
+        await context.assertCurrent();
         return providerResult;
       } catch (error) {
         if (error.execution_context_error) throw error;
