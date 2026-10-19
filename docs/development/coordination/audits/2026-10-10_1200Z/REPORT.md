@@ -1,11 +1,11 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T14:52:32.418Z; Bготовыйsection6 SOURCE_PRECHECK_COMPLETE — документальныйплан, collisionsUNKNOWN/AUTH_DB_NOT_AUTHORIZED. CexactA55docreviewPASS_SOURCE_SCOPED сограничениями, Documentation39268792738SUCCESS/1job; остальные4workflowнеподтверждены, Draft/NO_SUBMIT. A14:32metadataнеproductPASS. Freshmainrefdcdd2b51metadataonly, acceptedmain32неперенесён. ServerCPblocked, original12OPEN,audit_complete=false.
+- **Состояние на:** 2026-10-19T15:09:27.972Z; A R49 публикация подтверждена, A.json write явно отказан, причина сверх текста UNKNOWN. C04 exact f08bdac7: готовый final local40/40 и независимый PASS_SOURCE_SCOPED; full TS inconclusive, publication/native/installed не подтверждены. B принятый IDNA contract/receipt сохранён, implementation/auth/DB не разрешены. Server checkpoint blocked; original12OPEN, audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
-- **Основа GitHub:** свежий ref `main=dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537` — только metadata, без source/CI/приёмки нового SHA и без проверки Тестера. Последняя принятая nativebaseline `32b768862e69133f9f05c556ea2df3c238e1dbfc` 5/5workflows13/13jobs сохранена NOT_RECHECKED. Bstaticplan основанmain32, Creview/Docs привязаныa55b5ad8; приёмка между SHA не переносится.
-- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`; последний полный verifiedSHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`,2561719bytes, readback13:35:39.429576 UTC. В проходе14:00+ прочитан только currenttail220lines; свежий полный hash/locks/WIP не установлен, запись CP не выполнялась. Прямое ownerрешение и остаток синхронизации сохранены в этом же REPORT; это не заявление о доставке B.
+- **Основа GitHub:** последнее ранее наблюдённое main ref dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537 — metadata only, в этом проходе не перепроверялось. Последняя принятая native baseline main32b76886 5/5 workflows и 13/13 jobs сохранена NOT_RECHECKED. Новый C candidate f08bdac7 имеет parent dcdd; scoped SOURCE не переносится на main/CI/installed. Исторические A R49 main32 и C06 exact a55 сохраняют свои версии.
+- **Серверный checkpoint:** `/root/octoport-control/controllers/audits/CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z/FINAL_RESUME_CHECKPOINT.json`; последний полный verified SHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`, 2561719 bytes, readback13:35:39.429576 UTC. В текущем проходе только readonly первые20/последние90 строк; свежие полный hash/locks/WIP не установлены, запись заблокирована и не повторялась. PLAN/история/WIP/12OPEN сохранены; собственная новая дельта только в этом REPORT.
 - **Периодичность:** обновлять этот же отчёт не реже одного раза в 10 минут активной работы; каждое дополнение получает точное время UTC и readback.
 
 ## 1. Последнее фактическое действие и readback
@@ -5439,3 +5439,92 @@ OwnercontractиactualBdeliveryужеaccepted **NOT_RECHECKED**, повторны
 Организационныелагиразделены: старыйCнезакрытыйdocreviewполучилточныйscopedterminal, ноограниченияhashcoverageнестерты; уже существовавшийDocsterminalпотреблёнбезложнойхронологии; Bprecheckназваниебезdataauthorityнепринимаетсякакготоваяреализация; metadataAнеобъявленаproductPASS; новыйmainrefнеполучилстаруюприёмку; rulesdivergenceнепривёлкавтосинхронизации/восстановлениюerrors/events. Снятыдоступныеownдокументальныеожидания, остальныеproduct/external/serverCPграницыназваныровно.
 
 Новыхtests/review/CI/helpers/VM/browser/merge/exploitation/accessbypass/live/DB/security/auth/cleanup0. R7/R8/log118019352572/B.json/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer/protectedpreflightиостальныеexactrefusalsнеповторены/необойдены. errors.json/events.jsonlневосстанавливалисьинечитались; PR97/131/134внеscope. Новыхреестров/архивов/расписанийнет. АудитIN_PROGRESS;12OPEN.
+
+
+## Продолжение того же аудита — 2026-10-19T15:09:27.972Z: A R49 отказ серверной записи; C04 exact f08bdac7 готовый source verdict
+
+Продолжение по прямому поручению владельца после terminal ответа 14:53:26 UTC и REPORT `5d390a942b63e0bd36295b42d575b8374870e73a`. Единственный REPORT и исходный audit ID сохранены. Работа / GPT-6.1 Sol / Очень высокое. Нового исполнителя, преемника, review или CI Контроллер не запускал. Dot использован как указатель; нижеследующие публикация A, текущая запись C, готовый verdict и итоговый лог прочитаны Контроллером лично.
+
+### Последнее действие, область записи и единственность
+
+Свежий branch ref совпал с завершённым REPORT `5d390a94...`; Git commit имеет автора MaksimUnimax, время 14:52:33 UTC, parent `b0668550371ccc7a33fe8408e6944bde2ca91c2b`. Полный закреплённый Git blob `2f7cb63b92d84c5430fc7624c5f5f2e5b862c090` прочитан: 851077 символов. Перед своей единственной записью ref прочитан повторно и не изменился. Более нового REPORT/неизвестного исхода собственной записи не обнаружено.
+
+RDC Easyscript фактически доступен: ping 2026-10-19T15:05:39.301Z. Два чтения retained background calls вернули пустой список. Активен PID2354613; его назначение и все чужие операции этим не установлены, процесс не трогался. Пустой список background calls не доказывает глобальный простой. Свежие server coordination locks, Git/WIP/claims/FDs не установлены: ранее отказанный start_process/protected preflight не повторялся и не заменялся другой формой. Поэтому серверных записей, включая checkpoint, PRIORITY_TASKS и role records, нет. Серверная единственность автора не объявляется доказанной по одному PID или чистой metadata. Для собственного GitHub REPORT применяется существующая процедура expected branch/author/blob + contents SHA CAS, затем отдельный полный pinned readback, commit parent и ref.
+
+Девять обязательных актуальных файлов current-prompts полностью получены штатным read_file с 0 remaining: START_HERE, PROMPT_CONTROLLER, WORK_METHOD, PROTOCOL, PRE_AUDIT_SELF_ERROR_GATE, ORGANIZATION_AUDIT_POLICY, RESOURCE_POLICY, DISK_LIFECYCLE, TEMP_WORKTREE_LIFECYCLE. PRIORITY_TASKS прочитан в первых 100 строках: document version28, адресный DOT-20261015-02 v10. Остальные 1220 строк не перечитывались; поздние прямые указания владельца и точные запреты сохраняют приоритет. Governing files не синхронизировались. Исторические ссылки на errors/events не отменяют запрета их чтения/восстановления.
+
+### A — R49 опубликован, но серверная запись явно отказана
+
+Лично прочитан https://github.com/MaksimUnimax/runtime-fixtures/pull/228#issuecomment-6269971938 : автор MaksimUnimax, created14:44:02, updated14:46:59 UTC. Публикация содержит R49, observed14:42:07, и отдельный SERVER_STATE_UPDATE_DENIED.
+
+R49 сопоставляет candidate `1b00870c3aa2b56ba1b078eeecb14ee089187639`, исторически наблюдавшийся main32 и common base d36. Авторское legacy merge-tree exit0 без конфликтных маркеров и 0 пересечений 8 candidate / 42 main путей — только SOURCE/PATH. Полного материализованного merge tree, интегрированной композиции, runtime noninterference или release acceptance это не доказывает. Упомянутые в комментарии недостающие workflow не являются поручением Контроллера запускать их. Принятые R40/R44, старые 3/5 и 10/13, R45 PREPARING и ограничения ZIP не повторялись и не расширялись.
+
+В комментарии сохранён дословный ответ отказа:
+> Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.
+
+Это сохранённая автором цитата ответа, а не повторно полученный Контроллером первичный ответ инструмента. Исходные точные args, call ID и полная исходная оболочка вызова в доступной публикации отсутствуют; причина сверх приведённого текста UNKNOWN. Авторский readback14:45:33 сообщает checkpoint `711df570822a54b6b5ee265d020461c5`, SHA256 `425c017ef68f26f5a7fa3de768ce438d869aad3afed4abf3672f4a9b989609a7`, R49 в A.json отсутствует. Контроллер отдельно прочитал первые 8 строк A.json: прежние A04 task/status, updated14:32:18.549451, canonical head09e12fab. Полный SHA A.json этим не пересчитан; идентичность всех байтов не заявляется.
+
+Снята собственная неопределённость о месте R49: готовая публикация есть, серверного обновления не доказано и автор прямо сообщает отказ. Это отдельный операционный блок, не SOURCE FAIL и не причина исторического installed ABORT. Запись A.json не повторена, другой форме/роли не поручена. Инициатор старого abort остаётся UNKNOWN. Владелец A/source scope сохраняется.
+
+### C — новая завершённая source-проверка потреблена вместо устаревшего START_INTENT
+
+В текущем C.json лично прочитан новый раздел `C04_NO_SESSION_FALSE_SUCCESS_20261019`, issued14:49:05.816126 UTC, base `dcdd2b51c09b5265d6e9ac1d6b9b14ca31db4537`. Контроллер не открывал C product source/tests, временную копию или review prompt/inline payload.
+
+После среза dot появились уже завершённые результаты:
+- C record сообщает final-validation start15:00:39.083150 и terminal observed15:01:53.472314 UTC. Готовый лог `/root/octoport-control/logs/C/C04_NOSESSION_PARTIAL_MAIN_DCDD_FINAL_GREEN_20261019.log` лично прочитан полностью, 14 строк: 2 files / 40 PASS, Prettier success, FINITE_FINAL_GREEN_ALL_CHECKS_PASS. Время Start18:00:39 в самом логе не объявляется UTC: UTC-привязка и exit0/empty-cgroup взяты из author record, не из собственного осмотра unit.
+- Candidate `f08bdac7502a2d935cadafa82e47b4321907575a`, parent dcdd2b51, только два owned runner/source-test пути. Это подтверждено готовым независимым verdict, а не чтением Контроллером diff.
+- `/root/octoport-control/logs/C/C04_NOSESSION_PARTIAL_F08_INDEPENDENT_REVIEW_RESULT_20261019.txt` лично прочитан полностью, 11 строк: **PASS_SOURCE_SCOPED_EXACT_F08BDAC7**. C сообщает existing codex2 GPT-6 Luna/xhigh, read-only, inactive/success/exit0/empty-cgroup; terminal observed15:05:22.154629 UTC, verdict SHA256 `316dcdd44df1debddf5b7d46fdc1a5df8322956939e4538583e6eb32e05ba53c`. Эти unit/hash поля — сохранённые сведения C; Контроллер не запускал помощника и не выдаёт их за отдельный собственный unit/hash audit.
+
+Содержательная защитная граница verdict: частично непроверенное no-session наблюдение не должно выдаваться за доказанный успех. Приоритеты drift/auth и ранее существовавших environment failures сохранены; перечни tested/unverified остаются различимы. Reviewer не выполнял тесты. Typed synthetic formatter fixtures не проверяют full schema parsing, runNoSessionBatch integration или внешнего provider. Это source-scoped изменение классификации, не обход ограничений доступа.
+
+Негативная quality история не стёрта: первая проверка зависимостей не прошла; R2 имел typecheck=2, lint=0, prettier=1 до format. Final GREEN закрыл заявленные focused/lint/format/diff границы, **не полный TypeScript**. Reviewer прямо оставил borrowed-dependency TypeScript check inconclusive, с ошибками в неизменённых transitive файлах. Полный TS PASS не объявляется.
+
+На прочитанном publication record15:05:22 только NONFORCE_FEATURE_BRANCH_PUSH_INTENT_ONLY; GitHub PR ещё не подтверждён, пять exact native CI не доказаны. Последующие публикации после этого readback в этом проходе не проверялись. SOURCE review теперь terminal, прежнее ожидание START_INTENT в собственной проекции снято. Current-main integration, package, installed Telegram, B/Ops delivery/authority и C06 этим не закрываются. Нового review/test/CI и поручения C нет.
+
+### B — принятый контракт и открытая совместимость сохранены без повторения
+
+Новой готовой первички B после ранее принятого static R1 этим поручением не представлено; продуктовая перепроверка B не выполнялась (NOT_RECHECKED). Для проверки текущего адресата прочитана только ограниченная начальная metadata B.json; старый root status POLICY_DECISION_INPUT_READY_NOT_ACCEPTED не отменяет уже принятую готовую addendum/публикацию о получении решения.
+
+OWNER_CONTRACT_DECIDED и доставка B остаются принятыми. Корректно эквивалентные Unicode/IDNA A-label одного домена учитываются как один домен; похожие разные домены не объединяются. IMPLEMENTATION_NOT_AUTHORIZED, AUTH_DB_NOT_AUTHORIZED, LEGACY_COLLISION_COUNTS_UNKNOWN сохранены. Exact object review tree f2bf88d6 принят на своём SOURCE scope с известным preexisting risk; это не candidate commit/full beta acceptance. B source/reproduction, старые local435/TS8/style12/build2, R1, контракт и доставка не перечитывались. C04 ACK отдельно остаётся NOT_OBSERVED в ранее принятом доказательстве: отсутствие нового ACK не доказывает простой и не разрешает повтор handoff.
+
+### Все десять пунктов фактической процедуры
+
+1. Проверены последний завершённый REPORT, author/parent, full blob, повторный ref и отсутствие retained background calls; неизвестной собственной мутации нет. Foreign PID не присвоен себе.
+2. Прочитан актуальный полный обязательный канон и действующий адресный prefix PRIORITY_TASKS. Поздние запреты применены по scope; errors/events не читались.
+3. Установлены задачи и владельцы новой дельты: existing A — Ozon/source R49; existing C — offline no-session source classification; existing B — совместимость шести Draft и IDNA план. Активные source/tests/WIP не читались и не перехватывались.
+4. Лично потреблены готовая публикация A, C current result pointer, completed final log и independent exact verdict. Предыдущие принятые package/local/CI/review не перезапускались и не повторялись.
+5. SOURCE/PATH A, local synthetic C, independent SOURCE C, native CI, PACKAGE, INSTALLED и LIVE/Store квалифицированы отдельно. Final40 не закрывает full TS/CI/installed.
+6. Перед записью собственного REPORT проверены expected ref/author/blob; только этот файл изменяется через CAS. Server locks/WIP недоказаны — серверных записей нет; чужие role records не исправляются.
+7. Собственное устаревшее ожидание C review заменено готовым exact terminal; A R49 publication связана с точным отрицательным исходом state write. Это проверяемые документальные исправления, не product acceptance.
+8. Actual consumption: C сам сохранил completed review15:05:22; B policy consumption остаётся ранее доказанным. Доставки C04/нового поручения не выдуманы, повторов неизвестных отправок нет. Потоковые чаты/Тестер не открывались.
+9. PLAN, история, WIP и карта исходных12OPEN сохранены. Ни новый source verdict, ни отказ записи не дают недостающих первоначальных durable/owner/refusal/correlation доказательств.
+10. Для остатков ниже разделены доказанная причина и UNKNOWN, ответственный, разрешённый следующий шаг, условие возврата, объём и организационные проблемы. audit_complete=false; новых запусков/ресурсов/реестров/архивов/расписаний нет.
+
+### Реальный остаток и ближайшая допустимая граница
+
+| Остаток | Причина / предел | Ответственный | Следующий разрешённый шаг и условие возврата |
+| --- | --- | --- | --- |
+| A.json R49 | Явный процитированный safety refusal; точные args/call ID/причина сверх текста UNKNOWN | A как исходный автор; dot/штатный канал платформы для исходной истории | Только уже сохранённый полный исходный вызов/ответ с UTC и ID, если он предоставлен. Никакого replay/alternate write. Возврат к server sync лишь по установленной неотказанной процедуре и fresh locks/WIP. |
+| A integration/release и старый ABORT | R49 только structural SOURCE/PATH; R45 PREPARING; физический инициатор ABORT UNKNOWN | Existing A; назначенный owner/Tester на своей границе | Потребить только новые готовые exact доказательства в разрешённом scope. Здесь новых CI/installed/owner запусков нет. |
+| C04 f08 source | Готовый независимый scoped PASS; full TS inconclusive | Existing C, единственный source author | Сохранять exact scope; потребить существующие готовые publication/native outcomes, когда представлены. Не повторять review. Возврат к native acceptance только с exact commit и всеми необходимыми исходами. |
+| C04 installed / B-Ops ACK | Source и installed carriers ранее различались; доставка/authority не доказаны, отсутствие ACK не причина простоя | Existing B/Ops и C verifier | Только готовый source-pinned package/authority/rollback/delivery receipt соответствующего процесса; handoff не дублировать, live не измерять. |
+| B IDNA/legacy совместимость | Контракт выбран и получен; collisions UNKNOWN, implementation/auth/DB не разрешены | Existing B; product/security/data custodian в своих полномочиях | Только разрешённый совместимый план и готовые защитные материалы; реальная data/implementation операция требует отдельного точного допуска. Повторного вопроса о выборе контракта нет. |
+| C06 / Opera / Store | Ранее принятый guest/source-only scope не доказывает authenticated Start-result-Finish, authority/catalog/пакет | C; B/Ops; владелец/назначенный Tester | Только подлинные готовые доказательства полномочий и своей проверенной границы. Draft/NO_SUBMIT; authority не придумывать и старый запрос не повторять. |
+| Server checkpoint / PRIORITY | Отказанный protected preflight; fresh locks/WIP не установлены | Controller своего checkpoint; dot/платформа исходной диагностики | Сохранённый первичный ответ/args/IDs и разрешённая неотказанная процедура. Не записывать посредством другого API/роли без защиты. |
+
+Исходные 12 обязательств не переоткрываются и не закрываются этим дополнением. Их индивидуальные cause/owner/next/return остаются в сохранённой карте:
+- 1–3 (B03 delivery, pre-ACK durability, B04 OTP/PG): новый C formatter и A path comparison не дают durable actor/two-relay/PG доказательств. Владельцы A/B и назначенный owner/Tester; следующий вход — только готовое точное доказательство соответствующей исходной границы, отказанные PG/ресурсные действия не повторять.
+- 4–5 и 8–12 (A05/two-ref, PR48/50, R14/private-env отказ, Sep29 origin, config drift, bound review bytes): первоначальные request/reply IDs, оригинальные bytes либо actor/time correlation по-прежнему отсутствуют в новой дельте. Ответственные — исходные авторы/публикующий/reviewer/platform custodian согласно карте. Следующий вход — уже сохранённая immutable первичка; новых публикаций, повторов отказов, реконструкций review или расширенного поиска ради подмены нет.
+- 6–7 (C06 genuine release authority и личная R3): нужных owner/authority/installed доказательств новая дельта не содержит. Ответственные B/Ops/C и владелец/назначенный Tester. Получение только подлинного готового результата; никаких чужих профилей, auth, Store или браузерных запусков.
+
+Это проверка применимости новой дельты к каждому из исходных12, а не вывод об отсутствии всей доступной работы из одного отсутствующего commit/ACK. Доступное собственное документальное действие выполнено в этом REPORT; недостающие исходные первичные данные, отдельные полномочия и platform denial нельзя заменить документальной правкой. Нет нового основания повторять принятые проверки. При появлении готовой первички доступное документальное продолжение остаётся открытым, аудит не завершён.
+
+### Сохранение checkpoint, объём и организационные проблемы
+
+Checkpoint прочитан readonly: первые20 и последние90 строк из33110. Tail сохраняет PLAN/history/WIP/original12 и map SHA `fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d`; это историческая ссылка, не заново вычисленный полный hash. Исторические WIP counts/locks не выданы за свежие. Последний полный verified checkpoint hash и timestamp остаются в header; свежей полной сверки/записи нет. Нового checkpoint/архива вместо заблокированного не создано.
+
+Объём этого прохода: nine canon full; Priority prefix100; A metadata8 lines + один готовый PR comment; B ограниченная root metadata (старые owner_requests не являются новыми командами); C tail430 + root9, один final log14 lines, один готовый verdict11 lines; checkpoint20+90; existing REPORT full blob/ref/commit/CAS/readback. Большие исторические result поля A, product source, inline review prompt, raw reproduction, refused original targets и Tester не открывались. Старые SOURCE/local/package/installed-synthetic/native evidence сохранены NOT_RECHECKED.
+
+Организационные проблемы: A publication новее серверного projection из-за явно сохранённого отказа; причина отказа не угадывается. C old next/intent в том же record уже дополнен terminal exact evidence — он не причина для нового запуска. B старый root label не отменяет доказанного получения контракта. Full TS проблема C отделена от focused40. Server checkpoint sync остаётся внешне ограниченным, не скрыт новым REPORT. C04 ACK не подменён IDNA ACK, no ACK не назван простоем. Заблокированная проверка Тестера не подменена.
+
+Новых tests/review/CI/helper/VM/browser/merge/exploitation/access-bypass/live/DB/security/auth/cleanup запусков Контроллера: 0. R7/R8, log118019352572, artifacts-route/targets, branch protection403, fullPG/B05/entitlement/supplemental consumer, protected preflight, B.json и новый A.json refusal не повторены и не обойдены. errors.json/events.jsonl не читались и не восстанавливались; B01/R3 и PR97/131/134 вне scope. Единственная мутация — тот же REPORT. Независимый readback выполняется после записи; успех не выводится из одного write acknowledgement. Все12OPEN, аудит IN_PROGRESS.
