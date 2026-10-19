@@ -1,7 +1,7 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-19T14:06:05.875Z; прямое решение владельца13:46 закрывает выбор Bdomain-equivalence policy. Совместимый план документально уточнён, реальные коллизии/конкретные допуски и доставкаB UNKNOWN. Cready13:38inventory16carriers:0/16complete,max0/6source matches, not runtimeproof. ServerCP сохранён без новой записи из-за неустановленной разрешённой freshlocks/WIP процедуры после адресного отказа preflight. Original12OPEN,audit_complete=false.
+- **Состояние на:** 2026-10-19T14:36:20.547Z; B получение IDNA лично подтверждено addendum/PR215comment: DELIVERY_UNKNOWN снят для этого решения. Новый exactGitobjectreview treef2bf88 VERIFIED/PASS_SOURCE_SCOPED_WITH_KNOWN_OPEN_PREEXISTING_RISK, FULL_BETA_NOT_ACCEPTED. C PR210Draft/open head a55b5ad8 опубликован14:25:15; OperaR19 толькоsigned-outguestinstalledsynthetic, безauth/Storeприёмки. A_R47толькоpathscope; CPserverblocked; original12OPEN,audit_complete=false.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** currentref `main=32b768862e69133f9f05c556ea2df3c238e1dbfc`, tree `e5a9f9be2606f92fff174e03757edd08f55a9364`; originalpush/attempt1 native5/5workflows13/13jobsSUCCESS, lastterminal13:14:17. Новые два terminal/jobs проверены лично, прежние Docs/Safety/I1 сохранены NOT_RECHECKED. Tester source/tests/чат не читались; native не означает installed/live/Store/owner приёмку.
@@ -5223,3 +5223,103 @@ Original12cause/responsible/next/return и картаSHAfe07ebdd425756e16e48e60b
 Организационные проблемы отдельно: неудавшаяся серверная фиксация dot и UNKNOWNдоставкаB; staleownerquestion в oldдокументах; отсутствие sourceсовпадающего carrier в точном наборе16. Собственное policyожидание снято в REPORT, условный план приведён к принятому решению, carrierнеопределённость документально сужена; serverCPsyncблок не скрыт и не обойдён. План/уведомление/REPORT не выдаются за actualdatareview/package/deployment или productPASS.
 
 Новых tests/review/CI/helper/VM/browser/merge/exploitation/accessbypass/live/DB/security/auth/cleanup/сбросов0. Alladdressedrefusals R7/R8/B.json/log118019352572/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer и protectedpreflight сохранены; никакого обхода. errors.json/events.jsonl, B01/R3, PR97/131/134 внеscope. Новых реестров/архивов/расписаний нет. Аудит IN_PROGRESS; original12OPEN.
+
+
+## Продолжение того же аудита — 2026-10-19T14:36:20.547Z, после REPORT 07cd8c4b
+
+Новый активный RDCping **14:31:37.023 UTC**, тот же Easyscriptdevice9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Работа / GPT-6.1 Sol / Очень высокое. Это продолжение существующего незавершённого аудита, без второго писателя/новогоhelper. PLAN/history/WIP/original12OPEN сохранены.
+
+### Собственные устаревшие ожидания, которые фактически сняты
+
+Лично сверены lastREPORT07cd8c4b85739f825268b7080a4dc28fcc902543, blob958aadd9af146dc0d62f70e50d107aa2d93705a5, полный текст820333chars, authorMaksimUnimax14:06:06,parenta296e7b0. Branchref повторно проверен непосредственно перед записью; retainedpendingcalls0, existingprotectedsession2354613 не затронута. Unknownownmutationнет.
+
+В текущем ownREPORT исправлены три отдельные проекции:
+1. **B IDNA deliveryUNKNOWN → фактическое получение/принятие решенияB подтверждено.**
+2. **Новый review treef2bf88 не excerpt-only:** existingreviewer независимо проверил Git objects/index/12paths; exactauthenticityVERIFIED, scopedsourcePASSсоткрытымpreexistingrisk.
+3. **C210 старое INTENT не означает отсутствие публикации:** точныйheadа55/commit и pinnedreadinessdoc опубликованы, а review/CI/installed/Storeприёмка отдельно не доказаны.
+
+Это исправления учёта по реальным уже выполненным A/B/C действиям. Ownwrite не объявляется причиной их публикаций/проверок. ServerCP, PRIORITY_TASKS, B.json и foreignsource/tests/WIP не редактировались.
+
+### B — direct contract consumption теперь доказано, C04 ACK отдельно
+
+Штатным read_file прочитан новый addendum к existing `logs/B/B06_SIX_DRAFT_MAIN3F_20261019/IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md`: строки45–83,39lines/0remaining, включая полностьюновыйраздел5. Addendum14:08:55 указан во входной передаче; собственное подтверждение публикации — точный [комментарий PR215](https://github.com/MaksimUnimax/runtime-fixtures/pull/215#issuecomment-6269233323), ID6269233323, authorMaksimUnimax, **created14:09:58 UTC, updated14:22:38 UTC**. Комментарий прочитан по publicissuecommentendpoint; чатBнеоткрывался.
+
+Статус первичных документов: **OWNER_CONTRACT_DECIDED / IMPLEMENTATION_NOT_AUTHORIZED / EXISTING_DATA_COLLISIONS_UNKNOWN**. B прямо признаёт решение владельца13:46: корректноэквивалентныеUnicode/IDNAA-labelодногодомена считаются однимдоменом дляaccounts/invitations/OTP; похожиеразныедомены не объединяются; localpartсохраняет прежние правила. Это закрывает именно староеожиданиедоставкирешенияB и выбораYES/NO. Владелец повторно не спрашивается, поручение не отправляется.
+
+Реализация, auth/DB/security/live/migrations, изменениесуществующихaccounts/локальнойчасти/произвольнаянормализация всёещё **НЕ разрешены**. Планзащитныхтребований сохраняет existingOTP/HMAC/requestId/idempotency и безопасныйtransition/collisiondisposition. Количество/наличиереальныхlegacycollisionsUNKNOWN: данныхБДдляэтогопроходане читали. АвторскаяточкаполученияIDNA не подтверждает **C04 B/Ops ACK**: это другие addressee/scope/evidence.
+
+В addendum ещё есть историческаяфраза о R2excerpts; она относится к прежнемуR2. Более поздний exactobjectverdict и supplementкомментария14:22 рассмотрены отдельно ниже. Все435/TS8/style12/build2acceptedNOT_RECHECKED, ниодинlocaltest/review/CIнеповторён.
+
+### B — готовый независимый exact Git-object verdict, без нового review
+
+Лично полностью прочитан **только готовый** `/root/octoport-control/logs/B/B06_SIX_DRAFT_MAIN3F_20261019/EXACT_TREE_INDEPENDENT_GIT_OBJECT_REVIEW_20261019.txt`,34lines/0remaining. Его SHA256 **8b67508885be1bbef92f4308c9cf64a478a95349960649c7b2e24da4909d9477** указан в independentlyaddressedPR215supplement; rawsource/inlineinput/reviewexecutionlog/reproductionнечитались. Новыйreview/helperне запускался.
+
+Фактический verdict:
+- **Exact object authenticity: VERIFIED**: reviewer прочитал baseHEAD3f6689a1c2a0ff4cca25c83cf751ff67a540879d; `f2bf88d6602f25ff4d78ef3d83ce7d0b73165e60` — Git **tree**; stagedindexравенполномутree; base→tree содержитровно12ожидаемыхпутей.
+- **PASS_SOURCE_SCOPED_WITH_KNOWN_OPEN_PREEXISTING_RISK**: reviewer не нашёл введённых P0/P1/P2регрессий в рассмотренных12файлах.
+- **FULL_BETA: NOT_ACCEPTED**: cross-authdomainidentitygap остаётся относительноуже принятогоконтракта; actuallegacydata/native/installed/runtime/rollbackотдельны.
+- Reviewer подтверждает прежнююне-регрессионнуюклассификациюпооригинальнымGitobjects и main32pathcompatibilityэтих12путей. Это новаякачественнаяграница относительностарогоR2excerpts.
+- **Treeнеcandidatecommit.** Нет SHA-boundnativeприёмкинабудущийcommit; reviewer не запускалтесты/build/CI и не проверялinstalled/liveDB/collisions/rollback. Авторскиесчётчики435/8/12/2неприсвоеныreviewer.
+
+Контроллер принимает факт готового независимоаутентифицированного scopedreview **этого tree**, а не выполняетповторноеcodereview. Новыйverdict больше не описываетсякакexcerpts-only. ИсторическийR2непереписан, fullbeta/releaseнеобъявленыпринятыми. Повторacceptedreviewне назначается: при появлениифактическогоcandidateнужны точнаяcommit→reviewedtree/currentbaseпривязка и настоящие применимыеgates; изменениятребуютсвоегообоснования.
+
+### C PR210 — публикация новой документальной ревизии вместо старого INTENT
+
+Собственный GitHub readback: **PR210open/Draft**, head `a55b5ad8c4ce7ade372aee1ffbdee5683399ebdd`, base db531677d1df06029020318342752c76e3a04058, **updated14:25:15 UTC**. GitcommitавторMaksimUnimax, created14:25:11 UTC,parent5e6954ee03251d762aaad06031d157989a798822. СамPRсуществуетс18.10.2026 00:16:37; речьобобновленииhead, а не новомPRсозданном14:25.
+
+ИсторическаяC.jsonintentзапись14:23:14 из входнойпередачи **предшествует** публикации14:25:15. Она не доказываетпоследующееотсутствиеGitHubmutation; foreignC.jsonне исправлялся. По существующей точнойпубликации собственное ожидание «не опубликовано» снято.
+
+Readinessдокумент `docs/product/readiness/OPERA_ADDONS_0_2_37_SUBMISSION_DRAFT_20261018.md` лично прочитан на **pinnedheadа55**, Gitblob **89ecaa31f0fdff84d6c8887a40afa145be011c65**,17737chars. Это SOURCE-документ подготовки, не независимаяприёмкапродукта/новыйreview/CI.
+
+Его новая строгаяqualificationR19:
+- Исторический A03Opera136.0.6008.22 /0.2.37 developerZIP **fbedd0b7b648c835c7328bee4019a97ab046a64fde6007b6b193a86d44db7f89**,41файл, — **PASS_INSTALLED_SYNTHETIC_SIGNED_OUT_GUEST_PRIVACY**.
+- R19подтверждает ограниченныйsigned-outguestpopup/privacyсрез. Нормальныйauthenticated/workAllowed, Start→реальныйрезультат→Finish не доказаны.
+- КонтрольHTTP(S)послеподключениянаблюдателя не покрываетполностьюраннююзагрузку/extensionworkernetwork.
+- DevelopmentcarrierнеOperaStorepackage/подпись; packageauthority/dashboard/действительныйSubmit **не доказаны**. Состояние **PREPARING, НЕ ГОТОВО К SUBMIT**.
+- СтарыеnegativeR17/R18/R19R1, старыйI1ABORTUNKNOWN и scopeразличияZIPсохранены; новыедокументальныессылкинастарыеproofsнепослужилиповодомчитатьихзаново.
+
+Контроллер не перепроверялисторическиетесты/ZIP/worker/browser/officialStorepolicy, не открывалdashboard/login и не делалSubmit. Текущийдокумент не превращёнвнезависимоеsourceapprovalнаa55или5/5CI: такихновыхпровероквэтомпроходенет. Отдельныйreview/CIстатусновогоhead **NOT_VERIFIED**, не выдуман изстарыхrevisionoutcomes. C06authority/targetнеизобретены.
+
+### A R47 — только path-level, с точной хронологической оговоркой
+
+ПрочитанpublishedR47раздел existingDraftPR228 exacthead1b00870c3aa2b56ba1b078eeecb14ee089187639. ID A04_OZON_R47_FULL_EIGHT_FILE_CURRENT_MAIN32B_PATH_COMPATIBILITY_20261019. Автор сообщаетполныйнабор8candidatepaths,42mainpaths, **0/8overlap** относительноmain32. Это укрепляеттолькопереченьпутей; newKimi composition/runtime/package/installedвместеэтимнепроверены. СтарыйnativeExtensionпроверялsyntheticmerge1bb33f1…вoldermain26, а не currentmain32composition. MissingexactServer/Coordination/currentbase/releaseграницысохранены; R45PREPARINGacceptedNOT_RECHECKED.
+
+**Timestampsне смешаны:** во входнойпередачеR47обозначен14:13:22. ЛичнопрочитанныйPRbodyсодержитissued **13:24:17.542UTC**, PRupdated **13:24:21UTC**. Поэтомуэточтениеквалифицированокакпозднеепокрытиеpublishednote, а не доказательствоновогопубликационногособытия14:13. Отдельныйprimaryисточникдляtimestamp14:13:22неполучен; причинаразличия **UNKNOWN**. ПросмотримёнодногосуществующегоAlogкаталога не далотдельногоR47файла; это не утверждениеобегоотсутствиивезде. Ни новыйcompare, ни source/test/ZIP/review/CI не запускались.
+
+### Десять пунктов текущего фактического прохода
+
+- 1. LastterminalREPORT07cd8c4b/ref/blob958aadd9/fullcontent/authorMaksimUnimax14:06:06/parenta296e7b0 проверены; pendingRemoteMCP0, protectedsession2354613 untouched, собственнойunknownоперации/дублянет.
+- 2. CurrentSTART/controller+WORK/PROTOCOL/selferror/ORG/resources/disk/temp полностью полученыread_file0remaining. Priorityfirst100lines/v10 прочитаны readonly; прямые поздние ограничения владельца сохранены.
+- 3. Новыеprimary: Baddendum+точныйGitHubcommentcreated/updated, readyexactobjectverdict, C210head/commit/pinnedreadinessdoc, A228publishedR47 лично прочитаны.
+- 4. Существующиеtests/review/CI не перезапущены: новыйготовыйverdict только consumed; старые435/TS8/style12/build2/main32native/R45acceptedNOT_RECHECKED.
+- 5. Уровниразделены: Btreeauthenticity/sourcePASSсриском ≠ candidatecommit/native/fullbeta; Cguestinstalledsynthetic ≠ authenticated/StartresultFinish/Store; Apathscope ≠ currentcomposition.
+- 6. Serverlocks/WIP/claims/freshCP не проверялись отказаннымpreflightилизаменителем; serverCP/PRIORITY/B.json/source/testsнеписались. Единственнаямутация — ownREPORTчерезGitHubversionCAS.
+- 7. Фактическиснятыownустаревшиеожидания IDNAdelivery, excerpt-only/unauthenticatedописание новогоtree review и C210неопубликованности; проверенныйreadbackREPORT отдельно.
+- 8. ActualBconsumptionproved by Bauthoraddendum+comment, Cpublicationproved byGitHub; C04ACKотдельноNOT_OBSERVED, неidle. Никакихduplicatehandoffs/чатов/reviews/helperstarts.
+- 9. PLAN/history/WIP/maporiginal12cause/responsible/next/return сохранены; решенияpolicy/reviewpublication не закрывают originaldurability/owner/refusal/installed/C06исходы.
+- 10. Причины/UNKNOWN/ответственные/next/return/объём/orgпроблемы и CPblock указаны; allrefusalskept, noerrors/events/registry/archive/schedules/liveDBauthcleanup/newtests/reviewCI.
+
+### Остатки и ближайшие разрешённые действия
+
+| Остаток | Проверенный исход / причина | Ответственный | Следующий допустимый шаг / условие возврата |
+| --- | --- | --- | --- |
+| B IDNA delivery / policychoice | ЗАКРЫТО именно получение решения B; OWNER_CONTRACT_DECIDED | ExistingBconsumer; владелецproduct/security за исходныйcontract | Не задавать вопрос повторно и не отправлятьдубль. C04ACKэтимнеподтверждён. |
+| B exact-object review gate | VERIFIED и scopedPASS для точного treef2bf88/12paths; tree неcommit | ExistingB/existingindependentreviewer | Сохранить готовый verdict без второго review. При будущем candidate проверятьcommit→reviewedtree/currentbase identity; не объявлять существующиеnativeCI на treeOID. |
+| B implementation / legacydata / fullbeta | IMPLEMENTATION_NOT_AUTHORIZED, collisionsUNKNOWN, acceptedcontractне реализован, FULL_BETA_NOT_ACCEPTED | ExistingB/security; product/security/data authority | Готовые разрешённые compatibility/collisiondisposition и конкретныеgrants. Никакихauth/DB/normalization/migration/mergeaccounts в этом проходе. |
+| A R47 composition / missinggates | 0/8pathoverlap не доказывает package/runtime/currentmaincomposition; прежние gates остаются | A solecandidate/sourceauthor; Testerсвойscope | Только готовые exact integrated/currentbase/missinggate proofs; R45PREPARING сохранёнNR, никакихповторныхtests/CI. |
+| C PR210 readiness/review / release | Публикацияa55 подтверждена, новыйreview/CIнеподтверждён; R19толькогостевойsynthetic | C documentaryreadiness; A/Testerinstalled; B-Ops/ownerauthority | Готовые exact source/package/authority/authenticatedworkflow документы; guestнеповышатьдоStore. No submit/login/install/newCI. |
+| C04 installed / delivery / C06 | ReceiptB/Opsнепредоставлен в новом наборе, C04ACKNOT_OBSERVED; carrier/source/runtime/rollback/authorityостаткипрежние | ExistingB/Ops soleinstalledauthor; Creadonlyconsumer; ownerauthority | Existinghandoffбезповтора; готовоеsource-pinnedrelease/rollback/loadedconsumer/deliveryauthority. C06вопроснеповторять. |
+| Ownserver checkpoint sync | Отказанныйprotectedpreflightнеповторён; безfreshlocksWIPкороткаясервернаязаписьневыполнена | ControllerownsCP; custodianoriginalrefusal | CPсохранёнblocked; только установленная разрешённая процедура может возобновитьsync, безобходаинструментомилидругимисполнителем. |
+| Original12 | Новой closureprimaryпоихконкретнымграницамнет в этойадреснойдельте | Исходные12custodiansбезизменений | Сохранённыеcause/responsible/next/return, exactrefusals иauditfalse. SourcePASS/docpublicationнеподменяютoriginaloutcomes. |
+
+Исходнаякарта12 и еёcause/responsible/next/return сохранены, audit_complete=false. ПоследнийverifiedmapSHAfe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d — прежняяпроверка, не новаясервернаяhashverification. НормативноеполучениеB, scopedtreePASS и публикацияCдокумента не являютсяclosureoriginaldurability/owner/refusal/reviewbytes/C06границ.
+
+### Серверный STOP, объём и организационные проблемы
+
+Отказанный start_process/protectedpreflight не повторялся и не заменялся другойкомандой/инструментом/исполнителем. **Servercheckpointостаётсяblocked**, никакихновыхguardedserverwritesбезlocksнебыло. PRIORITY_TASKS/B.json/foreignrole/source/tests/WIPнеписались. Serverfreshlocks/WIP/claims/targetFDs **NOT_RECHECKED**, последнееисторическоеWIPизCPнепредставленокакfresh. Единственнаямутация — этотсуществующийREPORTчерезknownblobCASпослеfreshref/authorпроверки, с независимымpinnedfulltext/parent/refreadback.
+
+Объём:9полныхmandatorycanonread_file, currentpriorityfirst100lines/v10readonly; readyBaddendum39lines + exactreview34lines + точныйPR215commentсcreated/updated; PR210head/commit/pinneddoc17737chars; publishedA228R47section; boundedAreadyfilenameinventory; GitHubREPORTfullblob/ref/commit и mainrefmetadata. Main32native5/13, oldlocal435/8/12/2, R45, C04inventory16/0 и старыеOperaR19proofs **NOT_RECHECKED**.
+
+Организационныепроблемы: прежнийdeliveryUNKNOWNпоBустарел и снят; новыйexactreviewнельзяобесцениватьстарымexcerptsописанием; Cintentраньшепубликациинеявляетсятекущимno-mutation; A14:13/13:24timestampsоставленыраздельно; C04ACKнеподменёнполучениемIDNA. Реальныереализация/legacydata/target/rollback/releaseграницыостаютсяотдельными. ServerCPsyncблокявный, не скрытвREPORTкаквыполненный. ЧатыA/B/C/Testerнеоткрывались, переносыведётвладелец; PR233иB01/R3нетронуты.
+
+Новыхtests/review/CI/helper/VM/browser/merge/exploitation/accessbypass/live/DB/security/auth/cleanup0. Всеexactrefusals R7/R8/log118019352572/B.json/artifactsroute/targets/branchprotection403/fullPG/B05/entitlement/supplementalconsumer/protectedpreflight и остальные сохранены,неповторены,необойдены. errors.json/events.jsonlнечитались/невосстанавливались; PR97/131/134внеscope. Новыхреестров/архивов/расписанийнет. PLAN/history/WIP/12OPENсохранены; аудитIN_PROGRESS.
