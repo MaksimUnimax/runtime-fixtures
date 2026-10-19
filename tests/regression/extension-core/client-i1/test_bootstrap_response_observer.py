@@ -144,6 +144,95 @@ class BootstrapObserverTest(unittest.TestCase):
         })
         self.assertNotIn("SECRET_PRIVATE_VALUE", str(observed))
 
+    def test_work_start_selects_exact_request_even_when_older_header_arrives_late(self):
+        prior = FakeResponse(request=FakeRequest(
+            url="http://127.0.0.1:43100/v1/bootstrap?PRIVATE_PRIOR"))
+        work_start = FakeResponse(request=FakeRequest(
+            url="http://127.0.0.1:43100/v1/bootstrap?PRIVATE_WORK"))
+        delayed_old = FakeResponse(request=FakeRequest(
+            url="http://127.0.0.1:43100/v1/bootstrap?PRIVATE_DELAYED"))
+        responses = [prior, work_start, delayed_old]
+        started = [(prior.request, "first_activation_window"),
+                   (delayed_old.request, "second_activation_window"),
+                   (work_start.request, "work_start_window")]
+        # A post-marker response is not necessarily a post-marker request.
+        selected = module.select_unique_work_start_bootstrap_response(
+            responses, started, prior_header_count=1)
+        self.assertIs(selected, work_start)
+        self.assertIsNot(selected, responses[-1])
+
+    def test_work_start_selector_fails_closed_on_ambiguity_and_stale_headers(self):
+        before = FakeResponse()
+        selected = FakeResponse()
+        concurrent = FakeResponse()
+        recorded = [(before.request, "second_activation_window"),
+                    (selected.request, "work_start_window")]
+        pick = module.select_unique_work_start_bootstrap_response
+        self.assertIs(pick([before, selected], recorded, 1), selected)
+        self.assertIsNone(pick([before], recorded, 1))
+        self.assertIsNone(pick([before, selected], recorded, 2))
+        self.assertIsNone(pick([before, selected], recorded, True))
+        self.assertIsNone(pick([before, selected], recorded, -1))
+        self.assertIsNone(pick([before, selected], recorded, 3))
+        self.assertIsNone(pick([before, selected],
+                               recorded + [(concurrent.request, "work_start_window")], 1))
+        self.assertIsNone(pick([before, selected, concurrent],
+                               recorded + [(concurrent.request, "work_start_window")], 1))
+        self.assertIsNone(pick([before, selected, FakeResponse(request=selected.request)],
+                               recorded, 1))
+        same_url_different_request = FakeResponse(
+            request=FakeRequest(url=selected.request.url))
+        self.assertIsNone(pick([before, same_url_different_request], recorded, 1))
+
+    def test_work_start_selected_identity_must_survive_body_read_race(self):
+        # One response is initially unique; a second Work Start request appears
+        # while the selected response body is read. No acceptance is possible.
+        previous = FakeResponse()
+        later = FakeResponse()
+        observed = [(previous.request, "second_activation_window")]
+        responses = [previous]
+
+        class RacingResponse(FakeResponse):
+            def json(self):
+                observed.append((later.request, "work_start_window"))
+                responses.append(later)
+                return {"synthetic": True}
+
+        selected = RacingResponse(request=FakeRequest())
+        observed.append((selected.request, "work_start_window"))
+        responses.append(selected)
+        self.assertIs(
+            module.select_unique_work_start_bootstrap_response(
+                responses, observed, 1),
+            selected,
+        )
+        with self.assertRaisesRegex(RuntimeError, "identity changed"):
+            module.read_completed_unique_work_start_bootstrap_response(
+                selected, responses, observed, 1,
+                FakeContext(), [selected.request], [],
+            )
+
+    def test_work_start_body_recheck_does_not_confuse_late_prior_response(self):
+        old = FakeResponse()
+        delayed_old = FakeResponse()
+        observed = [(old.request, "second_activation_window"),
+                    (delayed_old.request, "second_activation_window")]
+        responses = [old]
+
+        class LateOldHeader(FakeResponse):
+            def json(self):
+                responses.append(delayed_old)
+                return {"synthetic": True}
+
+        selected = LateOldHeader(request=FakeRequest())
+        observed.append((selected.request, "work_start_window"))
+        responses.append(selected)
+        result = module.read_completed_unique_work_start_bootstrap_response(
+            selected, responses, observed, 1,
+            FakeContext(), [selected.request], [],
+        )
+        self.assertEqual(result, {"synthetic": True})
+
     def test_event_identity_not_merely_same_request_url(self):
         selected = FakeResponse()
         other = FakeRequest(url=selected.request.url)

@@ -147,6 +147,35 @@ def safe_bootstrap_event_counts(responses, finished, failed, started, second_act
     return counts
 
 
+def select_unique_work_start_bootstrap_response(responses, started, prior_header_count):
+    """Select HTTP 200 by Request identity and Work Start initiation window.
+
+    Delayed headers received after Start may belong to older requests. A match
+    proves only the observed browser Request phase, not worker lease or grant.
+    Never serialize request URLs, bodies, tokens, or exception diagnostics.
+    """
+    if type(prior_header_count) is not int or prior_header_count < 0:
+        return None
+    try:
+        if prior_header_count > len(responses):
+            return None
+        active_requests = [
+            request for request, phase in started
+            if phase == "work_start_window"
+        ]
+        if len(active_requests) != 1:
+            return None
+        req = active_requests[0]
+        matching = [
+            response for response in responses[prior_header_count:]
+            if response.request is req
+        ]
+        return matching[0] if len(matching) == 1 else None
+    except Exception:
+        # Fail closed; untrusted Playwright details must not reach CI output.
+        return None
+
+
 def read_completed_bootstrap_response(response, context, completed_requests, failed_requests=None):
     # BrowserContext "response" fires on headers, before the HTTP body finishes.
     # A requestfailed event is terminal; an already aborted request can never
@@ -177,6 +206,30 @@ def read_completed_bootstrap_response(response, context, completed_requests, fai
         raise RuntimeError("signed AI bootstrap HTTP body was unreadable") from None
     if not isinstance(envelope, dict) or not envelope:
         raise RuntimeError("signed AI bootstrap HTTP response has invalid shape")
+    return envelope
+
+
+def read_completed_unique_work_start_bootstrap_response(
+    selected_response, responses, started, prior_header_count,
+    context, completed_requests, failed_requests=None,
+):
+    """Confirm Work Start Request uniqueness both before and after body read.
+
+    A second Work Start request can begin while reading the selected body.
+    Rechecking the existing in-memory handles avoids accepting an ambiguous
+    response as the only selected result. Neither check proves lease identity.
+    """
+    if selected_response is None or select_unique_work_start_bootstrap_response(
+        responses, started, prior_header_count,
+    ) is not selected_response:
+        raise RuntimeError("Work Start bootstrap request identity not unique")
+    envelope = read_completed_bootstrap_response(
+        selected_response, context, completed_requests, failed_requests,
+    )
+    if select_unique_work_start_bootstrap_response(
+        responses, started, prior_header_count,
+    ) is not selected_response:
+        raise RuntimeError("Work Start bootstrap request identity changed")
     return envelope
 
 
@@ -557,14 +610,19 @@ def run(runtime, output):
                     stage = _mark_stage(output, "work_start_state_wait_done", started)
                     stage = _mark_stage(output, "work_start_bootstrap_wait_begin", started)
                     bootstrap_response = wait_until(
-                        lambda: bootstrap_http_responses[-1] if bootstrap_http_responses else None,
-                        "signed AI bootstrap HTTP 200 observation",
+                        lambda: select_unique_work_start_bootstrap_response(
+                            bootstrap_http_responses,
+                            observed_bootstrap_request_windows,
+                            work_start_header_count,
+                        ),
+                        "unique Work Start bootstrap HTTP 200 observation",
                     )
                     stage = _mark_stage(output, "work_start_bootstrap_wait_done", started)
                     stage = _mark_stage(output, "work_start_bootstrap_body_begin", started)
-                    bootstrap_envelope = read_completed_bootstrap_response(
-                        bootstrap_response, context, completed_bootstrap_requests,
-                        failed_bootstrap_requests,
+                    bootstrap_envelope = read_completed_unique_work_start_bootstrap_response(
+                        bootstrap_response, bootstrap_http_responses,
+                        observed_bootstrap_request_windows, work_start_header_count,
+                        context, completed_bootstrap_requests, failed_bootstrap_requests,
                     )
                     stage = _mark_stage(output, "work_start_bootstrap_body_done", started)
                     stage = _mark_stage(output, "work_start_profile_eval_begin", started)
