@@ -253,6 +253,143 @@ describe("A4 semantic API diffs", () => {
     ]);
   });
 
+  it("C03 resolves local OpenAPI Path Item refs and detects contract deltas", () => {
+    const build = (
+      oas: "3.0.3" | "3.1.0",
+      status: string,
+      referenced: boolean,
+      sha256: string,
+    ) => {
+      const operation = {
+        get: {
+          operationId: "listOrders",
+          responses: { [status]: { description: "synthetic" } },
+        },
+      };
+      const document =
+        oas === "3.1.0"
+          ? {
+              openapi: oas,
+              info: { title: "ref", version: "1" },
+              components: { pathItems: { Orders: operation } },
+              paths: {
+                "/orders": referenced
+                  ? { $ref: "#/components/pathItems/Orders" }
+                  : operation,
+              },
+            }
+          : {
+              openapi: oas,
+              info: { title: "ref", version: "1" },
+              paths: {
+                "/prototype": operation,
+                "/orders": referenced
+                  ? { $ref: "#/paths/~1prototype" }
+                  : operation,
+              },
+            };
+      return buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: sha256,
+        bytes: Buffer.from(JSON.stringify(document)),
+        filename: "openapi.json",
+      });
+    };
+    for (const oas of ["3.0.3", "3.1.0"] as const) {
+      const inline = build(oas, "200", false, BASE_SHA);
+      const base = build(oas, "200", true, BASE_SHA);
+      const target = build(oas, "201", true, TARGET_SHA);
+      expect(base.operationCount).toBe(inline.operationCount);
+      expect(base.operations.find((op) => op.path === "/orders")?.method).toBe(
+        "GET",
+      );
+      const diff = diffInventories({ base, target });
+      expect(diff.changedCount).toBe(base.operationCount);
+      expect(diff.operations.find((op) => op.path === "/orders")?.state).toBe(
+        "CHANGED",
+      );
+      expect(
+        diff.operations.find((op) => op.path === "/orders")?.deltas,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: "responseStatusKeys" }),
+        ]),
+      );
+    }
+  });
+
+  it("C03 preserves nonconflicting local Path Item reference siblings", () => {
+    const inventory = buildCompleteOperationInventory({
+      sourceFamily: FAMILY,
+      snapshotSha256: BASE_SHA,
+      filename: "openapi.json",
+      bytes: Buffer.from(
+        JSON.stringify({
+          openapi: "3.1.0",
+          info: { title: "ref siblings", version: "1" },
+          components: {
+            pathItems: {
+              Shared: {
+                get: { responses: { "200": { description: "ok" } } },
+              },
+            },
+          },
+          paths: {
+            "/orders": {
+              $ref: "#/components/pathItems/Shared",
+              post: { responses: { "204": { description: "ok" } } },
+            },
+          },
+        }),
+      ),
+    });
+    expect(inventory.operations.map((op) => op.method)).toEqual([
+      "GET",
+      "POST",
+    ]);
+    expect(inventory.operations.every((op) => op.path === "/orders")).toBe(
+      true,
+    );
+  });
+
+  it("C03 refuses unresolved, recursive, external and overlapping Path Item refs", () => {
+    const build = (pathItem: unknown, referenced: unknown = {}) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "invalid ref", version: "1" },
+            components: { pathItems: { Shared: referenced } },
+            paths: { "/orders": pathItem },
+          }),
+        ),
+      });
+    expect(() =>
+      build({ $ref: "#/components/pathItems/Missing" }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_UNRESOLVED");
+    expect(() =>
+      build({ $ref: "remote.yml#/paths/~1orders" }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_UNSUPPORTED");
+    expect(() =>
+      build(
+        { $ref: "#/components/pathItems/Shared" },
+        { $ref: "#/components/pathItems/Shared" },
+      ),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_CYCLE_OR_DEPTH");
+    expect(() =>
+      build(
+        {
+          $ref: "#/components/pathItems/Shared",
+          get: { responses: { "201": { description: "local" } } },
+        },
+        { get: { responses: { "200": { description: "ref" } } } },
+      ),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_CONFLICT");
+  });
+
   it("C03 detects response-level local ref target changes", () => {
     const build = (responseSchema: unknown) =>
       buildCompleteOperationInventory({
