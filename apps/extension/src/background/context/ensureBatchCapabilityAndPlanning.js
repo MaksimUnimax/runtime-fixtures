@@ -64,6 +64,7 @@ async function ensureBatchCapabilityAndPlanning({
       subscription_type: "UNKNOWN",
       is_premium: null,
       probe_performed: false,
+      probe_observation: "NOT_NEEDED",
       probe_http_status: 0,
       probe_error_code: null,
     };
@@ -88,6 +89,7 @@ async function ensureBatchCapabilityAndPlanning({
           capability_resolution: {
             state: "not_needed",
             probe_performed: false,
+            probe_observation: "NOT_NEEDED",
             profile,
             resolved_at: new Date().toISOString(),
           },
@@ -177,7 +179,8 @@ async function ensureBatchCapabilityAndPlanning({
             ...current.batch,
             capability_resolution: {
               state: "requesting",
-              probe_performed: true,
+              probe_performed: false,
+              probe_observation: "RESERVED_NOT_SENT",
               request_worker_session_id: WORKER_SESSION_ID,
               started_at: new Date().toISOString(),
               profile: null,
@@ -217,7 +220,16 @@ async function ensureBatchCapabilityAndPlanning({
               ...current.batch,
               capability_resolution: {
                 state: "complete",
-                probe_performed: true,
+                probe_performed:
+                  typeof profile.probe_performed === "boolean"
+                    ? profile.probe_performed
+                    : null,
+                probe_observation: [
+                  "NOT_ATTEMPTED", "FETCH_INVOKED_OUTCOME_UNKNOWN",
+                  "RESPONSE_OBSERVED",
+                ].includes(profile.probe_observation)
+                  ? profile.probe_observation
+                  : "LEGACY_UNKNOWN",
                 profile,
                 resolved_at: new Date().toISOString(),
                 request_worker_session_id: null,
@@ -355,7 +367,9 @@ async function ensureBatchCapabilityAndPlanning({
     owner_kind: ownerKind,
     owner_id: ownerId,
     capability_probe_performed:
-      owner.batch.capability_resolution?.probe_performed === true,
+      owner.batch.capability_resolution?.probe_performed ?? null,
+    capability_probe_observation:
+      owner.batch.capability_resolution?.probe_observation || "LEGACY_UNKNOWN",
     capability_status:
       owner.batch.capability_resolution?.profile?.status || "not_needed",
     planned_command_count: plannedEntries.filter(

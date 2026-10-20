@@ -77,6 +77,8 @@ def main():
                        ["node", ROOT / "tests/regression/extension-core/ozon-seller-postfetch-diagnostics.mjs", provider, transport])
             runner.run(label + "-ozon-seller-capability-public-codes",
                        ["node", ROOT / "tests/regression/extension-core/ozon-seller-capability-code-redaction.mjs", provider, transport, ROOT])
+            runner.run(label + "-ozon-fresh-batch-durable-probe",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-fresh-batch-probe-observation.mjs", runtime / "service_worker.js", ROOT])
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
             runner.run(label + "-ozon-guidance-entitlement", ["node", ROOT / "tests/regression/extension-core/ozon-guidance-entitlement.mjs", runtime])
             runner.run(label + "-ozon-advertising-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-advertising-guidance-readiness.mjs", runtime])
