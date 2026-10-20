@@ -1370,5 +1370,55 @@
     "target": "shared/ai_delivery_capabilities.js",
     "old": "    if (host === \"claude.ai\") return \"claude\";",
     "new": "    if (host === \"claude.ai\") return \"claude\";\n    if (host === \"chat.deepseek.com\") return \"deepseek\";"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if (activeDeliveryWatch) stopDeliveryWatch(\"replaced\");\n    const state = {",
+    "new": "    if (activeDeliveryWatch) stopDeliveryWatch(\"replaced\");\n    const observationAdapterId = currentAIAdapter()?.id;\n    const requiresObservationEpoch = [\"claude\", \"deepseek\"].includes(observationAdapterId);\n    const observationEpoch = () => {\n      const adapter = currentAIAdapter();\n      return adapter?.id === observationAdapterId ? adapter.messageObservationEpoch?.() || \"\" : \"\";\n    };\n    const state = {"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      qwen_expected_text: [\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id) ? canonicalText(recovery.outgoing_text || \"\") : \"\",",
+    "new": "      qwen_expected_text: [\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id) ? canonicalText(recovery.outgoing_text || \"\") : \"\",\n      // Required even with an empty baseline: document-local IDs cannot survive\n      // a message-list remount or recovery in a different observation epoch.\n      user_observation_epoch: requiresObservationEpoch ? (recovery.send_click_committed === true ?\n        (typeof recovery.user_observation_epoch === \"string\" ? recovery.user_observation_epoch : \"\") : observationEpoch()) : \"\","
+  },
+  {
+    "target": "content_script.js",
+    "old": "        stopDeliveryWatch(\"conversation_changed\");\n        return { ok: false, code: \"CONVERSATION_MISMATCH\" };\n      }\n      const classified = classifyComposerControl();",
+    "new": "        stopDeliveryWatch(\"conversation_changed\");\n        return { ok: false, code: \"CONVERSATION_MISMATCH\" };\n      }\n      if (requiresObservationEpoch && (!state.user_observation_epoch || observationEpoch() !== state.user_observation_epoch)) {\n        stopDeliveryWatch(\"message_surface_changed\");\n        return { ok: false, code: \"DELIVERY_BASELINE_CHANGED\" };\n      }\n      const classified = classifyComposerControl();"
+  },
+  {
+    "target": "content_script.js",
+    "old": "        const witnessedId = state.send_click_committed && state.qwen_expected_text &&",
+    "new": "        const candidateWitnessId = state.send_click_committed && state.qwen_expected_text &&"
+  },
+  {
+    "target": "content_script.js",
+    "old": "            row.text === state.qwen_expected_text)?.id;\n        if (!witnessedId)",
+    "new": "            row.text === state.qwen_expected_text)?.id;\n        const witnessedId = candidateWitnessId && (!requiresObservationEpoch ||\n          observationEpoch() === state.user_observation_epoch) ? candidateWitnessId : null;\n        if (!witnessedId)"
+  },
+  {
+    "target": "content_script.js",
+    "old": "              await saCheckDelivery(state);\n              if (saContentContext) {",
+    "new": "              await saCheckDelivery(state);\n              if (requiresObservationEpoch && (!state.user_observation_epoch || observationEpoch() !== state.user_observation_epoch))\n                throw Object.assign(new Error(\"Delivery message surface changed\"), { code: \"DELIVERY_BASELINE_CHANGED\" });\n              if (saContentContext) {"
+  },
+  {
+    "target": "content_script.js",
+    "old": "                const commit = await sendRuntime(\"OZ_WORK_SEND_COMMIT\", { conversation_key: state.conversation_key, owner_id: state.owner_id, delivery_id: state.delivery_id, actor_id: runtimeId, chatgpt_user_baseline: chatgptBaseline });",
+    "new": "                const commit = await sendRuntime(\"OZ_WORK_SEND_COMMIT\", { conversation_key: state.conversation_key, owner_id: state.owner_id, delivery_id: state.delivery_id, actor_id: runtimeId, chatgpt_user_baseline: chatgptBaseline, user_observation_epoch: requiresObservationEpoch ? state.user_observation_epoch : undefined });"
+  },
+  {
+    "target": "content_script.js",
+    "old": "                if ([\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id)) state.qwen_user_baseline = commit?.ok && commit.send_click_committed === true && Array.isArray(commit.chatgpt_user_baseline) ? new Set(commit.chatgpt_user_baseline) : null;",
+    "new": "                if ([\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id)) state.qwen_user_baseline = commit?.ok && commit.send_click_committed === true && Array.isArray(commit.chatgpt_user_baseline) ? new Set(commit.chatgpt_user_baseline) : null;\n                if (requiresObservationEpoch) state.user_observation_epoch = commit?.ok && commit.send_click_committed === true &&\n                  typeof commit.user_observation_epoch === \"string\" ? commit.user_observation_epoch : \"\";"
+  },
+  {
+    "target": "content_script.js",
+    "old": "              if (state.cancelled || activeDeliveryWatch !== state) throw Object.assign(new Error(\"Delivery stopped\"), { code: \"EXECUTION_CONTEXT_CHANGED\" });\n              button.click();",
+    "new": "              if (state.cancelled || activeDeliveryWatch !== state) throw Object.assign(new Error(\"Delivery stopped\"), { code: \"EXECUTION_CONTEXT_CHANGED\" });\n              if (requiresObservationEpoch && (!state.user_observation_epoch || observationEpoch() !== state.user_observation_epoch))\n                throw Object.assign(new Error(\"Delivery message surface changed\"), { code: \"DELIVERY_BASELINE_CHANGED\" });\n              button.click();"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    chatgpt_user_baseline: Array.isArray(operation.delivery?.sa_chatgpt_user_baseline) ? operation.delivery.sa_chatgpt_user_baseline : null,",
+    "new": "    chatgpt_user_baseline: Array.isArray(operation.delivery?.sa_chatgpt_user_baseline) ? operation.delivery.sa_chatgpt_user_baseline : null,\n    user_observation_epoch: typeof operation.delivery?.sa_user_observation_epoch === \"string\" ? operation.delivery.sa_user_observation_epoch : null,"
   }
 ]

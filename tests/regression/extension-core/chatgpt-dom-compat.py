@@ -715,6 +715,12 @@ def run_b02_delivery_watch(runtime: Path, output: Path, only_provider=None):
     start=worker.index("function expectedDeliveryConfirmationBasis(")
     basis=worker[start:worker.index("\nfunction legacyConversationKey(",start)]
     identity=(runtime/"shared/conversation_identity.js").read_text()
+    application=(runtime/"shared/application.js").read_text()
+    commit_start=application.index("      let granted = false, committedDelivery = null;")
+    commit_source=application[commit_start:application.index("\n    }\n    if (message.type === \"OZ_WORK_START\")",commit_start)]
+    recovery_start=worker.index("function manualBatchRecoveryPayload(")
+    recovery_source=worker[recovery_start:worker.index("\n}\n",recovery_start)+3]
+
     result={"status":"RUNNING","scope":"B02 actual batch-watch confirmation code, synthetic button/turns; no authority or installed acceptance",
             "content_sha256":hashlib.sha256(content.encode()).hexdigest(),"worker_sha256":hashlib.sha256(worker.encode()).hexdigest(),"cases":{}}
     failures=[]
@@ -723,11 +729,15 @@ def run_b02_delivery_watch(runtime: Path, output: Path, only_provider=None):
     script=r"""async ({id,origin,scenario,watch,basis})=>{
       const key=origin+'|local:fixture',old=document.createElement('div'),button=document.createElement('button');
       old.id='OLD';old.textContent=scenario==='old_matching'?'REPORT':'OLD BODY';document.body.append(old,button);
+      const requiresEpoch=['claude','deepseek'].includes(id),epoch1='11111111-1111-4111-8111-111111111111',epoch2='22222222-2222-4222-8222-222222222222';
+      let epoch=epoch1;
       const rows=[old],messages=[],commits=[],diagnostics=[];let clicks=0,wakes=0,stage=scenario.startsWith('restore')?'ready':'send';
+      if(scenario.includes('empty_baseline')){rows.length=0;old.remove()}
+      if(scenario==='remount_matching')old.textContent='REPORT';
       function add(text){const n=document.createElement('div');n.id='NEW';n.textContent=text;rows.push(n);document.body.append(n)}
       if(scenario.startsWith('restore'))add('REPORT');
-      button.addEventListener('click',()=>{clicks++;stage='ready';if(scenario==='matching')add('REPORT');else if(scenario==='wrong_text')add('OTHER')});
-      const adapter={id,userMessages:()=>rows,messageId:n=>n.id,messageText:n=>n.textContent};
+      button.addEventListener('click',()=>{clicks++;stage='ready';if(['matching','empty_baseline_matching'].includes(scenario))add('REPORT');else if(scenario==='wrong_text')add('OTHER');else if(scenario.startsWith('remount')){epoch=epoch2;if(rows.length)rows[0].id='REMOUNTED';else add('REPORT')}});
+      const adapter={id,userMessages:()=>rows,messageId:n=>n.id,messageText:n=>n.textContent,messageObservationEpoch:()=>epoch};
       const env={
         HTMLElement,current:()=>true,currentAIAdapter:()=>adapter,userTurnIds:()=>rows.map(n=>n.id),
         canonicalText:v=>String(v||'').replace(/\s+/g,' ').trim(),
@@ -739,44 +749,87 @@ def run_b02_delivery_watch(runtime: Path, output: Path, only_provider=None):
         setManualBridgeReady:()=>{},toast:()=>{},sleep:async()=>{},DELIVERY_WATCH_INTERVAL_MS:1,BB2ConversationIdentity,origin
       };
       env.messages=messages;env.commits=commits;env.wake=()=>wakes++;env.wakes=()=>wakes;
+      env.commitEpoch=p=>{if(scenario==='commit_remount')epoch=epoch2;return p.user_observation_epoch};
       const code=basis+
         "\nlet activeDeliveryWatch=null;\n"+
         "function stopDeliveryWatch(){if(activeDeliveryWatch)activeDeliveryWatch.cancelled=true;activeDeliveryWatch=null}\n"+
         "async function waitForDeliveryWatchWake(s){env.wake();if(env.wakes()>=3)s.cancelled=true}\n"+
         "async function sendRuntime(type,payload){"+
-          "if(type==='OZ_WORK_SEND_COMMIT'){env.commits.push(payload);return {ok:true,click_allowed:true,send_click_committed:true,chatgpt_user_baseline:payload.chatgpt_user_baseline}}"+
+          "if(type==='OZ_WORK_SEND_COMMIT'){env.commits.push(payload);return {ok:true,click_allowed:true,send_click_committed:true,chatgpt_user_baseline:payload.chatgpt_user_baseline,user_observation_epoch:env.commitEpoch(payload)}}"+
           "if(type==='OZ_BATCH_DELIVERY_COMPLETE'){env.messages.push(payload);return {ok:acceptedDeliveryConfirmationBasis(env.origin,payload.confirmation_basis)}}"+
           "throw new Error('unexpected message '+type);}\n"+
         watch+"\nreturn {run:runBatchDeliveryWatch,basis:expectedDeliveryConfirmationBasis(origin)};";
       const built=new Function('env',...Object.keys(env),code),api=built(env,...Object.values(env));
       const recovery={delivery_mode:'batch_watch_v1',owner_kind:'autorun',owner_id:'fixture-run',run_id:'fixture-run',origin,conversation_id:'local:fixture',conversation_key:key,delivery_id:'fixture-delivery',outgoing_text:'REPORT',send_click_committed:scenario.startsWith('restore')};
-      if(scenario==='restore_known')recovery.chatgpt_user_baseline=['OLD'];
+      if(scenario.startsWith('restore') && scenario!=='restore_missing')recovery.chatgpt_user_baseline=scenario.includes('empty_baseline')?[]:['OLD'];
+      if(requiresEpoch && scenario.startsWith('restore') && !['restore_missing','restore_epoch_missing'].includes(scenario))
+        recovery.user_observation_epoch=scenario==='restore_epoch_changed'||scenario==='restore_empty_baseline_changed'?epoch2:epoch1;
       const outcome=await api.run(recovery);
       return {ok:outcome.delivered===true,clicks,commits:commits.length,completions:messages.length,
         serializedBaseline:commits[0]?.chatgpt_user_baseline||null,confirmedId:messages[0]?.confirmed_user_turn_id||null,
-        basis:messages[0]?.confirmation_basis||null,expectedBasis:api.basis};
+        basis:messages[0]?.confirmation_basis||null,expectedBasis:api.basis,epoch:commits[0]?.user_observation_epoch||null,code:outcome.code||null};
     }"""
     with sync_playwright() as p:
         browser=p.chromium.launch(headless=True);context=browser.new_context()
         context.route("**/*",lambda route:route.fulfill(status=200,content_type="text/html",body="<html></html>"));page=context.new_page()
         for provider,origin in origins.items():
-            for scenario in ["matching","empty_ready","wrong_text","old_matching","restore_known","restore_missing"]:
+            scenarios=["matching","empty_ready","wrong_text","old_matching","restore_known","restore_missing"]
+            if provider in ["claude","deepseek"]:
+                scenarios+=["remount_matching","remount_empty_baseline","empty_baseline_matching","restore_epoch_changed","restore_epoch_missing","restore_empty_baseline_changed","restore_empty_baseline_known","commit_remount"]
+            for scenario in scenarios:
                 name=provider+"_"+scenario
                 try:
                     page.goto(origin+"/fixture");page.set_content("<html><body></body></html>");page.evaluate(identity)
                     actual=page.evaluate(script,{"id":provider,"origin":origin,"scenario":scenario,"watch":watch,"basis":basis})
-                    positive=scenario in ["matching","restore_known"]
+                    positive=scenario in ["matching","restore_known","empty_baseline_matching","restore_empty_baseline_known"]
                     assert actual["ok"] is positive,actual
-                    assert actual["clicks"]==(0 if scenario.startswith("restore") else 1),actual
-                    assert actual["commits"]==actual["clicks"],actual
+                    assert actual["clicks"]==(0 if scenario.startswith("restore") or scenario=="commit_remount" else 1),actual
+                    assert actual["commits"]==(0 if scenario.startswith("restore") else 1),actual
                     assert actual["completions"]==(1 if positive else 0),actual
                     expected="microphone" if provider=="chatgpt" else "alice_ready" if provider=="alice" else provider+"_user_turn_ready"
                     if positive:assert actual["basis"]==expected and actual["confirmedId"]=="NEW",actual
-                    if not scenario.startswith("restore"):assert actual["serializedBaseline"]==["OLD"],actual
+                    if not scenario.startswith("restore"):
+                        assert actual["serializedBaseline"]==([] if "empty_baseline" in scenario else ["OLD"]),actual
+                        if provider in ["claude","deepseek"]:assert actual["epoch"]=="11111111-1111-4111-8111-111111111111",actual
+                    if scenario in ["remount_matching","remount_empty_baseline","restore_epoch_changed","restore_epoch_missing","restore_empty_baseline_changed","commit_remount"]:
+                        assert actual["code"]=="DELIVERY_BASELINE_CHANGED",actual
                     assert actual["expectedBasis"]==expected,actual
                     result["cases"][name]={"status":"PASS"}
                 except Exception as exc:
                     failures.append(name);result["cases"][name]={"status":"FAIL","error":str(exc)[:1100]}
+        # Exercise the actual worker storage/ACK/recovery serializers with ordinary
+        # empty, populated and legacy baselines. Authority dependencies are isolated;
+        # these cases make no installed or authorization-test claim.
+        worker_script=r"""async ({commitSource,recoverySource,kind})=>{
+          const epoch='11111111-1111-4111-8111-111111111111';
+          let saved={operation_id:'owner',tab_id:1,status:'delivering',conversation_key:'fixture',
+            origin:'https://chat.deepseek.com',conversation_id:'fixture',
+            delivery:{delivery_id:'delivery',mode:'batch_watch_v1',phase:'inserted'}};
+          const baseline=kind==='populated'?['OLD']:[];
+          const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+          const commit=new AsyncFunction('message','key','id','mutateManualOperation','saAssertDeliveryOwner','saError',commitSource);
+          const mutate=async(key,fn)=>{saved=await fn(saved)},guard=async()=>{},error=code=>Object.assign(new Error(code),{code});
+          const first=await commit({delivery_id:'delivery',actor_id:'actor',chatgpt_user_baseline:baseline,
+            ...(kind==='legacy'?{}:{user_observation_epoch:epoch})},'fixture','owner',mutate,guard,error);
+          const second=await commit({delivery_id:'delivery',actor_id:'actor',chatgpt_user_baseline:['LATER'],
+            user_observation_epoch:'22222222-2222-4222-8222-222222222222'},'fixture','owner',mutate,guard,error);
+          const recover=new Function('MANUAL_OPERATION_STATUSES',recoverySource+';return manualBatchRecoveryPayload')({DELIVERING:'delivering'});
+          const recovery=recover(saved,'RECOVERY'),expected=kind==='legacy'?null:epoch;
+          return {first:first.click_allowed,second:second.click_allowed,
+            epoch:[saved.delivery.sa_user_observation_epoch,first.user_observation_epoch,second.user_observation_epoch,recovery.user_observation_epoch],
+            baseline:[first.chatgpt_user_baseline,second.chatgpt_user_baseline,recovery.chatgpt_user_baseline],
+            expected,baselineExpected:baseline,committed:recovery.send_click_committed};
+        }"""
+        for kind in ["empty","populated","legacy"]:
+            name="worker_observation_epoch_"+kind
+            try:
+                actual=page.evaluate(worker_script,{"commitSource":commit_source,"recoverySource":recovery_source,"kind":kind})
+                assert actual["first"] is True and actual["second"] is False and actual["committed"] is True,actual
+                assert actual["epoch"]==[actual["expected"]]*4,actual
+                assert actual["baseline"]==[actual["baselineExpected"]]*3,actual
+                result["cases"][name]={"status":"PASS"}
+            except Exception as exc:
+                failures.append(name);result["cases"][name]={"status":"FAIL","error":str(exc)[:1100]}
         browser.close()
     result["status"]="FAIL" if failures else "PASS";result["failed"]=failures
     (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
@@ -921,6 +974,9 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None):
         case("assistant_growth_keeps_user_witness","const id=a.messageId(u);v.querySelector('pre').textContent+=' MORE';return a.messageId(u)===id",True)
         case("user_edit_retires_epoch","const id=a.messageId(v);u.firstElementChild?u.firstElementChild.textContent='EDITED':u.textContent='EDITED';return a.messageId(v)!==id",True)
         case("remount_retires_all_witnesses","const id=a.messageId(v);u.replaceWith(u.cloneNode(true));return a.messageId(v)!==id",True)
+        case("explicit_epoch_remount","const epoch=a.messageObservationEpoch();u.replaceWith(u.cloneNode(true));return [!!epoch,a.messageObservationEpoch()!==epoch]",[True,True])
+        case("empty_observation_epoch","u.remove();v.remove();const epoch=a.messageObservationEpoch();return [!!epoch,a.userMessages().length,epoch===a.messageObservationEpoch()]",[True,0,True])
+        case("root_replacement_retires_empty_epoch","u.remove();v.remove();const root=a.conversationRoot(),epoch=a.messageObservationEpoch();root.replaceWith(root.cloneNode(true));return [!!epoch,a.messageObservationEpoch()!==epoch]",[True,True])
         case("remove_retires_all_witnesses","const id=a.messageId(v);u.remove();return a.messageId(v)!==id",True)
         case("path_change_retires_witness","const id=a.messageId(u);history.pushState({},'',location.pathname+'-b');return a.messageId(u)!==id",True)
         case("unknown_upload_not_ready","return [a.attachmentReady([{filename:'report.txt',byte_length:16}]),a.sentAttachmentMessage(u,[{filename:'report.txt',byte_length:16}])]",[False,None])

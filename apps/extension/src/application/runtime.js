@@ -1782,14 +1782,19 @@ async function saHandleMessage(message, sender) {
         const baseline = message.chatgpt_user_baseline;
         if (baseline !== undefined && (!Array.isArray(baseline) || baseline.length > 4096 ||
           !Array.from(baseline).every(id => typeof id === "string" && id.length > 0 && id.length <= 512))) throw saError("DELIVERY_BASELINE_INVALID");
+        const observationEpoch = message.user_observation_epoch;
+        if (observationEpoch !== undefined && (typeof observationEpoch !== "string" ||
+          !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(observationEpoch))) throw saError("DELIVERY_BASELINE_INVALID");
         granted = true;
         committedDelivery = { ...owner.delivery, sa_send_actor: message.actor_id, sa_send_committed_at: Date.now(),
-          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null };
+          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null,
+          sa_user_observation_epoch: observationEpoch || null };
         return { ...owner, delivery: committedDelivery };
       });
       return { ok: true, click_allowed: granted, code: granted ? "SEND_COMMITTED" : "SEND_OUTCOME_UNKNOWN_NO_RETRY",
         send_click_committed: Boolean(committedDelivery?.sa_send_actor),
-        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null };
+        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null,
+        user_observation_epoch: typeof committedDelivery?.sa_user_observation_epoch === "string" ? committedDelivery.sa_user_observation_epoch : null };
     }
     if (message.type === "OZ_WORK_START") throw saError("STORE_SELECTION_REQUIRED");
     if (["OZ_WORK_SHOW", "OZ_WORK_HIDE", "OZ_WORK_FINISH", "OZ_WORK_REFRESH"].includes(message.type) && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");

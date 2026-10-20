@@ -97,6 +97,7 @@
       return observeMessages().rows.filter(r=>r.role==="assistant" && eligible.has(r.node.querySelector(".ds-markdown.ds-assistant-message-main-content"))).map(r=>r.node);
     }
     function messageId(node) { return observeMessages().ids.get(node) || ""; }
+    function messageObservationEpoch() { observeMessages(); return observation?.epoch || ""; }
     function messageText(node) {
       const root=conversationRoot(),role=root ? roleOf(node,root) : "";
       return role ? bodyText(node,role) : "";
@@ -200,7 +201,7 @@
           [button.tagName,button.getAttribute("data-testid") || "",button.getAttribute("aria-label") || "","observed_arrow"].join("|") : "";
       },
       isGenerating() { return ["stop","busy","unknown"].includes(classify(composerContext()).kind); },
-      conversationRoot, userMessages, assistantMessages, messageId, messageText,
+      conversationRoot, userMessages, assistantMessages, messageId, messageText, messageObservationEpoch,
       findCodeBlocks(node) {
         if (!assistantMessages().includes(node)) return [];
         return reader.findCodeBlocks(node.querySelector(".ds-markdown.ds-assistant-message-main-content"));
