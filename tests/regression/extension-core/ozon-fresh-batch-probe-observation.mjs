@@ -14,10 +14,23 @@ const source = readFileSync(sourcePath, "utf8").trim();
 let testedSource = source;
 if (runtimeArg && runtimeArg !== "-") {
   const worker = readFileSync(runtimeArg, "utf8");
-  const match = /^async function ensureBatchCapabilityAndPlanning\([\s\S]*?^}/m.exec(worker);
+  const match = /^async function ensureBatchCapabilityAndPlanning\([\s\S]*?^}[ \t]*$/m.exec(worker);
   assert.ok(match, "compiled worker must contain the exact application capability planner");
   testedSource = match[0].trim();
-  assert.equal(testedSource, source, "compiled worker function must equal tested owned source");
+  // Report bounded mismatch metadata, never dump a full worker into CI logs.
+  if (testedSource !== source) {
+    let firstDifference = 0;
+    const sharedLength = Math.min(testedSource.length, source.length);
+    while (
+      firstDifference < sharedLength &&
+      testedSource[firstDifference] === source[firstDifference]
+    ) firstDifference++;
+    assert.fail(
+      "compiled worker source mismatch: actual_length=" + testedSource.length +
+      " expected_length=" + source.length +
+      " first_difference=" + firstDifference,
+    );
+  }
 }
 
 async function verify(mode) {
