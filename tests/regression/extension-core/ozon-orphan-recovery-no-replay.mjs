@@ -49,6 +49,8 @@ async function scenario(competingKnown){
  if(competingKnown){
    assert.equal(r.probe_performed,true);assert.equal(r.probe_observation,"RESPONSE_OBSERVED");
    assert.equal(e.kind,"command");assert.equal(e.planning.capability.status,"known");
+   assert.equal(diag.filter(x=>x.name==="CAPABILITY_PROBE_RECOVERY_NO_RETRY").length,0,
+     "recovery diagnostic must not claim an abandoned outcome when another worker completed");
  }else{
    assert.equal(r.probe_performed,null,"lost worker dispatch outcome not proven");
    assert.equal(r.probe_observation,"RECOVERED_UNKNOWN");

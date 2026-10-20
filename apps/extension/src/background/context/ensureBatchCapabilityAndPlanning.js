@@ -145,17 +145,23 @@ async function ensureBatchCapabilityAndPlanning({
         state: "complete",
         profile,
       };
-      await diagnostic(
-        "CAPABILITY_PROBE_RECOVERY_NO_RETRY",
-        {
-          owner_kind: ownerKind,
-          owner_id: ownerId,
-          code: profile.probe_error_code,
-          probe_performed: null,
-          probe_observation: "RECOVERED_UNKNOWN",
-        },
-        { level: "warning" },
-      );
+      if (
+        resolution?.probe_observation === "RECOVERED_UNKNOWN" &&
+        resolution.probe_performed === null &&
+        resolution.profile?.status === "unknown"
+      ) {
+        await diagnostic(
+          "CAPABILITY_PROBE_RECOVERY_NO_RETRY",
+          {
+            owner_kind: ownerKind,
+            owner_id: ownerId,
+            code: profile.probe_error_code,
+            probe_performed: null,
+            probe_observation: "RECOVERED_UNKNOWN",
+          },
+          { level: "warning" },
+        );
+      }
     }
 
     if (
