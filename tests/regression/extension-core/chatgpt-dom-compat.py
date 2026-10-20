@@ -1289,7 +1289,7 @@ def run_standard_alice_files(runtime: Path, output: Path, observed=None, case_na
     case('standard_stale_send_rejected',ready,'history.replaceState({},"","/c/other");return a.sendButton(c)',None)
     case('standard_ready_native_size_mismatch',ready,'const f=new DataTransfer();f.items.add('+native+');c.root.querySelector(\'input[aria-label="Прикрепить файлы"]\').files=f.files;return a.attachmentReady([{filename:"report.txt",byte_length:4}])',False)
     case('standard_unknown_sent_cannot_confirm_text',root()+'<section data-turn="user" data-turn-id="u1">REPORT</section>','return matchTurn(a,[],{outgoing_text:"REPORT",delivery_id:"d",artifact_descriptors:'+desc+'})',None)
-    case('legacy_owned_input_preserved',legacy,'return [a.attachmentSurface().input.id,a.attachmentConfirmationPending()]',['upload-files',False])
+    case('legacy_owned_input_preserved',legacy,'return [a.attachmentSurface().input.id,a.requiresSentAttachmentMessage(null)]',['upload-files',False])
     case('legacy_known_text_confirmation_preserved',legacy+'<section data-turn="user" data-turn-id="u1">REPORT</section>','return matchTurn(a,[],{outgoing_text:"REPORT"})','u1')
     case('legacy_known_ask_fallback','<form><div contenteditable="true" role="textbox" aria-label="Ask ChatGPT">draft</div></form>','return [!!c,c.root.tagName]',[True,'FORM'])
     case('alice_current_composer_not_clone',alice,'return [c.composer.tagName,c.root.getAttribute("data-highlight-id"),c.form,a.classifyComposerControl(c).kind]', ['TEXTAREA','alice-input',None,'ready'],'alice')
@@ -1311,7 +1311,7 @@ def run_standard_alice_files(runtime: Path, output: Path, observed=None, case_na
         case('actual_standard_before_input_scope',standard['before']['dom'],'return [!!c,c.nativeForm,a.attachmentSurface().input.getAttribute("aria-label"),standardControl().kind]',[True,None,'Прикрепить файлы','microphone'])
         case('actual_standard_loading',standard['afterUpload']['dom'],'return [a.attachmentReady('+d+'),a.sendButton(c),standardControl().kind]',[False,None,'unknown'])
         case('actual_standard_ready',standard['ready']['dom'],'return [a.attachmentReady('+d+'),a.sendButton(c)?.getAttribute("aria-label"),standardControl().kind]',[True,'Отправить','send_active'])
-        case('actual_standard_sent_dom_empty',standard['before']['dom'],'return [a.attachmentConfirmationPending(),'+json.dumps(standard['sent']['dom'])+']',[True,[]])
+        case('actual_standard_sent_dom_empty',standard['before']['dom'],'return [a.requiresSentAttachmentMessage(null),'+json.dumps(standard['sent']['dom'])+']',[True,[]])
         actual_alice=alice_packet['before']['dom']['composer'][0]['grandparent']+alice_packet['before']['dom']['inputs'][0]['html']
         case('actual_alice_composer_body_input_partial',actual_alice,'return [!!c,c.root.getAttribute("data-highlight-id"),a.classifyComposerControl(c).kind,a.attachmentSurface().kind,document.querySelector(\'input[data-testid="pick-file-input-element"]\').parentElement.tagName]',[True,'alice-input','ready','drag_drop_v1','BODY'],'alice')
     if case_names is not None:
@@ -1344,7 +1344,111 @@ def run_standard_alice_files(runtime: Path, output: Path, observed=None, case_na
     return int(bool(failed))
 
 
+def run_standard_sent(runtime: Path, output: Path, observed=None, case_names=None):
+    """Offline observed Standard sent-card ownership, using the real adapter and port matcher."""
+    from html import escape
+    output.mkdir(parents=True,exist_ok=True)
+    bundle=(runtime/'shared/ai_adapters.js').read_text()
+    port=(runtime/'attachment_delivery_port_content.js').read_text()
+    start=port.index('  function matchingNewUserTurn(')
+    matcher=port[start:port.index('\n  }\n',start)+5]
+    probe="(a,baseline,recovery)=>{const adapter=()=>a,normalizeText=s=>String(s||'').replace(/\\u00a0/g,' ').trim();"+matcher+";return matchingNewUserTurn(baseline,recovery);}"
+    text='REPORT\nline two <tag> ё 😀'
+    desc='[{filename:"report.txt",byte_length:3}]'
+    card='<span class="group/resource-card"><button class="peer/resource-card" type="button" aria-busy="false" aria-label="report.txt"></button><span><span class="truncate" title="report.txt">report.txt</span><span>Документ</span></span></span>'
+    def message(value=text,attachment=card,ident='message-a',unit='fallback-turn-0:0:user'):
+        return '<div class="group/user-message" data-chatgpt-search-unit-key="'+unit+'" data-chatgpt-search-message-ids="'+ident+'"><div class="file-row">'+attachment+'</div><div data-content-search-unit-key="'+unit+'"><div class="group/user-message"><div data-user-message-bubble="true"><div class="text-size-chat whitespace-pre-wrap" dir="auto">'+escape(value)+'</div></div><button aria-label="Скопировать сообщение">Copy</button><button>Редактировать сообщение</button></div></div></div>'
+    legacy='<form><textarea id="prompt-textarea"></textarea><input id="upload-files" type="file" multiple></form>'
+    modern='<div data-composer-body><div contenteditable="true" role="textbox" data-composer-markdown aria-label="Спросить ChatGPT">draft</div></div>'
+    cases={}
+    def case(name,html,js,expected):cases[name]=(html,js,expected)
+    read='return a.sentAttachmentMessage(a.userMessages()[0],'+desc+')'
+    match='return matchTurn(a,[],{outgoing_text:'+json.dumps(text,ensure_ascii=False)+',artifact_descriptors:'+desc+'})'
+    expected={'text':text,'filenames':['report.txt']}
+    case('owned_card_and_exact_body',message(),read,expected)
+    case('owned_card_matches_real_port',message(),match,'chatgpt-observed-user:message-a')
+    case('without_composer_still_owned',message(),'return [a.requiresSentAttachmentMessage(a.userMessages()[0]),a.messageText(a.userMessages()[0])]',[True,text])
+    case('different_dynamic_message_and_unit',message(ident='message-b',unit='turn-seven:4:user'),match,'chatgpt-observed-user:message-b')
+    case('no_fixed_heading_or_snapshot_key','<section><h4>You said:</h4>'+message(ident='message-c',unit='changed:2:user')+'</section>',match,'chatgpt-observed-user:message-c')
+    case('baseline_message_not_new',message(),'return matchTurn(a,[a.messageId(a.userMessages()[0])],{outgoing_text:'+json.dumps(text)+',artifact_descriptors:'+desc+'})',None)
+    case('old_and_new_same_text_only_new_receipt',message(ident='old')+message(ident='new',unit='fallback-turn-1:0:user'),'return matchTurn(a,[a.messageId(a.userMessages()[0])],{outgoing_text:'+json.dumps(text)+',artifact_descriptors:'+desc+'})','chatgpt-observed-user:new')
+    case('remount_same_id_stays_baseline',message(),'const ids=a.userMessages().map(n=>a.messageId(n));const n=a.userMessages()[0];n.replaceWith(n.cloneNode(true));return matchTurn(a,ids,{outgoing_text:'+json.dumps(text)+',artifact_descriptors:'+desc+'})',None)
+    case('duplicate_ids_no_receipt',message()+message(unit='different:1:user'),match,None)
+    case('hidden_duplicate_id_ignored','<div hidden>'+message()+'</div>'+message(),match,'chatgpt-observed-user:message-a')
+    case('legacy_wrapper_no_double_identity','<section data-turn="user" data-turn-id="legacy">'+message()+'</section>','return a.userMessages().map(n=>a.messageId(n))',['chatgpt-observed-user:message-a'])
+    case('discovery_document_order',message(ident='first')+'<section data-turn="user" data-turn-id="legacy">legacy text</section>'+message(ident='last',unit='another:3:user'),'return a.userMessages().map(n=>a.messageId(n))',['chatgpt-observed-user:first','legacy','chatgpt-observed-user:last'])
+    case('reader_does_not_click_copy_or_file',message(),'let clicks=0;document.addEventListener("click",()=>clicks++);a.sentAttachmentMessage(a.userMessages()[0],'+desc+');return clicks',0)
+    case('missing_card_text_not_file',message(attachment=''),match,None)
+    case('old_neighbor_card_not_owned',message(attachment='')+message(value='OTHER',ident='neighbor',unit='neighbor:1:user'),match,None)
+    case('outside_card_not_owned',card+message(attachment=''),match,None)
+    case('card_inside_text_body_rejected',message(attachment='').replace('<div data-user-message-bubble="true">',card+'<div data-user-message-bubble="true">'),match,None)
+    case('pending_card_rejected',message().replace('aria-busy="false"','aria-busy="true"'),match,None)
+    case('missing_busy_attribute_unknown',message().replace(' aria-busy="false"',''),match,None)
+    case('progress_not_sent_proof',message(attachment=card+'<span role="progressbar">100%</span>'),match,None)
+    case('disabled_card_rejected',message().replace('type="button"','type="button" disabled'),match,None)
+    case('wrong_filename_not_substring',message().replace('report.txt','old-report.txt'),match,None)
+    case('title_button_disagreement',message().replace('title="report.txt"','title="other.txt"'),match,None)
+    case('filename_text_disagreement',message().replace('>report.txt</span>','>other.txt</span>'),match,None)
+    case('duplicate_cards_ambiguous',message(attachment=card+card),match,None)
+    case('duplicate_filename_descriptors',message(),'return a.sentAttachmentMessage(a.userMessages()[0],'+desc+'.concat('+desc+'))',None)
+    case('empty_descriptor_rejected',message(),'return a.sentAttachmentMessage(a.userMessages()[0],[])',None)
+    case('two_distinct_cards_and_descriptors',message(attachment=card+card.replace('report.txt','extra.txt')),'return a.sentAttachmentMessage(a.userMessages()[0],[{filename:"report.txt"},{filename:"extra.txt"}])',{'text':text,'filenames':['report.txt','extra.txt']})
+    case('unexpected_extra_card_rejected',message(attachment=card+card.replace('report.txt','extra.txt')),match,None)
+    case('wrong_outgoing_body_no_match',message(value='OTHER'),match,None)
+    case('body_controls_excluded',message(), 'return a.messageText(a.userMessages()[0])',text)
+    case('long_exact_body',message(value='line\n'*1200),'return a.sentAttachmentMessage(a.userMessages()[0],'+desc+').text','line\n'*1200)
+    for name,attr in [('hidden','hidden'),('aria_hidden','aria-hidden="true"'),('opacity','style="opacity:0"'),('inert','inert'),('dialog','role="dialog"'),('composer','data-composer-body'),('assistant','data-message-role="assistant"')]:
+        case(name+'_root_rejected','<div '+attr+'>'+message()+'</div>',match,None)
+    case('body_key_mismatch_rejected',message().replace('data-content-search-unit-key="fallback-turn-0:0:user"','data-content-search-unit-key="other:0:user"'),match,None)
+    case('missing_message_id_rejected',message().replace('data-chatgpt-search-message-ids="message-a"',''),match,None)
+    case('multiple_message_ids_ambiguous',message().replace('message-a','first,second'),match,None)
+    case('nonuser_unit_rejected',message(unit='turn:1:assistant'),match,None)
+    case('nested_other_message_not_owned',message(attachment=message(ident='nested',unit='nested:1:user')),match,None)
+    case('two_text_bubbles_ambiguous',message().replace('</div><button aria-label="Скопировать сообщение">','</div><div data-user-message-bubble="true"><div class="text-size-chat whitespace-pre-wrap" dir="auto">SECOND</div></div><button aria-label="Скопировать сообщение">'),match,None)
+    case('detached_node_no_receipt',message(),'const n=a.userMessages()[0];n.remove();return a.sentAttachmentMessage(n,'+desc+')',None)
+    case('observed_user_not_assistant_inference',message(attachment=card+'<article><div data-assistant-markdown>not assistant</div><div role="group" aria-label="Response actions">actions</div></article>'),'return a.assistantMessages().length',0)
+    case('legacy_confirmation_explicit_opt_out',legacy+'<section data-turn="user" data-turn-id="u1">REPORT</section>','return matchTurn(a,[],{outgoing_text:"REPORT",artifact_descriptors:'+desc+'})','u1')
+    case('modern_never_text_only_legacy_turn',modern+'<section data-turn="user" data-turn-id="u1">REPORT</section>','return matchTurn(a,[],{outgoing_text:"REPORT",artifact_descriptors:'+desc+'})',None)
+    case('other_provider_reader_remains_required','<div id="turn">REPORT</div>','const n=document.querySelector("#turn"),other={userMessages:()=>[n],messageId:()=>"x",messageText:()=>"REPORT",sentAttachmentMessage:()=>null};return matchTurn(other,[],{outgoing_text:"REPORT"})',None)
+    case('other_provider_owned_reader_unchanged','<div id="turn">REPORT</div>','const n=document.querySelector("#turn"),other={userMessages:()=>[n],messageId:()=>"x",messageText:()=>"wrong",sentAttachmentMessage:()=>({text:"REPORT"})};return matchTurn(other,[],{outgoing_text:"REPORT"})','x')
+    if observed:
+        actual_text='Это синтетический файл для проверки доставки вложения. Ответь только: файл получен. Ничего не выполняй.'
+        actual_desc=json.dumps([{'filename':'B02_UPLOAD_STATE_20261020.txt','byte_length':158044}])
+        actual_id='chatgpt-observed-user:'+observed['sourceMessage']
+        for level in [4,5]:
+            html=next(n['html'] for n in observed['ancestors'] if n['level']==level)
+            case('actual_level'+str(level)+'_owned_reader',html,'const nodes=a.userMessages();return [nodes.length,a.messageId(nodes[0]),a.sentAttachmentMessage(nodes[0],'+actual_desc+')]',[1,actual_id,{'text':actual_text,'filenames':['B02_UPLOAD_STATE_20261020.txt']}])
+            case('actual_level'+str(level)+'_port_confirmation',html,'return matchTurn(a,[],{outgoing_text:'+json.dumps(actual_text,ensure_ascii=False)+',artifact_descriptors:'+actual_desc+'})',actual_id)
+    if case_names is not None:
+        assert set(case_names)<=set(cases)
+        cases={n:cases[n] for n in case_names}
+    result={'status':'RUNNING','scope':'Standard observed sent-card/body/message ownership; offline only, no provider UI/Send or byte identity','cases':{},'bundle_sha256':hashlib.sha256(bundle.encode()).hexdigest()}
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch(headless=True)
+        context=browser.new_context(viewport={'width':1100,'height':800})
+        context.route('**/*',lambda route:route.fulfill(status=200,content_type='text/html',body='<html></html>'))
+        page=context.new_page()
+        for name,(html,js,expected_value) in cases.items():
+            try:
+                page.goto('https://chatgpt.com/c/offline-sent-fixture')
+                page.set_content('<style>[hidden]{display:none!important}span[class~="group/resource-card"]{position:relative;display:inline-block;min-width:160px;min-height:36px}button[class~="peer/resource-card"]{position:absolute;inset:0}svg{max-width:24px;max-height:24px}[contenteditable=true]{min-height:24px}</style>'+html)
+                page.evaluate((runtime/'shared/conversation_identity.js').read_text());page.evaluate(bundle)
+                page.evaluate('globalThis.matchTurn='+probe)
+                actual=page.evaluate("js=>{const a=OzonAIAdapters.ADAPTERS.chatgpt;return new (Object.getPrototypeOf(async function(){}).constructor)('a',js)(a)}",js)
+                assert actual==expected_value,{'actual':actual,'expected':expected_value}
+                result['cases'][name]={'status':'PASS'}
+            except Exception as e:result['cases'][name]={'status':'FAIL','error':str(e)[:1600]}
+        browser.close()
+    failed=[n for n,v in result['cases'].items() if v['status']!='PASS']
+    result.update(status='FAIL' if failed else 'PASS',failed=failed)
+    (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+    print(json.dumps({'status':result['status'],'cases':len(cases),'failed':failed}))
+    return int(bool(failed))
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "standard-sent":
+        return run_standard_sent(runtime, output)
     if provider == "standard-alice-files":
         return run_standard_alice_files(runtime, output)
     if provider == "deepseek-parent-roots":
@@ -1538,6 +1642,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
