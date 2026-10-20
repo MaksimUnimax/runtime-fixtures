@@ -375,7 +375,156 @@ def run_sent_attachment(runtime: Path, output: Path):
     return 1 if failed else 0
 
 
+
+def run_observed_readers(runtime: Path, output: Path):
+    """S04-S06 offline fixtures: accepted code HTML plus observed role/parent chains.
+    No activation, clipboard, provider requests, Send, execution or completion claim.
+    """
+    from html import escape
+    from html.parser import HTMLParser
+    output.mkdir(parents=True, exist_ok=True)
+    fixtures = {'deepseek': {'html': ['<pre><span>OCTOPORT_UI_PROBE_V1 {&quot;case&quot;:&quot;single&quot;,&quot;value&quot;:17}</span></pre>', '<pre><span><span class="token punctuation">{</span></span>\n<span>  <span class="token property">&quot;case&quot;</span><span class="token operator">:</span> <span class="token string">&quot;multi&quot;</span><span class="token punctuation">,</span></span>\n<span>  <span class="token property">&quot;label&quot;</span><span class="token operator">:</span> <span class="token string">&quot;Тест ё 😀&quot;</span><span class="token punctuation">,</span></span>\n<span>  <span class="token property">&quot;values&quot;</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">]</span><span class="token punctuation">,</span></span>\n<span>  <span class="token property">&quot;literal&quot;</span><span class="token operator">:</span> <span class="token string">&quot;&lt;tag&gt; &amp; quote&quot;</span></span>\n<span><span class="token punctuation">}</span></span></pre>', '<pre><span>001 BEGIN</span>\n<span>002 LINE</span>\n<span>003 LINE</span>\n<span>004 LINE</span>\n<span>005 LINE</span>\n<span>006 LINE</span>\n<span>007 LINE</span>\n<span>008 LINE</span>\n<span>009 LINE</span>\n<span>010 LINE</span>\n<span>011 LINE</span>\n<span>012 LINE</span>\n<span>013 LINE</span>\n<span>014 LINE</span>\n<span>015 LINE</span>\n<span>016 LINE</span>\n<span>017 LINE</span>\n<span>018 LINE</span>\n<span>019 LINE</span>\n<span>020 LINE</span>\n<span>021 LINE</span>\n<span>022 LINE</span>\n<span>023 LINE</span>\n<span>024 LINE</span>\n<span>025 LINE</span>\n<span>026 LINE</span>\n<span>027 LINE</span>\n<span>028 LINE</span>\n<span>029 LINE</span>\n<span>030 LINE</span>\n<span>031 LINE</span>\n<span>032 LINE</span>\n<span>033 LINE</span>\n<span>034 LINE</span>\n<span>035 LINE</span>\n<span>036 LINE</span>\n<span>037 LINE</span>\n<span>038 LINE</span>\n<span>039 LINE</span>\n<span>040 LINE</span>\n<span>041 LINE</span>\n<span>042 LINE</span>\n<span>043 LINE</span>\n<span>044 LINE</span>\n<span>045 LINE</span>\n<span>046 LINE</span>\n<span>047 LINE</span>\n<span>048 LINE</span>\n<span>049 LINE</span>\n<span>050 LINE</span>\n<span>051 LINE</span>\n<span>052 LINE</span>\n<span>053 LINE</span>\n<span>054 LINE</span>\n<span>055 LINE</span>\n<span>056 LINE</span>\n<span>057 LINE</span>\n<span>058 LINE</span>\n<span>059 LINE</span>\n<span>060 LINE</span>\n<span>061 LINE</span>\n<span>062 LINE</span>\n<span>063 LINE</span>\n<span>064 LINE</span>\n<span>065 LINE</span>\n<span>066 LINE</span>\n<span>067 LINE</span>\n<span>068 LINE</span>\n<span>069 LINE</span>\n<span>070 LINE</span>\n<span>071 LINE</span>\n<span>072 LINE</span>\n<span>073 LINE</span>\n<span>074 LINE</span>\n<span>075 LINE</span>\n<span>076 LINE</span>\n<span>077 LINE</span>\n<span>078 LINE</span>\n<span>079 LINE</span>\n<span>080 LINE</span>\n<span>081 LINE</span>\n<span>082 LINE</span>\n<span>083 LINE</span>\n<span>084 LINE</span>\n<span>085 LINE</span>\n<span>086 LINE</span>\n<span>087 LINE</span>\n<span>088 LINE</span>\n<span>089 LINE</span>\n<span>090 LINE</span>\n<span>091 LINE</span>\n<span>092 LINE</span>\n<span>093 LINE</span>\n<span>094 LINE</span>\n<span>095 LINE</span>\n<span>096 LINE</span>\n<span>097 LINE</span>\n<span>098 LINE</span>\n<span>099 LINE</span>\n<span>100 LINE</span>\n<span>101 LINE</span>\n<span>102 LINE</span>\n<span>103 LINE</span>\n<span>104 LINE</span>\n<span>105 LINE</span>\n<span>106 LINE</span>\n<span>107 LINE</span>\n<span>108 LINE</span>\n<span>109 LINE</span>\n<span>110 LINE</span>\n<span>111 LINE</span>\n<span>112 LINE</span>\n<span>113 LINE</span>\n<span>114 LINE</span>\n<span>115 LINE</span>\n<span>116 LINE</span>\n<span>117 LINE</span>\n<span>118 LINE</span>\n<span>119 LINE</span>\n<span>120 END</span></pre>'], 'source': 'deepseek/20261019T055142Z/S06.completed.dom.json', 'sha256': '9d19445319d701e48d5a2ff6da1cbcbe15ef464251c92449ad5dd43f075184a8'}, 'claude': {'html': ['<pre class="code-block__code !my-0 !rounded-[var(--msg-block-radius,0.5rem)] !text-sm !leading-relaxed p-3.5"><code class="language-text" data-highlight="plain">OCTOPORT_UI_PROBE_V1 {&quot;case&quot;:&quot;single&quot;,&quot;value&quot;:17}</code></pre>', '<pre class="code-block__code !my-0 !rounded-[var(--msg-block-radius,0.5rem)] !text-sm !leading-relaxed p-3.5"><code class="language-json" data-highlight="final"><span class="block [unicode-bidi:inherit] [text-align:-webkit-match-parent] [text-align:match-parent]" data-code-line-group=""><span><span>{</span>\n</span><span>  <span>&quot;</span><span>case</span><span>&quot;</span><span>:</span> <span>&quot;multi&quot;</span><span>,</span>\n</span><span>  <span>&quot;</span><span>label</span><span>&quot;</span><span>:</span> <span>&quot;Тест ё 😀&quot;</span><span>,</span>\n</span><span>  <span>&quot;</span><span>values</span><span>&quot;</span><span>:</span> <span>[</span>\n</span><span>    <span>1</span><span>,</span>\n</span><span>    <span>2</span><span>,</span>\n</span><span>    <span>3</span>\n</span><span>  <span>],</span>\n</span><span>  <span>&quot;</span><span>literal</span><span>&quot;</span><span>:</span> <span>&quot;&lt;tag&gt; &amp; quote&quot;</span>\n</span><span><span>}</span></span></span></code></pre>', '<pre class="code-block__code !my-0 !rounded-[var(--msg-block-radius,0.5rem)] !text-sm !leading-relaxed p-3.5"><code class="language-text" data-highlight="plain">001 BEGIN\n002 LINE\n003 LINE\n004 LINE\n005 LINE\n006 LINE\n007 LINE\n008 LINE\n009 LINE\n010 LINE\n011 LINE\n012 LINE\n013 LINE\n014 LINE\n015 LINE\n016 LINE\n017 LINE\n018 LINE\n019 LINE\n020 LINE\n021 LINE\n022 LINE\n023 LINE\n024 LINE\n025 LINE\n026 LINE\n027 LINE\n028 LINE\n029 LINE\n030 LINE\n031 LINE\n032 LINE\n033 LINE\n034 LINE\n035 LINE\n036 LINE\n037 LINE\n038 LINE\n039 LINE\n040 LINE\n041 LINE\n042 LINE\n043 LINE\n044 LINE\n045 LINE\n046 LINE\n047 LINE\n048 LINE\n049 LINE\n050 LINE\n051 LINE\n052 LINE\n053 LINE\n054 LINE\n055 LINE\n056 LINE\n057 LINE\n058 LINE\n059 LINE\n060 LINE\n061 LINE\n062 LINE\n063 LINE\n064 LINE\n065 LINE\n066 LINE\n067 LINE\n068 LINE\n069 LINE\n070 LINE\n071 LINE\n072 LINE\n073 LINE\n074 LINE\n075 LINE\n076 LINE\n077 LINE\n078 LINE\n079 LINE\n080 LINE\n081 LINE\n082 LINE\n083 LINE\n084 LINE\n085 LINE\n086 LINE\n087 LINE\n088 LINE\n089 LINE\n090 LINE\n091 LINE\n092 LINE\n093 LINE\n094 LINE\n095 LINE\n096 LINE\n097 LINE\n098 LINE\n099 LINE\n100 LINE\n101 LINE\n102 LINE\n103 LINE\n104 LINE\n105 LINE\n106 LINE\n107 LINE\n108 LINE\n109 LINE\n110 LINE\n111 LINE\n112 LINE\n113 LINE\n114 LINE\n115 LINE\n116 LINE\n117 LINE\n118 LINE\n119 LINE\n120 END</code></pre>'], 'source': 'claude/20261019T062100Z/S06.completed.dom.json', 'sha256': 'c44c78cec06c9ceb320a86cceb054c982149eab60402205d468d65534ba01440'}, 'gemini': {'html': ['<pre _ngcontent-ng-c3582179313="" class="ng-tns-c3582179313-35"><code _ngcontent-ng-c3582179313="" role="text" data-test-id="code-content" class="code-container formatted ng-tns-c3582179313-35">OCTOPORT_UI_PROBE_V1 {&quot;case&quot;:&quot;single&quot;,&quot;value&quot;:17}\n</code></pre>', '<pre _ngcontent-ng-c3582179313="" class="ng-tns-c3582179313-36"><code _ngcontent-ng-c3582179313="" role="text" data-test-id="code-content" class="code-container formatted ng-tns-c3582179313-36">{\n  <span class="hljs-attr">&quot;case&quot;</span>: <span class="hljs-string">&quot;multi&quot;</span>,\n  <span class="hljs-attr">&quot;label&quot;</span>: <span class="hljs-string">&quot;Тест ё 😀&quot;</span>,\n  <span class="hljs-attr">&quot;values&quot;</span>: [\n    <span class="hljs-number">1</span>,\n    <span class="hljs-number">2</span>,\n    <span class="hljs-number">3</span>\n  ],\n  <span class="hljs-attr">&quot;literal&quot;</span>: <span class="hljs-string">&quot;&lt;tag&gt; &amp; quote&quot;</span>\n}\n</code></pre>', '<pre _ngcontent-ng-c3582179313="" class="ng-tns-c3582179313-45"><code _ngcontent-ng-c3582179313="" role="text" data-test-id="code-content" class="code-container formatted ng-tns-c3582179313-45">001 OCTOPORT_LONG_BEGIN_gemini\n002 probe\n003 probe\n004 probe\n005 probe\n006 probe\n007 probe\n008 probe\n009 probe\n010 probe\n011 probe\n012 probe\n013 probe\n014 probe\n015 probe\n016 probe\n017 probe\n018 probe\n019 probe\n020 probe\n021 probe\n022 probe\n023 probe\n024 probe\n025 probe\n026 probe\n027 probe\n028 probe\n029 probe\n030 probe\n031 probe\n032 probe\n033 probe\n034 probe\n035 probe\n036 probe\n037 probe\n038 probe\n039 probe\n040 probe\n041 probe\n042 probe\n043 probe\n044 probe\n045 probe\n046 probe\n047 probe\n048 probe\n049 probe\n050 probe\n051 probe\n052 probe\n053 probe\n054 probe\n055 probe\n056 probe\n057 probe\n058 probe\n059 probe\n060 probe\n061 probe\n062 probe\n063 probe\n064 probe\n065 probe\n066 probe\n067 probe\n068 probe\n069 probe\n070 probe\n071 probe\n072 probe\n073 probe\n074 probe\n075 probe\n076 probe\n077 probe\n078 probe\n079 probe\n080 probe\n081 probe\n082 probe\n083 probe\n084 probe\n085 probe\n086 probe\n087 probe\n088 probe\n089 probe\n090 probe\n091 probe\n092 probe\n093 probe\n094 probe\n095 probe\n096 probe\n097 probe\n098 probe\n099 probe\n100 probe\n101 probe\n102 probe\n103 probe\n104 probe\n105 probe\n106 probe\n107 probe\n108 probe\n109 probe\n110 probe\n111 probe\n112 probe\n113 probe\n114 probe\n115 probe\n116 probe\n117 probe\n118 probe\n119 probe\n120 OCTOPORT_LONG_END_gemini\n</code></pre>'], 'source': 'gemini/20261019T062400Z/S06.fenced.dom.json', 'sha256': '2f33125b48b9164ea0aba5c3b397f4290f38d5a80e802267008afabed56b7978'}, 'grok': {'html': ['<pre class="shiki slack-ochin" tabindex="0" role="group" aria-label="JavaScript code"><code><span class="line"><span>console</span><span>.</span><span>log</span><span>(</span><span>&quot;OCTOPORT_UI&quot;</span><span>);</span></span></code></pre>', '<pre class="shiki slack-ochin" tabindex="0" role="group" aria-label="Code"><code><span class="line"><span>ALPHA</span></span>\n<span class="line"><span>BETA</span></span>\n<span class="line"><span>GAMMA</span></span></code></pre>', '<pre class="shiki slack-ochin" tabindex="0" role="group" aria-label="Code"><code><span class="line"><span>001 BEGIN_GROK_UI</span></span>\n<span class="line"><span>002 neutral</span></span>\n<span class="line"><span>003 neutral</span></span>\n<span class="line"><span>004 neutral</span></span>\n<span class="line"><span>005 neutral</span></span>\n<span class="line"><span>006 neutral</span></span>\n<span class="line"><span>007 neutral</span></span>\n<span class="line"><span>008 neutral</span></span>\n<span class="line"><span>009 neutral</span></span>\n<span class="line"><span>010 neutral</span></span>\n<span class="line"><span>011 neutral</span></span>\n<span class="line"><span>012 neutral</span></span>\n<span class="line"><span>013 neutral</span></span>\n<span class="line"><span>014 neutral</span></span>\n<span class="line"><span>015 neutral</span></span>\n<span class="line"><span>016 neutral</span></span>\n<span class="line"><span>017 neutral</span></span>\n<span class="line"><span>018 neutral</span></span>\n<span class="line"><span>019 neutral</span></span>\n<span class="line"><span>020 neutral</span></span>\n<span class="line"><span>021 neutral</span></span>\n<span class="line"><span>022 neutral</span></span>\n<span class="line"><span>023 neutral</span></span>\n<span class="line"><span>024 neutral</span></span>\n<span class="line"><span>025 neutral</span></span>\n<span class="line"><span>026 neutral</span></span>\n<span class="line"><span>027 neutral</span></span>\n<span class="line"><span>028 neutral</span></span>\n<span class="line"><span>029 neutral</span></span>\n<span class="line"><span>030 neutral</span></span>\n<span class="line"><span>031 neutral</span></span>\n<span class="line"><span>032 neutral</span></span>\n<span class="line"><span>033 neutral</span></span>\n<span class="line"><span>034 neutral</span></span>\n<span class="line"><span>035 neutral</span></span>\n<span class="line"><span>036 neutral</span></span>\n<span class="line"><span>037 neutral</span></span>\n<span class="line"><span>038 neutral</span></span>\n<span class="line"><span>039 neutral</span></span>\n<span class="line"><span>040 neutral</span></span>\n<span class="line"><span>041 neutral</span></span>\n<span class="line"><span>042 neutral</span></span>\n<span class="line"><span>043 neutral</span></span>\n<span class="line"><span>044 neutral</span></span>\n<span class="line"><span>045 neutral</span></span>\n<span class="line"><span>046 neutral</span></span>\n<span class="line"><span>047 neutral</span></span>\n<span class="line"><span>048 neutral</span></span>\n<span class="line"><span>049 neutral</span></span>\n<span class="line"><span>050 neutral</span></span>\n<span class="line"><span>051 neutral</span></span>\n<span class="line"><span>052 neutral</span></span>\n<span class="line"><span>053 neutral</span></span>\n<span class="line"><span>054 neutral</span></span>\n<span class="line"><span>055 neutral</span></span>\n<span class="line"><span>056 neutral</span></span>\n<span class="line"><span>057 neutral</span></span>\n<span class="line"><span>058 neutral</span></span>\n<span class="line"><span>059 neutral</span></span>\n<span class="line"><span>060 neutral</span></span>\n<span class="line"><span>061 neutral</span></span>\n<span class="line"><span>062 neutral</span></span>\n<span class="line"><span>063 neutral</span></span>\n<span class="line"><span>064 neutral</span></span>\n<span class="line"><span>065 neutral</span></span>\n<span class="line"><span>066 neutral</span></span>\n<span class="line"><span>067 neutral</span></span>\n<span class="line"><span>068 neutral</span></span>\n<span class="line"><span>069 neutral</span></span>\n<span class="line"><span>070 neutral</span></span>\n<span class="line"><span>071 neutral</span></span>\n<span class="line"><span>072 neutral</span></span>\n<span class="line"><span>073 neutral</span></span>\n<span class="line"><span>074 neutral</span></span>\n<span class="line"><span>075 neutral</span></span>\n<span class="line"><span>076 neutral</span></span>\n<span class="line"><span>077 neutral</span></span>\n<span class="line"><span>078 neutral</span></span>\n<span class="line"><span>079 neutral</span></span>\n<span class="line"><span>080 neutral</span></span>\n<span class="line"><span>081 neutral</span></span>\n<span class="line"><span>082 neutral</span></span>\n<span class="line"><span>083 neutral</span></span>\n<span class="line"><span>084 neutral</span></span>\n<span class="line"><span>085 neutral</span></span>\n<span class="line"><span>086 neutral</span></span>\n<span class="line"><span>087 neutral</span></span>\n<span class="line"><span>088 neutral</span></span>\n<span class="line"><span>089 neutral</span></span>\n<span class="line"><span>090 neutral</span></span>\n<span class="line"><span>091 neutral</span></span>\n<span class="line"><span>092 neutral</span></span>\n<span class="line"><span>093 neutral</span></span>\n<span class="line"><span>094 neutral</span></span>\n<span class="line"><span>095 neutral</span></span>\n<span class="line"><span>096 neutral</span></span>\n<span class="line"><span>097 neutral</span></span>\n<span class="line"><span>098 neutral</span></span>\n<span class="line"><span>099 neutral</span></span>\n<span class="line"><span>100 neutral</span></span>\n<span class="line"><span>101 neutral</span></span>\n<span class="line"><span>102 neutral</span></span>\n<span class="line"><span>103 neutral</span></span>\n<span class="line"><span>104 neutral</span></span>\n<span class="line"><span>105 neutral</span></span>\n<span class="line"><span>106 neutral</span></span>\n<span class="line"><span>107 neutral</span></span>\n<span class="line"><span>108 neutral</span></span>\n<span class="line"><span>109 neutral</span></span>\n<span class="line"><span>110 neutral</span></span>\n<span class="line"><span>111 neutral</span></span>\n<span class="line"><span>112 neutral</span></span>\n<span class="line"><span>113 neutral</span></span>\n<span class="line"><span>114 neutral</span></span>\n<span class="line"><span>115 neutral</span></span>\n<span class="line"><span>116 neutral</span></span>\n<span class="line"><span>117 neutral</span></span>\n<span class="line"><span>118 neutral</span></span>\n<span class="line"><span>119 neutral</span></span>\n<span class="line"><span>120 END_GROK_UI</span></span></code></pre>'], 'source': 'grok/20261019T091100Z/S06.completed.dom.json', 'sha256': 'c2e248c72fa3c135ba95f08562125751c4797f25810bf49cffdc75edb5eeaeb0', 'parents_source': 'grok/20261019T091100Z/S08.sent.dom.json', 'parents_sha256': 'c10e64360ae149f5c0f5c3e0e932454c6a1fe194ce2ebd063b34cb1a3283541c'}}
+    class Plain(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.parts = []
+        def handle_data(self, data):
+            self.parts.append(data)
+    def plain(value):
+        p = Plain()
+        p.feed(value)
+        return "".join(p.parts)
+    def body(provider, blocks):
+        if provider == "deepseek":
+            return '<div class="ds-message"><div class="ds-markdown ds-assistant-message-main-content">' + "".join('<div class="md-code-block md-code-block-light"><div role="button">Copy</div>'+b+'</div>' for b in blocks) + '</div></div>'
+        if provider == "claude":
+            return '<div role="article" aria-label="Сообщение 2 из 6"><div data-testid="assistant-message" data-is-streaming="false"><div class="prose"><div class="standard-markdown">' + "".join('<div role="group" aria-label="Код на языке text"><button data-testid="code-block-copy">Copy</button><div class="overflow-x-auto">'+b+'</div></div>' for b in blocks) + '</div></div></div></div>'
+        if provider == "grok":
+            return '<div id="response-OBSERVED_ID_2"><div role="article" data-testid="assistant-message" aria-labelledby="turn-heading-OBSERVED_ID_2"><h2 id="turn-heading-OBSERVED_ID_2">Grok</h2><div class="relative"><div class="response-content-markdown">'+"".join('<div class="not-prose"><div data-testid="code-block" class="chat-code-block"><div><div class="shiki">'+b+'</div></div></div></div>' for b in blocks)+'</div></div></div></div>'
+        return '<div class="conversation-container message-actions-hover-boundary" id="3f085f98b6b0fa2a"><user-query><user-query-content>user text</user-query-content></user-query><model-response><div><response-container><div class="response-content">'+"".join(blocks)+'</div></response-container></div></model-response></div>'
+    urls = {"deepseek":"https://chat.deepseek.com/a/chat/fixture-a", "claude":"https://claude.ai/chat/fixture-a", "gemini":"https://gemini.google.com/app/fixture-a", "grok":"https://grok.com/c/fixture-a"}
+    bundle = (runtime/"shared/ai_adapters.js").read_text()
+    identity = (runtime/"shared/conversation_identity.js").read_text()
+    result = {"status":"RUNNING","scope":"S04-S06 DeepSeek/Claude/Gemini/Grok read-only assistant code DOM; synthetic parent-chain fixtures; no activation",
+              "bundle_sha256":hashlib.sha256(bundle.encode()).hexdigest(),
+              "accepted_fixture_sources":{k:{"path":v["source"],"sha256":v["sha256"],"parents_source":v.get("parents_source"),"parents_sha256":v.get("parents_sha256")} for k,v in fixtures.items()}, "cases":{}}
+    failures = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(viewport={"width":1100,"height":800})
+        context.route("**/*", lambda route: route.fulfill(status=200, content_type="text/html", body="<html></html>"))
+        page = context.new_page()
+        def load(provider, html):
+            page.goto(urls[provider])
+            page.set_content(html)
+            page.evaluate(identity)
+            page.evaluate(bundle)
+        def read(provider):
+            return page.evaluate("""provider => {
+                const r=SellerAgentsObservedAICodeReaders.readers[provider];
+                return r.assistantMessages().flatMap(m=>r.findCodeBlocks(m).map(b=>r.readCodeText(b)));
+            }""", provider)
+        def check(provider, name, callback):
+            key=provider+"_"+name
+            try:
+                callback()
+                result["cases"][key]={"status":"PASS"}
+            except Exception as exc:
+                failures.append(key)
+                result["cases"][key]={"status":"FAIL","error":str(exc)[:800]}
+        for provider, data in fixtures.items():
+            expected = [plain(h) for h in data["html"]]
+            html = body(provider,data["html"])
+            def exact():
+                load(provider,html)
+                assert read(provider)==expected, read(provider)
+            check(provider,"observed_three_blocks_verbatim",exact)
+            def long():
+                load(provider,html)
+                actual=read(provider)[-1]
+                assert actual==expected[-1] and len(actual.splitlines())==120
+                assert "001" in actual.splitlines()[0] and "120" in actual.splitlines()[-1]
+            check(provider,"full_120_lines",long)
+            def whitespace():
+                code = "  <tag>\n\tA\u00a0B\n"
+                block = data["html"][0]
+                # Keep the observed code element attributes and replace its text only.
+                from re import sub
+                if provider=="deepseek":
+                    block='<pre>'+escape(code)+'</pre>'
+                else:
+                    start=block.index(">")+1
+                    code_start=block.index(">",block.index("<code"))+1
+                    code_end=block.index("</code>")
+                    block=block[:code_start]+escape(code)+block[code_end:]
+                load(provider,body(provider,[block]))
+                assert read(provider)==[code], read(provider)
+            check(provider,"whitespace_entities_verbatim",whitespace)
+            def user():
+                wrong = html.replace('ds-markdown ds-assistant-message-main-content','user-markdown') if provider=="deepseek" else html.replace('data-testid="assistant-message"','data-testid="user-message"') if provider in ["claude","grok"] else html.replace("model-response","user-query")
+                load(provider,wrong)
+                assert read(provider)==[]
+            check(provider,"user_code_not_assistant",user)
+            def outside():
+                load(provider,"".join(data["html"]))
+                assert read(provider)==[]
+            check(provider,"unowned_pre_not_assistant",outside)
+            for label,style in [("hidden","display:none"),("collapsed","visibility:hidden"),("transparent","opacity:0")]:
+                def hidden(style=style):
+                    load(provider,'<div style="'+style+'">'+html+'</div>')
+                    assert read(provider)==[]
+                check(provider,label+"_parent",hidden)
+            def editor():
+                load(provider,'<div contenteditable="true">'+html+'</div>')
+                assert read(provider)==[]
+            check(provider,"draft_not_assistant",editor)
+            mutations = {
+                "detached_block": "b.remove()",
+                "moved_block": "document.body.append(b)",
+                "chat_navigation": "history.pushState({},'',location.pathname+'-changed')",
+            }
+            if provider=="grok":
+                mutations["changed_local_message_witness"]="m.parentElement.id='response-other'"
+            elif provider=="claude":
+                mutations["changed_local_message_witness"]="m.closest('[role=article]').setAttribute('aria-label','Сообщение 4 из 6')"
+            elif provider=="gemini":
+                mutations["changed_local_message_witness"]="m.parentElement.id='other-turn'"
+            else:
+                mutations["changed_local_message_witness"]="m.classList.remove('ds-assistant-message-main-content')"
+            for name, mutation in mutations.items():
+                def changed(mutation=mutation):
+                    load(provider,body(provider,[data["html"][0]]))
+                    actual=page.evaluate("""({provider,mutation})=>{
+                      const r=SellerAgentsObservedAICodeReaders.readers[provider],m=r.assistantMessages()[0],b=r.findCodeBlocks(m)[0];
+                      const before=r.readCodeText(b);
+                      new Function('m','b',mutation)(m,b);
+                      return {before,after:r.readCodeText(b),anchor:r.geometryAnchor(b)!==null};
+                    }""",{"provider":provider,"mutation":mutation})
+                    assert actual=={"before":expected[0],"after":"","anchor":False},actual
+                check(provider,name,changed)
+            def no_activation():
+                load(provider,html)
+                assert page.evaluate("OzonAIAdapters.adapterForLocation('auto')===null")
+                assert page.evaluate("SellerAgentsObservedAICodeReaders.forLocation()!==null")
+            check(provider,"reader_does_not_activate_provider",no_activation)
+            def wrong_origin():
+                page.goto("https://example.invalid/fixture")
+                page.set_content(html)
+                page.evaluate(identity)
+                page.evaluate(bundle)
+                assert read(provider)==[]
+            check(provider,"unrelated_origin",wrong_origin)
+        browser.close()
+    result["status"]="FAIL" if failures else "PASS"
+    result["failures"]=failures
+    (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps({"status":result["status"],"cases":len(result["cases"]),"failed":failures}))
+    return 1 if failures else 0
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "observed-readers":
+        return run_observed_readers(runtime, output)
     if provider == "sent-attachment":
         return run_sent_attachment(runtime, output)
     if provider == "kimi-adapter":
@@ -545,6 +694,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

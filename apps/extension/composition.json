@@ -229,6 +229,7 @@
       "apps/extension/src/application/popup.css"
     ],
     "shared/ai_adapters.js": [
+      "apps/extension/src/content/observed-ai-code-readers.js",
       "apps/extension/src/content/kimi-code-reader.js",
       "apps/extension/src/content/kimi-adapter.js",
       "apps/extension/src/content/qwen-adapter.js",
