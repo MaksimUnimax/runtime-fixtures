@@ -105,7 +105,13 @@ async function ensureBatchCapabilityAndPlanning({
       resolution?.state === "requesting" &&
       String(resolution.request_worker_session_id || "") !== WORKER_SESSION_ID
     ) {
-      const profile = capabilityUnknownProfile();
+      // The prior worker may have sent a request; absence of a receipt does
+      // not prove either a physical send or a pre-dispatch refusal.
+      const profile = Object.freeze({
+        ...capabilityUnknownProfile(),
+        probe_performed: null,
+        probe_observation: "RECOVERED_UNKNOWN",
+      });
       owner = await mutateOwner((current) => {
         if (
           !current ||
@@ -126,7 +132,8 @@ async function ensureBatchCapabilityAndPlanning({
             ...current.batch,
             capability_resolution: {
               state: "complete",
-              probe_performed: true,
+              probe_performed: null,
+              probe_observation: "RECOVERED_UNKNOWN",
               profile,
               resolved_at: new Date().toISOString(),
               request_worker_session_id: null,
@@ -144,6 +151,8 @@ async function ensureBatchCapabilityAndPlanning({
           owner_kind: ownerKind,
           owner_id: ownerId,
           code: profile.probe_error_code,
+          probe_performed: null,
+          probe_observation: "RECOVERED_UNKNOWN",
         },
         { level: "warning" },
       );
@@ -287,6 +296,12 @@ async function ensureBatchCapabilityAndPlanning({
     probe_http_status: 0,
     probe_error_code: null,
   };
+  // Keep recovered uncertainty visible in the result without modifying
+  // the immutable imported contract's legacy Boolean normalization.
+  const recoveredUnknown =
+    owner.batch.capability_resolution?.probe_observation === "RECOVERED_UNKNOWN" &&
+    owner.batch.capability_resolution?.probe_performed === null &&
+    profile.status === "unknown";
   let plannedEntries;
   try {
     plannedEntries = (owner.batch.entries || []).map((entry) => {
@@ -297,6 +312,17 @@ async function ensureBatchCapabilityAndPlanning({
         planningAtMs,
         entitlementSnapshot,
       );
+      const planning =
+        recoveredUnknown && plan.planning?.capability
+          ? {
+              ...plan.planning,
+              capability: {
+                ...plan.planning.capability,
+                probe_performed: null,
+                probe_observation: "RECOVERED_UNKNOWN",
+              },
+            }
+          : plan.planning || null;
       if (plan.action === "reject") {
         return {
           ...entry,
@@ -309,13 +335,13 @@ async function ensureBatchCapabilityAndPlanning({
             ),
           },
           execution_command: null,
-          planning: plan.planning || null,
+          planning,
         };
       }
       return {
         ...entry,
         execution_command: plan.command,
-        planning: plan.planning || null,
+        planning,
       };
     });
   } catch (error) {
