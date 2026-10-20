@@ -161,6 +161,39 @@
           ["ready", "send_active", "send_disabled"].includes(classify(composerContext()).kind) &&
           Boolean(messageText(message));
       },
+      // S08: only an observed sent card inside this owned user message counts.
+      // The card's UI text is excluded from the submitted text comparison.
+      sentAttachmentMessage(node, descriptors) {
+        if (!ownMessage(node, USER) || !messageId(node) ||
+            !Array.isArray(descriptors) || descriptors.length !== 1) return null;
+        const d = descriptors[0];
+        if (!txtName(d?.filename) || !Number.isSafeInteger(d.byte_length) ||
+            d.byte_length < 0 || d.byte_length > MAX_TXT_BYTES) return null;
+        const bodies = [...node.querySelectorAll(".segment-user")]
+          .filter(n => n.closest(MESSAGE) === node && rendered(n));
+        if (bodies.length !== 1) return null;
+        const body = bodies[0], lists = [...body.querySelectorAll(".attachment-list-file")]
+          .filter(n => n.closest(MESSAGE) === node && rendered(n));
+        if (lists.length !== 1) return null;
+        const fileCards = [...lists[0].querySelectorAll(".file-card-container")]
+          .filter(n => n.closest(MESSAGE) === node && rendered(n));
+        if (fileCards.length !== 1) return null;
+        const card = fileCards[0], names = [...card.querySelectorAll(".file-card-info-name")],
+          extensions = [...card.querySelectorAll(".file-ext")];
+        if (!card.classList.contains("success") || names.length !== 1 || extensions.length !== 1 ||
+            names[0].textContent !== d.filename.slice(0, -4) ||
+            extensions[0].textContent.trim().toUpperCase() !== "TXT") return null;
+        const read = current => {
+          if (current === lists[0]) return "";
+          if (current.nodeType === Node.TEXT_NODE) return current.nodeValue || "";
+          if (!(current instanceof Element) || current.matches('button,[role="button"],[hidden],[aria-hidden="true"],[inert]')) return "";
+          const style = getComputedStyle(current);
+          if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return "";
+          return [...current.childNodes].map(read).join("") +
+            (/^(P|DIV|BR|LI|PRE)$/.test(current.tagName) ? "\n" : "");
+        };
+        return Object.freeze({ text: read(body) });
+      },
       deliveryCapabilities() { return globalThis.OzonAIDeliveryCapabilities?.profile?.("kimi") || null; },
       attachmentSurface, attachmentPreview,
       attachFiles(surface, files) {

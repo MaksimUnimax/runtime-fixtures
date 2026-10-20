@@ -970,5 +970,10 @@
     "target": "shared/ai_delivery_capabilities.js",
     "old": "      threshold_status: \"calibrated\",",
     "new": "      threshold_status: current.plain_text_threshold_status || \"calibrated\","
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "      const actual = normalizeText(active.messageText(node));\n      if (expected && actual === expected) return id;",
+    "new": "      // A filename/preview is separate from the submitted text. Providers\n      // with observed sent-card structure must prove both in this new user turn.\n      const hasSentReader = typeof active.sentAttachmentMessage === \"function\";\n      const sent = hasSentReader ? active.sentAttachmentMessage(node, recovery.artifact_descriptors) : null;\n      if (hasSentReader && (!sent || typeof sent.text !== \"string\")) continue;\n      const actual = normalizeText(sent ? sent.text : active.messageText(node));\n      if (expected && actual === expected) return id;"
   }
 ]

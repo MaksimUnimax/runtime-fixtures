@@ -296,7 +296,88 @@ def run_kimi_adapter(runtime: Path, output: Path):
     return 0
 
 
+
+def run_sent_attachment(runtime: Path, output: Path):
+    """S07/S08 ordinary offline DOM fixtures derived from accepted 19 Oct data.
+    Qwen: S08.completed.dom.json user body/card/name/text classes.
+    Kimi: S08.sent.dom.json attachment-list-file card + accepted user markers.
+    This checks DOM recognition only: no provider Send or installed acceptance.
+    """
+    from html import escape
+    output.mkdir(parents=True, exist_ok=True)
+    files = ["shared/conversation_identity.js", "shared/web_file_attachment.js",
+             "shared/ai_delivery_capabilities.js", "shared/ai_adapters.js"]
+    sources = [(name, (runtime/name).read_text()) for name in files]
+    port = (runtime/"attachment_delivery_port_content.js").read_text()
+    start = port.index("  function matchingNewUserTurn(")
+    matcher = port[start:port.index("\n  async function waitMatchingUserTurn(", start)]
+    start = port.index("  function normalizeText(")
+    normalize = port[start:port.index("\n", start)]
+    result = {"status":"RUNNING", "scope":"S07/S08 offline sent-attachment recognition; Qwen/Kimi accepted structural fixtures; no Send",
+              "source_sha256":{n:hashlib.sha256(s.encode()).hexdigest() for n,s in sources},
+              "port_sha256":hashlib.sha256(port.encode()).hexdigest(), "cases":{}}
+    text = "Отчёт\nEND"
+    def qcard(name="report.txt"):
+        stem,ext=name.rsplit(".",1)
+        return '<div class="fileitem-btn"><button class="fileitem-main"><div class="fileitem-file-name"><div class="fileitem-file-name-text">'+escape(stem)+'</div><div class="fileitem-file-name-ext">.'+escape(ext)+'</div></div><div class="fileitem-file-size">1.0 MB</div></button><div class="fileitem-actions"><button>превью</button></div></div>'
+    def quser(card=True,name="report.txt",ident="SENT",role="user"):
+        return '<div class="qwen-chat-message qwen-chat-message-'+role+'"><div class="chat-user-message-container" data-msg-id="'+ident+'">'+(qcard(name) if card else '')+'<div class="chat-user-message"><p class="user-message-content">'+escape(text)+'</p></div><div class="user-message-footer"><button>Копировать</button></div></div></div>'
+    def kcard(name="report.txt"):
+        stem,ext=name.rsplit(".",1)
+        return '<div class="attachment-list-file"><div class="file-card-container normal success"><div class="file-card-info"><p class="file-card-info-name">'+escape(stem)+'</p><div class="file-card-info-status"><div class="file-card-info-detail"><span class="file-ext">'+escape(ext.upper())+'</span><span class="file-size">1 MB</span></div></div></div></div></div>'
+    def kuser(card=True,name="report.txt",ident="SENT",role="user"):
+        return '<div class="chat-content-item chat-content-item-'+role+'" data-archer-id="'+ident+'" data-conversation-turn-id="'+ident+'"><div class="segment segment-'+role+'">'+(kcard(name) if card else '')+'<p>'+escape(text)+'</p></div></div>'
+    def editor(spin=False,stop=False):
+        return '<div class="message-input-container"><textarea class="message-input-textarea"></textarea><div class="file-card-list"><div class="fileitem-btn"><div class="fileitem-file-name">report.txt</div><div class="fileitem-icon-wrapper"><svg class="fileitem-icon"><use href="#qwenFileicon-txt1"></use></svg></div></div></div><div class="chat-prompt-send-button"><button class="'+('stop-button' if stop else 'send-button')+'" aria-label="'+('Стоп' if stop else 'Send')+'"></button></div>'+('<svg class="anticon-spin" width="10" height="10"></svg>' if spin else '')+'</div>'
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch(headless=True)
+        try:
+            page=browser.new_page()
+            page.route("**/*",lambda route: route.fulfill(status=200,content_type="text/html",body="<html><body></body></html>"))
+            def load(site,markup):
+                origin="https://chat.qwen.ai" if site=="qwen" else "https://www.kimi.ai"
+                page.goto(origin+"/chat/fixture")
+                page.set_content('<style>textarea{width:300px;height:40px}.fileitem-btn,.file-card-container{min-height:30px}.segment-user{min-height:50px}</style>'+markup)
+                for _,source in sources: page.evaluate(source)
+            def record(name,fn,expected):
+                try:
+                    actual=fn()
+                    assert actual==expected,(actual,expected)
+                    result["cases"][name]={"status":"PASS","actual":actual}
+                except Exception as error:
+                    result["cases"][name]={"status":"FAIL","error":str(error)[:1000]}
+            def match(site,markup,baseline=None,descriptors=None):
+                load(site,markup)
+                recovery={"outgoing_text":text,"delivery_id":"fixture-delivery",
+                          "artifact_descriptors":descriptors if descriptors is not None else [{"filename":"report.txt","byte_length":4}]}
+                return page.evaluate("([site,recovery,baseline])=>{function adapter(){return OzonAIAdapters.ADAPTERS[site];}"+normalize+"\n"+matcher+"\nreturn matchingNewUserTurn(new Set(baseline),recovery);}",[site,recovery,baseline or []])
+            for site,user,card in [("qwen",quser,qcard),("kimi",kuser,kcard)]:
+                record(site+"_new_user_file_and_text",lambda s=site,u=user:match(s,u()),"SENT")
+                record(site+"_baseline_no_duplicate",lambda s=site,u=user:match(s,u(),["SENT"]),None)
+                record(site+"_plain_text_without_file_not_sent",lambda s=site,u=user:match(s,u(card=False)),None)
+                record(site+"_wrong_filename_not_sent",lambda s=site,u=user:match(s,u(name="other.txt")),None)
+                record(site+"_assistant_file_not_user_sent",lambda s=site,u=user:match(s,u(role="assistant")),None)
+                record(site+"_missing_descriptors_unknown",lambda s=site,u=user:match(s,u(),descriptors=[]),None)
+                record(site+"_composer_only_not_user_sent",lambda s=site,c=card:match(s,'<div class="chat-editor" data-testid="chat-editor">'+c()+'</div>'),None)
+            def ready(spin=False,stop=False):
+                load("qwen",editor(spin,stop))
+                return page.evaluate("OzonAIAdapters.ADAPTERS.qwen.attachmentReady([{filename:'report.txt',byte_length:4}])")
+            record("qwen_ready_txt_icon",lambda:ready(),True)
+            record("qwen_spinner_enabled_send_is_not_ready",lambda:ready(spin=True),False)
+            record("qwen_stop_with_txt_icon_is_not_ready",lambda:ready(stop=True),False)
+        finally:
+            browser.close()
+    failed=[name for name,row in result["cases"].items() if row["status"]=="FAIL"]
+    result["status"]="FAIL" if failed else "PASS"
+    result["failed"]=failed
+    (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps({"status":result["status"],"scope":result["scope"],"cases":len(result["cases"]),"failed":failed},ensure_ascii=False))
+    return 1 if failed else 0
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "sent-attachment":
+        return run_sent_attachment(runtime, output)
     if provider == "kimi-adapter":
         return run_kimi_adapter(runtime, output)
     if provider == "kimi":
@@ -464,6 +545,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
