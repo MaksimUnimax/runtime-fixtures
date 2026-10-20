@@ -199,7 +199,7 @@ await check("throwing_status_validator", {
   attempted: false, observation: "NOT_ATTEMPTED",
 });
 await check("guard_denied", {
-  code: "PROVIDER_FETCH_FAILED", status: "unknown", fetch: 0,
+  code: "EXECUTION_CONTEXT_CHANGED", status: "unknown", fetch: 0,
   http: 0, action: "reject", attempted: false,
   observation: "NOT_ATTEMPTED",
 });

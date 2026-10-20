@@ -287,6 +287,7 @@
       request,
       executionGuard = null,
       onAuthResponse = null,
+      onAuthAttempt = null,
     ) {
       if (typeof fetchImpl !== "function") {
         const error = new Error("Ozon Performance API transport недоступен.");
@@ -309,6 +310,7 @@
           throw error;
         }
         dispatchAttempted = true;
+        if (typeof onAuthAttempt === "function") onAuthAttempt();
         const received = await fetchImpl(url, init);
         responseObserved = true;
         const status = Number(received?.status);
@@ -595,7 +597,7 @@
 
     async function getPerformanceToken(
       rawPerformanceCredentials,
-      { force = false, executionGuard = null, onAuthResponse = null } = {},
+      { force = false, executionGuard = null, onAuthResponse = null, onAuthAttempt = null } = {},
     ) {
       const credentials =
         globalThis.OzonCredentials.normalizePerformanceCredentials(
@@ -627,6 +629,7 @@
         tokenRequest,
         executionGuard,
         onAuthResponse,
+        onAuthAttempt,
       );
       if (!response.ok) {
         clearPerformanceToken();
@@ -756,6 +759,7 @@
       let fetchAttempted = false;
       let responseObserved = false;
       let observedHttpStatus = 0;
+      let preDispatchAuthorityDenied = false;
       try {
         const credentials =
           globalThis.OzonCredentials.normalizeSellerCredentials(
@@ -774,9 +778,14 @@
         const observedFetch = typeof fetchImpl === "function"
           ? async (url, init) => {
               if (executionGuard) {
-                if (typeof executionGuard.assertDispatchAuthority === "function")
-                  await executionGuard.assertDispatchAuthority();
-                await executionGuard.assertCurrent();
+                try {
+                  if (typeof executionGuard.assertDispatchAuthority === "function")
+                    await executionGuard.assertDispatchAuthority();
+                  await executionGuard.assertCurrent();
+                } catch (error) {
+                  preDispatchAuthorityDenied = true;
+                  throw error;
+                }
               }
               fetchAttempted = true;
               const received = await fetchImpl(url, init);
@@ -838,21 +847,25 @@
       } catch (error) {
         // A throwable getter or proxy is untrusted. Read the error code only
         // once, and never use a value that was not checked against the allowlist.
-        let publicCode = "SELLER_CAPABILITY_PROBE_FAILED";
-        try {
-          const candidateCode = error?.code;
-          if (
-            typeof candidateCode === "string" &&
-            new Set([
-              "MISSING_CLIENT_ID", "MISSING_API_KEY",
-              "INVALID_CLIENT_ID", "INVALID_API_KEY",
-              "INCOMPLETE_SELLER_CREDENTIALS", "FETCH_IMPL_MISSING",
-              "INVALID_REQUEST", "UNTRUSTED_REQUEST_HOST",
-              "UNTRUSTED_REQUEST_METHOD", "PROVIDER_FETCH_FAILED",
-            ]).has(candidateCode)
-          ) publicCode = candidateCode;
-        } catch (_) {
-          // An error accessor must not escape the outer capability catch.
+        let publicCode = preDispatchAuthorityDenied
+          ? "EXECUTION_CONTEXT_CHANGED"
+          : "SELLER_CAPABILITY_PROBE_FAILED";
+        if (!preDispatchAuthorityDenied) {
+          try {
+            const candidateCode = error?.code;
+            if (
+              typeof candidateCode === "string" &&
+              new Set([
+                "MISSING_CLIENT_ID", "MISSING_API_KEY",
+                "INVALID_CLIENT_ID", "INVALID_API_KEY",
+                "INCOMPLETE_SELLER_CREDENTIALS", "FETCH_IMPL_MISSING",
+                "INVALID_REQUEST", "UNTRUSTED_REQUEST_HOST",
+                "UNTRUSTED_REQUEST_METHOD", "PROVIDER_FETCH_FAILED",
+              ]).has(candidateCode)
+            ) publicCode = candidateCode;
+          } catch (_) {
+            // A hostile getter must not escape capability diagnostics.
+          }
         }
         // Error.http_status is untrusted; publish only status observed
         // from the actual fetch response headers.
@@ -1216,10 +1229,12 @@
 
     async function testPerformanceConnection(rawPerformanceCredentials) {
       let authResponseReceived = false;
+      let authFetchAttempted = false;
       let observedAuthHttpStatus = 0;
       try {
         const token = await getPerformanceToken(rawPerformanceCredentials, {
           force: true,
+          onAuthAttempt: () => { authFetchAttempted = true; },
           onAuthResponse: (receivedResponse) => {
             authResponseReceived = true;
             const responseStatus = Number(receivedResponse?.status || 0);
@@ -1256,20 +1271,17 @@
           "UNTRUSTED_REQUEST_HOST",
           "UNTRUSTED_REQUEST_METHOD",
         ]);
-        const code = knownCodes.has(error?.code)
-          ? error.code
-          : "PERFORMANCE_CONNECTION_TEST_FAILED";
-        // The actual auth response is authoritative, even if body reading
-        // later throws an error with a conflicting or malformed status.
-        const reportedHttpStatus = authResponseReceived
-          ? observedAuthHttpStatus
-          : Number(error?.http_status || 0);
-        const httpStatus =
-          Number.isInteger(reportedHttpStatus) &&
-          reportedHttpStatus >= 100 &&
-          reportedHttpStatus <= 599
-            ? reportedHttpStatus
-            : 0;
+        // Exception getters, flags, and status are untrusted.
+        let code = "PERFORMANCE_CONNECTION_TEST_FAILED";
+        try {
+          const candidateCode = error?.code;
+          if (typeof candidateCode === "string" && knownCodes.has(candidateCode))
+            code = candidateCode;
+        } catch (_) {
+          // A hostile getter may not escape connection diagnostics.
+        }
+        // Only our own observed auth HTTP response supplies status evidence.
+        const httpStatus = authResponseReceived ? observedAuthHttpStatus : 0;
         return Object.freeze({
           ok: false,
           code,
@@ -1277,11 +1289,7 @@
             ? `Не удалось подтвердить доступ к Ozon Performance API: HTTP ${httpStatus}.`
             : "Не удалось подтвердить доступ к Ozon Performance API.",
           http_status: httpStatus,
-          auth_request_performed:
-            authResponseReceived === true ||
-            error?.request_attempted === true ||
-            error?.external_request_executed === true ||
-            httpStatus > 0,
+          auth_request_performed: authFetchAttempted,
         });
       }
     }

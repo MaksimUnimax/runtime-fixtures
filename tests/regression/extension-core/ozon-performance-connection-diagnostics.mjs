@@ -19,7 +19,7 @@ const fakeCredentials = Object.freeze({
 });
 
 function fixture(mode) {
-  const calls = { authTransport: 0, fetch: 0 };
+  const calls = { authTransport: 0, fetch: 0, codeReads: 0, metadataReads: 0 };
   const sandbox = {
     TextDecoder, TextEncoder,
     OzonCredentials: {
@@ -47,6 +47,41 @@ function fixture(mode) {
         calls.authTransport++;
         // A transport failure may include content copied from the original
         // Error.message; it must not be reflected in public diagnostics.
+        if (mode === "network_after_fetch") return fetchImpl("https://fixture.invalid/inert");
+        if (mode === "spoofed_http_401") {
+          const error = new Error(privateMarker);
+          error.code = "PROVIDER_FETCH_FAILED";
+          error.http_status = 401;
+          error.request_attempted = true;
+          error.external_request_executed = true;
+          throw error;
+        }
+        if (mode === "mutating_code") {
+          const error = new Error(privateMarker);
+          Object.defineProperty(error, "code", { get() {
+            calls.codeReads++;
+            return calls.codeReads === 1 ? "PROVIDER_FETCH_FAILED" : privateMarker;
+          } });
+          throw error;
+        }
+        if (mode === "throwing_code") {
+          const error = new Error(privateMarker);
+          Object.defineProperty(error, "code", { get() {
+            calls.codeReads++;
+            throw new Error(privateMarker);
+          } });
+          throw error;
+        }
+        if (mode === "throwing_metadata") {
+          const error = new Error(privateMarker);
+          error.code = "PROVIDER_FETCH_FAILED";
+          for (const key of ["http_status", "request_attempted", "external_request_executed"])
+            Object.defineProperty(error, key, { get() {
+              calls.metadataReads++;
+              throw new Error(privateMarker);
+            } });
+          throw error;
+        }
         if (mode === "network") {
           const error = new Error("Network failed: " + privateMarker);
           error.code = "PROVIDER_FETCH_FAILED";
@@ -93,6 +128,7 @@ function fixture(mode) {
     now: () => 1_000_000,
     fetchImpl: async () => {
       calls.fetch++;
+      if (mode === "network_after_fetch") throw new Error(privateMarker);
       if (mode.startsWith("body_read_failure")) {
         return {
           ok: true, status: 200, headers: { "content-type": "application/json" },
@@ -131,13 +167,35 @@ async function check(mode, rawCredentials, expected) {
   assert.equal(result.auth_request_performed, expected.authRequestPerformed);
   assert.equal(calls.authTransport, expected.transportCalls);
   assert.equal(calls.fetch, expected.fetchCalls);
+  assert.equal(calls.codeReads, expected.codeReads || 0);
+  assert.equal(calls.metadataReads, 0, "never read exception metadata");
   assertPrivateDataAbsent(result);
   return result;
 }
 
 await check("network", fakeCredentials, {
   ok: false, code: "PROVIDER_FETCH_FAILED", httpStatus: 0,
-  authRequestPerformed: true, transportCalls: 1, fetchCalls: 0,
+  authRequestPerformed: false, transportCalls: 1, fetchCalls: 0,
+});
+await check("network_after_fetch", fakeCredentials, {
+  ok: false, code: "PROVIDER_FETCH_FAILED", httpStatus: 0,
+  authRequestPerformed: true, transportCalls: 1, fetchCalls: 1,
+});
+await check("spoofed_http_401", fakeCredentials, {
+  ok: false, code: "PROVIDER_FETCH_FAILED", httpStatus: 0,
+  authRequestPerformed: false, transportCalls: 1, fetchCalls: 0,
+});
+await check("mutating_code", fakeCredentials, {
+  ok: false, code: "PROVIDER_FETCH_FAILED", httpStatus: 0,
+  authRequestPerformed: false, transportCalls: 1, fetchCalls: 0, codeReads: 1,
+});
+await check("throwing_code", fakeCredentials, {
+  ok: false, code: "PERFORMANCE_CONNECTION_TEST_FAILED", httpStatus: 0,
+  authRequestPerformed: false, transportCalls: 1, fetchCalls: 0, codeReads: 1,
+});
+await check("throwing_metadata", fakeCredentials, {
+  ok: false, code: "PROVIDER_FETCH_FAILED", httpStatus: 0,
+  authRequestPerformed: false, transportCalls: 1, fetchCalls: 0,
 });
 await check("unknown", fakeCredentials, {
   ok: false, code: "PERFORMANCE_CONNECTION_TEST_FAILED", httpStatus: 0,
@@ -180,7 +238,7 @@ const healthy = await check("success", fakeCredentials, {
 assert.equal(typeof healthy.token_expires_at_ms, "number");
 
 console.log(JSON.stringify({
-  status: "PASS", scenarios: 11,
+  status: "PASS", scenarios: 16,
   postfetch_body_read_failure_attempt_observed: true,
   response_http_status_wins_invalid_or_conflicting_error_status: true,
   raw_error_message_hidden: true, unknown_error_code_not_reflected: true,
