@@ -843,6 +843,11 @@ def deepseek_send_arrow_fixture():
     """Exact accepted native arrow; reused by ordinary offline DOM fixtures."""
     return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.3125 0.980206C8.66767 1.05312 8.97902 1.2042 9.2627 1.43235C9.48724 1.613 9.73029 1.85795 9.97949 2.10716L14.707 6.8347L13.293 8.24876L9 3.95579V15.0417H7V3.95579L2.70703 8.24876L1.29297 6.8347L6.02051 2.10716C6.26971 1.85795 6.51277 1.613 6.7373 1.43235C6.97662 1.23988 7.28445 1.04404 7.6875 0.980206C7.8973 0.947029 8.1031 0.955183 8.3125 0.980206Z" fill="currentColor"></path></svg>'
 
+def deepseek_stop_square_fixture():
+    """Exact square Stop observed in both 09:05 streaming snapshots; code fixture only."""
+    return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 4.88C2 3.68009 2 3.08013 2.30557 2.65954C2.40426 2.52371 2.52371 2.40426 2.65954 2.30557C3.08013 2 3.68009 2 4.88 2H11.12C12.3199 2 12.9199 2 13.3405 2.30557C13.4763 2.40426 13.5957 2.52371 13.6944 2.65954C14 3.08013 14 3.68009 14 4.88V11.12C14 12.3199 14 12.9199 13.6944 13.3405C13.5957 13.4763 13.4763 13.5957 13.3405 13.6944C12.9199 14 12.3199 14 11.12 14H4.88C3.68009 14 3.08013 14 2.65954 13.6944C2.52371 13.5957 2.40426 13.4763 2.30557 13.3405C2 12.9199 2 12.3199 2 11.12V4.88Z" fill="currentColor"></path></svg>'
+
+
 def run_observed_composers(runtime: Path, output: Path, only_provider=None):
     """B02 DeepSeek/Claude composer/file primitives: offline code only, activation pending."""
     from html import escape
@@ -871,6 +876,12 @@ def run_observed_composers(runtime: Path, output: Path, only_provider=None):
         case("factory_route_status",root(),"return [a.id,a.integrationStatus().status,a.integrationStatus().registry_activated,OzonAIAdapters.adapterForLocation('auto')?.id===a.id]",[provider,"text_only",True,True])
         case("one_observed_composer",root(),"return !!c",True)
         case("observed_empty_send_state",root(),"return a.classifyComposerControl(c).kind","ready")
+        if provider=="deepseek":
+            observed_stop=send(False,deepseek_stop_square_fixture())
+            case("observed_square_stop",root(buttons=observed_stop),"return [a.classifyComposerControl(c).kind,a.isGenerating(),a.sendButton(c),a.attachmentSurface()]",["stop",True,None,None])
+            case("stop_with_draft_not_send",root("DRAFT",observed_stop),"return [a.classifyComposerControl(c).kind,a.sendButtonCandidates(c).length]",["stop",0])
+            case("stop_set_text_closed",root(buttons=observed_stop),"try{a.setComposerText(c.composer,'DRAFT');return 'unexpected'}catch(e){return e.code}","COMPOSER_NOT_AVAILABLE")
+
         case("draft_enabled_send",root("draft",send()),"return [a.classifyComposerControl(c).kind,!!a.sendButton(c)]",["send_active",True])
         case("duplicate_send_unknown",root("draft",send()+send()),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["unknown",None])
         case("progress_excludes_send",root("draft",send(),'<div role="progressbar">loading</div>'),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["busy",None])
@@ -1002,9 +1013,9 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None):
             terminal=html.replace(assistant,assistant[:-6]+toolbar+'</div>')
             def terminal_case(name,js,expected):
                 case("terminal_"+name,js,expected,terminal)
-            terminal_case("observed_actions_not_completion","const e=a.completionObservation(v);return [e.status,e.reason,e.actionsObserved,a.messageComplete(v)]",["unknown","streaming_exclusivity_not_verified",True,False])
+            terminal_case("observed_natural_terminal","const e=a.completionObservation(v);return [e.status,e.reason,e.actionsObserved,a.messageComplete(v)]",["complete","observed_natural_terminal_toolbar",True,True])
             terminal_case("snapshot_key_not_identity","const id=a.messageId(v);v.parentElement.setAttribute('data-virtual-list-item-key','10');const first=a.completionObservation(v);v.parentElement.setAttribute('data-virtual-list-item-key','999');return [first.actionsObserved,a.completionObservation(v).actionsObserved,a.messageId(v)===id]",[True,True,True])
-            terminal_case("six_hundred_lines_not_semantic_completion","v.querySelector('pre').textContent=Array.from({length:600},(_,i)=>i+1).join('\\n');return [a.completionObservation(v).actionsObserved,a.messageComplete(v)]",[True,False])
+            terminal_case("terminal_text_not_capture_marker","v.querySelector('pre').textContent=Array.from({length:600},(_,i)=>i+1).join('\\n');return [a.completionObservation(v).actionsObserved,a.messageComplete(v)]",[True,True])
             terminal_case("missing_label_unrecognized","v.nextElementSibling.querySelector('[aria-label]').removeAttribute('aria-label');return a.completionObservation(v).actionsObserved",False)
             terminal_case("second_disabled_unrecognized","v.nextElementSibling.querySelector('[aria-disabled]').setAttribute('aria-disabled','true');return a.completionObservation(v).actionsObserved",False)
             terminal_case("second_state_absent_unrecognized","v.nextElementSibling.querySelector('[aria-disabled]').removeAttribute('aria-disabled');return a.completionObservation(v).actionsObserved",False)
@@ -1020,7 +1031,26 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None):
             terminal_case("file_card_not_upload_ready","a.composerContext().root.insertAdjacentHTML('beforeend','<div class=\"cd314545\">report.txt</div>');return [a.completionObservation(v).actionsObserved,a.attachmentReady([{filename:'report.txt',byte_length:10}])]",[False,False])
             terminal_case("only_current_assistant","v.parentElement.parentElement.append(v.parentElement.cloneNode(true));return [a.completionObservation(v).actionsObserved,a.completionObservation(a.assistantMessages().at(-1)).actionsObserved]",[False,True])
             terminal_case("detached_assistant_ignored","v.remove();return a.completionObservation(v).actionsObserved",False)
-            terminal_case("text_profile_file_pending","const p=a.deliveryCapabilities(),f=OzonAIDeliveryCapabilities.supportsFile('deepseek',{filename:'report.txt',byte_length:10});return [p.status,f.status,f.reason,a.integrationStatus().assistant_completion]",["text_only","pending","upload_completion_not_observed","streaming_exclusivity_not_verified"])
+            stop_svg=json.dumps(deepseek_stop_square_fixture())
+            arrow_svg=json.dumps(deepseek_send_arrow_fixture())
+            terminal_case("square_stop_veto","a.composerContext().root.querySelector('._52c986b').innerHTML="+stop_svg+";return [a.classifyComposerControl(a.composerContext()).kind,a.isGenerating(),a.messageComplete(v)]",["stop",True,False])
+            terminal_case("disabled_action_class","v.nextElementSibling.querySelector('[aria-label]').classList.add('ds-button--disabled');return a.messageComplete(v)",False)
+            terminal_case("noninteractive_action_css","v.nextElementSibling.querySelector('[aria-label]').style.pointerEvents='none';return a.messageComplete(v)",False)
+            terminal_case("missing_terminal_class","v.parentElement.classList.remove('_43c05b5');return [a.assistantMessages().includes(v),a.messageComplete(v)]",[True,False])
+            terminal_case("new_user_waits_for_own_answer","u.parentElement.parentElement.append(u.parentElement.cloneNode(true));return [a.completionObservation(v).reason,a.messageComplete(v)]",["current_user_response_not_observed",False])
+            terminal_case("no_current_user","u.remove();return a.messageComplete(v)",False)
+            terminal_case("new_streaming_assistant_excludes_old_toolbar","const next=v.parentElement.cloneNode(true);next.classList.remove('_43c05b5');next.lastElementChild.remove();v.parentElement.parentElement.append(next);return [a.assistantMessages().length,a.messageComplete(v),a.messageComplete(a.assistantMessages().at(-1))]",[2,False,False])
+            terminal_case("text_alone_not_completion","v.nextElementSibling.remove();v.textContent='B02_CAPTURE_END';return [a.completionObservation(v).status,a.messageComplete(v)]",["unknown",False])
+            terminal_case("same_assistant_natural_transition",
+                "const parent=v.parentElement,toolbar=v.nextElementSibling,control=a.composerContext().root.querySelector('._52c986b');"
+                "toolbar.remove();parent.classList.remove('_43c05b5');control.classList.remove('ds-button--disabled');control.innerHTML="+stop_svg+";"
+                "const id=a.messageId(v),epoch=a.messageObservationEpoch();const early=[a.assistantMessages().includes(v),a.isGenerating(),a.messageComplete(v)];"
+                "v.querySelector('pre').textContent+=' MORE';const late=[a.messageId(v)===id,a.messageObservationEpoch()===epoch,a.messageComplete(v)];"
+                "parent.classList.add('_43c05b5');parent.append(toolbar);control.innerHTML="+arrow_svg+";control.classList.add('ds-button--disabled');"
+                "return [early,late,a.messageId(v)===id,a.messageObservationEpoch()===epoch,a.classifyComposerControl(a.composerContext()).kind,a.messageComplete(v),a.findCodeBlocks(v).map(n=>a.readCodeText(n))]",
+                [[True,True,False],[True,True,False],True,True,"ready",True,["CODE ONE\nCODE TWO MORE"]])
+
+            terminal_case("text_profile_file_pending","const p=a.deliveryCapabilities(),f=OzonAIDeliveryCapabilities.supportsFile('deepseek',{filename:'report.txt',byte_length:10});return [p.status,f.status,f.reason,a.integrationStatus().assistant_completion]",["text_only","pending","upload_completion_not_observed","observed_natural_terminal_toolbar"])
 
     result={"status":"RUNNING","scope":"B02 offline composed-observation parent/root/message lifecycle; no installed/provider or permanent-ID claim","bundle_sha256":hashlib.sha256(bundle.encode()).hexdigest(),"cases":{}}
     failures=[]

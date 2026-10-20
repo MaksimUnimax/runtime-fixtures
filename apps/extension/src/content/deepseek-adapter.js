@@ -1,7 +1,7 @@
-/* DeepSeek B02 text transport using accepted controls, root and 07:56 actions.
+/* DeepSeek B02 text transport using accepted roots and 09:05 transition.
  * Messages use conservative document-only node witnesses; replacement retires them.
- * Terminal actions are observed, but streaming exclusivity/upload-end remain unknown.
- * Text transport is registered; automatic assistant completion stays closed.
+ * Natural completion uses the current assistant's own terminal toolbar and no Stop.
+ * Forced Stop/retry variants and upload-end are not established by these snapshots.
  * No click, execution or signed authority is created here. */
 (() => {
   "use strict";
@@ -54,7 +54,7 @@
       const p1=node.parentElement,p2=p1?.parentElement,p3=p2?.parentElement;
       if (!p2?.matches("div.ds-virtual-list-visible-items") || !p3?.matches("div.ds-virtual-list-items._6f2c522")) return "";
       if (node.matches("div.ds-message.d29f3d7d") && p1?.matches("div._9663006")) return "user";
-      if (node.matches("div.ds-message:not(.d29f3d7d)") && p1?.matches("div._4f9bf79._43c05b5") &&
+      if (node.matches("div.ds-message:not(.d29f3d7d)") && p1?.matches("div._4f9bf79") &&
           node.querySelector(".ds-markdown.ds-assistant-message-main-content")) return "assistant";
       return "";
     }
@@ -121,12 +121,14 @@
       const all = controls(c), sends = all.filter(n => n.matches(".ds-button--primary._52c986b"));
       if (sends.length !== 1) return {kind:"unknown",button:null};
       const button = sends[0], paths = button.querySelectorAll("svg path");
+      if (paths.length === 1 && paths[0].getAttribute("d") === "M2 4.88C2 3.68009 2 3.08013 2.30557 2.65954C2.40426 2.52371 2.52371 2.40426 2.65954 2.30557C3.08013 2 3.68009 2 4.88 2H11.12C12.3199 2 12.9199 2 13.3405 2.30557C13.4763 2.40426 13.5957 2.52371 13.6944 2.65954C14 3.08013 14 3.68009 14 4.88V11.12C14 12.3199 14 12.9199 13.6944 13.3405C13.5957 13.4763 13.4763 13.5957 13.3405 13.6944C12.9199 14 12.3199 14 11.12 14H4.88C3.68009 14 3.08013 14 2.65954 13.6944C2.52371 13.5957 2.40426 13.4763 2.30557 13.3405C2 12.9199 2 12.3199 2 11.12V4.88Z")
+        return {kind:"stop",button};
       if (paths.length !== 1 || paths[0].getAttribute("d") !== "M8.3125 0.980206C8.66767 1.05312 8.97902 1.2042 9.2627 1.43235C9.48724 1.613 9.73029 1.85795 9.97949 2.10716L14.707 6.8347L13.293 8.24876L9 3.95579V15.0417H7V3.95579L2.70703 8.24876L1.29297 6.8347L6.02051 2.10716C6.26971 1.85795 6.51277 1.613 6.7373 1.43235C6.97662 1.23988 7.28445 1.04404 7.6875 0.980206C7.8973 0.947029 8.1031 0.955183 8.3125 0.980206Z") return {kind:"unknown",button:null};
       const disabled = button.classList.contains("ds-button--disabled") || button.getAttribute("aria-disabled") === "true";
       // This means an empty text transport, not a finished assistant/upload.
       if (cards(c.root).length || c.root.querySelector(INPUT)?.files?.length) return {kind:"unknown",button:null};
       if (!readComposerText(c.composer).trim()) return {kind:"ready",button:null};
-      // Captured spinner is busy, never asserted to be the unknown Stop.
+      // Only the observed arrow permits text Send; spinner and square Stop do not.
       return {kind:disabled ? "send_disabled" : "send_active",button};
     }
     function completionObservation(node) {
@@ -136,11 +138,16 @@
       const assistants=assistantMessages();
       if (!assistants.includes(node) || assistants.at(-1)!==node || !messageId(node) ||
           !messageText(node).trim()) return unknown("current_assistant_not_owned");
+      const rows=observeMessages().rows;
+      const lastUser=rows.findLastIndex(row=>row.role==="user");
+      // An older completed answer is not the response to a newer submitted turn.
+      if (lastUser<0 || rows.findIndex(row=>row.node===node)<=lastUser)
+        return unknown("current_user_response_not_observed");
       const state=classify(composerContext());
       if (!["ready","send_active","send_disabled"].includes(state.kind))
         return unknown("composer_busy_or_unknown");
       const parent=node.parentElement, toolbar=node.nextElementSibling;
-      if (parent.children.length!==2 || parent.firstElementChild!==node ||
+      if (!parent.matches("div._4f9bf79._43c05b5") || parent.children.length!==2 || parent.firstElementChild!==node ||
           !toolbar?.matches("div.ds-flex._0a3d93b") || !rendered(toolbar) ||
           toolbar.querySelector(MESSAGE)) return unknown("terminal_actions_not_observed");
       const group=toolbar.firstElementChild;
@@ -149,15 +156,16 @@
       const buttons=[...group.children];
       if (buttons.length!==6 || toolbar.querySelectorAll('[role="button"]').length!==6 ||
           buttons.some(n=>!n.matches('div.ds-button.db183363[role="button"][tabindex="0"]') ||
-            !rendered(n) || n.getAttribute("aria-disabled")==="true" || n.matches(":disabled")) ||
+            !rendered(n) || n.getAttribute("aria-disabled")==="true" || n.matches(":disabled") ||
+            n.classList.contains("ds-button--disabled") || getComputedStyle(n).pointerEvents==="none") ||
           buttons[1].getAttribute("aria-disabled")!=="false" ||
           buttons[4].getAttribute("aria-label")!=="Читать вслух" ||
           buttons.filter(n=>n.getAttribute("aria-label")==="Читать вслух").length!==1)
         return unknown("terminal_actions_not_observed");
-      // The exact observed toolbar is useful evidence, but no busy comparison
-      // proves it absent during streaming. Never promote this snapshot to ready.
-      // No dependency on data-virtual-list-item-key=10 or inferred icon meanings.
-      return unknown("streaming_exclusivity_not_verified",true);
+      // Same-assistant 09:05 snapshots show no own toolbar with square Stop,
+      // then this terminal structure and the Send arrow after natural completion.
+      // No dependency on snapshot key14, capture text or inferred icon functions.
+      return Object.freeze({status:"complete",reason:"observed_natural_terminal_toolbar",actionsObserved:true});
     }
     function attachmentPreview(filename) {
       const c = composerContext();
@@ -226,7 +234,7 @@
       sentAttachmentMessage() { return null; },
       integrationStatus() {
         return Object.freeze({status:"text_only",message_identity:"document_scoped_nodes",
-          assistant_completion:"streaming_exclusivity_not_verified",
+          assistant_completion:"observed_natural_terminal_toolbar",
           upload_end:"not_observed",registry_activated:true});
       }
     });
