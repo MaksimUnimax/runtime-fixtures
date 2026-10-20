@@ -39,7 +39,7 @@ class FakeTransactionalReportRows {
     ): Promise<{ rows: T[] }> => {
       if (sql.includes("FROM api_watch_reports")) {
         this.sawNonLockingSelect++;
-        return { rows: [{ ...this.row } as T] };
+        return { rows: [{ ...this.row } as unknown as T] };
       }
       if (sql.includes("FROM api_watch_report_sources")) return { rows: [] };
       throw new Error("TEST_SQL_UNEXPECTED_DIRECT_QUERY");
@@ -66,13 +66,13 @@ class FakeTransactionalReportRows {
               });
               await previous;
               unlock = release;
-              return { rows: [{ ...this.row } as U] };
+              return { rows: [{ ...this.row } as unknown as U] };
             }
             this.sawNonLockingSelect++;
             const snapshot = { ...this.row };
             if (++this.noLockReaders === 2) this.releaseNoLockReads();
             await this.bothRead;
-            return { rows: [snapshot as U] };
+            return { rows: [snapshot as unknown as U] };
           }
           if (
             sql.startsWith("SELECT") &&
