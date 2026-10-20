@@ -6,10 +6,15 @@ import vm from "node:vm";
 // A04 Seller capability code privacy: direct source and composed ZIP use the
 // same real first-party contract, credentials and transport, with inert HTTP.
 const root = path.resolve(process.argv[4] || process.cwd());
+const runtimeRoot = process.argv[5] ? path.resolve(process.argv[5]) : null;
 const providerPath = path.resolve(process.argv[2] || path.join(root, "packages/marketplaces/ozon/src/provider-runtime.js"));
 const transportPath = path.resolve(process.argv[3] || path.join(root, "apps/extension/src/imported/ozon-v0.1.22/shared/provider_transport_core.js"));
-const contractPath = path.join(root, "apps/extension/src/imported/ozon-v0.1.22/shared/ozon_contract.js");
-const credentialsPath = path.join(root, "apps/extension/src/imported/ozon-v0.1.22/shared/ozon_credentials.js");
+const contractPath = runtimeRoot
+  ? path.join(runtimeRoot, "shared/ozon_contract.js")
+  : path.join(root, "apps/extension/src/imported/ozon-v0.1.22/shared/ozon_contract.js");
+const credentialsPath = runtimeRoot
+  ? path.join(runtimeRoot, "shared/ozon_credentials.js")
+  : path.join(root, "apps/extension/src/imported/ozon-v0.1.22/shared/ozon_credentials.js");
 const marker = "INERTPRIVATE1234";
 const sensitiveMessage = "INERT_PRIVATE_ERROR_MESSAGE_NOT_FOR_REPORT";
 const commandSource = '({operation:"inert_roles",params:{}})';
