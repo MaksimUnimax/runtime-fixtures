@@ -31,20 +31,47 @@ function fixture(mode) {
   const contract = context.OzonContractFactory.createOzonContract({ operations });
   context.OzonContract = contract;
   vm.runInContext(readFileSync(credentialsPath, "utf8"), context, { filename: "ozon-credentials.js" });
-  if (mode === "unknown_validator") {
+  if ([
+    "unknown_validator", "mutating_validator", "throwing_validator",
+    "invalid_status_validator", "throwing_status_validator",
+  ].includes(mode)) {
     const credentials = context.OzonCredentials;
     context.OzonCredentials = {
       ...credentials,
       normalizeSellerCredentials: () => {
         const error = new Error(sensitiveMessage);
-        error.code = marker;
+        if (mode === "mutating_validator") {
+          Object.defineProperty(error, "code", { get() {
+            calls.codeReads++;
+            return calls.codeReads === 1 ? "MISSING_API_KEY" : marker;
+          } });
+        } else if (mode === "throwing_validator") {
+          Object.defineProperty(error, "code", { get() {
+            calls.codeReads++;
+            throw new Error(sensitiveMessage);
+          } });
+        } else if (mode === "invalid_status_validator") {
+          error.code = "PROVIDER_FETCH_FAILED";
+          Object.defineProperty(error, "http_status", { get() {
+            calls.statusReads++;
+            return 700;
+          } });
+        } else if (mode === "throwing_status_validator") {
+          error.code = "PROVIDER_FETCH_FAILED";
+          Object.defineProperty(error, "http_status", { get() {
+            calls.statusReads++;
+            throw new Error(sensitiveMessage);
+          } });
+        } else {
+          error.code = marker;
+        }
         throw error;
       },
     };
   }
   vm.runInContext(readFileSync(transportPath, "utf8"), context, { filename: "ozon-transport.js" });
   vm.runInContext(readFileSync(providerPath, "utf8"), context, { filename: "ozon-provider.js" });
-  const calls = { fetch: 0 };
+  const calls = { fetch: 0, codeReads: 0, statusReads: 0 };
   const provider = context.OzonProviderFactory.createOzonProvider({
     contract,
     now: () => 1000,
@@ -75,6 +102,8 @@ async function check(mode, expected) {
   assert.equal(profile.status, expected.status, mode + ": capability");
   assert.equal(f.calls.fetch, expected.fetch, mode + ": actual fetch callback count");
   assert.equal(profile.probe_http_status, expected.http, mode + ": status");
+  assert.equal(f.calls.codeReads, expected.codeReads || 0, mode + ": code getter read once");
+  assert.equal(f.calls.statusReads, expected.statusReads || 0, mode + ": status getter read once");
   const command = vm.runInContext(commandSource, f.context);
   const plan = f.contract.planCommandForSellerCapability(command, profile, 0, {});
   assert.equal(plan.action, expected.action, mode + ": fail-closed entitlement");
@@ -82,11 +111,23 @@ async function check(mode, expected) {
     '({host_alias:"seller_api",http_method:"POST",path_alias:"inert_roles",external_request_executed:false})',
     f.context,
   );
-  const result = vm.runInContext('({error:{code:"ENTITLEMENT_UNKNOWN"}})', f.context);
+  // Use the *actual* plan/error, not a fixed report payload: the public
+  // planning.capability fields must carry exactly the sanitized probe code.
+  const result = vm.runInContext("({})", f.context);
+  if (plan.action === "reject") result.error = plan.error;
+  else result.result = { inert_planning_only: true };
   const report = f.contract.formatResultReport({
     requestId: "INERT_REQUEST_ONLY", command, requestMeta,
     httpStatus: 0, result, elapsedMs: 0, planning: plan.planning,
   });
+  const reportPayload = JSON.parse(report.slice(report.indexOf("\n") + 1));
+  assert.equal(
+    reportPayload.planning?.capability?.probe_error_code,
+    profile.probe_error_code,
+    mode + ": actual profile diagnostic flows into public report planning",
+  );
+  if (plan.action === "reject")
+    assert.equal(reportPayload.result.error.code, plan.error.code);
   const publicSurface = JSON.stringify(profile) + report;
   assert.equal(publicSurface.includes(marker), false, mode + ": no unknown error code");
   assert.equal(publicSurface.includes(sensitiveMessage), false, mode + ": no raw message");
@@ -112,4 +153,20 @@ await check("network", {
 await check("success", {
   code: null, status: "known", fetch: 1, http: 200, action: "execute",
 });
-console.log("OZON_SELLER_CAPABILITY_PUBLIC_CODES_5_CASES_PASS");
+await check("mutating_validator", {
+  code: "MISSING_API_KEY", status: "unknown", fetch: 0,
+  http: 0, action: "reject", codeReads: 1,
+});
+await check("throwing_validator", {
+  code: "SELLER_CAPABILITY_PROBE_FAILED", status: "unknown", fetch: 0,
+  http: 0, action: "reject", codeReads: 1,
+});
+await check("invalid_status_validator", {
+  code: "PROVIDER_FETCH_FAILED", status: "unknown", fetch: 0,
+  http: 0, action: "reject", statusReads: 1,
+});
+await check("throwing_status_validator", {
+  code: "PROVIDER_FETCH_FAILED", status: "unknown", fetch: 0,
+  http: 0, action: "reject", statusReads: 1,
+});
+console.log("OZON_SELLER_CAPABILITY_PUBLIC_CODES_9_CASES_PASS");

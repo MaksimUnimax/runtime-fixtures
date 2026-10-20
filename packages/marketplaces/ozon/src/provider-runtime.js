@@ -814,21 +814,39 @@
             : "SELLER_CAPABILITY_SUBSCRIPTION_UNKNOWN",
         });
       } catch (error) {
+        // A throwable getter or proxy is untrusted. Read the error code only
+        // once, and never use a value that was not checked against the allowlist.
+        let publicCode = "SELLER_CAPABILITY_PROBE_FAILED";
+        try {
+          const candidateCode = error?.code;
+          if (
+            typeof candidateCode === "string" &&
+            new Set([
+              "MISSING_CLIENT_ID", "MISSING_API_KEY",
+              "INVALID_CLIENT_ID", "INVALID_API_KEY",
+              "INCOMPLETE_SELLER_CREDENTIALS", "FETCH_IMPL_MISSING",
+              "INVALID_REQUEST", "UNTRUSTED_REQUEST_HOST",
+              "UNTRUSTED_REQUEST_METHOD", "PROVIDER_FETCH_FAILED",
+            ]).has(candidateCode)
+          ) publicCode = candidateCode;
+        } catch (_) {
+          // An error accessor must not escape the outer capability catch.
+        }
+        let publicHttpStatus = 0;
+        try {
+          const status = Number(error?.http_status);
+          if (Number.isInteger(status) && status >= 100 && status <= 599)
+            publicHttpStatus = status;
+        } catch (_) {
+          // Untrusted metadata cannot turn an unknown failure into HTTP proof.
+        }
         return Object.freeze({
           status: "unknown",
           subscription_type: "UNKNOWN",
           is_premium: null,
           probe_performed: true,
-          probe_http_status: Number(error?.http_status || 0),
-          probe_error_code: new Set([
-            "MISSING_CLIENT_ID", "MISSING_API_KEY",
-            "INVALID_CLIENT_ID", "INVALID_API_KEY",
-            "INCOMPLETE_SELLER_CREDENTIALS", "FETCH_IMPL_MISSING",
-            "INVALID_REQUEST", "UNTRUSTED_REQUEST_HOST",
-            "UNTRUSTED_REQUEST_METHOD", "PROVIDER_FETCH_FAILED",
-          ]).has(error?.code)
-            ? error.code
-            : "SELLER_CAPABILITY_PROBE_FAILED",
+          probe_http_status: publicHttpStatus,
+          probe_error_code: publicCode,
         });
       }
     }
