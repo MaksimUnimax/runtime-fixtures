@@ -208,10 +208,17 @@ export class TelegramOperatorService {
         );
         return;
       }
-      if (!parsed || parsed.name !== "swagger_upload" || !parsed.argument) {
+      // The owner may attach the one official WB bundle without typing a
+      // request ID. Explicit /swagger_upload <id> remains available for the
+      // existing source handoff workflows.
+      const explicitUpload =
+        parsed?.name === "swagger_upload" && parsed.argument;
+      const implicitUpload =
+        !text.trim() || (parsed?.name === "swagger_upload" && !parsed.argument);
+      if (!explicitUpload && !implicitUpload) {
         await this.options.transport.sendMessage(
           chatId,
-          "Attach the complete WB bundle with /swagger_upload <request_id> as the caption.",
+          "Attach one official WB bundle without a caption after /swagger_new, or use /swagger_upload <request_id> for an existing explicit request.",
         );
         return;
       }
@@ -222,6 +229,72 @@ export class TelegramOperatorService {
         await this.options.transport.sendMessage(chatId, "UPLOAD_TOO_LARGE");
         return;
       }
+      let requestId: string;
+      let documentKey: string | undefined;
+      if (explicitUpload) {
+        const [providedRequestId, providedDocumentKey] = explicitUpload.split(
+          /\s+/,
+          2,
+        );
+        requestId = providedRequestId!;
+        documentKey = providedDocumentKey;
+      } else {
+        // An implicit upload must originate from a configured destination.
+        // Actor authorization was already verified in handleUpdate().
+        if (!this.options.notificationChatIds?.includes(chatId)) {
+          await this.options.transport.sendMessage(chatId, "DENIED");
+          return;
+        }
+        if (document.sourceFamily && document.sourceFamily !== "WILDBERRIES") {
+          await this.options.transport.sendMessage(
+            chatId,
+            "SOURCE_FAMILY_MISMATCH",
+          );
+          return;
+        }
+        if (
+          document.documentKey &&
+          document.documentKey !== WB_BUNDLE_DOCUMENT_KEY
+        ) {
+          await this.options.transport.sendMessage(
+            chatId,
+            "DOCUMENT_KEY_MISMATCH",
+          );
+          return;
+        }
+        // The implicit path is for one exported JSON wrapper containing the
+        // 13 official WB YAML documents, never an arbitrary Telegram file.
+        if (document.fileName !== "WB_OPENAPI_BUNDLE_V1.json") {
+          await this.options.transport.sendMessage(
+            chatId,
+            "WB_BUNDLE_FILE_INVALID",
+          );
+          return;
+        }
+        const pending = (
+          await this.options.swaggerHandoff.listPending()
+        ).filter(
+          (request) =>
+            request.status === "PENDING_OPERATOR_UPLOAD" &&
+            request.sourceFamily === "WILDBERRIES" &&
+            request.officialUrl === WB_BUNDLE_OFFICIAL_URL &&
+            request.documentKey === WB_BUNDLE_DOCUMENT_KEY &&
+            request.bundleVersion === WB_BUNDLE_VERSION &&
+            request.expectedArtifactType === "JSON" &&
+            (!request.expiresAt || request.expiresAt.getTime() > Date.now()),
+        );
+        if (pending.length !== 1) {
+          await this.options.transport.sendMessage(
+            chatId,
+            pending.length === 0
+              ? "WB_BUNDLE_REQUEST_MISSING"
+              : "WB_BUNDLE_REQUEST_AMBIGUOUS",
+          );
+          return;
+        }
+        requestId = pending[0]!.requestId;
+        documentKey = WB_BUNDLE_DOCUMENT_KEY;
+      }
       const bytes =
         document.bytes ??
         (document.fileId && this.options.transport.downloadFile
@@ -231,9 +304,8 @@ export class TelegramOperatorService {
         await this.options.transport.sendMessage(chatId, "UPLOAD_UNAVAILABLE");
         return;
       }
-      const [requestId, documentKey] = parsed.argument.split(/\s+/, 2);
       const result = await this.options.swaggerHandoff.upload({
-        requestId: requestId!,
+        requestId,
         operatorId,
         originalFilename: document.fileName ?? "upload",
         bytes,
@@ -305,7 +377,7 @@ export class TelegramOperatorService {
       case "swagger_upload":
         await this.options.transport.sendMessage(
           chatId,
-          "Attach one official source or the complete WB JSON bundle with /swagger_upload <request_id> as its caption.",
+          "Attach one official WB bundle here without a caption after /swagger_new. Existing explicit requests can still use /swagger_upload <request_id>.",
         );
         return;
       default:
@@ -374,7 +446,13 @@ export class TelegramOperatorService {
       blockerReason:
         "Explicit operator request for one complete official WB bundle.",
     });
-    return this.sendPending(chatId);
+    await this.sendPending(chatId);
+    await this.options.transport.sendMessage(
+      chatId,
+      this.options.notificationChatIds?.includes(chatId)
+        ? "Attach one WB_OPENAPI_BUNDLE_V1.json file containing all 13 official YAML documents here, without a caption or request_id."
+        : "Use the configured operator notification chat to attach the official WB bundle.",
+    );
   }
 
   private async sendPending(chatId: string): Promise<void> {
