@@ -253,6 +253,17 @@ async function ensureBatchCapabilityAndPlanning({
           };
         });
         if (!stored) {
+          // A stale worker must never fail or overwrite a newer worker's
+          // recovered or witnessed durable capability result.
+          owner = await getOwner();
+          if (!owner || !ownerMatches(owner) || !isCollecting(owner) || !owner.batch)
+            return { ok: false, code: "BATCH_OWNER_NOT_ACTIVE", owner };
+          const durable = owner.batch.capability_resolution;
+          if (
+            durable?.state !== "requesting" ||
+            durable?.request_worker_session_id !== WORKER_SESSION_ID
+          )
+            return { ok: false, code: "CAPABILITY_PROBE_RESULT_SUPERSEDED", owner };
           await failOwner(
             "CAPABILITY_PROBE_STORE_RACE",
             "Capability probe завершился, но durable batch state изменился; business requests запрещены.",

@@ -81,6 +81,8 @@ def main():
                        ["node", ROOT / "tests/regression/extension-core/ozon-fresh-batch-probe-observation.mjs", runtime / "service_worker.js", ROOT])
             runner.run(label + "-ozon-orphan-recovery-no-replay",
                        ["node", ROOT / "tests/regression/extension-core/ozon-orphan-recovery-no-replay.mjs", runtime / "service_worker.js", ROOT])
+            runner.run(label + "-ozon-late-worker-completion-fence",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-late-worker-completion-fence.mjs", runtime / "service_worker.js", ROOT])
             runner.run(label + "-ozon-legacy-pending-capability-proof",
                        ["node", ROOT / "tests/regression/extension-core/ozon-legacy-pending-capability-proof.mjs", runtime / "service_worker.js", ROOT])
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
