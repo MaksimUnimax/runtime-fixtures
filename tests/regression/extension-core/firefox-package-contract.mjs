@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 const runtime = process.argv[2];
 assert.ok(runtime, "runtime directory required");
@@ -44,6 +47,112 @@ if (loopbackHosts.length) {
   );
 }
 assert.ok(fs.statSync(path.join(runtime, "firefox_background.js")).size > 0);
+
+// Verify the executable static import boundary with TypeScript's JS AST,
+// not a regex scanner that mistakes comments, templates or regex literals
+// for executable calls. Store/package CI invokes this file twice.
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const builder = path.join(repoRoot, "tooling/build/extension_firefox.py");
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "octoport-firefox-ast-"));
+try {
+  const input = path.join(fixtureRoot, "runtime");
+  fs.mkdirSync(input);
+  fs.writeFileSync(
+    path.join(input, "manifest.json"),
+    JSON.stringify({
+      manifest_version: 3,
+      version: "0.2.37",
+      name: "Synthetic Firefox AST contract",
+      background: { service_worker: "service_worker_entry.js" },
+      action: { default_title: "Synthetic Firefox" },
+      permissions: [],
+      host_permissions: [],
+    }),
+  );
+  fs.writeFileSync(path.join(input, "child.js"), "globalThis.Child1 = true;\n");
+  fs.writeFileSync(path.join(input, "child2.js"), "globalThis.Child2 = true;\n");
+  const entry = path.join(input, "service_worker_entry.js");
+  function attempt(label, source, shouldSucceed, requiredError) {
+    fs.writeFileSync(entry, source);
+    const syntax = spawnSync("node", ["--check"], {
+      input: source,
+      encoding: "utf8",
+      timeout: 12000,
+    });
+    assert.equal(syntax.status, 0, "fixture is not valid JavaScript: " + label + " " + syntax.stderr);
+    const out = path.join(fixtureRoot, label);
+    const result = spawnSync(
+      "python3",
+      [builder, "--input-runtime", input, "--output", out],
+      { encoding: "utf8", timeout: 25000 },
+    );
+    if (shouldSucceed) {
+      assert.equal(result.status, 0, label + ": " + (result.stderr || result.error?.message));
+      return fs.readFileSync(path.join(out, "firefox_background.js"), "utf8");
+    }
+    assert.notEqual(result.status, 0, label + " must fail closed");
+    if (requiredError) assert.ok(result.stderr.includes(requiredError), result.stderr);
+    return null;
+  }
+  const tick = String.fromCharCode(96);
+  const real = [
+    '"use strict"',
+    "const value = 'importScripts(\"ghost.js\");';",
+    "// importScripts(\"ghost.js\");",
+    "/* importScripts(\"ghost.js\"); */",
+    "const template = " + tick + 'importScripts("ghost.js");' + tick + ";",
+    "if (enabled) {} /;importScripts(\"ghost.js\");/.test(source);",
+    "const regex = +/;importScripts(\"ghost.js\");/;",
+    "if /* comment */ (enabled) /importScripts(\"ghost.js\");/.test(source);",
+    'importScripts /* comment */ ("child.js");',
+    'importScripts("child2.js");',
+  ].join("\n") + "\n";
+  const compiled = attempt("valid-static", real, true);
+  for (const untouched of real.split("\n").slice(0, 8)) {
+    assert.ok(compiled.includes(untouched), "non-executable literal was changed");
+  }
+  for (const name of ["Child1", "Child2"]) {
+    assert.ok(compiled.includes("globalThis." + name + " = true;"), name + " not inlined");
+  }
+  assert.ok(!compiled.includes('importScripts /* comment */ ("child.js");'));
+  assert.ok(!compiled.includes('importScripts("child2.js");'));
+
+  const interpolation =
+    "const output = " + tick + "${(() => { importScripts(\"child.js\"); return 1; })()}" + tick + ";\n";
+  attempt("template-expression", interpolation, false, "NOT_TOP_LEVEL_STATEMENT");
+  attempt("unbraced-if", 'if (enabled) importScripts("child.js");\n', false, "NOT_TOP_LEVEL_STATEMENT");
+  attempt("braced-if", 'if (enabled) { importScripts("child.js"); }\n', false, "NOT_TOP_LEVEL_STATEMENT");
+  attempt("arithmetic", 'const x = 1 / importScripts("child.js");\n', false, "NOT_TOP_LEVEL_STATEMENT");
+  attempt("dynamic-arg", 'importScripts(window.file);\n', false, "NON_STATIC_ARGUMENT");
+  attempt("missing-static", 'importScripts("missing.js");\n', false, "invalid Firefox background input");
+
+  // TypeScript spans use UTF-16 offsets, whereas the Python composer slices
+  // Unicode code points. Two separate imports follow astral characters.
+  const nonBmpSource = [
+    'const before = "😀🚀";',
+    'importScripts("child.js");',
+    'const between = "🦊🛍️";',
+    'importScripts("child2.js");',
+    "globalThis.after = true;",
+  ].join("\n") + "\n";
+  const nonBmpResult = attempt("non-bmp-offsets", nonBmpSource, true);
+  const expectedNonBmp = [
+    'const before = "😀🚀";',
+    "globalThis.Child1 = true;",
+    "",
+    'const between = "🦊🛍️";',
+    "globalThis.Child2 = true;",
+    "",
+    "globalThis.after = true;",
+  ].join("\n") + "\n";
+  assert.equal(
+    nonBmpResult, expectedNonBmp,
+    "AST import spans must preserve exact Unicode code-point boundaries",
+  );
+} finally {
+  fs.rmSync(fixtureRoot, { recursive: true, force: true });
+}
+
 console.log(JSON.stringify({
   status: "PASS",
   requiredDataCollection: manifest.browser_specific_settings.gecko.data_collection_permissions.required,

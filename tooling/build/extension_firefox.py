@@ -12,11 +12,11 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 import zipfile
 from pathlib import Path
 
 
-IMPORT_SCRIPTS = re.compile(r"importScripts\((.*?)\);", re.DOTALL)
 FIREFOX_REQUIRED_DATA_COLLECTION = [
     "authenticationInfo",
     "personallyIdentifyingInfo",
@@ -43,6 +43,45 @@ def write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _locate_static_imports(source: str) -> list[dict]:
+    if "importScripts" not in source:
+        return []
+    parser = Path(__file__).with_name("extension_importscripts_ast.cjs")
+    if not parser.is_file() or parser.is_symlink():
+        raise ValueError("Firefox static import AST parser unavailable")
+    try:
+        result = subprocess.run(
+            ["node", str(parser)],
+            input=source, capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError("Firefox static import AST parser not executable") from error
+    if result.returncode != 0:
+        raise ValueError(
+            "Firefox static import AST rejected source: " + result.stderr.strip()[:320],
+        )
+    try:
+        imports = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise ValueError("Firefox static import AST returned invalid JSON") from error
+    if not isinstance(imports, list):
+        raise ValueError("Firefox static import AST returned invalid list")
+    last_end = 0
+    for item in imports:
+        if not isinstance(item, dict):
+            raise ValueError("Firefox static import AST returned invalid item")
+        start, end, paths = item.get("start"), item.get("end"), item.get("paths")
+        if not (
+            type(start) is int and type(end) is int and
+            last_end <= start < end <= len(source) and
+            isinstance(paths, list) and paths and
+            all(isinstance(p, str) and p for p in paths)
+        ):
+            raise ValueError("Firefox static import AST returned invalid spans")
+        last_end = end
+    return imports
+
+
 def flatten(path: Path, root: Path, stack: tuple[Path, ...] = ()) -> bytes:
     path = path.resolve()
     if path in stack:
@@ -50,20 +89,17 @@ def flatten(path: Path, root: Path, stack: tuple[Path, ...] = ()) -> bytes:
     if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
         raise ValueError(f"invalid Firefox background input: {path}")
     source = path.read_text(encoding="utf-8")
-
-    def replace(match: re.Match[str]) -> str:
-        raw = "[" + match.group(1) + "]"
-        try:
-            imports = json.loads(raw)
-        except json.JSONDecodeError as error:
-            raise ValueError(f"non-static importScripts in {path}") from error
-        if not isinstance(imports, list) or not all(isinstance(item, str) for item in imports):
-            raise ValueError(f"invalid importScripts list in {path}")
-        return "\n;\n".join(
-            flatten(root / item, root, stack + (path,)).decode("utf-8") for item in imports
-        )
-
-    return IMPORT_SCRIPTS.sub(replace, source).encode("utf-8")
+    locations = _locate_static_imports(source)
+    pieces: list[bytes] = []
+    cursor = 0
+    for item in locations:
+        pieces.append(source[cursor:item["start"]].encode("utf-8"))
+        pieces.append(b"\n;\n".join(
+            flatten(root / name, root, stack + (path,)) for name in item["paths"]
+        ))
+        cursor = item["end"]
+    pieces.append(source[cursor:].encode("utf-8"))
+    return b"".join(pieces)
 
 
 def build(input_runtime: Path, output: Path) -> dict:
