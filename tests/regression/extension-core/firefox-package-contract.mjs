@@ -124,6 +124,25 @@ try {
   attempt("braced-if", 'if (enabled) { importScripts("child.js"); }\n', false, "NOT_TOP_LEVEL_STATEMENT");
   attempt("arithmetic", 'const x = 1 / importScripts("child.js");\n', false, "NOT_TOP_LEVEL_STATEMENT");
   attempt("dynamic-arg", 'importScripts(window.file);\n', false, "NON_STATIC_ARGUMENT");
+  // Never silently preserve runnable non-bare importScripts references. The
+  // Firefox event-page carrier only supports direct top-level static calls.
+  attempt("self-property", 'self.importScripts("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("global-property", 'globalThis.importScripts("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("self-bracket", 'self["importScripts"]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("global-template-key", 'globalThis[\x60importScripts\x60]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("property-alias", 'const loader = self.importScripts;\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("bare-alias", 'const loader = importScripts;\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("parenthesized-call", '(importScripts)("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  // Class/object property definition keys are inert, not import calls.
+  const inertDefinitionKeys = [
+    'class Metadata { importScripts = "label"; static importScripts = "static label"; }',
+    'const descriptor = { importScripts: "label" };',
+  ].join("\n") + "\n";
+  assert.equal(
+    attempt("inert-definition-keys", inertDefinitionKeys, true),
+    inertDefinitionKeys,
+    "non-call class/object definition keys must survive unchanged",
+  );
   attempt("missing-static", 'importScripts("missing.js");\n', false, "invalid Firefox background input");
 
   // TypeScript spans use UTF-16 offsets, whereas the Python composer slices

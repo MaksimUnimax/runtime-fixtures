@@ -18,7 +18,42 @@ function locate(source) {
     );
   }
   const imports = [];
+  // Only a plain top-level importScripts(...) is supported for flattening.
+  // Other executable references must fail closed rather than reach Firefox
+  // as worker-only calls in an event-page background script.
+  function isDefinitionKey(node) {
+    const parent = node.parent;
+    return (
+      (ts.isPropertyAssignment(parent) ||
+       ts.isMethodDeclaration(parent) ||
+       ts.isPropertyDeclaration(parent) ||
+       ts.isGetAccessorDeclaration(parent) ||
+       ts.isSetAccessorDeclaration(parent)) &&
+      parent.name === node
+    );
+  }
   function visit(node) {
+    if (
+      (ts.isPropertyAccessExpression(node) && node.name.text === "importScripts") ||
+      (ts.isElementAccessExpression(node) &&
+        (ts.isStringLiteral(node.argumentExpression) ||
+         ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)) &&
+        node.argumentExpression.text === "importScripts")
+    ) {
+      // Includes self.importScripts, globalThis["importScripts"], aliases
+      // and .call() usages. Property keys in object definitions are inert.
+      throw new Error("IMPORT_SCRIPTS_UNSUPPORTED_REFERENCE");
+    }
+    if (
+      ts.isIdentifier(node) &&
+      node.text === "importScripts" &&
+      !isDefinitionKey(node) &&
+      !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+    ) {
+      // Reject (importScripts)(...), const alias=importScripts and other
+      // references that are not handled by the top-level static flattener.
+      throw new Error("IMPORT_SCRIPTS_UNSUPPORTED_REFERENCE");
+    }
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
