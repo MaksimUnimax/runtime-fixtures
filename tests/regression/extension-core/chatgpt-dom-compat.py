@@ -783,7 +783,111 @@ def run_b02_delivery_watch(runtime: Path, output: Path):
     return 1 if failures else 0
 
 
+
+def run_observed_composers(runtime: Path, output: Path, only_provider=None):
+    """B02 DeepSeek/Claude composer/file primitives: offline code only, activation pending."""
+    from html import escape
+    output.mkdir(parents=True, exist_ok=True)
+    bundle=(runtime/"shared/ai_adapters.js").read_text()
+    sources=[(runtime/n).read_text() for n in ["shared/conversation_identity.js","shared/web_file_attachment.js","shared/ai_delivery_capabilities.js"]]
+    arrow='<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.3125 0.980206C8.66767 1.05312 8.97902 1.2042 9.2627 1.43235C9.48724 1.613 9.73029 1.85795 9.97949 2.10716L14.707 6.8347L13.293 8.24876L9 3.95579V15.0417H7V3.95579L2.70703 8.24876L1.29297 6.8347L6.02051 2.10716C6.26971 1.85795 6.51277 1.613 6.7373 1.43235C6.97662 1.23988 7.28445 1.04404 7.6875 0.980206C7.8973 0.947029 8.1031 0.955183 8.3125 0.980206Z" fill="currentColor"></path></svg>'
+    cases={}
+    for provider in ([only_provider] if only_provider else ["deepseek","claude"]):
+        def send(disabled=False,icon=None):
+            if provider=="deepseek":
+                return '<div role="button" class="ds-button ds-button--primary _52c986b'+(' ds-button--disabled' if disabled else '')+'">'+(arrow if icon is None else icon)+'</div>'
+            return '<button type="button" data-testid="chat-input-send" aria-label="Отправить сообщение" '+('disabled' if disabled else '')+'>send</button>'
+        stop='<button data-testid="chat-input-stop" aria-label="Остановить ответ">stop</button>'
+        def staged(name="report.txt"):
+            if provider=="deepseek":
+                return '<div class="cd314545"><div class="_158cea4"><div class="_967f3f9"><div class="e70accd6">'+name+'</div></div><div class="_7103a25 _078ccb5">TXT 1MB</div></div></div>'
+            return '<div data-testid="file-thumbnail" data-cds="MessageAttachmentsFile"><span data-cds="CardLink" role="button" title="'+name+'">'+name+'</span><span data-cds="Badge"><bdi>TXT</bdi></span><button aria-label="Удалить: '+name+'">remove</button></div>'
+        def root(text="",buttons=None,extra="",input_attrs=""):
+            controls=send(True) if buttons is None else buttons
+            if provider=="deepseek":
+                return '<div class="_77cefa5 _3d616d3">'+extra+'<div class="_020ab5b"><div class="_24fad49"><textarea placeholder="Сообщение для DeepSeek">'+escape(text)+'</textarea></div><div class="bf38813a"><input type="file" multiple accept=".pdf,.txt,.csv" '+input_attrs+'>'+controls+'</div></div></div>'
+            return '<div class="flex w-full min-w-0 flex-col"><div><div class="tiptap ProseMirror" data-testid="chat-input" contenteditable="true" role="textbox" aria-label="Напишите запрос для Claude">'+escape(text)+'</div></div>'+extra+controls+'<input type="file" id="chat-input-file-upload-bottom" data-testid="file-upload" multiple accept="" style="opacity:0;width:0;height:0" '+input_attrs+'></div>'
+        def case(name,html,js,expected,wrong_origin=False):
+            cases[provider+"_"+name]=(provider,html,js,expected,wrong_origin)
+        case("factory_pending_not_registry",root(),"return [a.id,a.integrationStatus().status,a.integrationStatus().registry_activated,OzonAIAdapters.adapterForLocation('auto')?.id===a.id]",[provider,"pending",False,False])
+        case("one_observed_composer",root(),"return !!c",True)
+        case("disabled_send_not_busy_stop",root(),"return a.classifyComposerControl(c).kind","send_disabled")
+        case("draft_enabled_send",root("draft",send()),"return [a.classifyComposerControl(c).kind,!!a.sendButton(c)]",["send_active",True])
+        case("duplicate_send_unknown",root("draft",send()+send()),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["unknown",None])
+        case("progress_excludes_send",root("draft",send(),'<div role="progressbar">loading</div>'),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["busy",None])
+        case("hidden_editor_unavailable",'<div hidden>'+root()+'</div>',"return c",None)
+        case("zero_size_editor_unavailable",root().replace('placeholder="Сообщение для DeepSeek"','style="width:0;height:0;padding:0;border:0" placeholder="Сообщение для DeepSeek"') if provider=="deepseek" else root().replace('class="tiptap ProseMirror"','style="display:none" class="tiptap ProseMirror"'),"return c",None)
+        case("duplicate_editors_unknown",root()+root(),"return c",None)
+        case("outside_controls_not_selected",root(buttons="")+send(),"return a.classifyComposerControl(c).kind","unknown")
+        case("dialog_editor_excluded",'<div role="dialog">'+root()+'</div>',"return c",None)
+        case("message_editor_excluded",'<div class="ds-message" data-testid="user-message">'+root()+'</div>',"return c",None)
+        case("read_write_multiline",root(),"a.setComposerText(c.composer,'ONE\\nTWO');return a.readComposerText(c.composer)","ONE\nTWO")
+        case("changed_url_rejects_context",root("draft",send()),"history.pushState({},'',location.pathname+'-b');return a.classifyComposerControl(c).kind","unknown")
+        case("replaced_composer_rejects_context",root("draft",send()),"c.composer.replaceWith(c.composer.cloneNode(true));return a.classifyComposerControl(c).kind","unknown")
+        case("wrong_origin_no_composer",root(),"return [a.matchesLocation(),c]",[False,None],True)
+        case("observed_native_file_input",root(),"const s=a.attachmentSurface();return [s?.kind,s?.input.multiple]",["file_input_v1",True])
+        case("disabled_input_unavailable",root(input_attrs="disabled"),"return a.attachmentSurface()",None)
+        case("second_file_input_unavailable",root(extra='<input type="file" multiple>'),"return c",None)
+        case("draft_preserved_no_attach",root("draft",send()),"return [a.attachmentSurface(),a.readComposerText(c.composer)]",[None,"draft"])
+        case("staged_card_is_preview_only",root(buttons=send(),extra=staged()),"return [!!a.attachmentPreview('report.txt'),a.attachmentReady([{filename:'report.txt',byte_length:16}]),a.attachmentSurface()]",[True,False,None])
+        case("wrong_filename_not_preview",root(buttons=send(),extra=staged("wrong.txt")),"return a.attachmentPreview('report.txt')",None)
+        case("duplicate_card_not_preview",root(buttons=send(),extra=staged()+staged()),"return a.attachmentPreview('report.txt')",None)
+        case("outside_card_not_preview",root()+staged(),"return a.attachmentPreview('report.txt')",None)
+        case("no_synthetic_message_identity",root(),"const n=document.createElement('div');n.id='unverified';n.setAttribute('data-turn-key','unverified');return [a.messageId(n),a.messageComplete(n),a.sentAttachmentMessage(n,[{filename:'report.txt',byte_length:16}])]",["",False,None])
+        case("native_file_bytes_and_events",root(),"""return (async()=>{
+          const s=a.attachmentSurface(),events=[];s.input.addEventListener('input',()=>events.push('input'));s.input.addEventListener('change',()=>events.push('change'));
+          a.attachFiles(s,[new File(['BEGIN\\nMIDDLE\\nEND'],'report.txt',{type:'text/plain'})]);
+          const f=s.input.files[0];return [f.name,f.size,await f.text(),events.includes('input'),events.includes('change')];
+        })()""",["report.txt",16,"BEGIN\nMIDDLE\nEND",True,True])
+        case("stale_file_surface_rejected",root(),"const s=a.attachmentSurface();history.pushState({},'',location.pathname+'-b');let error='';try{a.attachFiles(s,[new File(['x'],'report.txt')])}catch(e){error=e.code}return error","TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE")
+        case("unsupported_file_rejected",root(),"let error='';try{a.attachFiles(a.attachmentSurface(),[new File(['x'],'report.pdf')])}catch(e){error=e.code}return error","TARGET_AI_FILE_TYPE_UNSUPPORTED")
+        case("second_attach_preserves_file",root(),"const s=a.attachmentSurface();a.attachFiles(s,[new File(['FIRST'],'report.txt')]);let error='';try{a.attachFiles(s,[new File(['SECOND'],'report.txt')])}catch(e){error=e.code}return [error,s.input.files[0].size] ",["TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE",5])
+        case("changed_accept_unavailable",root(),"c.root.querySelector('input').setAttribute('accept','.pdf');return a.attachmentSurface()",None)
+        if provider=="deepseek":
+            case("captured_spin_busy_not_stop",root(buttons=send(True,'<svg data-icon="spin"><path d="busy"/></svg>')),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["busy",None])
+            case("unknown_icon_not_send",root("draft",send(False,'<svg><path d="UNKNOWN"/></svg>')),"return a.classifyComposerControl(c).kind","unknown")
+            case("busy_blocks_text_write",root("draft",send(False,'<svg data-icon="spin"><path d="busy"/></svg>')),"let error='';try{a.setComposerText(c.composer,'NEW')}catch(e){error=e.code}return [error,a.readComposerText(c.composer)]",["COMPOSER_NOT_AVAILABLE","draft"])
+        else:
+            case("captured_stop_excludes_send",root("draft",send()+stop),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["stop",None])
+            case("stop_outside_idle_root_excludes_send",root("draft",send())+stop,"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["stop",None])
+            case("stop_blocks_text_write",root("draft",stop),"let error='';try{a.setComposerText(c.composer,'NEW')}catch(e){error=e.code}return [error,a.readComposerText(c.composer)]",["COMPOSER_NOT_AVAILABLE","draft"])
+            case("null_streaming_not_completion",root()+'<div data-testid="assistant-message">answer</div>',"return a.messageComplete(document.querySelector('[data-testid=assistant-message]'))",False)
+            case("null_streaming_not_ready_or_upload",root()+'<div data-testid="assistant-message">answer</div>',"return [a.classifyComposerControl(c).kind,a.attachmentSurface()]",["unknown",None])
+            case("explicit_streaming_blocks_send",root("draft",send())+'<div data-testid="assistant-message" data-is-streaming="true">answer</div>',"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["busy",None])
+            case("explicit_false_clears_streaming_signal",root("draft",send())+'<div data-testid="assistant-message" data-is-streaming="false">answer</div>',"return a.classifyComposerControl(c).kind","send_active")
+            case("null_streaming_blocks_write",root("draft",send())+'<div data-testid="assistant-message">answer</div>',"let error='';try{a.setComposerText(c.composer,'NEW')}catch(e){error=e.code}return [error,a.readComposerText(c.composer)]",["COMPOSER_NOT_AVAILABLE","draft"])
+
+    result={"status":"RUNNING","scope":"B02 observed DeepSeek/Claude composer/native-input primitives only; no provider/UI/network/registry activation or delivery acceptance","bundle_sha256":hashlib.sha256(bundle.encode()).hexdigest(),"cases":{}}
+    failures=[]
+    with sync_playwright() as p:
+        browser=p.chromium.launch(headless=True);context=browser.new_context(viewport={"width":1100,"height":800})
+        context.route("**/*",lambda route:route.fulfill(status=200,content_type="text/html",body="<html></html>"));page=context.new_page()
+        for name,(provider,html,js,expected,wrong_origin) in cases.items():
+            try:
+                origin="https://example.invalid" if wrong_origin else ("https://chat.deepseek.com" if provider=="deepseek" else "https://claude.ai")
+                page.goto(origin+"/chat/fixture-a");page.set_content(html)
+                for code in sources:page.evaluate(code)
+                page.evaluate(bundle)
+                actual=page.evaluate("""({provider,js})=>{
+                  const factory=provider==='deepseek'?SellerAgentsDeepSeekAdapter:SellerAgentsClaudeAdapter;
+                  const a=factory.create(OzonAIAdapters),c=a.composerContext();return new Function('a','c',js)(a,c);
+                }""",{"provider":provider,"js":js})
+                assert actual==expected,{"actual":actual,"expected":expected}
+                result["cases"][name]={"status":"PASS"}
+            except Exception as exc:
+                failures.append(name);result["cases"][name]={"status":"FAIL","error":str(exc)[:1200]}
+        browser.close()
+    result["status"]="FAIL" if failures else "PASS";result["failed"]=failures
+    (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps({"status":result["status"],"cases":len(cases),"failed":failures}))
+    return 1 if failures else 0
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "claude-composer":
+        return run_observed_composers(runtime, output, "claude")
+    if provider == "observed-composers":
+        return run_observed_composers(runtime, output)
     if provider == "b02-delivery-watch":
         return run_b02_delivery_watch(runtime, output)
     if provider == "grok-adapter":
@@ -961,6 +1065,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
