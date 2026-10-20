@@ -1,7 +1,7 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — продолжение того же незавершённого аудита, не новый аудит.
-- **Состояние на:** 2026-10-20T02:24:04.209Z; продолжение с REPORT b3ec842b. Точная SOURCE-передача local9a890b85/coree0824c6f, два PASS_SOURCE_SCOPED,124/124 core,4 syntax,manifest129/41 и popup-only inheritance остаются принятыми, без повторного чтения/проверки. Новый итог Тестера передан владельцем: dot прочитал завершённый ответ в02:11 UTC, §12 readback02:09:59. В проверенных Тестером доступных указателях новая безопасная same-request корреляция для run39348173947/job118385788397 не найдена; это НЕ доказательство отсутствия данных в непрочитанном архиве или их несохранения observer. Указатели A06 по более раннему PR230 не объясняют PR241 сами по себе. Существующий A/I1(A06) — уточнение наличия готовой observer-первички именно этого run/job; Тестер — runtime и сохранённый installed FAIL. Причина/selected grant-profile-work intent/lease-fence/initiator UNKNOWN. Main76 подтверждён, публичная updated-collection после01:51:31 вернула0 в своём охвате. PLAN/WIP/checkpoint/история/original12OPEN сохранены; audit_complete=false.
+- **Состояние на:** 2026-10-20T02:27:44.402Z; продолжение с REPORT b3ec842b. Точная SOURCE-передача local9a890b85/coree0824c6f, два PASS_SOURCE_SCOPED,124/124 core,4 syntax,manifest129/41 и popup-only inheritance остаются принятыми, без повторного чтения/проверки. Новый итог Тестера передан владельцем: dot прочитал завершённый ответ в02:11 UTC, §12 readback02:09:59. В проверенных Тестером доступных указателях новая безопасная same-request корреляция для run39348173947/job118385788397 не найдена; это НЕ доказательство отсутствия данных в непрочитанном архиве или их несохранения observer. Указатели A06 по более раннему PR230 не объясняют PR241 сами по себе. Существующий A/I1(A06) — уточнение наличия готовой observer-первички именно этого run/job; Тестер — runtime и сохранённый installed FAIL. Причина/selected grant-profile-work intent/lease-fence/initiator UNKNOWN. Main76 подтверждён, публичная updated-collection после01:51:31 вернула0 в своём охвате. PLAN/WIP/checkpoint/история/original12OPEN сохранены; audit_complete=false. Финальное read-only RDC чтение хвоста Priority FAILED(timeout), call_id9d09f330-0a50-453a-a7aa-ea261c2d5f3e, terminal02:26:31.583142UTC; причина сверх текста UNKNOWN, исходное чтение/опросы после terminal не повторять.
 - **Статус:** `IN_PROGRESS`; полный аудит не завершён.
 - **Исполнитель:** текущий диалог Контроллера по прямой передаче владельца 2026-10-17. A/B/C и Тестер сохраняют собственные задачи, WIP и полномочия.
 - **Основа GitHub:** лично прочитанный main `76c39893a6e685037a07ec219dd8b6957d715807`. PR239 mergeSHA совпадает с main; PR219 virtual `ea0447a8c74b5a73e1863c842de469a7b95ae444` parent1 main691, PR228 virtual `63720b4d6b7a8420d28792a51eb108c7a054fd14` parent1 main76. PR240 `57ddca748ef838e733c3a3ee1f0dc68281a0dd23` остаётся Draft/unmerged на старом main691. PR241 head `ae137c5d2cda6e67c1908f4a0e67a92fc4a5e54e`, OPEN, draft=false, unmerged; synthetic checkout `5e028d43c303473e2bfbc6b06e1ac4b35f56d3e1`. SOURCE/CI/INSTALLED_SYNTHETIC не являются owner installed/live/Store authority. Остальные принятые exact-SHA результаты сохранены как история, без повторной приёмки.
@@ -7071,3 +7071,53 @@ PR223новыйpublice5d338918c71fe932bd01183a6ce02adf1b578ddвместо715a;re
    Объём: один новый переданный UI-итог, личные GitHub REPORT/ref/commit/main/updated metadata, актуальные START/PROMPT и bounded Priority. Новых product результатов/исправлений/запусков/повторных приёмок0. Семь SOURCE-documents/124 tests/4syntax не посчитаны второй раз как новая работа. Организационный остаток — неуточнённая наличность exact-run observer primary у её хранителя, неустановленные fresh physical writers/locks/WIP и сохранённые серверные write/inventory ограничения. Отсутствие пофайлового согласия не является блоком. Сбой одного прежнего чтения не назван общим сбоем Easyscript или потоков. Runtime source принадлежит Тестеру, harness evidence — existing A/I1(A06), installation/recovery — B/Ops/владелец; чужая работа не перехвачена.
 
 10. **Защищённая запись/readback и отказы.** Единственная новая мутация — current header и этот append существующего REPORT. Перед CAS снова сверяются fresh ref/автор и expected blobd0852f2d…; после отдельно GET pinned full blob/commit parent-author-files/branch ref и полное равенство intended content. Server checkpoint/state/PRIORITY_TASKS/чужие документы без fresh разрешённых locks/WIP не пишутся. Все конкретные прежние resource/security/source/publication/protection/PG/artifact/job/log отказы, unknown outcomes, list_remote_tool_calls timeout, protected preflight и release-preflight Connection failed сохранены без повторов/обходов. codex2 не запускался/не получал нового review, codex/codex3/других исполнителей нет. Tests/review/CI/capture/Send/abort reproduction/browser/VM/merge/source/live/DB/auth/security/cleanup действий0; errors/events/PR97/131/134/чужие чаты внеscope. Новых реестров/архивов/расписаний/кредитов/сбросов/авторизаций нет.
+
+
+### Дополнение к продолжению — 2026-10-20T02:27:44.402Z: установлен terminal финального RDC-чтения
+
+После проверенной записи REPORT459a47a2/f6341387… финальный разрешённый `mcp__codex_apps__remote_desktop_commander_read_file` имел точные аргументы:
+```json
+{
+  "deviceId": "9dab7ad2-9d63-43a3-b106-a5840d79ccc1",
+  "path": "/root/octoport-control/controller-notices/PRIORITY_TASKS.md",
+  "offset": -8,
+  "length": 8
+}
+```
+Его первичный дословный ответ:
+```
+read_file is still running on Easyscript after 3s. Do not retry the original tool call. Use get_tool_result with call_id="9d09f330-0a50-453a-a7aa-ea261c2d5f3e" to check it later.
+```
+Это один новый read-only вызов текущего прохода, call_id `9d09f330-0a50-453a-a7aa-ea261c2d5f3e`; не повтор старого inventory/metadata timeout, не protected preflight, не запись.
+
+Исходное read_file не повторялось. Для получения результата **этого же** вызова использован штатный `mcp__codex_apps__remote_desktop_commander_get_tool_result` с точными аргументами `{"call_id":"9d09f330-0a50-453a-a7aa-ea261c2d5f3e"}`. Ответы02:25:11.183Z и02:25:42.087Z были дословно:
+```
+Remote tool call 9d09f330-0a50-453a-a7aa-ea261c2d5f3e (read_file) is still pending. Call get_tool_result again later; do not retry the original tool.
+```
+Metadata тогда: status=pending, completed_at=null, retry_original=false. Это получение результата известного call_id, а не повтор чтения или list_remote_tool_calls/inventory.
+
+Последний get_tool_result в02:26:41.638Z установил terminal исходного read_file. Дословный ответ:
+```
+Remote tool call 9d09f330-0a50-453a-a7aa-ea261c2d5f3e (read_file) failed: Timeout - no response from device
+```
+Полная полученная structured metadata:
+```json
+{
+  "call_id": "9d09f330-0a50-453a-a7aa-ea261c2d5f3e",
+  "tool_name": "read_file",
+  "status": "failed",
+  "device_id": "9dab7ad2-9d63-43a3-b106-a5840d79ccc1",
+  "created_at": "2026-10-20T02:24:31.378424+00:00",
+  "completed_at": "2026-10-20T02:26:31.583142+00:00",
+  "retry_original": false,
+  "error": "Timeout - no response from device",
+  "error_code": "INVALID_ARGUMENT"
+}
+```
+Следовательно, исход чтения известен: **FAILED / Timeout - no response from device**, completed_at=2026-10-20T02:26:31.583142+00:00. Причина отсутствия ответа устройства сверх этого текста **UNKNOWN**; error_code=INVALID_ARGUMENT не превращён в доказанную ошибку аргументов/диска/автора или security refusal. get_tool_result установил этот исход, не повторял оригинальную операцию. После terminal дальнейших опросов/повтора original read/alternative route нет, retry_original=false соблюдён.
+
+Новый текст финального хвоста PRIORITY_TASKS не получен и не объявлен изменившимся/неизменным. Ранее успешный bounded Priority read текущего прохода остаётся исторически подтверждённым, но не подменяет failed финальную проверку. Этот конкретный technical failure сохранён отдельно от всех прежних отказов. Он не доказывает глобальный сбой Easyscript/A/B/C и не объясняет PR241 abort или отсутствие готовой causal primary. Серверных мутаций/cleanup/перезапусков/второго автора не было.
+
+Точный новый технический остаток: недоставленное содержимое этого финального чтения и причина timeout, хранитель — RDC/platform original-call trace. Неизвестной операции в полёте по этому call_id больше не заявляется: завершение failed установлено. Первичный ответ/ID/аргументы/время сохранены здесь, без нового реестра и без диагностического replay. Доступная независимая запись/readback GitHub REPORT продолжается обычной разрешённой CAS-процедурой.
+
+Отдельная внешняя product-зависимость неизменна: existing A/I1(A06) уточняет наличие уже готовой обезличенной observer primary **именно run39348173947/job118385788397**, runtime и доказанный FAIL — у Тестера. Новых запусков вместо неё нет. PLAN/WIP/history/checkpoint/original12OPEN/audit_complete=false сохранены. Дополнение — только тот же REPORT, fresh ref/author/expected blob и независимый full readback; нового RDC-чтения после terminal не делается.
