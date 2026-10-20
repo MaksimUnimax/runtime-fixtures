@@ -1,161 +1,110 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — тот же незавершённый аудит.
-- **Срез:** 2026-10-20T13:55:11Z. Основа — REPORT `22fcd79fb07df285d58e8ca4fa715b4b547913d1`, blob `807eb876c94498d11207e6561a8cf7b24e102ca0`; author MaksimUnimax13:43:58UTC, parenta14f1f810abe9934c44155d39d813a3dd76124e8. Последний ответ завершён, другого продолжения нет по прямой передаче владельца.
-- **Состояние:** IN_PROGRESS; audit_complete=false; **12 OPEN**. Sol6.1/«Очень высокое», исходные PLAN/WIP/checkpoint/history и принятые доказательства сохранены.
-- **Sole write scope:** только этот REPORT, fresh ref/author/version + expected-blob CAS + независимый полный readback. Никаких server role/checkpoint/PRIORITY/§11/§12/source/tests/WIP записей. Физическое владение flock/claims/dirty не объявлено проверенным; protected preflight NR.
-- **Текущая коррекция:** обычный branch metadata сообщает **protected:false / protection.enabled:false / required checks off+empty**. **ENFORCED_PROTECTION_NOT_PROVEN**: «normal guarded merge» автора не доказывает server-enforced защиту. Same-role SOURCE основание AGENTS сохранено, нового общего согласования не требуется;403/denials не отменены. PR245 main521 и PR237 main9ed/5of5/13of13 уже потреблены C. Current main **9ed7a8809ad5d72d6c6adb0112422b1478c5478f**. Новая B246 primary — AUTHOR_RUN_DISPOSABLE_PG18_SYNTHETIC_SCHEMA2/2, не независимая application/installed приёмка. PR242 остаётся HOLD.
-- **Server checkpoint:** прежний verifiedSHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`, readback19Oct13:35:39.429576; map `fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d`. Запись не предпринималась; REPORT не подменяет checkpoint.
-- **Периодичность:** version/author/readback каждые10мин активной работы и перед завершением. Новых расписаний нет.
+- **Срез:** 2026-10-20T15:55:36Z. Основа REPORT **e8d7e0b4476ccac2d7729aa1a67b8019ed74c9fc**, blob **368e0ced517f25d696d374b365cad09b7c87f8f9**, authorMaksimUnimax13:58:53UTC, parent22fcd79fb07df285d58e8ca4fa715b4b547913d1. Последний ответ завершён, нового продолжения нет по прямой передаче владельца.
+- **Состояние:** IN_PROGRESS; audit_complete=false; **12 OPEN**. Работа/GPT-6.1Sol/«Очень высокое»; PLAN/WIP/checkpoint/history и принятые доказательства сохранены.
+- **Current main:** **8337ef006f2654476f639b1a9120ca73a0d7b059**, PR246merged14:48:24; собственные exact1aff и main833 **раздельные5/5workflow/13of13jobsSUCCESS**. Исторический PR-only2/5 не current полный gate.
+- **Защита:** SOURCE/merge/CI приняты в указанных границах; **ENFORCED_PROTECTION_NOT_PROVEN**. Прежние ordinarybranchfalse/off/empty — time-scoped13:18/13:37observations, не freshprotectionread для833. Не доказаны bypass/settingschange/absenceallrulesets. Same-roleSOURCEcontract не переоткрывается.
+- **Sole write scope:** только этот REPORT: fresh ref/author/version, expected-blob CAS, независимый полныйreadback. Serverroles/checkpoint/PRIORITY/source/tests/WIP/§11/§12 не пишутся. Physicalflock/claims/dirty не выдуманы; deniedpreflight NR.
+- **Server checkpoint:** прежний verifiedSHA256 **76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212**, readback19Oct13:35:39.429576; map **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d**. Отказанную запись не повторяем.
+- **Периодичность:** REPORTversion/author/readback каждые10мин активной работы и перед завершением. Новых расписаний/реестров/архивов нет.
 
-## 1. Последний исход, один автор, операции и разрешённый охват
+## 1. Последний исход, единственный автор и доступ
 
-REPORT22fcd/ref/author/parent/blob совпали; full pinned text получен, unknown ownmutations нет. Нового продолжения нет по прямой передаче владельца. Перед разрешённой REPORT записью fresh ref/expected-blob CAS, после независимый полный readback. История, предыдущий active prefix, исходные PLAN/WIP/checkpoint/12OPEN сохраняются. Изменяется только этот REPORT.
+REPORT ref/commit/author/parent/blob совпали, fullpinnedtext прочитан. Ownunknownmutations нет. Перед soleREPORT записью freshref/expectedblobCAS; если другойwriter изменилref, не перезаписывать. Весь прежнийhistory иactiveprefix сохраняются внутри этогоREPORT. Другого continuingwriter нет по прямой передаче владельца; это не доказательство отсутствия всех serveroperations.
 
-Штатные RDC list_sessions/list_processes/CONTROLLER.lockmetadata ответили. Noactivesessions/отсутствие отдельных launch-команд **не доказывают** отсутствие всех remote operations или свободное владение чужим WIP. Нулевой lockfile не flockownership. Protected preflight/серверные role/checkpoint/PRIORITY записи не выполняются; физические claims/dirty не выдуманы. Чаты потоков не открывались, чужие source/tests/WIP/профили не читались/не менялись.
+RDC list_processes/list_sessions/CONTROLLER.lock metadata ответили на Easyscript. Прежний C→A atomic receipt write C_TO_EXISTING_A_A03_MAIN76_FOUR_BROWSER_SOURCE_CONSUMPTION_20261020.json/Command not allowed/ENOENT и отдельный C metadata-state-write refusal сохраняются NR/no proxy; этот REPORT не replacement отказанного C→A ACK. Noactivesessions и отсутствие выбранных launchкоманд не глобальныйtoolregistry и не доказательство простоя. Нулевой lockfile неflockownership. PhysicalforeignWIP не присваивается; author clean/65dirty/8untracked — только сохранённые role observations. Чужиеsource/tests/rawlogs/профили/чаты не открывались; helper/codex2/VM/PG/review/tests/build/CI/capture/Send/merge/processstop/cleanup Controller не запускал и не поручал.
 
-Новый охват: B246 comment6292367147 и ready source-checkpoint tail с PG/consumption records; A03 updated matrix publication,137-line ready matrix и три готовых test-source verdicts; C237 final consumption comment/state tail; scoped existing peer-handoff filename listing/current main Git ref. Main9ed/521 native CI endpoints, protection GET, denied workflow-list и старые tests/reviews/ZIP не повторялись. Ни PG/login/DDL/schema/cleanup, ни source/test/review/CI/helper/browser/capture/Send запусков или поручений Controller нет.
+Ранее прочитанный доступный canon/AGENTS и поздние ownerограничения действуют. PROMPT_CONTROLLER−32603/failedPRIORITYtail/protectedpreflight и всеадресныеотказы NR, недоступныйканон не объявлен заново прочитанным. errors.json/events.jsonl не читались. Операции auth/security/live/DB/настройкиprotection исключены. Для B post-cleanup refusal прочитан только уже сохранённый envelope, не исполнена его команда.
 
-Ранее успешно прочитанный доступный канон/AGENTS и поздние прямые ограничения действуют. PROMPT_CONTROLLER−32603/failed PRIORITY tail/protected preflight и все адресные отказы NR; полного fresh чтения недоступных указателей не заявляем. errors/events не читаются независимо от старых ссылок. Новая cross-role C→A write refusal сохранена как evidence; её не заменяем другой записью/инструментом.
+**Новый охват:** B PG18 R3/R2review и refusal records; C actual PGconsumption/nativefullpush/merge/main833final/installed-parity publications; independently retrieved new10run/26jobmetadata; Testernewcheckpoint/verdict/docreadback иstateconsumption; C03PR247/C01PR243 documentarycurrentity; новые after13:55:12commentcollections A207/219/228/230/240. Старыеmain521/9edCI иprotection endpoints не повторялись.
 
-## 2. Роли, фактическое продвижение и действующие границы
+## 2. Роли: фактическая работа, причины и следующий разрешённый шаг
 
-| Роль | Последнее подтверждённое действие UTC | Что реально снято / текущий владелец next |
+| Роль | Последнее подтверждённое действие UTC | Текущий остаток / владелец |
 |---|---|---|
-| **A** | Matrix13:37:00, publication/update13:41:55; ready4brandedguestPASS + отдельные test-source reviews. | Реальное продолжение подтверждено; это не PR240ZIP/ownerrelease. NativeFirefoxR6 NOT_RUN. Existing A сохраняет R15/R19/R28/officialbundle и originalCI authority; текущая физическая операцияUNKNOWN. |
-| **B** | PG receipt13:44:41,cleanuprecord13:45:29,publication13:47:07/readback13:48:19; currentity consumption C input recorded13:28:21. | **Реальные PG2/2 author evidence и consumption C static note теперь есть**, старыеUNKNOWN сняты ровно в этих scopes. Native2/5 и independent application/deployed/installed gates открыты. Прежние CIhandoffs не дублируются. |
-| **C** | State13:49:27/comment13:50:31 потребляет finalmain9ed; same state читает A03matrix/packages. | **Принятый terminal потреблён**, требовать его снова не нужно. NewBPG независимая application/consumer приёмка не опубликована в проверенном охвате. C→A receiptwrite Commandnotallowed не повторять; existing C03/C05/C06/installed scopes продолжаются. |
-| **Тестер** | Прежний18653 restoration/terminal сохранён, не повторён. | Нового достаточного B02 материала/owner§2 ответа нет по прямой передаче. Не возобновлять, профилей/UItests не требовать; A03signed-out privacy не закрывает недостающие uploadownership facts. |
-| **Контроллер** | Прочитал новые готовые доказательства и actual consumption, уточняет собственные pending/next и границы. | SoleREPORT freshCAS/readback; новыхPG/tests/review/CI/cleanup/публикацийзаавтора нет.12OPEN сохраняются. |
+| **A** | В новыхпроверенныхcollections PR207/219/228/230/240 после13:55:12 commentsнеполучены. Ранее A03matrix/testsource результаты сохранены. | Physicalcurrentactivity **неподтверждена**, простой не доказан; peerhint A05Firefox не заменяетготовуюprimary. A04R15/R19/R28/officialRUbundle и deniedworkflow-list остаютсяуexistingA/originalnativeowner. |
+| **B** | PGexactPIDR3 + независимыйR2review/publication14:16:01, Cconsumption14:27; PR246 source merged14:48:24, егоCIпринятC15:03:53. | Старые2/5/непрочитанныйPG/неполученныйCinput больше не currentожидания. Deployed-schema/independentcleanupSQL/installed/backup/rollback/owner holds отдельно; B/Ops владеетреальнымcarrier/liveauthority, Controller не подменяет. |
+| **C** | Exact1afffullpush5/13→merge833→postmerge5/13 иconsumerfinal; PR243scope15:11/15:13; WIP/resourceKEEP15:36; PR247created15:42:33. | Реальное независимое продолжение подтверждено. NextexistingC — terminalсвоейPR247серии/свойconsumerdisposition иотдельныеC03/C05/C06; PR243originaldispatchscopeсохраняетсябезalternate-refобхода. |
+| **Тестер** | Gemini fa3ec5d4code15:00:24/review15:04:08/package+§12readback15:07:45; **Standard/Aliceconsumed15:47:21.590727**. | Двапереданныхфайлафактическипрочитаны; второгопоручениянет. Последующаякодоваядельтапоканеустановленавпрочитанныхrecords. Толькоavailablecodechecks, не профили/UItests; неполныесостояниянеownershipproof. |
+| **Контроллер** | Самостоятельнопроверилновуюprimary,exactCI/merge,readyverdictsиactualconsumption; снимаетstaleожидания. | SoleREPORTCAS/readback; 12OPEN/history/WIPнеизменны. Product/source/deploymentнеперехватываются, новыхзаданийнадействующиепроверкинет. |
 
-### Защита main: что именно доказал обычный branch metadata
+### B246: R1 UNKNOWN сохранён, R3 exact-PID evidence и R2 scoped PASS прочитаны
 
-**Два разных происхождения и момента:**
-- По прямой передаче владельца, dot завершил обычный GET **/branches/main** в **13:18:55UTC** на exact **521e3018535c95e668328316acc758f5a17eacca**. Переданные поля: protected=false; protection.enabled=false; required_status_checks.enforcement_level=off, contexts=[], checks=[]. Это переданная точная primary dot, не повторное независимое восстановление его исторического ответа Controller.
-- Собственный новый обычный GET того же **branch metadata** в текущем проходе, readback **13:37:18UTC**, уже вернул current **9ed7a8809ad5d72d6c6adb0112422b1478c5478f** и **те же false/off/empty поля**. Это независимый новый time-scoped response, **не исторический ответ для521e**.
+Непосредственно прочитаны [B6292967631](https://github.com/MaksimUnimax/runtime-fixtures/pull/246#issuecomment-6292967631) created14:16:01 и готовый checkpointtail `C04_MAIN76_PG_REPORT_TERMINAL_ROWLOCK_R2_SOURCE_CHECKPOINT_20261020.json`. Original R1 **UNKNOWN_INSUFFICIENT_EVIDENCE** сохраняется: старое ожиданиеLock отбиралосьпообщемуapplicationname, неexactwaiterPID; runtimeGitblob/PGversionнефиксировались. НовыйавторскийR3действительноменяетevidenceboundary, не повторстарогоPASSдлястатуса; Controllerегоневыполнял.
 
-Точное утверждение: **обычный branch response на этих срезах не сообщает включённую branch protection или enforced required checks.** Авторские ярлыки «protected integration», успешный expected-head merge, зелёные CI и same-role AGENTS условие **не доказывают server-enforced protection**. Current verdict Controller: **SOURCE_MERGE_AND_EXACT_NATIVE_CI_ACCEPTED; ENFORCED_PROTECTION_NOT_PROVEN**.
+Exacttestedsource **1aff2d5ae55bd4e043892d3efb055df3deccb20c**, report.ts Gitblob **b5c0bb32818d5fa2f6c0f79b506f73c091987726**, actualR3harnessSHA256 **b5f754fc2bb10b019316caaa1193d50ca1f4201324d9653571dc10101d5b1bb9**, journalSHA256 **53f9bff95d85d50286cd1f163673f7bf15477cd24aa52ad72d0cc9e9a1f847a0**. Толькоreadyrecords, сыройharness/journal/sourceнечитались.
 
-Не следуют: обход; изменение настроек кем-либо; их состояние непосредственно в момент merge13:10:53; отсутствие других repository/org rulesets или политик; причина false/off; автоматическое разрешение/запрет любого нового merge. Ни одного такого вывода не делаем. Прежний403 остаётся точным отдельным отказом, не ретраен и не обойдён; protection_url из ordinary ответа не открывался. Никакой настройки/authorizations/security mutation не было.
+R3авторсообщает PG18.0/readcommitted иPIDпары **184991/184992**, затем **184992/184991**; вдвухпорядкахCOMPLETED→FAILED /FAILED→COMPLETED первыйterminalсохраняется, второйREPORT_TERMINAL_OR_INVALID_TRANSITION. **2/2authorPASS**, unitexit0/inactive. Вжурнале **нет отдельногополя wait_event_type**: естьactualPostgresLockWaitObserved=true, exactwaiterPID иtransactionid; reviewer связываетихсLockpredicate черезпроверенныйhashharness. Нельзяповыситьэтодо independentlycapturedallPGfields.
 
-Условное **same-role SOURCE** основание в AGENTS остаётся принято в своих границах; повтор нового общего разрешения на тот же контракт не требуется. Оно задаёт процесс автора, но не доказательство настройки enforcement. Для документального принятия отдельного свойства **server-enforced protection** недостаёт уже существующей применимой policy/ruleset/required-check primary с областью main и релевантным временем; предоставить её может действующий repository/settings custodian в допустимом scope. Это не поручение включить/изменить защиту, не новый security probe и не общий owner-consent gate разработки. Для текущей documentary correction нового решения владельца не требуется: неизвестное остаётся UNKNOWN, ярлык принятия уточнён.
+Полностью прочитан готовый **C04_PR246_REALPG18_EXACTPID_R3_INDEPENDENT_CODEX2_R2_VERDICT_20261020.txt**, **PASS_SOURCE_EVIDENCE_SCOPED**, SHA256поprimary **055dce6a2cb4488a27ca34c5f83a95d72bda445930fda884387eb58c0794d4b0**. ReviewerсамPG/CIнеисполнял; actualremotePRSHAвегоcheckoutнепроверялся. Publishedhead/mergeidentity отдельно провереныControllerчерезразрешённыеGitHubmetadata, не черезповторsource-fetch. Synthetic schemaизmigration0042 **плюсdocument_key**, не полныйdeployed-schema/upgrade/rollback. Нетполногоinstalled/owner/productionпринятия.
 
-### C04 PR245: source merge установлен, условное основание сопоставлено
+### Отдельный post-cleanup SQL refusal — не превращать cleaned=true в SQL PASS
 
-Непосредственно прочитаны [C comment6291706892](https://github.com/MaksimUnimax/runtime-fixtures/pull/245#issuecomment-6291706892), PR245 metadata, main ref и commit521 metadata. PR **CLOSED/merged true, draft=false, merged_at13:10:53**; exact reviewed head **e629b4ff984f194377dded3638f1700276866807**. Merge commit **521e3018535c95e668328316acc758f5a17eacca** имеет родителей **76c39893a6e685037a07ec219dd8b6957d715807** и **E629**. Ровно два пути: telegram.ts blob **69ab96b06dc85a5e82dbe75c3ee3eec18f26479f**, swagger-recovery.test.ts blob **b737a0c3a3cdd73ffc6c832cfc525b5ad63b7165**. Product payload/patch не читались.
+Сохранённый envelope вreadyBcheckpoint:
+- Requestedoperation: supplemental B-only read-only PostgreSQLSELECT дляscratchschemaabsence/oldsessioncount черезNodepgclient.
+- Toolfamily: **functions.exec RemoteDesktopCommander.start_process**.
+- Exactprimaryresponse: **«Script error: Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.»**
+- EdgeUTC **UNKNOWN**, послеR3successи до **2026-10-20T14:07:35Z**; call/requestIDнепредоставлен; serverPID/execution **NONE_REPORTED_BEFORE_DENIAL**.
+- Внутреннееправило/механизмпересмотра **UNKNOWN**, no_repeat_or_proxy=true.
 
-Авторская первичка устанавливает нормальный Draft→Ready→merge_pull_request, merge_method=merge, immutable expected_head_sha E629; свежие main76/ahead2/behind0/exact2paths/no-conflicting-writer и ранее принятые SOURCE review128PASS/nativepremerge5/5/13of13. Запись C.json13:13:55 непосредственно прочитана в новом tail; raw65tracked/8untrackedWIP — **авторское сохранённое наблюдение**, не собственная physical проверка Controller.
+НиSQL,ниальтернативныйtool/agent/queryнеиспользовались. R3 **harnesscleaned=true/finally иfiniteunitexit0** — boundedauthorevidence; отдельногоindependentpostcleanupSQLPASSнет. СтарыйR2cleanupreceiptнельзяперенестинаR3schema. Новогообщегосогласиянасервернепросим, supportedreviewmechanismнеизобретаем; недостающаяprimary—сохранённыйcorrelation/error/supportpointerотoriginalB/platform,есливообщепоказан,а не новаяDBпроба.
 
-**Сопоставление с AGENTS:** опубликованное условное same-role основание уже существует. Readback подтверждает candidate/base/parents/2paths/result; прежние exact review и premerge CI приняты в своих SHA и не повторены. Normal non-force/expected-head/no protection edit/no403 retry — сохранённое описание автора, а не восстановленный полный tool trace. Сам факт успешного merge не является доказательством отдельного owner-разрешения и не раскрывает branch protection settings. Но отсутствие новой общей команды **нельзя оставлять ложным документальным препятствием** при опубликованном conditional basis. Не отменены прежние protectionGET403, PR234 premerge-write refusal, запреты live/DB/installed и owner-specific holds. Controller merge не выполнял и нового допуска себе не выводит.
+### PR246: source merged, exact candidate и postmerge серии проверены раздельно
 
-**Снято:** current PR245 OPEN/DRAFT/UNMERGED, ожидание identity E629→4c175, повторной общей команды и повторного premerge CI. **Не снято:** original main521 postmerge, source-pinned installed carrier/backup/restore/rollback/owner13YAML/authority/catalog. PR242exact4c175 — отдельный исторический HOLD, counts/review не переносятся. PR238/209/241 original ABORT/causeUNKNOWN остаются за своими run/SHA.
+PR246metadata: **CLOSED/mergedtrue/draftfalse, merged_at14:48:24**. Merge **8337ef006f2654476f639b1a9120ca73a0d7b059**, родители **9ed7a8809ad5d72d6c6adb0112422b1478c5478f +1aff2d5ae55bd4e043892d3efb055df3deccb20c**. Ровнодвапути: report.ts **b5c0bb32818d5fa2f6c0f79b506f73c091987726**, row-locktest **ac5d76335a461b9ca526794fee94c0cf35436f12**. Freshmainref833совпал.
 
-### Main521 postmerge: самостоятельная original push attempt1 серия
+C6291789830содержитновыеdatedsections **14:27** PG/sourceconsumerreadback, **14:30/14:34** actualexactCI-onlyref, **14:46** fullterminal, **14:50** merge, **14:56** installedsourceparity. Сохранены old13:18staticnote иR1UNKNOWN. CсамPGнеповторял: прочиталготовыеBoriginalartifacts/reviewer, exactinterfaces/currentmain, принимает **PASS_EXISTING_B_R3_PG18_EVIDENCE_CONSUMPTION_AND_STATIC_SOURCE_INTERFACE_SCOPED**. Это закрываетпрежнееожиданиеconsumerreceipt, не независимыйDBretestилиinstalledacceptance.
 
-**Не premerge E629 и не старый main76.** Все пять original runs created13:10:55, event=push, branch=main, exacthead521e, attempt1; metadata/constituent jobs прочитаны напрямую без запуска/отмен/rerun.
+**Серии не смешиваются:**
+1. Старые original `pull_request` Docs39419486162/Server39419486431 — **исторические2/5**, безповтора.
+2. **Первый полный native push exact1aff**, created **14:32:15**, branch **controller/ci-c04-pr246-exact1aff-20261020**, eventpush/attempt1. CсоздалCI-onlyrefнасуществующийreviewedSHA; этофактическаяprovenance,неworkflow_dispatch,неновыйsourcecommit. Controllerреф/CIне создавал. СовпадениеexactSHAи5officialworkflowsдоказываетэтуSOURCECIсерию, **не серверноеenforcement/всеprotectedPRcontexts**.
+3. **Отдельный original postmerge push main833**, created **14:48:27**, headbranchmain/eventpush/attempt1.
 
-| Workflow | Original run | Фактический исход в текущем readback |
+| Workflow | Exact1aff first full push | Main833 postmerge push |
 |---|---|---|
-| Docs |39428215578|SUCCESS updated13:11:05;1/1job118646082837 SUCCESS|
-| Coordination |39428215205|SUCCESS updated13:11:26;1/1job118646080720 SUCCESS|
-| I1-C1 |39428215434|SUCCESS updated13:15:28;3/3jobs118646081958/118646142478/118646142527 SUCCESS|
-| Server |39428215059|**SUCCESS updated13:26:07**;2/2jobsSUCCESS, server118646144288 completed13:26:06|
-| Extension |39428215101|**SUCCESS updated13:21:48**;6/6jobsSUCCESS, WB browsers118646162529 completed13:21:48|
+| Server |39440122865 SUCCESS,2/2jobs,last14:45:19|39442601181 SUCCESS,2/2jobs,last15:01:30|
+| Extension |39440122688 SUCCESS,6/6|39442600908 SUCCESS,6/6,last15:00:33|
+| I1-C1 |39440122886 SUCCESS,3/3|39442601294 SUCCESS,3/3|
+| Docs |39440122657 SUCCESS,1/1|39442600897 SUCCESS,1/1|
+| Coordination |39440122776 SUCCESS,1/1|39442601164 SUCCESS,1/1|
 
-На первом readback13:21:44 было **3/5 workflows SUCCESS,11/13 jobs SUCCESS,2 jobs IN_PROGRESS**. Последующий terminal readback **13:26:42** установил **5/5 workflows SUCCESS,13/13 constituent jobs SUCCESS**, attempt1 exact521e: Server/Extension оба completedSUCCESS, все их2+6jobsSUCCESS. Это новая postmerge приёмка native CI, не перенесённый premergePASS. Никаких rerun/cancel/newCI не было. Run updated_at13:11 не был использован как доказательство hang. CI job с названием installed acceptance — native synthetic CI evidence, не реальная B/Ops owner installation/production proof.
+Непосредственно прочитаны **10новыхrunmetadata и26constituentjobs**: каждоеcompleted/success. **Обе серии собственные5/5 и13/13**, нетподстановкиold2PRruns илиoldmain9ed. SourcephaseCIожиданиепоPR246снято, source-mergeactualresultвместоstaleDraft/NO_MERGE. СтарыеR2TS2352/othernegativeиэтапы2/5/3/5сохраняютсяисторией.
 
-**Новое опубликованное потребление terminal найдено:** [C comment6291984306](https://github.com/MaksimUnimax/runtime-fixtures/pull/245#issuecomment-6291984306), **created/updated13:28:19**, и state **13:27:51.423**/готовый final record прочитаны. C явно принимает собственные main521 original5/5/13of13; Serverlastterminal13:26:07. Снято прежнее NOT_OBSERVED consumption, старые run/job endpoints не открывались повторно. Это SOURCE+merge+native CI acceptance, не установленный B/Ops carrier.
+**Actual consumption C:** [comment6294003827](https://github.com/MaksimUnimax/runtime-fixtures/pull/246#issuecomment-6294003827), **15:03:53**, иготовыйstatefinalrecord **15:03:58** прямоacceptsource/main833/fullpostmergeCI. Не надоопятьпроситьCпотребитьготовое. Его label«protected»непринимаемкакдоказательствоserverenforcement; прежнийenforcementlimitсохранён,protectionGETнеповторялся.
 
-В C publication употреблено «SOURCE+protected GitHub merge accepted». Controller принимает доказанные **SOURCE merge и exact CI**, но **не техническое свойство enforced protection** по изложенному ordinary branch response. C.json/чужой комментарий не исправлялись. Нового дублирующего поручения потребить main521 нет: C уже сделал следующий отдельный source шаг — PR237 merge.
+**Installed gate отдельно:** C14:56readypublicationпроверяет **0/10trackedsourceblobmatches** старогоactivecarrier **12efab2f...** противmain833, включаяoldreportblobf26d23abвместоb5c0bb. Это Cread-onlysourceparitysnapshot,неControllerliveизмерение,неcompiledloadedJSproof/functionalerror/releaseauthority. B/OpsNO_GO сохраняется: нужныименноразрешённыйsource-pinnedcarrier,backup/restore/app-PGrollback, loadedruntimeиownerWB13YAMLdelivery; C05/C06/C07/StoreNO_SUBMIT открыты. No mainSOURCECIasinstalledclaim.
 
-### C→B/B→C: потребление static input B246 теперь подтверждено
+### Независимый остаток A/B/C — не общий WAITING_INPUT
 
-Ранее принятый B/Ops ACK13:01 относится к C04handoff12:57; новый C→Bmain521handoff13:15:46 не равен этому старомуACK. Нового B/Ops installed/source-pinned carrier/backup/restore/rollback/authority из этих документов не следует. Старую доставку не переоткрываем и ACK не выдаём за установленную приёмку.
+**A:** after13:55:12 collections PR207/219/228/230/240 внастоящемпроходепусты. Этопределpublicохвата,неотсутствиеработы. РанееA03main76guest4browser/R5nativepositive/R6testsourcePASS**notnativeR6** сохраняютсябезповтора. PR240ZIPd245неподменяетсяA03ZIPa5; Aworkflow-listINVALID_ARGUMENT/HTTP400NR/no proxy; R15/R19/R28 иofficialRU13YAML/version/hashUNKNOWN остаютсяуoriginalA/authoritycustodian. ТестеракA03/guestработене переназначаем.
 
-**Новое фактическое consumption B246:** в готовом source-checkpoint tail прочитан `main521_C_static_consumer_currentity_20261020`, issued **13:28:21.407523**, с точным URL/ID C6291789830, exact1aff и currentmain521. Новый [B comment6292367147](https://github.com/MaksimUnimax/runtime-fixtures/pull/246#issuecomment-6292367147) от **13:47:07** прямо сохраняет эту отдельную static source-consumer note. **Прежнее UNKNOWN о получении/учёте C input13:18:44 снято**. Это публичное потребление документального static input, не independent PG/application/integration/installed acceptance.
+**B/C03 PR244:** уже принятый A10focused4/4/unchangedsource/assertionsнеповторён; historicalFAILEDratherthanBLOCKED/rootcauseUNKNOWNнеисправленпоказаннымдиагностическимPASS. OriginalCACKoriginalBinputсуществует,неперезапрашивается. PR246source/CIнепоглощаетPR244CI/consumer/installedgates.
 
-Static API signatures/no direct Telegram getReport/transitionReport call и no changed-path overlap остаются своими ограниченными выводами. Переходmain76→521→9ed меняет Telegram/health-runner paths, не API-watch, по ранее прочитанной commit metadata; это file-currentity, не semantic combined tests. Для этого не нужно новое source-чтение/consumerтест.
+**C01 PR243:** прочитан новый [comment6294170795](https://github.com/MaksimUnimax/runtime-fixtures/pull/243#issuecomment-6294170795), created **15:11:32**, state15:13. Exact **4670a892b9c6e2c3bf51921b39e034992c8a9d54**, Draft/unmerged; ready125/125/source-review иold118/125negativeсохранены. Cmain833staticpathcurrentity/consumerreceiptесть. Последнийreadyrecordговорит **2/5 Docs/Coord**, Server/Extension/I1NOT_TRIGGERED_PATH_FILTER. **ИменноэтотexistingBhandoff требуетoriginalworkflow_dispatchнасуществующемbranch, NOalternativeCIrefs**; controllerнепереноситдругуюPR246CI-onlyroute/необходитspecificscope. OriginalActionsmaintainerвладеетэтойвнешнейоперацией; connectedtooldispatchнеэкспонируется,ghотсутствуетпопервичке. Новоепоручение/запускне сделаны. Five-checkprotectedcontextsиStoreseparate.
 
-**C03 PR244 — уже принятая отдельная линия:** B publiccomment6291942866 created13:26:22/A10focused4/4 на unchangedsource/assertions и C ACK13:25:22 originalB13:21 были прочитаны в предыдущем проходе; заново не проверялись. HistoricalFAILED_expectedBLOCKED и причинаUNKNOWN сохранены, productfixNONE. C ACK не заменяет review/PR244native2/5/missing3/combined/installed gates. Поздний Bappendix13:28 и получениеBсамогоCACK отдельно не доказаны. Не требовать повтор originalACK; существующие authors/maintainer dispositions остаются, новыхtests/instrumentation/review поручений нет.
+**C03 PR247:** вновомreadyCstate15:41:38candidate **93104595a63e4ff774b967e2e5c62e8d2117f696**, parent049/base691,19files406PASS/localreviewPASSсообщеныкакoriginalsavedSOURCEevidence; source/rawreproductionнечитались. СвежаяPRmetadataпоказала **Draft PR247created15:42:33**, base833/exact931,2C-ownedpathsauthority.ts/operator-candidate-read.test.ts; старое NO_PRвrecord15:41больше не current. Scopeзащищаеттолькоfinalcomponent/boundedread,некаждыйancestor; исходный049REWORKP2сохранён,неinstalled/всеsecurityguardsPASS. PR225overlappingsourceотдельноOPEN/DRAFT,неперезаписывается.
 
-### Следующее реальное продолжение C: PR237 merged, current main9ed — новый CI scope
+Existing **PR247 first push** created **15:43:26**, refcontroller/ci-c03-quarantine-exact931-20261020, exact931/eventpush/attempt1: Docs39451050303/Coord39451050359/I139451050380SUCCESS, Server39451050763/Extension39451050225IN_PROGRESS на **15:51:07**. Это было **3/5workflows** на15:51:07. Повторный read только двух тогда pending runs на **15:55:36**: Extension39451050225 **SUCCESS updated15:55:12**, Server39451050763 **IN_PROGRESS**. Currentpush **4/5workflowsSUCCESS/1IN_PROGRESS**; текущийconstituentjobcountвэтомпроходедля247непроверялся,13/13необъявлен. ОтдельнаяPRseriesDocs39450923516SUCCESS/Server39450923491IN_PROGRESSнеподменяетpush. ExistingCnext — дочитатьсвоиисходы/действующийintegrationdispositionбезrerun/новогоreview; аудитсамничегоне запускает.
 
-Свежий ordinary branch response обнаружил новый current main. Дополнительно прочитаны только новая PR237/commit metadata и ready currentity publication [comment6291870510](https://github.com/MaksimUnimax/runtime-fixtures/pull/237#issuecomment-6291870510), created13:22:52. Ранее принятые exact4b2 tests/review/native5/13 не перечитывались и не перезапускались. Publication описывает disjoint health-runner currentity и Ready; её NO_MERGE_YET было состоянием13:22, не current outcome.
+**Resource/WIP:** B04readyfilemetadataпроверен,modified **12:59:04.945**,новыйreadyresourceсрезвэтомфайленепоявился. Deficit98.74MiB — **старыйsnapshot,нетекущеефизическоесостояние/допуск**; B04fixture/testdenialsотдельно. C15:36readyrecord: acceptedE629temptrackedclean,ноignoreddeps+5RDCopenFD→**KEEP**; C03temp931unmergedWIP→**KEEP**. Никакогоудаления/force/reset/killRDC/освобождениячужихрезервов. Naturalconsumerrelease/разрешённыйlifecyclecustodian — returnconditionбудущегосовместимогоcleanup,не разрешениеэтогоаудита. Толькоowner/currentcustodianсреальнымscopeможетустранитьтакойresourceblock.
 
-**PR237 merged13:28:51UTC**, head **4b2ecd791070aa9e63a88e20fd8399db302245d5**, merge **9ed7a8809ad5d72d6c6adb0112422b1478c5478f**, родители **521e3018535c95e668328316acc758f5a17eacca +4b2**. Два health-runner пути: no-session-runner.ts blob **c3d03ee58519d5d82912c25ca563b31797d86540**, no-session-monitor.test.ts blob **a91c5a6399c35ca8f763ae1521ffb3016088e5e0**. Наличие merge не доказывает enforcement; full original merge trace не получен. Это SOURCE изменение существующего C, не Controller mutation, не установленный runner и не joint PR234/237 installed acceptance.
+### Тестер: Gemini SOURCE/PACKAGE завершён, новые Standard/Alice inputs фактически потреблены
 
-**Новая original push attempt1 main9ed**, created13:28:53, точные existing runs, metadata/jobs прочитаны без запусков:
+Самостоятельно прочитаны новые `B02_FA3EC5D4_FINAL_CHECKPOINT.json` (213lines,начало+конец), полный5-line `B02_GEMINI_NATIVE_REVIEW_VERDICT.txt`,14-linefinaldocumentreadback иcanonicaloperator/statetail. Никаких productsource/DOMpayload/профилей/браузера/новыхchecks.
 
-| Workflow | Run | Новый terminal readback13:42:47 |
-|---|---|---|
-| Docs |39430746161|SUCCESS;1/1job118654858445|
-| Coordination |39430746212|SUCCESS;1/1job118654857891|
-| I1-C1 |39430746245|SUCCESS;3/3jobs118654858391/118654934151/118654934181|
-| Server |39430746160|**SUCCESS updated13:42:09**;2/2jobsSUCCESS, server118654926172 completed13:42:08|
-| Extension |39430746219|**SUCCESS updated13:40:12**;6/6jobsSUCCESS, WB browsers118654963531 completed13:40:11|
+**Exact candidate fa3ec5d4ea9b5a1f56b3acf1297484596a93e22d**, base18653;3pathsGeminiadapter/applicationpatches/DOMcompattest. НоваяGeminiinputattachmentconsumed **14:53:01.567486** поsavedreadback. Code **76casesPASS15:00:24.423273**, source-review **PASS_SOURCE_SCOPED15:04:08.515133**, verdictSHA256 **d641c1bb51b560625dde103437ca3b6bda4ce30a20fa090f061584a3148eda1c**. Existingcodex2Luna/xhigh, reviewerнеперезапускал76cases. Точныеboundaries: ordinaryTXTmenu/input/pre-commitcomposer/contextvalidation/local1MiB, не providerbytes/fullB02/installed/manual; PR241ABORT141gateне закрыт.
 
-Первый новый readback13:39:14: **3/5workflowsSUCCESS,11/13jobsSUCCESS,2IN_PROGRESS**. Последующий readback **13:42:47** только двух тогда pending original runs установил **5/5workflowsSUCCESS,13/13jobsSUCCESS**, completed/success, exact9ed/eventpush/attempt1. Terminal Server13:42:09 и Extension13:40:12 проверены вместе со всеми их2+6jobs. Это свои новые исходы, **main521 green не переносился**. Никаких installed/live/production/enforced-protection claims.
+DevelopmentZIP0.2.37 **2707035bytes**, SHA256 **eb2f78b909fddc85c9e90a2987aa3cc7c31b279d61e1efc51d4b85926ee6e9f6**,134inputs/41members, originalpopup/noSidePanel. Package/buildunit success0/inactive/cgroupempty — readyreceipt,Controllerнестроил/нескачивалZIP. **15:07:45.066169** finalreadback: checkpointSHA256 **d1a67b2c0a44a109fd5ba439779038331e97a9fac4d631ce0f5e0f6b647b7275**; handoff484191bytes/SHA256 **647ecf3cfab61341cab865abadc919ec1798efa0275c989b5c440ab6dc3d4870**; §11 **0c7e93d070132ab612e6a69bed76528444759bbe40e90e42dce316d1d16259e8**/outside§12bytepreserved. Старые267/86/135иhistoricFAILнеповторены/неудалены.
 
-**Новый actual consumption теперь опубликован:** [C237comment6292435821](https://github.com/MaksimUnimax/runtime-fixtures/pull/237#issuecomment-6292435821), created/updated **13:50:31**, и C state **13:49:27**/metadata13:49:28.047 непосредственно прочитаны. C явно принимает final originalmain9ed5/5/13of13 и lastServer13:42:09 без rerun. Предыдущий NOT_OBSERVED consumption снимается; native run/job endpoints в этом проходе не читались.
+**Новый actualconsumption тогоединственногопродолженияdot15:42:** statefieldB02_standard_alice_inputissued **15:47:21.590727**:
+- Standard **39845bytes/SHA256f53d6915d820c2d18101896ed2cc4c8d1d6afee8ef007a4cdacf4219a9ce7524**;
+- Alice partial **7702bytes/SHA256c7fee1a0ee95821e2091dc865ae1579c69396725c1e6b6b39394018a24ae5dc5**;
+- read_full=true/readback=true, samebasefa3; plannedown2pathsapplicationpatches/DOMcompattest, nopeerWIPseizureпоавторскойpreflightprimary.
 
-C label «protected-main accepted» ограничен нашим собственным verdict **SOURCE_MAIN_POSTMERGE_CI_ACCEPTED_ONLY; ENFORCED_PROTECTION_NOT_PROVEN**. Обычные branchfalse/off/empty observations приняты раньше; protection/ruleset GET не повторяются. Existing C next уже не ожидание своего CI: независимый documentary consumer учёт новой B246 readyPG primary и separate installed/source-pinned B/Ops/C03/C05/C06 gates, без нового PG/review/CI поручения Controller.
+**Прежнее«непроверенопотребление/всёмaterialотсутствует»снято.** Этонеполнаяготовностьновойкодовойдельты: результатпосленовоговходавпрочитанныхrecordsещё**NOT_OBSERVED**. Standard sentDOM=[], sentURLalone **notownershipproof**. Aliceupload **NOT_EXECUTED**, approvalcancelled/no retry/bypass; partialinputнеполныйready/sentcycle. Материалыпришликакcurrentuserattachments, **dot§11непереписывался** попервичке. ОбщуюотменуисторическихUIзапретовиздоставкиневыводим,нонеоставляемложноеожиданиеужепотреблённогоinput.
 
-По двум уже прочитанным commit metadata main76→521 (Telegram2paths) и521→9ed (health-runner2paths) **API-watch paths не изменялись**. Это явный вывод из полного списка изменённых путей этих двух merge commits, не combined semantic test, SQL acceptance или новый SOURCE review B246/244. Он снимает неопределённость только file-currentity, не остальные gates.
-
-### B PR246: новое реальное PG18 авторское доказательство, точные границы
-
-Непосредственно прочитан [B6292367147](https://github.com/MaksimUnimax/runtime-fixtures/pull/246#issuecomment-6292367147) **13:47:07**, ready checkpoint tail `r3_disposable_postgresql18_two_real_transactions_20261020` issued **13:44:41.794557**, cleanup/result-publication records **13:45:29.516450 /13:48:19.099636**. Checkpoint readback SHA256 по публикации **e7c5a01f989a0da1d9511c82adeb087a1e902531716e16266a806eea1fe14588**. Controller не читал test-script snapshot/raw journals, не подключался к PG и ничего не исполнял.
-
-Exact candidate **1aff2d5ae55bd4e043892d3efb055df3deccb20c**, unchanged report.ts Gitblob **b5c0bb32818d5fa2f6c0f79b506f73c091987726**. Автор использовал свой existing disposable PG18.0 и свежую synthetic schema: migration0042 table shape (Gitblob **3b6034443c2779f5b7741ab6aabb53443ab728fb**) **плюс synthetic document_key column**. Это не точное воспроизведение всего deployed schema/migration lifecycle.
-
-| Уже выполненный автором interleaving | Сохранённый результат |
-|---|---|
-| FirstCOMPLETED /secondFAILED | Firstcommits; secondREPORT_TERMINAL_OR_INVALID_TRANSITION; persistedCOMPLETED; PGwait_event_typeLock observed |
-| FirstFAILED /secondCOMPLETED | Firstcommits; secondтотжеexpectedrefusal; persistedFAILED; Lock observed |
-
-**2/2 author real PG cases PASS**, unit terminalexit0/inactive по readyrecord. После коммита сохранено ожидаемоеterminalзначение; crash/power-loss/backup durability этим не доказана. Original testscript SHA256 **44ba714756e9da12375456d9b973ad66a756b21ee1bdce3d2ba685db6ba05fb4**, journal SHA256 **76420d5e414e1682848fd97c4823e18016718b52455d647653072bc22f8fe4e5** — ссылки/хэши из primary, сами source/logpayload не открывались.
-
-Preserved negatives: начальный harnessESMrequire failure **доDBexecution**, прежний connection28P01 с unverified username; по authorreceipt точная existingB identity затем подтверждена из его already-authorized configuration. Это авторский разбор, не Controller auth-проверка/допуск. Original schema dropped/absence/sessioncount0 и owntempscriptretired — отдельные авторские readbacks; Controller не выполнял cleanup или DBпробу. B04/fullPG/R7R8/PGrefusals не отменены этим distinctC04 result и не повторяются.
-
-**Evidence level:** SOURCE_PLUS_AUTHOR_RUN_DISPOSABLE_POSTGRESQL_SYNTHETIC_SCHEMA_TWO_CONCURRENT_RACES. **Снято только прежнее UNKNOWN, есть ли readyactualPG rowlock proof для exact1aff**. Не приняты independentC/applicationconsumer, full deployed-schema migration/upgrade/rollback, installedTelegram/owner/prod, real source-pinned release, nativePR2465/5 или enforcedprotection.
-
-Принятые старыеR3sourcePASS/88TS2352negative→1affcorrection/ServerDocs2/5 сохраняются и не перепроверены. **Missing3 workflow results** остаются у existingoriginalCIauthority; прежнийhandoff не дублирован и новыйdispatch/тест/reviewздесь не поручен. Native2/5 не превращается в5/5 благодаряPG2/2.
-
-Comments strictly-after13:47:08 на **13:55:11** пусты. **Независимое C/application принятие новойPGprimary в проверенном охвате NOT_OBSERVED**, не доказанный отказ/простой. Конкретный доступный documentary next существующего C — учесть готовый authorreceipt и его ограничения в своём existingconsumer disposition; аудит не назначает новый PG/review/test. Existing B хранит exactsource/negativehistory/currentbase separation и уже опубликовал Cstaticinput consumption. Разрешение на source schema не переносится на deployed/live/backup/restore.
-
-Новый готовый **B04_RESOURCE_GATE_MAIN76_READBACK_20261020.json** от **12:59:04.944718** прочитан, без новых измерений/проб. Авторский snapshot: free25688.26MiB; valid OPEN/HELD reserves17595MiB; floor3072MiB; available5021.26MiB против5120MiB, **deficit98.74MiB**, held54/open27. **NOT_ADMITTED**, new_tests_started=false. Это time-scoped resource evidence, не актуальное измерение13:xx и не допуск.
-
-Return condition B04 — полные5120MiB после действительныхрезервов/floor **плюс** допустимое решение original fixture-reset/test-source refusal. Capacity само по себе отказ не снимает. Receipt предлагает разрешённый finished-owned allocation lifecycle либо действительную доступную ёмкость; текущий прямой scope Controller **исключает cleanup/denied preflight/server allocations writes**, поэтому такой write не предпринимался. Ответственный — действующий owner/resource custodian в его реальном scope; B — product continuation только после обоих gates. Не урезать floor/резервы, не повторять отказ через C/CI/alternate DB. B может продолжать отдельные source/CI направления.
-
-### A03: четыре branded guest результата и отдельная Firefox R6 test-source граница
-
-Прочитаны только новый appendix [A6291441925](https://github.com/MaksimUnimax/runtime-fixtures/pull/240#issuecomment-6291441925), updated **13:41:55**, и **A03_MAIN76_FOUR_BRANDED_DEV_GUEST_MATRIX_20261020.json** (137lines,issued **13:37:00.043465**; публикация checkpointissued13:41:51). Matrix SHA256 по публикации **32a2da7df862323845d40fd1857377645807d5e3f70eb66866f5e606b720cbce**. Точные уже выполненные native результаты прочитаны через ready matrix/receipt pointers, браузеры/ZIP/runtime повторно не запускались/строились/скачивались.
-
-SOURCE **main76c39893a6e685037a07ec219dd8b6957d715807**, v0.2.37 **LOCAL_DEVELOPMENT**. Chromium-family ZIP **a5c8eace7c2b1e1652cc92c3ba6a8653cc8c0f06c1e3d28df3d56c2c3d248085**, **2621054bytes/41members**,129inputs. Firefox отдельный unsigneddevelopment ZIP **44f72d37aa418f96ed9e766fb685ab04d8dd146546692b8e52c44713d12a0d39**, **4815492bytes/42members**. **Не PR240 ZIPd245f524…/2636861bytes**, не currentmain9ed build и не owner-release.
-
-| Native author guest evidence | Отдельный review/result предел |
-|---|---|
-| Chrome147.0.7727.116 | MV3/signed-out/supportprivacy; signed-out sampled, не proven settling interval |
-| Opera136.0.6008.22 | Nativeextension-managerID/enabletoggle и settledsignedout guest |
-| Yandex26.8.1.1111 | Nativeexecutable/path-boundextensionID/settledguest; originalretainedprofile и laterowncleanup раздельны |
-| Firefox155.0.1 **R5** | Temporaryheadlessaddon, workerroundtrips/nativepanelURI/opengeometry; **R5nativepositive сохранён** |
-
-Полностью прочитаны **три новые готовые verdicts**, не source/rawlogs:
-- Chromium-family `A03_MAIN76_THREE_BROWSER_REVIEW_VERDICT_R2.txt` — **PASS_TEST_SOURCE_SCOPED_NO_PRODUCT_RELEASE**,SHA256поmatrix **0298a9fb4463f81b69c0249b15fc72347565905ec8560fecab0bd5a31f541ffb**. Reviewer привязал input/identityconstants/runtime41files; **commit→package mapping внутриscripts заданconstant, не выведен ими заново**. Sixprivacyflagsfalse/UUIDshapecheck не доказывают отсутствие всехчувствительныхданных; workerstartupnetworking неисчерпывающе наблюдался. NoStore/owner/auth/provider acceptance.
-- Firefox R5review SHA256 **2553c95484fa21ba5ed46f68c74bc4e18eaaad9d20a66a1c2e3dbb645363b396** — сохранён **P3test-source defect**: hidden/absentpanel TimeoutException терял namedfailurecode. Это не productFAIL и не отмена R5nativepositive.
-- Firefox R6 `A03_FIREFOX_R6_NARROW_LUNA_REVIEW_VERDICT.txt` — фактический текст **PASS_TEST_SOURCE_SCOPED_R6_OR_REWORK**, SHA256поmatrix **6b61571064400b31851143d57e123d67712f5bed5edcf11f7108d57a261bd7f6**. Узкий timeoutcatch сохраняетcause/19nonoptimizablechecks и не добавляетfalsePASS. Offline4/4 source-only; **R6_NATIVE_EXECUTED=false**. Нельзя соединить R5nativePASS и R6sourcePASS в ложный R6nativePASS. NativeR6 не запускается/не поручается.
-
-**Новое реальное consumption C A03:** C state record **C06_A03_BRANDED_GUEST_DEVELOPMENT_PACKAGE_READONLY_20261020**, issued **13:49:27**, непосредственно прочитан. ExistingC прочитал A handoff **A_TO_EXISTING_C_TESTER_A03_MAIN76_FOUR_BRANDED_DEV_GUEST_20261020.json**, matrix, ready ZIP sizes/hashes/members и currentmain9ed changed paths. Это самостоятельное documentarypackage consumption: обаarchive/sourcepathcurrentity проверены **по C receipt**, Controller новыхZIPchecks не делал. Extensionpaths unchanged через Telegram/health-runner merges; archive остаётся построеннымотmain76, не переименованвmain9ed. Store PREPARING/NO_SUBMIT/owneracceptanceNOTPROVEN.
-
-**Отдельная новая cross-role write refusal C, не обходить:** в томже ready C record сохранено RDC **start_process**, попытка atomicwrite `C_TO_EXISTING_A_A03_MAIN76_FOUR_BROWSER_SOURCE_CONSUMPTION_20261020.json`, ответ **INVALID_ARGUMENT: RuntimeException: Error: Command not allowed**, authorreadback **ENOENT_NO_FILE_CREATED**, retry_or_alternate_route=false. Точное исходное call/requestID/fullargs/время самойattempt в прочитанномrecord не приведены — **UNKNOWN**;13:49:27 естьвремяrecord, не выдуманноеattempttime. Controller не проверяет запрещённыйtarget повторно, не создаётreceiptзаC, не пересылаетчерезальтернативныйwriter/tool. **Эта собственная REPORT фиксация факта consumption — аудит, не replacementC→A ACK/доставка отказаннойзаписи.** ПричинаглубжетекстаUNKNOWN; общегоownerconsentповторнонепросим, механизмподдержанногоreviewнеизобретаем.
-
-A03matrix не даёт owner normal auth/Start→result→Finish, realAI/Ozon/WB, Windows/Store/signedAMO/exhaustivenetwork, Opera/YandexpreauthAdd или fullreleasePASS. PR240R15/R19/R28 и historical3/5/missingoriginalCI остаются; **Aworkflow-listGET INVALID_ARGUMENT/HTTP400 NR/no proxy**, currentcountпослеотказаUNKNOWN. WBofficialRU13YAML/version/hashUNKNOWN/enumremovalNOT_VERIFIED. ExistingA sourceownership/общийPLAN сохраняются; готовыйguestрезультат не повод для дублирующей проверки.
-
-### Тестер: новый прямой предел доступа, готовый результат не переоткрыт
-
-Прежние candidate18653/restoration12:39:52/terminal12:40:25/ZIP/code review приняты и не повторены. Точный current PLAN остаток — ChatGPT Standard file-input/upload-ready/sent ownership; Alice actual drop-target илиinput/ready/sent ownership плюс longCopy; Gemini usable input илиdrop-parent; Grok fullbusyrootUNKNOWN не новый mandatory request. DeepSeek/Claude закрыты, прочие готовые code results не обнуляются.
-
-**Новая прямая передача владельца:** dot **12:51** уже спросил точечное снятие явного **§2 запрета на сбор ChatGPT/Alice**; ответа пока нет. Поэтому не писать «dot просто не собрал»: это конкретная действующая граница сбора. Повтор общего согласия/вопроса владельцу не нужен; тот же адресный вопрос уже открыт у dot. Минимальный следующий вход — ответ на него плюс достаточный existing permitted material; получение профилей/UI тесты не перекладываются на Тестера. Gemini denied search и эквиваленты не повторяются. Новых captures/Send/профилей/сообщений в чужой чат Controller не делал. PR241 selected bootstrap ABORT141/причинаUNKNOWN/mergegate и старые отрицательные результаты сохранены; новый source/CIgreen их причинность не объясняет.
+ExistingTesterпродолжаетordinaryownsource/codeboundaryсдостаточнымичастями,безauthorizedprofiles/UItests/провайдерскихSend. Второгоcontinuation/сбора/профилейненазначено. Standardonly/Workexcluded, Alice longCopy/Grokfullbusyroot/providerbyteidentity/installed/fullB02остаютсясвоимиUNKNOWN/ограничениями. Sourcefa3необъявленpublished/merged;PR241causalabort141/genuinegrant/lease/fence/инициаторне восстановлены.
 
 ## 3. PLAN и исходные двенадцать OPEN
 
@@ -168,28 +117,27 @@ OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrif
 
 
 
-## 4. Десять пунктов, объём и организационный результат
 
-1. **Последнийисход/автор:** predecessor22f/ref/author/parent/fulltext сверены; ownunknownwritesнет. SoleREPORTfreshCAS/readback; physicalflock/foreignclaims не заявлены.
-2. **Приоритеты/поручения:** PLAN/WIP/12OPEN сохранены. Снимаются ложныеUNKNOWN BPGactualproof/Cstaticinputconsumption/Cmain9edterminalconsumption; не создаютсяновыеPG/review/CIзадачи.
-3. **Изменения:** exactB1aff/reportblobb5c0 unchanged поnewreceipt; currentmain9ed unchangedпоfreshGitref; newA test-sourceR6отдельноотнативногоR5, productcandidateнеперенесён.
-4. **Tests/package:** readyB PG18twointerleavings2/2 +Lock — авторскаяsyntheticschema; A4nativeguest иseparateR6offline4/4 — readyevidence, неexecutionsController. СтарыеТестер267/ZIP/CI не повторены.
-5. **Review:** прочитанытолькоreadyA3verdicts; R5negativepreserved/R6sourcePASSnotnative. Никакогоnewreview поручения, sourcepayload/helperlaunchнет. НезависимаяBPG/applicationacceptanceневыдумана.
-6. **CI:** acceptedmain9ed/5215/13неповторены; Cfinalcomment/stateпотреблениепрочитано. B2462/5 иmissing3неизменены; newPGнеCIreplacement; A3/5historicalonly.
-7. **Ресурсы:** authoredBcleanup/schemaabsence/sessioncount сохраненыкакreceipts; ControllerDB/auth/cleanupнекасался. B04old98.74snapshotнеперемерялся/непринималtests. Процессы/session/lockmetadataнеполнаярольtelemetry.
-8. **Обязательства:**12OPEN/map/history/checkpoint/closingconditionsтеже. B04/fullPG/R7R8/entitlement/refusalsнеотменены; C05/C06/C07/recovery/catalog/installedauthorityотдельны.
-9. **Организация:** BявнопотребилCstaticinput; CпотребилterminalиA03matrix — реальноеindependentcontinuation. Cross-roleC→AreceiptwriteCommandnotallowedсохранён, не заменён. Publication/ACKнеinstalled.
-10. **Next/владельцы:** existingB/CdocconsumerdispositionnewPGproofссохранённымиграницами; originalCImaintainermissingworkflowhandoffsбезповторнойотправки; B/Opssource-pinnedcarrier/backup/rollbackauthority; AoriginalPLAN/R15/R19/R28/officialbundle; dot/ownerexisting§2answer. Тестеранепродолжатьбезновогодостаточногоматериала.
+## 4. Десять пунктов контроля, объём и организационный результат
 
-**Объём:** fullREPORT/ref/commit;3new/updatedpublications BPG/Amatrix/Cfinal;180-lineBcheckpointtail,137-lineAmatrix,3readyverdicts10+7+8lines,120-lineCnewtail;scopedhandoffnames;freshmainGitref/RDCprocess/session/lockmetadata. ПослеBPG strictly-after13:47:08commentsпусты на13:55:11; это boundedcoverage, не доказательствоотсутствиявсейработы. Ни одногоnativeCI/protectionendpoint/source/rawjournal/DBprobe здесьнебыло.
+1. **Последнийисход/автор:** predecessorE8/ref/author/parent/blob/fulltextсверены;ownunknownwritesнет. SoleREPORTCAS/readback, serverphysicalclaimsневыдуманы.
+2. **Приоритеты:** исходныеPLAN/WIP/12OPEN. ПрежниеB2462/5/mergepending/CнепрочиталPGиTinputunknownбольше неcurrentожидания. Адресныепорученияне дублируются.
+3. **Изменения:** currentmain833(PR2462APIpaths), exact1affsourceblobssame; Tfa3Gemini3pathsготовы,Standard/Alice2pathnextавторскийWIPнеперехвачен; C247публикациявместоoldNO_PR.
+4. **Tests/package:** BcorrectedPIDR3twoauthorPGcases/R2reviewevidence; T76/ZIPreadyreceiptsквалифицированы; старыеPASS/FAILнепереиграны. Controllernewtests/PG/build/capture/Send=0.
+5. **Review:** готовыеB11-lineR2иT5-lineverdictполностьюпрочитаны; reviewerнеPG/CI; Cconsumeractualreadbackполучен. Неindependentlive/deployedschemaapproval.
+6. **CI:** новыеdistinctexact1affpush5/13 иmain833postmerge5/13direct10runs/26jobsverified. OldPR2/5история. PR243scope2/5отдельно; C247pushс3/5дошёлдо4/5SUCCESS/1IN_PROGRESSна15:55:36;pendingнеhang. No rerun/dispatch/ref/mergeController.
+7. **Ресурсы:** readonlyprocess/session/lockmetadata/readyrecords. B04oldgateнеfreshadmission; CtempsKEEPсдействительнымиизвестнымиconsumer/WIPreasons, неcleanup. Helper/VM/DBauth/livemutation=0.
+8. **Обязательства:**12OPEN/map/closingconditions/history/checkpointсохранены; rowlockSOURCECIнеB03durable/preACKclientзакрытие; B04/fullPG/R7R8/entitlement/C05/C06/C07separate.
+9. **Организация:** actualCconsumption/sourceintegration+independentPR247подтверждены. Tобаinputпрочёл,можетсампродолжатьcodeвboundedscope; неоставлятьегоожидатьповторнойдоставки. PostcleanupdenialнеSQLPASS.
+10. **Next/владельцы:** existingC247terminal/currentdisposition; originalCImaintainerPR243/244specificmissinggateбезновогопоручения/обхода; B/Opsgenuinecarrier/recovery/liveauthority; Tготовыйresultтекущейдельтывместоduplicatecontinuation; AoriginalR15/R19/R28/officialbundle. Controllerнесоздаётnewtests/review/CIдлястатуса.
 
-**Фактически исправлено:** activeBтеперьSOURCE+AUTHOR_DISPOSABLE_PG18syntheticschema2/2,вместообщего«actualPGUNKNOWN»; BstaticCinputconsumption13:28/13:47вместоUNKNOWN; Cfinalmain9edconsumption13:49/13:50вместоNOTOBSERVED; A4branded/test-sourceR6currentprojectionвместоChrome-only/новыйreviewотсутствует. Историянепереписана, previousprefixсохранён.
+**Объём:** fullREPORT/ref/commit;3newB/Ccommentbodies+currentPR246/head/parents/twofilemetadata;10newCIrunmetadata+26actualjobs;готовыйBcheckpointtail230lines/R2verdict11;Cstatetail220/PR243publication/PR247metadata+currentruncollection,затемreadтолько2тогдаpendingruns;Tnew213-linecheckpoint/5-lineverdict/14-linereadback/statetail180;scopedA5commentcollections/B04metadata. Nativecurrent9ed/521/protectionGETнеповторялись, productsource/rawtestscript/journal/foreignchatнечитались.
 
-**Организационныеостатки:** независимаяC/application/deployedschemaPGacceptanceнеопубликована; Boriginalmissing3уCIowner, auditнепоручаетегоlaunch. A03formalC→Areceiptwriteотказан, но Cactualreadподтверждёнсвоимrecord; deliveryформальногоACKAневыдумана. B/Opsустановка/carrier/backup/restore/rollback/owner13YAMLнеприняты. Testernativefileматериалы/§2owneranswerреальновнешние; A03browserprivacyнеихзамена. НовогообщегоWAITING_INPUTдлявсехпотоковнеобъявляем, текущуюphysicalactivityневыводимизRUNNING/дат/пустойcollection.
+**Фактически устранено в своём documentaryscope:** B R2reviewpending→readyPASS_SOURCE_EVIDENCE_SCOPED; CPGconsumerNOTOBSERVED→actual14:27consumption; B246fullCI/mergepending→5/13+merged833+separate5/13+actualCfinal; T18653/Geminimissing→fa3Geminiготов/новыеStandardAliceinputconsumed; C931NO_PR→publishedDraft247. Oldprefix/historyсохранены, чужиеролевыепроекциинеисправлялись.
 
-**Enforcement:** прежний ordinarybranchfalse/off/empty time-scopedфактсохранён; ENFORCED_PROTECTION_NOT_PROVEN. No protectionGET/403retry/settings/authchanges. Новогообщегоsame-roleSOURCEсогласованиянет; еслинужнаименноenforcementproof,недостаётсуществующейприменимойpolicy/rulesetprimaryотrepo/settingscustodian, не новогопробногоsecurityвызова.
+**Организационныеостатки:** BadditionalcleanupSQLrefused/internalruleUNKNOWN, harnesscleaned≠independentSQL. Installedsample0/10oldcarrierиcompiledruntime/backup/rollback/ownerproofнеприняты; existingB/Ops владеетоперациейпослереальногодопуска. PR243точныйnativeworkflow_dispatchиnoalternaterefнеподменяютсяB246route. PR247pendingterminalнеidle. C247/PR225sourceoverlapсохраняетсяавторами; CtempKEEPприliveRDCFD/ignoreddeps/unmergedWIPнеустраняетсячужимdelete. TpartialDOMнеполныйsentownership,ноужеимеющиесяданныепотреблены;неповторятьдоставку/ожидание§11. AохватпубликацийограниченперечисленнымиPR,неproofglobalnoactivity.
 
-StorePREPARING/NO_SUBMIT; SOURCE/PACKAGE/INSTALLED_SYNTHETIC/LIVEOWNER/DEPLOYED/PRODUCTIONразличены. IDNAконтрактрешён,implementation/auth/DB/dataотдельнонеразрешены; C06вопроснедублирован/authorityневыдумана. Audit_complete=false, все12OPEN.
+**Enforcement/release:** SOURCE+merge/nativeCIaccepted; serverenforcementNOTPROVEN, старыеbranchfalseobservationsнеперезапрашивались. Никакихprotection/auth/settingschange/denied403replay. Signedcarrier/targetcatalog/backup/appPGrestore/rollback/C06ownerpopup/StorePREPARING_NO_SUBMITотдельны. IDNApolicyрешена,implementation/auth/DB/dataнерасширены. Новыхобщихownerconsentвопросов/реестров/архивов/расписанийнет. Audit_complete=false.
 
 ## 5. R19 — прежний единственный запрос сохранён
 
@@ -9750,6 +9698,228 @@ OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrif
 **Остальные организационные остатки:** originalC03sourceACK≠review/integratedPASS; consumptionB13:28appendix иBполучениеCACK UNKNOWN. B24613:18staticinput/newmain521handoffBconsumption не подтверждены новымиcomments; installed carrier/backup/restore/rollback/authority остаютсяуB/Ops/owner, не уController. Bmissing3 уoriginalnativeCImaintainer, Aworkflow-listINVALID_ARGUMENT400 NR. Tester точный§2вопросужеуdot/owner, ответа нет; не повторяемего/готовыеtests/сбор. Никогонеобъявляемпростаивающим поdate/RUNNING/отсутствиюпубликации.
 
 StorePREPARING/NO_SUBMIT; IDNApolicyрешена,auth/DB/dataimplementationнерaзрешены; C06authority/catalogневыдуманы/вопроснедублирован. Продуктовые gates documentarycorrection не закрывает.
+
+## 5. R19 — прежний единственный запрос сохранён
+
+OWNER_CONSENT_RECEIVED06:46:04; общегоразрешениянеожидаем. SYSTEM_BLOCK_NOT_LIFTED/INTERNAL_REASON_UNKNOWN. НовыйA_R27dispatchscope не является ответом обinternalR19reason. Своегоsourcequery/get_recentпоиска/deniedtargetsповтора нет. Ниже тотже ранее помещённый запрос дословно, **не новая отправка**:
+
+### A04 / R19 — единственный узкий запрос ранее сохранённого первичного ответа
+
+**Адресат:** существующий A04, первоначальный автор R19. **Основание:** прямая команда владельца20Oct06:41:59. **Scope запроса:** только уже сохранённый ответ исходного вызова, без новых source-read, shell, grep, history-query replay, helper, tests/review/CI, capture или воспроизведения.
+
+В своей существующей авторской публикации R19/PR240 просим представить privacy-safe original refusal envelope либо точный сохранённый фрагмент собственного первоначального tool-turn:
+- полное имя исходного tool и исходные timestamp/timezone, если они сохранены отдельно от времени комментария;
+- **call/tool-call/request/correlation ID** и **явный error code/type/status/isError**, только если реально показаны исходным ответом;
+- точный первичный текст/структуру отказа и исходный help/review/support pointer, если он присутствовал; без inline source, секретов, токенов и других данных;
+- если поле интерфейсом не показано — **NOT_EXPOSED_IN_SAVED_RESPONSE**; если сохранённая первичка пока недоступна — **UNKNOWN/NOT_AVAILABLE**, без выдуманных ID и без утверждения о её несохранении во всей системе.
+
+Это запрос документа об уже случившемся отказе, **не разрешение повторить исходный вызов или эквивалентное чтение** и не поручение собрать новые данные инструментами. Полные source payload/команды заново не посылать. Отдельный отказ публикации не обходить: сохранить исходный ответ в уже разрешённом scope и сообщить точный предел.
+
+**Кто может дать недостающий вход:** A04 — собственный сохранённый original tool-turn/response; исходный connector/platform operator — только реально существующий trace/internal reason/механизм рассмотрения по подлинному correlation ID. Владельцу не требуется вновь подтверждать общее согласие на сервер. Причину платформы нельзя вывести из кода Octoport; при отсутствии trace она остаётся UNKNOWN.
+
+**Запрос размещён только здесь, в собственном разрешённом REPORT**, после проверки его версии/автора и dedupe описанного scope; fresh expected-blob CAS/readback защищает эту запись. Физический server flock/claims/WIP не объявляется полученным. Controller не изменяет A.json/чужие разделы/PRIORITY_TASKS/отказанный checkpoint, не создаёт новый handoff/реестр и не отправляет в чужой чат. Публикация REPORT не равна ACK A04: доставка/потребление запроса **UNKNOWN** до существующего адресного ответа.
+
+Все конкретные отказы иUNKNOWNоперации сохранены: PROMPT_CONTROLLER−32603/failedPRIORITYtail9d09…/protectedpreflight/checkpoint/PRIORITY_TASKS/A.json/B.json/Cpremerge; AAPP10c/localstate/R31/R32/R52/summary; Bpublication/protection403/PG/checkoutWIP; Cprotection403/log404; R7/R8; list_remote_tool_calls timeout; directjob118137084442/log118019352572; artifactsroute/targets/artifact12247621316INVALID_ARGUMENT; separateR28Commandnotallowed/NOT_RUN. СтарыйE629Gitmetadata404неповторён: новыйPR245read не использовался для обходногоsourceчтения или реконструкции ложнойidentity. Безsource/live/DB/auth/security/эксплуатаций/воспроизведений/errors/events/cleanup/PR97/131/134/чужихчатов/новыхреестров/архивов/расписаний.
+
+
+~~~~
+
+
+### Сохранённый активный срез REPORTe8d7e0b4 перед продолжением 2026-10-20T15:47:17Z
+
+~~~~markdown
+# Отчёт действующего Контроллера Octoport
+
+- **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — тот же незавершённый аудит.
+- **Срез:** 2026-10-20T13:55:11Z. Основа — REPORT `22fcd79fb07df285d58e8ca4fa715b4b547913d1`, blob `807eb876c94498d11207e6561a8cf7b24e102ca0`; author MaksimUnimax13:43:58UTC, parenta14f1f810abe9934c44155d39d813a3dd76124e8. Последний ответ завершён, другого продолжения нет по прямой передаче владельца.
+- **Состояние:** IN_PROGRESS; audit_complete=false; **12 OPEN**. Sol6.1/«Очень высокое», исходные PLAN/WIP/checkpoint/history и принятые доказательства сохранены.
+- **Sole write scope:** только этот REPORT, fresh ref/author/version + expected-blob CAS + независимый полный readback. Никаких server role/checkpoint/PRIORITY/§11/§12/source/tests/WIP записей. Физическое владение flock/claims/dirty не объявлено проверенным; protected preflight NR.
+- **Текущая коррекция:** обычный branch metadata сообщает **protected:false / protection.enabled:false / required checks off+empty**. **ENFORCED_PROTECTION_NOT_PROVEN**: «normal guarded merge» автора не доказывает server-enforced защиту. Same-role SOURCE основание AGENTS сохранено, нового общего согласования не требуется;403/denials не отменены. PR245 main521 и PR237 main9ed/5of5/13of13 уже потреблены C. Current main **9ed7a8809ad5d72d6c6adb0112422b1478c5478f**. Новая B246 primary — AUTHOR_RUN_DISPOSABLE_PG18_SYNTHETIC_SCHEMA2/2, не независимая application/installed приёмка. PR242 остаётся HOLD.
+- **Server checkpoint:** прежний verifiedSHA256 `76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212`, readback19Oct13:35:39.429576; map `fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d`. Запись не предпринималась; REPORT не подменяет checkpoint.
+- **Периодичность:** version/author/readback каждые10мин активной работы и перед завершением. Новых расписаний нет.
+
+## 1. Последний исход, один автор, операции и разрешённый охват
+
+REPORT22fcd/ref/author/parent/blob совпали; full pinned text получен, unknown ownmutations нет. Нового продолжения нет по прямой передаче владельца. Перед разрешённой REPORT записью fresh ref/expected-blob CAS, после независимый полный readback. История, предыдущий active prefix, исходные PLAN/WIP/checkpoint/12OPEN сохраняются. Изменяется только этот REPORT.
+
+Штатные RDC list_sessions/list_processes/CONTROLLER.lockmetadata ответили. Noactivesessions/отсутствие отдельных launch-команд **не доказывают** отсутствие всех remote operations или свободное владение чужим WIP. Нулевой lockfile не flockownership. Protected preflight/серверные role/checkpoint/PRIORITY записи не выполняются; физические claims/dirty не выдуманы. Чаты потоков не открывались, чужие source/tests/WIP/профили не читались/не менялись.
+
+Новый охват: B246 comment6292367147 и ready source-checkpoint tail с PG/consumption records; A03 updated matrix publication,137-line ready matrix и три готовых test-source verdicts; C237 final consumption comment/state tail; scoped existing peer-handoff filename listing/current main Git ref. Main9ed/521 native CI endpoints, protection GET, denied workflow-list и старые tests/reviews/ZIP не повторялись. Ни PG/login/DDL/schema/cleanup, ни source/test/review/CI/helper/browser/capture/Send запусков или поручений Controller нет.
+
+Ранее успешно прочитанный доступный канон/AGENTS и поздние прямые ограничения действуют. PROMPT_CONTROLLER−32603/failed PRIORITY tail/protected preflight и все адресные отказы NR; полного fresh чтения недоступных указателей не заявляем. errors/events не читаются независимо от старых ссылок. Новая cross-role C→A write refusal сохранена как evidence; её не заменяем другой записью/инструментом.
+
+## 2. Роли, фактическое продвижение и действующие границы
+
+| Роль | Последнее подтверждённое действие UTC | Что реально снято / текущий владелец next |
+|---|---|---|
+| **A** | Matrix13:37:00, publication/update13:41:55; ready4brandedguestPASS + отдельные test-source reviews. | Реальное продолжение подтверждено; это не PR240ZIP/ownerrelease. NativeFirefoxR6 NOT_RUN. Existing A сохраняет R15/R19/R28/officialbundle и originalCI authority; текущая физическая операцияUNKNOWN. |
+| **B** | PG receipt13:44:41,cleanuprecord13:45:29,publication13:47:07/readback13:48:19; currentity consumption C input recorded13:28:21. | **Реальные PG2/2 author evidence и consumption C static note теперь есть**, старыеUNKNOWN сняты ровно в этих scopes. Native2/5 и independent application/deployed/installed gates открыты. Прежние CIhandoffs не дублируются. |
+| **C** | State13:49:27/comment13:50:31 потребляет finalmain9ed; same state читает A03matrix/packages. | **Принятый terminal потреблён**, требовать его снова не нужно. NewBPG независимая application/consumer приёмка не опубликована в проверенном охвате. C→A receiptwrite Commandnotallowed не повторять; existing C03/C05/C06/installed scopes продолжаются. |
+| **Тестер** | Прежний18653 restoration/terminal сохранён, не повторён. | Нового достаточного B02 материала/owner§2 ответа нет по прямой передаче. Не возобновлять, профилей/UItests не требовать; A03signed-out privacy не закрывает недостающие uploadownership facts. |
+| **Контроллер** | Прочитал новые готовые доказательства и actual consumption, уточняет собственные pending/next и границы. | SoleREPORT freshCAS/readback; новыхPG/tests/review/CI/cleanup/публикацийзаавтора нет.12OPEN сохраняются. |
+
+### Защита main: что именно доказал обычный branch metadata
+
+**Два разных происхождения и момента:**
+- По прямой передаче владельца, dot завершил обычный GET **/branches/main** в **13:18:55UTC** на exact **521e3018535c95e668328316acc758f5a17eacca**. Переданные поля: protected=false; protection.enabled=false; required_status_checks.enforcement_level=off, contexts=[], checks=[]. Это переданная точная primary dot, не повторное независимое восстановление его исторического ответа Controller.
+- Собственный новый обычный GET того же **branch metadata** в текущем проходе, readback **13:37:18UTC**, уже вернул current **9ed7a8809ad5d72d6c6adb0112422b1478c5478f** и **те же false/off/empty поля**. Это независимый новый time-scoped response, **не исторический ответ для521e**.
+
+Точное утверждение: **обычный branch response на этих срезах не сообщает включённую branch protection или enforced required checks.** Авторские ярлыки «protected integration», успешный expected-head merge, зелёные CI и same-role AGENTS условие **не доказывают server-enforced protection**. Current verdict Controller: **SOURCE_MERGE_AND_EXACT_NATIVE_CI_ACCEPTED; ENFORCED_PROTECTION_NOT_PROVEN**.
+
+Не следуют: обход; изменение настроек кем-либо; их состояние непосредственно в момент merge13:10:53; отсутствие других repository/org rulesets или политик; причина false/off; автоматическое разрешение/запрет любого нового merge. Ни одного такого вывода не делаем. Прежний403 остаётся точным отдельным отказом, не ретраен и не обойдён; protection_url из ordinary ответа не открывался. Никакой настройки/authorizations/security mutation не было.
+
+Условное **same-role SOURCE** основание в AGENTS остаётся принято в своих границах; повтор нового общего разрешения на тот же контракт не требуется. Оно задаёт процесс автора, но не доказательство настройки enforcement. Для документального принятия отдельного свойства **server-enforced protection** недостаёт уже существующей применимой policy/ruleset/required-check primary с областью main и релевантным временем; предоставить её может действующий repository/settings custodian в допустимом scope. Это не поручение включить/изменить защиту, не новый security probe и не общий owner-consent gate разработки. Для текущей documentary correction нового решения владельца не требуется: неизвестное остаётся UNKNOWN, ярлык принятия уточнён.
+
+### C04 PR245: source merge установлен, условное основание сопоставлено
+
+Непосредственно прочитаны [C comment6291706892](https://github.com/MaksimUnimax/runtime-fixtures/pull/245#issuecomment-6291706892), PR245 metadata, main ref и commit521 metadata. PR **CLOSED/merged true, draft=false, merged_at13:10:53**; exact reviewed head **e629b4ff984f194377dded3638f1700276866807**. Merge commit **521e3018535c95e668328316acc758f5a17eacca** имеет родителей **76c39893a6e685037a07ec219dd8b6957d715807** и **E629**. Ровно два пути: telegram.ts blob **69ab96b06dc85a5e82dbe75c3ee3eec18f26479f**, swagger-recovery.test.ts blob **b737a0c3a3cdd73ffc6c832cfc525b5ad63b7165**. Product payload/patch не читались.
+
+Авторская первичка устанавливает нормальный Draft→Ready→merge_pull_request, merge_method=merge, immutable expected_head_sha E629; свежие main76/ahead2/behind0/exact2paths/no-conflicting-writer и ранее принятые SOURCE review128PASS/nativepremerge5/5/13of13. Запись C.json13:13:55 непосредственно прочитана в новом tail; raw65tracked/8untrackedWIP — **авторское сохранённое наблюдение**, не собственная physical проверка Controller.
+
+**Сопоставление с AGENTS:** опубликованное условное same-role основание уже существует. Readback подтверждает candidate/base/parents/2paths/result; прежние exact review и premerge CI приняты в своих SHA и не повторены. Normal non-force/expected-head/no protection edit/no403 retry — сохранённое описание автора, а не восстановленный полный tool trace. Сам факт успешного merge не является доказательством отдельного owner-разрешения и не раскрывает branch protection settings. Но отсутствие новой общей команды **нельзя оставлять ложным документальным препятствием** при опубликованном conditional basis. Не отменены прежние protectionGET403, PR234 premerge-write refusal, запреты live/DB/installed и owner-specific holds. Controller merge не выполнял и нового допуска себе не выводит.
+
+**Снято:** current PR245 OPEN/DRAFT/UNMERGED, ожидание identity E629→4c175, повторной общей команды и повторного premerge CI. **Не снято:** original main521 postmerge, source-pinned installed carrier/backup/restore/rollback/owner13YAML/authority/catalog. PR242exact4c175 — отдельный исторический HOLD, counts/review не переносятся. PR238/209/241 original ABORT/causeUNKNOWN остаются за своими run/SHA.
+
+### Main521 postmerge: самостоятельная original push attempt1 серия
+
+**Не premerge E629 и не старый main76.** Все пять original runs created13:10:55, event=push, branch=main, exacthead521e, attempt1; metadata/constituent jobs прочитаны напрямую без запуска/отмен/rerun.
+
+| Workflow | Original run | Фактический исход в текущем readback |
+|---|---|---|
+| Docs |39428215578|SUCCESS updated13:11:05;1/1job118646082837 SUCCESS|
+| Coordination |39428215205|SUCCESS updated13:11:26;1/1job118646080720 SUCCESS|
+| I1-C1 |39428215434|SUCCESS updated13:15:28;3/3jobs118646081958/118646142478/118646142527 SUCCESS|
+| Server |39428215059|**SUCCESS updated13:26:07**;2/2jobsSUCCESS, server118646144288 completed13:26:06|
+| Extension |39428215101|**SUCCESS updated13:21:48**;6/6jobsSUCCESS, WB browsers118646162529 completed13:21:48|
+
+На первом readback13:21:44 было **3/5 workflows SUCCESS,11/13 jobs SUCCESS,2 jobs IN_PROGRESS**. Последующий terminal readback **13:26:42** установил **5/5 workflows SUCCESS,13/13 constituent jobs SUCCESS**, attempt1 exact521e: Server/Extension оба completedSUCCESS, все их2+6jobsSUCCESS. Это новая postmerge приёмка native CI, не перенесённый premergePASS. Никаких rerun/cancel/newCI не было. Run updated_at13:11 не был использован как доказательство hang. CI job с названием installed acceptance — native synthetic CI evidence, не реальная B/Ops owner installation/production proof.
+
+**Новое опубликованное потребление terminal найдено:** [C comment6291984306](https://github.com/MaksimUnimax/runtime-fixtures/pull/245#issuecomment-6291984306), **created/updated13:28:19**, и state **13:27:51.423**/готовый final record прочитаны. C явно принимает собственные main521 original5/5/13of13; Serverlastterminal13:26:07. Снято прежнее NOT_OBSERVED consumption, старые run/job endpoints не открывались повторно. Это SOURCE+merge+native CI acceptance, не установленный B/Ops carrier.
+
+В C publication употреблено «SOURCE+protected GitHub merge accepted». Controller принимает доказанные **SOURCE merge и exact CI**, но **не техническое свойство enforced protection** по изложенному ordinary branch response. C.json/чужой комментарий не исправлялись. Нового дублирующего поручения потребить main521 нет: C уже сделал следующий отдельный source шаг — PR237 merge.
+
+### C→B/B→C: потребление static input B246 теперь подтверждено
+
+Ранее принятый B/Ops ACK13:01 относится к C04handoff12:57; новый C→Bmain521handoff13:15:46 не равен этому старомуACK. Нового B/Ops installed/source-pinned carrier/backup/restore/rollback/authority из этих документов не следует. Старую доставку не переоткрываем и ACK не выдаём за установленную приёмку.
+
+**Новое фактическое consumption B246:** в готовом source-checkpoint tail прочитан `main521_C_static_consumer_currentity_20261020`, issued **13:28:21.407523**, с точным URL/ID C6291789830, exact1aff и currentmain521. Новый [B comment6292367147](https://github.com/MaksimUnimax/runtime-fixtures/pull/246#issuecomment-6292367147) от **13:47:07** прямо сохраняет эту отдельную static source-consumer note. **Прежнее UNKNOWN о получении/учёте C input13:18:44 снято**. Это публичное потребление документального static input, не independent PG/application/integration/installed acceptance.
+
+Static API signatures/no direct Telegram getReport/transitionReport call и no changed-path overlap остаются своими ограниченными выводами. Переходmain76→521→9ed меняет Telegram/health-runner paths, не API-watch, по ранее прочитанной commit metadata; это file-currentity, не semantic combined tests. Для этого не нужно новое source-чтение/consumerтест.
+
+**C03 PR244 — уже принятая отдельная линия:** B publiccomment6291942866 created13:26:22/A10focused4/4 на unchangedsource/assertions и C ACK13:25:22 originalB13:21 были прочитаны в предыдущем проходе; заново не проверялись. HistoricalFAILED_expectedBLOCKED и причинаUNKNOWN сохранены, productfixNONE. C ACK не заменяет review/PR244native2/5/missing3/combined/installed gates. Поздний Bappendix13:28 и получениеBсамогоCACK отдельно не доказаны. Не требовать повтор originalACK; существующие authors/maintainer dispositions остаются, новыхtests/instrumentation/review поручений нет.
+
+### Следующее реальное продолжение C: PR237 merged, current main9ed — новый CI scope
+
+Свежий ordinary branch response обнаружил новый current main. Дополнительно прочитаны только новая PR237/commit metadata и ready currentity publication [comment6291870510](https://github.com/MaksimUnimax/runtime-fixtures/pull/237#issuecomment-6291870510), created13:22:52. Ранее принятые exact4b2 tests/review/native5/13 не перечитывались и не перезапускались. Publication описывает disjoint health-runner currentity и Ready; её NO_MERGE_YET было состоянием13:22, не current outcome.
+
+**PR237 merged13:28:51UTC**, head **4b2ecd791070aa9e63a88e20fd8399db302245d5**, merge **9ed7a8809ad5d72d6c6adb0112422b1478c5478f**, родители **521e3018535c95e668328316acc758f5a17eacca +4b2**. Два health-runner пути: no-session-runner.ts blob **c3d03ee58519d5d82912c25ca563b31797d86540**, no-session-monitor.test.ts blob **a91c5a6399c35ca8f763ae1521ffb3016088e5e0**. Наличие merge не доказывает enforcement; full original merge trace не получен. Это SOURCE изменение существующего C, не Controller mutation, не установленный runner и не joint PR234/237 installed acceptance.
+
+**Новая original push attempt1 main9ed**, created13:28:53, точные existing runs, metadata/jobs прочитаны без запусков:
+
+| Workflow | Run | Новый terminal readback13:42:47 |
+|---|---|---|
+| Docs |39430746161|SUCCESS;1/1job118654858445|
+| Coordination |39430746212|SUCCESS;1/1job118654857891|
+| I1-C1 |39430746245|SUCCESS;3/3jobs118654858391/118654934151/118654934181|
+| Server |39430746160|**SUCCESS updated13:42:09**;2/2jobsSUCCESS, server118654926172 completed13:42:08|
+| Extension |39430746219|**SUCCESS updated13:40:12**;6/6jobsSUCCESS, WB browsers118654963531 completed13:40:11|
+
+Первый новый readback13:39:14: **3/5workflowsSUCCESS,11/13jobsSUCCESS,2IN_PROGRESS**. Последующий readback **13:42:47** только двух тогда pending original runs установил **5/5workflowsSUCCESS,13/13jobsSUCCESS**, completed/success, exact9ed/eventpush/attempt1. Terminal Server13:42:09 и Extension13:40:12 проверены вместе со всеми их2+6jobs. Это свои новые исходы, **main521 green не переносился**. Никаких installed/live/production/enforced-protection claims.
+
+**Новый actual consumption теперь опубликован:** [C237comment6292435821](https://github.com/MaksimUnimax/runtime-fixtures/pull/237#issuecomment-6292435821), created/updated **13:50:31**, и C state **13:49:27**/metadata13:49:28.047 непосредственно прочитаны. C явно принимает final originalmain9ed5/5/13of13 и lastServer13:42:09 без rerun. Предыдущий NOT_OBSERVED consumption снимается; native run/job endpoints в этом проходе не читались.
+
+C label «protected-main accepted» ограничен нашим собственным verdict **SOURCE_MAIN_POSTMERGE_CI_ACCEPTED_ONLY; ENFORCED_PROTECTION_NOT_PROVEN**. Обычные branchfalse/off/empty observations приняты раньше; protection/ruleset GET не повторяются. Existing C next уже не ожидание своего CI: независимый documentary consumer учёт новой B246 readyPG primary и separate installed/source-pinned B/Ops/C03/C05/C06 gates, без нового PG/review/CI поручения Controller.
+
+По двум уже прочитанным commit metadata main76→521 (Telegram2paths) и521→9ed (health-runner2paths) **API-watch paths не изменялись**. Это явный вывод из полного списка изменённых путей этих двух merge commits, не combined semantic test, SQL acceptance или новый SOURCE review B246/244. Он снимает неопределённость только file-currentity, не остальные gates.
+
+### B PR246: новое реальное PG18 авторское доказательство, точные границы
+
+Непосредственно прочитан [B6292367147](https://github.com/MaksimUnimax/runtime-fixtures/pull/246#issuecomment-6292367147) **13:47:07**, ready checkpoint tail `r3_disposable_postgresql18_two_real_transactions_20261020` issued **13:44:41.794557**, cleanup/result-publication records **13:45:29.516450 /13:48:19.099636**. Checkpoint readback SHA256 по публикации **e7c5a01f989a0da1d9511c82adeb087a1e902531716e16266a806eea1fe14588**. Controller не читал test-script snapshot/raw journals, не подключался к PG и ничего не исполнял.
+
+Exact candidate **1aff2d5ae55bd4e043892d3efb055df3deccb20c**, unchanged report.ts Gitblob **b5c0bb32818d5fa2f6c0f79b506f73c091987726**. Автор использовал свой existing disposable PG18.0 и свежую synthetic schema: migration0042 table shape (Gitblob **3b6034443c2779f5b7741ab6aabb53443ab728fb**) **плюс synthetic document_key column**. Это не точное воспроизведение всего deployed schema/migration lifecycle.
+
+| Уже выполненный автором interleaving | Сохранённый результат |
+|---|---|
+| FirstCOMPLETED /secondFAILED | Firstcommits; secondREPORT_TERMINAL_OR_INVALID_TRANSITION; persistedCOMPLETED; PGwait_event_typeLock observed |
+| FirstFAILED /secondCOMPLETED | Firstcommits; secondтотжеexpectedrefusal; persistedFAILED; Lock observed |
+
+**2/2 author real PG cases PASS**, unit terminalexit0/inactive по readyrecord. После коммита сохранено ожидаемоеterminalзначение; crash/power-loss/backup durability этим не доказана. Original testscript SHA256 **44ba714756e9da12375456d9b973ad66a756b21ee1bdce3d2ba685db6ba05fb4**, journal SHA256 **76420d5e414e1682848fd97c4823e18016718b52455d647653072bc22f8fe4e5** — ссылки/хэши из primary, сами source/logpayload не открывались.
+
+Preserved negatives: начальный harnessESMrequire failure **доDBexecution**, прежний connection28P01 с unverified username; по authorreceipt точная existingB identity затем подтверждена из его already-authorized configuration. Это авторский разбор, не Controller auth-проверка/допуск. Original schema dropped/absence/sessioncount0 и owntempscriptretired — отдельные авторские readbacks; Controller не выполнял cleanup или DBпробу. B04/fullPG/R7R8/PGrefusals не отменены этим distinctC04 result и не повторяются.
+
+**Evidence level:** SOURCE_PLUS_AUTHOR_RUN_DISPOSABLE_POSTGRESQL_SYNTHETIC_SCHEMA_TWO_CONCURRENT_RACES. **Снято только прежнее UNKNOWN, есть ли readyactualPG rowlock proof для exact1aff**. Не приняты independentC/applicationconsumer, full deployed-schema migration/upgrade/rollback, installedTelegram/owner/prod, real source-pinned release, nativePR2465/5 или enforcedprotection.
+
+Принятые старыеR3sourcePASS/88TS2352negative→1affcorrection/ServerDocs2/5 сохраняются и не перепроверены. **Missing3 workflow results** остаются у existingoriginalCIauthority; прежнийhandoff не дублирован и новыйdispatch/тест/reviewздесь не поручен. Native2/5 не превращается в5/5 благодаряPG2/2.
+
+Comments strictly-after13:47:08 на **13:55:11** пусты. **Независимое C/application принятие новойPGprimary в проверенном охвате NOT_OBSERVED**, не доказанный отказ/простой. Конкретный доступный documentary next существующего C — учесть готовый authorreceipt и его ограничения в своём existingconsumer disposition; аудит не назначает новый PG/review/test. Existing B хранит exactsource/negativehistory/currentbase separation и уже опубликовал Cstaticinput consumption. Разрешение на source schema не переносится на deployed/live/backup/restore.
+
+Новый готовый **B04_RESOURCE_GATE_MAIN76_READBACK_20261020.json** от **12:59:04.944718** прочитан, без новых измерений/проб. Авторский snapshot: free25688.26MiB; valid OPEN/HELD reserves17595MiB; floor3072MiB; available5021.26MiB против5120MiB, **deficit98.74MiB**, held54/open27. **NOT_ADMITTED**, new_tests_started=false. Это time-scoped resource evidence, не актуальное измерение13:xx и не допуск.
+
+Return condition B04 — полные5120MiB после действительныхрезервов/floor **плюс** допустимое решение original fixture-reset/test-source refusal. Capacity само по себе отказ не снимает. Receipt предлагает разрешённый finished-owned allocation lifecycle либо действительную доступную ёмкость; текущий прямой scope Controller **исключает cleanup/denied preflight/server allocations writes**, поэтому такой write не предпринимался. Ответственный — действующий owner/resource custodian в его реальном scope; B — product continuation только после обоих gates. Не урезать floor/резервы, не повторять отказ через C/CI/alternate DB. B может продолжать отдельные source/CI направления.
+
+### A03: четыре branded guest результата и отдельная Firefox R6 test-source граница
+
+Прочитаны только новый appendix [A6291441925](https://github.com/MaksimUnimax/runtime-fixtures/pull/240#issuecomment-6291441925), updated **13:41:55**, и **A03_MAIN76_FOUR_BRANDED_DEV_GUEST_MATRIX_20261020.json** (137lines,issued **13:37:00.043465**; публикация checkpointissued13:41:51). Matrix SHA256 по публикации **32a2da7df862323845d40fd1857377645807d5e3f70eb66866f5e606b720cbce**. Точные уже выполненные native результаты прочитаны через ready matrix/receipt pointers, браузеры/ZIP/runtime повторно не запускались/строились/скачивались.
+
+SOURCE **main76c39893a6e685037a07ec219dd8b6957d715807**, v0.2.37 **LOCAL_DEVELOPMENT**. Chromium-family ZIP **a5c8eace7c2b1e1652cc92c3ba6a8653cc8c0f06c1e3d28df3d56c2c3d248085**, **2621054bytes/41members**,129inputs. Firefox отдельный unsigneddevelopment ZIP **44f72d37aa418f96ed9e766fb685ab04d8dd146546692b8e52c44713d12a0d39**, **4815492bytes/42members**. **Не PR240 ZIPd245f524…/2636861bytes**, не currentmain9ed build и не owner-release.
+
+| Native author guest evidence | Отдельный review/result предел |
+|---|---|
+| Chrome147.0.7727.116 | MV3/signed-out/supportprivacy; signed-out sampled, не proven settling interval |
+| Opera136.0.6008.22 | Nativeextension-managerID/enabletoggle и settledsignedout guest |
+| Yandex26.8.1.1111 | Nativeexecutable/path-boundextensionID/settledguest; originalretainedprofile и laterowncleanup раздельны |
+| Firefox155.0.1 **R5** | Temporaryheadlessaddon, workerroundtrips/nativepanelURI/opengeometry; **R5nativepositive сохранён** |
+
+Полностью прочитаны **три новые готовые verdicts**, не source/rawlogs:
+- Chromium-family `A03_MAIN76_THREE_BROWSER_REVIEW_VERDICT_R2.txt` — **PASS_TEST_SOURCE_SCOPED_NO_PRODUCT_RELEASE**,SHA256поmatrix **0298a9fb4463f81b69c0249b15fc72347565905ec8560fecab0bd5a31f541ffb**. Reviewer привязал input/identityconstants/runtime41files; **commit→package mapping внутриscripts заданconstant, не выведен ими заново**. Sixprivacyflagsfalse/UUIDshapecheck не доказывают отсутствие всехчувствительныхданных; workerstartupnetworking неисчерпывающе наблюдался. NoStore/owner/auth/provider acceptance.
+- Firefox R5review SHA256 **2553c95484fa21ba5ed46f68c74bc4e18eaaad9d20a66a1c2e3dbb645363b396** — сохранён **P3test-source defect**: hidden/absentpanel TimeoutException терял namedfailurecode. Это не productFAIL и не отмена R5nativepositive.
+- Firefox R6 `A03_FIREFOX_R6_NARROW_LUNA_REVIEW_VERDICT.txt` — фактический текст **PASS_TEST_SOURCE_SCOPED_R6_OR_REWORK**, SHA256поmatrix **6b61571064400b31851143d57e123d67712f5bed5edcf11f7108d57a261bd7f6**. Узкий timeoutcatch сохраняетcause/19nonoptimizablechecks и не добавляетfalsePASS. Offline4/4 source-only; **R6_NATIVE_EXECUTED=false**. Нельзя соединить R5nativePASS и R6sourcePASS в ложный R6nativePASS. NativeR6 не запускается/не поручается.
+
+**Новое реальное consumption C A03:** C state record **C06_A03_BRANDED_GUEST_DEVELOPMENT_PACKAGE_READONLY_20261020**, issued **13:49:27**, непосредственно прочитан. ExistingC прочитал A handoff **A_TO_EXISTING_C_TESTER_A03_MAIN76_FOUR_BRANDED_DEV_GUEST_20261020.json**, matrix, ready ZIP sizes/hashes/members и currentmain9ed changed paths. Это самостоятельное documentarypackage consumption: обаarchive/sourcepathcurrentity проверены **по C receipt**, Controller новыхZIPchecks не делал. Extensionpaths unchanged через Telegram/health-runner merges; archive остаётся построеннымотmain76, не переименованвmain9ed. Store PREPARING/NO_SUBMIT/owneracceptanceNOTPROVEN.
+
+**Отдельная новая cross-role write refusal C, не обходить:** в томже ready C record сохранено RDC **start_process**, попытка atomicwrite `C_TO_EXISTING_A_A03_MAIN76_FOUR_BROWSER_SOURCE_CONSUMPTION_20261020.json`, ответ **INVALID_ARGUMENT: RuntimeException: Error: Command not allowed**, authorreadback **ENOENT_NO_FILE_CREATED**, retry_or_alternate_route=false. Точное исходное call/requestID/fullargs/время самойattempt в прочитанномrecord не приведены — **UNKNOWN**;13:49:27 естьвремяrecord, не выдуманноеattempttime. Controller не проверяет запрещённыйtarget повторно, не создаётreceiptзаC, не пересылаетчерезальтернативныйwriter/tool. **Эта собственная REPORT фиксация факта consumption — аудит, не replacementC→A ACK/доставка отказаннойзаписи.** ПричинаглубжетекстаUNKNOWN; общегоownerconsentповторнонепросим, механизмподдержанногоreviewнеизобретаем.
+
+A03matrix не даёт owner normal auth/Start→result→Finish, realAI/Ozon/WB, Windows/Store/signedAMO/exhaustivenetwork, Opera/YandexpreauthAdd или fullreleasePASS. PR240R15/R19/R28 и historical3/5/missingoriginalCI остаются; **Aworkflow-listGET INVALID_ARGUMENT/HTTP400 NR/no proxy**, currentcountпослеотказаUNKNOWN. WBofficialRU13YAML/version/hashUNKNOWN/enumremovalNOT_VERIFIED. ExistingA sourceownership/общийPLAN сохраняются; готовыйguestрезультат не повод для дублирующей проверки.
+
+### Тестер: новый прямой предел доступа, готовый результат не переоткрыт
+
+Прежние candidate18653/restoration12:39:52/terminal12:40:25/ZIP/code review приняты и не повторены. Точный current PLAN остаток — ChatGPT Standard file-input/upload-ready/sent ownership; Alice actual drop-target илиinput/ready/sent ownership плюс longCopy; Gemini usable input илиdrop-parent; Grok fullbusyrootUNKNOWN не новый mandatory request. DeepSeek/Claude закрыты, прочие готовые code results не обнуляются.
+
+**Новая прямая передача владельца:** dot **12:51** уже спросил точечное снятие явного **§2 запрета на сбор ChatGPT/Alice**; ответа пока нет. Поэтому не писать «dot просто не собрал»: это конкретная действующая граница сбора. Повтор общего согласия/вопроса владельцу не нужен; тот же адресный вопрос уже открыт у dot. Минимальный следующий вход — ответ на него плюс достаточный existing permitted material; получение профилей/UI тесты не перекладываются на Тестера. Gemini denied search и эквиваленты не повторяются. Новых captures/Send/профилей/сообщений в чужой чат Controller не делал. PR241 selected bootstrap ABORT141/причинаUNKNOWN/mergegate и старые отрицательные результаты сохранены; новый source/CIgreen их причинность не объясняет.
+
+## 3. PLAN и исходные двенадцать OPEN
+
+Все12исходов/closingconditions/ответственныесохраненывсуществующейкарте/истории/checkpoint, новойper-IDбазынет. B03durable/sourceSeen/relay-loss иpreACKrecipient/browserdurability — B/A-client/runtimecustodian; closingтолькоистиннымexactразрешённымserver+clientдоказательством. B04OTP/PG/resource/cleanup — прежниевладельцы/owner; явныеотказынеповторять, cap/резервы не снижать.
+
+A05 иPR48/50 сохраняют SOURCEFULFILLED, residualcorrelation/installed уpublisher/platform/runtime. C06genuineauthority/catalog/network/install/rollback — C/B-Ops/owner; ужепереданныйвопроснедублируется. PersonalR3/runtime — владелец/Тестер, неперехвачен.
+
+OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrift/reviewpayloadbytes — прежниеC/B/publisher/reviewer/platformхранители. Возвратпоподлиннойsafeexistingprimary/адресномудопустимомурешению, неreplay/реконструкции. ExactoldreviewpayloadSHA256`12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175`неrecovered. ПринятыйR6непереоткрывается. R13candidateAнеявляетсязакрытиемлюбойизэтих12границ.
+
+
+
+
+## 4. Десять пунктов, объём и организационный результат
+
+1. **Последнийисход/автор:** predecessor22f/ref/author/parent/fulltext сверены; ownunknownwritesнет. SoleREPORTfreshCAS/readback; physicalflock/foreignclaims не заявлены.
+2. **Приоритеты/поручения:** PLAN/WIP/12OPEN сохранены. Снимаются ложныеUNKNOWN BPGactualproof/Cstaticinputconsumption/Cmain9edterminalconsumption; не создаютсяновыеPG/review/CIзадачи.
+3. **Изменения:** exactB1aff/reportblobb5c0 unchanged поnewreceipt; currentmain9ed unchangedпоfreshGitref; newA test-sourceR6отдельноотнативногоR5, productcandidateнеперенесён.
+4. **Tests/package:** readyB PG18twointerleavings2/2 +Lock — авторскаяsyntheticschema; A4nativeguest иseparateR6offline4/4 — readyevidence, неexecutionsController. СтарыеТестер267/ZIP/CI не повторены.
+5. **Review:** прочитанытолькоreadyA3verdicts; R5negativepreserved/R6sourcePASSnotnative. Никакогоnewreview поручения, sourcepayload/helperlaunchнет. НезависимаяBPG/applicationacceptanceневыдумана.
+6. **CI:** acceptedmain9ed/5215/13неповторены; Cfinalcomment/stateпотреблениепрочитано. B2462/5 иmissing3неизменены; newPGнеCIreplacement; A3/5historicalonly.
+7. **Ресурсы:** authoredBcleanup/schemaabsence/sessioncount сохраненыкакreceipts; ControllerDB/auth/cleanupнекасался. B04old98.74snapshotнеперемерялся/непринималtests. Процессы/session/lockmetadataнеполнаярольtelemetry.
+8. **Обязательства:**12OPEN/map/history/checkpoint/closingconditionsтеже. B04/fullPG/R7R8/entitlement/refusalsнеотменены; C05/C06/C07/recovery/catalog/installedauthorityотдельны.
+9. **Организация:** BявнопотребилCstaticinput; CпотребилterminalиA03matrix — реальноеindependentcontinuation. Cross-roleC→AreceiptwriteCommandnotallowedсохранён, не заменён. Publication/ACKнеinstalled.
+10. **Next/владельцы:** existingB/CdocconsumerdispositionnewPGproofссохранённымиграницами; originalCImaintainermissingworkflowhandoffsбезповторнойотправки; B/Opssource-pinnedcarrier/backup/rollbackauthority; AoriginalPLAN/R15/R19/R28/officialbundle; dot/ownerexisting§2answer. Тестеранепродолжатьбезновогодостаточногоматериала.
+
+**Объём:** fullREPORT/ref/commit;3new/updatedpublications BPG/Amatrix/Cfinal;180-lineBcheckpointtail,137-lineAmatrix,3readyverdicts10+7+8lines,120-lineCnewtail;scopedhandoffnames;freshmainGitref/RDCprocess/session/lockmetadata. ПослеBPG strictly-after13:47:08commentsпусты на13:55:11; это boundedcoverage, не доказательствоотсутствиявсейработы. Ни одногоnativeCI/protectionendpoint/source/rawjournal/DBprobe здесьнебыло.
+
+**Фактически исправлено:** activeBтеперьSOURCE+AUTHOR_DISPOSABLE_PG18syntheticschema2/2,вместообщего«actualPGUNKNOWN»; BstaticCinputconsumption13:28/13:47вместоUNKNOWN; Cfinalmain9edconsumption13:49/13:50вместоNOTOBSERVED; A4branded/test-sourceR6currentprojectionвместоChrome-only/новыйreviewотсутствует. Историянепереписана, previousprefixсохранён.
+
+**Организационныеостатки:** независимаяC/application/deployedschemaPGacceptanceнеопубликована; Boriginalmissing3уCIowner, auditнепоручаетегоlaunch. A03formalC→Areceiptwriteотказан, но Cactualreadподтверждёнсвоимrecord; deliveryформальногоACKAневыдумана. B/Opsустановка/carrier/backup/restore/rollback/owner13YAMLнеприняты. Testernativefileматериалы/§2owneranswerреальновнешние; A03browserprivacyнеихзамена. НовогообщегоWAITING_INPUTдлявсехпотоковнеобъявляем, текущуюphysicalactivityневыводимизRUNNING/дат/пустойcollection.
+
+**Enforcement:** прежний ordinarybranchfalse/off/empty time-scopedфактсохранён; ENFORCED_PROTECTION_NOT_PROVEN. No protectionGET/403retry/settings/authchanges. Новогообщегоsame-roleSOURCEсогласованиянет; еслинужнаименноenforcementproof,недостаётсуществующейприменимойpolicy/rulesetprimaryотrepo/settingscustodian, не новогопробногоsecurityвызова.
+
+StorePREPARING/NO_SUBMIT; SOURCE/PACKAGE/INSTALLED_SYNTHETIC/LIVEOWNER/DEPLOYED/PRODUCTIONразличены. IDNAконтрактрешён,implementation/auth/DB/dataотдельнонеразрешены; C06вопроснедублирован/authorityневыдумана. Audit_complete=false, все12OPEN.
 
 ## 5. R19 — прежний единственный запрос сохранён
 
