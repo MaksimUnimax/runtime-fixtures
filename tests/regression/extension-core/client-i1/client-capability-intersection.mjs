@@ -9,6 +9,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const EXPECTED_BINDINGS = [
   ["ai.alice.web.adapter", "ai.alice"],
   ["ai.chatgpt.web.adapter", "ai.chatgpt"],
+  ["ai.gemini.web.adapter", "ai.gemini"],
   ["ai.grok.web.adapter", "ai.grok"],
   ["ai.kimi.web.adapter", "ai.kimi"],
   ["ai.qwen.web.adapter", "ai.qwen"],
@@ -89,6 +90,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     "ai.qwen": true,
     "ai.kimi": true,
     "ai.grok": true,
+    "ai.gemini": true,
   });
   try {
     const result = clone(
@@ -100,7 +102,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     assert.equal(result.source, "CACHE");
     assert.equal(result.executionAuthority, false);
     assert.equal(Object.hasOwn(result, "workAllowed"), false);
-    assert.equal(result.capabilities.length, 7);
+    assert.equal(result.capabilities.length, 8);
     assert.ok(
       result.capabilities.every(
         row =>
@@ -133,7 +135,7 @@ async function makeCachedWorker(entitlements, features = {}) {
       capabilities: true,
       rows: true,
       arrayMutationRejected: true,
-      count: 7,
+      count: 8,
       executionAuthority: false,
     });
   } finally {
@@ -156,6 +158,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     "ai.qwen": true,
     "ai.kimi": true,
     "ai.grok": true,
+    "ai.gemini": true,
     },
   );
   try {
@@ -235,6 +238,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     "ai.qwen": true,
     "ai.kimi": true,
     "ai.grok": true,
+    "ai.gemini": true,
   });
   try {
     const failure = clone(

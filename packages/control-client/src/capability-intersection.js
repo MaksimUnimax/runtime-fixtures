@@ -48,6 +48,10 @@
       capabilityId: "ai.grok.web.adapter",
       entitlementKey: "ai.grok",
     },
+    {
+      capabilityId: "ai.gemini.web.adapter",
+      entitlementKey: "ai.gemini",
+    },
   ];
 
   function deepFreeze(value) {

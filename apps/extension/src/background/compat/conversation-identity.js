@@ -8,7 +8,8 @@
     "https://alice.yandex.ru": "alice",
     "https://chat.qwen.ai": "qwen",
     "https://www.kimi.ai": "kimi",
-    "https://grok.com": "grok"
+    "https://grok.com": "grok",
+    "https://gemini.google.com": "gemini"
   });
   function providerForOrigin(origin) { return PROVIDERS[core.originOf(origin)] || null; }
   function conversationIdFromPath(pathname) {

@@ -60,6 +60,14 @@
       packaged: true,
       executionAuthority: false,
     },
+    {
+      id: "ai.gemini.web.adapter",
+      kind: "ai_adapter",
+      family: "gemini",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
   ];
 
   function deepFreeze(value) {

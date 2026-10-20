@@ -13,7 +13,7 @@ function inputFor(worker, overrides = {}) {
   const payload = authority.payload;
   const profile = payload.ai.profile;
   const family = payload.ai.detected.family;
-  const origin = family === "kimi" ? "https://www.kimi.ai" : family === "grok" ? "https://grok.com" : "https://chatgpt.com";
+  const origin = family === "kimi" ? "https://www.kimi.ai" : family === "grok" ? "https://grok.com" : family === "gemini" ? "https://gemini.google.com" : "https://chatgpt.com";
   const store = { accountId: payload.account.id, id: "c3c-store", marketplace: "ozon", credentialRevision: "credential-r1" };
   const identity = { origin, conversationId: "c3c-dialogue", key: origin + "|c3c-dialogue", provider: family };
   const binding = { binding_id: "c3c-binding", revision: 2, origin: identity.origin, ai_id: family, conversation_id: identity.conversationId, conversation_key: identity.key, store_context: { ...store, authGeneration: authority.generation } };
@@ -128,7 +128,7 @@ try {
 
 // Kimi uses the ordinary signed offline fixture response and existing evaluator.
 // This is local functional context/lifecycle coverage, not provider activation.
-for (const family of ["kimi", "grok"]) {
+for (const family of ["kimi", "grok", "gemini"]) {
 for (const permission of [true, false, null]) {
   const scope = { family, surface: "web", variant: null };
   let kimi;
@@ -144,7 +144,7 @@ for (const permission of [true, false, null]) {
     return Response.json(await signFixtureBootstrap(kimi.backing, payload));
   } });
   try {
-    kimi.setIdentity({ origin: family === "kimi" ? "https://www.kimi.ai" : "https://grok.com", ai_id: family, conversation_id: "c3c-dialogue", status: "confirmed" });
+    kimi.setIdentity({ origin: family === "kimi" ? "https://www.kimi.ai" : family === "grok" ? "https://grok.com" : "https://gemini.google.com", ai_id: family, conversation_id: "c3c-dialogue", status: "confirmed" });
     await kimi.call("SellerAgentsControlClient.bootstrap", { detectedAi: scope });
     assert.equal(requests, 1);
     const base = inputFor(kimi);

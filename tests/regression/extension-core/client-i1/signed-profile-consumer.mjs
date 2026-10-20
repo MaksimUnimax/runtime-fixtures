@@ -230,6 +230,7 @@ await test("PROFILE-02A-Alice-current-authority-origin-refresh-and-receipt", asy
       "https://chat.qwen.ai/*",
       "https://www.kimi.ai/*",
       "https://grok.com/*",
+      "https://gemini.google.com/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -738,6 +739,7 @@ await test("PROFILE-11-Kimi-refresh-routing-and-diagnostic-family", async () => 
       "https://chat.qwen.ai/*",
       "https://www.kimi.ai/*",
       "https://grok.com/*",
+      "https://gemini.google.com/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -918,6 +920,7 @@ await test("PROFILE-14-Grok-refresh-routing-and-diagnostic-family", async () => 
       "https://chat.qwen.ai/*",
       "https://www.kimi.ai/*",
       "https://grok.com/*",
+      "https://gemini.google.com/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -930,6 +933,126 @@ await test("PROFILE-14-Grok-refresh-routing-and-diagnostic-family", async () => 
     });
     assert.equal(support.ok, true, JSON.stringify(support));
     assert.equal(support.snapshot.page.aiFamily, "grok");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+
+const geminiScope = Object.freeze({
+  family: "gemini",
+  surface: "web",
+  variant: null,
+});
+const geminiIdentity = Object.freeze({
+  origin: "https://gemini.google.com",
+  ai_id: "gemini",
+  conversation_id: "gemini-fixture-dialogue",
+  status: "confirmed",
+});
+function geminiSender(worker) {
+  const url = "https://gemini.google.com/app/gemini-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+await test("PROFILE-15-Gemini-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, geminiScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(geminiScope);
+      payload.entitlements["ai.gemini"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(geminiIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: geminiScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      geminiIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), geminiScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", geminiIdentity),
+      true,
+    );
+    const request = requestFor("gemini");
+    const response = await worker.request(request, geminiSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), geminiScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          geminiSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+
+await test("PROFILE-16-Gemini-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://gemini.google.com/app/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(geminiIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "gemini");
     assert.equal(worker.network.length, 0);
   } finally {
     worker.close();

@@ -353,4 +353,70 @@ describe("verified profile consumer wire boundary", () => {
       }).status,
     ).toBe("DEFERRED");
   });
+
+  it("carries Gemini request, response and applied receipt through the strict wire boundary", () => {
+    const ai = { family: "gemini", surface: "web", variant: null };
+    const geminiRequest = { ...request, ai };
+    const geminiResponse = { ...response, ai };
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const receipt = {
+      ...geminiRequest,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "APPLIED",
+    };
+    expect(SignedAiProfileRequestV1Schema.parse(geminiRequest)).toEqual(
+      geminiRequest,
+    );
+    expect(SignedAiProfileResponseV1Schema.parse(geminiResponse)).toEqual(
+      geminiResponse,
+    );
+    expect(SignedAiProfileReceiptV1Schema.parse(receipt)).toEqual(receipt);
+  });
+
+  it("keeps Gemini scope, fingerprint and deferred receipt requirements strict", () => {
+    const ai = { family: "gemini", surface: "web", variant: null };
+    for (const scope of [
+      { ...ai, surface: "native" },
+      { ...ai, variant: "work" },
+      { ...ai, unexpected: true },
+    ]) {
+      expect(
+        SignedAiProfileRequestV1Schema.safeParse({ ...request, ai: scope })
+          .success,
+      ).toBe(false);
+      expect(
+        SignedAiProfileResponseV1Schema.safeParse({ ...response, ai: scope })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      SignedAiProfileResponseV1Schema.safeParse({
+        ...response,
+        ai,
+        profile: { ...response.profile, contentSha256: "unverified" },
+      }).success,
+    ).toBe(false);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const deferred = {
+      ...request,
+      ai,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "DEFERRED",
+    };
+    expect(SignedAiProfileReceiptV1Schema.safeParse(deferred).success).toBe(
+      false,
+    );
+    expect(
+      SignedAiProfileReceiptV1Schema.parse({
+        ...deferred,
+        reason: "WORK_IN_FLIGHT",
+      }).status,
+    ).toBe("DEFERRED");
+  });
 });

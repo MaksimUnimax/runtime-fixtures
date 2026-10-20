@@ -530,6 +530,7 @@ def run_gemini_adapter(runtime: Path, output: Path):
     observed_blocks = ['<pre _ngcontent-ng-c3582179313="" class="ng-tns-c3582179313-35"><code _ngcontent-ng-c3582179313="" role="text" data-test-id="code-content" class="code-container formatted ng-tns-c3582179313-35">OCTOPORT_UI_PROBE_V1 {&quot;case&quot;:&quot;single&quot;,&quot;value&quot;:17}\n</code></pre>', '<pre _ngcontent-ng-c3582179313="" class="ng-tns-c3582179313-36"><code _ngcontent-ng-c3582179313="" role="text" data-test-id="code-content" class="code-container formatted ng-tns-c3582179313-36">{\n  <span class="hljs-attr">&quot;case&quot;</span>: <span class="hljs-string">&quot;multi&quot;</span>,\n  <span class="hljs-attr">&quot;label&quot;</span>: <span class="hljs-string">&quot;Тест ё 😀&quot;</span>,\n  <span class="hljs-attr">&quot;values&quot;</span>: [\n    <span class="hljs-number">1</span>,\n    <span class="hljs-number">2</span>,\n    <span class="hljs-number">3</span>\n  ],\n  <span class="hljs-attr">&quot;literal&quot;</span>: <span class="hljs-string">&quot;&lt;tag&gt; &amp; quote&quot;</span>\n}\n</code></pre>', '<pre _ngcontent-ng-c3582179313="" class="ng-tns-c3582179313-45"><code _ngcontent-ng-c3582179313="" role="text" data-test-id="code-content" class="code-container formatted ng-tns-c3582179313-45">001 OCTOPORT_LONG_BEGIN_gemini\n002 probe\n003 probe\n004 probe\n005 probe\n006 probe\n007 probe\n008 probe\n009 probe\n010 probe\n011 probe\n012 probe\n013 probe\n014 probe\n015 probe\n016 probe\n017 probe\n018 probe\n019 probe\n020 probe\n021 probe\n022 probe\n023 probe\n024 probe\n025 probe\n026 probe\n027 probe\n028 probe\n029 probe\n030 probe\n031 probe\n032 probe\n033 probe\n034 probe\n035 probe\n036 probe\n037 probe\n038 probe\n039 probe\n040 probe\n041 probe\n042 probe\n043 probe\n044 probe\n045 probe\n046 probe\n047 probe\n048 probe\n049 probe\n050 probe\n051 probe\n052 probe\n053 probe\n054 probe\n055 probe\n056 probe\n057 probe\n058 probe\n059 probe\n060 probe\n061 probe\n062 probe\n063 probe\n064 probe\n065 probe\n066 probe\n067 probe\n068 probe\n069 probe\n070 probe\n071 probe\n072 probe\n073 probe\n074 probe\n075 probe\n076 probe\n077 probe\n078 probe\n079 probe\n080 probe\n081 probe\n082 probe\n083 probe\n084 probe\n085 probe\n086 probe\n087 probe\n088 probe\n089 probe\n090 probe\n091 probe\n092 probe\n093 probe\n094 probe\n095 probe\n096 probe\n097 probe\n098 probe\n099 probe\n100 probe\n101 probe\n102 probe\n103 probe\n104 probe\n105 probe\n106 probe\n107 probe\n108 probe\n109 probe\n110 probe\n111 probe\n112 probe\n113 probe\n114 probe\n115 probe\n116 probe\n117 probe\n118 probe\n119 probe\n120 OCTOPORT_LONG_END_gemini\n</code></pre>']
     bundle=(runtime/"shared/ai_adapters.js").read_text()
     identity=(runtime/"shared/conversation_identity.js").read_text()
+    capabilities=(runtime/"shared/ai_delivery_capabilities.js").read_text()
     def button(label,attrs=""):
         return '<button aria-label="'+label+'" '+attrs+'>control</button>'
     send=button("Отправить сообщение")
@@ -547,6 +548,8 @@ def run_gemini_adapter(runtime: Path, output: Path):
     cases={}
     def case(name,html,js,expected,origin="https://gemini.google.com"):
         cases[name]=(html,js,expected,origin)
+    case("registered_text_only_adapter",root(),"return [OzonAIAdapters.adapterForLocation('auto')?.id,OzonAIDeliveryCapabilities.profile('gemini').status,BB2ConversationIdentity.providerForOrigin(location.origin)]",["gemini","text_only","gemini"])
+    case("file_transport_pending_not_supported",root(),"const f=OzonAIDeliveryCapabilities.supportsFile('gemini',{filename:'report.txt',byte_length:85});return [f.supported,f.status,f.reason,OzonAIDeliveryCapabilities.generatedTextDecision('gemini','x').representation,OzonAIDeliveryCapabilities.generatedTextDecision('gemini','x'.repeat(5000)).representation]",[False,"pending","attachment_surface_not_observed","plain_text","text_document"])
     case("main_editor_not_ql_clipboard",root(),"return a.composerContext().composer.classList.contains('ql-editor')",True)
     case("empty_voice_ready",root(),"return a.classifyComposerControl(c).kind","ready")
     case("draft_with_send",root("draft",send),"return a.classifyComposerControl(c).kind","send_active")
@@ -596,7 +599,7 @@ def run_gemini_adapter(runtime: Path, output: Path):
             try:
                 page.goto(origin+"/app/fixture-a")
                 page.set_content('<style>user-query,model-response,response-container,rich-textarea{display:block}</style>'+html)
-                page.evaluate(identity);page.evaluate(bundle)
+                page.evaluate(identity);page.evaluate(capabilities);page.evaluate(bundle)
                 actual=page.evaluate("""js=>{
                   const a=SellerAgentsGeminiAdapter.create(OzonAIAdapters),c=a.composerContext();
                   return new Function('a','c',js)(a,c);
