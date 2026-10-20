@@ -848,8 +848,8 @@ def deepseek_stop_square_fixture():
     return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 4.88C2 3.68009 2 3.08013 2.30557 2.65954C2.40426 2.52371 2.52371 2.40426 2.65954 2.30557C3.08013 2 3.68009 2 4.88 2H11.12C12.3199 2 12.9199 2 13.3405 2.30557C13.4763 2.40426 13.5957 2.52371 13.6944 2.65954C14 3.08013 14 3.68009 14 4.88V11.12C14 12.3199 14 12.9199 13.6944 13.3405C13.5957 13.4763 13.4763 13.5957 13.3405 13.6944C12.9199 14 12.3199 14 11.12 14H4.88C3.68009 14 3.08013 14 2.65954 13.6944C2.52371 13.5957 2.40426 13.4763 2.30557 13.3405C2 12.9199 2 12.3199 2 11.12V4.88Z" fill="currentColor"></path></svg>'
 
 
-def run_observed_composers(runtime: Path, output: Path, only_provider=None):
-    """B02 DeepSeek/Claude composer/file primitives: offline code only, activation pending."""
+def run_observed_composers(runtime: Path, output: Path, only_provider=None, extra_cases=None, case_names=None):
+    """B02 observed DeepSeek/Claude upload transitions: offline code only."""
     from html import escape
     output.mkdir(parents=True, exist_ok=True)
     bundle=(runtime/"shared/ai_adapters.js").read_text()
@@ -873,7 +873,59 @@ def run_observed_composers(runtime: Path, output: Path, only_provider=None):
             return '<div class="flex w-full min-w-0 flex-col"><div><div class="tiptap ProseMirror" data-testid="chat-input" contenteditable="true" role="textbox" aria-label="Напишите запрос для Claude">'+escape(text)+'</div></div>'+extra+controls+'<input type="file" id="chat-input-file-upload-bottom" data-testid="file-upload" multiple accept="" style="opacity:0;width:0;height:0" '+input_attrs+'></div>'
         def case(name,html,js,expected,wrong_origin=False):
             cases[provider+"_"+name]=(provider,html,js,expected,wrong_origin)
-        case("factory_route_status",root(),"return [a.id,a.integrationStatus().status,a.integrationStatus().registry_activated,OzonAIAdapters.adapterForLocation('auto')?.id===a.id]",[provider,"text_only",True,True])
+        # Reduced DOM attributes from same-card 20 Oct upload traces, not a
+        # fabricated provider run. Enabled Send and TXT alone are deliberately insufficient.
+        def observed_upload(loading=False,percent="0%",disabled=False,outer_input=False):
+            if provider=="deepseek":
+                card='<div class="cd314545"><div class="_1c3b90b">'+(
+                    '<svg role="img" aria-label="'+percent+'"></svg><span class="ds-loading"><svg data-icon="spin"></svg></span>' if loading else '<svg data-icon="file"></svg>'
+                    )+'</div><div class="_158cea4"><div class="_967f3f9"><div class="e70accd6">report.txt</div></div><div class="_7103a25 _078ccb5">'+(
+                    'Загрузка...' if loading else 'TXT 154.34KB')+'</div></div><div class="_8402d8c" tabindex="0">remove</div></div>'
+                return root(buttons=send(disabled).replace('role="button"','role="button" tabindex="0"'),
+                    extra='<div class="b40079d7 _2113217"><div class="_6d1b417"><div class="ds-animated-size-item"><div class="_25c7358 dafb6286" tabindex="0">'+card+'</div></div></div></div>')
+            card='<div data-cds="MessageAttachmentsFile" data-testid="file-thumbnail" data-cds-attachment tabindex="-1"'+(
+                ' data-state="pending" aria-busy="true"' if loading else '')+'>'+(
+                '<span class="sr-only">report.txt</span>' if loading else '<span data-cds="CardLink" role="button" tabindex="0" title="report.txt"><span class="sr-only">report.txt</span></span>')+(
+                '<div class="invisible">' if loading else '<div>')+'<bdi title="report.txt">report.txt</bdi><span data-cds="Badge"><bdi>TXT</bdi></span></div>'+(
+                '<div data-cds="Skeleton" role="status">Загрузка…</div>' if loading else '')+'<button data-cds-attachment-remove aria-label="Удалить: report.txt">remove</button></div>'
+            markup=root(buttons=send(disabled),extra='<div data-cds-composer-attachments>'+card+'</div>').replace('<div class="flex w-full min-w-0 flex-col">','<div data-cds="ChatComposer" class="flex w-full min-w-0 flex-col">',1)
+            if outer_input:
+                input_start=markup.index('<input');input_end=markup.index('>',input_start)+1
+                native=markup[input_start:input_end];markup=markup[:input_start]+markup[input_end:]
+                markup='<div class="flex w-full min-w-0 flex-col">'+markup+native+'</div>'
+            return markup
+        ready=observed_upload()
+        desc="[{filename:'report.txt',byte_length:16}]"
+        check="return [a.attachmentReady("+desc+"),a.classifyComposerControl(c).kind]"
+        case("observed_ready_file_only",ready,check,[True,"send_active"])
+        case("observed_ready_disabled_send",observed_upload(disabled=True),check,[True,"send_disabled"])
+        case("loading_enabled_send_not_ready",observed_upload(True),check,[False,"busy"])
+        case("hundred_percent_is_still_loading",observed_upload(True,"100%"),check,[False,"busy"])
+        case("ready_filename_must_match",ready,"return a.attachmentReady([{filename:'other.txt',byte_length:16}])",False)
+        case("ready_wrong_type",ready.replace('>TXT','>PDF'),"return a.attachmentReady("+desc+")",False)
+        case("ready_hidden_card",ready.replace('class="cd314545"','class="cd314545" hidden') if provider=="deepseek" else ready.replace('data-testid="file-thumbnail"','data-testid="file-thumbnail" hidden'),"return a.attachmentReady("+desc+")",False)
+        case("ready_missing_remove_witness",ready.replace('class="_8402d8c"','class="unknown-remove"').replace('data-cds-attachment-remove','data-unknown-remove'),"return a.attachmentReady("+desc+")",False)
+        case("ready_duplicate_card",ready,"const n=c.root.querySelector('.cd314545,[data-testid=file-thumbnail]');n.after(n.cloneNode(true));return a.attachmentReady("+desc+")",False)
+        case("ready_unknown_status",ready,"const n=c.root.querySelector('._7103a25,[data-cds=Badge]');n.textContent='Processing';return a.attachmentReady("+desc+")",False)
+        case("ready_descriptor_limits",ready,"return [a.attachmentReady([]),a.attachmentReady([{filename:'report.txt',byte_length:-1}]),a.attachmentReady([{filename:'report.txt',byte_length:1048577}]),a.attachmentReady([{filename:'report.txt',byte_length:1.5}]),a.attachmentReady(["+desc[1:-1]+","+desc[1:-1]+"])]",[False]*5)
+        case("ready_native_file_bytes",ready,"const i=c.root.querySelector('input'),d=new DataTransfer();d.items.add(new File(['1234567890123456'],'report.txt'));i.files=d.files;return [a.attachmentReady("+desc+"),a.attachmentReady([{filename:'report.txt',byte_length:15}])]",[True,False])
+        case("ready_native_filename_mismatch",ready,"const i=c.root.querySelector('input'),d=new DataTransfer();d.items.add(new File(['1234567890123456'],'other.txt'));i.files=d.files;return a.attachmentReady("+desc+")",False)
+        case("ready_stale_context",ready,"c.root.replaceWith(c.root.cloneNode(true));return a.classifyComposerControl(c).kind","unknown")
+        case("same_card_loading_to_ready",observed_upload(True),"const card=c.root.querySelector('.cd314545,[data-testid=file-thumbnail]'),before=a.attachmentReady("+desc+");const doc=new DOMParser().parseFromString("+json.dumps(ready)+",'text/html'),n=doc.querySelector('.cd314545,[data-testid=file-thumbnail]');for(const x of [...card.attributes])card.removeAttribute(x.name);for(const x of n.attributes)card.setAttribute(x.name,x.value);card.innerHTML=n.innerHTML;return [before,card.isConnected,a.attachmentReady("+desc+")]",[False,True,True])
+        case("cleanup_returns_empty_ready",ready,"c.root.querySelector('.b40079d7,[data-cds-composer-attachments]').remove();return [a.attachmentReady("+desc+"),a.classifyComposerControl(c).kind,!!a.attachmentSurface()]",[False,"ready",True])
+        if provider=="deepseek":
+            case("hundred_without_spin_still_not_ready",observed_upload(True,"100%").replace('<span class="ds-loading"><svg data-icon="spin"></svg></span>',''),"return a.attachmentReady("+desc+")",False)
+            case("ready_arrow_without_tabindex_unknown",ready.replace('role="button" tabindex="0"','role="button"'),check,[False,"unknown"])
+            case("loading_status_without_spinner_unknown",observed_upload(True).replace('<svg role="img" aria-label="0%"></svg><span class="ds-loading"><svg data-icon="spin"></svg></span>',''),check,[False,"unknown"])
+        else:
+            case("semantic_root_external_native_input",observed_upload(outer_input=True),check,[True,"send_active"])
+            empty_semantic=observed_upload(outer_input=True)
+            case("external_native_input_attach",empty_semantic,"c.root.querySelector('[data-cds-composer-attachments]').remove();const s=a.attachmentSurface();a.attachFiles(s,[new File(['1234567890123456'],'report.txt')]);return [s.root===c.root,s.inputRoot!==c.root,s.input.files[0].size]",[True,True,16])
+            case("semantic_root_no_input_no_attach",ready,"c.root.querySelector('input').remove();c.root.querySelector('[data-cds-composer-attachments]').remove();return [!!a.composerContext(),a.attachmentSurface()]",[True,None])
+            case("txt_and_enabled_send_under_skeleton_not_ready",observed_upload(True).replace(' data-state="pending" aria-busy="true"',''),check,[False,"busy"])
+            case("pending_without_skeleton_not_ready",ready.replace('data-cds-attachment tabindex','data-state="pending" data-cds-attachment tabindex'),check,[False,"busy"])
+            case("invisible_badge_not_ready",ready.replace('<div><bdi title','<div class="invisible"><bdi title'),check,[False,"unknown"])
+        case("factory_route_status",root(),"return [a.id,a.integrationStatus().status,a.integrationStatus().registry_activated,OzonAIAdapters.adapterForLocation('auto')?.id===a.id]",[provider,"implemented",True,True])
         case("one_observed_composer",root(),"return !!c",True)
         case("observed_empty_send_state",root(),"return a.classifyComposerControl(c).kind","ready")
         if provider=="deepseek":
@@ -927,6 +979,12 @@ def run_observed_composers(runtime: Path, output: Path, only_provider=None):
             case("explicit_false_clears_streaming_signal",root("draft",send())+'<div data-testid="assistant-message" data-is-streaming="false">answer</div>',"return a.classifyComposerControl(c).kind","send_active")
             case("null_streaming_blocks_write",root("draft",send())+'<div data-testid="assistant-message">answer</div>',"let error='';try{a.setComposerText(c.composer,'NEW')}catch(e){error=e.code}return [error,a.readComposerText(c.composer)]",["COMPOSER_NOT_AVAILABLE","draft"])
 
+    if extra_cases:
+        assert not set(extra_cases).intersection(cases)
+        cases.update(extra_cases)
+    if case_names is not None:
+        assert set(case_names).issubset(cases), set(case_names)-set(cases)
+        cases={k:v for k,v in cases.items() if k in case_names}
     result={"status":"RUNNING","scope":"B02 observed DeepSeek/Claude composer/native-input primitives only; no provider/UI/network/registry activation or delivery acceptance","bundle_sha256":hashlib.sha256(bundle.encode()).hexdigest(),"cases":{}}
     failures=[]
     with sync_playwright() as p:
@@ -954,7 +1012,7 @@ def run_observed_composers(runtime: Path, output: Path, only_provider=None):
 
 
 
-def run_parent_roots(runtime: Path, output: Path, only_provider=None):
+def run_parent_roots(runtime: Path, output: Path, only_provider=None, case_names=None):
     """Composed observed attributes, not a captured whole-page DOM.
     Ordinary message append/remount and code-selection tests; all routes local.
     Native/DOM witnesses are document-only, never permanent chat IDs.
@@ -962,6 +1020,10 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None):
     output.mkdir(parents=True,exist_ok=True)
     bundle=(runtime/"shared/ai_adapters.js").read_text()
     sources=[(runtime/n).read_text() for n in ["shared/conversation_identity.js","shared/web_file_attachment.js","shared/ai_delivery_capabilities.js"]]
+    port=(runtime/"attachment_delivery_port_content.js").read_text()
+    port_helpers=port[port.index("  function normalizeText("):port.index("\n",port.index("  function normalizeText("))]
+    port_helpers+="\n"+port[port.index("  function identity("):port.index("  function status(")]
+    port_helpers+="\n"+port[port.index("  function matchingNewUserTurn("):port.index("  async function failDelivery(")]
     cases={}
     for provider in ([only_provider] if only_provider else ["deepseek","claude"]):
         if provider=="deepseek":
@@ -976,6 +1038,32 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None):
             html='<div data-testid="chat-column">'+user+assistant+composer+'</div>'
         def case(name,js,expected,markup=html):
             cases[provider+"_"+name]=(provider,markup,js,expected)
+        # Previously accepted S09 DS user/card and Claude S08 completed/1135 article ownership.
+        dcard='<div class="eafda4ae"><div class="_25c7358 dafb6286" tabindex="0"><div class="cd314545"><div class="_1c3b90b"></div><div class="_158cea4"><div class="_967f3f9"><div class="e70accd6">report.txt</div></div><div class="_7103a25 _078ccb5">TXT 1MB</div></div></div></div></div>'
+        ccard='<div class="group/thumbnail" data-testid="file-thumbnail"><button type="button"><div><h3>report.txt</h3></div><div><p class="uppercase">txt</p></div></button></div>'
+        card=dcard if provider=="deepseek" else ccard
+        install=("u.insertAdjacentHTML('afterbegin',"+json.dumps(card)+");") if provider=="deepseek" else ("u.closest('[role=article]').insertAdjacentHTML('afterbegin',"+json.dumps(card)+");")
+        descriptor="[{filename:'report.txt',byte_length:16}]"
+        read="a.sentAttachmentMessage(u,"+descriptor+")"
+        case("owned_sent_file_excludes_card_text",install+"return "+read,{"text":"USER BODY"})
+        case("sent_filename_mismatch",install+"return a.sentAttachmentMessage(u,[{filename:'other.txt',byte_length:16}])",None)
+        case("sent_wrong_role",install+"return a.sentAttachmentMessage(v,"+descriptor+")",None)
+        case("sent_hidden_card",install+"u.closest('.ds-message,[role=article]').querySelector('.cd314545,[data-testid=file-thumbnail]').hidden=true;return "+read,None)
+        case("sent_duplicate_card",install+"const n=u.closest('.ds-message,[role=article]').querySelector('.eafda4ae,[data-testid=file-thumbnail]');n.after(n.cloneNode(true));return "+read,None)
+        case("sent_loading_card",install+"u.closest('.ds-message,[role=article]').querySelector('.cd314545,[data-testid=file-thumbnail]').insertAdjacentHTML('beforeend','<div role=\"progressbar\">loading</div>');return "+read,None)
+        case("sent_missing_descriptor",install+"return a.sentAttachmentMessage(u,[])",None)
+        case("sent_card_wrong_owner",install+"const n=u.closest('.ds-message,[role=article]').querySelector('.eafda4ae,[data-testid=file-thumbnail]');a.composerContext().root.append(n);return "+read,None)
+        case("sent_text_without_card", "return "+read,None)
+        setup=install+"await SellerAgentsConversationSurface.ready(a);const i=identity(),recovery={origin:i.origin,conversation_id:i.conversation_id,conversation_key:conversationKey(),outgoing_text:'USER BODY',artifact_descriptors:"+descriptor+"},baseline=new Set(a.userMessages().map(n=>a.messageId(n)));"
+        append=("const clone=u.parentElement.cloneNode(true);u.parentElement.parentElement.append(clone);") if provider=="deepseek" else ("const clone=u.closest('[role=article]').cloneNode(true);clone.querySelector('[id]').id='_r_new_';a.conversationRoot().insertBefore(clone,a.composerContext().root);")
+        case("port_new_owned_file_match",setup+append+"return !!(await waitMatchingUserTurn(recovery,baseline,10))",True)
+        case("port_old_file_not_reconfirmed",setup+"return await waitMatchingUserTurn(recovery,baseline,10)",None)
+        case("port_remount_not_new_sent_file",setup+"u.replaceWith(u.cloneNode(true));return [sameConversation(recovery),await waitMatchingUserTurn(recovery,baseline,10)]",[False,None])
+        case("port_wrong_conversation_no_match",setup+append+"recovery.conversation_id='other';return await waitMatchingUserTurn(recovery,baseline,10)",None)
+        # Clearing confirmed history is not a new Start. The document tracker
+        # must not confirm the OLD recovery even if a new surface is confirmed.
+        case("port_empty_history_requires_start_witness",setup+"u.closest(a.id==='claude'?'[role=article]':'._9663006').remove();v.closest(a.id==='claude'?'[role=article]':'._4f9bf79').remove();SellerAgentsConversationSurface.confirmCurrent(a);await SellerAgentsConversationSurface.ready(a);const empty=identity();recovery.conversation_id=empty.conversation_id;recovery.conversation_key=conversationKey();const html="+json.dumps(user)+";if(a.id==='claude'){a.conversationRoot().insertAdjacentHTML('afterbegin',html)}else a.conversationRoot().querySelector('.ds-virtual-list-visible-items').insertAdjacentHTML('beforeend',html);const fresh=a.userMessages()[0];"+install.replace('u.','fresh.')+"return [sameConversation(recovery),await waitMatchingUserTurn(recovery,new Set(),10)]",[False,None])
+        case("port_empty_root_remount_no_match",setup+"u.remove();v.remove();SellerAgentsConversationSurface.confirmCurrent(a);await SellerAgentsConversationSurface.ready(a);const empty=identity();recovery.conversation_id=empty.conversation_id;recovery.conversation_key=conversationKey();const root=a.conversationRoot();root.replaceWith(root.cloneNode(true));return [sameConversation(recovery),await waitMatchingUserTurn(recovery,new Set(),10)]",[False,None])
         case("observed_root_roles", "return [!!a.conversationRoot(),a.userMessages().length,a.assistantMessages().length,a.messageText(u).trim()]",[True,1,1,"USER BODY"])
         case("full_assistant_code","return a.findCodeBlocks(v).map(n=>a.readCodeText(n))",["CODE ONE\nCODE TWO"])
         case("user_has_no_code","return a.findCodeBlocks(u).length",0)
@@ -1003,7 +1091,7 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None):
             case("first_turn_key_assignment_keeps_user","v.removeAttribute('data-turn-key');const id=a.messageId(u);v.setAttribute('data-turn-key','01a152d2-461b-71bf-b3b2-d887f0ede3c6');return [a.messageId(u)===id,!!a.messageId(v)]",[True,True])
             case("missing_streaming_not_ready","v.removeAttribute('data-is-streaming');return [a.messageComplete(v),a.classifyComposerControl(a.composerContext()).kind]",[False,"unknown"])
             case("observed_stop_blocks_completion","document.body.insertAdjacentHTML('beforeend','<button data-testid=\"chat-input-stop\" aria-label=\"Остановить ответ\">stop</button>');return [a.messageComplete(v),a.classifyComposerControl(a.composerContext()).kind]",[False,"stop"])
-            case("text_only_large_file_pending","const p=a.deliveryCapabilities();return [p.status,p.attachment_pending_reason]",["text_only","upload_completion_not_observed"])
+            case("observed_file_route","const p=a.deliveryCapabilities();return [p.status,p.attachment_strategy,p.attachment_pending_reason??null]",["implemented","file_input_v1",None])
         else:
             case("no_native_identity_inferred","return [u.getAttribute('data-turn-key'),v.getAttribute('data-message-id'),a.integrationStatus().registry_activated]",[None,None,True])
             # Minimal composed fixture from accepted 07:56 action attributes.
@@ -1050,8 +1138,11 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None):
                 "return [early,late,a.messageId(v)===id,a.messageObservationEpoch()===epoch,a.classifyComposerControl(a.composerContext()).kind,a.messageComplete(v),a.findCodeBlocks(v).map(n=>a.readCodeText(n))]",
                 [[True,True,False],[True,True,False],True,True,"ready",True,["CODE ONE\nCODE TWO MORE"]])
 
-            terminal_case("text_profile_file_pending","const p=a.deliveryCapabilities(),f=OzonAIDeliveryCapabilities.supportsFile('deepseek',{filename:'report.txt',byte_length:10});return [p.status,f.status,f.reason,a.integrationStatus().assistant_completion]",["text_only","pending","upload_completion_not_observed","observed_natural_terminal_toolbar"])
+            terminal_case("observed_file_route","const p=a.deliveryCapabilities(),f=OzonAIDeliveryCapabilities.supportsFile('deepseek',{filename:'report.txt',byte_length:10});return [p.status,f.status,f.reason,a.integrationStatus().assistant_completion]",["implemented","supported",None,"observed_natural_terminal_toolbar"])
 
+    if case_names is not None:
+        assert set(case_names).issubset(cases), set(case_names)-set(cases)
+        cases={k:v for k,v in cases.items() if k in case_names}
     result={"status":"RUNNING","scope":"B02 offline composed-observation parent/root/message lifecycle; no installed/provider or permanent-ID claim","bundle_sha256":hashlib.sha256(bundle.encode()).hexdigest(),"cases":{}}
     failures=[]
     with sync_playwright() as p:
@@ -1066,11 +1157,12 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None):
                 page.set_content('<style>[contenteditable]{min-height:24px} pre{white-space:pre-wrap}</style>'+html)
                 for code in sources:page.evaluate(code)
                 page.evaluate(bundle)
-                actual=page.evaluate("""async ({provider,js})=>{
+                actual=page.evaluate("""async ({provider,js,helpers})=>{
                   const a=(provider==='claude'?SellerAgentsClaudeAdapter:SellerAgentsDeepSeekAdapter).create(OzonAIAdapters);
                   const u=a.userMessages()[0],v=a.assistantMessages()[0];
-                  return new (Object.getPrototypeOf(async function(){}).constructor)('a','u','v',js)(a,u,v);
-                }""",{"provider":provider,"js":js})
+                  const body="function adapter(){return a;}function current(){return true;}async function sleep(){await new Promise(r=>setTimeout(r,1));}\\n"+helpers+"\\n"+js;
+                  return new (Object.getPrototypeOf(async function(){}).constructor)('a','u','v',body)(a,u,v);
+                }""",{"provider":provider,"js":js,"helpers":port_helpers})
                 assert actual==expected,{"actual":actual,"expected":expected}
                 result["cases"][name]={"status":"PASS"}
             except Exception as exc:

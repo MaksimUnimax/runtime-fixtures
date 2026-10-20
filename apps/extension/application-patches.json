@@ -1254,7 +1254,7 @@
   {
     "target": "shared/ai_delivery_capabilities.js",
     "old": "    claude: Object.freeze({ id: \"claude\", status: \"planned\", plain_text_max_chars: null, attachments_supported: true, accepted_extensions: Object.freeze([\"txt\", \"pdf\", \"csv\", \"xlsx\", \"docx\", \"json\", \"html\", \"odt\", \"rtf\", \"epub\"]), max_file_bytes: null, max_files_per_turn: null, attachment_strategy: \"pending\" }),",
-    "new": "    // Text route only; native input known, positive upload-end not captured.\n    claude: Object.freeze({ id: \"claude\", status: \"text_only\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", plain_text_threshold_status: \"conservative_transport_cutoff\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: 1024 * 1024, max_files_per_turn: 1, attachment_strategy: \"pending\", attachment_pending_reason: \"upload_completion_not_observed\" }),"
+    "new": "    // Observed same-card upload readiness and owned sent-card TXT route; local transport limits.\n    claude: Object.freeze({ id: \"claude\", status: \"implemented\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", plain_text_threshold_status: \"conservative_transport_cutoff\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: 1024 * 1024, max_files_per_turn: 1, attachment_strategy: \"file_input_v1\" }),"
   },
   {
     "target": "shared/ai_delivery_capabilities.js",
@@ -1364,7 +1364,7 @@
   {
     "target": "shared/ai_delivery_capabilities.js",
     "old": "    deepseek: Object.freeze({ id: \"deepseek\", status: \"planned\", plain_text_max_chars: null, attachments_supported: null, accepted_extensions: Object.freeze([]), max_file_bytes: null, max_files_per_turn: null, attachment_strategy: \"pending\" }),",
-    "new": "    // Text transport only; assistant completion and upload-end remain unverified.\n    deepseek: Object.freeze({ id: \"deepseek\", status: \"text_only\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", plain_text_threshold_status: \"conservative_transport_cutoff\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: 1024 * 1024, max_files_per_turn: 1, attachment_strategy: \"pending\", attachment_pending_reason: \"upload_completion_not_observed\" }),"
+    "new": "    // Observed natural completion, same-card upload readiness and owned sent-card TXT route.\n    deepseek: Object.freeze({ id: \"deepseek\", status: \"implemented\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", plain_text_threshold_status: \"conservative_transport_cutoff\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: 1024 * 1024, max_files_per_turn: 1, attachment_strategy: \"file_input_v1\" }),"
   },
   {
     "target": "shared/ai_delivery_capabilities.js",

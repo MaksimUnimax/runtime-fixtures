@@ -1,6 +1,7 @@
 /* Claude B02 text adapter using accepted 19 Oct controls and 20 Oct 07:05 parents.
  * Native turn/user-parent IDs are document-scoped witnesses, not permanent chat IDs.
- * Upload completion remains unobserved; file delivery stays pending.
+ * Upload readiness uses the observed pending/Skeleton-to-CardLink transition.
+ * Sent-file confirmation is scoped to one observed user article, not the composer.
  * No click, execution or signed authority is created here. */
 (() => {
   "use strict";
@@ -32,11 +33,14 @@
         !n.closest(MESSAGE) && !n.closest('[aria-disabled="true"]') &&
         (n instanceof HTMLTextAreaElement ? !n.disabled && !n.readOnly : n.isContentEditable));
       if (editors.length !== 1) return null;
-      const composer = editors[0], root = composer.closest(ROOT);
+      const composer = editors[0], semantic = composer.closest('[data-cds="ChatComposer"]'), root = semantic || composer.closest(ROOT);
       if (!root || !rendered(root) || root.isContentEditable || root.closest(MESSAGE) ||
-          root.parentElement?.closest(ROOT) || root.querySelectorAll(EDITOR).length !== 1 ||
-          root.querySelectorAll('input[type="file"]').length !== 1 ||
-          root.querySelectorAll(INPUT).length !== 1 || root.querySelector(MESSAGE)) return null;
+          (!semantic && root.parentElement?.closest(ROOT)) || root.querySelectorAll(EDITOR).length !== 1 ||
+          root.querySelectorAll('[data-cds="ChatComposer"]').length ||
+          root.querySelectorAll('input[type="file"]').length > 1 ||
+          (!semantic && root.querySelectorAll(INPUT).length !== 1) ||
+          (root.querySelectorAll('input[type="file"]').length && root.querySelectorAll(INPUT).length !== 1) ||
+          root.querySelector(MESSAGE)) return null;
       
       return {root, composer, form:composer.closest("form"), locationHref:location.href};
     }
@@ -111,6 +115,78 @@
     function cards(root) {
       return [...root.querySelectorAll(CARD)].filter(n => !n.closest(MESSAGE) && rendered(n));
     }
+    const validDescriptor = d => validName(d?.filename) && Number.isSafeInteger(d.byte_length) &&
+      d.byte_length >= 0 && d.byte_length <= 1024 * 1024;
+    function inputContext(c) {
+      // The observed file input may be a sibling of the semantic ChatComposer.
+      // Only the prior observed LCA shape with one editor/input and no messages qualifies.
+      for (let root=c?.root; root instanceof HTMLElement && root!==document.body; root=root.parentElement) {
+        if (root.matches(CHAT_ROOT) || root.closest(EXCLUDED) || root.closest(MESSAGE) || root.closest('[role="article"]')) return null;
+        if (!root.matches(ROOT)) continue;
+        if (root.querySelector(MESSAGE) || root.querySelectorAll(EDITOR).length!==1 ||
+            root.querySelector(EDITOR)!==c.composer) return null;
+        const inputs=root.querySelectorAll('input[type="file"]');
+        if (inputs.length>1) return null;
+        if (inputs.length===1) return inputs[0].matches(INPUT) ? {root,input:inputs[0]} : null;
+      }
+      return null;
+    }
+    function cardDetails(card) {
+      if (!(card instanceof HTMLElement) || !rendered(card) ||
+          card.matches('[data-state="pending"],[aria-busy="true"]') ||
+          card.querySelector('[data-state="pending"],[aria-busy="true"],[data-cds="Skeleton"],[role="progressbar"],[role="alert"]')) return null;
+      const names=card.querySelectorAll('[data-cds="CardLink"][title]'),badges=card.querySelectorAll('[data-cds="Badge"]');
+      if (names.length!==1 || badges.length!==1 || !validName(names[0].getAttribute("title")) ||
+          names[0].getAttribute("role")!=="button" || names[0].getAttribute("tabindex")!=="0" ||
+          !rendered(badges[0]) || badges[0].closest(".invisible") || badges[0].textContent.trim()!=="TXT") return null;
+      return {filename:names[0].getAttribute("title")};
+    }
+    function stagedReadyCard(c) {
+      if (!c || c.root.querySelectorAll(CARD).length!==1) return null;
+      const card=cards(c.root)[0],branch=card?.closest("[data-cds-composer-attachments]"),detail=cardDetails(card);
+      if (!branch || !c.root.contains(branch) || branch.closest('[data-cds="ChatComposer"]')!==c.root ||
+          !card.matches('[data-cds="MessageAttachmentsFile"]') || card.hasAttribute("data-state") ||
+          !detail || card.querySelectorAll("button[data-cds-attachment-remove]").length!==1) return null;
+      const remove=card.querySelector("button[data-cds-attachment-remove]");
+      if (remove.getAttribute("aria-label")!=="Удалить: "+detail.filename) return null;
+      const files=inputContext(c)?.input.files;
+      if (files?.length && (files.length!==1 || files[0].name!==detail.filename)) return null;
+      return card;
+    }
+    function attachmentReady(descriptors) {
+      if (!Array.isArray(descriptors) || descriptors.length!==1 || !validDescriptor(descriptors[0])) return false;
+      const c=composerContext(),card=stagedReadyCard(c),d=descriptors[0];
+      if (!card || cardDetails(card).filename!==d.filename ||
+          !["send_active","send_disabled"].includes(classify(c).kind)) return false;
+      const files=inputContext(c)?.input.files;
+      return !files?.length || (files.length===1 && files[0].name===d.filename && files[0].size===d.byte_length);
+    }
+    function sentAttachmentMessage(node,descriptors) {
+      const root=conversationRoot();
+      if (!root || roleOf(node,root)!=="user" || !messageId(node) ||
+          !Array.isArray(descriptors) || descriptors.length!==1 || !validDescriptor(descriptors[0])) return null;
+      const article=node.closest('[role="article"]');
+      if (!article || !rendered(article) || article.closest(CHAT_ROOT)!==root ||
+          article.querySelectorAll(MESSAGE).length!==1 || article.querySelector(MESSAGE)!==node ||
+          article.querySelector('[role="article"],[contenteditable="true"],[data-cds="ChatComposer"]')) return null;
+      const found=article.querySelectorAll(CARD);
+      if (found.length!==1 || !rendered(found[0]) || node.contains(found[0]) ||
+          found[0].closest('[role="article"]')!==article ||
+          found[0].closest("[data-cds-composer-attachments]") ||
+          found[0].matches('[data-state="pending"],[aria-busy="true"]') ||
+          found[0].querySelector('[data-cds-attachment-remove],[aria-busy="true"],[data-cds="Skeleton"],[role="progressbar"],[role="alert"]')) return null;
+      let name=cardDetails(found[0])?.filename;
+      // Earlier accepted S08 completed card used a button/h3/TXT badge.
+      if (!name && found[0].classList.contains("group/thumbnail")) {
+        const buttons=found[0].querySelectorAll('button[type="button"]'),names=found[0].querySelectorAll("h3"),
+          types=found[0].querySelectorAll("p.uppercase");
+        if (buttons.length!==1 || names.length!==1 || types.length!==1 ||
+            !buttons[0].contains(names[0]) || !buttons[0].contains(types[0]) ||
+            !rendered(names[0]) || !rendered(types[0]) || types[0].textContent.trim().toUpperCase()!=="TXT") return null;
+        name=names[0].textContent;
+      }
+      return name===descriptors[0].filename ? Object.freeze({text:bodyText(node,"user")}) : null;
+    }
     function controls(context) {
       const c = currentContext(context);
       return c ? [...c.root.querySelectorAll("button")].filter(n => !n.closest(MESSAGE) && rendered(n)) : [];
@@ -127,13 +203,14 @@
       const assistantStates = [...document.querySelectorAll('[data-testid="assistant-message"]')].filter(rendered);
       if (assistantStates.some(n => n.getAttribute("data-is-streaming") === "true")) return {kind:"busy",button:null};
       if (assistantStates.some(n => n.getAttribute("data-is-streaming") !== "false")) return {kind:"unknown",button:null};
-      if (c.root.querySelector('[role="progressbar"],[aria-busy="true"]')) return {kind:"busy",button:null};
-      if (cards(c.root).length) return {kind:"unknown",button:null};
+      if (c.root.querySelector('[role="progressbar"],[aria-busy="true"],[data-state="pending"],[data-cds="Skeleton"]')) return {kind:"busy",button:null};
+      const staged=c.root.querySelectorAll(CARD).length>0;
+      if (staged ? !stagedReadyCard(c) : inputContext(c)?.input.files?.length) return {kind:"unknown",button:null};
       const sends = controls(c).filter(n => n.matches('button[data-testid="chat-input-send"][aria-label="Отправить сообщение"]'));
       if (sends.length !== 1) return {kind:"unknown",button:null};
       const button = sends[0], disabled = button.disabled || button.matches(":disabled") ||
         button.getAttribute("aria-disabled") === "true" || button.hasAttribute("data-disabled");
-      if (!readComposerText(c.composer).trim()) return {kind:"ready",button:null};
+      if (!staged && !readComposerText(c.composer).trim()) return {kind:"ready",button:null};
       return {kind:disabled ? "send_disabled" : "send_active",button};
     }
     function attachmentPreview(filename) {
@@ -150,12 +227,12 @@
       const c = composerContext();
       if (!c || !["ready","send_disabled"].includes(classify(c).kind) ||
           readComposerText(c.composer).trim() || cards(c.root).length) return null;
-      const input = c.root.querySelector(INPUT);
+      const selected=inputContext(c), input=selected?.input;
       if (!(input instanceof HTMLInputElement) || !input.isConnected || !input.multiple ||
           input.disabled || input.matches(":disabled") || input.files?.length ||
           input.getAttribute("aria-disabled") === "true" || input.closest(EXCLUDED) ||
           !(input.getAttribute("accept") === "")) return null;
-      return {kind:"file_input_v1",input,root:c.root,locationHref:c.locationHref};
+      return {kind:"file_input_v1",input,root:c.root,inputRoot:selected.root,locationHref:c.locationHref};
     }
     return Object.freeze({
       id:ID, label:"Claude", matchesLocation, composerContext,
@@ -191,7 +268,7 @@
       attachmentSurface, attachmentPreview,
       attachFiles(surface,files) {
         const c = attachmentSurface();
-        if (!c || c.input !== surface?.input || c.root !== surface?.root ||
+        if (!c || c.input !== surface?.input || c.root !== surface?.root || c.inputRoot !== surface?.inputRoot ||
             c.locationHref !== surface?.locationHref || c.kind !== surface?.kind)
           fail("TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE");
         if (!Array.isArray(files) || files.length !== 1 || !(files[0] instanceof File) ||
@@ -199,12 +276,11 @@
           fail("TARGET_AI_FILE_TYPE_UNSUPPORTED");
         return globalThis.OzonWebFileAttachment.setInputFiles(c.input,files);
       },
-      // A filename/card plus enabled Send is not evidence of upload completion.
-      attachmentReady() { return false; },
-      sentAttachmentMessage() { return null; },
+      // Readiness and a new owned sent-card witness are separate checks.
+      attachmentReady, sentAttachmentMessage,
       integrationStatus() {
-        return Object.freeze({status:"text_only",message_identity:"document_scoped_native_witness",
-          upload_end:"not_observed",registry_activated:true});
+        return Object.freeze({status:"implemented",message_identity:"document_scoped_native_witness",
+          upload_end:"observed_pending_skeleton_transition",registry_activated:true});
       }
     });
   }

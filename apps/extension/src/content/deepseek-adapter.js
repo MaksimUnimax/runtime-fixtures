@@ -1,7 +1,8 @@
 /* DeepSeek B02 text transport using accepted roots and 09:05 transition.
  * Messages use conservative document-only node witnesses; replacement retires them.
  * Natural completion uses the current assistant's own terminal toolbar and no Stop.
- * Forced Stop/retry variants and upload-end are not established by these snapshots.
+ * Upload readiness follows the observed same-card loading-to-TXT transition.
+ * Forced Stop/retry variants remain unobserved; provider bytes are not inferred.
  * No click, execution or signed authority is created here. */
 (() => {
   "use strict";
@@ -110,6 +111,45 @@
     function cards(root) {
       return [...root.querySelectorAll(CARD)].filter(n => !n.closest(MESSAGE) && rendered(n));
     }
+    const validDescriptor = d => validName(d?.filename) && Number.isSafeInteger(d.byte_length) &&
+      d.byte_length >= 0 && d.byte_length <= 1024 * 1024;
+    function cardDetails(card) {
+      if (!(card instanceof HTMLElement) || !rendered(card) ||
+          card.querySelector('[data-icon="spin"],.ds-loading,svg[role="img"][aria-label],[role="progressbar"],[aria-busy="true"],[role="alert"]')) return null;
+      const names=card.querySelectorAll(".e70accd6"), types=card.querySelectorAll("._7103a25");
+      if (names.length!==1 || types.length!==1 || !rendered(names[0]) || !rendered(types[0]) ||
+          !validName(names[0].textContent) || !/^TXT\s+\d+(?:\.\d+)?(?:B|KB|MB)$/.test(types[0].textContent.trim())) return null;
+      return {filename:names[0].textContent};
+    }
+    function stagedReadyCard(c) {
+      if (!c || c.root.querySelectorAll(CARD).length!==1) return null;
+      const card=cards(c.root)[0], branch=card?.closest("div.b40079d7._2113217");
+      if (!branch || branch.parentElement!==c.root || !cardDetails(card) ||
+          card.querySelectorAll('div._8402d8c[tabindex="0"]').length!==1) return null;
+      const files=c.root.querySelector(INPUT)?.files;
+      if (files?.length && (files.length!==1 || files[0].name!==cardDetails(card).filename)) return null;
+      return card;
+    }
+    function attachmentReady(descriptors) {
+      if (!Array.isArray(descriptors) || descriptors.length!==1 || !validDescriptor(descriptors[0])) return false;
+      const c=composerContext(),card=stagedReadyCard(c),d=descriptors[0];
+      if (!card || cardDetails(card).filename!==d.filename ||
+          !["send_active","send_disabled"].includes(classify(c).kind)) return false;
+      const files=c.root.querySelector(INPUT)?.files;
+      return !files?.length || (files.length===1 && files[0].name===d.filename && files[0].size===d.byte_length);
+    }
+    function sentAttachmentMessage(node,descriptors) {
+      const root=conversationRoot();
+      if (!root || roleOf(node,root)!=="user" || !messageId(node) ||
+          !Array.isArray(descriptors) || descriptors.length!==1 || !validDescriptor(descriptors[0])) return null;
+      const found=[...node.querySelectorAll(CARD)];
+      if (found.length!==1 || found[0].closest(MESSAGE)!==node ||
+          found[0].closest(".eafda4ae")?.parentElement!==node ||
+          found[0].querySelector("._8402d8c") || cardDetails(found[0])?.filename!==descriptors[0].filename) return null;
+      const bodies=[...node.querySelectorAll(".ds-collapsible-text")].filter(n=>n.closest(MESSAGE)===node && rendered(n));
+      if (bodies.length!==1 || bodies[0].contains(found[0])) return null;
+      return Object.freeze({text:bodyText(node,"user")});
+    }
     function controls(context) {
       const c = currentContext(context);
       return c ? [...c.root.querySelectorAll("div[role=\"button\"].ds-button")].filter(n => !n.closest(MESSAGE) && rendered(n)) : [];
@@ -125,9 +165,11 @@
         return {kind:"stop",button};
       if (paths.length !== 1 || paths[0].getAttribute("d") !== "M8.3125 0.980206C8.66767 1.05312 8.97902 1.2042 9.2627 1.43235C9.48724 1.613 9.73029 1.85795 9.97949 2.10716L14.707 6.8347L13.293 8.24876L9 3.95579V15.0417H7V3.95579L2.70703 8.24876L1.29297 6.8347L6.02051 2.10716C6.26971 1.85795 6.51277 1.613 6.7373 1.43235C6.97662 1.23988 7.28445 1.04404 7.6875 0.980206C7.8973 0.947029 8.1031 0.955183 8.3125 0.980206Z") return {kind:"unknown",button:null};
       const disabled = button.classList.contains("ds-button--disabled") || button.getAttribute("aria-disabled") === "true";
-      // This means an empty text transport, not a finished assistant/upload.
-      if (cards(c.root).length || c.root.querySelector(INPUT)?.files?.length) return {kind:"unknown",button:null};
-      if (!readComposerText(c.composer).trim()) return {kind:"ready",button:null};
+      const staged=c.root.querySelectorAll(CARD).length>0;
+      if (staged ? !stagedReadyCard(c) : c.root.querySelector(INPUT)?.files?.length)
+        return {kind:"unknown",button:null};
+      if (staged && !disabled && button.getAttribute("tabindex")!=="0") return {kind:"unknown",button:null};
+      if (!staged && !readComposerText(c.composer).trim()) return {kind:"ready",button:null};
       // Only the observed arrow permits text Send; spinner and square Stop do not.
       return {kind:disabled ? "send_disabled" : "send_active",button};
     }
@@ -229,13 +271,12 @@
           fail("TARGET_AI_FILE_TYPE_UNSUPPORTED");
         return globalThis.OzonWebFileAttachment.setInputFiles(c.input,files);
       },
-      // A filename/card plus enabled Send is not evidence of upload completion.
-      attachmentReady() { return false; },
-      sentAttachmentMessage() { return null; },
+      // Readiness and a new owned sent-card witness are separate checks.
+      attachmentReady, sentAttachmentMessage,
       integrationStatus() {
-        return Object.freeze({status:"text_only",message_identity:"document_scoped_nodes",
+        return Object.freeze({status:"implemented",message_identity:"document_scoped_nodes",
           assistant_completion:"observed_natural_terminal_toolbar",
-          upload_end:"not_observed",registry_activated:true});
+          upload_end:"observed_same_card_status_transition",registry_activated:true});
       }
     });
   }
