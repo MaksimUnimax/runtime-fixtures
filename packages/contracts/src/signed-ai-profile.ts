@@ -10,7 +10,15 @@ const ProtocolSchema = z.literal("signed_ai_profile_consumer_v1");
 const DigestSchema = z.string().regex(/^[0-9a-f]{64}$/);
 export const SignedAiProfileScopeV1Schema = z
   .object({
-    family: z.enum(["chatgpt", "alice", "qwen", "kimi", "grok", "gemini"]),
+    family: z.enum([
+      "chatgpt",
+      "alice",
+      "qwen",
+      "kimi",
+      "grok",
+      "gemini",
+      "claude",
+    ]),
     surface: z.literal("web"),
     variant: z.null(),
   })

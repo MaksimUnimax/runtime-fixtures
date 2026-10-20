@@ -52,6 +52,10 @@
       capabilityId: "ai.gemini.web.adapter",
       entitlementKey: "ai.gemini",
     },
+    {
+      capabilityId: "ai.claude.web.adapter",
+      entitlementKey: "ai.claude",
+    },
   ];
 
   function deepFreeze(value) {

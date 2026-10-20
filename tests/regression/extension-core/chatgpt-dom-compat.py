@@ -703,7 +703,7 @@ def run_grok_adapter(runtime: Path, output: Path):
 
 
 
-def run_b02_delivery_watch(runtime: Path, output: Path):
+def run_b02_delivery_watch(runtime: Path, output: Path, only_provider=None):
     """Actual batch-watch source with isolated ordinary code-test dependencies.
     No provider requests, real AI Send, installed harness or abort reproduction.
     Signed profile/authority is tested separately in the existing worker suites.
@@ -718,7 +718,8 @@ def run_b02_delivery_watch(runtime: Path, output: Path):
     result={"status":"RUNNING","scope":"B02 actual batch-watch confirmation code, synthetic button/turns; no authority or installed acceptance",
             "content_sha256":hashlib.sha256(content.encode()).hexdigest(),"worker_sha256":hashlib.sha256(worker.encode()).hexdigest(),"cases":{}}
     failures=[]
-    origins={"chatgpt":"https://chatgpt.com","alice":"https://alice.yandex.ru","qwen":"https://chat.qwen.ai","kimi":"https://www.kimi.ai","grok":"https://grok.com","gemini":"https://gemini.google.com"}
+    origins={"chatgpt":"https://chatgpt.com","alice":"https://alice.yandex.ru","qwen":"https://chat.qwen.ai","kimi":"https://www.kimi.ai","grok":"https://grok.com","gemini":"https://gemini.google.com","claude":"https://claude.ai"}
+    if only_provider:origins={only_provider:origins[only_provider]}
     script=r"""async ({id,origin,scenario,watch,basis})=>{
       const key=origin+'|local:fixture',old=document.createElement('div'),button=document.createElement('button');
       old.id='OLD';old.textContent=scenario==='old_matching'?'REPORT':'OLD BODY';document.body.append(old,button);
@@ -809,9 +810,9 @@ def run_observed_composers(runtime: Path, output: Path, only_provider=None):
             return '<div class="flex w-full min-w-0 flex-col"><div><div class="tiptap ProseMirror" data-testid="chat-input" contenteditable="true" role="textbox" aria-label="Напишите запрос для Claude">'+escape(text)+'</div></div>'+extra+controls+'<input type="file" id="chat-input-file-upload-bottom" data-testid="file-upload" multiple accept="" style="opacity:0;width:0;height:0" '+input_attrs+'></div>'
         def case(name,html,js,expected,wrong_origin=False):
             cases[provider+"_"+name]=(provider,html,js,expected,wrong_origin)
-        case("factory_pending_not_registry",root(),"return [a.id,a.integrationStatus().status,a.integrationStatus().registry_activated,OzonAIAdapters.adapterForLocation('auto')?.id===a.id]",[provider,"pending",False,False])
+        case("factory_route_status",root(),"return [a.id,a.integrationStatus().status,a.integrationStatus().registry_activated,OzonAIAdapters.adapterForLocation('auto')?.id===a.id]",[provider,"text_only",True,True] if provider=="claude" else [provider,"pending",False,False])
         case("one_observed_composer",root(),"return !!c",True)
-        case("disabled_send_not_busy_stop",root(),"return a.classifyComposerControl(c).kind","send_disabled")
+        case("observed_empty_send_state",root(),"return a.classifyComposerControl(c).kind","ready" if provider=="claude" else "send_disabled")
         case("draft_enabled_send",root("draft",send()),"return [a.classifyComposerControl(c).kind,!!a.sendButton(c)]",["send_active",True])
         case("duplicate_send_unknown",root("draft",send()+send()),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["unknown",None])
         case("progress_excludes_send",root("draft",send(),'<div role="progressbar">loading</div>'),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["busy",None])
@@ -883,7 +884,90 @@ def run_observed_composers(runtime: Path, output: Path, only_provider=None):
     return 1 if failures else 0
 
 
+
+def run_parent_roots(runtime: Path, output: Path):
+    """Composed observed attributes, not a captured whole-page DOM.
+    Ordinary message append/remount and code-selection tests; all routes local.
+    Native/DOM witnesses are document-only, never permanent chat IDs.
+    """
+    output.mkdir(parents=True,exist_ok=True)
+    bundle=(runtime/"shared/ai_adapters.js").read_text()
+    sources=[(runtime/n).read_text() for n in ["shared/conversation_identity.js","shared/web_file_attachment.js","shared/ai_delivery_capabilities.js"]]
+    cases={}
+    for provider in ["deepseek","claude"]:
+        if provider=="deepseek":
+            user='<div class="_9663006"><div class="d29f3d7d ds-message _63c77b1"><div class="ds-collapsible-text">USER BODY</div></div></div>'
+            assistant='<div class="_4f9bf79 _43c05b5"><div class="ds-message _63c77b1"><div class="ds-markdown ds-assistant-message-main-content"><div class="md-code-block"><pre>CODE ONE\nCODE TWO</pre></div></div></div></div>'
+            composer='<div class="_77cefa5 _3d616d3"><div class="_020ab5b"><textarea placeholder="Сообщение для DeepSeek"></textarea><input type="file" multiple accept=".txt"><div role="button" class="ds-button ds-button--primary _52c986b ds-button--disabled">send</div></div></div>'
+            html='<div class="ds-virtual-list ds-virtual-list--printable _2bd7b35"><div class="ds-virtual-list-items _6f2c522"><div class="ds-virtual-list-visible-items">'+user+assistant+'</div></div>'+composer+'</div>'
+        else:
+            user='<div role="article"><div class="relative flex min-w-0 flex-col gap-xs"><div id="_r_5u_"><div class="cds-user-message-body"><div data-testid="user-message">USER BODY</div></div></div></div></div>'
+            assistant='<div role="article"><div class="contents"><div class="mt-xs"><div class="group group/message-row min-w-0"><div data-testid="assistant-message" data-turn-key="01a152d2-461b-71bf-b3b2-d887f0ede3c6" data-is-streaming="false"><div role="group"><pre class="code-block__code"><code>CODE ONE\nCODE TWO</code></pre><button data-testid="code-block-copy">copy</button></div></div></div></div></div></div>'
+            composer='<div class="flex w-full min-w-0 flex-col"><div data-testid="chat-input" role="textbox" contenteditable="true"></div><input type="file" multiple accept="" id="chat-input-file-upload-bottom" data-testid="file-upload"><button data-testid="chat-input-send" aria-label="Отправить сообщение" disabled>send</button></div>'
+            html='<div data-testid="chat-column">'+user+assistant+composer+'</div>'
+        def case(name,js,expected,markup=html):
+            cases[provider+"_"+name]=(provider,markup,js,expected)
+        case("observed_root_roles", "return [!!a.conversationRoot(),a.userMessages().length,a.assistantMessages().length,a.messageText(u).trim()]",[True,1,1,"USER BODY"])
+        case("full_assistant_code","return a.findCodeBlocks(v).map(n=>a.readCodeText(n))",["CODE ONE\nCODE TWO"])
+        case("user_has_no_code","return a.findCodeBlocks(u).length",0)
+        case("document_witness_distinct_stable","const x=a.messageId(u),y=a.messageId(v);return [x.startsWith('local:'),y.startsWith('local:'),x!==y,x===a.messageId(u)]",[True,True,True,True])
+        case("no_identity_attribute_written","return [u.id,u.getAttribute('data-conversation-id'),v.getAttribute('data-conversation-id')]",["",None,None])
+        case("append_keeps_existing_witness","const id=a.messageId(u),copy=u.parentElement.cloneNode(true);if(a.id==='claude'){copy.parentElement;const wrap=u.closest('[role=article]').cloneNode(true);wrap.querySelector('[id]').id='_r_new_';a.conversationRoot().insertBefore(wrap,a.composerContext().root)}else u.parentElement.parentElement.append(copy);return a.messageId(u)===id",True)
+        case("assistant_growth_keeps_user_witness","const id=a.messageId(u);v.querySelector('pre').textContent+=' MORE';return a.messageId(u)===id",True)
+        case("user_edit_retires_epoch","const id=a.messageId(v);u.firstElementChild?u.firstElementChild.textContent='EDITED':u.textContent='EDITED';return a.messageId(v)!==id",True)
+        case("remount_retires_all_witnesses","const id=a.messageId(v);u.replaceWith(u.cloneNode(true));return a.messageId(v)!==id",True)
+        case("remove_retires_all_witnesses","const id=a.messageId(v);u.remove();return a.messageId(v)!==id",True)
+        case("path_change_retires_witness","const id=a.messageId(u);history.pushState({},'',location.pathname+'-b');return a.messageId(u)!==id",True)
+        case("unknown_upload_not_ready","return [a.attachmentReady([{filename:'report.txt',byte_length:16}]),a.sentAttachmentMessage(u,[{filename:'report.txt',byte_length:16}])]",[False,None])
+        case("completion_boundary","return a.messageComplete(v)",provider=="claude")
+        case("root_identity_document_only","const i=await SellerAgentsConversationSurface.ready(a);return [i.status,i.identity_scope,i.conversation_id?.startsWith('local:')]",["confirmed","document",True])
+        case("remount_suspends_old_conversation","await SellerAgentsConversationSurface.ready(a);u.replaceWith(u.cloneNode(true));const i=await SellerAgentsConversationSurface.ready(a);return [i.status,i.conversation_id,i.source]",["unknown",None,"history_continuity_unverified"])
+        case("missing_root_no_body_fallback","const root=a.conversationRoot();if(a.id==='claude')root.removeAttribute('data-testid');else root.classList.remove('_2bd7b35');const i=await SellerAgentsConversationSurface.ready(a);return [a.conversationRoot(),a.userMessages().length,i.status]",[None,0,"unknown"])
+        case("composer_outside_root_not_owned","document.body.append(a.composerContext().root);return [a.conversationRoot(),a.userMessages().length]",[None,0])
+        case("wrong_parent_not_message","u.parentElement.className='unobserved';return a.userMessages().length",0)
+        if provider=="claude":
+            case("native_turn_key_used_locally","return [a.messageId(v).endsWith(':assistant:01a152d2-461b-71bf-b3b2-d887f0ede3c6'),a.messageId(u).endsWith(':user:_r_5u_')]",[True,True])
+            case("missing_turn_key_not_complete","v.removeAttribute('data-turn-key');return [a.messageId(v),a.messageComplete(v)]",["",False])
+            case("first_turn_key_assignment_keeps_user","v.removeAttribute('data-turn-key');const id=a.messageId(u);v.setAttribute('data-turn-key','01a152d2-461b-71bf-b3b2-d887f0ede3c6');return [a.messageId(u)===id,!!a.messageId(v)]",[True,True])
+            case("missing_streaming_not_ready","v.removeAttribute('data-is-streaming');return [a.messageComplete(v),a.classifyComposerControl(a.composerContext()).kind]",[False,"unknown"])
+            case("observed_stop_blocks_completion","document.body.insertAdjacentHTML('beforeend','<button data-testid=\"chat-input-stop\" aria-label=\"Остановить ответ\">stop</button>');return [a.messageComplete(v),a.classifyComposerControl(a.composerContext()).kind]",[False,"stop"])
+            case("text_only_large_file_pending","const p=a.deliveryCapabilities();return [p.status,p.attachment_pending_reason]",["text_only","upload_completion_not_observed"])
+        else:
+            case("no_native_identity_inferred","return [u.getAttribute('data-turn-key'),v.getAttribute('data-message-id'),a.integrationStatus().registry_activated]",[None,None,False])
+    result={"status":"RUNNING","scope":"B02 offline composed-observation parent/root/message lifecycle; no installed/provider or permanent-ID claim","bundle_sha256":hashlib.sha256(bundle.encode()).hexdigest(),"cases":{}}
+    failures=[]
+    with sync_playwright() as p:
+        browser=p.chromium.launch(headless=True)
+        context=browser.new_context(viewport={"width":1100,"height":800})
+        context.route("**/*",lambda route:route.fulfill(status=200,content_type="text/html",body="<html></html>"))
+        page=context.new_page()
+        for name,(provider,html,js,expected) in cases.items():
+            try:
+                origin="https://chat.deepseek.com" if provider=="deepseek" else "https://claude.ai"
+                page.goto(origin+"/chat/fixture-a")
+                page.set_content('<style>[contenteditable]{min-height:24px} pre{white-space:pre-wrap}</style>'+html)
+                for code in sources:page.evaluate(code)
+                page.evaluate(bundle)
+                actual=page.evaluate("""async ({provider,js})=>{
+                  const a=(provider==='claude'?SellerAgentsClaudeAdapter:SellerAgentsDeepSeekAdapter).create(OzonAIAdapters);
+                  const u=a.userMessages()[0],v=a.assistantMessages()[0];
+                  return new (Object.getPrototypeOf(async function(){}).constructor)('a','u','v',js)(a,u,v);
+                }""",{"provider":provider,"js":js})
+                assert actual==expected,{"actual":actual,"expected":expected}
+                result["cases"][name]={"status":"PASS"}
+            except Exception as exc:
+                failures.append(name);result["cases"][name]={"status":"FAIL","error":str(exc)[:1400]}
+        browser.close()
+    result["status"]="FAIL" if failures else "PASS";result["failed"]=failures
+    (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps({"status":result["status"],"cases":len(cases),"failed":failures}))
+    return 1 if failures else 0
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "parent-roots":
+        return run_parent_roots(runtime, output)
+    if provider == "claude-delivery-watch":
+        return run_b02_delivery_watch(runtime, output, "claude")
     if provider == "claude-composer":
         return run_observed_composers(runtime, output, "claude")
     if provider == "observed-composers":
@@ -1065,6 +1149,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

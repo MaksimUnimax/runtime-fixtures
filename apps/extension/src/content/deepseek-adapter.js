@@ -1,12 +1,13 @@
-/* B02 observed DeepSeek composer/file primitives.
- * Accepted 19 Oct DOM only. Message identity/common chat ancestry and upload-end
- * are incomplete: this factory is packaged but NOT activated in the registry.
- * It creates no instruction, click, execution, permanent ID or delivery receipt. */
+/* DeepSeek B02 components using accepted 19 Oct controls and 20 Oct 07:04 root.
+ * Messages use conservative document-only node witnesses; replacement retires them.
+ * Completion/upload-end remain unobserved; registry activation stays pending.
+ * No click, execution or signed authority is created here. */
 (() => {
   "use strict";
   const ID = "deepseek", ORIGIN = "https://chat.deepseek.com";
   const EDITOR = "textarea[placeholder=\"Сообщение для DeepSeek\"]", ROOT = "div._77cefa5._3d616d3", MESSAGE = ".ds-message";
   const INPUT = "input[type=\"file\"][multiple]", CARD = ".cd314545";
+  const CHAT_ROOT = "div.ds-virtual-list.ds-virtual-list--printable._2bd7b35";
   const EXCLUDED = '[hidden],[aria-hidden="true"],[inert],[role="dialog"]';
   const fail = code => { throw Object.assign(new Error(code), {code}); };
   const matchesLocation = () => location.origin === ORIGIN;
@@ -38,6 +39,66 @@
           root.querySelectorAll(INPUT).length !== 1 || root.querySelector(MESSAGE)) return null;
       if (!composer.closest("div._020ab5b") || composer.closest("div._020ab5b").parentElement !== root) return null;
       return {root, composer, form:composer.closest("form"), locationHref:location.href};
+    }
+    function conversationRoot() {
+      const c=composerContext();
+      if (!c) return null;
+      const roots=[...document.querySelectorAll(CHAT_ROOT)].filter(rendered);
+      return roots.length===1 && roots[0].contains(c.root) && c.composer.closest(CHAT_ROOT)===roots[0] ? roots[0] : null;
+    }
+    function roleOf(node,root) {
+      if (!(node instanceof HTMLElement) || !rendered(node) || node.closest(CHAT_ROOT) !== root ||
+          node.parentElement?.closest(MESSAGE) || node.querySelector(MESSAGE) ||
+          [...node.querySelectorAll("[contenteditable]")].some(n=>n.isContentEditable)) return "";
+      const p1=node.parentElement,p2=p1?.parentElement,p3=p2?.parentElement;
+      if (!p2?.matches("div.ds-virtual-list-visible-items") || !p3?.matches("div.ds-virtual-list-items._6f2c522")) return "";
+      if (node.matches("div.ds-message.d29f3d7d") && p1?.matches("div._9663006")) return "user";
+      if (node.matches("div.ds-message:not(.d29f3d7d)") && p1?.matches("div._4f9bf79._43c05b5") &&
+          node.querySelector(".ds-markdown.ds-assistant-message-main-content")) return "assistant";
+      return "";
+    }
+    function nativeWitness() { return ""; }
+    function bodyText(node,role) {
+      if (role==="user") {
+        const body=[...node.querySelectorAll(".ds-collapsible-text")].filter(n=>n.closest(MESSAGE)===node && rendered(n));
+        return body.length===1 ? body[0].innerText || "" : "";
+      }
+      return role==="assistant" ? node.innerText || "" : "";
+    }
+    // These witnesses belong only to this document/root epoch. They are not
+    // provider conversation IDs and are never written back into the page.
+    // Retiring any previously observed node (including virtualization/remount)
+    // retires ALL witnesses, so partial history replacement cannot look like Send.
+    let observation=null, sequence=0;
+    function observeMessages() {
+      const root=conversationRoot();
+      if (!root) { observation=null; return {rows:[],ids:new Map()}; }
+      const rows=[...root.querySelectorAll(MESSAGE)].map(node=>{
+        const role=roleOf(node,root);
+        return {node,role,native:nativeWitness(node,role),text:role==="user"?bodyText(node,role):null};
+      }).filter(row=>row.role);
+      const retained=observation && observation.root===root && observation.href===location.href &&
+        observation.rows.every((old,i)=>rows[i]?.node===old.node && rows[i].role===old.role &&
+          rows[i].native===old.native && rows[i].text===old.text);
+      if (!retained) { observation={root,href:location.href,epoch:crypto.randomUUID(),rows:[],nodes:new WeakMap()}; sequence=0; }
+      const ids=new Map();
+      for (const row of rows) {
+        if (!observation.nodes.has(row.node)) observation.nodes.set(row.node,++sequence);
+        const local=row.role+":node-"+observation.nodes.get(row.node);
+        if (local) ids.set(row.node,"local:"+observation.epoch+":"+local);
+      }
+      observation.rows=rows;
+      return {rows,ids};
+    }
+    function userMessages() { return observeMessages().rows.filter(r=>r.role==="user").map(r=>r.node); }
+    function assistantMessages() {
+      const eligible=new Set(reader.assistantMessages());
+      return observeMessages().rows.filter(r=>r.role==="assistant" && eligible.has(r.node.querySelector(".ds-markdown.ds-assistant-message-main-content"))).map(r=>r.node);
+    }
+    function messageId(node) { return observeMessages().ids.get(node) || ""; }
+    function messageText(node) {
+      const root=conversationRoot(),role=root ? roleOf(node,root) : "";
+      return role ? bodyText(node,role) : "";
     }
     function currentContext(context) {
       if (!context || context.locationHref !== location.href) return null;
@@ -105,10 +166,13 @@
           [button.tagName,button.getAttribute("data-testid") || "",button.getAttribute("aria-label") || "","observed_arrow"].join("|") : "";
       },
       isGenerating() { return ["stop","busy","unknown"].includes(classify(composerContext()).kind); },
-      assistantMessages:reader.assistantMessages,
-      findCodeBlocks:reader.findCodeBlocks, readCodeText:reader.readCodeText, geometryAnchor:reader.geometryAnchor,
-      // No ordinal, generated ID or text hash is promoted to a native message identity.
-      messageId() { return ""; },
+      conversationRoot, userMessages, assistantMessages, messageId, messageText,
+      findCodeBlocks(node) {
+        if (!assistantMessages().includes(node)) return [];
+        return reader.findCodeBlocks(node.querySelector(".ds-markdown.ds-assistant-message-main-content"));
+      },
+      readCodeText:reader.readCodeText, geometryAnchor:reader.geometryAnchor,
+      // Spinner/disabled Send alone do not prove assistant completion.
       messageComplete() { return false; },
       attachmentSurface, attachmentPreview,
       attachFiles(surface,files) {
@@ -125,7 +189,7 @@
       attachmentReady() { return false; },
       sentAttachmentMessage() { return null; },
       integrationStatus() {
-        return Object.freeze({status:"pending",message_identity:"not_observed",
+        return Object.freeze({status:"pending",message_identity:"document_scoped_nodes",
           upload_end:"not_observed",registry_activated:false});
       }
     });

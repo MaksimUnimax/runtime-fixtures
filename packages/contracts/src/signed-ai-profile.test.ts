@@ -419,4 +419,69 @@ describe("verified profile consumer wire boundary", () => {
       }).status,
     ).toBe("DEFERRED");
   });
+  it("carries Claude request, response and applied receipt through the strict wire boundary", () => {
+    const ai = { family: "claude", surface: "web", variant: null };
+    const claudeRequest = { ...request, ai };
+    const claudeResponse = { ...response, ai };
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const receipt = {
+      ...claudeRequest,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "APPLIED",
+    };
+    expect(SignedAiProfileRequestV1Schema.parse(claudeRequest)).toEqual(
+      claudeRequest,
+    );
+    expect(SignedAiProfileResponseV1Schema.parse(claudeResponse)).toEqual(
+      claudeResponse,
+    );
+    expect(SignedAiProfileReceiptV1Schema.parse(receipt)).toEqual(receipt);
+  });
+
+  it("keeps Claude scope, fingerprint and deferred receipt requirements strict", () => {
+    const ai = { family: "claude", surface: "web", variant: null };
+    for (const scope of [
+      { ...ai, surface: "native" },
+      { ...ai, variant: "work" },
+      { ...ai, unexpected: true },
+    ]) {
+      expect(
+        SignedAiProfileRequestV1Schema.safeParse({ ...request, ai: scope })
+          .success,
+      ).toBe(false);
+      expect(
+        SignedAiProfileResponseV1Schema.safeParse({ ...response, ai: scope })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      SignedAiProfileResponseV1Schema.safeParse({
+        ...response,
+        ai,
+        profile: { ...response.profile, contentSha256: "unverified" },
+      }).success,
+    ).toBe(false);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const deferred = {
+      ...request,
+      ai,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "DEFERRED",
+    };
+    expect(SignedAiProfileReceiptV1Schema.safeParse(deferred).success).toBe(
+      false,
+    );
+    expect(
+      SignedAiProfileReceiptV1Schema.parse({
+        ...deferred,
+        reason: "WORK_IN_FLIGHT",
+      }).status,
+    ).toBe("DEFERRED");
+  });
 });

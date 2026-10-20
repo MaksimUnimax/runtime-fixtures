@@ -231,6 +231,7 @@ await test("PROFILE-02A-Alice-current-authority-origin-refresh-and-receipt", asy
       "https://www.kimi.ai/*",
       "https://grok.com/*",
       "https://gemini.google.com/*",
+      "https://claude.ai/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -740,6 +741,7 @@ await test("PROFILE-11-Kimi-refresh-routing-and-diagnostic-family", async () => 
       "https://www.kimi.ai/*",
       "https://grok.com/*",
       "https://gemini.google.com/*",
+      "https://claude.ai/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -921,6 +923,7 @@ await test("PROFILE-14-Grok-refresh-routing-and-diagnostic-family", async () => 
       "https://www.kimi.ai/*",
       "https://grok.com/*",
       "https://gemini.google.com/*",
+      "https://claude.ai/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -1041,6 +1044,7 @@ await test("PROFILE-16-Gemini-refresh-routing-and-diagnostic-family", async () =
       "https://www.kimi.ai/*",
       "https://grok.com/*",
       "https://gemini.google.com/*",
+      "https://claude.ai/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -1053,6 +1057,126 @@ await test("PROFILE-16-Gemini-refresh-routing-and-diagnostic-family", async () =
     });
     assert.equal(support.ok, true, JSON.stringify(support));
     assert.equal(support.snapshot.page.aiFamily, "gemini");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+const claudeScope = Object.freeze({
+  family: "claude",
+  surface: "web",
+  variant: null,
+});
+const claudeIdentity = Object.freeze({
+  origin: "https://claude.ai",
+  ai_id: "claude",
+  conversation_id: "claude-fixture-dialogue",
+  status: "confirmed",
+});
+function claudeSender(worker) {
+  const url = "https://claude.ai/chat/claude-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+await test("PROFILE-17-Claude-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, claudeScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(claudeScope);
+      payload.entitlements["ai.claude"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(claudeIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: claudeScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      claudeIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), claudeScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", claudeIdentity),
+      true,
+    );
+    const request = requestFor("claude");
+    const response = await worker.request(request, claudeSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), claudeScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          claudeSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+
+await test("PROFILE-18-Claude-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://claude.ai/chat/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(claudeIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "claude");
     assert.equal(worker.network.length, 0);
   } finally {
     worker.close();

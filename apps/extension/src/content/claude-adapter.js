@@ -1,12 +1,13 @@
-/* B02 observed Claude composer/file primitives.
- * Accepted 19 Oct DOM only. Message identity/common chat ancestry and upload-end
- * are incomplete: this factory is packaged but NOT activated in the registry.
- * It creates no instruction, click, execution, permanent ID or delivery receipt. */
+/* Claude B02 text adapter using accepted 19 Oct controls and 20 Oct 07:05 parents.
+ * Native turn/user-parent IDs are document-scoped witnesses, not permanent chat IDs.
+ * Upload completion remains unobserved; file delivery stays pending.
+ * No click, execution or signed authority is created here. */
 (() => {
   "use strict";
   const ID = "claude", ORIGIN = "https://claude.ai";
   const EDITOR = "[data-testid=\"chat-input\"][contenteditable=\"true\"][role=\"textbox\"]", ROOT = "div.flex.w-full.min-w-0.flex-col", MESSAGE = "[data-testid=\"user-message\"],[data-testid=\"assistant-message\"]";
   const INPUT = "input[type=\"file\"][data-testid=\"file-upload\"]#chat-input-file-upload-bottom", CARD = "[data-testid=\"file-thumbnail\"]";
+  const CHAT_ROOT = "[data-testid=\"chat-column\"]";
   const EXCLUDED = '[hidden],[aria-hidden="true"],[inert],[role="dialog"]';
   const fail = code => { throw Object.assign(new Error(code), {code}); };
   const matchesLocation = () => location.origin === ORIGIN;
@@ -39,6 +40,68 @@
       
       return {root, composer, form:composer.closest("form"), locationHref:location.href};
     }
+    function conversationRoot() {
+      const c=composerContext();
+      if (!c) return null;
+      const roots=[...document.querySelectorAll(CHAT_ROOT)].filter(rendered);
+      return roots.length===1 && roots[0].contains(c.root) && c.composer.closest(CHAT_ROOT)===roots[0] ? roots[0] : null;
+    }
+    function roleOf(node,root) {
+      if (!(node instanceof HTMLElement) || !rendered(node) || node.closest(CHAT_ROOT) !== root ||
+          node.parentElement?.closest(MESSAGE) || node.querySelector(MESSAGE) ||
+          [...node.querySelectorAll("[contenteditable]")].some(n=>n.isContentEditable)) return "";
+      const p1=node.parentElement,p2=p1?.parentElement,p3=p2?.parentElement;
+      if (node.matches('[data-testid="user-message"]') && p1?.matches("div.cds-user-message-body") &&
+          p2?.matches("div[id]") && p3?.matches("div.relative.flex.min-w-0.flex-col.gap-xs")) return "user";
+      if (node.matches('[data-testid="assistant-message"]') && p1?.classList.contains("group") &&
+          p1?.classList.contains("group/message-row") && p2?.matches("div.mt-xs") && p3?.matches("div.contents")) return "assistant";
+      return "";
+    }
+    function nativeWitness(node,role) {
+      const value=role==="assistant" ? node.getAttribute("data-turn-key") : node.parentElement?.parentElement?.id;
+      if (typeof value!=="string" || value.length>180 || /[\s|\u0000-\u001f]/u.test(value)) return "";
+      if (role==="assistant" ? !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value) : !/^_r_[A-Za-z0-9_-]+_$/.test(value)) return "";
+      return role+":"+value;
+    }
+    function bodyText(node,role) {
+      if (role==="user") return node.innerText || "";
+      return role==="assistant" ? node.innerText || "" : "";
+    }
+    // These witnesses belong only to this document/root epoch. They are not
+    // provider conversation IDs and are never written back into the page.
+    // Retiring any previously observed node (including virtualization/remount)
+    // retires ALL witnesses, so partial history replacement cannot look like Send.
+    let observation=null, sequence=0;
+    function observeMessages() {
+      const root=conversationRoot();
+      if (!root) { observation=null; return {rows:[],ids:new Map()}; }
+      const rows=[...root.querySelectorAll(MESSAGE)].map(node=>{
+        const role=roleOf(node,root);
+        return {node,role,native:nativeWitness(node,role),text:role==="user"?bodyText(node,role):null};
+      }).filter(row=>row.role);
+      const retained=observation && observation.root===root && observation.href===location.href &&
+        observation.rows.every((old,i)=>rows[i]?.node===old.node && rows[i].role===old.role &&
+          (rows[i].native===old.native || (old.role==="assistant" && !old.native)) && rows[i].text===old.text);
+      if (!retained) { observation={root,href:location.href,epoch:crypto.randomUUID(),rows:[],nodes:new WeakMap()}; sequence=0; }
+      const ids=new Map();
+      for (const row of rows) {
+        if (!observation.nodes.has(row.node)) observation.nodes.set(row.node,++sequence);
+        const local=row.native && rows.filter(other=>other.native===row.native).length===1 ? row.native : "";
+        if (local) ids.set(row.node,"local:"+observation.epoch+":"+local);
+      }
+      observation.rows=rows;
+      return {rows,ids};
+    }
+    function userMessages() { return observeMessages().rows.filter(r=>r.role==="user").map(r=>r.node); }
+    function assistantMessages() {
+      const eligible=new Set(reader.assistantMessages());
+      return observeMessages().rows.filter(r=>r.role==="assistant" && eligible.has(r.node)).map(r=>r.node);
+    }
+    function messageId(node) { return observeMessages().ids.get(node) || ""; }
+    function messageText(node) {
+      const root=conversationRoot(),role=root ? roleOf(node,root) : "";
+      return role ? bodyText(node,role) : "";
+    }
     function currentContext(context) {
       if (!context || context.locationHref !== location.href) return null;
       const fresh = composerContext();
@@ -64,10 +127,12 @@
       if (assistantStates.some(n => n.getAttribute("data-is-streaming") === "true")) return {kind:"busy",button:null};
       if (assistantStates.some(n => n.getAttribute("data-is-streaming") !== "false")) return {kind:"unknown",button:null};
       if (c.root.querySelector('[role="progressbar"],[aria-busy="true"]')) return {kind:"busy",button:null};
+      if (cards(c.root).length) return {kind:"unknown",button:null};
       const sends = controls(c).filter(n => n.matches('button[data-testid="chat-input-send"][aria-label="Отправить сообщение"]'));
       if (sends.length !== 1) return {kind:"unknown",button:null};
       const button = sends[0], disabled = button.disabled || button.matches(":disabled") ||
         button.getAttribute("aria-disabled") === "true" || button.hasAttribute("data-disabled");
+      if (!readComposerText(c.composer).trim()) return {kind:"ready",button:null};
       return {kind:disabled ? "send_disabled" : "send_active",button};
     }
     function attachmentPreview(filename) {
@@ -113,11 +178,15 @@
           [button.tagName,button.getAttribute("data-testid") || "",button.getAttribute("aria-label") || "",button.type].join("|") : "";
       },
       isGenerating() { return ["stop","busy","unknown"].includes(classify(composerContext()).kind); },
-      assistantMessages:reader.assistantMessages,
+      conversationRoot, userMessages, assistantMessages, messageId, messageText,
       findCodeBlocks:reader.findCodeBlocks, readCodeText:reader.readCodeText, geometryAnchor:reader.geometryAnchor,
-      // No ordinal, generated ID or text hash is promoted to a native message identity.
-      messageId() { return ""; },
-      messageComplete() { return false; },
+      messageComplete(node) {
+        return assistantMessages().includes(node) && Boolean(messageId(node)) &&
+          node.getAttribute("data-is-streaming")==="false" &&
+          ["ready","send_active","send_disabled"].includes(classify(composerContext()).kind) &&
+          Boolean(messageText(node).trim());
+      },
+      deliveryCapabilities() { return globalThis.OzonAIDeliveryCapabilities?.profile?.("claude") || null; },
       attachmentSurface, attachmentPreview,
       attachFiles(surface,files) {
         const c = attachmentSurface();
@@ -133,8 +202,8 @@
       attachmentReady() { return false; },
       sentAttachmentMessage() { return null; },
       integrationStatus() {
-        return Object.freeze({status:"pending",message_identity:"not_observed",
-          upload_end:"not_observed",registry_activated:false});
+        return Object.freeze({status:"text_only",message_identity:"document_scoped_native_witness",
+          upload_end:"not_observed",registry_activated:true});
       }
     });
   }

@@ -1019,7 +1019,8 @@ const SA_SIGNED_PROFILE_ORIGINS = Object.freeze({
   qwen: Object.freeze(["https://chat.qwen.ai"]),
   kimi: Object.freeze(["https://www.kimi.ai"]),
   grok: Object.freeze(["https://grok.com"]),
-  gemini: Object.freeze(["https://gemini.google.com"])
+  gemini: Object.freeze(["https://gemini.google.com"]),
+  claude: Object.freeze(["https://claude.ai"])
 });
 function saSignedProfileOriginAllowed(family, origin) {
   const allowed = SA_SIGNED_PROFILE_ORIGINS[family];
@@ -1190,7 +1191,7 @@ async function saSignedProfileReceipt(message, sender) {
 async function saBroadcastSignedProfileRefresh(reason = "authority_changed") {
   const boundedReason = reason === "profile_changed" ? "profile_changed" : "authority_changed";
   const tabs = await chrome.tabs.query({
-    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*", "https://www.kimi.ai/*", "https://grok.com/*", "https://gemini.google.com/*"]
+    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*", "https://www.kimi.ai/*", "https://grok.com/*", "https://gemini.google.com/*", "https://claude.ai/*"]
   }).catch(() => []);
   await Promise.allSettled(tabs.filter(tab => Number.isSafeInteger(tab?.id))
     .map(tab => tabMessage(tab.id, { type: "OZ_SIGNED_AI_PROFILE_REFRESH", reason: boundedReason })));
@@ -1410,7 +1411,7 @@ async function saSupportSnapshot(tabId) {
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
   const detectedAiFamily = popup.identity?.ai_id || popup.page?.aiFamily;
-  const aiFamily = ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini"].includes(detectedAiFamily) ? detectedAiFamily : null;
+  const aiFamily = ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude"].includes(detectedAiFamily) ? detectedAiFamily : null;
   const lastStart = popup.lastStart || null;
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",

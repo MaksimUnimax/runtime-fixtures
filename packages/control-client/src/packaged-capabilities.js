@@ -68,6 +68,14 @@
       packaged: true,
       executionAuthority: false,
     },
+    {
+      id: "ai.claude.web.adapter",
+      kind: "ai_adapter",
+      family: "claude",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
   ];
 
   function deepFreeze(value) {
