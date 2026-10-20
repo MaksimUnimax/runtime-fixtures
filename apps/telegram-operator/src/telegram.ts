@@ -208,10 +208,44 @@ export class TelegramOperatorService {
         );
         return;
       }
-      if (!parsed || parsed.name !== "swagger_upload" || !parsed.argument) {
+      const captionless = text.trim().length === 0;
+      const explicitUpload =
+        parsed?.name === "swagger_upload" && Boolean(parsed.argument);
+      if (!captionless && !explicitUpload) {
         await this.options.transport.sendMessage(
           chatId,
-          "Attach the complete WB bundle with /swagger_upload <request_id> as the caption.",
+          "Attach the official WB bundle without a caption in the configured operator chat when exactly one WB request is pending; otherwise use /swagger_upload <request_id> as the caption.",
+        );
+        return;
+      }
+      // A captionless upload has no operator-supplied request authority.
+      // Limit it to an approved destination and exactly one pending official
+      // WB family bundle. Other source families and explicit uploads retain
+      // their existing independent request-ID routing.
+      if (captionless && !this.options.notificationChatIds?.includes(chatId)) {
+        await this.options.transport.sendMessage(chatId, "DENIED");
+        return;
+      }
+      const pendingWb = captionless
+        ? (await this.options.swaggerHandoff.listPending()).filter(
+            (request) => request.sourceFamily === "WILDBERRIES",
+          )
+        : [];
+      const pending = pendingWb.length === 1 ? pendingWb[0] : undefined;
+      if (
+        captionless &&
+        (!pending ||
+          pending.status !== "PENDING_OPERATOR_UPLOAD" ||
+          pending.officialUrl !== WB_BUNDLE_OFFICIAL_URL ||
+          pending.documentKey !== WB_BUNDLE_DOCUMENT_KEY ||
+          pending.bundleVersion !== WB_BUNDLE_VERSION ||
+          pending.expectedArtifactType !== "JSON" ||
+          (pending.expiresAt !== null &&
+            pending.expiresAt.getTime() <= Date.now()))
+      ) {
+        await this.options.transport.sendMessage(
+          chatId,
+          "WB_BUNDLE_PENDING_NOT_UNIQUE_OR_INVALID. Use /swagger_pending and the explicit /swagger_upload command if more than one WB request is pending.",
         );
         return;
       }
@@ -231,14 +265,22 @@ export class TelegramOperatorService {
         await this.options.transport.sendMessage(chatId, "UPLOAD_UNAVAILABLE");
         return;
       }
-      const [requestId, documentKey] = parsed.argument.split(/\s+/, 2);
+      if (bytes.byteLength > this.options.swaggerHandoff.maxUploadBytes) {
+        await this.options.transport.sendMessage(chatId, "UPLOAD_TOO_LARGE");
+        return;
+      }
+      const [explicitRequestId, explicitDocumentKey] = explicitUpload
+        ? parsed!.argument!.split(/\s+/, 2)
+        : [];
       const result = await this.options.swaggerHandoff.upload({
-        requestId: requestId!,
+        requestId: captionless ? pending!.requestId : explicitRequestId!,
         operatorId,
         originalFilename: document.fileName ?? "upload",
         bytes,
         declaredSourceFamily: document.sourceFamily,
-        documentKey: document.documentKey ?? documentKey,
+        documentKey: captionless
+          ? WB_BUNDLE_DOCUMENT_KEY
+          : (document.documentKey ?? explicitDocumentKey),
       });
       await this.options.transport.sendMessage(
         chatId,
@@ -305,7 +347,7 @@ export class TelegramOperatorService {
       case "swagger_upload":
         await this.options.transport.sendMessage(
           chatId,
-          "Attach one official source or the complete WB JSON bundle with /swagger_upload <request_id> as its caption.",
+          "For one pending official WB bundle, attach a JSON file here without a caption. For other cases, use /swagger_upload <request_id> as its caption.",
         );
         return;
       default:
@@ -386,13 +428,27 @@ export class TelegramOperatorService {
       return;
     }
     const requests = await this.options.swaggerHandoff.listPending();
+    const wb = requests.filter(
+      (request) => request.sourceFamily === "WILDBERRIES",
+    );
+    const singleOfficialWb =
+      wb.length === 1 &&
+      wb[0]?.status === "PENDING_OPERATOR_UPLOAD" &&
+      wb[0]?.officialUrl === WB_BUNDLE_OFFICIAL_URL &&
+      wb[0]?.documentKey === WB_BUNDLE_DOCUMENT_KEY &&
+      wb[0]?.bundleVersion === WB_BUNDLE_VERSION &&
+      wb[0]?.expectedArtifactType === "JSON" &&
+      this.options.notificationChatIds?.includes(chatId);
     const text = requests.length
       ? requests
           .map(
             (request) =>
               `${request.requestId} | ${request.sourceFamily} | ${request.documentKey ?? "family"} | ${request.status}\n${request.officialUrl}\nexpected=${request.expectedArtifactType}`,
           )
-          .join("\n")
+          .join("\n") +
+        (singleOfficialWb
+          ? "\nAttach the one official WB JSON bundle here without a caption or request ID."
+          : "")
       : "No pending Swagger source requests.";
     await this.options.transport.sendMessage(
       chatId,

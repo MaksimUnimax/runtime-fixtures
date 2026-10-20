@@ -101,6 +101,7 @@ async function fixture(swaggerDelayMs = 0) {
       answerCallback: async () => {},
     },
     operatorIds: new Set(["7"]),
+    notificationChatIds: ["42"],
   });
   let updateId = 0;
   const command = (text: string, userId = "7") =>
@@ -146,6 +147,7 @@ async function fixture(swaggerDelayMs = 0) {
     pendingStore,
     handoffState,
     state,
+    bot,
     messages,
     command,
     upload,
@@ -187,6 +189,148 @@ function failInventoryPersistence(
       return original(inventory);
     });
 }
+
+// Source-only tests: one operator attachment, no manually typed request identity.
+async function sendWbAttachment(
+  f: Awaited<ReturnType<typeof fixture>>,
+  input: {
+    userId?: string;
+    chatId?: string;
+    caption?: string;
+    fileSize?: number;
+    payload?: Uint8Array;
+  } = {},
+) {
+  return f.bot.handleUpdate({
+    updateId: 1000,
+    message: {
+      chatId: input.chatId ?? "42",
+      userId: input.userId ?? "7",
+      caption: input.caption,
+      document: {
+        fileId: "synthetic",
+        fileName: "wb-official-bundle.json",
+        fileSize: input.fileSize,
+        bytes: input.payload ?? bytes(),
+      },
+    },
+  });
+}
+
+async function waitForCaptionlessSourceConsumption(
+  f: Awaited<ReturnType<typeof fixture>>,
+) {
+  await vi.waitFor(
+    async () => {
+      const state = await f.scheduleStore.getState("SWAGGER_API");
+      expect(state.activeRun).toBeNull();
+      expect(state.lastResult?.status).toBe("SUCCEEDED");
+    },
+    { timeout: 15_000 },
+  );
+}
+
+describe("C04 WB single-attachment intake without a request ID", () => {
+  it("advertises the captionless upload after an existing request, without asking for its ID", async () => {
+    const f = await fixture();
+    await f.command("/swagger_pending");
+    expect(f.messages.at(-1)).toContain("without a caption or request ID");
+  });
+
+  it("accepts one complete WB bundle from an allowlisted operator in the configured chat", async () => {
+    const f = await fixture();
+    await sendWbAttachment(f);
+    expect(f.messages.at(-1)).toBe(
+      `Swagger candidate ready: ${f.first.requestId}`,
+    );
+    expect((await f.pendingStore.getRequest(f.first.requestId))?.status).toBe(
+      "CANDIDATE_READY",
+    );
+    const artifacts = await f.pendingStore.listArtifacts(f.first.requestId);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]?.status).toBe("CANDIDATE_READY");
+    expect(artifacts[0]?.sourceFamily).toBe("WILDBERRIES");
+    await waitForCaptionlessSourceConsumption(f);
+    expect(await f.store.listSnapshots()).toHaveLength(13);
+  }, 20_000);
+
+  it("rejects another user and another chat without downloading or creating an artifact", async () => {
+    const f = await fixture();
+    await sendWbAttachment(f, { userId: "8" });
+    expect(f.messages.at(-1)).toBe("DENIED");
+    await sendWbAttachment(f, { chatId: "99" });
+    expect(f.messages.at(-1)).toBe("DENIED");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("refuses ambiguous WB requests even when each has the official bundle identity", async () => {
+    const f = await fixture();
+    await f.pendingStore.createRequest({
+      sourceFamily: "WILDBERRIES",
+      officialUrl: f.first.officialUrl,
+      documentKey: f.first.documentKey,
+      bundleVersion: f.first.bundleVersion,
+      expectedArtifactType: "JSON",
+      blockerReason: "Second independent pending operator request.",
+    });
+    await sendWbAttachment(f);
+    expect(f.messages.at(-1)).toContain("WB_BUNDLE_PENDING_NOT_UNIQUE");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("refuses missing, expired and non-official WB requests", async () => {
+    const f = await fixture();
+    await f.pendingStore.setRequestStatus(f.first.requestId, "EXPIRED");
+    await sendWbAttachment(f);
+    expect(f.messages.at(-1)).toContain("WB_BUNDLE_PENDING_NOT_UNIQUE");
+    await f.pendingStore.createRequest({
+      sourceFamily: "WILDBERRIES",
+      officialUrl: "https://untrusted.example.test/wb.json",
+      documentKey: f.first.documentKey,
+      bundleVersion: f.first.bundleVersion,
+      expectedArtifactType: "JSON",
+      blockerReason: "Different official source required.",
+    });
+    await sendWbAttachment(f);
+    expect(f.messages.at(-1)).toContain("WB_BUNDLE_PENDING_NOT_UNIQUE");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("refuses oversize attachments and invalid 13-document bundles", async () => {
+    const f = await fixture();
+    await sendWbAttachment(f, {
+      fileSize: 26 * 1024 * 1024,
+    });
+    expect(f.messages.at(-1)).toBe("UPLOAD_TOO_LARGE");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+    await sendWbAttachment(f, {
+      payload: new TextEncoder().encode("{}"),
+    });
+    expect(f.messages.at(-1)).not.toMatch(/candidate ready/i);
+    expect(
+      (await f.pendingStore.listArtifacts(f.first.requestId)).filter(
+        (artifact) => artifact.status === "CANDIDATE_READY",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("keeps explicit /swagger_upload bound to its provided request ID", async () => {
+    const f = await fixture();
+    await f.upload(f.first.requestId);
+    expect(f.messages.at(-1)).toBe(
+      `Swagger candidate ready: ${f.first.requestId}`,
+    );
+    await waitForCaptionlessSourceConsumption(f);
+  }, 20_000);
+});
 
 describe("review main109ce9df public WB recovery", () => {
   it("bot upload wakes the report pipeline and persists all13 snapshots/inventories without a fabricated diff", async () => {
