@@ -771,19 +771,13 @@
           { fetchImpl: guardedFetch(executionGuard), request, now },
         );
         if (!response.ok) {
-          const safeError = contract.safeErrorPayload(
-            response.httpStatus,
-            response.rawText,
-            response.parsed,
-          );
           return Object.freeze({
             status: "unknown",
             subscription_type: "UNKNOWN",
             is_premium: null,
             probe_performed: true,
             probe_http_status: response.httpStatus,
-            probe_error_code:
-              safeError.code || "SELLER_CAPABILITY_PROBE_HTTP_ERROR",
+            probe_error_code: "SELLER_CAPABILITY_PROBE_HTTP_ERROR",
           });
         }
         const payload =
@@ -826,9 +820,15 @@
           is_premium: null,
           probe_performed: true,
           probe_http_status: Number(error?.http_status || 0),
-          probe_error_code: String(
-            error?.code || "SELLER_CAPABILITY_PROBE_FAILED",
-          ).slice(0, 160),
+          probe_error_code: new Set([
+            "MISSING_CLIENT_ID", "MISSING_API_KEY",
+            "INVALID_CLIENT_ID", "INVALID_API_KEY",
+            "INCOMPLETE_SELLER_CREDENTIALS", "FETCH_IMPL_MISSING",
+            "INVALID_REQUEST", "UNTRUSTED_REQUEST_HOST",
+            "UNTRUSTED_REQUEST_METHOD", "PROVIDER_FETCH_FAILED",
+          ]).has(error?.code)
+            ? error.code
+            : "SELLER_CAPABILITY_PROBE_FAILED",
         });
       }
     }
