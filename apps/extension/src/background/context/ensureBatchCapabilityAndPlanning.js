@@ -294,20 +294,73 @@ async function ensureBatchCapabilityAndPlanning({
     return { ok: false, code: "BATCH_OWNER_NOT_ACTIVE" };
   if (owner.batch.planning_state === "complete")
     return { ok: true, code: "BATCH_PLANNING_READY", owner };
-  const profile = owner.batch.capability_resolution?.profile || {
+  // Fail closed on legacy "known" profiles without a witnessed Seller
+  // subscription response. Keep the persisted original: never replay or
+  // overwrite a prior worker's durable receipt merely to reauthorize a plan.
+  const persistedProfile = owner.batch.capability_resolution?.profile || {
     status: "not_needed",
     subscription_type: "UNKNOWN",
     is_premium: null,
     probe_performed: false,
+    probe_observation: "NOT_NEEDED",
     probe_http_status: 0,
     probe_error_code: null,
   };
-  // Keep recovered uncertainty visible in the result without modifying
-  // the immutable imported contract's legacy Boolean normalization.
-  const recoveredUnknown =
-    owner.batch.capability_resolution?.probe_observation === "RECOVERED_UNKNOWN" &&
-    owner.batch.capability_resolution?.probe_performed === null &&
-    profile.status === "unknown";
+  const rawHttp = Number(persistedProfile?.probe_http_status);
+  const received =
+    persistedProfile?.probe_observation === "RESPONSE_OBSERVED" &&
+    persistedProfile?.probe_performed === true &&
+    Number.isInteger(rawHttp) && rawHttp >= 100 && rawHttp <= 599;
+  const knownWithReceipt =
+    received && rawHttp >= 200 && rawHttp < 300 &&
+    persistedProfile?.status === "known";
+  const observations = [
+    "NOT_ATTEMPTED", "FETCH_INVOKED_OUTCOME_UNKNOWN",
+    "RESPONSE_OBSERVED", "RECOVERED_UNKNOWN", "NOT_NEEDED",
+  ];
+  const observation = observations.includes(persistedProfile?.probe_observation)
+    ? persistedProfile.probe_observation : "LEGACY_UNKNOWN";
+  const performed =
+    observation === "RESPONSE_OBSERVED" ||
+    observation === "FETCH_INVOKED_OUTCOME_UNKNOWN"
+      ? persistedProfile?.probe_performed === true ? true : null
+      : observation === "NOT_ATTEMPTED" || observation === "NOT_NEEDED"
+        ? false : null;
+  let safeErrorCode = null;
+  try {
+    const rawCode = persistedProfile?.probe_error_code;
+    if (rawCode != null) {
+      const publicCodes = new Set([
+        "MISSING_CLIENT_ID", "MISSING_API_KEY",
+        "INVALID_CLIENT_ID", "INVALID_API_KEY",
+        "INCOMPLETE_SELLER_CREDENTIALS", "FETCH_IMPL_MISSING",
+        "INVALID_REQUEST", "UNTRUSTED_REQUEST_HOST",
+        "UNTRUSTED_REQUEST_METHOD", "PROVIDER_FETCH_FAILED",
+        "SELLER_CAPABILITY_PROBE_FAILED",
+        "SELLER_CAPABILITY_PROBE_HTTP_ERROR",
+        "SELLER_CAPABILITY_SUBSCRIPTION_UNKNOWN",
+        "CAPABILITY_PROBE_OUTCOME_UNKNOWN_NO_RETRY",
+        "EXECUTION_CONTEXT_CHANGED",
+      ]);
+      safeErrorCode = typeof rawCode === "string" && publicCodes.has(rawCode)
+        ? rawCode : "SELLER_CAPABILITY_PROBE_FAILED";
+    }
+  } catch (_) {
+    safeErrorCode = "SELLER_CAPABILITY_PROBE_FAILED";
+  }
+  const profile = {
+    ...persistedProfile,
+    status: !capabilityRequired && persistedProfile?.status === "not_needed"
+      ? "not_needed" : knownWithReceipt ? "known" : "unknown",
+    subscription_type: knownWithReceipt
+      ? persistedProfile.subscription_type : "UNKNOWN",
+    is_premium: knownWithReceipt
+      ? persistedProfile.is_premium === true : null,
+    probe_performed: performed,
+    probe_observation: observation,
+    probe_http_status: received ? rawHttp : 0,
+    probe_error_code: safeErrorCode,
+  };
   let plannedEntries;
   try {
     plannedEntries = (owner.batch.entries || []).map((entry) => {
@@ -318,17 +371,18 @@ async function ensureBatchCapabilityAndPlanning({
         planningAtMs,
         entitlementSnapshot,
       );
-      const planning =
-        recoveredUnknown && plan.planning?.capability
-          ? {
-              ...plan.planning,
-              capability: {
-                ...plan.planning.capability,
-                probe_performed: null,
-                probe_observation: "RECOVERED_UNKNOWN",
-              },
-            }
-          : plan.planning || null;
+      // Frozen imported contract predates tri-state evidence; never convert
+      // unknown worker/legacy outcomes to an invented Boolean in the report.
+      const planning = plan.planning?.capability
+        ? {
+            ...plan.planning,
+            capability: {
+              ...plan.planning.capability,
+              probe_performed: profile.probe_performed,
+              probe_observation: profile.probe_observation,
+            },
+          }
+        : plan.planning || null;
       if (plan.action === "reject") {
         return {
           ...entry,
