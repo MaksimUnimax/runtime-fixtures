@@ -1,5 +1,7 @@
 """Offline checks for bounded, completed signed bootstrap HTTP observation."""
 import importlib.util
+import os
+import subprocess
 from pathlib import Path
 import unittest
 
@@ -62,6 +64,230 @@ class BootstrapObserverTest(unittest.TestCase):
         return module.read_completed_bootstrap_response(
             response, context or FakeContext(), completed if completed is not None else []
         )
+
+    def test_stored_chatgpt_candidate_projection_fixed_boolean_only(self):
+        raw = {
+            "stored_record_present": True,
+            "stored_record_ambiguous": False,
+            "stored_work_allowed_claim": True,
+            "stored_ai_resolved_claim": True,
+            "stored_envelope_present": True,
+            "stored_profile_present": True,
+            "stored_same_generation_claim": True,
+            "stored_same_account_claim": True,
+            "read_failed": False,
+        }
+        self.assertEqual(module.safe_stored_chatgpt_candidate_observation(raw), raw)
+
+    def test_stored_chatgpt_projection_rejects_secrets_and_malformed(self):
+        good = {
+            "stored_record_present": True,
+            "stored_record_ambiguous": False,
+            "stored_work_allowed_claim": True,
+            "stored_ai_resolved_claim": True,
+            "stored_envelope_present": True,
+            "stored_profile_present": True,
+            "stored_same_generation_claim": True,
+            "stored_same_account_claim": True,
+            "read_failed": False,
+        }
+        failure = {**{key: False for key in good if key != "read_failed"}, "read_failed": True}
+        for bad in (
+            None, "SECRET_TOKEN", {"read_failed": True},
+            {**good, "access_token": "SECRET_TOKEN"},
+            {**good, "stored_work_allowed_claim": "true"},
+            {**good, "stored_record_present": 1},
+            {key: value for key, value in good.items() if key != "stored_ai_resolved_claim"},
+        ):
+            with self.subTest(input_type=type(bad).__name__):
+                observed = module.safe_stored_chatgpt_candidate_observation(bad)
+                self.assertEqual(observed, failure)
+                self.assertNotIn("SECRET_TOKEN", str(observed))
+
+    def test_stored_candidate_hint_never_claims_accepted_grant(self):
+        # These are storage hints, not verified signed or online authority.
+        raw = {
+            "stored_record_present": True,
+            "stored_record_ambiguous": False,
+            "stored_work_allowed_claim": False,
+            "stored_ai_resolved_claim": False,
+            "stored_envelope_present": False,
+            "stored_profile_present": False,
+            "stored_same_generation_claim": False,
+            "stored_same_account_claim": False,
+            "read_failed": False,
+        }
+        value = module.safe_stored_chatgpt_candidate_observation(raw)
+        self.assertTrue(value["stored_record_present"])
+        self.assertFalse(value["stored_work_allowed_claim"])
+        self.assertNotIn("verified", value)
+        self.assertNotIn("signed_work_allowed", value)
+
+
+    def test_late_signed_snapshot_projection_is_fixed_boolean_only(self):
+        late = {
+            "post_abort_signed_envelope_verified": True,
+            "post_abort_signed_account_matches_expected": True,
+            "post_abort_signed_chatgpt_resolved": True,
+            "post_abort_signed_profile_material_valid": True,
+            "post_abort_signed_unexpired_wall_clock_only": True,
+            "post_abort_probe_read_failed": False,
+            "at_abort_grant_entitlement_proven": False,
+        }
+        self.assertEqual(module.safe_post_abort_signed_snapshot_observation(late), late)
+        self.assertNotIn("signed_work_allowed", late)
+        self.assertFalse(late["at_abort_grant_entitlement_proven"])
+
+    def test_late_signed_snapshot_cannot_promote_bad_fields_or_secrets(self):
+        valid = {
+            "post_abort_signed_envelope_verified": True,
+            "post_abort_signed_account_matches_expected": True,
+            "post_abort_signed_chatgpt_resolved": True,
+            "post_abort_signed_profile_material_valid": True,
+            "post_abort_signed_unexpired_wall_clock_only": True,
+            "post_abort_probe_read_failed": False,
+            "at_abort_grant_entitlement_proven": False,
+        }
+        expected = {
+            **{k: False for k in valid if k != "post_abort_probe_read_failed"},
+            "post_abort_probe_read_failed": True,
+        }
+        for bad in (
+            None, "SYNTHETIC_PRIVATE_TOKEN",
+            {**valid, "access_token": "SYNTHETIC_PRIVATE_TOKEN"},
+            {**valid, "post_abort_signed_envelope_verified": 1},
+            {**valid, "post_abort_signed_account_matches_expected": "true"},
+            {**valid, "at_abort_grant_entitlement_proven": True},
+            {k: v for k, v in valid.items()
+             if k != "post_abort_signed_profile_material_valid"},
+        ):
+            with self.subTest(source_type=type(bad).__name__):
+                result = module.safe_post_abort_signed_snapshot_observation(bad)
+                self.assertEqual(result, expected)
+                self.assertNotIn("SYNTHETIC_PRIVATE_TOKEN", str(result))
+
+    def test_late_signed_snapshot_cannot_claim_signed_grant_on_failed_probe(self):
+        minimal = {
+            "post_abort_signed_envelope_verified": False,
+            "post_abort_signed_account_matches_expected": False,
+            "post_abort_signed_chatgpt_resolved": False,
+            "post_abort_signed_profile_material_valid": False,
+            "post_abort_signed_unexpired_wall_clock_only": False,
+            "post_abort_probe_read_failed": True,
+            "at_abort_grant_entitlement_proven": False,
+        }
+        self.assertEqual(module.safe_post_abort_signed_snapshot_observation(minimal), minimal)
+        for bad in (
+            {**minimal, "post_abort_signed_account_matches_expected": True},
+            {**minimal, "post_abort_probe_read_failed": True,
+             "post_abort_signed_envelope_verified": True},
+        ):
+            result = module.safe_post_abort_signed_snapshot_observation(bad)
+            self.assertEqual(result, minimal)
+            self.assertFalse(result["at_abort_grant_entitlement_proven"])
+
+    def test_embedded_post_abort_signed_probe_has_bounded_boolean_surface(self):
+        # Run the exact worker.evaluate code without a browser or real signer.
+        # This synthetic mock never establishes true signed Work authority.
+        import json
+        import os
+        import subprocess
+
+        source = Path(__file__).with_name("installed_local_integration.py").read_text()
+        marker = 'diagnostic = worker.evaluate("""async ({tabId, trust, expectedAccountId, selectedFailed}) => {'
+        self.assertEqual(source.count(marker), 1)
+        embedded = "async ({tabId, trust, expectedAccountId, selectedFailed}) => {" + source.split(marker, 1)[1].split('"""', 1)[0]
+        node = r"""
+import vm from "node:vm";
+import fs from "node:fs";
+import assert from "node:assert/strict";
+const {code} = JSON.parse(fs.readFileSync(0, "utf8"));
+for (const mode of ["valid_v2", "valid_v3", "invalid", "error", "missing", "other_family", "unsupported", "not_selected"]) {
+  const id = "SYNTHETIC_EXPECTED_ACCOUNT";
+  const profile = {syntheticMaterial:"SOURCE_TEST_ONLY"};
+  let verifications = 0;
+  const saved = {seller_agents_control_auth_v2:{
+    generation: 5, authority:{payload:{account:{id}}},
+    grants:mode === "missing" ? {} : {scope:{authority:{
+      requestedAi:"chatgpt", workAllowed:true,
+      envelope:{envelopeVersion: mode==="valid_v3" ? "bootstrap_envelope_v3" :
+        mode==="unsupported" ? "unexpected_format" : "bootstrap_envelope_v2",
+        synthetic:"NOT_REAL_SIGNED_ENVELOPE"},
+      payload:{account:{id}, ai:{status:"RESOLVED", profile}}
+    }}}
+  }};
+  const context = {
+    chrome:{storage:{local:{get:async()=>saved}}},
+    SellerAgentsControlClient:{status:async()=>({authenticated:true,workAllowed:true,pending:false})},
+    SellerAgentsBootstrapVerifier:{verifyV2:async(e,trust)=>{
+      verifications++;
+      assert.equal(e.envelopeVersion,"bootstrap_envelope_v2");
+      assert.equal(e.synthetic,"NOT_REAL_SIGNED_ENVELOPE");
+      assert.equal(trust.kind,"SYNTHETIC_PUBLIC_TRUST");
+      if(mode==="error") throw new Error("PRIVATE_SYNTHETIC_SIGNER_ERROR");
+      if(mode==="invalid") return {ok:false,error:"MALFORMED"};
+      return {ok:true,payload:{account:{id},ai:{
+        status:"RESOLVED", detected:{family:mode==="other_family"?"alice":"chatgpt",surface:"web",variant:null},
+        profile
+      },expiresAt:new Date(Date.now()+3600000).toISOString()}};
+    }, verifyV3:async(e,trust)=>{
+      verifications++;
+      assert.equal(e.envelopeVersion,"bootstrap_envelope_v3");
+      assert.equal(trust.kind,"SYNTHETIC_PUBLIC_TRUST");
+      return {ok:true,payload:{account:{id},localClientAuthority:true,
+        contractVersion:"control_plane_v3",
+        expiresAt:new Date(Date.now()+3600000).toISOString()}};
+    }},
+    SellerAgentsSignedAiProfileConsumer:{
+      validMaterialShape:p=>p===profile,
+      validMaterial:async p=>p===profile
+    },setTimeout,clearTimeout
+  };
+  const fn = vm.runInNewContext("(" + code + ")",context);
+  const result = await fn({tabId:1,trust:{kind:"SYNTHETIC_PUBLIC_TRUST"},expectedAccountId:id,selectedFailed:mode!=="not_selected"});
+  if(mode==="not_selected"){
+    assert.equal(result.post_abort_signed_snapshot,undefined);
+    assert.equal(verifications,0,"unrelated I1 errors must not verify a signed snapshot");
+    continue;
+  }
+  const row=result.post_abort_signed_snapshot;
+  const output=JSON.stringify(result);
+  assert.equal(row.at_abort_grant_entitlement_proven,false);
+  assert.equal(Object.keys(row).length,7);
+  assert.ok(Object.values(row).every(x=>typeof x==="boolean"));
+  assert.ok(!output.includes("NOT_REAL_SIGNED_ENVELOPE"));
+  assert.ok(!output.includes("PRIVATE_SYNTHETIC"));
+  assert.ok(!output.includes(id));
+  if(mode==="valid_v2"){
+    assert.equal(row.post_abort_signed_envelope_verified,true);
+    assert.equal(row.post_abort_signed_profile_material_valid,true);
+    assert.equal(row.post_abort_signed_chatgpt_resolved,true);
+    assert.equal(row.post_abort_signed_unexpired_wall_clock_only,true);
+  }else if(mode==="invalid"){
+    assert.equal(row.post_abort_signed_envelope_verified,false);
+    assert.equal(row.post_abort_probe_read_failed,false);
+  }else if(mode==="error"||mode==="missing"){
+    assert.equal(row.post_abort_probe_read_failed,true);
+    assert.equal(row.post_abort_signed_envelope_verified,false);
+  }else if(mode==="valid_v3"||mode==="other_family"){
+    assert.equal(row.post_abort_signed_envelope_verified,true);
+    assert.equal(row.post_abort_signed_chatgpt_resolved,false);
+    assert.equal(row.post_abort_signed_profile_material_valid,false);
+  }else if(mode==="unsupported"){
+    assert.equal(row.post_abort_signed_envelope_verified,false);
+    assert.equal(row.post_abort_signed_chatgpt_resolved,false);
+  }
+  assert.equal(verifications,mode==="missing"||mode==="unsupported"?0:1);
+}
+process.stdout.write("LATE_SIGNED_VM_8_PASS");
+"""
+        completed = subprocess.run(
+            [os.environ.get("SA_NODE_BIN", "node"), "--input-type=module", "-e", node],
+            input=json.dumps({"code": embedded}), text=True,
+            capture_output=True, timeout=20, check=False,
+        )
+        self.assertEqual(completed.returncode, 0, "LATE_SIGNED_VM_REGRESSION")
+        self.assertEqual(completed.stdout, "LATE_SIGNED_VM_8_PASS")
 
     def test_already_finished_response_does_not_wait_or_call_finished(self):
         response = FakeResponse({"keyId": "fixture", "payload": "fixture"})
@@ -365,6 +591,198 @@ class BootstrapObserverTest(unittest.TestCase):
         self.assertEqual(response.calls, [])
         self.assertEqual(context.waits, [])
 
+
+
+    def test_work_start_causal_probe_requires_exact_installed_ack(self):
+        # The observer may return installed=False when an existing probe is
+        # present. A successful Work Start must not mask that diagnostic failure.
+        self.assertIs(module.require_work_start_causal_probe_installed({"installed": True}), True)
+        for payload in (
+            None, True, False, "", "PRIVATE_STATUS", [], 1,
+            {}, {"installed": False}, {"installed": 1},
+            {"installed": "true"}, {"installed": True, "url": "PRIVATE_URL"},
+            {"installed": True, "at_abort_grant": True},
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "^I1_WORK_START_CAUSAL_PROBE_INSTALL_UNCONFIRMED$"
+            ) as exc:
+                module.require_work_start_causal_probe_installed(payload)
+            self.assertNotIn("PRIVATE", str(exc.exception))
+
+    def test_work_start_abort_trace_projection_rejects_sensitive_and_unproven(self):
+        sample = {
+            "schema_version": 1, "probe_installed": True, "observer_error": False,
+            "bootstrap_fetch_count": 1, "bootstrap_fetch_overflow": False,
+            "unique_bootstrap_fetch": True,
+            "request_signal_initially_aborted": False,
+            "request_signal_abort_event_seen": True,
+            "request_controller_abort_seen": True,
+            "request_controller_abort_age_ms": 141,
+            "synchronous_scheduler_retire_reason": "BOOTSTRAP_CONTEXT_CHANGED",
+        }
+        fixed = module.safe_work_start_causal_abort_probe(sample)
+        self.assertFalse(fixed["read_failed"])
+        self.assertFalse(fixed["selected_network_request_identity_proven"])
+        self.assertFalse(fixed["at_abort_grant_entitlement_proven"])
+        self.assertEqual(fixed["request_controller_abort_age_ms"], 141)
+        self.assertEqual(fixed["synchronous_scheduler_retire_reason"], "BOOTSTRAP_CONTEXT_CHANGED")
+        cases = [
+            dict(sample, probe_installed=False),
+            dict(sample, observer_error=True),
+            dict(sample, bootstrap_fetch_count=True),
+            dict(sample, bootstrap_fetch_overflow=True),
+            dict(sample, unique_bootstrap_fetch=False),
+            dict(sample, request_signal_abort_event_seen=False),
+            dict(sample, request_controller_abort_age_ms=180001),
+            dict(sample, request_controller_abort_age_ms="PRIVATE_ID"),
+            dict(sample, synchronous_scheduler_retire_reason="PRIVATE_REASON"),
+            dict(sample, at_abort_grant_entitlement_proven=True),
+            dict(sample, extra_url="PRIVATE_URL"),
+        ]
+        for invalid in cases:
+            rejected = module.safe_work_start_causal_abort_probe(invalid)
+            self.assertTrue(rejected["read_failed"])
+            self.assertFalse(rejected["at_abort_grant_entitlement_proven"])
+            self.assertFalse(rejected["selected_network_request_identity_proven"])
+            self.assertNotIn("PRIVATE_", str(rejected))
+        self.assertTrue(module.safe_work_start_causal_abort_probe(None)["read_failed"])
+        ambiguous = {
+            **sample, "bootstrap_fetch_count": 2, "unique_bootstrap_fetch": False,
+            "request_signal_abort_event_seen": False,
+            "request_controller_abort_seen": False,
+            "request_controller_abort_age_ms": None,
+            "synchronous_scheduler_retire_reason": "NONE",
+        }
+        self.assertFalse(module.safe_work_start_causal_abort_probe(ambiguous)["read_failed"])
+        self.assertFalse(module.safe_work_start_causal_abort_probe(ambiguous)["unique_bootstrap_fetch"])
+
+    def test_work_start_abort_probe_node_vm_uses_no_network(self):
+        # Isolated VM mocks fetch and uses a subclassed AbortController,
+        # never touching the browser, public network, real tokens or user data.
+        js = r"""
+const assert = require("node:assert/strict"), vm=require("node:vm");
+const source=process.argv[1];
+function setup() {
+  const sentinel={ok:true}, calls=[];
+  class PrivateController extends AbortController {}
+  const box={URL,performance,AbortController:PrivateController,
+    fetch(...args){calls.push(args);return sentinel;}};
+  vm.createContext(box);
+  const install=vm.runInContext(source,box);
+  assert.equal(install().installed,true);
+  assert.equal(install().installed,false); // Duplicate installation must fail closed in Python.
+  return {box,sentinel,calls};
+}
+function ac(f){return new f.box.AbortController();}
+function send(f,controller) {
+  const url="http://127.0.0.1:43100/v1/bootstrap?PRIVATE_URL";
+  const opts={signal:controller.signal,headers:{Authorization:"PRIVATE_AUTH"}};
+  assert.equal(f.box.fetch(url,opts),f.sentinel);
+  assert.equal(f.calls.at(-1)[0],url);
+  assert.equal(f.calls.at(-1)[1],opts);
+}
+{
+  const f=setup(), lease=ac(f), physical=ac(f);
+  lease.signal.addEventListener("abort",()=>physical.abort());
+  f.box.fetch("https://chatgpt.com/other?PRIVATE_OTHER");
+  send(f,physical);
+  lease.abort(Object.assign(new Error("PRIVATE_ERROR"),{code:"BOOTSTRAP_CONTEXT_CHANGED"}));
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.bootstrap_fetch_count,1);
+  assert.equal(r.unique_bootstrap_fetch,true);
+  assert.equal(r.request_signal_abort_event_seen,true);
+  assert.equal(r.request_controller_abort_seen,true);
+  assert.equal(r.observer_error,false);
+  assert.equal(r.synchronous_scheduler_retire_reason,"BOOTSTRAP_CONTEXT_CHANGED");
+  assert.ok(Number.isInteger(r.request_controller_abort_age_ms));
+  assert.ok(!JSON.stringify(r).includes("PRIVATE"));
+}
+{
+  const f=setup(), c=ac(f);send(f,c);c.abort();
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.synchronous_scheduler_retire_reason,"NONE");
+  assert.equal(r.request_controller_abort_seen,true);
+}
+{
+  const f=setup(), unrelated=ac(f), physical=ac(f);
+  send(f,physical);
+  unrelated.abort(Object.assign(new Error("PRIVATE"),{code:"AUTH_GENERATION_CHANGED"}));
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.request_controller_abort_seen,false);
+  assert.equal(r.synchronous_scheduler_retire_reason,"NONE");
+}
+{
+  const f=setup();
+  send(f,ac(f));send(f,ac(f));
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.bootstrap_fetch_count,2);
+  assert.equal(r.unique_bootstrap_fetch,false);
+  assert.equal(r.synchronous_scheduler_retire_reason,"NONE");
+}
+{
+  const f=setup();
+  for(let n=0;n<9;n++)send(f,ac(f));
+  const r=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(r.bootstrap_fetch_count,9);
+  assert.equal(r.bootstrap_fetch_overflow,true);
+}
+{
+  const f=setup();f.box.fetch("http://127.0.0.1:43100/v1/bootstrap-other");
+  assert.equal(f.box.__saI1WorkStartAbortProbe.read().bootstrap_fetch_count,0);
+}
+{
+  const f=setup(), lease=ac(f), physical=ac(f);
+  lease.signal.addEventListener("abort",()=>physical.abort());
+  send(f,physical);
+  const tricky={get code(){throw new Error("PRIVATE_GETTER");}};
+  lease.abort(tricky);
+  assert.equal(physical.signal.aborted,true);
+  const report=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(report.request_signal_abort_event_seen,true);
+  assert.equal(report.request_controller_abort_seen,true);
+  assert.equal(report.observer_error,true);
+  assert.equal(report.synchronous_scheduler_retire_reason,"NONE");
+}
+{
+  const f=setup();
+  const tricky={get signal(){throw new Error("PRIVATE_SIGNAL_GETTER");}};
+  assert.equal(
+    f.box.fetch("http://127.0.0.1:43100/v1/bootstrap?PRIVATE",tricky),
+    f.sentinel);
+  const report=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(report.bootstrap_fetch_count,1);
+  assert.equal(report.unique_bootstrap_fetch,false);
+  assert.equal(report.request_controller_abort_seen,false);
+  assert.ok(!JSON.stringify(report).includes("PRIVATE_"));
+}
+{
+  const f=setup();
+  const source={get url(){throw new Error("PRIVATE_URL_GETTER");}};
+  assert.equal(f.box.fetch(source,{method:"POST"}),f.sentinel);
+  const report=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(report.observer_error,true);
+  assert.equal(report.bootstrap_fetch_count,0);
+  assert.ok(!JSON.stringify(report).includes("PRIVATE"));
+}
+{
+  const f=setup();
+  const signal={aborted:false,get addEventListener(){throw new Error("PRIVATE_SIGNAL_GETTER");}};
+  assert.equal(f.box.fetch("http://127.0.0.1:43100/v1/bootstrap?PRIVATE",{signal}),f.sentinel);
+  const report=f.box.__saI1WorkStartAbortProbe.read();
+  assert.equal(report.observer_error,true);
+  assert.equal(report.bootstrap_fetch_count,1);
+  assert.ok(!JSON.stringify(report).includes("PRIVATE"));
+}
+process.stdout.write("A06_WORKSTART_ABORT_VM_10_CASES_PASS\n");
+"""
+        result = subprocess.run(
+            [os.environ.get("SA_NODE_BIN", "node"), "-e", js,
+             module.WORK_START_CAUSAL_OBSERVER_JS],
+            text=True, capture_output=True, timeout=12, check=False,
+        )
+        self.assertEqual(result.returncode, 0, (result.stdout[-700:], result.stderr[-700:]))
+        self.assertIn("A06_WORKSTART_ABORT_VM_10_CASES_PASS", result.stdout)
+        self.assertNotIn("PRIVATE", result.stdout + result.stderr)
 
 
 if __name__ == "__main__":
