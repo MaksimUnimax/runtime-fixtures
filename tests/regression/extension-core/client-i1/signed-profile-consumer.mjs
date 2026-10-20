@@ -229,6 +229,7 @@ await test("PROFILE-02A-Alice-current-authority-origin-refresh-and-receipt", asy
       "https://alice.yandex.ru/*",
       "https://chat.qwen.ai/*",
       "https://www.kimi.ai/*",
+      "https://grok.com/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -736,6 +737,7 @@ await test("PROFILE-11-Kimi-refresh-routing-and-diagnostic-family", async () => 
       "https://alice.yandex.ru/*",
       "https://chat.qwen.ai/*",
       "https://www.kimi.ai/*",
+      "https://grok.com/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -816,6 +818,124 @@ await test("PROFILE-12-Kimi-verified-bootstrap-response-and-applied-receipt", as
     worker.close();
   }
 });
+
+const grokScope = Object.freeze({
+  family: "grok",
+  surface: "web",
+  variant: null,
+});
+const grokIdentity = Object.freeze({
+  origin: "https://grok.com",
+  ai_id: "grok",
+  conversation_id: "grok-fixture-dialogue",
+  status: "confirmed",
+});
+function grokSender(worker) {
+  const url = "https://grok.com/c/grok-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+await test("PROFILE-13-Grok-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, grokScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(grokScope);
+      payload.entitlements["ai.grok"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(grokIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: grokScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      grokIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), grokScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", grokIdentity),
+      true,
+    );
+    const request = requestFor("grok");
+    const response = await worker.request(request, grokSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), grokScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          grokSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+await test("PROFILE-14-Grok-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://grok.com/c/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(grokIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "grok");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
 
 console.log(
   JSON.stringify({

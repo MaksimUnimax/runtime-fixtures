@@ -13,7 +13,7 @@ function inputFor(worker, overrides = {}) {
   const payload = authority.payload;
   const profile = payload.ai.profile;
   const family = payload.ai.detected.family;
-  const origin = family === "kimi" ? "https://www.kimi.ai" : "https://chatgpt.com";
+  const origin = family === "kimi" ? "https://www.kimi.ai" : family === "grok" ? "https://grok.com" : "https://chatgpt.com";
   const store = { accountId: payload.account.id, id: "c3c-store", marketplace: "ozon", credentialRevision: "credential-r1" };
   const identity = { origin, conversationId: "c3c-dialogue", key: origin + "|c3c-dialogue", provider: family };
   const binding = { binding_id: "c3c-binding", revision: 2, origin: identity.origin, ai_id: family, conversation_id: identity.conversationId, conversation_key: identity.key, store_context: { ...store, authGeneration: authority.generation } };
@@ -128,8 +128,9 @@ try {
 
 // Kimi uses the ordinary signed offline fixture response and existing evaluator.
 // This is local functional context/lifecycle coverage, not provider activation.
+for (const family of ["kimi", "grok"]) {
 for (const permission of [true, false, null]) {
-  const scope = { family: "kimi", surface: "web", variant: null };
+  const scope = { family, surface: "web", variant: null };
   let kimi;
   let requests = 0;
   kimi = await makeWorker(runtime, { async fetch(url, init) {
@@ -138,17 +139,17 @@ for (const permission of [true, false, null]) {
     requests += 1;
     const payload = clone(kimi.backing.local[AUTH].authority.payload);
     payload.ai.detected = clone(scope);
-    if (permission === null) delete payload.entitlements["ai.kimi"];
-    else payload.entitlements["ai.kimi"] = permission;
+    if (permission === null) delete payload.entitlements["ai." + family];
+    else payload.entitlements["ai." + family] = permission;
     return Response.json(await signFixtureBootstrap(kimi.backing, payload));
   } });
   try {
-    kimi.setIdentity({ origin: "https://www.kimi.ai", ai_id: "kimi", conversation_id: "c3c-dialogue", status: "confirmed" });
+    kimi.setIdentity({ origin: family === "kimi" ? "https://www.kimi.ai" : "https://grok.com", ai_id: family, conversation_id: "c3c-dialogue", status: "confirmed" });
     await kimi.call("SellerAgentsControlClient.bootstrap", { detectedAi: scope });
     assert.equal(requests, 1);
     const base = inputFor(kimi);
     for (const operation of ["START", "CONTINUE", "RESUME", "REBIND"]) {
-      await run("C3C-KIMI-" + operation + "-permission-" + permission, async () => {
+      await run("C3C-" + family.toUpperCase() + "-" + operation + "-permission-" + permission, async () => {
         const input = { ...base, operation };
         const result = await kimi.call("SellerAgentsAutonomousWorkAuthority.evaluate", input);
         assert.equal(result.allowed, permission === true, JSON.stringify(result));
@@ -161,13 +162,13 @@ for (const permission of [true, false, null]) {
       });
     }
     if (permission === true) {
-      await run("C3C-KIMI-offline-grace", async () => {
+      await run("C3C-" + family.toUpperCase() + "-offline-grace", async () => {
         const value = await signAuthority(kimi, base, { expiresAt: new Date(base.effectiveTimeMs - 1).toISOString(), offlineGraceUntil: new Date(base.effectiveTimeMs + 60000).toISOString() });
         const result = await kimi.call("SellerAgentsAutonomousWorkAuthority.evaluate", value);
         assert.equal(result.allowed, true, JSON.stringify(result));
         assert.equal(result.authorityState, "ALLOW_OFFLINE_GRACE");
       });
-      await run("C3C-KIMI-page-context-changed", async () => {
+      await run("C3C-" + family.toUpperCase() + "-page-context-changed", async () => {
         const result = await kimi.call("SellerAgentsAutonomousWorkAuthority.evaluate", { ...base, current: { ...base.current, origin: "https://chatgpt.com" } });
         assert.equal(result.allowed, false);
         assert.ok(result.deniedGates.includes("DENY_BINDING_CONTEXT"));
@@ -176,6 +177,8 @@ for (const permission of [true, false, null]) {
     assert.equal(kimi.network.length, 0);
     assert.equal(requests, 1);
   } finally { kimi.close(); }
+}
+
 }
 
 const failed = cases.filter(row => row.status === "FAIL");

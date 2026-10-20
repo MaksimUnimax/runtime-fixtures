@@ -9,6 +9,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const EXPECTED_BINDINGS = [
   ["ai.alice.web.adapter", "ai.alice"],
   ["ai.chatgpt.web.adapter", "ai.chatgpt"],
+  ["ai.grok.web.adapter", "ai.grok"],
   ["ai.kimi.web.adapter", "ai.kimi"],
   ["ai.qwen.web.adapter", "ai.qwen"],
   ["marketplace.ozon.adapter", "source.ozon"],
@@ -37,7 +38,7 @@ async function makeCachedWorker(entitlements, features = {}) {
   });
 }
 
-// 1. Only the six explicitly reviewed server permission bindings exist.
+// 1. Only the explicit server permission bindings exist.
 {
   const worker = await makeWorker(runtime);
   try {
@@ -87,6 +88,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     "ai.alice": true,
     "ai.qwen": true,
     "ai.kimi": true,
+    "ai.grok": true,
   });
   try {
     const result = clone(
@@ -98,7 +100,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     assert.equal(result.source, "CACHE");
     assert.equal(result.executionAuthority, false);
     assert.equal(Object.hasOwn(result, "workAllowed"), false);
-    assert.equal(result.capabilities.length, 6);
+    assert.equal(result.capabilities.length, 7);
     assert.ok(
       result.capabilities.every(
         row =>
@@ -131,7 +133,7 @@ async function makeCachedWorker(entitlements, features = {}) {
       capabilities: true,
       rows: true,
       arrayMutationRejected: true,
-      count: 6,
+      count: 7,
       executionAuthority: false,
     });
   } finally {
@@ -153,6 +155,7 @@ async function makeCachedWorker(entitlements, features = {}) {
       "ai.alice": true,
     "ai.qwen": true,
     "ai.kimi": true,
+    "ai.grok": true,
     },
   );
   try {
@@ -231,6 +234,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     "ai.alice": true,
     "ai.qwen": true,
     "ai.kimi": true,
+    "ai.grok": true,
   });
   try {
     const failure = clone(

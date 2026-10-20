@@ -231,6 +231,8 @@
     "shared/ai_adapters.js": [
       "apps/extension/src/content/observed-ai-code-readers.js",
       "apps/extension/src/content/kimi-code-reader.js",
+      "apps/extension/src/content/grok-adapter.js",
+      "apps/extension/src/content/gemini-adapter.js",
       "apps/extension/src/content/kimi-adapter.js",
       "apps/extension/src/content/qwen-adapter.js",
       "apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js",
@@ -263,6 +265,7 @@
   ],
   "ai_hosts": [
     "https://chat.qwen.ai/*",
-    "https://www.kimi.ai/*"
+    "https://www.kimi.ai/*",
+    "https://grok.com/*"
   ]
 }

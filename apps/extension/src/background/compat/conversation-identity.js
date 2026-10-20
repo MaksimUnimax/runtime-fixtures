@@ -7,7 +7,8 @@
     "https://chat.openai.com": "chatgpt",
     "https://alice.yandex.ru": "alice",
     "https://chat.qwen.ai": "qwen",
-    "https://www.kimi.ai": "kimi"
+    "https://www.kimi.ai": "kimi",
+    "https://grok.com": "grok"
   });
   function providerForOrigin(origin) { return PROVIDERS[core.originOf(origin)] || null; }
   function conversationIdFromPath(pathname) {

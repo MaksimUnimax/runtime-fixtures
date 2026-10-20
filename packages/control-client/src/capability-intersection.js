@@ -44,6 +44,10 @@
       capabilityId: "ai.kimi.web.adapter",
       entitlementKey: "ai.kimi",
     },
+    {
+      capabilityId: "ai.grok.web.adapter",
+      entitlementKey: "ai.grok",
+    },
   ];
 
   function deepFreeze(value) {

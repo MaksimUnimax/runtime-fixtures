@@ -869,6 +869,99 @@ await test("RUNTIME-13-scope-change-clears-old-profile-before-Kimi-apply", async
   }
 });
 
+await test("RUNTIME-14-Grok-apply-defer-refresh-rollback-clear", async () => {
+  const f = await fixture({ aiFamily: "grok" });
+  try {
+    assert.equal(f.runtime.debugState().applied.scopeKey, "grok|web|");
+    const request = f.sent.findLast(
+      (message) => message.messageType === "OZ_REQUEST_SIGNED_AI_PROFILE",
+    );
+    assert.deepEqual(clone(request.ai), {
+      family: "grok",
+      surface: "web",
+      variant: null,
+    });
+    assert.equal(f.sent.at(-1).status, "APPLIED");
+    assert.equal(f.sent.at(-1).ai.family, "grok");
+
+    f.state.profile = await f.makeProfile(2);
+    assert.equal((await f.runtime.refresh("grok_update")).status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    f.state.profile = await f.makeProfile(3);
+    f.setWork(true);
+    const deferred = await f.runtime.refresh("grok_active_work");
+    assert.equal(deferred.status, "DEFERRED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    assert.equal(f.sent.at(-1).status, "DEFERRED");
+    assert.equal(f.sent.at(-1).reason, "WORK_IN_FLIGHT");
+    assert.equal(f.sent.at(-1).ai.family, "grok");
+
+    f.setWork(false);
+    assert.equal(
+      (await f.runtime.refresh("grok_after_finish")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      f.state.profile;
+    const ensured = await f.runtime.ensure({
+      authority: clone(f.state.authority),
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+    });
+    assert.equal(ensured.applied, true);
+    f.state.profile = await f.makeProfile(1);
+    assert.equal(
+      (await f.runtime.refresh("grok_verified_rollback")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 1);
+
+    f.state.unavailable = "WORK_NOT_ALLOWED";
+    assert.equal((await f.runtime.refresh("grok_revoked")).status, "CLEARED");
+    assert.equal(f.runtime.debugState().applied, null);
+    assert.equal(f.sent.at(-1).status, "CLEARED");
+    assert.equal(f.sent.at(-1).ai.family, "grok");
+    assert.equal(
+      f.sent.some(
+        (message) =>
+          typeof message.type === "string" &&
+          /WORK|SEND|EXECUTE|PROVIDER/.test(message.type),
+      ),
+      false,
+    );
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+
+await test("RUNTIME-15-scope-change-clears-old-profile-before-Grok-apply", async () => {
+  const f = await fixture();
+  try {
+    f.state.profile = await f.makeProfile(2, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    assert.equal((await f.runtime.refresh("before_grok")).status, "APPLIED");
+    const baseline = { composer: {}, root: {}, form: {} };
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), null);
+    f.setScope("grok");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+    f.state.profile = await f.makeProfile(3);
+    assert.equal(
+      (await f.runtime.refresh("grok_scope_change")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.scopeKey, "grok|web|");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.sent.at(-1).ai.family, "grok");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
 console.log(
   JSON.stringify({
     status: "PASS",

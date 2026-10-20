@@ -13,9 +13,10 @@ const EXPECTED = [
   "ai.alice.web.adapter",
   "ai.qwen.web.adapter",
   "ai.kimi.web.adapter",
+  "ai.grok.web.adapter",
 ].sort();
 
-// 1. Exact packaged manifest: six reviewed adapter-presence facts only.
+// 1. Exact packaged manifest: seven packaged adapter-presence facts only.
 {
   const worker = await makeWorker(runtime);
   try {
@@ -27,7 +28,7 @@ const EXPECTED = [
     assert.deepEqual(manifest.capabilities.map(row => row.id).sort(), EXPECTED);
     assert.ok(manifest.capabilities.every(row => row.packaged === true && row.executionAuthority === false));
     assert.deepEqual(manifest.capabilities.filter(row => row.kind === "marketplace_adapter").map(row => row.marketplace).sort(), ["ozon", "wildberries"]);
-    assert.deepEqual(manifest.capabilities.filter(row => row.kind === "ai_adapter").map(row => `${row.family}:${row.surface}`).sort(), ["alice:web", "chatgpt:web", "kimi:web", "qwen:web"]);
+    assert.deepEqual(manifest.capabilities.filter(row => row.kind === "ai_adapter").map(row => `${row.family}:${row.surface}`).sort(), ["alice:web", "chatgpt:web", "grok:web", "kimi:web", "qwen:web"]);
   } finally {
     worker.close();
   }
@@ -83,7 +84,7 @@ const EXPECTED = [
       globalConfigurable: false,
       globalUnchanged: true,
       mutationRejected: true,
-      count: 6,
+      count: 7,
     });
   } finally {
     worker.close();

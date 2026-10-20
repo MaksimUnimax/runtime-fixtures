@@ -79,7 +79,7 @@
   }
   function validScope(value) {
     return exact(value, ["family", "surface", "variant"]) &&
-      ["chatgpt", "alice", "qwen", "kimi"].includes(value.family) && value.surface === "web" && value.variant === null;
+      ["chatgpt", "alice", "qwen", "kimi", "grok"].includes(value.family) && value.surface === "web" && value.variant === null;
   }
   function validAuthority(value) {
     return exact(value, ["authGeneration", "bootstrapSnapshotSha256"]) &&
