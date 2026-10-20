@@ -752,6 +752,10 @@
       rawCredentials,
       executionGuard = null,
     ) {
+      // This flag records entry into fetchImpl, not delivery to Ozon.
+      let fetchAttempted = false;
+      let responseObserved = false;
+      let observedHttpStatus = 0;
       try {
         const credentials =
           globalThis.OzonCredentials.normalizeSellerCredentials(
@@ -767,16 +771,33 @@
           path: "/v1/seller/info",
           host_alias: "seller_api",
         });
+        const observedFetch = typeof fetchImpl === "function"
+          ? async (url, init) => {
+              if (executionGuard) {
+                if (typeof executionGuard.assertDispatchAuthority === "function")
+                  await executionGuard.assertDispatchAuthority();
+                await executionGuard.assertCurrent();
+              }
+              fetchAttempted = true;
+              const received = await fetchImpl(url, init);
+              responseObserved = true;
+              const status = Number(received?.status);
+              if (Number.isInteger(status) && status >= 100 && status <= 599)
+                observedHttpStatus = status;
+              return received;
+            }
+          : fetchImpl;
         const response = await globalThis.ProviderTransportCore.executeJsonOnce(
-          { fetchImpl: guardedFetch(executionGuard), request, now },
+          { fetchImpl: observedFetch, request, now },
         );
         if (!response.ok) {
           return Object.freeze({
             status: "unknown",
             subscription_type: "UNKNOWN",
             is_premium: null,
-            probe_performed: true,
-            probe_http_status: response.httpStatus,
+            probe_performed: fetchAttempted,
+            probe_observation: "RESPONSE_OBSERVED",
+            probe_http_status: observedHttpStatus,
             probe_error_code: "SELLER_CAPABILITY_PROBE_HTTP_ERROR",
           });
         }
@@ -807,8 +828,9 @@
             typeof subscription.is_premium === "boolean"
               ? subscription.is_premium
               : null,
-          probe_performed: true,
-          probe_http_status: response.httpStatus,
+          probe_performed: fetchAttempted,
+          probe_observation: "RESPONSE_OBSERVED",
+          probe_http_status: observedHttpStatus,
           probe_error_code: known
             ? null
             : "SELLER_CAPABILITY_SUBSCRIPTION_UNKNOWN",
@@ -832,20 +854,19 @@
         } catch (_) {
           // An error accessor must not escape the outer capability catch.
         }
-        let publicHttpStatus = 0;
-        try {
-          const status = Number(error?.http_status);
-          if (Number.isInteger(status) && status >= 100 && status <= 599)
-            publicHttpStatus = status;
-        } catch (_) {
-          // Untrusted metadata cannot turn an unknown failure into HTTP proof.
-        }
+        // Error.http_status is untrusted; publish only status observed
+        // from the actual fetch response headers.
         return Object.freeze({
           status: "unknown",
           subscription_type: "UNKNOWN",
           is_premium: null,
-          probe_performed: true,
-          probe_http_status: publicHttpStatus,
+          probe_performed: fetchAttempted,
+          probe_observation: responseObserved
+            ? "RESPONSE_OBSERVED"
+            : fetchAttempted
+              ? "FETCH_INVOKED_OUTCOME_UNKNOWN"
+              : "NOT_ATTEMPTED",
+          probe_http_status: observedHttpStatus,
           probe_error_code: publicCode,
         });
       }

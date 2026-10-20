@@ -76,9 +76,17 @@ function fixture(mode) {
     contract,
     now: () => 1000,
     uuid: () => "INERT_REQUEST_ONLY",
-    fetchImpl: async () => {
+    fetchImpl: mode === "missing_fetch" ? null : async () => {
       calls.fetch++;
       if (mode === "network") throw new Error(sensitiveMessage);
+      if (mode === "body_read_failure") {
+        return {
+          ok: true, status: 200, headers: { get: () => "application/json" },
+          body: { getReader: () => ({ read: async () => {
+            throw new Error(sensitiveMessage);
+          } }) },
+        };
+      }
       if (mode === "http_error") {
         return new Response(JSON.stringify({ code: marker, message: sensitiveMessage }), {
           status: 403, headers: { "content-type": "application/json" },
@@ -97,13 +105,25 @@ async function check(mode, expected) {
   const credentials = mode === "missing_api_key"
     ? { clientId: "INERT_LOCAL_ID" }
     : { clientId: "INERT_LOCAL_ID", apiKey: "INERT_LOCAL_KEY" };
-  const profile = await f.provider.resolveSellerCapability(credentials);
+  const guard = mode === "guard_denied"
+    ? {
+        async assertDispatchAuthority() {
+          const e = new Error("INERT_PRE_DISPATCH_REFUSAL");
+          e.code = "EXECUTION_CONTEXT_CHANGED";
+          throw e;
+        },
+        async assertCurrent() {},
+      }
+    : null;
+  const profile = await f.provider.resolveSellerCapability(credentials, guard);
   assert.equal(profile.probe_error_code, expected.code, mode + ": public code");
   assert.equal(profile.status, expected.status, mode + ": capability");
   assert.equal(f.calls.fetch, expected.fetch, mode + ": actual fetch callback count");
   assert.equal(profile.probe_http_status, expected.http, mode + ": status");
+  assert.equal(profile.probe_performed, expected.attempted, mode + ": fetch callback attempt");
+  assert.equal(profile.probe_observation, expected.observation, mode + ": attempt/response observation");
   assert.equal(f.calls.codeReads, expected.codeReads || 0, mode + ": code getter read once");
-  assert.equal(f.calls.statusReads, expected.statusReads || 0, mode + ": status getter read once");
+  assert.equal(f.calls.statusReads, 0, mode + ": untrusted error-status metadata is ignored");
   const command = vm.runInContext(commandSource, f.context);
   const plan = f.contract.planCommandForSellerCapability(command, profile, 0, {});
   assert.equal(plan.action, expected.action, mode + ": fail-closed entitlement");
@@ -137,36 +157,60 @@ async function check(mode, expected) {
 await check("unknown_validator", {
   code: "SELLER_CAPABILITY_PROBE_FAILED", status: "unknown", fetch: 0,
   http: 0, action: "reject",
+  attempted: false, observation: "NOT_ATTEMPTED",
 });
 await check("http_error", {
   code: "SELLER_CAPABILITY_PROBE_HTTP_ERROR", status: "unknown", fetch: 1,
   http: 403, action: "reject",
+  attempted: true, observation: "RESPONSE_OBSERVED",
 });
 await check("missing_api_key", {
   code: "MISSING_API_KEY", status: "unknown", fetch: 0,
   http: 0, action: "reject",
+  attempted: false, observation: "NOT_ATTEMPTED",
 });
 await check("network", {
   code: "PROVIDER_FETCH_FAILED", status: "unknown", fetch: 1,
   http: 0, action: "reject",
+  attempted: true, observation: "FETCH_INVOKED_OUTCOME_UNKNOWN",
 });
 await check("success", {
   code: null, status: "known", fetch: 1, http: 200, action: "execute",
+  attempted: true, observation: "RESPONSE_OBSERVED",
 });
 await check("mutating_validator", {
   code: "MISSING_API_KEY", status: "unknown", fetch: 0,
   http: 0, action: "reject", codeReads: 1,
+  attempted: false, observation: "NOT_ATTEMPTED",
 });
 await check("throwing_validator", {
   code: "SELLER_CAPABILITY_PROBE_FAILED", status: "unknown", fetch: 0,
   http: 0, action: "reject", codeReads: 1,
+  attempted: false, observation: "NOT_ATTEMPTED",
 });
 await check("invalid_status_validator", {
   code: "PROVIDER_FETCH_FAILED", status: "unknown", fetch: 0,
-  http: 0, action: "reject", statusReads: 1,
+  http: 0, action: "reject",
+  attempted: false, observation: "NOT_ATTEMPTED",
 });
 await check("throwing_status_validator", {
   code: "PROVIDER_FETCH_FAILED", status: "unknown", fetch: 0,
-  http: 0, action: "reject", statusReads: 1,
+  http: 0, action: "reject",
+  attempted: false, observation: "NOT_ATTEMPTED",
 });
-console.log("OZON_SELLER_CAPABILITY_PUBLIC_CODES_9_CASES_PASS");
+await check("guard_denied", {
+  code: "PROVIDER_FETCH_FAILED", status: "unknown", fetch: 0,
+  http: 0, action: "reject", attempted: false,
+  observation: "NOT_ATTEMPTED",
+});
+await check("missing_fetch", {
+  code: "FETCH_IMPL_MISSING", status: "unknown", fetch: 0,
+  http: 0, action: "reject", attempted: false,
+  observation: "NOT_ATTEMPTED",
+});
+await check("body_read_failure", {
+  code: "SELLER_CAPABILITY_PROBE_FAILED", status: "unknown", fetch: 1,
+  http: 200, action: "reject", attempted: true,
+  observation: "RESPONSE_OBSERVED",
+});
+console.log("OZON_SELLER_CAPABILITY_PUBLIC_CODES_12_CASES_PASS");
