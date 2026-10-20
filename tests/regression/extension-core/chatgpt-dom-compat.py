@@ -523,7 +523,7 @@ def run_observed_readers(runtime: Path, output: Path):
 
 
 
-def run_gemini_adapter(runtime: Path, output: Path):
+def run_gemini_adapter(runtime: Path, output: Path, extra_cases=None, case_names=None):
     """B02 Gemini adapter on accepted structural fixtures; offline code only."""
     from html import escape
     output.mkdir(parents=True, exist_ok=True)
@@ -548,8 +548,8 @@ def run_gemini_adapter(runtime: Path, output: Path):
     cases={}
     def case(name,html,js,expected,origin="https://gemini.google.com"):
         cases[name]=(html,js,expected,origin)
-    case("registered_text_only_adapter",root(),"return [OzonAIAdapters.adapterForLocation('auto')?.id,OzonAIDeliveryCapabilities.profile('gemini').status,BB2ConversationIdentity.providerForOrigin(location.origin)]",["gemini","text_only","gemini"])
-    case("file_transport_pending_not_supported",root(),"const f=OzonAIDeliveryCapabilities.supportsFile('gemini',{filename:'report.txt',byte_length:85});return [f.supported,f.status,f.reason,OzonAIDeliveryCapabilities.generatedTextDecision('gemini','x').representation,OzonAIDeliveryCapabilities.generatedTextDecision('gemini','x'.repeat(5000)).representation]",[False,"pending","attachment_surface_not_observed","plain_text","text_document"])
+    case("registered_native_txt_adapter",root(),"return [OzonAIAdapters.adapterForLocation('auto')?.id,OzonAIDeliveryCapabilities.profile('gemini').status,BB2ConversationIdentity.providerForOrigin(location.origin)]",["gemini","implemented","gemini"])
+    case("file_transport_supported_local_txt_limit",root(),"const f=OzonAIDeliveryCapabilities.supportsFile('gemini',{filename:'report.txt',byte_length:85});return [f.supported,f.status,f.reason,OzonAIDeliveryCapabilities.generatedTextDecision('gemini','x').representation,OzonAIDeliveryCapabilities.generatedTextDecision('gemini','x'.repeat(5000)).representation]",[True,"supported",None,"plain_text","text_document"])
     case("main_editor_not_ql_clipboard",root(),"return a.composerContext().composer.classList.contains('ql-editor')",True)
     case("empty_voice_ready",root(),"return a.classifyComposerControl(c).kind","ready")
     case("draft_with_send",root("draft",send),"return a.classifyComposerControl(c).kind","send_active")
@@ -587,7 +587,59 @@ def run_gemini_adapter(runtime: Path, output: Path):
     case("unknown_not_message_complete",pair()+root("draft",button("unknown")),"return a.messageComplete(a.assistantMessages()[0])",False)
     case("idle_message_complete",pair()+root(),"return a.messageComplete(a.assistantMessages()[0])",True)
     case("wrong_origin_unavailable",root(),"return [a.matchesLocation(),c===null]",[False,True],"https://example.invalid")
-    result={"status":"RUNNING","scope":"B02 Gemini offline composer/message/code/TXT recognition; no provider activation/native upload/installed acceptance",
+    # Menu/input attributes observed in1442 JSON; parent placement below is
+    # a structural fixture, not a claimed whole-page/provider capture.
+    opener=button("Загрузка и инструменты")
+    menu='<images-files-uploader data-test-id="uploader-images-files-button-advanced"><button data-test-id="local-images-files-uploader-button" aria-disabled="false">Загрузить файлы</button><input class="hidden-file-input" multiple type="file" accept=".txt,.pdf"></images-files-uploader>'
+    image_input='<input type="file" multiple accept="image/*" class="hidden-file-input">'
+    setup="let clicks=0;const b=c.root.querySelector('button[aria-label=\"Загрузка и инструменты\"]');b.addEventListener('click',()=>{clicks++;document.body.insertAdjacentHTML('beforeend',"+json.dumps(menu+image_input)+")});"
+    prepare="await a.prepareAttachmentSurface(c,{deliveryId:'delivery-one',isCurrent:()=>true})"
+    file="[new File(['BEGIN\\nMIDDLE\\nEND'],'report.txt',{type:'text/plain'})]"
+    case("menu_closed_has_no_input",root(controls=voice+opener),"return a.attachmentSurface()",None)
+    case("menu_open_selects_txt_not_image",root(controls=voice+opener),setup+"const s="+prepare+";return [clicks,s.kind,s.input.accept,s.root===c.root,document.querySelector('input[accept=\"image/*\"]').files.length]",[1,"file_input_v1",".txt,.pdf",True,0])
+    case("delayed_menu_mount",root(controls=voice+opener),"let clicks=0;c.root.querySelector('button[aria-label=\"Загрузка и инструменты\"]').onclick=()=>{clicks++;setTimeout(()=>document.body.insertAdjacentHTML('beforeend',"+json.dumps(menu)+"),80)};const s="+prepare+";return [clicks,!!s]",[1,True])
+    case("same_request_only_one_menu_click",root(controls=voice+opener),setup+"const one=a.prepareAttachmentSurface(c,{deliveryId:'delivery-one',isCurrent:()=>true}),two=a.prepareAttachmentSurface(c,{deliveryId:'delivery-one',isCurrent:()=>true});await Promise.all([one,two]);await a.prepareAttachmentSurface(c,{deliveryId:'delivery-one',isCurrent:()=>true});return clicks",1)
+    case("native_txt_bytes_and_event",root(controls=voice+opener),setup+"const s="+prepare+";let changes=0;s.input.addEventListener('change',()=>changes++);a.attachFiles(s,"+file+");return [changes,s.input.files[0].name,await s.input.files[0].text(),document.querySelector('input[accept=\"image/*\"]').files.length]",[1,"report.txt","BEGIN\nMIDDLE\nEND",0])
+    case("second_attach_keeps_original_file",root(controls=voice+opener),setup+"const s="+prepare+";a.attachFiles(s,"+file+");let code='';try{a.attachFiles(s,[new File(['replacement'],'report.txt')])}catch(e){code=e.code}return [code,await s.input.files[0].text()]",["TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE","BEGIN\nMIDDLE\nEND"])
+    for name,files in [("pdf","[new File(['x'],'report.pdf')]"),("two","[new File(['x'],'one.txt'),new File(['y'],'two.txt')]"),("mime","[new File(['x'],'report.txt',{type:'image/png'})]"),("large","[new File([new Uint8Array(1048577)],'report.txt')]")]:
+        case("native_reject_"+name,root(controls=voice+opener),setup+"const s="+prepare+";let code='';try{a.attachFiles(s,"+files+")}catch(e){code=e.code}return [code,s.input.files.length]",["TARGET_AI_FILE_TYPE_UNSUPPORTED",0])
+    for name,change in [("path","history.pushState({},'',location.pathname+'-b')"),("composer","c.root.replaceWith(c.root.cloneNode(true))"),("input","s.input.replaceWith(s.input.cloneNode(true))"),("menu","s.inputRoot.replaceWith(s.inputRoot.cloneNode(true))"),("draft","c.composer.textContent='OWNER DRAFT'")]:
+        case("native_stale_"+name,root(controls=voice+opener),setup+"const s="+prepare+";"+change+";let code='';try{a.attachFiles(s,"+file+")}catch(e){code=e.code}return [code,s.input.files.length]",["TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE",0])
+    case("outside_preopened_menu_not_attributed",root(controls=voice+opener)+menu,"let clicks=0;c.root.querySelector('button[aria-label=\"Загрузка и инструменты\"]').onclick=()=>clicks++;const s="+prepare+";return [s,clicks]",[None,0])
+    case("native_menu_inside_owned_root",root(controls=voice+opener,extra=menu),"return a.attachmentSurface()?.kind","file_input_v1")
+    for name,markup in [("draft",root("OWNER DRAFT",send+opener)),("stop",root(controls=stop+opener)),("unknown",root(controls=opener)),("existing_card",root(controls=send+opener,extra=staged())),("duplicate_composer",root(controls=voice+opener)+root(controls=voice+opener)),("disabled_opener",root(controls=voice+button("Загрузка и инструменты","disabled")))]:
+        case("menu_not_opened_"+name,markup,"let clicks=0;document.querySelectorAll('button').forEach(n=>n.onclick=()=>clicks++);const s="+prepare+";return [s,clicks]",[None,0])
+    case("request_retired_before_menu",root(controls=voice+opener),setup+"const s=await a.prepareAttachmentSurface(c,{deliveryId:'delivery-one',isCurrent:()=>false});return [s,clicks]",[None,0])
+    case("request_retired_during_menu",root(controls=voice+opener),setup+"let valid=true;b.addEventListener('click',()=>valid=false);const s=await a.prepareAttachmentSurface(c,{deliveryId:'delivery-one',isCurrent:()=>valid});return [s,clicks,a.attachmentSurface()]",[None,1,None])
+    for name,bad in [("duplicate",menu+menu),("wrong_parent",menu.replace("images-files-uploader","unobserved-uploader")),("image_only",menu.replace(".txt,.pdf","image/*")),("disabled_input",menu.replace('multiple type','disabled multiple type')),("disabled_local",menu.replace('aria-disabled="false"','aria-disabled="true"'))]:
+        case("native_unavailable_"+name,root(controls=voice+opener,extra=bad),"return a.attachmentSurface()",None)
+    case("closed_menu_same_request_not_reclicked",root(controls=voice+opener),setup+"const s="+prepare+";s.inputRoot.remove();const again="+prepare+";return [again,clicks]",[None,1])
+    case("new_delivery_after_consumed_menu",root(controls=voice+opener),setup+"const s="+prepare+";s.inputRoot.remove();document.querySelector('input[accept=\"image/*\"]').remove();const next=await a.prepareAttachmentSurface(c,{deliveryId:'delivery-two',isCurrent:()=>true});return [!!next,clicks]",[True,2])
+    # Execute the actual composed attachClaimed function, with local request/file
+    # boundaries. This verifies prepare-before-commit and unchanged no-hook flow.
+    port=(runtime/"attachment_delivery_port_content.js").read_text()
+    claimed=port[port.index("  async function attachClaimed("):port.index("  async function reconcileSendCommitted(")]
+    port_fixture="""
+      const calls=[];let valid=true;
+      const runtime={id:'fixture-actor'},adapter=()=>a,current=()=>true,sameConversation=()=>valid;
+      const waitForComposerAvailable=async()=>c,attachmentStrategySupported=p=>p.attachment_strategy==='file_input_v1';
+      const recovery={adapter_id:'gemini',delivery_id:'delivery-one'},ownerPayload=x=>({delivery_id:x.delivery_id});
+      const request=async(type)=>{calls.push(type);return {ok:true,attach_allowed:true,ready:true,recovery}};
+      const buildFiles=async()=>({descriptors:[{filename:'report.txt',byte_length:16}],files:[new File(['BEGIN\\nMIDDLE\\nEND'],'report.txt',{type:'text/plain'})]});
+      const ATTACH_READY_TIMEOUT_MS=20,waitAttachmentReady=async(active,descriptors)=>active.attachmentReady(descriptors);
+      const stageMarker=()=>calls.push('marker'),assistantTurnIds=()=>[];
+    """+claimed
+    ready_install="s.input.addEventListener('change',()=>{c.root.insertAdjacentHTML('beforeend',"+json.dumps(staged())+");c.root.querySelector('button[aria-label=\"Начать голосовой ввод (^⇧D)\"]').setAttribute('aria-label','Отправить сообщение')});"
+    case("port_prepare_commit_attach_ready_order",root(controls=voice+opener),setup+port_fixture+"b.addEventListener('click',()=>{calls.push('menu');const s=a.attachmentSurface()||{input:document.querySelector('images-files-uploader input')};"+ready_install+"});const result=await attachClaimed(recovery);return [result.delivery_id,clicks,calls]",["delivery-one",1,["menu","OZ_ATTACHMENT_COMMIT","OZ_ATTACHMENT_RECOVERY_GET","marker","OZ_ATTACHMENT_READY"]])
+    case("port_context_change_no_commit",root(controls=voice+opener),setup+port_fixture+"b.addEventListener('click',()=>valid=false);let code='';try{await attachClaimed(recovery)}catch(e){code=e.code}return [code,calls,clicks]",["EXECUTION_CONTEXT_CHANGED",[],1])
+    case("port_missing_surface_no_commit",root(controls=voice),port_fixture+"let code='';try{await attachClaimed(recovery)}catch(e){code=e.code}return [code,calls]",["TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE",[]])
+    case("port_without_optional_hook_unchanged",root(controls=voice+opener,extra=menu),port_fixture+"a={...a,prepareAttachmentSurface:undefined};const s=a.attachmentSurface();"+ready_install+"const result=await attachClaimed(recovery);return [result.delivery_id,calls]",["delivery-one",["OZ_ATTACHMENT_COMMIT","OZ_ATTACHMENT_RECOVERY_GET","marker","OZ_ATTACHMENT_READY"]])
+    if extra_cases:
+        cases.update(extra_cases)
+    if case_names is not None:
+        assert set(case_names)<=set(cases)
+        cases={name:cases[name] for name in case_names}
+    result={"status":"RUNNING","scope":"B02 Gemini ordinary offline native TXT menu/attach/ready/sent and real composed port; no provider bytes/installed acceptance",
             "bundle_sha256":hashlib.sha256(bundle.encode()).hexdigest(),"cases":{}}
     failed=[]
     with sync_playwright() as p:
@@ -598,11 +650,11 @@ def run_gemini_adapter(runtime: Path, output: Path):
         for name,(html,js,expected,origin) in cases.items():
             try:
                 page.goto(origin+"/app/fixture-a")
-                page.set_content('<style>user-query,model-response,response-container,rich-textarea{display:block}</style>'+html)
-                page.evaluate(identity);page.evaluate(capabilities);page.evaluate(bundle)
+                page.set_content('<style>user-query,model-response,response-container,rich-textarea,images-files-uploader{display:block}</style>'+html)
+                page.evaluate(identity);page.evaluate(capabilities);page.evaluate((runtime/"shared/web_file_attachment.js").read_text());page.evaluate(bundle)
                 actual=page.evaluate("""js=>{
                   const a=SellerAgentsGeminiAdapter.create(OzonAIAdapters),c=a.composerContext();
-                  return new Function('a','c',js)(a,c);
+                  return new (Object.getPrototypeOf(async function(){}).constructor)('a','c',js)(a,c);
                 }""",js)
                 assert actual==expected,{"actual":actual,"expected":expected}
                 result["cases"][name]={"status":"PASS"}

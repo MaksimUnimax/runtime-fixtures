@@ -1109,7 +1109,7 @@
   {
     "target": "shared/ai_delivery_capabilities.js",
     "old": "    gemini: Object.freeze({ id: \"gemini\", status: \"planned\", plain_text_max_chars: null, attachments_supported: true, accepted_extensions: Object.freeze([]), max_file_bytes: null, max_files_per_turn: null, attachment_strategy: \"pending\" }),",
-    "new": "    // Text path only: native chooser known, usable injection surface not captured.\n    gemini: Object.freeze({ id: \"gemini\", status: \"text_only\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", plain_text_threshold_status: \"conservative_transport_cutoff\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: 1024 * 1024, max_files_per_turn: 1, attachment_strategy: \"pending\" }),"
+    "new": "    // Native TXT menu input observed20Oct1442; local1MiB cap, not provider maximum.\n    gemini: Object.freeze({ id: \"gemini\", status: \"implemented\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", plain_text_threshold_status: \"conservative_transport_cutoff\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: 1024 * 1024, max_files_per_turn: 1, attachment_strategy: \"file_input_v1\" }),"
   },
   {
     "target": "shared/ai_delivery_capabilities.js",
@@ -1420,5 +1420,10 @@
     "target": "service_worker.js",
     "old": "    chatgpt_user_baseline: Array.isArray(operation.delivery?.sa_chatgpt_user_baseline) ? operation.delivery.sa_chatgpt_user_baseline : null,",
     "new": "    chatgpt_user_baseline: Array.isArray(operation.delivery?.sa_chatgpt_user_baseline) ? operation.delivery.sa_chatgpt_user_baseline : null,\n    user_observation_epoch: typeof operation.delivery?.sa_user_observation_epoch === \"string\" ? operation.delivery.sa_user_observation_epoch : null,"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    const surfaceBeforeCommit = active.attachmentSurface?.();",
+    "new": "    if (typeof active.prepareAttachmentSurface === \"function\") {\n      await active.prepareAttachmentSurface(context, {\n        deliveryId: recovery.delivery_id,\n        isCurrent: () => current() && sameConversation(recovery) && adapter() === active\n      });\n      if (!current() || !sameConversation(recovery) || adapter() !== active)\n        throw Object.assign(new Error(\"Delivery context changed while preparing attachment surface.\"), { code: \"EXECUTION_CONTEXT_CHANGED\" });\n    }\n    const surfaceBeforeCommit = active.attachmentSurface?.();"
   }
 ]

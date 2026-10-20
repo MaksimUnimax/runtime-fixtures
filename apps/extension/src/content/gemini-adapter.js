@@ -1,8 +1,8 @@
 /* Gemini B02 adapter from accepted 19 Oct DOM.
  * The paired container ID is a document-local turn witness, not a chat ID.
- * Native UI filechooser was observed, but no usable DOM file input/drop
- * surface was captured. File injection therefore remains unavailable.
- * No click, clipboard, execution or signed authority is created here. */
+ * Native TXT input observed20Oct1442, mounted by the normal upload menu.
+ * Menu preparation is bound to the current composer/delivery; no Send,
+ * clipboard, execution or signed authority is created here. */
 (() => {
   "use strict";
   const ORIGIN = "https://gemini.google.com";
@@ -112,6 +112,87 @@
       return names.length === 1 && ext.length === 1 &&
         names[0].textContent === filename.slice(0, -4) && ext[0].textContent.trim().toUpperCase() === "TXT" ? cards[0] : null;
     }
+    // The menu's native input is mounted only after the observed upload
+    // button is clicked. Bind a portal menu to that exact composer/request,
+    // never to a document-wide "first file input".
+    const UPLOADER = 'images-files-uploader[data-test-id="uploader-images-files-button-advanced"]';
+    const INPUT = 'input.hidden-file-input[type="file"]';
+    const LOCAL = 'button[data-test-id="local-images-files-uploader-button"]';
+    let preparation = null;
+    let prepared = null;
+    function emptyForAttachment(c) {
+      return Boolean(currentContext(c) && ["ready","send_disabled"].includes(classify(c).kind) &&
+        !readComposerText(c.composer).trim() && !c.root.querySelector(".gem-attachment-content"));
+    }
+    function uploadButton(c) {
+      const buttons = controls(c).filter(n => n.getAttribute("aria-label") === "Загрузка и инструменты");
+      return buttons.length === 1 && !buttons[0].disabled && !buttons[0].matches(":disabled") &&
+        buttons[0].getAttribute("aria-disabled") !== "true" ? buttons[0] : null;
+    }
+    function nativeMenu() {
+      const menus = [...document.querySelectorAll(UPLOADER)].filter(n =>
+        rendered(n) && !n.closest(MESSAGE) && !n.isContentEditable);
+      if (menus.length !== 1) return null;
+      const menu = menus[0];
+      const inputs = [...menu.querySelectorAll(INPUT)].filter(n => n.parentElement === menu);
+      const buttons = [...menu.querySelectorAll(LOCAL)].filter(n => n.parentElement === menu && rendered(n));
+      if (inputs.length !== 1 || buttons.length !== 1) return null;
+      const input = inputs[0], button = buttons[0];
+      if (!(input instanceof HTMLInputElement) || !input.isConnected || !input.multiple ||
+          input.disabled || input.matches(":disabled") || input.files?.length ||
+          input.getAttribute("aria-disabled") === "true" || input.closest(EXCLUDED) ||
+          button.disabled || button.matches(":disabled") || button.getAttribute("aria-disabled") === "true" ||
+          !(input.accept || "").toLowerCase().split(",").map(s => s.trim()).includes(".txt")) return null;
+      return { input, menu };
+    }
+    function attachmentSurface() {
+      const c = composerContext();
+      if (!c || !emptyForAttachment(c)) return null;
+      const found = nativeMenu();
+      if (!found) return null;
+      const bound = prepared && currentContext(prepared.context) &&
+        prepared.context.root === c.root && prepared.input === found.input && prepared.menu === found.menu &&
+        uploadButton(c) === prepared.button;
+      if (!c.root.contains(found.menu) && !bound) return null;
+      return { kind:"file_input_v1", input:found.input, inputRoot:found.menu,
+        root:c.root, composer:c.composer, locationHref:c.locationHref };
+    }
+    async function prepareAttachmentSurface(context, options = {}) {
+      const { deliveryId, isCurrent } = options;
+      if (typeof deliveryId !== "string" || !deliveryId || typeof isCurrent !== "function") return null;
+      if (preparation?.deliveryId === deliveryId) {
+        await preparation.promise;
+        return isCurrent() && currentContext(context) ? attachmentSurface() : null;
+      }
+      if (preparation?.pending) return null;
+      const valid = () => isCurrent() && emptyForAttachment(context);
+      if (!valid()) return null;
+      const existing = attachmentSurface();
+      if (existing) return existing;
+      const button = uploadButton(context);
+      // An already-open unbound portal cannot be attributed to this request.
+      if (!button || [...document.querySelectorAll(UPLOADER)].some(rendered)) return null;
+      const attempt = { deliveryId, pending:true, promise:null };
+      preparation = attempt;
+      prepared = null;
+      attempt.promise = (async () => {
+        if (!valid() || uploadButton(context) !== button) return null;
+        button.click(); // Ordinary menu only: no file chooser, upload or Send.
+        const deadline = Date.now() + 1500;
+        do {
+          if (!valid() || uploadButton(context) !== button) return null;
+          const found = nativeMenu();
+          if (found) {
+            prepared = { ...found, context, button };
+            return attachmentSurface();
+          }
+          await new Promise(resolve => setTimeout(resolve, 50));
+        } while (Date.now() < deadline);
+        return null;
+      })();
+      try { return await attempt.promise; }
+      finally { attempt.pending = false; }
+    }
     return Object.freeze({
       id: "gemini", label: "Gemini", matchesLocation,
       userMessages, assistantMessages, messageId, messageText,
@@ -139,8 +220,18 @@
           ["ready","send_active","send_disabled"].includes(classify(composerContext()).kind) && Boolean(messageText(node));
       },
       deliveryCapabilities() { return globalThis.OzonAIDeliveryCapabilities?.profile?.("gemini") || null; },
-      attachmentSurface() { return null; },
-      attachFiles() { fail("TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE"); },
+      attachmentSurface, prepareAttachmentSurface,
+      attachFiles(surface, files) {
+        const current = attachmentSurface();
+        if (!current || current.input !== surface?.input || current.root !== surface?.root ||
+            current.inputRoot !== surface?.inputRoot || current.composer !== surface?.composer ||
+            current.locationHref !== surface?.locationHref || current.kind !== surface?.kind)
+          fail("TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE");
+        if (!Array.isArray(files) || files.length !== 1 || !(files[0] instanceof File) ||
+            !txt({filename:files[0].name,byte_length:files[0].size}) ||
+            !["","text/plain"].includes(files[0].type)) fail("TARGET_AI_FILE_TYPE_UNSUPPORTED");
+        return globalThis.OzonWebFileAttachment.setInputFiles(current.input, files);
+      },
       attachmentPreview,
       attachmentReady(descriptors) {
         const c = composerContext();
