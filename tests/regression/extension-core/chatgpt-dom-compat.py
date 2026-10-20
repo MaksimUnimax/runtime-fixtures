@@ -1225,7 +1225,128 @@ def run_parent_roots(runtime: Path, output: Path, only_provider=None, case_names
     print(json.dumps({"status":result["status"],"cases":len(cases),"failed":failures}))
     return 1 if failures else 0
 
+def run_standard_alice_files(runtime: Path, output: Path, observed=None, case_names=None):
+    """Offline Standard attachment states and Alice composer continuity; no provider calls."""
+    output.mkdir(parents=True, exist_ok=True)
+    bundle=(runtime/"shared/ai_adapters.js").read_text()
+    content=(runtime/"content_script.js").read_text()
+    port=(runtime/"attachment_delivery_port_content.js").read_text()
+    def extract(source,name):
+        start=source.index("  function "+name+"(")
+        return source[start:source.index("\n  }\n",start)+5]
+    names=["visible","controlDisabled","buttonToken","chatgptInsideAssistantEditor",
+           "chatgptComposerContextFromNode","chatgptPrimaryComposerContext","chatgptAllComposerControls",
+           "chatgptBuiltinMicrophoneButton","chatgptMicrophoneButton","chatgptWorkSubmitButton",
+           "chatgptStopButton","chatgptRecognizedSendControl","classifyChatgptComposerControl"]
+    content_probe="(()=>{"+"\n".join(line for line in content.splitlines() if line.startswith("  const CHATGPT_"))+"\n"+"\n".join(extract(content,n) for n in names)+"\nconst sendButtonProfile=null,microphoneButtonProfile=null;globalThis.standardControl=classifyChatgptComposerControl;globalThis.standardContext=chatgptPrimaryComposerContext;})()"
+    match_probe="(a,baseline,recovery)=>{const adapter=()=>a,normalizeText=s=>String(s||'').replace(/\\u00a0/g,' ').trim();"+extract(port,"matchingNewUserTurn")+";return matchingNewUserTurn(baseline,recovery);}"
+    textbox='<div contenteditable="true" role="textbox" data-composer-markdown aria-label="Спросить ChatGPT"><p><br></p></div>'
+    inputs='<input type="file" class="hidden" accept="image/*" aria-label="Сделать фото"><input type="file" class="hidden" multiple accept="image/*,video/*" aria-label="Прикрепить фото или видео"><input type="file" class="hidden" multiple accept="image/*" aria-label="Прикрепить фото"><input type="file" class="hidden" multiple aria-label="Прикрепить файлы">'
+    voice='<button aria-label="Диктовать">dictate</button><button aria-label="Начать голосовой разговор">voice</button>'
+    send='<button type="submit" aria-label="Отправить">send</button>'
+    card='<span class="group/composer-attachment"><button class="composer-attachment-surface" aria-label="report.txt"><span class="truncate">report.txt</span></button><button aria-label="Удалить report.txt">remove</button></span>'
+    def root(attachment='',controls=voice):
+        zone='<div data-composer-attachments'+(' data-visible-attachments' if attachment else ' hidden')+'>'+attachment+'</div>'
+        return '<div class="fixture-root">'+inputs+'<div><div><div data-composer-body>'+zone+textbox+controls+'</div></div></div></div>'
+    ready=root(card,send)
+    loading=root(card.replace('<button class="composer-attachment-surface" aria-label="report.txt">','<span class="composer-attachment-surface">').replace('</button><button aria-label="Удалить','</span><div role="progressbar" aria-label="Загрузка report.txt">loading</div><button aria-label="Удалить'),send)
+    desc='[{filename:"report.txt",byte_length:3}]'
+    native='new File(["ABC"],"report.txt",{type:"text/plain"})'
+    legacy='<form><textarea id="prompt-textarea"></textarea><input id="upload-files" type="file" multiple></form>'
+    alice='<div data-highlight-id="alice-input" class="AliceInput StandaloneRichInput"><div class="AliceInput-TextareaWrapper"><div aria-hidden="true" class="AliceInput-Textarea_clone">clone</div><textarea data-testid="inputbase-textarea"></textarea></div><div data-testid="input-controls-root" aria-busy="false"><button data-testid="InputControls-More-Button" aria-haspopup="menu">more</button><button data-testid="oknyx" aria-label="Алиса, начни слушать">voice</button></div></div><input type="file" data-testid="pick-file-input-element" accept="text/*,text/plain" style="display:none">'
+    cases={}
+    def case(name,html,js,expected,provider='chatgpt'):
+        cases[name]=(html,js,expected,provider)
+    case('standard_scope_without_invented_form',root(),'return [c.surfaceKind,c.root.className,c.nativeForm,c.form===c.root,c.root.contains(c.composer)]',['observed_standard','fixture-root',None,True,True])
+    case('standard_picks_file_not_image_inputs',root(),'return [a.attachmentSurface().input.getAttribute("aria-label"),a.attachmentSurface().input.multiple,a.attachmentSurface().input.getAttribute("accept")]', ['Прикрепить файлы',True,None])
+    case('standard_empty_voice_not_dictation',root(),'return standardControl().kind','microphone')
+    case('standard_actual_content_scope',root(),'return standardContext().root===c.root',True)
+    case('standard_loading_not_ready',loading,'return [a.attachmentReady('+desc+'),a.sendButton(c),standardControl().kind]',[False,None,'unknown'])
+    case('standard_ready_card_and_send',ready,'return [a.attachmentReady('+desc+'),a.sendButton(c)?.getAttribute("aria-label"),standardControl().kind]',[True,'Отправить','send_active'])
+    case('standard_name_remove_alone_not_ready',root('<span class="group/composer-attachment"><span class="truncate">report.txt</span><button aria-label="Удалить report.txt">remove</button></span>',send),'return a.attachmentReady('+desc+')',False)
+    case('standard_progress_still_not_ready',root(card+'<span role="progressbar">100%</span>',send),'return a.attachmentReady('+desc+')',False)
+    case('standard_busy_still_not_ready',root(card+'<span aria-busy="true">pending</span>',send),'return a.attachmentReady('+desc+')',False)
+    case('standard_foreign_filename_rejected',ready,'return a.attachmentReady([{filename:"other.txt",byte_length:3}])',False)
+    case('standard_substring_rejected',ready,'return a.attachmentReady([{filename:"port.txt",byte_length:3}])',False)
+    case('standard_duplicate_cards_rejected',root(card+card,send),'return a.attachmentReady('+desc+')',False)
+    case('standard_duplicate_zones_rejected',ready.replace(textbox,'<div data-composer-attachments>'+card+'</div>'+textbox),'return a.attachmentReady('+desc+')',False)
+    case('standard_hidden_card_rejected',root('<span hidden>'+card+'</span>',send),'return a.attachmentReady('+desc+')',False)
+    case('standard_old_message_card_not_preview','<article>'+card+'</article>'+root(),'return a.attachmentReady('+desc+')',False)
+    case('standard_empty_descriptor_rejected',ready,'return a.attachmentReady([])',False)
+    case('standard_duplicate_descriptor_rejected',ready,'return a.attachmentReady('+desc+'.concat('+desc+'))',False)
+    for label,wrapper in [('hidden','hidden'),('opacity','style="opacity:0"'),('inert','inert'),('dialog','role="dialog"'),('user','data-message-role="user"')]:
+        case('standard_'+label+'_composer_rejected','<div '+wrapper+'>'+root()+'</div>','return a.composerContext()',None)
+    case('standard_hidden_clone_ignored','<div hidden>'+root()+'</div>'+root(),'return !!c',True)
+    case('standard_duplicate_composer_rejected',root()+root(),'return [c,standardContext()]',[None,None])
+    case('standard_duplicate_file_inputs_rejected',root().replace(inputs,inputs+'<input type="file" multiple aria-label="Прикрепить файлы">'),'return a.attachmentSurface()',None)
+    case('standard_missing_file_input_not_global',root().replace('<input type="file" class="hidden" multiple aria-label="Прикрепить файлы">','')+'<input type="file" multiple aria-label="Прикрепить файлы">','return a.attachmentSurface()',None)
+    case('standard_single_file_input_unobserved',root().replace('multiple aria-label="Прикрепить файлы"','aria-label="Прикрепить файлы"'),'return a.attachmentSurface()',None)
+    case('standard_disabled_input_rejected',root().replace('multiple aria-label="Прикрепить файлы"','multiple disabled aria-label="Прикрепить файлы"'),'return a.attachmentSurface()',None)
+    case('standard_native_file_bytes_and_retention',root(),'const s=a.attachmentSurface();let changes=0;s.input.addEventListener("change",()=>changes++);a.attachFiles(s,['+native+']);let code="";try{a.attachFiles(s,['+native+'])}catch(e){code=e.code}return [await s.input.files[0].text(),s.input.files.length,changes,a.attachmentSurface(),code]', ['ABC',1,1,None,'TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE'])
+    changes={'url':'history.replaceState({},"","/c/other")','composer':'c.composer.replaceWith(c.composer.cloneNode(true))','root':'c.root.replaceWith(c.root.cloneNode(true))','input':'s.input.replaceWith(s.input.cloneNode(true))','draft':'c.composer.textContent="OWNER DRAFT"'}
+    for label,change in changes.items():
+        case('standard_stale_'+label+'_no_attach',root(),'const s=a.attachmentSurface();let changes=0;s.input.addEventListener("change",()=>changes++);'+change+';let code="";try{a.attachFiles(s,['+native+'])}catch(e){code=e.code}return [code,changes]', ['TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE',0])
+    case('standard_stale_send_rejected',ready,'history.replaceState({},"","/c/other");return a.sendButton(c)',None)
+    case('standard_ready_native_size_mismatch',ready,'const f=new DataTransfer();f.items.add('+native+');c.root.querySelector(\'input[aria-label="Прикрепить файлы"]\').files=f.files;return a.attachmentReady([{filename:"report.txt",byte_length:4}])',False)
+    case('standard_unknown_sent_cannot_confirm_text',root()+'<section data-turn="user" data-turn-id="u1">REPORT</section>','return matchTurn(a,[],{outgoing_text:"REPORT",delivery_id:"d",artifact_descriptors:'+desc+'})',None)
+    case('legacy_owned_input_preserved',legacy,'return [a.attachmentSurface().input.id,a.attachmentConfirmationPending()]',['upload-files',False])
+    case('legacy_known_text_confirmation_preserved',legacy+'<section data-turn="user" data-turn-id="u1">REPORT</section>','return matchTurn(a,[],{outgoing_text:"REPORT"})','u1')
+    case('legacy_known_ask_fallback','<form><div contenteditable="true" role="textbox" aria-label="Ask ChatGPT">draft</div></form>','return [!!c,c.root.tagName]',[True,'FORM'])
+    case('alice_current_composer_not_clone',alice,'return [c.composer.tagName,c.root.getAttribute("data-highlight-id"),c.form,a.classifyComposerControl(c).kind]', ['TEXTAREA','alice-input',None,'ready'],'alice')
+    case('alice_body_input_does_not_enable_native_route',alice,'let clicks=0,changes=0;const input=document.querySelector("input[type=file]");input.addEventListener("click",()=>clicks++);input.addEventListener("change",()=>changes++);const s=a.attachmentSurface();return [s.kind,s.input||null,s.composer===c.composer,clicks,changes]', ['drag_drop_v1',None,True,0,0],'alice')
+    case('alice_hidden_clone_ignored','<div hidden>'+alice+'</div>'+alice,'return !!c',True,'alice')
+    case('alice_duplicate_composer_rejected',alice+alice,'return c',None,'alice')
+    case('alice_hidden_composer_rejected','<div style="opacity:0">'+alice+'</div>','return c',None,'alice')
+    case('alice_disabled_composer_rejected',alice.replace('<textarea','<textarea disabled'),'return c',None,'alice')
+    for label,change in {'draft':'c.composer.value="OWNER DRAFT"','busy':'document.querySelector(\'[data-testid="input-controls-root"]\').setAttribute("aria-busy","true")','stop':'document.querySelector(\'[data-testid="oknyx"]\').setAttribute("aria-label","Алиса, стоп")'}.items():
+        case('alice_'+label+'_attachment_held',alice,change+';return a.attachmentSurface()',None,'alice')
+    alice_changes={'url':'history.replaceState({},"","/chats/other")','composer':'c.composer.replaceWith(c.composer.cloneNode(true))','root':'c.root.replaceWith(c.root.cloneNode(true))','controls':'s.controls_root.replaceWith(s.controls_root.cloneNode(true))','marker':'s.capability_marker.replaceWith(s.capability_marker.cloneNode(true))'}
+    for label,change in alice_changes.items():
+        case('alice_stale_'+label+'_no_drop',alice,'const s=a.attachmentSurface();let drops=0;document.body.addEventListener("drop",()=>drops++);'+change+';let code="";try{a.attachFiles(s,['+native+'])}catch(e){code=e.code}return [code,drops]',['TARGET_AI_ATTACHMENT_SURFACE_CHANGED',0],'alice')
+    case('alice_existing_local_drop_preserved',alice,'let drops=0,changes=0;document.body.addEventListener("drop",e=>{drops++;window.dropped=e.dataTransfer.files[0]});document.querySelector("input[type=file]").addEventListener("change",()=>changes++);a.attachFiles(a.attachmentSurface(),['+native+']);return [drops,changes,await dropped.text()]',[1,0,'ABC'],'alice')
+    if observed:
+        standard,alice_packet=observed
+        name='B02_UPLOAD_STATE_20261020.txt'
+        d=json.dumps([{'filename':name,'byte_length':158044}])
+        case('actual_standard_before_input_scope',standard['before']['dom'],'return [!!c,c.nativeForm,a.attachmentSurface().input.getAttribute("aria-label"),standardControl().kind]',[True,None,'Прикрепить файлы','microphone'])
+        case('actual_standard_loading',standard['afterUpload']['dom'],'return [a.attachmentReady('+d+'),a.sendButton(c),standardControl().kind]',[False,None,'unknown'])
+        case('actual_standard_ready',standard['ready']['dom'],'return [a.attachmentReady('+d+'),a.sendButton(c)?.getAttribute("aria-label"),standardControl().kind]',[True,'Отправить','send_active'])
+        case('actual_standard_sent_dom_empty',standard['before']['dom'],'return [a.attachmentConfirmationPending(),'+json.dumps(standard['sent']['dom'])+']',[True,[]])
+        actual_alice=alice_packet['before']['dom']['composer'][0]['grandparent']+alice_packet['before']['dom']['inputs'][0]['html']
+        case('actual_alice_composer_body_input_partial',actual_alice,'return [!!c,c.root.getAttribute("data-highlight-id"),a.classifyComposerControl(c).kind,a.attachmentSurface().kind,document.querySelector(\'input[data-testid="pick-file-input-element"]\').parentElement.tagName]',[True,'alice-input','ready','drag_drop_v1','BODY'],'alice')
+    if case_names is not None:
+        assert set(case_names)<=set(cases)
+        cases={n:cases[n] for n in case_names}
+    result={'status':'RUNNING','scope':'offline Standard observed input/loading/ready, sent evidence gap, Alice composer continuity; no authorized UI/Send','cases':{},'source_sha256':hashlib.sha256(bundle.encode()).hexdigest()}
+    with sync_playwright() as p:
+        browser=p.chromium.launch(headless=True)
+        context=browser.new_context(viewport={'width':1100,'height':800})
+        context.route('**/*',lambda route:route.fulfill(status=200,content_type='text/html',body='<html></html>'))
+        page=context.new_page()
+        for name,(html,js,expected,provider) in cases.items():
+            try:
+                page.goto(('https://chatgpt.com/c/' if provider=='chatgpt' else 'https://alice.yandex.ru/chats/')+'fixture')
+                page.set_content('<style>.hidden,[hidden]{display:none!important}[contenteditable=true]{min-height:24px}svg{max-width:24px;max-height:24px}</style>'+html)
+                for path in ['shared/conversation_identity.js','shared/ai_delivery_capabilities.js','shared/web_file_attachment.js','shared/ai_adapters.js']:
+                    page.evaluate((runtime/path).read_text())
+                page.evaluate(content_probe)
+                page.evaluate('globalThis.matchTurn='+match_probe)
+                actual=page.evaluate("([provider,js])=>{const a=OzonAIAdapters.ADAPTERS[provider],c=a.composerContext();return new (Object.getPrototypeOf(async function(){}).constructor)('a','c',js)(a,c)}",[provider,js])
+                assert actual==expected,{'actual':actual,'expected':expected}
+                result['cases'][name]={'status':'PASS'}
+            except Exception as exc:
+                result['cases'][name]={'status':'FAIL','error':str(exc)[:1600]}
+        browser.close()
+    failed=[n for n,c in result['cases'].items() if c['status']!='PASS']
+    result.update(status='FAIL' if failed else 'PASS',failed=failed)
+    (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+    print(json.dumps({'status':result['status'],'cases':len(cases),'failed':failed}))
+    return int(bool(failed))
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "standard-alice-files":
+        return run_standard_alice_files(runtime, output)
     if provider == "deepseek-parent-roots":
         return run_parent_roots(runtime, output, "deepseek")
     if provider == "deepseek-composer":
@@ -1417,6 +1538,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
