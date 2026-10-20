@@ -111,11 +111,11 @@ def run_kimi(runtime: Path, output: Path):
     return 0
 
 def run_kimi_adapter(runtime: Path, output: Path):
-    """New staged Kimi adapter/registry consumers; prior reader30 is not rerun."""
+    """Kimi activation/delivery consumers; prior reader30 is not rerun."""
     from html import escape
     output.mkdir(parents=True, exist_ok=True)
     files = ["shared/conversation_identity.js", "shared/web_file_attachment.js",
-             "shared/ai_delivery_capabilities.js", "shared/ai_adapters.js"]
+             "shared/ai_delivery_capabilities.js", "shared/ai_adapters.js", "shared/bridge_autorun_model.js"]
     sources = [(name, (runtime/name).read_text()) for name in files]
     content = (runtime/"content_script.js").read_text()
     functions = []
@@ -125,7 +125,7 @@ def run_kimi_adapter(runtime: Path, output: Path):
         end = content.index("\n  }\n", start)+5
         functions.append(content[start:end])
     consumers = "\n".join(functions)
-    result = {"status":"RUNNING", "scope":"offline staged Kimi adapter/registry and existing consumer delegation; no activation/live UI",
+    result = {"status":"RUNNING", "scope":"offline Kimi registry/delivery activation and existing consumer delegation; no live or installed UI",
               "source_sha256":{name:hashlib.sha256(s.encode()).hexdigest() for name,s in sources},
               "content_sha256":hashlib.sha256(content.encode()).hexdigest(), "cases":{}}
     style = '<style>.chat-input-editor{width:300px;min-height:24px}.send-button-container{width:28px;height:28px}.hidden-input{display:none}</style>'
@@ -161,13 +161,32 @@ def run_kimi_adapter(runtime: Path, output: Path):
                 user.replace('data-archer-id="u1"','data-archer-id="edit1"').replace('data-conversation-turn-id="u1"','data-conversation-turn-id="edit1"').replace('<div class="segment-user">OWN TEXT</div>','<div class="segment-user" contenteditable="true">UNSENT EDIT</div>'),
                 """() => {const a=OzonAIAdapters.ADAPTERS.kimi,first=document.querySelector('[data-archer-id="u1"]'),edit=document.querySelector('[data-archer-id="edit1"]');return {surface:!!a.attachmentSurface(),id:a.messageId(first),users:a.userMessages().map(n=>a.messageId(n)),editingText:a.messageText(edit)};}""",
                 {"surface":False,"id":"u1","users":["u1"],"editingText":""})
-            check("registered_but_planned_cannot_activate",editor(),"""() => ({
+            check("registered_with_reviewed_local_delivery",editor(),"""() => ({
                 id:OzonAIAdapters.ADAPTERS.kimi.id,origin:OzonAIAdapters.ADAPTERS.kimi.matchesLocation(),
-                mode:OzonAIAdapters.normalizeMode('kimi'),auto:OzonAIAdapters.adapterForLocation()===null,
-                explicit:OzonAIAdapters.adapterForLocation('kimi')===null,
+                mode:OzonAIAdapters.normalizeMode('kimi'),auto:OzonAIAdapters.adapterForLocation()?.id==='kimi',
+                explicit:OzonAIAdapters.adapterForLocation('kimi')?.id==='kimi',
                 capability:OzonAIDeliveryCapabilities.profile('kimi').status,
                 fileAllowed:OzonAIDeliveryCapabilities.fileDispatchDecision('kimi',{filename:'sample.txt',byte_length:4}).dispatch_allowed
-            })""",{"id":"kimi","origin":True,"mode":"kimi","auto":True,"explicit":True,"capability":"planned","fileAllowed":False})
+            })""",{"id":"kimi","origin":True,"mode":"kimi","auto":True,"explicit":True,"capability":"implemented","fileAllowed":True})
+            check("local_txt_capability_matches_adapter",editor(),"""() => {
+                const c=OzonAIDeliveryCapabilities,p=c.profile('kimi');
+                const allowed=(filename,byte_length)=>c.fileDispatchDecision('kimi',{filename,byte_length}).dispatch_allowed;
+                return {extensions:[...p.accepted_extensions],maxBytes:p.max_file_bytes,maxFiles:p.max_files_per_turn,strategy:p.attachment_strategy,
+                    txt:allowed('result.txt',1024*1024),over:allowed('result.txt',1024*1024+1),pdf:allowed('result.pdf',12)};
+            }""",{"extensions":["txt"],"maxBytes":1048576,"maxFiles":1,"strategy":"file_input_v1","txt":True,"over":False,"pdf":False})
+            check("local_transport_cutoff_not_provider_limit",editor(),"""() => {
+                const c=OzonAIDeliveryCapabilities,short=c.generatedTextDecision('kimi','x'.repeat(4096)),long=c.generatedTextDecision('kimi','x'.repeat(4097)),unicode=c.generatedTextDecision('kimi','😀'.repeat(2049));
+                return {short:short.representation,long:long.representation,unicode:unicode.representation,metric:long.length_metric,status:long.threshold_status};
+            }""",{"short":"plain_text","long":"text_document","unicode":"text_document","metric":"utf16_code_units","status":"conservative_transport_cutoff"})
+            check("large_report_uses_complete_txt_same_run",editor(),"""() => {
+                const text='BEGIN\\n'+'данные\\n'.repeat(1200)+'END';
+                const before={origin:location.origin,conversation_id:'fixture-chat',status:'collecting',sequence:7};
+                const run=BridgeAutorunModel.claimDelivery(before,{mode:'batch_watch_v1',deliveryId:'kimi-local-report',requestId:'local-request',outgoingText:text});
+                const d=run.delivery,marker=JSON.parse(d.outgoing_text.split('\\n').slice(1).join('\\n'));
+                return {origin:run.origin,chat:run.conversation_id,sequence:run.sequence,phase:d.phase,mode:d.mode,adapter:d.adapter_id,
+                    complete:d.generated_text_document.complete,bytes:d.generated_text_document.byte_length===new TextEncoder().encode(text).byteLength,
+                    retained:d.artifact_text===text,markerComplete:marker.complete,providerFiles:d.provider_file_refs.length};
+            }""",{"origin":"https://www.kimi.ai","chat":"fixture-chat","sequence":7,"phase":"attachment_claimed","mode":"attachment_watch_v1","adapter":"kimi","complete":True,"bytes":True,"retained":True,"markerComplete":True,"providerFiles":0})
             for name,markup,kind in [
                 ("idle_disabled_is_ready",editor(),"ready"),
                 ("text_send_enabled",editor("HELLO",""),"send_active"),
@@ -259,9 +278,9 @@ def run_kimi_adapter(runtime: Path, output: Path):
             delegated=page.evaluate("(function(){function currentAIAdapter(){return OzonAIAdapters.ADAPTERS.kimi;}"+consumers+"""const c=primaryComposerContext();return {root:c.root.dataset.testid,send:sendButton(c)?.id,candidates:sendButtonCandidates(c).length,controls:allComposerControls(c).map(n=>n.id),stop:stopButton(c)===null,recognized:recognizedSendControl(c)?.id,kind:classifyComposerControl().kind};})()""")
             assert delegated=={"root":"chat-editor","send":"send","candidates":1,"controls":["send"],"stop":True,"recognized":"send","kind":"send_active"},delegated
             result["cases"]["prepared_consumers_delegate_to_actual_kimi_adapter"]={"status":"PASS","actual":delegated}
-            held=page.evaluate("(function(){function currentAIAdapter(){return OzonAIAdapters.adapterForLocation();}"+consumers+"return primaryComposerContext()===null && sendButtonCandidates(null).length===0 && classifyComposerControl().kind==='unknown';})()")
+            held=page.evaluate("(function(){function currentAIAdapter(){return OzonAIAdapters.adapterForLocation();}"+consumers+"return primaryComposerContext()?.root===document.querySelector('.chat-editor') && sendButtonCandidates(primaryComposerContext()).length===1 && classifyComposerControl().kind==='send_active';})()")
             assert held is True
-            result["cases"]["ordinary_work_selection_stays_closed"]={"status":"PASS"}
+            result["cases"]["ordinary_work_selection_uses_kimi_adapter"]={"status":"PASS"}
             for url in ["https://kimi.ai/chat/a","https://www.kimi.ai.example.invalid/chat/a","http://localhost/chat/a"]:
                 load(editor("TEXT",""),url)
                 assert page.evaluate("!OzonAIAdapters.ADAPTERS.kimi.matchesLocation() && OzonAIAdapters.ADAPTERS.kimi.composerContext()===null && OzonAIAdapters.adapterForLocation('kimi')===null"),url

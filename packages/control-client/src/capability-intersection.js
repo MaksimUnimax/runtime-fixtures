@@ -40,6 +40,10 @@
       capabilityId: "ai.qwen.web.adapter",
       entitlementKey: "ai.qwen",
     },
+    {
+      capabilityId: "ai.kimi.web.adapter",
+      entitlementKey: "ai.kimi",
+    },
   ];
 
   function deepFreeze(value) {

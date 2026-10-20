@@ -959,6 +959,16 @@
   {
     "target": "shared/ai_adapters.js",
     "old": "  function adapterForLocation(mode = \"auto\") {\n    const normalized = normalizeMode(mode);\n    if (normalized !== \"auto\") {\n      const selected = ADAPTERS[normalized] || null;\n      return selected?.matchesLocation() ? selected : null;\n    }\n    return Object.values(ADAPTERS).find((candidate) => candidate.matchesLocation()) || null;\n  }\n",
-    "new": "  function adapterForLocation(mode = \"auto\") {\n    const normalized = normalizeMode(mode);\n    // Kimi remains staged until its profile/runtime/delivery boundary is completed.\n    // Reuse the existing planned/implemented capability status; do not grant authority.\n    const available = adapter => adapter?.id !== \"kimi\" || adapter.deliveryCapabilities()?.status === \"implemented\";\n    if (normalized !== \"auto\") {\n      const selected = ADAPTERS[normalized] || null;\n      return selected?.matchesLocation() && available(selected) ? selected : null;\n    }\n    return Object.values(ADAPTERS).find((candidate) => candidate.matchesLocation() && available(candidate)) || null;\n  }\n"
+    "new": "  function adapterForLocation(mode = \"auto\") {\n    const normalized = normalizeMode(mode);\n    // Kimi selection requires the reviewed local delivery profile.\n    // Adapter presence never replaces signed profile, entitlement or Work authority.\n    const available = adapter => adapter?.id !== \"kimi\" || adapter.deliveryCapabilities()?.status === \"implemented\";\n    if (normalized !== \"auto\") {\n      const selected = ADAPTERS[normalized] || null;\n      return selected?.matchesLocation() && available(selected) ? selected : null;\n    }\n    return Object.values(ADAPTERS).find((candidate) => candidate.matchesLocation() && available(candidate)) || null;\n  }\n"
+  },
+  {
+    "target": "shared/ai_delivery_capabilities.js",
+    "old": "    kimi: Object.freeze({ id: \"kimi\", status: \"planned\", plain_text_max_chars: null, attachments_supported: true, accepted_extensions: Object.freeze([\"txt\", \"pdf\", \"doc\", \"docx\", \"xls\", \"xlsx\", \"ppt\", \"pptx\"]), max_file_bytes: 100 * 1024 * 1024, max_files_per_turn: 50, attachment_strategy: \"pending\" })",
+    "new": "    // Local transport policy, not a measured provider maximum or installed acceptance.\n    kimi: Object.freeze({ id: \"kimi\", status: \"implemented\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", plain_text_threshold_status: \"conservative_transport_cutoff\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: 1024 * 1024, max_files_per_turn: 1, attachment_strategy: \"file_input_v1\" })"
+  },
+  {
+    "target": "shared/ai_delivery_capabilities.js",
+    "old": "      threshold_status: \"calibrated\",",
+    "new": "      threshold_status: current.plain_text_threshold_status || \"calibrated\","
   }
 ]
