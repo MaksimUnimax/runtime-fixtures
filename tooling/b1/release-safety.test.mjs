@@ -763,7 +763,6 @@ test("Firefox AMO data consent accepts the existing Firefox build categories", (
   }
 });
 
-
 test("Firefox AMO minimum version rejects missing 140 floor in built-in consent", () => {
   const value = fixture({ firefox: { firefoxMinVersion: null } });
   try {
@@ -777,7 +776,14 @@ test("Firefox AMO minimum version rejects missing 140 floor in built-in consent"
 });
 
 test("Firefox AMO minimum version rejects old or malformed Firefox versions", () => {
-  for (const version of ["139.0", "139.9", "139.9.9", "140", "140.0a1", "invalid"]) {
+  for (const version of [
+    "139.0",
+    "139.9",
+    "139.9.9",
+    "140",
+    "140.0a1",
+    "invalid",
+  ]) {
     const value = fixture({ firefox: { firefoxMinVersion: version } });
     try {
       assert.throws(
@@ -1649,6 +1655,31 @@ test("preparer never claims browser/live/deployment acceptance", () => {
     );
     assert.match(result.stdout, /"productionMutation":"NOT_PERFORMED"/);
     assert.match(result.stdout, /"externalAcceptance":"NOT_CLAIMED"/);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("dual-browser preflight rejects a file added after manifest preparation", () => {
+  const value = fixture();
+  try {
+    const { output } = prepare(value);
+    writeFileSync(
+      join(output, "UNDECLARED_NONPRIVATE_FIXTURE.txt"),
+      "fixture bytes",
+    );
+    assert.throws(() => preflight(value, output), /undeclared/i);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("dual-browser preflight rejects extra child directory after preparation", () => {
+  const value = fixture();
+  try {
+    const { output } = prepare(value);
+    mkdirSync(join(output, "EXTRA_NONPRIVATE_DIRECTORY"));
+    assert.throws(() => preflight(value, output), /undeclared/i);
   } finally {
     cleanup(value);
   }
