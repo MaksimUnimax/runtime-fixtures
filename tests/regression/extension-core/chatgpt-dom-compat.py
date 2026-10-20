@@ -702,7 +702,90 @@ def run_grok_adapter(runtime: Path, output: Path):
     return 1 if failed else 0
 
 
+
+def run_b02_delivery_watch(runtime: Path, output: Path):
+    """Actual batch-watch source with isolated ordinary code-test dependencies.
+    No provider requests, real AI Send, installed harness or abort reproduction.
+    Signed profile/authority is tested separately in the existing worker suites.
+    """
+    output.mkdir(parents=True,exist_ok=True)
+    content=(runtime/"content_script.js").read_text();worker=(runtime/"service_worker.js").read_text()
+    start=content.index("  async function runBatchDeliveryWatch(")
+    watch=content[start:content.index("\n  function stopManualComposerWait(",start)]
+    start=worker.index("function expectedDeliveryConfirmationBasis(")
+    basis=worker[start:worker.index("\nfunction legacyConversationKey(",start)]
+    identity=(runtime/"shared/conversation_identity.js").read_text()
+    result={"status":"RUNNING","scope":"B02 actual batch-watch confirmation code, synthetic button/turns; no authority or installed acceptance",
+            "content_sha256":hashlib.sha256(content.encode()).hexdigest(),"worker_sha256":hashlib.sha256(worker.encode()).hexdigest(),"cases":{}}
+    failures=[]
+    origins={"chatgpt":"https://chatgpt.com","alice":"https://alice.yandex.ru","qwen":"https://chat.qwen.ai","kimi":"https://www.kimi.ai","grok":"https://grok.com","gemini":"https://gemini.google.com"}
+    script=r"""async ({id,origin,scenario,watch,basis})=>{
+      const key=origin+'|local:fixture',old=document.createElement('div'),button=document.createElement('button');
+      old.id='OLD';old.textContent=scenario==='old_matching'?'REPORT':'OLD BODY';document.body.append(old,button);
+      const rows=[old],messages=[],commits=[],diagnostics=[];let clicks=0,wakes=0,stage=scenario.startsWith('restore')?'ready':'send';
+      function add(text){const n=document.createElement('div');n.id='NEW';n.textContent=text;rows.push(n);document.body.append(n)}
+      if(scenario.startsWith('restore'))add('REPORT');
+      button.addEventListener('click',()=>{clicks++;stage='ready';if(scenario==='matching')add('REPORT');else if(scenario==='wrong_text')add('OTHER')});
+      const adapter={id,userMessages:()=>rows,messageId:n=>n.id,messageText:n=>n.textContent};
+      const env={
+        HTMLElement,current:()=>true,currentAIAdapter:()=>adapter,userTurnIds:()=>rows.map(n=>n.id),
+        canonicalText:v=>String(v||'').replace(/\s+/g,' ').trim(),
+        sameConversation:(o,c)=>o===origin&&c==='local:fixture',conversationKeyFromLocation:()=>key,
+        classifyComposerControl:()=>stage==='send'?{kind:'send_active',button}:{kind:id==='chatgpt'?'microphone':id+'_ready',button:null},
+        recordContentDiagnostic:(...args)=>diagnostics.push(args),diagnosticForControlKind:k=>k,
+        visible:n=>n.isConnected,controlDisabled:n=>n.disabled,saCheckDelivery:async()=>{},
+        saContentContext:{work_active:true},runtimeId:'fixture-actor',manualEnabled:false,manualConversationKey:key,
+        setManualBridgeReady:()=>{},toast:()=>{},sleep:async()=>{},DELIVERY_WATCH_INTERVAL_MS:1,BB2ConversationIdentity,origin
+      };
+      env.messages=messages;env.commits=commits;env.wake=()=>wakes++;env.wakes=()=>wakes;
+      const code=basis+
+        "\nlet activeDeliveryWatch=null;\n"+
+        "function stopDeliveryWatch(){if(activeDeliveryWatch)activeDeliveryWatch.cancelled=true;activeDeliveryWatch=null}\n"+
+        "async function waitForDeliveryWatchWake(s){env.wake();if(env.wakes()>=3)s.cancelled=true}\n"+
+        "async function sendRuntime(type,payload){"+
+          "if(type==='OZ_WORK_SEND_COMMIT'){env.commits.push(payload);return {ok:true,click_allowed:true,send_click_committed:true,chatgpt_user_baseline:payload.chatgpt_user_baseline}}"+
+          "if(type==='OZ_BATCH_DELIVERY_COMPLETE'){env.messages.push(payload);return {ok:acceptedDeliveryConfirmationBasis(env.origin,payload.confirmation_basis)}}"+
+          "throw new Error('unexpected message '+type);}\n"+
+        watch+"\nreturn {run:runBatchDeliveryWatch,basis:expectedDeliveryConfirmationBasis(origin)};";
+      const built=new Function('env',...Object.keys(env),code),api=built(env,...Object.values(env));
+      const recovery={delivery_mode:'batch_watch_v1',owner_kind:'autorun',owner_id:'fixture-run',run_id:'fixture-run',origin,conversation_id:'local:fixture',conversation_key:key,delivery_id:'fixture-delivery',outgoing_text:'REPORT',send_click_committed:scenario.startsWith('restore')};
+      if(scenario==='restore_known')recovery.chatgpt_user_baseline=['OLD'];
+      const outcome=await api.run(recovery);
+      return {ok:outcome.delivered===true,clicks,commits:commits.length,completions:messages.length,
+        serializedBaseline:commits[0]?.chatgpt_user_baseline||null,confirmedId:messages[0]?.confirmed_user_turn_id||null,
+        basis:messages[0]?.confirmation_basis||null,expectedBasis:api.basis};
+    }"""
+    with sync_playwright() as p:
+        browser=p.chromium.launch(headless=True);context=browser.new_context()
+        context.route("**/*",lambda route:route.fulfill(status=200,content_type="text/html",body="<html></html>"));page=context.new_page()
+        for provider,origin in origins.items():
+            for scenario in ["matching","empty_ready","wrong_text","old_matching","restore_known","restore_missing"]:
+                name=provider+"_"+scenario
+                try:
+                    page.goto(origin+"/fixture");page.set_content("<html><body></body></html>");page.evaluate(identity)
+                    actual=page.evaluate(script,{"id":provider,"origin":origin,"scenario":scenario,"watch":watch,"basis":basis})
+                    positive=scenario in ["matching","restore_known"]
+                    assert actual["ok"] is positive,actual
+                    assert actual["clicks"]==(0 if scenario.startswith("restore") else 1),actual
+                    assert actual["commits"]==actual["clicks"],actual
+                    assert actual["completions"]==(1 if positive else 0),actual
+                    expected="microphone" if provider=="chatgpt" else "alice_ready" if provider=="alice" else provider+"_user_turn_ready"
+                    if positive:assert actual["basis"]==expected and actual["confirmedId"]=="NEW",actual
+                    if not scenario.startswith("restore"):assert actual["serializedBaseline"]==["OLD"],actual
+                    assert actual["expectedBasis"]==expected,actual
+                    result["cases"][name]={"status":"PASS"}
+                except Exception as exc:
+                    failures.append(name);result["cases"][name]={"status":"FAIL","error":str(exc)[:1100]}
+        browser.close()
+    result["status"]="FAIL" if failures else "PASS";result["failed"]=failures
+    (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps({"status":result["status"],"cases":len(result["cases"]),"failed":failures}))
+    return 1 if failures else 0
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "b02-delivery-watch":
+        return run_b02_delivery_watch(runtime, output)
     if provider == "grok-adapter":
         return run_grok_adapter(runtime, output)
     if provider == "gemini-adapter":
@@ -878,6 +961,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
