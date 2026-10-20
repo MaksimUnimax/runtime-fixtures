@@ -264,7 +264,7 @@ export class TelegramOperatorService {
         }
         // The implicit path is for one exported JSON wrapper containing the
         // 13 official WB YAML documents, never an arbitrary Telegram file.
-        if (!/\.json$/i.test(document.fileName ?? "")) {
+        if (document.fileName !== "WB_OPENAPI_BUNDLE_V1.json") {
           await this.options.transport.sendMessage(
             chatId,
             "WB_BUNDLE_FILE_INVALID",

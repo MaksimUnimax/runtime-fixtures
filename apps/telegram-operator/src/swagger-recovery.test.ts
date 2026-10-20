@@ -479,6 +479,12 @@ describe("owner single-file WB bundle attachment without a typed request ID", ()
     expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
       0,
     );
+    // A personal JSON attachment must not be downloaded or retained in quarantine.
+    await f.uploadBare({ fileName: "personal.json" });
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_FILE_INVALID");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
     await f.pendingStore.setRequestStatus(f.first.requestId, "EXPIRED");
     await f.uploadBare();
     expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_MISSING");
