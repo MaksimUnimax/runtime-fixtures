@@ -1,6 +1,7 @@
 import { operatorPipelineConsumed } from "./operator-receipt.js";
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
   OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE,
@@ -27,6 +28,7 @@ import type {
   SemanticDiffOperation,
   SourceRegistry,
 } from "./types.js";
+import { API_WATCH_MAX_ARTIFACT_BYTES } from "./types.js";
 import { runDocumentAuthorityPass } from "./source-set.js";
 import {
   authorityRecordSequence,
@@ -775,6 +777,51 @@ function candidatePath(root: string, artifact: SwaggerArtifact): string {
   return path;
 }
 
+// A quarantined candidate may be replaced after its upload receipt is stored.
+// Pin and bound the actual regular file before the operator authority decision.
+async function readQuarantinedCandidate(
+  path: string,
+  expectedSize: number,
+  maximumBytes: number,
+): Promise<Uint8Array> {
+  const limit = Math.min(API_WATCH_MAX_ARTIFACT_BYTES, maximumBytes);
+  if (
+    !Number.isSafeInteger(expectedSize) ||
+    expectedSize < 0 ||
+    expectedSize > limit
+  )
+    throw new Error("CANDIDATE_SIZE_MISMATCH");
+  const handle = await open(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) throw new Error("CANDIDATE_BYTES_UNAVAILABLE");
+    if (!Number.isSafeInteger(stat.size) || stat.size > limit)
+      throw new Error("CANDIDATE_SIZE_MISMATCH");
+    // Preserve the historical digest-before-size classification for ordinary
+    // changed candidate bytes. A single extra byte detects post-stat growth.
+    const buffer = Buffer.alloc(Math.max(expectedSize, stat.size) + 1);
+    let received = 0;
+    while (received < buffer.length) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        received,
+        buffer.length - received,
+        received,
+      );
+      if (bytesRead === 0) break;
+      received += bytesRead;
+    }
+    if (received === buffer.length)
+      throw new Error("CANDIDATE_DIGEST_MISMATCH");
+    return buffer.subarray(0, received);
+  } finally {
+    await handle.close();
+  }
+}
+
 function operatorAuthorityId(artifactId: string, documentKey: string): string {
   const hex = createHash("sha256")
     .update(JSON.stringify([artifactId, documentKey]))
@@ -847,9 +894,19 @@ export async function evaluateOperatorCandidate(input: {
     return invalidCandidate("CANDIDATE_STATE_INVALID");
   let bytes: Uint8Array;
   try {
-    bytes = await readFile(candidatePath(input.quarantineDir, candidate));
-  } catch {
-    return invalidCandidate("CANDIDATE_BYTES_UNAVAILABLE");
+    bytes = await readQuarantinedCandidate(
+      candidatePath(input.quarantineDir, candidate),
+      candidate.sizeBytes,
+      entry.maximumBytes,
+    );
+  } catch (error) {
+    return invalidCandidate(
+      error instanceof Error &&
+        (error.message === "CANDIDATE_SIZE_MISMATCH" ||
+          error.message === "CANDIDATE_DIGEST_MISMATCH")
+        ? error.message
+        : "CANDIDATE_BYTES_UNAVAILABLE",
+    );
   }
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== candidate.sha256)
