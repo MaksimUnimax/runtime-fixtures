@@ -34,7 +34,7 @@
     if (!Number.isSafeInteger(input.principalEpoch) || input.principalEpoch < 0) throw failure("SCOPE_PRINCIPAL_INVALID");
     principal.principalEpoch = input.principalEpoch;
     const ai = input.ai;
-    if (!ai || !["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude"].includes(ai.family) || ai.surface !== "web" || ai.variant !== null)
+    if (!ai || !["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(ai.family) || ai.surface !== "web" || ai.variant !== null)
       throw failure("SCOPE_AI_UNSUPPORTED");
     if (!["control_plane_v2", "control_plane_v3"].includes(input.contractVersion) ||
         typeof input.extensionVersion !== "string" || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(input.extensionVersion) ||

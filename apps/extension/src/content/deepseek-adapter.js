@@ -1,6 +1,7 @@
-/* DeepSeek B02 components using accepted 19 Oct controls and 20 Oct 07:04 root.
+/* DeepSeek B02 text transport using accepted controls, root and 07:56 actions.
  * Messages use conservative document-only node witnesses; replacement retires them.
- * Completion/upload-end remain unobserved; registry activation stays pending.
+ * Terminal actions are observed, but streaming exclusivity/upload-end remain unknown.
+ * Text transport is registered; automatic assistant completion stays closed.
  * No click, execution or signed authority is created here. */
 (() => {
   "use strict";
@@ -121,8 +122,41 @@
       const button = sends[0], paths = button.querySelectorAll("svg path");
       if (paths.length !== 1 || paths[0].getAttribute("d") !== "M8.3125 0.980206C8.66767 1.05312 8.97902 1.2042 9.2627 1.43235C9.48724 1.613 9.73029 1.85795 9.97949 2.10716L14.707 6.8347L13.293 8.24876L9 3.95579V15.0417H7V3.95579L2.70703 8.24876L1.29297 6.8347L6.02051 2.10716C6.26971 1.85795 6.51277 1.613 6.7373 1.43235C6.97662 1.23988 7.28445 1.04404 7.6875 0.980206C7.8973 0.947029 8.1031 0.955183 8.3125 0.980206Z") return {kind:"unknown",button:null};
       const disabled = button.classList.contains("ds-button--disabled") || button.getAttribute("aria-disabled") === "true";
+      // This means an empty text transport, not a finished assistant/upload.
+      if (cards(c.root).length || c.root.querySelector(INPUT)?.files?.length) return {kind:"unknown",button:null};
+      if (!readComposerText(c.composer).trim()) return {kind:"ready",button:null};
       // Captured spinner is busy, never asserted to be the unknown Stop.
       return {kind:disabled ? "send_disabled" : "send_active",button};
+    }
+    function completionObservation(node) {
+      const unknown = (reason, actionsObserved=false) => Object.freeze({
+        status:"unknown", reason, actionsObserved
+      });
+      const assistants=assistantMessages();
+      if (!assistants.includes(node) || assistants.at(-1)!==node || !messageId(node) ||
+          !messageText(node).trim()) return unknown("current_assistant_not_owned");
+      const state=classify(composerContext());
+      if (!["ready","send_active","send_disabled"].includes(state.kind))
+        return unknown("composer_busy_or_unknown");
+      const parent=node.parentElement, toolbar=node.nextElementSibling;
+      if (parent.children.length!==2 || parent.firstElementChild!==node ||
+          !toolbar?.matches("div.ds-flex._0a3d93b") || !rendered(toolbar) ||
+          toolbar.querySelector(MESSAGE)) return unknown("terminal_actions_not_observed");
+      const group=toolbar.firstElementChild;
+      if (!group?.matches("div.ds-flex._965abe9._54866f7") || !rendered(group))
+        return unknown("terminal_actions_not_observed");
+      const buttons=[...group.children];
+      if (buttons.length!==6 || toolbar.querySelectorAll('[role="button"]').length!==6 ||
+          buttons.some(n=>!n.matches('div.ds-button.db183363[role="button"][tabindex="0"]') ||
+            !rendered(n) || n.getAttribute("aria-disabled")==="true" || n.matches(":disabled")) ||
+          buttons[1].getAttribute("aria-disabled")!=="false" ||
+          buttons[4].getAttribute("aria-label")!=="Читать вслух" ||
+          buttons.filter(n=>n.getAttribute("aria-label")==="Читать вслух").length!==1)
+        return unknown("terminal_actions_not_observed");
+      // The exact observed toolbar is useful evidence, but no busy comparison
+      // proves it absent during streaming. Never promote this snapshot to ready.
+      // No dependency on data-virtual-list-item-key=10 or inferred icon meanings.
+      return unknown("streaming_exclusivity_not_verified",true);
     }
     function attachmentPreview(filename) {
       const c = composerContext();
@@ -172,8 +206,9 @@
         return reader.findCodeBlocks(node.querySelector(".ds-markdown.ds-assistant-message-main-content"));
       },
       readCodeText:reader.readCodeText, geometryAnchor:reader.geometryAnchor,
-      // Spinner/disabled Send alone do not prove assistant completion.
-      messageComplete() { return false; },
+      completionObservation,
+      messageComplete(node) { return completionObservation(node).status==="complete"; },
+      deliveryCapabilities() { return globalThis.OzonAIDeliveryCapabilities?.profile?.("deepseek") || null; },
       attachmentSurface, attachmentPreview,
       attachFiles(surface,files) {
         const c = attachmentSurface();
@@ -189,8 +224,9 @@
       attachmentReady() { return false; },
       sentAttachmentMessage() { return null; },
       integrationStatus() {
-        return Object.freeze({status:"pending",message_identity:"document_scoped_nodes",
-          upload_end:"not_observed",registry_activated:false});
+        return Object.freeze({status:"text_only",message_identity:"document_scoped_nodes",
+          assistant_completion:"streaming_exclusivity_not_verified",
+          upload_end:"not_observed",registry_activated:true});
       }
     });
   }

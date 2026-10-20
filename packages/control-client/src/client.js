@@ -20,7 +20,7 @@
   const SUBSCRIPTION_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
   const SUBSCRIPTION_REFRESH_JITTER_MAX_MS = 30 * 60 * 1000;
   const TERMINAL_EXCHANGE_ERRORS = new Set(["DEVICE_AUTH_CLOSED", "DEVICE_AUTH_INVALID", "DEVICE_LIMIT_REACHED", "SUBSCRIPTION_REQUIRED"]);
-  const LOCAL_AI = Object.freeze({ chatgpt: Object.freeze({ family: "chatgpt", surface: "web" }), alice: Object.freeze({ family: "alice", surface: "web" }), qwen: Object.freeze({ family: "qwen", surface: "web" }), kimi: Object.freeze({ family: "kimi", surface: "web" }), grok: Object.freeze({ family: "grok", surface: "web" }), gemini: Object.freeze({ family: "gemini", surface: "web" }), claude: Object.freeze({ family: "claude", surface: "web" }) });
+  const LOCAL_AI = Object.freeze({ chatgpt: Object.freeze({ family: "chatgpt", surface: "web" }), alice: Object.freeze({ family: "alice", surface: "web" }), qwen: Object.freeze({ family: "qwen", surface: "web" }), kimi: Object.freeze({ family: "kimi", surface: "web" }), grok: Object.freeze({ family: "grok", surface: "web" }), gemini: Object.freeze({ family: "gemini", surface: "web" }), claude: Object.freeze({ family: "claude", surface: "web" }), deepseek: Object.freeze({ family: "deepseek", surface: "web" }) });
   const MAX_DATE_MS = 8640000000000000;
   let state = { generation: 0, principalEpoch: 0, accessEpoch: 0, grants: {}, credentials: null, pending: null, rotation: null, authority: null, cacheClock: null, lastError: null };
   let initialized = false, initFlight = null, mutationQueue = Promise.resolve();
@@ -159,8 +159,8 @@
     const legacyGraceRequired = snapshot?.contractVersion !== "control_plane_v3" || snapshot?.accessBasis === "BETA";
     return Boolean(authorityStaticValid(snapshot) && validMillis(effectiveTimeMs) && expiresAt !== null && deadline !== null && (!legacyGraceRequired || deadline > expiresAt) && effectiveTimeMs < deadline);
   }
-  function staticCanWork(snapshot) { return Boolean(authorityStaticValid(snapshot) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude"].includes(snapshot.ai.detected?.family)); }
-  function canWork(snapshot, effectiveTimeMs) { return Boolean(authorityBaseValid(snapshot, effectiveTimeMs) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude"].includes(snapshot.ai.detected?.family)); }
+  function staticCanWork(snapshot) { return Boolean(authorityStaticValid(snapshot) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(snapshot.ai.detected?.family)); }
+  function canWork(snapshot, effectiveTimeMs) { return Boolean(authorityBaseValid(snapshot, effectiveTimeMs) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(snapshot.ai.detected?.family)); }
   function currentBrowserIdentity() { const detected = browserIdentity?.current?.(); if (!detected?.family || !detected?.version || !browserIdentity.families.includes(detected.family)) throw error("UNSUPPORTED_BROWSER"); return detected; }
   function browserFamily() { return currentBrowserIdentity().family; }
   function browserVersion() { return currentBrowserIdentity().version; }

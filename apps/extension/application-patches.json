@@ -1265,5 +1265,110 @@
     "target": "shared/ai_delivery_capabilities.js",
     "old": "if (current.status === \"text_only\") return Object.freeze({ status: \"pending\", supported: false, reason: \"attachment_surface_not_observed\" });",
     "new": "if (current.status === \"text_only\") return Object.freeze({ status: \"pending\", supported: false, reason: current.attachment_pending_reason || \"attachment_surface_not_observed\" });"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const baseline = [\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(adapter.id) ? adapter.composerContext() : adapter.id === \"alice\" ? alicePrimaryComposerContext() : chatgptPrimaryComposerContext();",
+    "new": "    const baseline = [\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(adapter.id) ? adapter.composerContext() : adapter.id === \"alice\" ? alicePrimaryComposerContext() : chatgptPrimaryComposerContext();"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    return [\"kimi\", \"grok\", \"gemini\", \"claude\"].includes(adapter.id) ? adapter.allComposerControls(context) : adapter.id === \"qwen\" ? [...(context?.root?.querySelectorAll(\"button\") || [])].filter(visible) : adapter.id === \"alice\" ? aliceAllComposerControls(context) : chatgptAllComposerControls(context);",
+    "new": "    return [\"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(adapter.id) ? adapter.allComposerControls(context) : adapter.id === \"qwen\" ? [...(context?.root?.querySelectorAll(\"button\") || [])].filter(visible) : adapter.id === \"alice\" ? aliceAllComposerControls(context) : chatgptAllComposerControls(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    return [\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(adapter.id) ? adapter.sendButtonCandidates(context) : adapter.id === \"alice\" ? aliceSendButtonCandidates(context) : chatgptSendButtonCandidates(context);",
+    "new": "    return [\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(adapter.id) ? adapter.sendButtonCandidates(context) : adapter.id === \"alice\" ? aliceSendButtonCandidates(context) : chatgptSendButtonCandidates(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const baseline = [\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(adapter.id) ? adapter.sendButton(context) : adapter.id === \"alice\" ? aliceSendButton(context) : chatgptSendButton(context);",
+    "new": "    const baseline = [\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(adapter.id) ? adapter.sendButton(context) : adapter.id === \"alice\" ? aliceSendButton(context) : chatgptSendButton(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if ([\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(adapter.id)) {\n      const state = adapter.classifyComposerControl(context);\n      return state.kind === \"stop\" ? state.button : null;",
+    "new": "    if ([\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(adapter.id)) {\n      const state = adapter.classifyComposerControl(context);\n      return state.kind === \"stop\" ? state.button : null;"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if ([\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(adapter.id)) {\n      const state = adapter.classifyComposerControl(context);\n      return [\"send_active\", \"send_disabled\"].includes(state.kind) ? state.button : null;",
+    "new": "    if ([\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(adapter.id)) {\n      const state = adapter.classifyComposerControl(context);\n      return [\"send_active\", \"send_disabled\"].includes(state.kind) ? state.button : null;"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if ([\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(adapter.id)) {\n      const context = adapter.composerContext(), state = adapter.classifyComposerControl(context);",
+    "new": "    if ([\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(adapter.id)) {\n      const context = adapter.composerContext(), state = adapter.classifyComposerControl(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      qwen_user_baseline: [\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(currentAIAdapter()?.id) ? (Array.isArray(recovery.chatgpt_user_baseline) ? new Set(recovery.chatgpt_user_baseline) : recovery.send_click_committed === true ? null : new Set(userTurnIds())) : null,",
+    "new": "      qwen_user_baseline: [\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id) ? (Array.isArray(recovery.chatgpt_user_baseline) ? new Set(recovery.chatgpt_user_baseline) : recovery.send_click_committed === true ? null : new Set(userTurnIds())) : null,"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      qwen_expected_text: [\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(currentAIAdapter()?.id) ? canonicalText(recovery.outgoing_text || \"\") : \"\",",
+    "new": "      qwen_expected_text: [\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id) ? canonicalText(recovery.outgoing_text || \"\") : \"\","
+  },
+  {
+    "target": "content_script.js",
+    "old": "      if ([\"alice_ready\", \"qwen_ready\", \"kimi_ready\", \"grok_ready\", \"gemini_ready\", \"claude_ready\"].includes(classified.kind)) {",
+    "new": "      if ([\"alice_ready\", \"qwen_ready\", \"kimi_ready\", \"grok_ready\", \"gemini_ready\", \"claude_ready\", \"deepseek_ready\"].includes(classified.kind)) {"
+  },
+  {
+    "target": "content_script.js",
+    "old": "                const chatgptBaseline = [\"chatgpt\", \"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(currentAIAdapter()?.id) ? userTurnIds() : undefined;",
+    "new": "                const chatgptBaseline = [\"chatgpt\", \"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id) ? userTurnIds() : undefined;"
+  },
+  {
+    "target": "content_script.js",
+    "old": "                if ([\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(currentAIAdapter()?.id)) state.qwen_user_baseline = commit?.ok && commit.send_click_committed === true && Array.isArray(commit.chatgpt_user_baseline) ? new Set(commit.chatgpt_user_baseline) : null;",
+    "new": "                if ([\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id)) state.qwen_user_baseline = commit?.ok && commit.send_click_committed === true && Array.isArray(commit.chatgpt_user_baseline) ? new Set(commit.chatgpt_user_baseline) : null;"
+  },
+  {
+    "target": "content_script.js",
+    "old": "                if ([\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(currentAIAdapter()?.id) && !state.qwen_user_baseline) throw Object.assign(new Error(\"Delivery baseline missing\"), { code: \"DELIVERY_BASELINE_MISSING\" });",
+    "new": "                if ([\"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(currentAIAdapter()?.id) && !state.qwen_user_baseline) throw Object.assign(new Error(\"Delivery baseline missing\"), { code: \"DELIVERY_BASELINE_MISSING\" });"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "const AI_MODES = new Set([\"auto\", \"chatgpt\", \"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"]);",
+    "new": "const AI_MODES = new Set([\"auto\", \"chatgpt\", \"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"]);"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  if ([\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"].includes(provider)) return provider + \"_user_turn_ready\";",
+    "new": "  if ([\"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"].includes(provider)) return provider + \"_user_turn_ready\";"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "const AI_MODES = Object.freeze([\"auto\", \"chatgpt\", \"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\"]);",
+    "new": "const AI_MODES = Object.freeze([\"auto\", \"chatgpt\", \"alice\", \"qwen\", \"kimi\", \"grok\", \"gemini\", \"claude\", \"deepseek\"]);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      claude_ready: \"BUTTON_CLAUDE_READY\",",
+    "new": "      claude_ready: \"BUTTON_CLAUDE_READY\",\n      deepseek_ready: \"BUTTON_DEEPSEEK_READY\","
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  const CLAUDE = SellerAgentsClaudeAdapter.create({ readComposerText, setComposerText });\n  const ADAPTERS = Object.freeze({ chatgpt: CHATGPT, alice: ALICE, qwen: QWEN, kimi: KIMI, grok: GROK, gemini: GEMINI, claude: CLAUDE });",
+    "new": "  const CLAUDE = SellerAgentsClaudeAdapter.create({ readComposerText, setComposerText });\n  const DEEPSEEK = SellerAgentsDeepSeekAdapter.create({ readComposerText, setComposerText });\n  const ADAPTERS = Object.freeze({ chatgpt: CHATGPT, alice: ALICE, qwen: QWEN, kimi: KIMI, grok: GROK, gemini: GEMINI, claude: CLAUDE, deepseek: DEEPSEEK });"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "const available = adapter => [\"gemini\", \"claude\"].includes(adapter?.id) ?",
+    "new": "const available = adapter => [\"gemini\", \"claude\", \"deepseek\"].includes(adapter?.id) ?"
+  },
+  {
+    "target": "shared/ai_delivery_capabilities.js",
+    "old": "    deepseek: Object.freeze({ id: \"deepseek\", status: \"planned\", plain_text_max_chars: null, attachments_supported: null, accepted_extensions: Object.freeze([]), max_file_bytes: null, max_files_per_turn: null, attachment_strategy: \"pending\" }),",
+    "new": "    // Text transport only; assistant completion and upload-end remain unverified.\n    deepseek: Object.freeze({ id: \"deepseek\", status: \"text_only\", plain_text_max_chars: 4096, plain_text_length_metric: \"utf16_code_units\", plain_text_threshold_status: \"conservative_transport_cutoff\", attachments_supported: true, accepted_extensions: Object.freeze([\"txt\"]), max_file_bytes: 1024 * 1024, max_files_per_turn: 1, attachment_strategy: \"pending\", attachment_pending_reason: \"upload_completion_not_observed\" }),"
+  },
+  {
+    "target": "shared/ai_delivery_capabilities.js",
+    "old": "    if (host === \"claude.ai\") return \"claude\";",
+    "new": "    if (host === \"claude.ai\") return \"claude\";\n    if (host === \"chat.deepseek.com\") return \"deepseek\";"
   }
 ]

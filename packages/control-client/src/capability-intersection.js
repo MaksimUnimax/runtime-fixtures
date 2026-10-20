@@ -56,6 +56,10 @@
       capabilityId: "ai.claude.web.adapter",
       entitlementKey: "ai.claude",
     },
+    {
+      capabilityId: "ai.deepseek.web.adapter",
+      entitlementKey: "ai.deepseek",
+    },
   ];
 
   function deepFreeze(value) {

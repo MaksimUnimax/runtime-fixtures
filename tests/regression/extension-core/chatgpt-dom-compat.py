@@ -718,7 +718,7 @@ def run_b02_delivery_watch(runtime: Path, output: Path, only_provider=None):
     result={"status":"RUNNING","scope":"B02 actual batch-watch confirmation code, synthetic button/turns; no authority or installed acceptance",
             "content_sha256":hashlib.sha256(content.encode()).hexdigest(),"worker_sha256":hashlib.sha256(worker.encode()).hexdigest(),"cases":{}}
     failures=[]
-    origins={"chatgpt":"https://chatgpt.com","alice":"https://alice.yandex.ru","qwen":"https://chat.qwen.ai","kimi":"https://www.kimi.ai","grok":"https://grok.com","gemini":"https://gemini.google.com","claude":"https://claude.ai"}
+    origins={"chatgpt":"https://chatgpt.com","alice":"https://alice.yandex.ru","qwen":"https://chat.qwen.ai","kimi":"https://www.kimi.ai","grok":"https://grok.com","gemini":"https://gemini.google.com","claude":"https://claude.ai","deepseek":"https://chat.deepseek.com"}
     if only_provider:origins={only_provider:origins[only_provider]}
     script=r"""async ({id,origin,scenario,watch,basis})=>{
       const key=origin+'|local:fixture',old=document.createElement('div'),button=document.createElement('button');
@@ -785,13 +785,18 @@ def run_b02_delivery_watch(runtime: Path, output: Path, only_provider=None):
 
 
 
+
+def deepseek_send_arrow_fixture():
+    """Exact accepted native arrow; reused by ordinary offline DOM fixtures."""
+    return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.3125 0.980206C8.66767 1.05312 8.97902 1.2042 9.2627 1.43235C9.48724 1.613 9.73029 1.85795 9.97949 2.10716L14.707 6.8347L13.293 8.24876L9 3.95579V15.0417H7V3.95579L2.70703 8.24876L1.29297 6.8347L6.02051 2.10716C6.26971 1.85795 6.51277 1.613 6.7373 1.43235C6.97662 1.23988 7.28445 1.04404 7.6875 0.980206C7.8973 0.947029 8.1031 0.955183 8.3125 0.980206Z" fill="currentColor"></path></svg>'
+
 def run_observed_composers(runtime: Path, output: Path, only_provider=None):
     """B02 DeepSeek/Claude composer/file primitives: offline code only, activation pending."""
     from html import escape
     output.mkdir(parents=True, exist_ok=True)
     bundle=(runtime/"shared/ai_adapters.js").read_text()
     sources=[(runtime/n).read_text() for n in ["shared/conversation_identity.js","shared/web_file_attachment.js","shared/ai_delivery_capabilities.js"]]
-    arrow='<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.3125 0.980206C8.66767 1.05312 8.97902 1.2042 9.2627 1.43235C9.48724 1.613 9.73029 1.85795 9.97949 2.10716L14.707 6.8347L13.293 8.24876L9 3.95579V15.0417H7V3.95579L2.70703 8.24876L1.29297 6.8347L6.02051 2.10716C6.26971 1.85795 6.51277 1.613 6.7373 1.43235C6.97662 1.23988 7.28445 1.04404 7.6875 0.980206C7.8973 0.947029 8.1031 0.955183 8.3125 0.980206Z" fill="currentColor"></path></svg>'
+    arrow=deepseek_send_arrow_fixture()
     cases={}
     for provider in ([only_provider] if only_provider else ["deepseek","claude"]):
         def send(disabled=False,icon=None):
@@ -810,9 +815,9 @@ def run_observed_composers(runtime: Path, output: Path, only_provider=None):
             return '<div class="flex w-full min-w-0 flex-col"><div><div class="tiptap ProseMirror" data-testid="chat-input" contenteditable="true" role="textbox" aria-label="Напишите запрос для Claude">'+escape(text)+'</div></div>'+extra+controls+'<input type="file" id="chat-input-file-upload-bottom" data-testid="file-upload" multiple accept="" style="opacity:0;width:0;height:0" '+input_attrs+'></div>'
         def case(name,html,js,expected,wrong_origin=False):
             cases[provider+"_"+name]=(provider,html,js,expected,wrong_origin)
-        case("factory_route_status",root(),"return [a.id,a.integrationStatus().status,a.integrationStatus().registry_activated,OzonAIAdapters.adapterForLocation('auto')?.id===a.id]",[provider,"text_only",True,True] if provider=="claude" else [provider,"pending",False,False])
+        case("factory_route_status",root(),"return [a.id,a.integrationStatus().status,a.integrationStatus().registry_activated,OzonAIAdapters.adapterForLocation('auto')?.id===a.id]",[provider,"text_only",True,True])
         case("one_observed_composer",root(),"return !!c",True)
-        case("observed_empty_send_state",root(),"return a.classifyComposerControl(c).kind","ready" if provider=="claude" else "send_disabled")
+        case("observed_empty_send_state",root(),"return a.classifyComposerControl(c).kind","ready")
         case("draft_enabled_send",root("draft",send()),"return [a.classifyComposerControl(c).kind,!!a.sendButton(c)]",["send_active",True])
         case("duplicate_send_unknown",root("draft",send()+send()),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["unknown",None])
         case("progress_excludes_send",root("draft",send(),'<div role="progressbar">loading</div>'),"return [a.classifyComposerControl(c).kind,a.sendButton(c)]",["busy",None])
@@ -885,7 +890,7 @@ def run_observed_composers(runtime: Path, output: Path, only_provider=None):
 
 
 
-def run_parent_roots(runtime: Path, output: Path):
+def run_parent_roots(runtime: Path, output: Path, only_provider=None):
     """Composed observed attributes, not a captured whole-page DOM.
     Ordinary message append/remount and code-selection tests; all routes local.
     Native/DOM witnesses are document-only, never permanent chat IDs.
@@ -894,11 +899,11 @@ def run_parent_roots(runtime: Path, output: Path):
     bundle=(runtime/"shared/ai_adapters.js").read_text()
     sources=[(runtime/n).read_text() for n in ["shared/conversation_identity.js","shared/web_file_attachment.js","shared/ai_delivery_capabilities.js"]]
     cases={}
-    for provider in ["deepseek","claude"]:
+    for provider in ([only_provider] if only_provider else ["deepseek","claude"]):
         if provider=="deepseek":
             user='<div class="_9663006"><div class="d29f3d7d ds-message _63c77b1"><div class="ds-collapsible-text">USER BODY</div></div></div>'
             assistant='<div class="_4f9bf79 _43c05b5"><div class="ds-message _63c77b1"><div class="ds-markdown ds-assistant-message-main-content"><div class="md-code-block"><pre>CODE ONE\nCODE TWO</pre></div></div></div></div>'
-            composer='<div class="_77cefa5 _3d616d3"><div class="_020ab5b"><textarea placeholder="Сообщение для DeepSeek"></textarea><input type="file" multiple accept=".txt"><div role="button" class="ds-button ds-button--primary _52c986b ds-button--disabled">send</div></div></div>'
+            composer='<div class="_77cefa5 _3d616d3"><div class="_020ab5b"><textarea placeholder="Сообщение для DeepSeek"></textarea><input type="file" multiple accept=".txt"><div role="button" class="ds-button ds-button--primary _52c986b ds-button--disabled">'+deepseek_send_arrow_fixture()+'</div></div></div>'
             html='<div class="ds-virtual-list ds-virtual-list--printable _2bd7b35"><div class="ds-virtual-list-items _6f2c522"><div class="ds-virtual-list-visible-items">'+user+assistant+'</div></div>'+composer+'</div>'
         else:
             user='<div role="article"><div class="relative flex min-w-0 flex-col gap-xs"><div id="_r_5u_"><div class="cds-user-message-body"><div data-testid="user-message">USER BODY</div></div></div></div></div>'
@@ -933,7 +938,34 @@ def run_parent_roots(runtime: Path, output: Path):
             case("observed_stop_blocks_completion","document.body.insertAdjacentHTML('beforeend','<button data-testid=\"chat-input-stop\" aria-label=\"Остановить ответ\">stop</button>');return [a.messageComplete(v),a.classifyComposerControl(a.composerContext()).kind]",[False,"stop"])
             case("text_only_large_file_pending","const p=a.deliveryCapabilities();return [p.status,p.attachment_pending_reason]",["text_only","upload_completion_not_observed"])
         else:
-            case("no_native_identity_inferred","return [u.getAttribute('data-turn-key'),v.getAttribute('data-message-id'),a.integrationStatus().registry_activated]",[None,None,False])
+            case("no_native_identity_inferred","return [u.getAttribute('data-turn-key'),v.getAttribute('data-message-id'),a.integrationStatus().registry_activated]",[None,None,True])
+            # Minimal composed fixture from accepted 07:56 action attributes.
+            # Boxes stand in for unlabeled SVG geometry; no icon meaning inferred.
+            buttons=''.join('<div role="button" tabindex="0" class="ds-button db183363" style="width:18px;height:18px"'+(' aria-disabled="false"' if i==1 else '')+(' aria-label="Читать вслух"' if i==4 else '')+'></div>' for i in range(6))
+            toolbar='<div class="ds-flex _0a3d93b"><div class="ds-flex _965abe9 _54866f7">'+buttons+'</div><div style="flex:1"></div></div>'
+            terminal=html.replace(assistant,assistant[:-6]+toolbar+'</div>')
+            def terminal_case(name,js,expected):
+                case("terminal_"+name,js,expected,terminal)
+            terminal_case("observed_actions_not_completion","const e=a.completionObservation(v);return [e.status,e.reason,e.actionsObserved,a.messageComplete(v)]",["unknown","streaming_exclusivity_not_verified",True,False])
+            terminal_case("snapshot_key_not_identity","const id=a.messageId(v);v.parentElement.setAttribute('data-virtual-list-item-key','10');const first=a.completionObservation(v);v.parentElement.setAttribute('data-virtual-list-item-key','999');return [first.actionsObserved,a.completionObservation(v).actionsObserved,a.messageId(v)===id]",[True,True,True])
+            terminal_case("six_hundred_lines_not_semantic_completion","v.querySelector('pre').textContent=Array.from({length:600},(_,i)=>i+1).join('\\n');return [a.completionObservation(v).actionsObserved,a.messageComplete(v)]",[True,False])
+            terminal_case("missing_label_unrecognized","v.nextElementSibling.querySelector('[aria-label]').removeAttribute('aria-label');return a.completionObservation(v).actionsObserved",False)
+            terminal_case("second_disabled_unrecognized","v.nextElementSibling.querySelector('[aria-disabled]').setAttribute('aria-disabled','true');return a.completionObservation(v).actionsObserved",False)
+            terminal_case("second_state_absent_unrecognized","v.nextElementSibling.querySelector('[aria-disabled]').removeAttribute('aria-disabled');return a.completionObservation(v).actionsObserved",False)
+            terminal_case("hidden_action_unrecognized","v.nextElementSibling.querySelector('[role=button]').hidden=true;return a.completionObservation(v).actionsObserved",False)
+            terminal_case("hidden_toolbar_unrecognized","v.nextElementSibling.hidden=true;return a.completionObservation(v).actionsObserved",False)
+            terminal_case("five_buttons_unrecognized","v.nextElementSibling.querySelector('[role=button]').remove();return a.completionObservation(v).actionsObserved",False)
+            terminal_case("seven_buttons_unrecognized","const group=v.nextElementSibling.firstElementChild;group.append(group.firstElementChild.cloneNode(true));return a.completionObservation(v).actionsObserved",False)
+            terminal_case("foreign_toolbar_ignored","document.body.append(v.nextElementSibling);return a.completionObservation(v).actionsObserved",False)
+            terminal_case("nested_toolbar_not_sibling","v.append(v.nextElementSibling);return a.completionObservation(v).actionsObserved",False)
+            terminal_case("extra_sibling_ambiguous","v.parentElement.append(document.createElement('div'));return a.completionObservation(v).actionsObserved",False)
+            terminal_case("spinner_veto","a.composerContext().root.insertAdjacentHTML('beforeend','<span data-icon=\"spin\">busy</span>');const e=a.completionObservation(v);return [e.reason,e.actionsObserved,a.messageComplete(v)]",["composer_busy_or_unknown",False,False])
+            terminal_case("unknown_primary_control_veto","a.composerContext().root.querySelector('svg path').setAttribute('d','unobserved');return a.completionObservation(v).actionsObserved",False)
+            terminal_case("file_card_not_upload_ready","a.composerContext().root.insertAdjacentHTML('beforeend','<div class=\"cd314545\">report.txt</div>');return [a.completionObservation(v).actionsObserved,a.attachmentReady([{filename:'report.txt',byte_length:10}])]",[False,False])
+            terminal_case("only_current_assistant","v.parentElement.parentElement.append(v.parentElement.cloneNode(true));return [a.completionObservation(v).actionsObserved,a.completionObservation(a.assistantMessages().at(-1)).actionsObserved]",[False,True])
+            terminal_case("detached_assistant_ignored","v.remove();return a.completionObservation(v).actionsObserved",False)
+            terminal_case("text_profile_file_pending","const p=a.deliveryCapabilities(),f=OzonAIDeliveryCapabilities.supportsFile('deepseek',{filename:'report.txt',byte_length:10});return [p.status,f.status,f.reason,a.integrationStatus().assistant_completion]",["text_only","pending","upload_completion_not_observed","streaming_exclusivity_not_verified"])
+
     result={"status":"RUNNING","scope":"B02 offline composed-observation parent/root/message lifecycle; no installed/provider or permanent-ID claim","bundle_sha256":hashlib.sha256(bundle.encode()).hexdigest(),"cases":{}}
     failures=[]
     with sync_playwright() as p:
@@ -964,6 +996,12 @@ def run_parent_roots(runtime: Path, output: Path):
     return 1 if failures else 0
 
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "deepseek-parent-roots":
+        return run_parent_roots(runtime, output, "deepseek")
+    if provider == "deepseek-composer":
+        return run_observed_composers(runtime, output, "deepseek")
+    if provider == "deepseek-delivery-watch":
+        return run_b02_delivery_watch(runtime, output, "deepseek")
     if provider == "parent-roots":
         return run_parent_roots(runtime, output)
     if provider == "claude-delivery-watch":
@@ -1149,6 +1187,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

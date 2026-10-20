@@ -18,6 +18,7 @@ export const SignedAiProfileScopeV1Schema = z
       "grok",
       "gemini",
       "claude",
+      "deepseek",
     ]),
     surface: z.literal("web"),
     variant: z.null(),

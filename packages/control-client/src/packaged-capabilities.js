@@ -76,6 +76,14 @@
       packaged: true,
       executionAuthority: false,
     },
+    {
+      id: "ai.deepseek.web.adapter",
+      kind: "ai_adapter",
+      family: "deepseek",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
   ];
 
   function deepFreeze(value) {

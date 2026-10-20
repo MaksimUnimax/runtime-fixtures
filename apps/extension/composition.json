@@ -270,6 +270,7 @@
     "https://www.kimi.ai/*",
     "https://grok.com/*",
     "https://gemini.google.com/*",
-    "https://claude.ai/*"
+    "https://claude.ai/*",
+    "https://chat.deepseek.com/*"
   ]
 }
