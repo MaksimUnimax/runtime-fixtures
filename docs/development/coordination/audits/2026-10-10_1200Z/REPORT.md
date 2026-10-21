@@ -1,3 +1,29 @@
+# Проверенный checkpoint — 2026-10-21T11:44:28.468Z
+
+Тот же единственный Controller, **audit_complete=false,12OPEN**. Freshref6ba5e5e6245fe0690e8c5fe0ff6f3d32cbee19dc/авторMaksimUnimax/толькоREPORT/fullreadback11:36:54 сохранены. Вся прежняя история ниже остаётся целиком.
+
+**Конкретная починка собственного Bdocumentaryroute:** установлен точный фактический Breader11:23:11: он сортирует existingpeer-handoffs/B поmtime и печатает **шесть имён**, безbodyread. Старое имя ownpointer проPR235closedpublication не показывало дваpendingdocumentarysubjects. Нельзядоказать, чтоBименноиз-заименипропустилзапрос; этоограничениепо фактувидимогоinbox, не предположение ополномidle/личности.
+
+Подshortcoordination.lock**PID3652594/11:43:22.444367** тот же **единственный** ownBpointer переименован:
+- прежний историческийпуть /root/octoport-control/peer-handoffs/B/CONTROLLER_TO_EXISTING_B_PR235_CANONICAL_COMMENT_6309010922_POINTER_20261021.json;
+- текущийпуть /root/octoport-control/peer-handoffs/B/CONTROLLER_TO_EXISTING_B_PENDING_IDNA_AND_OZON_INTAKE_COMMENT6309010922_20261021.json.
+
+**RecordID CONTROLLER_EXISTING_B_PR235_COMMENT6309010922_INBOX_DELIVERY_REPAIR_20261021, canonical6309010922, все прежние поля/ownerdecision/history/bodyсохранены**, добавленonlyownpath_historyсUTC/qualification. Старогопараллельногофайланет, duplicate/task/registry/второйauthorне создан. НовыйSHA35137f989e72640546376e57ba10d7ec9c8b3e716032a58b76b672bf7d3e5517/4632B, independentfullreadback выполнен, lockreleased. Это явныйsubject дляsameexistingBdocrequests Legacy-IDNA иC03intake, **не повторsingleR4grant** (USED) и неsource/DB/opsдопуск. ПрифактическомownBответеиспользоватьего, не повторятьоперации. OwnBполучение/canonicalbodyread/result ещё не подтверждены; проверка продолжается, renamedfilenameнеACK.
+
+**Новая конкретизация C04primary лично потреблена** из existingPR245#6307198182updated09:00:53, recordC04_MAIN2731_INSTALLED_OLD_TELEGRAM_CARRIER_CURRENTITY_20261021issued09:00:11: serviceoctoport-telegram-operator.serviceнаблюдалсяactive/running сMainPID1709660/tree1709681/1709692 иolderrelease12efab2f780ad7b9b7556b7b50e6d6e345f000fa/apps/telegram-operator/dist/main.js;711605B/SHA69dbd95a928b01c77ac2cd621b8f2f7c0c9cdf069c29584711483d111aed48e1. Это исторический09:00installedcarrierproof, **не новоеrootизмерение/проверкапроцесса**, неauthbinding/TGsend/DBpersistence. СтарыйcaptionrouteнеactualnewcaptionlessWBinstall. СуществующийB/Opsinstaller/custodian namedвprimary; егоopsgrant/PGrestore/rollback иgenuineoperatorreceiptотдельны. ТакимобразомcurrentC03NO_REAL_INTAKE_DOCUMENTEDнеподменёнproductionNOT_PROVISIONED. C ownreceipt/dispositionзакрыттольковdocumentaryгранице; настоящаяприёмкаOzon/TGещёOPEN.
+
+**A конкретный текущий остаток** дополнительно pinned: originalR36authorrecordissued11:05:30.957487, unitoctoport-a04-r36-fbs-sticker-core-20261021.service вготовомrecordterminalinactive/success/exit0, sourceparent4390166b2f2db0b65c2823da36e0a1ac2bbdde90, SOURCE_AND_EXTRACTED_LOCAL_DEVELOPMENT_ZIP. Поздний11lineindependentverdictREWORK_REQUIRED актуальнеестарогоNOT_STARTED. Не заявлено,чтоэтаunitсейчасrunning. БлижайшаяalreadyexistingAочередь/вопросзафиксированsamecanonical11:32:40: безопасныйcheckpointтекущейR36мутации→ownпотреблениеpreviousreadydecision→исходдопустимогоDraftReadyлиботочныйblocker; no newassignment/R17/CI/merge. SourcecorrectionостаётсяA, собственныйA05returnпокаlast09:38:51.
+
+B вготовойhistory11:34–11:38 продолжает **независимый существующий B06PR145R7feedbacksource/quality**; это неreceiptLegacy/Ozon и неглобальныйidle, rootнепроводил/не назначалегоtests/review. B06decisiondocполучение/собственныйwaitcauseпо§17.2ещёпроверяются. 512точная08:58owntransfer/неустановленнаясвязьсexistingcleanupcustodianописанывпредыдущемcheckpoint; просьбаexistingdotmanagementвтомжеREPORTдействует, неrootcleanup/measure/новыйоператор. OPEN512сохранён.
+
+**Тестер:** §11handoffmtime11:25:46.274/719818Bна11:38:19, толькоdeliveryownergrant11:18пока подтверждён. Новыйauth/nativeисполненныйрезультатиз§12неполучен; grantнеnativePASS/неповторныйвопрос. Rootsource/profile/credentials/auth/browser/DB/security/measurementнеисполняет.
+
+**Собственный cadence:** первыйcheckpointэтоговозобновленияcommit11:36:42 послеactive-start11:26:06 занял10мин36с — превышениецели36с, неидеальнаяcadence. Причинавсобственномпозднемформированииобъёмногопрефикса, невыдуманныйtoolsбой. Этоткороткийcheckpointподготовлензаранее; дальнейшиеинтервалыдержатькороче10мин, fullreadbackобязателен. ПрежниеORG009/ENOENT/NoSession/отказыхранятсяниже, новыеотказанныеоперациине повторялись.
+
+Все10пунктоваудита/12originalclosingconditions/PLAN/WIP/принятыеSOURCE/CI и отдельныеinstalled/ABORTостаткисохранены; нетновыхhelpers/реестров/архивов/errors/events/тестов/review/CI/DB/auth/security/cleanup. Документальнаяпочинкаrouteпроверенапосохранности/читаемости, actualпотреблениеещёневыданозапроверенныйBрезультат. Аудитпродолжается,30minpauseненачата.
+
+---
+
 # Продолжение того же аудита — 2026-10-21T11:36:41.351Z
 
 **Единственный Controller; audit_complete=false. Все12OPEN, PLAN/WIP, исходнаязадача, принятые результаты и полная история ниже сохранены.** Возобновление11:26:06: REPORTref5c9a792e8ee6777bc1427e41cd918f1a74cb3227, авторMaksimUnimax11:21:59/parent7ebeba06/толькоREPORT подтверждены; наfreshrefпередэтойзаписью измененийнет. Easyscript выбран stocklist_devices9dab7ad2, Noactivesessions; это не объявлениеотсутствиявсехhostprocesses. Текущиеmandatoryrulesметаданные unchanged; ранее полностьюпрочитанныеSTART_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/PRE_SELFERRORприменяются. Onlyowncomments/ownpointerfields/ownallocationmetadata и этотREPORT изменены сfreshwriter/version/guard/readback. ЧужойWIP/source/ROLE/профили не тронуты.
