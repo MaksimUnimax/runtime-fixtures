@@ -145,28 +145,41 @@ function localRef(
   if (
     context !== "schema-map" &&
     typeof object.$ref === "string" &&
-    object.$ref.startsWith("#/")
+    (object.$ref.startsWith("#/") || /^#%2f/iu.test(object.$ref))
   ) {
     const ref = object.$ref;
     let resolved: unknown;
     if (seen.has(ref)) {
       resolved = { $recursiveRef: ref };
     } else {
-      const target = ref
-        .slice(2)
-        .split("/")
-        .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
-        .reduce<unknown>((at, key) => {
-          if (Array.isArray(at)) {
-            // JSON Pointer array elements use canonical zero-based indices.
-            if (!/^(?:0|[1-9][0-9]*)$/u.test(key)) return undefined;
-            const index = Number(key);
-            return Number.isSafeInteger(index) ? at[index] : undefined;
-          }
-          const object = asObject(at);
-          // Never resolve through Object.prototype (e.g. __proto__).
-          return Object.hasOwn(object, key) ? object[key] : undefined;
-        }, root);
+      // URI fragments are percent-decoded before JSON Pointer unescaping.
+      // Invalid URI escapes or "~" tokens are unresolved, not guessed.
+      let tokens: string[] | null = null;
+      try {
+        const pointer = decodeURIComponent(ref.slice(1));
+        if (pointer.startsWith("/")) {
+          const encodedTokens = pointer.slice(1).split("/");
+          if (encodedTokens.every((token) => !/~(?![01])/u.test(token)))
+            tokens = encodedTokens.map((token) =>
+              token.replace(/~1/g, "/").replace(/~0/g, "~"),
+            );
+        }
+      } catch {
+        // Malformed percent encoding cannot identify an official schema.
+      }
+      const target = tokens?.reduce<unknown>((at, key) => {
+        if (Array.isArray(at)) {
+          // JSON Pointer array elements use canonical zero-based own indices.
+          if (!/^(?:0|[1-9][0-9]*)$/u.test(key)) return undefined;
+          const index = Number(key);
+          return Number.isSafeInteger(index) && Object.hasOwn(at, key)
+            ? at[index]
+            : undefined;
+        }
+        const object = asObject(at);
+        // Never resolve through Object.prototype (e.g. __proto__).
+        return Object.hasOwn(object, key) ? object[key] : undefined;
+      }, root);
       resolved =
         target === undefined
           ? { $unresolvedRef: ref }

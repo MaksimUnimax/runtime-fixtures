@@ -300,6 +300,81 @@ describe("local references respect schema position and dialect", () => {
     );
   });
 
+  it.each([
+    ["Foo%20Bar", "Foo Bar"],
+    ["Foo%7E1Bar", "Foo/Bar"],
+    ["Foo%7E0Bar", "Foo~Bar"],
+  ] as const)(
+    "decodes valid URI-fragment schema pointer %s before JSON Pointer tokens",
+    (encoded, schemaName) => {
+      const make = (type: string) =>
+        inventory({}, "request", {
+          components: {
+            schemas: {
+              Payload: { $ref: `#/components/schemas/${encoded}` },
+              [schemaName]: { type },
+            },
+          },
+        });
+      expect(state(make("string"), make("integer"))).toBe("CHANGED");
+    },
+  );
+
+  it("resolves percent-encoded leading pointer separators", () => {
+    const make = (type: string) =>
+      inventory({}, "request", {
+        components: {
+          schemas: {
+            Payload: { $ref: "#%2Fcomponents%2Fschemas%2FTarget" },
+            Target: { type },
+          },
+        },
+      });
+    expect(state(make("string"), make("integer"))).toBe("CHANGED");
+  });
+
+  it.each(["Bad~2Name", "Bad~", "Bad%ZZ"] as const)(
+    "does not resolve a malformed local pointer token %s as a real schema",
+    (invalidToken) => {
+      const make = (type: string) =>
+        inventory({}, "request", {
+          components: {
+            schemas: {
+              Payload: { $ref: `#/components/schemas/${invalidToken}` },
+              [invalidToken]: { type },
+            },
+          },
+        });
+      expect(state(make("string"), make("integer"))).toBe("UNCHANGED");
+    },
+  );
+
+  it("does not follow an inherited numeric array property as a schema index", () => {
+    const inheritedIndex = "999999";
+    expect(Object.hasOwn(Array.prototype, inheritedIndex)).toBe(false);
+    const make = (type: string) => {
+      Object.defineProperty(Array.prototype, inheritedIndex, {
+        value: { type },
+        configurable: true,
+      });
+      try {
+        return inventory({}, "request", {
+          components: {
+            schemas: {
+              Payload: {
+                $ref: `#/components/schemas/Container/allOf/${inheritedIndex}`,
+              },
+              Container: { allOf: [{ type: "boolean" }] },
+            },
+          },
+        });
+      } finally {
+        Reflect.deleteProperty(Array.prototype, inheritedIndex);
+      }
+    };
+    expect(state(make("string"), make("integer"))).toBe("UNCHANGED");
+  });
+
   it("does not interpret OpenAPI3.1 non-schema Reference Object siblings as constraints", () => {
     const make = (required: boolean) =>
       inventory({}, "request", {

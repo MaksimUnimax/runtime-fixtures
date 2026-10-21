@@ -143,6 +143,21 @@ describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () 
     expect(result.state).toBe("UNCHANGED");
   });
 
+  it("keeps absent and explicitly empty MIME declarations equivalent with no inherited MIME types", () => {
+    // Both yield the same effective empty MIME set. With a nonempty
+    // inherited set, an explicit [] still clears it (covered below).
+    const operation = compare(
+      {},
+      { operationConsumes: [], operationProduces: [] },
+    );
+    expect(operation.state).toBe("UNCHANGED");
+    expect(operation.fields).toEqual([]);
+
+    const root = compare({}, { rootConsumes: [], rootProduces: [] });
+    expect(root.state).toBe("UNCHANGED");
+    expect(root.fields).toEqual([]);
+  });
+
   it("treats an explicit empty operation consumes list as clearing inherited root consumes", () => {
     expect(
       compare(
