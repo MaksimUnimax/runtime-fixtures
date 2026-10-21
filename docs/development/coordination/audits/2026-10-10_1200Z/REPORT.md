@@ -1,3 +1,35 @@
+# Первичный технический исход существующего B — обнаружено 2026-10-21T09:39:56.079Z
+
+Тот же Controller, audit_complete=false,12OPEN. При разрешённом чтении штатной истории обнаружен уже завершённый исторический B tool error; это не новый вызов root к PID и не новая platform/security denial. Полная исходная запись истории (без добавления отсутствующих args/ID):
+
+```json
+{
+  "timestamp": "10/21/2026, 12:32:39",
+  "toolName": "read_process_output",
+  "arguments": {
+    "pid": 3616114,
+    "length": 100,
+    "timeout_ms": 2000
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "No session found for PID 3616114"
+      }
+    ],
+    "isError": true
+  },
+  "duration": 1
+}
+```
+
+История вернула timestamp буквально в указанном locale формате; timezone/callID/errorcause не экспонированы этим entry — UNKNOWN/NOT_EXPOSED. UTC surrounding generator start09:32:35 и B own subsequent status09:33:03 сохранены отдельно, не выданы за native timestamp ошибки. Сам root вызвал только get_recent_tool_calls(deviceId=9dab7ad2-9d63-43a3-b106-a5840d79ccc1, maxResults=60, since=2026-10-21T09:31:00Z, toolName=read_process_output); этот history-read SUCCESS. Чужой read_process_output/генератор не повторяется.
+
+Последующий уже готовый B original process3616537 имеет собственный terminal readback в той же истории12:34:28: “OFFICIAL_OPENAPI_CHECK_EXIT=0”, process completedexit0/runtime3.75s. Это подтверждает новую авторскую проверку artifact, но не восстанавливает потерянный terminal exit самого R6, не доказывает причину session loss и не является разрешением root запустить тест. Следующий доступный источник — существующие B OFFICIAL_OPENAPI_CHECK_R2.log / EXACT_B03_GET_AND_GENERATED_OPENAPI_TESTS_R2.log и авторская публикация нового кандидата. Реконструировать R6 exit0 из изменившегося файла нельзя. Готовые B проверки будут потреблены чтением, без перехвата source/сессии/нового теста.
+
+---
+
 # Фактический checkpoint продолжения — 2026-10-21T09:37:53.080Z
 
 **Тот же единственный Контроллер; audit_complete=false; все 12 OPEN сохранены.** Продолжение с d4b7aeababf2f01a9672485f2675757dc8bf3f5c: автор MaksimUnimax09:12:09Z, единственный изменённый путь REPORT, blob d597ffb8694e8fa3244c20d6cebb9e3b427ede6c. Полный исходный REPORT прочитан; вся история/PLAN/WIP ниже сохранена дословно. RDC штатный device-list: Easyscript Online 9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Последние own calls завершены; sessions/retained calls пусты. Метаданные существующих own locks проверены, не выданы за глобальный flock. Чужие активные исходники и процессы не изменялись.
