@@ -1675,5 +1675,15 @@
     "target": "shared/ai_adapters.js",
     "old": "    const candidates = [...document.querySelectorAll('[contenteditable=\"true\"][role=\"textbox\"][data-composer-markdown]')]\n      .filter(n => n.getAttribute(\"aria-label\") === label && n.classList.contains(\"ProseMirror\") && observedComposerVisible(n));\n    if (candidates.length !== 1)",
     "new": "    const editors = [...document.querySelectorAll('[contenteditable=\"true\"][role=\"textbox\"][data-composer-markdown]')].filter(observedComposerVisible);\n    const candidates = editors.filter(n => n.getAttribute(\"aria-label\") === label && n.classList.contains(\"ProseMirror\"));\n    if (editors.length !== 1 || candidates.length !== 1)"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  function chatgptComposerContext() {",
+    "new": "  function chatgptWorkMessageComplete(message) {\n    const parts = chatgptWorkMessageParts(message);\n    if (!parts) return false;\n    const turn = message.closest('[data-talvt-turn-state]');\n    const finalSlot = message.closest('[data-local-conversation-final-assistant=\"true\"]');\n    if (!turn || turn.getAttribute('data-talvt-turn-state') !== 'complete' || !finalSlot ||\n        finalSlot.closest('[data-talvt-turn-state]') !== turn || !turn.contains(finalSlot)) return false;\n    const slots = [...turn.querySelectorAll('[data-local-conversation-final-assistant=\"true\"]')]\n      .filter(n => n.closest('[data-talvt-turn-state]') === turn);\n    const finals = [...finalSlot.querySelectorAll(CHATGPT_WORK_MESSAGE)].filter(chatgptWorkMessageParts);\n    const users = [...turn.querySelectorAll(CHATGPT_OBSERVED_USER_SELECTOR)]\n      .filter(n => n.closest('[data-talvt-turn-state]') === turn && chatgptObservedUserParts(n));\n    return slots.length === 1 && finals.length === 1 && finals[0] === message && users.length === 1 && Boolean(text(parts.body));\n  }\n\n  function chatgptComposerContext() {"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "    messageComplete(message) {\n      if (chatgptSurfaceObservation()) return false; // Work/dot busy-to-complete witness is still pending.\n      return Boolean(message?.isConnected && !this.isGenerating() && text(message));\n    },",
+    "new": "    messageComplete(message) {\n      const observation = chatgptSurfaceObservation();\n      if (observation?.kind === \"work\" || message?.matches?.(CHATGPT_WORK_MESSAGE)) return chatgptWorkMessageComplete(message);\n      if (observation?.kind === \"dot\") return false; // No per-message dot completion witness yet.\n      return Boolean(message?.isConnected && !this.isGenerating() && text(message));\n    },"
   }
 ]

@@ -1830,7 +1830,58 @@ def run_work_dot_files(runtime: Path, output: Path, observed=None, only_surface=
         finally:browser.close()
     result['status']='PASS';result['case_count']=len(cases);(output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n');print(json.dumps({'status':'PASS','case_count':len(cases)}));return 0
 
+def run_work_turn_exact(runtime: Path, output: Path):
+    output.mkdir(parents=True,exist_ok=True);D=Path('/root/octoport-control/testing/chromium-dot/dot-ai-snapshots')
+    turns=json.loads((D/'WORK_TURN_STATES_20261021T0233Z.json').read_text());w=json.loads((D/'WORK_CAPTURE_DOM_20261021T0205Z.json').read_text());card=json.loads((D/'WORK_READY_CARD_EXACT_20261021T0206Z.json').read_text());dot=json.loads((D/'DOT_CAPTURE_20261021T0209Z.json').read_text())
+    source=(runtime/'shared/ai_adapters.js').read_text();identity=(runtime/'shared/conversation_identity.js').read_text();root=w['before']['inputs'][7]['parent'];complete=turns['dom']['turns'][0]['html'];progress=turns['dom']['turns'][1]['html'];cases={}
+    result={'status':'RUNNING','scope':'offline explicit own Work turn complete/in_progress and verbatim exact one ready card; no observed same-turn transition claim','source_sha256':hashlib.sha256(source.encode()).hexdigest(),'cases':cases}
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch(headless=True)
+        try:
+            page=browser.new_page();page.route('**/*',lambda route:route.fulfill(status=200,content_type='text/html',body='<html><body></body></html>'))
+            def mount(html=complete,mutation=None):
+                page.goto(turns['url']);page.set_content(root+html)
+                if mutation:page.evaluate(mutation)
+                page.evaluate(identity);page.evaluate(source)
+            def read():return page.evaluate('''()=>{let a=OzonAIAdapters.ADAPTERS.chatgpt;return a.assistantMessages().map(n=>({id:a.messageId(n),complete:a.messageComplete(n)}));}''')
+            mount();actual=read();assert len(actual)==1 and actual[0]['complete'],actual;cases['actual_complete_own_final_slot']=actual
+            mount(progress);actual=read();assert actual==[],actual;cases['actual_in_progress_has_no_final_selected_assistant']=actual
+            mount(complete+progress+turns['dom']['stop'][0]);actual=read();assert len(actual)==1 and actual[0]['complete'],actual;cases['adjacent_busy_turn_and_global_stop_do_not_change_owned_complete']=actual
+            for state in ['in_progress','error','aborted','unknown','']:
+                mount(mutation='()=>document.querySelector("[data-talvt-turn-state]").setAttribute("data-talvt-turn-state",'+json.dumps(state)+')');actual=read();assert len(actual)==1 and not actual[0]['complete'],(state,actual);cases['explicit_'+(state or 'empty')+'_not_complete']=actual
+            for name,mutation in [
+                ('missing_turn_state','()=>document.querySelector("[data-talvt-turn-state]").removeAttribute("data-talvt-turn-state")'),
+                ('missing_final_slot','()=>document.querySelector("[data-local-conversation-final-assistant]").removeAttribute("data-local-conversation-final-assistant")'),
+                ('final_slot_false','()=>document.querySelector("[data-local-conversation-final-assistant]").setAttribute("data-local-conversation-final-assistant","false")'),
+                ('user_missing','()=>document.querySelector("[data-chatgpt-search-unit-key$=\\\":user\\\"]").remove()'),
+            ]:
+                mount(mutation=mutation);actual=read();assert len(actual)==1 and not actual[0]['complete'],(name,actual);cases[name]=actual
+            for name,mutation in [
+                ('hidden_complete_turn','()=>document.querySelector("[data-talvt-turn-state]").hidden=true'),
+                ('wrong_conversation','()=>document.querySelector("[data-chatgpt-selection-conversation-id]").setAttribute("data-chatgpt-selection-conversation-id","other")'),
+                ('duplicate_final_message','()=>{let n=document.querySelector("[data-chatgpt-selection-message-id]");n.after(n.cloneNode(true));}'),
+                ('mixed_visible_composer','()=>{let n=document.body.firstElementChild,c=n.cloneNode(true);c.querySelector("[contenteditable=true]").setAttribute("aria-label","Сообщение");n.after(c);}')]:
+                mount(mutation=mutation);actual=read();assert actual==[],(name,actual);cases[name]=actual
+            mount(mutation='()=>{let s=document.querySelector("[data-local-conversation-final-assistant]");let p=document.createElement("div");p.setAttribute("data-talvt-turn-state","in_progress");s.before(p);p.append(s);}')
+            actual=read();assert len(actual)==1 and not actual[0]['complete'],actual;cases['nearest_own_in_progress_not_outer_complete']=actual
+            mount();actual=page.evaluate('''()=>{let a=OzonAIAdapters.ADAPTERS.chatgpt,n=a.assistantMessages()[0],t=n.closest('[data-talvt-turn-state]');const values=[];for(const state of ['complete','in_progress','complete']){t.setAttribute('data-talvt-turn-state',state);values.push(a.messageComplete(n));}return values;}''');assert actual==[True,False,True],actual;cases['synthetic_state_changes_rechecked_no_cached_complete']=actual
+            mount();actual=page.evaluate('''()=>{let a=OzonAIAdapters.ADAPTERS.chatgpt;return a.messageComplete(a.userMessages()[0]);}''');assert actual is False;cases['user_never_work_final_response']=actual
+            # Verbatim exact original card, placed in the previously observed empty zone.
+            # This is a code fixture of one card, not recovery of the truncated four-file zone.
+            mount('');page.evaluate('(html)=>document.querySelector("[data-composer-attachments]").innerHTML=html',card['ready_card_outerHTML'])
+            ds=[{'filename':card['filename'],'byte_length':8471}]
+            actual=page.evaluate('ds=>OzonAIAdapters.ADAPTERS.chatgpt.attachmentReady(ds)',ds);assert actual is True;cases['verbatim_one_card_ready']=actual
+            actual=page.evaluate('ds=>OzonAIAdapters.ADAPTERS.chatgpt.attachmentReady(ds)',ds+[{'filename':'DOT_UI_20261021T0141Z.json','byte_length':54659}]);assert actual is False;cases['exact_one_card_does_not_confirm_missing_second']=actual
+            page.evaluate('()=>document.querySelector("[data-composer-attachments]").setAttribute("aria-busy","true")');actual=page.evaluate('ds=>OzonAIAdapters.ADAPTERS.chatgpt.attachmentReady(ds)',ds);assert actual is False;cases['exact_card_busy_rejected']=actual
+            # Unchanged dot and legacy completion boundaries consumed by the shared method.
+            page.goto(dot['url']);page.set_content(dot['before']['inputs'][0]['parent']+dot['answer']['dom']['articles'][1]);page.evaluate(identity);page.evaluate(source);actual=read();assert len(actual)==1 and not actual[0]['complete'];cases['dot_still_requires_own_completion_witness']=actual
+            page.goto('https://chatgpt.com/c/fixture');page.set_content('<section data-turn="assistant" data-turn-id="legacy">Legacy finished</section>');page.evaluate(identity);page.evaluate(source);actual=read();assert len(actual)==1 and actual[0]['complete'];cases['legacy_chat_completion_preserved']=actual
+        finally:browser.close()
+    result['status']='PASS';result['case_count']=len(cases);(output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n');print(json.dumps({'status':'PASS','case_count':len(cases)}));return 0
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "work-turn-exact":
+        return run_work_turn_exact(runtime, output)
     if provider == "work-dot-surface":
         return run_work_dot_files(runtime, output, only_surface=True)
     if provider == "work-dot-files":
@@ -2034,6 +2085,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","work-dot-surface","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","work-turn-exact","work-dot-surface","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
