@@ -1127,6 +1127,98 @@ Checkpoint SHA256: `1b905b12b84715a558392f1711a4e669c606719efd7c31f5ad2a95d25549
 
 Для всех сохраняется исходный полный набор B02: popup/import; Start/одна инструкция/идемпотентность; assistant block/full code/button; allowed package/result/error/recovery/executionId; полный отчёт+большой файл с реальной доставкой/обработкой в исходном диалоге; Send/busy/Stop; Copy без execution; hide/show; Finish/new Start; изоляция двух диалогов/магазинов/площадок. **Текущий native popup PASS закрывает только общую локальную file-retention границу**, не перечисленные installed циклы. Принятые материалы/тесты не повторены и не распространены на другие ИИ. После этой сверки нового конкретного доступного незавершённого source-исправления не найдено; сохраняются прежние точные missing-state запросы, без нового общего сбора и без ожидания другого исполнителя по уже решённому popup. §11, все чужие разделы и WIP сохранены.
 
+
+### TESTER_B02_CC8_IMPLEMENTATION_TO_EVIDENCE_AND_PERSONAL_DELIVERY_20261021_1830
+
+**Новый адресный этап выполнен тем же Тестером:** полный цикл B02 сопоставлен с фактической реализацией **cc8abe7beeffad517954bae9ea952612a1c7ef9b / tree d666da4cb15ffd8de5733b7b7a87282e1c6c4588** и существующими кодовыми результатами. Нового подтверждённого продуктового дефекта своего scope не найдено. Отсутствие авторизованного installed-прогона не названо дефектом и не заменено SOURCE PASS. Прежние auth/original-toolbar File PASS, все FAIL/кодовые PASS, исходные ZIP, профиль и чужой WIP сохранены.
+
+**Свежая проверка18:12:48UTC:** Easyscript установлен штатным list_devices; no active RDC sessions/retained calls, нет relevant locks/живой Tester browser-операции, прежний own unit success/inactive/empty cgroup, source cc8 clean. Последний checkpoint094fc988… и отчёт68268fd2 подтверждены; дубля нового этапа нет. Работа выполняется самим существующим Тестером, без другого исполнителя. Запрос A по PR241 ownership не передаёт; чужие пути, PR241/ABORT141 и адресные ограничения не менялись. Канон **33/v3.3**, действующие TEST_EXTENSION_RULES и свежий /root/octoport-main/docs/product/UX.md сверены с более поздними прямыми указаниями владельца.
+
+**Применимость прежних доказательств к выдаваемым bytes установлена без rerun.** Все **137 current composition inputs** совпали по SHA с официальным receipt, **43 extracted/ZIP members** byte-identical. Git diff от runtime b2b203dd до cc8 содержит лишь popup/backup-file-selection и три тестовых файла; общий B02 runtime, adapters, command receipts, delivery и application-patches неизменны. Единственная поздняя продуктовая дельта — уже reviewed/native-проверенная file-retention chain: popup сохраняет pickId после restore, worker сохраняет bounded draft после ACK. **47 ссылочных evidence SHA совпали**, отсутствующих/несовпавших файлов не найдено. Это проверка целостности/применимости существующих результатов, не новый тест и не повтор матрицы.
+
+**Индекс используемых результатов — в прежнем evidence root:**
+- **C14**: B02_OBSERVED_CYCLE_AGGREGATE.json, SHA256 **da2af31248a21f764284ac894b30e263eca552197016eea182009a3496d56229** —14 связанных assertion checkpoints реального composed worker/content/attachment пути с browser/provider doubles. Не14 AI-сессий.
+- **M60**: B02_REAL_RECONCILE_AGGREGATE.json, SHA256 **adcdf6ef373b34acc4a5734c04c3ab5aa06e391739d39616908b1f128a06c660**, и provider map SHA256 **8a2b507830abe5ee7aab4f768a10c3b23a1cdb0cd695a6e26d09bf869c19950e** — отдельно6 matcher/recovery случаев для каждой из десяти поверхностей: own-new принимается, wrong-name/baseline/wrong-body/other-context/composer-only не подтверждаются и не вызывают replay.
+- **S24**: B02_START_RESPONSE_OBSERVED_CODE_R1/result.json, SHA256 **a372c322d73f9188b8136f200e33c681f2bd21624fe370c62516a12c7bbc3bc5** — observed own response, duplicate Start/late tick, pending unknown/no replay, stale intent/revision/origin/AI/surface, Finish.
+- **P1/P5/N**: прежний один real popup consumer с API doubles; пять actual-worker picker cases с сохранёнными R1 FAIL/R2 исправленной fixture; финальный NATIVE result **B02_OWNER1655_AUTH_NATIVE_FILE_FINAL_20261021.json /094fc988e734d8228f44d759c13f9709abe55b4a50f61eab779cd58b1af7dd94**. Native PASS — настоящий101B File/hash в original toolbar, не полный импорт и не B02 всех ИИ.
+- Дополнительные принятые provider/readiness/Copy результаты: Standard108, Alice97, Gemini76, Work24 + natural completion/native Copy, DeepSeek/Claude267 final distinct affected cases и последующие root/remount reviews. Их точные paths/SHA и исторические REWORK/FAIL сохранены в первичном индексе; суммы разных этапов не объявляются одним свежим suite.
+
+**Каждый продуктовый шаг → текущая реализация → существующее доказательство → installed остаток:**
+
+| Шаг полного цикла | Реализация, действительно входящая в этот ZIP | Применимое существующее кодовое доказательство / оставшийся installed факт |
+|---|---|---|
+| Исходный popup, импорт/удержание | popup.js ensureNativeBackupBridge/onchange/backup-preview/backup-import; backup-file-selection receive/hello/ready/restored; runtime.js saBackupPreview/saBackupImport | P1/P5/N закрывают перенос/восстановление File; штатный encrypted Preview/apply/магазин после reopen остаётся отдельной ручной проверкой. Синтетический retention не объявлен всем импортом. |
+| Новый Start, одна инструкция, идемпотентность | runtime.js saWorkStart: singleFlight, WORK_START_ALREADY_PENDING/WORK_SESSION_ALREADY_ACTIVE; composed create/commit/acknowledgePendingWorkStartSend | S24 duplicate_start_and_late_tick_do_not_duplicate_binding_or_send; C14 early_observed_activation_one_instruction_zero_business_requests. Собственная инструкция в каждом AI-чате проверяется отдельно. |
+| Существующий диалог/старые команды | assistant_baseline_ids, scan/decorate current own assistant block; command-receipts.capture/readBlock; local surface identity | S24 baseline не доказывает новый ответ; M60 baseline/other-context rejected. История и старые блоки не исполняются автоматически; installed baseline-сценарий отдельный. |
+| Assistant/full code/однострочный и многострочный блок/своя кнопка | observed-ai-code-readers, qwen/kimi readers, per-provider assistant/code roots; content_script handleCopy/decorateBinding; capture/readBlock | C14 explicit_current_whole_block_one_execution_one_request_large_result; provider reader/ownership receipts. Только extension-owned кнопка вызывает handler; штатный Copy не является execute entry. |
+| Разрешённый пакет и executionId | runtime.js saR3PrepareCommandSource/saR3ReserveCommand; reserveCommand/createCommandLedger; executeManualCommand | C14 one execution/one provider read; repeated busy/completed same block keeps same execution/no second request. Для actual platform отдельный visible result. |
+| Результат, ошибка, восстановление/no replay | saPrepareDelivery/saCombinedReport; saR3RecoveryInput/ReadBuffer; commitManualBatchDeliveryInsert/manualRecoveryForContent | C14 ordinary400 full error waits while busy then delivered once; finish/dialogue/store/marketplace late edges; M60 committed reconcile without another Send. Это ordinary error proof, не классификация natural AI-expiry. |
+| Полный отчёт и большой File | attachment port fetchArtifactBytes/buildFiles; descriptor length/hash/chunks; same owner/context guards | C14 фактически сохранил1621926B/90000строк/BEGIN_B02/END_B02 через generated report/chunk/File путь. Это synthetic provider, не реальная обработка каждым ИИ. |
+| Attach ready → Send/busy/Stop | per-provider attachmentSurface/attachFiles/attachmentReady/sendButton; waitForComposerAvailable/stageMarker/sendReadyAttachment; composer_send | C14 busy does not commit/send; существующие native-input/readiness/parent cases; M60 own sent witness. Enabled Send/имя/ACK не приравнены факту доставки. Forced Stop не провоцируется. |
+| Файл именно в исходном чате и реально прочитан | processRecovery → matchingNewUserTurn → real per-provider sentAttachmentMessage → reconcileSendCommitted → owner confirm | M60 отдельно доказывает matcher/controller boundary каждой поверхности. Installed receiving/processing полного файла остаётся отдельным фактом у каждой. |
+| Copy без execution | decorateBinding создаёт собственный button/listener; readCodeText/capture; native Copy остаётся действием ИИ | Existing Work natural Copy/paste и provider reader receipts; C14 явный extension click — единственный command ingress. Native Copy остальных проверяется вручную, не выводится из Work. |
+| Hide/Show только видимость | OZ_WORK_HIDE/SHOW/APPLY_VISIBILITY, сохранение work_active и buffered authorized result | C14 hide_show_preserves_authorized_result_without_instruction_or_execution_replay; installed отдельный результат по каждой поверхности. |
+| Finish/новый Start | OZ_WORK_FINISH, pending/watch cleanup, work generation, no old delivery/replay | C14 finish_keeps_result_and_closes_recovery, finish_restart_new_generation_one_new_instruction_no_old_execution; S24 late observation after Finish blocked. |
+| Два диалога/магазина/площадки | saAdmissionFence/saAssertDeliveryOwner/saAssertStore, sameConversation, conversation-surface capture/ready/confirmCurrent | C14 changed dialogue/store/marketplace и поздние результаты; M60 other_context rejected для каждой. В ручной приёмке два настоящих диалога и подготовленные разные магазины проверяются отдельно. |
+| Standard/Work/dot и чужой draft | chatgptSurfaceObservation; WorkMessageParts/Complete; DotMessageParts/local surface; stageMarker foreign-text rejection | S24 + Work/native/Standard/dot receipts. **dot terminal для первого Start не нужен:** observed new own response/current local surface достаточно. Неоднозначный Reply/branch/reload не наследуется. |
+| Естественный AI login-required/expiry | существующая ошибка/no unknown replay; точный provider classifier не выдумывается без материала | B02-11 natural explicit DOM всё ещё NOT_CAPTURED в прежнем bounded search. Старый точный запрос сохраняется. Не общий gate выдачи/остальных сценариев; не провоцировать expiry/лимиты/forced Stop. |
+
+**Восемь отдельных решений по выдаче, плюс Work/dot отдельно.** У каждой ниже реализация сопоставлена с этой сборкой и своим source/material доказательством; конкретного нового code defect не найдено. Решение каждой строки — **PREPARED_FOR_SEPARATE_MANUAL_ACCEPTANCE**, а не общий UNKNOWN и не installed PASS.
+
+| Исход | Конкретная реализация/собственное доказательство | Что составляет отдельный результат ручной приёмки |
+|---|---|---|
+| ChatGPT Standard | CHATGPT; standard composer/TXT-ready + chatgptSentAttachmentMessage own resource-card; Standard108 + M60 standard6 | Полный цикл в обычном Chat, свой user-turn/реальное чтение большого файла; чужой draft не отправлен. Workhome не подходит. |
+| Алиса | ALICE; aliceComposer/attachmentReady/aliceSentAttachmentMessage в одном Message_from_user; Alice97 + M60 alice6 | Собственные file+text, ready→sent, начало/конец полного файла, Start/Finish/reStart и изоляция. Loading detail не превращён в общий gate. |
+| Qwen | SellerAgentsQwenAdapter + qwen code reader; fileitem/own data-msg-id; accepted S08 + M60 qwen6 | Полный цикл, настоящий ready/sent; enabled Send сам по себе не успех. |
+| DeepSeek | SellerAgentsDeepSeekAdapter + observed reader; own message/card, upload-end/natural terminal/remount epoch; accepted parent/transport + M60 deepseek6 | Natural busy→ready/полный file в исходном диалоге, обычный цикл. Не forced Stop/retry. |
+| Claude | SellerAgentsClaudeAdapter + own article/code reader; file-thumbnail отдельно от user body/composer; accepted parent/upload + M60 claude6 | Собственный article/block, code/Copy, настоящий ready→sent полный File; подробный busy-root остаётся ограничением доказательств, не доказанным дефектом. |
+| Gemini | SellerAgentsGeminiAdapter; подготовка именно TXT input/menu, own user-query-file-preview; Gemini76 + M60 gemini6 | Полный цикл TXT, без использования image-only input как замены; фактическое чтение полного отчёта. |
+| Grok | SellerAgentsGrokAdapter + observed reader; own response user-container/Open attachment/filename; accepted cases + M60 grok6 | Полный цикл, свой assistant/code и свой sent File; неполный старый busy slice не выдаётся за installed PASS. |
+| Kimi | KimiAdapter/KimiCodeReader; final/reasoning split, own user segment/success card; accepted cases + M60 kimi6 | Полный цикл в подтверждённом текущем чате; не переносить identity через недоказанный reload. |
+| GPT Work, отдельно | Work positive surface/own final slot, Complete/Copy receipts, own file matcher; Work24 + M60 work6 | Work composer и своё completion/Copy/полный File; truncated ready card не доказывает четыре root. |
+| dot, отдельно | DotMessageParts nonpending local row/code/attachment-list; S24 + M60 dot6 | Первый Start по observed own reply, явный full-block click, свой файл в том же local surface. Terminal не запрашивать; неоднозначный cross-context restore запрещён. |
+
+Для всех десяти installed/full B02 **ещё не принят**. Это точные отдельные предъявленные результаты реализации с последовательностью приёмки; никаких AI-профилей у Тестера нет и не требуется их получать. Прежние готовые DOM/изображения не пересобирались. Нового запроса материала в этом этапе нет: уже отвеченные terminal и comprehensive snapshot requests не повторяются.
+
+**Точная доступная сборка подготовлена к передаче владельцу:** [Октопорт0.2.37 — исходный ZIP для личной B02-проверки](https://github.com/MaksimUnimax/runtime-fixtures/blob/aea9edf9a3dbc650b1ea6f3a40f57722a43abcee/docs/product/readiness/OCTOPORT_v0.2.37_B02_PERSONAL_cc8abe7b.zip). Это побайтно тот же PREPRODUCTION ZIP **2707548B**, SHA256 **ecccb6e6801d5a2456b5e124b1565b131acb560a9ca6b16e44ff95e891c03911**, без пересборки/нового архива. Публикация только в прежней personal evidence-ветке, commit **aea9edf9a3dbc650b1ea6f3a40f57722a43abcee**, non-force с expected68268fd2; исходники/main/Store/installation/auth не менялись. GitHub create_blob вернул **9868f876aa0fdd771ece2c6a4f295af645d79e37**, exact match `git hash-object` исходного ZIP. Commit readback показывает только этот новый ZIP; прежний handoff не менялся этим commit. Попытки текстовых blob/contents readers дали **UnicodeDecodeError** и **400 only accepts UTF-8 text**: binary read не повторять и не выдавать за скачанный SHA256 readback. Исходный SHA256 и совпавший immutable Git blob подтверждают идентичность опубликованных bytes; файловый path/commit читаются отдельно как metadata. Новых ключей, аккаунтов, permanent access, конфигурации, подписей или grants не создано.
+
+**Минимальная последовательность будущей ручной приёмки — одна последовательность, отдельный исход для каждой строки выше.** Это подготовка, сами Start/Send/API здесь не выполнялись:
+1. В нужной существующей AI-поверхности открыть новый диалог. В original popup проверить уже согласованный вход/подготовленный магазин; один Start → одна инструкция. Обычный reopen/повтор Start активной работы не должен повторять её.
+2. Попросить ИИ вывести два отдельных code block справки дословно, сверить и по одному нажать свою кнопку Октопорт: однострочный `OZON_HELP_V2 {"cluster":"catalog_products"}` и его многострочный вариант ниже. HELP не делает бизнес-запрос.
+3. Проверить штатный Copy вставкой в локальный текст: текст совпадает, запрос не запускается. Hide/Show убирает/возвращает только кнопку без Start/Send/replay.
+4. Воспроизвести короткое READ_SAFE чтение ниже и нажать Октопорт один раз. Повтор у занятого/завершённого блока не должен создавать новое execution/API. Результат или понятная обычная ошибка — в том же диалоге/магазине.
+5. Воспроизвести большой READ_SAFE запрос ниже. Наблюдать естественный busy→ready: Stop/busy не Send и не подтверждение готовности файла. Проверить настоящий sent File в исходном диалоге; открыть/прочитать начало, конец, operation и контрольные данные полного результата, попросить ИИ назвать их из файла. Одного имени/ACK/карточки в composer недостаточно. Если реальный каталог мал и файл небольшой, большой-файл сценарий ещё не пройден; не запускать скрытую пагинацию.
+6. Finish → кнопка/новые исполнения старой Work исчезают, уже полученный файл/диалог/магазин сохраняются. Один новый явный Start → одна новая инструкция без старой команды.
+7. В существующем диалоге проверить Start с историей; старые code blocks сами не исполняются. Отдельно с собственным неотправленным черновиком убедиться, что Start не затёр/не отправил его; неизвестный исход не повторять вслепую.
+8. С двумя подготовленными диалогами/магазинами/площадками проверить, что выбор следующего магазина без явного Start не переносит текущую работу, а результат каждого остаётся у своего контекста. Не менять/создавать ключи ради сценария. Достаточно обычного переключения и двух собственных привязок; не требуется новый forced-failure run.
+9. Если естественно уже возник login/expiry/обычная ошибка, сохранить её видимый текст и фактическое состояние; неизвестный Send не повторять автоматически. Специально истечение/лимиты/forced Stop не вызывать. Неоднозначные dot Reply/branch/reload требуют отдельного явного Start в подтверждённом контексте, без наследования старой Work.
+
+Точные подготовленные блоки (разрешённость `seller_product_attributes` READ_SAFE и limit1…1000 сверены в registry/contract этого ZIP; запросы в этом этапе не выполнялись):
+
+```text
+OZON_HELP_V2 {
+  "cluster": "catalog_products"
+}
+```
+
+```text
+OZON_API_V1 {"operation":"seller_product_attributes","params":{"filter":{},"limit":1}}
+```
+
+```text
+OZON_API_V1 {
+  "operation": "seller_product_attributes",
+  "params": {
+    "filter": {},
+    "limit": 1000
+  }
+}
+```
+
+Владелец не обязан заполнять техническую матрицу: достаточно отдельно назвать ИИ и фактический результат/действие, где появилась проблема. Будущий установленный исход каждой поверхности записывается отдельно по реальному ответу, без переноса от другой.
+
+**Первичный результат подготовки** `B02_CC8_FULL_CYCLE_DELIVERY_PREPARATION_20261021.json`, **36353B**, SHA256 **5b2a3a5ec66de87181a7e6bede13233ae44ed178719b955cee9fe7e27cb1d74d**:137 source inputs,43 members,47 evidence references, полный step map и десять отдельных dispositions. Это не новый реестр/runner и не full installed acceptance. Все изменения этого этапа — существующий §12, собственный checkpoint и публикация неизменного файла; §11/все чужие разделы сохраняются побайтно.
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
