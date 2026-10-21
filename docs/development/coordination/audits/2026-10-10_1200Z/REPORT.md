@@ -1,3 +1,72 @@
+# Последний фактический результат продолжения — 2026-10-21T09:12:08.446Z
+
+**CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z: audit_complete=false; 12 OPEN.** Единственный прежний Контроллер продолжает с d9e5f51b, без второго исполнителя. Предыдущая собственная запись30046754522128e6b589b6e7aa18a13eb1189244 (MaksimUnimax09:04:22 UTC,parent1c52ce8f,onlyREPORT,blobd56d06b236cc59bcf25046fdb44be7d62772acd5) проверена перед обновлением; полный readback09:04:39.281 совпал. Полная история/PLAN/WIP и принятые исходы ниже сохранены.
+
+## 1. A и B: что исправлено на исходной границе доставки и что ещё не доказано
+
+**Установлен фактически используемый канал:** existing peer-handoffs/A и peer-handoffs/B. Current PROMPT_A/B и сохранённые собственные рабочие команды original A06:29:39/PID3566804 и B07:01:56/07:58:39/08:22:32 показывают чтение6/4 newest server entries соответственно. Начальный завершённый bounded content search32/31 на JSON/MD inbox дал0 совпадений с прежними canonical comment/decision/run markers. Первичные сообщения при этом существовали только в GitHub. Это конкретный устранимый разрыв маршрутизации; отсутствие ACK само по себе не устанавливает психологическую причину/полное непрочтение или idle роли.
+
+**Реально выполнено:**08:53:45/PID3603728 под existingcoordination.lock, O_EXCL/dedupe созданы два pointer-only файла в этих существующих inbox. Они ведут к **тем же** A6307715843/B6309010922, не копируют статус, не создают нового task/executor/permission и не обновляют single B allowance. Независимый полный readback обоих выполнен. Их полные имена, hashes и первичный результат сохранены в предыдущем разделе.
+
+**Повторная проверка исходной границы09:06:15/PID3607301:** readonly documentary metadata точно по использованному читателями алгоритму: A-pointer **№1 из6**, B-pointer **№1 из4**, pointer_within_reader_window=true для обоих. То есть адресат, выполнив свой действующий inbox-read, увидит уже существующий канонический документ; проблема «передача только в непроверяемом GitHub-канале» исправлена и эффект проверен. Исторический control.py/notice-reader не использовался.
+
+**Фактическое получение/исполнение не подменяется маршрутизацией.** На последнем author/source read09:09:00 UTC:
+- A6307820874 всё ещё updated06:57:05, собственного нового receipt новых two-runIDs/current-base продолжения нет в проверенной публикации. Сами exacted5/5/13/13 результаты приняты ранее и не повторяются.
+- B PR235/remote branch всё ещё exacte7bec59487f1147f990dbde5d5c82f74ba5893a5; нового authorreply после08:51:32 нет. B§17 document metadata unchanged07:44:32/372строки/89895B. **Исход single82d7 attempt и потребление decision UNKNOWN**, не FAIL; никаких push заB/повторов неизвестного push/renewal не было.
+- Server-search авторских receipts A34/B33 не завершён достоверной выдачей из-за описанного ниже session-not-found; initial0 не используется как отрицательный результат по всем receipts. Остальные формулировки отсутствия строго ограничены конкретно перечитанными публикациями/metadata.
+
+**Ближайшее внешнее действие в прежней роли, не новое назначение:** существующий A читает свой уже первый inbox-pointer и возвращает фактическое потребление two-runIDs/next в own A05 receipt; существующий B читает свой первый pointer, сначала устанавливает исход/dedupe/sole-writer/currentHEAD/WIP и возвращает сохранённый/исполняющийся исход либо использует единственное всё ещё неиспользованное разрешение в его точных границах. Controller не может выдать за этот результат собственное чтение или управлять чужим диалогом/процессом. Причина отсутствия последующего авторского receipt после исправления канала **UNKNOWN**; минимальный недостающий источник — именно существующий адресный author-return, не новый тест/общая owner-authority.
+
+## 2. Legacy-IDNA: выполнен точный запрос текущему custodian
+
+В прежнем own[PR235#6309010922](https://github.com/MaksimUnimax/runtime-fixtures/pull/235#issuecomment-6309010922), update08:51:32/full independent readback08:52:02.823, markerCONTROLLER_BOPS_EXISTING_LEGACY_IDNA_17_2_DOCUMENTED_FIELDS_20261021, адресован **существующий B/Ops actual-environment custodian**, как сохранено в B05→C05 addendum07:43:10. Только документальные поля§17.2 из уже разрешённых existing документов:
+1. exact isolated owner-test PG18/snapshotID с источником/актуальностью;
+2. уже разрешённые readonly account/executor role без значения credentials;
+3. конечное окно и лимиты операции.
+Недокументированное B помечает **NOT_DOCUMENTED** и называет конкретного нынешнего decision/custodian owner. Владелец не направляется искать технический идентификатор. Disposable A15541/B15542/C15543 не legacy owner-test snapshot, IDNA equivalence не DB grant.
+
+Запрос маршрутизирован тем же B-pointer, не новый scan-operator. **Ответ с тремя actualfields пока не получен в проверенном ownreply/§17metadata; значения UNKNOWN, root их не додумывает.** DB не подключалась, credentials/данные не читались, scan/SQL/dump/source/security изменения не выполнялись. Original R4singlepublicationdecision отдельный, не повторён и не передан другому исполнителю.
+
+## 3. R7/R8: конкретные объекты и владельцы вместо нового измерения
+
+Срез08:28:25/PID3595264, допуск использован; **4939.859375MiB при demand5120, дефицит180.140625MiB**, без нового filesystem/RAM/pressure измерения/теста/суммирования reserves. Действующие бюджеты сохранены.
+
+- **Собственный CONTROLLER-A05-MAIN9EB-20261015 /512MiBOPEN:** подтверждённо завершён source/review/CI компонент PR143/mainc985, но **завершение всего resource lifecycle не доказано**. Исправлена только собственная staleconsumer-координация: исторический16OctPID1660934FD239 больше не выдаётся за current reader; currentphysicalconsumer/uniqueartifact proof=NOT_RECHECKED. NativePID3606241 SUCCESS08:58:52.961; guarded exact-old-object append/atomicwrite, existingcoordination+resource locks; newSHA75cd6548db8665a31316b48f97283133759a8b0d38126bb7bc5e1434e7a32ca6. Full independentreadback09:00:00.963 подтвердил всю старую history/releasecondition, ownnote и **OPEN512**. Физическую операцию выполняет **существующий владелец очистки14Oct**, только /root/octoport-control/temporary/controller/a05-main9eb-20261015, после подтверждённых currentconsumers/уникальных данных/refs/защиты от гонки и обычного nonforce retirement; затем genuineclose/readback. Конкретная адресная координация записана в том же собственном allocation. Резерв не снижен, место не объявлено освобождённым.
+- **DOT-C03-READONLY-REVIEW-20261015 /64MiBOPEN:** owner=dot. Реально завершённый PASS_SOURCE вердикт exactef788/base9eb целиком прочитан Controller из existing C03_EF788_DOT_AUTHORIZED_SOURCE_REVIEW_20261015.txt; его consumerfulfilled. **Адресный возврат существующему dot:** по собственным сохранённым материалам подтвердить окончание оставшегося review consumer и закрыть свой growth reserve с readback, если условия исполнены; сохранить постоянный verdict/log. Если нет — назвать точный KEEPconsumer/condition. Root чужую allocation не закрывает, permanent logfile не удаляет; новое review не заказывается.
+- B05pgpass16 и C01icons384 уже **CLOSED**, их нельзя повторно посчитать освобождением. B05nested8 остаётся **KEEP с доказанными автором RDC readers**, новый процесс/FD check не запускался.
+- B06PR127128 исторический кандидат сохраняет требование exactownerpreservation/lifecycledecision, sourceacceptance не разрешает физическое удаление.
+- B-C06unassigned256 sourceblob уже принят в currentmain по author FINAL_REPORT tail08:03:45, но сохранён **OPEN_KEEP под original platform deletion refusal**. Отказ не повторяется/не переносится. При необходимости нового решения минимальный предмет — supported disposition именно исходного RDC.start_process normal retirement точного /root/octoport-control/temporary/B/c06-unassigned-71bc-20261013 с сохранением refs/214symlinkmanifest/uniqueevidence и последующим freshunder-lock consumerproof, не permissionнаобщуюочистку/чужойпроцесс. Это не предоставленное сейчас разрешение.
+- Старый Controller→B10resourceshandoff явно SUPERSEDED11Oct07:50, не реанимирован.
+
+**Итог:** найден конкретный завершённый review component64 и source component512 с действующими владельцами и проверенной документальной координацией. Ни по одному не объявлена недоказанная полная безопасная физическая свобода. Исходный capacityFAIL остаётся до реального разрешённого освобождения и отдельной разрешённой проверки; этот проход его не симулирует.
+
+## 4. Тестер и независимый C06 результат
+
+**Тестер:** готовые OWNER0835 READ_RECEIPT/RESULT прочитаны напрямую; последующая §12 публикация/FINAL_CHECKPOINT подтверждены. Один originalread08:38:54.169225,52952B/SHAe88a2a57…; terminal08:42:25.836 **1SOURCE_OFFLINE_CONSUMER PASS** реальных неизменённых restore/changehandlers со strict in-memory API doubles:1DataTransfer/add/change/ACK,duplicateбезsecondACK. Root не читал popup.js/snapshot и не запускал сценарий. Закрыт именно codeconsumer-gap; настоящий browserDataTransfer/toolbarchooser/firstpaint/ownerinstalled/fullB02 не принят.60distinct+14linked/всеFAIL/review/7d3/неизменный ZIPeaad6ea8… сохранены.
+
+**C06:** новые уже выполненные C first-party результаты public-site/installedef241/main2731/sourceanalytics/supporttransport/catalog-link-gap лично потреблены. Через прежний own[PR210#6308505226](https://github.com/MaksimUnimax/runtime-fixtures/pull/210#issuecomment-6308505226) добавлен limitedresultintake09:08:09; independentfullreadback09:09:00.855 exact/oldprefix/id/authortrue. Прежний generic publicreachabilityUNKNOWN уточнён готовыми3HTTP200/public↔installedhashes C; это не новые probes root. Реальная StoreDashboard/item/trust/AIpolicy/supportinboxdelivery/ownerStart-Finish остаются UNKNOWN/NOT_ACCEPTED. EarlyStorepermission не переспросили; новыхdeploy/site/mail/Store/source действий нет. Author-issued09:03 и enclosingGitHubupdated09:02:14 сохранены раздельно, независимая причинность/время не выдуманы.
+
+## 5. Технический сбой поиска и все10 пунктов
+
+Два get_more_search_results authorreceiptlookup дали полный **INVALID_ARGUMENT, searchsessionnotfound**; точныеargs/ответы сохранены дословно ниже до диагностики, fullreadback проверен. Разрешённая диагностика **list_searches09:05:08.756SUCCESS → No active searches**. Она доказывает отсутствие active sessions в этом ответе, не судьбу исходных данных/первопричину. CauseUNKNOWN; необходимый источник—serversearchsessiontrace этихID. Новый search/result retry/альтернативныйactor не запускался; это не securitydenial и не снятие старого preflight/PRIORITY/source запрета.
+
+1. Последний REPORT/ref/author/onlypath/fullreadback и completed RDC исходы проверены; неизвестный push не повторён.
+2. Полномочия отделены: Bодна попытка не renewed; R7measurementused; R17prep/C-R16closed; только документальные scope.
+3. Метод подтверждён actual guarded inboxwrite + independentreadback + actualreader-windowverification, не просто GitHubcomment.
+4. Ошибки классифицированы по первичке: searchtechnicalUNKNOWN не нулевойп поиск/неplatformsafetygrant; SOURCE не installed.
+5. Один автор/WIP: только own REPORT/comment/два same-transferpointer/own512coordfield; source/чужиеrolefiles не пишутся. Ownlocksmetadata не globalflock; физические locks были только на точных выполненных docwrites.
+6. Доступное исправление реально применено: missingserverrouting устранён, ownstale512consumer уточнён, Legacy3fields адресованы, Testernewprimary/C06actualresult потреблены.
+7. На исходных документальных границах проверены fullbytes/history/oldprefix/readerwindow; старыеproducttests/review/CI не повторены.
+8. Потребление A/B/actualBpush и actualB/Opsfields **не подтверждены**; не объявлены DONE/idle. C/Tновые actualresults подтверждены, не причинность отrootсообщения.
+9. Для каждого остатка указаны existingowner, точная операция и недостающийprimary: A/Baddressedreturns, B/Ops3docfields, ownerphysical512retirement, dot64consumerclose, genuineDB/live/installed Store gates. Общих ownerYES/technicalIDsearch нет.
+10. Вся прежняя12OPENкарта/closingconditions/PLAN/WIP/история сохранены; originalpreACK/PG/publicationorigins/refusalenvelopes/configactor/reviewpayload остаютсяOPEN/NOT_RECHECKED на неизменнойгранице. R6/PR97/131/134 не открывались. errors/events/новыеорганизационныереестры/архивы/helpers/schedules не создавались/нечитались; no source/tests/review/CI/liveDBsecurity authcleanup.
+
+**Объём и организационный эффект с d9e5f51b:** два existinginboxrouting доказательства и два terminalnegativeinboxsearch; два guardedpointerwrite/readback; один readonlytop6/top4 visibilitycheck; один oldBcommentappend/fullreadback; exactown512docrepair/guardedwrite/fullreadback; готовые resourceprimary/Tester2JSON+§12/C06newpublications; одна ownC06limitedintake/fullreadback; два сохранённых searcherrors и diagnosticstatus. Старые вердикты/пакет/testcounts не пересозданы. Организационный разрыв маршрутизации устранён; возврат существующих адресатов остаётся отдельным незавершённым исходом.
+
+**Аудит не завершён,12OPEN.** Новая самостоятельная физическая/code/DB/test операция root не разрешена этими остатками. Следующий необходимый вход—подлинные returns существующих A/B/B-Ops и actualowner/dotresourceoutcomes в уже названных документах. Повтор pointer/comment, второй source author, чужой чат, новый helper, push заB или ещё одно измерение не являются допустимым способом получить такой receipt. Никакого фонового исполнения/30mincompletionpause не объявляется.
+
+---
+
 # Проверенный остаток и первичный технический исход — 2026-10-21T09:04:21.123Z
 
 Тот же аудит, **12 OPEN, audit_complete=false**. Предыдущий собственный REPORT1c52ce8f49a1d49963b5fcb9668632d3ba0faf7b, authorMaksimUnimax08:56:54 UTC, onlyREPORT/blobc671994aa49d5e5ffddf1e197d5b3bc010cae852; полныйreadback08:57:07.742 exacttrue. Scope не расширяется, чужойWIP/rolefiles не меняются.
