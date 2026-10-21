@@ -618,7 +618,10 @@ function hasRequestBody(
 ): boolean {
   if (operation.requestBody && typeof operation.requestBody === "object")
     return true;
-  return parameters.some((parameter) => parameter.in === "body");
+  // Swagger 2.0 formData fields are encoded in the HTTP request body too.
+  return parameters.some(
+    (parameter) => parameter.in === "body" || parameter.in === "formData",
+  );
 }
 
 export function buildCompleteOperationInventory(input: {

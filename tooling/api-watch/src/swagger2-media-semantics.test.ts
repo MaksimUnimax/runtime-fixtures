@@ -195,6 +195,18 @@ describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () 
     expect(result.fields).toContain("requestSchemaSha256");
   });
 
+  it("marks Swagger 2.0 formData as a request payload in inventory metadata", () => {
+    const form = inventory({
+      rootConsumes: ["multipart/form-data"],
+      payload: "formData",
+    }).operations[0]!;
+    const body = inventory({ payload: "body" }).operations[0]!;
+    const empty = inventory({ payload: "none" }).operations[0]!;
+    expect(form.requestBodyPresent).toBe(true);
+    expect(body.requestBodyPresent).toBe(true);
+    expect(empty.requestBodyPresent).toBe(false);
+  });
+
   it("treats MIME lists as order-insensitive sets, including duplicate entries", () => {
     const result = compare(
       {
