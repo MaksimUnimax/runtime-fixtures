@@ -43,17 +43,28 @@
         date.toISOString().slice(0, 10) !== value) return null;
     return timestamp / 86400000;
   }
+  function assertCalendarWindow(fromValue, toValue, allowPartial = false) {
+    const hasFrom = fromValue !== undefined, hasTo = toValue !== undefined;
+    const from = hasFrom ? calendarDay(fromValue) : null;
+    const to = hasTo ? calendarDay(toValue) : null;
+    // Official WB Promotion: 1..31 calendar days, inclusive when both dates exist.
+    if ((!allowPartial && (!hasFrom || !hasTo)) ||
+        (hasFrom && from === null) || (hasTo && to === null) ||
+        (hasFrom && hasTo && (to < from || to - from > 30)))
+      fail("WB_PROMO_RANGE_INVALID");
+  }
   function assertPromotionBounds(command) {
     const query = command.query || {};
     if (command.operation === "promo_fullstats") {
       // Official WB Promotion: comma-separated campaign IDs, maximum 50.
       if (typeof query.ids !== "string" || !/^[0-9]+(?:,[0-9]+){0,49}$/.test(query.ids))
         fail("WB_PROMO_IDS_INVALID");
+      assertCalendarWindow(query.beginDate, query.endDate);
     } else if (command.operation === "promo_spend_history") {
-      // Official WB Promotion: inclusive period of 1..31 calendar days.
-      const from = calendarDay(query.from), to = calendarDay(query.to);
-      if (from === null || to === null || to < from || to - from > 30)
-        fail("WB_PROMO_RANGE_INVALID");
+      assertCalendarWindow(query.from, query.to);
+    } else if (command.operation === "promo_payment_history") {
+      // Both payment-history dates are optional; validate each supplied date.
+      assertCalendarWindow(query.from, query.to, true);
     }
   }
   function assertPolicy(command, context) {
