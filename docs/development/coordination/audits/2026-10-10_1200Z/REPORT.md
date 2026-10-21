@@ -1,3 +1,50 @@
+# Продолжение аудита: исправлены пропущенные авторские исходы — 2026-10-21T15:03:04.784Z
+
+Тот же единственный Controller. **Все12 OPEN, полный PLAN/WIP, история и узкие принятые исходы сохранены; аудит не завершён.** Начало активного продолжения14:56:27UTC. Fresh branch713f423603d4d9dd1fa40db438a1f07c13895083/authorMaksimUnimax/публикация14:47:30/parentfb6f523e/onlyREPORT проверены; весь REPORT2472167chars прочитан. Последняя операция завершена, неизвестная мутация не повторена. Easyscript установлен штатным list_devices9dab7ad2-9d63-43a3-b106-a5840d79ccc1, activeRDCsessionsнет. PID3680491/14:57:25 проверил доступность coordination.lock и resource-admission.lock, оба освобождены; ресурсных измерений не было. Свои REPORT/comments/pointers — единственный изменённый scope, чужие source/WIP/профили не изменялись. Свежий ref15:01:47 всё ещё713f4236.
+
+**Исправление собственной организационной ошибки.** В прошлом итоговом срезе я проверял старые фиксированные карточки A/B и пропустил отдельные новые авторские публикации; вследствие этого актуальные утверждения «AещёнепотребилC» и «PR145currenthead6be» были устаревшими. Новая проверка использует новые ownauthor comments, collections/comments since и локальный checkpoint; исторические тексты не удаляются, эти current утверждения ниже superseded.
+
+## A: фактическое потребление C уже выполнено
+
+Own [PR248#6318741233](https://github.com/MaksimUnimax/runtime-fixtures/pull/248#issuecomment-6318741233), recordA_STREAM_CONTINUATION_MAIN7D9_C_CONSUMER_AND_A06_SITE_PUBLIC_20261021, observation14:37:28/created-updated14:39:26UTC полностью прочитан. Это тот же originalA в перенесённом диалоге, не новый исполнитель. Он прямо потребил ownC14:35:58.063 и сохранил **A05INCONCLUSIVE_DOCUMENTARY_ERROR_PATH/NO MERGE**. **Закрыто только ожидание A receipt/разбора C.** Currentclient2ab75+serverbf95 GET409/410/unavailablewriter witness/combinationPASS остаётся UNKNOWN, R16SOURCE/C oldnarrowSUFFICIENT/edoriginal5families13jobs/Ready сохранены; неFAIL/неR17/admingate/mergegrant. WIP сохранён по собственному A наблюдению: основная унаследованная копия09e12...+extensiveWIP; exactA05edclean; A04R36REWORK/3dirty+1uniqueoverlayKEEP/R37DENIED/188authorPASS не смешаны.
+
+**A06 PUBLIC_URL_ACCESS_UNKNOWN также закрыт узко собственным A:** acceptedoriginalC publicHTTP200/TLSverified /privacy,/support,/install относятся к installedsiteef241, не текущемуmain и неStoreapproval. Analytics/consent/sourcebranchdivergence/concreteAIrecipientdisclosure/Dashboard/signedSTORE/reviewerflow/ownerinstalled остаютсяOPEN. Новых HTTP/browser/review/source действий root нет.
+
+Узкое closure сохранено в том же ownAcanonical6307715843 actualupdated14:59:13/41008chars, full exact readback14:59:22. Больше прежний A receipt не запрашивается; исходная история сохранена.
+
+## B: PR145 опубликован; оба новых PR CI terminal SUCCESS
+
+Own [PR145#6318750920](https://github.com/MaksimUnimax/runtime-fixtures/pull/145#issuecomment-6318750920)14:40:00 и existinglocalcheckpoint PR145_R7_EXACT_HEAD_PUBLICATION_READBACK_20261021.md полностью прочитаны. Native4649B/SHA48282819322fecc2ab4a59c4370a8fd0dd8d7cf4a0ff3a618013485998989f53/mtime14:38:50.832796 независимо подтвержденыPID3680491. **ONE force=false fast-forward существующейветки** work/b06-feedback-pseudojson-20261015 6be57f→**9f6e3521a53b549eab0142c436b761ad902897cd** выполнен B; freshPRhead и remote ref совпали. **PR OPEN/DRAFT/unmerged**, main7d9ce2966b914ba08cc37d3f64e787052e501483. Старое currenthead6be не актуально; никакого повторногоpush/rootpublication/новогоgrant нет. BownWIPcleanпоегоreceipt,128MiBOPEN/KEEP не закрывался; его ресурсные числа не использованы ControllerкакR7/R8допуск.
+
+Отдельно лично прочитаны исходные автоматические PR-trigger runs/jobs (не rerun/dispatch), eventpull_request/attempt1/head9f6, created14:36:25:
+- **Server39618308771 SUCCESS**, ci-plan119284786266SUCCESS14:36:33, server119284855140SUCCESS14:53:55/runupdated14:53:55.
+- **Docs39618308733 SUCCESS**, documentation119284786812SUCCESS14:36:35/runupdated14:36:39.
+Это **2семьи/3jobs**, не новая5/5серия. Прежние originalpush5families/13jobsSUCCESS exact9f6 остаются отдельно:39595177100/39595176922/39595177069/39595177033/39595177041. Ни старыйphysicalABORT, ниinstalled/fullacceptance этимне закрыты.
+
+**Точный stale C06 field найден в новомBcheckpoint:** строка «C06 exact cc8 genuine public release authority pending» ещё присутствует. Общий readyC06input уже был в Bcanonical14:41:07; нового issuer/build/approval не назначено. Теперь через этот же canonical адресована конкретная factualsupersession этойpersonalexactcc8строки: Testerf0b950a2 parent390c00c2/14:28:01, authority35071d5a…/provenanceca424980…, личныйPREPRODUCTIONZIPecccb6e6…/actualworker626c0010…/loadedconfig0b621c6d… и ownCconsumption14:35:58.063. СуществующийBсам дополняет свой checkpoint, rootчужойдокументнеправит; generalC06/Store/fullB02 остаютсяOPEN. OwnBпоправка ещё не подтверждена.
+
+В том жеBcanonical6309010922 actualupdated**15:00:14**/46096chars/full exactreadback15:00:34 сохранены completedpublication+terminalPRCI+точноеstalefield и различение pendingWB/IDNA. Это не новыйBsource/review/CI/Ready/merge/task, собственный next B — consume readychecks и disposition в его действующих полномочиях.
+
+## WB custody / IDNA: новое получение проверяется по первичке
+
+Прочитаны новыеBpublicationcheckpoint/owncomment и currentPR235/145comments since14:35; в PR235 только root6309010922, вPR145 собственныйB14:40. ExistingIDNAdoc126166B/mtime13:37:45 и §21nativeend перечитаны; currentlogdirsB145/B235 ограниченно перечислены, нового documentaryreturn не выявлено в этом наборе. Эти14:37–14:40primaries **предшествуют** WBcustodyinput14:41/IDNAtechnicalnext14:43:59 и не подтверждают их получение. Это точный boundedUNKNOWNreceipt, не wholeBidle/не глобальноеотсутствие среды.
+
+§21conditionalprivacyYESreceived/NO_RUN сохранён; технические source/isolatedcompatiblePG18-schema0056/существующаяreadonlyrole-executor/window — NOT_DOCUMENTED в checkedsources, не NOT_PROVISIONED. Grantсканомнеиспользован, общийYESнеповторяется. WBчетыреscopes/truebaseline+retainedold/currentobjects ещё не доказаны; source13/13/309/manifest8bfd…/syntheticNO_CHANGE несемантическийPASS. Исходные два запроса сохранены, **второго назначения/оператора/скана не создано**; последний Bpointer указывает актуальныйcanonical и просит использовать уже готовый/идущий ownresult либо конкретную missingOpsoperation, безDB/query/env/credentials/приватногокорня/payload/provision/write.
+
+## Тестер: исправлена недоказанная ручная роль владельца
+
+SoleTesterf0b950a2 и handoffmtime14:27:42/810104B без нового checkpoint. Actualpersonalapprovedpackage/Reload/executingworker/realportal подтверждены; browserзакрыт/profileсохранён, auth=false/nativeNOT_REACHED. Вопросdotоб emailexistingOctoportaccount от14:29:42 **открыт**, это не техническоезависание. **Мою прежнюю формулировку об обязательном ручномвходе владельца в закрытом Easyscriptbrowser supersede:** такой ручной доступ не доказан и не навязывается. Штатныйвход остаётся задачей того жеТестера в его выданномscope, обязательныеcredential/securityподтверждения сохраняются. Rootнеоткрываетbrowser/profile, не авторизуется и не перехватываетB02.
+
+Коррекция своего next сохранена в прежнемC06canonical6308505226 actualupdated15:00:34/26447chars/full exactreadback15:01:02. Personalissuerожиданиеузкозакрыто, generalStore/C06/полныйB02восьмиИИ+Work/dot/Standardexpiry остаютсяOPEN. Никакого новогоgeneralYES/auth/native теста.
+
+Три **существующих** ownpointers A/B/C06 обновленыmetadata-onlyPID3681086/15:01:35 подкороткимcoordination.lock/object+byteCAS/atomicreplace/fsync; alloldfieldspreserved, lockreleased, все3independentnativefullreadbackсовпали:
+A6781B/SHAf5412f1f568f4d24fffccbec4d0431f83afa1cc45e1c865a06c49027f5280625;
+B10346B/SHA87776f94b4d2aea38e4ece9bc2d7987abf2ee2e6c6097c0b6c72413fc13efc12;
+C067469B/SHA356df8c556ef8ce8c78699ceeaebee290fea052c1d0b3137942ca61eabe62a78.
+Новыхфайлов/реестров/архивов/helpers/собственныхправилнет. СтарыеR37/protection403/deniedROLE-PRIORITY-preflight/errors-eventsне повторены/необойдены. 512/64metadataCLOSED/всефайлыKEEP/R7historicalFAIL, исходные12OPEN иполныйнезависимыйостатоксохранены; никаких tests/review/CI/source/liveDB/security/resourceR7R8 вызовов нет.
+
+---
+
 # Итог текущего продолжения и полный независимый остаток — 2026-10-21T14:46:53.985Z
 
 Это тот же незавершённый аудит и единственный Controller. **Все12 исходных OPEN, PLAN/WIP/история/принятые SOURCE/CI и узкие CLOSED сохранены. Аудит не завершён, 30-минутная пауза не начинается.** Последний checkpoint actual14:43:03UTC fb6f523ed7d115f73b8d3ea80ffd0880f83a0c6b, authorMaksimUnimax,parentb0e48278,onlyREPORT/full exactreadback14:43:38.166. Предыдущее завершённое действие не повторено; никаких unknown mutations/второго автора REPORT не выявлено. Текущий main7d9 и собственные scopes не изменены Controller.
