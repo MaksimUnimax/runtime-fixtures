@@ -1,95 +1,134 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — тот же незавершённый аудит.
-- **Срез UTC:** 2026-10-21T02:24:12.858Z. Предшественник REPORT **f5da2ae0bd89476c30ac5315f334bf4fa78fe7cd**, blob **d7ce6a5c9f3eb1ea2d89e338e630b8ccd39f0365**, author MaksimUnimax **2026-10-21T00:55:45Z**, parent **5a3e67deb15e8ea9e5aee45b6bd53c22ddef9735**. Полный завершённый ответ, история, пустая форма и отсутствие другого продолжения подтверждены dot21Oct02:16; это переданная проверка UI, не собственное открытие чужих чатов.
-- **Состояние:** IN_PROGRESS / audit_complete=false / **12 OPEN**. Работа / GPT-6.1 Sol / Очень высокое. PLAN/WIP/checkpoint, история и принятые доказательства сохранены.
-- **Remote main:** **ad6ae688ee17fae955aae32b36716014f0aeafed**, свежий ref совпал. Принятые native CI, Standardc62/108 и C38/41 comparison не перечитывались.
-- **Фактически снято:** устаревшее ожидание Alice upload/ready/sent и consumption. Тестер прочитал материал01:38, реализовал **e4f35436**, сохранил **97/97 affected code PASS**, существующий scoped review и development package. Это не installed/fullB02/provider-byte acceptance.
-- **Решение владельца:** 21Oct01:29–01:30 отдельно включены **GPT Chat/Standard, GPT Work и dot**. Старое исключение Work отменено в этой продуктовой области. Восемь ИИ сохранены; новые поверхности не новые исполнители.
-- **Дополнительный новый результат:** ready receipt **02:14:14** подтверждает потребление первых четырёх Work/dot оригиналов. Потребление позднего дополнения §11 **02:13** пока **UNKNOWN**; новый реализованный кандидат/приёмка Work/dot не доказаны.
-- **Sole write scope:** только этот REPORT, fresh version/author/ref/expected-blob CAS и независимый полный readback. Серверные роли/checkpoint/PRIORITY_TASKS, source/tests/WIP, §11/§12 не изменяются.
-- **Server checkpoint:** прежний SHA256 **76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212**, map **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d**; отказанная запись NR.
-- Installed/backup/app-PG restore/rollback/owner/C06/Store и **ENFORCED_PROTECTION_NOT_PROVEN** отдельны. Version/author/readback каждые10мин активной работы и перед итогом. Новых реестров/архивов/расписаний нет.
+- **Срез UTC:** 2026-10-21T02:52:07.297Z. Предшественник REPORT **d7d77bd9749889536ca4a27034e1c0436a89f58b**, blob **5bb45e90963f6f24c9dec7107a02b59e0e885d72**, author MaksimUnimax **2026-10-21T02:24:33Z**, parent **f5da2ae0bd89476c30ac5315f334bf4fa78fe7cd**. История/итог/пустая форма/отсутствие второго продолжения подтверждены dot02:45 в прямой передаче; чужие чаты Controller не открывал.
+- **Состояние:** IN_PROGRESS / audit_complete=false / **12 OPEN**. Работа / GPT-6.1 Sol / Очень высокое. PLAN/WIP/checkpoint, вся история и принятые доказательства сохранены.
+- **Remote main:** **ad6ae688ee17fae955aae32b36716014f0aeafed**, fresh ref совпал. Ни CI, ни C38/41 comparison, ни Alice97/Standard108 не повторялись.
+- **Новые проверенные результаты:** PR238 terminal fixture cleanup исключён как инициатор уже записанного requestfailed; B original mainad6 signed-ACK/HTTP-stop execution потреблён **C02 independently02:45:31**; B06 основной IDNA контракт **уже принят B** в новой публикации02:33:34; Тестер **430252b5**, exact scoped review,50distinctcases/package и потребление последних3JSON+5JPEG подтверждены ready документами.
+- **Фактически снятые ожидания:** C-consumption B03 executed ACK; Work/dot extended-input consumption и review430; B basic-equivalence yes/no не открыт. Physical first-abort, pre-ACK relay loss, identity collision handling и installed gates остаются.
+- **Sole write scope:** только этот REPORT, fresh version/author/ref/expected-blob CAS и полный независимый readback. B.json и другие отказанные server records/roles/checkpoint/PRIORITY_TASKS/source/tests/WIP/§11/§12 не изменяются.
+- **Server checkpoint:** прежний SHA256 **76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212**, map **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d**, отказанная запись NR.
+- Installed/backup/app-PG restore/rollback/owner/C06/Store и **ENFORCED_PROTECTION_NOT_PROVEN** отдельны. Новых реестров, архивов, расписаний и исполнителей нет. Version/author/readback каждые10мин активной работы и перед итогом.
 
-## 1. Последний исход, один автор, операции и locks/WIP
+## 1. Последний исход, автор, операции и locks/WIP
 
-Свежие ref/commit/author/parent/pinned blob подтвердили предшественник f5da2ae0; полный текст прочитан. Собственных неизвестных записей и незавершённой мутации этого прохода нет. Дубликат продолжения отсутствует по прямой передаче dot. Перед записью повторяются только разрешённые version/ref/author и metadata двух собственных lock-файлов; changed ref не перезаписывается. Expected-blob CAS защищает sole REPORT. Предыдущая активная проекция и вся прежняя история сохраняются дословно внутри того же REPORT; §3 и единственный запрос §5 сохранены.
+Полный pinned REPORT, ref/commit/author/parent проверены: d7d77bd9 совпал. Другая собственная неизвестная запись/операция не pending; второго continuing writer нет по передаче владельца. Перед sole write повторяются fresh ref/author/main и разрешённые metadata собственных locks; changed ref не перезаписывается. Expected-blob CAS и readback применяются к REPORT. Прежний active prefix и вся история сохраняются дословно внутри того же файла; §3 и unique §5 R19 request сохранены.
 
-Fresh metadata **CONTROLLER.lock** и **coordination.lock** ответили: 0bytes, прежние mtime. Это **не проверка владельца flock, не свободный процесс и не отсутствие чужого WIP**. Свежие процессы/claims/foreign HEAD/dirty **NOT_VERIFIED**: прежние list_sessions/list_processes Connection timed out, C.json metadata −32603 и другие конкретные targets не повторялись и альтернативами не обходились. Исторические clean/locks/terminal поля в документах Тестера от01:48/02:14 — его авторские срезы, не наш текущий physical preflight. Серверных записей без fresh разрешённой процедуры нет.
+**CONTROLLER.lock / coordination.lock:** fresh metadata0bytes/прежниеmtime — **не доказательство владельца flock, свободных процессов, отсутствия claims/чужого WIP**. Fresh physical processes/foreign HEAD/dirty NOT_VERIFIED. Прежние timeout list_sessions/list_processes, C.json metadata−32603, list_remote_tool_calls и другие отказанные/неизвестные операции не повторялись/не обходились. Ready поля Тестера success0/inactive/clean относятся к его указанным документальным срезам, не нашим текущим physical checks. Серверных записей без разрешённой fresh процедуры нет.
 
-Используется ранее прочитанный действующий канон START_HERE/WORK_METHOD/PROTOCOL/AGENTS с более поздними прямыми ограничениями владельца. Свежего полного чтения недоступного канона не заявляем. PROMPT_CONTROLLER−32603, failed PRIORITY_TASKS tail/call9d09…, protected preflight и остальные адресные отказы NR/no proxy. Исторические ссылки на errors/events не отменяют прямой запрет; эти файлы не читались и не восстанавливались.
+Использован ранее прочитанный канон START_HERE/WORK_METHOD/PROTOCOL/AGENTS и поздние прямые ограничения владельца. Свежего чтения PROMPT_CONTROLLER−32603/failed PRIORITY_TASKS tail9d09… не заявляем и не повторяем их другим offset/маршрутом. Historical errors/events pointers не отменяют запрет: эти файлы не читались/не восстанавливались.
 
-**Новый read-only охват:** полный REPORT/ref/commit/mainref; две own-lock metadata; ready tail operator/state.json и §12 handoff; три полностью прочитанных ready документа — Alice final checkpoint260строк, Alice verdict5строк, Work/dot initial-input receipt60строк; **14** scoped PR-comment collections после **2026-10-21T00:55:58Z**. Raw DOM, product source/WIP, ZIP/binary artifacts, secrets/config values, CI logs/old jobs и чужие чаты не читались. Tests/review/build/CI/Send/capture/helper не запускались.
+**Новый охват:** fresh REPORT/ref/commit/main;2own lock metadata;ready state/handoff tails;полный existing IDNA decision-input313строк;полные новые primary C238/B48/B235/C02 и нужный PR223 published pointer;existing Tester checkpoint92строки, verdict7, extended-input receipt24 и latest-input receipt65. Ten scoped PR-comment collections после02:24:13 дополнительно проверили dedupe/new outcomes. No source/rawlogs/ZIP/DOMpayload download, new tests/review/build/CI/capture/Send/DB/device/security/protection/cleanup/helper.
 
-## 2. Новые доказательства, исправленные ожидания и реальные следующие действия
+## 2. Новая первичка, фактическое потребление и доступный координационный результат
 
-### Алиса: запрос ready/sent закрыт в SOURCE/CODE/PACKAGE scope
+### C03 / PR238: исключён только собственный terminal fixture cleanup
 
-Первичный UI результат dot передан напрямую владельцем: одна разрешённая отправка синтетического TXT **01:25:44**, sent file+text одного user-root и ответ «файл получен» наблюдались **01:26**. Это не новое действие Controller и не повтор отправки.
+Полностью прочитан [C03 original cleanup exclusion](https://github.com/MaksimUnimax/runtime-fixtures/pull/238#issuecomment-6306568355), created/updated **21Oct02:34:05**, issued **02:33:27**,
+**C03_PR238_ORIGINAL_I1_FINAL_CLEANUP_EXCLUSION_20261021**. Это независимая авторская корреляция C уже сохранённых original observations; Controller прочитал готовую публикацию, не source/log/сценарий заново.
 
-Тестер независимо от нашей записи сохранил фактическое чтение **01:38:04.849445 UTC**:
-`/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/ALICE_READY_SENT_OWNERSHIP_20261021T0126Z.json`,
-**51402bytes**, SHA256 **f5ac36d2b50ca7fcfa77d61613affa4140b429b5c2ba18ff63071ffb60a1efaf**. Семь DOM уровней sent ownership, full_read/readback=true. Controller прочитал ready checkpoint/state/§12, **не перечитывал raw DOM и не повторял upload/Send**.
+Exact original **PR238 c6f85a6670d3f99116f23b6ee3b19388f9c2809d**, run **39312834507**, installed job **118266667437**, attempt1 **FAIL** at work_start_bootstrap_body_begin:
+- bootstrap HTTP200 **3**, finished **2**, failed **1**;
+- selected WorkStart Request failed=true, finished=false, **ABORTED +143ms от WorkStart marker**, signed body unparsed;
+- original listener сохранял Request object/monotonic failure time, но не causal first actor;
+- original error handler выпустил **I1_SAFE_BOOTSTRAP_EVENTS до finally**, затем browser_context_close, затем явный context.close()/subprocess cleanup.
 
-Полностью прочитан существующий `B02_E4F35436_FINAL_CHECKPOINT.json` из
-`/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/KIMI_PROFILE_RUNTIME_20261019T163000Z/`.
-Checkpoint **01:48:15.717634**, SHA256 из готового state/§12 **b452eb277a1566537183704564ca16d5debff3191361f3df10940809634f73ce**; это опубликованный hash, не новый самостоятельный hash raw files.
+**Новый доказанный вывод:** именно этот terminal fixture finally/context.close() **не мог инициировать уже записанный same-Request requestfailed**. Это снимает только прежний UNKNOWN об этом конкретном позднем cleanup. **Более ранние page/worker/transport/lease/caller cancellation не исключены; физический first initiator UNKNOWN.** 143ms не доказанный возраст Request после его создания. Ошибка body-read обнаруживает уже terminalfailed Request, не устанавливает actor.
 
-| Граница | Точный готовый исход |
+Поздний successful PR248 f154/другой harness/source — отдельный positive control, не исправление PR238. Полностью прочитанная Cprimary не является авторизацией на упомянутые future capture/fix. В этом аудите новых capture/source-read/observer/replay/tests/CI нет.
+
+**Gate:** PR238 OPEN/DRAFT/NO_MERGE, original mandatory4/5 workflows/12of13jobs с installedFAIL сохранены. Прежняя C38/41 static comparison не перечитывалась/не расширялась в causal proof. Next остаётся **existing A/Tester original I1 observation owner**: уже сохранённый privacy-safe same-selected-Request first-abort/lease/context/transport record либо обоснованная NOT_CAPTURED/retention boundary по подлинной существующей первичке. Отсутствие такого actor в одном artifact не global never-recorded. Existing request не дублируется.
+
+### B03 / PR48: original executed post-commit ACK покрытие и реальное C-consumption
+
+Полностью прочитан новый раздел [B03 original mainad6 coverage](https://github.com/MaksimUnimax/runtime-fixtures/pull/48#issuecomment-6222252994), updated **02:31:23**, observation **02:30:27**,
+**B03_PR48_MAINAD6_NATIVE_SIGNED_ACK_COVERAGE_READBACK_20261021**.
+
+B проверил original **mainad6 Server run39507950766**, push/main, attempt1, job **118921585820 SUCCESS**. Готовый decoded original log содержит:
+- b03-real-bearer-ack.integration.test.ts,1case, **20Oct22:31:43**;
+- credential-transfer-http-stop.integration.test.ts,1case, **22:31:44**.
+Первый proof действительно issuing/validating signed Bearer, real HTTP ACK, drop только успешного ответа **после commit**, recovery HTTP COMPLETED и PG state/revision parity с scoped fixture cleanup. Второй — отдельный bounded shutdown/disconnect HTTP-stop proof. Controller original logs/DB/tests не читал и не запускал: это готовое B evidence.
+
+Затем найден и полностью прочитан **новый независимый C ответ**, [C02 consumer6306727034](https://github.com/MaksimUnimax/runtime-fixtures/pull/48#issuecomment-6306727034), issued **02:45:00**, published **02:45:31**,
+**C02_B03_PR48_MAINAD6_EXECUTED_SIGNED_ACK_INDEPENDENT_CONSUMPTION_20261021**.
+Verdict **INDEPENDENT_CONSUMER_CONFIRMED_EXECUTED_MAINAD6_SCOPED_SIGNED_ACK_AFTER_COMMIT**. C сам сверил original job и exact first-party blobs; это не документальный ACK без чтения и не наш rerun.
+
+**Снято:** прежний C consumer UNKNOWN о выполнении stronger accepted signed-ACK proof и неполное сравнение только с unassigned-source test. **Не снято:** pre-ACK/multi-instance relay loss, recipient retry/no-replay, actual restart/cross-install durability, PR137 original selected I1 first-abort, installed/live/owner acceptance. ACK response loss после commit не тот же сценарий, что потеря relay до ACK.
+
+**PR48 остаётся OPEN/UNMERGED**, exact b50b0a3a…, original merge refusal действует. Accepted PR50/main coverage не основание повторить merge, закрыть/пересоздать PR или запускать дублирующий тест. Existing sole B остаётся implementation owner; C уже потребил именно готовую scoped post-commit часть. Нового поручения B→C не требуется.
+
+### B06: основное IDNA решение уже принято и реально потреблено; stale role field не новая блокировка
+
+Прямая точная история владельца в этом входе: **19Oct13:45:05** вопрос про корректно эквивалентные U-label/A-label одного email-домена, без объединения похожих разных доменов и с проверкой конфликтов; **19Oct13:46:16.540929** ответ **«да»**, Sentinel_a1bbade510708191994b2aa5eb283a1d. Перенос B13:52 уже включал решение. Это **не ожидание общего разрешения** и не новый вопрос владельцу.
+
+Самостоятельно полностью прочитан existing
+`logs/B/B06_SIX_DRAFT_MAIN3F_20261019/IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md`:
+- исторический §2 «ДА/НЕТ» **прямо superseded §5**;
+- §5: **OWNER_CONTRACT_DECIDED / IMPLEMENTATION_NOT_AUTHORIZED / EXISTING_DATA_COLLISIONS_UNKNOWN**;
+- §6: SOURCE_PRECHECK_COMPLETE, counts UNKNOWN, AUTH_DB_NOT_AUTHORIZED;
+- последний §15 явно говорит approved U-label/A-label policy known, без нового consent request; совместимый план уже существует.
+
+Новый готовый [B06 continuation6306562014](https://github.com/MaksimUnimax/runtime-fixtures/pull/235#issuecomment-6306562014), **02:33:34**, подтверждает **фактическое текущее потребление B**:
+1. прямо ссылается на owner policy PR215/6269233323 как установленную;
+2. оставляет только отдельные source/auth/OTP/DB/security permissions и privacy-safe collision scan;
+3. existing §15 appended с readback, готовый full-file SHA256 **cc2ee379182f9d756f7c7b681f763ae58bcf7d45286e713f12d6bae18004dc2f**;
+4. **B.json update не предпринимался из-за прежнего path-specific refusal**;
+5. B выполнил независимую read-only currentity и B03 coverage вместо ожидания общего yes/no.
+
+User-supplied **eb1422…** decision-input pointer — предыдущая версия; свежий cc2ee… из авторского readback не выдаётся за наш самостоятельный hash compute. [PR2236277512312](https://github.com/MaksimUnimax/runtime-fixtures/pull/223#issuecomment-6277512312) сохраняет отдельно implementation/email400-409/legacy holds; новая публикация B235 не переносит e7 CI на local R2.
+
+**Координационный disposition в собственном разрешённом REPORT, адресат — continuing B:** basic-equivalence **CLOSED/OWNER_DECIDED/CONSUMED_BY_B**, повторный общий yes/no не является return condition. Existing B §5/§6/§15 и новая PR235 публикация — действующее documentary основание для продолжения разрешённой независимой работы. Сообщённая dot устаревшая строка B.json02:33:11 не доказывает, что B ждёт решения; она расходится с более точной новой author primary. Автор/механизм сообщённого обновления B.json02:33:11 независимо не установлен; чужой timestamp не превращается в доказательство нового ожидания или попытки записи именно B.
+
+**Физический остаток исправления B.json:** Controller файл **не читал/не переписывал**, отказанную запись не повторял и через иной путь/автора не исполнял. Снять именно этот stale protected field сейчас нельзя в данном scope. Владелец исходной записи — B; минимальная внешняя предпосылка — **подлинное допустимое disposition original path-specific write refusal**, затем fresh single-writer/locks/WIP и собственный B readback, без proxy. Механизм пересмотра/ID/причина сверх original refusal UNKNOWN; не изобретается. До этого использовать уже актуальные разрешённые публикации, **не останавливать B из-за ложного общего вопроса**. Нового дублирующего запроса owner/B не создаём: настоящее потребление уже опубликовано.
+
+**Что действительно осталось после существующего совместимого плана:**
+- единый domain comparison key с фиксированной IDNA версией/settings, одинаковый для identity/invite/OTP/locks/quota, без новых local-part преобразований и без mapping похожих разных доменов;
+- сохранить historical normalized identifiers, delivery representation, старые OTP challenge/HMAC/cooldown/requestId/idempotency; безопасный cutover/old-writer exclusion/rollback, не слепое переписывание ключей;
+- реальные legacy collision counts и наличие групп с разными user_id/неоднозначными active invitations/OTP — **UNKNOWN**; source proof не эти данные;
+- **не разрешены** auth/DB правки, скан частных данных, миграция, merge accounts, смена сессий/owner/local-part. Нынешний аудит не запускает даже preflight;
+- если после отдельно разрешённого обезличенного preflight реально выявлена конкретная группа collision, требуется **только её конкретный fail-closed disposition/совместимая обработка** от product/security owner. Не повторный «считать ли домены одним» и не требование выбрать победителя/автоматически слить аккаунты до данных.
+
+Итак, **basic contract не блокирует поток**; реальный implementation return — оригинальный publication R4 disposition, точный source/auth/DB scope, совместимый collision/cutover plan и отдельно genuine exact source/CI/recovery gates. Старые467/467 и builds исторические, не перезапущены, path-disjointness main76→ad6 не runtime compatibility. Публичный PR235e7, local withheld82d/R2 и PR223e5/2of5 различаются.
+
+### Тестер: extended Work/dot consumption и exact430 review теперь доказаны
+
+Прочитаны только готовые §12, checkpoint/verdict и input receipts, не исходники, raw DOM, JPEG или ZIP.
+
+| Время / кандидат | Новый готовый исход и предел |
 |---|---|
-| Local candidate | **e4f35436d2bd6f7a391275e4831c315a6be82ea8**, base **c62e9f85660b29907451f48910d1026cf1bd0795** |
-| Изменение | Два ранее принадлежащих Тестеру source/test пути; Controller их не открывал и не изменял |
-| Ready | Собственная карточка текущего Alice composer с точным составным именем, TXT description и доступным Remove; один Send/aria-busy=false недостаточен |
-| Sent | Точные file-card и text одного нового собственного user-message, динамический request ID, baseline/duplicate/neighbor/missing/busy guards |
-| Existing code result | **01:44:18**, **81 focused +16 affected continuity =97/97 PASS**; старые Standard108/Gemini76 и прочие наборы не повторялись |
-| Existing review | **PASS_SOURCE_SCOPED** exact e4f vs c62, existing codex2 GPT-6 Luna/xhigh; verdict полностью прочитан, reviewer cases не перезапускал |
-| Verdict file | `B02_ALICE_READY_SENT_REVIEW_VERDICT.txt`, готовый SHA256 **ecfc587bc62344c00ebbbf483e45b404bcab233ee6ac42d166f0327b41e84005** |
-| Development package | 0.2.37, **2727084bytes**, SHA256 **cafa5bea3dec2c60cf639a04c86a62e0de66e5554336ab076e9fe7b94e1ae62c** |
-| Ready package readback | 134inputs/41members, same tested runtime; изменён shared/ai_adapters.js, остальные40 runtime files сохранены по готовому receipt; Controller ZIP не скачивал |
-| Терминальные поля | Code/review/build success0/inactive/empty cgroups в авторском checkpoint01:48; не свежий process snapshot |
-| Верхний предел | **SOURCE/CODE/PACKAGE**, installed_acceptance=false, B02_complete=false; публикация/CI/merge не заявлены |
+| **02:26:16 / 835077a3** | §12 и `B02_WORK_DOT_FILES_CODE_INPUT_RECEIPT.json`24строки подтверждают оба extendedJSON: Work256394B SHA7bb56eaa…/dot100173B SHA3321107c…; parsed roots/input/loading-ready/sent/code-Copy/status. Старое consumptionUNKNOWN этих пакетов снято.38functionalPASS и1CLI-return отдельно, исходный exit1 после assertions сохранён; это не39 новыхfunctionalcase |
+| **02:33:21** | Переданный производный Work ready fragment оборван в img src/omission marker; неполнота fixture, не provider failure. R1FAIL сохранён, incomplete witness=false; исходный raw может быть полным, его не реконструируем |
+| **02:38:56 / 430252b5011f86a6e5c9e3622bf536fc770a89fa** | Work/dot native roots/input/controls, loading/Stop guards, owned sent cards/text и observed code/Copy. **50distinct** =34 retained unaffected +16 affected (14перекрывающихся+2новых после48), не48+16+50 |
+| **02:42:02 ready checkpoint** | Полностью прочитан `B02_430252B5_CHECKPOINT.json`92строки, SHA по§12 **cf83be922cb623b9d78345ecd40a24ee96a1aa7b02223126e1b5cd9e9e53d1b7**, CODE_PACKAGE_SCOPED_REVIEW_COMPLETE |
+| **Existing exact review** | Полностью прочитан `B02_WORK_DOT_FILES_REVIEW_VERDICT.txt`7строк: **PASS_SOURCE_SCOPED** 430252b5 vs835077a3, SHA поcheckpoint **a9fcf18b63bab95756dbb7b7ff6fa710ed14acb0236c0da73a661b3227ed8121**. Reviewer tests не повторял; unit success/0/inactive не используется вместо verdict |
+| **Development package** | 0.2.37, **2740051bytes**, SHA256 **bb98e76a69c7219b5a6febf84a3328afb9e7ac2566f39e1ad76ad3492e547aae**,134inputs/41members/readbackPASS поready checkpoint; Controller ZIP не скачивал. popup.html/sidePanel=null сохранены |
+| **Latest actual input consumption02:42:02** | `B02_WORK_TURN_EXACT_INPUT_RECEIPT.json`65строк полностью прочитан:3JSON parsed/relevantDOMread + **5JPEG viewed**, не только сохранение файла/начатый ответ |
 
-Drop transport сохранён; BODY native input не превращён в доказанный новый маршрут. Подтверждение «файл получен» и совпадение DOM не доказывают provider bytes. **Detailed loading timeline, long-Copy byte identity, installed/fullB02 остаются UNKNOWN**. Нового обязательного ready/sent запроса к Алисе нет; пофайловое согласие и профили у Тестера повторно не требуются. Исторические отменённые fileChooser и Send0 остаются в хронологии, но **не являются текущим состоянием**.
+Все указанные ready документы находятся под
+`/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/KIMI_PROFILE_RUNTIME_20261019T163000Z/`.
 
-### GPT Chat/Standard, GPT Work и dot: решение принято, два пакета различаются
+Latest3JSON: **WORK_TURN_STATES_20261021T0233Z.json115280B**, **WORK_READY_CARD_EXACT_20261021T0206Z.json4374B**, **DOT_COMPOSER_IDENTITY_20261021T0219Z.json56597B**. Это фактическое consumption новых Work state/одной законченной readycard/identity-boundary и пяти original Workready/sent,dotready/sent/codeCopy JPEG, подтверждённое02:42. Повторно собирать/передавать эти же состояния не требуется.
 
-Прямая команда владельца **21Oct01:29–01:30** отменяет исключение Work только для названных продуктовых поверхностей. GPT Chat/Standard сохраняет принятый c62/108; его PASS не переносится на Work/dot. Остальные семь ИИ сохраняются, итого прежние восемь ИИ с отдельно различаемыми GPT-поверхностями. Это не разрешение создавать исполнителей/профили/запуски.
+**Следующий уже выполняемый достаточный source шаг** в §12: только новый Work explicit own-turn completion и exact-one-card code delta. Подтверждён complete finalassistant-slot/selected message/conversation ID и соседний отдельный in_progress user/activity; **same-turn natural transition не наблюдался**. Наличие полной одной карточки не делает оборванный four-file/two-JSON fixture полным. Новый terminal этого следующего delta пока не заявлен.
 
-| Материал / время | Фактическое потребление | Остаток |
+**Остаток dot:** различимый per-message completion и действительный current-conversation identity contract при /dots/home UNKNOWN. Message prefixes/URL/shared markdown role/hidden stores не считаются proof. Source430 scoped review прямо оставляет observed messages incomplete, truncated preview notconfirmed, image/providerbytes и installed/fullB02 unproven.
+
+Alice e4f/97, Standardc62/108, остальные6ИИ, historical incompleteWorkFAIL/CLIexit1, A03 initial-markup/popup.js refusal и PR241ABORT141 gate сохранены без повторных проверок. Work inclusion/триGPTповерхности остаются решением владельца, не новые исполнители. Нового поручения Тестеру/профилей/UItests/Send/capture нет.
+
+### Роли, самостоятельное продвижение и точные внешние границы
+
+| Роль | Фактическая последняя активность | Текущий статус и ближайший разрешённый результат |
 |---|---|---|
-| Первые4 JPEG/JSON, одно продолжение dot02:07 | **Подтверждено 02:14:14.683902** existing `B02_WORK_DOT_INITIAL_INPUT_RECEIPT.json`, полностью прочитан60строк; receipt SHA256 по §12 **7ac843d82ba0c20825134e21807a1bf06cc6cab6d8e4f1802cd348f944ff8e4e**. Два JPEG viewed, два JSON fully_read; same original bytes/hash | Это input receipt, не новый source/verdict/ZIP |
-| Work initial JPEG/JSON0136Z | В первом receipt101634B и8471B; наблюдались отдельный composer «Работайте с ChatGPT» и Stop «Остановить» | Отдельный Stop не доказывает busy→complete; общий composer-controls ancestor и полный file lifecycle в первом пакете не установлены |
-| dot initial JPEG/JSON0141Z | В первом receipt142498B и54659B; composer «Сообщение», article.message-row, user=self, динамические outer/body IDs | Общий markdown-style assistant-message не определяет роль; ID снимка не chat identity при /dots/home |
-| Позднее дополнение §11 **02:13** | По прямой передаче dot сохранены Work actual loading/ready/sent/Stop/code и dot TXTsent/userroot/assistant2blocks/Copy; handoff SHA **aad3eb5d3737122b372c0a180e2f4854a82c1530d719652ba7a0f8e34af62350** | **Consumption UNKNOWN**: найденный receipt перечисляет только первые4 файла, не это дополнение. Сохранение/начатый ответ не доказательство чтения |
-| Новая Work/dot реализация | §12 **02:14:14** описывает следующий существующий шаг: различение поверхностей и доказанный dot text reader | Терминальный кодовый результат/new exact candidate/review/package в доступных документах не найден; не объявляем PASS или простой |
+| **A / original I1 owner** | В проверенных A240/248/219 после02:24:13 новых публикаций нет | Activity now **не подтверждена**, простой не доказан. Existing privacy-safe first-abort/retention primary или допустимый init/refusal disposition; никаких source-read/R19/R28 retry |
+| **B** | B03 coverage02:30:27/public02:31:23 и B06 actual continuation02:33:34 | Документальное продвижение подтверждено. Owner basic equivalence потреблён, independent B03/B06 currentity выполнены. Реальные source/publication/DB/collision gates отдельны; исправлять B.json без original refusal disposition нельзя |
+| **C** | C238 issued02:33:27/public02:34:05; C02 independent B03 readback issued02:45/public02:45:31 | Документальное продвижение подтверждено. B→C executedACKconsumption уже done; next настоящий preACK/firstabort primary поexisting boundaries, не duplicate review/test |
+| **Тестер** | §12/ready inputs/review checkpoint02:42:02 | Продвижение code+input подтверждено; physical live process сейчас не проверен. Следующий Workcompletion/exactcard delta достаточно обеспечен, не остановлен dotidentityUNKNOWN |
+| **dot** | Последние3JSON+5JPEG реально потреблены поTesterreceipt02:42 | Передача закрыта фактическим consumption; новое дублирующее продолжение/сбор не нужен. Only genuinely missing per-message dot identity/completion поexisting scope |
+| **Контроллер** | Этот проход: четыре новых primary outcomes, конкретное B-contract reconciliation и текущая Tester проекция | Завершает ownsoleREPORT CAS/fullreadback; чужие роли/WIP/source/чаты не перехвачены |
 
-**Устранён документальный блок:** старые «Work excluded» и «Work/dot ничего не получено» больше не текущие выводы. Первый пакет уже потреблён; поздний пакет уже передан, поэтому не требуется повторная передача, новый сбор тех же состояний или дублирующее поручение. Точный независимый следующий шаг — существующий Тестер продолжает свой начатый code scope с уже достаточными фактами; в своём существующем §12/ready evidence отражает фактическое потребление позднего пакета и только реально готовый результат. Controller не назначает ему новые tests/review/CI и не управляет чатом.
+Ten scoped collections **PR215/223/235/243/244/248/240/219/238/48** после02:24:13 дали C238/B235/B48/C02 выше; остальные[]. Не объявляется остановка потоков или отсутствие непубличной работы. В частности C02 уже ответил: держать C-consumptionUNKNOWN нельзя. Публикации с фразой «protected main» отражают авторскую терминологию, **не доказательство actual enforcement**.
 
-При чтении очередных результатов приоритет имеет timestamp и перечень реально consumed inputs. State/checkpoint01:48 со старым Work_dot_material_received=false — исторический срез, не опровержение §12/receipt02:14. Готовые Alice97/review/package не становятся Work/dot acceptance. Авторизованных профилей у Тестера нет; только доступные кодовые проверки по собственному поручению.
-
-### Независимые A/B/C обязательства: проверен новый остаток, владельцы сохранены
-
-Собственный bounded read-only search **14 collections PR219/228/230/210/248/239/246/37/243/244/238/240/212/235** после **00:55:58** вернул []. Это отсутствие новой публикации в конкретном проверенном охвате, **не отсутствие работы**. OldCI, C38/41 artifact comparison, ранее принятые Standard108/ZIP и mainad6 postmerge не перечитывались.
-
-| Роль | Работает / стоит / не подтверждено | Последнее подтверждённое действие и время | Точный остаток, владелец и минимальный допустимый вход |
-|---|---|---|---|
-| **A** | Текущая активность **не подтверждена**; простой не доказан | В проверенных обсуждениях нового результата после00:55:58 нет; прежние A source merges/native evidence сохранены | PR248 f154 последние3/5,10known successful jobs; Server/Coord у исходного authorized Actions owner. A03 source initial-markup gap требует уже существующего разрешённого init/hydration/restoration proof или подлинного disposition popup.js отказа. R19/R15/R28 не повторять/не проксировать |
-| **B / Actions / B-Ops** | Текущая активность **не подтверждена**; простой не доказан | Last accepted C static consumer mainad6 для243/244 issued00:05:24, новых входов в проверенных PRнет | PR243/244 последние2/5, три missing families у existing Actions maintainer. Только authorized original-branch native disposition/outcomes по уже существующему поручению, NO alternateCIrefs. Настоящие carrier/backup/restore/rollback/authority у B/Ops/owner; не дополнительные PG/device probes |
-| **C** | Текущая активность **не подтверждена**; простой не доказан | Last accepted artifact publication00:41:34, сейчас не перечитывалась | PR238 original exact I1FAIL/NO_MERGE и physical originUNKNOWN; existing A/Tester I1 observer owner даёт уже существующий same-selected-Request first-abort record либо обоснованный original not-recorded/retention факт. C756R11 DECLINED не technicalFAIL и не допуск повторного review |
-| **Тестер** | Документальное продвижение **подтверждено 02:14:14**; живой процесс сейчас не установлен | Alice e4f checkpoint01:48:15, первый Work/dot packet consumed02:14:14 | Существующая достаточная code работа Work/dot и чтение уже переданного позднего пакета; ready итог/consumption ещё не подтверждены. Ни профилей/UI tests, ни второго поручения |
-| **dot** | Передача материалов **подтверждена прямым сообщением**; не наш live-check | Одна Alice отправка01:25:44, наблюдение01:26; первые4 originals02:07; §11дополнение02:13 | Последние состояния уже сохранены; повтор Send/capture/передача не требуется. Только потребление существующего ответа/адресного запроса |
-| **Контроллер** | Выполняет текущую разрешённую документальную работу | Этот срез: ready документы прочитаны, stale ожидания исправлены, другие14PR охвачены | Завершить soleREPORT CAS/full readback. Чужие роли/чаты/source/WIP не перехватываются |
-
-**Точные сохранившиеся границы:**
-- **A03:** initial markup Start/Transfer SOURCE defect подтверждён; guest DCL/settled скрытие не first-paint/unauthorized dispatch proof. Popup.js refusal сохраняется на любом маршруте. Уже данное общее разрешение на файлы не заменяет разрешённый init contract и не требует нового общего согласования.
-- **I1 / PR241 и PR238:** прежние FAIL и ABORT141/143 после WorkStart сохраняются. First cancel initiator/same-request grant/profile/work intent/lease/fence UNKNOWN; PR230/другие baseline не причинное объяснение. First-abort record отсутствует в исследованном artifact, но это не доказательство global never-recorded. Новых observers/capture/replay/CI нет.
-- **B243/244/248:** native gaps не снимаются локальными tests/static consumer/no-path-overlap и не оправдывают наш dispatch. При отсутствии нового ready outcome остаётся конкретная внешняя операция у existing authorized Actions maintainer; поручение уже существует.
-- **IDNA:** контракт владельца принят; implementation/auth/DB/legacy collisions отдельно не разрешены. PR235 unpublished82d и publication denial не обходятся siblingPR.
-- **Recovery/C06/Store:** source-pinned carrier, одобренная восстановимая backup destination/app-PG restore/rollback и authority не доказаны. Исторические host metadata не исключают off-host/private альтернатив. PR37 closed unmerged не C05 accepted. Genuine catalog/signed package/owner ordinary Start→result→Finish/third-party policy отдельно; Store PREPARING/NO_SUBMIT.
-- **Enforcement:** ENFORCED_PROTECTION_NOT_PROVEN. Исторические ordinary branch false/off/empty не актуальный полный ruleset inventory. Конкретные403/security endpoints/настройки/полномочия не трогались.
-- R19 unique request §5 не дублируется; внутренний отказ/ID/mechanism UNKNOWN. Общего согласия владельца не ожидаем, denied source read и альтернативы не повторяем.
-
-Если новых готовых результатов нет, минимальный следующий вход — существующий ready result/consumption от текущего владельца либо подлинный original refusal/retention document. Новый тест, source lookup, probe, reviewer или искусственный task ради отчёта не создаёт такую первичку.
+**Прочие независимые обязательства не забыты:** PR243/244 lastaccepted2of5/триmissingworkflowfamilies уexisting authorized Actions maintainer; PR248f1543of5/10knownsuccessjobs, Server/Coord не подтверждены. Не запускаем CI/rerun/alternate refs и не выдаём cleanpath/currentity за integrated PASS. C756independentreviewerDECLINED не technicalFAIL/не retrygrant. B05/C05 реальный recoverablecarrier/destination/PG18apprestore/rollbackauthority, C06 genuine catalog/signedpackage/owner Start→result→Finish/thirdparty policy остаются внешними gates; PR37closedunmergedнеC05accepted. IDNA implementation/noaccountmerge/localpart ограничение действует. Enforcement unknown; fresh security/protection GET/изменений полномочий нет.
 
 ## 3. PLAN и исходные двенадцать OPEN
 
@@ -105,22 +144,24 @@ OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrif
 
 ## 4. Все десять пунктов, объём и организационный результат
 
-1. **Последний исход / один автор:** f5da2ae0/ref/author/parent/pinned text сверены, неизвестных own writes нет. Fresh soleREPORT CAS и полный независимый readback; карта/история/§5 сохранены.
-2. **Задачи / приоритет:** принята новая Alice первичка и прямое решение по GPT-поверхностям; независимые14PR проверены, PLAN/WIP/checkpoint/12OPEN сохранены.
-3. **Реальные изменения:** source Тестера e4f vs c62 — авторская2-file дельта; Controller source не читает/не правит. Собственная правка только current REPORT projection/next.
-4. **Tests / package:** готовые97/97 и development2727084B из checkpoint прочитаны, не выполнены заново; старые Standard108 и другие наборы не суммируются как новые.
-5. **Review / доказательный предел:** существующий exact e4f PASS_SOURCE_SCOPED полностью прочитан; no new helper/review. Ready/sent DOM не provider bytes/loading/installed. Original negatives/denials сохранены.
-6. **CI / publication:** новых runs/reruns/merge нет. Старые native gaps и I1 FAIL сохранены по их exact/event/attempt; mainad6 green не transferred acceptance.
-7. **Операции / ресурсы:** own lock metadata0B не physical lock ownership. Отказанные process/session/state/preflight targets не повторены; нет capture/Send/cleanup/live/DB/auth/security/errors/events.
-8. **Обязательства:** §3 дословно, **12 OPEN**, closing conditions прежние; SOURCE/PACKAGE не installed/recovery/owner/C06/enforcement closure.
-9. **Организация:** сняты ложные ожидания Alice Send0/непрочитанного ready-sent и Work excluded/неполученного первого пакета. Поздняя §11 передача ≠ consumption; несуществующий простой не приписан, второго поручения нет.
-10. **Ответственные / next:** существующий Тестер — продолжение достаточного Work/dot code scope и ready evidence; original observer owner — sameRequest/retention primary; existing Actions owner — original missing gates; B/Ops/owner — genuine recovery/authority; source custodian/platform — allowed init/refusal disposition.
+1. **Последний исход / single writer:** pinned d7d77bd9/ref/author/parent/fulltext подтверждены. Нет pending own mutation, CAS и полный readback soleREPORT; oldprefix/history/map/§5 сохраняются.
+2. **Задачи / приоритет:** приняты новые C238 cleanup exclusion, B48 execution и C02 consumption, B06 contract reconciliation, Tester430/newinputs. PLAN/WIP/checkpoint/12OPEN сохранены, поручения не дублируются.
+3. **Изменения:** новые source результаты принадлежат существующему Тестеру; Controller product source не читает/не правит. Owncurrentprojection различает позднийcleanup vs firstorigin и basiccontract vs collisionauthority.
+4. **Tests / package:** только уже готовые original executed signedACK/HTTPstop evidence и Tester50distinct/DEV2740051B; нет новых тестов/PG/Send/build/download. Старые467/97/108 иCI не повторены.
+5. **Review:** exact430 verdict PASS_SOURCE_SCOPED прочитан отдельно отunitexit0. C02 независимый consumer verdict прочитан. Это не fullB02/installed/providerbyte acceptance; старыеFAIL/denials сохранены.
+6. **CI / negative proof:** originalmainad6 Server scopedexecution подтверждено готовыми B/Cprimary, не нашим rerun. PR238I1FAIL/NO_MERGE,248/243/244missingnative иPR48merge refusal остаются поихSHA/event/attempt.
+7. **Операции / ресурсы:** metadata ownlocksнеflockownership, свежиечужиеclaims/dirty/processesневыдуманы. Originaltimeout/deniedtargetsNR; server role updates/source/live/DB/auth/security/errors/events/cleanup/helperнет.
+8. **Обязательства:** §3дословно/12OPEN/closingconditions иservercheckpoint сохранены. PostcommitACKнеpreACKrelayloss; no installed/recovery/C06/enforcement closure.
+9. **Организация:** обнаружен настоящий ответC наBcoverage и новыйBcontractconsumption. Старый basic-equivalence question не блокируетпоток; protected B.json stale отдельно, оригинальныйзапретнеобойдён. Testerlatepacket/reviewUNKNOWNсняты поreadyproof, первыеincompleteFAILнестерты.
+10. **Owners / next:** existingTesterWorkcompletion/exactcarddelta; originalA/TesterI1sameRequestorigin/retentionprimary; existingActionsmissinggates; B/Ops/ownerrecoverablecarrier/rollback/sourcepermissions; BonlyoriginalrefusaldispositionпередправкойB.json. Общийyes/noownerповторнонеставится.
 
-**Объём новой работы:** fullREPORT/version/ref/commit/main;2own lock metadata;2ready state/handoff tails;3полных точных ready документа (260+5+60строк);14scoped comment collections. Два новых документальных результата: exact Alice implementation/97/review/package consumed в scope и фактический first Work/dot input consumption02:14. Raw DOM/binary/source/tests/CI/download/review/build/Send не исполнялись. Перед записью повторно fresh ref/author/main/lock metadata, затем onlyREPORT write/readback.
+**Объём:** fullREPORT/ref/commit/main,2lockmetadata;2directnewGitHubprimarycomments +old223pointer,10commentcollections с новымB235/C02;one313-line Bdecisiondoc;ready state/handofftails;fourTesterreadyfiles(92+65+7+24строки). Raw source/logs/DOM/binary/ZIP/keys не запрашивались. Один ownREPORT documentarywrite, independentfullreadback; freshchecksпередзаписью. Ниtests/review/CI/helper/browser/Send/cleanup/live/DBзапуска.
 
-**Организационный остаток:** прежняя current projection отставала от §12 и точного receipt; это исправлено без изменения чужих role records. Сохранённый §11пакет нельзя повторно запрашивать как отсутствующий: остаётся именно проверяемое consumption/готовый результат. Отдельные init/causality/CI/recovery/authority границы не останавливают независимую достаточную работу Тестера; аудит не расширяет чужой scope и не создаёт задачи ради видимости занятости. Текущую физическую активность не выводим из старых RUNNING/commits/отсутствия comments.
+**Фактически снято:** поздний fixturecleanup как причина уже записанногоPR238failure; consumerUNKNOWNоpostcommitACK; ошибочноеожиданиеbasicIDNAequivalence; UNKNOWNрасширенного Work/dotinputconsumption и exact430review. Ни один из этих результатов не уничтожает physicalcauseUNKNOWN/preACK/legacy/installed gates.
 
-Audit_complete=false; **12 OPEN**. План, checkpoint, прежние FAIL и полный принятый объём остаются.
+**Точные оргостатки:** B.json staleполе физическиподpath-specificrefusal, writerB/platformoriginaldisposition; никакихобходов. УBнастоящийreturndata/authority/collisionplan, необщийyes/no. УТестерадостаточноновыхWorkfactsдляследующегосуществующегоcodeэтапа, dotidentityнеоснованиестоятьвсем. ГотовыйC02ответнеждёмповторно. Дальше только новыйreadyresult/подлиннаяoriginalprimary/конкретныйадресныйдопускответственного, незапускрадистатуса.
+
+Audit_complete=false; **12 OPEN**.
 
 ## 5. R19 — прежний единственный запрос сохранён, новыхsource-readнет
 
@@ -11137,6 +11178,161 @@ OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrif
 **Фактическиисправлено:** эта exactпараfailedPR238artifact12216478561↔successfulmainad6artifact12304088209 теперьknownnotfullyidentical41paths/38byteequal; verdictscopedstatic. Староесравнениеинойbaselineнепереписано; physicalABORTUNKNOWN/mandatoryI1FAIL/OPEN_DRAFT_NO_MERGEсохранены. Authentic/workAllowedfixturefieldsневыданызаsignedselectedbody/realowneracceptance. Firstabortrecordnotinartifactнеравноproven-never-recorded.
 
 **Оргостатки/минимальныедействия:** recordлибоdocumentedretentionfactуoriginalobserverowner, missingnativeуexistingActionsmaintainer, recovery/carrierauthorityуB/Ops/C/owner, Alice/allowedhydrationinputуdot/originalsourceowner. Всеexistingrequestsужеадресованы, дублей/новыхреестров/общегоownerconsentнет. Exactlimits/sourceofUNKNOWNуказанывыше. Audit_complete=false; **12 OPEN**.
+
+## 5. R19 — прежний единственный запрос сохранён, новыхsource-readнет
+
+Ownerconsent06:46:04принят, systemblocknotlifted/internalreasonUNKNOWN. ПрежнийproceduralreplyA17:13:40alternateGitHubreadNOT_ACCEPTEDдляR19/R15/patch/acceptance/dispatchsafety остаётся. НоваяPR238artifactpublicationнеразрешаетdeniedsource/property/dispatchboundaryи не отвечаетобinternalreasonR19. Никакихповторов/альтернатив.
+
+Ниже прежнийузкийrequestдословно, **не новаяотправка**. НовыхcallID/errorcode/supportpointer/механизмапересмотранеполучено, отсутствиеполейневыдумывается; generalserverpermissionнеповторяется.
+
+### A04 / R19 — единственный узкий запрос ранее сохранённого первичного ответа
+
+**Адресат:** существующий A04, первоначальный автор R19. **Основание:** прямая команда владельца20Oct06:41:59. **Scope запроса:** только уже сохранённый ответ исходного вызова, без новых source-read, shell, grep, history-query replay, helper, tests/review/CI, capture или воспроизведения.
+
+В своей существующей авторской публикации R19/PR240 просим представить privacy-safe original refusal envelope либо точный сохранённый фрагмент собственного первоначального tool-turn:
+- полное имя исходного tool и исходные timestamp/timezone, если они сохранены отдельно от времени комментария;
+- **call/tool-call/request/correlation ID** и **явный error code/type/status/isError**, только если реально показаны исходным ответом;
+- точный первичный текст/структуру отказа и исходный help/review/support pointer, если он присутствовал; без inline source, секретов, токенов и других данных;
+- если поле интерфейсом не показано — **NOT_EXPOSED_IN_SAVED_RESPONSE**; если сохранённая первичка пока недоступна — **UNKNOWN/NOT_AVAILABLE**, без выдуманных ID и без утверждения о её несохранении во всей системе.
+
+Это запрос документа об уже случившемся отказе, **не разрешение повторить исходный вызов или эквивалентное чтение** и не поручение собрать новые данные инструментами. Полные source payload/команды заново не посылать. Отдельный отказ публикации не обходить: сохранить исходный ответ в уже разрешённом scope и сообщить точный предел.
+
+**Кто может дать недостающий вход:** A04 — собственный сохранённый original tool-turn/response; исходный connector/platform operator — только реально существующий trace/internal reason/механизм рассмотрения по подлинному correlation ID. Владельцу не требуется вновь подтверждать общее согласие на сервер. Причину платформы нельзя вывести из кода Octoport; при отсутствии trace она остаётся UNKNOWN.
+
+**Запрос размещён только здесь, в собственном разрешённом REPORT**, после проверки его версии/автора и dedupe описанного scope; fresh expected-blob CAS/readback защищает эту запись. Физический server flock/claims/WIP не объявляется полученным. Controller не изменяет A.json/чужие разделы/PRIORITY_TASKS/отказанный checkpoint, не создаёт новый handoff/реестр и не отправляет в чужой чат. Публикация REPORT не равна ACK A04: доставка/потребление запроса **UNKNOWN** до существующего адресного ответа.
+
+Все конкретные отказы иUNKNOWNоперации сохранены: PROMPT_CONTROLLER−32603/failedPRIORITYtail9d09…/protectedpreflight/checkpoint/PRIORITY_TASKS/A.json/B.json/Cpremerge; AAPP10c/localstate/R31/R32/R52/summary; Bpublication/protection403/PG/checkoutWIP; Cprotection403/log404; R7/R8; list_remote_tool_calls timeout; directjob118137084442/log118019352572; artifactsroute/targets/artifact12247621316INVALID_ARGUMENT; separateR28Commandnotallowed/NOT_RUN. СтарыйE629Gitmetadata404неповторён: новыйPR245read не использовался для обходногоsourceчтения или реконструкции ложнойidentity. Безsource/live/DB/auth/security/эксплуатаций/воспроизведений/errors/events/cleanup/PR97/131/134/чужихчатов/новыхреестров/архивов/расписаний.
+
+
+~~~~
+
+
+### Продолжение 2026-10-21: предыдущая активная проекция d7d77bd9 сохранена дословно
+
+~~~~markdown
+# Отчёт действующего Контроллера Octoport
+
+- **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — тот же незавершённый аудит.
+- **Срез UTC:** 2026-10-21T02:24:12.858Z. Предшественник REPORT **f5da2ae0bd89476c30ac5315f334bf4fa78fe7cd**, blob **d7ce6a5c9f3eb1ea2d89e338e630b8ccd39f0365**, author MaksimUnimax **2026-10-21T00:55:45Z**, parent **5a3e67deb15e8ea9e5aee45b6bd53c22ddef9735**. Полный завершённый ответ, история, пустая форма и отсутствие другого продолжения подтверждены dot21Oct02:16; это переданная проверка UI, не собственное открытие чужих чатов.
+- **Состояние:** IN_PROGRESS / audit_complete=false / **12 OPEN**. Работа / GPT-6.1 Sol / Очень высокое. PLAN/WIP/checkpoint, история и принятые доказательства сохранены.
+- **Remote main:** **ad6ae688ee17fae955aae32b36716014f0aeafed**, свежий ref совпал. Принятые native CI, Standardc62/108 и C38/41 comparison не перечитывались.
+- **Фактически снято:** устаревшее ожидание Alice upload/ready/sent и consumption. Тестер прочитал материал01:38, реализовал **e4f35436**, сохранил **97/97 affected code PASS**, существующий scoped review и development package. Это не installed/fullB02/provider-byte acceptance.
+- **Решение владельца:** 21Oct01:29–01:30 отдельно включены **GPT Chat/Standard, GPT Work и dot**. Старое исключение Work отменено в этой продуктовой области. Восемь ИИ сохранены; новые поверхности не новые исполнители.
+- **Дополнительный новый результат:** ready receipt **02:14:14** подтверждает потребление первых четырёх Work/dot оригиналов. Потребление позднего дополнения §11 **02:13** пока **UNKNOWN**; новый реализованный кандидат/приёмка Work/dot не доказаны.
+- **Sole write scope:** только этот REPORT, fresh version/author/ref/expected-blob CAS и независимый полный readback. Серверные роли/checkpoint/PRIORITY_TASKS, source/tests/WIP, §11/§12 не изменяются.
+- **Server checkpoint:** прежний SHA256 **76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212**, map **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d**; отказанная запись NR.
+- Installed/backup/app-PG restore/rollback/owner/C06/Store и **ENFORCED_PROTECTION_NOT_PROVEN** отдельны. Version/author/readback каждые10мин активной работы и перед итогом. Новых реестров/архивов/расписаний нет.
+
+## 1. Последний исход, один автор, операции и locks/WIP
+
+Свежие ref/commit/author/parent/pinned blob подтвердили предшественник f5da2ae0; полный текст прочитан. Собственных неизвестных записей и незавершённой мутации этого прохода нет. Дубликат продолжения отсутствует по прямой передаче dot. Перед записью повторяются только разрешённые version/ref/author и metadata двух собственных lock-файлов; changed ref не перезаписывается. Expected-blob CAS защищает sole REPORT. Предыдущая активная проекция и вся прежняя история сохраняются дословно внутри того же REPORT; §3 и единственный запрос §5 сохранены.
+
+Fresh metadata **CONTROLLER.lock** и **coordination.lock** ответили: 0bytes, прежние mtime. Это **не проверка владельца flock, не свободный процесс и не отсутствие чужого WIP**. Свежие процессы/claims/foreign HEAD/dirty **NOT_VERIFIED**: прежние list_sessions/list_processes Connection timed out, C.json metadata −32603 и другие конкретные targets не повторялись и альтернативами не обходились. Исторические clean/locks/terminal поля в документах Тестера от01:48/02:14 — его авторские срезы, не наш текущий physical preflight. Серверных записей без fresh разрешённой процедуры нет.
+
+Используется ранее прочитанный действующий канон START_HERE/WORK_METHOD/PROTOCOL/AGENTS с более поздними прямыми ограничениями владельца. Свежего полного чтения недоступного канона не заявляем. PROMPT_CONTROLLER−32603, failed PRIORITY_TASKS tail/call9d09…, protected preflight и остальные адресные отказы NR/no proxy. Исторические ссылки на errors/events не отменяют прямой запрет; эти файлы не читались и не восстанавливались.
+
+**Новый read-only охват:** полный REPORT/ref/commit/mainref; две own-lock metadata; ready tail operator/state.json и §12 handoff; три полностью прочитанных ready документа — Alice final checkpoint260строк, Alice verdict5строк, Work/dot initial-input receipt60строк; **14** scoped PR-comment collections после **2026-10-21T00:55:58Z**. Raw DOM, product source/WIP, ZIP/binary artifacts, secrets/config values, CI logs/old jobs и чужие чаты не читались. Tests/review/build/CI/Send/capture/helper не запускались.
+
+## 2. Новые доказательства, исправленные ожидания и реальные следующие действия
+
+### Алиса: запрос ready/sent закрыт в SOURCE/CODE/PACKAGE scope
+
+Первичный UI результат dot передан напрямую владельцем: одна разрешённая отправка синтетического TXT **01:25:44**, sent file+text одного user-root и ответ «файл получен» наблюдались **01:26**. Это не новое действие Controller и не повтор отправки.
+
+Тестер независимо от нашей записи сохранил фактическое чтение **01:38:04.849445 UTC**:
+`/root/octoport-control/testing/chromium-dot/dot-ai-snapshots/ALICE_READY_SENT_OWNERSHIP_20261021T0126Z.json`,
+**51402bytes**, SHA256 **f5ac36d2b50ca7fcfa77d61613affa4140b429b5c2ba18ff63071ffb60a1efaf**. Семь DOM уровней sent ownership, full_read/readback=true. Controller прочитал ready checkpoint/state/§12, **не перечитывал raw DOM и не повторял upload/Send**.
+
+Полностью прочитан существующий `B02_E4F35436_FINAL_CHECKPOINT.json` из
+`/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/KIMI_PROFILE_RUNTIME_20261019T163000Z/`.
+Checkpoint **01:48:15.717634**, SHA256 из готового state/§12 **b452eb277a1566537183704564ca16d5debff3191361f3df10940809634f73ce**; это опубликованный hash, не новый самостоятельный hash raw files.
+
+| Граница | Точный готовый исход |
+|---|---|
+| Local candidate | **e4f35436d2bd6f7a391275e4831c315a6be82ea8**, base **c62e9f85660b29907451f48910d1026cf1bd0795** |
+| Изменение | Два ранее принадлежащих Тестеру source/test пути; Controller их не открывал и не изменял |
+| Ready | Собственная карточка текущего Alice composer с точным составным именем, TXT description и доступным Remove; один Send/aria-busy=false недостаточен |
+| Sent | Точные file-card и text одного нового собственного user-message, динамический request ID, baseline/duplicate/neighbor/missing/busy guards |
+| Existing code result | **01:44:18**, **81 focused +16 affected continuity =97/97 PASS**; старые Standard108/Gemini76 и прочие наборы не повторялись |
+| Existing review | **PASS_SOURCE_SCOPED** exact e4f vs c62, existing codex2 GPT-6 Luna/xhigh; verdict полностью прочитан, reviewer cases не перезапускал |
+| Verdict file | `B02_ALICE_READY_SENT_REVIEW_VERDICT.txt`, готовый SHA256 **ecfc587bc62344c00ebbbf483e45b404bcab233ee6ac42d166f0327b41e84005** |
+| Development package | 0.2.37, **2727084bytes**, SHA256 **cafa5bea3dec2c60cf639a04c86a62e0de66e5554336ab076e9fe7b94e1ae62c** |
+| Ready package readback | 134inputs/41members, same tested runtime; изменён shared/ai_adapters.js, остальные40 runtime files сохранены по готовому receipt; Controller ZIP не скачивал |
+| Терминальные поля | Code/review/build success0/inactive/empty cgroups в авторском checkpoint01:48; не свежий process snapshot |
+| Верхний предел | **SOURCE/CODE/PACKAGE**, installed_acceptance=false, B02_complete=false; публикация/CI/merge не заявлены |
+
+Drop transport сохранён; BODY native input не превращён в доказанный новый маршрут. Подтверждение «файл получен» и совпадение DOM не доказывают provider bytes. **Detailed loading timeline, long-Copy byte identity, installed/fullB02 остаются UNKNOWN**. Нового обязательного ready/sent запроса к Алисе нет; пофайловое согласие и профили у Тестера повторно не требуются. Исторические отменённые fileChooser и Send0 остаются в хронологии, но **не являются текущим состоянием**.
+
+### GPT Chat/Standard, GPT Work и dot: решение принято, два пакета различаются
+
+Прямая команда владельца **21Oct01:29–01:30** отменяет исключение Work только для названных продуктовых поверхностей. GPT Chat/Standard сохраняет принятый c62/108; его PASS не переносится на Work/dot. Остальные семь ИИ сохраняются, итого прежние восемь ИИ с отдельно различаемыми GPT-поверхностями. Это не разрешение создавать исполнителей/профили/запуски.
+
+| Материал / время | Фактическое потребление | Остаток |
+|---|---|---|
+| Первые4 JPEG/JSON, одно продолжение dot02:07 | **Подтверждено 02:14:14.683902** existing `B02_WORK_DOT_INITIAL_INPUT_RECEIPT.json`, полностью прочитан60строк; receipt SHA256 по §12 **7ac843d82ba0c20825134e21807a1bf06cc6cab6d8e4f1802cd348f944ff8e4e**. Два JPEG viewed, два JSON fully_read; same original bytes/hash | Это input receipt, не новый source/verdict/ZIP |
+| Work initial JPEG/JSON0136Z | В первом receipt101634B и8471B; наблюдались отдельный composer «Работайте с ChatGPT» и Stop «Остановить» | Отдельный Stop не доказывает busy→complete; общий composer-controls ancestor и полный file lifecycle в первом пакете не установлены |
+| dot initial JPEG/JSON0141Z | В первом receipt142498B и54659B; composer «Сообщение», article.message-row, user=self, динамические outer/body IDs | Общий markdown-style assistant-message не определяет роль; ID снимка не chat identity при /dots/home |
+| Позднее дополнение §11 **02:13** | По прямой передаче dot сохранены Work actual loading/ready/sent/Stop/code и dot TXTsent/userroot/assistant2blocks/Copy; handoff SHA **aad3eb5d3737122b372c0a180e2f4854a82c1530d719652ba7a0f8e34af62350** | **Consumption UNKNOWN**: найденный receipt перечисляет только первые4 файла, не это дополнение. Сохранение/начатый ответ не доказательство чтения |
+| Новая Work/dot реализация | §12 **02:14:14** описывает следующий существующий шаг: различение поверхностей и доказанный dot text reader | Терминальный кодовый результат/new exact candidate/review/package в доступных документах не найден; не объявляем PASS или простой |
+
+**Устранён документальный блок:** старые «Work excluded» и «Work/dot ничего не получено» больше не текущие выводы. Первый пакет уже потреблён; поздний пакет уже передан, поэтому не требуется повторная передача, новый сбор тех же состояний или дублирующее поручение. Точный независимый следующий шаг — существующий Тестер продолжает свой начатый code scope с уже достаточными фактами; в своём существующем §12/ready evidence отражает фактическое потребление позднего пакета и только реально готовый результат. Controller не назначает ему новые tests/review/CI и не управляет чатом.
+
+При чтении очередных результатов приоритет имеет timestamp и перечень реально consumed inputs. State/checkpoint01:48 со старым Work_dot_material_received=false — исторический срез, не опровержение §12/receipt02:14. Готовые Alice97/review/package не становятся Work/dot acceptance. Авторизованных профилей у Тестера нет; только доступные кодовые проверки по собственному поручению.
+
+### Независимые A/B/C обязательства: проверен новый остаток, владельцы сохранены
+
+Собственный bounded read-only search **14 collections PR219/228/230/210/248/239/246/37/243/244/238/240/212/235** после **00:55:58** вернул []. Это отсутствие новой публикации в конкретном проверенном охвате, **не отсутствие работы**. OldCI, C38/41 artifact comparison, ранее принятые Standard108/ZIP и mainad6 postmerge не перечитывались.
+
+| Роль | Работает / стоит / не подтверждено | Последнее подтверждённое действие и время | Точный остаток, владелец и минимальный допустимый вход |
+|---|---|---|---|
+| **A** | Текущая активность **не подтверждена**; простой не доказан | В проверенных обсуждениях нового результата после00:55:58 нет; прежние A source merges/native evidence сохранены | PR248 f154 последние3/5,10known successful jobs; Server/Coord у исходного authorized Actions owner. A03 source initial-markup gap требует уже существующего разрешённого init/hydration/restoration proof или подлинного disposition popup.js отказа. R19/R15/R28 не повторять/не проксировать |
+| **B / Actions / B-Ops** | Текущая активность **не подтверждена**; простой не доказан | Last accepted C static consumer mainad6 для243/244 issued00:05:24, новых входов в проверенных PRнет | PR243/244 последние2/5, три missing families у existing Actions maintainer. Только authorized original-branch native disposition/outcomes по уже существующему поручению, NO alternateCIrefs. Настоящие carrier/backup/restore/rollback/authority у B/Ops/owner; не дополнительные PG/device probes |
+| **C** | Текущая активность **не подтверждена**; простой не доказан | Last accepted artifact publication00:41:34, сейчас не перечитывалась | PR238 original exact I1FAIL/NO_MERGE и physical originUNKNOWN; existing A/Tester I1 observer owner даёт уже существующий same-selected-Request first-abort record либо обоснованный original not-recorded/retention факт. C756R11 DECLINED не technicalFAIL и не допуск повторного review |
+| **Тестер** | Документальное продвижение **подтверждено 02:14:14**; живой процесс сейчас не установлен | Alice e4f checkpoint01:48:15, первый Work/dot packet consumed02:14:14 | Существующая достаточная code работа Work/dot и чтение уже переданного позднего пакета; ready итог/consumption ещё не подтверждены. Ни профилей/UI tests, ни второго поручения |
+| **dot** | Передача материалов **подтверждена прямым сообщением**; не наш live-check | Одна Alice отправка01:25:44, наблюдение01:26; первые4 originals02:07; §11дополнение02:13 | Последние состояния уже сохранены; повтор Send/capture/передача не требуется. Только потребление существующего ответа/адресного запроса |
+| **Контроллер** | Выполняет текущую разрешённую документальную работу | Этот срез: ready документы прочитаны, stale ожидания исправлены, другие14PR охвачены | Завершить soleREPORT CAS/full readback. Чужие роли/чаты/source/WIP не перехватываются |
+
+**Точные сохранившиеся границы:**
+- **A03:** initial markup Start/Transfer SOURCE defect подтверждён; guest DCL/settled скрытие не first-paint/unauthorized dispatch proof. Popup.js refusal сохраняется на любом маршруте. Уже данное общее разрешение на файлы не заменяет разрешённый init contract и не требует нового общего согласования.
+- **I1 / PR241 и PR238:** прежние FAIL и ABORT141/143 после WorkStart сохраняются. First cancel initiator/same-request grant/profile/work intent/lease/fence UNKNOWN; PR230/другие baseline не причинное объяснение. First-abort record отсутствует в исследованном artifact, но это не доказательство global never-recorded. Новых observers/capture/replay/CI нет.
+- **B243/244/248:** native gaps не снимаются локальными tests/static consumer/no-path-overlap и не оправдывают наш dispatch. При отсутствии нового ready outcome остаётся конкретная внешняя операция у existing authorized Actions maintainer; поручение уже существует.
+- **IDNA:** контракт владельца принят; implementation/auth/DB/legacy collisions отдельно не разрешены. PR235 unpublished82d и publication denial не обходятся siblingPR.
+- **Recovery/C06/Store:** source-pinned carrier, одобренная восстановимая backup destination/app-PG restore/rollback и authority не доказаны. Исторические host metadata не исключают off-host/private альтернатив. PR37 closed unmerged не C05 accepted. Genuine catalog/signed package/owner ordinary Start→result→Finish/third-party policy отдельно; Store PREPARING/NO_SUBMIT.
+- **Enforcement:** ENFORCED_PROTECTION_NOT_PROVEN. Исторические ordinary branch false/off/empty не актуальный полный ruleset inventory. Конкретные403/security endpoints/настройки/полномочия не трогались.
+- R19 unique request §5 не дублируется; внутренний отказ/ID/mechanism UNKNOWN. Общего согласия владельца не ожидаем, denied source read и альтернативы не повторяем.
+
+Если новых готовых результатов нет, минимальный следующий вход — существующий ready result/consumption от текущего владельца либо подлинный original refusal/retention document. Новый тест, source lookup, probe, reviewer или искусственный task ради отчёта не создаёт такую первичку.
+
+## 3. PLAN и исходные двенадцать OPEN
+
+Все12исходов/closingconditions/ответственныесохраненывсуществующейкарте/истории/checkpoint, новойper-IDбазынет. B03durable/sourceSeen/relay-loss иpreACKrecipient/browserdurability — B/A-client/runtimecustodian; closingтолькоистиннымexactразрешённымserver+clientдоказательством. B04OTP/PG/resource/cleanup — прежниевладельцы/owner; явныеотказынеповторять, cap/резервы не снижать.
+
+A05 иPR48/50 сохраняют SOURCEFULFILLED, residualcorrelation/installed уpublisher/platform/runtime. C06genuineauthority/catalog/network/install/rollback — C/B-Ops/owner; ужепереданныйвопроснедублируется. PersonalR3/runtime — владелец/Тестер, неперехвачен.
+
+OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrift/reviewpayloadbytes — прежниеC/B/publisher/reviewer/platformхранители. Возвратпоподлиннойsafeexistingprimary/адресномудопустимомурешению, неreplay/реконструкции. ExactoldreviewpayloadSHA256`12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175`неrecovered. ПринятыйR6непереоткрывается. R13candidateAнеявляетсязакрытиемлюбойизэтих12границ.
+
+
+
+
+
+## 4. Все десять пунктов, объём и организационный результат
+
+1. **Последний исход / один автор:** f5da2ae0/ref/author/parent/pinned text сверены, неизвестных own writes нет. Fresh soleREPORT CAS и полный независимый readback; карта/история/§5 сохранены.
+2. **Задачи / приоритет:** принята новая Alice первичка и прямое решение по GPT-поверхностям; независимые14PR проверены, PLAN/WIP/checkpoint/12OPEN сохранены.
+3. **Реальные изменения:** source Тестера e4f vs c62 — авторская2-file дельта; Controller source не читает/не правит. Собственная правка только current REPORT projection/next.
+4. **Tests / package:** готовые97/97 и development2727084B из checkpoint прочитаны, не выполнены заново; старые Standard108 и другие наборы не суммируются как новые.
+5. **Review / доказательный предел:** существующий exact e4f PASS_SOURCE_SCOPED полностью прочитан; no new helper/review. Ready/sent DOM не provider bytes/loading/installed. Original negatives/denials сохранены.
+6. **CI / publication:** новых runs/reruns/merge нет. Старые native gaps и I1 FAIL сохранены по их exact/event/attempt; mainad6 green не transferred acceptance.
+7. **Операции / ресурсы:** own lock metadata0B не physical lock ownership. Отказанные process/session/state/preflight targets не повторены; нет capture/Send/cleanup/live/DB/auth/security/errors/events.
+8. **Обязательства:** §3 дословно, **12 OPEN**, closing conditions прежние; SOURCE/PACKAGE не installed/recovery/owner/C06/enforcement closure.
+9. **Организация:** сняты ложные ожидания Alice Send0/непрочитанного ready-sent и Work excluded/неполученного первого пакета. Поздняя §11 передача ≠ consumption; несуществующий простой не приписан, второго поручения нет.
+10. **Ответственные / next:** существующий Тестер — продолжение достаточного Work/dot code scope и ready evidence; original observer owner — sameRequest/retention primary; existing Actions owner — original missing gates; B/Ops/owner — genuine recovery/authority; source custodian/platform — allowed init/refusal disposition.
+
+**Объём новой работы:** fullREPORT/version/ref/commit/main;2own lock metadata;2ready state/handoff tails;3полных точных ready документа (260+5+60строк);14scoped comment collections. Два новых документальных результата: exact Alice implementation/97/review/package consumed в scope и фактический first Work/dot input consumption02:14. Raw DOM/binary/source/tests/CI/download/review/build/Send не исполнялись. Перед записью повторно fresh ref/author/main/lock metadata, затем onlyREPORT write/readback.
+
+**Организационный остаток:** прежняя current projection отставала от §12 и точного receipt; это исправлено без изменения чужих role records. Сохранённый §11пакет нельзя повторно запрашивать как отсутствующий: остаётся именно проверяемое consumption/готовый результат. Отдельные init/causality/CI/recovery/authority границы не останавливают независимую достаточную работу Тестера; аудит не расширяет чужой scope и не создаёт задачи ради видимости занятости. Текущую физическую активность не выводим из старых RUNNING/commits/отсутствия comments.
+
+Audit_complete=false; **12 OPEN**. План, checkpoint, прежние FAIL и полный принятый объём остаются.
 
 ## 5. R19 — прежний единственный запрос сохранён, новыхsource-readнет
 
