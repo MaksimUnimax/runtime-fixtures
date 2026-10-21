@@ -1,3 +1,19 @@
+# Текущий checkpoint единственного преемника Контроллера — 2026-10-21T08:25:53.588Z
+
+Тот же аудит CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z; audit_complete=false; **12 OPEN**. Предыдущий REPORT 0efb3d7e5220a435689a3a5177f80821aca9a375 (MaksimUnimax,06:56:15 UTC,parent bd7dc9634c8511bd67a7d8cbacdc5c91c0b75e8c), единственный изменённый REPORT и полный исходный текст подтверждены. Это один преемник по прямой команде владельца после устойчивого сбоя 6ad4573a-e4bc-83e9-9fa7-4b53ab7d1c4d; старый чат не открывался/не продолжался, новый helper не запускался.
+
+**Фактическая новая первичка:** самостоятельно прочитаны original workflow_dispatch attempt1 exact ed0688bdf4f3df1fe45cf0e2af21b59c2b04e300: Server39560963968 SUCCESS (ci-plan119091840039 и server119091898938 SUCCESS; terminal07:30:17 UTC), Coordination39562986788 SUCCESS (safety119098414732,07:35:27 UTC). Вместе с ранее принятыми Docs39542267423/I139542267498/Extension39542267504 это5/5 семей,13/13jobs exacted; старые три workflow не запускались/не перечитывались. PR248 сейчас OPEN DRAFT exacted. A ответил06:57:05 в6307820874: ответственность принял, capability METHOD_UNAVAILABLE/OPERATOR_AUTH_UNKNOWN; до dot-run новых terminalIDs там нет. Следующий собственный шаг — передать эти готовые факты в прежний6307715843 и проверить потребление/продолжение A.
+
+**B:** самостоятельно прочитан existing reply6310687377 updated07:44:49. Missing-plan/no-reply снят только документально; DB/R4 не закрыты. PR235 publice7bec59487f1147f990dbde5d5c82f74ba5893a5 OPEN DRAFT; owner08:06:28 разрешил существующему B один non-force повтор candidate82d7d299272c50b95a7db4f61ab8f86d25d3e6e1 после fresh/dedupe. Следующий шаг — передать решение единожды через прежний6309010922, не push за B. Отдельный owner-testPG18/limitedsnapshot и DB/Ops-authority для aggregate-only collisionpreflight не выданы.
+
+**Новые роли/база:** main2731e016a589541d93e1ff774dcae38bda2bfb67; PR251 MERGED, head d9dd10cb, merge2731 подтверждены первичной GitHub metadata. B не объявлен idle. C03 PR250 OPEN DRAFT currentcce827da0834878a9d41c3ea527e1ec8d95f1f08; новые готовые результаты будут приняты без CI/review/tests аудитора. Tester остаётся единственным владельцем originalpopup/WIP;60distinct+14linked/ZIP0.2.37eaad6ea8… сохранены; новое исполнение его code-only продолжения ещё не заявлено.
+
+Штатный список подтвердил Online Easyscript9dab7ad2-9d63-43a3-b106-a5840d79ccc1. RDC sessions и retained backgroundcalls пусты. Свежая история start_process после07:40 не содержит операции R7/R8 от этого Controller/decisionc88603e0; ресурсные действия других A/C не присваиваются. Ownlocks проверены metadata: это не захваченный flock и не доказательство отсутствия чужого WIP. Report-ref перед записью unchanged0efb3d7e; fresh expectedblob CAS сохраняет полный прежний текст. Чужие role/source/WIP/claims не менялись.
+
+Правила START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL/RESOURCE_POLICY/DISK_LIFECYCLE/TEMP_WORKTREE_LIFECYCLE/ORGANIZATION_AUDIT_POLICY/PRE_AUDIT_SELF_ERROR_GATE прочитаны; PRIORITY_TASKS прочитан двумя диапазонами до1320/0remaining. Своих правил не редактировал. Старые адресные отказы не считаются общим запретом всех чтений и не повторяются как source/preflight/DBоперации. Единственное новое разрешение R7/R8 — только одна read-only ресурсная проверка; исполнение ещё не заявлено. R17prep и C/R16sufficiency остаются узко CLOSED. Все12 closingconditions/история ниже сохранены; errors/events/новых реестров/архивов/расписаний нет.
+
+---
+
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — тот же незавершённый аудит.
