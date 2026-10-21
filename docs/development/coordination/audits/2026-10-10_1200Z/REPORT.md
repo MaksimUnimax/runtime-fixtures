@@ -1,3 +1,39 @@
+# Первичный локальный исход — 2026-10-21T10:54:13.383Z
+
+Поиск разрешённых C03/S2/TG документов не исполнился: на Easyscript rg отсутствует. Это локальная доступность бинарника, не отказ безопасности/доступа к документам. Первичный ответ и точные аргументы до дальнейшей диагностики:
+
+```json
+{
+  "utc": "2026-10-21T10:54:13.383Z",
+  "tool": "mcp__codex_apps__remote_desktop_commander_start_process",
+  "args": {
+    "deviceId": "9dab7ad2-9d63-43a3-b106-a5840d79ccc1",
+    "command": "rg -n -i -l --glob '*.md' --glob '*.json' --glob '!PRIORITY_TASKS.md' 'TG3|TG4|S2 production|production authority' /root/octoport-control/peer-handoffs/C /root/octoport-control/controller-notices /root/octoport-control/logs/C | head -n 35",
+    "timeout_ms": 3000
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Process started with PID 3639814 (shell: /bin/bash)\nInitial output:\n/bin/bash: line 1: rg: command not found\n\n✅ Process 3639814 has finished execution"
+      },
+      {
+        "type": "text",
+        "text": "\n[executed on device: Easyscript (9dab7ad2-9d63-43a3-b106-a5840d79ccc1)]"
+      }
+    ],
+    "structuredContent": null,
+    "isError": false
+  },
+  "call_id": "UNKNOWN",
+  "pid": 3639814
+}
+```
+
+Следующее допустимое исправление — конечный поиск только разрешённых Markdown/JSON документов через Python, без PRIORITY_TASKS, ROLE, errors/events, source/DB/credentials или обхода запрета. Ошибочный IDNA путь уже исправлен: правильный B06 документ прочитан, §17.2 и последующие B06 исходы сохранены. Самопроверка ORG009: начальные выводы были избыточны и обрезались; далее наружу выводятся ограниченные поля <6000 символов, полные тексты остаются в текущем audit context и исходных документах. Никаких продуктовых итогов по обрезанному выводу не заявлено. Все12OPEN и история сохраняются.
+
+---
+
 # Продолжение того же аудита — checkpoint 2026-10-21T10:52:32.322Z
 
 Единственный Controller продолжает исходный аудит от51267e23c8950b81925d056f636f095705b9276c. Все12OPEN, PLAN/WIP, история и принятые результаты сохранены целиком ниже. Свежий ref совпал; последний автор MaksimUnimax10:39:28. Easyscript выбран штатным list_devices; list_sessions: No active sessions (не доказательство отсутствия всех host processes). Метаданные own CONTROLLER.lock/coordination.lock без изменения; перед собственными защищёнными записями требуется реальный nonblocking lock. Чужой source/WIP не изменён, новые helpers/CI/tests/review/измерения не запускались. Запрещённые PRIORITY/preflight/ROLE reads и protection GET не повторяются.
