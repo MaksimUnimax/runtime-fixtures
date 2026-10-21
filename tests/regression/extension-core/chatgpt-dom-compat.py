@@ -1903,7 +1903,7 @@ function fixture({kind='dot', complete=false, messages=[{id:'new-answer'}], repl
     SellerAgentsConversationSurface:{endStart:(...args)=>ended.push(args)},
     conversationIdentity:()=>({...data.identity}),
     currentAIAdapter:()=>({messageId:n=>n.id,surfaceObservation:()=>({kind:data.kind})}),
-    assistantMessages:()=>data.messages,assistantTurnComplete:()=>data.complete,
+    assistantMessages:()=>data.messages,assistantMessageText:n=>n.text || "observed answer",assistantTurnComplete:()=>data.complete,
     sendRuntime:async(type,payload)=>{requests.push({type,...payload});return typeof data.reply==='function' ? data.reply(type,payload) : data.reply;}};
   vm.runInNewContext(SOURCE,c);
   const start=()=>c.startWorkStartResponseWatch({intentId:'intent',revision:7,origin:'https://chatgpt.com',aiId:'chatgpt',assistantBaselineIds:['old-answer']});
@@ -1967,7 +1967,103 @@ console.log(JSON.stringify({status:'PASS',case_count:rows.length,cases:rows}));
     return 0
 
 
+def run_start_response_observed(runtime: Path, output: Path):
+    """Start readiness uses observed reply; terminal remains a separate fact."""
+    import subprocess
+    output.mkdir(parents=True, exist_ok=True)
+    content = (runtime / "content_script.js").read_text()
+    worker = (runtime / "service_worker.js").read_text()
+    watch = content[content.index("  function setWorkStartObservationNotice("):content.index("  async function waitForWorkStartComposerContext(")]
+    marker = '      case "OZ_WORK_PENDING_IDENTITY": {'
+    begin = worker.index(marker) + len(marker)
+    end = worker.index('      case "OZ_WORK_PENDING_TIMEOUT":', begin)
+    body = worker[begin:end].rstrip()
+    assert body.endswith("}")
+    body = body[:-1]
+    js = r'''
+const vm=require('node:vm'),assert=require('node:assert/strict'),rows=[];
+function fixture(){
+ const data={now:0,current:true,complete:false,kind:'dot',messages:[{id:'new-answer',text:'Here is the response'}],
+   identity:{origin:'https://chatgpt.com',ai_id:'chatgpt',conversation_id:'local:own',surface_id:'own'},
+   pending:{intent_id:'intent',revision:7,expires_at:'2099-01-01T00:00:00Z',origin:'https://chatgpt.com',ai_id:'chatgpt',surface_id:'own',prompt_delivered:true,send_outcome:'sent_acknowledged'},
+   visibleApplied:true,bindingRevision:7};
+ const calls={runtime:[],bind:[],accept:[],visibility:[],clear:[],observe:[],notices:[],diagnostic:[]},timers=new Map();
+ let n=0,work={state:'binding',revision:7,start_intent_id:'intent'};
+ const c={workStartWatches:new Map(),workRuntimeGeneration:'g',Date,
+  current:()=>data.current,setInterval:f=>{const id=++n;timers.set(id,f);return id;},clearInterval:id=>timers.delete(id),
+  toast:(...a)=>calls.notices.push(a),clearToast:()=>{},recordContentDiagnostic:()=>{},
+  SellerAgentsConversationSurface:{endStart:()=>{}},conversationIdentity:()=>({...data.identity}),
+  assistantMessages:()=>data.messages,assistantMessageText:m=>m.text||'',assistantTurnComplete:()=>data.complete,
+  currentAIAdapter:()=>({messageId:m=>m.id,surfaceObservation:()=>({kind:data.kind})}),
+  normalizeTabId:Number,normalizeIdentity:x=>x,getPendingWorkStarts:async()=>data.pending?{'5':data.pending}:{},
+  clearPendingWorkStart:async(tab,id,rev,reason)=>{calls.clear.push({id,rev,reason});data.pending=null;return true;},
+  updatePendingWorkStartObservation:async(tab,p,i)=>{calls.observe.push(i);return data.pending?.intent_id===p.intent_id;},
+  diagnostic:async(...a)=>calls.diagnostic.push(a),
+  bindConversation:async(...a)=>{calls.bind.push(a);work={state:'binding',revision:data.bindingRevision,start_intent_id:'intent'};return {conversation_key:'key',binding_id:'binding',revision:2,store_context:{marketplace:'ozon',storeId:'shop',credentialRevision:1}};},
+  workSessionFor:async()=>work,
+  mutateWorkSession:async(key,rev,state,patch)=>{work={...work,...patch,state,revision:rev+1};return work;},
+  OzonWorkSessionModel:{STATES:{INACTIVE:'inactive',BINDING:'binding',ACTIVE_VISIBLE:'active_visible',ERROR:'error'}},
+  SellerAgentsOfflineWorkAuthority:{createProvenance:(p,ctx)=>({p,ctx})},
+  setWorkSessionCommandAcceptance:async(key,on)=>calls.accept.push(on),
+  tabMessage:async(tab,msg)=>{calls.visibility.push(msg);return {ok:true,applied:data.visibleApplied};}};
+ c.sendRuntime=async(type,payload)=>{calls.runtime.push({type,...payload});if(data.replyOverride)return data.replyOverride(type,payload);return c.pending(payload,{tab:{id:5}});};
+ vm.runInNewContext('async function pending(message,sender){'+BODY+'}\n'+WATCH,c);
+ const start=()=>c.startWorkStartResponseWatch({intentId:'intent',revision:7,origin:'https://chatgpt.com',aiId:'chatgpt',assistantBaselineIds:['old-answer']});
+ async function tick(){for(const f of [...timers.values()])f();await new Promise(setImmediate);await new Promise(setImmediate);}
+ const direct=overrides=>c.pending({intent_id:'intent',revision:7,identity:{...data.identity},first_response_observed:true,first_response_complete:false,...overrides},{tab:{id:5}});
+ return {data,c,calls,timers,start,tick,direct,work:()=>work};
+}
+async function check(name,fn){await fn();rows.push({name,status:'PASS'});}
+await check('dot_observed_reply_activates_without_claiming_terminal_or_executing_command',async()=>{
+ const f=fixture();f.start();await f.tick();assert.equal(f.work().state,'active_visible');assert.equal(f.calls.bind.length,1);
+ assert.equal(f.calls.runtime[0].first_response_observed,true);assert.equal(f.calls.runtime[0].first_response_complete,false);
+ assert.deepEqual(f.calls.accept,[true]);assert(f.calls.runtime.every(x=>x.type==='OZ_WORK_PENDING_IDENTITY'));
+ assert.equal(f.c.workStartWatches.size,0);assert.equal(f.calls.notices.length,0);
+});
+await check('same_observed_reply_rule_applies_without_dot_special_case',async()=>{
+ const f=fixture();f.data.kind='work';f.start();await f.tick();assert.equal(f.work().state,'active_visible');assert.equal(f.calls.runtime[0].first_response_complete,false);
+});
+for(const [label,messages] of [['absent',[]],['empty',[{id:'new-answer',text:''}]],['whitespace',[{id:'new-answer',text:' \n '}]],['baseline',[{id:'old-answer',text:'existing response'}]]]){
+ await check(label+'_does_not_prove_new_response',async()=>{const f=fixture();f.data.messages=messages;f.start();await f.tick();assert.equal(f.calls.bind.length,0);assert.equal(f.calls.runtime[0].first_response_observed,false);assert.equal(f.calls.runtime[0].first_response_complete,false);assert.equal(f.c.workStartWatches.size,1);});
+}
+await check('legacy_confirmed_complete_remains_compatible',async()=>{const f=fixture();const r=await f.direct({first_response_observed:undefined,first_response_complete:true});assert.equal(r.ok,true);assert.equal(f.calls.bind.length,1);});
+await check('neither_observation_nor_completion_keeps_waiting',async()=>{const f=fixture();const r=await f.direct({first_response_observed:undefined,first_response_complete:undefined});assert.equal(r.waiting,true);assert.equal(f.calls.bind.length,0);});
+for(const outcome of ['not_sent','outcome_unknown_no_retry']){
+ await check(outcome+'_cannot_activate_or_retry',async()=>{const f=fixture();f.data.pending.send_outcome=outcome;f.start();await f.tick();assert.equal(f.calls.bind.length,0);assert.deepEqual(f.calls.accept,[]);assert.equal(f.calls.runtime.length,1);await f.tick();assert.equal(f.calls.runtime.length,1);});
+}
+await check('missing_prompt_delivery_proof_still_blocks',async()=>{const f=fixture();f.data.pending.prompt_delivered=false;const r=await f.direct();assert.equal(r.ok,false);assert.equal(f.calls.bind.length,0);});
+for(const [label,patch] of [['intent',{intent_id:'old'}],['revision',{revision:6}]]){
+ await check('stale_'+label+'_rejected',async()=>{const f=fixture();const r=await f.direct(patch);assert.equal(r.code,'WORK_PENDING_STALE_OR_INVALID');assert.equal(f.calls.bind.length,0);});
+}
+for(const [label,patch,code] of [['origin',{origin:'https://other.example'},'WORK_PENDING_IDENTITY_MISMATCH'],['ai',{ai_id:'other'},'WORK_PENDING_IDENTITY_MISMATCH'],['missing_identity',{conversation_id:null},'WORK_PENDING_IDENTITY_MISMATCH'],['surface',{surface_id:'other'},'WORK_PENDING_SURFACE_CHANGED']]){
+ await check(label+'_change_still_blocks',async()=>{const f=fixture();const r=await f.direct({identity:{...f.data.identity,...patch}});assert.equal(r.code,code);assert.equal(f.calls.bind.length,0);assert.deepEqual(f.calls.accept,[]);});
+}
+await check('previously_observed_other_conversation_blocks',async()=>{const f=fixture();f.data.pending.observed_conversation_id='local:other';const r=await f.direct();assert.equal(r.code,'WORK_PENDING_CONVERSATION_CHANGED');assert.equal(f.calls.bind.length,0);});
+await check('expired_pending_does_not_activate',async()=>{const f=fixture();f.data.pending.expires_at='2000-01-01T00:00:00Z';const r=await f.direct();assert.equal(r.code,'WORK_PENDING_TIMEOUT');assert.equal(f.calls.bind.length,0);});
+await check('duplicate_start_and_late_tick_do_not_duplicate_binding_or_send',async()=>{const f=fixture();f.start();f.start();assert.equal(f.timers.size,1);await f.tick();await f.tick();assert.equal(f.calls.bind.length,1);assert.equal(f.calls.runtime.length,1);const r=await f.direct();assert.equal(r.code,'WORK_PENDING_STALE_OR_INVALID');});
+await check('finish_clears_pending_before_late_observation',async()=>{const f=fixture();f.start();f.data.pending=null;await f.tick();assert.equal(f.calls.bind.length,0);assert.deepEqual(f.calls.accept,[]);assert.equal(f.c.workStartWatches.size,0);});
+await check('binding_revision_failure_never_enables_commands',async()=>{const f=fixture();f.data.bindingRevision=6;const r=await f.direct();assert.equal(r.code,'WORK_PENDING_BINDING_STATE_INVALID');assert.deepEqual(f.calls.accept,[]);});
+await check('visibility_failure_closes_command_acceptance',async()=>{const f=fixture();f.data.visibleApplied=false;const r=await f.direct();assert.equal(r.ok,false);assert.deepEqual(f.calls.accept,[true,false]);assert.equal(f.work().state,'error');});
+await check('unknown_worker_result_stops_without_replay',async()=>{const f=fixture();f.data.replyOverride=()=>Promise.reject(new Error('callback lost'));f.start();await f.tick();await f.tick();assert.equal(f.calls.runtime.length,1);assert.equal(f.c.workStartWatches.size,0);});
+console.log(JSON.stringify({status:'PASS',case_count:rows.length,cases:rows}));
+'''
+    result = subprocess.run(["node", "--input-type=commonjs"], input="const BODY="+json.dumps(body)+";const WATCH="+json.dumps(watch)+";\n(async()=>{"+js+"})().catch(e=>{console.error(e.stack);process.exitCode=1;});", text=True, capture_output=True)
+    (output/"stdout.log").write_text(result.stdout)
+    (output/"stderr.log").write_text(result.stderr)
+    if result.returncode:
+        raise RuntimeError("observed-response Start delta failed; retained stderr.log")
+    record = json.loads(result.stdout)
+    record.update(scope="offline actual content watcher + worker pending handler; mocks replace storage/binding/authority dependencies, not an authority or installed acceptance test",
+                  content_sha256=hashlib.sha256(content.encode()).hexdigest(),
+                  worker_sha256=hashlib.sha256(worker.encode()).hexdigest())
+    (output/"result.json").write_text(json.dumps(record,ensure_ascii=False,indent=2)+"\n")
+    print(json.dumps({"status":record["status"],"case_count":record["case_count"]}))
+    return 0
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "start-response-observed":
+        return run_start_response_observed(runtime, output)
     if provider == "dot-start-unknown":
         return run_dot_start_unknown(runtime, output)
     if provider == "work-turn-exact":
@@ -2175,6 +2271,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","dot-start-unknown","work-turn-exact","work-dot-surface","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","start-response-observed","dot-start-unknown","work-turn-exact","work-dot-surface","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

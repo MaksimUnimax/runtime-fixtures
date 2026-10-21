@@ -1705,5 +1705,15 @@
     "target": "content_script.js",
     "old": "      if (workStartWatches.get(key) !== watch) return;\n      if (!(response?.ok === true && response.waiting === true)) stopWorkStartWatch",
     "new": "      if (workStartWatches.get(key) !== watch) return;\n      setWorkStartObservationNotice(watch, response?.ok === true && response.waiting === true && last && !complete && currentAIAdapter()?.surfaceObservation?.()?.kind === \"dot\" ? \"completion_unknown\" : null);\n      if (!(response?.ok === true && response.waiting === true)) stopWorkStartWatch"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      const complete = Boolean(last && assistantTurnComplete(last));\n      const response = await sendRuntime(\"OZ_WORK_PENDING_IDENTITY\", { intent_id: watch.intent_id, revision: watch.revision, identity: currentIdentity, first_response_complete: complete, runtime_generation: workRuntimeGeneration || null });",
+    "new": "      const complete = Boolean(last && assistantTurnComplete(last));\n      // Binding readiness is observation of the new own reply, not a terminal claim.\n      // Execution still requires the explicit click on a current full block.\n      const observed = Boolean(last && assistantMessageText(last).trim());\n      const response = await sendRuntime(\"OZ_WORK_PENDING_IDENTITY\", { intent_id: watch.intent_id, revision: watch.revision, identity: currentIdentity, first_response_observed: observed, first_response_complete: complete, runtime_generation: workRuntimeGeneration || null });"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "        if (message.first_response_complete !== true) {\n          const updated = await updatePendingWorkStartObservation(tab, pending, identity);",
+    "new": "        // An observed own reply permits the existing binding/manual-command path.\n        // Completion stays separate; older content may still prove it explicitly.\n        if (message.first_response_observed !== true && message.first_response_complete !== true) {\n          const updated = await updatePendingWorkStartObservation(tab, pending, identity);"
   }
 ]
