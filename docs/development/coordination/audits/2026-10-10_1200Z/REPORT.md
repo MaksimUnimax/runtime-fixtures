@@ -1,3 +1,34 @@
+# Проверенный остаток и первичный технический исход — 2026-10-21T09:04:21.123Z
+
+Тот же аудит, **12 OPEN, audit_complete=false**. Предыдущий собственный REPORT1c52ce8f49a1d49963b5fcb9668632d3ba0faf7b, authorMaksimUnimax08:56:54 UTC, onlyREPORT/blobc671994aa49d5e5ffddf1e197d5b3bc010cae852; полныйreadback08:57:07.742 exacttrue. Scope не расширяется, чужойWIP/rolefiles не меняются.
+
+**Собственный512MiBобъект — координация исполнена, резерв сохранён.** В existing /root/octoport-control/disk-allocations/CONTROLLER-A05-MAIN9EB-20261015.json прежнийsourceacceptedPR143/mainc985 иисторический16OctRDCreader отделены отнепроверенныхcurrentconsumers. Под existingcoordination.lock иобоимиexistingresource-admission.lock выполненатомарный compare-old-object/only-own-metadataappend, nativeRDC PID3606241 SUCCESS08:58:52.961 UTC. Record CONTROLLER_A05_512MIB_OWNER_CLEANUP_DOCUMENTARY_COORDINATION_20261021, oldSHA2894231462f8802b0148d01a099170847bb31fa5479e58d59b2c63e04593e4ed→newSHA75cd6548db8665a31316b48f97283133759a8b0d38126bb7bc5e1434e7a32ca6; независимое полное чтение09:00:00.963 подтвердилоownnoteexact,всюпрежнююhistory/releasecondition, **OPEN512**. Нетdeletion,closedclaim,newmeasurementилиbudgetchange.
+
+**Конкретный текущий адресат физической операции:** существующий владелец очистки14Oct, анеB/новыйhelper/Controller. Только точный /root/octoport-control/temporary/controller/a05-main9eb-20261015, preservedcandidate0276051b40bacbe0c538c27f9e30585cef2b6612/refcontroller/a05-main9eb-20261015. Source-review/CIconsumerуже завершён поexistingallocation; ownerвсвоейсуществующейочисткепроверяетактуальныхconsumers/uniqueuntrackedignored/refs/защитуотгонки, сохраняетevidenceи при доказаннойбезопасностивыполняетобычныйnonforceretirement+guardedclose512/readback. Еслинетточногодопуска/readerproof—KEEP. Этоадресноекоординационноепродолжениепрежнегоowner-cleanupscope, анепоручениеControllerудалитьилиновыйзапрособщегоразрешения. 512невыданызафизическиосвобождённыемегабайтыилиPASS; исходныйдефицит180.140625MiBостаётся.
+
+**Второй конкретный документальный резерв:** DOT-C03-READONLY-REVIEW-20261015,64MiBOPEN,owner=dot, purposeexisting15Octreview,consumerdot+Controller. ГотовыйC03_EF788_DOT_AUTHORIZED_SOURCE_REVIEW_20261015.txt лично прочитанполностью(5строк):PASS_SOURCE exactef7881216d3b65f4f75128fd48adfae5147c0387/base9eb, никакихновыхtests/review. **Controllerconsumerfulfilled** этимпрочтением; независимыйостаток—existingdotкаквладелецэтойallocationустанавливаетпособственнымсохранённымрезультатамокончаниеоставшегосяreviewconsumer и, еслиусловияисполнены,самзакрываетсвойreview-growthreserveсreadback, **сохранивпостоянныйвердикт/log**. Еслинеисполнены—точныйKEEPconsumer/condition. Controllerчужие64не закрывает. ЭтоодинконкретныйобъектсуществующейкоординациичерезsoleREPORT,неновыйреестр/очисткафайла. Прочиеобъекты: B0516ужеCLOSED;B058KEEPreader;B06128historicownerdecisionnotproven;B-C06256removalexplicitrefusal/OPENKEEPнеповторяется. СтарыйController→B10resourceshandoffSUPERSEDEDнеактивирован.
+
+**Доставка:** serverpointerA/B08:53:45 созданыпровереннымметодом,полныйindependentreadbackесть. На09:01:51 авторA6307820874ещёupdated06:57:05, новыхBответовнет, публичныйBrefe7bec594unchanged. МетаданныеA16card04:24:49/157строк иB§17doc07:44:32/372строк неизменнына09:02:47. Этиboundedfactsнеравнынеполучениювообще. Два новыхпоискаauthoredreceiptsнеполучиликонечногоисходаиз-заследующейошибки; ихinitial0неиспользуетсякаkdоказанноеотсутствие.
+
+## Первичные ответы нового технического сбоя — сохранено до продолжения диагностики
+
+Tool: mcp__codex_apps__remote_desktop_commander_get_more_search_results.
+Обнаружено/сохранено 2026-10-21T09:04:21.123Z UTC; точныйвнутреннийtool-edge timestamp/callIDинтерфейснеэкспонировал—UNKNOWN/NOT_EXPOSED. Вызовы были параллельными boundedreadonlyresultreads, несource/preflight/мутацией.
+Точныеаргументы A:
+{"deviceId":"9dab7ad2-9d63-43a3-b106-a5840d79ccc1","sessionId":"search_34_1792573365368","offset":0,"length":20}
+Полныйпервичныйответ A:
+{"content":[{"type":"text","text":"Error reading search results: Search session search_34_1792573365368 not found"},{"type":"text","text":"\n[executed on device: Easyscript (9dab7ad2-9d63-43a3-b106-a5840d79ccc1)]"}],"structuredContent":{"error_code":"INVALID_ARGUMENT"},"isError":true}
+Точныеаргументы B:
+{"deviceId":"9dab7ad2-9d63-43a3-b106-a5840d79ccc1","sessionId":"search_33_1792573365289","offset":0,"length":20}
+Полныйпервичныйответ B:
+{"content":[{"type":"text","text":"Error reading search results: Search session search_33_1792573365289 not found"},{"type":"text","text":"\n[executed on device: Easyscript (9dab7ad2-9d63-43a3-b106-a5840d79ccc1)]"}],"structuredContent":{"error_code":"INVALID_ARGUMENT"},"isError":true}
+
+Предыдущиеinitialstart_search вернулиRUNNINGдляA search_34 иB search_33; последниеподтверждённыезавершённыеinboxsearch_32/search_31 успешноCOMPLETED0matchesтемжештатнымметодом08:52:44. Новыйисход—**INVALID_ARGUMENT,searchsessionnotfound**, неplatformsafetydenial, неразрешениеповторитьстарыйprotectedpreflight. Причинапотерисессий **UNKNOWN**; недостающийисточник—currentserversearchsessionstatus/traceэтихдвухID. Следующийразрешённыйдиагностическийшаг—толькоштатныйlist_searches, безповторногоcontentsearch,другогоactor/routeилиотказанногодоступа. Неизвестныйпоиск/чужаяоперацияневыдаётсязазавершённую.
+
+Все12closingconditions/история/PLAN/WIP/закрытыеR17prep/C-R16сохраняютсяниже; актуальныйTesterOWNER0835PASSостаетсяSOURCE_OFFLINE_CONSUMER,неinstalled/fullB02. НиR7/R8measurement08:28:25, нитесты/review/CI/source/live/DB/security/credentials/процессы/cleanup/errors/eventsнеисполнялисьзаново.
+
+---
+
 # Продолжение того же аудита — 2026-10-21T08:56:53.143Z
 
 **audit_complete=false;12 OPEN.** Исходный REPORT d9e5f51bf8a3a97f0c336f833346996182124b4a (MaksimUnimax08:40:14 UTC,onlyREPORT,blob b5aaef82eac446132ab929871d73cfc60aeac982) и полный текст прочитаны; ref перед обновлением unchanged. Один существующий Controller; чужие чаты и helpers не открывались/не запускались. RDC Easyscript9dab7ad2… Online; sessions пусты, retained call0fd9416f… completed. Ownlocks свежо проверены metadata, не выдаются за physical flock. Source/WIP/rolefiles не менялись; неизвестный push не повторялся.
