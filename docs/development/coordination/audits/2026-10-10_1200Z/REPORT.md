@@ -1,3 +1,43 @@
+# Проверенный исход продолжения — 2026-10-21T09:58:14.196Z
+
+Тот же единственный Контроллер, **audit_complete=false; 12 OPEN**. Исходный REPORT 7a8d5265a98b5dc09bf3a1585cd0f8f4270597ed, один автор MaksimUnimax, only REPORT/blob2bf9a99562aa0f0df393d3514a53c2efee4ea6e5; fresh ref и полный readback совпали со всем предыдущим текстом. Easyscript выбран штатным device-list, Online9dab7ad2-9d63-43a3-b106-a5840d79ccc1. Sessions и retained calls пусты; собственные locks проверены только metadata, не выданы за physical flock. Чужой source/WIP не пишется.
+
+**Ожидание owner-close64 МиБ ЗАКРЫТО первичкой.** Лично полностью прочитана именно существующая /root/octoport-control/disk-allocations/DOT-C03-READONLY-REVIEW-20261015.json: state=CLOSED, role=dot, reserve_mib=64 сохранён как исходное поле; history action=close, metadata-only/no physical cleanup or file deletion; permanent review result retained. Native record closed_at1792576206.219885 =2026-10-21T09:50:06.219885Z; owner operation09:50:06.215Z сообщена отдельно. Источник PASS_SOURCE ef788/base9eb, постоянный review SHA eb1021f7ffe0f28a3c1d2500c702ea951a3dcea680d8d6d907b650a93cc09c6f. Record прямо связывает Controller consumer с cff3ac57/reportblob41ffd296 и подтверждает dot consumer. Старое OPEN64 ожидание ниже — история до owner closure, больше не текущий блок. Это **закрытие учётного обязательства**, не физическая очистка и не R7/R8 PASS. Новое измерение dot вне scope исключено из допуска и не повторяется. Независимый OPEN512 остаётся у прежнего владельца физической очистки; прежний разрешённый срез08:28:25 и его FAIL не пересчитаны.
+
+**B03 новый exact10ab опубликован.** Scoped Actions primary показывает original push-series09:46:42, attempt1: Coordination39579580963 SUCCESS; Docs39579580978 SUCCESS; I1-C139579580984 FAILURE09:51:13; Server39579580960 FAILURE09:54:06; Extension39579581099 ещё in_progress на read09:56. Server новый FAIL требует отдельной первички; не предполагается повтор OpenAPI-ошибки. B06 publication/Areceipt ранее закрыты и не открываются этим новым результатом.
+
+Лично прочитан existing I1 job119153632009 log:09:48:23.8094813Z safe selected bootstrap ABORTED через153ms от Work Start, failed=true/finished=false,RuntimeError signed AI bootstrap HTTP request failed before completion,exit1 09:48:23.9669822Z. Это не OpenAPI FAIL и не timeout540s. Artifact12335343284 реально создан original upload09:48:25, uploaded zip SHA41c916201414fbc8ba7dbef6bdc6e4211682d7727df9ee511e9506058916963d. Инициатор отмены UNKNOWN; новый reproduce/rerun не запускается.
+
+## Первичный технический отказ нового artifact metadata чтения
+
+Tool mcp__codex_apps__github_fetch; точные аргументы:
+```json
+{"url":"https://api.github.com/repos/MaksimUnimax/runtime-fixtures/actions/artifacts/12335343284"}
+```
+Полный дословный первичный ответ:
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "HTTPError: 400: GitHub Fetch URL is not an allowed public GitHub repository or search endpoint. (Response: None)"
+    }
+  ],
+  "structuredContent": {
+    "error": "HTTPError: 400: GitHub Fetch URL is not an allowed public GitHub repository or search endpoint. (Response: None)",
+    "error_code": "INVALID_ARGUMENT"
+  },
+  "isError": true
+}
+```
+Наблюдение2026-10-21T09:57:03.308Z UTC; отдельные native tool-edge timestamp/requestID/callID не экспонированы. Exact wrapper response HTTP400/INVALID_ARGUMENT: URL is not an allowed public GitHub repository or search endpoint. Секретов в аргументах нет. Последующий локальный JSON.parse(undefined) дал SyntaxError, потому что этот error result не содержит content; это ошибка обработки ответа Controller, не второй серверный запрос и не доказательство отсутствия artifact.
+
+Доказана непригодность указанного URL для github_fetch. Причина ограничения маршрута глубже текста UNKNOWN. Заблокированный fetch URL не повторяется. Существующие purpose-built fetch_workflow_run_artifacts/download_workflow_artifact прямо поддерживают этот вид GitHub Actions evidence; проверка их штатной схемы и использование разрешённого пользователем существующего artifact — исправление выбора API, не ослабление безопасности/новый CI/архив. При новом отказе операция будет остановлена с первичкой. Main protection403 остаётся отдельным прямым запретом: никаких повторов/alternate endpoints/tools/actors.
+
+Остальная доступная первичка B03/C250/accounting/Tester будет потреблена без тестов Controller и без перехвата активной роли. История ниже полностью сохранена.
+
+---
+
 # Последний проверенный итог единственного Контроллера — 2026-10-21T09:50:31.721Z
 
 **Аудит НЕ завершён: audit_complete=false, все исходные 12 OPEN.** PLAN/WIP, исходный аудит и вся история сохранены ниже дословно. Это тот же преемник роли, новых исполнителей/помощников/расписаний нет. Исходный resume REPORT d4b7aeababf2f01a9672485f2675757dc8bf3f5c проверен: authorMaksimUnimax09:12:09UTC, onlyREPORT/blobd597ffb8694e8fa3244c20d6cebb9e3b427ede6c. Последующие собственные cff3ac57→0e5b47f5→28cfa6c8 имеют одного автора, только REPORT и независимый полный readback; oldhistory exact true. Перед этой записью вновь проверяется ref/версия и expectedblob6f8334364182072e819b1d5bff2a2130a78e3e79. Любое несовпадение означает остановку записи, не overwrite чужой версии.
