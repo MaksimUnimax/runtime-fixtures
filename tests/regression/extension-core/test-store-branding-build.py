@@ -271,6 +271,42 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
                     composed.store_config(active / "candidate.json", {"version": "0.2.37"})
             self.assertEqual(swapped, [True], "Parent directory swap must occur")
 
+    def test_store_authority_cleanup_closes_all_fds_after_one_close_error(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-close-error-") as temp:
+            file = Path(temp) / "parent" / "candidate.json"
+            file.parent.mkdir()
+            file.write_bytes(self.serialized("https://api-a.example.test"))
+            real_open = os.open
+            real_close = os.close
+            opened = []
+            file_descriptors = []
+            failed = []
+
+            def record_open(path, flags, *args, **kwargs):
+                fd = real_open(path, flags, *args, **kwargs)
+                opened.append(fd)
+                if os.fspath(path) == file.name and kwargs.get("dir_fd") is not None:
+                    file_descriptors.append(fd)
+                return fd
+
+            def close_then_fail_once(fd):
+                real_close(fd)
+                if file_descriptors and fd == file_descriptors[0] and not failed:
+                    failed.append(fd)
+                    raise OSError("synthetic error after final file is closed")
+
+            with patch.object(composed.os, "open", record_open), patch.object(
+                composed.os, "close", close_then_fail_once
+            ):
+                with self.assertRaises((OSError, AssertionError)):
+                    composed.store_config(file, {"version": "0.2.37"})
+            self.assertEqual(len(file_descriptors), 1, "Final file must have opened")
+            self.assertEqual(failed, file_descriptors, "Final file close must fail")
+            self.assertGreaterEqual(len(opened), 3)
+            for fd in opened:
+                with self.assertRaises(OSError, msg=f"Descriptor {fd} remained open"):
+                    os.fstat(fd)
+
     def test_store_authority_open_swap_to_symlink_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-link-") as temp:
             root = Path(temp)

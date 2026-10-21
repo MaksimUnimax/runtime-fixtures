@@ -138,7 +138,7 @@ def read_store_authority_snapshot(path):
     flags = os.O_RDONLY | no_follow | getattr(os, "O_NONBLOCK", 0)
     flags |= getattr(os, "O_CLOEXEC", 0)
     descriptor = None
-    parent_descriptor = None
+    parent_descriptors = []
     try:
         # Do not resolve symlinks. Open every parent by directory fd, so a
         # symlink in an ancestor cannot redirect the final authority open.
@@ -149,11 +149,12 @@ def read_store_authority_snapshot(path):
         parent_flags = os.O_RDONLY | directory_only | no_follow
         parent_flags |= getattr(os, "O_CLOEXEC", 0)
         parent_descriptor = os.open(absolute.anchor, parent_flags)
+        parent_descriptors.append(parent_descriptor)
         for segment in parts[1:-1]:
             next_descriptor = os.open(
                 segment, parent_flags, dir_fd=parent_descriptor
             )
-            os.close(parent_descriptor)
+            parent_descriptors.append(next_descriptor)
             parent_descriptor = next_descriptor
         descriptor = os.open(parts[-1], flags, dir_fd=parent_descriptor)
         before = os.fstat(descriptor)
@@ -196,10 +197,19 @@ def read_store_authority_snapshot(path):
     except OSError as error:
         raise AssertionError("Invalid store release authority file") from error
     finally:
-        if descriptor is not None:
-            os.close(descriptor)
-        if parent_descriptor is not None:
-            os.close(parent_descriptor)
+        # A failed close must not skip remaining descriptors. Never retry the
+        # same fd after an ambiguous close error (its number may be reused).
+        close_error = None
+        descriptors = ([descriptor] if descriptor is not None else [])
+        descriptors.extend(reversed(parent_descriptors))
+        for current in descriptors:
+            try:
+                os.close(current)
+            except OSError as error:
+                if close_error is None:
+                    close_error = error
+        if close_error is not None:
+            raise AssertionError("Invalid store release authority file") from close_error
 
 
 def store_config(authority_path, recipe):
