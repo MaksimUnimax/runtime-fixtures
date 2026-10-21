@@ -227,8 +227,16 @@ def verify_independent_mounts(
         raise BackupError("DATABASE_DATA_NOT_MOUNTPOINT")
     if destination_identity.source == database_identity.source:
         raise BackupError("BACKUP_DESTINATION_NOT_INDEPENDENT")
-    if device_id(config.destination_mount) == device_id(config.database_data_mount):
+    destination_device = device_id(config.destination_mount)
+    database_device = device_id(config.database_data_mount)
+    if destination_device == database_device:
         raise BackupError("BACKUP_DESTINATION_NOT_INDEPENDENT")
+    # The configured roots can be independent while a nested bind mount
+    # redirects the actual backup or PostgreSQL data to the other disk.
+    if device_id(config.destination) != destination_device:
+        raise BackupError("BACKUP_DESTINATION_NOT_INDEPENDENT")
+    if device_id(config.database_data_path) != database_device:
+        raise BackupError("DATABASE_DATA_OUTSIDE_MOUNT")
     if disk_free(config.destination) < config.min_free_bytes:
         raise BackupError("BACKUP_DESTINATION_SPACE_LOW")
     if not os.access(config.destination, os.W_OK | os.X_OK):

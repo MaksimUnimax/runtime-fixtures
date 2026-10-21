@@ -57,7 +57,11 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         raise AssertionError(path)
 
     def device_id(self, path: Path) -> int:
-        return 2 if path.resolve() == self.dest_mount.resolve() else 1
+        return (
+            2
+            if path.resolve() in (self.dest_mount.resolve(), self.dest.resolve())
+            else 1
+        )
 
     def test_database_url_parsing_is_bounded(self) -> None:
         parsed = parse_database_url(self.config.database_url)
@@ -237,6 +241,42 @@ class BackupPostgresIndependentTest(unittest.TestCase):
                 device_id=lambda _path: 1,
                 disk_free=lambda _path: 1024,
             )
+
+    def test_mount_guard_rejects_nested_device_aliases(self) -> None:
+        # A nested bind mount can alias the other mount's device even when
+        # the configured mount roots themselves look independent.
+        cases = [
+            (
+                "backup_directory_aliases_database_device",
+                (2, 1, 1, 1),
+                "BACKUP_DESTINATION_NOT_INDEPENDENT",
+            ),
+            (
+                "database_directory_aliases_backup_device",
+                (2, 2, 1, 2),
+                "DATABASE_DATA_OUTSIDE_MOUNT",
+            ),
+        ]
+        for label, devices, expected_code in cases:
+            physical = dict(
+                zip(
+                    (
+                        self.dest_mount.resolve(),
+                        self.dest.resolve(),
+                        self.db_mount.resolve(),
+                        self.db_data.resolve(),
+                    ),
+                    devices,
+                )
+            )
+            with self.subTest(case=label):
+                with self.assertRaisesRegex(BackupError, expected_code):
+                    verify_independent_mounts(
+                        self.config,
+                        mount_lookup=self.mount_lookup,
+                        device_id=lambda path: physical[path.resolve()],
+                        disk_free=lambda _path: 1024,
+                    )
 
     def _existing_backup(
         self,
