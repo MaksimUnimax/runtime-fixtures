@@ -115,6 +115,9 @@ class BackupPostgresIndependentTest(unittest.TestCase):
             "password_cr": "postgresql://fixture:pw%0Drogue@localhost/db",
             "password_nul": "postgresql://fixture:pw%00rogue@localhost/db",
             "user_lf": "postgresql://fixture%0Arogue:pw@localhost/db",
+            "host_lf": "postgresql://fixture:pw@local%0Ahost/db",
+            "host_cr": "postgresql://fixture:pw@local%0Dhost/db",
+            "host_nul": "postgresql://fixture:pw@local%00host/db",
             "db_lf": "postgresql://fixture:pw@localhost/db%0Arogue",
             "query_lf": "postgresql://fixture:pw@localhost/db?sslmode=require%0Arogue",
             "raw_password_lf": "postgresql://fixture:pw\nrogue@localhost/db",
@@ -136,6 +139,10 @@ class BackupPostgresIndependentTest(unittest.TestCase):
             backup_module._escape_pgpass(parsed.password), r"pw\:with\\slash"
         )
         self.assertEqual(parsed.pg_environment["PGSSLMODE"], "require")
+        # Decoding the host is only for validation; the original PGHOST
+        # spelling must not be rewritten by this safety guard.
+        encoded_host = parse_database_url("postgresql://fixture:pw@local%2Ehost/db")
+        self.assertEqual(encoded_host.host, "local%2Ehost")
 
     def test_findmnt_nonzero_exit_is_bounded(self) -> None:
         def failing_findmnt(argv, **kwargs):

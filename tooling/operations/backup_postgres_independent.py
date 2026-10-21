@@ -132,9 +132,12 @@ def parse_database_url(value: str) -> DatabaseConnection:
     password = unquote(parsed.password) if parsed.password is not None else None
     # Each .pgpass entry occupies one line; embedded NUL/CR/LF in decoded
     # fields or libpq environment overrides is not safely representable.
+    # Preserve PGHOST as provided, but examine percent-decoded hostname bytes
+    # for line separators before creating a libpq .pgpass entry.
+    decoded_host = unquote(host)
     if any(
         any(char in field for char in ("\x00", "\r", "\n"))
-        for field in (host, database, user, password, *pg_environment.values())
+        for field in (decoded_host, database, user, password, *pg_environment.values())
         if field is not None
     ):
         raise BackupError("DATABASE_URL_CONTROL_CHARACTER")
