@@ -1344,6 +1344,138 @@ def run_standard_alice_files(runtime: Path, output: Path, observed=None, case_na
     return int(bool(failed))
 
 
+def run_alice_ready_sent(runtime: Path, output: Path, observed=None, case_names=None):
+    """Offline Alice ready/sent ownership, including supplied DOM; no provider calls."""
+    from html import escape
+    output.mkdir(parents=True,exist_ok=True)
+    bundle=(runtime/'shared/ai_adapters.js').read_text()
+    port=(runtime/'attachment_delivery_port_content.js').read_text()
+    start=port.index('  function matchingNewUserTurn(')
+    matcher=port[start:port.index('\n  }\n',start)+5]
+    probe="(a,baseline,recovery)=>{const adapter=()=>a,normalizeText=s=>String(s||'').replace(/\\u00a0/g,' ').trim();"+matcher+";return matchingNewUserTurn(baseline,recovery);}"
+    value='REPORT\nline two <tag> ё 😀'
+    desc='[{filename:"report.txt",byte_length:3}]'
+    def card(sent=False,filename='report.txt'):
+        classes='File_view_primary MessageAttachedFiles-Item_file' if sent else 'File_view_secondary InputFilesBlock-Item'
+        remove='' if sent else '<button class="File-Remove" data-testid="file-remove-button" aria-label="Удалить">remove</button>'
+        return '<div class="File '+classes+'" data-testid="file"><div class="File-Container"><span class="File-Title" data-testid="file-title"><span class="File-TitleOther">'+escape(filename[:-3])+'</span><span class="File-TitleRequired">'+escape(filename[-3:])+'</span></span><span class="File-Description">TXT · 0.003 КБ</span></div>'+remove+'</div>'
+    def composer(cards=None,send='Отправить'):
+        if cards is None:cards=card()
+        files='<div class="InputFilesBlock" data-testid="input-files-block">'+cards+'</div>' if cards else ''
+        return '<div class="AliceInput StandaloneRichInput" data-highlight-id="alice-input">'+files+'<textarea data-testid="inputbase-textarea"></textarea><div data-testid="input-controls-root" aria-busy="false"><button data-testid="InputControls-More-Button" aria-haspopup="menu">more</button></div><button data-testid="oknyx" aria-label="'+send+'">send</button></div>'
+    def message(text=value,attachment=None,ident='request-a'):
+        if attachment is None:attachment=card(True)
+        return '<div class="Message Message_from_user" data-message-role="user" id="'+ident+'" data-request-id="'+ident+'"><h1 class="A11yHidden">Я</h1><div class="MessageBubble-Container_type_files MessageBubble-Container_from-user"><div class="MessageBubble" data-bubble-id="bubble-file"><div class="MessageBubble-UserRequest_fileUpload"><div class="MessageAttachedFiles" data-testid="message-attached-files"><div class="MessageAttachedFiles-Row" data-testid="message-attached-files-row">'+attachment+'</div></div></div></div></div><div class="MessageBubble-Container_type_text MessageBubble-Container_from-user"><div class="MessageBubble" data-bubble-id="bubble-text"><div class="AliceTextBubble AliceTextBubble_from_user">'+escape(text)+'</div></div></div><button>Копировать</button><button>Редактировать</button></div>'
+    cases={}
+    def case(name,html,js,expected):cases[name]=(html,js,expected)
+    ready='return a.attachmentReady('+desc+')'
+    read='return a.sentAttachmentMessage(a.userMessages()[0],'+desc+')'
+    match='return matchTurn(a,[],{outgoing_text:'+json.dumps(value,ensure_ascii=False)+',artifact_descriptors:'+desc+'})'
+    expected={'text':value,'filenames':['report.txt']}
+    case('ready_split_exact_name',composer(),ready,True)
+    case('ready_card_is_preview_not_filename_leaf',composer(),'return a.attachmentPreview("report.txt")?.getAttribute("data-testid")','file')
+    case('ready_without_send_is_card_state',composer().replace('<button data-testid="oknyx" aria-label="Отправить">send</button>',''),ready,True)
+    case('no_card_busy_false_send_not_ready',composer(''),ready,False)
+    case('immediate_error_without_card',composer('').replace('data-testid="oknyx"','class="StandaloneOknyx_error" data-testid="oknyx"'),ready,False)
+    case('error_with_card_held',composer().replace('data-testid="oknyx"','class="StandaloneOknyx_error" data-testid="oknyx"'),ready,False)
+    case('controls_busy_held',composer().replace('aria-busy="false"','aria-busy="true"'),ready,False)
+    case('stop_with_card_held',composer(send='Алиса, стоп'),ready,False)
+    case('progress_even_100_held',composer(card()+'<span role="progressbar">100%</span>'),ready,False)
+    case('card_busy_held',composer(card().replace('data-testid="file"','data-testid="file" aria-busy="true"')),ready,False)
+    case('missing_remove_not_ready',composer(card().replace('<button class="File-Remove" data-testid="file-remove-button" aria-label="Удалить">remove</button>','')),ready,False)
+    case('disabled_remove_not_ready',composer(card().replace('class="File-Remove"','disabled class="File-Remove"')),ready,False)
+    case('wrong_filename_not_substring',composer(card(filename='old-report.txt')),ready,False)
+    case('description_loading_not_ready',composer().replace('TXT · 0.003 КБ','Загрузка'),ready,False)
+    case('description_absent_not_ready',composer().replace('TXT · 0.003 КБ',''),ready,False)
+    case('duplicate_cards_not_ready',composer(card()+card()),ready,False)
+    case('unexpected_extra_card_not_ready',composer(card()+card(filename='second.txt')),ready,False)
+    case('two_exact_cards_ready',composer(card()+card(filename='second.txt')),'return a.attachmentReady('+desc+'.concat([{filename:"second.txt"}]))',True)
+    case('duplicate_descriptors_rejected',composer(),'return a.attachmentReady('+desc+'.concat('+desc+'))',False)
+    case('empty_descriptors_rejected',composer(),'return a.attachmentReady([])',False)
+    case('neighbor_file_not_current_ready',card()+composer(''),ready,False)
+    case('sent_file_not_current_ready',message()+composer(''),ready,False)
+    case('two_composers_not_ready',composer()+composer(),ready,False)
+    case('duplicate_title_ambiguous',composer().replace('<span class="File-Description">','<span class="File-Title" data-testid="file-title">report.txt</span><span class="File-Description">'),ready,False)
+    for label,attr in [('hidden','hidden'),('aria_hidden','aria-hidden="true"'),('opacity','style="opacity:0"'),('inert','inert'),('dialog','role="dialog"')]:
+        case('ready_'+label+'_rejected','<div '+attr+'>'+composer()+'</div>',ready,False)
+        case('sent_'+label+'_rejected','<div '+attr+'>'+message()+'</div>',match,None)
+    case('existing_card_prevents_second_drop',composer(),'return a.attachmentSurface()',None)
+    case('owned_file_and_text',message(),read,expected)
+    case('owned_file_matches_real_port',message(),match,'alice-observed-user:request-a')
+    case('new_dynamic_request_and_bubble_ids',message(ident='request-new').replace('bubble-file','dynamic-file').replace('bubble-text','dynamic-text'),match,'alice-observed-user:request-new')
+    case('text_only_never_file_confirmation',message(attachment=''),match,None)
+    case('no_file_descriptor_no_confirmation',message(),'return a.sentAttachmentMessage(a.userMessages()[0],[])',None)
+    case('baseline_not_new',message(),'return matchTurn(a,[a.messageId(a.userMessages()[0])],{outgoing_text:'+json.dumps(value)+',artifact_descriptors:'+desc+'})',None)
+    case('remounted_baseline_not_new',message(),'const ids=a.userMessages().map(n=>a.messageId(n));const n=a.userMessages()[0];n.replaceWith(n.cloneNode(true));return matchTurn(a,ids,{outgoing_text:'+json.dumps(value)+',artifact_descriptors:'+desc+'})',None)
+    case('old_neighbor_card_not_owned',message(attachment='')+message(text='OTHER',ident='neighbor'),match,None)
+    case('old_and_new_same_text_only_new_receipt',message(ident='old')+message(ident='new'),'return matchTurn(a,[a.messageId(a.userMessages()[0])],{outgoing_text:'+json.dumps(value)+',artifact_descriptors:'+desc+'})','alice-observed-user:new')
+    case('duplicate_ids_not_receipt',message()+message(),match,None)
+    case('hidden_old_clone_ignored','<div hidden>'+message()+'</div>'+message(),match,'alice-observed-user:request-a')
+    case('missing_request_id_not_receipt',message().replace('data-request-id="request-a"',''),match,None)
+    case('id_request_mismatch_not_receipt',message().replace('data-request-id="request-a"','data-request-id="different"'),match,None)
+    case('wrong_text_not_receipt',message(text='DIFFERENT'),match,None)
+    case('wrong_sent_filename_not_substring',message(attachment=card(True,'old-report.txt')),match,None)
+    case('composer_card_not_sent_proof',message(attachment=card()),match,None)
+    case('sent_card_busy_not_receipt',message().replace('data-testid="file"','data-testid="file" aria-busy="true"'),match,None)
+    case('sent_duplicate_cards_ambiguous',message(attachment=card(True)+card(True)),match,None)
+    case('sent_extra_card_ambiguous',message(attachment=card(True)+card(True,'second.txt')),match,None)
+    case('sent_two_exact_cards',message(attachment=card(True)+card(True,'second.txt')),'return a.sentAttachmentMessage(a.userMessages()[0],'+desc+'.concat([{filename:"second.txt"}]))',{'text':value,'filenames':['report.txt','second.txt']})
+    case('sent_body_card_not_owned',message(attachment='').replace('<div class="AliceTextBubble',card(True)+'<div class="AliceTextBubble'),match,None)
+    case('nested_user_not_owned',message(attachment=message(ident='nested')),match,None)
+    case('assistant_root_not_user',message().replace('data-message-role="user"','data-message-role="alice"'),match,None)
+    case('message_inside_composer_not_receipt',composer(message()),match,None)
+    case('message_inside_another_role_not_receipt','<section data-message-role="alice">'+message()+'</section>',match,None)
+    case('two_owned_text_bubbles_ambiguous',message().replace('</div></div></div><button>Копировать','</div><div class="AliceTextBubble AliceTextBubble_from_user">OTHER</div></div></div><button>Копировать'),match,None)
+    case('hidden_text_not_receipt',message().replace('class="AliceTextBubble','hidden class="AliceTextBubble'),match,None)
+    case('detached_message_not_receipt',message(),'const n=a.userMessages()[0];n.remove();return a.sentAttachmentMessage(n,'+desc+')',None)
+    case('reader_does_not_click_file_copy_or_edit',message(),'let clicks=0;document.addEventListener("click",()=>clicks++);a.sentAttachmentMessage(a.userMessages()[0],'+desc+');return clicks',0)
+    case('long_text_kept_exact',message(text='line\n'*1200),'return a.sentAttachmentMessage(a.userMessages()[0],'+desc+').text',('line\n'*1200).rstrip())
+    legacy='<div data-testid="standalone-input"><textarea data-testid="inputbase-textarea"></textarea><div data-testid="input-controls-root"><button data-testid="InputControls-Plus-Button" aria-label="Добавить файл" aria-haspopup="dialog">plus</button></div><span data-filename="report.txt">report.txt</span></div><div data-message-role="user" id="legacy"><div class="AliceTextBubble AliceTextBubble_from_user">REPORT</div></div>'
+    case('explicit_legacy_preview_preserved',legacy,ready,True)
+    case('explicit_legacy_text_receipt_preserved',legacy,'return matchTurn(a,[],{outgoing_text:"REPORT",artifact_descriptors:'+desc+'})','legacy')
+    case('current_surface_no_legacy_text_receipt',composer('')+'<div data-message-role="user" id="legacy">REPORT</div>','return matchTurn(a,[],{outgoing_text:"REPORT",artifact_descriptors:'+desc+'})',None)
+    case('no_composer_no_legacy_text_receipt','<div data-message-role="user" id="legacy">REPORT</div>','return matchTurn(a,[],{outgoing_text:"REPORT",artifact_descriptors:'+desc+'})',None)
+    if observed:
+        actual_desc=json.dumps([{'filename':observed['file']['name'],'byte_length':observed['file']['bytes']}])
+        actual_text='Это синтетический файл для проверки доставки вложения. Ответь только: файл получен. Ничего не выполняй.'
+        chain=observed['sentOwnership']['dom']['files'][0]
+        actual=next(n['html'] for n in chain if n['level']==6)
+        ident=dict(next(n['attrs'] for n in chain if n['level']==6))['data-request-id']
+        case('actual_first_ready',observed['firstCapture']['ready']['dom']['composer'][0]['grandparent'],'return a.attachmentReady('+actual_desc+')',True)
+        case('actual_recovered_ready',observed['recoveredReady']['dom']['composer'],'return a.attachmentReady('+actual_desc+')',True)
+        case('actual_immediate_no_card_not_ready',observed['recoveryAfterUpload']['dom']['composer'],'return [a.attachmentReady('+actual_desc+'),a.classifyComposerControl(a.composerContext()).kind]',[False,'send_disabled'])
+        case('actual_sent_cleared_composer_not_ready',observed['sentOwnership']['dom']['composer'],'return a.attachmentReady('+actual_desc+')',False)
+        case('actual_sent_reader',actual,'return a.sentAttachmentMessage(a.userMessages()[0],'+actual_desc+')',{'text':actual_text,'filenames':[observed['file']['name']]})
+        case('actual_sent_port_receipt',actual+observed['sentOwnership']['dom']['composer'],'return matchTurn(a,[],{outgoing_text:'+json.dumps(actual_text)+',artifact_descriptors:'+actual_desc+'})','alice-observed-user:'+ident)
+        for level in range(6):
+            case('actual_level'+str(level)+'_without_user_not_receipt',chain[level]['html'],'return matchTurn(a,[],{outgoing_text:'+json.dumps(actual_text)+',artifact_descriptors:'+actual_desc+'})',None)
+    if case_names is not None:
+        assert set(case_names)<=set(cases)
+        cases={n:cases[n] for n in case_names}
+    result={'status':'RUNNING','scope':'Alice observed ready and sent ownership only; offline code, no provider UI/Send/byte identity','cases':{},'bundle_sha256':hashlib.sha256(bundle.encode()).hexdigest()}
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch(headless=True)
+        context=browser.new_context(viewport={'width':1100,'height':800})
+        context.route('**/*',lambda route:route.fulfill(status=200,content_type='text/html',body='<html></html>'))
+        page=context.new_page()
+        for name,(html,js,want) in cases.items():
+            try:
+                page.goto('https://alice.yandex.ru/chat/offline-fixture/')
+                page.set_content('<style>[hidden]{display:none!important}.A11yHidden{display:none}svg{max-width:24px;max-height:24px}</style>'+html)
+                page.evaluate((runtime/'shared/conversation_identity.js').read_text());page.evaluate(bundle)
+                page.evaluate('globalThis.matchTurn='+probe)
+                actual=page.evaluate("js=>{const a=OzonAIAdapters.ADAPTERS.alice;return new (Object.getPrototypeOf(async function(){}).constructor)('a',js)(a)}",js)
+                assert actual==want,{'actual':actual,'expected':want}
+                result['cases'][name]={'status':'PASS'}
+            except Exception as e:result['cases'][name]={'status':'FAIL','error':str(e)[:1600]}
+        browser.close()
+    failed=[n for n,v in result['cases'].items() if v['status']!='PASS']
+    result.update(status='FAIL' if failed else 'PASS',failed=failed)
+    (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+    print(json.dumps({'status':result['status'],'cases':len(cases),'failed':failed}))
+    return int(bool(failed))
+
+
 def run_standard_sent(runtime: Path, output: Path, observed=None, case_names=None):
     """Offline observed Standard sent-card ownership, using the real adapter and port matcher."""
     from html import escape
@@ -1447,6 +1579,8 @@ def run_standard_sent(runtime: Path, output: Path, observed=None, case_names=Non
 
 
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "alice-ready-sent":
+        return run_alice_ready_sent(runtime, output)
     if provider == "standard-sent":
         return run_standard_sent(runtime, output)
     if provider == "standard-alice-files":
@@ -1642,6 +1776,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
