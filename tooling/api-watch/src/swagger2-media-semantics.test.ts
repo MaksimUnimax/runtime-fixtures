@@ -222,6 +222,65 @@ describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () 
     expect(empty.requestBodyPresent).toBe(false);
   });
 
+  it("ignores Swagger 2 MIME type/subtype letter case in consumes and produces", () => {
+    const result = compare(
+      {
+        rootConsumes: ["application/json"],
+        rootProduces: ["application/json"],
+      },
+      {
+        rootConsumes: ["APPLICATION/JSON"],
+        rootProduces: ["Application/Json"],
+      },
+    );
+    expect(result.state).toBe("UNCHANGED");
+    expect(result.fields).toEqual([]);
+
+    const duplicateCaseVariants = compare(
+      {
+        rootConsumes: ["application/json"],
+        rootProduces: ["image/png"],
+      },
+      {
+        rootConsumes: ["APPLICATION/JSON", "application/json"],
+        rootProduces: ["image/png", "IMAGE/PNG"],
+      },
+    );
+    expect(duplicateCaseVariants.state).toBe("UNCHANGED");
+  });
+
+  it("preserves case-sensitive MIME parameter values while normalizing type/subtype", () => {
+    const sameParameters = compare(
+      {
+        operationConsumes: ["multipart/form-data; boundary=CaseSensitiveABC"],
+        operationProduces: [
+          "application/vnd.example+json; profile=CaseSensitiveABC",
+        ],
+      },
+      {
+        operationConsumes: ["MULTIPART/FORM-DATA; boundary=CaseSensitiveABC"],
+        operationProduces: [
+          "APPLICATION/VND.EXAMPLE+JSON; profile=CaseSensitiveABC",
+        ],
+      },
+    );
+    expect(sameParameters.state).toBe("UNCHANGED");
+
+    const changedParameters = compare(
+      {
+        rootConsumes: ["multipart/form-data; boundary=CaseSensitiveABC"],
+        rootProduces: ["application/json; profile=CaseSensitiveABC"],
+      },
+      {
+        rootConsumes: ["multipart/form-data; boundary=casesensitiveabc"],
+        rootProduces: ["application/json; profile=casesensitiveabc"],
+      },
+    );
+    expect(changedParameters.state).toBe("CHANGED");
+    expect(changedParameters.fields).toContain("requestSchemaSha256");
+    expect(changedParameters.fields).toContain("responseSchemaSha256");
+  });
+
   it("treats MIME lists as order-insensitive sets, including duplicate entries", () => {
     const result = compare(
       {

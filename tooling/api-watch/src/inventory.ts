@@ -373,6 +373,19 @@ function parametersFingerprint(
   return fingerprint(projected);
 }
 
+// Swagger 2.0 media type and subtype are ASCII case-insensitive. Parameters
+// may carry case-sensitive values (for example, multipart boundary strings).
+// Normalize only the type/subtype segment and deduplicate after normalization.
+function canonicalSwagger2MediaType(value: string): string {
+  const separator = value.indexOf(";");
+  const typeAndSubtype = (separator < 0 ? value : value.slice(0, separator))
+    .trim()
+    .toLowerCase();
+  return separator < 0
+    ? typeAndSubtype
+    : typeAndSubtype + value.slice(separator);
+}
+
 // Fail closed on malformed Swagger 2.0 media declarations rather than
 // silently treating a string or mixed-type list as an absent MIME contract.
 function checkedSwagger2MediaList(value: unknown): string[] {
@@ -385,7 +398,7 @@ function checkedSwagger2MediaList(value: unknown): string[] {
     )
   )
     throw new Error("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
-  return stringList(value);
+  return stringList(value.map(canonicalSwagger2MediaType));
 }
 
 // Swagger 2.0 operation MIME declarations override root declarations, and
