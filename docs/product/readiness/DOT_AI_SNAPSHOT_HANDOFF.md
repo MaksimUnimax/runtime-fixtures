@@ -911,6 +911,57 @@ Checkpoint SHA256: `1b905b12b84715a558392f1711a4e669c606719efd7c31f5ad2a95d25549
 **Весь исходный B02 остаток:** ChatGPT Standard, Алиса, Qwen, DeepSeek, Claude, Gemini, Grok, Kimi — каждый отдельно; GPT Work/dot отдельно. Для каждого сохраняются непроверенные installed popup/Start/idempotence/assistant-code-button/package/result/error/recovery/executionId/report-large-file real delivery/Send-busy-Stop/Copy/hide-show/Finish-newStart/изоляция2диалогов-магазинов-площадок. Provider-specific принятые DOM и UNKNOWN не заменены новой матрицей; Standard natural expiry по-прежнему NOT_CAPTURED. Новая причина не открывает независимую подтверждённую source-правку в этих адаптерах; SOURCE PASS не повышен до installed/full B02. §11 и весь чужой WIP сохранены.
 
 
+### TESTER_OWNER1348_PREPRODUCTION_EXECUTED_OWNER_LOGIN_INPUT_20261021
+
+**Получено и исполнено тем же sole Tester.** Свежий §11 `DOT_TO_SAME_TESTER_OWNER_APPROVED_PUBLIC_CONFIG_BINDING_20261021_134850` прочитан вместе с issuer дополнением14:11:52UTC; обе пары question/YES приняты. Source/config YES `Sentinel_cf9e000d973081919a14a7255c080a89` (точное время ответа UNKNOWN); owner-as-issuer YES **13:59:54UTC**, `Sentinel_115816e888908191b540ab5c1d34ec05`. Это новое exact approval, а не прежнее conditional11:57. Владелец — утверждающий issuer; Тестер лишь оформил публичное решение, без своей подписи, нового ключа или выдачи себя за другого issuer.
+
+**Свежая проверка перед выполнением.** Easyscript9dab7ad2… online, RDC active sessions/retained calls отсутствовали; чужие A/B/C state/WIP не менялись. Кандидат clean: **cc8abe7beeffad517954bae9ea952612a1c7ef9b**, tree **d666da4cb15ffd8de5733b7b7a87282e1c6c4588**. Исход390c и result SHAe274ff6… проверены; выполняемой/неизвестной предыдущей Tester-операции не было. MemAvailable8791316KiB, memory full avg10=0; disk25372MiB−held16835−safety3072=5465MiB, free inode3946565. Собственные конечные units: `octo-tester-b02-preprod-build-20261021-1419` (3072MiB/180s) и `octo-tester-b02-preprod-native-20261021-1419` (1536MiB/900s), без нового runner/профиля/исполнителя.
+
+Все следующие файлы находятся в прежнем evidence root:
+`/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/KIMI_PROFILE_RUNTIME_20261019T163000Z/`.
+
+**Public authority и штатная упаковка выполнены.**
+-14:14:48.827362UTC механически оформлен отдельный immutable public `B02_OWNER1348_CC8_PREPRODUCTION_AUTHORITY_20261021.json`, SHA256 **35071d5a4068dd723120c9c6e112c4079d49a0964f23dcbda92446e43a1a1db2**. Exact eight-key schema, нынешние cc8/tree d666,0.2.37/control_plane_v2/migration61; никаких старых source/tree.
+- Отдельная `B02_OWNER1348_CC8_PREPRODUCTION_APPROVAL_PROVENANCE_20261021.json`, SHA256 **ca424980fb8b40edd94813debe6d8838f30c746ef693c0c22d5c391d819686ec**: точные owner question/YES/issuer IDs, времена и полный свежий §11 relay. Не добавлены поля в authority schema; crypto signature/private key не создавались.
+- Сохранённая public config извлечена из прежнего worker21cc5c…; exact JSON string SHA256 **0b621c6d74f533ea1ce79a34321cd1caaa7bdf9f75bf9f809dfcdb74c52a9c3d**. API **https://api.octoport.ru**, portal **https://app.octoport.ru**, прежний public key `octoport-preprod-2026-09-19`/fingerprint **edc47821df296868c7061069ed50fa742f70a75889bd010dadef5166fadc4645**.
+- Штатный `tooling/b1/release-lib.mjs::readAuthority` на существующем Node24 подтвердил exact source/tree/product/public trust contract. Composer `--mode store --release-authority …` завершён0: deterministic repeat ZIP/source-extracted parity PASS. Это технический режим сборки для личного PREPRODUCTION, **не Store submission или release acceptance**.
+- Новый отдельный пакет **0.2.37 PREPRODUCTION**, **2707548B**, `B02_PREPRODUCTION_PACKAGE_cc8abe7b_OWNER1348/OCTOPORT_v0.2.37_CHROMIUM_STORE.zip`, SHA256 **ecccb6e6801d5a2456b5e124b1565b131acb560a9ca6b16e44ff95e891c03911**.
+
+**Установка и исполняемый worker доказаны.**
+-14:17:00.978457UTC установлены ровно **43** composer members в прежний `/root/octoport-control/temporary/controller/dot-extension-20261006T0254Z/extension`; каждый совпал с source-composition/extracted/ZIP. Перед заменой подтверждено побайтное совпадение прежних41 members с сохранённым development ZIP35a00911…. Официальный store delta:3 brand icons добавлены, standalone `shared/bootstrap_verifier.js` исключён штатным recipe, verifier в worker prelude сохранён. Unique WIP не удалялся.
+- Сохранён тот же **profile** рядом с extension; Chrome for Testing155.0.8059.84Linux. **14:19:42.501876UTC** один штатный Reload в chrome://extensions.
+- **14:20:49.441UTC** read-only запрос в настоящем service-worker DevTools показал runtime ID `ffppleddlcebgkdmkpcalkljifalgnnm`, version0.2.37, загруженный PREPRODUCTION config SHA0b621c6d… и worker resource SHA256 **626c0010626374732bc1c76ba635b482f7619f27eb639920e9aa72d6c5904feb**, совпадающий с установленным пакетом. Screenshot `B02_OWNER1348_WORKER_EXECUTED.png`. Worker inspector закрыт **до** открытия исходного toolbar popup/входа. Popup инспектором не удерживался.
+- `B02_OWNER1348_PACKAGE_INSTALL_READBACK_20261021.json`, SHA256 **b68397f508ea87b9a712d611636ea26871f7db8b7f95eeb534d7594a03f08a9f**.
+
+**Обычный вход выполнен до новой конкретной credential-границы.**
+1. Исходный popup под закреплённым значком открылся с JS; для сохранённого auth показывал **ACTIVATION_CONTEXT_MISMATCH**, «Вход не выполнен», каталог скрыт. Auth/cache/clock storage не читался и не подменялся.
+2. **14:21:46.190197UTC** ровно один click **«Войти через портал»**. Настоящий портал открылся; localhost43100 не вызывался повторно.
+3. **14:23:15.012650UTC** фактический UI **https://app.octoport.ru/login**: **Sign in → Email → Send code**, видимый enabled `input[type=email]`, поле пустое. Сохранённый вход в портал не подтверждён; account/device-auth endpoints вернули401, token endpoint409. Тело409 не читалось: не объявлять его signature failure или окончательным отказом. **Send code не нажат**, email/OTP не получены/не вводились.
+4. **Точный текущий блок: ввод владельца для входа существующим аккаунтом в настоящий портал в том же сохранённом профиле.** Минимальное действие владельца: ввести свой существующий email в **Email**, пройти штатные **Send code → одноразовый код непосредственно на портале** и подтвердить эту установку, если обычный поток потребует. Секреты не передавать в чат/handoff. Нового аккаунта/ключа/постоянного grant не требуется и не создавалось. Повторного YES на PREPRODUCTION/issuer/обычный вход не запрашивать.
+5. До этого действия **native chooser→close→reopen/actual File bytes/hash — NOT_REACHED**. Нового chooser, synthetic file или File PASS/FAIL нет; успешный bootstrap/signature acceptance и текущий server signing lifecycle **не доказаны**. HTTP200, packaged ACTIVE и открытие login-формы их не заменяют. Все fail-closed проверки сохранены.
+
+**Причина localhost исправлена фактически:** новый executing worker использует прежний approved реальный target/trust, ordinary login достигает реального портала. Это больше не ожидание issuer/B/Ops и не общий отказ «native lifecycle». Новая граница конкретно owner login input. Browser закрыт штатной командой существующего QA driver, чтобы не оставлять login-polling; оба собственных units **success/exit0/inactive/empty cgroup**, Chrome processes0. Профиль, установленный PREPRODUCTION и Xvfb сохранены. Старые native FAIL, два pre-Reload FAIL, original TTL/fences, SOURCE review и все исходные ZIP остаются.
+
+Первичный итог **14:25:31.638699UTC**: `B02_OWNER1348_PREPRODUCTION_NATIVE_RESULT_20261021.json`, **14047B**, SHA256 **4302b1527207de0626b49029f73918e70469f0079bf59ac3a8ae2750d4d1fb64**. Status **PACKAGE_INSTALLED_EXECUTING_WORKER_VERIFIED_NORMAL_AUTH_REACHED_OWNER_LOGIN_FORM_NATIVE_NOT_REACHED**. Подготовительные assertion/старый Node parser/локальные screenshot-tool ошибки завершились до соответствующей записи/сборки/изменения; использованы проверенные штатные входы и существующий Node24/ffmpeg. Одно read-only RDC network UNAVAILABLE повторено после проверки отсутствия retained call; неизвестная mutation не повторялась.
+
+**Независимый полный остаток сверён с текущими §12 и каноном33/v3.3** (SHA39b7f20a…). Нового отсутствующего DOM или конкретной доступной незавершённой code-правки эта login-граница не открыла; не создавалась работа ради ACK и не повторялась принятая матрица. Для **каждой** строки ниже полный installed B02 **NOT_ACCEPTED**:
+
+| Поверхность | Сохранённое доказательство / собственная UNKNOWN |
+|---|---|
+| ChatGPT Standard | TXT ready/sent own-turn DOM; natural expiry/login-required NOT_CAPTURED, прежний адресный запрос dot сохранён |
+| Алиса | Ready/sent file+text; подробный loading UNKNOWN |
+| Qwen | Own file/sent; Send enabled не равен ready |
+| DeepSeek | Natural terminal/upload-end/sent; forced Stop/retry не доказаны |
+| Claude | Own article/file/body; полнота busy root ограничена |
+| Gemini | TXT input отдельно от image-only; own query file preview |
+| Grok | Own attachment/filename; full busy root UNKNOWN |
+| Kimi | User segment/success card/final-code; reload identity не доказана |
+| GPT Work — отдельно | Ready/sent/natural completion/Copy; truncated card не полный4root; Work home не Chat mode |
+| dot — отдельно | Local nonpending row/card/code; terminal/Reply/reload identity UNKNOWN, не новый Start gate |
+
+Для каждой поверхности сохраняются: popup импорт/удержание; одна Start-инструкция/idempotence; assistant/full code/button; разрешённый package/result/error/recovery/executionId; полный отчёт/большой файл с реальной доставкой/обработкой в исходном диалоге; Send/busy/Stop; Copy без исполнения; hide/show только видимость; Finish/newStart; изоляция2диалогов/магазинов/площадок. Принятые **60distinct matcher/recovery +14linked-cycle +1consumer API doubles +5distinct ACK code PASS** и SOURCE review сохранены, не rerun; один общий package/auth результат не переносится на8ИИ. Development0.2.37/2744072B/SHA **35a00911bacf664be2df4f04d694ec5ff6a9e6b7960889e515f8f21dff2a5786** и старый eaad6ea8… сохранены. Source cc8 чистый; §11/остальные разделы/чужой WIP не менялись; AI auth/Send/marketplace, DB/server/security, clocks/cache guards, private keys, новые аккаунты/доступы не затрагивались.
+
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
