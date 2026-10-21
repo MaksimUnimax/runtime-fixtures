@@ -590,6 +590,9 @@ describe("production source authority model", () => {
   });
   it("rejects substituted or empty required WB document sets", () => {
     const required = Array.from({ length: 13 }, (_, i) => `WB_DOC_${i + 1}`);
+    const firstRequiredKey = required[0];
+    if (firstRequiredKey === undefined)
+      throw new Error("Missing synthetic required WB document key");
     const accepted = (documentKey: string) => ({
       sourceFamily: "WILDBERRIES" as const,
       documentKey,
@@ -605,6 +608,32 @@ describe("production source authority model", () => {
     expect(familyAuthorityStatus(complete, required)).toBe(
       "AUTHORITY_ACCEPTED",
     );
+    // Every required key must be represented by exactly one accepted row.
+    // A set of successful keys cannot hide duplicate or denied source rows.
+    const blockedDuplicate = {
+      ...accepted(firstRequiredKey),
+      status: "OPERATOR_SOURCE_REQUIRED" as const,
+      authorityStatus: "AUTHORITY_BLOCKED" as const,
+      sha256: null,
+      sizeBytes: null,
+      specVersion: null,
+      blockerReason: "synthetic denial on duplicate key",
+    };
+    expect(
+      familyAuthorityStatus([...complete, blockedDuplicate], required),
+    ).toBe("AUTHORITY_PARTIAL");
+    expect(
+      familyAuthorityStatus(
+        [...complete, accepted(firstRequiredKey)],
+        required,
+      ),
+    ).toBe("AUTHORITY_PARTIAL");
+    expect(
+      familyAuthorityStatus(
+        [...complete, { ...blockedDuplicate, documentKey: "UNREGISTERED_DOC" }],
+        required,
+      ),
+    ).toBe("AUTHORITY_PARTIAL");
     const substituted = complete.map((doc, index) =>
       index === 0 ? accepted("UNREGISTERED_DOC") : doc,
     );

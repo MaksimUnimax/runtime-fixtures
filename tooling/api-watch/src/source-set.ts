@@ -63,12 +63,18 @@ export function familyAuthorityStatus(
       .map((document) => document.documentKey),
   );
   const required = new Set(requiredDocumentKeys);
-  // A matching count alone can hide a missing official document that was
-  // replaced by an unexpected key. Reject empty/duplicate required sets too.
+  // Complete authority requires one accepted row per expected document.
+  // Set cardinality alone hides duplicates or rejected source rows.
   if (
     required.size > 0 &&
     required.size === requiredDocumentKeys.length &&
+    documents.length === required.size &&
     accepted.size === required.size &&
+    documents.every(
+      (document) =>
+        document.authorityStatus === "AUTHORITY_ACCEPTED" &&
+        required.has(document.documentKey),
+    ) &&
     [...required].every((key) => accepted.has(key))
   )
     return "AUTHORITY_ACCEPTED";
