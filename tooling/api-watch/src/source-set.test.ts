@@ -588,6 +588,41 @@ describe("production source authority model", () => {
     ).toBe("AUTHORITY_PARTIAL");
     expect(familyAuthorityStatus([blocked], ["x"])).toBe("AUTHORITY_BLOCKED");
   });
+  it("rejects substituted or empty required WB document sets", () => {
+    const required = Array.from({ length: 13 }, (_, i) => `WB_DOC_${i + 1}`);
+    const accepted = (documentKey: string) => ({
+      sourceFamily: "WILDBERRIES" as const,
+      documentKey,
+      officialUrl: "https://dev.wildberries.ru/x",
+      status: "ACQUIRED" as const,
+      sha256: "a",
+      sizeBytes: 1,
+      specVersion: "3.0.3",
+      authorityStatus: "AUTHORITY_ACCEPTED" as const,
+      blockerReason: null,
+    });
+    const complete = required.map(accepted);
+    expect(familyAuthorityStatus(complete, required)).toBe(
+      "AUTHORITY_ACCEPTED",
+    );
+    const substituted = complete.map((doc, index) =>
+      index === 0 ? accepted("UNREGISTERED_DOC") : doc,
+    );
+    expect(familyAuthorityStatus(substituted, required)).toBe(
+      "AUTHORITY_PARTIAL",
+    );
+    expect(
+      familyAuthorityStatus([accepted("UNREGISTERED_DOC")], required),
+    ).toBe("AUTHORITY_BLOCKED");
+    expect(familyAuthorityStatus([], [])).toBe("AUTHORITY_BLOCKED");
+    expect(
+      familyAuthorityStatus(
+        [...complete, accepted("UNREGISTERED_DOC")],
+        required,
+      ),
+    ).toBe("AUTHORITY_PARTIAL");
+  });
+
   it("SRC-11..SRC-14 create an order-independent manifest and fail duplicate operation identities", () => {
     const a = canonicalFamilyManifest({
       sourceFamily: "WILDBERRIES",

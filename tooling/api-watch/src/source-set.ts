@@ -62,9 +62,18 @@ export function familyAuthorityStatus(
       .filter((document) => document.authorityStatus === "AUTHORITY_ACCEPTED")
       .map((document) => document.documentKey),
   );
-  if (accepted.size === requiredDocumentKeys.length)
+  const required = new Set(requiredDocumentKeys);
+  // A matching count alone can hide a missing official document that was
+  // replaced by an unexpected key. Reject empty/duplicate required sets too.
+  if (
+    required.size > 0 &&
+    required.size === requiredDocumentKeys.length &&
+    accepted.size === required.size &&
+    [...required].every((key) => accepted.has(key))
+  )
     return "AUTHORITY_ACCEPTED";
-  if (accepted.size > 0) return "AUTHORITY_PARTIAL";
+  if ([...accepted].some((key) => required.has(key)))
+    return "AUTHORITY_PARTIAL";
   if (
     documents.some(
       (document) => document.authorityStatus === "AUTHORITY_REVIEW_REQUIRED",
