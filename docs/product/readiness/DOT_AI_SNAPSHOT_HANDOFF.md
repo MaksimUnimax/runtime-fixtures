@@ -962,6 +962,19 @@ Checkpoint SHA256: `1b905b12b84715a558392f1711a4e669c606719efd7c31f5ad2a95d25549
 Для каждой поверхности сохраняются: popup импорт/удержание; одна Start-инструкция/idempotence; assistant/full code/button; разрешённый package/result/error/recovery/executionId; полный отчёт/большой файл с реальной доставкой/обработкой в исходном диалоге; Send/busy/Stop; Copy без исполнения; hide/show только видимость; Finish/newStart; изоляция2диалогов/магазинов/площадок. Принятые **60distinct matcher/recovery +14linked-cycle +1consumer API doubles +5distinct ACK code PASS** и SOURCE review сохранены, не rerun; один общий package/auth результат не переносится на8ИИ. Development0.2.37/2744072B/SHA **35a00911bacf664be2df4f04d694ec5ff6a9e6b7960889e515f8f21dff2a5786** и старый eaad6ea8… сохранены. Source cc8 чистый; §11/остальные разделы/чужой WIP не менялись; AI auth/Send/marketplace, DB/server/security, clocks/cache guards, private keys, новые аккаунты/доступы не затрагивались.
 
 
+### TESTER_OWNER_EMAIL_NORMAL_LOGIN_CODE_INPUT_20261021_1535
+
+Владелец предоставил адрес существующего аккаунта только для уже разрешённого штатного входа и запретил публикацию адреса. Адрес **не включён** в GitHub, handoff, state, результаты или сохранённые снимки. Ввод выполнен нативно в форме настоящего портала; email-bearing QA request не создавался. Перед Send code точность поля проверена визуально в памяти, без сохранения немаскированного изображения.
+
+Свежая проверка15:32UTC: прежний f0b950a2 известен; source cc8/tree d666 clean, package ecccb6e6… и executing-worker bytes626c0010… неизменны; прежний браузер закрыт, свой unit inactive/success, активных RDC sessions и второго автора/операции нет. Единственная retained RDC запись — завершившийся чужой list_directory timeout; не повторялась. Чужой WIP сохранён. Доступно disk25354−held16835−3072=5447MiB, MemAvailable9110008KiB, memory full avg10=0. Продолжен тот же сохранённый profile штатным прежним driver; новый собственный конечный unit `octo-tester-b02-owner-email-auth-20261021-1533`,1536MiB/900s, start **15:32:39UTC**.
+
+**15:35:05.779306UTC — один Send code.** **15:36:07.729062UTC — фактическая форма портала `https://app.octoport.ru/login`: “Sign in / Code / Verify”**. Код не вводился, Verify не нажат, повторный Send code не выполнялся. Доставка письма в mailbox не наблюдалась; доказаны обычный запрос и переход UI к вводу кода. Email более не является недостающим input. Нужен одноразовый код владельца непосредственно в поле Code настоящего портала, без публикации секрета. Нового YES на вход не требуется.
+
+Браузер оставлен на этой форме в том же профиле под конечным unit, предел **15:47:39UTC**; это не фоновая попытка входа и не право на продление cap. При следующем продолжении сначала установить текущую форму/исход unit; не повторять отправку кода вслепую. **Auth completion и native chooser→close→reopen/File bytes — NOT_REACHED.**
+
+Первичный результат `B02_EMAIL1533_NORMAL_LOGIN_RESULT_20261021.json` в прежнем evidence root, **2455B**, SHA256 **27cf92ea631bbe1f30e45ade616fd8d211ef23da88ec3fa4217c8c34a725ce3f**,15:36:55.029325UTC. §11/чужой WIP/source/оба ZIP/прежние FAIL/review/60+14+1+5 PASS сохранены. Полный остаток всех8ИИ и отдельно Work/dot — по f0b950a2, installed/full B02 для каждой поверхности открыт. Этот новый input открывает только продолжение normal login; независимой новой source-правки/DOM-границы нет, матрица не повторялась. AI/marketplace/auth seed/security/cache-clock изменений нет.
+
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
