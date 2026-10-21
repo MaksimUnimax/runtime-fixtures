@@ -1,3 +1,57 @@
+# Последний проверенный итог продолжения — 2026-10-21T10:38:13.084Z
+
+**Тот же единственный Контроллер. Аудит не завершён: audit_complete=false, все 12 OPEN.** Сохраняются весь исходный аудит, PLAN/WIP, закрытые узкие результаты и полная история ниже. Последний собственный REPORT b39978f9117a9cc38ff19c89f7f4f385dbeaa384, автор MaksimUnimax10:28:34UTC, parent770576ea, толькоREPORT/blob12396139bc1a19b60325cb409efc5e9b1117df21, полный readback10:28:36.381 exact. Перед новой записью проверяются freshref и версия; чужие source/rolefiles/профили/правила не меняются.
+
+## B03: проверен фактический результат исправления, а не только передача
+
+Существующий B самостоятельно потребил обе разные границы original10ab: I1 ABORTED153 и Server STATIC-71. Source-исправление Server было в работе ещё до own Controller handoff; причинность от сообщения не заявлена. После actualsource correction и уже выполненного независимого R3 review получен публичный точный кандидат **0440aef70e774452546109ba869b46f5ed1d553f**, parent10ab. Delta0440 только одна строка pinned SHA в STATIC-71;154operations сохранены. R3verdict ACCEPT_SOURCE_SCOPED, безP0/P1/P2, SHA0003d135c4d64cb67d737b93777bf9438e5a66300757941339d7528f8d47d6ac, reviewer не запускалtests/CI. Controller этот review не заказывал и не повторял.
+
+**Все пять оригинальных push workflow и13/13jobs этого exact0440 завершились SUCCESS, attempt1.** Лично сверены exacthead/status/conclusion/event/attempt и все13jobIDs, не зелёныезначки другогоSHA:
+
+| Семья | Original push run | Терминальный результат |
+|---|---:|---|
+| Server CI | 39583262953 | 2/2 jobs SUCCESS; server119165868110 завершён10:32:25; run10:32:26 |
+| Extension CI | 39583262840 | 6/6 jobs SUCCESS; последний wb-browsers119165862147 завершён10:26:57 |
+| Extension I1-C1 | 39583262982 | 3/3 jobs SUCCESS; installed-local119165858428 завершён10:17:10 |
+| Documentation CI | 39583262909 | job119165797466 SUCCESS10:15:44 |
+| Coordination/release safety | 39583262859 | job119165797339 SUCCESS10:16:08 |
+
+Исходная упавшая граница проверена на настоящем новом run: **Run complete integration suite SUCCESS10:24:47**, затем ServerE2E и весьjobSUCCESS. Именно завершённые originalnativeпроверки существующего автора потреблены чтением; root не запускалtest/review/CI/rerun.
+
+**Фактическое дальнейшее действие того же B подтверждено:** PR252 “fix(transfer): map GET conflicts and synchronize OpenAPI (B03)” открыт10:34:04, неdraft, HEADexact0440/basecurrentmain2731e016a589541d93e1ff774dcae38bda2bfb67. Собственный B task append B03_PR252_EXACT0440_5NATIVE_13JOBS_PASS_AND_3PR_CHECKS_STARTED_20261021 issued10:35:20.407862 лично прочитан: B сам подтвердил5/5/13/13 и перешёл к дополнительным PR-triggerchecks. Документальная передача не является единственным исходом — есть исправленныйreviewedкандидат, настоящаяповторнаяпроверкаисходнойграницы, публикация, terminal5 и новыйPR собственным автором. Новый reminder/назначение B не нужен.
+
+Отдельные original PR-triggerruns того жеSHA: Docs39585533608 SUCCESS; Server39585533599 иExtension39585533615 IN_PROGRESS наread10:35:51. Это новые исходные pull_request события после открытия PR, **не rerun** старых failedruns и не подмена originalpush5. **PR252 пока OPEN/неmerged**, main по свежемуref ещё2731. Protectedmerge/postmerge и installed/realB03two-instancepreACK — остаток существующего B, не выполненный Controller.
+
+**История отрицательных результатов сохранена:**9581Server39572057004 OpenAPIunitFAIL;10abServer39579580960 STATIC-71FAIL иI139579580984 ABORTED153FAIL. Новый0440I1SUCCESS не объясняет physicalinitiator10ab и не делает oldfailedrun зелёным. Originalartifact12335343284/1553136B/SHA41c916201414fbc8ba7dbef6bdc6e4211682d7727df9ee511e9506058916963d прочитан вRAM только как progress/result, безsource/вложенногоZIP/файловна диске/новогоreproduction. Старые412?/иныесчётчики не используются: primaryoriginalServer10ab1969PASS/1FAIL, exactnewnativeобщийPASS указан отдельно. Историческая причина ABORTED153 остаётся **UNKNOWN**; подготовленный B→existingA/Tester originalI1handoff лично прочитан, не расширен на чужую popupпроверку.
+
+## Accounting и остальные потоки
+
+**64 МиБ staleожидание закрыто фактическим ownerclose dot.** ExistingallocationCLOSED09:50:06, nativeclosed_at09:50:06.219885; все исходные9полейкромеstateсохранены, толькоhistory/closed_atadded. Потреблениеdot+Controllercff3вrecordесть. Permanent1498B reviewlog SHAeb1021f7ffe0f28a3c1d2500c702ea951a3dcea680d8d6d907b650a93cc09c6f лично проверен. Это metadata-only, неphysicalcleanup. **512МиБ OPEN у прежнего владельца очистки**; root не освобождалчужиересурсы/непонижалрезервы и неиспользовал ошибочное дополнительноеизмерениеdot. НовогоRAM/disk/inode/pressure/объёмарезервовизмеренияилиR7-R8тестаControllerнет; historical08:28FAILневыданзатекущийadmission.
+
+**C PR250 exact2c807d35002ee7f62dadb756493a8ff6e1ce2416 потреблён отдельно от cce827.** NativeServer/Docs2/5SUCCESS,439/439tests иNode24compiledsmoke проверены лично. Последнийготовый C13/13WBfamily result309uniqueoperations/0collisions иcandidatecanonicalmanifest потреблены как **SOURCE/in-memory**, неauthorizedsourceacceptance/DBpersist/installedmonitoring/Store. Ozonofficialoperatorinput всёещёнеполучен. Eligibleexactindependentreview и3другиеnativefamilies OPEN; старыйdeclinedreview не повторён/непроксирован. C06branchdivergence/siteprivacy/support/issuer/trust/catalog/Dashboard остаются отдельнымиграницами; публиковатьсайт или заменятьdeployedbranchmain root не поручал.
+
+**A receipt fivefamilies и B06publication82d закрыты и не переоткрыты.** B06onepushallowanceused; новыйB03кнемунеотносится. A05changedbase/integration остаётся у existingA/sourcepublisher с independentconsumerC. GETmainprotection403 не повторён и никому не передан длячтениятемжезапрещённымресурсом; минимальныйrequestedresult — disposition действующейпроцедуры по уже имеющимсяразрешённымдокументам, не protectedmetadata другимactor.
+
+**Legacy-IDNA:** existingB/Ops actualenvironmentcustodian отвечает за техническийпредмет; exactisolatedsnapshot/read-onlyexecutorrole/finitewindowlimits пока NOT_DOCUMENTED. Это не DBgrant/не назначениеscanner. Владелецданных+existingOps принимают отдельное data/scopeрешение только поконкретномупредмету; владельца не посылают искатьunknowntechnicalID и не переспрашивают уже принятуюIDNAequivalence. Disposable15541/15542/15543 не legacyowner-test.
+
+## Тестер: новый причинный результат потреблён, scope сохранён
+
+Тот же soleTester восстановлен в6ad88807; old6ad5f3d1не возобновляется. ExactZIPeaad6ea8/candidate7d3ce1d4 и60+14+1codePASS/старыйnativeFAIL/history сохранены. Native09:58показалпотерюFileпослеchooser/reopen, sampledJS-onpaintприexistingOctoportauthнеfullguest/compositorPASS. **Адресноеowner“да”10:01:07 уже принятоТестером** в§12; повторныйsource/nativeвопросвладельцуне задаётся, A/Cне назначены.
+
+Лично прочитаны готовые B02_NATIVE_POPUP_CAUSE_20261021.json (final_at10:28:30.259239) и B02_NATIVE_CAUSE_REVIEW_VERDICT.txt. Предварительныйreview151msdisconnectправильноне доказывалсмертьдокумента и требовалразличения. **Позднейшаяnativeдиагностикаэторазличиеустановила:** chrome.runtime.getContextsдляисходногоpopup.html показал1contextприprepare10:25:04.650,0приdisconnectчерез107ms,0через+250/+2000ms,chooserещёоткрыт. Popupнеинспектировался/неудерживалсяDevTools. WM-onlyпроверканеисправилапотерю. В этомточномChrome155/Linux/сохранённомпрофиле исходныйpopupконтекстисчезаетдовыбораFile, workerнеполучаетresult. Простоеувеличениеretentiontimeout/условнаяправкасохраненияканаланеподтвержденыкакрешениеэтогоотсутствующегодокумента.
+
+**Границауточнена, но Chromium/GTKnativefocus/contexttriggerниженее UNKNOWN.** Нетsourcefix/новогоZIP/восстановленныхFilebytes/nativePASS/fullB02. ВсеownTesterunitsвготовомresultterminalsuccess/inactive/emptycgroups; profile/previousinstallation/candidatepreserved, observerRAMушласownbrowserпроцессами. ЧислаresourcesизегоJSONнеиспользуютсядляR7-R8допускаController. Rootнеоткрывалsource/profile/screenshots,не управлялUI/WM/драйвером и не назначал новыйтест. Следующийowner — тотжеТестер: допустимаяcausalдиагностикаnativepopup/lifecycle; передbrowser/environmentmutationвнеузкогодопуска нужен отдельныйконкретныйпредмет, не общий повторsourceразрешения. Нельзяподменятьoriginaltoolbarpopuppersistentpage/window/sidebar, pininspector илиauthworkaround. **ЭтотnativepopupFAIL и I1ABORTED153 — независимые результаты; общейпричиныпопохожиммиллисекундамнеустановлено.**
+
+## Полнота аудита и остаток
+
+Все10пунктовпровереныпоauthor/version/фактическомуисходу/полномочиям/методу/ошибкам/одномуавтору/исходнойгранице/реальномупродолжению/точномуowner/сохранностипервички; подробнаясверканиже. Собственныйпропускcadence09:58→10:09честноотмечен; последующиеcheckpoints10:19/10:28иэтотпередитогомнепереписываютего. SourceправкиController/tests/review/CI/DB/live/security/credentials/browser/cleanup/новыеhelpersнеисполнялись. Новыхреестров/архивов/schedulers/errors.json/events.jsonlнет;PR97/131/134нетронуты.
+
+Сохраняются все исходные12OPEN: B03durablesourceSeen/preACK иinstalledbrowserdurability; B04OTP/admission; отдельныеA05atomic2ref/PR48origin/PR50installedостаткиприужезакрытыхboundedSOURCE; C06genuineauthority/release/Store/installed; personalR3fullacceptance; originalR14/privateenvreply/Sep29transport/configactor-time/immutableoriginalreviewbytes. Полученныеboundedрезультатыихавтоматическине закрывают. Укаждойграницывисториисохраненыexistingowner,originalprimary,nextиclosingcondition; отказанныеоперации/неуспешныйunchangedsearchнереконструируются/неповторяются.
+
+**Доступнаякоординациядоведенадопроверяемогоэффекта:** stale64снятпореальномуCLOSED; BноваяServerграницаисправленаимпроверенаCI и принятаегособственнымreceiptсactualPR252continuation; Cnewexactи13-sourceprimaryпотреблены; nativeэтапоставленивыполненсуществующимТестером, затемполученыегоgrantиcausalрезультат. ОткрытыдополнительныеPR252checks/normalprotectedmerge+postmerge,историческийI1cause,Testernativefix/acceptance,512ownerretirement,Legacy3fields/отдельныйdataauthority иостальныеисходныеruntime/publisher/platformpayloadвходы. Это **продолжение незавершённого аудита**, не30minpause/новыйexecutor и не обещаниефоновойработыэтогочата.
+
+---
+
 # Проверенные результаты и независимый остаток — 2026-10-21T10:28:32.992Z
 
 Продолжается тот же единственный аудит. **audit_complete=false; все 12 OPEN, исходный PLAN/WIP и вся история сохранены.** Предыдущий REPORT770576ea06f73bb798de2686c06ae209401c01fd — MaksimUnimax10:19:27UTC, только REPORT/blob604f319e42329af673f5a0a184bc74d88c22b9a9; полный readback10:19:29 exact. Новый текст добавлен перед сохранённой историей, без изменения чужих документов или правил.
