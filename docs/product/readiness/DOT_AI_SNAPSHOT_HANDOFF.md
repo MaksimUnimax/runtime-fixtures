@@ -759,6 +759,52 @@ Primary evidence root: `/root/octoport-control/temporary/controller/OPERATOR-R3-
 Checkpoint SHA256: `1b905b12b84715a558392f1711a4e669c606719efd7c31f5ad2a95d25549ad61`.
 
 
+
+### B02_AUTH_NATIVE_OWNER1118_EXECUTED_20261021 — штатный вход остановлен на LOCAL DEVELOPMENT transport
+
+**Получение и принятие.** Тот же sole Tester потребил прямое «да» владельца 21.10.2026 11:18 UTC, переданное в серверном §11 marker `DOT_TO_SAME_TESTER_OCTOPORT_AUTH_NATIVE_PERMISSION_20261021_1118`. Проверенная входная SHA handoff: `322d33d4d05e5a04c8e32aa3738996a1428662f04343c882f367dcd386f7b300`. Получение/принятие записаны отдельно в §12 перед действием. Повторного разрешения на этот вход не запрашивали.
+
+Перед запуском: Easyscript установлен штатным list_devices; активных terminal sessions/retained unknown RDC calls нет; прежний браузер CLOSED; exact source `cc8abe7beeffad517954bae9ea952612a1c7ef9b` clean. Состояния A/B/C и их WIP сохранены; чужого активного владельца этого профиля/toolbar popup нет. Свободно25376MiB − действительные резервы17347MiB −3072MiB =4957MiB; MemAvailable8805740KiB, full PSI avg10=0. Существующие резервы192MiB evidence/512MiB browser сохранены; запуск ограничен1536MiB/1200s.
+
+**Исполнение разрешения.** Запущен прежний неизменённый driver в том же сохранённом профиле `/root/octoport-control/temporary/controller/dot-extension-20261006T0254Z/profile`; новый профиль не создавался. Все41 установленный файл совпали с точным ZIP `35a00911bacf664be2df4f04d694ec5ff6a9e6b7960889e515f8f21dff2a5786`, version0.2.37 development,2744072B. Исходный toolbar popup подтвердил прежний `STORED_CACHE_CLOCK_INVALID`.
+
+В **11:39:49.026772 UTC** один раз нажата штатная кнопка **«Войти через портал»**. Портал не открылся. Popup показал **`CONTROL_TRANSPORT_UNAVAILABLE`**; уже существующее browser network evidence зафиксировало:
+- запрос `http://127.0.0.1:43100/v1/device-authorizations`;
+- первичный исход **`net::ERR_CONNECTION_REFUSED`**;
+- read-only проверка listening sockets: на43100 слушателя нет.
+
+Никакой отказанный запрос повторно не запускался. Ошибка возникла до страницы портала и до запроса владельческого ввода; отсутствующий пароль/OTP не является установленной причиной. Пароли, коды, credentials/cache и ключи магазинов не читались/не выводились. Вход **НЕ восстановлен**.
+
+**Причина в фактической упаковке.** Сохранённый composition receipt этого ZIP имеет `build_mode=development`, `environment=LOCAL DEVELOPMENT`, `release_authority_sha256=null`, API `http://127.0.0.1:43100`, portal `http://127.0.0.1:43101`. Эти адреса присутствуют в packaged worker/manifest; наблюдавшийся запрос совпадает с ними. Разрешение обычного входа не меняет упакованный endpoint. Это не отказ настоящего удалённого портала и не основание обходить cache-clock. Службы, туннели, фиктивный auth server, конфигурация, часы, trust/security и установленный пакет не изменялись.
+
+**Native исход: NOT_REACHED_AUTH_NOT_RESTORED.** Новый synthetic File не создавался; chooser не запускался. Проверка фактических bytes/hash File после reopen и последующая проверка исполняемого worker после штатного Reload не достигнуты. Нельзя считать этой попыткой подтверждённым ни worker ACK fix, ни File retention. Два pre-Reload native FAIL из предыдущего итога сохранены с прежней квалификацией; исторический107ms trigger остаётся UNKNOWN. SOURCE review PASS и5distinct затронутых кодовых PASS сохранены;60+14+1 и матрица не повторялись. Source/ZIP/TTL/fences не менялись.
+
+**Точная граница и минимальное решение.** Вход exact development ZIP блокируется отсутствующим local control API43100. Для обращения к настоящему API/порталу требуется другой штатно упакованный кандидат: PREPRODUCTION-сборка того же `cc8abe7b` через существующий `tooling/build/extension_composed.py --mode store --release-authority <утверждённый файл>`. Builder принимает PREPRODUCTION authority с HTTPS origins и trustBundle; сам файл для этого кандидата сейчас не установлен и не синтезировался. Следующее необходимое решение владельца — разрешить такую отдельную упаковку/установку с действующей утверждённой release-authority, сохранив development ZIP. Это изменит SHA пакета и упакованную конфигурацию API/портала/trust, затем вызовет штатный auth traffic настоящего сервера. Самовольная подмена endpoint, запуск local fake server, изменение ключей или расширение постоянного доступа не предлагаются. Разрешённый вход1118 остаётся принятым, но его успешное выполнение не заявляется.
+
+**Независимый остаток сохранён и сверен.** Канон33блока v3.3 неизменен, SHA `39b7f20a0b7037adb56eaed0275b9ba92e2c603841c43eb5543795b044d01e7c`. Новый transport исход не даёт основания править адаптеры. Другой конкретной незавершённой доступной кодовой части в текущем §12/принятых материалах не выявлено. Полный installed B02 НЕ принят отдельно для каждой поверхности:
+
+| Поверхность | Принятый материал / особая неизвестность сохраняются |
+|---|---|
+| ChatGPT Standard | TXT ready/sent own turn; natural expiry/login-required NOT_CAPTURED |
+| Алиса | Ready/sent file+text; подробный loading UNKNOWN |
+| Qwen | Own file/sent; Send enabled не ready |
+| DeepSeek | Natural terminal/upload-end/sent; forced Stop/retry не доказаны |
+| Claude | Own article/file/body; полнота busy root ограничена |
+| Gemini | TXT input отдельно от image-only; own query file preview |
+| Grok | Own attachment/filename; full busy root UNKNOWN |
+| Kimi | User segment/success card/final-code; reload identity не доказана |
+| GPT Work — отдельно | Ready/sent/natural completion/Copy; truncated card не полный4root |
+| dot — отдельно | Local nonpending row/card/code; terminal/Reply/reload identity UNKNOWN, не дополнительный Start gate |
+
+Для каждой поверхности полный прежний остаток: popup import/retention; Start одной инструкции/idempotence; assistant/full code/button; разрешённый пакет/result/error/recovery/executionId; полный отчёт и большой файл с реальной доставкой/обработкой в исходном диалоге; Send/busy/Stop; Copy без исполнения; hide/show только видимость; Finish/new Start; изоляция2диалогов/магазинов/площадок. Отсутствие AI-профилей не означает невозможность разработки. Точный прежний запрос Standard natural expiry остаётся у dot;46DOM/4JSON+22картинки не собирались повторно, уже принятые материалы не запрашивались заново.
+
+**Первичные артефакты и завершение.** В прежнем evidence root `/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/KIMI_PROFILE_RUNTIME_20261019T163000Z/`:
+- `B02_AUTH1118_NATIVE_RESULT_20261021.json`,8320B,SHA `fdf3591a7ad7052b66a74f820b0f1e0273332d4c38cf3ccd893fbf9b87012bc8`;
+- `B02_AUTH1118_LOGIN_STATUS.png`,10254B,SHA `7c6d838404f8fcb592eb76fa485f63f17238d6e9a168e97c91d5bf7e70334350`,11:40:29.973444UTC;
+- первичный network result указан в JSON вместе с SHA/request/result readback.
+Браузер штатно CLOSED; `octo-tester-b02-auth-native-20261021`: success/exit0/inactive/empty cgroup. Сохранены профиль/Xvfb, все старые FAIL/ZIP/review, WIP и чужие разделы handoff. Исходный B02 и эта native граница остаются у единственного прежнего Tester.
+
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
