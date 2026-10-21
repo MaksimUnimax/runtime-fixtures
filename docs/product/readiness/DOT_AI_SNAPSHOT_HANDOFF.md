@@ -709,6 +709,56 @@ Result SHA256: 97d6b0373ea219d58210ac6ee19191c6718df1d742b8781017af4e210d9dd834.
 
 **Ближайший остаток остаётся у sole Tester.** Технически блокирован native переход «chooser → File» из-за исчезновения exact popup-контекста до выбора. Новый самостоятельный участок — установить и исправить native lifecycle Chromium/GTK в том же сохранённом профиле; изменение браузерного кода/бинарника/системной интеграции не включено в адресное разрешение на extension file-retention. Повторное разрешение на уже разрешённый popup-код не требуется. Не передавать A, не запрашивать логин, не чинить вслепую guard/TTL. Полный B02 остаётся незавершённым.
 
+
+### B02 — 21.10.2026: ACK удержания File исправлен; native после Reload остановлен на STORED_CACHE_CLOCK_INVALID
+
+Продолжение того же sole Tester по действующему разрешению владельца 10:01:07 UTC, без нового исполнителя. Предыдущий итог `172ada7472e4ad23d69dafd26f6b1b69f93359d0` и cause SHA `12e6a5ffc32d82ffd0be2d9b71c1208d472ea8fc937d9427e70e17691b61119e` сохранены. Прежнее заключение о необходимости изменения браузера/бинарника НЕ подтверждено: перенос неизвестности ниже popup не блокирует разработку всей B02.
+
+**Причинное различение.** Дополнительное пассивное X11-наблюдение в том же сохранённом профиле показало переход фокуса в настоящий GTK chooser, transient-parent — исходное окно браузера; Cancel вернул popup. Сам переход фокуса не доказывает необратимую потерю File. Источник Chromium 155.0.8059.84 содержит закрытие ExtensionPopup при активации другого widget в anchor tree с `kLostFocus`, кроме inspection/modal-исключений; generic deactivation отключена. Источник не устанавливает, какой именно callback закрыл popup в старом 107ms trace. Эта конкретная причинная неизвестность остаётся UNKNOWN.
+
+В новом различающем native-наблюдении настоящий File 101 B поступил worker после disconnect при однократном Open, был восстановлен в автоматически открытом исходном toolbar popup и подтверждён `restored`. Worker-only observer не инспектировал и не удерживал popup. File SHA `2a1de9e5a18154e2e3ce3861c73b3527b04a9b396c5d5a4a82df071540a0af6e`. После последующего обычного закрытия/открытия File исчезал. Точный extension-дефект: обработчик restored ACK удалял RAM draft сразу после первого восстановления. Первичный trace: `B02_FOCUS_WORKER_TRACE_SETTLED.png`; до него самостоятельный native FAIL без DevTools также сохранён. Старый ранний disconnect до выбора файла не объявлен исправленным.
+
+**Минимальная правка и кодовая проверка.** Candidate `cc8abe7beeffad517954bae9ea952612a1c7ef9b`, base `7d3ce1d4fe148cd890f803c1c721f2c515629826`, опубликован в существующей `controller/kimi-profile-runtime-20261019`, remote HEAD прочитан обратно.
+- `apps/extension/src/background/backup-file-selection.js`: ACK передаёт владение bounded RAM File подтвердившему popup, сохраняя исходный TTL; повторная автоматическая попытка открытия и повторная доставка тому же endpoint исключены. Clear/current context, nonce/pickId/sender, tab/account и stale-owner fences сохранены.
+- `apps/extension/src/application/popup.js`: восстановленный pickId сохраняется до ACK, поэтому последующий explicit clear адресует действующий draft.
+- В существующем `client-d3s2-a24-export-import.mjs` дополнены только затронутые picker-кейсы; File clone в fixture сохраняет File metadata (Node structuredClone(File) терял name).
+
+5 distinct затронутых кодовых случаев PASS: 3 PASS первого запуска + 2 PASS адресного R2. Первые 2 FAIL от потери metadata в double сохранены, не переписаны в PASS. Это actual-worker code с browser API doubles, НЕ native. Принятые 60 matcher/recovery + 14 linked-cycle + 1 прежний consumer НЕ повторялись и относятся к своим прежним точным исходникам. Независимый существующий codex2 GPT-6 Luna/xhigh дал PASS_SOURCE_SCOPED; review SHA `77c3afe0f22b7dacba910a92335301943892c16321ad5f7c613284453ecf9caa`. Ограничение: TTL-тест вручную запускает все таймеры 60s и сам не различает их перевзведение; в source ACK таймер не перевзводит. File хранится только в памяти worker, не гарантирован через его restart.
+
+**Сборка.** Development ZIP 0.2.37, 2 744 072 B, SHA256 `35a00911bacf664be2df4f04d694ec5ff6a9e6b7960889e515f8f21dff2a5786`. Штатная сборка, повторный архив byte-identical, extracted/source readback PASS. Путь: `B02_DEVELOPMENT_PACKAGE_cc8abe7b/SELLER_AGENTS_I1_C1_v0.2.37_LOCAL_DEVELOPMENT.zip` под прежним evidence root. В сохранённой установке заменены только popup.js/service_worker.js, все 41 packaged member совпали с ZIP. Старый ZIP 0.2.37, 2 743 191 B, SHA `eaad6ea8e2733e15a671d87f72603c5628b6e7cd5c25f3a899fd8bf670b36250` сохранён. Авторизация, профиль, binary и security-настройки намеренно не изменялись.
+
+**Native итог — НЕ PASS.** После замены файлов/перезапуска браузера два реальных сценария chooser → выбранный synthetic File → обычное закрытие → повторное открытие исходного popup дали No file chosen. Второй проверял новую гипотезу idle: интервал закрытия около 0.598s, также FAIL. Ни один не использовал инспектор. Оба первичных FAIL сохранены. На этих двух попытках ещё не был выполнен явный extension Reload и не была подтверждена версия исполняемого service worker; поэтому они не доказывают конкретный дефект новой версии worker.
+
+Официальный порядок требует Reload при изменении service worker. В 11:07:21.395 UTC штатный Reload выполнен через chrome://extensions; toast Reloaded сохранён. После этого исходный toolbar popup в 11:08:05.948 UTC показал «Вход не выполнен» / `STORED_CACHE_CLOCK_INVALID`; импорт отсутствует. Screenshot `B02_ACK_R3_POPUP.png`, 95 779 B, SHA `46ea35cd1a7493b03b6095b842388c990960e558ca1c872e324c253feb5c6187`. Кодовая ветка: сохранённые credentials при !validCacheClock вызывают invalidateKnown с этим кодом; содержимое credentials/cache не читалось. Это проверенный отказ авторизации самого расширения, НЕ естественный auth-expiry ChatGPT Standard и не доказательство исправленного native File retention.
+
+Точная операция остановлена на недоступности file input после Reload. В текущем допуске запрещены login/auth changes, поэтому не выполнялись вход через портал, изменение cache/clock или обход скрытых controls. Минимальный следующий шаг требует отдельного разрешения: штатно переподтвердить эту существующую установку Octoport через портал в том же профиле, затем повторить только File chooser/reopen с проверкой фактических bytes. Цель — пройти текущий extension auth gate; эффект/риск — обновится авторизационное состояние расширения и будет обращение к его порталу. Это не запрос ИИ-профилей или права Send/marketplace. Успех переподтверждения и native PASS заранее не заявляются.
+
+**Полный независимый остаток B02 сверен с текущим §12, UX.md и каноном 33 блоков v3.3.** Имеющиеся адаптеры/принятые DOM и source evidence сохранены. За пределами исправленной цепочки конкретного нового доступного кодового дефекта или неисполненного адресного изменения текущий аудит не выявил; отсутствие authorized AI profiles не препятствует дальнейшей разработке по фактическому DOM. Нельзя считать перечисленные ниже принятые материалы installed/full B02.
+
+| Поверхность | Сохранённая доказательная граница | Остаток / UNKNOWN |
+|---|---|---|
+| ChatGPT Standard | Принятые TXT-ready/sent own-turn DOM, matcher/recovery и общая code-chain | Полный installed cycle/доставка bytes; естественный expiry/login-required NOT_CAPTURED |
+| Алиса | Ready/sent file+text в Message_from_user | Подробный loading state; installed cycle/bytes |
+| Qwen | Own file item/sent; Send enabled отдельно от ready | Installed cycle/bytes |
+| DeepSeek | Естественные terminal/upload-end/sent, epoch retire при remount | Forced Stop/retry не доказывались; installed cycle/bytes |
+| Claude | Own article/file thumbnail/body | Полнота busy root ограничена; installed cycle/bytes |
+| Gemini | TXT input отделён от image-only, own user-query file preview | Installed cycle/bytes |
+| Grok | Own attachment/filename, принятые Grok JSON/DOM | Полный busy root UNKNOWN; installed cycle/bytes |
+| Kimi | Own user segment/success card, final-code отдельно от reasoning | Стабильность identity через reload не доказана; installed cycle/bytes |
+| GPT Work — отдельно | Собственные ready/sent/natural completion/Copy | Truncated ready card не полный 4-root; installed cycle/bytes; Work home не Chat mode |
+| dot — отдельно | Собственная local nonpending row/card, code | Terminal/Reply/reload identity UNKNOWN; это не дополнительный Start gate; installed cycle/bytes |
+
+Для КАЖДОЙ из восьми площадок и отдельно Work/dot остаются неполностью подтверждённые installed границы: popup import/retention; Start одной инструкции и идемпотентность; assistant/full code/button; разрешённый пакет/result/error/recovery/executionId; полный отчёт и большой файл с реальной доставкой/обработкой в исходном диалоге; Send/busy/Stop; Copy без исполнения; hide/show только видимость; Finish/new Start; изоляция двух диалогов/магазинов/площадок. Общая source-проверка не переносится в installed доказательство ни одной площадки.
+
+По B02-11 прежний точный запрос естественного ChatGPT Standard expiry/login-required DOM остаётся в handoff; dot уже проверил 46 DOM/4 JSON + 22 картинки, подходящего состояния нет. Повторный сбор/expiry провокация/запрос повторной загрузки не выполнялись. Ранее принятые материалы и их исходные пути/SHA сохранены; повторного потребления всей матрицы не было.
+
+**Сохранность и закрытие операции.** Старые FAIL/review, cause и 60+14+1 неизменны; чужой WIP и §11 dot сохранены. Браузер штатно CLOSED, native unit inactive/success/empty cgroup; свой synthetic 101 B удалён только после сверки SHA. Xvfb и существующий профиль оставлены. Активных terminal sessions/неизвестных RDC операций на проверке нет. R7/R8/live/DB/security и ресурсные отказы сохраняются; PR97/131/134 не возобновлялись. Единственный владелец остатка — прежний Tester, передача A не возобновлена.
+
+Primary evidence root: `/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/KIMI_PROFILE_RUNTIME_20261019T163000Z/`. Новый итог: `B02_ACK_RETENTION_FINAL_CHECKPOINT_20261021.json`; source/review/test/build/native первичные файлы включены с SHA. Official Chromium receipt: `B02_FOCUS_OFFICIAL_CHROMIUM_155.json`, SHA `b5f73ba73a4ab0f9797c4d7a90c11fdfc2b7349406a9d3d81dd6318ba41384fd`. Справочные официальные документы: https://developer.chrome.com/docs/extensions/develop/ui/add-popup и https://github.com/GoogleChrome/developer.chrome.com/blob/main/site/en/docs/extensions/mv3/getstarted/development-basics/index.md .
+
+Checkpoint SHA256: `1b905b12b84715a558392f1711a4e669c606719efd7c31f5ad2a95d25549ad61`.
+
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
