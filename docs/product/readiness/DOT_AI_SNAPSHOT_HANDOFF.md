@@ -673,6 +673,42 @@ Popup-удержание — общий найденный FAIL; его нель
 
 Result SHA256: 97d6b0373ea219d58210ac6ee19191c6718df1d742b8781017af4e210d9dd834.
 
+
+### Тестер — 2026-10-21: адресное разрешение 10:01 исполнено; native popup блок локализован до получения File
+
+**Полномочие и один автор.** Тот же sole Tester/OPERATOR, без второго исполнителя. Новое «да» владельца 10:01:07 UTC разрешило чтение/адресную правку цепочки удержания файла и её narrow native повтор; прежнее одноразовое разрешение08:35 не переиспользовано. Fresh HEAD7d3ce1d4 clean; исходный popup SHA e88a2a57a0008514d92a525e44f9cf27207c7c2be1c975a8190b92e7317a3de9 совпал с сохранённым snapshot. Main bridge совпадал; готового исправления нет. A/B/C scope/dirty/locks и отсутствие текущей Tester-операции проверены; чужой WIP сохранён.
+
+**Фактический результат — BLOCKED_NATIVE_POPUP_CONTEXT_GONE_BEFORE_FILE_SELECTION.** Это проверенный native блок, не исправленная сборка и не SOURCE/installed PASS.
+1. На неизменном exact DEVELOPMENT0.2.37, Chrome for Testing155.0.8059.84/Linux и том же сохранённом профиле выполнен один диагностический выбор доступного браузеру95B синтетического файла. Worker-only DevTools наблюдал только метаданные; original toolbar popup не инспектировался. В10:12:23.418 worker получил prepare; в10:12:23.569 — disconnect (+151мс), пока GTK chooser ещё открыт. После одного Open File/result не пришёл. Содержимое/пароли не логировались.
+2. Проверена гипотеза окружения: на собственном :103 WM_S0owner=0; временно запущен уже установленный Openbox только на этом дисплее, без --replace/профильных/auth/config изменений. Worker observers исчезли после штатного закрытия предыдущего браузера. Один новый native выбор того же доступного файла на прежнем кандидате с Openbox, вообще без инспекторов: после выбора popup закрыт, быстрое повторное открытие под тем же значком → No file chosen. Openbox-only гипотеза не исправила исход. Предыдущий FAIL не отменён.
+3. Existing codex2 GPT-6 Luna/xhigh выполнил bounded read-only review после проверки занятости, без новых детей/правок/тестов/публикации; terminal success/exit0. Reviewer корректно отделил disconnect от ещё недоказанного исчезновения документа, указал popup.js403–406/444–447 и worker8/136–149: закрытый popup-side канал и пятисекундное ожидание были бы отдельными препятствиями, если документ жив; их изменение ещё не обосновано.
+4. Выполнена предложенная различающая диагностика штатным chrome.runtime.getContexts({contextTypes:["POPUP"]}) из worker, без прикрепления к popup. Только count exact popup.html: connect1; prepare в10:25:04.650→1; disconnect в10:25:04.757→0 (+107мс); в10:25:05.005→0; в10:25:06.751→0. Chooser в эти моменты ещё открыт; затем он явно Cancel, нового выбора/Send нет. Первичный screenshot B02_LIFETIME_TRACE_RESULT.png содержит все5 строк.
+
+**Причинная граница и предел вывода.** Исходный popup-контекст исчезает ещё до выбора файла. Код передаёт File только из change/cancel, а worker хранит только уже доставленный File. Продление timeout/снятие disconnected guard не восстановит файл после исчезновения документа. Source-side window.close/blur handler отсутствует. Низлежащий конкретный триггер Chromium/GTK/focus остаётся UNKNOWN; не заявляется невозможность для всех браузеров/версий. Старые mocked PASS начинались с существующего File и не покрывали эту предысторию. Прямая продуктовая правка причины в разрешённой extension-цепочке пока не обоснована; исходники и пакет не изменены. Отдельная вкладка/окно/sidebar, инспектор popup как способ удержания, новый профиль и auth-изменение не применялись. Официальное описание lifecycle: https://developer.chrome.com/docs/extensions/develop/ui/add-popup ; оно не подменяет первичные измерения.
+
+**Точная версия.** Source7d3ce1d4fe148cd890f803c1c721f2c515629826, DEVELOPMENT0.2.37, SELLER_AGENTS_I1_C1_v0.2.37_LOCAL_DEVELOPMENT.zip,2743191B, SHA256 eaad6ea8e2733e15a671d87f72603c5628b6e7cd5c25f3a899fd8bf670b36250.41 installed members снова сверены с ZIP, mismatch0. Нового ZIP/commit продукта/CI/merge нет. PR241ABORT141 и прочие gates не сняты.
+
+**Первичный новый результат.** В прежнем evidence root KIMI_PROFILE_RUNTIME_20261019T163000Z: B02_NATIVE_POPUP_CAUSE_20261021.json,20124B,SHA25612e6a5ffc32d82ffd0be2d9b71c1208d472ea8fc937d9427e70e17691b61119e. Он содержит источник, trace, review hash, screenshot names/bytes/SHA, точные unit outcomes и ограничения наблюдения. Исходный B02_NATIVE_POPUP_RESULT_20261021.json SHA97d6b037… и checkpoint08:46:57 SHA6674ed9d… проверены неизменными. Синтетический95B файл SHA9d4754bd89542fb313a7b3aae1f2dd96c728532d703216223503914e17872ffc удалён после проверки. Оба новых browser units, reviewer и временный Openbox terminal success/exit0, cgroups пусты; исходный Xvfb/профиль/предыдущий установленный пакет сохранены. RAM observers прекращены с собственными процессами. Финально free25428MiB−held17355−reserve3072≈5001MiB; inode3947814, MemAvailable8591MiB, PSI0.
+
+**Весь независимый остаток B02 сверён, принятые тесты не повторялись.** Сохранены60distinct matcher→committed recovery PASS (6 отдельно на каждую из10поверхностей),14общих linked-cycle PASS,1actual popup consumer PASS с browser API doubles. Их result/map/checkpoint SHA сверены. Это code-level доказательства, не10installed полных циклов.
+
+| Поверхность | Сохранённое отдельное доказательство | Незавершённое/UNKNOWN |
+|---|---|---|
+| ChatGPT Standard | accepted own-turn/resource-card matcher;6PASS | installed полный цикл/полный файл и provider bytes; natural-expiry B02-11 NOT_CAPTURED |
+| Алиса | ready/sent в собственном user-message;6PASS | installed полный цикл/байты; detailed upload-loading UNKNOWN |
+| Qwen | own user-message/fileitem с точным именем;6PASS | installed полный цикл/байты; enabled Send не равен upload-ready |
+| DeepSeek | own message/file/body и document epoch;6PASS | installed полный цикл/байты; epoch retire при remount не доказывает reload identity |
+| Claude | own article/file-thumbnail и body;6PASS | installed полный цикл/байты; busy-root details ограничены |
+| Gemini | отдельный TXT input и own user-query/file-preview;6PASS | installed полный цикл/байты; image-only input не заменяет TXT |
+| Grok | own response/user attachment и имя;6PASS | installed полный цикл/байты; whole busy-root UNKNOWN |
+| Kimi | own user segment/success card и имя;6PASS | installed полный цикл/байты; стабильная reload identity не доказана |
+| GPT Work | отдельные ready/sent/complete/Copy материалы;6PASS | полный installed Work-цикл/байты; Standard не подменяет Work, truncated ready не полный root |
+| dot | own nonpending user-row/card/current local surface;6PASS | полный installed цикл/байты; terminal/Reply/reload identity UNKNOWN, это не дополнительный gate первого Start |
+
+По канону3.3/33блока сохранены B02-01/02 Start/idempotence/history;03/04 текущий assistant/fullcode/button/разрешённый пакет;05Copy без исполнения;06hide/show только видимость;07/08Finish/reStart;09полный большой same-dialog файл с реальным принятием и проверкой байтов;10Standard/Work+draft;11expiry/error/recovery;12полнота состава. Owner additions executionId/error/recovery,Send/busy/Stop и изоляция2диалогов/магазинов/площадок остаются. Ни один installed/full пункт не закрыт сегодняшней диагностикой.46DOM/4JSON+22images accepted expiry search не повторялся; Work-home не Standard. Нового сбора/загрузок/AI-профилей у dot не запрашивали;§11 сохранён. Независимые неизменные source результаты пригодны, новых фактов для новой правки адаптеров не появилось.
+
+**Ближайший остаток остаётся у sole Tester.** Технически блокирован native переход «chooser → File» из-за исчезновения exact popup-контекста до выбора. Новый самостоятельный участок — установить и исправить native lifecycle Chromium/GTK в том же сохранённом профиле; изменение браузерного кода/бинарника/системной интеграции не включено в адресное разрешение на extension file-retention. Повторное разрешение на уже разрешённый popup-код не требуется. Не передавать A, не запрашивать логин, не чинить вслепую guard/TTL. Полный B02 остаётся незавершённым.
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
