@@ -428,6 +428,9 @@ async function ensureNativeBackupBridge() {
           $("backup-file").dispatchEvent(new Event("change", { bubbles: true }));
           $("backup").scrollIntoView({ block: "start" });
           if (data.error === "BACKUP_FILE_TOO_LARGE") $("backup-status").textContent = "Файл больше 8 MiB";
+          // Keep ownership so password edits, Preview and a new selection can
+          // explicitly clear the retained draft after a successful restore.
+          nativeBackupPickId = data.pickId;
           post({ type: "restored", pickId: data.pickId });
         };
         post({ type: "ready" });
