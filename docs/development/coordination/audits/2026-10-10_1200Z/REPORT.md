@@ -1,3 +1,64 @@
+# Проверенный итог продолжения: C receipts закрыты, current b32 CI 3/5 — 2026-10-21T19:35:32.193Z
+
+**Тот же единственный Контроллер; полныйаудитостаётсянезавершённым. Все12исходныхOPEN/PLAN/WIP/историясохранены.** ПредыдущийsoleREPORT **14d9f3422732907f7f3409ad6ba7d57ddaa285f3**, authorMaksimUnimax, publication **19:31:32UTC**, полныйточныйreadback **19:31:41.797**,2717823символа. Freshref19:34:04подтверждаеттотжеHEAD. ВесьпредыдущийREPORTнижеостаётсянеизменённымsuffix, прежниеотрицательныерезультатынестираются.
+
+## Фактический новый terminaloutcome A04
+
+Лично прочитан **существующийoriginalPR-triggeredExtension run39660568617**, head **b32c1483321ec4b41190456bb346ad4f82c55d0c**, eventpull_request/attempt1: **completedSUCCESS19:30:17UTC**. Удалённоненазначен/неперезапущен. Последнийpreviousrunning WBbrowser **119432218756SUCCESS19:30:16**. Все6actualjobsrun:
+|JobID|Исход/времяUTC|
+|---|---|
+|119432151698 ci-plan|SUCCESS19:19:16|
+|119432218692 Commonapplication/nativeChromiumfixture|SUCCESS19:21:25|
+|119432218756 Baseline/wb-browsers|SUCCESS19:30:16|
+|119432218762 Baseline/ozon|SUCCESS19:19:48|
+|119432218795 Commoncore/sourceandpackage|SUCCESS19:21:43|
+|119432218835 Baseline/wb-nodes|SUCCESS19:19:55|
+
+ВместесранееужепрочитаннымиoriginalDocs39660568459/1jobиI139660568419/3jobs: **currentb32теперь3/5обязательныхсемейств,10/10наблюдаемыхterminaljobsSUCCESS**. ЗакрытоожиданиеoriginalExtensionterminal/метаданных, не5/5/не13/13/неmerge/installed/Store. ЗавершённыеDocs/I1повторнонеперечитывалисьдляподтвержденияготовогозелёногорезультата. **ServerCI/Coordinationb32NOT_RUN**поoriginalsameAreturn/pathfilters; rootничегонедиспетчеризовал, неиспользовалстарыйA05grantнаA04, непросилдругогоактора/инструментрадиисполнениязапрещённогоrootCI.
+
+Fresh19:34metadata: **PR253OPEN/DRAFT/unmerged/headb32**, **PR254OPEN/DRAFT/unmerged/head5efafe389c19852087cfdb3f333d9fe28ba9885c**, **maina4b212e80a52595255f4ebb112105dd67a669964**неизменён. Исход19:14“localunpublished/zeroCI”сохранёнкакhistory, supersededsameA19:19nonforcefastforwardвсуществующийPR253. Пятьsourceblobsнеизменны, existingauthor242/242SOURCE/package/staticLunaPASS_SOURCE_SCOPED_COMBINEDотноситсяэтимbytes; неindependenttestexecution/unionCI/actualfinance/AI/ownerinstalledPASS.
+
+ДополнительноownA#6320915142updated19:28:25прочитан: **A04_PR253_EXACTB32_NATIVE_I1_DOCS_SOURCE_PACKAGE_CURRENTITY_20261021**, primary19:27:09.011713, nativevirtualPRmergeeebde4a6...treedeclared2669...совпадаетсrawb32поегоownmetadata, source/packagejobлогиперечисленыавтором. СохранёнегоI1локальныйsynthetic3HTTP200/3finished/0failed, selectedNONE; это **не** причинанашегоoriginalC57dABORT+142ms/другихoldsignedrequestnegative. СтарыеabortосталисьOPEN, browsercloseнепричинапоумолчанию. ЕгоlaterreceiptSHA **633d7ae02277d8cbcd38e78931648375b3a9b2bcc1bfd6b8a0c0fbfea43be57a** — атрибуциясвежегоownA; rootранеефактическичитал/хешировал **7558B/52051d5b...**beforethatupdate. Новыйhashневыдаётсязаповторныйrootфайловыйhash; source/currentheadнепоменялись.
+
+ГотовоеterminalдоказательствопередановпрежнийownAcanonical **PR248#6307715843**, updated **19:32:44UTC**, полныйточныйreadback **19:32:46.212**, **64646chars**, oldbodyполностьюpreserved. Передwriteсверенownauthor/body/version/dedupe. Точноеaddition **CONTROLLER_B32_ORIGINAL_EXTENSION_TERMINAL_THREE_FAMILIES_TEN_JOBS_20261021**непроситновойпроверки/задания/оператора; еслиsameAужепринялрезультат, использоватьготовыйownoutcome. Егоownpublicещё19:28:25нафинальномсрезе; новогоегоreceiptневыдумано.
+
+## C: закрыты только реальные прежние ожидания
+
+FreshownC03#6316747710updated19:07:14иC06#6307000049updated19:22:43подтвердилипрочитанныеbodyссодержательнымиответами:
+- **C03_B_RETURN_PR108_PR130_AND_TG3_DURABLE_CONTRACT_CONSUMED_20261021**,19:06:55.299: собственноеCпотреблениедвухB SOURCE_SUBSUMPTIONиTG3durablecontractдоказано. Receipt/analysiswaitзакрыт. PR108dateparser/PR130API-watchcancelSOURCEисправлены; R4/PREPARED_NOT_RUN/R2отказыиinstalledscheduler/transportнеотменены. C06singletonSOURCE-строканеихзамена. ParserSHAcf210...принадлежитBmeasurement, Controllerdocumentarycheckатрибуцияуточнена, неsourceповтор.
+- **C06_TESTER_NATIVE_FILE101_PASS_SUPERSEDES_CURRENT_FILE0_FAIL_ZIP_PUBLISHED_20261021**,19:00:45.431: CисправилтекущийFile0FAILнаlaternativeFile101PASSипотребилunchangedZIP/470360delivery. Closedreceipt. Ранниеnull/FAIL/unknownfirstactorисторическисохранены; cc8/tree d666/ZIPecccb6/worker626c0010неизменны, sourcefixненужен. Testerвыдачаокончена, не возобновляется. Fullinstalled8AI+отдельныеWork/dotостаётсяотдельнойприёмкой.
+- **C06_ORIGINAL_SITE_EF241_SITE_OWNER_LOCATOR_NOT_DOCUMENTED_ROUTE_GAP_20261021**,19:10:21.447: originalCsiteissuerзавершилchain/ответполучен. **NOT_DOCUMENTED_IN_CHECKED_CHAIN**неactualcustodian/datedapproval. Pendingвопрос18:50увладельца/ответанеувидено, **неповторён/новыйвладелецненазначен**. Этоотдельныйinput, неglobalSTOP.
+- **C06_B06_OWNERTEST_SUPPORT_ADMIN_SOURCE_PARITY_AND_SYNTHETIC_403_SCOPED_20261021**,19:22:24.619: Cполучил3sourcefiles/old6synthetic403/noDBproof, прежнийreceiptwaitзакрыт. Actualroles/CSRF/loadedcompiledJS/wholecoherentinstalledreleaseнеприняты; прежняяnarrowtestfileNOT_SEENформулировкасохранена.
+
+СобственныеControllerclosures/sourcevsOpsуточненияимеютfullreadback: C03canonical6308503022updated19:27:42/54029chars, C06canonical6308505226updated19:28:26/57014chars. НетповторногоCназначения/receiptrequest. FreshCownпоканеотражаетновыеB05wire/unitпункты — это **не**доказательствоотказаполучения/простоя/канальногоразрыва и не основаниедублироватьсообщение.
+
+## B05/B02: завершённый документальный вывод и точный operationalостаток
+
+ДваownBrecordполностьюпрочитаны, ихoriginalobservationsненаправлялисьнановыеlivechecks:
+1. **B05_B02_CC8_PREPRODUCTION_SIGNED_PROFILE_OUTER_WIRE_SOURCE_PARITY_20261021**,19:07:13.780811. SourceouterbootstrapStableMachineIdentifierV1commonblob7c143a85...иresolution3cc4ca47...поддерживаютKimiidentifierбезновогоouterwireschemapatch. PersonalclientinternalSignedProfilefamilyallowlistотдельно. **Снятаошибочнаяпотребностьвдублирующемschemafix**, не actualcatalog/publishedprofile/assignment/signature/loadedbackend/Kimi/fullB02PASS. ExistingB/Opscatalogauthority/C02следующийразрешённыйdocumentaryрезультат — **ужеretainednonsecretpublishedcatalog+assignmentreceipt** точнойfamily/env/browser/version/fingerprint. Еслиданныетольковprotectedstorage — firstseparateprecisemetadata-onlyOpspermissionproposalсexistingrole/actor/target/finitewindow; никакихquery/profilepayload/credential/signature/provisionдействийвэтомscope.
+2. **B05_OWNERTEST_ROOT_UNBOUNDED_UNIT_SOURCE_TEMPLATE_DELTA_20261021**,19:15:14.252416. OwnBactual19:12–19:13: API/worker/portalUID0+MemoryMaxinfinity/TasksMax19045; nonroot/finitecandidatedropinsизacceptedsourceещёнеустановлены. AdminDynamicUserUID63943сMemoryMaxinfinityотдельно, неназначен4-йunitмиграции. Existingnonroot/resourcesgeneratorblobda995323.../9c4a648e...свереныпубличнойGitmetadata; API1G/worker900M/portal700M/TasksMax128 **sourcecandidates, неapprovedsizing/неinstalled/нересурсныйPASS**. Писатьещёодинinstallerилиповторятьroot/limitисследованиенетоснования.
+
+**КонкретныйoperationalпредметостаётсяуexistingB/Ops**: толькоизужеимеющихсяразрешённыхnonsecretreceiptsсобратьвегоexistingB05документе точныйсовместимыйartifact/sourcepin+actualschema/verifiedisolatedPG18restore/rollbackоснование; 3unit/drop-inmappings; nonrootwritablepath/maintenancecredentialstoragerulesбеззначенийсекретов; oldAPI/workerdrain/nooverlap; genuineapprovedmaintenancegrant+actor+finitewindow; existingC05independentpost-change/servicefunctionalwitness. Missinginput=NOT_DOCUMENTED+минимальныйproposedOps/readscope, **не**проведениеещёодногоpreflight/protectedreadбезотдельногогранта.
+
+Будущийпредметрешенияпослеготовогопакета: **ограниченнаяmaintenanceустановкасуществующихnonroot+resourceguarddropinsдлятрёхконкретныхowner-testunitsсstop-before-start/finitehealthreadback/rollbackвопределённомокне**. Неproduction/DBmigration/newcredentials/произвольныйhardening. Этотпланнеисполнен/неразрешёндляroot; genericownerYESнепрошен, новыйissuer/владелецненазначен. Source/rootcapsнаблюдениянеpermission. B06признанныйoverlapнеотменяетoriginalprivatekeyдиагностическийзапрет. НовогоB05ownвозвратасподготовленнымgrant/операционнымпакетомвboundedBstateсрезе19:32неподтверждено; существующиедваownreturnнеперепорученыкакновыеисследования.
+
+## Полный PLAN и все12исходных OPEN
+
+Currenta4bPLANполностьюполучен/сверен: A01–A06/B01–B07/C00–C07. ПрименённеодинPR: actualCclosure/acceptedsource2defects, A04combinedpublishedexactCI, B05wirecatalogboundary/rootunit-templateoperationalboundary, C06nativeissuedFile/Store/site/supportразделение. ОстальныеположенияпредыдущихполныхPLANтаблицнеизменны:
+- A01physicalabortinitiatorUNKNOWN_NOT_IN_READ_JOB_LOG, existingactor/time/correlationonly; A02sameMapsyntheticнеrealIDB/preACK; A03Chromium/ChromeForTestingнеbrandedmatrix; A05fourFirefoxSOURCE/R16/Ready/ed5/13/32537vs2ab75сохранены, inheritedUIR5/R6/currentinstalled/atomictraceотдельны; A06URLavailabilityнеprivacy/Store.
+- B01currentsourcejournalнеactualappliedDB; conditionalIDNAYES13:16получен/NO_RUNeligiblePG18/role/windowNOT_DOCUMENTEDнеNOT_PROVISIONED; B03durable/twoAPI/sourceSeen/preACKнеподмененыновымI1PASS; B04OTP/PG/resourceoriginaldenials/historicalR7FAIL/512+64metadataCLOSED/filesKEEP/Bown8CLOSED/B128KEEP/R6DONEсохранены; B05realprotectedrestore/approllback/currentcoherentloadedtupleнеприняты; B06roles/IDNA/security/privatekeyотдельно; B07newbetafeedbackневыдуман.
+- C01releasechecks/source125/125/readAuthorityнеsignedStoreacceptance; C02metadata/sourcecompatibilityнеmainmerge; C03installedscheduler/transport/WB4genuinebaselineoldcurrentbytes+separateacceptance/revision/provenance/OzonactualtwoIDs/binding/windowостаются; C04actualTGcarrier/servicewiringнеinmemory/stub; C05actualprotectedPG18/apprestoreотдельно; C06/C07earlyreleaseнеждётвсехбудущихPLANкритериевисохраняетточныеusefulsafeartifact/reviewer/dashboard/privacy/канальныегейты. SafariDEFERRED_POST_RELEASE, YandexspecificUNKNOWN, Chrome/Opera/FirefoxPREPARINGневыданызаStorePASS.
+
+**Все12OPENсохранены**: B03durable; recipientpreACK/realIDB; B04OTP/PG/resource; A05atomic/currentcombinationinstalled; PR48/50originaltransport; generalC06/catalog/release/privacy/Store; personalR3/fullB02eightAI+Work/dot; originalC_R14; Cprivate-targetguardeddelete; Sep29publicationorigin; originalBconfigdrift; immutableoriginalreviewpayloadSHA12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175. Исходный10пунктныйаудитauthority/authenticity/refusal/singlewriter/progress/readback/receipt/owner/историянеподменёнCIчислами.
+
+## Последний исход и readback
+
+ПоследняяownRDCмутация **PID3736072finished**: толькоexistingownApeer-handoffpointerдополнентерминальнымрезультатомтогожеcanonical. FullJSONCAS/issuer6307715843/dedupe/alloldvaluespreserved, coordination.lock **0.006275158s/released**. **12187B/SHA81f78711fce050afbb12cdd76cf949d607888c636cedee78c1a1dd9781c47e4d**, полныйнезависимыйnative readback **19:33:29.099**. ПрежниеB/C03/C06ownpointers19:29иbodyисториясохранены. Финальныйnative list_sessions19:34:04 **No active sessions**. FreshGithubref/единственныйавтор/parent/fileпроверяютсятакжепослеэтойзаписи; неизвестнойownзаписи/мутации/двойногоисполнителянеобнаружено.
+
+Новыхtests/review/CI/dispatch/source/live/DB/security/resourceprobes/installer/servicechanges/credentialread/errors/events/реестров/архивов/helpers/чужихчатовнет. R37/B§22/reviewer-profile/aa27comparison/protection/resource/B06originaldiagnosticотказысохранены/неповторены/необойдены; unknowndispatch/binaryUTF8неповторены. ЗаконченнаяTesterвыдачаневозобновлена, siteвопроснеповторён. Код/WIP/profiles/evidence/уникальныеданныесохранены. Аудитнеобъявлензавершёнными30-минутнаяпауза/фоновоепродолжение неначаты. ФактическиеpublicationUTC/author/parent/ref/fullreadbackэтогоcheckpointпроверяютсяпослеCAS.
+
+---
+
 # Собственные ответы C закрыты; текущий A b32 и B05 SOURCE/installed-разрыв — 2026-10-21T19:31:31.264Z
 
 **Тот же единственный Контроллер. Все12исходныхOPEN, PLAN/WIP, принятыеузкиерезультатыивсяисториясохранены; полныйаудитне завершён.** Продолжениес **279d2cb319562caf90f4fcdcc25ffafb3de0155d**, authorMaksimUnimax, publication19:01:58UTC, предыдущийполныйreadback19:02:12.451. Freshref/commit/fullREPORTполучены19:24:17.930:2701902символа, толькоREPORT/parent9b3525f7; весьстарыйтекстнижеостаётсянеизменённымsuffix.
