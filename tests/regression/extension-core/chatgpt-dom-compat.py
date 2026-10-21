@@ -1758,8 +1758,8 @@ def run_work_dot_files(runtime: Path, output: Path, observed=None):
             assert not actual['ready'] and not actual['file'] and not actual['send'],actual
             cases['work_actual_progress_blocks_ready_send']=actual
             mount('work',attachments=w['ready']['dom']['attachments'][1]);actual=state(wf)
-            assert actual['ready'] and not actual['file'],actual
-            cases['work_actual_json_cards_ready_only_not_all_four_file_delivery']=actual
+            assert not actual['ready'] and not actual['file'],actual
+            cases['work_truncated_ready_cannot_confirm_two_json_cards']=actual
             mount('work',attachments=w['ready']['dom']['attachments'][1],control=w['sent']['dom']['stop'][0]['html']);actual=state(wf)
             assert not actual['ready'] and not actual['send'] and page.evaluate(classify)=='stop',actual
             cases['work_observed_stop_blocks_file_and_send']=actual
