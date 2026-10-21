@@ -278,7 +278,7 @@ describe("B2 feedback/support API", () => {
       vi.spyOn(trackedRepository, "listCases"),
       vi.spyOn(trackedRepository, "getCase"),
       vi.spyOn(trackedRepository, "transitionCase"),
-      vi.spyOn(trackedRepository, "addAdminFollowup"),
+      vi.spyOn(trackedRepository, "addFollowup"),
       vi.spyOn(trackedRepository, "aggregateSignals"),
       vi.spyOn(trackedRepository, "aggregateFunnel"),
     ];
@@ -304,7 +304,8 @@ describe("B2 feedback/support API", () => {
         const response = await server.inject({
           ...route,
           headers: {
-            cookie: "pcp_admin_session=admin-session; pcp_admin_csrf=" + portalCsrf,
+            cookie:
+              "pcp_admin_session=admin-session; pcp_admin_csrf=" + portalCsrf,
             "x-csrf-token": portalCsrf,
           },
         });
@@ -315,5 +316,4 @@ describe("B2 feedback/support API", () => {
       await server.close();
     }
   });
-
 });
