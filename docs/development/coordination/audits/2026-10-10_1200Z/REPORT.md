@@ -1,3 +1,42 @@
+# Первичный отказ чтения действующей main protection — 2026-10-21T09:43:42.242Z
+
+Тот же незавершённый аудит;12OPEN. Проверка A05 показала новый собственный author record09:38:40.522Z: PR248 draft/mergeable=true, formal submitted reviews0, unresolvedthreads0. Это не устанавливает, требует ли реальная защита main отдельного GitHub approval. Для проверки конкретной границы был выполнен ровно один штатный read-only GitHub connector GET, без source/CI/review/merge/security write.
+
+Точный tool: mcp__codex_apps__github_fetch.
+Точные аргументы:
+```json
+{"url":"https://api.github.com/repos/MaksimUnimax/runtime-fixtures/branches/main/protection"}
+```
+Полный дословный первичный ответ:
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "GitHub API error 403: {\"message\":\"Resource not accessible by integration\",\"documentation_url\":\"https://docs.github.com/rest/branches/branch-protection#get-branch-protection\",\"status\":\"403\"}"
+    }
+  ],
+  "structuredContent": {
+    "error": "GitHub API error 403: {\"message\":\"Resource not accessible by integration\",\"documentation_url\":\"https://docs.github.com/rest/branches/branch-protection#get-branch-protection\",\"status\":\"403\"}",
+    "error_code": "FORBIDDEN",
+    "error_data": {
+      "message": "Resource not accessible by integration",
+      "documentation_url": "https://docs.github.com/rest/branches/branch-protection#get-branch-protection",
+      "status": "403"
+    }
+  },
+  "isError": true
+}
+```
+
+Время наблюдения 2026-10-21T09:43:42.242Z UTC; отдельный tool-edge timestamp/requestID/callID не экспонирован, UNKNOWN/NOT_EXPOSED. **403 FORBIDDEN / Resource not accessible by integration** относится к этой операции чтения. Последний успешный GitHub read перед ним — own A receipt6307820874 updated09:38:51, точный PR248 source/ref и own C06 comment readback; это не доказывает, что connector имеет право читать protection. Конкретный недостаток настроек интеграции/прав и действующая required-review/ruleset конфигурация UNKNOWN; по тексту доказана недоступность указанного ресурса этой integration. Это GitHub API access refusal, не OpenAI safety rejection и не свидетельство отсутствия защиты.
+
+Операция прекращена: root не делает повтор, alternate rules endpoint, CLI/другойactor/route, не меняет интеграцию/credentials/security и не заменяет её фиктивным PASS. **Точный минимальный внешний результат:** существующий уполномоченный GitHub maintainer, уже имеющий доступ к main protection, сохраняет текущие требования required reviews/statuschecks/rules и допустимый draft→ready/non-force integration disposition для exact PR248ed0688/currentmain2731 в прежнем A05 integration документе, с датой и первичным native readback. Это запрос результата уполномоченного чтения, не поручение обойти отказ за root, не новое право merge и не просьба владельцу искать технические настройки или дать широкий admin grant. До него необходимость отдельного formalapproval UNKNOWN; zero reviews само по себе не доказывает permission/невозможность merge. A05 original native5 receipt остаётся CLOSED_ONLY_FOR_ED0688, R17/C-R16 narrow результаты не открываются повторно.
+
+Независимые documentary C06/B03/resource/12OPEN результаты продолжаются в разрешённых пределах. Сначала сохранён и перечитан этот полный первичный ответ; диагностика либо новое исполнение отказанного чтения не предпринимается.
+
+---
+
 # Первичный технический исход существующего B — обнаружено 2026-10-21T09:39:56.079Z
 
 Тот же Controller, audit_complete=false,12OPEN. При разрешённом чтении штатной истории обнаружен уже завершённый исторический B tool error; это не новый вызов root к PID и не новая platform/security denial. Полная исходная запись истории (без добавления отсутствующих args/ID):
