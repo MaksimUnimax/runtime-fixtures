@@ -1,3 +1,42 @@
+# Проверенные результаты и независимый остаток — 2026-10-21T10:28:32.992Z
+
+Продолжается тот же единственный аудит. **audit_complete=false; все 12 OPEN, исходный PLAN/WIP и вся история сохранены.** Предыдущий REPORT770576ea06f73bb798de2686c06ae209401c01fd — MaksimUnimax10:19:27UTC, только REPORT/blob604f319e42329af673f5a0a184bc74d88c22b9a9; полный readback10:19:29 exact. Новый текст добавлен перед сохранённой историей, без изменения чужих документов или правил.
+
+## Подтверждённые результаты
+
+**64 МиБ — ожидание закрыто.** Исходная DOT-C03 allocation лично прочитана CLOSED после действия dot09:50:06; девять исходных полей кромеstate сохранены, добавленыhistory/closed_at. Permanentreview1498B/SHAeb1021f7ffe0f28a3c1d2500c702ea951a3dcea680d8d6d907b650a93cc09c6f сохранён и лично проверен. Это metadata closure, не физическая очистка. **512 МиБ остаются OPEN у прежнего владельца очистки**. Новых измерений/пересчёта допуска/R7-R8 тестов Controller нет; ошибочный extra measurement dot не использован.
+
+**B03 — новая упавшая граница действительно обработана существующим B.** Original10ab серия завершена3SUCCESS/2FAIL: Docs,Coordination,ExtensionSUCCESS; ServerSTATIC-71 digestFAIL, I1selectedbootstrapABORTED153msFAIL. Все attempt1; оба FAIL и неизвестный инициатор I1 сохранены. Existingartifact12335343284 прочитан штатным способом вRAM,1553136B/SHA41c916201414fbc8ba7dbef6bdc6e4211682d7727df9ee511e9506058916963d совпал; progress/result подтвердили FAIL/body-not-parsed, не раскрыли physicalinitiator. Package/source bytes и вложенныйZIP не открывались.
+
+B уже исправлял STATIC-71 до rootmessage. Его собственные Red/Green875B receipt, nativecleancommit и два последующих taskappend лично прочитаны. **Новый публичный commit0440aef70e774452546109ba869b46f5ed1d553f**,10:08:41,parent10ab: только integrationtest +1/-1 — pinnedSHA соответствует принятому generatedartifact,154operations сохранены. Existing exact R3 independent verdict **ACCEPT_SOURCE_SCOPED**, SHA0003d135c4d64cb67d737b93777bf9438e5a66300757941339d7528f8d47d6ac; reviewer не запускалtests/CI. Ownадресная передача дополнена реальным existingexecutionoutcome и перечитана; её создание не выдано за получение или причину исправления.
+
+Публикация и новые5originalCI на **0440**,branchcontroller/b03-get-transfer-errors-r3-static71-ci-20261021, начаты самим B10:15:36, не Controller. Лично подтверждены Docs39583262909SUCCESS,Coordination39583262859SUCCESS,I139583262982SUCCESS. I1 jobs119165798125/119165858428/119165858449 всеSUCCESS, включая InstalledlocalAPI/portal/PG acceptance10:17:10. **Server39583262953 иExtension39583262840 ещё in_progress на10:26:46**. В Extension уже5/6 jobsSUCCESS, wb-browsers ещёисполняется; Server completeintegration ещёисполнялся на10:22:48. Полного5/5 пока не заявлено. Новый I1SUCCESS не объясняет original10abABORTED153 и не закрывает durabletwo-instance/preACK/installedB02. B сохраняет своё исходное выполнение, root не создаёт второго автора/теста/CI.
+
+**C03 — потреблён новый точный whole-family result.** Существующая C publication PR250#6311693962 updated10:16:30 содержит WB_FULL_FAMILY_309_UNIQUE_NO_DUPES_MANIFEST issued10:15:31: exact **2c807d35002ee7f62dadb756493a8ff6e1ce2416**,13/13WBpublicsources/inventories,309entries/309uniqueidentities/0collisions,284paths. Все13sourcehashes совпали с предыдущими original13inputs; candidatecanonicalmanifestSHA3d7a57a352a5be42e2b429e8fc27c4673ae7d85e14500324e12a7d3f9e95298f. Это готовый собственный C SOURCE/in-memory result, не действие Controller, authorizedmanifestacceptance/DBpersist/installedmonitoring/Telegram/Store. Originalwrong-working-directory launch исправлен C до fixture; не выдан за продуктовыйFAIL. OzonSeller/Performance по-прежнему требуют legitimateoperatorofficialsource после access-control redirectloop. Exact2c807Server439/439+Node24compiled иDocs2/5SUCCESS сверены лично; eligibleindependentreview и ещё3nativefamilies OPEN. Редакторская строка “C250 exact2c807139?” в предыдущем checkpoint — опечатка, не проверенный/существующийref; единственный текущийSHA приведён здесь полностью. cce827/b171/инойPR не подставлены.
+
+**Тестер — native результат и уже выданный допуск потреблены.** Existing successor6ad88807 работает в своём scope; старыйчат не возобновляется. Первичный JSON09:58:19,18208B/SHA97d6b0373ea219d58210ac6ee19191c6718df1d742b8781017af4e210d9dd834 и GitHubpublication8f1f1267 подтверждены. JS-on firstpaint наблюдён с уже существующей Octoportauth; не guest/logout/compositorPASS. NativeChooser/Open/reopen дал **FAIL_FILE_SELECTION_NOT_RETAINED**; причина UNKNOWN,60+14+1codePASS сохранены.
+
+Свежий§12 уже содержит принятую Тестером команду владельца **10:01:07 “да”** на причинную диагностику/исправление только nativeFile-retention originaltoolbarpopup и narrownativeповтор, безauth/login/AISend/marketplace/newprofile. **Повторного вопроса владельцу нет.** Новые sourcefix/build/nativeverification terminal пока не получены; source/rootprofile не перехватываются, A/C не назначены. Староеnew_source_fix_authorized=false относится к nativeJSON до этого разрешения. R7/R8метрики из этого append не используются как новый допуск Controller.
+
+## Организационные границы и все десять пунктов
+
+1. Последний результат/автор/ref/onlypath/fullreadback проверены; продолжающаяся операция не повторена.
+2. Старые one-use B06push/R7measurement/R17prep остаются использованы; новый допуск10:01 принадлежит только существующемуТестеру.
+3. Канал B проверен по действующим peer-handoffs, O_EXCL/version/короткийlock/readback; stalecheckpoint не выдан за idle.
+4. Новый metadataURL400 сохранён дословно, ошибка выбора API исправлена штатными artifacttools и проверена на исходныхbytes; mainprotection403 не повторяется никакимactor/tool/endpoint.
+5. Один sourceавтор у каждой задачи сохранён; root изменял только soleREPORT и свой один адресныйhandoff, не rolefiles/source/профили/бюджеты.
+6. Получен реальный зависимый результат: B corrected0440/independentSOURCE/publication/actualI1SUCCESS; исправление не приписано rootсообщению.
+7. Originalfailedjob/artifact и exactnewrefs/jobs прочитаны; readytests/review/CI потреблены, не пересозданы ради аудита.
+8. A receipt и B06publication закрыты; B/C/Tester фактически продвигаются. NativeFAIL и продолжающиеся CI не называются зависшимчатом.
+9. Existingowner каждого остатка сохранён: A/sourcepublisher — документальный integrationdisposition по уже доступнымматериалам без запретногоprotectionread; B — exact0440gates; C — eligible review/native/sourceauthority; Tester — nativefix; ownercleanup512; B/Ops — 3полядляконкретногоLegacyдопуска.
+10. История/карта12OPEN/closingconditions/отказы сохранены. Ниerrors.json/events.jsonl, ниPR97/131/134 не возобновлялись; новыхhelpers/реестров/архивов/планировщиков нет. Собственный пропуск cadence09:58→10:09 сохранён честно; следующие checkpoints опубликованы в пределах10минут.
+
+**Независимый остаток:** B03durablesourceSeen/preACK и browserdurability не заменены GET/OpenAPIfix; B04resource/OTPgate не закрытmetadata64; A05atomic2ref/PR50SOURCE ужеfulfilled не открываются; C06genuineissuer/trust/catalog/Store/installed/privacy и personalR3fullacceptance ещёOPEN. OriginalR14/privateenvresponse/Sep29publisher/configactor-time/exactreviewpayload требуют именно прежней immutableprimary, не реконструкции/повторногоотказанногопоиска. LegacyIDNA3поля NOT_DOCUMENTED не разрешение/назначениеscanner; их устанавливает existingB/Ops, владельца не просят искатьtechnicalID. Неисполняемый сейчас protectionGET никому не передаётся радиобхода.
+
+Аудитне завершён. Проверка существующих R3Server/Extension продолжается без нового запуска; ни sourcePASS, ни этотcheckpoint не объявляют mainmerge/installed/Storeacceptance.
+
+---
+
 # Последний фактический checkpoint — 2026-10-21T10:19:25.558Z
 
 **Тот же единственный Контроллер, audit_complete=false, все 12 OPEN.** Предыдущий own REPORT975cb2b002e05a9b4fd58c0e58a1fbf33217d6ee: authorMaksimUnimax10:09:27,onlyREPORT/blob e89dad2aaac1b52677c63bbcf39ec9703bf1c247; независимый полный readback10:09:29.315 exact. Freshref10:17:22 unchanged. Весь предыдущий текст/PLAN/WIP/история ниже сохранён. Никаких source/test/review/CI запусков Controller или новых исполнителей.
