@@ -107,6 +107,36 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         self.assertEqual(parse_database_url(implicit).port, 5432)
         self.assertEqual(parse_database_url(explicit).port, 5433)
 
+    def test_database_url_rejects_unsafe_multiline_and_nul_fields(self) -> None:
+        # A .pgpass entry is line-oriented; percent-encoded line terminators
+        # must not create a second authentication record.
+        invalid = {
+            "password_lf": "postgresql://fixture:pw%0Arogue@localhost/db",
+            "password_cr": "postgresql://fixture:pw%0Drogue@localhost/db",
+            "password_nul": "postgresql://fixture:pw%00rogue@localhost/db",
+            "user_lf": "postgresql://fixture%0Arogue:pw@localhost/db",
+            "db_lf": "postgresql://fixture:pw@localhost/db%0Arogue",
+            "query_lf": "postgresql://fixture:pw@localhost/db?sslmode=require%0Arogue",
+            "raw_password_lf": "postgresql://fixture:pw\nrogue@localhost/db",
+            "raw_query_cr": "postgresql://fixture:pw@localhost/db?sslmode=require\rrogue",
+        }
+        for label, url in invalid.items():
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(
+                    BackupError, "DATABASE_URL_CONTROL_CHARACTER"
+                ):
+                    parse_database_url(url)
+
+    def test_database_url_preserves_safe_pgpass_escapes(self) -> None:
+        parsed = parse_database_url(
+            "postgresql://fixture:pw%3Awith%5Cslash@localhost/db?sslmode=require"
+        )
+        self.assertEqual(parsed.password, "pw:with\\slash")
+        self.assertEqual(
+            backup_module._escape_pgpass(parsed.password), r"pw\:with\\slash"
+        )
+        self.assertEqual(parsed.pg_environment["PGSSLMODE"], "require")
+
     def test_findmnt_nonzero_exit_is_bounded(self) -> None:
         def failing_findmnt(argv, **kwargs):
             raise subprocess.CalledProcessError(
