@@ -1,125 +1,127 @@
 # Отчёт действующего Контроллера Octoport
 
 - **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — тот же незавершённый аудит.
-- **Срез UTC:** 2026-10-21T05:51:51.993Z. Предшественник REPORT **f904c01a2b915c4d781d505921113508db4fb580**, blob **0424e78ad5f373a235fa266b2ef566c9c474c823**, author MaksimUnimax **2026-10-21T05:10:08Z**, parent **e17b4964982eb5b0da6a7fa597b4f54dd5aa0fb2**. Full history/итог05:10:36/нет другого продолжения/пустая форма подтверждены текущей прямой передачей владельца, чужие чаты не открывались.
-- **Состояние:** IN_PROGRESS / audit_complete=false / **12 OPEN**. GPT-6.1 Sol / Очень высокое, PLAN/WIP/checkpoint/history/closing conditions сохранены. Правила и промпты не редактировались.
-- **Main:** **ad6ae688ee17fae955aae32b36716014f0aeafed**; PR248 **OPEN/DRAFT**, exact **ed0688bdf4f3df1fe45cf0e2af21b59c2b04e300**, base73aa. PR235 **OPEN/DRAFT/unmerged**, public **e7bec59487f1147f990dbde5d5c82f74ba5893a5**, branch **work/b06-six-drafts-main-dcdd-20261019**. Current remote metadata прочитаны, старые native PASS не переиграны.
-- **НОВОЕ РЕШЕНИЕ ВЛАДЕЛЬЦА R17:** вопрос3 **05:38:22UTC**, ответ **«да»05:38:57UTC**, message **Sentinel_7c235e5808b48191b18a0873bad4647c**. Разрешён **один повтор подготовки review-input существующим A** в прежнем каталоге после freshsingle-writer/currentity, без review/CI/новойworktree/source/DB. Это не широкое platform/security grant.
-- **Решение реально передано:** свой прежний comment **6307715843** обновлён **05:44:36UTC** append-only owner decision addendum с точным вопросом/ответом/авторством/Sentinel ID; исходный body и закрытая передача Cnegative сохранены. Independent GET **05:44:48.138UTC** подтвердил exact body/author/id/oldbodypreserved. **Получение A и единственная новая prep-попытка ещё не подтверждены.**
-- **B06:** прочитаны полный328-line existing plan и35-line original publication refusal. Отделены R4publication82d, dirty12-pathR2 и IDNA legacy-data preflight. Один documentary request **6309010922**, PR235, created **05:44:40UTC**, independentbodyreadback05:44:48. Точный минимальный current permission plan запрошен без новых source/DB/security/publication действий.
-- **C:** новых адресных ответов по **6308503022/6308503936/6308505226** в проверенных обсуждениях нет. Физическая/облачная причина незамкнутой передачи **UNKNOWN**, не выведена из отсутствия localPID или даты комментария. Нового одинакового сообщения C нет. Ниже точный недостающий primary и допустимый возврат.
-- **Тестер:** прочитан R4result7/7; затем найдены новые ready aggregate/commit/review/package-reuse. Test-only **675707533784bd217fa200742b55c132c219faf0** поверх runtime **b2b203dd…**, **14 distinct linked assertion checkpoints**, scopedreviewPASS, R2/R3 overallfixtureFAIL сохранены. Runtime/134buildinputs/ZIP unchanged; новых tests/review/build аудит не запускал. §12 старый/новый finalrolecheckpoint не обнаружен в прочитанной передаче: завершение всей роли не объявлено.
-- **A03:** existing handoff88строк прочитан, delta **05:18:13.413927UTC** подтверждает bytecurrentity HTML/CSS mainad6+PR248ed/b595. Не popup.js, не installed/dispatch proof; прежний popup.js fragment denial не читался/не обходился.
-- **Server checkpoint** прежний SHA256 **76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212**, map **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d**. Foreignrole/PLAN/state records не пишутся; all12OPEN/source-vs-installed/backup/rollback/C06/Store/enforcement gates сохранены.
+- **Срез UTC:** 2026-10-21T06:37:16.217Z. Предшественник REPORT **b251d0d9a70b0d4f04eac65b3cf7575b86f0f282**, blob **33fb59544b35f7b2c772eea32f3b23c49a0af7bd**, author MaksimUnimax **2026-10-21T05:51:53Z**, parent **f904c01a2b915c4d781d505921113508db4fb580**. История/полный итог/отсутствие дубля/пустая форма/восстановление после8обычныхrefresh безStop/повторнойотправки подтверждены переданным владельцем UI-срезом; чужие чаты не открывались.
+- **Состояние:** IN_PROGRESS / audit_complete=false / **12 OPEN**. GPT-6.1 Sol / Очень высокое; PLAN/WIP/checkpoint/history/closing conditions сохранены. Rules/prompts не редактировались.
+- **Current main:** **eb5b0658ae5cd64849e309fbb5ce22fa64f13b6f**, PR249 merged **06:03:31UTC**. Freshref и independent ad6→eb5 compare:3commits/2backup paths, ни одного из9R17sampledpaths. Это textual currentity, не fullnewmainreview.
+- **R17 фактически исполнен:** existingA **06:05:56.871316UTC**, shellPID3561555/PythonPID3561562; ownerdecisionID/Sentinel и наша передача явно процитированы A. SOURCE_MANIFEST99строк полностью прочитан:9uniqueinputs/115040B, pinsed0688+oldmainad6. **Разовый допуск ИСПОЛЬЗОВАН, повтор не разрешён.** Закрыты только получение решения/подготовка/readback, не A05/release.
+- **Найден и принят реальный ответ C:** C6307000049 updated **06:12:09UTC**, record **C_A05_R16_R17_MAINED_SOURCE_CONSUMER_DISPOSITION_20261021** issued06:10:26 прямо отвечает нашему6308503936: existing R16+combined evidence **SUFFICIENT для узкого C06 SOURCE/current-base consumer gate**, дополнительный R17 review отдельно не обязателен для этого scope. Не R17reviewPASS/неmergegrant.
+- **Две limited ownclosure выполнены:** existing6307715843 updated **06:28:28UTC**, existing6308503936 updated **06:28:35UTC**; independentreadback **06:28:43.941UTC**, author/id/body exact/oldbodypreserved=true. Новых обращений/исполнителей/source/review/CI нет.
+- **Тестер:** newtest-only **7d3ce1d4fe148cd890f803c1c721f2c515629826**, finalcheckpoint **06:24:22.146779UTC** теперь самостоятельно прочитан. **60 distinct cases =50R1+10R2**, не70; исходныеR1twofixtureFAIL сохранены; scopedreviewPASS; runtime/134inputs/DEVZIP2743191B SHAeaad6ea8… прежние. Только SOURCE/offline, неinstalled/fullB02/providerbytes.
+- **Новый независимый B05SOURCEрезультат:** PR249postmerge exacteb5 nativepush attempt1 **5/5 workflows/13/13 jobsSUCCESS**, root прочёл10metadataresponses по readyIDs. Bsource/lifecycleclosure иexistingB→C05handoff приняты документально, неbackup/restore/rollback.
+- **Remaining addressed returns:** B6309010922 иC036308503022 в проверенных текущих публикациях без ответа. **C06sourceintake теперь подтверждён** новым Crecord updated06:34:48, итоговыйlive/listingdisposition ещёNOT_YET_COMPLETE; это не отсутствие работы. Для каждого ниже конкретная операция/владелец/сделанное/минимальныйinput. C/R17 больше неUNKNOWN.
+- **Server checkpoint** прежний SHA256 **76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212**, map **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d**. Отказанные PLAN/state/A03popup.js/B06/R7R8 и все другие границы сохраняются; только одинREPORT/ownslots.
 
-## 1. Последний исход, авторство, locks/WIP и dedupe
+## 1. Свежие исходы, авторство, locks/WIP, отсутствие дубля
 
-Freshref/fullpinnedREPORT/commit author/parent/onlyREPORT совпали сf904c01a. Неизвестныхownwrites нет; прошлые триCmessages имеют завершённые exactbodyreadbacks. В этом pass выполнены только разрешённые documentary чтения и две собственные comment mutations: append exact ownerdecision вexisting6307715843 и один Brequest. ПодготовкуR17 Controller не выполнял и никому иному не поручал.
+Freshref/pinnedfullREPORT/commit author/parent/onlyREPORT совпали сb251d0d9. Предыдущиеownmutations завершены и readbackподтверждены; unknownowncallнепродолжался. Провереныcurrentowncomments6307715843/6308503936,authorMaksimUnimax, exactunchangedbody доappendclosure. Fulloldbodyсохранён; foreignA/Cpublication/rolefiles/PLAN/state не редактировались.
 
-Freshown **/root/octoport-control/CONTROLLER.lock** и **/root/octoport-control/controllers/coordination.lock**0B/прежниеmtime до работы и перед mutations. Это **метаданные, не physicalflock ownership и не доказательство свободных foreign processes/WIP**. NativeGitHub isolatedowncomment slots иexpectedblobCAS не меняютsourceownership. Foreignphysicalclaims/dirty/currentlocalA/B/Coperation NOT_VERIFIED; старыеtimeout/refusedprocess/session/globalhistory/C.json/PRIORITY/PLANstate/preflight проверки не повторялись и не дробились.
+Ownget_file_info **/root/octoport-control/CONTROLLER.lock** и **/root/octoport-control/controllers/coordination.lock**0B/прежниеmtime доработы и передclosure. Это не полученныйphysicalflock, не freeprocessclaim/нетforeignWIP. Physicalcurrentauthors/claims/dirty/processes **NOT_VERIFIED**; Amanifest/Testercheckpointunitfields являются их датированными primary, не нашим текущимprocessscan. Старыеsessions/process/globaltoolhistory/C.json/PRIORITY/PLANstate/preflighttargets не повторялись/не обходились.
 
-**Dedupe:** fullcurrent ownAcomment6307715843 ещё не содержал newSentinel decision, A6307820874 latest04:55:58, PR248delta[] после05:09:56 и freshprewrite05:42:01; allowedA05root list не показывалR17directory/receipt. Apeerhandoffnames не показали newR17permission/result. Это не исключает получения A вне scope; перед единственной попыткой сообщение прямо требует A сверить, не использован ли тот же decisionID через другой канал. Allowance не сбрасывается новой публикацией.
+Доclosures independentlatestcommentGET подтвердилинетнашегоповторногоclosemarker; прямыеA/CответыисуществующийownerIDсовпали. Изолированные собственные nativeGitHubcomments не требуютперезаписичужогоsource. ДляREPORT nativeexpectedblobCAS/freshrefauthor/metadata/fullreadback/ref/parent/onlyREPORT; приchangedrefoverwriteнет. Previousactiveprefix/history/§3oldmap/unique§5R19 сохраняютсядословно.
 
-B PR235 fullconversation имела только два собственных Bcomments6270578041/6306562014, currentexact-plan request там отсутствовал. Existingdecision-input §§5/6/15/16 прочитаны; дублировать их не поручено, только дать недостающие текущие адресные поля. Ccomments после lastpass не изменены; свои Crequests не редактировались/не переотправлялись.
+Действует ранее прочитанный актуальный канон и поздниеownerlimits; новыхpolicy/rules/promptsизмененийнет. Прежний resolve-recipients mapping существующихA/B/C/Тестера не расширялся. Никакихnewhelpers/review/tests/CI/dispatch/новыхworktrees/source/live/DB/security/cleanup/browser/Send/capture/auth/quotas/schedules/protectionизменений.
 
-Роли-получатели сохраняют ранее разрешённое resolve-recipients подтверждение из START_C/PROMPT_C/primary role issuers; A originalsourceauthor и B existingPR235writer прямо названы текущим владельцем и их первичками. Никаких новых recipients/helper/actor/chat не создано. Исторические имена codex/codex3 не применяются против позднего запрета. Rules/prompts не менялись, errors/events не читались/не восстанавливались.
+## 2. A05 R17: замкнута передача и единственная подготовка, allowance consumed
 
-## 2. R17: точное новое owner permission и незамкнутый фактический исход
+Полностью прочитана новая primary [A6307820874](https://github.com/MaksimUnimax/runtime-fixtures/pull/248#issuecomment-6307820874), updated **06:09:58UTC**, **A05_R17_OWNER_SINGLE_RETRY_PREPARED_9_GIT_BLOBS_ACTUAL_20261021** issued **06:09:51.468UTC**. Она прямо цитирует ownerYES05:38:57, decision **OWNER_R17_ONE_PREPARATION_RETRY_SENTINEL_7c235e5808b48191b18a0873bad4647c** и собственную Controllerпередачу6307715843.
 
-### Сохранено авторство и дословное решение, передано действующему A
+**Фактическийoriginaloutcome поAprimary:** одинRDCstart_process успешен **06:05:56.871316UTC**, shellPID **3561555**, PythonPID **3561562**, separateMCPcallIDUNKNOWN/notexposed. Aсообщаетprecalloneauthor/cleanedheaded0688/currentmainad6/AWIP81/absentdirectory/неиспользованныйsentinel иshortcoordinationlock. Rootнеповторялэтотpreflight/операцию/историю, невыдаётAprecallchecksзаrootphysicalscan.
 
-[Existing Controller comment6307715843](https://github.com/MaksimUnimax/runtime-fixtures/pull/248#issuecomment-6307715843) обновлён **05:44:36UTC** с новым отдельным decision-transfer ID:
-**OWNER_R17_ONE_PREPARATION_RETRY_SENTINEL_7c235e5808b48191b18a0873bad4647c**.
+**SOURCE_MANIFEST.json** вточномR17каталоге полностью прочитан99строк:
+`/root/octoport-control/logs/A/A05_FIREFOX_IMPORTSCRIPTS_LEXER_20261020/R17_ED0688_MAINAD6_COMBINED_SOURCE_REVIEW_20261021/SOURCE_MANIFEST.json`.
+- id **A05_R17_ED0688_MAINAD6_OWNER_SINGLE_PREPARED_INPUT_20261021**, issued **06:05:56.871316UTC**;
+-9uniqueinputrecords, суммаsizes **115040B** проверена root поmanifest;4PR248inputs +5maininputs, безчтенияcopiedsourcebytes;
+- PRhead **ed0688bdf4f3df1fe45cf0e2af21b59c2b04e300**, tree **f767d0ae3fd8b5e8781cfb98a3eaa555dee516e8**; main **ad6ae688ee17fae955aae32b36716014f0aeafed**, tree **a9d532d344efb8d93d679773aeb4cbef98d96c38**;
+- ninepaths: extension-ci.yml; extension_firefox.py; extension_importscripts_ast.cjs; firefox-package-contract.mjs; extension_core.py; Ozonprovider-runtime.js; WBadapter.js; Ozonpostcallbackfence; WBprovider-resultfence. FullGitOIDs/perfileSHA/size вmanifest сохранены, sourceнеоткрывался;
+- **manifestSHA2567aa5dbfa1ceb377504a276280c559f02425e9434f2cabdd8d1fa33088e2e4985** — исходныйAbytehash/readback изreadyreceipt; rootпрочиталmanifest/сверилструктуру иpins, **необъявляетповторныйblobbytehash/review**;
+- review **NOT_STARTED_NOT_AUTHORIZED**, tests/CI **NOT_RUN**, newworktree/source_mutation/remote_ref_change=false.
 
-Прямо зафиксировано происхождение: вопрос dot к владельцу **21Oct05:38:22UTC** и переданный владельцем ответ в основном диалоге, не независимое чтение чужого чата Controller. Точный вопрос:
-> «Разрешаешь существующему A одну повторную подготовку R17 review-input из существующих Git blobs в ранее указанном каталоге, после проверки единственного автора и актуальности? Без запуска review, CI, новых worktree или изменения исходников.»
+**ALLOWANCE USED:** закрыттолькополучениеownerрешения +однауспешнаяподготовкаиmanifestreadback. Прежний04:38securityrefusalосталсяисторическиистинным, егоinternalreason/callIDнеразобраныэтимуспехом. Новаяподготовка/обновлениеinputнеразрешеныбезновогоадресногорешения; review/CIнеразрешеныэтимдопуском и не выполнялисьаудитором.
 
-Ответ владельца **«да»**, **05:38:57UTC**, **Sentinel_7c235e5808b48191b18a0873bad4647c**, на набор из трёх вопросов; текущая адресная команда явно определяет вопрос3 как однуR17prepпопытку существующегоA.
+### Ограниченная closure в прежнем ownmessage
 
-**Exactdirectory:** `/root/octoport-control/logs/A/A05_FIREFOX_IMPORTSCRIPTS_LEXER_20261020/R17_ED0688_MAINAD6_COMBINED_SOURCE_REVIEW_20261021`.
-Источник — existingimmutableGitblobs, freshsingle-writer/currentity прежде однойпопытки. **Не разрешены** review/tests/CI/dispatch/новыйworktree/sourceизменения/auth/DB/live/security, обход/сменаtool/actor, повторR19/другогопрежнегоpreflight.
+Existing [6307715843](https://github.com/MaksimUnimax/runtime-fixtures/pull/248#issuecomment-6307715843) append **OWNER_R17_PREP_EXECUTED_ALLOWANCE_CONSUMED_20261021**, update **06:28:28UTC**, independentGET **06:28:43.941UTC**. Sameid/author/body equality/oldbodypreserved. Это actualgateclosureпоответуA, не формальныйACKи не новыйrequest/sourcewriter. Всообщениипрямо«DO NOT repeat or refresh preparation», R17reviewNOTAUTHORIZED/CIremainingсохранены.
 
-Полный originalmessage body сохранён дословно, включая confirmedsource-receiptclosure; это не переоткрытыйCnegative/новыйrequestAreceipt. IndependentGET **05:44:48.138UTC**: sameauthorMaksimUnimax/id/bodyequality=true/**oldAtextPreserved=true**. Newownerdecision точно передано; **не объявлено прочитанным A**.
+### Main advanced, input не обновлён автоматически
 
-### Одна попытка означает одну попытку по этому owner-decision ID
+Rootreadfreshmain **eb5b0658…** иmetadataonlyad6→eb5comparison:3commits(twofixes+PR249merge), twochangedpaths **tooling/operations/backup_postgres_independent.py** и **tooling/operations/test_backup_postgres_independent.py**. Нетпересеченияс9sampledpaths и4A05PRpaths. Это **textualpathnon-overlap**, не transitive/runtime/full-treecurrentmainreview/новаяcombinedCI. Preparedinput остаётсяmainad6pin, originaltestmergefa9a28a7(mainad6+ed) исторический. Никакойreprep/rebase/sourcepatch/новогоR17reviewрадиэтогодрейфанет.
 
-A адресно сказано сначала проверить, не пришло/не исполнено ли это же решение другим каналом. Уже состоявшуюся единственную попытку **не повторять**, вернуть readyoutcome. Запрошены только фактический originalcalloutcome/экспонированныеtimestamp/callID, inputmanifest/composition/relativepaths/hashes/exactsource+main/tree еслисоздано, либо точный новыйrefusal. Никакие copiedsource/секреты/credentials публиковать не нужно.
+## 2.1. C/R17 реально ответил: узкий SOURCE/current-base consumer gate COMPLETE
 
-**Прежний исход сохранён:** originalR17NOT_EXECUTED/inputNOT_CREATED/reviewNOT_STARTED; originalsecuritytext04:38:45observation остаётсяисторическим, не историяуспеха. Новоеразрешение владельца отменяет предыдущий user no-retry только в этой **одной точной prepгранице**; platform acceptance неизвестна. Оно не гарантирует, что система выполнит команду. При новом отказе A останавливает толькоэтуоперацию/сохраняетprimary, без retry/split/proxy/routechange. Controllerсамtoolcall/prep/sourceinput не выполняет.
+В [existingC6307000049](https://github.com/MaksimUnimax/runtime-fixtures/pull/248#issuecomment-6307000049), updated **06:12:09UTC**, найденонедубликативноедополнение **C_A05_R16_R17_MAINED_SOURCE_CONSUMER_DISPOSITION_20261021**, issued **06:10:26UTC**. Полностьюпрочитано; CпрямоназываетнашcoordinationID **CONTROLLER_EXISTING_C_A05_R16_R17_EVIDENCE_DISPOSITION_20261021**, ссылаетсянаrequest6308503936 иAreadyreceipt.
 
-**Отдельная Cразвилка6308503936:** достаточно ли R16+combined evidence либоR17mandatory — не является новымownerpermission и не заменяет его. НынешнееownerYES не является независимымreviewPASS/fiveCI/merge/installedgrant и не закрывает вопросдостаточностиreleaseproof.
+**ActualCdecision:** **SUFFICIENT** для **limitedC06SOURCE/current-baseconsumer-evidencegate**. ExistingR16 exactthree-file independentPASS +originalmainad6+edsource/package/native188+DEVprovenance достаточно для узкогоопределённогоscope; duplicateindependentR17combinedreview **неотдельнообязателен**. CневыдалновыйR17codereviewPASS/общийrelease/mergegrant. Позднийeb5twobackuppathdriftпомечентолькотекстовойcurrentity.
 
-### Точный ten-point контроль новой границы
+Закрытыactualreceipt/точнаяdisposition/nextэтоговопроса. **Не сохраняемC/R17UNKNOWN**, не требуемещёодинответ/новыйreview. ДоэтогоответCнебылвиденвпрошломсрезе, сейчасexistingcommentupdateдоказалреальнуюdocumentaryработуC; absenceвообще/простойчивсейроли опровергнутыновойprimary.
 
-**НОВОЕ РАЗРЕШЕНИЕ ПЕРЕДАНО; ПОЛУЧЕНИЕ A И EXECUTION R17 НЕ ПОДТВЕРЖДЕНЫ**
+Existing own [6308503936](https://github.com/MaksimUnimax/runtime-fixtures/pull/248#issuecomment-6308503936) append **C_R16_CURRENT_BASE_DISPOSITION_CONFIRMED_20261021**, update **06:28:35UTC**; independentreadback06:28:43.941 bodyexact/author/oldbodypreserved. ForeignCtextнепереписывался. ВстарыхпассажахCещёестьNOT_CREATED/refusalформулировка; еёнеберёмзаактуальнуюпослеуспешнойownerprep06:05. CответсозданкакR16evidencedisposition, анеисточниктогоownerpermission.
 
-1. **ВЫПОЛНЕНО в documentaryscope; originalpreviouscallfields UNKNOWN.** Точныеquestion/answer/Sentinel/recipient/directory выше; question05:38:22UTC(08:38:22МСК), answer05:38:57(08:38:57МСК). Передача05:44:36, readback05:44:48.138. Exacttime/args/callID/PID прежнегоR17toolcall неэкспонированы; observation04:38:45 неcalltime.
-2. **ВЫПОЛНЕНО.** Прямая более поздняя команда владельца даёт **одинprep retry existingA**; никакихновых полномочийController/helper/review/CI/sourceDB. Generalserverconsentнепереспрашивается; scopeпроверен.
-3. **ВЫПОЛНЕНО для owntransfer; НЕ ВЫПОЛНЕНО для R17success.** PreviousnativeGitHubcomment/update/readback подтверждён, использован тотжеownslot с сохранениемbytes. Успешный counterpart R17 preparation не показан; oldR16review/CIнеегоsuccess.
-4. **ВЫПОЛНЕНО.** OldR17explicitplatformrefusal отдельный от newuserauthorization; отсутствие platformexecutionнеpermissiondenialowner. Нынешнийstage — authorreceipt/executionUNKNOWN, неpendingremotecallController/неreviewFAIL/неактивностьвсейA.
-5. **ВЫПОЛНЕНО ownscope; foreignphysicalNOT_VERIFIED.** Freshref/author/lockmetadata/PRhead/main/dedupe; no A.json/foreignWIPwrites, A05namesпроверены. NewdecisionIDsingleattemptусловиепрямовсообщении; новогоAexecutorнет.
-6. **ВЫПОЛНЕНО.** Разрешённыйорганизационныйшаг реальноисполнен: decisionсточнымownertext передано existingA, не осталосьтолькоREPORT. Controllerнеисполнялprepи невыдавалдругоймаршрутзаисходныйвызов.
-7. **ВЫПОЛНЕНО для transferreadback; НЕ ВЫПОЛНЕНО для newinput.** Exactbody/author/oldbytesconfirmed. PostsendA05rootnames не показалиR17; originalnewcall/inputcomposition/hash покаprimaryнет. Сохранённоеpermissionнеproofвыполнения.
-8. **НЕ ВЫПОЛНЕНО — actualAconsumption/oneattempt ещё не подтверждены.** Старыйedcommit/3native/RUNNING незамена новомуR17outcome. NewTesterreadyworkнайдена независимо, но онанеисполняетR17заA.
-9. **ВЫПОЛНЕНО.** Aсампроверяетoneattemptcurrentity/ownership и даётoriginaloutcome+manifesthashлибоnewexactdenial. Еслиdenial — supportedplatformdispositionуисходногоcustodian, безповтора/обхода; минимальныйтекущийвнешнийвход — savedAreceiptэтогоownerID, не новыйgeneralYES.
-10. **ВЫПОЛНЕНО.** Existingowncommentappend+readback/soleREPORTCAS. Noerrorregistry/newhandofffile/queue/secondactor/чужойчат. Closingconditions12/R19historyсохранены.
+**Remaining:** exact-ed originalnative **3/5families/10completedjobsSUCCESS**, Server/CoordinationзаexistingauthorizedActionsactor; Cнеосвобождаетотcurrentbasecompatibility/ordinarynonforceintegration/postmerge/installedowner/Store/старогоABORTcause. RootнеlaunchCI/review/dispatch и не назначаетновуюкодовуюработу.
 
-## 2.1. C: проверен документальный предел причины, одинаковые обращения не повторены
+## 2.2. Тестер: actual matchers/processRecovery,60distinct и найденный finalcheckpoint
 
-Existingrequests **6308503022(PR238)/6308503936(PR248)/6308505226(PR210)** ранее размещены/readback05:05 и дважды проверены. Freshboundedthread-deltas после05:09:56 и afternewmutations снова не далиCresponse. ExistinglatestCprimary **6306568355 updated03:18:03** прочитана полностью для проверки *его опубликованного next*, без чтения исторических source/logs или повторения ABORT расследования:
-- next C03/PR238 — потребить safeexistingA/Tester same-selectedRequest cancel/lease/fence/worker/transport primary;
-- record не содержит receiptBmedia/R17/privacy, не сообщает новыйSTOP/инструментальныйотказ C intake или исход текущейоблачнойоперации.
-Allowedcontroller-notices filenames не показали адресной новойCdisposition; allowedlogsrootnames не показали текущейC03/C06 primary. Старыенотices неиспользовалиськакноваякоманда/STOP.
+Newtest-onlycandidate **7d3ce1d4fe148cd890f803c1c721f2c515629826**, base **675707533784bd217fa200742b55c132c219faf0**, единственныйchangedpath **tests/regression/extension-core/attachment-real-reconcile.py**. Runtimecandidate **b2b203dd…** не менялся.
 
-**Что установлено фактически:** публичный Cnext по старой causalзадаче не является ответом на новые три входа. Публикации запросов доступны, но authorreceipt/действиеC/состояниеоблачногоисполнителянеподтверждены. **Причина, почему C не замкнул передачу, UNKNOWN.** Это не выдается за C securitySTOP, ожиданиеобщегоownerpermission, idle/hang или отсутствиеоблачнойработы. Переданный dotlocalPIDscan05:09/05:26 не доказывает остановку cloudchat.
+**Готовыеprimaryпрочитаны, неповторены:**
+- R1result **1120строк** полностьюпрочитанчастями: statusFAIL,60cases, **58PASS/2FAIL** — **deepseek_composer_only,claude_composer_only**. Это fixtureplacementerrors, недоказанныйprovider/runtimeFAIL.
+- R2result10composer-onlycasesPASS, noactualSend/click, mockedworkerack; послеисправлениятолькопостановкиcomposer-only.
+- Fullaggregate **1418строк**, at **06:18:24.830311UTC**,60uniquekeys/allcasePASS, **50изR1+10изR2**. Initialaggregate statusPENDING_REVIEW — состояниееговремени, supersededотдельнымготовымreview, не reviewFAIL. **Не58+10=68/не60+10=70**, overlappingoldcomposer8выбраныизR2alongwith2repaired.
+- **B02_REAL_RECONCILE_REVIEW_VERDICT.txt5строк**, existingreview **PASS_SOURCE_SCOPED** exact7dvs675, SHAвreadycheckpoint **1efe48483b3bff4b3a822807efc7aa41a08beea87b21fd73a05d04c03958adc2**. Reviewertestsнеповторял.
+- **B02_REAL_RECONCILE_PACKAGE_REUSE.json20строк**, at06:21:35.659337:134runtimeinputs unchanged,41files,DEV0.2.37 **2743191B**,SHA **eaad6ea8e2733e15a671d87f72603c5628b6e7cd5c25f3a899fd8bf670b36250**. No rebuild/reextract/старыхsuitesrerun.
+- **B02_REAL_RECONCILE_FINAL_CHECKPOINT.json120строк**, at **06:24:22.146779UTC**, sourceclean/pendingfalse/new60/SOURCE_SCOPED_OFFLINE_NOT_INSTALLED_NOT_FULL_B02. R1unitfailedexit1, R2/reviewunitssuccess0/inactive/emptycgroups—authorcheckpointсрез, не rootcurrentprocesscheck.
+- **DOCUMENT_READBACK.json24строки**, at06:24:22.161634, checkpoint5886B SHA **1cb1c97197c2c28b68f47c9af0b6160dcbb761102585231bf61b4191dd52d17d**; §12handoff635456B SHA **1113265372ba9cf7614508b20ff214ca778af1cb39cdcb04b182978de9603fd9**, §11SHA **3e04b101177b897826cc657c674fc0056d6d1d214649909cdfbfbf906b82fabf**, outside12preserved/PLANstate/popupuntouched.
 
-**Точный вопрос о недостающей primary, не повтор трёх поручений:** существующий C либо оператор его текущего облачного диалога должен предоставить уже имеющийся privacy-safe **last-operation receipt** (actual timestamp/tool/outcome/какойincoming былпотреблён) и disposition трёх messageIDs; если есть реальный STOP/отказ/операциявполёте — назвать её точнуюграницу/первичныйисход. Из разрешённых документов rootне может восстановить этот факт. Прежний **get_file_infoC.json−32603timeout**, list_sessions/list_processes/list_remote_tool_calls и их альтернативы не повторяются; чатыA/B/Cнеоткрываются. Это граница **доказательств Controller**, не доказанный blockerC.
+**Доказательственныйпредел:** реальныеadapterssent-cardmatchers иcommittedprocessRecovery на8семействах+Work/dot, ноsyntheticDOM/mockACK; old/newownedturn,baseline/composer-only,filename/body/contextmismatch/confirmationfailpayloads/cleanup — **offlineSOURCEcoverage**, не providerbyteidentity/installedUI/fullB02. Старый14linkedcycleи24+22observerрезультатнепреувеличендоend-to-endnative10поверхностей.
 
-ТекущемуC **не нужен новый общийgrant** для чтения уже адресованныхнеотказанныхдокументов и документального source-negative/ownership/refutationnext. Возможныйlackofreceiptнеустраняетсяодинаковымчетвёртымcomment: новыхCсообщений/новогоисполнителя/remotehelper/отменыегооперации нет. ПриготовомCответепотребитьточныйevidence; доэтогонеобъявлятьполучение/простой/решение.
+**Newremainingизfinalcheckpoint:** B02-11требует **ужеимеющийсяразрешённыйexplicitvisibleexpiry/login-requiredDOM** сsurface/samedialog/composerstate либоконкретныйownerответA03. Dot05:56boundedsearch46+4docsNOT_CAPTUREDпотреблён; это неотсутствиевовсехUI. Не повторятьsearch/request/capture, forcedexpiry/logout/Send, не требоватьprofile/UItestsТестеру. A03popup.js/PLANstate/PR241ABORT141/mergegate/cross-contextbindingоставлены. Currentmatcher/controllerindependentstepCOMPLETE, **весьB02неDONE**.
 
-## 2.2. B06: использован существующий план, запрошен только адресный permission remainder
+## 2.3. Новый независимый B05 результат: maineb5 native5/13 и existing C05 handoff
 
-Полностью прочитаны **IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md328строк** и **B06_PR235_R4_PUBLICATION_TOOL_DENIAL_20261019.json35строк**, fullPR235conversation2existingBcomments иfreshPRmetadata. Scopeдокументов—decisioninputs/evidence, не source/reproduction.
+ИзготовыхновыхдокументовпрочитаныPR249body/metadata и[originalBcomment6309575052](https://github.com/MaksimUnimax/runtime-fixtures/pull/249#issuecomment-6309575052), created **06:25:44UTC**. PR249 sourcecandidate **5a1dcf5f00dbebf680c18a8c62143f146bdb7c2c**, merge **06:03:31UTC** вeb5, толькоtwobackupsource/testpaths. Bodyимеетold16MiBOPEN доlifecycle; newcommentсообщаетnormalretirement/**16MiBCLOSED**, source/evidence/refskept. Rootcleanup/scanнеповторял.
 
-**Originalpublicationrefusal разграничен точно:**
-- issuerB recordat **19Oct19:17:23.774376UTC**; deniedcalltime **UNKNOWN_NOT_CAPTURED_AT_TOOL_EDGE**, subsequentreadback19:16:13—notcalltimestamp;
-- oneattempt обычнойnon-forceFF existingPR235 **e7bec594…→82d7d299272c50b95a7db4f61ab8f86d25d3e6e1**, толькоfour-pathadminauditUnicodehardening;
-- `requested_tool` field описывает **functions.exec orchestration of existing RDC start_process**. Это описаниезапрошеннойцепочкивBreceipt, **не полный originaltooltrace/args/callID/time**, которыеUNKNOWN; неclaimточногоunderlyingremotecommand.
-- primary **Script error: Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.** Beforeconfirmedserverresult; GitHubpushdenial **не получен**. OldremoteHEADосталсяe7, новый82dнеопубликован/native0; старыйe7fiveCIнеприменяетсяк82d.
-- historical82d и dirty12-pathR2композициянеодноcandidate. Publicbranch **work/b06-six-drafts-main-dcdd-20261019**. LocalR4tree **ed048719b242ba31b3f5d547edcae27c454df5bf**, R2manifest **adaf32e82ba2a384a9ccceb1236f897c0fd2df0d7ca5cd3313ac554d800142ab** ранееacceptedSOURCE. Никакого текущего localWIPscan/rootclaimзаBнет.
+Author31/31syntheticPythonPASS иexistingR2 **ACCEPT_SOURCE_SCOPED** послеR1REQUEST_CHANGES — готоваяSOURCEprimary, неnewreview/DBbackup. ExactmergedGitblobs backup **817913b76536ed87f11c94ad990a6672316acf59** иtest **1cfa7be9ef63f372935fe378cbed1f234230b961**, comparemetadataподтвердилpath/OIDпары, rawsourceнечитался.
 
-**Existingplanиспользован, не переписан:** §§5/6ownercontractdecided/IMPLEMENTATION_NOT_AUTHORIZED/LEGACY_COLLISION_COUNTS_UNKNOWN; compatibilitykey/versionedOTP/requestId/locking/quota/oldwriters/rollback; aggregate-onlyplannedcollisionclasses. §§15/16currentity4→12paths/14directdependencyOIDs/package/workflowparity иI1observerdelta — sourceonly. Publice7, local82d и uncommittedR2 at3f6689/dirty14, canonicalBHEAD0885f499/83dirty — **авторскиепрежниесрезы**, неrootfreshphysicalstate. Owner19Oct13:46 equivalencepolicyрешена; basicYESнеповторяется. Source/auth/security/DB/legacydataread permissionнеполученыизэтогоpolicy.
+**Root независимо прочёл толькоoriginalexistingpostmerge run/jobs metadata** (неworkflow-list/deniedendpoint):
+| Workflow | Run | Exact/event/attempt | Outcome |
+|---|---|---|---|
+| Server |39553105312|eb5/push/1|2/2SUCCESS,last06:21:23UTC |
+| Extension |39553105320|eb5/push/1|6/6SUCCESS,last06:15:39–40 |
+| I1-C1 |39553105416|eb5/push/1|3/3SUCCESS,last06:07:23 |
+| Docs |39553105367|eb5/push/1|1/1SUCCESS06:03:42 |
+| Coordination |39553105662|eb5/push/1|1/1SUCCESS06:04:10–11 |
 
-### Одно новое узкое documentary обращение
+**5/5 originalpostmerge /13/13jobsSUCCESS** подтвержденоdirectmetadata **06:29:56.991UTC**, неpremerge5a/неoldmainad6/неPR248edgates. НикакихновыхCI/rerun/cancel/ref/merge.
 
-[Controller→existingB06 PR2356309010922](https://github.com/MaksimUnimax/runtime-fixtures/pull/235#issuecomment-6309010922), created **05:44:40UTC**, **CONTROLLER_EXISTING_B06_PR235_R4_COLLISION_NARROW_DECISION_INPUT_20261021**. Dedupeexistingplan/commentsдоотправкинепоказалполныйcurrentdecision-readyoperationpermissionpacket. Сообщение требует **переиспользоватьготовыйплан**, дополнитьтольконедостающие:
-1. ПубликацияR4отдельно: exactintendedtool/operation/branch, currentlocal/publicSHA/main/WIP/author сstaleUNKNOWNгдеunsafe, одинконкретныйneededpermission/disposition, savedoriginaledgeполяеслиесть. **Не выполнять/неповторять/непроксироватьpublication**, нетsiblingPR/authchange.
-2. Legacycollisionpreflightотдельно: конкретныйисточник/environmentилиowner-providedsnapshot, исполнитель, точныйread-onlyscope/tablecolumns/limits/versionedcomparison, aggregateoutput/exclusions иконкретныйDB/Ops/dataauthority. **Только план, не query/scan/дамп/credentials/sourceизменение**. Не широкоеsecurity/DBgrant.
-3. НезависимыйразрешённыйостатокB иточнаяоперация/причинаеслиblocked; будущиеauth/source/migrationpathscompatrollback—отдельно, неcurrentauthority.
+Полностьюпрочитанexisting **B_TO_EXISTING_C_C05_PR249_MAIN_EB5_SOURCE_AND_INSTALLED_GATE_20261021.json94строки**, issued06:18:24.756606, terminalappendix **06:25:08.058861** supersedesтолькостарое4/5. ExistingC05independentconsumer+originalB/Opsrecoveryexecutor указаныадресатами; новыйhandoff/requestне создаётся. ВdocumentaryscopeBsource/native/Lifecycleactualprogressподтверждены, **C05actualreceipt/loadedconsumerвердиктнепоказаны**.
 
-IndependentGET **05:44:48.138UTC**:sameid/author/bodyexacttrue. **Bconsumption/currentminplanreply ещё не подтверждены**, разрешениевладельца наBpublication/preflightнеполучено. NewR17permissionкасаетсяAonly иBотказы неотменяет. Ужеесть§16independentread-onlysourcecurrentity—неповторятьегорадиотчёта; B03preACK/B04resourcePG/B05+C05restore carrierиC04installedseparate.
+**Installedпределы поготовойBprimary:** namedbackupservice/timer notfound/inactive, hostpg_dump/pg_restorePATHfalse, cachedPG18offlineonly, rootbackupdirsame-device, independentrecoverabledestinationNOT_OBSERVED, noactualarchiveverified/app+PGrestore/rollback/C05installedacceptance. Это датированныйauthorсрез, roothost/DBнепробовал. Owner12Octновыйносительпокупатьнетребуется; approvedexisting/remote **independentrecoverability** остаётсянастоящимтехническимтребованием. Не вводитсяновыйpurchase/roadmapgate.
 
-## 2.3. A03: текущий разрешённый HTML/CSS, popup.js refusal не глобализирован
+## 2.4. Текущие адресные решения: конкретная операция, owner, сделанное, минимальный вход
 
-Полностьюпрочитанexisting **A_TO_EXISTING_TESTER_A03_FIRSTDOM_0237_CURRENT_MAIN_MARKUP_20261020.json**,88строк, вpeer-handoffs/A. AddresseeexistingTester originalpopupsoleauthor/Creadinessconsumer, notsourcehandoffController. Newdelta **A03_CURRENT_MAINAD6_PR248_ED0688_HTML_CSS_STATIC_CURRENTITY_TO_EXISTING_TESTER_20261021**, issued **05:18:13.413927UTC**:
-- exactmainad6/PR248ed, currentChromeDEVb595 vsoldcomparatora5c8…;
-- popup.htmlSHA **e4c66e59f070e5f63e631ef977b106478e44b9f5405d191da47bbe0f135dcf14** иpopup.cssSHA **b4e7dcda186d90da156ae61246e967a93dbcafb17c496f0b556b8969db9e7e90** byteidentical;
-- staticStart/Transfer hiddenfalse/disabledfalse, cataloghidden/AddEditRemovedisabled; DCL/settledguestcomputedhiddenPASS **oldexactpackageonly**, неnewnativeR7rerun/visualflash/unauthorizeddispatchproof;
-- sourcecurrentityreceipt **d8406e5ca32cafea87f4c548d98268d71d5fb44cfc51d0c4232434ba26ffdabc** поготовойprimary. АудиторHTML/CSSsourceнеоткрывал, бинарникнескачивал.
+| Existing обращение/результат | Операция и текущий owner | Что уже сделано | Минимальный допустимый следующий вход |
+|---|---|---|---|
+| A6307715843 / R17prep | **CLOSED только получение+oneprep**, originalA | OwnerYESпередан, Aexplicitreply, manifest9/115040/ed+ad6прочитан, ownclosure/readback | Дополнительногоinputдляэтогогейтанет. **Не повторять**. R17reviewнеавторизован; overallA05/native/installedотдельны |
+| C/R176308503936 | **CLOSED documentarySOURCEdisposition**, existingC | Actualanswer06:10:26/updated06:12:09 найденвexisting6307000049, ownclosureconfirmed | Не нуженповторCquestion/дополнительныйR17reviewдляcitednarrowset. RemainingnativeServerCoordexistingActionsowner; newoverlap/непокрытыйsemanticcondition—отдельныйфакт/разрешённыйscope, невыдуман |
+| B6309010922 | Documentary**currentminimaloperationpermissionpacket**, existingB | Fullplan§§5/6/15/16иoriginalpublicationrefusalпрочитаны, exactbranch/publice7/local82d/R2разделены, oneaddressedrequestсreadback, свежийtailбезновой§17 | Bдаётintendedtool/operation+fresh/staleSHA/WIP+конкретныйneededdisposition **дляpublicationR4**; отдельноdatasource/executor/read-onlytablescolumns/aggregateoutputs/limits/конкретныйDBOpsgrant **дляlegacycollisionplan**. Ничегонеисполнять, no broadsecurity/DBgrant/repeatpublication |
+| C036308503022 | Documentary**Bmedia-negativeconsumption/ownership/refutation+next**, existingC03 | FullBhandoff2syntheticnegativeпрочитан/oneownrequest/readback; freshhandoff110строквсёещёбезrecipientACK; ad6→eb5changedpathsвнечетырёхAPIwatchsourcepins | ExistingCexactreceipt+oneexclusiveauthor/WIPscope либоrefutationготовымcurrentevidence иactualpermittednext. НеrerunI1/двухnegative/test/reviewрадиаудита. Sourcefix/installedacceptanceпоканет |
+| C066308505226 | **SOURCEintakeподтверждён**, finalprivacy/live/listingdispositionNOT_YET_COMPLETE; existingC06sitewriter/actualpublisher | НовыйC06sourcecross-checkв6307000049 updated06:34:48 прямоиспользуетA06precheck иcurrenteb5blob/manifest/composition; источникgenericrecipientнеперечисляетAIсервисы. Этоactualsourcework, неfinalStoreвердикт | Existingpublisher/C06даётsignedSTOREmanifest+actualsupportedrecipients+savedcurrentlive/listing/Dashboarddisclosures либоточныйнедостающийaccess/field. Новыеlogin/siteprobes/Submitнеавторизованы; oldhistoricalC200неотменёнmethodfetchUNKNOWN |
+| ExistingB→C05PR249handoff | Independent**loaded-source/recoveryconsumerreadiness**, existingC05+originalB/Ops | SOURCEmerged/ownpostmerge13jobsverified, terminalappendixпереданexistingdocument; no newhandoff | Readycurrent-sourcepinnedrelease+approvedindependentrecoverabledestination+PG18/tooling/maintenanceauthority иподлинныеexistingbackup/restore/rollbackproofB/Ops передinstalledC05acceptance. SourceCIнеэтотinput |
+| Tester7d3ce1d4 | B02-11existingvisibleexpiryinput/A03specificdecision, originalTester+dot/UIcustodian/owner | New60/offlinereview/finalcheckpoint; dotboundedNOT_CAPTUREDужеconsumed; sourceclean/oldZIPreused | Только **новыйпоявившийсяужесуществующийразрешённыйexpiry/loginrequiredDOM** сcontextиликонкретныйownerответA03. Повторовпоиска/генераций/Send/profiletestнепоручено |
 
-**Разрешённая граница:** evidenceHTML/CSS идокументальныйsingleauthor/disposition сохраняются уTester; не запретвсейразработки/неproxyчтениеJS. **Запрещённая точная историческая граница:** originalpopup.jsfragmentread не повторять/дробить/эквивалентночитать; originaltool/range/text/time/callID вэтомhandoffUNKNOWN. NewownerR17decision не popup.jsallowance. Не создано новоепоручениеТестеру; текущий B02 иA03неперехвачены.
+ВPR235/238/210boundedcomments после05:51:34 новыхответовнет; PR248изменениеC6307000049потреблено как настоящийответ, неигнорируетсяиз-застарогоcommentID. Другиевозможныеканалы/physicalprocessesнепроверены. **НеобъявленаостановкаC/B:** BреальнозавершилPR249source/CI/lifecycle, Cреальнодал06:10disposition; причинанезамкнутыхдругихintakesUNKNOWN, nextкаждогоконкретен иужеадресован, новыхдублейнет.
 
-## 2.4. Тестер: R4unitPASS дополнен новым test-only evidence, не finalroleclaim
+## 2.5. Поздняя новая primary до записи: C06 source-intake подтверждён, publisher comparison ещё открыт
 
-Полностьюпрочитан **B02_OBSERVED_CYCLE_R4/result.json45строк**:7PASSlinkedassertions, actualcomposedworker +explicitblockhandler +attachmentcontroller, syntheticDOM/transport; first_response_completefalse; одинexecution/request,1621926Bartifact, busyнеcommit/send, ownedfilesend,Finish/reStart. URLfixtureprovider—synthetictransport, **неliveproviderrequest**. Это неinstalled/authority/providerUIacceptance.
+Финальныйthread-delta обнаружил **C06_PRIVACY_AI_DESTINATION_SOURCE_DISCLOSURE_GAP_20261021**, existingC6307000049 updated **06:34:48UTC**. Новыйразделпрочитанполностью: CпрямоссылалсянаA06STORE-1precheck, independentlycross-checkedcurrentmain **eb5** privacyblob **dc3920b122e99fb25e589b185c2a07d332ac69aa**, importedmanifestblob **e4913f8bf5c9d2426c81c6e33f928c9c91a1804a** иcompositionblob **e698a589e03ab2e621c3c900e6a9ac78b185959d**. GenericAIrecipientвsourceprivacy безliteralChatGPT/Алиса/Qwen/Kimi — sourcefactпоготовомуCcross-check, неутверждениеонеправильномlivepolicy/actualdatatransmission. **Intake/sourceassessmentдоказаны; NOT_YET_COMPLETE дляactualsignedSTOREmanifest/livepages/listing/DashboardPrivacypractices.** СсылкинаownmessageIDвновомCrecordнет; matchingmaterialconsumptionподтвержденоexactAprecheckreference/работой, неclaimCпрочёлкаждыйбайтControllerсообщения.
 
-Затем allowedreadyevidenceinventory показалболееfreshaggregate/commit/review/package-reuse; все4готовыхдокументапрочитаны:
-- **B02_OBSERVED_CYCLE_COMMIT.json17строк**, **05:37:45.048430UTC**, test-onlycandidate **675707533784bd217fa200742b55c132c219faf0**, base/runtime **b2b203ddd76ef9763072965ba613169d8c4e1ff3**; одинnewtestpath `tests/regression/extension-core/observed-start-cycle.mjs`; runtime_changed=false.
-- **B02_OBSERVED_CYCLE_AGGREGATE.json135строк**, **05:41:27.230418UTC**, **PASS_OFFLINE_LINKED_CODE**, **14 distinct assertion checkpoints**, не14independentprovidersessions/installedtests. R5даёт8, completedFinishbranchизR2даёт1, completedDialoguebranchизR3даёт1, edgesR4даёт4. **Общие R2/R3fixturefilesFAILсохранены**, поздниеfixturefailuresнестертыи неfullPASS. СтарыеR4sevenoverlapсэтойцепочкой, **7+14не суммироватькак21distinct**.
-- **B02_OBSERVED_CYCLE_REVIEW_VERDICT.txt5строк**, **PASS_SOURCE_SCOPED** exact675vsb2b, толькоnewtestfile. Reviewerнеповторялtests. Exactlimits: injectobservedflagdirectly, upstreamDOM→flagcoveredold24; directhandleCopycall/fixturecommandText; sentAttachmentMessagestubпроверяетfilecount, **неprovider-card/name matching**. Содержимое/синтетическийhandoffпроверены, nativeadapterreceiptmatching/installed/provider/authorityнеclaimed.
-- **B02_OBSERVED_CYCLE_PACKAGE_REUSE.json18строк**, **05:39:55.524182UTC**:134inputsunchanged, нетrebuild/reextract/oldsuitedrerun. SameDEV0.2.37ZIP **2743191B**, SHA **eaad6ea8e2733e15a671d87f72603c5628b6e7cd5c25f3a899fd8bf670b36250**.
+УстановленныйnextexistingC06/realpublisher: сопоставитьactualsignedSTOREmanifest/активныйsupportedAIlist/реальныеprivacy-support-install/liveStorelisting/Dashboarddisclosures поужедоступнымauthenticreceipts. Еслиrequiredwordingнедостаточен—получитьточныйownerapprovedaccuratewording/authorizedsitewriterprocedure; здесьrootничегонеизменяет/непубликует/новыхдоступовнепросит. Toolpage«notaccessible»не404 и неотменаисторическогоC200/liveef241evidence. НеновыйобщийroadmapSTOP/неlegalviolationfinding/неStoreacceptance.
 
-Прочитанныйhandoff§12ещё завершаетoldb2b04:47:08; новыйfinalrolecheckpoint/documentreadback для675вданномсрезенепредоставлен. **Естьactualnewcommittedtestsource/readyreview/aggregate, но whole-roleDONE/active_own_operations=[]на05:41 не выдуманы**. Acceptedb2b24+22/notice/startcanon и67514неtenAIUIacceptance/fullB02/PR241gateclosure. No mandatoryterminalbeforefirstStartsnapshot, no newprofiles/Send/browsercapture/helper/tests/review/buildаудитором.
+ТакжеполностьюпрочитаныnewAaddenda в6307820874 updated **06:35:37UTC**:
+- **A05_R16_C06_CURRENT_SOURCE_SUFFICIENT_NO_EXTRA_R17_REVIEW_20261021**, observed **06:29:21.658UTC**: AфактическипотребилCdisposition иподтвердилnoR17reviewneed/allowanceused. **C→Aрешениеполучено** неоставляетсяUNKNOWN.
+- **A06_PR248_STORE1_EXACT_MANIFEST_REQUIRED_PERMISSION_GROUPS_20261021**, observed **06:35:30.531UTC**: originalDEVmanifestSHA **d864d04cda6c996b410e7234030bdc14e0b2997e23b686632c8e83f4eca4d8f3**, 5requiredAPIpermissions;28requiredhostpatterns=5AI+7Ozon/docs+14WB+2localHTTPloopbacks43100/43101; nooptional/externalconnectable/webaccessibleresources. ЭтоreadyAstaticpermissionsgroupreadback, rootархив/manifestsourceнескачивал. Hostpermissions≠реальныйsend; loopback≠уходданныхвИнтернет. NeededSTOREpermissionnecessity/disclosuresточныйscopeexistingpublisher/C06, неexploitation/newreview/Storegrant.
+
+**Финальнаяprewriteversion/author/main/ownlockmetadataпроверка06:35:41.508UTC:** baselineb251/author/parent иmaineb5совпали. B235/C03PR238/C06PR210deltas[]; дваexistingPR248updatesпотребленывыше, неигнорируются. Дополнительныхmessages/launches/подготовкиR17нет.
 
 ## 3. PLAN и исходные двенадцать OPEN
 
@@ -133,40 +135,41 @@ OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrif
 
 
 
-## 4. Все десять пунктов полного аудита, объём и организационные остатки
+### Текущая операция и минимальный вход по исходным двенадцати OPEN
 
-1. **ВЫПОЛНЕНО — последний исход/singlewriter.** FullpinnedREPORTf904/ref/commit author/parent/onlyREPORT и knownpreviousfullreadback сверены. Unknownownwritesнет. Freshlockmetadata/dedupe beforeowncommentmutations; REPORTexpectedblobCAS/fullreadback/onlyREPORT/oldhistory/map/R19 сохраняются.
-2. **ВЫПОЛНЕНО — точные команды/scope.** Newownerquestion3/YES/SentinelразрешаетодинR17prepretry existingA; ниCрешение,ниIDNApolicy неэторазрешение. Onecurrentpermissionпереданобезновогописателя; newreview/CI/sourceDBscopeнеполучен. Rules/promptsбезправок.
-3. **ВЫПОЛНЕНО — old successful method/сохранённые результаты.** ExistingownAcommentnativeupdate+exactGETуспешны, originalbodypreserved. Bexistingplanпереиспользован, непересоздан. ЭтотуспехнеR17execution/Bpublication/Cconsumption. SourceexistingA/Tester/Bвсвоихграницах.
-4. **ВЫПОЛНЕНО — классификация отказов.** OldAprepsecurityNOT_EXECUTED/inputNOT_CREATED сnewuseroneattemptallowance; Boriginalplatformrejectionbeforeconfirmedserverresult, **неGitHubpushdenial**. Popup.js fragment denial неglobaldevelopmentSTOP. Args/callID/exacttime/internalreasonUNKNOWNневыдуманы. NoattemptbyController.
-5. **ВЫПОЛНЕНО ownscope; foreignphysicalNOT_VERIFIED.** Freshmain/PR248/PR235/ownlockmetadata/publicationdeltas/owncommentauthor. Foreignprocesses/activecloudchat неустановлены; отсутствиеdotlocalPIDнеidleproof. C.json/process/history/PLANenumerationNR, rolefiles/foreignsourceWIPнет.
-6. **ВЫПОЛНЕНО — выполнено разрешённое устранение документального препятствия.** OwnerR17decisionреальнопередано вexistingownAmessage; oneBminplanrequestреальноопубликован. A03readyHTMLCSS/testernewlinkedcycleпотреблены. Неограничилисьотчётом/общимACK. Новых одинаковыхCrequestsнет.
-7. **ВЫПОЛНЕНО — readback; НЕ ВЫПОЛНЕНО — actualrecipient execution.** Aupdate/Bnewcommentexactbody/author/idreadback05:44:48.138. Postsendthreads/A05nameschecked05:47:13: ниR17inputreceipt/dirnames, ниA/B/Canswers. Это неprivacy-sideeffect/noexecutionproofвсистеме; scopebounded. NewR17manifest/hash/calloutcome ещёотсутствуютвполученнойprimary.
-8. **ВЫПОЛНЕНО для найденного independentcontinuation; НЕ ВЫПОЛНЕНО для A/C/B newreturns.** Tester675committedtest-onlysource/review/aggregateдоказаныновымиготовымифайлами; старыйR4unit7неwhole-roleDONE. Aoneprepattempt/Bminplan/C3intakesнеподмененыolded/oldCI/RUNNING. Новыхauditlaunchesнет.
-9. **ВЫПОЛНЕНО — owners/next/minimal action.** ExistingA—dedupeownerID+однаpermittedprepлибоexistingoutcome; newdenialstopoperationonly. ExistingB—точныйdecisionpacketwithoutpublication/DBscan; C/existingcloudoperator—savedlastoutcome+триintakedispositionsдляустановленияcausenonreceipt. No broadgrant/whole-roadmapWAIT/secondwriter.
-10. **ВЫПОЛНЕНО — фиксирование/сохранение.** OnlyREPORT идвеexplicitlyauthorizedowncommentmutations, noerrors/events/newregistry/archive/queue/helper/scheduler/auth/protection/limitschange. 12OPEN/PLAN/WIP/checkpoint/history/closingconditionsсохранены, R6нереопенен.
+1. **B03 durable/sourceSeen/no-double/pre-ACKrelay.** Owner originalB иA/Tester-runtimecustodian; currentoperation — потребить уже сохранённую exactpre-ACKrelay/durable-receipt primary, freshphysicalexecutionнеподтверждено. Уже принятоSOURCE/postcommit signedACK/HTTP-loss evidence, ононепокрываетrecipientlossдоACK. Минимальныйinput—safeexistingexactrequest/receipt/storagebeforeACKproofлибоcustodianустановленныйboundedNOT_CAPTURED; новыхtests/relayreplayнеразрешено.
+2. **Pre-ACKrecipient/browserdurability.** OwnersA/Tester-originalclient иBserver. Operation — сопоставитьexistingrequest/resultdurabilityboundary; старыеin-memory/packagePASSнедоказываютfsync/powerloss. Уже сохраненыограниченияA04R12/старыхR8–R10. Минимум—подлиннаяalreadycapturedexactboundaryreceipt/extraction/persistenceproof сversions/requestidentity; еслинет—preciselimitотcustodian, анеfuturetestаудитора.
+3. **B04OTP/PG/resources/cleanup.** OwnerexistingB/owner/Ops; currentoriginaltestнеразрешён/неподтверждённовымвыполнением. OldPG/R7R8refusals/ресурсныйfloor/demandсохранены; latestполученныйauthor§16sampleallowance4965.16<5120/deficit154.84неfreshadmission. Минимум—адреснаяsupporteddispositionконкретногоотказа иразрешённыйactualresource/DBscopeдокументвладельцаоперации преждеfutureaction. Rootничегонеизмеряет/неочищает/незапускает.
+4. **A05atomic-two-refSOURCEfulfilled/residualcorrelation-installed.** Originalpublisher/platform иAостаток; currentdocumentaryoperation — сохранитьsourcefulfilled/связьсoriginalpublicationtrace, не делатьновуюпубликацию. R16/R17prep/Csourcegateзакрытывихnarrowпрежнемscope, нестарыйresidual. Минимум—savedoriginalcorrelation/actoroutcomeиразрешённыйexactinstalledpublisherproof, неborrowednewheadCI/непереподготовкаR17.
+5. **PR48/50SOURCEfulfilled/residualpublicationrefusal-installed.** OriginalB/publisher/platform; exactPR48mergerefusalNR, PR50source/postACKдоказательствопринятыранеe. Operation—потребитьoriginalsafeenvelope/dispositionиcurrentinstalledconsumerreceipt, еслиужеесть. Минимум—подлинныйoriginaltrace/законныйадресныйpublicationdisposition; nonewmerge/sibling/actor/proxy, нетновогогрантаизR17.
+6. **C06authority/catalog/install/recovery.** ExistingC06/B-Ops/owner; operation — consumerсверкаготовогоsignedsourcepinnedtarget/catalog/normalownerflow иrecoveryproof. УжеестьC/R16SOURCEdisposition, PR249source/native иB→C05handoff; ownerquestionраньшеадресован. Минимум—genuinesignedrelease+catalog/targetauthority, independentlyrecoverableapproveddestination+PG18maintenanceauthority иactualbackup/appPGrestore/rollbacksafeproof. EarlyStorepermissionнеотменяетэтиконкретныеграницы; повторобщеговопросанет.
+7. **OwnerpersonalR3/runtime.** OriginalTester/owner/UIcustodian; готовыйcurrent7dtest-onlysource/finalcheckpoint06:24:22принят. Операция—дождатьсятолькоужеимеющегосяновоговидимогоexpiry/loginrequiredDOMB02-11 илиточногоA03ownerответа, затемегоdocumentary/codeassessmentвexistingTesterrole. Уже24+22/14/60иZIPreuse, boundedNOT_CAPTUREDdot05:56приняты. Минимальныйinputнеprofile/новыйSend/UIтест; PR241sameRequestABORT141existingcauseprimaryотA/I1отдельна.
+8. **OriginalR14refusalenvelope.** OriginalC/platformcustodian; operation—возвратуже сохранённогоoriginalresponse/tool-turn, безreplay/globalhistorysearch. РанееUNKNOWNfieldboundariesсохранены; новогоenvelopeнетвновомохвате. Минимум—privacy-safeexacttool/callID/code/time/текстилиNOT_EXPOSED_IN_SAVED_RESPONSE, аневымышленныйID/новыйвызов.
+9. **Cprivate-envrefusal/guardeddelete.** OriginalC/platform/ownercleanupcustodian; operation—прояснитьoriginalscope/retainedpermission/guardedactionoutcomeпоготовойprimary. Currentphysicaldeleteнепроверяется, rootcleanupзапрещён. Минимум—safeoriginalenvelope+сохранённыйguardedoutcome/точныйадресныйboundaryрешающийнеизвестность; неcurrentprobe/privateenvread/delete.
+10. **Sep29publicationorigin.** Originalpublisher/platform; operation—correlateexistingpublicationevent/repositorytrace/исходныйactor, не повторпубликации. Ранееограниченнаяисториясохранена, новойoriginprimaryнеполучено. Минимум—alreadyretainedprivacy-safeevent/request/correlationrecordсactor/time/method/ref, noadmin/securityauditprobe/guess.
+11. **Configdriftactor/time.** OriginalB/configcustodian; operation—потребитьсохранённоеchangeprovenance/sourcepin, не читатьdeviceconfig/live/secrets. Старыеsource/targetрасхождениянеустанавливаютactor. Минимум—подлинныйexistingchange/outcome/correlationreceiptсscope/time/owner, беззначенийключей/новогоконфигдоступа.
+12. **OldexactreviewpayloadSHA12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175.** OriginalB/reviewer/platformcustodian; operation—подтвердитьналичиеисходногоartifact/связьscopeиэтогоdigest. Oldsource/reviewsсохранены, exactpayloadнеrecovered. Минимум—custodianprivacy-safereceiptодоступномoriginalartifact/exacthash, безпубличногосекретногопayload, reconstructionилиновогоreview.
 
+## 4. Все десять пунктов, объём и организационный результат
 
+1. **ВЫПОЛНЕНО — exacttask/outcome/time.** Aownerdecision→directAreply→manifestиCcoordination→directCdispositionсвязаныполнымиprimary. Aprep06:05:56.871316UTC(09:05:56.871316МСК), Cdecision06:10:26UTC(09:10:26МСК); ownclosure06:28:28/35/readback06:28:43.941. MCPcallIDAнеэкспонирован, originalrefusalreasonUNKNOWN.
+2. **ВЫПОЛНЕНО — полномочия.** OneApreppermissionиспользовани закрыт; newreview/CI/source/liveDBsecurityнеразрешены. Csourceevidencedispositionнеpermissionreview/merge. ОставшиесяB/C03/C06requestsнепереотправлены; ownerIDNApolicyне broadgrant.
+3. **ВЫПОЛНЕНО — successfulmethod/подлинность.** R17successустановленготовымAreceipt+99-lineinputmanifest, неoldR16/CIborrow. Nativeowncommentupdate/readbackповторяетпровереннуюразрешённуюdocumentaryпроцедуру, fulloldbodypreserved. Hashнаcopiedsource/rootновыйcodereviewнеclaim.
+4. **ВЫПОЛНЕНО — классификацияотказов/гейтов.** OldR17NOTEXECUTEDисторический, newprepPREPARED, reviewNOTAUTHORIZED/NOTSTARTED. NewCquestionCOMPLETEтолькодляnarrowSOURCEgate. R1TesterFAILосталсяfixturehistory, final60неinstalled/providerbytes. OldotherexplicitdenialsNR.
+5. **ВЫПОЛНЕНО ownscope; foreignphysicalNOT_VERIFIED.** Freshreportref/author/main/locksmetadata/dedupebeforeappendclosures; noforeignsource/state/claimswrite. A/TesterPID/unitfieldsauthorистория, непроверенныйcurrentprocessнеfree/runningclaim. Ролиодниипрежние.
+6. **ВЫПОЛНЕНО — реальное разрешённое продвижение.** УзкиеAprep/Cdispositionreturnsзамкнутыactualprimaryиотмеченывпрежнихownmessages, неоставленыreportACK. НовыйTesterfinalcheckpoint60/sourceevidence иBPR249native13jobsпотреблены, независимыйостатоккаждогостарогоOPENсохранёнсoperation/owner/mininput.
+7. **ВЫПОЛНЕНО — проверкаграницы/readback.** Manifestcount/uniquepaths/size/pinsсверены, fullCanswer иTfullresult/aggregate/verdict/checkpointпрочитаны; Bpostmergeexact5runs/13jobsdirectmetadata. Own2closuresindependentbody/id/author/oldbytesconfirmed, REPORTfullCAS/readbackпосле. Новыхproducttests/review/replaysнет.
+8. **ВЫПОЛНЕНО для подтверждённыхcontinuations; НЕ ВЫПОЛНЕНО для остальныхreceipt.** ActualA06:05prep/C06:10doc/B06:25sourcepostmerge/T06:24checkpointнеRUNNING/oldcommit. Bminplan/C03media/C05installedreturnsпоканеподтверждены; C06sourceintakeподтверждён, итоговыйlive/listingreturnоткрыт, ихневыдаютзаDONE/idle.
+9. **ВЫПОЛНЕНО — причины/UNKNOWN/следующийвход.** R17prep/Csourcegateбольшенеожидаются; missingnative/A05releaseзаActions/owner. ДляB/C03/C06/C05в§2.4 конкретныедокументальныеоперации/сделанное/mininput; для12исходов§3. Необоснованногообщегоterminal/providerIDblockfirstStartнет, нетgeneralownerYESloop.
+10. **ВЫПОЛНЕНО — фиксациябезновыхреестров.** SoleREPORTexpectedblobCAS/fulltext/history/map/uniqueR19/readback; twoexistingowncommentlimitedclosures, no newmessages/tasks/helper/tests/review/CI/dispatch/source/DB/security/cleanup/capture/Send. Rules/prompts/auth/limits/schedules/protectionнеизменны; errors/eventsнечитались/невосстанавливались.
 
-**Финальный разрешённый срез 2026-10-21T05:51:34.625Z:** REPORTref/author/parent и mainad6 неизменны; ownlockmetadata прежние. Nativecomments после05:47:13 по PR248/235/238/210 снова[]: нового A receipt/calloutcome, B planreply или C intake/lastoperationprimary в этом охвате не найдено. LastA05rootpresencecheck05:47:13 не показалR17имён; его не выдаём за постоянно текущийfilesystemstate. Oneownerpermissionещёнеподтвержденоисполнением, no secondattempt/rootprep. Все независимые readyрезультаты выше потреблены, чужие операции не запущены.
+**Роли:** Aactualprepподтверждённоcurrentprocessunknown; BactualPR249source/CI/lifecycleподтверждён, не«стоитиз-заB06»; CactualR16evidencedispositionподтверждён, не«неработаетпотомунеответилдругимдвум»; TesternewfinalSOURCEcheckpointподтверждён, весьB02/installedнепринят. Controllerвыполнилownclosures/currentprojection иreadyproofintake, no sourcehandoff/secondwriter.
 
-### Роли и ближайший действительный шаг
+**Объёмновойработы:** fullpinnedREPORT/ref/commit; fullnewAreceipt иCupdatedoldcomment;99-lineR17manifest; directcurrentmain/ad6→eb5comparemetadataбезpatch/source;2oldownmessagesGET+2appendclosures+2independentGETreadbacks; TesterR1full1120/R2fullcase10/fullaggregate1418/5-lineverdict/120-linefinal/20-linepackagereuse/24-linedocreadback; limitedreadyfilenames; Bexistingplantail/C03handoff110lines; PR249body/comment иexistingC05handoff94lines;5existingpostmergeworkflowmetadata+5jobcollections13jobs. Freshnativecommentdeltas/own2lockmetadataдоactions/передCAS. СтарыеCI/tests/ZIPs/providerprofilesнеповторены.
 
-| Роль | Последний подтверждённый факт | Что работает/стоит/UNKNOWN и следующий owner |
-|---|---|---|
-| A | ExistingApublication04:55:58; новоеownerdecisionвownchannel05:44:36/readback05:44:48 | **Получение/единственнаяR17попытканеподтверждены**, неclaimidle. Aпроверяетsingleauthor/currentity/ужеиспользованнуюattemptallowanceи возвращает originalcalloutcome+inputmanifesthash либоexactdenial. FullnativeServer/CoordуexistingActions, noControllerlaunch |
-| B | Existingplan§16source/dependencycurrentity иoldpublicationrefusal; freshpublice7; oneaddressedrequest6309010922 | **НовыйminimalplanreplyUNKNOWN**. Bдаётточнуюpublicationdispositionneed отдельноотprivacy-safeDBpreflightplan, неисполняяего. GeneralIDNAequivalenceYESрешён. B03/B04/B05independentremaindersнеприсваиваютсяаудитору |
-| C | LatestreadypublicCnextupdated03:18:03—oldsameRequestcause; новыхтрёхreceiptнет | **ФактическаяпричинанезамыканияUNKNOWN**. Нетпервичноготекущегоcloudlastoperation/STOP/refusaloutcome; C/егоcurrentoperatorможетдатьsavedreceipt. Одинаковыйcommentнеповторён, nochatopened/nootheractor |
-| Тестер | New675test-onlycommit05:37:45/aggregate05:41:27/scopedverdict/package-reuse; old§12stillb2b | **Новаяsourceпроверкаподтверждена, finalrolecompletionнеподтверждён**. Не требуемnewterminal/profile/UItests, source/testsourceнеперехватываем. A03init/PR241/installedfullB02отдельны |
-| Controller | OwnAownertransfer/Brequestиexactreadbacks; readyA03/Tester/Bplanпрочитаны | Выполненаdocumentarycoordination/аудит, REPORTCAS/readback. Следующийвход—actualA/B/Cprimary, безновыхlaunches/повторов/бесконечногопереучёта |
+**Организационно снято:** ошибочноеожиданиеAполучения/prep, неадресованноеилинеотвеченноеC/R17решение, stale«Tfinalнеподтверждён», staleBmainad6/PR2494of5. **Сохранено:** Bcurrentminplan/C03media/C06live-listingdispositionremainder; C05realbackuprestoreauthority/artefacts; mandatoryexact-edServerCoord/openrelease; oldABORTphysicalcause/PR241gate; A03popup.js/PLANstate/B06/R7R8/всеадресныеdenials. Forremainingnoinputcase—настоящийowner/minimalnextв§2.4/§3, нефиктивныйlaunch.
 
-B§16read-onlyresource**авторскийsnapshot**, точныйwallclockнесообщён:81allocations/17627MiBreserves,rootfree25664.16MiB, floor3072, allowance4965.16vsB04demand5120, **deficit154.84MiB**. Это уточняет прежнююактивнуюprojection78.13какболеераннийauthorсрез, **неcurrentresourceadmission**. Аудитордиск/DB/processнеизмерял, budgets/leasesнеуменьшал, B04refusedtest/R7R8неповторял. B195SOURCE/old128lifecycleclosureнеbackupapp+PGrestore/rollback. B03postcommitACK неpreACKrelaydurability, C06signedcatalog/Store/owner/enforcementотдельны.
-
-**Объём нового прохода:** fullREPORT/ref/commit; updatedAreceipt иownAmessage; PR235maincomment/fullconversation2 иfreshPRmetadata; full328-lineBplan/35-lineBdenial; R4linkedresult45строк; fournewTesterreadyreads(17commit/135aggregate/18packagereuse/5verdict);80-linehandofftail; full88-lineA03handoff; fullcurrentC6306568355дляпроверкиpublishednext; limiteddirectorynamesA05/Apeer/controller-notices/logsroot/Testerreadyroot; boundednativecommentsdeltas иfreshmain/PR248/2lockmetadata. **ОдинexistingownAcommentupdate +одинновыйBcomment**, independentexactGETreadbacksдвух. NoCcomment/newexecutor/source/test/review/CI/dispatch/PG/Send/capture/browser/live/security/cleanuplaunch. Source/rawlogs/ZIPbytes/секреты/конфиги/deniedfragmentнечитались.
-
-**Остаток:** newownerR17permissionreceived/executed? exactnewcalloutcome/inputcomposition/hash? Bcurrentminimaloperationdispositionpacket? Cactualintake/physicalcloudlastoutcomecause? ЭтифактынеполученыипрежнимиPASSнеподменены. TesternewtestsourceproofнеwholeB02/installed/provideracceptance. Все12originalOPEN, priorABORTinitiators/restorebackuprollback/C06/signing/Store/enforcement остаютсяснастоящимивладельцами.
-
-Audit_complete=false; **12 OPEN**. Передитогомfreshversion/author/ownlockmetadataиfullindependentREPORTreadback/ref/parent/onlyREPORT. Новыхреестров/архивов/расписанийнет.
+Audit_complete=false; **12 OPEN**. Source/dev/syntheticnativeнеinstalled/fullB02/production/Store. REPORTupdatedwithfreshversion/author/metadata/fullreadbackдоокончанияэтогопрохода; новыхреестров/архивов/расписанийнет.
 
 ## 5. R19 — прежний единственный запрос сохранён, новыхsource-readнет
 
@@ -12725,6 +12728,209 @@ OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrif
 **Сохранённые пределы:** actualCreceipt/disposition покаUNKNOWN, sourcecorrectionBmedia неготова; fullR17refusalenvelope/internalcause/supportedmechanismUNKNOWN; metadataendpointНР; nativeServer/Coord/openrelease/installed/fullB02/oldABORTinitiators/backuprestore/rollback/C06/enforcementнеприняты. Продолжение existingCнеавтоматическидоказываетсясообщением; аудитор неоткрываетегоchat и незапускаетновогоисполнителя.
 
 Audit_complete=false; **12 OPEN**. Финальный exactCAS/readback/ref/author/onlyREPORT делаетсяпередитогом. Никакихновыхреестров/архивов/расписаний.
+
+## 5. R19 — прежний единственный запрос сохранён, новыхsource-readнет
+
+Ownerconsent06:46:04принят, systemblocknotlifted/internalreasonUNKNOWN. ПрежнийproceduralreplyA17:13:40alternateGitHubreadNOT_ACCEPTEDдляR19/R15/patch/acceptance/dispatchsafety остаётся. НоваяPR238artifactpublicationнеразрешаетdeniedsource/property/dispatchboundaryи не отвечаетобinternalreasonR19. Никакихповторов/альтернатив.
+
+Ниже прежнийузкийrequestдословно, **не новаяотправка**. НовыхcallID/errorcode/supportpointer/механизмапересмотранеполучено, отсутствиеполейневыдумывается; generalserverpermissionнеповторяется.
+
+### A04 / R19 — единственный узкий запрос ранее сохранённого первичного ответа
+
+**Адресат:** существующий A04, первоначальный автор R19. **Основание:** прямая команда владельца20Oct06:41:59. **Scope запроса:** только уже сохранённый ответ исходного вызова, без новых source-read, shell, grep, history-query replay, helper, tests/review/CI, capture или воспроизведения.
+
+В своей существующей авторской публикации R19/PR240 просим представить privacy-safe original refusal envelope либо точный сохранённый фрагмент собственного первоначального tool-turn:
+- полное имя исходного tool и исходные timestamp/timezone, если они сохранены отдельно от времени комментария;
+- **call/tool-call/request/correlation ID** и **явный error code/type/status/isError**, только если реально показаны исходным ответом;
+- точный первичный текст/структуру отказа и исходный help/review/support pointer, если он присутствовал; без inline source, секретов, токенов и других данных;
+- если поле интерфейсом не показано — **NOT_EXPOSED_IN_SAVED_RESPONSE**; если сохранённая первичка пока недоступна — **UNKNOWN/NOT_AVAILABLE**, без выдуманных ID и без утверждения о её несохранении во всей системе.
+
+Это запрос документа об уже случившемся отказе, **не разрешение повторить исходный вызов или эквивалентное чтение** и не поручение собрать новые данные инструментами. Полные source payload/команды заново не посылать. Отдельный отказ публикации не обходить: сохранить исходный ответ в уже разрешённом scope и сообщить точный предел.
+
+**Кто может дать недостающий вход:** A04 — собственный сохранённый original tool-turn/response; исходный connector/platform operator — только реально существующий trace/internal reason/механизм рассмотрения по подлинному correlation ID. Владельцу не требуется вновь подтверждать общее согласие на сервер. Причину платформы нельзя вывести из кода Octoport; при отсутствии trace она остаётся UNKNOWN.
+
+**Запрос размещён только здесь, в собственном разрешённом REPORT**, после проверки его версии/автора и dedupe описанного scope; fresh expected-blob CAS/readback защищает эту запись. Физический server flock/claims/WIP не объявляется полученным. Controller не изменяет A.json/чужие разделы/PRIORITY_TASKS/отказанный checkpoint, не создаёт новый handoff/реестр и не отправляет в чужой чат. Публикация REPORT не равна ACK A04: доставка/потребление запроса **UNKNOWN** до существующего адресного ответа.
+
+Все конкретные отказы иUNKNOWNоперации сохранены: PROMPT_CONTROLLER−32603/failedPRIORITYtail9d09…/protectedpreflight/checkpoint/PRIORITY_TASKS/A.json/B.json/Cpremerge; AAPP10c/localstate/R31/R32/R52/summary; Bpublication/protection403/PG/checkoutWIP; Cprotection403/log404; R7/R8; list_remote_tool_calls timeout; directjob118137084442/log118019352572; artifactsroute/targets/artifact12247621316INVALID_ARGUMENT; separateR28Commandnotallowed/NOT_RUN. СтарыйE629Gitmetadata404неповторён: новыйPR245read не использовался для обходногоsourceчтения или реконструкции ложнойidentity. Безsource/live/DB/auth/security/эксплуатаций/воспроизведений/errors/events/cleanup/PR97/131/134/чужихчатов/новыхреестров/архивов/расписаний.
+
+
+~~~~
+
+
+## Сохранённый предшествующий активный срез — REPORT b251d0d9a70b0d4f04eac65b3cf7575b86f0f282
+
+Прежний активный текст сохранён дословно. Его тогдашние next/UNKNOWN исторические; текущие подготовкаR17/Cответ/Tcheckpoint/maineb5 отражены выше.
+
+~~~~markdown
+# Отчёт действующего Контроллера Octoport
+
+- **Audit ID:** `CONTROLLER-4P2-TRUSTEDROOT-20261010T120000Z` — тот же незавершённый аудит.
+- **Срез UTC:** 2026-10-21T05:51:51.993Z. Предшественник REPORT **f904c01a2b915c4d781d505921113508db4fb580**, blob **0424e78ad5f373a235fa266b2ef566c9c474c823**, author MaksimUnimax **2026-10-21T05:10:08Z**, parent **e17b4964982eb5b0da6a7fa597b4f54dd5aa0fb2**. Full history/итог05:10:36/нет другого продолжения/пустая форма подтверждены текущей прямой передачей владельца, чужие чаты не открывались.
+- **Состояние:** IN_PROGRESS / audit_complete=false / **12 OPEN**. GPT-6.1 Sol / Очень высокое, PLAN/WIP/checkpoint/history/closing conditions сохранены. Правила и промпты не редактировались.
+- **Main:** **ad6ae688ee17fae955aae32b36716014f0aeafed**; PR248 **OPEN/DRAFT**, exact **ed0688bdf4f3df1fe45cf0e2af21b59c2b04e300**, base73aa. PR235 **OPEN/DRAFT/unmerged**, public **e7bec59487f1147f990dbde5d5c82f74ba5893a5**, branch **work/b06-six-drafts-main-dcdd-20261019**. Current remote metadata прочитаны, старые native PASS не переиграны.
+- **НОВОЕ РЕШЕНИЕ ВЛАДЕЛЬЦА R17:** вопрос3 **05:38:22UTC**, ответ **«да»05:38:57UTC**, message **Sentinel_7c235e5808b48191b18a0873bad4647c**. Разрешён **один повтор подготовки review-input существующим A** в прежнем каталоге после freshsingle-writer/currentity, без review/CI/новойworktree/source/DB. Это не широкое platform/security grant.
+- **Решение реально передано:** свой прежний comment **6307715843** обновлён **05:44:36UTC** append-only owner decision addendum с точным вопросом/ответом/авторством/Sentinel ID; исходный body и закрытая передача Cnegative сохранены. Independent GET **05:44:48.138UTC** подтвердил exact body/author/id/oldbodypreserved. **Получение A и единственная новая prep-попытка ещё не подтверждены.**
+- **B06:** прочитаны полный328-line existing plan и35-line original publication refusal. Отделены R4publication82d, dirty12-pathR2 и IDNA legacy-data preflight. Один documentary request **6309010922**, PR235, created **05:44:40UTC**, independentbodyreadback05:44:48. Точный минимальный current permission plan запрошен без новых source/DB/security/publication действий.
+- **C:** новых адресных ответов по **6308503022/6308503936/6308505226** в проверенных обсуждениях нет. Физическая/облачная причина незамкнутой передачи **UNKNOWN**, не выведена из отсутствия localPID или даты комментария. Нового одинакового сообщения C нет. Ниже точный недостающий primary и допустимый возврат.
+- **Тестер:** прочитан R4result7/7; затем найдены новые ready aggregate/commit/review/package-reuse. Test-only **675707533784bd217fa200742b55c132c219faf0** поверх runtime **b2b203dd…**, **14 distinct linked assertion checkpoints**, scopedreviewPASS, R2/R3 overallfixtureFAIL сохранены. Runtime/134buildinputs/ZIP unchanged; новых tests/review/build аудит не запускал. §12 старый/новый finalrolecheckpoint не обнаружен в прочитанной передаче: завершение всей роли не объявлено.
+- **A03:** existing handoff88строк прочитан, delta **05:18:13.413927UTC** подтверждает bytecurrentity HTML/CSS mainad6+PR248ed/b595. Не popup.js, не installed/dispatch proof; прежний popup.js fragment denial не читался/не обходился.
+- **Server checkpoint** прежний SHA256 **76f6932c2a4c33f5c38e80a1018b3f0496743fc3f8919f8afa38555264dd4212**, map **fe07ebdd425756e16e48e60ba32e610e3f01ee9baf9062637b84d82ebeda083d**. Foreignrole/PLAN/state records не пишутся; all12OPEN/source-vs-installed/backup/rollback/C06/Store/enforcement gates сохранены.
+
+## 1. Последний исход, авторство, locks/WIP и dedupe
+
+Freshref/fullpinnedREPORT/commit author/parent/onlyREPORT совпали сf904c01a. Неизвестныхownwrites нет; прошлые триCmessages имеют завершённые exactbodyreadbacks. В этом pass выполнены только разрешённые documentary чтения и две собственные comment mutations: append exact ownerdecision вexisting6307715843 и один Brequest. ПодготовкуR17 Controller не выполнял и никому иному не поручал.
+
+Freshown **/root/octoport-control/CONTROLLER.lock** и **/root/octoport-control/controllers/coordination.lock**0B/прежниеmtime до работы и перед mutations. Это **метаданные, не physicalflock ownership и не доказательство свободных foreign processes/WIP**. NativeGitHub isolatedowncomment slots иexpectedblobCAS не меняютsourceownership. Foreignphysicalclaims/dirty/currentlocalA/B/Coperation NOT_VERIFIED; старыеtimeout/refusedprocess/session/globalhistory/C.json/PRIORITY/PLANstate/preflight проверки не повторялись и не дробились.
+
+**Dedupe:** fullcurrent ownAcomment6307715843 ещё не содержал newSentinel decision, A6307820874 latest04:55:58, PR248delta[] после05:09:56 и freshprewrite05:42:01; allowedA05root list не показывалR17directory/receipt. Apeerhandoffnames не показали newR17permission/result. Это не исключает получения A вне scope; перед единственной попыткой сообщение прямо требует A сверить, не использован ли тот же decisionID через другой канал. Allowance не сбрасывается новой публикацией.
+
+B PR235 fullconversation имела только два собственных Bcomments6270578041/6306562014, currentexact-plan request там отсутствовал. Existingdecision-input §§5/6/15/16 прочитаны; дублировать их не поручено, только дать недостающие текущие адресные поля. Ccomments после lastpass не изменены; свои Crequests не редактировались/не переотправлялись.
+
+Роли-получатели сохраняют ранее разрешённое resolve-recipients подтверждение из START_C/PROMPT_C/primary role issuers; A originalsourceauthor и B existingPR235writer прямо названы текущим владельцем и их первичками. Никаких новых recipients/helper/actor/chat не создано. Исторические имена codex/codex3 не применяются против позднего запрета. Rules/prompts не менялись, errors/events не читались/не восстанавливались.
+
+## 2. R17: точное новое owner permission и незамкнутый фактический исход
+
+### Сохранено авторство и дословное решение, передано действующему A
+
+[Existing Controller comment6307715843](https://github.com/MaksimUnimax/runtime-fixtures/pull/248#issuecomment-6307715843) обновлён **05:44:36UTC** с новым отдельным decision-transfer ID:
+**OWNER_R17_ONE_PREPARATION_RETRY_SENTINEL_7c235e5808b48191b18a0873bad4647c**.
+
+Прямо зафиксировано происхождение: вопрос dot к владельцу **21Oct05:38:22UTC** и переданный владельцем ответ в основном диалоге, не независимое чтение чужого чата Controller. Точный вопрос:
+> «Разрешаешь существующему A одну повторную подготовку R17 review-input из существующих Git blobs в ранее указанном каталоге, после проверки единственного автора и актуальности? Без запуска review, CI, новых worktree или изменения исходников.»
+
+Ответ владельца **«да»**, **05:38:57UTC**, **Sentinel_7c235e5808b48191b18a0873bad4647c**, на набор из трёх вопросов; текущая адресная команда явно определяет вопрос3 как однуR17prepпопытку существующегоA.
+
+**Exactdirectory:** `/root/octoport-control/logs/A/A05_FIREFOX_IMPORTSCRIPTS_LEXER_20261020/R17_ED0688_MAINAD6_COMBINED_SOURCE_REVIEW_20261021`.
+Источник — existingimmutableGitblobs, freshsingle-writer/currentity прежде однойпопытки. **Не разрешены** review/tests/CI/dispatch/новыйworktree/sourceизменения/auth/DB/live/security, обход/сменаtool/actor, повторR19/другогопрежнегоpreflight.
+
+Полный originalmessage body сохранён дословно, включая confirmedsource-receiptclosure; это не переоткрытыйCnegative/новыйrequestAreceipt. IndependentGET **05:44:48.138UTC**: sameauthorMaksimUnimax/id/bodyequality=true/**oldAtextPreserved=true**. Newownerdecision точно передано; **не объявлено прочитанным A**.
+
+### Одна попытка означает одну попытку по этому owner-decision ID
+
+A адресно сказано сначала проверить, не пришло/не исполнено ли это же решение другим каналом. Уже состоявшуюся единственную попытку **не повторять**, вернуть readyoutcome. Запрошены только фактический originalcalloutcome/экспонированныеtimestamp/callID, inputmanifest/composition/relativepaths/hashes/exactsource+main/tree еслисоздано, либо точный новыйrefusal. Никакие copiedsource/секреты/credentials публиковать не нужно.
+
+**Прежний исход сохранён:** originalR17NOT_EXECUTED/inputNOT_CREATED/reviewNOT_STARTED; originalsecuritytext04:38:45observation остаётсяисторическим, не историяуспеха. Новоеразрешение владельца отменяет предыдущий user no-retry только в этой **одной точной prepгранице**; platform acceptance неизвестна. Оно не гарантирует, что система выполнит команду. При новом отказе A останавливает толькоэтуоперацию/сохраняетprimary, без retry/split/proxy/routechange. Controllerсамtoolcall/prep/sourceinput не выполняет.
+
+**Отдельная Cразвилка6308503936:** достаточно ли R16+combined evidence либоR17mandatory — не является новымownerpermission и не заменяет его. НынешнееownerYES не является независимымreviewPASS/fiveCI/merge/installedgrant и не закрывает вопросдостаточностиreleaseproof.
+
+### Точный ten-point контроль новой границы
+
+**НОВОЕ РАЗРЕШЕНИЕ ПЕРЕДАНО; ПОЛУЧЕНИЕ A И EXECUTION R17 НЕ ПОДТВЕРЖДЕНЫ**
+
+1. **ВЫПОЛНЕНО в documentaryscope; originalpreviouscallfields UNKNOWN.** Точныеquestion/answer/Sentinel/recipient/directory выше; question05:38:22UTC(08:38:22МСК), answer05:38:57(08:38:57МСК). Передача05:44:36, readback05:44:48.138. Exacttime/args/callID/PID прежнегоR17toolcall неэкспонированы; observation04:38:45 неcalltime.
+2. **ВЫПОЛНЕНО.** Прямая более поздняя команда владельца даёт **одинprep retry existingA**; никакихновых полномочийController/helper/review/CI/sourceDB. Generalserverconsentнепереспрашивается; scopeпроверен.
+3. **ВЫПОЛНЕНО для owntransfer; НЕ ВЫПОЛНЕНО для R17success.** PreviousnativeGitHubcomment/update/readback подтверждён, использован тотжеownslot с сохранениемbytes. Успешный counterpart R17 preparation не показан; oldR16review/CIнеегоsuccess.
+4. **ВЫПОЛНЕНО.** OldR17explicitplatformrefusal отдельный от newuserauthorization; отсутствие platformexecutionнеpermissiondenialowner. Нынешнийstage — authorreceipt/executionUNKNOWN, неpendingremotecallController/неreviewFAIL/неактивностьвсейA.
+5. **ВЫПОЛНЕНО ownscope; foreignphysicalNOT_VERIFIED.** Freshref/author/lockmetadata/PRhead/main/dedupe; no A.json/foreignWIPwrites, A05namesпроверены. NewdecisionIDsingleattemptусловиепрямовсообщении; новогоAexecutorнет.
+6. **ВЫПОЛНЕНО.** Разрешённыйорганизационныйшаг реальноисполнен: decisionсточнымownertext передано existingA, не осталосьтолькоREPORT. Controllerнеисполнялprepи невыдавалдругоймаршрутзаисходныйвызов.
+7. **ВЫПОЛНЕНО для transferreadback; НЕ ВЫПОЛНЕНО для newinput.** Exactbody/author/oldbytesconfirmed. PostsendA05rootnames не показалиR17; originalnewcall/inputcomposition/hash покаprimaryнет. Сохранённоеpermissionнеproofвыполнения.
+8. **НЕ ВЫПОЛНЕНО — actualAconsumption/oneattempt ещё не подтверждены.** Старыйedcommit/3native/RUNNING незамена новомуR17outcome. NewTesterreadyworkнайдена независимо, но онанеисполняетR17заA.
+9. **ВЫПОЛНЕНО.** Aсампроверяетoneattemptcurrentity/ownership и даётoriginaloutcome+manifesthashлибоnewexactdenial. Еслиdenial — supportedplatformdispositionуисходногоcustodian, безповтора/обхода; минимальныйтекущийвнешнийвход — savedAreceiptэтогоownerID, не новыйgeneralYES.
+10. **ВЫПОЛНЕНО.** Existingowncommentappend+readback/soleREPORTCAS. Noerrorregistry/newhandofffile/queue/secondactor/чужойчат. Closingconditions12/R19historyсохранены.
+
+## 2.1. C: проверен документальный предел причины, одинаковые обращения не повторены
+
+Existingrequests **6308503022(PR238)/6308503936(PR248)/6308505226(PR210)** ранее размещены/readback05:05 и дважды проверены. Freshboundedthread-deltas после05:09:56 и afternewmutations снова не далиCresponse. ExistinglatestCprimary **6306568355 updated03:18:03** прочитана полностью для проверки *его опубликованного next*, без чтения исторических source/logs или повторения ABORT расследования:
+- next C03/PR238 — потребить safeexistingA/Tester same-selectedRequest cancel/lease/fence/worker/transport primary;
+- record не содержит receiptBmedia/R17/privacy, не сообщает новыйSTOP/инструментальныйотказ C intake или исход текущейоблачнойоперации.
+Allowedcontroller-notices filenames не показали адресной новойCdisposition; allowedlogsrootnames не показали текущейC03/C06 primary. Старыенотices неиспользовалиськакноваякоманда/STOP.
+
+**Что установлено фактически:** публичный Cnext по старой causalзадаче не является ответом на новые три входа. Публикации запросов доступны, но authorreceipt/действиеC/состояниеоблачногоисполнителянеподтверждены. **Причина, почему C не замкнул передачу, UNKNOWN.** Это не выдается за C securitySTOP, ожиданиеобщегоownerpermission, idle/hang или отсутствиеоблачнойработы. Переданный dotlocalPIDscan05:09/05:26 не доказывает остановку cloudchat.
+
+**Точный вопрос о недостающей primary, не повтор трёх поручений:** существующий C либо оператор его текущего облачного диалога должен предоставить уже имеющийся privacy-safe **last-operation receipt** (actual timestamp/tool/outcome/какойincoming былпотреблён) и disposition трёх messageIDs; если есть реальный STOP/отказ/операциявполёте — назвать её точнуюграницу/первичныйисход. Из разрешённых документов rootне может восстановить этот факт. Прежний **get_file_infoC.json−32603timeout**, list_sessions/list_processes/list_remote_tool_calls и их альтернативы не повторяются; чатыA/B/Cнеоткрываются. Это граница **доказательств Controller**, не доказанный blockerC.
+
+ТекущемуC **не нужен новый общийgrant** для чтения уже адресованныхнеотказанныхдокументов и документального source-negative/ownership/refutationnext. Возможныйlackofreceiptнеустраняетсяодинаковымчетвёртымcomment: новыхCсообщений/новогоисполнителя/remotehelper/отменыегооперации нет. ПриготовомCответепотребитьточныйevidence; доэтогонеобъявлятьполучение/простой/решение.
+
+## 2.2. B06: использован существующий план, запрошен только адресный permission remainder
+
+Полностью прочитаны **IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md328строк** и **B06_PR235_R4_PUBLICATION_TOOL_DENIAL_20261019.json35строк**, fullPR235conversation2existingBcomments иfreshPRmetadata. Scopeдокументов—decisioninputs/evidence, не source/reproduction.
+
+**Originalpublicationrefusal разграничен точно:**
+- issuerB recordat **19Oct19:17:23.774376UTC**; deniedcalltime **UNKNOWN_NOT_CAPTURED_AT_TOOL_EDGE**, subsequentreadback19:16:13—notcalltimestamp;
+- oneattempt обычнойnon-forceFF existingPR235 **e7bec594…→82d7d299272c50b95a7db4f61ab8f86d25d3e6e1**, толькоfour-pathadminauditUnicodehardening;
+- `requested_tool` field описывает **functions.exec orchestration of existing RDC start_process**. Это описаниезапрошеннойцепочкивBreceipt, **не полный originaltooltrace/args/callID/time**, которыеUNKNOWN; неclaimточногоunderlyingremotecommand.
+- primary **Script error: Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.** Beforeconfirmedserverresult; GitHubpushdenial **не получен**. OldremoteHEADосталсяe7, новый82dнеопубликован/native0; старыйe7fiveCIнеприменяетсяк82d.
+- historical82d и dirty12-pathR2композициянеодноcandidate. Publicbranch **work/b06-six-drafts-main-dcdd-20261019**. LocalR4tree **ed048719b242ba31b3f5d547edcae27c454df5bf**, R2manifest **adaf32e82ba2a384a9ccceb1236f897c0fd2df0d7ca5cd3313ac554d800142ab** ранееacceptedSOURCE. Никакого текущего localWIPscan/rootclaimзаBнет.
+
+**Existingplanиспользован, не переписан:** §§5/6ownercontractdecided/IMPLEMENTATION_NOT_AUTHORIZED/LEGACY_COLLISION_COUNTS_UNKNOWN; compatibilitykey/versionedOTP/requestId/locking/quota/oldwriters/rollback; aggregate-onlyplannedcollisionclasses. §§15/16currentity4→12paths/14directdependencyOIDs/package/workflowparity иI1observerdelta — sourceonly. Publice7, local82d и uncommittedR2 at3f6689/dirty14, canonicalBHEAD0885f499/83dirty — **авторскиепрежниесрезы**, неrootfreshphysicalstate. Owner19Oct13:46 equivalencepolicyрешена; basicYESнеповторяется. Source/auth/security/DB/legacydataread permissionнеполученыизэтогоpolicy.
+
+### Одно новое узкое documentary обращение
+
+[Controller→existingB06 PR2356309010922](https://github.com/MaksimUnimax/runtime-fixtures/pull/235#issuecomment-6309010922), created **05:44:40UTC**, **CONTROLLER_EXISTING_B06_PR235_R4_COLLISION_NARROW_DECISION_INPUT_20261021**. Dedupeexistingplan/commentsдоотправкинепоказалполныйcurrentdecision-readyoperationpermissionpacket. Сообщение требует **переиспользоватьготовыйплан**, дополнитьтольконедостающие:
+1. ПубликацияR4отдельно: exactintendedtool/operation/branch, currentlocal/publicSHA/main/WIP/author сstaleUNKNOWNгдеunsafe, одинконкретныйneededpermission/disposition, savedoriginaledgeполяеслиесть. **Не выполнять/неповторять/непроксироватьpublication**, нетsiblingPR/authchange.
+2. Legacycollisionpreflightотдельно: конкретныйисточник/environmentилиowner-providedsnapshot, исполнитель, точныйread-onlyscope/tablecolumns/limits/versionedcomparison, aggregateoutput/exclusions иконкретныйDB/Ops/dataauthority. **Только план, не query/scan/дамп/credentials/sourceизменение**. Не широкоеsecurity/DBgrant.
+3. НезависимыйразрешённыйостатокB иточнаяоперация/причинаеслиblocked; будущиеauth/source/migrationpathscompatrollback—отдельно, неcurrentauthority.
+
+IndependentGET **05:44:48.138UTC**:sameid/author/bodyexacttrue. **Bconsumption/currentminplanreply ещё не подтверждены**, разрешениевладельца наBpublication/preflightнеполучено. NewR17permissionкасаетсяAonly иBотказы неотменяет. Ужеесть§16independentread-onlysourcecurrentity—неповторятьегорадиотчёта; B03preACK/B04resourcePG/B05+C05restore carrierиC04installedseparate.
+
+## 2.3. A03: текущий разрешённый HTML/CSS, popup.js refusal не глобализирован
+
+Полностьюпрочитанexisting **A_TO_EXISTING_TESTER_A03_FIRSTDOM_0237_CURRENT_MAIN_MARKUP_20261020.json**,88строк, вpeer-handoffs/A. AddresseeexistingTester originalpopupsoleauthor/Creadinessconsumer, notsourcehandoffController. Newdelta **A03_CURRENT_MAINAD6_PR248_ED0688_HTML_CSS_STATIC_CURRENTITY_TO_EXISTING_TESTER_20261021**, issued **05:18:13.413927UTC**:
+- exactmainad6/PR248ed, currentChromeDEVb595 vsoldcomparatora5c8…;
+- popup.htmlSHA **e4c66e59f070e5f63e631ef977b106478e44b9f5405d191da47bbe0f135dcf14** иpopup.cssSHA **b4e7dcda186d90da156ae61246e967a93dbcafb17c496f0b556b8969db9e7e90** byteidentical;
+- staticStart/Transfer hiddenfalse/disabledfalse, cataloghidden/AddEditRemovedisabled; DCL/settledguestcomputedhiddenPASS **oldexactpackageonly**, неnewnativeR7rerun/visualflash/unauthorizeddispatchproof;
+- sourcecurrentityreceipt **d8406e5ca32cafea87f4c548d98268d71d5fb44cfc51d0c4232434ba26ffdabc** поготовойprimary. АудиторHTML/CSSsourceнеоткрывал, бинарникнескачивал.
+
+**Разрешённая граница:** evidenceHTML/CSS идокументальныйsingleauthor/disposition сохраняются уTester; не запретвсейразработки/неproxyчтениеJS. **Запрещённая точная историческая граница:** originalpopup.jsfragmentread не повторять/дробить/эквивалентночитать; originaltool/range/text/time/callID вэтомhandoffUNKNOWN. NewownerR17decision не popup.jsallowance. Не создано новоепоручениеТестеру; текущий B02 иA03неперехвачены.
+
+## 2.4. Тестер: R4unitPASS дополнен новым test-only evidence, не finalroleclaim
+
+Полностьюпрочитан **B02_OBSERVED_CYCLE_R4/result.json45строк**:7PASSlinkedassertions, actualcomposedworker +explicitblockhandler +attachmentcontroller, syntheticDOM/transport; first_response_completefalse; одинexecution/request,1621926Bartifact, busyнеcommit/send, ownedfilesend,Finish/reStart. URLfixtureprovider—synthetictransport, **неliveproviderrequest**. Это неinstalled/authority/providerUIacceptance.
+
+Затем allowedreadyevidenceinventory показалболееfreshaggregate/commit/review/package-reuse; все4готовыхдокументапрочитаны:
+- **B02_OBSERVED_CYCLE_COMMIT.json17строк**, **05:37:45.048430UTC**, test-onlycandidate **675707533784bd217fa200742b55c132c219faf0**, base/runtime **b2b203ddd76ef9763072965ba613169d8c4e1ff3**; одинnewtestpath `tests/regression/extension-core/observed-start-cycle.mjs`; runtime_changed=false.
+- **B02_OBSERVED_CYCLE_AGGREGATE.json135строк**, **05:41:27.230418UTC**, **PASS_OFFLINE_LINKED_CODE**, **14 distinct assertion checkpoints**, не14independentprovidersessions/installedtests. R5даёт8, completedFinishbranchизR2даёт1, completedDialoguebranchизR3даёт1, edgesR4даёт4. **Общие R2/R3fixturefilesFAILсохранены**, поздниеfixturefailuresнестертыи неfullPASS. СтарыеR4sevenoverlapсэтойцепочкой, **7+14не суммироватькак21distinct**.
+- **B02_OBSERVED_CYCLE_REVIEW_VERDICT.txt5строк**, **PASS_SOURCE_SCOPED** exact675vsb2b, толькоnewtestfile. Reviewerнеповторялtests. Exactlimits: injectobservedflagdirectly, upstreamDOM→flagcoveredold24; directhandleCopycall/fixturecommandText; sentAttachmentMessagestubпроверяетfilecount, **неprovider-card/name matching**. Содержимое/синтетическийhandoffпроверены, nativeadapterreceiptmatching/installed/provider/authorityнеclaimed.
+- **B02_OBSERVED_CYCLE_PACKAGE_REUSE.json18строк**, **05:39:55.524182UTC**:134inputsunchanged, нетrebuild/reextract/oldsuitedrerun. SameDEV0.2.37ZIP **2743191B**, SHA **eaad6ea8e2733e15a671d87f72603c5628b6e7cd5c25f3a899fd8bf670b36250**.
+
+Прочитанныйhandoff§12ещё завершаетoldb2b04:47:08; новыйfinalrolecheckpoint/documentreadback для675вданномсрезенепредоставлен. **Естьactualnewcommittedtestsource/readyreview/aggregate, но whole-roleDONE/active_own_operations=[]на05:41 не выдуманы**. Acceptedb2b24+22/notice/startcanon и67514неtenAIUIacceptance/fullB02/PR241gateclosure. No mandatoryterminalbeforefirstStartsnapshot, no newprofiles/Send/browsercapture/helper/tests/review/buildаудитором.
+
+## 3. PLAN и исходные двенадцать OPEN
+
+Все12исходов/closingconditions/ответственныесохраненывсуществующейкарте/истории/checkpoint, новойper-IDбазынет. B03durable/sourceSeen/relay-loss иpreACKrecipient/browserdurability — B/A-client/runtimecustodian; closingтолькоистиннымexactразрешённымserver+clientдоказательством. B04OTP/PG/resource/cleanup — прежниевладельцы/owner; явныеотказынеповторять, cap/резервы не снижать.
+
+A05 иPR48/50 сохраняют SOURCEFULFILLED, residualcorrelation/installed уpublisher/platform/runtime. C06genuineauthority/catalog/network/install/rollback — C/B-Ops/owner; ужепереданныйвопроснедублируется. PersonalR3/runtime — владелец/Тестер, неперехвачен.
+
+OriginalR14refusalenvelope/private-envguardeddelete/publicationorigin/configdrift/reviewpayloadbytes — прежниеC/B/publisher/reviewer/platformхранители. Возвратпоподлиннойsafeexistingprimary/адресномудопустимомурешению, неreplay/реконструкции. ExactoldreviewpayloadSHA256`12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175`неrecovered. ПринятыйR6непереоткрывается. R13candidateAнеявляетсязакрытиемлюбойизэтих12границ.
+
+
+
+
+
+## 4. Все десять пунктов полного аудита, объём и организационные остатки
+
+1. **ВЫПОЛНЕНО — последний исход/singlewriter.** FullpinnedREPORTf904/ref/commit author/parent/onlyREPORT и knownpreviousfullreadback сверены. Unknownownwritesнет. Freshlockmetadata/dedupe beforeowncommentmutations; REPORTexpectedblobCAS/fullreadback/onlyREPORT/oldhistory/map/R19 сохраняются.
+2. **ВЫПОЛНЕНО — точные команды/scope.** Newownerquestion3/YES/SentinelразрешаетодинR17prepretry existingA; ниCрешение,ниIDNApolicy неэторазрешение. Onecurrentpermissionпереданобезновогописателя; newreview/CI/sourceDBscopeнеполучен. Rules/promptsбезправок.
+3. **ВЫПОЛНЕНО — old successful method/сохранённые результаты.** ExistingownAcommentnativeupdate+exactGETуспешны, originalbodypreserved. Bexistingplanпереиспользован, непересоздан. ЭтотуспехнеR17execution/Bpublication/Cconsumption. SourceexistingA/Tester/Bвсвоихграницах.
+4. **ВЫПОЛНЕНО — классификация отказов.** OldAprepsecurityNOT_EXECUTED/inputNOT_CREATED сnewuseroneattemptallowance; Boriginalplatformrejectionbeforeconfirmedserverresult, **неGitHubpushdenial**. Popup.js fragment denial неglobaldevelopmentSTOP. Args/callID/exacttime/internalreasonUNKNOWNневыдуманы. NoattemptbyController.
+5. **ВЫПОЛНЕНО ownscope; foreignphysicalNOT_VERIFIED.** Freshmain/PR248/PR235/ownlockmetadata/publicationdeltas/owncommentauthor. Foreignprocesses/activecloudchat неустановлены; отсутствиеdotlocalPIDнеidleproof. C.json/process/history/PLANenumerationNR, rolefiles/foreignsourceWIPнет.
+6. **ВЫПОЛНЕНО — выполнено разрешённое устранение документального препятствия.** OwnerR17decisionреальнопередано вexistingownAmessage; oneBminplanrequestреальноопубликован. A03readyHTMLCSS/testernewlinkedcycleпотреблены. Неограничилисьотчётом/общимACK. Новых одинаковыхCrequestsнет.
+7. **ВЫПОЛНЕНО — readback; НЕ ВЫПОЛНЕНО — actualrecipient execution.** Aupdate/Bnewcommentexactbody/author/idreadback05:44:48.138. Postsendthreads/A05nameschecked05:47:13: ниR17inputreceipt/dirnames, ниA/B/Canswers. Это неprivacy-sideeffect/noexecutionproofвсистеме; scopebounded. NewR17manifest/hash/calloutcome ещёотсутствуютвполученнойprimary.
+8. **ВЫПОЛНЕНО для найденного independentcontinuation; НЕ ВЫПОЛНЕНО для A/C/B newreturns.** Tester675committedtest-onlysource/review/aggregateдоказаныновымиготовымифайлами; старыйR4unit7неwhole-roleDONE. Aoneprepattempt/Bminplan/C3intakesнеподмененыolded/oldCI/RUNNING. Новыхauditlaunchesнет.
+9. **ВЫПОЛНЕНО — owners/next/minimal action.** ExistingA—dedupeownerID+однаpermittedprepлибоexistingoutcome; newdenialstopoperationonly. ExistingB—точныйdecisionpacketwithoutpublication/DBscan; C/existingcloudoperator—savedlastoutcome+триintakedispositionsдляустановленияcausenonreceipt. No broadgrant/whole-roadmapWAIT/secondwriter.
+10. **ВЫПОЛНЕНО — фиксирование/сохранение.** OnlyREPORT идвеexplicitlyauthorizedowncommentmutations, noerrors/events/newregistry/archive/queue/helper/scheduler/auth/protection/limitschange. 12OPEN/PLAN/WIP/checkpoint/history/closingconditionsсохранены, R6нереопенен.
+
+
+
+**Финальный разрешённый срез 2026-10-21T05:51:34.625Z:** REPORTref/author/parent и mainad6 неизменны; ownlockmetadata прежние. Nativecomments после05:47:13 по PR248/235/238/210 снова[]: нового A receipt/calloutcome, B planreply или C intake/lastoperationprimary в этом охвате не найдено. LastA05rootpresencecheck05:47:13 не показалR17имён; его не выдаём за постоянно текущийfilesystemstate. Oneownerpermissionещёнеподтвержденоисполнением, no secondattempt/rootprep. Все независимые readyрезультаты выше потреблены, чужие операции не запущены.
+
+### Роли и ближайший действительный шаг
+
+| Роль | Последний подтверждённый факт | Что работает/стоит/UNKNOWN и следующий owner |
+|---|---|---|
+| A | ExistingApublication04:55:58; новоеownerdecisionвownchannel05:44:36/readback05:44:48 | **Получение/единственнаяR17попытканеподтверждены**, неclaimidle. Aпроверяетsingleauthor/currentity/ужеиспользованнуюattemptallowanceи возвращает originalcalloutcome+inputmanifesthash либоexactdenial. FullnativeServer/CoordуexistingActions, noControllerlaunch |
+| B | Existingplan§16source/dependencycurrentity иoldpublicationrefusal; freshpublice7; oneaddressedrequest6309010922 | **НовыйminimalplanreplyUNKNOWN**. Bдаётточнуюpublicationdispositionneed отдельноотprivacy-safeDBpreflightplan, неисполняяего. GeneralIDNAequivalenceYESрешён. B03/B04/B05independentremaindersнеприсваиваютсяаудитору |
+| C | LatestreadypublicCnextupdated03:18:03—oldsameRequestcause; новыхтрёхreceiptнет | **ФактическаяпричинанезамыканияUNKNOWN**. Нетпервичноготекущегоcloudlastoperation/STOP/refusaloutcome; C/егоcurrentoperatorможетдатьsavedreceipt. Одинаковыйcommentнеповторён, nochatopened/nootheractor |
+| Тестер | New675test-onlycommit05:37:45/aggregate05:41:27/scopedverdict/package-reuse; old§12stillb2b | **Новаяsourceпроверкаподтверждена, finalrolecompletionнеподтверждён**. Не требуемnewterminal/profile/UItests, source/testsourceнеперехватываем. A03init/PR241/installedfullB02отдельны |
+| Controller | OwnAownertransfer/Brequestиexactreadbacks; readyA03/Tester/Bplanпрочитаны | Выполненаdocumentarycoordination/аудит, REPORTCAS/readback. Следующийвход—actualA/B/Cprimary, безновыхlaunches/повторов/бесконечногопереучёта |
+
+B§16read-onlyresource**авторскийsnapshot**, точныйwallclockнесообщён:81allocations/17627MiBreserves,rootfree25664.16MiB, floor3072, allowance4965.16vsB04demand5120, **deficit154.84MiB**. Это уточняет прежнююактивнуюprojection78.13какболеераннийauthorсрез, **неcurrentresourceadmission**. Аудитордиск/DB/processнеизмерял, budgets/leasesнеуменьшал, B04refusedtest/R7R8неповторял. B195SOURCE/old128lifecycleclosureнеbackupapp+PGrestore/rollback. B03postcommitACK неpreACKrelaydurability, C06signedcatalog/Store/owner/enforcementотдельны.
+
+**Объём нового прохода:** fullREPORT/ref/commit; updatedAreceipt иownAmessage; PR235maincomment/fullconversation2 иfreshPRmetadata; full328-lineBplan/35-lineBdenial; R4linkedresult45строк; fournewTesterreadyreads(17commit/135aggregate/18packagereuse/5verdict);80-linehandofftail; full88-lineA03handoff; fullcurrentC6306568355дляпроверкиpublishednext; limiteddirectorynamesA05/Apeer/controller-notices/logsroot/Testerreadyroot; boundednativecommentsdeltas иfreshmain/PR248/2lockmetadata. **ОдинexistingownAcommentupdate +одинновыйBcomment**, independentexactGETreadbacksдвух. NoCcomment/newexecutor/source/test/review/CI/dispatch/PG/Send/capture/browser/live/security/cleanuplaunch. Source/rawlogs/ZIPbytes/секреты/конфиги/deniedfragmentнечитались.
+
+**Остаток:** newownerR17permissionreceived/executed? exactnewcalloutcome/inputcomposition/hash? Bcurrentminimaloperationdispositionpacket? Cactualintake/physicalcloudlastoutcomecause? ЭтифактынеполученыипрежнимиPASSнеподменены. TesternewtestsourceproofнеwholeB02/installed/provideracceptance. Все12originalOPEN, priorABORTinitiators/restorebackuprollback/C06/signing/Store/enforcement остаютсяснастоящимивладельцами.
+
+Audit_complete=false; **12 OPEN**. Передитогомfreshversion/author/ownlockmetadataиfullindependentREPORTreadback/ref/parent/onlyREPORT. Новыхреестров/архивов/расписанийнет.
 
 ## 5. R19 — прежний единственный запрос сохранён, новыхsource-readнет
 
