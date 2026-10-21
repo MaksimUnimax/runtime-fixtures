@@ -1,3 +1,57 @@
+# Продолжение: merge, точный отказ §22 и новые exact-SHA исходы — 2026-10-21T15:29:34.697Z
+
+Единственный существующий Controller, тот же незавершённый аудит. **Все12OPEN, PLAN/WIP/история и принятые узкие результаты сохранены.** Начало активной работы15:24:40UTC. Freshrefc7f4a1022cef8d9359691fa6052161ca7dcb38ad, authorMaksimUnimax/actualpublication15:08:46/parenta0cfba4c/onlyREPORT проверены; полныйREPORT2490394charsпрочитан. Последняяоперациязавершена, unknownмутациянеповторена. Easyscript установленstocklist_devices9dab7ad2-9d63-43a3-b106-a5840d79ccc1, activeRDCsessionsнет. Read-onlylockmetadata PID3685393 не показала heldcoordination/resource-admissionlocks; это не disk/RAM/DBprobe, lock не удерживался. ЧужиеA/B/C/Testersource/WIP/profile не менялись; sourceclean/FDkeeper/WIPcounts ниже — их собственные сохранённые observations, не новые code reads Controller.
+
+## B: реальные узкие действия уже выполнены
+
+PR145native metadata лично подтверждены **CLOSED/MERGED15:02:07UTC**, exactsource9f6e3521a53b549eab0142c436b761ad902897cd, merge/currentmain **a4b212e80a52595255f4ebb112105dd67a669964**. НормальныеReady/merge/readback выполнил originalB, неController. Existingcheckpoint PR145_R7_EXACT_HEAD_PUBLICATION_READBACK_20261021.md теперь41lines: originalpublicationhistory + integrationcontinuation15:04:27 + **narrowpersonalC06supersession** + postmergeauthorreadback15:20:51. Всёполностьюпрочитано. Прежние ожиданияPR145publication/Ready-merge иисправленияBpersonalcc8pending **закрытыузко**; не поручатьихповторно. GeneralC06/Store/fullB02/installed/live остаютсяOPEN, B128MiBOPEN/KEEP из-заexistingread-onlyFDconsumerне закрывается.
+
+**Postmerge workflow/job различие первично подтверждено.** Bowncheckpoint15:20:51 перечисляет все5 originalpush/attempt1 exacta4b workflows completedSUCCESS: Docs39622127921, Coordination39622127964, I139622127991, Server39622127975, Extension39622127983. Latestdot15:23срез4/5сExtensionrunning историческийsnapshot; мой currentnativeGET Extension39622127983: completed/success, created15:02:10/updated15:13:35. Но currentrunjobs содержит лишь4/6completedSUCCESS, **ci-plan119298088714 иCommoncore119298165806stillin_progress/null/нетcompleted_at**, как и собственныеA/Bпримaries. Поэтому **5/5workflowSUCCESS, NOT подтверждённые13/13terminaljobs**. Bauthoraggregate11/13SUCCESS+2UNKNOWN; ControllerличнопрочиталэтотExtensionнабор, не повторялдругие4completedfamilies/не перезапускалCI. ПричинаworkflowvsjobmetadataпротиворечияUNKNOWN; parentgreen/terminalstepsнеподменяютjobterminal. ОтказанныйA/B individual/actions/jobsURLне повторён/необойдён. Source9f6originalpush5/13, separatePRtrigger2/3 иpostmergea4b5workflows сохраняютсяраздельно.
+
+## Критический §22: ожидание абстрактного ACK было неверным
+
+По новому прямому указанию владельца **нативно прочитан именно сохранённыйB.jsonrecord**, tail250lines от currentstate25129lines/1835688B/mtime15:22:36.662. Поле B06_SIX_DRAFT_MAIN3F_COMPAT_20261019/SECTION22_IDNA_WB4_DOCUMENTARY_APPEND_DENIED_20261021:
+```json
+{
+  "at_utc": "2026-10-21T14:51:51.996175+00:00",
+  "operation": "Remote Desktop Commander start_process, attempted guarded atomic append new Section22 to ORIGINAL IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md in existing B06_SIX_DRAFT_MAIN3F_20261019; no database/credential/service operation",
+  "tool": "mcp__Remote_Desktop_Commander__start_process",
+  "primary_error_verbatim_marker": "Error: Command not allowed: python3 - <<'PY'",
+  "primary_error_full_body": "Error contained original long command verbatim; refusal detail was Command not allowed. Command was not executed.",
+  "root_cause": "UNKNOWN",
+  "source_before_sha256": "0fc9f56cb91f0eedf84c34ace31f90ec75015f4f91f40a2ffec34003d4dc2f0e",
+  "source_after_sha256": "0fc9f56cb91f0eedf84c34ace31f90ec75015f4f91f40a2ffec34003d4dc2f0e",
+  "source_unchanged_verified_utc": "2026-10-21T14:51:22Z",
+  "section22_persisted": false,
+  "rerun_or_other_tool_bypass": false,
+  "owner": "B",
+  "blocked_task": "Same existing B Ops documentary response for IDNA technical source/role/window and C03 WB4 product baseline; exact drafted update not published. Independently completed PR145 non-force branch fast-forward is unaffected.",
+  "next": "No retry or alternate edit of this original IDNA document without supported explicit disposition; preserve original §21 NO RUN. Provide actual current bounded documentary findings to owner without claiming persisted Section22. C03 existing B/Ops documentary custody still OPEN."
+}
+```
+
+**Это сохранённая запись B, не полный originalnativeответ.** primary_error_verbatim_marker содержит только маркер «Error: Command not allowed: python3 - <<'PY'». primary_error_full_body — **пересказ**, не verbatimoriginalbody. Full originalarguments/longcommand/Section22draft/callID/native tool-edgeUTC **UNKNOWN**; recordat_utc14:51:51.996175 — savedobservation, source_unchanged_verified_utc14:51:22 — отдельное сохранённое observation, ниоднонеподставляетсякакtool-edge. Нельзя реконструироватьfullpayload по этомуописанию или обещатьновыйretry.
+
+Точнаянезавершённаяоперация — attemptedguardedatomicappend **§22в ORIGINAL IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md**, owneroriginalB, черезRDCstart_process. Sourcebefore/after одинаковы0fc9f56c…; **§22NOT_PERSISTED**. Nativeexisting§21конец перечитан: total509lines/§21NO_RUN/conditionalprivacygrantaccepted/technicalsource-role-windowNOT_DOCUMENTED. Отсутствиенового§22объясняется **explicitrefusal**, не неполучениемWB/IDNAвопросов. ПредыдущиеcurrentREPORTфразы«ещёнеполучилB» superseded этойконкретнойпричиной; недоставленныйdetailedBreturn всё ещё неготовыйтехническийрезультат/неDBgrant.
+
+Не повторялappend, не писалего заB, не переносилdraftдругимactor/tool/format/document. Проверен толькоrecord и названныйexistingB06logdir filenames: отсылкикoriginal§22envelopeнеуказано, отдельногоSection22/envelopeartifactвэтомboundeddirневыявлено; unrelated19OctR4denialнеподставленвместонего. **Нового глобальногоhistorysearch нет.** Следующийдопустимый documentaryinput — originalBлокатор уже сохранённого nativecallenvelope/полногоresponse, еслионесть, либо explicitNOT_RETAINED_IN_CHECKED_INPUTS с boundedисточниками; не повторвызова/не реконструкция. Маркерсампосебенедоказываетпричинуилидефицитownerpermission. НикакогоgenericprivacyYES/retryYES невыведено; supportedplatform/connectorreconsiderationpathне установлен. Длявозможной штатнойclarification нужен именно originalnonexecutedenvelope/полныйrefusal и disposition действующегоMCP/operatorauthority поэтой операции, неослаблениеконфигурации/allowlist/формата.
+
+## C03: новый исход относится к585, не2c807
+
+OwnPR250#6316747710updated15:11:32 полностьюпрочитан: C03_PR250_FORMDATA_REQUEST_PAYLOAD_METADATA_R2_20261021, exacthead **585b69a44677d7ea0f4cb476d38f6eaac8be9226** parent2c807/treee1449bed…; nativePR250OPEN/DRAFT/unmergedhead585подтверждён. OriginalCnonforcepush15:07:32/2existingCfiles; исправленаошибочнаяfalseпроекцияSwagger2formDatapayload: ownhasRequestBodynowbodyORformData. Author173/440PASS/quality иcompiledsmoke87e285… — **не независимаяприёмка**, rootsource/testsнечитал/неповторял.
+
+НовыйalreadyexistingServer39622874036 личнопрочитан **SUCCESS15:22:40**, eventpull_request/attempt1/exact585, ci-plan119300590391SUCCESS15:07:47/server119300662521SUCCESS15:22:40. Docs39622874093/job119300590165SUCCESS ранееownC15:11прочитанкакавторскийoriginalрезультат, не повторялcompletedDocs. Current585 **2/5families**, eligibleexact585reviewNOT_ACCEPTED/остальные3NOTOBSERVED; old2c8072/5/historicalmainCIнепереносятся. NewrequestBodyprojectionможетдатьразовыйhistoricalbaselinecomparisondelta, **не нормализовать/неadvancebaseline автоматически**. GenuinefourdocumentKeyold/currentimmutablebytes+separatebaselineacceptance/revision/provenanceUNKNOWN; B/Opscustodian/Csemanticconsumerroute не даётDB/snapshotreadauthority. Explicit§22denial относитсякдокументальнойзаписи, неприёмкеWB/IDNAданных.
+
+## A и Тестер: текущие границы
+
+OwnA6318741233updated15:20:25 полностьюпотреблёнвновойчасти. Adual-source14:57:46/currentroadmapreadback — documentaryresult, A.jsonwriteотказвнём **исторический**, новогоdeniedcall14:57невыдуман. WB_07_ORDERS_FBW≠FBS/stickerauthority; no inferredR37fix. НоваяownAmaina4bfeedback-only/pathnonoverlap/currentPR248edReady/INCONCLUSIVE/NO MERGE иworkflow/jobdiscrepancy принятыузко. Предыдущиеmain7d9dispositions исторические, currenta4bsemantic/combinedclientPASSневозник. R16/ed5/13/R17oneprep/R36REWORK/R37DENIED/protection403/oldABORTсохранены.
+
+По свежемупрямомуownerinput **emailexistingaccountужевыбран**, повторныйemailвопросне нужен. Текущаяграница — отдельное согласие на передачуадресав историюТестера послеотклонённоговвода14:59; вводпустой/authнепродолжен. Самадреснеполучался/непереносилсявREPORT/документы. Это не новыйowneremailrequest/не техническоезависание/не permissionобщегоauthbypass. Scopeвхода/file/native остаётсяsoleTester; rootникакихauth/browser/profile/credentialдействийнеделает.
+
+Весь independentостаток12OPEN, PLAN/WIP, source/CIузкиеприёмки/512-64metadataCLOSED/KEEPfiles/R7historicalFAIL остаётся. Новыхtests/review/CI/resourceprobes/liveDB/security/sourceправок/errors-events/реестров/архивов/помощниковнет. Read-onlylockmetadataвыводбылшире нужныхдвухpaths; DBcontents/credentials/privatefilesизэтогоoutputнечитались, новыйпоиск/повторнепроизводился. Дальшеисправляютсясобственныеcanonicalожидания поactualBmerge/supersession/denial иnewCexactresults, не чужой§22.
+
+---
+
 # Итог продолжения: проверенные закрытия и сохраняемый полный остаток — 2026-10-21T15:08:45.070Z
 
 **Тот же единственный Controller, аудит НЕ завершён. Все12 исходных OPEN, PLAN/WIP/полная история и узкие принятые результаты сохраняются.** Предыдущая публикация действительно15:03:05UTC, commita0cfba4c9b9c3587c42b83d1de476979fbd9e59f, authorMaksimUnimax,parent713f4236,onlyREPORT; full exactreadback15:03:20.606. Freshref15:07:05 совпал; все3 изменённых owncanonicalcomments повторно совпали с сохранёнными полными body, неизвестных правок нет. CurrentREPORT полностью содержит исходные2472167chars713f4236 неизменённым suffix. Время этого заголовка — подготовка записи; фактическоеpublicationUTC задаётся commit author date и проверяется полнымreadback.
