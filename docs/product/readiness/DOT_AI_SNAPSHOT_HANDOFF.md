@@ -975,6 +975,38 @@ Checkpoint SHA256: `1b905b12b84715a558392f1711a4e669c606719efd7c31f5ad2a95d25549
 Первичный результат `B02_EMAIL1533_NORMAL_LOGIN_RESULT_20261021.json` в прежнем evidence root, **2455B**, SHA256 **27cf92ea631bbe1f30e45ade616fd8d211ef23da88ec3fa4217c8c34a725ce3f**,15:36:55.029325UTC. §11/чужой WIP/source/оба ZIP/прежние FAIL/review/60+14+1+5 PASS сохранены. Полный остаток всех8ИИ и отдельно Work/dot — по f0b950a2, installed/full B02 для каждой поверхности открыт. Этот новый input открывает только продолжение normal login; независимой новой source-правки/DOM-границы нет, матрица не повторялась. AI/marketplace/auth seed/security/cache-clock изменений нет.
 
 
+
+### TESTER_GMAIL_CURRENT_LOGIN_OUTCOME_20261021_1554
+
+Принято адресное разрешение владельца проверить текущую попытку, прочитать только соответствующее письмо подключённого Gmail выбранного аккаунта и ввести доступный актуальный код непосредственно в Code → Verify. Новый Send code разрешён только после подтверждённой неудачи; неизвестный исход сначала проверяется. Адрес и одноразовый код не публикуются.
+
+**Фактический новый результат15:54UTC:** Gmail подключён и аккаунт совпал. Найдено письмо Octoport от **15:35:08UTC**, соответствующее единственному Send code **15:35:05.779306UTC**; sender domain/recipient совпали. Первое чтение получило **403 RATE_LIMIT_EXCEEDED** с указанием временного per-minute quota; **один** повтор того же чтения после минутной паузы успешен. Альтернативный endpoint/аккаунт/обход не использовался. Однако в доступном теле письма вместо значения стоит **`[one-time authentication code withheld]`**; пригодный код не получен. Письмо явно задаёт истечение **15:45:05.873UTC**. Старый код не вводился; **Verify не нажат; повторный Send code не выполнялся**. Полное письмо, адрес и код не сохранены в evidence, state или GitHub.
+
+**Текущая форма и исход установлены.**15:46:27.335819UTC прежний портал показывал `Sign in / Code / Verify`, поле пустое. Собственный прежний unit достиг установленного RuntimeMaxSec900 в15:47:39UTC: известный timeout, пустой cgroup, Chrome0; это завершение браузерного процесса, а не неизвестная отправка или native FAIL. После свежей проверки ресурсов, clean cc8/WIP и отсутствия активного браузера **15:52:25UTC** тот же профиль открыт прежним driver в конечном unit `octo-tester-b02-gmail-form-20261021-1556` (1536MiB/300s; суффикс имени не является временем начала). Восстановилась одна about:blank, прежняя Code-форма не сохранилась. Обычная навигация на **https://app.octoport.ru/login** показала **15:52:46.534646UTC**, с повторным наблюдением **15:52:54.855264UTC**, `Sign in / Email / Send code`, enabled input[type=email]. Вход не завершён. Email/OTP повторно не вводились, новый код не запрашивался. После проверки браузер закрыт штатно: **success/exit0/inactive/empty cgroup**, Chrome0; профиль и установка сохранены.
+
+**Точная доступная граница:** чтение Gmail и подтверждение соответствующего письма работают, но значение OTP не предоставлено в ответе; прежний код также истёк. Нельзя подставить служебную заглушку, произвольное число или объявить вход завершённым. Следующий необходимый credential-шаг — доступный свежий код непосредственно в Code → Verify настоящего портала; при сохранённом скрытии значения потребуется ввод владельцем на портале. Это не запрос повторного YES на вход и не передача разработки B02. Новая отправка в этой попытке не выполнялась. **Auth completion, current bootstrap/signature acceptance и native chooser→close→reopen/actual File bytes/hash — NOT_REACHED**; нового native PASS/FAIL нет.
+
+Первичный результат в прежнем evidence root: **`B02_GMAIL1546_NORMAL_LOGIN_BOUNDARY_20261021.json`**, **4395B**, **15:54:06.971545UTC**, SHA256 **754d6bd40a0488c6ae3364c37d5734d2b5933f353614d7c9ebb0f0ef12de190e**. Status **NORMAL_AUTH_CODE_UNAVAILABLE_FROM_GMAIL_EXPIRED_NO_RESEND_NATIVE_NOT_REACHED**. Ссылки/SHA пяти собственных QA результатов внутри; снимки формы маскируют поля. История первой quota-ошибки сохранена как разрешившаяся после одного чтения, не выдаётся за постоянную недоступность Gmail.
+
+**Кандидат и пакет не менялись:** source **cc8abe7beeffad517954bae9ea952612a1c7ef9b**, tree **d666da4cb15ffd8de5733b7b7a87282e1c6c4588**, **0.2.37 PREPRODUCTION personal**, **2707548B**, ZIP SHA256 **ecccb6e6801d5a2456b5e124b1565b131acb560a9ca6b16e44ff95e891c03911**; установленный worker вновь побайтно подтверждён SHA256 **626c0010626374732bc1c76ba635b482f7619f27eb639920e9aa72d6c5904feb**. Прежнее доказательство executing worker после Reload14:20:49 сохраняется; нового Reload/переустановки не было. Development ZIP35a00911/старый eaad6ea8, старые FAIL и два pre-Reload FAIL, SOURCE review, **60+14+1+5 code PASS**, TTL/fences и чужой WIP сохранены; тесты и сборка не повторялись.
+
+Полный независимый остаток сверён с существующим §12; нового доступного незавершённого source-изменения этот Gmail-вход не открыл. Для **каждой** поверхности installed/full B02 остаётся **NOT_ACCEPTED**:
+
+| Поверхность | Сохранённые материалы / точная открытая граница |
+|---|---|
+| ChatGPT Standard | TXT ready/sent own-turn; natural expiry/login-required NOT_CAPTURED, прежний запрос dot сохранён |
+| Алиса | Ready/sent file+text; подробный loading UNKNOWN |
+| Qwen | Own file/sent; Send enabled не доказывает ready |
+| DeepSeek | Natural terminal/upload-end/sent; forced Stop/retry не доказаны |
+| Claude | Own article/file/body; полнота busy root ограничена |
+| Gemini | TXT input отдельно от image-only; own query file preview |
+| Grok | Own attachment/filename; full busy root UNKNOWN |
+| Kimi | User segment/success card/final-code; reload identity не доказана |
+| GPT Work — отдельно | Ready/sent/completion/Copy; truncated card не полный4root, Work home не Chat mode |
+| dot — отдельно | Local nonpending row/card/code; terminal/Reply/reload identity UNKNOWN |
+
+Для каждой строки сохраняется полный цикл: popup импорт/удержание; Start одна инструкция/idempotence; assistant/full code/button; разрешённый package/result/error/recovery/executionId; полный отчёт и большой файл с реальной доставкой/обработкой в исходном диалоге; Send/busy/Stop; Copy без исполнения; hide/show только видимость; Finish/newStart; изоляция2диалогов/магазинов/площадок. Принятые материалы не пересобирались. AI login/Send/marketplace, clocks/cache/signature guards, ключи/аккаунты/постоянный доступ, DB/server/security не менялись. §11 и всё вне §12 сохранены.
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
