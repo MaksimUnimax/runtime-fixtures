@@ -1,3 +1,72 @@
+# Итог продолжения: установленные исходы и полный остаток — 2026-10-21T15:41:55.533Z
+
+Тот же единственный Controller. **Аудит не завершён; все 12 исходных OPEN, PLAN/WIP, история и узкие принятые результаты сохранены.** Предыдущий checkpoint опубликован **15:37:13 UTC**, commitbae0d3eb7d221bb446f8d9b71dbd1627ae68f71a, автор MaksimUnimax, parentbe79380b, только REPORT; полный exact readback15:37:23.127. Контроль15:39:19.990 подтвердил тот же ref, maina4b212e80a52595255f4ebb112105dd67a669964 и PR250 branch585b69a44677d7ea0f4cb476d38f6eaac8be9226. Все четыре изменённых собственных canonical comments совпали с полными сохранёнными body и автором; неизвестной мутации нет. Исходные2490394chars REPORTc7f4a102 сохраняются неизменным suffix. Время заголовка — подготовка; фактическоеpublicationUTC проверяется по commit author date и отдельному fullreadback.
+
+## Что реально закрыто
+
+1. **PR145 MERGED15:02:07 UTC**: exact source9f6e3521a53b549eab0142c436b761ad902897cd, merge/maina4b212e80a52595255f4ebb112105dd67a669964. Нормальные Ready/merge/readback выполнены исходным B; Controller их не выполнял и не повторяет. Полный дополненный41-line собственный B checkpoint прочитан, прежний currentDRAFT/ожидание merge superseded.
+2. **B сам выполнил personal C06 supersession** в том же checkpoint. Исходная pending-строка сохранена историей, узкий personalexactcc8 authority/package/worker уже доказан. Больше не ждать этой поправки/новогоissuer/build/approval. Общий C06/Store/fullB02 остаётся OPEN.
+3. **Причина отсутствия §22 установлена по сохранённому B record: explicit отказ записи, а не неполучение вопросов.** Документальная операция имеет известный исход DENIED_NOT_PERSISTED; это не готовый технический ответ по IDNA/WB. Прежнее абстрактное ожидание ACK снято, незавершённый результат сохранён с точной причиной.
+4. **Новые C03 результаты приняты только на exact585**: original Docs39622874093 и Server39622874036 терминальны SUCCESS, всего2/5families и3observedjobs. Server закончился15:22:40, jobs119300590391/119300662521 SUCCESS. Old2c807 PASS не переносится. Авторские173/440PASS/compiledsmoke — не independent acceptance.
+5. Дополнение C03_PR250_EXACT585_NATIVE_SERVER_TERMINAL_AND_LEGACY_CACHE_INMEMORY_20261021 issued15:25:42.301/ownPR250updated15:25:47 полностью прочитано. Принят только **C03_FORMDATA_SOURCE_CACHE_REPROJECTION_SAFE_IN_MEMORY**: synthetic same acceptedbytes, обе стороны одной новой projection дают changed0/unchanged1; смешанныеcacheversions создают artificialdelta1. Это не PostgreSQL/installed/realWBbaseline, не даёт автоматического baselineaccept/advance/normalization.
+6. Собственный A currenta4b disposition уже получен: INCONCLUSIVE/NO MERGE и точный GET409/410 witness UNKNOWN. Main7d9 conclusions исторические, feedback-only nonoverlap не semantic combined-tree PASS. WB_07_ORDERS_FBW не FBS/sticker authority. A.json write denial в14:57readback исторический, нового deniedcall14:57 не придумано.
+
+## Что осталось точно заблокировано
+
+**Исходная операция B:** RDC.start_process attempted guarded atomic append нового §22 **в исходный** /root/octoport-control/logs/B/B06_SIX_DRAFT_MAIN3F_20261019/IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md. Прочитан именно сохранённый B.json recordB06_SIX_DRAFT_MAIN3F_COMPAT_20261019/SECTION22_IDNA_WB4_DOCUMENTARY_APPEND_DENIED_20261021; полный объект сохранён выше без исправления его полей.
+
+Сохранён лишь verbatim-marker: **Error: Command not allowed: python3 - <<'PY'**. Поле primary_error_full_body — пересказ, не полный native response. Fulloriginalarguments/longcommand/draftbody/callID/tool-edgeUTC **UNKNOWN**. at_utc14:51:51.996175 является сохранённым наблюдением; source_unchanged_verified_utc14:51:22 — отдельное записанное наблюдение, не восстановленныйtool-edge. До/послеSHA0fc9f56cb91f0eedf84c34ace31f90ec75015f4f91f40a2ffec34003d4dc2f0e одинаков; §22NOT_PERSISTED, прежний §21NO_RUN перечитан и сохранён.
+
+**Append не повторялся, не дробился, не выполнялся за B и не переносился в другой tool/actor/format/document.** Draft §22 не реконструировался. Сохранение этого отказа в своём REPORT и correction собственного coordination ожидания не является записью того §22. Неподтверждённые technical findings не были выдуманы или объявлены полученными.
+
+**Минимальный следующий диагностический вход:** locator уже сохранённого неизменного native tool-call envelope/полного response именно исходного B вызова — если он есть в его original context; иначе точное boundedNOT_RETAINED_IN_CHECKED_INPUTS/UNKNOWN. В named record locator отсутствует, среди проверенных имён файлов namedB06logdir отдельный Section22/envelopeartifact не выявлен. Это не глобальное доказательство отсутствия trace. Новый глобальный historysearch не запускался; чужие A/B/C чаты не открывались. Rootcause/authority originating block и supportedreconsiderationpath пока не установлены. **Необходимость нового ownerpermission из маркера не следует; новый общий YES не запрашивается.** Если originalnativeenvelope доступен, его действующий originalMCP/operator контекст может штатно определить слой и допустимый disposition по этой конкретной documentwrite. До такого подтверждённого пути — никакого retry/config/allowlist/security ослабления.
+
+Ограничение относится к этой операции. Read-only документы и независимая разрешённая работа продолжаются; оно не превращено в глобальный STOP RDC/всего аудита. Новый read-only lslocks metadata завершился без записи, но не доказывает разрешённость deniedPythonappend. Полный lslocks вывод был шире нужных paths; DBcontents/auth/config не читались, этот широкий вывод не повторялся.
+
+## CI: workflows и jobs не смешаны
+
+Maina4b: собственный B checkpoint15:20:51 сообщает все5 originalpush/attempt1 workflowscompletedSUCCESS; Controller лично подтвердил текущий Extension39622127983 parentcompletedSUCCESS/updated15:13:35. Latestdot15:23срез4/5 остаётся историческим наблюдением; расхождение freshness/caching/источников не объяснено догадкой.
+
+**В current originalExtension jobs всё ещё ci-plan119298088714 иCommoncore119298165806 in_progress/null/нетcompleted_at**, хотя parentworkflowgreen. Поэтому итог — **5/5workflowSUCCESS; terminal13/13jobsНЕподтверждены**, Bauthoraggregate11/13+2UNKNOWN. Terminalsteps и parentgreen не заменяют terminaljobrecord. Отказанный individualjobURL A/B не повторялся/не обходился, rerun/CI/tests не запускались. Completedдругие4mainfamilies не перечитывались ради статуса. Originalsource9f6push5/13, separatePRtrigger2/3 иpostmergea4bworkflow5 — разные наборы доказательств.
+
+## Canonical corrections применены и проверены
+
+| Собственный документ | Фактическое изменение | Публикация / fullreadback |
+|---|---|---|
+| B PR235#6309010922 | Merge иpersonalC06 ожидания закрыты; §22refusal вместоmissingACK, точный bounded diagnostic input без retry | updated15:31:20,50048chars, полный exact readback |
+| A PR248#6307715843 | Currenta4b собственный ответ A принят, main7d9 historical; R37/FBW/FBS/job-state distinctions сохранены | updated15:34:32,43050chars, полный exact readback |
+| C03 PR238#6308503022 | Current585 terminalServer+2/5; scopedcacheconsumer; WB/IDNA отказ иbaselineauthority разделены | updated15:36:27,25099chars, полный exact readback |
+| C06 PR210#6308505226 | Email уже выбран; отдельно pendingconsent на его передачу в Testerhistory; адрес отсутствует | updated15:33:09,27922chars, полный exact readback |
+
+Все старые bodies сохранены. Existingpointers ссылаются на те же канонические URL, новых inbox/tasks/исполнителей/правил/реестров нет; ненужная удалённая запись pointers в этом продолжении не производилась. Root не писал чужие B/C/A state/checkpoints.
+
+## Все 12 исходных OPEN
+
+| Пункт | Выполненная документальная сверка / уровень | Независимый остаток и ответственный |
+|---|---|---|
+|1 B03 durable sourceSeen/submit/twoAPI|Source/currentmaina4b/новыйCI не выданы за durablePG/дваAPI. Lastknowninstalledcarrier остаётся историческим наблюдением, не новой liveпроверкой. OPEN.|ИсходныйB03/B-Ops: отдельно разрешённые realPG/relay-before-ACK/TTL/cancel/twoAPI доказательства, compounddenialнеповторять.|
+|2 PreACKrecipient/relayloss|PR50SOURCE и consumerRAM/sourceACK результаты сохранены раздельно. OPEN.|Originalruntime/допущенныйinstalledconsumer: durableIndexedDB request/device/actor-boundpacket иrecoveryдоACKбезповторногоimport.|
+|3 B04 OTP/admission|512/64metadataCLOSED/KEEPfiles сохранены, B128KEEP приexistingFDconsumer. HistoricalR7FAIL не превращён в currentPASS; новых измерений нет. OPEN.|ExistingB04/resourcecustodian: отдельный правомерный admission и4OTP в своём scope; не уменьшать резервы/чужие процессы.|
+|4 A05atomic2ref/currentbase|PR143старыйSOURCE/package/review/CIaccepted; A receipt/Cdisposition/Ready иedR16+5/13сохранены, currenta4bNO MERGE. OPEN.|OriginalA05/A02: existingexactGET409/410clientwitness/combinationdisposition либо UNKNOWN; provenance/installed/production отдельно.|
+|5 PR48refusal/PR50ACK|Originalsourcefulfilment/mergedPR50 не подменяет originaltransportreply и installedприёмку. OPEN.|Originalpublisher/platformcustodian/installedconsumer: подлинныеnativecorrelation/request-response иactualinstalledcase, безrepush.|
+|6 C06release/Store|Personalcc8authority и B supersession закрыты; A06URLavailability узкоaccepted. OPEN.|Legitimatepublisher/C06/siteowner: signedStore/catalog/Dashboard/analytics-consent/concreteAIrecipientdisclosure/Start-delivery-Finish/rollback/generalrelease.|
+|7 PersonalR3/fullB02|Package/Reload/loadedworker verified, auth=false/nativeNOT_REACHED. Emailвыбран, separatehistorydisclosureconsentpendingпослеinputdenial14:59. OPEN.|Тот же soleTester6ad88807 в егоscope и обязательныйownercredential/securitydecision;8ИИ+Work/dot отдельно, StandardexpiryNOT_CAPTURED.|
+|8 R14originalcombinedrequest/refusal|Новогоoriginalenvelope не поступило; B§22отказ не выдан за R14. OPEN.|OriginalC/platformcustodian: genuineoriginalnativeenvelope/rawreply/IDs/UTC, без нового отказанного вызова/глобального поиска.|
+|9 Cprivate-targetguardeddelete|Protectedtarget не читался/не удалялся, originalguard/refusalсохранён. OPEN.|Originalcustodian/platform: originalrequest-response/ID/disposition, неcleanup/proxy.|
+|10 Sep29publicationorigin|59dfab94/twopushruns/history сохранены; новыйBmergeнеoriginaltransportcorrelation. OPEN.|Originalpublisher/platform: immutableoriginalnativecorrelation, безперепубликации.|
+|11 Originalconfigdriftprovenance|TesterDEV→PREPRODUCTIONsetupcorrection отделён отoriginalUNKNOWNactor/time/before-afterprovenance. OPEN.|Originalconfigcustodian: genuinebefore/afterbytes/hash/actor/time; rootconfig/security не читал/не правил.|
+|12 OriginalreviewbytesboundSHA|12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175/history сохранены; новыйCcachePASSнеoriginalreview. OPEN.|Originalreviewcustodian: подлинныеimmutablebytes+metadata, не reconstruction/newreview.|
+
+Дополнительно сохраняются genuineWB4acceptedbaseline/old-currentbytes/revision/provenanceUNKNOWN; C03current585only2/5+exactreviewNOT_ACCEPTED; originalB244A10negative; Ozonapprovedbinding/twoactualdurableIDs; C04oldinstalledTelegram/C05realPG18+apprestore; R6trustedrootDONE; oldselectedI1physicalABORTinitiatorUNKNOWN. WBrouteB/Opscustodian/Csemanticconsumer не выдаётDB/snapshotreadauthority. OneIDNAconditionalprivacygrant принят и не использован сканом; realcompatiblePG18/schema0056/существующаяreadonlyrole/window не документированы, NOT_DOCUMENTEDнеNOT_PROVISIONED. Newmainfeedback-only не является разрешением расширить grant или реальную среду.
+
+**Testerадрес не получался, не воспроизводился и не переносился в REPORT/документы.** Повторного emailвопроса/передачи другому потоку нет. Controller не выполнял auth/browser/profile/native.
+
+Свои записи имеют fresh author/version/CAS REPORT/fullreadback. Новых product/source/tests/review/CI/dispatch/rerun/DB/live/security/resourceprobes/cleanup/helpers/errors-events/архивов/реестров нет. R37 иprotection403/эквивалентныеоперации не повторены и не обойдены; PR97/131/134 не возобновлялись. История прежних cadenceошибок не удалена. Текущие публикации15:29:36→15:37:13 и настоящий итог укладываются в10мин активнойработы; отдельные commentary gaps более60секунд остаются собственнымcommunicationнедочётом, не фоновым исполнением.
+
+Оставшийся отказ не закрыт записью статуса: исходная §22documentwrite остаётся невыполненной до originalnativeevidence/подтверждённого штатногоdisposition. Весь доступный read-only и собственный documentary followthrough выше выполнен, независимые продуктовые gates не объявлены пройденными. Аудит выполненным не объявлять, 30-минутная пауза не начинается.
+
+---
+
 # Проверенный документальный followthrough — 2026-10-21T15:37:11.802Z
 
 Предыдущий checkpoint actual15:29:36UTC be79380bdf120e8856f129a7b8a6cc1931e516da,authorMaksimUnimax,parentc7f4a102,onlyREPORT/full exactreadback15:30:21.090; freshref15:35:50совпал. **Все12OPEN/PLAN/WIP/history сохранены, аудит не завершён.** Неизвестныеоперации/deniedappendне повторялись.
