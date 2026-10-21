@@ -1704,7 +1704,7 @@ def run_work_dot_initial(runtime: Path, output: Path, observed=None):
             browser.close()
     result['status']='PASS';result['case_count']=len(cases)
     (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
-    return result
+    return 0
 
 def run(runtime: Path, output: Path, provider="all"):
     if provider == "work-dot-initial":
