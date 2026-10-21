@@ -32,10 +32,35 @@
     return Object.freeze({ ...guard, quotaIdentity: identity,
       async credentials() { await guard.assertCurrent(); return saved; } });
   }
+  function calendarDay(value) {
+    if (typeof value !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return null;
+    const [year, month, day] = value.split("-").map(Number);
+    // Date.UTC maps years 0..99 onto 1900..1999, unlike ISO full-date.
+    const date = new Date(0);
+    date.setUTCFullYear(year, month - 1, day);
+    const timestamp = date.getTime();
+    if (!Number.isFinite(timestamp) ||
+        date.toISOString().slice(0, 10) !== value) return null;
+    return timestamp / 86400000;
+  }
+  function assertPromotionBounds(command) {
+    const query = command.query || {};
+    if (command.operation === "promo_fullstats") {
+      // Official WB Promotion: comma-separated campaign IDs, maximum 50.
+      if (typeof query.ids !== "string" || !/^[0-9]+(?:,[0-9]+){0,49}$/.test(query.ids))
+        fail("WB_PROMO_IDS_INVALID");
+    } else if (command.operation === "promo_spend_history") {
+      // Official WB Promotion: inclusive period of 1..31 calendar days.
+      const from = calendarDay(query.from), to = calendarDay(query.to);
+      if (from === null || to === null || to < from || to - from > 30)
+        fail("WB_PROMO_RANGE_INVALID");
+    }
+  }
   function assertPolicy(command, context) {
     const meta = C.resolveOperation(command.operation);
     if (meta.privacy !== "standard" && context.snapshot.policyRevision !== "personal-enabled")
       fail("PERSONAL_DATA_DISABLED");
+    assertPromotionBounds(command);
     C.preflightExecution(command);
     return meta;
   }
@@ -82,6 +107,7 @@
       apiDiscover(commandText) {
         try {
           const command = C.parseCommand(commandText);
+          assertPromotionBounds(command);
           C.buildRequest(command); // Serialization failures are local per-item results.
           return [{ ok: true, marker_index: 0, command, command_text: commandText }];
         } catch (error) { return [{ ok: false, marker_index: 0, code: codeOf(error) }]; }
