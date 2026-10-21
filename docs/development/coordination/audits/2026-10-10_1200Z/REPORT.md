@@ -1,3 +1,43 @@
+# RDC session primary — 2026-10-21T10:55:18.622Z
+
+Сохранено до дальнейшей диагностики. Начальный search PID3640011 вернул RUNNING; чтение результата вернуло точный исход ниже. Terminal/найденные документы UNKNOWN, отсутствие hits/успех поиска не заявлены. Поиск не повторяется вслепую; дальнейшее чтение только уже определённых документов штатными file tools. NoSession не объясняется предположением о crash/entitlement. Адресные запреты не затронуты.
+
+```json
+{
+  "utc": "2026-10-21T10:55:18.622Z",
+  "tool": "mcp__codex_apps__remote_desktop_commander_read_process_output",
+  "args": {
+    "deviceId": "9dab7ad2-9d63-43a3-b106-a5840d79ccc1",
+    "pid": 3640011,
+    "offset": 0,
+    "length": 50,
+    "timeout_ms": 3000
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "No session found for PID 3640011"
+      },
+      {
+        "type": "text",
+        "text": "\n[executed on device: Easyscript (9dab7ad2-9d63-43a3-b106-a5840d79ccc1)]"
+      }
+    ],
+    "structuredContent": {
+      "error_code": "INVALID_ARGUMENT"
+    },
+    "isError": true
+  },
+  "call_id": "UNKNOWN",
+  "cause": "UNKNOWN: initial document-search PID returned running; terminal output/session retention unavailable. Do not infer search had no hits or succeeded."
+}
+```
+
+A собственный inbox-pointer обновлён10:54:49.776133 PID3639919 под nonblocking coordination.lock, readback штатнымread_file24строк: все прежние поля неизменны; добавлен только pointer на тот же canonical6307715843 updated10:51:46 и dispositionID. SHA3fa86879e70e9cdddc565134c0de1d9fd62be89ba4dfbeb44ea6f16c5e76bd63,2390B, lock освобождён. Это доставка, не объявленное потребление/готовность. Все12OPEN сохраняются.
+
+---
+
 # Первичный локальный исход — 2026-10-21T10:54:13.383Z
 
 Поиск разрешённых C03/S2/TG документов не исполнился: на Easyscript rg отсутствует. Это локальная доступность бинарника, не отказ безопасности/доступа к документам. Первичный ответ и точные аргументы до дальнейшей диагностики:
