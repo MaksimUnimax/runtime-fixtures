@@ -1670,5 +1670,10 @@
     "target": "content_script.js",
     "old": "if (context.surfaceKind === \"observed_standard\" && context.root.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"]'))",
     "new": "if (context.surfaceKind?.startsWith(\"observed_\") && context.root.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"],[class~=\"motion-safe:animate-spin\"]'))"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "    const candidates = [...document.querySelectorAll('[contenteditable=\"true\"][role=\"textbox\"][data-composer-markdown]')]\n      .filter(n => n.getAttribute(\"aria-label\") === label && n.classList.contains(\"ProseMirror\") && observedComposerVisible(n));\n    if (candidates.length !== 1)",
+    "new": "    const editors = [...document.querySelectorAll('[contenteditable=\"true\"][role=\"textbox\"][data-composer-markdown]')].filter(observedComposerVisible);\n    const candidates = editors.filter(n => n.getAttribute(\"aria-label\") === label && n.classList.contains(\"ProseMirror\"));\n    if (editors.length !== 1 || candidates.length !== 1)"
   }
 ]

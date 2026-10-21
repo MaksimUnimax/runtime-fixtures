@@ -1706,7 +1706,7 @@ def run_work_dot_initial(runtime: Path, output: Path, observed=None):
     (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
     return 0
 
-def run_work_dot_files(runtime: Path, output: Path, observed=None):
+def run_work_dot_files(runtime: Path, output: Path, observed=None, only_surface=False):
     output.mkdir(parents=True, exist_ok=True)
     D=Path('/root/octoport-control/testing/chromium-dot/dot-ai-snapshots')
     observed=observed or {'work':json.loads((D/'WORK_CAPTURE_DOM_20261021T0205Z.json').read_text()),'dot':json.loads((D/'DOT_CAPTURE_20261021T0209Z.json').read_text())}
@@ -1743,6 +1743,7 @@ def run_work_dot_files(runtime: Path, output: Path, observed=None):
                 cases[which+'_actual_native_root']=actual
                 for name,mutation,expect_context,expect_file in [
                     ('duplicate_root','()=>{let c=OOPS;}',False,False),
+                    ('mixed_visible_surface','()=>{let n=document.body.firstElementChild,c=n.cloneNode(true),e=c.querySelector("[contenteditable=true]");e.setAttribute("aria-label",e.getAttribute("aria-label")==="Сообщение"?"Работайте с ChatGPT":"Сообщение");n.after(c);}',False,False),
                     ('hidden_root','()=>document.body.firstElementChild.hidden=true',False,False),
                     ('disabled_input','()=>{let n=[...document.querySelectorAll("input[type=file]")].find(n=>n.getAttribute("aria-label")==="Прикрепить файлы"||n.getAttribute("data-role")==="file-input");n.disabled=true;}',True,False),
                     ('missing_menu','()=>document.querySelector("[data-composer-navigation-target=add-context]").remove()',False,False),
@@ -1753,6 +1754,10 @@ def run_work_dot_files(runtime: Path, output: Path, observed=None):
                     mount(which,mutate=mutation);actual=state(desc)
                     assert actual['context']==expect_context and actual['file']==expect_file,(which,name,actual)
                     cases[which+'_'+name]=actual
+            if only_surface:
+                result['status']='PASS';result['case_count']=len(cases)
+                (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+                print(json.dumps({'status':'PASS','case_count':len(cases),'scope':'changed surface ambiguity boundary only'}));return 0
             # Full received loading and ready attachments; no inferred provider upload.
             mount('work',attachments=w['afterUpload']['dom']['attachments'][1],control=w['afterUpload']['dom']['controls'][-1]);actual=state(wf)
             assert not actual['ready'] and not actual['file'] and not actual['send'],actual
@@ -1826,6 +1831,8 @@ def run_work_dot_files(runtime: Path, output: Path, observed=None):
     result['status']='PASS';result['case_count']=len(cases);(output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n');print(json.dumps({'status':'PASS','case_count':len(cases)}));return 0
 
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "work-dot-surface":
+        return run_work_dot_files(runtime, output, only_surface=True)
     if provider == "work-dot-files":
         return run_work_dot_files(runtime, output)
     if provider == "work-dot-initial":
@@ -2027,6 +2034,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","work-dot-surface","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
