@@ -350,26 +350,55 @@ function parametersFingerprint(
   return fingerprint(projected);
 }
 
+// Swagger 2.0 operation MIME declarations override root declarations, and
+// an explicit [] clears the inherited set. Order and duplicates are inert.
+function swagger2MediaTypes(
+  operation: Record<string, unknown>,
+  root: Record<string, unknown>,
+  field: "consumes" | "produces",
+): string[] {
+  if (root.swagger !== "2.0") return [];
+  return stringList(
+    operation[field] === undefined ? root[field] : operation[field],
+  );
+}
+
 function requestFingerprint(
   operation: Record<string, unknown>,
   parameters: readonly Record<string, unknown>[],
   root: Record<string, unknown>,
 ): string | null {
-  if (operation.requestBody !== undefined)
-    return schemaFingerprint(operation.requestBody, root);
   const bodies = parameters
     .filter((parameter) => parameter.in === "body")
     .map((parameter) => parameter.schema ?? null);
-  return bodies.length
-    ? schemaFingerprint(bodies, root, "node", "schema")
-    : null;
+  const legacy =
+    operation.requestBody !== undefined
+      ? schemaFingerprint(operation.requestBody, root)
+      : bodies.length
+        ? schemaFingerprint(bodies, root, "node", "schema")
+        : null;
+  // Consumes applies to actual request payloads, including Swagger 2 formData.
+  // Preserve original hashes when no media contract is declared, and ignore
+  // consumes changes for an operation that accepts no request payload.
+  const hasPayload =
+    operation.requestBody !== undefined ||
+    parameters.some(
+      (parameter) => parameter.in === "body" || parameter.in === "formData",
+    );
+  const media = hasPayload
+    ? swagger2MediaTypes(operation, root, "consumes")
+    : [];
+  return media.length
+    ? fingerprint({ legacyRequestSha256: legacy, consumes: media }, "literal")
+    : legacy;
 }
 
 function responseFingerprint(
   responses: Record<string, unknown>,
   root: Record<string, unknown>,
+  operation: Record<string, unknown>,
 ): string {
-  return fingerprint(
+  const legacy = fingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
         const response = asObject(localRef(raw, root));
@@ -431,6 +460,10 @@ function responseFingerprint(
     ),
     "named-fields",
   );
+  const media = swagger2MediaTypes(operation, root, "produces");
+  return media.length
+    ? fingerprint({ legacyResponseSha256: legacy, produces: media }, "literal")
+    : legacy;
 }
 
 function normalizedPath(path: string): string {
@@ -620,7 +653,7 @@ export function buildCompleteOperationInventory(input: {
         responseStatusKeys: Object.keys(responses).sort(),
         parameterSchemaSha256: parametersFingerprint(parameters, document.root),
         requestSchemaSha256: requestFingerprint(op, parameters, document.root),
-        responseSchemaSha256: responseFingerprint(responses, document.root),
+        responseSchemaSha256: responseFingerprint(responses, document.root, op),
         securityRequirementsSha256: securityFingerprint(op, document.root),
       });
     }
