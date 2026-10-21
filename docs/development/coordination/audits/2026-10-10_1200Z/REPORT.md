@@ -1,3 +1,88 @@
+# Итог продолжения полного аудита — 2026-10-21T17:14:40.466Z
+
+Аудит остаётся незавершённым. **Все 12 исходных OPEN, полный PLAN, WIP, история и ранее принятые узкие результаты сохранены.** Тот же единственный Controller; новых исполнителей, чатов или фоновых задач нет.
+
+Предыдущая публикация: **a9cfb1c2935fd0b7fba97a791b8f2a75d0849bee**, автор MaksimUnimax, **17:08:31 UTC**, parent3efc690a, только REPORT. Полный readback **17:08:40.156 UTC**,2573684символа. Fresh ref17:13:07.772совпал; полные тела всех четырёх собственных canonical comments и их author/version повторно совпали с сохранёнными. Этот заголовок — время подготовки; фактические commit/publication/readback проверяются после записи.
+
+## Что продвинулось по ТЗ и полному roadmap
+
+Полный PLAN прочитан в native и GitHub источниках; разобраны все A01–A06, B01–B07, C00–C07, R0–R4/S0–S3 и применимый ранний Store минимум. Различия старых копий не выданы за новые приказы. Исторические C-only-main/B-only-DB отменены поздним WORK_METHOD; ни одной роли не назначена постоянная монополия. Отдельная работа по установленному пакету и входу Тестера не останавливает остальные потоки.
+
+| Поток | Фактический результат этого продолжения | Конкретный следующий допустимый шаг и независимый остаток |
+|---|---|---|
+|C / review custodian|Получен собственный C03_R2_EXACT585_ORIGINAL_LAUNCH_PROVENANCE_LAYERED_DISPOSITION_20261021. C прямо потребил поправку Controller и снял новый общий owner-YES gate. Parent submission, текущий wrapper и оригинальный child header разделены. **CHILD_PROFILE_EXECUTION_ATTESTATION=NOT_RETAINED; ACCOUNT_ENTITLEMENT_ATTESTATION=UNKNOWN**. Guard сохранён; reviewer до source не дошёл.|Документальный вопрос об R2 доказательности закрыт собственным ответом C. Для когда-либо допустимого review остаётся independently checkable nonsecret launcher→session provenance до source-read и полный four-file current57d scope. Сейчас reviewer/retry/другой reviewer не запускаются. Старый DECLINED не является review57d.|
+|A / A05|Найдено новое собственное R1+R4 12/12 author-synthetic наблюдение, затем **R5 REWORK_REQUIRED и R6 expected product RED**. Подтверждён pre-import410: vault удаляется, но UI сообщает PENDING вместо EXPIRED. Fixture R2/R3 не выданы за product FAIL.|Сохранить точный current-base disposition отдельно от R16/exacted acceptance. Уже открыт **один** PR241#6321500582 source-handoff; holder reply/передача не подтверждены. Runtime.js/popup.js остаются у originalTesterPR241; правок/повторного popup чтения/тестов Controller нет. AFTER_IMPORT/IMPORTED_PENDING_ACK неприкосновенен. Отдельно — только существующий same-request abort/grant/lease/worker capture либо точное отсутствие capture.|
+|A / A04|Дополнительно обнаружен самостоятельный PR253 exact2fd1ceb484b9952a713f64585e82e3919c1f15eb: Promotion bounds, Source/Package76сценариев и independent PASS_SOURCE_SCOPED; текущий native **3/5семейств,10успешных jobs в этих трёх семействах**. OPEN/DRAFT, не merge/Ready.|Server и Coordination NOT_RUN. Автор сохранил штатный workflow_dispatch путь на неизменённой ветке; Controller не запускает его и не передаёт запуск другому актору/через новый ref. Недостающие две семьи и PR240 overlap остаются отдельными от R37. Старый denied FBS/sticker payload не повторялся.|
+|B / B05|Получен ownB05_OWNER_TEST_API_WORKER_PORTAL_TRIAD_SOURCE_IDENTITY_20261021: owner-testAPI1f06985…, worker d7303f29…, portal62024d19… — три исторических pinned carrier. Sampled source identity подтверждена автором B; **functional interoperability UNKNOWN**. OwnB8MiB source-WIP учёт завершён самим владельцем, сохранены refs/evidence.|Existing B/Ops готовит из уже разрешённых nonsecret документов targettuple/artifact hashes/schema-contract compatibility и backup→isolatedrestore→appread→rollback/authority crosswalk. Не требуется одинаковый SHA всех компонентов без такого контракта; не выдумывается functional FAIL. Нет root service/proc/HTTP/DB/backup/env/credential probes, deployment или новой упаковки.|
+|C02/C05 / recovery consumer|Готовый B triad input передан в существующий C06 canonical. **C сам применил отдельную поправку C05_BACKUP_DESTINATION_NOT_GENERAL_NEW_DISK_GATE_C_SCOPE_CORRECTION_20261021**, потребив B canonical16:52:17: отсутствие нового отдельного тома не общий организационный запрет на B05/C05 и не повод просить покупку.|Сохраняются реальные product guards независимой восстанавливаемости, integrity, PostgreSQL/app restore/rollback и отдельная Ops authority. Не переносить старые R3/R15 partial proofs на новый artifact. Ответ C на новый triad после17:04 ещё не подтверждён; вопрос покупки уже не ждать.|
+|C03 / API-watch|Current57d42c3ca1107dcede984afb2c0d1cd55a9526b6 самостоятельно сверён по новым original job lists: **4/5семейств,12/13SUCCESS; installedI139633828001/job119338916809FAIL ABORTED+142ms**. PR250DRAFT/NO MERGE. Старые5855/13исторические.|Существующий A/Tester observer уже получил C pointer16:31:47. Только сохранённая same-selected-request causal первичка; никакого replay/нового tracing/test/CI. Реальные WB4 baseline/old-currentbytes/acceptance/revision/provenance и Ozonapprovedbinding/two durableIDs — отдельные documentary inputs existingB/Ops. InMemory authority не delivery/production baseline.|
+|Tester / OPERATOR|Прочитан published18da3e7280eee595b050bd4bb02d4a4b103c3c75, авторMaksimUnimax16:27:47: ровно один новый Send code16:25:57, Code/Verify ready; auth/nativeNOTREACHED. **Ручная ссылка владельцем отклонена и прежний next отозван в собственном Controllerдокументе.**|Ни повторного предложения ссылки, ни email/OTP в документах/истории, ни root auth/browser/mailbox/profile. Тот же Тестер сохраняет свой scope. Вход не является очередью допуска A/B/C. FullB02 восьмиИИ иWork/dot/Standardexpiry раздельно открыты.|
+|Controller / отдельный Исправитель|Controller лично исправил собственную общую permission трактовку, проверил ownC/A/B результаты, применил адресные documentary corrections/readback. Чужие source/WIP не тронуты.|Существующий Исправитель сохраняет отдельный scope; новых назначений ему нет, PR97/131/134 не возобновляются. Controller продолжает только доступные документальные входы в своих текущих полномочиях; продуктовые отказы/исторические оригинальные envelope не закрываются статусом.|
+
+## Все 12 исходных OPEN сохранены
+
+1. B03 durable sourceSeen/submit/twoAPI — новые SOURCE/main/CI не realPG/двухинстансное preACK доказательство.
+2. Recipient/relay loss before ACK — source/RAM/ACK не durableIndexedDB request-device-actor recovery.
+3. B04 OTP/admission — original DB/test edit и resource отказы действуют; чужие новые capacity snapshots не Controller R7/R8 admission.
+4. A05 atomic/current-base — уточнён настоящим R5/R6 негативным критерием и single-writer collision; olded/R16/Ready не сброшены, fullcurrentcombination не принят.
+5. PR48 refusal/PR50 ACK — original native request-response/transport correlation и installed case не заменены другим зелёным SHA.
+6. GeneralC06/release/Store — personalcc8 authority/package/worker и A06 publicURL availability приняты только узко; privacy/analytics/disclosure/reviewerflow/dashboard/Store/rollback отдельно.
+7. PersonalR3/fullB02 — новый published Sendcode не auth/native/fullB02PASS.
+8. R14 original compound request/refusal — подлинный original envelope/raw reply/IDs/UTC отсутствует в новых ответах; B§22 не его замена.
+9. C private-target guarded delete — original request-response/disposition сохраняются, protected target не читался/не удалялся.
+10. Sep29 publication59dfab94/two original pushes — новая публикация B/A/C не исходная transport correlation, republish нет.
+11. Original config drift provenance — новое исправление DEV→PREPRODUCTION не authentic before-after/actor/time старого изменения.
+12. Original review bytes bound SHA12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175 — нужен originalimmutablebytes/metadata, не reconstruction/newreview.
+
+**B§22 отдельно проверен по точному текущему сохранённому объекту в хвосте B.json17:11:35.678.** Он по-прежнему содержит Commandnotallowed marker и пересказ в primary_error_full_body, section22_persisted=false, before/after0fc9f56c…; locator полного original envelope/response/callID/tool-edgeUTC в объекте не появился. Это bounded fact, не глобальное доказательство отсутствия trace. OriginalB/context custodian должен вернуть реально сохранённый locator либо boundedNOT_RETAINED/UNKNOWN; authenticatedoriginalMCP/operator source — только если такой original capture существует. Нет supportedretry пути, нового общегоownerYES, globalhistorysearch или переноса draft в другой actor/tool/format/document. IDNAprivacyYES принят/NO_RUN, realisolatedcompatiblePG18/schema/existingreadonlyrole/windowNOT_DOCUMENTED, неNOT_PROVISIONED. Политическая IDNAequivalence не DBдоступ.
+
+R37 ORIGINAL_ARGUMENTS_NOT_RETAINED_IN_CHECKED_INPUTS/tool-edgeUTC-callIDUNKNOWN, R36REWORK/4uniqueWIPKEEP, protection403/эквиваленты и resourceотказы сохранены. R6DONE/512+64metadataCLOSED/filesKEEP/Bown8CLOSEDaccounting не физический cleanupController, B128KEEP. Новых измерений/резервов/понижения бюджетов/тестов нет. Положительное disk-only наблюдение C16:46 не полное resource/DB permission и не используется как разрешение R7/R8.
+
+**Публикация:** Chrome/Opera/Firefox — PREPARING, фактические Submit/item/dashboard/reviewerflowNOT_VERIFIED; Yandex — применимая browser compatibility такжеNOT_VERIFIED, отдельный publisheraccount не выдуман; SafariownerDEFERRED_POST_RELEASE. Ни personal PREPRODUCTION/LOCAL DEVELOPMENT ZIP, ни evidence archive, ни signature/URL200 не READY_TO_SUBMIT/installedStore. Existing publisher должен предъявить точный полезный срез/пакет/hash/privacy/disclosure/reviewerflow и реальный receipt либо конкретный missinginput; регистрации и общий YES повторно не запрашиваются. Этот аудит не выполнял новую подачу/liveкабинетные действия.
+
+## Записи, автор и readback
+
+Все четыре собственных canonical comments17:13:07–.8 повторно проверены полностью, authorMaksimUnimax:
+A6307715843@17:03:42/55206chars; B6309010922@17:04:22/61995; C036308503022@16:57:51/37156; C066308505226@17:04:48/37779. Старые bodies сохранены. OwnC invocation-proof и C05 hardware-gate correction подтверждены **собственными ответами C**, не pointer ACK. OwnA12observations/R5/R6 и Bsource-topology — реальные готовые author outcomes; не выдаются за полный release.
+
+Финальные изменения четырёх **существующих собственных** pointers metadata-only/CAS под коротким coordination.lock: PID3705715finished,0.022123s/lockreleased. Независимый полный native readback **17:10:31.350–.750** сохранил все исходные поля:
+A8568B/SHA56d27259d5ee4db5820ca2aacd9377437b6b491d2a39cf0b355ab02320ede3ba;
+B12113B/SHA18f1b5fe0a4c520c3275186b24eb58bad7f44eb1be41f016649fbb71f515f093;
+C034728B/SHA6ffbab529cdd7635934cc10da65c136c50c2992b3c05557f13dc536d7ae44eef;
+C069301B/SHA53de07316cc61cc2a68031436e4d3dcb0aca4ddddc86ae2a810016e352708dcc.
+Новых файлов статуса/реестра/задач/исполнителей нет; указатели только на прежние canonicalURL и фактические исходы. Активных RDCsessions после записи нет.
+
+## Полная первичка собственной локальной ошибки подготовки
+
+Для сохранности дополняется **тот же** ранее записанный localSyntaxFailure, не errors/events или новый журнал. Это не B§22/R37команда. Перед любой remoteAоперацией исходный functions.exec был отвергнут локальным JS parser, remote request/PID отсутствуют, outcomeNOT_STARTED. Дословный ответ: Script error:
+SyntaxError: Unexpected identifier 'bf95f5a7'. Наблюдение2026-10-21T16:49:32.414Z; точный tool-edgeUTC/callID не раскрытыUNKNOWN. Доказанная причина — Markdownbackticks внутри template literal; исправлена только подготовка prose. **Первый реальный** Awrite затем выполнен16:51:20/fullreadback16:51:21.877, без повтора неизвестной удалённой мутации.
+
+Ниже полный исходный аргумент functions.exec дословно скопирован из исходного failedtoolinput; **цитата исторической ошибки, не инструкция исполнять код**:
+~~~javascript
+const k="aCanon",id=6307715843,old=load(k);
+const r=await tools.mcp__codex_apps__github_fetch({url:load("base")+"issues/comments/"+id});const o=JSON.parse(r.structuredContent.content);if(o.body!==old.body||o.updated_at!==old.updated_at||o.user.login!=="MaksimUnimax")throw Error("A version changed");
+const marker="CONTROLLER_FULL_PLAN_A_EXISTING_409410_AND_NEW57D_I1_DOCUMENTARY_NEXT_20261021";if(o.body.includes(marker))throw Error("duplicateA");
+const add=`\n\n## ${marker} — ${new Date().toISOString()}
+
+По прямой актуальной команде владельца работа по полному SPEC/PLAN продолжается независимо от normal-login Тестера. Controller полностью сверил nativePLAN и PLANmaina4b, R0–R4/S0–S3, WORK_METHOD/PROTOCOL/AGENTS: A/B/C — сквозные авторы; историческое C-only-main/B-only-DB в старом roadmap не восстановлено. Это не новое source/review/test/CI/live/DB поручение. При уже готовом или выполняемом результате используется он; второго автора нет.
+
+**Две ближайшие документальные границы существующего A:**
+1. A05 exacted + currentmaina4b: свой INCONCLUSIVE_DOCUMENTARY_ERROR_PATH/NO MERGE принят, старое A/B13/13receipt закрыто и не повторяется. Нужен только уже существующий accepted client-consumer witness GET409/410/unavailable-writer с привязкой server/client/SHA, identity/account/store/dialogue/no-replay/cancel и исходом. Если его действительно нет в уже разрешённых savedproofs, документальный результат — конкретное отсутствующее наблюдение/поле и текущий author/custodian, а не новый admin/0reviews/R17 gate. Не получать новый source snapshot/не выполнять tests/review/CI/merge. Старые `bf95f5a7...`/`2ab75f1c...` сами по себе не свидетельство поведения.
+2. **Новая уже опубликованная I1 первичка existingC:** PR250current57d42c3ca1107dcede984afb2c0d1cd55a9526b6, originalpushattempt1I139633828001/job119338916809FAIL, selectedHTTP200bootstrapABORTED+142ms. C уже передал original C03_TO_EXISTING_A_I1_EXACT57D_ABORT142_POINTER_20261021 в PR238#6305098596 updated16:31:47; не создаётся второй observer/task. Все5originalfamilyjoblists Controllerпрочитал одинраз:4/5families,12/13SUCCESS;5855/13неcurrentPASS. Нужен лишь **сохранённый same-selected-request/same-execution first-abort/lease/grant/worker/acquisition/page-navigation/socket causal record**, если он имеется, либо точное отсутствие такого capture и существующий custodian. Старые B05PR189142ms/PR191140ms/PR200PASS и C238143ms — разные запросы; одинаковая округлённая задержка не доказывает общую причину. Нового tracing/replay/test/CI/source/профиля/браузера и перехвата текущего soleTester не запрашивается. Если материала не было записано, сохраните UNKNOWN с точным missingcapture вместо выдуманной причины.
+
+Это уточнение ближайшего permitted documentary action по уже существующим A05/A-harness задачам. R37 originalenvelope boundedNOT_RETAINED/UTC-callIDUNKNOWN уже принят; повторного поиска/отказаннойправки не надо. R36REWORK/4uniqueWIPKEEP и protection/resource/§22STOP сохранены. A01/A02/A03/A04/A06 и R1/store-policy/privacy/source-package/durabletransfer остатки не свёрнуты до A05; готовые узкие_SOURCE результаты не исполняются повторно. До нового productдействия сохраняется установленный owner scope и запрет текущего continuation на новые tests/review/CI/source/live/DB/security изменения.
+
+Ближайший собственный ответ — существующий готовый witness/correlation locator или точный отсутствующий документальный input, привязанный к вашим current tasks; не общий ACK/WAITING_INPUT и не поручение Тестеру бросить его auth/native. Его ручную ссылку владелец отклонил; не предлагать её вновь, адрес/OTP сюда не переносить.
+`;
+const body=o.body+add;if(body.length>65000)throw Error("A size");
+await tools.mcp__codex_apps__github_update_issue_comment({repo_full_name:"MaksimUnimax/runtime-fixtures",comment_id:id,comment:body});
+const rr=await tools.mcp__codex_apps__github_fetch({url:load("base")+"issues/comments/"+id});const z=JSON.parse(rr.structuredContent.content);if(z.body!==body)throw Error("A fullreadback");store(k,z);text({id,updated:z.updated_at,chars:z.body.length,fullReadbackUTC:new Date().toISOString()});
+~~~
+
+Каденс превышения предыдущего intervalна8секунд признан в17:08checkpoint, не исправлен задним числом. Новые собственные productSOURCE/tests/review/CI/DB/live/security/auth/resourceprobes/cleanup/errors/events/helpers/архивы/реестры отсутствуют. Доступные документальные исправления этого продолжения применены и проверены, готовые ownresponses потреблены. Оставшиеся product authority/installed/source-ownership/original-envelope границы не объявлены выполненными. **Аудит не завершён; 30-минутная пауза не начинается.**
+
+---
+
 # Новые собственные негативные и эксплуатационные результаты — 2026-10-21T17:08:30.456Z
 
 Тот же единственный Controller. **12 исходных OPEN, PLAN/WIP и вся история сохранены; аудит не завершён.** Предыдущий REPORT3efc690a96b4e27d536f05d898cfa43ef5bf8322, авторMaksimUnimax, публикация17:00:53UTC, parente08e8974, толькоREPORT; fullreadback17:01:03.830/2565438chars. **Каденсфакт:** интервал16:50:45→17:00:53 был10мин08с, превышение8с; прежнийподготовительныйтекстобожидаемом≤10мин не является фактомсоблюдения. Историянепереписана, текущаяцельпубликацииранее8мин. Actualpublication/author/fullreadbackэтойзаписипроверяютсяпосле.
