@@ -1578,7 +1578,137 @@ def run_standard_sent(runtime: Path, output: Path, observed=None, case_names=Non
     return int(bool(failed))
 
 
+def run_work_dot_initial(runtime: Path, output: Path, observed=None):
+    """First Work/dot observations only; no inferred control scope or file delivery."""
+    output.mkdir(parents=True, exist_ok=True)
+    snapshot_root = Path('/root/octoport-control/testing/chromium-dot/dot-ai-snapshots')
+    observed = observed or {
+        'work': json.loads((snapshot_root/'GPT_WORK_UI_20261021T0136Z.json').read_text()),
+        'dot': json.loads((snapshot_root/'DOT_UI_20261021T0141Z.json').read_text()),
+    }
+    source = (runtime/'shared/ai_adapters.js').read_text()
+    identity = (runtime/'shared/conversation_identity.js').read_text()
+    work, dot = observed['work'], observed['dot']
+    work_html = work['dom']['composer'][0]['parent'] + ''.join(work['dom']['controls'])
+    dot_composer = dot['dom']['composer'][0]['grandparent']
+    articles = dot['dom']['articles']
+    all_articles = ''.join(a['html'] for a in articles)
+    # The known user/assistant pair and literal text are taken from the full witness.
+    user, assistant = articles[2]['html'], articles[3]['html']
+    cases = {}
+    result = {'status':'RUNNING','scope':'offline Work/dot initial surface and dot text ownership; NOT full UI cycle',
+              'source_sha256':hashlib.sha256(source.encode()).hexdigest(), 'cases':cases}
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.route('**/*', lambda route: route.fulfill(status=200, content_type='text/html', body='<html><body></body></html>'))
+            def mount(url, html, mutate=None):
+                page.goto(url)
+                page.set_content(html)
+                if mutate: page.evaluate(mutate)
+                page.evaluate(identity)
+                page.evaluate(source)
+            def read():
+                return page.evaluate('''()=>{const a=OzonAIAdapters.ADAPTERS.chatgpt,o=a.surfaceObservation();
+                  const rows=role=>(role==='user'?a.userMessages():a.assistantMessages()).map(n=>({id:a.messageId(n),text:a.messageText(n),code:a.findCodeBlocks(n).length,complete:a.messageComplete(n)}));
+                  return {surface:o?.kind||null,input:!!o?.composer,controlScope:!!o?.controlScope,
+                    context:!!a.composerContext(),file:!!a.attachmentSurface(),users:rows('user'),assistants:rows('assistant')};}''')
+            mount(dot['url'],dot_composer+all_articles)
+            actual=read()
+            expected_users=['dot-message:'+dict(a['attrs'])['data-message-id'] for a in articles if 'self' in dict(a['attrs'])['class'].split()]
+            expected_assistants=['dot-message:'+dict(a['attrs'])['data-message-id'] for a in articles if 'self' not in dict(a['attrs'])['class'].split()]
+            assert [a['id'] for a in actual['users']]==expected_users,actual
+            assert [a['id'] for a in actual['assistants']]==expected_assistants,actual
+            assert actual['surface']=='dot' and actual['input'] and not actual['controlScope'] and not actual['context'] and not actual['file'],actual
+            assert all(not a['code'] and not a['complete'] for a in actual['users']+actual['assistants']),actual
+            cases['all_eight_observed_articles']=actual
+            mount(dot['url'],dot_composer+user+assistant)
+            actual=read()
+            assert actual['users'][0]['text']=='Они через мсп работают',actual
+            assert actual['assistants'][0]['text']=='Да. Потоки работают через MCP: Remote Desktop Commander на Easyscript и GitHub. Режим интерфейса к их поручению не относится; в промптах его не будет.',actual
+            cases['owned_text_excludes_actions_read_receipt_time']=actual
+            # Ordinary alternate DOM states, not additional provider observations.
+            variants={
+                'dynamic_id': ("()=>{let a=document.querySelector('article');a.setAttribute('data-message-id','another-message');a.querySelector('.message-body').setAttribute('data-message-id','another-message');a.querySelector('.message-text').setAttribute('data-content-search-unit-key','another-message:message');}",1),
+                'missing_outer_id':("()=>document.querySelector('article').removeAttribute('data-message-id')",0),
+                'mismatched_body_id':("()=>document.querySelector('.message-body').setAttribute('data-message-id','other')",0),
+                'mismatched_text_key':("()=>document.querySelector('.message-text').setAttribute('data-content-search-unit-key','other:message')",0),
+                'missing_text_key':("()=>document.querySelector('.message-text').removeAttribute('data-content-search-unit-key')",0),
+                'duplicate_visible_id':("()=>{let a=document.querySelector('article');a.after(a.cloneNode(true));}",0),
+                'hidden_duplicate_ignored':("()=>{let a=document.querySelector('article'),b=a.cloneNode(true);b.hidden=true;a.after(b);}",1),
+                'hidden_article':("()=>document.querySelector('article').hidden=true",0),
+                'hidden_ancestor':("()=>document.body.style.visibility='hidden'",0),
+                'opacity_zero':("()=>document.querySelector('article').style.opacity='0'",0),
+                'hidden_text':("()=>document.querySelector('.message-text').hidden=true",0),
+                'duplicate_text':("()=>{let a=document.querySelector('.message-text');a.after(a.cloneNode(true));}",0),
+                'duplicate_fitted':("()=>{let a=document.querySelector('[data-fitted-message-text]');a.after(a.cloneNode(true));}",0),
+                'missing_fitted':("()=>document.querySelector('[data-fitted-message-text]').removeAttribute('data-fitted-message-text')",0),
+                'nested_article':("()=>document.querySelector('.message-text').append(document.createElement('article'))",0),
+                'empty_body_id':("()=>document.querySelector('.message-body').setAttribute('data-message-id','')",0),
+                'detached_message':("()=>document.querySelector('article').remove()",0),
+            }
+            for name,(mutation,count) in variants.items():
+                mount(dot['url'],dot_composer+user,mutation)
+                actual=read();assert len(actual['users'])==count and not actual['assistants'],(name,actual)
+                if name=='dynamic_id':assert actual['users'][0]['id']=='dot-message:another-message',actual
+                cases[name]=actual
+            mount(dot['url'],dot_composer+user+assistant,"()=>{for(const n of document.querySelectorAll('[data-markdown-text-style]'))n.setAttribute('data-markdown-text-style','anything');}")
+            actual=read();assert len(actual['users'])==1 and len(actual['assistants'])==1,actual
+            cases['markdown_style_is_not_role']=actual
+            mount(dot['url'],dot_composer+assistant,"()=>{document.querySelector('[data-fitted-message-text]').innerHTML='<pre><code>fixture code</code></pre><button>Copy</button>';}")
+            actual=read();assert not actual['assistants'],actual
+            cases['unknown_code_layout_not_enabled']=actual
+            mount(dot['url'],dot_composer+user+assistant,"()=>{document.querySelector('[data-fitted-message-text]').insertAdjacentHTML('beforeend','<pre><code>plain fixture</code></pre>');}")
+            actual=read();assert all(x['code']==0 and not x['complete'] for x in actual['users']+actual['assistants']),actual
+            cases['fenced_text_does_not_enable_dot_commands']=actual
+            for name,html,input_ok in [
+                ('dot_composer_actual',dot_composer,True),
+                ('dot_composer_duplicate',dot_composer+dot_composer,False),
+                ('dot_composer_hidden','<div hidden>'+dot_composer+'</div>',False),
+                ('dot_composer_missing_root',dot['dom']['composer'][0]['parent'],False),
+                ('dot_composer_without_menu',dot_composer+''.join(dot['dom']['buttons']),True),
+            ]:
+                mount(dot['url'],html);actual=read()
+                assert actual['surface']=='dot' and actual['input']==input_ok and not actual['context'] and not actual['controlScope'] and not actual['file'],(name,actual)
+                cases[name]=actual
+            for name,html,kind in [
+                ('work_observed_parent_and_stop',work_html,'work'),
+                ('work_duplicate_fields',work_html+work_html,None),
+                ('work_hidden_field','<div hidden>'+work_html+'</div>',None),
+                ('work_missing_parent',work['dom']['composer'][0]['html'],None),
+                ('work_unknown_label',work_html.replace('Работайте с ChatGPT','Unknown label'),None),
+                ('work_dialog_editor','<div role="dialog">'+work_html+'</div>',None),
+            ]:
+                mount(work['url'],html);actual=read()
+                assert actual['surface']==kind and not actual['context'] and not actual['file'] and not actual['controlScope'],(name,actual)
+                cases[name]=actual
+            mount(work['url'],work_html+'<section data-turn="assistant" data-turn-id="legacy-work">Text</section>')
+            actual=read();assert actual['assistants'] and not actual['assistants'][0]['complete'],actual
+            cases['work_completion_not_inferred_from_text']=actual
+            for name,url in [('dot_nodes_on_standard','https://chatgpt.com/c/fixture'),('dot_nodes_on_other_host','https://fixture.invalid/dots/home')]:
+                mount(url,dot_composer+user+assistant);actual=read()
+                assert actual['surface'] is None and not actual['users'] and not actual['assistants'],(name,actual)
+                cases[name]=actual
+            # Shared ChatGPT readers were changed: verify their existing legacy branch only.
+            mount('https://chatgpt.com/c/fixture','<form><textarea id="prompt-textarea"></textarea></form><section data-turn="user" data-turn-id="legacy-u">Legacy prompt</section><section data-turn="assistant" data-turn-id="legacy-a"><pre><code>LEGACY</code></pre></section>')
+            actual=read()
+            assert actual['surface'] is None and actual['context'],actual
+            assert actual['users'][0]['id']=='legacy-u' and actual['users'][0]['text']=='Legacy prompt',actual
+            assert actual['assistants'][0]['id']=='legacy-a' and actual['assistants'][0]['code']==1 and actual['assistants'][0]['complete'],actual
+            cases['affected_legacy_chatgpt_reader_preserved']=actual
+            mount('https://chatgpt.com/c/fixture','<div data-composer-body><div contenteditable="true" role="textbox" data-composer-markdown aria-label="Спросить ChatGPT">Draft</div></div>')
+            actual=read();assert actual['surface'] is None and actual['context'],actual
+            cases['affected_standard_composer_preserved']=actual
+        finally:
+            browser.close()
+    result['status']='PASS';result['case_count']=len(cases)
+    (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+    return result
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "work-dot-initial":
+        return run_work_dot_initial(runtime, output)
     if provider == "alice-ready-sent":
         return run_alice_ready_sent(runtime, output)
     if provider == "standard-sent":
@@ -1776,6 +1906,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

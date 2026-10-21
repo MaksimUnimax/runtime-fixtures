@@ -1540,5 +1540,45 @@
     "target": "shared/ai_adapters.js",
     "old": "    attachmentPreview(filename) { return aliceAttachmentPreview(filename); },\n    attachmentReady(descriptors) {\n      const list = Array.isArray(descriptors) ? descriptors : [];",
     "new": "    attachmentPreview(filename) { return aliceAttachmentPreview(filename); },\n    requiresSentAttachmentMessage: aliceRequiresSentAttachmentMessage,\n    sentAttachmentMessage: aliceSentAttachmentMessage,\n    attachmentReady(descriptors) {\n      const observed = aliceObservedReadyCards();\n      if (observed !== null) {\n        const names = aliceFileNames(descriptors);\n        return Boolean(names && observed.length === names.length &&\n          names.every(name => observed.filter(card => aliceFileName(card) === name).length === 1));\n      }\n      const list = Array.isArray(descriptors) ? descriptors : [];"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  function chatgptComposerContext() {",
+    "new": "  // Observed 21 Oct Work/dot first UI. Input ancestry is not a control scope.\n  function chatgptDotLocation() {\n    return host() === \"chatgpt.com\" && location.pathname === \"/dots/home\";\n  }\n\n  function chatgptSurfaceObservation() {\n    if (host() !== \"chatgpt.com\") return null;\n    const isDot = chatgptDotLocation();\n    const label = isDot ? \"Сообщение\" : \"Работайте с ChatGPT\";\n    const candidates = [...document.querySelectorAll('[contenteditable=\"true\"][role=\"textbox\"][data-composer-markdown]')]\n      .filter(n => n.getAttribute(\"aria-label\") === label && n.classList.contains(\"ProseMirror\") && observedComposerVisible(n));\n    if (candidates.length !== 1) return isDot ? {kind:\"dot\",composer:null,inputRoot:null,controlScope:null} : null;\n    const composer = candidates[0], parent = composer.parentElement;\n    const layout = isDot ? \"single-line\" : \"multiline\";\n    if (!parent?.matches('[role=\"presentation\"][data-composer-input-layout]') ||\n        parent.getAttribute(\"data-composer-input-layout\") !== layout ||\n        parent.getAttribute(\"data-rich-text-layout\") !== layout ||\n        [...parent.querySelectorAll('[contenteditable=\"true\"][role=\"textbox\"]')].filter(observedComposerVisible).length !== 1)\n      return isDot ? {kind:\"dot\",composer:null,inputRoot:null,controlScope:null} : null;\n    const inputRoot = isDot ? parent.parentElement : parent;\n    if (isDot && (!inputRoot?.matches('[data-composer-input][data-composer-layout=\"single-line\"]') ||\n        inputRoot.querySelectorAll('[contenteditable=\"true\"][role=\"textbox\"]').length !== 1))\n      return {kind:\"dot\",composer:null,inputRoot:null,controlScope:null};\n    return {kind:isDot ? \"dot\" : \"work\",composer,inputRoot,controlScope:null};\n  }\n\n  const CHATGPT_DOT_MESSAGE = 'article.message-row[data-message-id]';\n  function chatgptDotMessageParts(node) {\n    if (!chatgptDotLocation() || !(node instanceof HTMLElement) || !node.matches(CHATGPT_DOT_MESSAGE) ||\n        !chatgptSentVisible(node) || node.parentElement?.closest(CHATGPT_DOT_MESSAGE) ||\n        node.closest('[role=\"dialog\"],[data-writing-block],[data-writing-block-id]') ||\n        node.querySelector('article,[data-turn],[data-message-role],[data-message-author-role]')) return null;\n    const id = node.getAttribute(\"data-message-id\") || \"\";\n    if (!id || id.length > 512 || /\\s/.test(id)) return null;\n    const peers = [...document.querySelectorAll(CHATGPT_DOT_MESSAGE)]\n      .filter(n => n.getAttribute(\"data-message-id\") === id && chatgptSentVisible(n));\n    if (peers.length !== 1) return null;\n    const bodies = [...node.querySelectorAll('.message-body[data-message-id]')];\n    if (bodies.length !== 1 || bodies[0].getAttribute(\"data-message-id\") !== id || !chatgptSentVisible(bodies[0])) return null;\n    const texts = [...bodies[0].querySelectorAll('.message-text[data-content-search-unit-key]')];\n    if (texts.length !== 1 || texts[0].getAttribute(\"data-content-search-unit-key\") !== id + \":message\" || !chatgptSentVisible(texts[0])) return null;\n    const fitted = [...texts[0].querySelectorAll('[data-fitted-message-text=\"true\"]')];\n    if (fitted.length !== 1 || !chatgptSentVisible(fitted[0]) ||\n        fitted[0].querySelector('button,input,textarea,[contenteditable],[data-markdown-copy=\"exclude\"]')) return null;\n    // Both roles use data-markdown-text-style=assistant-message in the witness.\n    return {node,id,role:node.classList.contains(\"self\") ? \"user\" : \"assistant\",text:fitted[0]};\n  }\n\n  function chatgptDotMessages(role) {\n    return [...document.querySelectorAll(CHATGPT_DOT_MESSAGE)]\n      .filter(n => chatgptDotMessageParts(n)?.role === role);\n  }\n\n  function chatgptComposerContext() {\n    if (chatgptSurfaceObservation()) return null; // Await the observed common controls root."
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  function chatgptMessages(role) {",
+    "new": "  function chatgptMessages(role) {\n    if (chatgptDotLocation()) return chatgptDotMessages(role);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  function chatgptUserMessages() {",
+    "new": "  function chatgptUserMessages() {\n    if (chatgptDotLocation()) return chatgptDotMessages(\"user\");"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "    label: \"ChatGPT\",\n    matchesLocation()",
+    "new": "    label: \"ChatGPT\",\n    surfaceObservation: chatgptSurfaceObservation,\n    matchesLocation()"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "      if (node.matches(CHATGPT_OBSERVED_USER_SELECTOR)) return chatgptObservedUserId(node);",
+    "new": "      if (chatgptDotLocation()) {\n        const parts = chatgptDotMessageParts(node);\n        return parts ? \"dot-message:\" + parts.id : \"\";\n      }\n      if (node.matches(CHATGPT_OBSERVED_USER_SELECTOR)) return chatgptObservedUserId(node);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "      if (node.matches(CHATGPT_OBSERVED_USER_SELECTOR)) return chatgptObservedUserParts(node)?.text.textContent || \"\";",
+    "new": "      if (chatgptDotLocation()) {\n        const parts = chatgptDotMessageParts(node);\n        return parts ? text(parts.text) : \"\";\n      }\n      if (node.matches(CHATGPT_OBSERVED_USER_SELECTOR)) return chatgptObservedUserParts(node)?.text.textContent || \"\";"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "    findCodeBlocks(message) {\n      if (!(message instanceof Element)) return [];\n      const roots = [];\n      for (const copyButton of chatgptCodeCopyButtons(message)) {",
+    "new": "    findCodeBlocks(message) {\n      if (!(message instanceof Element) || chatgptDotLocation()) return []; // Actual dot code/Copy not yet observed.\n      const roots = [];\n      for (const copyButton of chatgptCodeCopyButtons(message)) {"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "    messageComplete(message) { return Boolean(message?.isConnected && !this.isGenerating() && text(message)); },",
+    "new": "    messageComplete(message) {\n      if (chatgptSurfaceObservation()) return false; // Work/dot busy-to-complete witness is still pending.\n      return Boolean(message?.isConnected && !this.isGenerating() && text(message));\n    },"
   }
 ]
