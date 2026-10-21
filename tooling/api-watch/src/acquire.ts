@@ -42,6 +42,28 @@ function failure(
   };
 }
 
+// Only documented fixed error codes are allowed in operator-facing failure
+// reasons. Parser messages can include literal source text and must not be
+// propagated across the official-document acquisition diagnostic boundary.
+const SAFE_OFFICIAL_VALIDATION_REASONS = new Set([
+  "UPLOAD_TOO_LARGE",
+  "UNSUPPORTED_ARTIFACT_EXTENSION",
+  "TEXT_CONTENT_INVALID",
+  "OPENAPI_ROOT_NOT_OBJECT",
+  "OPENAPI_INFO_MISSING",
+  "OPENAPI_PATHS_MISSING",
+  "OPENAPI_VERSION_MISSING",
+  "SOURCE_SERVER_IDENTITY_MISMATCH",
+  "SOURCE_TITLE_IDENTITY_MISMATCH",
+]);
+
+function safeOfficialValidationReason(error: unknown): string {
+  return error instanceof Error &&
+    SAFE_OFFICIAL_VALIDATION_REASONS.has(error.message)
+    ? error.message
+    : "Official source document validation failed.";
+}
+
 const HTTP_MONTH_INDEX = Object.freeze({
   Jan: 0,
   Feb: 1,
@@ -814,9 +836,7 @@ export async function acquireOfficialSource(input: {
       return failure(
         entry,
         "INVALID_OFFICIAL_SOURCE_RESPONSE",
-        error instanceof Error
-          ? error.message
-          : "Official source document validation failed.",
+        safeOfficialValidationReason(error),
         response.status,
       );
     }
