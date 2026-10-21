@@ -1706,7 +1706,128 @@ def run_work_dot_initial(runtime: Path, output: Path, observed=None):
     (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
     return 0
 
+def run_work_dot_files(runtime: Path, output: Path, observed=None):
+    output.mkdir(parents=True, exist_ok=True)
+    D=Path('/root/octoport-control/testing/chromium-dot/dot-ai-snapshots')
+    observed=observed or {'work':json.loads((D/'WORK_CAPTURE_DOM_20261021T0205Z.json').read_text()),'dot':json.loads((D/'DOT_CAPTURE_20261021T0209Z.json').read_text())}
+    w,d=observed['work'],observed['dot'];source=(runtime/'shared/ai_adapters.js').read_text();identity=(runtime/'shared/conversation_identity.js').read_text();content=(runtime/'content_script.js').read_text()
+    work_root=w['before']['inputs'][7]['parent'];dot_root=d['before']['inputs'][0]['parent']
+    work_user=w['sent']['dom']['cards'][0][4]['html'];work_assistant=w['assistantCode']['dom'][0][5]['html']
+    dot_user=d['sentFinal'][0];dot_assistant=d['answer']['dom']['articles'][1]
+    wf=[{'filename':'GPT_WORK_UI_20261021T0136Z.json','byte_length':8471},{'filename':'DOT_UI_20261021T0141Z.json','byte_length':54659}]
+    df=[{'filename':'B02_UPLOAD_STATE_20261020.txt','byte_length':158044}]
+    names=['visible','controlDisabled','buttonToken','chatgptInsideAssistantEditor','chatgptComposerContextFromNode','chatgptPrimaryComposerContext','chatgptAllComposerControls','chatgptBuiltinMicrophoneButton','chatgptMicrophoneButton','chatgptWorkSubmitButton','chatgptStopButton','chatgptRecognizedSendControl','classifyChatgptComposerControl']
+    functions=[]
+    for name in names:
+        a=content.index('  function '+name+'(');b=content.index('\n  }\n',a)+5;functions.append(content[a:b])
+    constants=[l for l in content.splitlines() if l.startswith('  const CHATGPT_')]
+    classify='(function(){'+ '\n'.join(constants+functions)+'\nconst sendButtonProfile=null,microphoneButtonProfile=null;return classifyChatgptComposerControl().kind;})()'
+    cases={};result={'status':'RUNNING','scope':'offline actual Work/dot common composer, file states, sent ownership and code readers; no per-message completion claim','source_sha256':hashlib.sha256(source.encode()).hexdigest(),'content_sha256':hashlib.sha256(content.encode()).hexdigest(),'cases':cases}
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch(headless=True)
+        try:
+            page=browser.new_page();page.route('**/*',lambda route:route.fulfill(status=200,content_type='text/html',body='<html><body></body></html>'))
+            def mount(which, extra='', attachments=None, control=None, mutate=None):
+                o=w if which=='work' else d;root=work_root if which=='work' else dot_root
+                page.goto(o['url']);page.set_content(root+extra)
+                if attachments is not None:page.evaluate('(html)=>document.querySelector("[data-composer-attachments]").outerHTML=html',attachments)
+                if control is not None:page.evaluate('(html)=>{let b=[...document.querySelectorAll("button")].find(b=>["Начать голосовой разговор","Отправить"].includes(b.getAttribute("aria-label")));b.outerHTML=html;}',control)
+                if mutate:page.evaluate(mutate)
+                page.evaluate(identity);page.evaluate(source)
+            def state(desc):
+                return page.evaluate('''ds=>{let a=OzonAIAdapters.ADAPTERS.chatgpt,c=a.composerContext(),s=a.attachmentSurface();return {kind:c?.surfaceKind||null,context:!!c,file:!!s,input:s?.input?.getAttribute('aria-label')||s?.input?.getAttribute('data-role')||null,ready:a.attachmentReady(ds),send:!!a.sendButton(c),required:a.requiresSentAttachmentMessage?.(),users:a.userMessages().length,assistants:a.assistantMessages().length};}''',desc)
+            for which in ['work','dot']:
+                desc=wf if which=='work' else df;mount(which);actual=state(desc)
+                assert actual['kind']=='observed_'+which and actual['context'] and actual['file'] and not actual['ready'] and actual['required'],(which,actual)
+                assert actual['input']==('Прикрепить файлы' if which=='work' else 'file-input'),actual
+                cases[which+'_actual_native_root']=actual
+                for name,mutation,expect_context,expect_file in [
+                    ('duplicate_root','()=>{let c=OOPS;}',False,False),
+                    ('hidden_root','()=>document.body.firstElementChild.hidden=true',False,False),
+                    ('disabled_input','()=>{let n=[...document.querySelectorAll("input[type=file]")].find(n=>n.getAttribute("aria-label")==="Прикрепить файлы"||n.getAttribute("data-role")==="file-input");n.disabled=true;}',True,False),
+                    ('missing_menu','()=>document.querySelector("[data-composer-navigation-target=add-context]").remove()',False,False),
+                    ('draft_retained','()=>document.querySelector("[contenteditable=true]").textContent="Existing draft"',True,False),
+                    ('second_editor','()=>{let e=document.querySelector("[contenteditable=true]");e.after(e.cloneNode(true));}',False,False),
+                ]:
+                    if name=='duplicate_root':mutation='()=>{let n=document.body.firstElementChild;n.after(n.cloneNode(true));}'
+                    mount(which,mutate=mutation);actual=state(desc)
+                    assert actual['context']==expect_context and actual['file']==expect_file,(which,name,actual)
+                    cases[which+'_'+name]=actual
+            # Full received loading and ready attachments; no inferred provider upload.
+            mount('work',attachments=w['afterUpload']['dom']['attachments'][1],control=w['afterUpload']['dom']['controls'][-1]);actual=state(wf)
+            assert not actual['ready'] and not actual['file'] and not actual['send'],actual
+            cases['work_actual_progress_blocks_ready_send']=actual
+            mount('work',attachments=w['ready']['dom']['attachments'][1]);actual=state(wf)
+            assert actual['ready'] and not actual['file'],actual
+            cases['work_actual_json_cards_ready_only_not_all_four_file_delivery']=actual
+            mount('work',attachments=w['ready']['dom']['attachments'][1],control=w['sent']['dom']['stop'][0]['html']);actual=state(wf)
+            assert not actual['ready'] and not actual['send'] and page.evaluate(classify)=='stop',actual
+            cases['work_observed_stop_blocks_file_and_send']=actual
+            mount('dot',attachments=d['loading']['dom']['attachments'][0],control=d['ready']['dom']['controls'][1]);actual=state(df)
+            assert not actual['ready'] and not actual['send'] and page.evaluate(classify)=='unknown',actual
+            cases['dot_spinner_without_progressbar_not_ready']=actual
+            mount('dot',attachments=d['ready']['dom']['attachments'][0]['html'],control=d['ready']['dom']['controls'][1]);actual=state(df)
+            assert actual['ready'] and actual['send'] and not actual['file'] and page.evaluate(classify)=='send_active',actual
+            cases['dot_actual_ready_and_control']=actual
+            for name,mutation in [
+                ('wrong_name','()=>document.querySelector("span.truncate").textContent="other.txt"'),
+                ('remove_disabled','()=>document.querySelector("button[aria-label^=Удалить]").disabled=true'),
+                ('remove_absent','()=>document.querySelector("button[aria-label^=Удалить]").remove()'),
+                ('duplicate_card','()=>{let n=document.querySelector("[class~=\\\"group/composer-attachment\\\"]");n.after(n.cloneNode(true));}'),
+                ('busy_card','()=>document.querySelector("[data-composer-attachments]").setAttribute("aria-busy","true")'),
+            ]:
+                mount('dot',attachments=d['ready']['dom']['attachments'][0]['html'],mutate=mutation);actual=state(df)
+                assert not actual['ready'],(name,actual);cases['dot_ready_'+name]=actual
+            mount('dot',attachments=d['ready']['dom']['attachments'][0]['html']);actual=state(df+df);assert not actual['ready'];cases['dot_duplicate_descriptors_rejected']=actual
+            # Current context must not resolve an old control after a remount.
+            mount('dot',control=d['ready']['dom']['controls'][1]);actual=page.evaluate('''()=>{let a=OzonAIAdapters.ADAPTERS.chatgpt,c=a.composerContext();c.root.replaceWith(c.root.cloneNode(true));return a.sendButtonCandidates(c).length;}''');assert actual==0;cases['stale_context_after_remount']=actual
+            def receipt(desc):return page.evaluate('''ds=>{let a=OzonAIAdapters.ADAPTERS.chatgpt,n=a.userMessages()[0];return n?{id:a.messageId(n),sent:a.sentAttachmentMessage(n,ds)}:null;}''',desc)
+            mount('work',work_user);actual=receipt(wf);assert actual and actual['sent'] and actual['sent']['filenames']==[x['filename'] for x in wf],actual
+            assert actual['sent']['text'].startswith('Продолжи ту же B02 с e4f35436'),actual
+            cases['work_actual_owned_two_json_cards_not_image_receipt']=actual
+            mount('dot',dot_user);actual=receipt(df);assert actual and actual['sent'] and actual['sent']['text']==d['testText'] and actual['sent']['filenames']==[df[0]['filename']],actual
+            cases['dot_actual_final_sent_card_and_text']=actual
+            mount('dot',d['sent']['dom']['articles'][0]);actual=receipt(df);assert actual is None,actual;cases['dot_pending_uuid_not_sent_receipt']=actual
+            for name,mutation in [
+                ('busy_file','()=>document.querySelector(".attachment-list button").setAttribute("aria-busy","true")'),
+                ('wrong_file_title','()=>document.querySelector(".attachment-list span[title]").setAttribute("title","other.txt")'),
+                ('wrong_open_label','()=>document.querySelector(".attachment-list button").setAttribute("aria-label","Open other.txt")'),
+                ('missing_attachment','()=>document.querySelector(".attachment-list").remove()'),
+                ('neighbor_attachment','()=>document.body.append(document.querySelector(".attachment-list"))'),
+                ('duplicate_article','()=>{let a=document.querySelector("article");a.after(a.cloneNode(true));}'),
+                ('hidden_card','()=>document.querySelector(".attachment-list").hidden=true'),
+            ]:
+                mount('dot',dot_user,mutate=mutation);actual=receipt(df);assert not actual or actual['sent'] is None,(name,actual);cases['dot_sent_'+name]=actual
+            mount('dot',dot_user);actual=receipt([{'filename':'other.txt','byte_length':1}]);assert actual['sent'] is None;cases['dot_sent_descriptor_mismatch']=actual
+            def codes():return page.evaluate('''()=>{let a=OzonAIAdapters.ADAPTERS.chatgpt;return a.assistantMessages().map(n=>({id:a.messageId(n),complete:a.messageComplete(n),blocks:a.findCodeBlocks(n).map(b=>({text:a.readCodeText(b),anchor:a.geometryAnchor(b)?.getAttribute('aria-label')}))}));}''')
+            mount('dot',dot_assistant);actual=codes();assert len(actual)==1 and [b['text'] for b in actual[0]['blocks']]==['B02_UPLOAD_STATE_BEGIN','B02_UPLOAD_STATE_END'],actual
+            assert all(b['anchor']=='Копировать код' for b in actual[0]['blocks']) and not actual[0]['complete'],actual
+            cases['dot_actual_two_code_blocks_copy_ownership']=actual
+            mount('work',work_assistant);actual=codes();assert len(actual)==1 and actual[0]['id'].startswith('work-message:') and len(actual[0]['blocks'])==1 and not actual[0]['complete'],actual
+            assert actual[0]['blocks'][0]['text'].endswith('SELLER_AGENTS_I1_C1_v0.2.37_LOCAL_DEVELOPMENT.zip') and actual[0]['blocks'][0]['anchor']=='Копировать код',actual
+            cases['work_actual_selected_assistant_code']=actual
+            for name,which,mutation,count in [
+                ('wrong_conversation','work','()=>document.querySelector("[data-chatgpt-selection-conversation-id]").setAttribute("data-chatgpt-selection-conversation-id","other")',0),
+                ('duplicate_work_id','work','()=>{let n=document.querySelector("[data-chatgpt-selection-message-id]");n.after(n.cloneNode(true));}',0),
+                ('work_hidden','work','()=>document.querySelector("[data-chatgpt-selection-message-id]").hidden=true',0),
+                ('dot_user_code','dot','()=>document.querySelector("article").classList.add("self")',0),
+            ]:
+                mount(which,work_assistant if which=='work' else dot_assistant,mutate=mutation);actual=codes();assert len(actual)==count,(name,actual);cases[name]=actual
+            for name,mutation in [
+                ('missing_copy','()=>document.querySelector("button[aria-label=\\\"Копировать код\\\"]").remove()'),
+                ('duplicate_copy','()=>{let n=document.querySelector("button[aria-label=\\\"Копировать код\\\"]");n.after(n.cloneNode(true));}'),
+                ('missing_source','()=>document.querySelector("[data-code-block-source]").removeAttribute("data-code-block-source")'),
+            ]:
+                mount('dot',dot_assistant,mutate=mutation);actual=codes();assert len(actual)==1 and len(actual[0]['blocks'])==1 and actual[0]['blocks'][0]['text']=='B02_UPLOAD_STATE_END',(name,actual);cases['dot_code_'+name]=actual
+            mount('dot',dot_assistant+''.join(d['answer']['dom']['status']));actual=codes();assert len(actual)==1 and not actual[0]['complete'];cases['global_computer_status_not_terminal_proof']=actual
+            # Shared branch continuity changed by this increment; no unrelated AI suite.
+            page.goto('https://chatgpt.com/c/fixture');page.set_content('<form><textarea id="prompt-textarea"></textarea><button aria-label="Send message"></button></form><section data-turn="assistant" data-turn-id="legacy"><pre><code>LEGACY</code></pre></section>');page.evaluate(identity);page.evaluate(source);actual=codes();assert actual[0]['blocks'][0]['text']=='LEGACY' and actual[0]['complete'];cases['affected_legacy_reader_continuity']=actual
+        finally:browser.close()
+    result['status']='PASS';result['case_count']=len(cases);(output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n');print(json.dumps({'status':'PASS','case_count':len(cases)}));return 0
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "work-dot-files":
+        return run_work_dot_files(runtime, output)
     if provider == "work-dot-initial":
         return run_work_dot_initial(runtime, output)
     if provider == "alice-ready-sent":
@@ -1906,6 +2027,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

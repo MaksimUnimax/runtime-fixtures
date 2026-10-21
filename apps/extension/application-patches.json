@@ -1580,5 +1580,95 @@
     "target": "shared/ai_adapters.js",
     "old": "    messageComplete(message) { return Boolean(message?.isConnected && !this.isGenerating() && text(message)); },",
     "new": "    messageComplete(message) {\n      if (chatgptSurfaceObservation()) return false; // Work/dot busy-to-complete witness is still pending.\n      return Boolean(message?.isConnected && !this.isGenerating() && text(message));\n    },"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  function chatgptComposerContext() {\n    if (chatgptSurfaceObservation()) return null; // Await the observed common controls root.",
+    "new": "  function chatgptObservedControlContext(observation) {\n    const composer = observation?.composer;\n    if (!composer || !observedComposerVisible(composer)) return null;\n    let root = null;\n    if (observation.kind === \"dot\") root = composer.closest('[data-role=\"composer\"]');\n    else {\n      const body = composer.closest('[data-composer-body]');\n      for (let p = body, depth = 0; p && p !== document.body && depth < 5; p = p.parentElement, depth++) {\n        if ([...p.children].some(n => n.matches('input[type=\"file\"][aria-label=\"Прикрепить файлы\"]'))) { root = p; break; }\n      }\n    }\n    if (!root || !observedComposerVisible(root) ||\n        [...root.querySelectorAll('[contenteditable=\"true\"][role=\"textbox\"]')].filter(observedComposerVisible).length !== 1) return null;\n    const selector = observation.kind === \"dot\" ? 'input[type=\"file\"][data-role=\"file-input\"]' : 'input[type=\"file\"][aria-label=\"Прикрепить файлы\"]';\n    const inputs = [...root.children].filter(n => n.matches(selector));\n    const menu = [...root.querySelectorAll('button[data-composer-navigation-target=\"add-context\"]')].filter(observedComposerVisible);\n    if (inputs.length !== 1 || !inputs[0].multiple || menu.length !== 1) return null;\n    return {composer,root,form:root,nativeForm:composer.closest('form'),locationHref:location.href,\n      surfaceKind:observation.kind === \"dot\" ? \"observed_dot\" : \"observed_work\"};\n  }\n\n  function chatgptUploadPending(context) {\n    return Boolean(context?.root?.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"],[class~=\"motion-safe:animate-spin\"]'));\n  }\n\n  function chatgptObservedStop(context) {\n    return Boolean(context?.root && [...context.root.querySelectorAll('button[aria-label=\"Остановить\"],[data-testid=\"stop-button\"]')].some(observedComposerVisible));\n  }\n\n  const CHATGPT_WORK_MESSAGE = '[data-chatgpt-selection-conversation-id][data-chatgpt-selection-message-id]';\n  function chatgptWorkMessageParts(node) {\n    if (chatgptSurfaceObservation()?.kind !== \"work\" || !(node instanceof HTMLElement) ||\n        !node.matches(CHATGPT_WORK_MESSAGE) || !chatgptSentVisible(node) ||\n        node.parentElement?.closest(CHATGPT_WORK_MESSAGE) || node.querySelector(CHATGPT_WORK_MESSAGE) ||\n        node.closest(CHATGPT_OBSERVED_USER_SELECTOR+', [data-message-role=\"user\"], [data-message-author-role=\"user\"], [data-turn=\"user\"]') ||\n        node.querySelector(CHATGPT_OBSERVED_USER_SELECTOR+', [data-message-role=\"user\"], [data-message-author-role=\"user\"], [data-turn=\"user\"]')) return null;\n    const route = location.pathname.match(/\\/c\\/([^/]+)\\/?$/);\n    const id = node.getAttribute('data-chatgpt-selection-message-id') || '';\n    if (!route || node.getAttribute('data-chatgpt-selection-conversation-id') !== route[1] || !id || /\\s/.test(id)) return null;\n    const peers = [...document.querySelectorAll(CHATGPT_WORK_MESSAGE)].filter(n =>\n      n.getAttribute('data-chatgpt-selection-message-id') === id && chatgptSentVisible(n));\n    const bodies = [...node.children].filter(n => n.getAttribute('data-markdown-text-style') === 'assistant-message');\n    if (peers.length !== 1 || bodies.length !== 1 || !chatgptSentVisible(bodies[0])) return null;\n    return {node,id,body:bodies[0]};\n  }\n\n  function chatgptObservedCodeBlocks(message) {\n    const dot = chatgptDotLocation() ? chatgptDotMessageParts(message) : null;\n    const work = !dot ? chatgptWorkMessageParts(message) : null;\n    const body = dot?.role === 'assistant' && dot.contentKind === 'orbit' ? dot.text : work?.body;\n    if (!body) return [];\n    const blocks = [...body.querySelectorAll('[data-code-block=\"true\"][data-markdown-copy=\"code-block\"]')];\n    return blocks.filter(block => {\n      if (!chatgptSentVisible(block) || block.parentElement?.closest('[data-code-block=\"true\"]') || block.querySelector('[data-code-block=\"true\"]')) return false;\n      if (dot && block.parentElement?.getAttribute('data-orbit-message-block') !== 'codeBlock') return false;\n      const sources = [...block.querySelectorAll('[data-code-block-source=\"true\"]')];\n      const copies = [...block.querySelectorAll('[data-code-block-controls=\"true\"] button[aria-label=\"Копировать код\"]')];\n      if (sources.length !== 1 || sources[0].querySelectorAll('code').length !== 1 ||\n          sources[0].children.length !== 1 || sources[0].firstElementChild?.tagName !== 'CODE' || copies.length !== 1) return false;\n      CHATGPT_COPY_ANCHORS.set(block,copies[0]);\n      return true;\n    });\n  }\n\n  function chatgptDotContentText(parts) {\n    if (!parts) return '';\n    if (parts.contentKind === 'fitted') return text(parts.text);\n    return chatgptObservedCodeBlocks(parts.node).map(block => block.querySelector('[data-code-block-source=\"true\"] code').textContent || '').join('\\n\\n');\n  }\n\n  function chatgptDotSentAttachmentMessage(node, descriptors) {\n    const parts = chatgptDotMessageParts(node), list = Array.isArray(descriptors) ? descriptors : [];\n    if (!parts || parts.role !== 'user' || parts.contentKind !== 'fitted' || !list.length ||\n        list.some(d => typeof d?.filename !== 'string' || !d.filename) ||\n        new Set(list.map(d => d.filename)).size !== list.length ||\n        node.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"],[class~=\"motion-safe:animate-spin\"]')) return null;\n    const lists = [...node.querySelectorAll('.message-body > .attachment-list')];\n    if (lists.length !== 1 || lists[0].parentElement !== parts.body || parts.text.contains(lists[0])) return null;\n    const cards = [...lists[0].querySelectorAll('div[class~=\"group/resource-card\"]')];\n    if (cards.length !== list.length) return null;\n    const filenames = [];\n    for (const card of cards) {\n      if (!chatgptSentVisible(card)) return null;\n      const buttons = [...card.children].filter(n => n.matches('button[type=\"button\"][class~=\"peer/resource-card\"]'));\n      const names = [...card.querySelectorAll('span.truncate[title]')].filter(chatgptSentVisible);\n      if (buttons.length !== 1 || names.length !== 1 || !chatgptSentVisible(buttons[0]) ||\n          buttons[0].disabled || buttons[0].getAttribute('aria-disabled') === 'true' || buttons[0].getAttribute('aria-busy') !== 'false') return null;\n      const filename = names[0].getAttribute('title');\n      if (!filename || names[0].textContent !== filename || !list.some(d => d.filename === filename) ||\n          buttons[0].getAttribute('aria-label') !== 'Открыть '+filename || buttons[0].getAttribute('title') !== 'Открыть '+filename) return null;\n      filenames.push(filename);\n    }\n    return new Set(filenames).size === filenames.length ? {text:chatgptDotContentText(parts),filenames} : null;\n  }\n\n  function chatgptComposerContext() {\n    const observation = chatgptSurfaceObservation();\n    if (observation) return chatgptObservedControlContext(observation);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "!chatgptSentVisible(node) || node.parentElement?.closest(CHATGPT_DOT_MESSAGE) ||",
+    "new": "!chatgptSentVisible(node) || node.classList.contains(\"pending\") || node.parentElement?.closest(CHATGPT_DOT_MESSAGE) ||"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "    const fitted = [...texts[0].querySelectorAll('[data-fitted-message-text=\"true\"]')];\n    if (fitted.length !== 1 || !chatgptSentVisible(fitted[0]) ||\n        fitted[0].querySelector('button,input,textarea,[contenteditable],[data-markdown-copy=\"exclude\"]')) return null;\n    // Both roles use data-markdown-text-style=assistant-message in the witness.\n    return {node,id,role:node.classList.contains(\"self\") ? \"user\" : \"assistant\",text:fitted[0]};",
+    "new": "    const fitted = [...texts[0].querySelectorAll('[data-fitted-message-text=\"true\"]')];\n    const orbit = [...texts[0].querySelectorAll('[data-orbit-message-parts=\"true\"]')];\n    const role = node.classList.contains(\"self\") ? \"user\" : \"assistant\";\n    if (fitted.length === 1 && orbit.length === 0 && chatgptSentVisible(fitted[0]) &&\n        !fitted[0].querySelector('button,input,textarea,[contenteditable],[data-markdown-copy=\"exclude\"]'))\n      return {node,id,role,body:bodies[0],text:fitted[0],contentKind:\"fitted\"};\n    if (role !== \"assistant\" || fitted.length || orbit.length !== 1 || !chatgptSentVisible(orbit[0]) ||\n        orbit[0].querySelector('input,textarea,[contenteditable=\"true\"]')) return null;\n    const blocks = [...orbit[0].children];\n    if (!blocks.length || blocks.some(n => n.getAttribute('data-orbit-message-block') !== 'codeBlock')) return null;\n    return {node,id,role,body:bodies[0],text:orbit[0],contentKind:\"orbit\"};"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "const roots = [...new Set([...explicit, ...inferred])].filter((node) =>",
+    "new": "const observedWork = [...document.querySelectorAll(CHATGPT_WORK_MESSAGE)].filter(chatgptWorkMessageParts);\n    const roots = [...new Set([...explicit, ...inferred, ...observedWork])].filter((node) =>"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "      if (node.matches(CHATGPT_OBSERVED_USER_SELECTOR)) return chatgptObservedUserId(node);",
+    "new": "      if (node.matches(CHATGPT_WORK_MESSAGE)) {\n        const parts = chatgptWorkMessageParts(node);\n        return parts ? \"work-message:\" + parts.id : \"\";\n      }\n      if (node.matches(CHATGPT_OBSERVED_USER_SELECTOR)) return chatgptObservedUserId(node);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "return parts ? text(parts.text) : \"\";",
+    "new": "return chatgptDotContentText(parts);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "if (!(message instanceof Element) || chatgptDotLocation()) return []; // Actual dot code/Copy not yet observed.",
+    "new": "if (!(message instanceof Element)) return [];\n      if (chatgptDotLocation() || message.matches(CHATGPT_WORK_MESSAGE)) return chatgptObservedCodeBlocks(message);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  function chatgptSentAttachmentMessage(node, descriptors) {",
+    "new": "  function chatgptSentAttachmentMessage(node, descriptors) {\n    if (chatgptDotLocation()) return chatgptDotSentAttachmentMessage(node, descriptors);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "    const all = [...c.root.querySelectorAll('input[type=\"file\"]')].filter(n =>",
+    "new": "    if (c.surfaceKind === \"observed_dot\") {\n      const inputs = [...c.root.children].filter(n => n.matches('input[type=\"file\"][data-role=\"file-input\"]'));\n      const input = inputs.length === 1 ? inputs[0] : null;\n      return input instanceof HTMLInputElement && input.multiple && input.isConnected &&\n        !input.disabled && !input.matches(':disabled') && input.getAttribute('aria-disabled') !== 'true' ? input : null;\n    }\n    const all = [...c.root.querySelectorAll('input[type=\"file\"]')].filter(n =>"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "if (c.surfaceKind === \"observed_standard\") return named.length",
+    "new": "if ([\"observed_standard\",\"observed_work\"].includes(c.surfaceKind)) return named.length"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "    if (c.surfaceKind === \"observed_standard\") {\n      const zones",
+    "new": "    if ([\"observed_standard\",\"observed_work\",\"observed_dot\"].includes(c.surfaceKind)) {\n      const zones"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "        return names.length === 1 && open.length === 1 && observedComposerVisible(open[0]);",
+    "new": "        if (c.surfaceKind === \"observed_dot\") {\n          const remove = [...card.children].filter(n => n.matches('button[type=\"button\"]') && n.getAttribute('aria-label') === 'Удалить '+target);\n          return names.length === 1 && remove.length === 1 && !remove[0].disabled && remove[0].getAttribute('aria-disabled') !== 'true';\n        }\n        return names.length === 1 && open.length === 1 && observedComposerVisible(open[0]);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "if (context.surfaceKind === \"observed_standard\" && context.root.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"],[data-testid=\"stop-button\"]')) return [];",
+    "new": "if (context.surfaceKind?.startsWith(\"observed_\") && (chatgptUploadPending(context) || chatgptObservedStop(context))) return [];"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "        c.root.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"],[data-testid=\"stop-button\"]')) return false;",
+    "new": "        chatgptUploadPending(c) || chatgptObservedStop(c)) return false;"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "        c.root.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"],[data-testid=\"stop-button\"]') ||",
+    "new": "        chatgptUploadPending(c) || chatgptObservedStop(c) ||"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "return !context || context.surfaceKind === \"observed_standard\" ||",
+    "new": "return !context || context.surfaceKind?.startsWith(\"observed_\") ||"
+  },
+  {
+    "target": "content_script.js",
+    "old": "return context?.surfaceKind === \"observed_standard\" ? context : null;",
+    "new": "return [\"observed_standard\",\"observed_work\",\"observed_dot\"].includes(context?.surfaceKind) ? context : null;"
+  },
+  {
+    "target": "content_script.js",
+    "old": "if (context.surfaceKind === \"observed_standard\" && context.root.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"]'))",
+    "new": "if (context.surfaceKind?.startsWith(\"observed_\") && context.root.querySelector('[role=\"progressbar\"],[aria-busy=\"true\"],[class~=\"motion-safe:animate-spin\"]'))"
   }
 ]
