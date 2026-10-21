@@ -1879,7 +1879,97 @@ def run_work_turn_exact(runtime: Path, output: Path):
         finally:browser.close()
     result['status']='PASS';result['case_count']=len(cases);(output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n');print(json.dumps({'status':'PASS','case_count':len(cases)}));return 0
 
+def run_dot_start_unknown(runtime: Path, output: Path):
+    """Affected Start observer only: explicit UNKNOWN notice, no invented completion."""
+    import subprocess
+    output.mkdir(parents=True, exist_ok=True)
+    source = (runtime / 'content_script.js').read_text()
+    begin = source.index('  function setWorkStartObservationNotice(')
+    end = source.index('  async function waitForWorkStartComposerContext(', begin)
+    observed = source[begin:end]
+    js = r'''
+const vm = require('node:vm'), assert = require('node:assert/strict');
+const rows = [];
+function fixture({kind='dot', complete=false, messages=[{id:'new-answer'}], reply={ok:true,waiting:true}}={}) {
+  const timers = new Map(), notices = new Map(), toastCalls = [], requests = [], ended = [];
+  const data = {kind,complete,messages,reply,now:0,current:true,
+    identity:{origin:'https://chatgpt.com',ai_id:'chatgpt',conversation_id:'local:own',surface_id:'own'}};
+  let sequence=0;
+  const c = {workStartWatches:new Map(),workRuntimeGeneration:'generation',
+    Date:{now:()=>data.now},current:()=>data.current,
+    setInterval:f=>{const id=++sequence;timers.set(id,f);return id;},clearInterval:id=>timers.delete(id),
+    toast:(text,level,duration,key)=>{const value={text,level,duration,key};notices.set(key,value);toastCalls.push(value);},
+    clearToast:key=>notices.delete(key),recordContentDiagnostic:()=>{},
+    SellerAgentsConversationSurface:{endStart:(...args)=>ended.push(args)},
+    conversationIdentity:()=>({...data.identity}),
+    currentAIAdapter:()=>({messageId:n=>n.id,surfaceObservation:()=>({kind:data.kind})}),
+    assistantMessages:()=>data.messages,assistantTurnComplete:()=>data.complete,
+    sendRuntime:async(type,payload)=>{requests.push({type,...payload});return typeof data.reply==='function' ? data.reply(type,payload) : data.reply;}};
+  vm.runInNewContext(SOURCE,c);
+  const start=()=>c.startWorkStartResponseWatch({intentId:'intent',revision:7,origin:'https://chatgpt.com',aiId:'chatgpt',assistantBaselineIds:['old-answer']});
+  async function tick(){for(const f of [...timers.values()])f();await new Promise(setImmediate);await new Promise(setImmediate);}
+  return {c,data,requests,notices,toastCalls,ended,timers,start,tick,watch:()=>c.workStartWatches.get('intent:7')};
+}
+async function check(name,fn){await fn();rows.push({name,status:'PASS'});}
+await check('dot_acknowledged_start_explains_unverified_completion_without_promoting_it',async()=>{
+ const f=fixture();f.start();await f.tick();assert.equal(f.notices.size,1);
+ assert.match(f.toastCalls[0].text,/Инструкция отправлена/);assert.match(f.toastCalls[0].text,/завершение ответа dot не подтверждено/);
+ assert.equal(f.requests.length,1);assert.equal(f.requests[0].type,'OZ_WORK_PENDING_IDENTITY');assert.equal(f.requests[0].first_response_complete,false);
+ assert(f.watch());assert.equal(f.toastCalls[0].duration,0);
+});
+await check('repeated_observation_keeps_one_notice_and_never_sends',async()=>{
+ const f=fixture();f.start();await f.tick();await f.tick();assert.equal(f.toastCalls.length,1);
+ assert(f.requests.every(x=>x.type==='OZ_WORK_PENDING_IDENTITY'&&x.first_response_complete===false));
+});
+for(const [name,messages] of [['no_new_assistant',[]],['only_baseline_assistant',[{id:'old-answer'}]]])
+ await check(name+'_does_not_claim_unknown_answer',async()=>{const f=fixture({messages});f.start();await f.tick();assert.equal(f.notices.size,0);assert.equal(f.requests[0].first_response_complete,false);});
+for(const kind of ['standard','work','alice','qwen','deepseek','claude','gemini','grok','kimi'])
+ await check(kind+'_existing_wait_is_unchanged',async()=>{const f=fixture({kind});f.start();await f.tick();assert.equal(f.notices.size,0);assert.equal(f.requests[0].first_response_complete,false);assert(f.watch());});
+await check('no_send_ack_does_not_claim_instruction_was_sent',async()=>{
+ const f=fixture({reply:{ok:false,waiting:true,code:'WORK_START_SEND_OUTCOME_UNKNOWN_NO_RETRY'}});f.start();await f.tick();assert.equal(f.notices.size,0);assert.equal(f.watch(),undefined);
+});
+await check('known_completion_preserves_existing_activation_path',async()=>{
+ const f=fixture({kind:'work',complete:true,reply:{ok:true}});f.start();await f.tick();assert.equal(f.requests[0].first_response_complete,true);assert.equal(f.notices.size,0);assert.equal(f.watch(),undefined);
+});
+await check('lost_identity_clears_old_notice_without_adopting_another_dialogue',async()=>{
+ const f=fixture();f.start();await f.tick();f.data.identity.conversation_id=null;await f.tick();assert.equal(f.notices.size,0);assert.equal(f.requests.length,1);assert(f.watch());
+});
+await check('finish_or_stale_pending_clears_notice_without_new_work',async()=>{
+ const f=fixture();f.start();await f.tick();f.data.reply={ok:false,code:'WORK_PENDING_STALE_OR_INVALID'};await f.tick();assert.equal(f.notices.size,0);assert.equal(f.watch(),undefined);assert(f.requests.every(x=>x.type==='OZ_WORK_PENDING_IDENTITY'));
+});
+await check('timeout_is_visible_unknown_not_terminal_success_or_resend',async()=>{
+ const f=fixture();f.start();await f.tick();f.data.now=120001;await f.tick();assert.equal(f.watch(),undefined);assert.equal(f.notices.size,1);assert.match([...f.notices.values()][0].text,/Наблюдение завершено/);assert.match([...f.notices.values()][0].text,/Повторной отправки не было/);assert.equal([...f.notices.values()][0].duration,10000);assert.equal(f.requests.at(-1).type,'OZ_WORK_PENDING_TIMEOUT');assert(!f.requests.some(x=>x.first_response_complete===true));
+});
+await check('runtime_disposal_clears_notice_and_stops_observer',async()=>{
+ const f=fixture();f.start();await f.tick();f.data.current=false;await f.tick();assert.equal(f.notices.size,0);assert.equal(f.watch(),undefined);
+});
+await check('unknown_worker_callback_never_retries_and_clears_notice',async()=>{
+ const f=fixture();f.start();await f.tick();f.data.reply=()=>Promise.reject(new Error('lost callback'));await f.tick();assert.equal(f.notices.size,0);assert.equal(f.watch(),undefined);assert.equal(f.requests.length,2);
+});
+await check('duplicate_start_uses_same_observer',async()=>{
+ const f=fixture();f.start();const w=f.watch();f.start();assert.equal(f.watch(),w);assert.equal(f.timers.size,1);await f.tick();assert.equal(f.toastCalls.length,1);
+});
+await check('late_worker_result_after_finish_cannot_create_notice',async()=>{
+ let release;const f=fixture({reply:()=>new Promise(r=>{release=r;})});f.start();await f.tick();f.c.stopWorkStartWatch('intent',7,'operator_finish');release({ok:true,waiting:true});await new Promise(setImmediate);assert.equal(f.notices.size,0);assert.equal(f.watch(),undefined);
+});
+console.log(JSON.stringify({status:'PASS',case_count:rows.length,cases:rows}));
+'''
+    completed = subprocess.run(['node','--input-type=commonjs'], input='const SOURCE='+json.dumps(observed)+';\n(async()=>{'+js+'})().catch(e=>{console.error(e.stack);process.exitCode=1;});', text=True, capture_output=True)
+    (output/'stdout.log').write_text(completed.stdout)
+    (output/'stderr.log').write_text(completed.stderr)
+    if completed.returncode:
+        raise RuntimeError('dot-start-unknown functional delta failed; see retained stderr.log')
+    result = json.loads(completed.stdout)
+    result['scope']='finite offline existing Start observer; no provider/installed/authority acceptance, no new terminal or identity heuristic'
+    result['source_sha256']=hashlib.sha256(source.encode()).hexdigest()
+    (output/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+    print(json.dumps({'status':result['status'],'case_count':result['case_count']}))
+    return 0
+
+
 def run(runtime: Path, output: Path, provider="all"):
+    if provider == "dot-start-unknown":
+        return run_dot_start_unknown(runtime, output)
     if provider == "work-turn-exact":
         return run_work_turn_exact(runtime, output)
     if provider == "work-dot-surface":
@@ -2085,6 +2175,6 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    parser.add_argument("--provider",choices=["all","chatgpt","work-turn-exact","work-dot-surface","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
+    parser.add_argument("--provider",choices=["all","chatgpt","dot-start-unknown","work-turn-exact","work-dot-surface","work-dot-files","work-dot-initial","alice-ready-sent","standard-sent","standard-alice-files","kimi","kimi-adapter","sent-attachment","observed-readers","gemini-adapter","grok-adapter","b02-delivery-watch","observed-composers","claude-composer","claude-delivery-watch","parent-roots","deepseek-parent-roots","deepseek-composer","deepseek-delivery-watch"],default="all")
     args=parser.parse_args()
     raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))

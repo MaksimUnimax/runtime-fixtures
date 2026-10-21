@@ -1685,5 +1685,25 @@
     "target": "shared/ai_adapters.js",
     "old": "    messageComplete(message) {\n      if (chatgptSurfaceObservation()) return false; // Work/dot busy-to-complete witness is still pending.\n      return Boolean(message?.isConnected && !this.isGenerating() && text(message));\n    },",
     "new": "    messageComplete(message) {\n      const observation = chatgptSurfaceObservation();\n      if (observation?.kind === \"work\" || message?.matches?.(CHATGPT_WORK_MESSAGE)) return chatgptWorkMessageComplete(message);\n      if (observation?.kind === \"dot\") return false; // No per-message dot completion witness yet.\n      return Boolean(message?.isConnected && !this.isGenerating() && text(message));\n    },"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function stopWorkStartWatch(intentId, revision, reason = \"terminal\") {",
+    "new": "  function setWorkStartObservationNotice(watch, state = null) {\n    if (!watch || watch.observation_notice_state === state) return;\n    const key = `work-start-observation:${watch.intent_id}:${watch.revision}`;\n    if (watch.observation_notice_state) clearToast(key);\n    watch.observation_notice_state = state;\n    if (state === \"completion_unknown\") {\n      toast(\"Октопорт: Инструкция отправлена, но завершение ответа dot не подтверждено. Исполнение команд пока недоступно. Можно завершить запуск в попапе; автоматической повторной отправки не будет.\", \"info\", 0, key);\n    } else if (state === \"timeout_unknown\") {\n      toast(\"Октопорт: Наблюдение завершено, но завершение ответа dot не подтверждено. Команды не включены. Повторной отправки не было.\", \"info\", 10000, key);\n    }\n  }\n\n  function stopWorkStartWatch(intentId, revision, reason = \"terminal\") {"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const watch = workStartWatches.get(key);\n    if (!watch) return;\n    clearInterval(watch.timer);",
+    "new": "    const watch = workStartWatches.get(key);\n    if (!watch) return;\n    setWorkStartObservationNotice(watch, reason === \"response_timeout\" && watch.observation_notice_state === \"completion_unknown\" ? \"timeout_unknown\" : null);\n    clearInterval(watch.timer);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      if (!currentIdentity.conversation_id) return;\n      watch.last_conversation_id",
+    "new": "      if (!currentIdentity.conversation_id) {\n        setWorkStartObservationNotice(watch, null);\n        return;\n      }\n      watch.last_conversation_id"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      if (workStartWatches.get(key) !== watch) return;\n      if (!(response?.ok === true && response.waiting === true)) stopWorkStartWatch",
+    "new": "      if (workStartWatches.get(key) !== watch) return;\n      setWorkStartObservationNotice(watch, response?.ok === true && response.waiting === true && last && !complete && currentAIAdapter()?.surfaceObservation?.()?.kind === \"dot\" ? \"completion_unknown\" : null);\n      if (!(response?.ok === true && response.waiting === true)) stopWorkStartWatch"
   }
 ]
