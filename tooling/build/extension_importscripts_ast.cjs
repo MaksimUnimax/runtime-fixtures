@@ -21,8 +21,18 @@ function locate(source) {
   // Only a plain top-level importScripts(...) is supported for flattening.
   // Other executable references must fail closed rather than reach Firefox
   // as worker-only calls in an event-page background script.
-  function isDefinitionKey(node) {
+  function isInertIdentifier(node) {
     const parent = node.parent;
+    // JavaScript labels (including escaped spellings) are control-flow
+    // markers, not executable references to the importScripts API.
+    if (
+      (ts.isLabeledStatement(parent) ||
+       ts.isBreakStatement(parent) ||
+       ts.isContinueStatement(parent)) &&
+      parent.label === node
+    ) {
+      return true;
+    }
     return (
       (ts.isPropertyAssignment(parent) ||
        ts.isMethodDeclaration(parent) ||
@@ -47,7 +57,7 @@ function locate(source) {
     if (
       ts.isIdentifier(node) &&
       node.text === "importScripts" &&
-      !isDefinitionKey(node) &&
+      !isInertIdentifier(node) &&
       !(ts.isCallExpression(node.parent) && node.parent.expression === node)
     ) {
       // Reject (importScripts)(...), const alias=importScripts and other

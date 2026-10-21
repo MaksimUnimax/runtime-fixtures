@@ -117,6 +117,34 @@ try {
   assert.ok(!compiled.includes('importScripts /* comment */ ("child.js");'));
   assert.ok(!compiled.includes('importScripts("child2.js");'));
 
+  // JavaScript Unicode escapes can spell executable identifiers without
+  // containing the literal ASCII string "importScripts" in the source.
+  // The Firefox background must never silently retain those worker-only calls.
+  const unicodeEscape = String.fromCharCode(92) + "u0053";
+  const escapedIdent = 'import' + unicodeEscape + 'cripts("child.js");\n';
+  const escapedBackground = attempt("escaped-ident-unicode", escapedIdent, true);
+  assert.ok(escapedBackground.includes("globalThis.Child1 = true;"), "escaped static import not inlined");
+  assert.ok(!escapedBackground.includes(escapedIdent.trim()), "escaped worker import leaked into Firefox");
+  const escapedNested = 'if (enabled) import' + unicodeEscape + 'cripts("child.js");\n';
+  attempt("escaped-ident-nested", escapedNested, false, "NOT_TOP_LEVEL_STATEMENT");
+  const escapedAlias = 'const loader = import' + unicodeEscape + 'cripts;\n';
+  attempt("escaped-ident-alias", escapedAlias, false, "UNSUPPORTED_REFERENCE");
+  const escapedBracket = 'self["import' + unicodeEscape + 'cripts"]("child.js");\n';
+  attempt("escaped-ident-bracket", escapedBracket, false, "UNSUPPORTED_REFERENCE");
+  // Identifiers used as labels, or break/continue targets, are inert
+  // control-flow names even when their spelling decodes to "importScripts".
+  const plainLabel = 'importScripts: ;\n';
+  assert.equal(attempt("plain-inert-label", plainLabel, true), plainLabel);
+  const escapedLabel = 'import' + unicodeEscape + 'cripts: ;\n';
+  assert.equal(attempt("escaped-inert-label", escapedLabel, true), escapedLabel);
+  const escapedBreak = 'import' + unicodeEscape + 'cripts: { break import' + unicodeEscape + 'cripts; }\n';
+  assert.equal(attempt("escaped-inert-break-label", escapedBreak, true), escapedBreak);
+  const escapedContinue = 'import' + unicodeEscape + 'cripts: for (let i = 0; i < 1; i++) { continue import' + unicodeEscape + 'cripts; }\n';
+  assert.equal(attempt("escaped-inert-continue-label", escapedContinue, true), escapedContinue);
+
+  const escapedInert = 'const label = "import' + unicodeEscape + 'cripts";\n';
+  assert.equal(attempt("escaped-ident-inert-string", escapedInert, true), escapedInert);
+
   const interpolation =
     "const output = " + tick + "${(() => { importScripts(\"child.js\"); return 1; })()}" + tick + ";\n";
   attempt("template-expression", interpolation, false, "NOT_TOP_LEVEL_STATEMENT");

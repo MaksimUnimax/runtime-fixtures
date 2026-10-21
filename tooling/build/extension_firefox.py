@@ -44,8 +44,8 @@ def write_json(path: Path, value) -> None:
 
 
 def _locate_static_imports(source: str) -> list[dict]:
-    if "importScripts" not in source:
-        return []
+    # Unicode escapes can spell executable JavaScript identifiers such as importScripts.
+    # Always parse syntax; an ASCII substring shortcut can silently skip a real call.
     parser = Path(__file__).with_name("extension_importscripts_ast.cjs")
     if not parser.is_file() or parser.is_symlink():
         raise ValueError("Firefox static import AST parser unavailable")
