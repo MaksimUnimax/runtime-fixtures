@@ -214,7 +214,26 @@ def read_store_authority_snapshot(path):
 
 def store_config(authority_path, recipe):
     authority_bytes = read_store_authority_snapshot(Path(authority_path))
-    authority = json.loads(authority_bytes.decode("utf-8"))
+
+    # Release authority must have one unambiguous interpretation throughout
+    # tooling, reviewers and the packaged runtime. The default JSON decoder
+    # silently overwrites repeated members, including nested trust bundles.
+    def unique_members(pairs):
+        value = {}
+        for name, item in pairs:
+            if name in value:
+                raise AssertionError("Duplicate store release authority JSON member")
+            value[name] = item
+        return value
+
+    def reject_nonfinite_number(value):
+        raise AssertionError("Non-finite store release authority JSON number")
+
+    authority = json.loads(
+        authority_bytes.decode("utf-8"),
+        object_pairs_hook=unique_members,
+        parse_constant=reject_nonfinite_number,
+    )
     assert isinstance(authority, dict) and set(authority) == {
         "schemaVersion", "source", "productVersion", "contractVersion", "migrationLevel",
         "environment", "origins", "trustBundle"
@@ -225,7 +244,7 @@ def store_config(authority_path, recipe):
     assert re.fullmatch(r"[a-f0-9]{40}", authority["source"]["tree"])
     assert authority["productVersion"] == recipe["version"]
     assert authority["contractVersion"] == "control_plane_v2"
-    assert isinstance(authority["migrationLevel"], int) and authority["migrationLevel"] >= 0
+    assert type(authority["migrationLevel"]) is int and authority["migrationLevel"] >= 0, "Invalid store release authority migration level"
     assert authority["environment"] == "PREPRODUCTION"
     assert isinstance(authority["origins"], dict) and set(authority["origins"]) == {
         "controlApiOrigin", "portalOrigin"

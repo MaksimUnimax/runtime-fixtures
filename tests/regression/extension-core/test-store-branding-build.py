@@ -146,6 +146,65 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
                 "Store receipt must hash bytes actually used to create packaged config",
             )
 
+    def test_store_authority_duplicate_json_keys_fail_closed(self):
+        original = self.serialized("https://api-a.example.test").decode("utf-8")
+        self.assertIn('"controlApiOrigin":', original)
+        self.assertIn('"trustBundle":', original)
+        duplicate_nested = original.replace(
+            '"controlApiOrigin":',
+            '"controlApiOrigin":"https://api-b.example.test","controlApiOrigin":',
+            1,
+        )
+        synthetic_trust = json.dumps(
+            self.authority()["trustBundle"], separators=(",", ":"), ensure_ascii=False
+        )
+        duplicate_root = original.replace(
+            '"trustBundle":', '"trustBundle":' + synthetic_trust + ',"trustBundle":', 1
+        )
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-duplicate-json-") as temp:
+            authority = Path(temp) / "candidate.json"
+            for case, candidate in [
+                ("nested_origin", duplicate_nested),
+                ("root_trust_bundle", duplicate_root),
+            ]:
+                with self.subTest(case=case):
+                    authority.write_text(candidate, encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        AssertionError, "Duplicate store release authority JSON member"
+                    ):
+                        composed.store_config(authority, {"version": "0.2.37"})
+
+    def test_store_authority_nonfinite_json_constants_fail_at_parse(self):
+        original = self.serialized("https://api-a.example.test").decode("utf-8")
+        self.assertIn('"migrationLevel":61', original)
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-nonfinite-json-") as temp:
+            authority = Path(temp) / "candidate.json"
+            for constant in ("NaN", "Infinity", "-Infinity"):
+                with self.subTest(constant=constant):
+                    candidate = original.replace(
+                        '"migrationLevel":61', f'"migrationLevel":{constant}', 1
+                    )
+                    authority.write_text(candidate, encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        AssertionError, "Non-finite store release authority JSON number"
+                    ):
+                        composed.store_config(authority, {"version": "0.2.37"})
+
+    def test_store_authority_boolean_migration_level_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-bool-migration-") as temp:
+            authority = Path(temp) / "candidate.json"
+            for value in (True, False):
+                with self.subTest(value=value):
+                    candidate = self.authority()
+                    candidate["migrationLevel"] = value
+                    authority.write_text(
+                        json.dumps(candidate, separators=(",", ":")), encoding="utf-8"
+                    )
+                    with self.assertRaisesRegex(
+                        AssertionError, "Invalid store release authority migration level"
+                    ):
+                        composed.store_config(authority, {"version": "0.2.37"})
+
     def test_store_authority_same_size_write_during_fd_read_fails_closed(self):
         if not hasattr(os, "pwrite"):
             self.skipTest("synthetic concurrent overwrite requires os.pwrite")
