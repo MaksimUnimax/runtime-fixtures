@@ -413,11 +413,15 @@ function responseFingerprint(
   root: Record<string, unknown>,
   operation: Record<string, unknown>,
 ): string {
+  // An OAS 2 response without schema returns no content. A changed produces
+  // set must not generate an API impact for a bodyless response-only operation.
+  let hasResponseBody = false;
   const legacy = fingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
         const response = asObject(localRef(raw, root));
         const body = response.schema ?? response.content ?? null;
+        if (body !== null) hasResponseBody = true;
         // Response headers are contract fields, not just response annotations.
         // HTTP header names are case-insensitive; OAS ignores Content-Type here.
         const headers = Object.entries(asObject(response.headers))
@@ -475,8 +479,10 @@ function responseFingerprint(
     ),
     "named-fields",
   );
+  // Validate even inert MIME declarations, but only fingerprint an actual
+  // response payload. Preserve historical hashes for no-content operations.
   const media = swagger2MediaTypes(operation, root, "produces");
-  return media.length
+  return hasResponseBody && media.length
     ? fingerprint({ legacyResponseSha256: legacy, produces: media }, "literal")
     : legacy;
 }

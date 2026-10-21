@@ -8,6 +8,7 @@ type MediaCase = {
   operationConsumes?: string[];
   operationProduces?: string[];
   payload?: "body" | "formData" | "none";
+  response?: "body" | "none" | "mixed";
 };
 
 function inventory(input: MediaCase) {
@@ -27,9 +28,15 @@ function inventory(input: MediaCase) {
   const post: Record<string, unknown> = {
     operationId: "sample",
     parameters,
-    responses: {
-      "200": { description: "ok", schema: { type: "string" } },
-    },
+    responses:
+      input.response === "none"
+        ? { "204": { description: "No Content" } }
+        : input.response === "mixed"
+          ? {
+              "200": { description: "ok", schema: { type: "string" } },
+              "204": { description: "No Content" },
+            }
+          : { "200": { description: "ok", schema: { type: "string" } } },
     ...(input.operationConsumes === undefined
       ? {}
       : { consumes: input.operationConsumes }),
@@ -95,6 +102,27 @@ describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () 
     expect(result.original.responseSchemaSha256).not.toBe(
       result.modified.responseSchemaSha256,
     );
+  });
+
+  it("ignores produces changes when every response has no body (204 No Content)", () => {
+    const result = compare(
+      { rootProduces: ["application/json"], response: "none" },
+      { rootProduces: ["text/plain"], response: "none" },
+    );
+    expect(result.state).toBe("UNCHANGED");
+    expect(result.changed).toBe(0);
+    expect(result.original.responseSchemaSha256).toBe(
+      result.modified.responseSchemaSha256,
+    );
+  });
+
+  it("still detects a produces change when another response has a schema", () => {
+    const result = compare(
+      { rootProduces: ["application/json"], response: "mixed" },
+      { rootProduces: ["text/plain"], response: "mixed" },
+    );
+    expect(result.state).toBe("CHANGED");
+    expect(result.fields).toContain("responseSchemaSha256");
   });
 
   it("ignores changed root MIME types when both are overridden on the operation", () => {
@@ -237,6 +265,16 @@ describe("Swagger 2.0 invalid MIME declarations fail closed", () => {
       );
     },
   );
+
+  it("rejects invalid produces even for an operation with only bodyless responses", () => {
+    const invalid = {
+      rootProduces: "text/plain",
+      response: "none",
+    } as unknown as MediaCase;
+    expect(() => inventory(invalid)).toThrow(
+      "APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID",
+    );
+  });
 
   it("does not let a valid operation override conceal a malformed root declaration", () => {
     const malformed = {
