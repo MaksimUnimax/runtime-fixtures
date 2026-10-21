@@ -179,7 +179,7 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
         self.assertIn('"migrationLevel":61', original)
         with tempfile.TemporaryDirectory(prefix="octoport-c01-nonfinite-json-") as temp:
             authority = Path(temp) / "candidate.json"
-            for constant in ("NaN", "Infinity", "-Infinity"):
+            for constant in ("NaN", "Infinity", "-Infinity", "1e999", "-1e999"):
                 with self.subTest(constant=constant):
                     candidate = original.replace(
                         '"migrationLevel":61', f'"migrationLevel":{constant}', 1

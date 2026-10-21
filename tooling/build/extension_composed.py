@@ -4,6 +4,7 @@ import argparse
 import base64
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
@@ -229,10 +230,17 @@ def store_config(authority_path, recipe):
     def reject_nonfinite_number(value):
         raise AssertionError("Non-finite store release authority JSON number")
 
+    def parse_finite_float(value):
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            raise AssertionError("Non-finite store release authority JSON number")
+        return numeric
+
     authority = json.loads(
         authority_bytes.decode("utf-8"),
         object_pairs_hook=unique_members,
         parse_constant=reject_nonfinite_number,
+        parse_float=parse_finite_float,
     )
     assert isinstance(authority, dict) and set(authority) == {
         "schemaVersion", "source", "productVersion", "contractVersion", "migrationLevel",
