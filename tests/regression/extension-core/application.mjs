@@ -1178,5 +1178,37 @@ await test('APP-60-identity-timeout-start-does-not-inject-or-send', async () => 
     assert.equal(Object.keys(await s.worker.call('getPendingWorkStarts')).length, 0);
   } finally { s.worker.close(); }
 });
+await test('APP-61-wb-ad-cost-prompt-distinguishes-spend-from-topup', async () => {
+  // Provider money spent and money moved into the ad balance are different.
+  // Assert the actual WB prompt contract and the composed/extracted runtime bytes.
+  const original = fs.readFileSync(new URL('../../../apps/extension/src/application/delivery.js', import.meta.url), 'utf8');
+  const ctx = { DEFAULT_AUTO_START_TEXT: 'SYNTHETIC_OZON_START',
+    saAssertStore: async pinned => pinned, OctoportPromptTrees: { render: () => 'fixture' } };
+  vm.createContext(ctx);
+  vm.runInContext(original + '\nglobalThis.__wbFinancePrompt=saPrompt;', ctx);
+  const store = { marketplace: 'wildberries', name: 'Fixture WB', id: 'fixture-wb',
+    personalDataEnabled: false };
+  const prompt = await ctx.__wbFinancePrompt(store);
+  assert.match(prompt, /promo_spend_history/);
+  assert.match(prompt, /promo_payment_history/);
+  assert.match(prompt, /фактические затраты/);
+  assert.match(prompt, /пополнения рекламного счёта/);
+  assert.match(prompt, /не считать рекламными расходами/);
+  assert.match(prompt, /Для ДРР используй подтверждённые расходы и сопоставимую выручку за один период/);
+  assert.match(prompt, /не суммируй два источника затрат без устранения дублей/);
+  assert.match(prompt, /не подменяй отсутствие данных нулём/);
+  assert.match(prompt, /Не смешивай источники/);
+  const ozonPrompt = await ctx.__wbFinancePrompt({ ...store, marketplace: 'ozon' });
+  assert.ok(ozonPrompt.includes('SYNTHETIC_OZON_START'));
+  assert.doesNotMatch(ozonPrompt, /promo_spend_history|promo_payment_history/);
+  const bundled = fs.readFileSync(path.join(runtime, 'shared/application.js'), 'utf8');
+  assert.match(bundled, /promo_spend_history/);
+  assert.match(bundled, /promo_payment_history/);
+  assert.match(bundled, /пополнения рекламного счёта/);
+  assert.match(bundled, /Для ДРР используй подтверждённые расходы и сопоставимую выручку за один период/);
+  assert.match(bundled, /не суммируй два источника затрат без устранения дублей/);
+  assert.match(bundled, /не подменяй отсутствие данных нулём/);
+  assert.ok(!prompt.includes('SYNTHETIC_OZON_START'));
+});
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker, popup, attachment port and content delivery watcher; simulated browser and provider; not installed live acceptance' },null,2));
