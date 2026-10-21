@@ -156,7 +156,17 @@ function localRef(
         .slice(2)
         .split("/")
         .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
-        .reduce<unknown>((at, key) => asObject(at)[key], root);
+        .reduce<unknown>((at, key) => {
+          if (Array.isArray(at)) {
+            // JSON Pointer array elements use canonical zero-based indices.
+            if (!/^(?:0|[1-9][0-9]*)$/u.test(key)) return undefined;
+            const index = Number(key);
+            return Number.isSafeInteger(index) ? at[index] : undefined;
+          }
+          const object = asObject(at);
+          // Never resolve through Object.prototype (e.g. __proto__).
+          return Object.hasOwn(object, key) ? object[key] : undefined;
+        }, root);
       resolved =
         target === undefined
           ? { $unresolvedRef: ref }

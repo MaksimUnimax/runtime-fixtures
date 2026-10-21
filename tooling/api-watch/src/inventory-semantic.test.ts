@@ -259,6 +259,47 @@ describe("local references respect schema position and dialect", () => {
     expect(state(make("A"), make("B"))).toBe("CHANGED");
   });
 
+  it.each(["3.0.3", "3.1.0"] as const)(
+    "resolves a JSON Pointer into an allOf schema-array element for OpenAPI %s",
+    (version) => {
+      const make = (type: string) =>
+        inventory({}, "request", {
+          openapi: version,
+          components: {
+            schemas: {
+              Payload: { $ref: "#/components/schemas/Container/allOf/0" },
+              Container: { allOf: [{ type }, { type: "boolean" }] },
+            },
+          },
+        });
+      expect(state(make("string"), make("integer"))).toBe("CHANGED");
+    },
+  );
+
+  it("resolves a JSON Pointer into a prefixItems array element without shadowing siblings", () => {
+    const make = (first: string, second: string) =>
+      inventory({}, "request", {
+        openapi: "3.1.0",
+        components: {
+          schemas: {
+            Payload: {
+              $ref: "#/components/schemas/Container/prefixItems/1",
+            },
+            Container: {
+              type: "array",
+              prefixItems: [{ type: first }, { type: second }],
+            },
+          },
+        },
+      });
+    expect(state(make("string", "boolean"), make("integer", "boolean"))).toBe(
+      "UNCHANGED",
+    );
+    expect(state(make("string", "boolean"), make("string", "number"))).toBe(
+      "CHANGED",
+    );
+  });
+
   it("does not interpret OpenAPI3.1 non-schema Reference Object siblings as constraints", () => {
     const make = (required: boolean) =>
       inventory({}, "request", {
