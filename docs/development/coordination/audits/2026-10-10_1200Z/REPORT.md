@@ -1,3 +1,47 @@
+# Продолжение того же аудита — checkpoint 2026-10-21T10:52:32.322Z
+
+Единственный Controller продолжает исходный аудит от51267e23c8950b81925d056f636f095705b9276c. Все12OPEN, PLAN/WIP, история и принятые результаты сохранены целиком ниже. Свежий ref совпал; последний автор MaksimUnimax10:39:28. Easyscript выбран штатным list_devices; list_sessions: No active sessions (не доказательство отсутствия всех host processes). Метаданные own CONTROLLER.lock/coordination.lock без изменения; перед собственными защищёнными записями требуется реальный nonblocking lock. Чужой source/WIP не изменён, новые helpers/CI/tests/review/измерения не запускались. Запрещённые PRIORITY/preflight/ROLE reads и protection GET не повторяются.
+
+A: existing own comment6307715843 обновлён10:51:46 с полным readback, authorMaksimUnimax, old body сохранён. Убрана ошибочная организационная зависимость решения Draft→Ready от административного protection GET;403 и эквивалентный запрет сохраняются, dot отозвал screenshot. Требуется disposition существующего A: readiness unchangeded или конкретный changed-base риск/точный предмет недостающего полномочия. A собственный receipt пока last09:38:51. R16PASS_SOURCE_SCOPED/C narrowSUFFICIENT/native5/13 сохранены; новогоR17/review/CI/mergeразрешения нет. Currentmain уже7d9, старые metadata base73aa/testmergefa9 не доказывают currentmerge-tree. Доставка/потребление нового disposition ещё проверяются, результат не объявлен.
+
+B03: лично прочитаны original PR-trigger Server39585533599 SUCCESS(updated10:46:51), Extension39585533615 SUCCESS(updated10:46:02), Docs39585533608 SUCCESS, все exact0440aef70e774452546109ba869b46f5ed1d553f. PR252 MERGED10:48:09, merge7d9ce2966b914ba08cc37d3f64e787052e501483; currentmainref7d9. Существующий B уже сохранил B03_PR252_EXACT0440_PROTECTED_MAIN7D9_POSTMERGE_CI_STARTED_20261021, readback10:50:29.056970, SHA875af45283b11bd8d0495a8d2915135add463352cd7925db81c15c5d8b0da113. Postmerge original5 запущены самим событием: Docs39587244735/Coord39587244917SUCCESS; Server39587244766/I139587244737/Extension39587244848 выполняются на текущем read. Старые9581OpenAPI/10abSTATIC71/ABORT153 и installed/two-instance/preACK остатки не закрыты; первичные логи/артефакт сохранены.
+
+C: публикация6311693962 ужеupdated10:38:34, exact2c807. Помимо принятогоWB13/309 появились собственные source-only authority/snapshot/full-report исходы: in-memoryAUTHORITY_ACCEPTED,13 временныхsnapshotфайлов с readback, итогPARTIAL15rows (WB13/Ozon2), productBaseline NOT_RUN; InMemory requests не сохранены в realintake, notifier отсутствует. Это не DB/TG/installedдоставка. До новой адресной передачи проверяется существующая работа C и разрешённые S2/TG3-TG4 документы. 512MiB allocation по прямомуread всё ещёOPEN512, новоеизмерение/очистка/закрытие не выполнены. Legacy запрос/реальное получение и причина ожидания ещё проверяются. Tester сохраняет sole scope и действующее10:01 разрешение; его новые действия не перехватываются.
+
+Первичный локальный path error сохранён до исправления (не отказ доступа, причина установлена: ошибочно выбран родительский каталог):
+```json
+{
+  "utc": "2026-10-21T10:52:04.416Z",
+  "tool": "mcp__codex_apps__remote_desktop_commander_read_file",
+  "args": {
+    "deviceId": "9dab7ad2-9d63-43a3-b106-a5840d79ccc1",
+    "path": "/root/octoport-control/logs/B/B03_GET_TRANSFER_ERRORS_MAIN2731_20261021/../IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md",
+    "offset": 0,
+    "length": 1
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: ENOENT: no such file or directory, stat '/root/octoport-control/logs/B/IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md'"
+      },
+      {
+        "type": "text",
+        "text": "\n[executed on device: Easyscript (9dab7ad2-9d63-43a3-b106-a5840d79ccc1)]"
+      }
+    ],
+    "structuredContent": {
+      "error_code": "INVALID_ARGUMENT"
+    },
+    "isError": true
+  },
+  "call_id": "UNKNOWN"
+}
+```
+Точный правильный уже известный существующий документ: /root/octoport-control/logs/B/B06_SIX_DRAFT_MAIN3F_20261019/IDNA_CROSS_AUTH_POLICY_DECISION_INPUT_20261019.md. Он будет прочитан штатно как исправление пути, без DB/credentials/новой авторизации; ошибочный путь не повторяется.
+
+---
+
 # Последний проверенный итог продолжения — 2026-10-21T10:38:13.084Z
 
 **Тот же единственный Контроллер. Аудит не завершён: audit_complete=false, все 12 OPEN.** Сохраняются весь исходный аудит, PLAN/WIP, закрытые узкие результаты и полная история ниже. Последний собственный REPORT b39978f9117a9cc38ff19c89f7f4f385dbeaa384, автор MaksimUnimax10:28:34UTC, parent770576ea, толькоREPORT/blob12396139bc1a19b60325cb409efc5e9b1117df21, полный readback10:28:36.381 exact. Перед новой записью проверяются freshref и версия; чужие source/rolefiles/профили/правила не меняются.
