@@ -50,7 +50,7 @@ export function registerCredentialTransferRoutes(
       request.extensionPrincipal = result.value;
     },
   };
-  const handle = async (fn: () => Promise<unknown>) => {
+  const handle = async <T>(fn: () => Promise<T>): Promise<T> => {
     try {
       return await fn();
     } catch (error) {
@@ -108,10 +108,12 @@ export function registerCredentialTransferRoutes(
         response: {
           200: TransferRequestV1Schema.array(),
           401: ApiErrorEnvelopeV1Schema,
+          409: ApiErrorEnvelopeV1Schema,
+          410: ApiErrorEnvelopeV1Schema,
         },
       },
     },
-    async (request) => service.listForSource(principal(request)),
+    async (request) => handle(() => service.listForSource(principal(request))),
   );
   app.get(
     "/v1/credential-transfers/:requestId",
@@ -122,12 +124,16 @@ export function registerCredentialTransferRoutes(
           200: TransferRequestV1Schema,
           401: ApiErrorEnvelopeV1Schema,
           404: ApiErrorEnvelopeV1Schema,
+          409: ApiErrorEnvelopeV1Schema,
+          410: ApiErrorEnvelopeV1Schema,
         },
       },
     },
     async (request) => {
       const { requestId } = request.params as { requestId: string };
-      const value = await service.read(principal(request), requestId);
+      const value = await handle(() =>
+        service.read(principal(request), requestId),
+      );
       if (!value)
         throw new ControlledError(
           "TRANSFER_ACCOUNT_MISMATCH",
