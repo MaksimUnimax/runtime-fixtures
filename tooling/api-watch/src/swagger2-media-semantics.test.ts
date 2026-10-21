@@ -203,3 +203,65 @@ describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () 
     );
   });
 });
+
+describe("Swagger 2.0 invalid MIME declarations fail closed", () => {
+  it.each([
+    ["root consumes string", "rootConsumes", "text/plain", "body"],
+    ["root produces string", "rootProduces", "text/plain", "body"],
+    ["operation consumes string", "operationConsumes", "text/plain", "body"],
+    ["operation produces null", "operationProduces", null, "body"],
+    [
+      "root consumes mixed member types",
+      "rootConsumes",
+      ["application/json", 3],
+      "body",
+    ],
+    [
+      "operation produces blank media value",
+      "operationProduces",
+      ["   "],
+      "body",
+    ],
+    [
+      "root consumes malformed on a bodyless request",
+      "rootConsumes",
+      "text/plain",
+      "none",
+    ],
+  ] as const)(
+    "rejects %s rather than silently treating it as undeclared",
+    (_name, field, value, payload) => {
+      const malformed = { [field]: value, payload } as unknown as MediaCase;
+      expect(() => inventory(malformed)).toThrow(
+        "APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID",
+      );
+    },
+  );
+
+  it("does not let a valid operation override conceal a malformed root declaration", () => {
+    const malformed = {
+      rootConsumes: "text/plain",
+      operationConsumes: ["application/json"],
+    } as unknown as MediaCase;
+    expect(() => inventory(malformed)).toThrow(
+      "APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID",
+    );
+  });
+
+  it("rejects malformed root consumes even when no operations are present", () => {
+    const invalidRoot = {
+      swagger: "2.0",
+      info: { title: "empty", version: "1" },
+      paths: {},
+      consumes: "text/plain",
+    };
+    expect(() =>
+      buildCompleteOperationInventory({
+        sourceFamily: "OZON_SELLER",
+        snapshotSha256: "a".repeat(64),
+        filename: "invalid-root.json",
+        bytes: new TextEncoder().encode(JSON.stringify(invalidRoot)),
+      }),
+    ).toThrow("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
+  });
+});

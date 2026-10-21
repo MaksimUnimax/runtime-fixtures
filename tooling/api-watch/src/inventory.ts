@@ -350,6 +350,21 @@ function parametersFingerprint(
   return fingerprint(projected);
 }
 
+// Fail closed on malformed Swagger 2.0 media declarations rather than
+// silently treating a string or mixed-type list as an absent MIME contract.
+function checkedSwagger2MediaList(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (item): item is string =>
+        typeof item === "string" && item.trim().length > 0,
+    )
+  )
+    throw new Error("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
+  return stringList(value);
+}
+
 // Swagger 2.0 operation MIME declarations override root declarations, and
 // an explicit [] clears the inherited set. Order and duplicates are inert.
 function swagger2MediaTypes(
@@ -358,9 +373,9 @@ function swagger2MediaTypes(
   field: "consumes" | "produces",
 ): string[] {
   if (root.swagger !== "2.0") return [];
-  return stringList(
-    operation[field] === undefined ? root[field] : operation[field],
-  );
+  const inherited = checkedSwagger2MediaList(root[field]);
+  const override = checkedSwagger2MediaList(operation[field]);
+  return operation[field] === undefined ? inherited : override;
 }
 
 function requestFingerprint(
@@ -385,10 +400,10 @@ function requestFingerprint(
     parameters.some(
       (parameter) => parameter.in === "body" || parameter.in === "formData",
     );
-  const media = hasPayload
-    ? swagger2MediaTypes(operation, root, "consumes")
-    : [];
-  return media.length
+  // Validate the declaration even when this operation has no body, then
+  // leave the no-body request fingerprint unchanged.
+  const media = swagger2MediaTypes(operation, root, "consumes");
+  return hasPayload && media.length
     ? fingerprint({ legacyRequestSha256: legacy, consumes: media }, "literal")
     : legacy;
 }
@@ -608,6 +623,11 @@ export function buildCompleteOperationInventory(input: {
   filename: string;
 }): OperationInventory {
   const document = parseSwaggerDocument(input.bytes, input.filename);
+  // Validate root MIME declarations even for an empty operation catalog.
+  if (document.root.swagger === "2.0") {
+    checkedSwagger2MediaList(document.root.consumes);
+    checkedSwagger2MediaList(document.root.produces);
+  }
   const paths = asObject(document.root.paths);
   const operations: OperationInventoryItem[] = [];
   for (const path of Object.keys(paths).sort()) {
