@@ -91,4 +91,73 @@ describe("C03 official-source diagnostic privacy", () => {
     if (result.kind !== "INVALID_OFFICIAL_SOURCE_RESPONSE") return;
     expect(result.blockerReason).toBe("SOURCE_SERVER_IDENTITY_MISMATCH");
   });
+
+  const swagger2 = (identity: Record<string, unknown>) => ({
+    swagger: "2.0",
+    info: { title: "Seller API", version: "1" },
+    paths: {
+      "/items": {
+        get: { responses: { "200": { description: "ok" } } },
+      },
+    },
+    ...identity,
+  });
+
+  it.each([
+    [
+      "explicit HTTPS root",
+      { host: "api-seller.ozon.ru", schemes: ["https"], basePath: "/" },
+      "https://api-seller.ozon.ru",
+    ],
+    [
+      "implicit HTTPS from the official document",
+      { host: "api-seller.ozon.ru" },
+      "https://api-seller.ozon.ru",
+    ],
+    [
+      "explicit matching API base path",
+      { host: "api-seller.ozon.ru", schemes: ["https"], basePath: "/v2" },
+      "https://api-seller.ozon.ru/v2",
+    ],
+  ] as const)(
+    "recognizes the Swagger 2.0 server identity from %s",
+    async (_name, fields, requiredServerIdentity) => {
+      const result = await acquireSynthetic(
+        entry.officialUrl!,
+        JSON.stringify(swagger2(fields)),
+        { requiredServerIdentity },
+      );
+      expect(result.kind).toBe("ACQUIRED_OFFICIAL_SOURCE_CANDIDATE");
+    },
+  );
+
+  it.each([
+    ["different API host", { host: "other.example", schemes: ["https"] }],
+    ["insecure HTTP only", { host: "api-seller.ozon.ru", schemes: ["http"] }],
+    [
+      "different API base path",
+      { host: "api-seller.ozon.ru", schemes: ["https"], basePath: "/v2" },
+    ],
+    ["missing host defaults to the documentation host", { schemes: ["https"] }],
+    [
+      "OpenAPI 3 servers cannot replace a Swagger 2 host",
+      {
+        host: "other.example",
+        schemes: ["https"],
+        servers: [{ url: "https://api-seller.ozon.ru" }],
+      },
+    ],
+  ] as const)(
+    "rejects Swagger 2.0 %s against the approved server identity",
+    async (_name, fields) => {
+      const result = await acquireSynthetic(
+        entry.officialUrl!,
+        JSON.stringify(swagger2(fields)),
+        { requiredServerIdentity: "https://api-seller.ozon.ru" },
+      );
+      expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+      if (result.kind !== "INVALID_OFFICIAL_SOURCE_RESPONSE") return;
+      expect(result.blockerReason).toBe("SOURCE_SERVER_IDENTITY_MISMATCH");
+    },
+  );
 });

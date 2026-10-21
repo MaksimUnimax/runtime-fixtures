@@ -64,6 +64,66 @@ function safeOfficialValidationReason(error: unknown): string {
     : "Official source document validation failed.";
 }
 
+function matchesRequiredServerIdentity(
+  root: Record<string, unknown>,
+  requiredServerIdentity: string,
+  documentUrl: string,
+): boolean {
+  if (root.swagger !== "2.0") {
+    // OpenAPI 3.x has a servers array. Keep its original exact-URL rule.
+    const servers = Array.isArray(root.servers)
+      ? root.servers
+          .filter(
+            (server): server is Record<string, unknown> =>
+              Boolean(server) && typeof server === "object",
+          )
+          .map((server) => server.url)
+          .filter((url): url is string => typeof url === "string")
+      : [];
+    return servers.includes(requiredServerIdentity);
+  }
+
+  // Swagger 2.0 has host, basePath and schemes, not an OpenAPI 3 servers
+  // array. Reject any spoofed servers extension or malformed authority.
+  try {
+    const required = new URL(requiredServerIdentity);
+    const document = new URL(documentUrl);
+    if (
+      required.username ||
+      required.password ||
+      required.search ||
+      required.hash
+    )
+      return false;
+    const host = root.host === undefined ? document.host : root.host;
+    if (typeof host !== "string" || !host || /[/?#@\\]/u.test(host))
+      return false;
+    const authority = new URL(`${required.protocol}//${host}/`);
+    if (
+      authority.host !== required.host ||
+      authority.username ||
+      authority.password ||
+      authority.search ||
+      authority.hash ||
+      authority.pathname !== "/"
+    )
+      return false;
+    const basePath = root.basePath === undefined ? "/" : root.basePath;
+    if (
+      typeof basePath !== "string" ||
+      !basePath.startsWith("/") ||
+      basePath !== required.pathname
+    )
+      return false;
+    const scheme = required.protocol.slice(0, -1);
+    if (root.schemes === undefined)
+      return document.protocol === required.protocol;
+    return Array.isArray(root.schemes) && root.schemes.includes(scheme);
+  } catch {
+    return false;
+  }
+}
+
 const HTTP_MONTH_INDEX = Object.freeze({
   Jan: 0,
   Feb: 1,
@@ -793,19 +853,15 @@ export async function acquireOfficialSource(input: {
         `official${extension}`,
         Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
       );
-      if (entry.requiredServerIdentity) {
-        const servers = Array.isArray(validation.document.root.servers)
-          ? validation.document.root.servers
-              .filter(
-                (server): server is Record<string, unknown> =>
-                  Boolean(server) && typeof server === "object",
-              )
-              .map((server) => server.url)
-              .filter((url): url is string => typeof url === "string")
-          : [];
-        if (!servers.some((server) => server === entry.requiredServerIdentity))
-          throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
-      }
+      if (
+        entry.requiredServerIdentity &&
+        !matchesRequiredServerIdentity(
+          validation.document.root,
+          entry.requiredServerIdentity,
+          currentUrl,
+        )
+      )
+        throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
       if (entry.titlePattern) {
         const info = validation.document.root.info;
         const title =
