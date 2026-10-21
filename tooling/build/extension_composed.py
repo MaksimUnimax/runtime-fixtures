@@ -132,13 +132,30 @@ def read_store_authority_snapshot(path):
     # This only establishes internal bytes/hash identity, not genuine authority
     # issuer acceptance, an Ed25519 signing permission or Store approval.
     no_follow = getattr(os, "O_NOFOLLOW", 0)
-    if not no_follow:
+    directory_only = getattr(os, "O_DIRECTORY", 0)
+    if not no_follow or not directory_only:
         raise AssertionError("Secure store authority file opening is unavailable")
     flags = os.O_RDONLY | no_follow | getattr(os, "O_NONBLOCK", 0)
     flags |= getattr(os, "O_CLOEXEC", 0)
     descriptor = None
+    parent_descriptor = None
     try:
-        descriptor = os.open(path, flags)
+        # Do not resolve symlinks. Open every parent by directory fd, so a
+        # symlink in an ancestor cannot redirect the final authority open.
+        absolute = Path(os.path.abspath(os.fspath(path)))
+        parts = absolute.parts
+        if len(parts) < 2:
+            raise AssertionError("Invalid store release authority file")
+        parent_flags = os.O_RDONLY | directory_only | no_follow
+        parent_flags |= getattr(os, "O_CLOEXEC", 0)
+        parent_descriptor = os.open(absolute.anchor, parent_flags)
+        for segment in parts[1:-1]:
+            next_descriptor = os.open(
+                segment, parent_flags, dir_fd=parent_descriptor
+            )
+            os.close(parent_descriptor)
+            parent_descriptor = next_descriptor
+        descriptor = os.open(parts[-1], flags, dir_fd=parent_descriptor)
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
             raise AssertionError("Store authority must be a regular file")
@@ -181,6 +198,8 @@ def read_store_authority_snapshot(path):
     finally:
         if descriptor is not None:
             os.close(descriptor)
+        if parent_descriptor is not None:
+            os.close(parent_descriptor)
 
 
 def store_config(authority_path, recipe):

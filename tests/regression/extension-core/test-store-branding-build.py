@@ -222,6 +222,55 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
             self.assertEqual(changed, [True], "Coarse-stat regression must really change bytes")
             self.assertEqual(file.read_bytes(), replacement)
 
+    def test_store_authority_symlinked_parent_directory_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-parent-") as temp:
+            root = Path(temp)
+            real = root / "real"
+            real.mkdir()
+            file = real / "candidate.json"
+            file.write_bytes(self.serialized("https://api-a.example.test"))
+            linked_parent = root / "linked-parent"
+            linked_parent.symlink_to(real, target_is_directory=True)
+
+            config, _ = composed.store_config(file, {"version": "0.2.37"})
+            self.assertEqual(config["controlApiOrigin"], "https://api-a.example.test")
+            with self.assertRaisesRegex(AssertionError, "Invalid store release authority file"):
+                composed.store_config(linked_parent / "candidate.json", {"version": "0.2.37"})
+
+    def test_store_authority_ancestor_symlink_and_parent_swap_fail_closed(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-ancestor-") as temp:
+            root = Path(temp)
+            real = root / "real"
+            (real / "nested").mkdir(parents=True)
+            (real / "nested" / "candidate.json").write_bytes(
+                self.serialized("https://api-a.example.test")
+            )
+            alias = root / "ancestor-link"
+            alias.symlink_to(real, target_is_directory=True)
+            with self.assertRaisesRegex(AssertionError, "Invalid store release authority file"):
+                composed.store_config(alias / "nested" / "candidate.json", {"version": "0.2.37"})
+
+            active = root / "candidate-parent"
+            active.mkdir()
+            (active / "candidate.json").write_bytes(self.serialized("https://api-a.example.test"))
+            alternative = root / "alternative"
+            alternative.mkdir()
+            (alternative / "candidate.json").write_bytes(self.serialized("https://api-b.example.test"))
+            actual_open = os.open
+            swapped = []
+
+            def swap_parent_before_open(path, flags, *args, **kwargs):
+                if not swapped and os.fspath(path) == active.name and kwargs.get("dir_fd") is not None:
+                    active.rename(root / "old-parent")
+                    active.symlink_to(alternative, target_is_directory=True)
+                    swapped.append(True)
+                return actual_open(path, flags, *args, **kwargs)
+
+            with patch.object(composed.os, "open", swap_parent_before_open):
+                with self.assertRaisesRegex(AssertionError, "Invalid store release authority file"):
+                    composed.store_config(active / "candidate.json", {"version": "0.2.37"})
+            self.assertEqual(swapped, [True], "Parent directory swap must occur")
+
     def test_store_authority_open_swap_to_symlink_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-link-") as temp:
             root = Path(temp)
@@ -233,7 +282,13 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
             swapped = []
 
             def replace_path_before_open(path, flags, *args, **kwargs):
-                if Path(path) == file and not swapped:
+                if (
+                    not swapped
+                    and (
+                        Path(path) == file
+                        or (os.fspath(path) == file.name and kwargs.get("dir_fd") is not None)
+                    )
+                ):
                     file.unlink()
                     file.symlink_to(alternate.name)
                     swapped.append(True)
