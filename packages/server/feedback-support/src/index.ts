@@ -173,60 +173,58 @@ const secretPatterns: readonly [RegExp, string][] = [
 
 // Decode quoted JSON keys before classifying credential fields. Unicode
 // escaped keys like "access\u005ftoken" are equivalent to "access_token".
-const quotedJsonField =
-  /("(?:\\.|[^"\\\r\n])*")(\s*:\s*")(?:(?:\\.)|[^"\\\r\n])*(?=")/gu;
-// Diagnostics may contain JSON scalar values or JS-style single-quoted maps.
+// Match quoted keys and values independently of quote style, including
+// truncated values at end of input or line. Preserve closing value quotes.
+const quotedStringField =
+  /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))(?:\\.|\\(?=[\r\n]|$)|(?!\4)[^\\\r\n])*(?=\4|[\r\n]|$)/gu;
+// Numeric/boolean/null diagnostics can also be truncated or pseudo-JSON.
 const quotedJsonScalarField =
-  /("(?:\\.|[^"\\\r\n])*")(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*[,}\]])/gu;
-const singleQuotedField =
-  /('(?:\\.|[^'\\\r\n])*')(\s*:\s*')(?:(?:\\.)|[^'\\\r\n])*(?=')/gu;
+  /("(?:\\.|[^"\\\r\n])*")(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
+const singleQuotedScalarField =
+  /('(?:\\.|[^'\\\r\n])*')(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
   /(?:password|passwd|secret|token|api[_-]?key|authorization)$/iu;
 
+function isSensitiveQuotedKey(encodedKey: string): boolean {
+  if (encodedKey.startsWith('"')) {
+    try {
+      const key: unknown = JSON.parse(encodedKey);
+      return typeof key !== "string" || sensitiveJsonKey.test(key);
+    } catch {
+      // Invalid JSON escaping obscures the key identity: fail closed.
+      return true;
+    }
+  }
+  const key = encodedKey.slice(1, -1);
+  // Single-quoted pseudo-JSON cannot reliably decode arbitrary escapes.
+  return key.includes("\\") || sensitiveJsonKey.test(key);
+}
+
 export function redactAccidentalSecrets(input: string): string {
-  const jsonRedacted = input.replace(
-    quotedJsonField,
-    (field, encodedKey: string, delimiter: string) => {
-      let key: unknown;
-      try {
-        key = JSON.parse(encodedKey);
-      } catch {
-        // An invalid JSON escape makes the key identity unknowable.
-        // Preserve its original spelling but never persist its value.
-        return encodedKey + delimiter + "[REDACTED_SECRET]";
-      }
-      return typeof key === "string" && sensitiveJsonKey.test(key)
+  const stringsRedacted = input.replace(
+    quotedStringField,
+    (field, encodedKey: string, _keyQuote: string, delimiter: string) =>
+      isSensitiveQuotedKey(encodedKey)
         ? encodedKey + delimiter + "[REDACTED_SECRET]"
-        : field;
-    },
+        : field,
   );
-  const scalarRedacted = jsonRedacted.replace(
+  const scalarsRedacted = stringsRedacted.replace(
     quotedJsonScalarField,
-    (field, encodedKey: string, delimiter: string) => {
-      let key: unknown;
-      try {
-        key = JSON.parse(encodedKey);
-      } catch {
-        return encodedKey + delimiter + '"[REDACTED_SECRET]"';
-      }
-      return typeof key === "string" && sensitiveJsonKey.test(key)
+    (field, encodedKey: string, delimiter: string) =>
+      isSensitiveQuotedKey(encodedKey)
         ? encodedKey + delimiter + '"[REDACTED_SECRET]"'
-        : field;
-    },
+        : field,
   );
-  const pseudoJsonRedacted = scalarRedacted.replace(
-    singleQuotedField,
-    (field, encodedKey: string, delimiter: string) => {
-      const key = encodedKey.slice(1, -1);
-      // Escaped pseudo-JSON keys have no unambiguous identity.
-      return key.includes("\\") || sensitiveJsonKey.test(key)
-        ? encodedKey + delimiter + "[REDACTED_SECRET]"
-        : field;
-    },
+  const pseudoScalarsRedacted = scalarsRedacted.replace(
+    singleQuotedScalarField,
+    (field, encodedKey: string, delimiter: string) =>
+      isSensitiveQuotedKey(encodedKey)
+        ? encodedKey + delimiter + "'[REDACTED_SECRET]'"
+        : field,
   );
   return secretPatterns.reduce(
     (value, [pattern, replacement]) => value.replace(pattern, replacement),
-    pseudoJsonRedacted,
+    pseudoScalarsRedacted,
   );
 }
 
