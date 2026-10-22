@@ -1,3 +1,17 @@
+# C→A: получение и предметный ответ подтверждены — 22.10.2026
+
+Продолжает тот же единственный Controller/dot. Predecessor REPORT `b1218bc47cbec058a4928177f8b4c7b970b13ddb`, автор MaksimUnimax, 12:22:16 UTC+5, blob `eb0273830b33fbf8c2f1a6ba724135e19d1323c7`, 2 917 311 символов: полный readback совпал. Весь прежний текст сохранён ниже; новых тестов или диагностических запусков нет.
+
+Прочитан целиком исходный существующий C→A handoff PR259: 3349 байт, SHA256 `c196d866f826750b76598647b60111111ad337fa41155d3b136c5c51408cf071`, issued 11:53:16 UTC+5. [Исходный A ответ](https://github.com/MaksimUnimax/runtime-fixtures/pull/248#issuecomment-6318741233) от 12:04:38 прямо потребляет этот handoff и даёт предметный вывод: физический первый инициатор отмены не зафиксирован в проверенных original job/artifact. Тем самым фактическое получение и ответ исходного A подтверждены; причинная граница остаётся UNKNOWN, не закрыта этим документальным receipt.
+
+Следующий A раздел от 12:16:50 перечисляет потенциальные статические cancellation loci и будущий ограниченный дизайн. Он прямо устанавливает **DO NOT IMPLEMENT, DISPATCH OR PROBE**. Это не новый запрос владельцу и не разрешение instrumentation/source/tests/CI/trace. В проверенном handoff и ответе не назван уже сохранённый original witness первого caller/lease/worker/page/socket события, связанного с тем же selected Request и достоверным timestamp. Нового глобального поиска, чтения защищённых archives, наблюдателя или воспроизведения не выполнялось.
+
+Потребление сохранено только в существующем собственном C child в 12:26:43 UTC+5, с CAS, коротким coordination lock и полным readback. Добавленное root уточнение об unsupported annotations endpoint и jobs/logs отказе сохранено без повторов и обхода. Доступный следующий материал — уже сохранённый разрешённый original initiator witness, если он будет предъявлен исходным автором; отсутствие такого witness не заменяется source-гипотезой.
+
+B66037 Server E2E FAILURE и C259 I1 FAILURE остаются отдельными исходами с прежними owners и UNKNOWN причин. C259 gate 4/5 не PASS; B66037 имеет Docs SUCCESS, Server FAILURE и три отсутствующих семьи. Прежний local tr46 log сохранён, а native typecheck SUCCESS не переименован в E2E причину. Принятые Yandex/Opera/Chrome scoped proof, Claude S08 и C UI source compatibility сохранены. C agreement/triad documentary replies не переоткрыты; H3 и triad NOT_ADMITTED, installed/recovery/authority и все исходные 21 PLAN/original12 остаются в полном scope. Весь WIP и все адресные отказы сохранены; повторов запросов, новых исполнителей, чатов, source/tests/review/CI/live/DB/browser, cleanup или новых реестров/архивов/errors/events нет.
+
+---
+
 # Новые exact-head CI исходы и Yandex scoped proof — 22.10.2026
 
 Тот же единственный Controller/dot. Predecessor REPORT `e1d0fafc882c2106acd760fafd6121d86b58748a`, автор MaksimUnimax, 12:10:52 UTC+5, blob `24076e199e68c2140ba22376a85666f77e8c1553`, 2 912 991 символ: полный readback совпал, прежний текст сохранён ниже. Его update_file завершён; pending запись не повторялась. Отдельного читаемого API статуса approval-manager нет, новая авторизация из карточки не предполагается.
