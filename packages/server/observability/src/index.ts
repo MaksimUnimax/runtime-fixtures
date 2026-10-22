@@ -34,15 +34,22 @@ export const SensitiveLogPaths = [
   "req.query",
   "req.headers",
   "req.url",
+  // Express-style request aliases can also include credentials in URL
+  // query strings or route parameters.
+  "req.originalUrl",
+  "req.params",
   "request.body",
   "request.query",
   "request.headers",
   "request.url",
+  "request.originalUrl",
+  "request.params",
   // Raw/framework request wrappers can contain nested cookies, credentials,
   // query strings, and unrecognized future fields. Censor each as a whole.
   "req.raw",
   "request.raw",
   "ctx.request",
+  "ctx.req",
   "deviceCode",
   "userCode",
   "start_secret_ciphertext",

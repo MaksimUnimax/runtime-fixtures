@@ -23,6 +23,11 @@ describe("SensitiveLogPaths", () => {
         "req.raw",
         "request.raw",
         "ctx.request",
+        "ctx.req",
+        "req.originalUrl",
+        "request.originalUrl",
+        "req.params",
+        "request.params",
       ]),
     );
   });
@@ -70,6 +75,23 @@ describe("SensitiveLogPaths", () => {
       marker: "SYNTHETIC_REQ_URL_MARKER",
     },
     {
+      label: "req.originalUrl",
+      record: {
+        req: {
+          method: "GET",
+          originalUrl: "/test?code=SYNTHETIC_REQ_ORIGINAL_URL_R5",
+        },
+      },
+      marker: "SYNTHETIC_REQ_ORIGINAL_URL_R5",
+    },
+    {
+      label: "req.params",
+      record: {
+        req: { method: "GET", params: { code: "SYNTHETIC_REQ_PARAMS_R5" } },
+      },
+      marker: "SYNTHETIC_REQ_PARAMS_R5",
+    },
+    {
       label: "req.raw.headers",
       record: {
         req: {
@@ -90,6 +112,26 @@ describe("SensitiveLogPaths", () => {
       marker: "SYNTHETIC_RAW_URL_CODE",
     },
     {
+      label: "request.originalUrl",
+      record: {
+        request: {
+          method: "GET",
+          originalUrl: "/test?code=SYNTHETIC_REQUEST_ORIGINAL_URL_R5",
+        },
+      },
+      marker: "SYNTHETIC_REQUEST_ORIGINAL_URL_R5",
+    },
+    {
+      label: "request.params",
+      record: {
+        request: {
+          method: "GET",
+          params: { code: "SYNTHETIC_REQUEST_PARAMS_R5" },
+        },
+      },
+      marker: "SYNTHETIC_REQUEST_PARAMS_R5",
+    },
+    {
       label: "request.raw.headers",
       record: {
         request: {
@@ -100,6 +142,19 @@ describe("SensitiveLogPaths", () => {
         },
       },
       marker: "SYNTHETIC_REQUEST_RAW_HEADER",
+    },
+    {
+      label: "ctx.req.headers",
+      record: {
+        req: { method: "GET" },
+        ctx: {
+          req: {
+            method: "GET",
+            headers: { authorization: "SYNTHETIC_CTX_REQ_HEADER_R5" },
+          },
+        },
+      },
+      marker: "SYNTHETIC_CTX_REQ_HEADER_R5",
     },
     {
       label: "ctx.request.headers",
