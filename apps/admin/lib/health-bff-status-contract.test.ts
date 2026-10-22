@@ -62,7 +62,12 @@ describe("Health status contract through same-origin BFF and admin client", () =
   it.each([
     ["unauthenticated", listPath, 401, "ADMIN_UNAUTHORIZED"],
     ["missing health.read", listPath, 403, "ADMIN_FORBIDDEN"],
-    ["actual missing target", detailPath, 404, "ADMIN_RESOURCE_NOT_FOUND"],
+    [
+      "synthetic upstream target-missing 404",
+      detailPath,
+      404,
+      "ADMIN_RESOURCE_NOT_FOUND",
+    ],
     ["absent monitoring reader", listPath, 503, "SERVICE_UNAVAILABLE"],
   ])(
     "preserves %s with original HTTP status and typed code",
@@ -116,7 +121,7 @@ describe("Health status contract through same-origin BFF and admin client", () =
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
-  it("never sends a supplied browser bearer credential upstream", async () => {
+  it("forwards only a synthetic session cookie and strips caller bearer", async () => {
     const { upstreamCalls } = installTwoStageRead(
       new Response(JSON.stringify({ items: [], nextCursor: null }), {
         status: 200,
@@ -124,11 +129,16 @@ describe("Health status contract through same-origin BFF and admin client", () =
       }),
     );
     await controlPlane(listPath, {
-      headers: { Authorization: "Bearer SYNTHETIC_PRIVATE_TOKEN" },
+      headers: {
+        Authorization: "Bearer SYNTHETIC_PRIVATE_TOKEN",
+        Cookie: "pcp_admin_csrf=SYNTHETIC_SESSION_COOKIE",
+        "x-forwarded-for": "SYNTHETIC_SPOOFED_PEER",
+      },
     });
     const sent = new Headers(upstreamCalls[0]?.options?.headers);
     expect(sent.get("authorization")).toBeNull();
-    expect(sent.get("cookie")).toBeNull();
+    expect(sent.get("cookie")).toBe("pcp_admin_csrf=SYNTHETIC_SESSION_COOKIE");
+    expect(sent.get("x-forwarded-for")).toBeNull();
   });
 
   it("rejects an invalid target path before upstream lookup", async () => {
