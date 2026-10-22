@@ -1349,6 +1349,12 @@ OZON_API_V1 {
 
 Дополнение root о том же точном C local-source результате получено после серверной записи R3 и сверено: это уже прочитанный выше original C раздел, а не новая передача source ownership. Дублирующих реализации, review, теста либо запроса не выполнено. По прямой команде владельца новые человекочитаемые времена в этом продолжении приведены к UTC+5; исторические чужие записи и машинные ISO timestamps не переписаны.
 
+### TESTER B03 — PR257 source/consumer check
+
+PR257 head 48fcd1af9fb0635b42dd6a07a402032c2f76c0ee remains a SOURCE-only draft. Original Server CI39722497513 and Documentation CI39722497604 succeeded; three required CI families are not triggered. The Server job tested temporary merge3182ca18 of this head into e3ef, with api-databases43, health routes15 and E2E202 PASS. Local R4 NOT_PASS remains historical.
+
+Source tracing confirms that absent monitor configuration disables Health routes: Fastify404 is preserved by the BFF and becomes a generic UI error, without an explicit monitor-unavailable reason or domain UNKNOWN. This avoids product-DB fallback but leaves B03-01 availability presentation open. C local badbe renders returned contour data and does not cover this no-data path. B03-05 scoped maintenance, real SELECT-only authority, nonempty authorized target, installed acceptance and H3 mapping remain open. No live calls, source edits or new tests were performed.
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
