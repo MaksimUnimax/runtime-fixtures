@@ -4,6 +4,9 @@ import {
   extractProductRegistry,
 } from "./product-registry.js";
 import type { OperationInventory, ProductRegistryEntry } from "./types.js";
+import { buildCompleteOperationInventory } from "./inventory.js";
+import { diffInventories } from "./diff.js";
+import { classifyApiImpact } from "./impact.js";
 
 const family = "WILDBERRIES" as const;
 const sourcePath = "/api/v1/supplies/{ID}";
@@ -241,6 +244,158 @@ describe("WB explicit source-path placeholder correspondence", () => {
           inventory(declared),
         ),
       );
+    },
+  );
+});
+
+// The real inventory builder preserves literal paths. Its crosswalk consumer
+// must not merge different URLs or lose the corresponding semantic impact.
+function literalInventory(
+  routes: readonly string[],
+  sourceFamily: ProductRegistryEntry["sourceFamily"],
+  header = "X-Original",
+): OperationInventory {
+  return buildCompleteOperationInventory({
+    sourceFamily,
+    snapshotSha256: (header === "X-Original" ? "b" : "c").repeat(64),
+    filename: "literal-paths.json",
+    bytes: Buffer.from(
+      JSON.stringify({
+        openapi: "3.0.3",
+        info: { title: "literal paths", version: "1" },
+        components: {
+          securitySchemes: {
+            apiKey: { type: "apiKey", in: "header", name: header },
+          },
+        },
+        security: [{ apiKey: [] }],
+        paths: Object.fromEntries(
+          routes.map((route) => [
+            route,
+            { get: { responses: { "200": { description: "ok" } } } },
+          ]),
+        ),
+      }),
+    ),
+  });
+}
+
+describe("literal API path identity", () => {
+  for (const sourceFamily of [
+    "WILDBERRIES",
+    "OZON_SELLER",
+    "OZON_PERFORMANCE",
+  ] as const) {
+    for (const pair of [
+      ["/items", "/items/"],
+      ["/items/detail", "/items//detail"],
+    ]) {
+      it(`retains both actual ${sourceFamily} inventory paths ${pair.join(" and ")}`, () => {
+        const source = literalInventory(pair, sourceFamily);
+        expect(source.operations).toHaveLength(2);
+        const rows = crosswalk(
+          pair.map((route) =>
+            entry({
+              sourceFamily,
+              normalizedPath: route,
+              runtimeAlias: route,
+              providerMetadata: {},
+            }),
+          ),
+          source,
+        );
+        expect(rows).toHaveLength(2);
+        expect(new Set(rows.map((row) => row.crosswalkId)).size).toBe(2);
+        expect(rows.map((row) => row.sourceIdentity).sort()).toEqual(
+          source.operations.map((operation) => operation.identity).sort(),
+        );
+        expect(
+          rows.every((row) => row.crosswalkState === "MAPPED_ENABLED"),
+        ).toBe(true);
+      });
+      it(`does not map a different literal ${sourceFamily} URL ${pair[1]} to ${pair[0]}`, () => {
+        expectSeparate(
+          crosswalk(
+            [
+              entry({
+                sourceFamily,
+                normalizedPath: pair[0],
+                providerMetadata: {},
+              }),
+            ],
+            literalInventory([pair[1]!], sourceFamily),
+          ),
+        );
+      });
+    }
+    it(`retains the actual security-change impact for ${sourceFamily} /items/`, () => {
+      const base = literalInventory(["/items/"], sourceFamily);
+      const target = literalInventory(["/items/"], sourceFamily, "X-Changed");
+      const impact = classifyApiImpact(diffInventories({ base, target }));
+      expect(impact.blockingRiskCount).toBe(1);
+      const rows = buildProductCrosswalk({
+        reportId: "literal-impact",
+        inventory: target,
+        impact,
+        runtimeEntries: [
+          entry({
+            sourceFamily,
+            normalizedPath: "/items/",
+            providerMetadata: {},
+          }),
+        ],
+      }).rows;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        sourceIdentity: `${sourceFamily}:GET:/items/`,
+        crosswalkState: "MAPPED_ENABLED",
+        reviewState: "BLOCKING_RISK",
+        impactSeverity: "BLOCKING_RISK",
+      });
+    });
+  }
+
+  it.each([
+    [runtimePath + "/", sourcePath],
+    ["/api/v1//supplies/{supplyId}", sourcePath],
+    [runtimePath, sourcePath + "/"],
+    [runtimePath, "/api/v1//supplies/{ID}"],
+  ])(
+    "does not rename WB placeholders across different literal segments %s -> %s",
+    (runtime, declared) => {
+      expectSeparate(
+        crosswalk(
+          [
+            entry({
+              normalizedPath: runtime,
+              providerMetadata: { source_path: declared },
+            }),
+          ],
+          literalInventory([declared], family),
+        ),
+      );
+    },
+  );
+  it.each([
+    [runtimePath + "/", sourcePath + "/"],
+    ["/api/v1//supplies/{supplyId}", "/api/v1//supplies/{ID}"],
+  ])(
+    "keeps declared WB placeholder correspondence with identical literal segments %s -> %s",
+    (runtime, declared) => {
+      const rows = crosswalk(
+        [
+          entry({
+            normalizedPath: runtime,
+            providerMetadata: { source_path: declared },
+          }),
+        ],
+        literalInventory([declared], family),
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        sourceIdentity: `${family}:GET:${declared}`,
+        crosswalkState: "MAPPED_ENABLED",
+      });
     },
   );
 });

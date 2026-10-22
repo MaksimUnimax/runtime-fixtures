@@ -110,11 +110,10 @@ function findVariableInitializer(
 }
 
 function normalizePath(value: string): string {
-  const withSlash = value.startsWith("/") ? value : `/${value}`;
-  return (
-    withSlash.replace(/\/+/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") ||
-    "/"
-  );
+  // Match inventory.ts: empty segments and the final slash are part of the
+  // literal API path. Collapsing either can overwrite a distinct operation
+  // and disconnect its security/schema impact from the crosswalk row.
+  return value.startsWith("/") ? value : `/${value}`;
 }
 
 function entryFromObject(
