@@ -55,6 +55,8 @@ export default defineConfig({
   globalSetup: "./support/global-setup.ts",
   webServer: [
     {
+      name: "e2e-api",
+      stdout: "pipe",
       cwd: serverWorkspaceCwd,
       command:
         "pnpm db:migrate && pnpm --filter @product/api exec tsx ../../tests/e2e/server/support/api-harness.ts",
@@ -74,6 +76,8 @@ export default defineConfig({
       },
     },
     {
+      name: "e2e-portal",
+      stdout: "pipe",
       cwd: serverWorkspaceCwd,
       command: `pnpm --filter @product/portal exec next dev --hostname 127.0.0.1 --port ${e2ePortalPort}`,
       url: `http://127.0.0.1:${e2ePortalPort}/login`,
@@ -85,6 +89,8 @@ export default defineConfig({
       },
     },
     {
+      name: "e2e-admin",
+      stdout: "pipe",
       cwd: serverWorkspaceCwd,
       command: `pnpm --filter @product/admin exec next dev --hostname 127.0.0.1 --port ${e2eAdminPort}`,
       url: `http://127.0.0.1:${e2eAdminPort}/login`,

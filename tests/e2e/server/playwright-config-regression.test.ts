@@ -40,3 +40,17 @@ it("keeps the shipped Playwright migration command at the workspace root", () =>
   console.log("PLAYWRIGHT_DB_MIGRATE_SCRIPT_RESOLVES = YES");
   console.log("TEMPORARY_CWD_CORRECTION_REQUIRED = NO");
 });
+
+it("makes startup diagnostics attributable without loosening E2E readiness", () => {
+  expect(webServers).toHaveLength(3);
+  expect(webServers.map((server) => server.name)).toEqual([
+    "e2e-api",
+    "e2e-portal",
+    "e2e-admin",
+  ]);
+  expect(webServers.every((server) => server.stdout === "pipe")).toBe(true);
+  expect(webServers.every((server) => server.timeout === 60_000)).toBe(true);
+  expect(
+    webServers.every((server) => server.reuseExistingServer === false),
+  ).toBe(true);
+});
