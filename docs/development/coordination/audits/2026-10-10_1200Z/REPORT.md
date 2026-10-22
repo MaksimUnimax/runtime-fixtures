@@ -1,3 +1,27 @@
+# PR261 exact e96: пять native workflows и 13 jobs terminal SUCCESS — 22.10.2026
+
+Единственный Controller/dot продолжает тот же полный аудит. Predecessor `168259d5cd617c64055920a2fecf94f61d0fa172`, автор MaksimUnimax, 14:00:12 UTC+5, blob `f28d2fcb9092c97d3147416bca96328c30e8d7e2`: полный readback 2 939 768 символов совпал; весь прежний текст сохранён ниже. Его 4/5 snapshot теперь superseded только новым terminal исходом. Свежий prewrite 14:02:40 UTC+5 подтвердил прежние HEAD/status A81/B83/C73, свободные locks, protected main e3ef; собственных неизвестных операций нет.
+
+**Конкретный native gate PR261 завершён.** Exact `e96e2a6520a19368669408a7b173e2cf02fec075`, существующий branch `controller/ci-c04-pr261-exacte96-20261022`, push/attempt1, actor MaksimUnimax. Штатные run и jobs metadata подтверждены отдельно, без новых запусков:
+
+| Семейство | Original run | Terminal SUCCESS, UTC+5 |
+| --- | --- | --- |
+| Documentation | 39749675356 | 13:42:03 |
+| Coordination/release safety | 39749675462 | 13:42:25 |
+| Extension I1-C1 | 39749675344 | 13:46:35 |
+| Extension | 39749675336 | 13:53:57 |
+| Server | 39749675404 | 13:59:16 |
+
+Все **13/13 jobs completed SUCCESS**: Docs1, Coordination1, I1 3, Extension6, Server2. Последний Server job119726837551 завершил E2E и workflow; optional frozen-import step имеет SKIPPED, что не выдано за выполненный guard. Workflow job с названием installed local acceptance остаётся native CI fixture и не принят за установленный продукт владельца. Original pull_request Server39746487749/Docs39746487670 сохранены отдельно. Полный native five-family terminal gate на exact e96 закрыт; повторять tests/review/CI или приём Тестера не требуется.
+
+**Граница результата.** Свежий [PR261](https://github.com/MaksimUnimax/runtime-fixtures/pull/261) всё ещё OPEN/DRAFT/NOT MERGED, exact e96; protected main `e3ef8074de17d0c9c124bb91aee8671598579476`. Это один новый test-only source, а не B660+C258+C260 combined tree, installable triad, реальный monitor или installed B03. Следующий source/protection шаг принадлежит существующему C автору/разрешённому integrator: current-base/actual-Git independent acceptance и обычное protected source disposition; Controller source/merge не выполнял. Новые зелёные runs не объясняют original B660 first failed child или C259 first abort actor, не закрывают C03 timeout/original12.
+
+Реальное самостоятельное B потребление PR261 от 13:49:24 UTC+5 уже полностью прочитано; данный documentary receipt gap закрыт, повторного запроса нет. Независимый resource KEEP/OPEN128 и triad NOT_ADMITTED сохранены. R12 документальное дополнение в peer-handoff B/C остаётся конкретно DENIED с подтверждённым отсутствием записи; новых достаточных разрешений после отказа нет, повтора/переноса payload не было. Его содержание не подменено этой публикацией native CI metadata. Точная причина и проверка неизменных файлов сохранены в предыдущем разделе.
+
+Все 21 PLAN/original12 и прежние bounded SOURCE/pub fulfilled границы, история/WIP/принятые evidence сохранены. Full B03 residual остаётся: выбранная совместимая accepted source/package/runtime цепь, настоящий monitor-only read role и nonempty target, UI/installed Health, текущая triad/PG18+app rollback/window, authority/custody/H3 approved input и owner acceptance. B02/full AI и original R3 остаются отдельными. A adc8 Server/Coordination и оператор/очередь не закрыты C workflows. Все адресные PR238 equivalent payload/host09c/logs/annotations/resource/security и documentary отказ действуют. Никаких новых Controller source/tests/review/CI/live/DB/browser/helper/chat/cleanup/error-register/archive операций.
+
+---
+
 # PR261 реально потреблён B; новый CI push 4/5 terminal — 22.10.2026
 
 Тот же единственный Controller/dot. Predecessor REPORT `c47d9d1fd3434bf6376b9aa3b1f24eec64896b84`, автор MaksimUnimax, 13:52:21 UTC+5, blob `5674332016276c8ecf30215716ed1e27007885bb`: полный readback 2 935 822 символа совпал, весь текст сохранён ниже. Свежий prewrite 13:59:19 UTC+5: HEAD/status A81/B83/C73 прежние, locks свободны, никаких собственных операций с неизвестным исходом нет.
