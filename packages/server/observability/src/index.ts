@@ -38,6 +38,11 @@ export const SensitiveLogPaths = [
   "request.query",
   "request.headers",
   "request.url",
+  // Raw/framework request wrappers can contain nested cookies, credentials,
+  // query strings, and unrecognized future fields. Censor each as a whole.
+  "req.raw",
+  "request.raw",
+  "ctx.request",
   "deviceCode",
   "userCode",
   "start_secret_ciphertext",

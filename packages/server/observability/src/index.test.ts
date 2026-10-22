@@ -20,6 +20,9 @@ describe("SensitiveLogPaths", () => {
         "req.headers.authorization",
         "req.headers.cookie",
         'req.headers["set-cookie"]',
+        "req.raw",
+        "request.raw",
+        "ctx.request",
       ]),
     );
   });
@@ -65,6 +68,51 @@ describe("SensitiveLogPaths", () => {
         req: { method: "GET", url: "/v1/test?code=SYNTHETIC_REQ_URL_MARKER" },
       },
       marker: "SYNTHETIC_REQ_URL_MARKER",
+    },
+    {
+      label: "req.raw.headers",
+      record: {
+        req: {
+          method: "GET",
+          raw: { headers: { "x-private-token": "SYNTHETIC_RAW_HEADER_TOKEN" } },
+        },
+      },
+      marker: "SYNTHETIC_RAW_HEADER_TOKEN",
+    },
+    {
+      label: "req.raw.url",
+      record: {
+        req: {
+          method: "GET",
+          raw: { url: "/test?code=SYNTHETIC_RAW_URL_CODE" },
+        },
+      },
+      marker: "SYNTHETIC_RAW_URL_CODE",
+    },
+    {
+      label: "request.raw.headers",
+      record: {
+        request: {
+          method: "GET",
+          raw: {
+            headers: { "x-private-token": "SYNTHETIC_REQUEST_RAW_HEADER" },
+          },
+        },
+      },
+      marker: "SYNTHETIC_REQUEST_RAW_HEADER",
+    },
+    {
+      label: "ctx.request.headers",
+      record: {
+        req: { method: "GET" },
+        ctx: {
+          request: {
+            method: "GET",
+            headers: { "x-private-token": "SYNTHETIC_CTX_REQUEST_HEADER" },
+          },
+        },
+      },
+      marker: "SYNTHETIC_CTX_REQUEST_HEADER",
     },
     {
       label: "request.body",
