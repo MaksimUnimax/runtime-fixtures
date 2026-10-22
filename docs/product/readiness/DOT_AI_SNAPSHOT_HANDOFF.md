@@ -1355,6 +1355,16 @@ PR257 head 48fcd1af9fb0635b42dd6a07a402032c2f76c0ee remains a SOURCE-only draft.
 
 Source tracing confirms that absent monitor configuration disables Health routes: Fastify404 is preserved by the BFF and becomes a generic UI error, without an explicit monitor-unavailable reason or domain UNKNOWN. This avoids product-DB fallback but leaves B03-01 availability presentation open. C local badbe renders returned contour data and does not cover this no-data path. B03-05 scoped maintenance, real SELECT-only authority, nonempty authorized target, installed acceptance and H3 mapping remain open. No live calls, source edits or new tests were performed.
 
+### TESTER B03 — PR258 and C04 lane mapping consumed
+
+C's UI candidate badbe99d30a2b20cea879b4a4ed617dccc8d2b1b is now published as OPEN/DRAFT PR258; this supersedes only the earlier local-only status. Original Server CI 39722929877 and Documentation CI 39722929775 succeeded. The original Server log confirms SSR 6/6 and E2E 202/202 on temporary PR merge 4703b0f into e3ef. Each of PR257 and PR258 has 2/5 required CI families; neither is merged; installed acceptance remains UNKNOWN.
+
+Independent immutable-file readback on both heads confirms identical Health endpoint blob feadcc0a742cd253c5f23f981a95edea834897d9 and admin schema blob ed0a7c81286990fd000e622adfda5fa47840f32b. This supports shared read-contract compatibility, not a combined runtime test. PR258 handles returned contours; R4's missing-reader 404/generic-error gap remains open.
+
+C04's concrete source map is received: nine public/no-session targets, three packaged H3 surfaces (Standard, Work, non-auth Alice), two scheduled authenticated deep lanes (Standard/Work). The mapping-request receipt is closed. Six other provider H3 strategies and seven authenticated lanes beyond Standard/Work remain unimplemented at that runtime boundary; public targets and existing generic auth 9/29 PASS do not replace them. Guest coverage remains separate. No profiles, sends or schedules were changed.
+
+B03-01 still needs accepted routing/availability, real readonly authority, authorized nonempty data and installed proof; B03-02 needs accepted/installed renderer; B03-05 still needs a genuine scoped maintenance operation and authority. H3 implementation and installed matrix remain open. Existing B/Ops and C retain source ownership; full B03/B02 PASS is not established.
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
