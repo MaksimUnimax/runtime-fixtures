@@ -1276,6 +1276,21 @@ OZON_API_V1 {
 
 В этом этапе сохранены актуальные B03-критерии и текущий factual checkpoint. Полное дочитывание большой исторической части handoff/OWNER_BLOCK_ACCEPTANCE не объявлено завершённым; уже прочитанные актуальный B03, последние решения, действующие правила и источники не заменяются снимочной матрицей S01–S12. Нового SOURCE-дефекта в собственном extension scope, новой сборки, прогона браузера, авторизации, API-запроса, DB/deployment/schedule мутации или принятия владельца нет. B03 OPEN; B02 отдельно OPEN/неполный выданный кандидат, B01 OPEN.
 
+
+### TESTER_B03_06_HEALTH_CODE_MATRIX_GAP_20261022_0308
+
+После checkpoint0300 выполнена независимая read-only сверка B03-06 с текущим принятым GitHub main e3ef8074de17d0c9c124bb91aee8671598579476. Это конкретная неполнота программного покрытия, отдельно от отсутствующего installed evidence.
+
+- apps/health-runner/src/h3-contracts.ts, GitHub blobb8f062b2385d4a9c8944e8956a94aaa01a187dfb: H3SurfaceSchema допускает только CHATGPT_STANDARD, CHATGPT_WORK, ALICE. H3RunPlanSchema строго использует этот enum; новых H3-профилей/стратегий Qwen, DeepSeek, Claude, Gemini, Grok, Kimi в этом контракте нет.
+- apps/health-runner/src/scheduler-targets.ts, blobb0332597347b54dc8e8df42bd6b088e721a93509: AUTHENTICATED_DEEP_TARGETS содержит только Standard/Work; createAuthenticatedDeepHealthSchedules формирует записи только из этого набора и только для явно настроенных доверенных targets.
+- apps/health-runner/src/target-registry.ts, blobb1f5e3e9402a01ac90b9a59900bee8041ff74230: пакетный H3 registry содержит Standard, Work, Алису; Alice entry отдельно обозначен non-authenticated.
+- Реальные потребители apps/telegram-operator/src/authenticated-deep-runtime.ts и health-runtime.ts используют тот же AUTHENTICATED_DEEP_TARGETS. Первый импортирует только Standard/Work packaged registries и строит createH3RunPlan. Это не один неиспользуемый enum.
+- NO_SESSION_TARGETS перечисляет9 поверхностей: Standard/Work/Алиса/DeepSeek/Grok/Claude/Gemini/Qwen/Kimi. Наличие этих public/no-session targets не обеспечивает требуемые B03-06 проверки ввода, Send, кнопки и отчёта в авторизованных режимах. Guest Qwen также не включён в пакетный H3 enum.
+
+Первичный server read-only PID3821074 завершён без ошибки инструмента; GitHub прочитал три точных blobs; дополнительный consumer read PID3821244 завершён без ошибки инструмента. Нового H3/Send/browser/расписания, тестовой программы и source-правки не было. Это SOURCE coverage gap относительно расширенного канона v3.3, не утверждение, что уже принятые3 H3 fixtures стали FAIL.
+
+Адресный остаток через root существующему C04 source-owner: сохранить2 auth-deep и3 прежних H3 результата, довести согласованный технический Health coverage девяти авторизованных поверхностей и трёх гостевых режимов по фактическим принятым DOM/контрактам либо передать точный ограниченный source/test scope Тестеру. Один автор на конкретные общие H3 schemas/registry/scheduler/consumer paths; нового исполнителя не назначать. Допустимую текущую работу не подменять просьбой дать Тестеру AI-профили или новым live запуском. Доказанный routing gap B/Ops, scoped maintenance и пауза браузера остаются отдельными. B03 OPEN, B02 OPEN/неполный тестовый кандидат.
+
 ## 13. Источники адресов и примечания к свежести
 
 Стартовые ссылки проверены по официальным публичным страницам 19.10.2026; JavaScript/login-wall или ошибка web-fetch не означают недоступность для владельца. Авторизованных снимков эта проверка не дала.
