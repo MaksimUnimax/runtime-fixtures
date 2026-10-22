@@ -737,6 +737,38 @@ describe("no-session batch isolation", () => {
     expect(results.slice(1).every((result) => result.noInteraction)).toBe(true);
   });
 
+  it("keeps the remaining surfaces observable when one browser refuses cleanup", async () => {
+    const targets = NO_SESSION_TARGETS.slice(0, 2);
+    const snapshots = new Map(
+      NO_SESSION_STRATEGIES.map((strategy) => [
+        strategy.profile.profileId,
+        snapshotFor(strategy.surfaceId),
+      ]),
+    );
+    const first = new FakeNoSessionBrowser(snapshots);
+    const second = new FakeNoSessionBrowser(snapshots);
+    first.stop = async () => {
+      first.stopCount += 1;
+      throw new Error("synthetic browser cleanup failure");
+    };
+    let factoryCalls = 0;
+    const results = await runNoSessionBatch(
+      targets,
+      () => (factoryCalls++ === 0 ? first : second),
+      "2026-10-19T17:55:00.000Z",
+    );
+    expect(factoryCalls).toBe(2);
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      surfaceId: targets[0]!.surfaceId,
+      blocker: "BROWSER_UNAVAILABLE",
+      surfaceOutcome: "BROWSER_FAILURE",
+    });
+    expect(results[1]?.surfaceId).toBe(targets[1]!.surfaceId);
+    expect(first.stopCount).toBe(1);
+    expect(second.stopCount).toBe(1);
+  });
+
   it("always closes each ephemeral fake context", async () => {
     const target = getNoSessionTargetForSurface("CHATGPT_STANDARD");
     const fake = new FakeNoSessionBrowser(

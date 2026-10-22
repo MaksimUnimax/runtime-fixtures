@@ -324,16 +324,16 @@ export async function promoteAcceptedWbBundle(input: {
   for (const document of input.bundle.documents) {
     const record = recordsByKey.get(document.documentKey)!;
     const bytes = new TextEncoder().encode(document.content);
+    const inventory = plannedByKey.get(document.documentKey)!;
     const snapshot = await promoteAcceptedSnapshot({
       record,
       bytes,
       store: input.store,
+      inventory,
       snapshotRoot: input.snapshotRoot,
       documentKey: document.documentKey,
       now: input.now,
     });
-    const inventory = plannedByKey.get(document.documentKey)!;
-    await input.store.saveInventory(inventory);
     snapshots.push(snapshot);
     inventories.push(inventory);
   }

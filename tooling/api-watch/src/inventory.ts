@@ -662,6 +662,7 @@ export async function inventoryAcceptedSnapshots(input: {
         : "snapshot.json";
     const inventory = buildCompleteOperationInventory({
       sourceFamily: snapshot.sourceFamily,
+      documentKey: snapshot.documentKey ?? null,
       snapshotSha256: snapshot.sha256,
       bytes,
       filename,

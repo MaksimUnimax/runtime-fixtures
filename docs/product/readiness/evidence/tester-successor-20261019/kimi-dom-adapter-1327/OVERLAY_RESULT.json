@@ -1,0 +1,55 @@
+{
+  "recorded_at": "2026-10-19T14:06:22.650434+00:00",
+  "prior_candidate": "d14dfad2db9d8b803c20082ae2439dc4a352d505",
+  "base": "32b768862e69133f9f05c556ea2df3c238e1dbfc",
+  "native_failure": {
+    "run": 39264911925,
+    "job": 118102120890,
+    "gate": "core-a05-externalized-own-button-differential",
+    "reason": "Kimi changed previous overlay replacements and added one patch, violating fixed baseline inventory"
+  },
+  "fix": "Restore all179 prior patch objects unchanged, append13 exact Kimi overlays. A05 keeps all original own-button/full-baseline hash assertions and pins complete Kimi overlay inventory plus final patched-donor hash.",
+  "current_source_hashes": {
+    "apps/extension/application-patches.json": "bb198b78d8c88d75a7fbe48cc480f7ac54c68f863ae010dbf43188c7c97d98c9",
+    "tests/regression/extension-core/a05-externalized-own-button-patch.mjs": "a5a1e285e2916d9a0a906fbf9d3236a60a9e4cd68fd1197dad076c6c05d08524"
+  },
+  "unchanged_other_source_hashes": {
+    "apps/extension/src/content/kimi-adapter.js": "e2753efcd33ca84d71e0fef015a4055d66b32f9cadae5e63adaa8623306af680",
+    "apps/extension/composition.json": "6fc497d1a558fd36929c590e95fad2e330c0f327f498489a7fd81e3d691bcf2c",
+    "apps/extension/src/background/compat/conversation-identity.js": "61d3886898ca3785deabf316552df7b2d02f5b49fc698623d98d95c333b72a9e",
+    "tests/regression/extension-core/chatgpt-dom-compat.py": "aab7517e8af6cdbe730a3bf4a9ab49254e8c8653ef3e2812f889570ee7b4bf7f",
+    "apps/extension/src/application/runtime.js": "e0284148e76e49e730b96776a4262b7a7fce0a5bebe61ccae66c0c87168aba20",
+    "apps/extension/src/content/signed-profile-runtime.js": "84e0fbeaf39a87c49c7e21d9da9733078f217c9b0bd25893b06b6fad736dbfa8",
+    "packages/contracts/src/signed-ai-profile.ts": "21ea13fef1f5229cfdc59c6e21a1131a5f0bb0dae22db3c24e3d685d1ff6a67e",
+    "packages/control-client/src/signed-ai-profile-consumer.js": "fca63d7905a6906ef318d4bb784dd17ca9b81f25b42a70d5c3770fcf13680729",
+    "apps/extension/src/content/kimi-code-reader.js": "89a5e229e443b0ba01bd9d5d41f078d5f85337079439d465301a93a5736e4643"
+  },
+  "a05_green": {
+    "level": "SOURCE",
+    "status": "PASS",
+    "externalized": 1,
+    "patchCount": 192,
+    "contentPatches": 77,
+    "emittedSHA256": "d372417469868a7cc8f3ab438b2810974a926b17b26d70722e24980cc0fddb99",
+    "runtimeOrStoreInstall": "NOT_RUN"
+  },
+  "unit": {
+    "unit": "octo-tester-kimi-overlay-correct-reference-20261019t1406",
+    "Result": "success",
+    "ExecMainStatus": "0",
+    "ControlGroup": "",
+    "ActiveState": "inactive",
+    "cgroup_empty": true
+  },
+  "byte_identity": {
+    "all_composed_files": 41,
+    "match": true,
+    "proof_sha256": "2ae0c56a287d2c05a35b804bdbba830d6eadb3f562772e76fe91d44206d28526",
+    "patched_donor_proof_sha256": "ea351aecb6d1f47cd6ff2ee952b0a6fcbe94214742a0202a1a085df0e84c4648"
+  },
+  "test_reference_error_preserved": "Initial added assertion used full-bundle SHA for raw patched donor. Failed log overlay-a05-green.log retained. Correct reference independently derived from committed d14 patch sequence; product byte identity unchanged.",
+  "no_kimi59_or_reader30_or_firststart68_rerun": true,
+  "new_provider_sends": 0,
+  "new_ci_reruns": 0,
+  "review": "Pending independent exact current candidate"
+}

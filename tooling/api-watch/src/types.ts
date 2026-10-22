@@ -328,6 +328,10 @@ export interface ApiWatchStore {
   listAuthorityRecords(): Promise<AuthorityRecord[]>;
   findAuthorityRecord(recordId: string): Promise<AuthorityRecord | undefined>;
   saveSnapshot(metadata: SnapshotMetadata): Promise<SnapshotMetadata>;
+  saveSnapshotWithInventory(
+    metadata: SnapshotMetadata,
+    inventory: OperationInventory,
+  ): Promise<SnapshotMetadata>;
   listSnapshots(): Promise<SnapshotMetadata[]>;
   saveInventory(inventory: OperationInventory): Promise<void>;
   findInventory(

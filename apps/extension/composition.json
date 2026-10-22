@@ -229,6 +229,8 @@
       "apps/extension/src/application/popup.css"
     ],
     "shared/ai_adapters.js": [
+      "apps/extension/src/content/kimi-code-reader.js",
+      "apps/extension/src/content/kimi-adapter.js",
       "apps/extension/src/content/qwen-adapter.js",
       "apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js",
       "apps/extension/src/content/conversation-surface.js",
@@ -259,6 +261,7 @@
     "http://127.0.0.1:43101/*"
   ],
   "ai_hosts": [
-    "https://chat.qwen.ai/*"
+    "https://chat.qwen.ai/*",
+    "https://www.kimi.ai/*"
   ]
 }

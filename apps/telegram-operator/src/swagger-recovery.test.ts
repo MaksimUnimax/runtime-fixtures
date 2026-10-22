@@ -42,7 +42,7 @@ function bytes(version = "1") {
     ),
   );
 }
-async function fixture() {
+async function fixture(swaggerDelayMs = 0) {
   const root = await mkdtemp(join(tmpdir(), "review-wb-recovery-"));
   roots.push(root);
   const handoffState = createInMemorySwaggerSourceState();
@@ -68,6 +68,7 @@ async function fixture() {
   };
   const scheduleStore = new InMemoryMonitoringScheduleStore();
   await scheduleStore.ensureDefaults(new Date());
+  const swaggerRunner = createApiWatchRunner(dependencies);
   const scheduler = new IndependentMonitoringScheduler({
     store: scheduleStore,
     runners: {
@@ -76,7 +77,12 @@ async function fixture() {
         code: null,
         summary: "synthetic",
       }),
-      SWAGGER_API: createApiWatchRunner(dependencies),
+      SWAGGER_API: async (run) => {
+        // This optional fixture delay models a busy CI worker, not provider I/O.
+        if (swaggerDelayMs > 0)
+          await new Promise((resolve) => setTimeout(resolve, swaggerDelayMs));
+        return swaggerRunner(run);
+      },
     },
   });
   const messages: string[] = [];
@@ -95,6 +101,7 @@ async function fixture() {
       answerCallback: async () => {},
     },
     operatorIds: new Set(["7"]),
+    notificationChatIds: ["42"],
   });
   let updateId = 0;
   const command = (text: string, userId = "7") =>
@@ -126,6 +133,34 @@ async function fixture() {
         },
       },
     });
+  const uploadBare = (
+    options: {
+      userId?: string;
+      chatId?: string;
+      caption?: string;
+      payload?: Uint8Array;
+      fileName?: string;
+      fileSize?: number;
+      sourceFamily?: "WILDBERRIES" | "OZON_SELLER";
+      documentKey?: string;
+    } = {},
+  ) =>
+    bot.handleUpdate({
+      updateId: ++updateId,
+      message: {
+        chatId: options.chatId ?? "42",
+        userId: options.userId ?? "7",
+        ...(options.caption === undefined ? {} : { caption: options.caption }),
+        document: {
+          fileId: "synthetic-bundle",
+          fileName: options.fileName ?? "WB_OPENAPI_BUNDLE_V1.json",
+          bytes: options.payload ?? bytes(),
+          fileSize: options.fileSize,
+          sourceFamily: options.sourceFamily,
+          documentKey: options.documentKey,
+        },
+      },
+    });
   await runApiWatchReport({
     dependencies,
     runId: "before-upload",
@@ -143,21 +178,73 @@ async function fixture() {
     messages,
     command,
     upload,
+    uploadBare,
     renewButton,
     first,
   };
 }
+// A stored inventory may be published by the legacy two-step writer or
+// by the atomic snapshot+inventory writer. Inject the same failure at the
+// actual persistence boundary in either reviewed source version.
+function failInventoryPersistence(
+  store: InMemoryApiWatchStore,
+  failAt: number,
+  failureCode: string,
+) {
+  // Probe an API that is deliberately absent from older store classes.
+  // Keep a callable type for vi.spyOn in both TypeScript versions.
+  const compatible = store as unknown as {
+    saveSnapshotWithInventory: (
+      metadata: Parameters<InMemoryApiWatchStore["saveSnapshot"]>[0],
+      inventory: Parameters<InMemoryApiWatchStore["saveInventory"]>[0],
+    ) => ReturnType<InMemoryApiWatchStore["saveSnapshot"]>;
+  };
+  let saves = 0;
+  if (typeof compatible.saveSnapshotWithInventory === "function") {
+    const original = compatible.saveSnapshotWithInventory.bind(compatible);
+    return vi
+      .spyOn(compatible, "saveSnapshotWithInventory")
+      .mockImplementation(async (metadata, inventory) => {
+        if (++saves === failAt) throw new Error(failureCode);
+        return original(metadata, inventory);
+      });
+  }
+  const original = store.saveInventory.bind(store);
+  return vi
+    .spyOn(store, "saveInventory")
+    .mockImplementation(async (inventory) => {
+      if (++saves === failAt) throw new Error(failureCode);
+      return original(inventory);
+    });
+}
+
 describe("review main109ce9df public WB recovery", () => {
   it("bot upload wakes the report pipeline and persists all13 snapshots/inventories without a fabricated diff", async () => {
-    const f = await fixture();
+    const f = await fixture(1250);
     const run = vi.spyOn(f.scheduler, "runNow");
+    // Bot upload acknowledges the wake before the async report finishes.
+    // Observe this run's persisted result, not a one-second timing poll.
+    let notifyFinished: (() => void) | undefined;
+    const swaggerFinished = new Promise<void>((resolve) => {
+      notifyFinished = resolve;
+    });
+    const finishRun = f.scheduleStore.finishRun.bind(f.scheduleStore);
+    vi.spyOn(f.scheduleStore, "finishRun").mockImplementation(async (input) => {
+      const persisted = await finishRun(input);
+      if (
+        input.lane === "SWAGGER_API" &&
+        persisted.lastResult?.runId === input.runId
+      ) {
+        notifyFinished?.();
+      }
+      return persisted;
+    });
     await f.upload(f.first.requestId);
     expect(run).toHaveBeenCalledWith("SWAGGER_API");
-    await vi.waitFor(async () =>
-      expect(
-        (await f.scheduleStore.getState("SWAGGER_API")).lastResult?.status,
-      ).toBe("SUCCEEDED"),
-    );
+    await swaggerFinished;
+    expect(
+      (await f.scheduleStore.getState("SWAGGER_API")).lastResult?.status,
+    ).toBe("SUCCEEDED");
     expect(
       (await f.store.listAuthorityRecords()).filter(
         (x) => x.authorityStatus === "AUTHORITY_ACCEPTED",
@@ -179,7 +266,7 @@ describe("review main109ce9df public WB recovery", () => {
     ).toBe(true);
     expect(last.coverage?.comparisonState).toBe("NOT_RUN");
     expect(f.fetcher).toHaveBeenCalledTimes(13);
-  });
+  }, 15_000);
   it("a restarted normal report consumes durable upload and resumes after snapshot persistence failure", async () => {
     const f = await fixture();
     // Suppress only the immediate wake to model process loss after durable upload.
@@ -192,9 +279,11 @@ describe("review main109ce9df public WB recovery", () => {
       pendingStore: new InMemorySwaggerSourceStore(f.handoffState),
       store: new InMemoryApiWatchStore(f.state),
     };
-    const save = vi
-      .spyOn(restarted.store, "saveInventory")
-      .mockRejectedValueOnce(new Error("SYNTHETIC_WRITE_FAILURE"));
+    const save = failInventoryPersistence(
+      restarted.store,
+      1,
+      "SYNTHETIC_WRITE_FAILURE",
+    );
     vi.mocked(f.fetcher).mockClear();
     expect(
       (
@@ -252,6 +341,176 @@ describe("review main109ce9df public WB recovery", () => {
       );
     },
   );
+});
+
+describe("owner single-file WB bundle attachment without a typed request ID", () => {
+  it("accepts exactly one active official request in its configured owner chat", async () => {
+    const f = await fixture();
+    // The test observes upload routing, not an asynchronously scheduled
+    // provider report that could outlive and race fixture cleanup.
+    vi.spyOn(f.scheduler, "runNow").mockResolvedValue({
+      kind: "NOT_DUE",
+      lane: "SWAGGER_API",
+    });
+    // The fixture probes 13 synthetic official endpoints before this upload;
+    // a captionless candidate registration must not add another fetch cycle.
+    const before = vi.mocked(f.fetcher).mock.calls.length;
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toContain("Swagger candidate ready");
+    expect(
+      (await f.pendingStore.listArtifacts(f.first.requestId))[0]?.status,
+    ).toBe("CANDIDATE_READY");
+    expect(f.fetcher).toHaveBeenCalledTimes(before);
+  });
+
+  it("resolves the one pending generation after service recreation, not from volatile chat state", async () => {
+    const f = await fixture();
+    vi.spyOn(f.scheduler, "runNow").mockResolvedValue({
+      kind: "NOT_DUE",
+      lane: "SWAGGER_API",
+    });
+    const restarted = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      swaggerHandoff: createSwaggerHandoffService({
+        store: new InMemorySwaggerSourceStore(f.handoffState),
+        quarantineDir: f.dependencies.quarantineDir,
+        validateUpload: validateWbBundleUpload,
+      }),
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        sendMessage: async (_chat, text) => {
+          f.messages.push(text);
+        },
+        answerCallback: async () => {},
+      },
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["42"],
+    });
+    await restarted.handleUpdate({
+      updateId: 42,
+      message: {
+        chatId: "42",
+        userId: "7",
+        document: {
+          fileId: "restarted-synthetic-bundle",
+          fileName: "WB_OPENAPI_BUNDLE_V1.json",
+          bytes: bytes(),
+        },
+      },
+    });
+    expect(f.messages.at(-1)).toContain("Swagger candidate ready");
+    expect(
+      (await f.pendingStore.listArtifacts(f.first.requestId))[0]?.status,
+    ).toBe("CANDIDATE_READY");
+  });
+
+  it("rejects an unauthorized actor or a non-destination chat before storage", async () => {
+    const f = await fixture();
+    await f.uploadBare({ userId: "8" });
+    expect(f.messages.at(-1)).toBe("DENIED");
+    await f.uploadBare({ chatId: "unauthorized-chat" });
+    expect(f.messages.at(-1)).toBe("DENIED");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("rejects two waiting generations without arbitrarily choosing either", async () => {
+    const f = await fixture();
+    const original = f.first;
+    const other = await f.pendingStore.createRequest({
+      requestId: "synthetic-second-official-wb-request",
+      sourceFamily: original.sourceFamily,
+      officialUrl: original.officialUrl,
+      documentKey: original.documentKey,
+      bundleVersion: original.bundleVersion,
+      expectedArtifactType: original.expectedArtifactType,
+      blockerReason: "synthetic simultaneous official bundle request",
+    });
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_AMBIGUOUS");
+    expect(await f.pendingStore.listArtifacts(original.requestId)).toHaveLength(
+      0,
+    );
+    expect(await f.pendingStore.listArtifacts(other.requestId)).toHaveLength(0);
+  });
+
+  it("rejects a finalized request and unrelated source-family requests", async () => {
+    const f = await fixture();
+    await f.pendingStore.setRequestStatus(f.first.requestId, "CANCELLED");
+    await f.pendingStore.createRequest({
+      requestId: "synthetic-ozon-only",
+      sourceFamily: "OZON_SELLER",
+      officialUrl: "https://example.test/unrelated-ozon.json",
+      expectedArtifactType: "JSON",
+      blockerReason: "not the official WB bundle",
+    });
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_MISSING");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("rejects oversized envelopes and foreign declared family/key", async () => {
+    const f = await fixture();
+    await f.uploadBare({ fileSize: 25 * 1024 * 1024 + 1 });
+    expect(f.messages.at(-1)).toBe("UPLOAD_TOO_LARGE");
+    await f.uploadBare({ sourceFamily: "OZON_SELLER" });
+    expect(f.messages.at(-1)).toBe("SOURCE_FAMILY_MISMATCH");
+    await f.uploadBare({ documentKey: "FOREIGN_DOCUMENT" });
+    expect(f.messages.at(-1)).toBe("DOCUMENT_KEY_MISMATCH");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("explains the one-attachment route after the owner's new WB request action", async () => {
+    const f = await fixture();
+    await f.renewButton();
+    expect(f.messages.at(-1)).toContain("all 13 official YAML documents");
+    expect(f.messages.at(-1)).toContain("without a caption or request_id");
+  });
+
+  it("rejects a stale expired generation and an unrelated file type", async () => {
+    const f = await fixture();
+    await f.uploadBare({ fileName: "unrelated.txt" });
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_FILE_INVALID");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+    // A personal JSON attachment must not be downloaded or retained in quarantine.
+    await f.uploadBare({ fileName: "personal.json" });
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_FILE_INVALID");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+    await f.pendingStore.setRequestStatus(f.first.requestId, "EXPIRED");
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_MISSING");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("rejects arbitrary captions and never rebinds a finalized generation", async () => {
+    const f = await fixture();
+    // The test observes upload routing, not an asynchronously scheduled
+    // provider report that could outlive and race fixture cleanup.
+    vi.spyOn(f.scheduler, "runNow").mockResolvedValue({
+      kind: "NOT_DUE",
+      lane: "SWAGGER_API",
+    });
+    await f.uploadBare({ caption: "my personal file" });
+    expect(f.messages.at(-1)).toContain("Attach one official WB bundle");
+    await f.uploadBare({ caption: "/swagger_upload" });
+    expect(f.messages.at(-1)).toContain("Swagger candidate ready");
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_MISSING");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      1,
+    );
+  });
 });
 
 function officialV2(input: Parameters<typeof fetch>[0]): Response {
@@ -455,15 +714,10 @@ describe("review main299d6113 receipt and hold boundaries", () => {
       await f.upload(f.first.requestId);
       vi.mocked(f.dependencies.fetcher).mockClear();
       if (boundary === "inventory") {
-        const original = f.dependencies.store.saveInventory.bind(
+        failInventoryPersistence(
           f.dependencies.store,
-        );
-        let saved = 0;
-        vi.spyOn(f.dependencies.store, "saveInventory").mockImplementation(
-          async (inventory) => {
-            if (++saved === 7) throw new Error("SYNTHETIC_SEVENTH_INVENTORY");
-            return original(inventory);
-          },
+          7,
+          "SYNTHETIC_SEVENTH_INVENTORY",
         );
       } else {
         const original = f.dependencies.reportStore.transitionReport.bind(

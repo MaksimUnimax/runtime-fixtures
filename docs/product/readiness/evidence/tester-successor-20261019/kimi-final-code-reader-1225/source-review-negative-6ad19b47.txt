@@ -1,0 +1,9 @@
+**REWORK_REQUIRED**
+
+At [kimi-code-reader.js:11](/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/apps/extension/src/content/kimi-code-reader.js:11), the exclusion only matches `contenteditable="true"`. A final code `<pre>` or an ancestor using the valid editable value `contenteditable="plaintext-only"` passes `rendered(block)` and can be returned as final code. The fixture at [chatgpt-dom-compat.py:40](/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py:40) tests only `"true"`, so it misses this case.
+
+Minimal correction: reject an effectively editable block (for example, check `block.isContentEditable`) and add a `"plaintext-only"` fixture.
+
+The remaining scoped checks look consistent: reads return `textContent` without executing it, captures are revalidated against the URL, message, code node, and DOM ancestry, and the composition change adds the reader as a `shared/ai_adapters.js` input. The evidence records 25 offline composed-bundle cases; I did not rerun them.
+
+Residual limits remain: this does not activate Kimi or add Start/Send, stable chat identity, completion inference, installation, or owner acceptance.

@@ -1,0 +1,85 @@
+{
+  "recorded_at": "2026-10-19T13:50:07.146457+00:00",
+  "base_main": "32b768862e69133f9f05c556ea2df3c238e1dbfc",
+  "initial_candidate": "f2c1583eacef496b8e5803e00d667b0bdd6dc09e",
+  "scope": "Staged Kimi DOM adapter in existing registry and consumer delegation. Ordinary work selection remains closed by existing planned capability status.",
+  "source_hashes": {
+    "apps/extension/src/content/kimi-adapter.js": "e2753efcd33ca84d71e0fef015a4055d66b32f9cadae5e63adaa8623306af680",
+    "apps/extension/composition.json": "6fc497d1a558fd36929c590e95fad2e330c0f327f498489a7fd81e3d691bcf2c",
+    "apps/extension/application-patches.json": "2df6d956cb1bce16eb0cc1297b34a32815cfc29a92aecb4818bbad67e1c2adc4",
+    "apps/extension/src/background/compat/conversation-identity.js": "61d3886898ca3785deabf316552df7b2d02f5b49fc698623d98d95c333b72a9e",
+    "tests/regression/extension-core/chatgpt-dom-compat.py": "aab7517e8af6cdbe730a3bf4a9ab49254e8c8653ef3e2812f889570ee7b4bf7f"
+  },
+  "protected_unchanged_hashes": {
+    "apps/extension/src/application/runtime.js": "e0284148e76e49e730b96776a4262b7a7fce0a5bebe61ccae66c0c87168aba20",
+    "apps/extension/src/content/signed-profile-runtime.js": "84e0fbeaf39a87c49c7e21d9da9733078f217c9b0bd25893b06b6fad736dbfa8",
+    "packages/contracts/src/signed-ai-profile.ts": "21ea13fef1f5229cfdc59c6e21a1131a5f0bb0dae22db3c24e3d685d1ff6a67e",
+    "packages/control-client/src/signed-ai-profile-consumer.js": "fca63d7905a6906ef318d4bb784dd17ca9b81f25b42a70d5c3770fcf13680729",
+    "apps/extension/src/content/kimi-code-reader.js": "89a5e229e443b0ba01bd9d5d41f078d5f85337079439d465301a93a5736e4643"
+  },
+  "initial_review": {
+    "status": "REWORK_REQUIRED",
+    "sha256": "63dd02e2fd3902bda736687f81859b86332372df6bd0047a829eb9a3258e28b6",
+    "finding": "Separate message and turn witnesses must not require equality"
+  },
+  "rework_red": {
+    "status": "EXPECTED_FAILURE_ON_F2_RUNTIME",
+    "sha256": "a405996dc0fcf1da44090b93f2b17707c06e28f9b682e5ed3fda438ed4af415c",
+    "observed": {
+      "surface": true,
+      "id": "",
+      "users": [
+        "",
+        "edit1"
+      ],
+      "editingText": "UNSENT EDIT"
+    }
+  },
+  "fixes": [
+    "Validate independent message/turn witnesses without requiring equality",
+    "Reject effectively disabled native input including disabled fieldset",
+    "Reject own editable message descendants"
+  ],
+  "green": {
+    "status": "PASS",
+    "cases": 59,
+    "sha256": "d2abe1a6cb5621b151bd348c0e41a2353db19c8c5d3deb81725b3307c9f9dba0",
+    "runtime": "/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/KIMI_DOM_ADAPTER_20261019T132700Z/rework-runtime",
+    "composition_sha256": "223d12915e94ce95673f446922a05363b11b56eb320c6e4d0f52eb0b6d9a9065"
+  },
+  "units": [
+    {
+      "unit": "octo-tester-kimi-adapter-rework-red-20261019t1348",
+      "Result": "exit-code",
+      "ExecMainStatus": "1",
+      "ControlGroup": "",
+      "ActiveState": "failed",
+      "cgroup_empty": true
+    },
+    {
+      "unit": "octo-tester-kimi-adapter-rework-green-20261019t1350",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "cgroup_empty": true
+    },
+    {
+      "unit": "octo-tester-kimi-adapter-review-20261019t1340",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "cgroup_empty": true
+    }
+  ],
+  "original_57_and_review_preserved": true,
+  "new_live_send_count": 0,
+  "prior_reader30_not_rerun": true,
+  "provider_activation": false,
+  "remote_provider_bytes": "UNKNOWN",
+  "installed_acceptance": false,
+  "owner_acceptance": false,
+  "next": "Exact revised candidate independent review then original five CI; full profile/runtime authority remains outside this scope",
+  "operator_self_error": "One read-only recursive filename inventory was unnecessarily broad and stopped by exact own Python PID3134662; no content read or source mutation from that inventory."
+}

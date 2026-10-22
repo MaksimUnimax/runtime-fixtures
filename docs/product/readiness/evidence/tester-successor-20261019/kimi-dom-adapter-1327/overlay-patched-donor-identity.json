@@ -1,0 +1,8 @@
+{
+  "prior_candidate": "d14dfad2db9d8b803c20082ae2439dc4a352d505",
+  "bytes": 155757,
+  "sha256": "d372417469868a7cc8f3ab438b2810974a926b17b26d70722e24980cc0fddb99",
+  "old_and_new_patched_donor_equal": true,
+  "full_bundle_41files_also_identical": "OVERLAY_BYTE_IDENTITY.json",
+  "test_reference_correction": "Initial assertion compared patched donor hash with full assembled bundle hash. Prior failed log retained; correct expected hash independently derived from prior committed d14 patch sequence; product bytes unchanged."
+}

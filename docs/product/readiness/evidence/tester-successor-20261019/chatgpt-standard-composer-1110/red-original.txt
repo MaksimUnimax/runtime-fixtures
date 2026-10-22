@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 169, in <module>
+    raise SystemExit(run(args.runtime.resolve(),args.output.resolve()))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 96, in run
+    assert actual == expected, (name,actual,expected)
+AssertionError: ('observed_standard_form', None, {'composer': 'observed', 'form': 'observed-form'})
