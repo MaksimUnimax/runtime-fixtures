@@ -37,6 +37,8 @@ ADMIN_HEALTH_ARTIFACTS = (
     "apps/admin/.next/server/app/health/page.js",
     "apps/admin/.next/server/app/health/[targetId]/page.js",
 )
+ADMIN_ROUTES_MANIFEST = "apps/admin/.next/routes-manifest.json"
+_MAX_ADMIN_ROUTES_MANIFEST_BYTES = 4 * 1024 * 1024
 _HEX_SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
@@ -72,6 +74,38 @@ def _runtime_file(root: Path, relative: str) -> Path:
 def _matches(root: Path, name: str, expected: object) -> None:
     if _digest(_runtime_file(root, name)) != _expected_digest(expected):
         raise OwnerTestReleaseError("OWNER_TEST_RUNTIME_DIGEST_MISMATCH")
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate JSON property")
+        value[key] = item
+    return value
+
+
+def _compiled_admin_base_path(root: Path) -> str:
+    # Pinned Next 15 writes config.basePath to routes-manifest.json version 3.
+    # The declared release field alone cannot prove the compiled routing path.
+    path = _runtime_file(root, ADMIN_ROUTES_MANIFEST)
+    with path.open("rb") as stream:
+        payload = stream.read(_MAX_ADMIN_ROUTES_MANIFEST_BYTES + 1)
+    if len(payload) > _MAX_ADMIN_ROUTES_MANIFEST_BYTES:
+        raise OwnerTestReleaseError("OWNER_TEST_ADMIN_ROUTES_MANIFEST_INVALID")
+    try:
+        manifest = json.loads(payload.decode("utf-8"), object_pairs_hook=_unique_json_object)
+    except (ValueError, RecursionError) as error:
+        raise OwnerTestReleaseError("OWNER_TEST_ADMIN_ROUTES_MANIFEST_INVALID") from error
+    if (
+        not isinstance(manifest, dict)
+        or type(manifest.get("version")) is not int
+        or manifest["version"] != 3
+        or not isinstance(manifest.get("basePath"), str)
+        or manifest["basePath"] not in ("", "/admin")
+    ):
+        raise OwnerTestReleaseError("OWNER_TEST_ADMIN_ROUTES_MANIFEST_INVALID")
+    return manifest["basePath"]
 
 
 def verify_owner_test_release(
@@ -150,10 +184,12 @@ def verify_owner_test_release(
             _matches(root, path, service["buildIdSha256"])
 
         if name == "admin":
-            # The value is the build-time Next basePath, not a claim about
-            # the installed proxy. The rollout must independently prove parity.
+            # Verify the declaration against compiled Next output. Installed
+            # reverse-proxy/service parity remains a separate rollout proof.
             if service["buildBasePath"] not in ("", "/admin"):
                 raise OwnerTestReleaseError("OWNER_TEST_ADMIN_BASE_PATH_INVALID")
+            if _compiled_admin_base_path(root) != service["buildBasePath"]:
+                raise OwnerTestReleaseError("OWNER_TEST_ADMIN_BASE_PATH_MISMATCH")
             artifacts = service["healthArtifactsSha256"]
             if not isinstance(artifacts, dict) or set(artifacts) != set(
                 ADMIN_HEALTH_ARTIFACTS

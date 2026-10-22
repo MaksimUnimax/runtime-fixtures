@@ -54,6 +54,10 @@ class FourServiceRuntimeVerification(unittest.TestCase):
                     artifacts[path] = hashlib.sha256(data).hexdigest()
                 spec["healthArtifactsSha256"] = artifacts
                 spec["buildBasePath"] = "/admin"
+                self._add(
+                    "apps/admin/.next/routes-manifest.json",
+                    b'{"version":3,"basePath":"/admin"}',
+                )
             services[name] = spec
 
         self.manifest = {
@@ -193,8 +197,109 @@ class FourServiceRuntimeVerification(unittest.TestCase):
 
     def test_admin_empty_base_path_is_a_supported_explicit_build(self) -> None:
         self.manifest["runtime"]["services"]["admin"]["buildBasePath"] = ""
+        self._add(
+            "apps/admin/.next/routes-manifest.json",
+            b'{"version":3,"basePath":""}',
+        )
         self._refresh()
         self.assertEqual(self._verify()["adminBuildBasePath"], "")
+
+    def test_rejects_base_path_declaration_different_from_compiled_routes(self) -> None:
+        for declared, compiled in (("/admin", ""), ("", "/admin")):
+            with self.subTest(declared=declared, compiled=compiled):
+                self.manifest["runtime"]["services"]["admin"]["buildBasePath"] = declared
+                self._add(
+                    "apps/admin/.next/routes-manifest.json",
+                    json.dumps({"version": 3, "basePath": compiled}).encode(),
+                )
+                self._refresh()
+                with self.assertRaisesRegex(
+                    OwnerTestReleaseError, "OWNER_TEST_ADMIN_BASE_PATH_MISMATCH"
+                ):
+                    self._verify()
+
+    def test_rejects_missing_compiled_admin_routes_manifest(self) -> None:
+        (self.root / "apps/admin/.next/routes-manifest.json").unlink()
+        self._refresh()
+        with self.assertRaisesRegex(
+            OwnerTestReleaseError, "OWNER_TEST_RUNTIME_FILE_MISSING"
+        ):
+            self._verify()
+
+    def test_rejects_invalid_compiled_admin_routes_manifest(self) -> None:
+        for payload in (
+            b"not JSON", b"[]", b"null", b"\xff", b'{"version":3}',
+            b'{"version":3,"basePath":null}',
+            b'{"version":3,"basePath":false}',
+            b'{"version":2,"basePath":"/admin"}',
+            b'{"version":3.0,"basePath":"/admin"}',
+            b'{"version":"3","basePath":"/admin"}',
+            b'{"version":3,"basePath":"/unexpected"}',
+            b"[" * 1200 + b"0" + b"]" * 1200,
+            b'{"version":3,"basePath":"/admin","basePath":""}',
+            b'{"version":3,"basePath":"/admin","other":{"x":1,"x":2}}',
+        ):
+            with self.subTest(payload=payload):
+                self._add("apps/admin/.next/routes-manifest.json", payload)
+                self._refresh()
+                with self.assertRaisesRegex(
+                    OwnerTestReleaseError, "OWNER_TEST_ADMIN_ROUTES_MANIFEST_INVALID"
+                ):
+                    self._verify()
+
+    def test_rejects_oversized_compiled_admin_routes_manifest(self) -> None:
+        self._add(
+            "apps/admin/.next/routes-manifest.json",
+            b" " * (4 * 1024 * 1024) + b"x",
+        )
+        self._refresh()
+        with self.assertRaisesRegex(
+            OwnerTestReleaseError, "OWNER_TEST_ADMIN_ROUTES_MANIFEST_INVALID"
+        ):
+            self._verify()
+
+    def test_accepts_routes_manifest_at_exact_size_limit(self) -> None:
+        minimal = b'{"version":3,"basePath":"/admin"}'
+        payload = minimal + b" " * (4 * 1024 * 1024 - len(minimal))
+        self._add("apps/admin/.next/routes-manifest.json", payload)
+        self._refresh()
+        self.assertEqual(self._verify()["adminBuildBasePath"], "/admin")
+
+    def test_routes_manifest_cannot_change_under_pinned_inventory(self) -> None:
+        approved_inventory = self._inventory_digest()
+        self._add(
+            "apps/admin/.next/routes-manifest.json",
+            b'{"version":3,"basePath":""}',
+        )
+        self._refresh()
+        with self.assertRaisesRegex(
+            OwnerTestReleaseError, "OWNER_TEST_TRUSTED_INVENTORY_MISMATCH"
+        ):
+            self._verify(trusted_inventory=approved_inventory)
+
+    def test_cli_rejects_compiled_base_path_mismatch(self) -> None:
+        self._add(
+            "apps/admin/.next/routes-manifest.json",
+            b'{"version":3,"basePath":""}',
+        )
+        self._refresh()
+        outcome = subprocess.run(
+            [
+                sys.executable, "-B",
+                str(Path(__file__).with_name("verify_owner_test_release.py")),
+                "--expected-source-sha", SHA,
+                "--expected-source-tree", TREE,
+                "--expected-inventory-sha256", self._inventory_digest(),
+                str(self.root),
+            ],
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(outcome.returncode, 1)
+        self.assertEqual(outcome.stdout, "")
+        self.assertEqual(
+            json.loads(outcome.stderr)["code"],
+            "OWNER_TEST_ADMIN_BASE_PATH_MISMATCH",
+        )
 
     def test_rejects_unapproved_admin_compiled_base_path(self) -> None:
         self.manifest["runtime"]["services"]["admin"]["buildBasePath"] = "/surprise"
