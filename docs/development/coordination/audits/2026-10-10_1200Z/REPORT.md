@@ -1,3 +1,19 @@
+# Ожидавшая публикация завершена; новые A/B source outcomes — 22.10.2026, 13:27 UTC+5
+
+Единственный Controller/dot продолжает тот же полный аудит. Операция update_file, ожидавшая с 12:46 UTC+5, действительно завершена: commit `602c482c2d3cf8f96ed198c0e123265ffceb378e`, автор MaksimUnimax, 13:18:54 UTC+5, blob `1a92e74b95d35dc0cf7962adb3aff2d481af287d`. Полный readback 2 923 635 символов совпал с отправленным текстом, весь predecessor сохранён. UI approval не использован как доказательство публикации. Повторной записи вместо неизвестной не было. Превышение интервала вызвано ожиданием именно этой единственной операции; оно завершено, текущий checkpoint выполняется после проверки исхода.
+
+Свежий native read 13:26:43 UTC+5: Easyscript online, активных RDC sessions нет, проверенные locks свободны. A/B/C HEAD, dirty 81/83/73 и хеши полного status совпали с прежним срезом; own B/C документы также byte-unchanged. Имена долгоживущих процессов сами по себе не выданы за занятость или простой.
+
+**Новый A Firefox результат:** [точная авторская первичка](https://github.com/MaksimUnimax/runtime-fixtures/pull/253#issuecomment-6326388460) 13:02:47 UTC+5 документирует current adc8 Firefox155.0.1 temporary-addon guest, 19 allowlisted signals, R2 SOURCE_SCOPED PASS. Firefox ZIP SHA256 `8051de0172b21dd4cdcab412c20bb6dbc24747e970b24e1fe98773f6fc1ed72e`, 4 852 148 байт, 42 entries, 40 shared runtime members byte-equal adc8. Это пока потребление полного public author record; native primary/review readback проверяется отдельно. Не AMO, Windows, owner/AI или полная приёмка. Server/Coordination exact adc8 всё ещё отсутствуют.
+
+**B06 PR216 уже реализован:** [currentity record](https://github.com/MaksimUnimax/runtime-fixtures/pull/216) 13:08:12 UTC+5 подтверждает существующий exact `7459248beaa549901bdbace04d7c67b6fe7735e2`, два source/test файла, неизменные parent/main e3ef blobs. Старый RED_TEST_PENDING superseded; нового patch/test не требуется. Исторические 118/118 и ограниченный inline ACCEPT сохраняются как SOURCE. Native Server+Docs SUCCESS только 2/5; остальные три и current-Git/protected integration/installed отдельно. Исторический точный отказ B.json не отменён.
+
+B публично потребил уже существующий C259 safe names patch и 14/14 provenance; второго автора/нового implementation нет. Original B660 artifact list не содержит per-child readiness trace. C original PR250 ZIP имеет ровно два entries, manifest+Vitest, без startup/child/E2E witness; повтор того же ZIP не назначается. B660 first failed child и C259 first abort actor остаются UNKNOWN в проверенных originals. Требуется уже сохранённый допустимый точный witness у существующего CI/source owner; logs/annotations и новые probes/reruns запрещены.
+
+Все 21 PLAN и original12, принятые bounded SOURCE/pub результаты, чужой и собственный WIP сохранены. Ни нового source/tests/review/CI/live/DB/browser, ни helper/чатов/cleanup, ни registry/archive/errors/events. Все адресные отказы остаются.
+
+---
+
 # B startup primary и новая тройная source-композиция C потреблены — 22.10.2026
 
 Тот же единственный Controller/dot. Predecessor REPORT `443b0f9743c8a53704083071f0c88f4f1050d09d`, автор MaksimUnimax, 12:28:11 UTC+5, blob `de1b7ceb291623115cef3fc7dc377d9ff6008dcc`, 2 919 997 символов: полностью прочитан, весь прежний текст сохранён ниже. Активное продолжение начато в 12:36:09 UTC+5. Проверены device, исход, версия/автор, процессы, locks и WIP. START_HERE, PROMPT_CONTROLLER, WORK_METHOD, PROTOCOL и полный 21-пунктовый PLAN перечитаны; прежний PRIORITY_TASKS имеет тот же принятый SHA.
