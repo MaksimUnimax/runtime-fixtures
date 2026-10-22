@@ -309,6 +309,14 @@ describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () 
     expect(quotedSemicolon.state).toBe("UNCHANGED");
   });
 
+  it("preserves valid escaped quotes, tab and Latin-1 characters in MIME parameters", () => {
+    const result = compare(
+      { rootConsumes: ['application/json; profile="a\\"b\t\u00e9"'] },
+      { rootConsumes: ['APPLICATION/JSON; PROFILE="a\\"b\t\u00e9"'] },
+    );
+    expect(result.state).toBe("UNCHANGED");
+  });
+
   it("treats MIME lists as order-insensitive sets, including duplicate entries", () => {
     const result = compare(
       {
@@ -371,6 +379,37 @@ describe("Swagger 2.0 invalid MIME declarations fail closed", () => {
       "body",
     ],
     [
+      "root consumes CRLF inside quoted MIME parameter",
+      "rootConsumes",
+      ['application/json; profile="line\r\nbreak"'],
+      "body",
+    ],
+    [
+      "operation produces escaped CR inside quoted MIME parameter",
+      "operationProduces",
+      ['application/json; profile="line\\\rbreak"'],
+      "body",
+    ],
+    [
+      "root consumes NUL inside quoted MIME parameter",
+      "rootConsumes",
+      ['application/json; profile="a\u0000b"'],
+      "body",
+    ],
+    [
+      "operation consumes escaped control byte in MIME parameter",
+      "operationConsumes",
+      ['application/json; profile="a\\\u001fb"'],
+      "body",
+    ],
+    [
+      "root consumes non Latin-1 codepoint in MIME parameter",
+      "rootConsumes",
+      ['application/json; profile="a\u0100b"'],
+      "body",
+    ],
+
+    [
       "operation produces duplicate parameter name ignoring case",
       "operationProduces",
       ["application/json; charset=utf-8; CHARSET=utf-8"],
@@ -397,6 +436,14 @@ describe("Swagger 2.0 invalid MIME declarations fail closed", () => {
       );
     },
   );
+
+  it("rejects DEL in a MIME quoted value even if an earlier text guard detects it", () => {
+    const malformed = {
+      rootConsumes: ['application/json; profile="a\u007fb"'],
+      payload: "body",
+    } as MediaCase;
+    expect(() => inventory(malformed)).toThrow();
+  });
 
   it("rejects invalid produces even for an operation with only bodyless responses", () => {
     const invalid = {

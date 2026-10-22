@@ -389,6 +389,17 @@ function canonicalSwagger2MediaType(value: string): string {
   const invalid = () =>
     new Error("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
   const token = /^[!#$%&'*+.^_\u0060|~0-9A-Za-z-]+$/u;
+  // RFC quoted-string and quoted-pair characters: HTAB, printable ASCII,
+  // or Latin-1 obs-text. CR/LF, other controls and Unicode beyond 0xFF
+  // are not valid raw MIME parameter bytes.
+  const validQuotedChar = (ch: string): boolean => {
+    const code = ch.charCodeAt(0);
+    return (
+      code === 0x09 ||
+      (code >= 0x20 && code <= 0x7e) ||
+      (code >= 0x80 && code <= 0xff)
+    );
+  };
   const segments: string[] = [];
   let start = 0;
   let quoted = false;
@@ -433,11 +444,17 @@ function canonicalSwagger2MediaType(value: string): string {
       for (let i = 1; i < raw.length - 1; i++) {
         const ch = raw[i];
         if (ch === "\\") {
-          i++;
-          if (i >= raw.length - 1) throw invalid();
-          decoded += raw[i];
+          const pair = raw[++i];
+          if (
+            i >= raw.length - 1 ||
+            pair === undefined ||
+            !validQuotedChar(pair)
+          )
+            throw invalid();
+          decoded += pair;
         } else {
-          if (ch === '"') throw invalid();
+          if (ch === undefined || ch === '"' || !validQuotedChar(ch))
+            throw invalid();
           decoded += ch;
         }
       }
