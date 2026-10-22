@@ -48,7 +48,7 @@ it("makes startup diagnostics attributable without loosening E2E readiness", () 
     "e2e-portal",
     "e2e-admin",
   ]);
-  expect(webServers.every((server) => server.stdout === "pipe")).toBe(true);
+  expect(webServers.every((server) => server.stdout === undefined)).toBe(true);
   expect(webServers.every((server) => server.timeout === 60_000)).toBe(true);
   expect(
     webServers.every((server) => server.reuseExistingServer === false),
