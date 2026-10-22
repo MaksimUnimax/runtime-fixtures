@@ -95,6 +95,29 @@ export default function HealthTargetPage() {
             </p>
           </section>
           <section className="card">
+            <h2>Observed contour outcomes</h2>
+            {result.data.contourStatuses?.length ? (
+              <>
+                <p>
+                  Only reported contours are listed; missing contours are not
+                  verified.
+                </p>
+                <Table
+                  headers={["Contour", "Observed outcome"]}
+                  rows={result.data.contourStatuses.map((item) => [
+                    item.contourKey,
+                    item.outcome,
+                  ])}
+                />
+              </>
+            ) : (
+              <p>
+                No per-contour observations are recorded. Overall Health state
+                does not establish a contour PASS.
+              </p>
+            )}
+          </section>
+          <section className="card">
             <h2>Current and candidate</h2>
             <Table
               headers={["Role", "Revision", "State", "Content fingerprint"]}
