@@ -1,3 +1,40 @@
+# PR259 исходный Server SUCCESS; найден первичный original12 pointer — 22.10.2026 10:30 UTC+5
+
+Тот же единственный Controller/dot. Полный аудит НЕ ЗАВЕРШЁН. Предыдущий успешный REPORT `e1ba2a5ed34b82bad51a5239bb4de14d312ecf1b`,MaksimUnimax10:05:26 UTC+5,blob`816a2d6deec73bc45727a75054eeb1ea845aaf92`,2868399chars,полностью прочитан/совпал с exactexpected и неизменным predecessor. Весь текст сохранён ниже. Freshref/knownimmutableauthor и подтверждённый nativeprewrite10:27:48.526 UTC+5:heldcontrollocks0,REPORT/gitwriters0,safe=true. A09e12fab81/B0885f49983/C5ca5999473dirty/statushash прежние;свои серверные записи сохранены,нет неизвестной выполненной REPORTмутации или второго автора.
+
+**Новая дельта C00 — публикация/CI уже готового source.** [PR259](https://github.com/MaksimUnimax/runtime-fixtures/pull/259),OPEN/DRAFT/unmerged,exact`acb99723d3d992072f494ae84356a025f65b8d86`,basee3ef8074de17d0c9c124bb91aee8671598579476,2файла/+17/0−. Это ранее независимо reviewed safe localC00:три webServer names и regressionassertions,без stdoutpipe;его source/R2 были готовы08:47,не«заново написаны17строк». OriginalDocs39726408369SUCCESS; [originalServer39726408446](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/39726408446) attempt1,exactacb,completedSUCCESS **10:26:31 UTC+5**. Nativejobs119651204729ci-plan и119651239269server обаSUCCESS. НовогоControllerзапуска/rerun/теста нет. Эти2nativeсемьи не full5,не protectedmerge,неinstalled;имена emittedlogs не устанавливают originalfirstfailedservice PR250. C03run39712745700 старыйFAIL/UNKNOWN сохранён.
+
+**Первичный canonical original12 OPEN найден,а не восстановлен из PLAN.** Прямой замороженный источник:
+[REPORT commit229a2d04,таблица «Все12исходныхOPEN»,строки318–335](https://github.com/MaksimUnimax/runtime-fixtures/blob/229a2d04f95515e9f7ae3d9992019d7b203fbb0c/docs/development/coordination/audits/2026-10-10_1200Z/REPORT.md?plain=1#L318-L335).
+Exactblob`b29ff8ef86ffeb6c4d705c1a43e62c5095ab96c7`,MaksimUnimax,22.10.2026 **00:35:33 UTC+5**;2730кB/2729731chars/15758lines. Полный originalblob получен штатно;commit→file→blob независимо совпали. Это существующий REPORT,не новаяматрица/реестр/архив. Таблица12actualrows:
+1. B03 durable/sourceSeen/no-double/twoAPI/preACK.
+2. Recipient/relaylossbeforeACK/realIDB.
+3. B04 OTP/PG/resource,включая исходные отказы/исходы.
+4. A05 atomicpublication/currentcombination-installed.
+5. PR48 refusal/PR50 originalACKtransport.
+6. GeneralC06 catalog/release/privacy/Store.
+7. PersonalR3/fullB02 eightAI+Work/dot.
+8. OriginalC_R14 compoundrequest/refusalenvelope.
+9. Cprivate-target guardeddelete/originaloutcome.
+10. Sep29 publication59dfab94/twooriginalpushorigin actortrace.
+11. OriginalBconfigdrift before-after/actor/time.
+12. Originalreviewpayload SHA`12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175` и originalinvocationenvelope.
+Дополнительный первичный развёрнутый numberedlist в томжеblob — строки489–501. Все12 остаютсяOPEN;21PLAN/roadmap отдельно сохраняются. Новые source/CI/metadata/delivery не закрывают их.
+
+**A currentoperator уточнён первичной историей,не выдуман.** Полный repositoryevent=workflow_dispatch dataset содержит2прежнихSUCCESS наed0688bdf…:Server39560963968 иCoordination39562986788,actor/triggering_actorMaksimUnimax. Это уже реально применённый account/method;currentисполнитель/queue дляadc8 не подтверждены,manualadc8runвнаборенет. SameA сохраняет маршрутизацию. Точная минимальнаяоперация существующему авторизованному actor: nativeRunworkflow отдельно `.github/workflows/server-ci.yml` и `.github/workflows/coordination.yml`,безinputs,на unchangedref `work/a04-wb-promo-bounds-main7d9-20261021`,freshhead должен быть `adc8fc268db505c43267c9cf5c9bd8e81492126d`,предварительно исключитьqueued/inflightдубли. Возврат — originalrun/event/head/allterminaljobs. Не новыйtoken/access/CLI/dummyref/повторsuccessfulworkflow. ControllerнеполучаетActionsUIscope.
+
+Прочитана новая [originalA trigger-policy первичка](https://github.com/MaksimUnimax/runtime-fixtures/pull/253#issuecomment-6326022807),A04_ADC8_TWO_MISSING_NATIVE_WORKFLOW_DISPATCH_SOURCE_VERIFIED_20261022:оба workflow_dispatch ужеобъявленыбезinputs,CIproofnonpushfull_tests=true;extensiononlypaths не создают2автозапуска. Это supportedсуществующийпуть,не выполненныйdispatch. Source127/129packagedinputlineage/132currentbaseparity/b32historicalbrowserboundary сохранены;currentadc8неinstalledPASS.
+
+**Scope C06 сохранён точно:**personal PREPRODUCTIONcc8config/releaseauthority и отдельноеissuerapproval уже принятыsoleTester. Старыйmissingpersonalissuer не открыт повторно. Незакрыт currentACTIVE signedadapter_profile_v1/exactKimi/PREPRODUCTION/0.2.37assignment/fingerprint/target:NOT_DOCUMENTED_IN_CHECKED_NONSECRET_SOURCES,не доказанныйNOT_PROVISIONED. GeneralStore/prodauthority/issuerP1 отличаются;никакойprivateprofile/DB/secretquery нет.
+
+PR257/PR258 исходныеDocs+Server2/5familiesSUCCESS,неcombinedbackend+UI/installedacceptance. Сверенный parentPR258nativeprovenance:runheadbadbe,actualcheckoutmerge4703b0f25870007c63e595055d841128dd6cf25c сparentse3ef+badbe,tree5e3ffc73…совпадаетсcandidate;Server202PASS,30stepsummaries=29SUCCESS+1SKIPPEDVerifyfrozenserverimport. Готовыеtests/logreadbacks не повторены. H3exactmap9public/3packaged/2supportedauthdeepSource потреблёнТестером попроверенномуparentreturn;mappingwaitзакрыт. Для9authsurfaces недостаёт7authdeeplanes (6непакетированных+Alice),не6;это source support,неinstalledsessions. Нового пакетаТестеру нет.
+
+Продолжен разрешённый серверный followthrough:естьфактическое получение и содержательный авторский результат,последующий consumer получает готовый ответ в том же scope. Это не sourcefix/installedPASS. Внутренний restrictedpayload/отдельные metadata и их содержимое не публикуются через REPORT/другойкомментарий/помощника;точечныйpublicationgrant не обобщён,егоoutcome проверяетparent. Остальная разрешённаяработа продолжается. Существующие ownserversections/полныеreadbacks/версии и sourceWIP сохраняются;новыхregistry/archiveнет.
+
+Full21PLAN/все12originalOPEN/closedC04-B-C06documentaryreceipts/всяистория сохранены. R8/PR238comment6308503022/equivalentpayload/R37/hostTester09cGit и все адресныеотказы не повторялись/необходились. Никаких новых Controller source/tests/review/CI/build/install/live/DB/security/resource/browser действий;nonewhelpers/schedules/actors. errors/eventsнечитались/неписались/невосстанавливались. ControlleralwaysSol/xhigh,zerochatmanagement;dotbrowserdiagnosis/B02snapshotexception не Controllerbrowser/live grant. Аудит остаётся незавершённым по собственным исходным границам каждого пункта.
+
+---
+
 # Контрольная версия после серверного followthrough — 22.10.2026 10:05 UTC+5
 
 Тот же единственный Controller/dot. Полный аудит НЕ ЗАВЕРШЁН. Предыдущий REPORT `933f75c8811f3bb48c01fa3f2b6884ff0cb0708b`,MaksimUnimax,09:56:03 UTC+5,blob`275b22a0d3a56ed171a42b25e5e33cb27ffbf342`,2863639chars,полный readback совпал с exactexpected/неизменным predecessor. Весь прежний текст без изменений сохранён ниже. Freshref/immutableknownauthor/prewrite10:04:26.344 UTC+5:foreignREPORT/gitwriters0,heldcontrollocks0;canonicalA09e12fab81/B0885f49983/C5ca5999473dirty и exactstatushash прежние. Чужие source/tests/WIP,все12originalOPEN и весь21PLAN сохранены.
