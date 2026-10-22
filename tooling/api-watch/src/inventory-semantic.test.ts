@@ -401,6 +401,28 @@ describe("local references respect schema position and dialect", () => {
       });
     expect(state(make(true), make(false))).toBe("UNCHANGED");
   });
+  it("keeps equivalent encoded self-reference pointers identical in recursive schemas", () => {
+    const make = (selfRef: string) =>
+      inventory({}, "request", {
+        openapi: "3.1.0",
+        components: {
+          schemas: {
+            Payload: { $ref: "#/components/schemas/Node" },
+            Node: {
+              type: "object",
+              properties: { next: { $ref: selfRef } },
+            },
+          },
+        },
+      });
+
+    const plain = make("#/components/schemas/Node");
+    const encodedSeparators = make("#%2Fcomponents%2Fschemas%2FNode");
+    const encodedCharacter = make("#/components/schemas/N%6fde");
+    expect(state(plain, encodedSeparators)).toBe("UNCHANGED");
+    expect(state(plain, encodedCharacter)).toBe("UNCHANGED");
+  });
+
   it("keeps sibling constraints on recursive OpenAPI3.1 schema edges", () => {
     const make = (maxProperties: number) =>
       inventory({}, "request", {

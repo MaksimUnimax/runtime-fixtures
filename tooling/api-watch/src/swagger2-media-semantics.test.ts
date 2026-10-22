@@ -281,6 +281,34 @@ describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () 
     expect(changedParameters.fields).toContain("responseSchemaSha256");
   });
 
+  it("normalizes Swagger 2 MIME parameter names, whitespace, order, and equivalent quotes", () => {
+    const a = compare(
+      {
+        rootConsumes: [
+          "application/json; charset=utf-8; boundary=CaseSensitiveABC",
+        ],
+        rootProduces: [
+          "application/json; CHARSET=utf-8; profile=CaseSensitiveABC",
+        ],
+      },
+      {
+        rootConsumes: [
+          'APPLICATION/JSON; BOUNDARY="CaseSensitiveABC"; CHARSET="utf-8"',
+        ],
+        rootProduces: [
+          'application/json; profile="CaseSensitiveABC" ; charset="utf-8"',
+        ],
+      },
+    );
+    expect(a.state).toBe("UNCHANGED");
+
+    const quotedSemicolon = compare(
+      { rootConsumes: ['multipart/form-data; boundary="semi;CaseABC"'] },
+      { rootConsumes: ['MULTIPART/FORM-DATA; BOUNDARY="semi;CaseABC"'] },
+    );
+    expect(quotedSemicolon.state).toBe("UNCHANGED");
+  });
+
   it("treats MIME lists as order-insensitive sets, including duplicate entries", () => {
     const result = compare(
       {
@@ -334,6 +362,24 @@ describe("Swagger 2.0 invalid MIME declarations fail closed", () => {
       "operation produces blank media value",
       "operationProduces",
       ["   "],
+      "body",
+    ],
+    [
+      "root consumes unterminated quoted MIME parameter",
+      "rootConsumes",
+      ['application/json; profile="unterminated'],
+      "body",
+    ],
+    [
+      "operation produces duplicate parameter name ignoring case",
+      "operationProduces",
+      ["application/json; charset=utf-8; CHARSET=utf-8"],
+      "body",
+    ],
+    [
+      "operation consumes missing media subtype",
+      "operationConsumes",
+      ["application"],
       "body",
     ],
     [

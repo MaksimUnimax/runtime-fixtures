@@ -148,25 +148,34 @@ function localRef(
     (object.$ref.startsWith("#/") || /^#%2f/iu.test(object.$ref))
   ) {
     const ref = object.$ref;
-    let resolved: unknown;
-    if (seen.has(ref)) {
-      resolved = { $recursiveRef: ref };
-    } else {
-      // URI fragments are percent-decoded before JSON Pointer unescaping.
-      // Invalid URI escapes or "~" tokens are unresolved, not guessed.
-      let tokens: string[] | null = null;
-      try {
-        const pointer = decodeURIComponent(ref.slice(1));
-        if (pointer.startsWith("/")) {
-          const encodedTokens = pointer.slice(1).split("/");
-          if (encodedTokens.every((token) => !/~(?![01])/u.test(token)))
-            tokens = encodedTokens.map((token) =>
-              token.replace(/~1/g, "/").replace(/~0/g, "~"),
-            );
-        }
-      } catch {
-        // Malformed percent encoding cannot identify an official schema.
+    // URI fragments are percent-decoded before JSON Pointer unescaping.
+    // Invalid URI escapes or "~" tokens are unresolved, not guessed.
+    let tokens: string[] | null = null;
+    try {
+      const pointer = decodeURIComponent(ref.slice(1));
+      if (pointer.startsWith("/")) {
+        const encodedTokens = pointer.slice(1).split("/");
+        if (encodedTokens.every((token) => !/~(?![01])/u.test(token)))
+          tokens = encodedTokens.map((token) =>
+            token.replace(/~1/g, "/").replace(/~0/g, "~"),
+          );
       }
+    } catch {
+      // Malformed percent encoding cannot identify an official schema.
+    }
+    // Equivalent URI-fragment spellings must share one cycle identity.
+    // Escape decoded pointer tokens, not their original percent-encoded text.
+    const identity =
+      tokens === null
+        ? ref
+        : "#/" +
+          tokens
+            .map((token) => token.replace(/~/g, "~0").replace(/\//g, "~1"))
+            .join("/");
+    let resolved: unknown;
+    if (seen.has(identity)) {
+      resolved = { $recursiveRef: identity };
+    } else {
       const target = tokens?.reduce<unknown>((at, key) => {
         if (Array.isArray(at)) {
           // JSON Pointer array elements use canonical zero-based own indices.
@@ -183,7 +192,7 @@ function localRef(
       resolved =
         target === undefined
           ? { $unresolvedRef: ref }
-          : localRef(target, root, new Set([...seen, ref]), context);
+          : localRef(target, root, new Set([...seen, identity]), context);
     }
     // OpenAPI3.1 Schema Object $ref is a JSON Schema applicator. Sibling
     // constraints also apply; a non-schema Reference Object keeps its own rule.
@@ -373,17 +382,82 @@ function parametersFingerprint(
   return fingerprint(projected);
 }
 
-// Swagger 2.0 media type and subtype are ASCII case-insensitive. Parameters
-// may carry case-sensitive values (for example, multipart boundary strings).
-// Normalize only the type/subtype segment and deduplicate after normalization.
+// Media type, subtype, and parameter *names* are case-insensitive.
+// Parameter values may be case-sensitive (notably multipart boundaries).
+// Canonicalize harmless whitespace/order/quotes without altering values.
 function canonicalSwagger2MediaType(value: string): string {
-  const separator = value.indexOf(";");
-  const typeAndSubtype = (separator < 0 ? value : value.slice(0, separator))
-    .trim()
-    .toLowerCase();
-  return separator < 0
-    ? typeAndSubtype
-    : typeAndSubtype + value.slice(separator);
+  const invalid = () =>
+    new Error("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
+  const token = /^[!#$%&'*+.^_\u0060|~0-9A-Za-z-]+$/u;
+  const segments: string[] = [];
+  let start = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (quoted && ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (ch === ";" && !quoted) {
+      segments.push(value.slice(start, i));
+      start = i + 1;
+    }
+  }
+  if (quoted || escaped) throw invalid();
+  segments.push(value.slice(start));
+
+  const media = (segments.shift() ?? "").trim().toLowerCase();
+  const pair = media.split("/");
+  if (pair.length !== 2 || !pair.every((part) => token.test(part)))
+    throw invalid();
+
+  const params = segments.map((segment) => {
+    const equal = segment.indexOf("=");
+    if (equal < 0) throw invalid();
+    const name = segment.slice(0, equal).trim().toLowerCase();
+    if (!token.test(name)) throw invalid();
+    const raw = segment.slice(equal + 1).trim();
+    let decoded: string;
+    if (raw.startsWith('"')) {
+      if (raw.length < 2 || !raw.endsWith('"')) throw invalid();
+      decoded = "";
+      for (let i = 1; i < raw.length - 1; i++) {
+        const ch = raw[i];
+        if (ch === "\\") {
+          i++;
+          if (i >= raw.length - 1) throw invalid();
+          decoded += raw[i];
+        } else {
+          if (ch === '"') throw invalid();
+          decoded += ch;
+        }
+      }
+    } else {
+      if (!token.test(raw)) throw invalid();
+      decoded = raw;
+    }
+    return [name, JSON.stringify(decoded)] as const;
+  });
+
+  // Duplicate parameter names have ambiguous authority: fail closed.
+  if (new Set(params.map(([name]) => name)).size !== params.length)
+    throw invalid();
+  params.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return (
+    media +
+    (params.length
+      ? ";" + params.map(([name, encoded]) => name + "=" + encoded).join(";")
+      : "")
+  );
 }
 
 // Fail closed on malformed Swagger 2.0 media declarations rather than
