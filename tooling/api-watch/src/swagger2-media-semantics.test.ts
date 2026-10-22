@@ -309,6 +309,22 @@ describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () 
     expect(quotedSemicolon.state).toBe("UNCHANGED");
   });
 
+  it("accepts ASCII spaces and tabs around MIME separators, not around equals", () => {
+    const a = compare(
+      {
+        rootConsumes: [
+          ' \tapplication/json \t; CHARSET="utf-8" \t; profile=CaseSensitiveABC',
+        ],
+      },
+      {
+        rootConsumes: [
+          "application/json;profile=CaseSensitiveABC;charset=utf-8",
+        ],
+      },
+    );
+    expect(a.state).toBe("UNCHANGED");
+  });
+
   it("preserves valid escaped quotes, tab and Latin-1 characters in MIME parameters", () => {
     const result = compare(
       { rootConsumes: ['application/json; profile="a\\"b\t\u00e9"'] },
@@ -378,6 +394,49 @@ describe("Swagger 2.0 invalid MIME declarations fail closed", () => {
       ['application/json; profile="unterminated'],
       "body",
     ],
+    [
+      "root consumes NBSP before MIME type",
+      "rootConsumes",
+      ["\u00a0application/json"],
+      "body",
+    ],
+    [
+      "operation produces NBSP after MIME subtype",
+      "operationProduces",
+      ["application/json\u00a0"],
+      "body",
+    ],
+    [
+      "root consumes NBSP before MIME semicolon",
+      "rootConsumes",
+      ["application/json\u00a0; charset=utf-8"],
+      "body",
+    ],
+    [
+      "operation consumes NBSP before parameter name",
+      "operationConsumes",
+      ["application/json; \u00a0charset=utf-8"],
+      "body",
+    ],
+    [
+      "root consumes NBSP after equals",
+      "rootConsumes",
+      ["application/json; charset=\u00a0utf-8"],
+      "body",
+    ],
+    [
+      "operation produces ASCII space before equals",
+      "operationProduces",
+      ["application/json; charset =utf-8"],
+      "body",
+    ],
+    [
+      "root consumes ASCII space after equals",
+      "rootConsumes",
+      ["application/json; charset= utf-8"],
+      "body",
+    ],
+
     [
       "root consumes CRLF inside quoted MIME parameter",
       "rootConsumes",

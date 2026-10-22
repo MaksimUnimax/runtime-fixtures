@@ -426,17 +426,22 @@ function canonicalSwagger2MediaType(value: string): string {
   if (quoted || escaped) throw invalid();
   segments.push(value.slice(start));
 
-  const media = (segments.shift() ?? "").trim().toLowerCase();
+  // MIME OWS permits only ASCII SP/HTAB; Unicode whitespace must fail closed.
+  const trimAsciiOws = (part: string): string =>
+    part.replace(/^[ \t]+|[ \t]+$/gu, "");
+  const media = trimAsciiOws(segments.shift() ?? "").toLowerCase();
   const pair = media.split("/");
   if (pair.length !== 2 || !pair.every((part) => token.test(part)))
     throw invalid();
 
   const params = segments.map((segment) => {
-    const equal = segment.indexOf("=");
+    // Only trim OWS at semicolon/field boundaries, never around "=".
+    const parameter = trimAsciiOws(segment);
+    const equal = parameter.indexOf("=");
     if (equal < 0) throw invalid();
-    const name = segment.slice(0, equal).trim().toLowerCase();
+    const name = parameter.slice(0, equal).toLowerCase();
     if (!token.test(name)) throw invalid();
-    const raw = segment.slice(equal + 1).trim();
+    const raw = parameter.slice(equal + 1);
     let decoded: string;
     if (raw.startsWith('"')) {
       if (raw.length < 2 || !raw.endsWith('"')) throw invalid();
