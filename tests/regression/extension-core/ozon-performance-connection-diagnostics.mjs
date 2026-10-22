@@ -135,9 +135,11 @@ async function check(mode, rawCredentials, expected) {
   return result;
 }
 
+// The fixture raises before calling fetchImpl. Untrusted exception flags
+// cannot establish a physical Ozon request; no false send acknowledgement.
 await check("network", fakeCredentials, {
   ok: false, code: "PROVIDER_FETCH_FAILED", httpStatus: 0,
-  authRequestPerformed: true, transportCalls: 1, fetchCalls: 0,
+  authRequestPerformed: false, transportCalls: 1, fetchCalls: 0,
 });
 await check("unknown", fakeCredentials, {
   ok: false, code: "PERFORMANCE_CONNECTION_TEST_FAILED", httpStatus: 0,
