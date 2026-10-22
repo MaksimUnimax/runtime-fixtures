@@ -1,3 +1,37 @@
+# Original12: current crosswalk без переоткрытия bounded PASS — 22.10.2026 10:40 UTC+5
+
+Тот же единственный Controller/dot; полный аудит НЕ ЗАВЕРШЁН. Predecessor REPORT `e411dcf26f7716c803dd7a9b01efaae751e55e0e`,MaksimUnimax10:30:10 UTC+5,blob`9fed7d8329fcc5dd3b92762e7b98aefc8e1f2669`,2875014chars,полностью прочитан,exactexpected/неизменныйsuffix совпали. Весь текст ниже сохранён. Freshref/immutableauthor/nativeprewrite10:39:25.532 UTC+5 safe=true,locks0/writers0. CanonicalA81/B83/C73 и HEAD/statushash сохранены перед ownсерверными записями;нетunknown выполненнойREPORTмутации/второгоавтора.
+
+**Два первичных указателя одного набора12:**
+[историческая поимённая карта,REPORT933f75c,строки3996–4009](https://github.com/MaksimUnimax/runtime-fixtures/blob/933f75c8811f3bb48c01fa3f2b6884ff0cb0708b/docs/development/coordination/audits/2026-10-10_1200Z/REPORT.md?plain=1#L3996-L4009),blob275b22a0d3a56ed171a42b25e5e33cb27ffbf342;
+[поздняя подробная сверка,REPORT229a2d04,строки318–335](https://github.com/MaksimUnimax/runtime-fixtures/blob/229a2d04f95515e9f7ae3d9992019d7b203fbb0c/docs/development/coordination/audits/2026-10-10_1200Z/REPORT.md?plain=1#L318-L335),blobb29ff8ef86ffeb6c4d705c1a43e62c5095ab96c7.
+Оба блока полностью прочитаны;это12исходныхграниц,не21PLAN. Старые ограничения сопровожденияТестера/старыйpersonalissuer вопрос не являютсяновыми действующими командами. Полнотаперечня установлена;полнота missingoriginalдосье не выдумана.
+
+|№|Сохранённая выполненная часть|Текущий отдельный OPEN / primarylocator|
+|---|---|---|
+|1 sourceSeen-submit|Сохранены SOURCE_SYNTHETIC/временныйPGtransition,source692c0904…|B.json#/active_b03_source_seen_cross_instance_20261014,проверен10:34:20. Durable/conditional/revision/actor/idempotency/twoAPI/no-double/preACK runtimeнепринят. OriginalB/Cclientcustodian,безновоготеста/обходаPGотказа.|
+|2 pre-ACK relay/recipient|Исторический boundedSOURCEFULFILLED сохранён;PR50proof не повторять|Runtime/installedrealIDB/relaylossдоACK остаётсяOPEN:историческаястрока3999 и поздняя325. ДополнительныйB.json#/active_b03_preack_restart имеет HOLD_SOURCE_INSPECTION_EXPLICIT_REFUSAL,неразрешаетчтениеWIP/новыйPGproof.|
+|3 OTP/admission/resource|PR211source merged/latestmainverified вB.json#/B04_CONSUMED_OTP_REPLAY_VERIFICATION_20261018|Originalmain227push ненаблюдён;поздний5/13 не егоproof. OriginalOTP/PG/hold/resourceoutcomes не закрыты;старыйcapacityнеcurrentadmission. ОтказыR7/R8/holdнеповторять.|
+|4 atomicpublication|Исторический boundedFULFILLED/PR143source-packagepublication НЕпереоткрыт;Firefox/sourceузкиеприёмки сохранены|Отдельныйhistorical/production/currentcombination-installed residual:строка4001 и поздняя327. Нуженoriginalpublisher/actualinstalledcustodian retainedproof,не повторpub/sourcefix.|
+|5 PR48/50|SOURCEFULFILLED/realHTTPPG reviewed сохранены|B.json#/B03_route_additional_real_transport=PASS_REAL_HTTP_PG_REVIEWED_NOT_PUBLICATION,проверен10:34:20. Originalpublication-preparationrefusal/origin/installedcorrelationOPEN;новыйpush/PR48retryнеразрешён.|
+|6 C06 release|Acceptedsourcecomposition;personalPREPRODUCTIONcc8authority+separateissuerapproval ужеПРИНЯТЫ|Неоткрыватьmissingpersonalissuer. CurrentACTIVE signedKimiadapter_profile_v1/PREPRODUCTION/0.2.37assignment/fingerprint/target NOT_DOCUMENTED вcheckednonsecretB05/C06return;неNOT_PROVISIONED. Store/prodissuer/custody/privacy/catalog/releaseотдельноOPEN.|
+|7 originalR3popup/fullB02|Сохранены узкиеFile/native/source/metadatapublicationрезультаты|Fulloriginalpopup/current0.2.37normal-auth/Start/Finish/выдача/eightAI+Work/dotOPEN,не восстанавливать0.2.15задачу. НовыеTesterR3/R4metadata/H3sourceнеfullB02PASS. CurrentControllerнулёмчатовуправляет,lateparentrelayрешенияприоритетныстаройкарте.|
+|8 R14raw-response|Сохранена originaldeniedcompoundboundary|Immutableoriginalrequest/envelope/rawresponse/deliverycorrelation не появились в checkednewreturns:UNKNOWN/originalC-platformcustodian,строки4005/331. Неretry/split/proxy/globalhistorysearch.|
+|9 privateenvironmentrefusal|Protectedtarget/WIP/evidenceсохранены|Originalplatformreply/requestoperationID/guardeddeleteoutcomeUNKNOWN:строки4006/332,originalC-platformcustodian. Ниread/delete/новойcleanup;retirementновыхownscratchнеегоproof.|
+|10 Sep29origin|Сохраненыcommit59dfab94/twooriginalpushграницы|Originalactor/time/ref/method/requestreplycorrelationUNKNOWN:строки4007/333. НовыеPR/CI/repushнеоригинал.|
+|11 configdrift|Сохранено требованиеimmutablebefore-after/actor/time|OriginalB/configcustodian primaryUNKNOWN:строки4008/334. НовыйDEV→PREPRODUCTIONfix/публичныйsitepinнеoriginaldriftproof;protectedconfigscan/resetнеразрешены.|
+|12 reviewbytes|SHA12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175сохранён|Originalimmutablebytes+metadata/invocationenvelopeUNKNOWN:строки4009/335. Header/newLunareviewнеoriginalCODEX_HOMEproof;не реконструировать/непереревьюитьвместооригинала.|
+
+Это current evidence map,не новое исполнение12runtimeопераций. У№2/4/5исторически выполненный boundedSOURCE/pubнеотменён;openихотдельныеграницы. Для№8–12списокполон,но новаяprimaryполнотане заявлена:сохраняются точные unknown/refusal иoriginalcustodians. Все12top-levelостатков/21PLAN/история остаютсявscope;closedC04/B/C06documentaryreceipts сохранены.
+
+PR259exactacb99723…обычнаяпубликацияранееreviewed2files/+17safeC00,не новое написание17строк. OriginalServer39726408446attempt1SUCCESS10:26:31 UTC+5,обаjobsSUCCESS;DocsSUCCESS/2of5families. Это не исправлениеoriginalPR250timeout/firstfailedserviceUNKNOWN. PR257/258каждыйDocs+Server2of5,неcombinedtree/installed. ADC8original3of5/10jobs иsameA→реальныйauthorizedActionsoperatorpendingоперация остаются. KnownpriornativeactoraccountMaksimUnimax установлен первичкой;currentadc8queue/операторскийвыходнеподтверждён. Exacttwo-workflow/ref/headпроцедура в предыдущемразделе,нетновыхCI/rerun/ref/credentials.
+
+Есть фактическое получение и содержательный серверный авторский результат;он потреблён и готовыйreturn передан следующему существующемуconsumerвтомжесерверномscope. Не sourcefix/installedPASS;конкретный внутреннийpayload не копируетсясюда/вдругойпубличныйканал/помощнику. Точечныеownerpublicationрешения сохраняюттолько свойscope;parentпроверяетихисходы. Последующееconsumerпринятие невыводитсяизнашегосохранения. H3mappingТестеромфактическипотреблён,повторнойпередачи нет;9public/3packaged/2authsource и7missingauthlanesнеinstalledsessions.
+
+Новых Controller source/tests/review/CI/build/install/live/DB/security/resource/browser действий нет. SourceWIPсохранён,нетновыхhelpers/schedules/registries/archives/errors/events. ExactR8/PR238comment6308503022/equivalentpayload/R37/host09cGit ипрочиеотказыбезповторов/обхода. ControlleralwaysSol/xhigh,zerochatmanagement;dotbrowserdiagnosis/B02snapshotexception неControllerUI/livegrant. Аудит продолжается с фактических границ каждого пункта.
+
+---
+
 # PR259 исходный Server SUCCESS; найден первичный original12 pointer — 22.10.2026 10:30 UTC+5
 
 Тот же единственный Controller/dot. Полный аудит НЕ ЗАВЕРШЁН. Предыдущий успешный REPORT `e1ba2a5ed34b82bad51a5239bb4de14d312ecf1b`,MaksimUnimax10:05:26 UTC+5,blob`816a2d6deec73bc45727a75054eeb1ea845aaf92`,2868399chars,полностью прочитан/совпал с exactexpected и неизменным predecessor. Весь текст сохранён ниже. Freshref/knownimmutableauthor и подтверждённый nativeprewrite10:27:48.526 UTC+5:heldcontrollocks0,REPORT/gitwriters0,safe=true. A09e12fab81/B0885f49983/C5ca5999473dirty/statushash прежние;свои серверные записи сохранены,нет неизвестной выполненной REPORTмутации или второго автора.
