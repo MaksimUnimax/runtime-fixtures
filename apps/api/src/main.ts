@@ -88,11 +88,14 @@ import { sellerAgentsCommercialModeFromEnvironment } from "@product/entitlements
 const config = loadConfig(process.env);
 const commercialModeEnabled =
   sellerAgentsCommercialModeFromEnvironment(process.env) === "ENABLED";
-const { database, transferDatabase, closeDatabases } = await createApiDatabases(
-  config.databaseUrl,
-  process.env.CREDENTIAL_TRANSFER_DATABASE_URL,
-  createDatabaseRuntime,
-);
+const { database, transferDatabase, healthReadDatabase, closeDatabases } =
+  await createApiDatabases(
+    config.databaseUrl,
+    process.env.CREDENTIAL_TRANSFER_DATABASE_URL,
+    createDatabaseRuntime,
+    process.env.MONITOR_HEALTH_READ_DATABASE_URL,
+    process.env.MONITOR_HEALTH_READ_EXPECTED_ROLE,
+  );
 const transferFence = createCredentialTransferEpochFence(
   transferDatabase,
   randomUUID(),
@@ -241,11 +244,21 @@ const app = createApiApp({
   feedbackSupportService: new FeedbackSupportService(
     createFeedbackSupportRepository(database),
   ),
-  healthAdminService: createHealthAdminReadRepository(database),
-  healthNotificationAdminService:
-    createHealthNotificationAdminReadRepository(database),
-  healthDiagnosticsService: createHealthDiagnosticsReadRepository(database),
-  healthRepairAdminService: createMonitorProfileRepairReadRepository(database),
+  // Product auth and admin permission checks stay on the product database.
+  // Health read routes are absent (not falsely served from product data)
+  // until the separately authorized monitor reader has been configured.
+  healthAdminService: healthReadDatabase
+    ? createHealthAdminReadRepository(healthReadDatabase)
+    : undefined,
+  healthNotificationAdminService: healthReadDatabase
+    ? createHealthNotificationAdminReadRepository(healthReadDatabase)
+    : undefined,
+  healthDiagnosticsService: healthReadDatabase
+    ? createHealthDiagnosticsReadRepository(healthReadDatabase)
+    : undefined,
+  healthRepairAdminService: healthReadDatabase
+    ? createMonitorProfileRepairReadRepository(healthReadDatabase)
+    : undefined,
 });
 app.addHook("onClose", async () => {
   transferAdmission.stop();
