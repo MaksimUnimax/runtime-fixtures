@@ -1,3 +1,25 @@
+# Продолжение единственного Controller/dot через RDC — 2026-10-22T02:20Z
+
+Тот же незавершённый аудит; перенос исполнения из браузера, без второго автора. Проверены штатный list_devices: Easyscript `9dab7ad2-9d63-43a3-b106-a5840d79ccc1` online; list_sessions: No active sessions. Серверный prewrite02:15:22 UTC не выявил git commit/push/REPORT writer или удерживаемого coordination lock. GitHub ref и author подтверждены: predecessor `229a2d04f95515e9f7ae3d9992019d7b203fbb0c`, MaksimUnimax,21.10 19:35:33 UTC; blob `b29ff8ef86ffeb6c4d705c1a43e62c5095ab96c7` полностью получен через штатный fetch_blob. Весь прежний REPORT ниже сохранён неизменённым suffix.
+
+## Проверенный конкретный результат и его предел
+
+Полностью прочитан существующий C03 original R8 `/root/octoport-control/logs/C/C03_SWAGGER2_MEDIA_MAINAD6_20261021/R8_EXACT1421_FULL_SEVEN_SOURCE_LUNA_REVIEW_RESULT_20261022.txt`,1623 bytes,SHA256 `f88692e95aa33c165c50a983fadb3d4fe9bc87c0937118081cfcbb601333b3f4`,mtime01:06:35.7274446UTC. **REWORK_REQUIRED/P2: Unicode/NBSP over-normalization в MIME `.trim()`**, полный seven-file SOURCE scope. R7 quoted controls рассматриваются как исправленные только в этом scope; новый SOURCE PASS не выдан. Review не запускался повторно.
+
+Свежие PR250 metadata: OPEN/DRAFT/unmerged, exact `1421f15a206cc0c2676ba47073ddb8b9cb0ace8b`; own C public checkpoint6316747710updated01:03:44 ещё называет review следующим действием и предшествует R8. Серверный original worktree имеет тот же HEAD, dirty только `swagger2-media-semantics.test.ts` и два dependency links; WIP сохранён. Это не доказывает ни отсутствие работы C, ни уже выполненное исправление. Имеющийся original Server39703205967 SUCCESS01:18:33 из принятого переноса не перечитывался/неперезапускался: Server+Docs только2/5. Устранение P2 и исходная проверка остаются у существующего C.
+
+Документальная передача результата через существующую собственную Controller-секцию публичного комментария6308503022 **не выполнена**: автоматическая проверка отклонила конкретную внешнюю публикацию как недостаточно явно авторизованную. Последующий штатный readback подтвердил прежнее тело/updated19:27:42, новый marker отсутствует. Получение/исполнение C не заявлены, повтор/другой инструмент не применялись. Требуется адресное разрешение именно этой публикации; прочие разрешённые операции продолжаются. Это остаток операции, не новый реестр ошибок.
+
+## PLAN, история и продолжаемая проверка
+
+Полный текущий server PLAN88lines прочитан: A01–A06/B01–B07/C00–C07, включая прямое B05 уточнение12.10 о существующем backup и изолированном restore без нового внешнего носителя как gate текущего roadmap. Проверяется, не расширено ли требование будущей эксплуатации на эту исходную операцию; новый protected probe/DB/service change не выполняется. Основные START_HERE/PROMPT_CONTROLLER/WORK_METHOD/PROTOCOL, PRE_AUDIT_SELF_ERROR_GATE, ORGANIZATION_AUDIT_POLICY, ресурсные правила, дисковый учёт и правила передачи прочитаны; дополнительный контекст/обязательные указатели продолжают читаться, полнота всех исторических текстов не объявлена.
+
+Свежие канонические деревья: A HEAD09e12fab/81dirty, B0885f499/83dirty, C5ca59994/73dirty; чужие source/tests не менялись. Published PR253 remains b32 OPEN/DRAFT/unmerged, PR256 e4ca OPEN/DRAFT/unmerged. Их текущая native полнота, receipt/execution и независимый остаток проверяются по существующим первичным данным; запись/ACK/старый commit не используются как доказательство продвижения.
+
+Точные12 исходных OPEN перечитаны в прежнем REPORT: B03durable/preACK; recipientrelayloss/realIDB; B04OTP/PG/resource; A05atomic/currentintegration; PR48/50originaloutcomes; C06authority/catalog/privacy/Store; personalR3/fullB02; C_R14originalcompound; protecteddeleteoriginal; Sep29twooriginalpushes; Bconfigdrift; originalreviewpayloadSHA12d924479f96238248c21d0d7a86345d525d032be944b5a95c6ba06cb0cb3175. **Все12 остаются OPEN**, не приравнены21пункту PLAN. R37/§22/R7R8/security/resource/protected-target отказы сохранены; новых tests/review/CI/helpers/чатов/cleanup/live/DB/auth/security действий нет. Полный аудит не завершён;30-минутная пауза не началась.
+
+---
+
 # Проверенный итог продолжения: C receipts закрыты, current b32 CI 3/5 — 2026-10-21T19:35:32.193Z
 
 **Тот же единственный Контроллер; полныйаудитостаётсянезавершённым. Все12исходныхOPEN/PLAN/WIP/историясохранены.** ПредыдущийsoleREPORT **14d9f3422732907f7f3409ad6ba7d57ddaa285f3**, authorMaksimUnimax, publication **19:31:32UTC**, полныйточныйreadback **19:31:41.797**,2717823символа. Freshref19:34:04подтверждаеттотжеHEAD. ВесьпредыдущийREPORTнижеостаётсянеизменённымsuffix, прежниеотрицательныерезультатынестираются.
