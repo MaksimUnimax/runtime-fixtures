@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createApiCleanup } from "./api-cleanup.js";
+import { createUnavailableHealthReadDependencies } from "./health-unavailable-read.js";
 import { createApiDatabases } from "./api-databases.js";
 import { createCredentialTransferApiAdmission } from "./credential-transfer-admission.js";
 import { createMaintenanceCredentialFileStore } from "./maintenance-credential-file.js";
@@ -150,6 +151,12 @@ const transferService = new CredentialTransferService(
   undefined,
   () => transferAdmission.isReady(),
 );
+// Always register the *known read-only* Health routes. Without the separately
+// provisioned monitor reader they still require product-admin permissions and
+// report typed unavailability instead of an ambiguous unmatched-route 404.
+const unavailableHealth = !healthReadDatabase
+  ? createUnavailableHealthReadDependencies()
+  : undefined;
 const app = createApiApp({
   config,
   isInfrastructureReady: async () =>
@@ -244,21 +251,20 @@ const app = createApiApp({
   feedbackSupportService: new FeedbackSupportService(
     createFeedbackSupportRepository(database),
   ),
-  // Product auth and admin permission checks stay on the product database.
-  // Health read routes are absent (not falsely served from product data)
-  // until the separately authorized monitor reader has been configured.
+  // Product admin/session authorization remains on the product database.
+  // The monitor reader is independent; the fallback never queries any DB.
   healthAdminService: healthReadDatabase
     ? createHealthAdminReadRepository(healthReadDatabase)
-    : undefined,
+    : unavailableHealth?.healthAdminService,
   healthNotificationAdminService: healthReadDatabase
     ? createHealthNotificationAdminReadRepository(healthReadDatabase)
-    : undefined,
+    : unavailableHealth?.healthNotificationAdminService,
   healthDiagnosticsService: healthReadDatabase
     ? createHealthDiagnosticsReadRepository(healthReadDatabase)
-    : undefined,
+    : unavailableHealth?.healthDiagnosticsService,
   healthRepairAdminService: healthReadDatabase
     ? createMonitorProfileRepairReadRepository(healthReadDatabase)
-    : undefined,
+    : unavailableHealth?.healthRepairAdminService,
 });
 app.addHook("onClose", async () => {
   transferAdmission.stop();
