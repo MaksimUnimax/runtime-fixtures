@@ -15,7 +15,11 @@ const SESSION = "33333333-3333-4333-8333-333333333333";
 const CONTROL_ORIGIN = "http://127.0.0.1:43100";
 const PORTAL_ORIGIN = "http://127.0.0.1:43101";
 const AUTH = "seller_agents_control_auth_v2";
-const REVIEWED = ["source.ozon", "source.wildberries", "ai.chatgpt", "ai.alice", "ai.qwen"];
+const BETA_GRANTED = ["source.ozon", "source.wildberries", "ai.chatgpt", "ai.alice", "ai.qwen"];
+const ADDITIONAL_AI_DENIED = {
+  "ai.kimi": false, "ai.grok": false, "ai.gemini": false, "ai.claude": false, "ai.deepseek": false,
+};
+const REVIEWED = [...BETA_GRANTED, ...Object.keys(ADDITIONAL_AI_DENIED)];
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 type CommercialMap = Record<string, boolean | number>;
@@ -271,7 +275,7 @@ const cases: Record<string, unknown> = {};
   try {
     assert.deepEqual(fixture.serverPayload?.entitlements, { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true });
     assert.deepEqual(read.metadata.signedEntitlements, fixture.serverPayload?.entitlements);
-    assert.deepEqual(resultMap(read.intersection), Object.fromEntries(REVIEWED.map(key => [key, true])));
+    assert.deepEqual(resultMap(read.intersection), { ...Object.fromEntries(BETA_GRANTED.map(key => [key, true])), ...ADDITIONAL_AI_DENIED });
     cases["D3C-01"] = { server: fixture.serverPayload?.entitlements, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
   } finally { read.worker.close(); }
 }
@@ -294,7 +298,7 @@ const cases: Record<string, unknown> = {};
   try {
     assert.equal(fixture.serverPayload?.accessBasis, "COMMERCIAL");
     assert.deepEqual(read.metadata.signedEntitlements, commercial);
-    assert.deepEqual(resultMap(read.intersection), { "source.ozon": true, "source.wildberries": false, "ai.chatgpt": true, "ai.alice": false, "ai.qwen": false });
+    assert.deepEqual(resultMap(read.intersection), { "source.ozon": true, "source.wildberries": false, "ai.chatgpt": true, "ai.alice": false, "ai.qwen": false, ...ADDITIONAL_AI_DENIED });
     cases["D3C-03"] = { accessBasis: read.metadata.accessBasis, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
   } finally { read.worker.close(); }
 }
@@ -306,7 +310,7 @@ const cases: Record<string, unknown> = {};
   try {
     assert.equal(read.metadata.accessBasis, "BETA");
     assert.deepEqual(read.metadata.signedEntitlements, { ...commercial, "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true });
-    assert.deepEqual(resultMap(read.intersection), Object.fromEntries(REVIEWED.map(key => [key, true])));
+    assert.deepEqual(resultMap(read.intersection), { ...Object.fromEntries(BETA_GRANTED.map(key => [key, true])), ...ADDITIONAL_AI_DENIED });
     cases["D3C-04"] = { accessBasis: read.metadata.accessBasis, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
   } finally { read.worker.close(); }
 }
@@ -374,7 +378,7 @@ const cases: Record<string, unknown> = {};
   const read = await readBack(runtime, { ...fixture, envelope, serverPayload: payload });
   try {
     assert.equal(read.metadata.signedEntitlements["unrelated.legitimate"], 99);
-    assert.equal(read.intersection.capabilities.length, 5);
+    assert.equal(read.intersection.capabilities.length, REVIEWED.length);
     cases["D3C-10"] = { unknownRetained: true, capabilityRows: read.intersection.capabilities.length };
   } finally { read.worker.close(); }
 }
@@ -391,11 +395,11 @@ const cases: Record<string, unknown> = {};
   const read = await readBack(isolatedRuntime, fixture);
   try {
     const absent = resultMap(read.intersection);
-    assert.equal(absent["source.ozon"], false);
-    assert.equal(absent["source.wildberries"], true);
-    assert.equal(absent["ai.chatgpt"], true);
-    assert.equal(absent["ai.alice"], true);
-    assert.equal(absent["ai.qwen"], true);
+    assert.deepEqual(absent, {
+      "source.ozon": false, "source.wildberries": true,
+      "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true,
+      ...ADDITIONAL_AI_DENIED,
+    });
     assert.equal(await read.worker.call("SellerAgentsPackagedCapabilities.has", "marketplace.ozon.adapter"), false);
     cases["D3C-11"] = { ozonPermissionTrue: true, ozonPackaged: false, d2: absent, productionManifestUntouched: true };
   } finally {
