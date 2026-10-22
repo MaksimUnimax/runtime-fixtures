@@ -51,15 +51,20 @@ function semanticOperation(item: OperationInventoryItem): SemanticOperation {
   };
 }
 
+// Canonical diff bytes must not depend on host locale or ICU collation.
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function compareOperation(
   a: SemanticDiffOperation,
   b: SemanticDiffOperation,
 ): number {
   return (
-    a.sourceFamily.localeCompare(b.sourceFamily) ||
-    a.path.localeCompare(b.path) ||
-    a.method.localeCompare(b.method) ||
-    (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+    compareCodeUnits(a.sourceFamily, b.sourceFamily) ||
+    compareCodeUnits(a.path, b.path) ||
+    compareCodeUnits(a.method, b.method) ||
+    compareCodeUnits(a.identity, b.identity)
   );
 }
 
@@ -87,13 +92,13 @@ function deltas(
     return JSON.stringify(beforeValue) === JSON.stringify(afterValue)
       ? []
       : [{ field, before: beforeValue, after: afterValue }];
-  }).sort((a, b) => a.field.localeCompare(b.field));
+  }).sort((a, b) => compareCodeUnits(a.field, b.field));
 }
 
 function methodCounts(inventory: OperationInventory): Record<string, number> {
   return Object.fromEntries(
     Object.entries(inventory.operationsByMethod).sort(([a], [b]) =>
-      a.localeCompare(b),
+      compareCodeUnits(a, b),
     ),
   );
 }
