@@ -43,6 +43,10 @@ const NAMED_FIELD_MAPS = new Set([
   "scopes",
 ]);
 
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function canonical(
   value: unknown,
   seen = new Set<object>(),
@@ -85,7 +89,9 @@ function canonical(
       Array.isArray(field)
         ? field
             .map((item) => canonical(item, seen, childMode))
-            .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+            .sort((a, b) =>
+              compareCodeUnits(JSON.stringify(a), JSON.stringify(b)),
+            )
         : canonical(field, seen, childMode);
     entries.push([key, projected]);
   }
@@ -218,7 +224,7 @@ function securityFingerprint(
         .map((item) =>
           Object.fromEntries(
             Object.entries(asObject(item))
-              .sort(([a], [b]) => a.localeCompare(b))
+              .sort(([a], [b]) => compareCodeUnits(a, b))
               .map(([key, scopes]) => [
                 key,
                 [
@@ -231,7 +237,7 @@ function securityFingerprint(
               ]),
           ),
         )
-        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+        .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)))
     : value;
   const definitions = asObject(
     asObject(root.components).securitySchemes ?? root.securityDefinitions,
@@ -343,10 +349,10 @@ function parametersFingerprint(
               return false;
             return true;
           })
-          .sort(([a], [b]) => a.localeCompare(b)),
+          .sort(([a], [b]) => compareCodeUnits(a, b)),
       );
     })
-    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   return fingerprint(projected);
 }
 
@@ -378,7 +384,7 @@ function responseFingerprint(
         // HTTP header names are case-insensitive; OAS ignores Content-Type here.
         const headers = Object.entries(asObject(response.headers))
           .filter(([name]) => name.toLowerCase() !== "content-type")
-          .sort(([a], [b]) => a.localeCompare(b))
+          .sort(([a], [b]) => compareCodeUnits(a, b))
           .map(([name, rawHeader]) => {
             const header = asObject(localRef(rawHeader, root));
             const normalized = Object.fromEntries(
