@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import resource
 import shutil
 import signal
 import stat
@@ -29,7 +30,15 @@ from verify_owner_test_release import (
 ROOTS = ("@product/api", "@product/worker", "@product/portal", "@product/admin")
 MAX_BYTES = 2 * 1024**3
 MAX_FILES = 100_000
+MAX_DIRS = 80_000
+MAX_DEPTH = 64
 MAX_FILE_BYTES = 256 * 1024**2
+MAX_GIT_OUTPUT_BYTES = 16 * 1024**2
+MAX_MANIFEST_BYTES = 512 * 1024
+MAX_PROBE_OUTPUT_BYTES = 256 * 1024
+MAX_LINK_TARGET_BYTES = 4096
+MAX_PROBE_CGROUP_MEMORY_BYTES = 3072 * 1024**2
+MAX_PROBE_CGROUP_PIDS = 128
 FLOOR_BYTES = 512 * 1024**2
 NODE_VERSION = "v24.20.0"
 
@@ -41,6 +50,110 @@ class PackageError(RuntimeError):
 def digest(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+def bounded_child(argv: list[str], *, timeout: int, max_output: int,
+                  overflow_code: str, **kwargs) -> tuple[int, bytes, bytes]:
+    """Capture only strictly bounded output; the child's file limit stops floods.
+
+    Anonymous files avoid an unlimited pipe buffer in the parent and leave no
+    persistent stdout/stderr artifact. The child owns only its new process group.
+    """
+    if max_output <= 0 or max_output > MAX_GIT_OUTPUT_BYTES:
+        raise PackageError("PACKAGE_PROCESS_OUTPUT_BUDGET_INVALID")
+
+    def limit_output_file_size() -> None:
+        resource.setrlimit(resource.RLIMIT_FSIZE, (max_output + 1, max_output + 1))
+
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        process = subprocess.Popen(
+            argv, stdout=stdout_file, stderr=stderr_file, start_new_session=True,
+            preexec_fn=limit_output_file_size, **kwargs,
+        )
+        try:
+            process.wait(timeout=timeout)
+            stdout_file.seek(0)
+            stderr_file.seek(0)
+            stdout = stdout_file.read(max_output + 1)
+            stderr = stderr_file.read(max_output + 1)
+            if len(stdout) > max_output or len(stderr) > max_output:
+                raise PackageError(overflow_code)
+            return process.returncode, stdout, stderr
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=5)
+
+
+def verify_output_parent(parent: Path) -> None:
+    """Trust only root-owned protected ancestors.
+
+    Root-owned sticky temporary ancestors are safe against nonroot removal of
+    newly-created root-owned entries. A runner-writable non-sticky parent is not.
+    Call this on the fully resolved output parent before root staging begins.
+    """
+    current = parent
+    while True:
+        info = current.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or
+                ((info.st_mode & 0o022) and not (info.st_mode & stat.S_ISVTX))):
+            raise PackageError("PACKAGE_OUTPUT_PARENT_UNTRUSTED")
+        if current == current.parent:
+            break
+        current = current.parent
+
+
+def verify_probe_cgroup() -> None:
+    """Require the pinned CI systemd sandbox, not an unbounded root subprocess.
+
+    The enclosing service owns descendant pids and enforces memory/process limits,
+    a read-only host filesystem, and quota-bounded /tmp and /dev/shm. This probe
+    gate is required before any runtime import execution by the package CLI.
+    """
+    try:
+        cgroup_lines = Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines()
+        groups = [row[3:] for row in cgroup_lines if row.startswith("0::")]
+        if len(groups) != 1 or not re.fullmatch(
+                r"/system\.slice/octoport-ci-package-[0-9]+-[0-9]+\.service", groups[0]):
+            raise ValueError("not the dedicated hosted CI unit")
+        path = Path("/sys/fs/cgroup") / groups[0].lstrip("/")
+        memory = int((path / "memory.max").read_text(encoding="ascii").strip())
+        processes = int((path / "pids.max").read_text(encoding="ascii").strip())
+        if (memory < 1 or memory > MAX_PROBE_CGROUP_MEMORY_BYTES or
+                processes < 1 or processes > MAX_PROBE_CGROUP_PIDS):
+            raise ValueError("missing or oversized quotas")
+        # A matching unit name and cgroup caps alone do not establish an
+        # isolated scratch filesystem or a read-only host. Fail closed unless
+        # systemd actually applied ProtectSystem=strict and 64MiB scratch mounts.
+        mounts = {}
+        for line in Path("/proc/self/mountinfo").read_text(encoding="utf8").splitlines():
+            if " - " not in line:
+                continue
+            left, right = line.split(" - ", 1)
+            parts = left.split()
+            values = right.split()
+            if len(parts) >= 6 and values and parts[4] in ("/", "/tmp", "/dev/shm"):
+                mounts[parts[4]] = (set(parts[5].split(",")), values[0])
+        root = mounts.get("/")
+        if root is None or "ro" not in root[0]:
+            raise ValueError("host filesystem is not read-only")
+        for name in ("/tmp", "/dev/shm"):
+            value = mounts.get(name)
+            if value is None or value[1] != "tmpfs" or "rw" not in value[0]:
+                raise ValueError("scratch filesystem is not isolated")
+            volume = os.statvfs(name)
+            total = volume.f_blocks * volume.f_frsize
+            if total <= 0 or total > 64 * 1024**2:
+                raise ValueError("scratch filesystem quota missing")
+        # A private cgroup is not a network namespace. Imports require no
+        # TCP/UDP access, including to disposable CI PostgreSQL or internet.
+        local_net = os.stat("/proc/self/ns/net")
+        init_net = os.stat("/proc/1/ns/net")
+        if (local_net.st_dev, local_net.st_ino) == (init_net.st_dev, init_net.st_ino):
+            raise ValueError("probe network namespace is not isolated")
+    except (OSError, ValueError) as error:
+        raise PackageError("PACKAGE_PROBE_SANDBOX_REQUIRED") from error
 
 
 def git(source: Path, *args: str) -> bytes:
@@ -62,13 +175,16 @@ def git(source: Path, *args: str) -> bytes:
     environment = {"HOME": "/nonexistent", "PATH": "/usr/bin:/bin",
                    "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
                    "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
-    result = subprocess.run(
-        ["/usr/bin/git", "-C", str(source), *args], capture_output=True, timeout=30,
+    limit = min(MAX_GIT_OUTPUT_BYTES, MAX_MANIFEST_BYTES) if args[0] == "cat-file" else MAX_GIT_OUTPUT_BYTES
+    returncode, stdout, _ = bounded_child(
+        ["/usr/bin/git", "-C", str(source), *args],
+        timeout=30, max_output=limit,
+        overflow_code="PACKAGE_GIT_OUTPUT_BUDGET_EXCEEDED",
         env=environment, **options,
     )
-    if result.returncode:
+    if returncode:
         raise PackageError("PACKAGE_GIT_INPUT_INVALID_" + args[0].upper().replace("-", "_"))
-    return result.stdout
+    return stdout
 
 
 def identity(source: Path, sha: str, tree: str) -> None:
@@ -163,10 +279,22 @@ class Inventory:
         self.files: dict[str, tuple[Path, os.stat_result]] = {}
         self.links: dict[str, str] = {}
         self.visited: set[str] = set()
+        self.directories: set[str] = set()
         self.bytes = 0
+        self.symlink_bytes = 0
         self.git_blobs: dict[str, str] = {}
         self.checked_packages: set[Path] = set()
         self.omitted_optional: list[str] = []
+
+    def record_directories(self, name: str, *, include_self: bool = False) -> None:
+        parts = PurePosixPath(safe_name(name)).parts
+        if len(parts) > MAX_DEPTH:
+            raise PackageError("PACKAGE_DIRECTORY_DEPTH_EXCEEDED")
+        depth = len(parts) if include_self else len(parts) - 1
+        for length in range(1, depth + 1):
+            self.directories.add("/".join(parts[:length]))
+            if len(self.directories) > MAX_DIRS:
+                raise PackageError("PACKAGE_DIRECTORY_BUDGET_EXCEEDED")
 
     def add_file(self, name: str, path: Path) -> None:
         safe_name(name)
@@ -180,6 +308,7 @@ class Inventory:
         self.bytes += info.st_size
         if self.bytes > self.max_bytes or len(self.files) + len(self.links) >= MAX_FILES:
             raise PackageError("PACKAGE_INPUT_BUDGET_EXCEEDED")
+        self.record_directories(name)
         self.files[name] = (path, info)
 
     def link(self, path: Path) -> None:
@@ -189,6 +318,9 @@ class Inventory:
         if name in self.files:
             raise PackageError("PACKAGE_INPUT_COLLISION")
         target = os.readlink(path)
+        target_bytes = len(os.fsencode(target))
+        if target_bytes > MAX_LINK_TARGET_BYTES:
+            raise PackageError("PACKAGE_LINK_TARGET_TOO_LONG")
         if os.path.isabs(target) or any(ord(c) < 32 or ord(c) == 127 for c in target):
             raise PackageError("PACKAGE_EXTERNAL_LINK")
         try:
@@ -198,7 +330,9 @@ class Inventory:
             raise PackageError("PACKAGE_EXTERNAL_OR_BROKEN_LINK") from error
         if len(self.files) + len(self.links) >= MAX_FILES:
             raise PackageError("PACKAGE_INPUT_BUDGET_EXCEEDED")
+        self.record_directories(name)
         self.links[name] = target
+        self.symlink_bytes += target_bytes
         if relative in self.workspace_dirs:
             return  # Its original tracked sources and dependencies are selected separately.
         parts = PurePosixPath(relative).parts
@@ -252,16 +386,21 @@ class Inventory:
             return
         if path.is_symlink() or not path.is_dir():
             raise PackageError("PACKAGE_INPUT_DIRECTORY_INVALID")
+        self.record_directories(name, include_self=True)
         self.visited.add(name)
-        for entry in sorted(path.iterdir()):
-            if skip_cache and entry.name == "cache":
-                continue
-            if entry.is_symlink():
-                self.link(entry)
-            elif entry.is_dir():
-                self.directory(entry)
-            else:
-                self.add_file(entry.relative_to(self.source).as_posix(), entry)
+        # Do not materialize a potentially enormous scandir listing before
+        # checking resource limits; deterministic staging sorts bounded maps.
+        with os.scandir(path) as entries:
+            for entry in entries:
+                if skip_cache and entry.name == "cache":
+                    continue
+                child = Path(entry.path)
+                if entry.is_symlink():
+                    self.link(child)
+                elif entry.is_dir(follow_symlinks=False):
+                    self.directory(child)
+                else:
+                    self.add_file(child.relative_to(self.source).as_posix(), child)
 
     def copy(self, stage: Path) -> None:
         for name, (source, before) in sorted(self.files.items()):
@@ -396,34 +535,26 @@ def runtime_import_smoke(stage: Path) -> dict:
                     str(stage / "apps" / service / "dist/main.js")]
         else:
             args = [node, str(stage / SERVICE_ENTRIES[service][0]), "--version"]
-        process = subprocess.Popen(args, cwd=stage, env=environment, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, start_new_session=True,
-                                   user=65534, group=65534, extra_groups=[])
         try:
-            try:
-                stdout, stderr = process.communicate(timeout=20)
-            except subprocess.TimeoutExpired as error:
-                raise PackageError("PACKAGE_RUNTIME_PROBE_TIMEOUT") from error
-            if service in ("api", "worker"):
-                # loadConfig runs before database initialization. The exact
-                # missing databaseUrl Zod error is expected, not success.
-                if (process.returncode == 0 or b"ZodError" not in stderr or
-                        re.search(rb'"path"\s*:\s*\[\s*"databaseUrl"\s*\]', stderr) is None or
-                        b"ERR_MODULE_NOT_FOUND" in stderr or b"Cannot find module" in stderr):
-                    raise PackageError("PACKAGE_RUNTIME_IMPORT_GATE_FAILED_" + service.upper())
-                result[service] = "IMPORT_GRAPH_LOADED_REQUIRED_CONFIG_REJECTED_NO_DB"
-            else:
-                if process.returncode != 0 or b"15.5.21" not in stdout:
-                    raise PackageError("PACKAGE_NEXT_CLI_GATE_FAILED_" + service.upper())
-                result[service] = "PINNED_NEXT_CLI_LOADED_ONLY"
-        finally:
-            # Only this invocation's finite child process group. Never touch a
-            # pre-existing service or silently leave a tsx descendant alive.
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait(timeout=5)
+            returncode, stdout, stderr = bounded_child(
+                args, timeout=20, max_output=MAX_PROBE_OUTPUT_BYTES,
+                overflow_code="PACKAGE_RUNTIME_PROBE_OUTPUT_BUDGET_EXCEEDED",
+                cwd=stage, env=environment, user=65534, group=65534, extra_groups=[],
+            )
+        except subprocess.TimeoutExpired as error:
+            raise PackageError("PACKAGE_RUNTIME_PROBE_TIMEOUT") from error
+        if service in ("api", "worker"):
+            # loadConfig runs before database initialization. The exact
+            # missing databaseUrl Zod error is expected, not success.
+            if (returncode == 0 or b"ZodError" not in stderr or
+                    re.search(rb'"path"\s*:\s*\[\s*"databaseUrl"\s*\]', stderr) is None or
+                    b"ERR_MODULE_NOT_FOUND" in stderr or b"Cannot find module" in stderr):
+                raise PackageError("PACKAGE_RUNTIME_IMPORT_GATE_FAILED_" + service.upper())
+            result[service] = "IMPORT_GRAPH_LOADED_REQUIRED_CONFIG_REJECTED_NO_DB"
+        else:
+            if returncode != 0 or b"15.5.21" not in stdout:
+                raise PackageError("PACKAGE_NEXT_CLI_GATE_FAILED_" + service.upper())
+            result[service] = "PINNED_NEXT_CLI_LOADED_ONLY"
     return result
 
 
@@ -433,11 +564,14 @@ def package_release(source: Path, output: Path, node: Path, sha: str, tree: str,
         raise PackageError("PACKAGE_ROOT_OWNERSHIP_REQUIRED")
     if max_bytes <= 0 or max_bytes > MAX_BYTES:
         raise PackageError("PACKAGE_BUDGET_INVALID")
+    if probe_runtime:
+        verify_probe_cgroup()
     source = source.resolve(strict=True)
     node = node.resolve(strict=True)
     if output.exists() or output.is_symlink():
         raise PackageError("PACKAGE_OUTPUT_ALREADY_EXISTS")
     parent = output.parent.resolve(strict=True)
+    verify_output_parent(parent)
     output = parent / output.name
     if output == source or output.is_relative_to(source) or source.is_relative_to(output):
         raise PackageError("PACKAGE_OUTPUT_OVERLAPS_SOURCE")
@@ -473,14 +607,20 @@ def package_release(source: Path, output: Path, node: Path, sha: str, tree: str,
         inputs.directory(source / "apps" / name / ".next", skip_cache=True)
     inputs.add_file(".runtime/node", node)
     # Reserve stage plus worst-case uncompressed archive and bounded metadata.
-    required_free = inputs.bytes * 2 + (len(inputs.files) + len(inputs.links)) * 2048 + FLOOR_BYTES
+    required_free = (inputs.bytes * 2 + inputs.symlink_bytes * 2
+                     + (len(inputs.files) + len(inputs.links)) * 2048
+                     + len(inputs.directories) * 4096 + FLOOR_BYTES)
     if shutil.disk_usage(parent).free < required_free:
         raise PackageError("PACKAGE_OUTPUT_DISK_RESERVE")
-    output.mkdir(mode=0o755)
-    output_identity = output.stat()
-    stage = output / sha
-    stage.mkdir(mode=0o755)
+    required_inodes = len(inputs.files) + len(inputs.links) + len(inputs.directories) + 64
+    if os.statvfs(parent).f_favail < required_inodes + 200_000:
+        raise PackageError("PACKAGE_OUTPUT_INODE_RESERVE")
+    output_identity = None
     try:
+        output.mkdir(mode=0o755)
+        output_identity = output.lstat()
+        stage = output / sha
+        stage.mkdir(mode=0o755)
         inputs.copy(stage)
         identity(source, sha, tree)
         trusted_inventory = inventory_metadata(stage, manifest(stage, sha, tree))
@@ -501,7 +641,8 @@ def package_release(source: Path, output: Path, node: Path, sha: str, tree: str,
             "archive": archive.name, "archiveSha256": digest(archive), "archiveBytes": archive.stat().st_size,
             "trustedInventorySha256": trusted_inventory, "verification": verification,
             "workspaceNames": sorted(selected), "omittedOptionalDependencies": sorted(omitted_optional + inputs.omitted_optional),
-            "files": len(inputs.files), "symlinks": len(inputs.links), "inputBytes": inputs.bytes,
+            "files": len(inputs.files), "symlinks": len(inputs.links),
+            "symlinkTargetBytes": inputs.symlink_bytes, "inputBytes": inputs.bytes,
             "originRequirement": "Independently verify the exact CI/build source, workflow and artifact digest. This builder cannot authorize its own output.",
             "archiveContentVerified": True, "runtimeImportProbes": probes,
             "acceptance": "BUILT_PACKAGE_ONLY_NOT_INSTALLED_NOT_RECOVERY_NOT_PRODUCTION"}
@@ -509,9 +650,17 @@ def package_release(source: Path, output: Path, node: Path, sha: str, tree: str,
         (output / "PACKAGE_RECEIPT.json").chmod(0o444)
         return receipt
     except BaseException:
-        now = output.lstat()
-        if not output.is_symlink() and (now.st_dev, now.st_ino) == (output_identity.st_dev, output_identity.st_ino):
-            shutil.rmtree(output)
+        # A pre-existing output was rejected before mkdir. Remove only the
+        # directory created by this invocation with the same captured inode.
+        if output_identity is not None:
+            try:
+                now = output.lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                if (not stat.S_ISLNK(now.st_mode) and
+                        (now.st_dev, now.st_ino) == (output_identity.st_dev, output_identity.st_ino)):
+                    shutil.rmtree(output)
         raise
 
 
@@ -527,7 +676,18 @@ def main() -> int:
         result = package_release(args.source, args.output, args.node,
                                  args.expected_source_sha, args.expected_source_tree, probe_runtime=True)
     except (PackageError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
-        code = str(error) if isinstance(error, PackageError) else "PACKAGE_CREATION_FAILED"
+        # Expose a stable error class/errno without leaking paths, environment,
+        # checkout contents, tokens or captured runtime text into CI logs.
+        if isinstance(error, PackageError):
+            code = str(error)
+        elif isinstance(error, OSError):
+            code = "PACKAGE_OS_ERROR_" + str(error.errno if error.errno is not None else "UNKNOWN")
+        elif isinstance(error, subprocess.SubprocessError):
+            code = "PACKAGE_SUBPROCESS_ERROR"
+        elif isinstance(error, ValueError):
+            code = "PACKAGE_VALUE_ERROR"
+        else:
+            code = "PACKAGE_RUNTIME_ERROR"
         print(json.dumps({"status": "FAIL", "code": code}), file=sys.stderr)
         return 1
     print(json.dumps(result, sort_keys=True))

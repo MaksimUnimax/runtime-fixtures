@@ -11,7 +11,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, call
 
 sys.path.insert(0, str(Path(__file__).parent))
 import package_owner_test_release as pkg
@@ -199,16 +199,24 @@ class RuntimePackage(unittest.TestCase):
             os.chown(metadata, before.st_uid, before.st_gid)
 
     def test_git_reader_does_not_inherit_git_or_auth_environment(self):
-        with patch.object(pkg.subprocess, "run", return_value=Mock(returncode=0, stdout=b"ok")) as run:
+        def fake_start(_argv, **kwargs):
+            kwargs["stdout"].write(b"ok")
+            return Mock(pid=77000, returncode=0)
+
+        with patch.object(pkg.subprocess, "Popen", side_effect=fake_start) as start, \
+                patch.object(pkg.os, "killpg") as stop:
             self.assertEqual(pkg.git(self.source, "rev-parse", "HEAD"), b"ok")
-        args = run.call_args
+        args = start.call_args
         self.assertEqual(args.args[0][0], "/usr/bin/git")
         self.assertEqual(args.kwargs["env"]["GIT_CONFIG_GLOBAL"], "/dev/null")
         self.assertEqual(args.kwargs["env"]["GIT_OPTIONAL_LOCKS"], "0")
+        self.assertTrue(args.kwargs["start_new_session"])
+        self.assertTrue(callable(args.kwargs["preexec_fn"]))
         self.assertNotIn("GH_TOKEN", args.kwargs["env"])
         self.assertNotIn("GIT_CONFIG_COUNT", args.kwargs["env"])
         self.assertNotIn("GIT_INDEX_FILE", args.kwargs["env"])
         self.assertEqual(args.kwargs["user"], self.source.stat().st_uid)
+        stop.assert_called_once_with(77000, pkg.signal.SIGKILL)
 
     def test_dirty_source_and_wrong_identity_are_rejected(self):
         with self.assertRaisesRegex(pkg.PackageError, "SOURCE_ID_MISMATCH"):
@@ -356,12 +364,19 @@ class RuntimePackage(unittest.TestCase):
     def test_runtime_probes_are_nonroot_and_do_not_inherit_private_environment(self):
         api_error = b'ZodError: [{"path": ["databaseUrl"], "message":"required"}]'
         children = []
-        for code, out, err in ((1, b"", api_error), (1, b"", api_error),
-                                (0, b"Next.js v15.5.21", b""), (0, b"Next.js v15.5.21", b"")):
-            child = Mock(pid=70000 + len(children), returncode=code)
-            child.communicate.return_value = (out, err)
-            children.append(child)
-        with patch.object(pkg.subprocess, "Popen", side_effect=children) as start, \
+        expected = ((1, b"", api_error), (1, b"", api_error),
+                    (0, b"Next.js v15.5.21", b""), (0, b"Next.js v15.5.21", b""))
+        for code, out, err in expected:
+            children.append((Mock(pid=70000 + len(children), returncode=code), out, err))
+        pending = iter(children)
+
+        def fake_start(_argv, **kwargs):
+            child, out, err = next(pending)
+            kwargs["stdout"].write(out)
+            kwargs["stderr"].write(err)
+            return child
+
+        with patch.object(pkg.subprocess, "Popen", side_effect=fake_start) as start, \
                 patch.object(pkg.os, "killpg") as stop:
             result = pkg.runtime_import_smoke(self.source)
         self.assertEqual(set(result), {"api", "worker", "portal", "admin"})
@@ -373,35 +388,176 @@ class RuntimePackage(unittest.TestCase):
             self.assertEqual(options["group"], 65534)
             self.assertEqual(options["extra_groups"], [])
             self.assertTrue(options["start_new_session"])
+            self.assertTrue(callable(options["preexec_fn"]))
             self.assertNotIn("DATABASE_URL", options["env"])
             self.assertNotIn("GH_TOKEN", options["env"])
             self.assertNotIn("AUTH_ROOT_SECRET", options["env"])
-        for child in children:
-            child.communicate.assert_called_once_with(timeout=20)
-            child.wait.assert_called_once_with(timeout=5)
+        for child, _, _ in children:
+            self.assertEqual(child.wait.call_args_list, [call(timeout=20), call(timeout=5)])
 
     def test_runtime_module_error_is_not_accepted_as_missing_configuration(self):
         child = Mock(pid=70000, returncode=1)
-        child.communicate.return_value = (b"", b"Error: Cannot find module missing-runtime")
-        with patch.object(pkg.subprocess, "Popen", return_value=child), patch.object(pkg.os, "killpg"):
+        def fake_start(_argv, **kwargs):
+            kwargs["stderr"].write(b"Error: Cannot find module missing-runtime")
+            return child
+        with patch.object(pkg.subprocess, "Popen", side_effect=fake_start), patch.object(pkg.os, "killpg"):
             with self.assertRaisesRegex(pkg.PackageError, "RUNTIME_IMPORT_GATE_FAILED_API"):
                 pkg.runtime_import_smoke(self.source)
-        child.wait.assert_called_once_with(timeout=5)
+        self.assertEqual(child.wait.call_args_list, [call(timeout=20), call(timeout=5)])
 
     def test_runtime_probe_timeout_cleans_own_group(self):
         child = Mock(pid=70000, returncode=None)
-        child.communicate.side_effect = subprocess.TimeoutExpired("synthetic", 20)
+        child.wait.side_effect = [subprocess.TimeoutExpired("synthetic", 20), None]
         with patch.object(pkg.subprocess, "Popen", return_value=child), patch.object(pkg.os, "killpg") as stop:
             with self.assertRaisesRegex(pkg.PackageError, "RUNTIME_PROBE_TIMEOUT"):
                 pkg.runtime_import_smoke(self.source)
         stop.assert_called_once_with(70000, pkg.signal.SIGKILL)
-        child.wait.assert_called_once_with(timeout=5)
+        self.assertEqual(child.wait.call_args_list, [call(timeout=20), call(timeout=5)])
 
     def test_safe_names_reject_traversal_and_control_characters(self):
         for name in ("../escape", "/absolute", "a/../b", "a//b", "a\nb", "a/./b"):
             with self.subTest(name=name):
                 with self.assertRaises(pkg.PackageError):
                     pkg.safe_name(name)
+
+
+    def test_directory_inventory_has_budget_even_for_empty_directories(self):
+        for n in range(80):
+            (self.source / "apps/api/dist" / ("empty-" + str(n))).mkdir()
+        with patch.object(pkg, "MAX_DIRS", 32, create=True):
+            with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_DIRECTORY_BUDGET_EXCEEDED"):
+                self.run_package()
+        self.assertFalse(self.output.exists())
+
+    def test_directory_inventory_rejects_excessive_depth(self):
+        target = self.source / "apps/api/dist"
+        for _ in range(72):
+            target = target / "a"
+        target.mkdir(parents=True)
+        with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_DIRECTORY_DEPTH_EXCEEDED"):
+            self.run_package()
+        self.assertFalse(self.output.exists())
+
+    def test_git_tree_output_budget_is_enforced_before_parsing(self):
+        with patch.object(pkg, "MAX_GIT_OUTPUT_BYTES", 64, create=True):
+            with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_GIT_OUTPUT_BUDGET_EXCEEDED"):
+                pkg.git(self.source, "ls-tree", "-r", "-z", self.sha)
+
+    def test_git_manifest_is_bounded_before_json_decode(self):
+        with patch.object(pkg, "MAX_MANIFEST_BYTES", 32, create=True):
+            with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_GIT_OUTPUT_BUDGET_EXCEEDED"):
+                pkg.source_catalog(self.source, self.sha)
+
+    def test_runtime_stdout_flood_has_strict_memory_cap(self):
+        self.root.chmod(0o755)
+        stage = self.root / "probe-stage"
+        runtime = stage / ".runtime"
+        runtime.mkdir(parents=True)
+        node = runtime / "node"
+        node.write_text("#!/usr/bin/python3\nimport sys\nsys.stdout.write('x' * (128 * 1024))\n")
+        node.chmod(0o555)
+        with patch.object(pkg, "MAX_PROBE_OUTPUT_BYTES", 32768, create=True):
+            with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_RUNTIME_PROBE_OUTPUT_BUDGET_EXCEEDED"):
+                pkg.runtime_import_smoke(stage)
+
+    def test_stage_mkdir_failure_cleans_only_new_own_output(self):
+        original_mkdir = Path.mkdir
+        def stage_failure(path, *args, **kwargs):
+            if path == self.output / self.sha:
+                raise OSError(28, "synthetic inode exhaustion at stage creation")
+            return original_mkdir(path, *args, **kwargs)
+        with patch.object(Path, "mkdir", stage_failure):
+            with self.assertRaises(OSError):
+                self.run_package()
+        self.assertFalse(self.output.exists())
+
+
+
+    def test_output_parent_must_resist_untrusted_rename(self):
+        parent = self.root / "untrusted-parent"
+        parent.mkdir(mode=0o777)
+        parent.chmod(0o777)  # root owner, but world-writable without sticky
+        self.output = parent / "package"
+        with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_OUTPUT_PARENT_UNTRUSTED"):
+            self.run_package()
+        self.assertFalse(self.output.exists())
+
+    def test_runtime_probe_refuses_unbounded_direct_invocation(self):
+        with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_PROBE_SANDBOX_REQUIRED"):
+            self.run_package(probe_runtime=True)
+        self.assertFalse(self.output.exists())
+
+    def test_runtime_probe_sandbox_verifies_mounts_not_just_cgroup_name(self):
+        group = "0::/system.slice/octoport-ci-package-123-1.service\n"
+        mount_ro = ("1 0 1:1 / / ro,relatime - ext4 dev ro\n"
+                    "2 1 1:2 / /tmp rw,nosuid - tmpfs tmp rw\n"
+                    "3 1 1:3 / /dev/shm rw,nodev - tmpfs shm rw\n")
+        mount_rw = mount_ro.replace("/ / ro,relatime", "/ / rw,relatime")
+
+        def read_which(p, *_args, **_kwargs):
+            name = str(p)
+            if name == "/proc/self/cgroup":
+                return group
+            if name.endswith("/memory.max"):
+                return str(512 * 1024**2)
+            if name.endswith("/pids.max"):
+                return "128"
+            if name == "/proc/self/mountinfo":
+                return active_mount[0]
+            raise AssertionError(name)
+
+        volume = Mock(f_blocks=16384, f_frsize=4096)
+        active_mount = [mount_ro]
+        network_private = [True]
+
+        def network_inode(name, *_args, **_kwargs):
+            return Mock(st_dev=13, st_ino=(92 if network_private[0] and
+                          str(name) == "/proc/self/ns/net" else 91))
+
+        with (
+            patch.object(pkg.Path, "read_text", autospec=True, side_effect=read_which),
+            patch.object(pkg.os, "statvfs", return_value=volume),
+            patch.object(pkg.os, "stat", side_effect=network_inode),
+        ):
+            pkg.verify_probe_cgroup()
+            active_mount[0] = mount_rw
+            with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_PROBE_SANDBOX_REQUIRED"):
+                pkg.verify_probe_cgroup()
+            active_mount[0] = mount_ro
+            network_private[0] = False
+            with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_PROBE_SANDBOX_REQUIRED"):
+                pkg.verify_probe_cgroup()
+
+    def test_runtime_dependency_symlink_bytes_are_bounded_and_recorded(self):
+        link = self.source / "apps/api/node_modules/tsx"
+        values = pkg.Inventory(self.source, set(), pkg.MAX_BYTES)
+        values.link(link)
+        self.assertGreaterEqual(values.symlink_bytes, len(os.fsencode(os.readlink(link))))
+        with patch.object(pkg, "MAX_LINK_TARGET_BYTES", 8):
+            with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_LINK_TARGET_TOO_LONG"):
+                pkg.Inventory(self.source, set(), pkg.MAX_BYTES).link(link)
+        receipt = self.run_package()
+        self.assertGreater(receipt["symlinkTargetBytes"], 0)
+
+
+    def test_server_ci_systemd_properties_stay_one_shell_command(self):
+        local = Path(__file__).parent / "server-ci.yml"
+        workflow = local if local.is_file() else (
+            Path(__file__).resolve().parents[2] / ".github/workflows/server-ci.yml"
+        )
+        lines = workflow.read_text().splitlines()
+        start = next(i for i, row in enumerate(lines)
+                     if "sudo -n env -i HOME=/tmp PATH=" in row and "/usr/bin/systemd-run" in row)
+        end = next(i for i in range(start + 1, len(lines))
+                   if "--expected-source-tree" in lines[i])
+        command = lines[start:end + 1]
+        self.assertEqual(sum('PrivateNetwork=yes' in row for row in command), 1)
+        for line in command:
+            if line.lstrip().startswith("--property="):
+                self.assertTrue(
+                    line.rstrip().endswith(chr(92)),
+                    "Server CI systemd-run property is a separate shell command: " + line.strip(),
+                )
 
 
 if __name__ == "__main__":

@@ -209,13 +209,38 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           df -Pm "$RUNNER_TEMP"
-          sudo -n env -i HOME="$HOME" PATH="$PATH" /usr/bin/python3 -B \
-            tooling/operations/package_owner_test_release.py \
+          # Root-only parent under /var/lib prevents user-controlled path replacement.
+          package_parent="/var/lib/octoport-ci-package-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo -n test ! -e "$package_parent"
+          sudo -n mkdir -m 0755 -- "$package_parent"
+          # A read-only host filesystem, quota-bounded scratch, and a single
+          # finite cgroup cover the probe AND descendants that create sessions.
+          sudo -n env -i HOME=/tmp PATH="$PATH" /usr/bin/systemd-run \
+            --unit="octoport-ci-package-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --collect --wait --pipe \
+            --property="WorkingDirectory=$GITHUB_WORKSPACE" \
+            --property="ReadWritePaths=$package_parent" \
+            --property="ProtectSystem=strict" \
+            --property="ProtectHome=read-only" \
+            --property="PrivateDevices=yes" \
+            --property="PrivateNetwork=yes" \
+            --property="TemporaryFileSystem=/tmp:rw,size=64M,mode=1777 /dev/shm:rw,size=64M,mode=1777" \
+            --property="MemoryAccounting=yes" \
+            --property="MemoryMax=3072M" \
+            --property="MemorySwapMax=0" \
+            --property="TasksMax=128" \
+            --property="KillMode=control-group" \
+            --property="TimeoutStopSec=5s" \
+            --property="SendSIGKILL=yes" \
+            --property="OOMPolicy=stop" \
+            --property="RuntimeMaxSec=330" \
+            /usr/bin/python3 -B tooling/operations/package_owner_test_release.py \
             --source "$GITHUB_WORKSPACE" \
-            --output "$RUNNER_TEMP/owner-test-runtime-$GITHUB_SHA" \
+            --output "$package_parent/owner-test-runtime-$GITHUB_SHA" \
             --node "$(command -v node)" \
             --expected-source-sha "$GITHUB_SHA" \
             --expected-source-tree "$(git rev-parse HEAD^{tree})"
+          test -f "$package_parent/owner-test-runtime-$GITHUB_SHA/PACKAGE_RECEIPT.json"
       - run: pnpm test:e2e
         env:
           PRODUCT_CONTROL_PLANE_E2E: "1"
@@ -227,8 +252,8 @@ jobs:
         with:
           name: owner-test-runtime-${{ github.sha }}-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/owner-test-runtime-${{ github.sha }}/*.tar.gz
-            ${{ runner.temp }}/owner-test-runtime-${{ github.sha }}/PACKAGE_RECEIPT.json
+            /var/lib/octoport-ci-package-${{ github.run_id }}-${{ github.run_attempt }}/owner-test-runtime-${{ github.sha }}/*.tar.gz
+            /var/lib/octoport-ci-package-${{ github.run_id }}-${{ github.run_attempt }}/owner-test-runtime-${{ github.sha }}/PACKAGE_RECEIPT.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 3
