@@ -16,6 +16,15 @@ def until(fn, timeout=30):
         time.sleep(.1)
     raise AssertionError('Timed out waiting for browser state')
 
+def discover_service_worker(context, timeout=30):
+    """Observe the current MV3 worker set until ready, or fail closed.
+
+    A one-shot empty service_workers snapshot followed by wait_for_event can
+    miss a worker starting between the read and event subscription.
+    """
+    return until(lambda: next(iter(context.service_workers), None), timeout=timeout)
+
+
 def seed_authority(worker, private_key):
     encoded = base64.b64encode(private_key.read_bytes()).decode('ascii')
     worker.evaluate("""async ({pkcs8, fixtureKeyId}) => {
@@ -87,7 +96,7 @@ def run(runtime,output,private_key):
         page=popup=worker=None
         errors=[]
         try:
-            worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
+            worker=discover_service_worker(context)
             empty_status=worker.evaluate("async()=>SellerAgentsControlClient.status()")
             assert empty_status['authenticated'] is False
             seed_authority(worker, private_key)
@@ -96,7 +105,7 @@ def run(runtime,output,private_key):
             context.close()
             context=None
             context=p.chromium.launch_persistent_context(profile,**opts)
-            worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
+            worker=discover_service_worker(context)
             assert worker.url == extension_url
             assert worker.evaluate("()=>globalThis.__seller_agents_native_fixture_sentinel") is None
             restored=worker.evaluate("async()=>SellerAgentsControlClient.status()")
