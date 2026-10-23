@@ -18,6 +18,20 @@ const successfulCycle = {
   reconciled: 0,
 };
 
+function observation(
+  surfaceId: NoSessionObservationResult["surfaceId"],
+  surfaceOutcome: NoSessionObservationResult["surfaceOutcome"],
+  observedAt = "2026-09-28T10:00:00.000Z",
+): NoSessionObservationResult {
+  // Only the fields read by the pure result formatter are needed here.
+  // Use real production enum values, not out-of-contract lower-case labels.
+  return {
+    surfaceId,
+    surfaceOutcome,
+    observedAt,
+  } as NoSessionObservationResult;
+}
+
 describe("C04 durable LLM lane composition", () => {
   it("uses durable Health only for scheduled LLM runs", async () => {
     const scheduled = vi.fn(async () => successfulCycle);
@@ -81,30 +95,19 @@ describe("C04 durable LLM lane composition", () => {
   });
 
   it("records exact public no-session coverage without treating auth-limited surfaces as tested", () => {
-    const observation = (
-      surfaceId: string,
-      surfaceOutcome: "PUBLIC_INTERACTIVE" | "AUTH_REQUIRED" | "DRIFT",
-      observedAt: string,
-    ) =>
-      ({
-        surfaceId,
-        surfaceOutcome,
-        observedAt,
-      }) as unknown as NoSessionObservationResult;
-
     expect(
       resultFromNoSessionBatch([
         observation(
-          "chatgpt-standard",
+          "CHATGPT_STANDARD",
           "PUBLIC_INTERACTIVE",
           "2026-09-28T10:00:00.000Z",
         ),
         observation(
-          "chatgpt-work",
+          "CHATGPT_WORK",
           "AUTH_REQUIRED",
           "2026-09-28T10:00:01.000Z",
         ),
-        observation("gemini", "DRIFT", "2026-09-28T10:00:02.000Z"),
+        observation("GEMINI", "DRIFT", "2026-09-28T10:00:02.000Z"),
       ]),
     ).toMatchObject({
       status: "FAILED",
@@ -112,10 +115,66 @@ describe("C04 durable LLM lane composition", () => {
       coverage: {
         observedAt: "2026-09-28T10:00:02.000Z",
         checkDepth: "PUBLIC_NO_SESSION",
-        testedTargets: ["chatgpt-standard", "gemini"],
-        unverifiedTargets: ["chatgpt-work"],
+        testedTargets: ["CHATGPT_STANDARD", "GEMINI"],
+        unverifiedTargets: ["CHATGPT_WORK"],
         comparisonState: "NOT_APPLICABLE",
         changeSeverity: "REVIEW_REQUIRED",
+      },
+    });
+  });
+
+  it.each([
+    "SECURITY_CHECKPOINT",
+    "ACCESS_BLOCKED",
+    "REGION_OR_ELIGIBILITY_RESTRICTED",
+    "IDENTITY_NOT_PROVEN",
+  ] as const)(
+    "does not report an all-unverified %s guest surface as SUCCESS",
+    (surfaceOutcome) => {
+      const result = resultFromNoSessionBatch([
+        observation("CHATGPT_STANDARD", surfaceOutcome),
+      ]);
+      expect(result).toMatchObject({
+        status: "NOT_OBSERVABLE",
+        code: "NO_SESSION_NOT_OBSERVABLE",
+        coverage: {
+          checkDepth: "PUBLIC_NO_SESSION",
+          testedTargets: [],
+          unverifiedTargets: ["CHATGPT_STANDARD"],
+          comparisonState: "NOT_APPLICABLE",
+        },
+      });
+      expect(result.summary).not.toContain("completed");
+    },
+  );
+
+  it("keeps partial observed-plus-region-restricted coverage non-successful", () => {
+    const result = resultFromNoSessionBatch([
+      observation("CHATGPT_STANDARD", "PUBLIC_INTERACTIVE"),
+      observation("DEEPSEEK", "REGION_OR_ELIGIBILITY_RESTRICTED"),
+    ]);
+    expect(result).toMatchObject({
+      status: "NOT_OBSERVABLE",
+      code: "NO_SESSION_NOT_OBSERVABLE",
+      coverage: {
+        testedTargets: ["CHATGPT_STANDARD"],
+        unverifiedTargets: ["DEEPSEEK"],
+      },
+    });
+  });
+
+  it("retains SUCCEEDED when every guest surface is genuinely observed", () => {
+    expect(
+      resultFromNoSessionBatch([
+        observation("CHATGPT_STANDARD", "PUBLIC_INTERACTIVE"),
+        observation("GEMINI", "PUBLIC_LANDING"),
+      ]),
+    ).toMatchObject({
+      status: "SUCCEEDED",
+      code: null,
+      coverage: {
+        testedTargets: ["CHATGPT_STANDARD", "GEMINI"],
+        unverifiedTargets: [],
       },
     });
   });
