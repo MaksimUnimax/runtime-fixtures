@@ -9,6 +9,10 @@ function clone(row: ProductCrosswalkRow): ProductCrosswalkRow {
   return { ...row, createdAt: new Date(row.createdAt) };
 }
 
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export class InMemoryProductCrosswalkStore implements ProductCrosswalkStore {
   private readonly rows = new Map<string, ProductCrosswalkRow>();
   async saveRows(rows: ProductCrosswalkRow[]) {
@@ -28,8 +32,8 @@ export class InMemoryProductCrosswalkStore implements ProductCrosswalkStore {
       .filter((row) => row.reportId === reportId)
       .sort(
         (a, b) =>
-          a.sourceIdentity.localeCompare(b.sourceIdentity) ||
-          (a.documentKey ?? "").localeCompare(b.documentKey ?? ""),
+          compareCodeUnits(a.sourceIdentity, b.sourceIdentity) ||
+          compareCodeUnits(a.documentKey ?? "", b.documentKey ?? ""),
       )
       .map(clone);
   }
