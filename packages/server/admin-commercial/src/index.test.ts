@@ -182,6 +182,111 @@ describe("P6.4 admin-commercial validation contracts", () => {
   it("compatibility query rejects a non-uuid cursor", () =>
     rejects(() => AdminCompatibilityQuerySchema.parse({ cursor: "bad" })));
 
+  it.each([
+    ["DEL", "audit\u007faction"],
+    ["C1 next line", "audit\u0085action"],
+    ["C1 high control", "audit\u009faction"],
+    ["Arabic letter mark", "audit\u061caction"],
+    ["left-to-right mark", "audit\u200eaction"],
+    ["right-to-left mark", "audit\u200faction"],
+    ["bidi embedding", "audit\u202aaction"],
+    ["bidi override", "audit\u202eaction"],
+    ["bidi isolate", "audit\u2066action"],
+    ["bidi isolate terminator", "audit\u2069action"],
+  ])(
+    "rejects unsafe commercial audit reason %s in all mutation schemas",
+    (_, invalidReason) => {
+      expect([
+        PlanCreateBodySchema.safeParse({
+          code: "starter.v1",
+          reason: invalidReason,
+        }).success,
+        PriceCreateBodySchema.safeParse({
+          planId: id,
+          code: "monthly",
+          marketKey: "ru",
+          channelKey: "web",
+          reason: invalidReason,
+        }).success,
+        PlanStatusBodySchema.safeParse({
+          expectedStatus: "DRAFT",
+          targetStatus: "ACTIVE",
+          reason: invalidReason,
+        }).success,
+        CompatibilityPublishBodySchema.safeParse({
+          ...compatibility,
+          reason: invalidReason,
+        }).success,
+      ]).toEqual([false, false, false, false]);
+    },
+  );
+
+  it.each([
+    ["soft hyphen", "\u00ad"],
+    ["zero-width space", "\u200b"],
+    ["zero-width non-joiner", "\u200c"],
+    ["zero-width joiner", "\u200d"],
+    ["word joiner", "\u2060"],
+    ["byte order mark", "\ufeff"],
+    ["line separator", "\u2028"],
+    ["paragraph separator", "\u2029"],
+  ])(
+    "rejects hidden format and separator reasons in all commercial mutations: %s",
+    (_, codepoint) => {
+      const invalidReason = "ticket" + codepoint + "123";
+      expect([
+        PlanCreateBodySchema.safeParse({
+          code: "starter.v1",
+          reason: invalidReason,
+        }).success,
+        PriceCreateBodySchema.safeParse({
+          planId: id,
+          code: "monthly",
+          marketKey: "ru",
+          channelKey: "web",
+          reason: invalidReason,
+        }).success,
+        PlanStatusBodySchema.safeParse({
+          expectedStatus: "DRAFT",
+          targetStatus: "ACTIVE",
+          reason: invalidReason,
+        }).success,
+        CompatibilityPublishBodySchema.safeParse({
+          ...compatibility,
+          reason: invalidReason,
+        }).success,
+      ]).toEqual([false, false, false, false]);
+    },
+  );
+
+  it("keeps ordinary Unicode audit reasons and trims surrounding spaces", () => {
+    expect(
+      PlanCreateBodySchema.parse({
+        code: "starter.v1",
+        reason: "  проверка тарифа  ",
+      }).reason,
+    ).toBe("проверка тарифа");
+    expect(
+      PriceCreateBodySchema.parse({
+        planId: id,
+        code: "monthly",
+        marketKey: "ru",
+        channelKey: "web",
+        reason: "x".repeat(256),
+      }).reason,
+    ).toHaveLength(256);
+    expect(
+      PlanCreateBodySchema.safeParse({
+        code: "starter.v1",
+        reason: "x".repeat(257),
+      }).success,
+    ).toBe(false);
+    expect(
+      PlanCreateBodySchema.safeParse({ code: "starter.v1", reason: "<unsafe>" })
+        .success,
+    ).toBe(false);
+  });
+
   it("plan create preserves the code and reason", () =>
     expect(PlanCreateBodySchema.parse({ code: "starter.v1", reason })).toEqual({
       code: "starter.v1",

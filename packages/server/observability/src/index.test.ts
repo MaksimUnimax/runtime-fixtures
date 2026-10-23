@@ -24,6 +24,107 @@ describe("SensitiveLogPaths", () => {
     );
   });
 
+  const nestedRequestCases: {
+    label: string;
+    record: Record<string, unknown>;
+    marker: string;
+  }[] = [
+    {
+      label: "req.body",
+      record: {
+        req: {
+          method: "POST",
+          body: { password: "SYNTHETIC_REQ_BODY_MARKER" },
+        },
+      },
+      marker: "SYNTHETIC_REQ_BODY_MARKER",
+    },
+    {
+      label: "req.query",
+      record: {
+        req: {
+          method: "GET",
+          query: { access_token: "SYNTHETIC_REQ_QUERY_MARKER" },
+        },
+      },
+      marker: "SYNTHETIC_REQ_QUERY_MARKER",
+    },
+    {
+      label: "req.headers",
+      record: {
+        req: {
+          method: "GET",
+          headers: { "x-api-key": "SYNTHETIC_REQ_HEADER_MARKER" },
+        },
+      },
+      marker: "SYNTHETIC_REQ_HEADER_MARKER",
+    },
+    {
+      label: "req.url",
+      record: {
+        req: { method: "GET", url: "/v1/test?code=SYNTHETIC_REQ_URL_MARKER" },
+      },
+      marker: "SYNTHETIC_REQ_URL_MARKER",
+    },
+    {
+      label: "request.body",
+      record: {
+        request: {
+          method: "POST",
+          body: { password: "SYNTHETIC_REQUEST_BODY_MARKER" },
+        },
+      },
+      marker: "SYNTHETIC_REQUEST_BODY_MARKER",
+    },
+    {
+      label: "request.query",
+      record: {
+        request: {
+          method: "GET",
+          query: { token: "SYNTHETIC_REQUEST_QUERY_MARKER" },
+        },
+      },
+      marker: "SYNTHETIC_REQUEST_QUERY_MARKER",
+    },
+    {
+      label: "request.headers",
+      record: {
+        request: {
+          method: "GET",
+          headers: { "x-api-key": "SYNTHETIC_REQUEST_HEADER_MARKER" },
+        },
+      },
+      marker: "SYNTHETIC_REQUEST_HEADER_MARKER",
+    },
+    {
+      label: "request.url",
+      record: {
+        request: {
+          method: "GET",
+          url: "/v1/test?code=SYNTHETIC_REQUEST_URL_MARKER",
+        },
+      },
+      marker: "SYNTHETIC_REQUEST_URL_MARKER",
+    },
+  ];
+  it.each(nestedRequestCases)(
+    "redacts nested structured request field $label without removing metadata",
+    ({ record, marker }) => {
+      const lines: string[] = [];
+      const logger = createLogger("info", {
+        write: (line: string) => {
+          lines.push(line);
+          return true;
+        },
+      });
+      logger.info({ ...record, safeEvent: "synthetic-redaction-check" });
+      const result = lines.join("");
+      expect(result).not.toContain(marker);
+      expect(result).toContain("synthetic-redaction-check");
+      expect(result).toContain('"method":"');
+    },
+  );
+
   it("redacts device-authorization secrets from structured log records", () => {
     const lines: string[] = [];
     const logger = createLogger("info", {

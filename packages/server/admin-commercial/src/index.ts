@@ -52,9 +52,23 @@ const Reason = z
   .refine(
     (v) =>
       v.trim().length > 0 &&
-      [...v].every(
-        (c) => (c.codePointAt(0) ?? 0) > 31 && c !== "<" && c !== ">",
-      ),
+      [...v].every((c) => {
+        const code = c.codePointAt(0) ?? 0;
+        // Exclude invisible controls and bidi formatting from audit reasons.
+        return (
+          code > 31 &&
+          code !== 0x7f &&
+          (code < 0x80 || code > 0x9f) &&
+          code !== 0x061c &&
+          code !== 0x200e &&
+          code !== 0x200f &&
+          (code < 0x202a || code > 0x202e) &&
+          (code < 0x2066 || code > 0x2069) &&
+          !/[\p{Cf}\p{Zl}\p{Zp}]/u.test(c) &&
+          c !== "<" &&
+          c !== ">"
+        );
+      }),
   )
   .transform((v) => v.trim());
 const Timestamp = z.coerce.date();

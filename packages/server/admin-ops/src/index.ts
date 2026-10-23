@@ -13,8 +13,19 @@ export const AdminReasonV1Schema = z
   .refine(
     (value) =>
       [...value].every((character) => {
-        const code = character.charCodeAt(0);
-        return code > 0x1f && code !== 0x7f;
+        const code = character.codePointAt(0) ?? 0;
+        // Invisible C1 and bidi formatting controls must not enter audit reasons.
+        return (
+          code > 0x1f &&
+          code !== 0x7f &&
+          (code < 0x80 || code > 0x9f) &&
+          code !== 0x061c &&
+          code !== 0x200e &&
+          code !== 0x200f &&
+          (code < 0x202a || code > 0x202e) &&
+          (code < 0x2066 || code > 0x2069) &&
+          !/[\p{Cf}\p{Zl}\p{Zp}]/u.test(character)
+        );
       }),
     {
       message: "reason contains a control character",
