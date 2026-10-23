@@ -227,8 +227,13 @@ test("expired OTP can return to email without sending a hidden request", async (
   expect(attempts[2]?.key).toBe(attempts[1]?.key);
 });
 
-for (const phase of ["request", "verify"] as const) {
-  test(`OTP ${phase} prevents overlapping submit and restart while pending`, async ({
+for (const [phase, synchronous] of [
+  ["request", false],
+  ["verify", false],
+  ["request", true],
+  ["verify", true],
+] as const) {
+  test(`OTP ${phase} prevents overlapping submit and restart while pending (synchronous=${synchronous})`, async ({
     page,
   }) => {
     let calls = 0;
@@ -260,7 +265,19 @@ for (const phase of ["request", "verify"] as const) {
         name: phase === "request" ? "Send code" : "Verify",
         exact: true,
       });
-      await submit.click();
+      if (synchronous) {
+        // Both submits occur in one browser task, without an intervening await.
+        await page.locator("main form").evaluate((form) => {
+          form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+          );
+          form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+          );
+        });
+      } else {
+        await submit.click();
+      }
       await expect.poll(() => calls).toBe(1);
       await expect(submit).toBeDisabled();
       await expect(
