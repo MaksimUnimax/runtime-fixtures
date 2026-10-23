@@ -63,18 +63,30 @@
           "role": "supply_status",
           "unit": "provider_enum_integer"
         },
-        "warehouseID": { "role": "planned_warehouse_id", "unit": "identifier" },
+        "warehouseID": {
+          "role": "planned_warehouse_id",
+          "unit": "identifier"
+        },
         "actualWarehouseID": {
           "role": "actual_warehouse_id",
           "unit": "identifier_or_null"
         },
-        "quantity": { "role": "declared_supply_units", "unit": "count" },
+        "quantity": {
+          "role": "declared_supply_units",
+          "unit": "count"
+        },
         "readyForSaleQuantity": {
           "role": "ready_for_sale_units",
           "unit": "count"
         },
-        "acceptedQuantity": { "role": "accepted_units", "unit": "count" },
-        "unloadingQuantity": { "role": "unloading_units", "unit": "count" },
+        "acceptedQuantity": {
+          "role": "accepted_units",
+          "unit": "count"
+        },
+        "unloadingQuantity": {
+          "role": "unloading_units",
+          "unit": "count"
+        },
         "depersonalizedQuantity": {
           "role": "depersonalized_units",
           "unit": "count_or_null"
@@ -99,10 +111,22 @@
       },
       "rowGrain": ["barcode"],
       "fields": {
-        "barcode": { "role": "sku_barcode", "unit": "identifier" },
-        "vendorCode": { "role": "seller_article", "unit": "text" },
-        "nmID": { "role": "product_id", "unit": "identifier" },
-        "quantity": { "role": "declared_units", "unit": "count" },
+        "barcode": {
+          "role": "sku_barcode",
+          "unit": "identifier"
+        },
+        "vendorCode": {
+          "role": "seller_article",
+          "unit": "text"
+        },
+        "nmID": {
+          "role": "product_id",
+          "unit": "identifier"
+        },
+        "quantity": {
+          "role": "declared_units",
+          "unit": "count"
+        },
         "readyForSaleQuantity": {
           "role": "ready_for_sale_units",
           "unit": "count_or_null"
@@ -124,16 +148,34 @@
       "path": "/api/v3/supplies/{supplyId}",
       "rowGrain": ["id"],
       "fields": {
-        "id": { "role": "fbs_supply_id", "unit": "identifier" },
-        "done": { "role": "supply_closed_flag", "unit": "boolean" },
-        "createdAt": { "role": "created_time", "unit": "datetime" },
-        "closedAt": { "role": "closed_time", "unit": "datetime_or_null" },
-        "scanDt": { "role": "scan_time", "unit": "datetime_or_null" },
+        "id": {
+          "role": "fbs_supply_id",
+          "unit": "identifier"
+        },
+        "done": {
+          "role": "supply_closed_flag",
+          "unit": "boolean"
+        },
+        "createdAt": {
+          "role": "created_time",
+          "unit": "datetime"
+        },
+        "closedAt": {
+          "role": "closed_time",
+          "unit": "datetime_or_null"
+        },
+        "scanDt": {
+          "role": "scan_time",
+          "unit": "datetime_or_null"
+        },
         "destinationOfficeId": {
           "role": "destination_office_id",
           "unit": "identifier_or_null"
         },
-        "spotAvailable": { "role": "spot_available_flag", "unit": "boolean" }
+        "spotAvailable": {
+          "role": "spot_available_flag",
+          "unit": "boolean"
+        }
       }
     },
     "fbsSupplyOrderIds": {
@@ -143,7 +185,10 @@
       "path": "/api/marketplace/v3/supplies/{supplyId}/order-ids",
       "rowGrain": ["supplyId"],
       "fields": {
-        "orderIds": { "role": "assembly_order_ids", "unit": "identifier_array" }
+        "orderIds": {
+          "role": "assembly_order_ids",
+          "unit": "identifier_array_or_null"
+        }
       }
     },
     "acceptanceCreate": {
@@ -168,8 +213,14 @@
       "path": "/api/v1/acceptance_report/tasks/{task_id}/status",
       "statuses": ["new", "processing", "done", "purged", "canceled"],
       "fields": {
-        "data.id": { "role": "report_task_id", "unit": "identifier" },
-        "data.status": { "role": "report_task_status", "unit": "provider_enum" }
+        "data.id": {
+          "role": "report_task_id",
+          "unit": "identifier"
+        },
+        "data.status": {
+          "role": "report_task_status",
+          "unit": "provider_enum"
+        }
       }
     },
     "acceptanceDownload": {
@@ -180,11 +231,26 @@
       "rowGrain": ["incomeId", "nmID", "shkCreateDate"],
       "emptyHttpStatus": 204,
       "fields": {
-        "count": { "role": "accepted_report_units", "unit": "count" },
-        "incomeId": { "role": "supply_number", "unit": "identifier" },
-        "nmID": { "role": "product_id", "unit": "identifier" },
-        "shkCreateDate": { "role": "acceptance_date", "unit": "date" },
-        "total": { "role": "acceptance_cost", "unit": "provider_currency" }
+        "count": {
+          "role": "accepted_report_units",
+          "unit": "count"
+        },
+        "incomeId": {
+          "role": "supply_number",
+          "unit": "identifier"
+        },
+        "nmID": {
+          "role": "product_id",
+          "unit": "identifier"
+        },
+        "shkCreateDate": {
+          "role": "acceptance_date",
+          "unit": "date"
+        },
+        "total": {
+          "role": "acceptance_cost",
+          "unit": "provider_currency"
+        }
       }
     }
   },
@@ -246,7 +312,11 @@
       }
     },
     "fbs": {
-      "supply": { "id": "WB-GI-1", "done": true, "spotAvailable": true },
+      "supply": {
+        "id": "WB-GI-1",
+        "done": true,
+        "spotAvailable": true
+      },
       "orderIds": [501, 502, 503],
       "expected": {
         "status": "PASS",
@@ -274,13 +344,19 @@
           "total": 80.25
         }
       ],
-      "expected": { "status": "PASS", "acceptedUnits": 10 }
+      "expected": {
+        "status": "PASS",
+        "acceptedUnits": 10
+      }
     },
     "canceledReport": {
       "taskId": "task-2",
       "statuses": ["new", "processing", "canceled"],
       "rows": [],
-      "expected": { "status": "INCOMPLETE", "reason": "REPORT_TASK_CANCELED" }
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "REPORT_TASK_CANCELED"
+      }
     },
     "prematureDownload": {
       "taskId": "task-3",
@@ -294,7 +370,10 @@
           "total": 1
         }
       ],
-      "expected": { "status": "INCOMPLETE", "reason": "REPORT_NOT_DONE" }
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "REPORT_NOT_DONE"
+      }
     }
   },
   "remainingOpen": [
@@ -303,5 +382,25 @@
     "business reconciliation when FBW acceptedQuantity differs from acceptance-report count by period or grain",
     "FBS closed supply does not itself expose accepted-unit count",
     "204 report-download business interpretation requires explicit requested-period context"
-  ]
+  ],
+  "officialSchemaReadback": {
+    "evidence": "OFFICIAL_RU_SOURCE_FIELD_SCHEMA_ONLY",
+    "capturedAt": "2026-10-22T16:28:17.689565+00:00",
+    "sourceCommit": "07aff45acb375ec22dda43756a05d95dba7f3513",
+    "bundleSha256": "bce15f89e86b4a105a0137d8b667c0ad648a65c3db60bfdf04a1b05c5e7882ab",
+    "documentKey": "WB_03_ORDERS_FBS",
+    "filename": "03-orders-fbs.yaml",
+    "officialUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/03-orders-fbs.yaml?region=ru",
+    "documentSha256": "c04a6c7f5f18960e0b24d624c5b0b04e9267ed4d1325de32551d4cc036db624f",
+    "nullableFields": {
+      "orderIds": {
+        "schemaPointer": "#/components/schemas/v3.SupplyOrderIDsAPI/properties/orderIds",
+        "type": "array",
+        "nullable": true
+      }
+    },
+    "liveValues": false,
+    "runtimeBehaviorChanged": false,
+    "scope": "Correct only field nullability; original capture and earlier mapping evidence remain historical. No live completeness or business acceptance claim."
+  }
 }
