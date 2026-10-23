@@ -259,6 +259,122 @@ describe("local references respect schema position and dialect", () => {
     expect(state(make("A"), make("B"))).toBe("CHANGED");
   });
 
+  it.each(["3.0.3", "3.1.0"] as const)(
+    "resolves a JSON Pointer into an allOf schema-array element for OpenAPI %s",
+    (version) => {
+      const make = (type: string) =>
+        inventory({}, "request", {
+          openapi: version,
+          components: {
+            schemas: {
+              Payload: { $ref: "#/components/schemas/Container/allOf/0" },
+              Container: { allOf: [{ type }, { type: "boolean" }] },
+            },
+          },
+        });
+      expect(state(make("string"), make("integer"))).toBe("CHANGED");
+    },
+  );
+
+  it("resolves a JSON Pointer into a prefixItems array element without shadowing siblings", () => {
+    const make = (first: string, second: string) =>
+      inventory({}, "request", {
+        openapi: "3.1.0",
+        components: {
+          schemas: {
+            Payload: {
+              $ref: "#/components/schemas/Container/prefixItems/1",
+            },
+            Container: {
+              type: "array",
+              prefixItems: [{ type: first }, { type: second }],
+            },
+          },
+        },
+      });
+    expect(state(make("string", "boolean"), make("integer", "boolean"))).toBe(
+      "UNCHANGED",
+    );
+    expect(state(make("string", "boolean"), make("string", "number"))).toBe(
+      "CHANGED",
+    );
+  });
+
+  it.each([
+    ["Foo%20Bar", "Foo Bar"],
+    ["Foo%7E1Bar", "Foo/Bar"],
+    ["Foo%7E0Bar", "Foo~Bar"],
+  ] as const)(
+    "decodes valid URI-fragment schema pointer %s before JSON Pointer tokens",
+    (encoded, schemaName) => {
+      const make = (type: string) =>
+        inventory({}, "request", {
+          components: {
+            schemas: {
+              Payload: { $ref: `#/components/schemas/${encoded}` },
+              [schemaName]: { type },
+            },
+          },
+        });
+      expect(state(make("string"), make("integer"))).toBe("CHANGED");
+    },
+  );
+
+  it("resolves percent-encoded leading pointer separators", () => {
+    const make = (type: string) =>
+      inventory({}, "request", {
+        components: {
+          schemas: {
+            Payload: { $ref: "#%2Fcomponents%2Fschemas%2FTarget" },
+            Target: { type },
+          },
+        },
+      });
+    expect(state(make("string"), make("integer"))).toBe("CHANGED");
+  });
+
+  it.each(["Bad~2Name", "Bad~", "Bad%ZZ"] as const)(
+    "does not resolve a malformed local pointer token %s as a real schema",
+    (invalidToken) => {
+      const make = (type: string) =>
+        inventory({}, "request", {
+          components: {
+            schemas: {
+              Payload: { $ref: `#/components/schemas/${invalidToken}` },
+              [invalidToken]: { type },
+            },
+          },
+        });
+      expect(state(make("string"), make("integer"))).toBe("UNCHANGED");
+    },
+  );
+
+  it("does not follow an inherited numeric array property as a schema index", () => {
+    const inheritedIndex = "999999";
+    expect(Object.hasOwn(Array.prototype, inheritedIndex)).toBe(false);
+    const make = (type: string) => {
+      Object.defineProperty(Array.prototype, inheritedIndex, {
+        value: { type },
+        configurable: true,
+      });
+      try {
+        return inventory({}, "request", {
+          components: {
+            schemas: {
+              Payload: {
+                $ref: `#/components/schemas/Container/allOf/${inheritedIndex}`,
+              },
+              Container: { allOf: [{ type: "boolean" }] },
+            },
+          },
+        });
+      } finally {
+        Reflect.deleteProperty(Array.prototype, inheritedIndex);
+      }
+    };
+    expect(state(make("string"), make("integer"))).toBe("UNCHANGED");
+  });
+
   it("does not interpret OpenAPI3.1 non-schema Reference Object siblings as constraints", () => {
     const make = (required: boolean) =>
       inventory({}, "request", {
@@ -285,6 +401,28 @@ describe("local references respect schema position and dialect", () => {
       });
     expect(state(make(true), make(false))).toBe("UNCHANGED");
   });
+  it("keeps equivalent encoded self-reference pointers identical in recursive schemas", () => {
+    const make = (selfRef: string) =>
+      inventory({}, "request", {
+        openapi: "3.1.0",
+        components: {
+          schemas: {
+            Payload: { $ref: "#/components/schemas/Node" },
+            Node: {
+              type: "object",
+              properties: { next: { $ref: selfRef } },
+            },
+          },
+        },
+      });
+
+    const plain = make("#/components/schemas/Node");
+    const encodedSeparators = make("#%2Fcomponents%2Fschemas%2FNode");
+    const encodedCharacter = make("#/components/schemas/N%6fde");
+    expect(state(plain, encodedSeparators)).toBe("UNCHANGED");
+    expect(state(plain, encodedCharacter)).toBe("UNCHANGED");
+  });
+
   it("keeps sibling constraints on recursive OpenAPI3.1 schema edges", () => {
     const make = (maxProperties: number) =>
       inventory({}, "request", {
