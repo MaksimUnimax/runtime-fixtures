@@ -64,7 +64,7 @@ for (const sample of [
     );
     await openLogin(page);
     await page.getByRole("button", { name: "Send code" }).click();
-    await expect(page.getByRole("alert")).toContainText(
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(
       "Сервер вернул неполный ответ",
     );
     await expect(page.getByLabel("Email")).toBeVisible();
@@ -83,7 +83,7 @@ test("unexpected successful verify status cannot navigate to an authenticated pa
   });
   await page.getByLabel("Code").fill("111111");
   await page.getByRole("button", { name: "Verify" }).click();
-  await expect(page.getByRole("alert")).toContainText(
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "Сервер не подтвердил вход",
   );
   await expect(page.getByLabel("Code")).toBeVisible();
@@ -128,7 +128,7 @@ test("correcting the OTP changes the idempotency key, but retrying the same code
     await expect.poll(() => attempts.length).toBe(expectedCount);
   };
   await submit("111111", 1);
-  await expect(page.getByRole("alert")).toContainText(
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "Неверный или просроченный код",
   );
   await submit("111111", 2);
