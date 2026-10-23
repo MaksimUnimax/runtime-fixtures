@@ -232,6 +232,28 @@ describe("A5 conservative API change impact", () => {
     expect(source).not.toMatch(/adapter|auto.?patch|child_process|eval\s*\(/i);
   });
 
+  it("C03 orders Unicode impact identities by code units, independent of host locale", () => {
+    const ascii = item({
+      path: "/z",
+      identity: `${FAMILY}:GET:/z`,
+    });
+    const accented = item({
+      path: "/ä",
+      identity: `${FAMILY}:GET:/ä`,
+    });
+    const forward = impact([], [accented, ascii]);
+    const reversed = impact([], [ascii, accented]);
+    const expected = [ascii.identity, accented.identity];
+    expect(forward.operations.map((operation) => operation.identity)).toEqual(
+      expected,
+    );
+    expect(reversed.operations.map((operation) => operation.identity)).toEqual(
+      expected,
+    );
+    expect(forward.reviewRequiredCount).toBe(2);
+    expect(forward.overallSeverity).toBe("REVIEW_REQUIRED");
+  });
+
   it("A5-18 has no Stream-1 execution-authority mutation", async () => {
     const source = await readFile(
       new URL("../../../apps/telegram-operator/src/main.ts", import.meta.url),
