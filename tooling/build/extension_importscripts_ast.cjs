@@ -42,13 +42,40 @@ function locate(source) {
       parent.name === node
     );
   }
+  // Recognize constant computed names without evaluating application code.
+  // Identifier-based runtime lookups are not folded: there is no alias or
+  // data-flow analysis here. Only these literal expression forms are known.
+  function staticPropertyName(node, depth = 0) {
+    if (depth > 64) {
+      throw new Error("IMPORT_SCRIPTS_COMPUTED_REFERENCE_TOO_COMPLEX");
+    }
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      return node.text;
+    }
+    if (ts.isParenthesizedExpression(node)) {
+      return staticPropertyName(node.expression, depth + 1);
+    }
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      const left = staticPropertyName(node.left, depth + 1);
+      const right = staticPropertyName(node.right, depth + 1);
+      return left === undefined || right === undefined ? undefined : left + right;
+    }
+    if (ts.isTemplateExpression(node)) {
+      let text = node.head.text;
+      for (const span of node.templateSpans) {
+        const value = staticPropertyName(span.expression, depth + 1);
+        if (value === undefined) return undefined;
+        text += value + span.literal.text;
+      }
+      return text;
+    }
+    return undefined;
+  }
   function visit(node) {
     if (
       (ts.isPropertyAccessExpression(node) && node.name.text === "importScripts") ||
       (ts.isElementAccessExpression(node) &&
-        (ts.isStringLiteral(node.argumentExpression) ||
-         ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)) &&
-        node.argumentExpression.text === "importScripts")
+        staticPropertyName(node.argumentExpression) === "importScripts")
     ) {
       // Includes self.importScripts, globalThis["importScripts"], aliases
       // and .call() usages. Property keys in object definitions are inert.

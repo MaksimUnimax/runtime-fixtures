@@ -158,6 +158,22 @@ try {
   attempt("global-property", 'globalThis.importScripts("child.js");\n', false, "UNSUPPORTED_REFERENCE");
   attempt("self-bracket", 'self["importScripts"]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
   attempt("global-template-key", 'globalThis[\x60importScripts\x60]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("global-concat-key", 'globalThis["import" + "Scripts"]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("self-interpolated-key", 'self[`import${"Scripts"}`]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("parenthesized-computed-key", 'globalThis[(("im" + "port") + "Scripts")]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("multi-span-computed-key", 'self[`im${"port"}${"Scripts"}`]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("computed-key-depth-bound", 'globalThis[' + "(".repeat(66) + '"importScripts"' + ")".repeat(66) + ']("child.js");\n', false, "COMPUTED_REFERENCE_TOO_COMPLEX");
+  const unrelatedComputedNames = [
+    'globalThis["visible" + "Flag"] = true;',
+    'self[`prefix${"Label"}`];',
+    'const runtimeKey = "productFixture"; globalThis[runtimeKey] = true;',
+    "const inertComputedText = 'globalThis[\"import\" + \"Scripts\"](\"child.js\");';",
+  ].join("\n") + "\n";
+  assert.equal(
+    attempt("unrelated-computed-names", unrelatedComputedNames, true),
+    unrelatedComputedNames,
+    "non-import computed keys and inert strings must remain byte-identical",
+  );
   attempt("property-alias", 'const loader = self.importScripts;\n', false, "UNSUPPORTED_REFERENCE");
   attempt("bare-alias", 'const loader = importScripts;\n', false, "UNSUPPORTED_REFERENCE");
   attempt("parenthesized-call", '(importScripts)("child.js");\n', false, "UNSUPPORTED_REFERENCE");
