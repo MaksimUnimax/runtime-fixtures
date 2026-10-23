@@ -280,8 +280,11 @@ def run(runtime,output,private_key):
 
             # Actual native File/IndexedDB/chunk/attachment/send path for a binary WB result.
             command=worker.evaluate("""()=>{fixtureBinary=true;const m=Object.values(SellerAgentsWBReference.contract.OPERATIONS).find(m=>m.response_mode==='binary'&&m.execution_enabled&&m.privacy==='standard');return 'WB_API_V1 '+JSON.stringify({operation:m.alias,params:{path:Object.fromEntries([...m.path.matchAll(/\\{([^}]+)\\}/g)].map(m=>[m[1],'fixture'])),query:Object.fromEntries(m.required_query_keys.map(k=>[k,'1'])),...(m.body_required?{body:{}}:{})}})}""")
+            binary_buttons_before=page.locator('.ozon-bridge-block-action').count()
             page.evaluate('(text)=>fixtureCommand(text)',command)
             page.locator("section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
+            # The previous completed command still has a button while this binding is pending.
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==binary_buttons_before+1)
             button=page.locator('.ozon-bridge-block-action').last;button.wait_for()
             binary_fetches_before=worker.evaluate('fixtureFetches.length');binary_sent_before=page.evaluate('sent.length');button.click()
             page.wait_for_function('files.length>=1',timeout=30000)
