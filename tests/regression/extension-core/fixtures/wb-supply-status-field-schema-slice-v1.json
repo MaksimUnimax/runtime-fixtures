@@ -18,16 +18,8 @@
       "path": "/api/v1/supplies",
       "tokenCategory": "supplies",
       "query": {
-        "limit": {
-          "required": false,
-          "default": 1000,
-          "min": 1,
-          "max": 1000
-        },
-        "offset": {
-          "required": false,
-          "default": 0
-        }
+        "limit": { "required": false, "default": 1000, "min": 1, "max": 1000 },
+        "offset": { "required": false, "default": 0 }
       },
       "bodyRequired": true,
       "bodyFields": {
@@ -48,18 +40,12 @@
           "role": "supply_id_nullable_before_supply_exists",
           "unit": "identifier_or_null"
         },
-        "preorderID": {
-          "role": "preorder_id",
-          "unit": "identifier"
-        },
+        "preorderID": { "role": "preorder_id", "unit": "identifier" },
         "statusID": {
           "role": "fbw_supply_status_id",
           "unit": "provider_enum_integer"
         },
-        "createDate": {
-          "role": "created_time",
-          "unit": "datetime"
-        },
+        "createDate": { "role": "created_time", "unit": "datetime" },
         "supplyDate": {
           "role": "planned_supply_time",
           "unit": "datetime_or_null"
@@ -68,10 +54,7 @@
           "role": "actual_supply_time",
           "unit": "datetime_or_null"
         },
-        "updatedDate": {
-          "role": "updated_time",
-          "unit": "datetime_or_null"
-        },
+        "updatedDate": { "role": "updated_time", "unit": "datetime_or_null" },
         "boxTypeID": {
           "role": "supply_package_type_id",
           "unit": "provider_enum_integer"
@@ -94,46 +77,21 @@
       "path": "/api/v3/supplies",
       "tokenCategory": "marketplace",
       "query": {
-        "limit": {
-          "required": true,
-          "min": 1,
-          "max": 1000
-        },
-        "next": {
-          "required": true,
-          "initial": 0
-        }
+        "limit": { "required": true, "min": 1, "max": 1000 },
+        "next": { "required": true, "initial": 0 }
       },
       "rowGrain": ["id"],
       "fields": {
-        "id": {
-          "role": "fbs_supply_id",
-          "unit": "identifier"
-        },
-        "done": {
-          "role": "fbs_supply_closed_or_done_flag",
-          "unit": "boolean"
-        },
-        "createdAt": {
-          "role": "created_time",
-          "unit": "datetime"
-        },
-        "closedAt": {
-          "role": "closed_time",
-          "unit": "datetime_or_null"
-        },
-        "scanDt": {
-          "role": "scan_time",
-          "unit": "datetime_or_null"
-        },
+        "id": { "role": "fbs_supply_id", "unit": "identifier" },
+        "done": { "role": "fbs_supply_closed_or_done_flag", "unit": "boolean" },
+        "createdAt": { "role": "created_time", "unit": "datetime" },
+        "closedAt": { "role": "closed_time", "unit": "datetime_or_null" },
+        "scanDt": { "role": "scan_time", "unit": "datetime_or_null" },
         "isB2b": {
           "role": "business_sale_flag",
           "unit": "boolean_optional_or_null"
         },
-        "cargoType": {
-          "role": "cargo_type",
-          "unit": "provider_enum_integer"
-        },
+        "cargoType": { "role": "cargo_type", "unit": "provider_enum_integer" },
         "crossBorderType": {
           "role": "cross_border_type",
           "unit": "provider_enum_integer_or_null"
@@ -184,32 +142,18 @@
       }
     ],
     "fbs": [
-      {
-        "id": "WB-GI-OPEN",
-        "done": false,
-        "expected": "OPEN"
-      },
-      {
-        "id": "WB-GI-DONE",
-        "done": true,
-        "expected": "DONE"
-      }
+      { "id": "WB-GI-OPEN", "done": false, "expected": "OPEN" },
+      { "id": "WB-GI-DONE", "done": true, "expected": "DONE" }
     ],
     "invalidFbw": {
       "supplyID": 1,
       "preorderID": 2,
       "statusID": 99,
-      "expected": {
-        "status": "INCOMPLETE",
-        "reason": "UNKNOWN_FBW_STATUS_ID"
-      }
+      "expected": { "status": "INCOMPLETE", "reason": "UNKNOWN_FBW_STATUS_ID" }
     },
     "missingFbsDone": {
       "id": "WB-GI-UNKNOWN",
-      "expected": {
-        "status": "INCOMPLETE",
-        "reason": "FBS_DONE_MISSING"
-      }
+      "expected": { "status": "INCOMPLETE", "reason": "FBS_DONE_MISSING" }
     }
   },
   "remainingOpen": [
