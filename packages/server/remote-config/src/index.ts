@@ -770,6 +770,8 @@ export async function listP3SelectableConfigReleases(
   if (
     !baseline ||
     !candidate ||
+    baseline.configVersion !== revision.baselineConfigVersion ||
+    candidate.configVersion !== revision.candidateConfigVersion ||
     baseline.contractVersion !== "control_plane_v1" ||
     baseline.snapshotVersion !== "bootstrap_snapshot_v1" ||
     baseline.envelopeVersion !== "bootstrap_envelope_v1" ||
@@ -857,11 +859,13 @@ export async function resolveP3BootstrapPolicy(
             subjectKind: configRollout.subjectKind,
             subjectId,
           });
-          selected = await catalog.findConfigRelease(
+          const selectedVersion =
             selectionMode === "BASELINE_ONLY" || !candidate
               ? revision.baselineConfigVersion!
-              : revision.candidateConfigVersion!,
-          );
+              : revision.candidateConfigVersion!;
+          selected = await catalog.findConfigRelease(selectedVersion);
+          if (selected && selected.configVersion !== selectedVersion)
+            return { failure: "CONFIG_SOURCE_INVALID" };
         }
       }
     }
