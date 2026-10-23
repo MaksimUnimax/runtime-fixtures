@@ -12,12 +12,16 @@ function clone(row: ProductCrosswalkRow): ProductCrosswalkRow {
 export class InMemoryProductCrosswalkStore implements ProductCrosswalkStore {
   private readonly rows = new Map<string, ProductCrosswalkRow>();
   async saveRows(rows: ProductCrosswalkRow[]) {
-    for (const row of rows)
-      this.rows.set(row.crosswalkId, {
+    const saved: ProductCrosswalkRow[] = [];
+    for (const row of rows) {
+      const stored = clone({
         ...row,
         crosswalkId: row.crosswalkId || randomUUID(),
       });
-    return rows.map((row) => clone(this.rows.get(row.crosswalkId)!));
+      this.rows.set(stored.crosswalkId, stored);
+      saved.push(clone(stored));
+    }
+    return saved;
   }
   async listRows(reportId: string) {
     return [...this.rows.values()]

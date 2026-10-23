@@ -125,7 +125,9 @@ export function classifyApiImpact(diff: SemanticDiff): ApiWatchImpact {
     .filter(
       (operation): operation is ApiWatchImpactOperation => operation !== null,
     )
-    .sort((a, b) => a.identity.localeCompare(b.identity));
+    .sort((a, b) =>
+      a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0,
+    );
   const counts = {
     blockingRiskCount: operations.filter(
       (operation) => operation.severity === "BLOCKING_RISK",
