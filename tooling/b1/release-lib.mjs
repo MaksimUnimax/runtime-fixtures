@@ -1268,7 +1268,9 @@ function validateFirefoxBuiltInConsentMinimum(manifest) {
   // stable minimum and needs separate consent-compatibility acceptance.
   const match =
     typeof minimum === "string"
-      ? /^([1-9][0-9]*)\.(0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}$/.exec(minimum)
+      ? /^([1-9][0-9]*)\.(0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}$/.exec(
+          minimum,
+        )
       : null;
   const releaseParts = match ? minimum.split(".").map(Number) : [];
   if (
@@ -1704,24 +1706,25 @@ export function preflight({
     }
   }
 
-  // A single-browser receipt must cover the exact directory delivered to
-  // the reviewer; undeclared files cannot ride alongside the validated ZIP.
-  if (scopedBrowser) {
-    const expectedFiles = [
-      "B1_RC_MANIFEST.json",
-      manifest.packages[scopedBrowser].filename,
-    ].sort();
-    const candidateFiles = readdirSync(candidateRoot).sort();
-    if (
-      candidateFiles.length !== expectedFiles.length ||
-      candidateFiles.some((name, index) => name !== expectedFiles[index])
-    ) {
-      fail(
-        scopedBrowser === "chromium"
-          ? "Chrome-only candidate contains undeclared files"
-          : "Firefox-only candidate contains undeclared files",
-      );
-    }
+  // Every released directory, including a dual-browser candidate, must
+  // contain only the validated archives and its manifest. Reject any
+  // undeclared sibling that could accompany delivery to a reviewer.
+  const expectedFiles = [
+    "B1_RC_MANIFEST.json",
+    ...browsers.map((browser) => manifest.packages[browser].filename),
+  ].sort();
+  const candidateFiles = readdirSync(candidateRoot).sort();
+  if (
+    candidateFiles.length !== expectedFiles.length ||
+    candidateFiles.some((name, index) => name !== expectedFiles[index])
+  ) {
+    fail(
+      scopedBrowser === "chromium"
+        ? "Chrome-only candidate contains undeclared files"
+        : scopedBrowser === "firefox"
+          ? "Firefox-only candidate contains undeclared files"
+          : "Dual-browser candidate contains undeclared files",
+    );
   }
 
   return {
