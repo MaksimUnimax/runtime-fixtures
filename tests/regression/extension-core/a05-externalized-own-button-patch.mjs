@@ -23,21 +23,29 @@ for (const patch of transportPatches) {
 }
 // Pin the one independently reviewed Standard-composer overlay explicitly;
 // retain the accepted A05 baseline and its original full-content hash below.
-const standardComposerPatches = patches.filter(row =>
+const preKimiPatches = patches.slice(0, 179);
+const standardComposerPatches = preKimiPatches.filter(row =>
   row.target === "content_script.js" && row.old.startsWith("  function chatgptPrimaryComposerContext() {"));
 assert.equal(standardComposerPatches.length, 1, "one observed Standard composer overlay");
 const standardComposerPatch = standardComposerPatches[0];
 assert.deepEqual(Object.keys(standardComposerPatch).sort(), ["new", "old", "target"]);
 assert.equal(hash(standardComposerPatch.old), "2149944069f6f17e75d2eb9d7861906854d66b08afcf3f224b5f22e7f28e21bc");
 assert.equal(hash(standardComposerPatch.new), "dfa900cbbe80eab472d738c2125bac806252875011e64abbdffa29720b46f235");
-// Kimi routing is appended as thirteen exact overlays; the accepted A05 baseline remains intact.
-const kimiPatches = patches.slice(179);
+// Keep each accepted composition stage explicit. Later B02 overlays include a
+// second composer replacement and must not be counted as the original overlay.
+const kimiPatches = patches.slice(179, 192);
+const b02Patches = patches.slice(192);
 assert.equal(kimiPatches.length, 13);
-assert.equal(hash(JSON.stringify(patches.slice(0, 179))), "18a6b8c9943d4b2f67c118c149fcc335d83629081059a6ab107f73ebe081c1aa",
+assert.equal(hash(JSON.stringify(preKimiPatches)), "18a6b8c9943d4b2f67c118c149fcc335d83629081059a6ab107f73ebe081c1aa",
   "accepted pre-Kimi patch inventory remains byte-equivalent");
-assert.equal(hash(JSON.stringify(kimiPatches)), "5d3ce6e16fa3ffeb3778bee63171d421866d237cf84200d710a0eb7b73df89cd",
-  "only the exact reviewed Kimi routing overlays are additional");
-assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length);
+// The later B02 adapter-registry update changed only row 191 of the original
+// Kimi stage; pin its current full bytes and preserve the eight content rows below.
+assert.equal(hash(JSON.stringify(kimiPatches)), "32e8792ab10e0217287c9f766cf217d6e597184202b27926583851fe846f9935",
+  "exact Kimi stage with the current B02 adapter registry");
+assert.equal(b02Patches.length, 151);
+assert.equal(hash(JSON.stringify(b02Patches)), "79c95b8ecdfc460d9e098cfa8c40009f0e01ae933ea5b0909f8fe608220216f3",
+  "exact additional B02 overlays; no unpinned tail");
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + b02Patches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];
@@ -57,9 +65,13 @@ assert.ok(replacement.endsWith("  }\n\n"));
 let content = read("apps/extension/src/imported/ozon-v0.1.22/content_script.js");
 const contentPatches = patches.filter(row => row.target === "content_script.js");
 const kimiContentPatches = kimiPatches.filter(row => row.target === "content_script.js");
+const b02ContentPatches = b02Patches.filter(row => row.target === "content_script.js");
 assert.equal(kimiContentPatches.length, 8);
-assert.equal(contentPatches.length, 69 + kimiContentPatches.length);
-const baselineContentPatches = contentPatches.filter(row => row !== standardComposerPatch && !kimiContentPatches.includes(row));
+assert.equal(hash(JSON.stringify(kimiContentPatches)), "baa61703dc196ec14aefc883a519644e2b810765dd90f14b946a00268b165ffb",
+  "the original eight Kimi content overlays remain unchanged");
+assert.equal(b02ContentPatches.length, 69);
+assert.equal(contentPatches.length, 69 + kimiContentPatches.length + b02ContentPatches.length);
+const baselineContentPatches = preKimiPatches.filter(row => row.target === "content_script.js" && row !== standardComposerPatch);
 assert.equal(baselineContentPatches.length, 68);
 for (const row of baselineContentPatches) {
   assert.equal(content.split(row.old).length - 1, 1, "one baseline preimage per patch");
@@ -79,7 +91,14 @@ for (const row of kimiContentPatches) {
   assert.equal(content.split(row.old).length - 1, 1, "one Kimi preimage after the unchanged baseline");
   content = content.replace(row.old, row.new);
 }
-assert.equal(hash(content), "d372417469868a7cc8f3ab438b2810974a926b17b26d70722e24980cc0fddb99", "patched donor text equals the previously reviewed composition before bundle assembly");
+assert.equal(hash(content), "d372417469868a7cc8f3ab438b2810974a926b17b26d70722e24980cc0fddb99", "original Kimi composition remains unchanged before later B02 overlays");
+for (const row of b02ContentPatches) {
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+  assert.equal(content.split(row.old).length - 1, 1, "one B02 preimage at its ordered composition stage");
+  content = content.replace(row.old, row.new);
+}
+assert.equal(hash(content), "916075a132a09e310d8fdec7575cf5dfb7e4f313dc27e2cdf4e71b3d67a11948",
+  "exact current B02 donor composition before bundle assembly");
 console.log(JSON.stringify({level:"SOURCE",status:"PASS",externalized:1,
   patchCount:patches.length,contentPatches:contentPatches.length,
   emittedSHA256:hash(content),runtimeOrStoreInstall:"NOT_RUN"}));
