@@ -84,4 +84,32 @@ describe("C03 in-memory product crosswalk persistence", () => {
     );
     expect(persisted[0]?.sourceIdentity).toBe("OZON_SELLER:GET:/independent");
   });
+
+  it("sorts Unicode source identities and document keys by stable code-unit order", async () => {
+    const identities = new InMemoryProductCrosswalkStore();
+    await identities.saveRows([
+      row("OZON_SELLER:GET:/ä", { crosswalkId: "accented" }),
+      row("OZON_SELLER:GET:/z", { crosswalkId: "ascii" }),
+    ]);
+    expect(
+      (await identities.listRows("report-1")).map(
+        (item) => item.sourceIdentity,
+      ),
+    ).toEqual(["OZON_SELLER:GET:/z", "OZON_SELLER:GET:/ä"]);
+
+    const documents = new InMemoryProductCrosswalkStore();
+    await documents.saveRows([
+      row("OZON_SELLER:GET:/same", {
+        crosswalkId: "doc-accented",
+        documentKey: "ä",
+      }),
+      row("OZON_SELLER:GET:/same", {
+        crosswalkId: "doc-ascii",
+        documentKey: "z",
+      }),
+    ]);
+    expect(
+      (await documents.listRows("report-1")).map((item) => item.documentKey),
+    ).toEqual(["z", "ä"]);
+  });
 });
