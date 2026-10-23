@@ -884,6 +884,9 @@ export async function resolveP3BootstrapPolicy(
       catalog.listConfigFeatureRolloutRevisions(selected.configVersion),
     ]);
     const release = await catalog.findExtensionRelease(input.extensionVersion);
+    // Catalog lookup identity is exact, unlike SemVer precedence comparisons.
+    if (release && release.version !== input.extensionVersion)
+      return { failure: "COMPATIBILITY_SOURCE_INVALID" };
     const [contracts, browsers] = release
       ? await Promise.all([
           catalog.listReleaseContracts(release.id),
