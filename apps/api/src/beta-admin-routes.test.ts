@@ -232,6 +232,8 @@ describe("S1.1 beta admin route authorization", () => {
     ["DEL", "case\u007fnote"],
     ["C1", "case\u0085note"],
     ["Arabic letter mark", "case\u061cnote"],
+    ["zero-width space", "case\u200bnote"],
+    ["word joiner", "case\u2060note"],
     ["left-to-right mark", "case\u200enote"],
     ["right-to-left override", "case\u202enote"],
     ["bidi isolate", "case\u2066note"],
@@ -269,6 +271,8 @@ describe("S1.1 beta admin route authorization", () => {
     ["DEL", "case\u007fnote"],
     ["C1", "case\u0085note"],
     ["Arabic letter mark", "case\u061cnote"],
+    ["zero-width space", "case\u200bnote"],
+    ["word joiner", "case\u2060note"],
     ["left-to-right mark", "case\u200enote"],
     ["right-to-left override", "case\u202enote"],
     ["bidi isolate", "case\u2066note"],
@@ -299,7 +303,7 @@ describe("S1.1 beta admin route authorization", () => {
     },
   );
 
-  it.each(["p".repeat(512), "проверка приглашения"])(
+  it.each(["p".repeat(512), "проверка приглашения", "کت\u200cاب", "क्\u200dष"])(
     "preserves safe beta invitation reasons including the 512-character boundary",
     async (reason) => {
       const f = fixture("ADMIN_BETA_OPERATOR");
