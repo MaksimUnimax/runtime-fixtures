@@ -280,6 +280,9 @@ class AliceElement {
 const aliceContext = { Element: AliceElement, HTMLElement: AliceElement,
   getComputedStyle: node => ({ display: node.hidden ? "none" : "block", visibility: "visible" }) };
 aliceContext.SellerAgentsQwenAdapter = { create: () => ({ id: "qwen" }) };
+// The patched registry constructs Kimi too; load its real dependencies even in the Alice-only fixture.
+for (const file of ["apps/extension/src/content/kimi-code-reader.js",
+  "apps/extension/src/content/kimi-adapter.js"]) vm.runInNewContext(source(file), aliceContext);
 vm.runInNewContext(composedSource("apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js", "shared/ai_adapters.js"), aliceContext);
 const realAlice = aliceContext.OzonAIAdapters.ADAPTERS.alice;
 cases.push(["Alice exact prompt excludes author and Expand controls", async () => {

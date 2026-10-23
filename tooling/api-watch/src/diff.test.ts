@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffInventories } from "./diff.js";
+import { canonicalSemanticDiff, diffInventories } from "./diff.js";
 import { InMemoryApiWatchStore } from "./authority.js";
 import type { OperationInventory, OperationInventoryItem } from "./types.js";
 import { buildCompleteOperationInventory } from "./inventory.js";
@@ -65,6 +65,91 @@ function compare(
     createdAt: new Date("2026-09-22T00:00:00Z"),
   });
 }
+
+describe("C03 duplicate semantic identity fail-closed", () => {
+  it("rejects duplicate identities in the base inventory rather than hiding a removal", () => {
+    const duplicated = [
+      operation({ operationId: "first" }),
+      operation({ operationId: "second" }),
+    ];
+    expect(() =>
+      diffInventories({
+        base: inventory(duplicated),
+        target: inventory([operation({ operationId: "second" })], TARGET_SHA),
+      }),
+    ).toThrow("DIFF_DUPLICATE_OPERATION_IDENTITY");
+  });
+
+  it("rejects duplicate identities in the target inventory rather than hiding an addition", () => {
+    const duplicated = [
+      operation({ operationId: "first" }),
+      operation({ operationId: "second" }),
+    ];
+    expect(() =>
+      diffInventories({
+        base: inventory([operation({ operationId: "first" })]),
+        target: inventory(duplicated, TARGET_SHA),
+      }),
+    ).toThrow("DIFF_DUPLICATE_OPERATION_IDENTITY");
+  });
+});
+
+// These tests exercise the canonicalizer's fallback ordering when two
+// *synthetic* semantic identities share the preceding family/path/method keys.
+// buildCompleteOperationInventory constructs sourceFamily:method:path identities
+// and cannot emit either pair. These are deliberately non-builder fixtures,
+// not evidence of two accepted WB documents with overlapping routes.
+describe("C03 canonical fallback order for synthetic semantic identities", () => {
+  it("preserves canonical bytes for fabricated equal-key operations in either order", () => {
+    const first = operation({
+      identity: "SYNTHETIC:A:GET:/orders",
+      path: "/orders",
+      operationId: "readA",
+    });
+    const second = operation({
+      identity: "SYNTHETIC:B:GET:/orders",
+      path: "/orders",
+      operationId: "readB",
+    });
+    const diff = diffInventories({
+      base: inventory([]),
+      target: inventory([first, second], TARGET_SHA),
+      createdAt: new Date("2026-10-19T00:00:00Z"),
+    });
+    expect(diff.operations).toHaveLength(2);
+    expect(
+      canonicalSemanticDiff({
+        ...diff,
+        operations: [...diff.operations].reverse(),
+      }),
+    ).toEqual(canonicalSemanticDiff(diff));
+  });
+});
+
+describe("C03 canonical fallback for synthetic Unicode-equivalent identities", () => {
+  it("orders fabricated NFC/NFD tie identities by exact code units, not locale collation", () => {
+    const firstIdentity = "SYNTHETIC:" + String.fromCharCode(0xc9);
+    const secondIdentity = "SYNTHETIC:E" + String.fromCharCode(0x301);
+    expect(firstIdentity).not.toEqual(secondIdentity);
+    const mk = (identity: string) =>
+      operation({
+        identity,
+        path: "/orders",
+      });
+    const diff = diffInventories({
+      base: inventory([]),
+      target: inventory([mk(firstIdentity), mk(secondIdentity)], TARGET_SHA),
+      createdAt: new Date("2026-10-19T00:00:00Z"),
+    });
+    expect(diff.operations).toHaveLength(2);
+    expect(
+      canonicalSemanticDiff({
+        ...diff,
+        operations: [...diff.operations].reverse(),
+      }),
+    ).toEqual(canonicalSemanticDiff(diff));
+  });
+});
 
 describe("A4 semantic API diffs", () => {
   it("C03 detects requiredness, type, enum, request, response and security changes from OpenAPI", () => {

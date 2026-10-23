@@ -1,0 +1,456 @@
+{
+  "status": "PASS",
+  "scope": "offline staged Kimi adapter/registry and existing consumer delegation; no activation/live UI",
+  "source_sha256": {
+    "shared/conversation_identity.js": "fe370134780bbf3d632a4076d51895fa45def90fd04b7b49f3225c010be1cecc",
+    "shared/web_file_attachment.js": "a1d91cb7b6aa5b1b26bf780e29f3d42895510b04d55d37569cfc3d3cf4db3010",
+    "shared/ai_delivery_capabilities.js": "950ca8a32a1151b61fe8c5fcc76d67b3466dbc59cf390cf5aef254a14e68917e",
+    "shared/ai_adapters.js": "b795570c84ffb557c1ebc88ce95dae36cc4bf13cd518c06c12718a2a4bd1f5ac"
+  },
+  "content_sha256": "ea87cdba0e9148e82a470c2c021a8aff2756b72834beb3776c3035896bb41f17",
+  "cases": {
+    "independent_witnesses_and_effective_ui_guards": {
+      "status": "PASS",
+      "actual": {
+        "surface": false,
+        "id": "u1",
+        "users": [
+          "u1"
+        ],
+        "editingText": ""
+      }
+    },
+    "registered_but_planned_cannot_activate": {
+      "status": "PASS",
+      "actual": {
+        "id": "kimi",
+        "origin": true,
+        "mode": "kimi",
+        "auto": true,
+        "explicit": true,
+        "capability": "planned",
+        "fileAllowed": false
+      }
+    },
+    "idle_disabled_is_ready": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "ready",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "text_send_enabled": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "send_active",
+        "candidates": 1,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "text_send_disabled": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "send_disabled",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "empty_enabled_is_unknown": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "loading_is_busy_not_stop": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "busy",
+        "candidates": 0,
+        "stop": false,
+        "busy": true
+      }
+    },
+    "disabled_and_loading_still_busy": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "busy",
+        "candidates": 0,
+        "stop": false,
+        "busy": true
+      }
+    },
+    "unready_upload_blocks_enabled_send": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "success_card_allows_observed_send": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "send_active",
+        "candidates": 1,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "two_cards_are_ambiguous": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "pointer_events_disabled": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "send_disabled",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "aria_disabled_control": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "send_disabled",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "duplicate_send_controls": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "outside_send_is_ignored": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "ready",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "assistant_fake_send_is_ignored": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "ready",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "multiple_editors_rejected": {
+      "status": "PASS",
+      "actual": {
+        "context": false,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "editor_in_user_message_rejected": {
+      "status": "PASS",
+      "actual": {
+        "context": false,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "nested_editor_root_rejected": {
+      "status": "PASS",
+      "actual": {
+        "context": false,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "dialog_editor_rejected": {
+      "status": "PASS",
+      "actual": {
+        "context": false,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "hidden_editor_rejected": {
+      "status": "PASS",
+      "actual": {
+        "context": false,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "transparent_ancestor_rejected": {
+      "status": "PASS",
+      "actual": {
+        "context": false,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "aria_disabled_editor_rejected": {
+      "status": "PASS",
+      "actual": {
+        "context": false,
+        "kind": "unknown",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "hidden_duplicate_does_not_replace_editor": {
+      "status": "PASS",
+      "actual": {
+        "context": true,
+        "kind": "ready",
+        "candidates": 0,
+        "stop": false,
+        "busy": false
+      }
+    },
+    "old_context_replaced_root": {
+      "status": "PASS",
+      "actual": true
+    },
+    "old_context_changed_url": {
+      "status": "PASS",
+      "actual": true
+    },
+    "composer_text_mutation_uses_existing_helper": {
+      "status": "PASS",
+      "actual": {
+        "text": "COPY ONLY",
+        "inputs": 1,
+        "sendClicks": null
+      }
+    },
+    "busy_cannot_mutate_composer": {
+      "status": "PASS",
+      "actual": {
+        "code": "COMPOSER_NOT_AVAILABLE",
+        "text": "OLD"
+      }
+    },
+    "message_reader_integrates_with_owned_final": {
+      "status": "PASS",
+      "actual": {
+        "users": [
+          "u1"
+        ],
+        "assistants": [
+          "a1"
+        ],
+        "text": "FINAL",
+        "code": [
+          "FINAL"
+        ],
+        "complete": true
+      }
+    },
+    "busy_final_is_incomplete": {
+      "status": "PASS",
+      "actual": false
+    },
+    "unknown_control_is_not_completion": {
+      "status": "PASS",
+      "actual": false
+    },
+    "independent_turn_marker_accepted": {
+      "status": "PASS",
+      "actual": "u1"
+    },
+    "malformed_turn_witness_rejected": {
+      "status": "PASS",
+      "actual": ""
+    },
+    "duplicate_message_marker_rejected": {
+      "status": "PASS",
+      "actual": [
+        "",
+        ""
+      ]
+    },
+    "origin_route_is_not_chat_identity": {
+      "status": "PASS",
+      "actual": {
+        "provider": "kimi",
+        "temporary": null,
+        "unverified": "unknown"
+      }
+    },
+    "hidden_native_input_selected": {
+      "status": "PASS",
+      "actual": true
+    },
+    "input_disabled_rejected": {
+      "status": "PASS",
+      "actual": false
+    },
+    "unexpected_accept_rejected": {
+      "status": "PASS",
+      "actual": false
+    },
+    "second_input_rejected": {
+      "status": "PASS",
+      "actual": false
+    },
+    "missing_multiple_rejected": {
+      "status": "PASS",
+      "actual": false
+    },
+    "draft_blocks_attachment": {
+      "status": "PASS",
+      "actual": false
+    },
+    "existing_card_blocks_second_attachment": {
+      "status": "PASS",
+      "actual": false
+    },
+    "ready_card_requires_success_and_name": {
+      "status": "PASS",
+      "actual": true
+    },
+    "uploading_not_ready_even_enabled": {
+      "status": "PASS",
+      "actual": false
+    },
+    "missing_success_not_ready": {
+      "status": "PASS",
+      "actual": false
+    },
+    "wrong_card_filename_rejected": {
+      "status": "PASS",
+      "actual": false
+    },
+    "wrong_card_extension_rejected": {
+      "status": "PASS",
+      "actual": false
+    },
+    "busy_after_send_is_not_staged_ready": {
+      "status": "PASS",
+      "actual": false
+    },
+    "user_message_card_not_composer_preview": {
+      "status": "PASS",
+      "actual": false
+    },
+    "native_input_1mib_exact_bytes_no_send_no_replay": {
+      "status": "PASS",
+      "actual": {
+        "sameBytes": true,
+        "sha256": "631b84027d6b9e52b539c4e8373622d23032dfadc64d60af87339c9037e4f769",
+        "originalSha256": "631b84027d6b9e52b539c4e8373622d23032dfadc64d60af87339c9037e4f769",
+        "inputs": 1,
+        "changes": 1,
+        "clicks": 0,
+        "retry": "TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE"
+      }
+    },
+    "pdf_rejected": {
+      "status": "PASS",
+      "actual": {
+        "code": "TARGET_AI_FILE_TYPE_UNSUPPORTED",
+        "count": 0,
+        "changes": 0
+      }
+    },
+    "over_1mib_rejected": {
+      "status": "PASS",
+      "actual": {
+        "code": "TARGET_AI_FILE_TYPE_UNSUPPORTED",
+        "count": 0,
+        "changes": 0
+      }
+    },
+    "two_files_rejected": {
+      "status": "PASS",
+      "actual": {
+        "code": "TARGET_AI_FILE_TYPE_UNSUPPORTED",
+        "count": 0,
+        "changes": 0
+      }
+    },
+    "wrong_mime_rejected": {
+      "status": "PASS",
+      "actual": {
+        "code": "TARGET_AI_FILE_TYPE_UNSUPPORTED",
+        "count": 0,
+        "changes": 0
+      }
+    },
+    "stale_attachment_surface_cannot_write": {
+      "status": "PASS",
+      "actual": {
+        "code": "TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE",
+        "count": 0
+      }
+    },
+    "prepared_consumers_delegate_to_actual_kimi_adapter": {
+      "status": "PASS",
+      "actual": {
+        "root": "chat-editor",
+        "send": "send",
+        "candidates": 1,
+        "controls": [
+          "send"
+        ],
+        "stop": true,
+        "recognized": "send",
+        "kind": "send_active"
+      }
+    },
+    "ordinary_work_selection_stays_closed": {
+      "status": "PASS"
+    },
+    "exact_owner_approved_origin_only": {
+      "status": "PASS"
+    },
+    "composed_manifest_has_exact_kimi_origin": {
+      "status": "PASS"
+    }
+  }
+}

@@ -305,6 +305,54 @@ describe("A6 API-watch report lifecycle", () => {
     }
   });
 
+  it("C03 rejects an atomic inventory-write failure without accepting a snapshot", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-atomic-report-"));
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(registry, root);
+      const store = setup.dependencies.store;
+      const save = store.saveSnapshotWithInventory.bind(store);
+      let fail = true;
+      store.saveSnapshotWithInventory = async (metadata, inventory) => {
+        if (fail) {
+          fail = false;
+          throw new Error("SIMULATED_ATOMIC_SNAPSHOT_INVENTORY_FAILURE");
+        }
+        return save(metadata, inventory);
+      };
+      const rejected = await runApiWatchReport({
+        ...setup,
+        runId: "atomic-report-failed",
+        source: "FORCED",
+      });
+      expect(rejected.code).toBe("API_WATCH_REPORT_FAILED");
+      expect(await store.listSnapshots()).toHaveLength(0);
+      expect(setup.apiState.inventories.size).toBe(0);
+      // The content-addressed file can safely remain unreferenced when the
+      // transaction rejects; it is not an accepted snapshot.
+      const restored = await runApiWatchReport({
+        ...setup,
+        runId: "atomic-report-restored",
+        source: "FORCED",
+      });
+      expect(restored.code).toBe("API_WATCH_REPORT_PARTIAL");
+      expect(await store.listSnapshots()).toHaveLength(1);
+      expect(setup.apiState.inventories.size).toBe(1);
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("C03 report preserves source, exact snapshot version identity, and uncertainty", async () => {
     const server = await fixtureServer(DOCUMENT_A);
     const root = await mkdtemp(join(tmpdir(), "s2-c03-report-"));

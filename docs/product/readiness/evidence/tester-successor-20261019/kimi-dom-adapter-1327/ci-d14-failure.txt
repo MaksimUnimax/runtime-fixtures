@@ -1,0 +1,41 @@
+2026-10-19T14:00:15.5856983Z RUN core-composed-version-policy
+2026-10-19T14:00:15.8506664Z PASS core-composed-version-policy
+2026-10-19T14:00:15.8507517Z RUN core-conversation-surface-first-start
+2026-10-19T14:00:16.2163438Z PASS core-conversation-surface-first-start
+2026-10-19T14:00:16.2167454Z RUN core-a05-externalized-own-button-differential
+2026-10-19T14:00:16.2815218Z FAIL core-a05-externalized-own-button-differential
+2026-10-19T14:00:16.2816262Z node:internal/modules/run_main:107
+2026-10-19T14:00:16.2817171Z     triggerUncaughtException(
+2026-10-19T14:00:16.2817878Z     ^
+2026-10-19T14:00:16.2818221Z 
+2026-10-19T14:00:16.2819103Z AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+2026-10-19T14:00:16.2819601Z 
+2026-10-19T14:00:16.2819900Z 180 !== 179
+2026-10-19T14:00:16.2820186Z 
+2026-10-19T14:00:16.2821424Z     at file:///home/runner/work/runtime-fixtures/runtime-fixtures/tests/regression/extension-core/a05-externalized-own-button-patch.mjs:33:8
+2026-10-19T14:00:16.2822995Z     at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+2026-10-19T14:00:16.2823902Z     at async node:internal/modules/esm/loader:643:26
+2026-10-19T14:00:16.2825053Z     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+2026-10-19T14:00:16.2825915Z   generatedMessage: true,
+2026-10-19T14:00:16.2826577Z   code: 'ERR_ASSERTION',
+2026-10-19T14:00:16.2827213Z   actual: 180,
+2026-10-19T14:00:16.2827814Z   expected: 179,
+2026-10-19T14:00:16.2828380Z   operator: 'strictEqual',
+2026-10-19T14:00:16.2829015Z   diff: 'simple'
+2026-10-19T14:00:16.2829524Z }
+2026-10-19T14:00:16.2830034Z 
+2026-10-19T14:00:16.2830396Z Node.js v24.19.0
+2026-10-19T14:00:16.2830698Z 
+2026-10-19T14:00:16.2830889Z {
+2026-10-19T14:00:16.2831577Z   "stage": "D2.4",
+2026-10-19T14:00:16.2832060Z   "status": "FAIL",
+2026-10-19T14:00:16.2832531Z   "os": "Linux",
+2026-10-19T14:00:16.2833000Z   "python": "3.12.14",
+2026-10-19T14:00:16.2833441Z   "node": "v24.19.0",
+2026-10-19T14:00:16.2833827Z   "live_provider_calls": 0,
+2026-10-19T14:00:16.2834305Z   "installed_acceptance": false,
+2026-10-19T14:00:16.2835108Z   "error": "GateFailure: core-a05-externalized-own-button-differential: exit 1",
+2026-10-19T14:00:16.2835645Z   "gate_processes": 3
+2026-10-19T14:00:16.2835892Z }
+2026-10-19T14:00:16.3001207Z ##[error]Process completed with exit code 1.
+2026-10-19T14:00:16.3092301Z ##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

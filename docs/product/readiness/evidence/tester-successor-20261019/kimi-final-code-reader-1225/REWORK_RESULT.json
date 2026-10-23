@@ -1,0 +1,22 @@
+{
+  "at_utc": "2026-10-19T12:39:59.109670+00:00",
+  "previous_candidate": "6ad19b476bcc6d8897f02e1e43bdfb0350ea4825",
+  "independent_finding": "REWORK_REQUIRED: plaintext-only editable pre passed reader",
+  "red": "plaintext_pre_rejected actual BAD, expected empty",
+  "fix": "Reject effective isContentEditable on rendered message/pre, code and editable descendants",
+  "source_sha256": {
+    "apps/extension/src/content/kimi-code-reader.js": "89a5e229e443b0ba01bd9d5d41f078d5f85337079439d465301a93a5736e4643",
+    "tests/regression/extension-core/chatgpt-dom-compat.py": "cd8e9bed1330fa62972ced50c1611f4b7fa1bbb35315019670fb06059b367e90"
+  },
+  "author_test": "30/30 PASS actual recomposed bundle, exit0 cgroup empty",
+  "new_cases": [
+    "plaintext pre",
+    "plaintext ancestor",
+    "empty editable attribute",
+    "editable code child",
+    "editable span child"
+  ],
+  "component_limitations_unchanged": true,
+  "provider_activation": false,
+  "installed_acceptance": false
+}

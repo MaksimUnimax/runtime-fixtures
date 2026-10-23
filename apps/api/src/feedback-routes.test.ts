@@ -110,17 +110,19 @@ function repository(
   };
 }
 
-function adminAuth() {
+function adminAuth(
+  permissions: AdminSubject["permissions"] = [
+    "support.case.read",
+    "support.case.manage",
+    "support.aggregate.read",
+  ],
+) {
   const subject: AdminSubject = {
     adminPrincipalId: principalId,
     userId,
     adminSessionId: "00000000-0000-4000-8000-000000000008",
     roles: ["ADMIN_SUPPORT"],
-    permissions: [
-      "support.case.read",
-      "support.case.manage",
-      "support.aggregate.read",
-    ],
+    permissions,
     expiresAt: new Date("2030-01-01T01:00:00.000Z"),
   };
   const service = {
@@ -138,12 +140,15 @@ function adminAuth() {
   return service;
 }
 
-function app(repo = repository()) {
+function app(
+  repo = repository(),
+  adminPermissions?: AdminSubject["permissions"],
+) {
   return createApiApp({
     config,
     isInfrastructureReady: async () => true,
     authService: authService(),
-    adminAuthService: adminAuth(),
+    adminAuthService: adminAuth(adminPermissions),
     feedbackSupportService: new FeedbackSupportService(repo),
   });
 }
@@ -266,5 +271,49 @@ describe("B2 feedback/support API", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["cache-control"]).toContain("no-store");
     await server.close();
+  });
+  it("rejects all six admin support routes through real permission guard before any feedback I/O", async () => {
+    const trackedRepository = repository();
+    const storageCalls = [
+      vi.spyOn(trackedRepository, "listCases"),
+      vi.spyOn(trackedRepository, "getCase"),
+      vi.spyOn(trackedRepository, "transitionCase"),
+      vi.spyOn(trackedRepository, "addFollowup"),
+      vi.spyOn(trackedRepository, "aggregateSignals"),
+      vi.spyOn(trackedRepository, "aggregateFunnel"),
+    ];
+    const server = app(trackedRepository, []);
+    const deniedRoutes = [
+      { method: "GET", url: "/v1/admin/support/cases?status=NEW" },
+      { method: "GET", url: "/v1/admin/support/cases/" + caseId },
+      {
+        method: "POST",
+        url: "/v1/admin/support/cases/" + caseId + "/status",
+        payload: { status: "TRIAGED" },
+      },
+      {
+        method: "POST",
+        url: "/v1/admin/support/cases/" + caseId + "/followups",
+        payload: { description: "Safe synthetic follow-up" },
+      },
+      { method: "GET", url: "/v1/admin/support/aggregates" },
+      { method: "GET", url: "/v1/admin/support/funnels?funnel=SUPPORT" },
+    ] as const;
+    try {
+      for (const route of deniedRoutes) {
+        const response = await server.inject({
+          ...route,
+          headers: {
+            cookie:
+              "pcp_admin_session=admin-session; pcp_admin_csrf=" + portalCsrf,
+            "x-csrf-token": portalCsrf,
+          },
+        });
+        expect(response.statusCode, route.url).toBe(403);
+      }
+      for (const call of storageCalls) expect(call).not.toHaveBeenCalled();
+    } finally {
+      await server.close();
+    }
   });
 });

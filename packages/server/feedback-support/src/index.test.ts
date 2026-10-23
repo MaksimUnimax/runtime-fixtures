@@ -120,6 +120,215 @@ describe("B2 feedback/support safety foundation", () => {
     },
   );
 
+  it.each([
+    [
+      '{"password":123456,"requestId":"safe-101"}',
+      "123456",
+      '"requestId":"safe-101"',
+    ],
+    [
+      '{"clientSecret":-12.5e3,"requestId":"safe-102"}',
+      "-12.5e3",
+      '"requestId":"safe-102"',
+    ],
+    [
+      "{'access_token':'synthetic-private-B456','requestId':'safe-103'}",
+      "synthetic-private-B456",
+      "'requestId':'safe-103'",
+    ],
+    [
+      "{'clientSecret':'synthetic-private-C789','requestId':'safe-104'}",
+      "synthetic-private-C789",
+      "'requestId':'safe-104'",
+    ],
+  ])(
+    "redacts scalar or single-quoted diagnostic secret while preserving safe metadata: %s",
+    (raw, secret, safe) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain(secret);
+      expect(sanitized).toContain("[REDACTED_SECRET]");
+      expect(sanitized).toContain(safe);
+    },
+  );
+
+  it("preserves valid JSON structure after masking numeric credential values", () => {
+    const raw = '{"password":123456,"requestId":"safe-105"}';
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-105",
+    });
+  });
+
+  it("preserves both pseudo-JSON quote delimiters around a masked value", () => {
+    const raw = "{'clientSecret':'synthetic-private-C789'}";
+    expect(sanitizeFeedbackText(raw)).toBe(
+      "{'clientSecret':'[REDACTED_SECRET]'}",
+    );
+  });
+
+  it.each([
+    [
+      "{'access_token':123456,'requestId':'safe-301'}",
+      "123456",
+      "'requestId':'safe-301'",
+    ],
+    [
+      "{'clientSecret':-12.5e3,'requestId':'safe-302'}",
+      "-12.5e3",
+      "'requestId':'safe-302'",
+    ],
+    [
+      "{'password':true,'requestId':'safe-303'}",
+      "true",
+      "'requestId':'safe-303'",
+    ],
+    [
+      "{'refresh_token':null,'requestId':'safe-304'}",
+      "null",
+      "'requestId':'safe-304'",
+    ],
+    [
+      String.raw`{'access\u005ftoken':678901,'requestId':'safe-305'}`,
+      "678901",
+      "'requestId':'safe-305'",
+    ],
+  ])(
+    "redacts single-quoted scalar credentials while preserving safe metadata: %s",
+    (raw, secret, safe) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain(secret);
+      expect(sanitized).toContain("'[REDACTED_SECRET]'");
+      expect(sanitized).toContain(safe);
+    },
+  );
+
+  it("preserves nonsensitive single-quoted scalar metadata unchanged", () => {
+    const raw = "{'attempts':123,'requestId':'safe-306'}";
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it.each([
+    ['{"password":123', "123"],
+    ["{'password':123", "123"],
+    ['{"clientSecret":-12.5e3', "-12.5e3"],
+    ["{'refresh_token':true", "true"],
+    [
+      '{"access_token":"synthetic-truncated-double',
+      "synthetic-truncated-double",
+    ],
+    [
+      "{'clientSecret':'synthetic-truncated-single",
+      "synthetic-truncated-single",
+    ],
+  ])("redacts a secret in a truncated diagnostic field: %s", (raw, secret) => {
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain(secret);
+    expect(sanitized).toContain("[REDACTED_SECRET]");
+  });
+
+  it.each([
+    '{"requestId":123',
+    "{'attempts':123",
+    '{"requestId":"safe-truncated-metadata',
+    "{'requestId':'safe-truncated-metadata",
+  ])("preserves a nonsensitive truncated field: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it.each([
+    ['{"password":123\nX-Trace: preserved', "123"],
+    [
+      "{'clientSecret':'synthetic-line-secret\nX-Trace: preserved",
+      "synthetic-line-secret",
+    ],
+  ])(
+    "redacts truncated line-scoped credentials without consuming the next line: %s",
+    (raw, secret) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain(secret);
+      expect(sanitized).toContain("[REDACTED_SECRET]");
+      expect(sanitized).toContain("X-Trace: preserved");
+    },
+  );
+
+  it.each([
+    [
+      '{"password":\'synthetic-mixed-401\',"requestId":"safe-401"}',
+      "synthetic-mixed-401",
+      '"requestId":"safe-401"',
+      ":'[REDACTED_SECRET]'",
+    ],
+    [
+      "{'clientSecret':\"synthetic-mixed-402\",'requestId':'safe-402'}",
+      "synthetic-mixed-402",
+      "'requestId':'safe-402'",
+      ':"[REDACTED_SECRET]"',
+    ],
+    [
+      '{"access\\u005ftoken":\'synthetic-mixed-403\',"requestId":"safe-403"}',
+      "synthetic-mixed-403",
+      '"requestId":"safe-403"',
+      ":'[REDACTED_SECRET]'",
+    ],
+  ])(
+    "redacts mixed-quote diagnostic credentials without losing metadata: %s",
+    (raw, secret, safe, quotedMarker) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain(secret);
+      expect(sanitized).toContain(safe);
+      expect(sanitized).toContain(quotedMarker);
+    },
+  );
+
+  it.each([
+    "{'refresh_token':\"synthetic-mixed-404",
+    '{"password":\'synthetic-mixed-405',
+  ])("redacts truncated mixed-quote credentials: %s", (raw) => {
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("synthetic-mixed-");
+    expect(sanitized).toContain("[REDACTED_SECRET]");
+  });
+
+  it.each([
+    [
+      '{"password":"synthetic-dangling-double-' + "\\",
+      "synthetic-dangling-double-",
+      "",
+    ],
+    [
+      "{'clientSecret':'synthetic-dangling-single-" + "\\",
+      "synthetic-dangling-single-",
+      "",
+    ],
+    [
+      '{"access_token":"synthetic-dangling-line-' +
+        "\\" +
+        "\nX-Trace: preserved",
+      "synthetic-dangling-line-",
+      "X-Trace: preserved",
+    ],
+    [
+      "{'refresh_token':\"synthetic-dangling-crlf-" +
+        "\\" +
+        "\r\nX-Request: safe",
+      "synthetic-dangling-crlf-",
+      "X-Request: safe",
+    ],
+  ])(
+    "redacts a sensitive truncated quoted value with a final backslash: %s",
+    (raw, secret, following) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain(secret);
+      expect(sanitized).toContain("[REDACTED_SECRET]");
+      if (following) expect(sanitized).toContain(following);
+    },
+  );
+
+  it("keeps safe mixed-quote metadata unchanged", () => {
+    const raw = '{"requestId":\'safe-value\',"attempts":1}';
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
   it("fails closed for invalid JSON key escapes without removing safe metadata", () => {
     const raw =
       '{"access_token\\q":"synthetic-malformed-key-private","requestId":"request-kept"}';
