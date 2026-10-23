@@ -399,3 +399,31 @@ describe("literal API path identity", () => {
     },
   );
 });
+
+describe("blocking impact review priority", () => {
+  for (const sourceFamily of [
+    "WILDBERRIES",
+    "OZON_SELLER",
+    "OZON_PERFORMANCE",
+  ] as const) {
+    it(`preserves blocking security changes on a source-only ${sourceFamily} operation`, () => {
+      const base = literalInventory(["/items/"], sourceFamily);
+      const target = literalInventory(["/items/"], sourceFamily, "X-Changed");
+      const impact = classifyApiImpact(diffInventories({ base, target }));
+      expect(impact.blockingRiskCount).toBe(1);
+      const rows = buildProductCrosswalk({
+        reportId: "source-only-blocking-impact",
+        inventory: target,
+        impact,
+        runtimeEntries: [],
+      }).rows;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        sourceIdentity: `${sourceFamily}:GET:/items/`,
+        crosswalkState: "SOURCE_ONLY",
+        reviewState: "BLOCKING_RISK",
+        impactSeverity: "BLOCKING_RISK",
+      });
+    });
+  }
+});

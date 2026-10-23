@@ -633,9 +633,11 @@ export function buildProductCrosswalk(input: {
     const familyAbsence = !source && input.familySourceIdentities !== undefined;
     const impact = familyAbsence ? undefined : impactById.get(identity);
     let reviewState: import("./types.js").CrosswalkReviewState;
+    // Security-blocking impacts always outrank missing runtime mappings.
     if (
       state === "AMBIGUOUS_RUNTIME_MAPPING" ||
-      (state === "RUNTIME_ONLY" && runtimes[0]?.executionEnabled)
+      (state === "RUNTIME_ONLY" && runtimes[0]?.executionEnabled) ||
+      impact?.severity === "BLOCKING_RISK"
     )
       reviewState = "BLOCKING_RISK";
     else if (
@@ -645,8 +647,6 @@ export function buildProductCrosswalk(input: {
       impact?.severity === "UNKNOWN"
     )
       reviewState = "REVIEW_REQUIRED";
-    else if (impact?.severity === "BLOCKING_RISK")
-      reviewState = "BLOCKING_RISK";
     else reviewState = "NO_ACTION";
     const documentKey = source?.documentKey ?? null;
     const crosswalkId =
