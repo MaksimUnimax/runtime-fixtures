@@ -2,6 +2,8 @@
 from pathlib import Path
 import importlib.util
 import unittest
+from unittest.mock import patch
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 SOURCE = Path(__file__).resolve().with_name("browser_application.py")
 spec = importlib.util.spec_from_file_location("octo_browser_application_worker", SOURCE)
@@ -27,8 +29,9 @@ class FakeContext:
         return [] if self.observations <= self.initial_blank or self.worker is None else [self.worker]
 
     def wait_for_event(self, event, timeout=None):
-        self.events += 1
-        raise AssertionError("MISSED_SERVICEWORKER_EVENT")
+        # No new event: a later snapshot may still expose an existing worker.
+        assert event == "serviceworker" and timeout > 0
+        raise PlaywrightTimeoutError("NO_NEW_SERVICEWORKER_EVENT")
 
 
 class WorkerDiscoveryContract(unittest.TestCase):
@@ -136,6 +139,98 @@ class WorkerStartupDiagnosticsContract(unittest.TestCase):
         self.assertEqual(result["cdp_error_class"], "RuntimeError")
         self.assertTrue(context.session.detached)
         self.assertNotIn("SENSITIVE", str(result))
+
+
+class DispatchClock:
+    def __init__(self):
+        self.value = 0.0
+        self.sleeps = 0
+
+    def now(self):
+        return self.value
+
+    def sleep(self, seconds):
+        self.sleeps += 1
+        self.value += seconds
+
+
+class DispatchGatedContext:
+    """Cached properties do not dispatch: only the sync wait runs driver events."""
+    def __init__(self, clock, mode):
+        self.clock, self.mode = clock, mode
+        self.worker = Worker()
+        self.visible = []
+        self.waits = []
+
+    @property
+    def service_workers(self):
+        return list(self.visible)
+
+    def wait_for_event(self, event, timeout=None):
+        assert event == "serviceworker" and timeout > 0
+        self.waits.append(timeout)
+        self.clock.value += min(timeout / 1000, 0.005)
+        if self.mode == "closed":
+            raise RuntimeError("CONTEXT_CLOSED")
+        if self.mode in ("event", "missed_event"):
+            self.visible = [self.worker]
+        if self.mode in ("event", "unlisted_event"):
+            return self.worker
+        self.clock.value += max(0, timeout / 1000 - 0.005)
+        raise PlaywrightTimeoutError("NO_NEW_SERVICEWORKER_EVENT")
+
+
+class SynchronousDispatchContract(unittest.TestCase):
+    def discover(self, context, timeout=0.25):
+        with patch.object(module.time, "monotonic", context.clock.now), \
+             patch.object(module.time, "sleep", context.clock.sleep):
+            return module.discover_service_worker(context, timeout=timeout)
+
+    def test_queued_worker_requires_driver_event_dispatch(self):
+        ctx = DispatchGatedContext(DispatchClock(), "event")
+        self.assertIs(self.discover(ctx), ctx.worker)
+        self.assertGreater(len(ctx.waits), 0)
+        self.assertEqual(ctx.clock.sleeps, 0)
+
+    def test_snapshot_is_rechecked_after_missed_event_timeout(self):
+        ctx = DispatchGatedContext(DispatchClock(), "missed_event")
+        self.assertIs(self.discover(ctx), ctx.worker)
+        self.assertEqual(ctx.clock.sleeps, 0)
+
+    def test_final_wait_rechecks_worker_visible_at_deadline(self):
+        ctx = DispatchGatedContext(DispatchClock(), "missed_event")
+        self.assertIs(self.discover(ctx, timeout=0.1), ctx.worker)
+        self.assertEqual(ctx.waits, [100])
+        self.assertAlmostEqual(ctx.clock.value, 0.1)
+        self.assertEqual(ctx.clock.sleeps, 0)
+
+    def test_missing_worker_keeps_one_deadline_and_fails_closed(self):
+        ctx = DispatchGatedContext(DispatchClock(), "never")
+        with self.assertRaisesRegex(AssertionError, "Timed out waiting for browser state"):
+            self.discover(ctx)
+        self.assertTrue(ctx.waits)
+        self.assertTrue(all(0 < wait <= 100 for wait in ctx.waits))
+        self.assertAlmostEqual(sum(ctx.waits), 250)
+        self.assertEqual(ctx.clock.sleeps, 0)
+
+    def test_event_without_current_worker_does_not_become_success(self):
+        ctx = DispatchGatedContext(DispatchClock(), "unlisted_event")
+        with self.assertRaises(AssertionError):
+            self.discover(ctx, timeout=0.02)
+        self.assertTrue(ctx.waits)
+        self.assertLessEqual(ctx.clock.value, 0.0200001)
+
+    def test_non_timeout_driver_error_is_not_swallowed(self):
+        ctx = DispatchGatedContext(DispatchClock(), "closed")
+        with self.assertRaisesRegex(RuntimeError, "CONTEXT_CLOSED"):
+            self.discover(ctx)
+        self.assertEqual(len(ctx.waits), 1)
+
+    def test_zero_budget_does_not_disable_playwright_timeout(self):
+        ctx = DispatchGatedContext(DispatchClock(), "event")
+        with self.assertRaises(AssertionError):
+            self.discover(ctx, timeout=0)
+        self.assertEqual(ctx.waits, [])
 
 
 if __name__ == "__main__":

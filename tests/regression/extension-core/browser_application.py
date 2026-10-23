@@ -5,7 +5,7 @@ No live AI/provider or installed target-browser certification is claimed.
 """
 from pathlib import Path
 import argparse,base64,hashlib,json,tempfile,time,os,traceback
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 ROOT=Path(__file__).resolve().parents[3]
 
 def until(fn, timeout=30):
@@ -17,12 +17,31 @@ def until(fn, timeout=30):
     raise AssertionError('Timed out waiting for browser state')
 
 def discover_service_worker(context, timeout=30):
-    """Observe the current MV3 worker set until ready, or fail closed.
+    """Dispatch queued driver events while observing the real MV3 worker set.
 
-    A one-shot empty service_workers snapshot followed by wait_for_event can
-    miss a worker starting between the read and event subscription.
+    service_workers is cached in Playwright's synchronous Python API. Sleeping
+    in Python cannot update it; a bounded Playwright wait pumps driver events.
+    Recheck the snapshot after each wait, including a missed-event timeout.
+    Never restart a worker or accept a CDP target as a usable Worker.
     """
-    return until(lambda: next(iter(context.service_workers), None), timeout=timeout)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        worker = next(iter(context.service_workers), None)
+        if worker is not None:
+            return worker
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            context.wait_for_event("serviceworker", timeout=min(100, remaining * 1000))
+        except PlaywrightTimeoutError:
+            pass
+        # The last wait may reach the deadline while dispatching a worker.
+        # Inspect its completed observation without adding another wait.
+        worker = next(iter(context.service_workers), None)
+        if worker is not None:
+            return worker
+    raise AssertionError("Timed out waiting for browser state")
 
 
 def snapshot_worker_startup_diagnostics(context):
