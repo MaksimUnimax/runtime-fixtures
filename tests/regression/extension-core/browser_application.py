@@ -36,6 +36,11 @@ def discover_service_worker(context, timeout=30):
             context.wait_for_event("serviceworker", timeout=min(100, remaining * 1000))
         except PlaywrightTimeoutError:
             pass
+        # The last wait may reach the deadline while dispatching a worker.
+        # Inspect its completed observation without adding another wait.
+        worker = next(iter(context.service_workers), None)
+        if worker is not None:
+            return worker
     raise AssertionError("Timed out waiting for browser state")
 
 

@@ -197,6 +197,13 @@ class SynchronousDispatchContract(unittest.TestCase):
         self.assertIs(self.discover(ctx), ctx.worker)
         self.assertEqual(ctx.clock.sleeps, 0)
 
+    def test_final_wait_rechecks_worker_visible_at_deadline(self):
+        ctx = DispatchGatedContext(DispatchClock(), "missed_event")
+        self.assertIs(self.discover(ctx, timeout=0.1), ctx.worker)
+        self.assertEqual(ctx.waits, [100])
+        self.assertAlmostEqual(ctx.clock.value, 0.1)
+        self.assertEqual(ctx.clock.sleeps, 0)
+
     def test_missing_worker_keeps_one_deadline_and_fails_closed(self):
         ctx = DispatchGatedContext(DispatchClock(), "never")
         with self.assertRaisesRegex(AssertionError, "Timed out waiting for browser state"):
