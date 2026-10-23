@@ -52,10 +52,16 @@ export default function HealthPage() {
           <Link href="/health/repairs">Случаи ремонта мониторинга</Link>
         </p>
         <LoadState busy={result.busy} error={result.error} />
-        {result.data && result.data.items.length === 0 && (
+        {result.error && !result.busy && (
+          <p role="status">
+            Health observations could not be verified. No target state is
+            confirmed.
+          </p>
+        )}
+        {!result.error && result.data && result.data.items.length === 0 && (
           <p role="status">No Health targets are available.</p>
         )}
-        {result.data && result.data.items.length > 0 && (
+        {!result.error && result.data && result.data.items.length > 0 && (
           <Table
             headers={[
               "Target",
@@ -86,7 +92,7 @@ export default function HealthPage() {
             ])}
           />
         )}
-        {result.data?.nextCursor && (
+        {!result.error && result.data?.nextCursor && (
           <Cursor
             cursor={result.data.nextCursor}
             onNext={() =>

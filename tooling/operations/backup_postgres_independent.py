@@ -90,6 +90,10 @@ def require_environment(environment: Mapping[str, str]) -> BackupConfig:
 
 
 def parse_database_url(value: str) -> DatabaseConnection:
+    # urllib.parse silently strips literal CR/LF. A parsed URL must preserve
+    # its exact authority and never create additional .pgpass records.
+    if any(char in value for char in ("\x00", "\r", "\n")):
+        raise BackupError("DATABASE_URL_CONTROL_CHARACTER")
     try:
         parsed = urlparse(value)
     except ValueError as error:
@@ -124,12 +128,26 @@ def parse_database_url(value: str) -> DatabaseConnection:
             raise BackupError("DATABASE_URL_QUERY_INVALID")
         pg_environment[ALLOWED_QUERY_ENV[key]] = values[0]
 
+    user = unquote(username)
+    password = unquote(parsed.password) if parsed.password is not None else None
+    # Each .pgpass entry occupies one line; embedded NUL/CR/LF in decoded
+    # fields or libpq environment overrides is not safely representable.
+    # Preserve PGHOST as provided, but examine percent-decoded hostname bytes
+    # for line separators before creating a libpq .pgpass entry.
+    decoded_host = unquote(host)
+    if any(
+        any(char in field for char in ("\x00", "\r", "\n"))
+        for field in (decoded_host, database, user, password, *pg_environment.values())
+        if field is not None
+    ):
+        raise BackupError("DATABASE_URL_CONTROL_CHARACTER")
+
     return DatabaseConnection(
         host=host,
         port=port,
         database=database,
-        user=unquote(username),
-        password=unquote(parsed.password) if parsed.password is not None else None,
+        user=user,
+        password=password,
         pg_environment=pg_environment,
     )
 
@@ -209,8 +227,16 @@ def verify_independent_mounts(
         raise BackupError("DATABASE_DATA_NOT_MOUNTPOINT")
     if destination_identity.source == database_identity.source:
         raise BackupError("BACKUP_DESTINATION_NOT_INDEPENDENT")
-    if device_id(config.destination_mount) == device_id(config.database_data_mount):
+    destination_device = device_id(config.destination_mount)
+    database_device = device_id(config.database_data_mount)
+    if destination_device == database_device:
         raise BackupError("BACKUP_DESTINATION_NOT_INDEPENDENT")
+    # The configured roots can be independent while a nested bind mount
+    # redirects the actual backup or PostgreSQL data to the other disk.
+    if device_id(config.destination) != destination_device:
+        raise BackupError("BACKUP_DESTINATION_NOT_INDEPENDENT")
+    if device_id(config.database_data_path) != database_device:
+        raise BackupError("DATABASE_DATA_OUTSIDE_MOUNT")
     if disk_free(config.destination) < config.min_free_bytes:
         raise BackupError("BACKUP_DESTINATION_SPACE_LOW")
     if not os.access(config.destination, os.W_OK | os.X_OK):

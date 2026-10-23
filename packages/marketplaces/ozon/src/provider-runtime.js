@@ -236,6 +236,20 @@
     };
   }
 
+  // Compare the normalized session map without depending on key insertion
+  // order. Never include opaque URLs or inline document bytes in diagnostics.
+  function reportSessionCanonicalBytes(state) {
+    const entries = (records) =>
+      Object.entries(records || {}).sort(([a], [b]) =>
+        a < b ? -1 : a > b ? 1 : 0,
+      );
+    return JSON.stringify([
+      state.schema_version,
+      entries(state.report_code_policies),
+      entries(state.report_file_refs),
+    ]);
+  }
+
   function reportStateError(
     code,
     message,
@@ -266,6 +280,76 @@
           }
         : fetchImpl;
 
+    // Preserve physical Performance auth/business request outcome when the
+    // first-party transport fails after fetch but before body completion.
+    // There is still exactly one fetch, no automatic retry or raw diagnostics.
+    async function executeObservedPerformanceOnce(
+      request,
+      executionGuard = null,
+      onAuthResponse = null,
+    ) {
+      if (typeof fetchImpl !== "function") {
+        const error = new Error("Ozon Performance API transport недоступен.");
+        error.code = "FETCH_IMPL_MISSING";
+        throw error;
+      }
+      let dispatchAttempted = false;
+      let responseObserved = false;
+      let observedHttpStatus = 0;
+      let dispatchAuthorityError = null;
+      const observedFetch = async (url, init) => {
+        try {
+          if (executionGuard) {
+            if (typeof executionGuard.assertDispatchAuthority === "function")
+              await executionGuard.assertDispatchAuthority();
+            await executionGuard.assertCurrent();
+          }
+        } catch (error) {
+          dispatchAuthorityError = error;
+          throw error;
+        }
+        dispatchAttempted = true;
+        const received = await fetchImpl(url, init);
+        responseObserved = true;
+        const status = Number(received?.status);
+        if (Number.isInteger(status) && status >= 100 && status <= 599)
+          observedHttpStatus = status;
+        if (typeof onAuthResponse === "function")
+          onAuthResponse(received);
+        return received;
+      };
+      try {
+        return await globalThis.ProviderTransportCore.executePerformanceJsonOnce({
+          fetchImpl: observedFetch,
+          request,
+          now,
+        });
+      } catch (error) {
+        // The underlying transport wraps authority failures as fetch errors.
+        // Never reclassify a known pre-dispatch refusal as an API request.
+        if (dispatchAuthorityError) throw dispatchAuthorityError;
+        if (!dispatchAttempted) throw error;
+        // A fetched 401 invalidates even an otherwise valid cached token.
+        // Body-read failure must not skip ordinary Performance revocation.
+        if (responseObserved && observedHttpStatus === 401)
+          clearPerformanceToken();
+        const safe = new Error(
+          responseObserved
+            ? "Ozon Performance API ответ не удалось прочитать."
+            : "Ozon Performance API запрос не удалось завершить.",
+        );
+        safe.code = responseObserved
+          ? error?.code === "PROVIDER_BINARY_CONTENT_TYPE_MISMATCH"
+            ? "PROVIDER_BINARY_CONTENT_TYPE_MISMATCH"
+            : "PROVIDER_RESPONSE_READ_FAILED"
+          : "PROVIDER_FETCH_FAILED";
+        safe.http_status = observedHttpStatus;
+        safe.request_attempted = true;
+        safe.external_request_executed = true;
+        throw safe;
+      }
+    }
+
     async function readReportSessionState({
       externalRequestExecuted = false,
     } = {}) {
@@ -275,7 +359,7 @@
       } catch (error) {
         throw reportStateError(
           "REPORT_FILE_SESSION_STATE_READ_FAILED",
-          `Не удалось прочитать session-state отчётов: ${String(error?.message || error || "unknown error").slice(0, 240)}`,
+          "Не удалось прочитать session-state отчётов.",
           { externalRequestExecuted },
         );
       }
@@ -301,7 +385,25 @@
         } catch (error) {
           throw reportStateError(
             "REPORT_FILE_SESSION_STATE_WRITE_FAILED",
-            `Не удалось сохранить session-state отчётов: ${String(error?.message || error || "unknown error").slice(0, 240)}`,
+            "Не удалось сохранить session-state отчётов.",
+            { externalRequestExecuted },
+          );
+        }
+        // A resolved session.set() is not proof that the report reference was
+        // actually retained. Re-read before returning an opaque reference to
+        // the caller; on uncertainty, never report successful completion.
+        try {
+          const persisted = await readReportSessionState({
+            externalRequestExecuted,
+          });
+          if (
+            reportSessionCanonicalBytes(persisted) !==
+            reportSessionCanonicalBytes(normalized)
+          ) throw new Error("session readback mismatch");
+        } catch (_) {
+          throw reportStateError(
+            "REPORT_FILE_SESSION_STATE_COMMIT_UNCONFIRMED",
+            "Не удалось подтвердить сохранение session-state отчётов.",
             { externalRequestExecuted },
           );
         }
@@ -493,7 +595,7 @@
 
     async function getPerformanceToken(
       rawPerformanceCredentials,
-      { force = false, executionGuard = null } = {},
+      { force = false, executionGuard = null, onAuthResponse = null } = {},
     ) {
       const credentials =
         globalThis.OzonCredentials.normalizePerformanceCredentials(
@@ -521,12 +623,11 @@
 
       const tokenRequest =
         globalThis.OzonCredentials.performanceTokenRequest(credentials);
-      const response =
-        await globalThis.ProviderTransportCore.executePerformanceJsonOnce({
-          fetchImpl: guardedFetch(executionGuard),
-          request: tokenRequest,
-          now,
-        });
+      const response = await executeObservedPerformanceOnce(
+        tokenRequest,
+        executionGuard,
+        onAuthResponse,
+      );
       if (!response.ok) {
         clearPerformanceToken();
         const error = new Error(
@@ -584,11 +685,64 @@
         command,
         globalThis.OzonCredentials.sellerHeaders(credentials),
       );
-      const response = await globalThis.ProviderTransportCore.executeJsonOnce({
-        fetchImpl: guardedFetch(executionGuard),
-        request,
-        now,
-      });
+      if (typeof fetchImpl !== "function") {
+        const error = new Error("Ozon Seller API transport недоступен.");
+        error.code = "FETCH_IMPL_MISSING";
+        throw error;
+      }
+      // The underlying transport may reject while reading a response body
+      // after fetch already returned headers. Preserve the actual attempt and
+      // status, and do not expose arbitrary transport Error.message content.
+      let dispatchAttempted = false;
+      let responseObserved = false;
+      let observedStatus = 0;
+      let dispatchAuthorityError = null;
+      const observedFetch = async (url, init) => {
+        try {
+          if (executionGuard) {
+            if (typeof executionGuard.assertDispatchAuthority === "function")
+              await executionGuard.assertDispatchAuthority();
+            await executionGuard.assertCurrent();
+          }
+        } catch (error) {
+          dispatchAuthorityError = error;
+          throw error;
+        }
+        dispatchAttempted = true;
+        const received = await fetchImpl(url, init);
+        responseObserved = true;
+        const status = Number(received?.status);
+        if (Number.isInteger(status) && status >= 100 && status <= 599)
+          observedStatus = status;
+        return received;
+      };
+      let response;
+      try {
+        response = await globalThis.ProviderTransportCore.executeJsonOnce({
+          fetchImpl: observedFetch,
+          request,
+          now,
+        });
+      } catch (error) {
+        // The transport wraps pre-dispatch guard failures as fetch errors.
+        // Preserve the original fail-closed guard reason and no-dispatch flag.
+        if (dispatchAuthorityError) throw dispatchAuthorityError;
+        if (!dispatchAttempted) throw error;
+        const safe = new Error(
+          responseObserved
+            ? "Ozon Seller API ответ не удалось прочитать."
+            : "Ozon Seller API запрос не удалось завершить.",
+        );
+        safe.code = responseObserved
+          ? error?.code === "PROVIDER_BINARY_CONTENT_TYPE_MISMATCH"
+            ? "PROVIDER_BINARY_CONTENT_TYPE_MISMATCH"
+            : "PROVIDER_RESPONSE_READ_FAILED"
+          : "PROVIDER_FETCH_FAILED";
+        safe.http_status = observedStatus;
+        safe.external_request_executed = true;
+        safe.request_attempted = true;
+        throw safe;
+      }
       if (typeof onProviderResponse === "function")
         await onProviderResponse({ command, request, response });
       return { request, response, auth_request_performed: false };
@@ -692,12 +846,10 @@
         command,
         globalThis.OzonCredentials.performanceBearerHeaders(token.access_token),
       );
-      const response =
-        await globalThis.ProviderTransportCore.executePerformanceJsonOnce({
-          fetchImpl: guardedFetch(executionGuard),
-          request,
-          now,
-        });
+      const response = await executeObservedPerformanceOnce(
+        request,
+        executionGuard,
+      );
       if (typeof onProviderResponse === "function")
         await onProviderResponse({ command, request, response });
       if (response.httpStatus === 401) clearPerformanceToken();
@@ -951,6 +1103,9 @@
           report_text: reportText,
           provider_result: providerResult,
         });
+      // Result persistence may yield to a new store or authorization generation.
+      // Never return success to the caller after that generation is revoked.
+      if (executionGuard) await executionGuard.assertCurrent();
       return providerResult;
     }
 
@@ -1021,9 +1176,20 @@
     }
 
     async function testPerformanceConnection(rawPerformanceCredentials) {
+      let authResponseReceived = false;
+      let observedAuthHttpStatus = 0;
       try {
         const token = await getPerformanceToken(rawPerformanceCredentials, {
           force: true,
+          onAuthResponse: (receivedResponse) => {
+            authResponseReceived = true;
+            const responseStatus = Number(receivedResponse?.status || 0);
+            if (
+              Number.isInteger(responseStatus) &&
+              responseStatus >= 100 &&
+              responseStatus <= 599
+            ) observedAuthHttpStatus = responseStatus;
+          },
         });
         return Object.freeze({
           ok: true,
@@ -1035,14 +1201,48 @@
           auth_request_performed: true,
         });
       } catch (error) {
+        // Transport exceptions can contain request/body details. Expose only
+        // known public error codes and a fixed, credential-free message.
+        const knownCodes = new Set([
+          "MISSING_PERFORMANCE_CLIENT_ID",
+          "MISSING_PERFORMANCE_CLIENT_SECRET",
+          "INVALID_PERFORMANCE_CLIENT_ID",
+          "INVALID_PERFORMANCE_CLIENT_SECRET",
+          "INCOMPLETE_PERFORMANCE_CREDENTIALS",
+          "PROVIDER_FETCH_FAILED",
+          "PERFORMANCE_AUTH_FAILED",
+          "INVALID_PERFORMANCE_TOKEN_RESPONSE",
+          "FETCH_IMPL_MISSING",
+          "INVALID_REQUEST",
+          "UNTRUSTED_REQUEST_HOST",
+          "UNTRUSTED_REQUEST_METHOD",
+        ]);
+        const code = knownCodes.has(error?.code)
+          ? error.code
+          : "PERFORMANCE_CONNECTION_TEST_FAILED";
+        // The actual auth response is authoritative, even if body reading
+        // later throws an error with a conflicting or malformed status.
+        const reportedHttpStatus = authResponseReceived
+          ? observedAuthHttpStatus
+          : Number(error?.http_status || 0);
+        const httpStatus =
+          Number.isInteger(reportedHttpStatus) &&
+          reportedHttpStatus >= 100 &&
+          reportedHttpStatus <= 599
+            ? reportedHttpStatus
+            : 0;
         return Object.freeze({
           ok: false,
-          code: String(error?.code || "PERFORMANCE_CONNECTION_TEST_FAILED"),
-          message: String(
-            error?.message || error || "Ozon Performance API auth failed",
-          ),
-          http_status: Number(error?.http_status || 0),
-          auth_request_performed: true,
+          code,
+          message: httpStatus
+            ? `Не удалось подтвердить доступ к Ozon Performance API: HTTP ${httpStatus}.`
+            : "Не удалось подтвердить доступ к Ozon Performance API.",
+          http_status: httpStatus,
+          auth_request_performed:
+            authResponseReceived === true ||
+            error?.request_attempted === true ||
+            error?.external_request_executed === true ||
+            httpStatus > 0,
         });
       }
     }

@@ -57,7 +57,11 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         raise AssertionError(path)
 
     def device_id(self, path: Path) -> int:
-        return 2 if path.resolve() == self.dest_mount.resolve() else 1
+        return (
+            2
+            if path.resolve() in (self.dest_mount.resolve(), self.dest.resolve())
+            else 1
+        )
 
     def test_database_url_parsing_is_bounded(self) -> None:
         parsed = parse_database_url(self.config.database_url)
@@ -106,6 +110,43 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         explicit = "postgresql://fixture:fixture_pw@127.0.0.1:5433/octoport"
         self.assertEqual(parse_database_url(implicit).port, 5432)
         self.assertEqual(parse_database_url(explicit).port, 5433)
+
+    def test_database_url_rejects_unsafe_multiline_and_nul_fields(self) -> None:
+        # A .pgpass entry is line-oriented; percent-encoded line terminators
+        # must not create a second authentication record.
+        invalid = {
+            "password_lf": "postgresql://fixture:pw%0Arogue@localhost/db",
+            "password_cr": "postgresql://fixture:pw%0Drogue@localhost/db",
+            "password_nul": "postgresql://fixture:pw%00rogue@localhost/db",
+            "user_lf": "postgresql://fixture%0Arogue:pw@localhost/db",
+            "host_lf": "postgresql://fixture:pw@local%0Ahost/db",
+            "host_cr": "postgresql://fixture:pw@local%0Dhost/db",
+            "host_nul": "postgresql://fixture:pw@local%00host/db",
+            "db_lf": "postgresql://fixture:pw@localhost/db%0Arogue",
+            "query_lf": "postgresql://fixture:pw@localhost/db?sslmode=require%0Arogue",
+            "raw_password_lf": "postgresql://fixture:pw\nrogue@localhost/db",
+            "raw_query_cr": "postgresql://fixture:pw@localhost/db?sslmode=require\rrogue",
+        }
+        for label, url in invalid.items():
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(
+                    BackupError, "DATABASE_URL_CONTROL_CHARACTER"
+                ):
+                    parse_database_url(url)
+
+    def test_database_url_preserves_safe_pgpass_escapes(self) -> None:
+        parsed = parse_database_url(
+            "postgresql://fixture:pw%3Awith%5Cslash@localhost/db?sslmode=require"
+        )
+        self.assertEqual(parsed.password, "pw:with\\slash")
+        self.assertEqual(
+            backup_module._escape_pgpass(parsed.password), r"pw\:with\\slash"
+        )
+        self.assertEqual(parsed.pg_environment["PGSSLMODE"], "require")
+        # Decoding the host is only for validation; the original PGHOST
+        # spelling must not be rewritten by this safety guard.
+        encoded_host = parse_database_url("postgresql://fixture:pw@local%2Ehost/db")
+        self.assertEqual(encoded_host.host, "local%2Ehost")
 
     def test_findmnt_nonzero_exit_is_bounded(self) -> None:
         def failing_findmnt(argv, **kwargs):
@@ -200,6 +241,42 @@ class BackupPostgresIndependentTest(unittest.TestCase):
                 device_id=lambda _path: 1,
                 disk_free=lambda _path: 1024,
             )
+
+    def test_mount_guard_rejects_nested_device_aliases(self) -> None:
+        # A nested bind mount can alias the other mount's device even when
+        # the configured mount roots themselves look independent.
+        cases = [
+            (
+                "backup_directory_aliases_database_device",
+                (2, 1, 1, 1),
+                "BACKUP_DESTINATION_NOT_INDEPENDENT",
+            ),
+            (
+                "database_directory_aliases_backup_device",
+                (2, 2, 1, 2),
+                "DATABASE_DATA_OUTSIDE_MOUNT",
+            ),
+        ]
+        for label, devices, expected_code in cases:
+            physical = dict(
+                zip(
+                    (
+                        self.dest_mount.resolve(),
+                        self.dest.resolve(),
+                        self.db_mount.resolve(),
+                        self.db_data.resolve(),
+                    ),
+                    devices,
+                )
+            )
+            with self.subTest(case=label):
+                with self.assertRaisesRegex(BackupError, expected_code):
+                    verify_independent_mounts(
+                        self.config,
+                        mount_lookup=self.mount_lookup,
+                        device_id=lambda path: physical[path.resolve()],
+                        disk_free=lambda _path: 1024,
+                    )
 
     def _existing_backup(
         self,
