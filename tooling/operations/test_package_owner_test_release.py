@@ -167,6 +167,49 @@ class RuntimePackage(unittest.TestCase):
         with self.assertRaisesRegex(pkg.PackageError, "PACKAGE_EXTERNAL_LINK"):
             self.run_package()
 
+    def test_git_reads_as_the_actual_checkout_owner_without_safe_directory_override(self):
+        # GitHub checkout is runner-owned while package modes are root-owned.
+        # Only this fresh synthetic fixture changes ownership, never a user repo.
+        self.root.chmod(0o755)
+        entries = [self.source, *self.source.rglob("*")]
+        owners = [(path, path.lstat().st_uid, path.lstat().st_gid) for path in entries]
+        try:
+            for path, _, _ in owners:
+                os.chown(path, 65534, 65534, follow_symlinks=False)
+            before = (self.source / ".git/config").read_bytes()
+            receipt = self.run_package()
+            self.assertEqual(receipt["sourceSha"], self.sha)
+            self.assertEqual((self.source / ".git/config").read_bytes(), before)
+            self.assertEqual(self.source.stat().st_uid, 65534)
+            self.assertEqual((self.output / self.sha).stat().st_uid, 0)
+        finally:
+            for path, uid, gid in owners:
+                os.chown(path, uid, gid, follow_symlinks=False)
+
+    def test_git_reader_rejects_mutations_and_mismatched_repository_ownership(self):
+        with self.assertRaisesRegex(pkg.PackageError, "GIT_OPERATION_NOT_READ_ONLY"):
+            pkg.git(self.source, "config", "--global", "safe.directory", "*")
+        metadata = self.source / ".git"
+        before = metadata.stat()
+        try:
+            os.chown(metadata, 65534, 65534)
+            with self.assertRaisesRegex(pkg.PackageError, "GIT_OWNER_MISMATCH"):
+                pkg.git(self.source, "rev-parse", "HEAD")
+        finally:
+            os.chown(metadata, before.st_uid, before.st_gid)
+
+    def test_git_reader_does_not_inherit_git_or_auth_environment(self):
+        with patch.object(pkg.subprocess, "run", return_value=Mock(returncode=0, stdout=b"ok")) as run:
+            self.assertEqual(pkg.git(self.source, "rev-parse", "HEAD"), b"ok")
+        args = run.call_args
+        self.assertEqual(args.args[0][0], "/usr/bin/git")
+        self.assertEqual(args.kwargs["env"]["GIT_CONFIG_GLOBAL"], "/dev/null")
+        self.assertEqual(args.kwargs["env"]["GIT_OPTIONAL_LOCKS"], "0")
+        self.assertNotIn("GH_TOKEN", args.kwargs["env"])
+        self.assertNotIn("GIT_CONFIG_COUNT", args.kwargs["env"])
+        self.assertNotIn("GIT_INDEX_FILE", args.kwargs["env"])
+        self.assertEqual(args.kwargs["user"], self.source.stat().st_uid)
+
     def test_dirty_source_and_wrong_identity_are_rejected(self):
         with self.assertRaisesRegex(pkg.PackageError, "SOURCE_ID_MISMATCH"):
             pkg.package_release(self.source, self.output, self.node, "a" * 40, self.tree)
@@ -234,6 +277,68 @@ class RuntimePackage(unittest.TestCase):
         inputs.git_blobs["apps/api/src/main.ts"] = "a" * 40
         with self.assertRaisesRegex(pkg.PackageError, "TRACKED_BLOB_MISMATCH"):
             inputs.copy(stage)
+
+    def test_archive_preserves_exact_executable_readable_and_directory_modes(self):
+        stage = self.root / "mode-stage"
+        (stage / ".runtime").mkdir(parents=True)
+        (stage / ".runtime/node").write_bytes(b"synthetic executable")
+        (stage / "data").write_bytes(b"synthetic data")
+        for path in (stage, stage / ".runtime", stage / ".runtime/node"):
+            path.chmod(0o555)
+        (stage / "data").chmod(0o444)
+        archive = self.root / "modes.tar.gz"
+
+        def write_archive(changes):
+            with tarfile.open(archive, "w:gz") as tar:
+                for path in (stage, stage / ".runtime", stage / ".runtime/node", stage / "data"):
+                    item = tar.gettarinfo(str(path), arcname=path.relative_to(stage.parent).as_posix())
+                    item.mode = changes.get(path.relative_to(stage).as_posix(), item.mode)
+                    if item.isfile():
+                        with path.open("rb") as content:
+                            tar.addfile(item, content)
+                    else:
+                        tar.addfile(item)
+
+        write_archive({})
+        pkg.verify_archive(archive, stage)
+        for name, mode in ((".runtime/node", 0o444), ("data", 0o400),
+                           ("data", 0o644), (".runtime", 0o444)):
+            with self.subTest(name=name, mode=oct(mode)):
+                write_archive({name: mode})
+                with self.assertRaisesRegex(pkg.PackageError, "ARCHIVE_METADATA_MISMATCH"):
+                    pkg.verify_archive(archive, stage)
+
+    def test_archive_wrong_file_size_is_rejected_before_payload_read(self):
+        stage = self.root / "size-stage"
+        stage.mkdir()
+        stage.chmod(0o555)
+        payload = b"synthetic payload"
+        path = stage / "data"
+        path.write_bytes(payload)
+        path.chmod(0o444)
+        archive = self.root / "size.tar.gz"
+        for size in (len(payload) - 1, len(payload) + 1):
+            with self.subTest(size=size):
+                with tarfile.open(archive, "w:gz") as tar:
+                    tar.add(stage, arcname=stage.name, recursive=False)
+                    item = tar.gettarinfo(str(path), arcname=stage.name + "/data")
+                    item.size = size
+                    tar.addfile(item, io.BytesIO((payload + b"x")[:size]))
+                with patch.object(pkg.tarfile.TarFile, "extractfile",
+                                  side_effect=AssertionError("archive payload read before size rejection")):
+                    with self.assertRaisesRegex(pkg.PackageError, "ARCHIVE_METADATA_MISMATCH"):
+                        pkg.verify_archive(archive, stage)
+
+        link = stage / "link"
+        link.symlink_to("data")
+        for entry in (stage, link):
+            with self.subTest(non_file=entry.name):
+                with tarfile.open(archive, "w:gz") as tar:
+                    item = tar.gettarinfo(str(entry), arcname=entry.relative_to(stage.parent).as_posix())
+                    item.size = 1
+                    tar.addfile(item, io.BytesIO(b"x"))
+                with self.assertRaisesRegex(pkg.PackageError, "ARCHIVE_METADATA_MISMATCH"):
+                    pkg.verify_archive(archive, stage)
 
     def test_archive_mutation_and_duplicate_entries_are_rejected(self):
         receipt = self.run_package()

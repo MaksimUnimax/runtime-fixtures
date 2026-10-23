@@ -44,11 +44,30 @@ def digest(path: Path) -> str:
 
 
 def git(source: Path, *args: str) -> bytes:
+    # The trusted fresh CI checkout belongs to the runner, not to the root
+    # package writer. Drop identity for these read-only Git operations instead
+    # of disabling Git's repository-ownership protection with safe.directory.
+    if not args or args[0] not in ("rev-parse", "status", "ls-tree", "cat-file"):
+        raise PackageError("PACKAGE_GIT_OPERATION_NOT_READ_ONLY")
+    owner = source.stat()
+    git_directory = source / ".git"
+    if (git_directory.is_symlink() or not git_directory.is_dir() or
+            git_directory.stat().st_uid != owner.st_uid):
+        raise PackageError("PACKAGE_GIT_OWNER_MISMATCH")
+    options = {}
+    if os.geteuid() == 0:
+        options = {"user": owner.st_uid, "group": owner.st_gid, "extra_groups": []}
+    elif os.geteuid() != owner.st_uid:
+        raise PackageError("PACKAGE_GIT_OWNER_MISMATCH")
+    environment = {"HOME": "/nonexistent", "PATH": "/usr/bin:/bin",
+                   "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
+                   "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
     result = subprocess.run(
-        ["git", "-C", str(source), *args], capture_output=True, timeout=30,
+        ["/usr/bin/git", "-C", str(source), *args], capture_output=True, timeout=30,
+        env=environment, **options,
     )
     if result.returncode:
-        raise PackageError("PACKAGE_GIT_INPUT_INVALID")
+        raise PackageError("PACKAGE_GIT_INPUT_INVALID_" + args[0].upper().replace("-", "_"))
     return result.stdout
 
 
@@ -299,11 +318,11 @@ def verify_archive(archive: Path, stage: Path) -> None:
     for path in [stage, *stage.rglob("*")]:
         name = path.relative_to(stage.parent).as_posix()
         if path.is_symlink():
-            expected[name] = ("link", os.readlink(path))
+            expected[name] = ("link", os.readlink(path), None, None)
         elif path.is_dir():
-            expected[name] = ("directory", None)
+            expected[name] = ("directory", None, stat.S_IMODE(path.stat().st_mode), None)
         else:
-            expected[name] = ("file", digest(path))
+            expected[name] = ("file", digest(path), stat.S_IMODE(path.stat().st_mode), path.stat().st_size)
     seen = set()
     with tarfile.open(archive, "r|gz") as tar:
         for member in tar:
@@ -312,7 +331,11 @@ def verify_archive(archive: Path, stage: Path) -> None:
                     or member.mode & 0o7000 or (not member.issym() and member.mode & 0o022)):
                 raise PackageError("PACKAGE_ARCHIVE_ENTRY_INVALID")
             seen.add(name)
-            kind, value = expected[name]
+            kind, value, mode, size = expected[name]
+            if ((mode is not None and member.mode != mode) or
+                    (kind == "file" and member.size != size) or
+                    (kind != "file" and member.size != 0)):
+                raise PackageError("PACKAGE_ARCHIVE_METADATA_MISMATCH")
             if kind == "directory" and member.isdir():
                 continue
             if kind == "link" and member.issym() and member.linkname == value:
