@@ -25,6 +25,8 @@ on:
       - "tooling/operations/test_verify_ops_release.py"
       - "tooling/operations/verify_owner_test_release.py"
       - "tooling/operations/test_verify_owner_test_release.py"
+      - "tooling/operations/four_root_owner_test_units.py"
+      - "tooling/operations/test_four_root_owner_test_units.py"
       - "tooling/operations/deploy_owner_test.py"
       - "tooling/operations/test_deploy_owner_test.py"
       - "tooling/checks/server-import-check.mjs"
@@ -127,6 +129,7 @@ jobs:
         run: |
           sudo -n env -i HOME=/tmp PATH=/usr/bin:/bin /usr/bin/python3 -B -m unittest discover -s tooling/operations -p 'test_verify_ops_release.py' -v
           sudo -n env -i HOME=/tmp PATH=/usr/bin:/bin /usr/bin/python3 -B -m unittest discover -s tooling/operations -p 'test_verify_owner_test_release.py' -v
+          python3 -B -m unittest discover -s tooling/operations -p 'test_four_root_owner_test_units.py' -v
           python3 -B -m unittest discover -s tooling/operations -p 'test_deploy_owner_test.py' -v
       - run: pnpm lint
       - run: pnpm format:check
