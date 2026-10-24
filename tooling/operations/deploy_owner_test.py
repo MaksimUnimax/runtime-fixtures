@@ -5,7 +5,7 @@ Successor to C's prepared R7 wrapper. This does not deploy main or the monitor,
 author registrations, or accept the STORE package. See the paired receipt.
 """
 from __future__ import annotations
-import datetime as dt, fcntl, hashlib, json, os, re, shlex, shutil, stat, subprocess, sys, tempfile, time
+import argparse, datetime as dt, fcntl, hashlib, json, os, re, shlex, shutil, stat, subprocess, sys, tempfile, time
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -125,6 +125,144 @@ def verified_current_source_plan(
 
 
 CURRENT_DROPIN_ROOT=Path('/etc/systemd/system')
+CURRENT_FENCE_NAME='00-octoport-current-recovery-fence.conf'
+CURRENT_FENCE_ALLOW=Path('/run/octoport-owner-test-current-apply-allow')
+CURRENT_AUTHORITY_FILE=Path('/root/octoport-control/authorizations/B05-current-four-service-deploy.json')
+
+def current_require_cli_authority(
+    mode: str,
+    *,
+    expected_source_sha: str,
+    expected_source_tree: str,
+    expected_inventory_sha256: str,
+) -> dict:
+    if mode not in ('apply','recover'):
+        raise RuntimeError('CURRENT_DEPLOY_AUTHORIZATION_MODE_INVALID')
+    path=CURRENT_AUTHORITY_FILE
+    _assert_no_symlink_ancestors(path)
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError('CURRENT_DEPLOY_AUTHORIZATION_REQUIRED')
+    metadata=path.stat()
+    if metadata.st_uid!=0 or stat.S_IMODE(metadata.st_mode)!=0o600:
+        raise RuntimeError('CURRENT_DEPLOY_AUTHORIZATION_INVALID')
+    try:
+        value=json.loads(path.read_text(encoding='utf-8'))
+    except (OSError,UnicodeError,ValueError):
+        raise RuntimeError('CURRENT_DEPLOY_AUTHORIZATION_INVALID') from None
+    required={
+        'status','scope','authorizationId','allowedModes',
+        'sourceSha','sourceTree','trustedInventorySha256',
+    }
+    if not isinstance(value,dict) or set(value)!=required:
+        raise RuntimeError('CURRENT_DEPLOY_AUTHORIZATION_INVALID')
+    if (
+        value.get('status')!='AUTHORIZED'
+        or value.get('scope')!='B05_CURRENT_FOUR_SERVICE_DEPLOY'
+        or not isinstance(value.get('authorizationId'),str)
+        or not value['authorizationId'].strip()
+        or not isinstance(value.get('allowedModes'),list)
+        or set(value['allowedModes'])-{'apply','recover'}
+        or mode not in value['allowedModes']
+        or value.get('sourceSha')!=expected_source_sha
+        or value.get('sourceTree')!=expected_source_tree
+        or value.get('trustedInventorySha256')!=expected_inventory_sha256
+    ):
+        raise RuntimeError('CURRENT_DEPLOY_AUTHORIZATION_INVALID')
+    return {'authorizationId':value['authorizationId'],'mode':mode}
+
+
+def _assert_no_symlink_ancestors(path: Path) -> None:
+    absolute=path if path.is_absolute() else path.absolute()
+    parts=absolute.parts
+    current=Path(parts[0])
+    for part in parts[1:]:
+        current=current/part
+        if os.path.lexists(current) and current.is_symlink():
+            raise RuntimeError('CURRENT_PATH_SYMLINK_FORBIDDEN:'+str(current))
+
+def _contained_child(root: Path, path: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return path!=root
+    except ValueError:
+        return False
+
+def current_validate_evidence_paths(
+    evidence_root: Path, journal: Path, evidence_dir: Path
+) -> None:
+    if not evidence_root.is_absolute() or not journal.is_absolute() or not evidence_dir.is_absolute():
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    if not evidence_root.is_dir() or evidence_root.is_symlink() or not evidence_dir.is_dir() or evidence_dir.is_symlink():
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    if not _contained_child(evidence_root,journal) or not _contained_child(evidence_root,evidence_dir):
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    if journal.parent!=evidence_root or evidence_dir.parent!=evidence_root:
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    if journal.name!='deployment-state.json' or not evidence_dir.name.startswith('apply-'):
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    _assert_no_symlink_ancestors(evidence_root)
+    _assert_no_symlink_ancestors(journal)
+    _assert_no_symlink_ancestors(evidence_dir)
+
+def current_fence_paths(plan: dict) -> dict[str,Path]:
+    return {
+        role: CURRENT_DROPIN_ROOT/(str(item['unit'])+'.d')/CURRENT_FENCE_NAME
+        for role,item in plan['services'].items()
+    }
+
+def current_install_reboot_fence(plan: dict, *, allow_existing: bool=False) -> None:
+    if os.path.lexists(CURRENT_FENCE_ALLOW):
+        raise RuntimeError('CURRENT_FENCE_ALLOW_UNEXPECTED')
+    text='[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n'
+    for role,path in current_fence_paths(plan).items():
+        _assert_no_symlink_ancestors(path.parent)
+        path.parent.mkdir(parents=True,exist_ok=True)
+        _assert_no_symlink_ancestors(path.parent)
+        if os.path.lexists(path):
+            if (
+                allow_existing and path.is_file() and not path.is_symlink()
+                and path.read_text()==text
+            ):
+                continue
+            raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
+        fd,tmp=tempfile.mkstemp(prefix='.'+CURRENT_FENCE_NAME+'.',dir=path.parent)
+        try:
+            with os.fdopen(fd,'w') as output:
+                output.write(text);output.flush();os.fsync(output.fileno())
+            os.chmod(tmp,0o644);os.replace(tmp,path)
+            directory=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
+            try:os.fsync(directory)
+            finally:os.close(directory)
+        finally:
+            if os.path.exists(tmp):os.unlink(tmp)
+    run(['systemctl','daemon-reload'])
+
+def current_enable_fenced_start() -> None:
+    _assert_no_symlink_ancestors(CURRENT_FENCE_ALLOW.parent)
+    if os.path.lexists(CURRENT_FENCE_ALLOW):
+        raise RuntimeError('CURRENT_FENCE_ALLOW_UNEXPECTED')
+    fd=os.open(CURRENT_FENCE_ALLOW,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+    try:
+        os.write(fd,b'current-boot-only\n');os.fsync(fd)
+    finally:os.close(fd)
+
+def current_disable_fenced_start() -> None:
+    if os.path.lexists(CURRENT_FENCE_ALLOW) and CURRENT_FENCE_ALLOW.is_symlink():
+        raise RuntimeError('CURRENT_FENCE_ALLOW_SYMLINK')
+    CURRENT_FENCE_ALLOW.unlink(missing_ok=True)
+
+def current_remove_reboot_fence(plan: dict) -> None:
+    for role,path in current_fence_paths(plan).items():
+        _assert_no_symlink_ancestors(path.parent)
+        if os.path.lexists(path):
+            if path.is_symlink() or not path.is_file():
+                raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
+            path.unlink()
+            directory=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
+            try:os.fsync(directory)
+            finally:os.close(directory)
+    run(['systemctl','daemon-reload'])
+    current_disable_fenced_start()
 
 def current_units(plan: dict) -> tuple[str, ...]:
     services=plan.get('services')
@@ -157,7 +295,9 @@ def current_unit_dropin(plan: dict, role: str) -> str:
 def current_write_dropins(plan: dict) -> None:
     paths=current_dropin_paths(plan)
     for role,path in paths.items():
+        _assert_no_symlink_ancestors(path.parent)
         path.parent.mkdir(parents=True,exist_ok=True)
+        _assert_no_symlink_ancestors(path.parent)
         tmp=path.with_suffix('.tmp')
         tmp.write_text(current_unit_dropin(plan,role))
         os.chmod(tmp,0o644)
@@ -170,6 +310,7 @@ def current_snapshot_dropins(plan: dict, dest: Path) -> dict:
     os.chmod(dest,0o700)
     manifest={}
     for role,path in current_dropin_paths(plan).items():
+        _assert_no_symlink_ancestors(path.parent)
         if path.is_symlink():
             raise RuntimeError('CURRENT_DROPIN_SYMLINK_FORBIDDEN:'+role)
         if path.exists():
@@ -194,6 +335,7 @@ def current_restore_dropins(plan: dict, src: Path) -> None:
     if not isinstance(manifest,dict) or set(manifest)!=set(paths):
         raise RuntimeError('CURRENT_DROPIN_BASELINE_INVALID')
     for role,path in paths.items():
+        _assert_no_symlink_ancestors(path.parent)
         state=manifest[role]
         if not isinstance(state,dict) or type(state.get('present')) is not bool:
             raise RuntimeError('CURRENT_DROPIN_BASELINE_INVALID')
@@ -655,11 +797,19 @@ def migrate(release: Path, url: str):
     run([str(release/'.runtime/node'),str(release/'packages/server/db/node_modules/tsx/dist/cli.mjs'),str(release/'packages/server/db/src/migrate.ts')],env=env,cwd=str(release),timeout=180)
 
 def backup_live(user: str, db: str, stamp: str) -> Path:
+    _assert_no_symlink_ancestors(BACKUPS)
     BACKUPS.mkdir(parents=True,exist_ok=True); os.chmod(BACKUPS,0o700)
+    _assert_no_symlink_ancestors(BACKUPS)
     path=BACKUPS/f'owner-test-{stamp}.dump'
     docker_pg(['pg_dump','--format=custom','--no-owner','--no-privileges','--serializable-deferrable','-U',user,'-d',db],stdout_file=path,timeout=180)
     os.chmod(path,0o600)
     docker_pg(['pg_restore','--list'],stdin_file=path,timeout=60)
+    fd=os.open(path,os.O_RDONLY|getattr(os,'O_NOFOLLOW',0))
+    try:os.fsync(fd)
+    finally:os.close(fd)
+    directory=os.open(BACKUPS,os.O_RDONLY|os.O_DIRECTORY)
+    try:os.fsync(directory)
+    finally:os.close(directory)
     return path
 
 def restore_isolated(user: str, base_url: str, backup: Path, stamp: str) -> dict:
@@ -691,6 +841,27 @@ def restore_live_backup(user: str, db: str, backup: Path, meta: dict) -> int:
     restored=int(docker_psql_scalar(user,db,'SELECT count(*) FROM drizzle.__drizzle_migrations'))
     if restored!=22: raise RuntimeError('LIVE_BACKUP_RESTORE_COUNT_INVALID:'+str(restored))
     return restored
+
+def current_verify_backup_receipt(backup_info: object) -> Path:
+    if not isinstance(backup_info,dict) or not isinstance(backup_info.get('path'),str):
+        raise RuntimeError('CURRENT_RECOVERY_BACKUP_INVALID')
+    path=Path(backup_info['path'])
+    if not path.is_absolute() or path.parent!=BACKUPS:
+        raise RuntimeError('CURRENT_RECOVERY_BACKUP_INVALID')
+    _assert_no_symlink_ancestors(path)
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError('CURRENT_RECOVERY_BACKUP_INVALID')
+    metadata=path.stat()
+    if stat.S_IMODE(metadata.st_mode)!=0o600 or metadata.st_uid!=0:
+        raise RuntimeError('CURRENT_RECOVERY_BACKUP_INVALID')
+    expected_bytes=backup_info.get('bytes');expected_sha=backup_info.get('sha256')
+    if type(expected_bytes) is not int or expected_bytes!=metadata.st_size:
+        raise RuntimeError('CURRENT_RECOVERY_BACKUP_INVALID')
+    if not isinstance(expected_sha,str) or not re.fullmatch(r'[0-9a-f]{64}',expected_sha):
+        raise RuntimeError('CURRENT_RECOVERY_BACKUP_INVALID')
+    if sha256(path)!=expected_sha:
+        raise RuntimeError('CURRENT_RECOVERY_BACKUP_INVALID')
+    return path
 
 def current_restore_isolated(
     user: str,
@@ -745,16 +916,71 @@ def current_restore_live_backup(
     )['applied']
     return restored
 
+@contextmanager
+def current_operation_lock(evidence_root: Path):
+    evidence_root.mkdir(parents=True,exist_ok=True)
+    _assert_no_symlink_ancestors(evidence_root)
+    lock=evidence_root/'apply.lock'
+    fd=os.open(lock,os.O_CREAT|os.O_RDWR|getattr(os,'O_NOFOLLOW',0),0o600)
+    try:
+        try:
+            fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('CURRENT_APPLY_ALREADY_RUNNING') from None
+        yield
+    finally:
+        os.close(fd)
+
+def current_assert_apply_journal_clear(journal: Path) -> None:
+    if not journal.exists():
+        return
+    if journal.is_symlink() or not journal.is_file():
+        raise RuntimeError('CURRENT_RECOVERY_REQUIRED')
+    try:
+        state=json.loads(journal.read_text())
+    except (OSError,ValueError):
+        raise RuntimeError('CURRENT_RECOVERY_REQUIRED') from None
+    if not isinstance(state,dict) or state.get('recoveryRequired') is not False:
+        raise RuntimeError('CURRENT_RECOVERY_REQUIRED')
+
 def current_apply_engine(
     *,
     candidate_release: Path,
     expected_source_sha: str,
     expected_source_tree: str,
     expected_inventory_sha256: str,
+    evidence_root: Path,
+    journal: Path,
+    evidence_dir: Path,
+) -> dict:
+    current_validate_evidence_paths(evidence_root,journal,evidence_dir)
+    with current_operation_lock(evidence_root):
+        current_assert_apply_journal_clear(journal)
+        return _current_apply_engine_locked(
+            candidate_release=candidate_release,
+            expected_source_sha=expected_source_sha,
+            expected_source_tree=expected_source_tree,
+            expected_inventory_sha256=expected_inventory_sha256,
+            evidence_root=evidence_root,
+            journal=journal,
+            evidence_dir=evidence_dir,
+        )
+
+def _current_apply_engine_locked(
+    *,
+    candidate_release: Path,
+    expected_source_sha: str,
+    expected_source_tree: str,
+    expected_inventory_sha256: str,
+    evidence_root: Path,
     journal: Path,
     evidence_dir: Path,
 ) -> dict:
     """Current four-service mutation engine. No CLI/live authority is wired here."""
+    if not journal.is_absolute() or journal.parent!=evidence_root:
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    _assert_no_symlink_ancestors(evidence_root)
+    _assert_no_symlink_ancestors(journal)
     plan=verified_current_source_plan(
         candidate_release,
         expected_source_sha=expected_source_sha,
@@ -810,6 +1036,8 @@ def current_apply_engine(
         })
     record()
     try:
+        current_install_reboot_fence(plan)
+        phase='REBOOT_FENCED'; record()
         result['quiescence']=current_stop_product_units(plan)
         phase='QUIESCED'; record()
         stamp=evidence_dir.name.replace('apply-','')
@@ -832,10 +1060,12 @@ def current_apply_engine(
             schema_state='CANDIDATE_VERIFIED'
         phase='SWITCHING_APPLICATION'; record()
         current_write_dropins(plan)
+        current_enable_fenced_start()
         started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
         current_start_product_units(plan)
         result['applicationHealth']=current_wait_runtime(plan,started)
         result['loadedIdentity']=current_verify_loaded_plan(plan)
+        current_remove_reboot_fence(plan)
         result['status']='APPLY_PASS'
         result['recoveryRequired']=False
         phase='CANDIDATE_PASS'
@@ -847,16 +1077,20 @@ def current_apply_engine(
         phase='ROLLBACK'
         result['recoveryRequired']=True
         try:
+            current_disable_fenced_start()
             current_stop_product_units(plan)
             result['rollbackQuiesced']=True
             if backup is not None and schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
+                current_verify_backup_receipt(result.get('backup'))
                 result['restoredMigrationCount']=current_restore_live_backup(
                     user,db,base_url,backup,db_meta,candidate_release,
                     expected_prefix=predeploy,
                 )
                 schema_state='PREDEPLOY_VERIFIED'
             current_restore_dropins(plan,dropin_backup)
+            current_enable_fenced_start()
             current_restore_unit_states(plan,baseline_units)
+            current_remove_reboot_fence(plan)
             result['baselineRestored']=True
             result['recoveryRequired']=False
             phase='ROLLBACK_PASS'
@@ -876,6 +1110,30 @@ def current_recover_engine(
     expected_source_sha: str,
     expected_source_tree: str,
     expected_inventory_sha256: str,
+    evidence_root: Path,
+    journal: Path,
+) -> dict:
+    if not evidence_root.is_absolute() or not evidence_root.is_dir() or evidence_root.is_symlink():
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    if not journal.is_absolute() or journal.parent!=evidence_root:
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    with current_operation_lock(evidence_root):
+        return _current_recover_engine_locked(
+            candidate_release=candidate_release,
+            expected_source_sha=expected_source_sha,
+            expected_source_tree=expected_source_tree,
+            expected_inventory_sha256=expected_inventory_sha256,
+            evidence_root=evidence_root,
+            journal=journal,
+        )
+
+def _current_recover_engine_locked(
+    *,
+    candidate_release: Path,
+    expected_source_sha: str,
+    expected_source_tree: str,
+    expected_inventory_sha256: str,
+    evidence_root: Path,
     journal: Path,
 ) -> dict:
     """Recover an interrupted current apply back to its exact predeploy baseline."""
@@ -902,6 +1160,7 @@ def current_recover_engine(
     except (OSError,ValueError):
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID') from None
     evidence_dir=receipt_path.parent
+    current_validate_evidence_paths(evidence_root,journal,evidence_dir)
     if receipt_path!=evidence_dir/'receipt.json':
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
     if (
@@ -932,15 +1191,15 @@ def current_recover_engine(
         'schemaState':schema_state,
     }
     try:
+        current_install_reboot_fence(plan,allow_existing=True)
+        current_disable_fenced_start()
         current_stop_product_units(plan)
         result['productQuiesced']=True
         if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
             backup_info=receipt.get('backup')
             if not isinstance(backup_info,dict) or not isinstance(backup_info.get('path'),str):
                 raise RuntimeError('CURRENT_RECOVERY_BACKUP_MISSING')
-            backup=Path(backup_info['path'])
-            if backup.is_symlink() or not backup.is_file():
-                raise RuntimeError('CURRENT_RECOVERY_BACKUP_MISSING')
+            backup=current_verify_backup_receipt(backup_info)
             base_url=database_url()
             user,_password,db,_parsed=db_identity(base_url)
             meta=receipt.get('databaseMeta')
@@ -954,7 +1213,9 @@ def current_recover_engine(
             )
             schema_state='PREDEPLOY_VERIFIED'
         current_restore_dropins(plan,evidence_dir/'dropins-before')
+        current_enable_fenced_start()
         current_restore_unit_states(plan,baseline)
+        current_remove_reboot_fence(plan)
         result.update(
             status='CURRENT_RECOVERY_PASS',
             recoveryRequired=False,
@@ -976,6 +1237,7 @@ def current_recover_engine(
     except BaseException as error:
         result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
         try:
+            current_disable_fenced_start()
             current_stop_product_units(plan)
             result['productQuiesced']=True
         except BaseException as stop_error:
@@ -1291,13 +1553,77 @@ def recover_forward():
             raise
 
 
+def current_cli(argv: list[str]) -> dict:
+    parser=argparse.ArgumentParser(prog='deploy_owner_test.py current')
+    parser.add_argument('mode',choices=('current-plan','current-apply','current-recover'))
+    parser.add_argument('--candidate-release',type=Path,required=True)
+    parser.add_argument('--source-sha',required=True)
+    parser.add_argument('--source-tree',required=True)
+    parser.add_argument('--inventory-sha256',required=True)
+    parser.add_argument('--evidence-root',type=Path)
+    args=parser.parse_args(argv)
+    identity={
+        'expected_source_sha':args.source_sha,
+        'expected_source_tree':args.source_tree,
+        'expected_inventory_sha256':args.inventory_sha256,
+    }
+    if args.mode=='current-plan':
+        if args.evidence_root is not None:
+            raise RuntimeError('CURRENT_PLAN_EVIDENCE_ROOT_FORBIDDEN')
+        return verified_current_source_plan(args.candidate_release,**identity)
+
+    if args.evidence_root is None:
+        raise RuntimeError('CURRENT_EVIDENCE_ROOT_REQUIRED')
+    action='apply' if args.mode=='current-apply' else 'recover'
+    authority=current_require_cli_authority(action,**identity)
+
+    root=args.evidence_root
+    _assert_no_symlink_ancestors(root)
+    if root.exists() and (root.is_symlink() or not root.is_dir()):
+        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    if action=='apply':
+        root.mkdir(parents=True,exist_ok=True)
+        os.chmod(root,0o700)
+        _assert_no_symlink_ancestors(root)
+        stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        evidence_dir=root/f'apply-{stamp}'
+        evidence_dir.mkdir(mode=0o700)
+        result=current_apply_engine(
+            candidate_release=args.candidate_release,
+            evidence_root=root,
+            journal=root/'deployment-state.json',
+            evidence_dir=evidence_dir,
+            **identity,
+        )
+    else:
+        if not root.is_dir():
+            raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+        result=current_recover_engine(
+            candidate_release=args.candidate_release,
+            evidence_root=root,
+            journal=root/'deployment-state.json',
+            **identity,
+        )
+    if not isinstance(result,dict):
+        raise RuntimeError('CURRENT_DEPLOY_RESULT_INVALID')
+    result=dict(result)
+    result['authorizationId']=authority['authorizationId']
+    result['authorityMode']=authority['mode']
+    return result
+
 def main():
-    EVID.mkdir(parents=True,exist_ok=True); BACKUPS.mkdir(parents=True,exist_ok=True); os.chmod(EVID,0o700); os.chmod(BACKUPS,0o700)
     mode=sys.argv[1] if len(sys.argv)>1 else 'preflight'
+    if mode.startswith('current-'):
+        result=current_cli(sys.argv[1:])
+        print(json.dumps(result,sort_keys=True))
+        if mode=='current-apply' and result.get('status')!='APPLY_PASS':
+            raise SystemExit(2)
+        return
+    EVID.mkdir(parents=True,exist_ok=True); BACKUPS.mkdir(parents=True,exist_ok=True); os.chmod(EVID,0o700); os.chmod(BACKUPS,0o700)
     if mode=='preflight': result=preflight()
     elif mode=='apply': result=apply()
     elif mode=='recover-forward': result=recover_forward()
-    else: raise RuntimeError('USAGE: preflight|apply|recover-forward')
+    else: raise RuntimeError('USAGE: preflight|apply|recover-forward|current-plan|current-apply|current-recover')
     print(json.dumps(result,sort_keys=True))
     if mode == 'apply' and result.get('status') != 'APPLY_PASS':
         raise SystemExit(2)

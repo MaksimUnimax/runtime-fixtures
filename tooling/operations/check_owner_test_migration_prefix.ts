@@ -2,6 +2,7 @@
 // The caller supplies an exact pinned release root after package verification.
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { lstat, realpath } from "node:fs/promises";
 
 const RELEASE = /^\/opt\/octoport\/ops-releases\/[0-9a-f]{40}$/;
 
@@ -10,6 +11,20 @@ async function main() {
   const release = process.env.OCTOPORT_RELEASE_ROOT;
   if (!url) throw new Error("DATABASE_URL_REQUIRED");
   if (!release || !RELEASE.test(release)) {
+    throw new Error("OCTOPORT_RELEASE_ROOT_INVALID");
+  }
+  for (const path of [
+    "/opt",
+    "/opt/octoport",
+    "/opt/octoport/ops-releases",
+    release,
+  ]) {
+    const metadata = await lstat(path);
+    if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+      throw new Error("OCTOPORT_RELEASE_ROOT_INVALID");
+    }
+  }
+  if ((await realpath(release)) !== release) {
     throw new Error("OCTOPORT_RELEASE_ROOT_INVALID");
   }
 

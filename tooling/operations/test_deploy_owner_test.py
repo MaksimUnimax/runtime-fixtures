@@ -978,6 +978,9 @@ class CurrentMigrationPrefixWiringTests(unittest.TestCase):
         source = Path(deploy.__file__).with_name("check_owner_test_migration_prefix.ts").read_text()
         self.assertIn("OCTOPORT_RELEASE_ROOT", source)
         self.assertIn("pathToFileURL", source)
+        self.assertIn("realpath(release)", source)
+        self.assertIn("lstat(path)", source)
+        self.assertIn('"/opt/octoport/ops-releases"', source)
         self.assertNotIn("62024d192a8572c11aafab91653330d1f996699f", source)
 
 
@@ -1191,6 +1194,11 @@ class CurrentApplyEngineTests(unittest.TestCase):
         replacements={
             "verified_current_source_plan":lambda *a,**k:self.plan,
             "current_validate_base_units":lambda plan:{"validated":True},
+            "current_install_reboot_fence":lambda plan,**kwargs:self.events.append(("fence-install",self.prefix)),
+            "current_enable_fenced_start":lambda:self.events.append(("fence-allow",self.prefix)),
+            "current_disable_fenced_start":lambda:self.events.append(("fence-block",self.prefix)),
+            "current_remove_reboot_fence":lambda plan:self.events.append(("fence-remove",self.prefix)),
+            "current_verify_backup_receipt":lambda info:self.backup,
             "database_url":lambda:"postgres://fixture@localhost/db",
             "db_identity":lambda url:("fixture","pw","db",None),
             "check_migration_prefix_for_release":check,
@@ -1216,12 +1224,12 @@ class CurrentApplyEngineTests(unittest.TestCase):
 
     def test_success_migrates_before_switch_and_records_target(self):
         evidence=self.root/"apply-success";evidence.mkdir()
-        journal=self.root/"journal-success.json"
+        journal=self.root/"deployment-state.json"
         with self.patches():
             result=deploy.current_apply_engine(
                 candidate_release=self.release,expected_source_sha="a"*40,
                 expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                journal=journal,evidence_dir=evidence
+                evidence_root=self.root,journal=journal,evidence_dir=evidence
             )
         self.assertEqual(result["status"],"APPLY_PASS")
         self.assertFalse(result["recoveryRequired"])
@@ -1235,13 +1243,13 @@ class CurrentApplyEngineTests(unittest.TestCase):
 
     def test_health_failure_restores_database_before_old_units(self):
         evidence=self.root/"apply-health-fail";evidence.mkdir()
-        journal=self.root/"journal-health-fail.json"
+        journal=self.root/"deployment-state.json"
         with self.patches(health_error="HEALTH_FAILED"):
             with self.assertRaisesRegex(RuntimeError,"HEALTH_FAILED"):
                 deploy.current_apply_engine(
                     candidate_release=self.release,expected_source_sha="a"*40,
                 expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                journal=journal,evidence_dir=evidence
+                evidence_root=self.root,journal=journal,evidence_dir=evidence
                 )
         names=[e[0] for e in self.events]
         self.assertIn("restore-db",names)
@@ -1254,26 +1262,26 @@ class CurrentApplyEngineTests(unittest.TestCase):
     def test_prefix_ahead_fails_before_mutation(self):
         self.prefix=51
         evidence=self.root/"apply-ahead";evidence.mkdir()
-        journal=self.root/"journal-ahead.json"
+        journal=self.root/"deployment-state.json"
         with self.patches():
             with self.assertRaisesRegex(RuntimeError,"CURRENT_PREDEPLOY_PREFIX_AHEAD_OF_CANDIDATE"):
                 deploy.current_apply_engine(
                     candidate_release=self.release,expected_source_sha="a"*40,
                 expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                journal=journal,evidence_dir=evidence
+                evidence_root=self.root,journal=journal,evidence_dir=evidence
                 )
         self.assertEqual([e[0] for e in self.events],["prefix"])
 
     def test_noop_schema_health_failure_does_not_restore_database(self):
         self.prefix=50
         evidence=self.root/"apply-noop";evidence.mkdir()
-        journal=self.root/"journal-noop.json"
+        journal=self.root/"deployment-state.json"
         with self.patches(health_error="HEALTH_FAILED"):
             with self.assertRaisesRegex(RuntimeError,"HEALTH_FAILED"):
                 deploy.current_apply_engine(
                     candidate_release=self.release,expected_source_sha="a"*40,
                 expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                journal=journal,evidence_dir=evidence
+                evidence_root=self.root,journal=journal,evidence_dir=evidence
                 )
         self.assertNotIn("restore-db",[e[0] for e in self.events])
         self.assertIn("restore-units",[e[0] for e in self.events])
@@ -1369,13 +1377,13 @@ class CurrentMigrationRollbackTests(unittest.TestCase):
         case.setUp()
         try:
             evidence=case.root/"apply-migration-fail";evidence.mkdir()
-            journal=case.root/"journal-migration-fail.json"
+            journal=case.root/"deployment-state.json"
             with case.patches(migrate_error="MIGRATION_FAILED"):
                 with case.assertRaisesRegex(RuntimeError,"MIGRATION_FAILED"):
                     deploy.current_apply_engine(
                         candidate_release=case.release,expected_source_sha="a"*40,
                         expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                        journal=journal,evidence_dir=evidence,
+                        evidence_root=case.root,journal=journal,evidence_dir=evidence,
                     )
             names=[e[0] for e in case.events]
             case.assertIn("restore-db",names)
@@ -1385,13 +1393,15 @@ class CurrentMigrationRollbackTests(unittest.TestCase):
 
     def test_package_verification_failure_prevents_all_external_mutation(self):
         plan={"migrationTarget":{"count":50},"services":{}}
+        evidence=self.root/"apply-invalid";evidence.mkdir()
         with patch.object(deploy,"verified_current_source_plan",
                           side_effect=RuntimeError("PACKAGE_INVALID")),              patch.object(deploy,"database_url") as db:
             with self.assertRaisesRegex(RuntimeError,"PACKAGE_INVALID"):
                 deploy.current_apply_engine(
                     candidate_release=self.release,expected_source_sha="a"*40,
                     expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                    journal=self.root/"j.json",evidence_dir=self.root/"e",
+                    evidence_root=self.root,journal=self.root/"deployment-state.json",
+                    evidence_dir=evidence,
                 )
             db.assert_not_called()
 
@@ -1418,7 +1428,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
         self.evidence=self.root/"apply-x";self.evidence.mkdir()
         (self.evidence/"dropins-before").mkdir()
         self.backup=self.root/"backup.dump";self.backup.write_bytes(b"x")
-        self.journal=self.root/"journal.json"
+        self.journal=self.root/"deployment-state.json"
 
     def write_state(self, schema, *, backup=True):
         receipt={
@@ -1439,6 +1449,11 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
     def patch_common(self, events):
         stack=ExitStack()
         stack.enter_context(patch.object(deploy,"verified_current_source_plan",return_value=self.plan))
+        stack.enter_context(patch.object(deploy,"current_install_reboot_fence",side_effect=lambda plan,**kwargs:events.append("fence-install")))
+        stack.enter_context(patch.object(deploy,"current_enable_fenced_start",side_effect=lambda:events.append("fence-allow")))
+        stack.enter_context(patch.object(deploy,"current_disable_fenced_start",side_effect=lambda:events.append("fence-block")))
+        stack.enter_context(patch.object(deploy,"current_remove_reboot_fence",side_effect=lambda plan:events.append("fence-remove")))
+        stack.enter_context(patch.object(deploy,"current_verify_backup_receipt",return_value=self.backup))
         stack.enter_context(patch.object(deploy,"current_stop_product_units",
                                          side_effect=lambda plan:events.append("stop") or {}))
         stack.enter_context(patch.object(deploy,"current_restore_dropins",
@@ -1457,7 +1472,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
             result=deploy.current_recover_engine(
                 candidate_release=self.release,expected_source_sha="a"*40,
                 expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                journal=self.journal,
+                evidence_root=self.root,journal=self.journal,
             )
         self.assertEqual(result["status"],"CURRENT_RECOVERY_PASS")
         self.assertLess(events.index("db"),events.index("dropins"))
@@ -1470,10 +1485,13 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
             result=deploy.current_recover_engine(
                 candidate_release=self.release,expected_source_sha="a"*40,
                 expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                journal=self.journal,
+                evidence_root=self.root,journal=self.journal,
             )
         restore.assert_not_called()
-        self.assertEqual(events,["stop","dropins","units"])
+        self.assertEqual(
+            events,
+            ["fence-install","fence-block","stop","dropins","fence-allow","units","fence-remove"],
+        )
         self.assertEqual(result["schemaState"],"PREDEPLOY_VERIFIED")
 
     def test_missing_backup_in_unknown_schema_keeps_recovery_required(self):
@@ -1483,7 +1501,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 deploy.current_recover_engine(
                     candidate_release=self.release,expected_source_sha="a"*40,
                     expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                    journal=self.journal,
+                    evidence_root=self.root,journal=self.journal,
                 )
         self.assertTrue(json.loads(self.journal.read_text())["recoveryRequired"])
 
@@ -1497,6 +1515,250 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 deploy.current_recover_engine(
                     candidate_release=self.release,expected_source_sha="a"*40,
                     expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                    journal=self.journal,
+                    evidence_root=self.root,journal=self.journal,
                 )
             stop.assert_not_called()
+
+
+class CurrentRebootFenceSafetyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-fence-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.plan={"services":{
+            role:{"unit":f"seller-agents-owner-test-{role}.service"}
+            for role in ("api","worker","portal","admin")
+        }}
+        self.old_root=deploy.CURRENT_DROPIN_ROOT
+        self.old_allow=deploy.CURRENT_FENCE_ALLOW
+        deploy.CURRENT_DROPIN_ROOT=self.root/"systemd"
+        deploy.CURRENT_FENCE_ALLOW=self.root/"run"/"allow"
+        deploy.CURRENT_FENCE_ALLOW.parent.mkdir()
+        self.addCleanup(setattr,deploy,"CURRENT_DROPIN_ROOT",self.old_root)
+        self.addCleanup(setattr,deploy,"CURRENT_FENCE_ALLOW",self.old_allow)
+
+    def test_persistent_fence_blocks_until_ephemeral_allow_and_explicit_remove(self):
+        completed=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")
+        with patch.object(deploy,"run",return_value=completed):
+            deploy.current_install_reboot_fence(self.plan)
+            paths=deploy.current_fence_paths(self.plan)
+            self.assertEqual(len(paths),4)
+            for path in paths.values():
+                self.assertTrue(path.is_file())
+                self.assertEqual(
+                    path.read_text(),
+                    "[Unit]\nConditionPathExists="+str(deploy.CURRENT_FENCE_ALLOW)+"\n",
+                )
+            self.assertFalse(deploy.CURRENT_FENCE_ALLOW.exists())
+            deploy.current_enable_fenced_start()
+            self.assertTrue(deploy.CURRENT_FENCE_ALLOW.is_file())
+            deploy.current_disable_fenced_start()
+            self.assertFalse(deploy.CURRENT_FENCE_ALLOW.exists())
+            # Simulated reboot: /run allow remains absent while persistent /etc-like fences remain.
+            self.assertTrue(all(path.exists() for path in paths.values()))
+            deploy.current_remove_reboot_fence(self.plan)
+            self.assertTrue(all(not path.exists() for path in paths.values()))
+
+    def test_symlinked_dropin_parent_is_rejected(self):
+        outside=self.root/"outside";outside.mkdir()
+        unit_dir=deploy.CURRENT_DROPIN_ROOT/"seller-agents-owner-test-api.service.d"
+        unit_dir.parent.mkdir(parents=True)
+        unit_dir.symlink_to(outside,target_is_directory=True)
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_PATH_SYMLINK_FORBIDDEN"):
+            deploy.current_install_reboot_fence(self.plan)
+
+
+class CurrentEvidenceAndBackupSafetyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-evidence-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.evidence=self.root/"apply-safe";self.evidence.mkdir()
+        self.journal=self.root/"deployment-state.json"
+
+    def test_evidence_paths_must_be_direct_children_of_trusted_root(self):
+        deploy.current_validate_evidence_paths(self.root,self.journal,self.evidence)
+        outside=self.root.parent/"outside-state.json"
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_EVIDENCE_PATH_INVALID"):
+            deploy.current_validate_evidence_paths(self.root,outside,self.evidence)
+
+    def test_symlinked_evidence_directory_is_rejected(self):
+        target=self.root/"real";target.mkdir()
+        link=self.root/"apply-link";link.symlink_to(target,target_is_directory=True)
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_EVIDENCE_PATH_INVALID"):
+            deploy.current_validate_evidence_paths(self.root,self.journal,link)
+
+    def test_backup_receipt_checks_containment_mode_size_and_digest(self):
+        backups=self.root/"backups";backups.mkdir(mode=0o700)
+        old=deploy.BACKUPS;deploy.BACKUPS=backups
+        self.addCleanup(setattr,deploy,"BACKUPS",old)
+        path=backups/"owner-test-safe.dump";path.write_bytes(b"backup-bytes");os.chmod(path,0o600)
+        info={"path":str(path),"bytes":path.stat().st_size,"sha256":deploy.sha256(path)}
+        self.assertEqual(deploy.current_verify_backup_receipt(info),path)
+        wrong=dict(info,sha256="0"*64)
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_INVALID"):
+            deploy.current_verify_backup_receipt(wrong)
+        outside=self.root/"outside.dump";outside.write_bytes(b"backup-bytes");os.chmod(outside,0o600)
+        wrong_path=dict(info,path=str(outside))
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_INVALID"):
+            deploy.current_verify_backup_receipt(wrong_path)
+
+
+class CurrentOperationGuardTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-current-guard-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.evidence=self.root/"apply-test";self.evidence.mkdir()
+        self.journal=self.root/"deployment-state.json"
+        self.release=Path("/opt/octoport/ops-releases")/("a"*40)
+
+    def invoke(self):
+        return deploy.current_apply_engine(
+            candidate_release=self.release,expected_source_sha="a"*40,
+            expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+            evidence_root=self.root,journal=self.journal,evidence_dir=self.evidence,
+        )
+
+    def test_recovery_required_journal_blocks_before_package_or_mutation(self):
+        self.journal.write_text(json.dumps({"recoveryRequired":True}))
+        with patch.object(deploy,"verified_current_source_plan") as verify,              patch.object(deploy,"current_stop_product_units") as stop:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_REQUIRED"):
+                self.invoke()
+            verify.assert_not_called();stop.assert_not_called()
+
+    def test_malformed_journal_blocks_before_package_or_mutation(self):
+        self.journal.write_text("{")
+        with patch.object(deploy,"verified_current_source_plan") as verify:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_REQUIRED"):
+                self.invoke()
+            verify.assert_not_called()
+
+    def test_concurrent_lock_blocks_apply(self):
+        lock=self.root/"apply.lock"
+        fd=os.open(lock,os.O_CREAT|os.O_RDWR,0o600)
+        try:
+            deploy.fcntl.flock(fd,deploy.fcntl.LOCK_EX|deploy.fcntl.LOCK_NB)
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_APPLY_ALREADY_RUNNING"):
+                self.invoke()
+        finally:
+            deploy.fcntl.flock(fd,deploy.fcntl.LOCK_UN);os.close(fd)
+
+class CurrentCliAuthorityTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-current-cli-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.release=Path("/opt/octoport/ops-releases")/("a"*40)
+        self.sha="a"*40
+        self.tree="b"*40
+        self.inventory="c"*64
+        self.old_authority=deploy.CURRENT_AUTHORITY_FILE
+        deploy.CURRENT_AUTHORITY_FILE=self.root/"authority.json"
+        self.addCleanup(setattr,deploy,"CURRENT_AUTHORITY_FILE",self.old_authority)
+
+    def argv(self, mode, *, evidence=None):
+        value=[
+            mode,
+            "--candidate-release",str(self.release),
+            "--source-sha",self.sha,
+            "--source-tree",self.tree,
+            "--inventory-sha256",self.inventory,
+        ]
+        if evidence is not None:
+            value += ["--evidence-root",str(evidence)]
+        return value
+
+    def write_authority(self, *, modes=("apply","recover"), sha=None):
+        value={
+            "status":"AUTHORIZED",
+            "scope":"B05_CURRENT_FOUR_SERVICE_DEPLOY",
+            "authorizationId":"synthetic-test-authority",
+            "allowedModes":list(modes),
+            "sourceSha":self.sha if sha is None else sha,
+            "sourceTree":self.tree,
+            "trustedInventorySha256":self.inventory,
+        }
+        deploy.CURRENT_AUTHORITY_FILE.write_text(json.dumps(value))
+        os.chmod(deploy.CURRENT_AUTHORITY_FILE,0o600)
+
+    def test_current_plan_is_read_only_route_without_live_authority(self):
+        expected={
+            "status":"CURRENT_FOUR_SERVICE_SOURCE_PLAN_PASS",
+            "sourceSha":self.sha,
+            "sourceTree":self.tree,
+        }
+        with patch.object(deploy,"verified_current_source_plan",return_value=expected) as plan:
+            with patch.object(deploy,"current_require_cli_authority") as authority:
+                result=deploy.current_cli(self.argv("current-plan"))
+        self.assertEqual(result,expected)
+        authority.assert_not_called()
+        plan.assert_called_once_with(
+            self.release,
+            expected_source_sha=self.sha,
+            expected_source_tree=self.tree,
+            expected_inventory_sha256=self.inventory,
+        )
+        self.assertFalse(deploy.CURRENT_AUTHORITY_FILE.exists())
+
+    def test_current_apply_requires_separate_authority_before_evidence_or_engine(self):
+        evidence=self.root/"evidence"
+        with patch.object(deploy,"current_apply_engine") as engine:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_REQUIRED"):
+                deploy.current_cli(self.argv("current-apply",evidence=evidence))
+        engine.assert_not_called()
+        self.assertFalse(evidence.exists())
+
+    def test_current_apply_rejects_authority_bound_to_other_source(self):
+        evidence=self.root/"evidence"
+        self.write_authority(sha="d"*40)
+        with patch.object(deploy,"current_apply_engine") as engine:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_INVALID"):
+                deploy.current_cli(self.argv("current-apply",evidence=evidence))
+        engine.assert_not_called()
+        self.assertFalse(evidence.exists())
+
+    def test_current_apply_routes_exact_identity_after_authority(self):
+        evidence=self.root/"evidence"
+        self.write_authority(modes=("apply",))
+        expected={"status":"APPLY_PASS","recoveryRequired":False}
+        with patch.object(deploy,"current_apply_engine",return_value=expected) as engine:
+            result=deploy.current_cli(self.argv("current-apply",evidence=evidence))
+        self.assertEqual(result["authorizationId"],"synthetic-test-authority")
+        self.assertEqual(result["authorityMode"],"apply")
+        kwargs=engine.call_args.kwargs
+        self.assertEqual(kwargs["candidate_release"],self.release)
+        self.assertEqual(kwargs["expected_source_sha"],self.sha)
+        self.assertEqual(kwargs["expected_source_tree"],self.tree)
+        self.assertEqual(kwargs["expected_inventory_sha256"],self.inventory)
+        self.assertEqual(kwargs["evidence_root"],evidence)
+        self.assertEqual(kwargs["journal"],evidence/"deployment-state.json")
+        self.assertTrue(kwargs["evidence_dir"].parent==evidence)
+        self.assertTrue(kwargs["evidence_dir"].name.startswith("apply-"))
+
+    def test_current_recover_routes_existing_evidence_only_with_recover_authority(self):
+        evidence=self.root/"evidence";evidence.mkdir(mode=0o700)
+        self.write_authority(modes=("recover",))
+        expected={"status":"CURRENT_RECOVERY_PASS","recoveryRequired":False}
+        with patch.object(deploy,"current_recover_engine",return_value=expected) as engine:
+            result=deploy.current_cli(self.argv("current-recover",evidence=evidence))
+        self.assertEqual(result["authorityMode"],"recover")
+        engine.assert_called_once_with(
+            candidate_release=self.release,
+            expected_source_sha=self.sha,
+            expected_source_tree=self.tree,
+            expected_inventory_sha256=self.inventory,
+            evidence_root=evidence,
+            journal=evidence/"deployment-state.json",
+        )
+
+    def test_authority_file_must_be_root_owned_regular_0600(self):
+        self.write_authority()
+        os.chmod(deploy.CURRENT_AUTHORITY_FILE,0o644)
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_INVALID"):
+            deploy.current_require_cli_authority(
+                "apply",
+                expected_source_sha=self.sha,
+                expected_source_tree=self.tree,
+                expected_inventory_sha256=self.inventory,
+            )
