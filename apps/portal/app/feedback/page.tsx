@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { controlPlane } from "../../lib/control-plane";
 import {
   FEEDBACK_CATEGORIES,
@@ -11,12 +11,31 @@ type Account = { id: string; displayName: string | null; status: string };
 type CaseItem = {
   caseId: string;
   category: string;
-  severity: string;
   status: string;
   description: string;
-  createdAt: string;
-  updatedAt: string;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+function isAccount(value: unknown): value is Account {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    value.id.length > 0 &&
+    (value.displayName === null || typeof value.displayName === "string") &&
+    typeof value.status === "string"
+  );
+}
+function isCase(value: unknown): value is CaseItem {
+  return (
+    isRecord(value) &&
+    typeof value.caseId === "string" &&
+    typeof value.category === "string" &&
+    typeof value.status === "string" &&
+    typeof value.description === "string"
+  );
+}
 
 export default function FeedbackPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -26,24 +45,53 @@ export default function FeedbackPage() {
   const [description, setDescription] = useState("");
   const [diagnostics, setDiagnostics] = useState(false);
   const [busy, setBusy] = useState(true);
+  const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
+  // Refs fence repeated events before React commits the disabled controls.
+  const loading = useRef(false);
+  const submitting = useRef(false);
 
   const load = async () => {
+    if (loading.current) return;
+    loading.current = true;
     setBusy(true);
-    const [accountResponse, caseResponse] = await Promise.all([
-      controlPlane("/v1/accounts"),
-      controlPlane("/v1/support/cases"),
-    ]);
-    if (accountResponse.ok) {
-      const data = (await accountResponse.json()) as { accounts: Account[] };
-      setAccounts(data.accounts);
-      if (!accountId) setAccountId(data.accounts[0]?.id ?? "");
+    setLoadError("");
+    try {
+      const [accountResponse, caseResponse] = await Promise.all([
+        controlPlane("/v1/accounts"),
+        controlPlane("/v1/support/cases"),
+      ]);
+      if (!accountResponse.ok || !caseResponse.ok)
+        throw new Error("FEEDBACK_LOAD_FAILED");
+      const accountData: unknown = await accountResponse.json();
+      const caseData: unknown = await caseResponse.json();
+      if (
+        !isRecord(accountData) ||
+        !Array.isArray(accountData.accounts) ||
+        !accountData.accounts.every(isAccount) ||
+        !isRecord(caseData) ||
+        !Array.isArray(caseData.items) ||
+        !caseData.items.every(isCase)
+      ) {
+        throw new Error("FEEDBACK_LOAD_INVALID");
+      }
+      const loadedAccounts: Account[] = accountData.accounts;
+      setAccounts(loadedAccounts);
+      setAccountId((current) =>
+        loadedAccounts.some((account) => account.id === current)
+          ? current
+          : (loadedAccounts[0]?.id ?? ""),
+      );
+      setCases(caseData.items);
+    } catch {
+      setLoadError(
+        "Не удалось загрузить данные обратной связи. Нажмите «Обновить», чтобы проверить обращения.",
+      );
+    } finally {
+      loading.current = false;
+      setBusy(false);
     }
-    if (caseResponse.ok) {
-      const data = (await caseResponse.json()) as { items: CaseItem[] };
-      setCases(data.items);
-    }
-    setBusy(false);
   };
 
   useEffect(() => {
@@ -52,29 +100,54 @@ export default function FeedbackPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    setMessage("");
-    const response = await controlPlane("/v1/support/cases", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(
-        buildFeedbackPayload({
-          accountId,
-          category,
-          description,
-          includeDiagnostics: diagnostics,
-        }),
-      ),
-    });
-    if (!response.ok) {
-      setMessage(
-        "Не удалось отправить сообщение. Проверьте текст и повторите позже.",
-      );
+    if (
+      loading.current ||
+      submitting.current ||
+      !accountId ||
+      !description.trim()
+    )
       return;
+    submitting.current = true;
+    setSending(true);
+    setMessage("");
+    const submittedDescription = description;
+    try {
+      const response = await controlPlane("/v1/support/cases", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          buildFeedbackPayload({
+            accountId,
+            category,
+            description: submittedDescription,
+            includeDiagnostics: diagnostics,
+          }),
+        ),
+      });
+      if (!response.ok) throw new Error("FEEDBACK_SUBMIT_UNCONFIRMED");
+      const data: unknown = await response.json();
+      if (
+        !isRecord(data) ||
+        !isRecord(data.case) ||
+        typeof data.case.caseId !== "string" ||
+        !data.case.caseId.trim()
+      ) {
+        throw new Error("FEEDBACK_SUBMIT_INVALID");
+      }
+      setDescription((current) =>
+        current === submittedDescription ? "" : current,
+      );
+      setMessage(`Сообщение принято. Номер обращения: ${data.case.caseId}`);
+      // A failed list refresh must not turn a confirmed submission into failure.
+      await load();
+    } catch {
+      setMessage(
+        "Не удалось подтвердить отправку. Текст сохранён. Проверьте список обращений перед повторной отправкой.",
+      );
+    } finally {
+      submitting.current = false;
+      setSending(false);
     }
-    const data = (await response.json()) as { case: { caseId: string } };
-    setDescription("");
-    setMessage(`Сообщение принято. Номер обращения: ${data.case.caseId}`);
-    await load();
   };
 
   return (
@@ -92,6 +165,7 @@ export default function FeedbackPage() {
           <select
             value={accountId}
             onChange={(event) => setAccountId(event.target.value)}
+            disabled={busy || sending}
             required
           >
             {accounts.map((account) => (
@@ -106,6 +180,7 @@ export default function FeedbackPage() {
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
+            disabled={busy || sending}
           >
             {FEEDBACK_CATEGORIES.map((value) => (
               <option key={value}>{value}</option>
@@ -118,6 +193,7 @@ export default function FeedbackPage() {
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             maxLength={4000}
+            disabled={busy || sending}
             required
           />
         </label>
@@ -126,23 +202,31 @@ export default function FeedbackPage() {
             type="checkbox"
             checked={diagnostics}
             onChange={(event) => setDiagnostics(event.target.checked)}
+            disabled={busy || sending}
           />
           Приложить только безопасные технические сведения
         </label>
         <button
           type="submit"
-          disabled={busy || !accountId || !description.trim()}
+          disabled={busy || sending || !accountId || !description.trim()}
         >
           Отправить
         </button>
       </form>
+      {sending && <p role="status">Отправка…</p>}
       {message && <p role="status">{message}</p>}
       <h2>Мои обращения</h2>
+      <button
+        type="button"
+        onClick={() => void load()}
+        disabled={busy || sending}
+      >
+        Обновить
+      </button>
+      {loadError && <p role="status">{loadError}</p>}
       {busy ? (
         <p role="status">Загрузка…</p>
-      ) : cases.length === 0 ? (
-        <p>Обращений пока нет.</p>
-      ) : (
+      ) : cases.length > 0 ? (
         <ul>
           {cases.map((item) => (
             <li key={item.caseId}>
@@ -151,7 +235,9 @@ export default function FeedbackPage() {
             </li>
           ))}
         </ul>
-      )}
+      ) : !loadError ? (
+        <p>Обращений пока нет.</p>
+      ) : null}
     </main>
   );
 }
