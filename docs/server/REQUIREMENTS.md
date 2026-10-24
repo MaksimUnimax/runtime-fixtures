@@ -188,6 +188,12 @@ The server must turn the bridge from a developer extension into a maintainable p
 
 **FR-AI-008** Manual AI/profile override MAY exist only as an advanced diagnostic/test capability.
 
+**FR-AI-009** Every current and future AI registry record MUST have an independent hint-and-answer tree keyed by its permanent registry ID. Adding an AI MUST atomically and idempotently create its tree from the shared starter template; the template content is not yet specified, and later template edits MUST NOT overwrite existing trees.
+
+**FR-AI-010** Admin tree edits MUST be saved as drafts and published separately after validation; clients MUST resolve only the published revision for the requested AI. Published revisions are immutable and auditable by author/time; restoring old content MUST create a new monotonic publication distinguishable from stale-data replay. Existing RBAC, CSRF and transactional authorization checks remain in force, and concurrent edits MUST NOT silently overwrite each other.
+
+**FR-AI-011** The existing signed configuration channel MUST advertise the AI ID, tree version, format and content hash; the tree body is separately delivered and authenticated through the accepted signed-configuration system. Clients validate AI ownership, integrity, authenticity and format compatibility before atomic local save. Detailed behavior, offline handling, execution pinning, shared operation limits and acceptance are defined by [Per-AI hint and answer trees](../architecture/SYNC.md#per-ai-hint-and-answer-trees). These requirements do not claim an implemented schema, API or ready feature.
+
 ### FR-BROWSER — Browser modularity
 
 **FR-BROWSER-001** Chrome is the first acceptance target unless explicitly reprioritized.
