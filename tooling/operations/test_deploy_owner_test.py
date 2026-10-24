@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
+from contextlib import ExitStack
 from unittest.mock import patch
 
 TARGET = Path(os.environ.get("OCTOPORT_DEPLOY_TEST_TARGET",
@@ -942,3 +944,869 @@ class CurrentFourServiceSourcePlanTests(unittest.TestCase):
                         expected_source_tree="b" * 40,
                         expected_inventory_sha256="c" * 64,
                     )
+
+class CurrentMigrationPrefixWiringTests(unittest.TestCase):
+    def test_generic_prefix_checker_uses_exact_release_runtime_and_env(self):
+        release = Path("/opt/octoport/ops-releases") / ("a" * 40)
+        completed = deploy.subprocess.CompletedProcess(
+            ["node"], 0, stdout=b'{"status":"PASS_PREFIX","applied":17,"latest":"x"}\n', stderr=b""
+        )
+        with patch.object(deploy, "run", return_value=completed) as command:
+            value = deploy.check_migration_prefix_for_release(
+                release, "postgres://fixture@localhost/db"
+            )
+        self.assertEqual(value["applied"], 17)
+        args = command.call_args.args[0]
+        kwargs = command.call_args.kwargs
+        self.assertEqual(args[0], str(release / ".runtime/node"))
+        self.assertEqual(args[1], str(release / deploy.TSX))
+        self.assertEqual(kwargs["cwd"], str(release))
+        self.assertEqual(kwargs["env"]["OCTOPORT_RELEASE_ROOT"], str(release))
+        self.assertEqual(kwargs["env"]["DATABASE_URL"], "postgres://fixture@localhost/db")
+
+    def test_generic_prefix_checker_fails_on_wrong_expected_count(self):
+        release = Path("/opt/octoport/ops-releases") / ("a" * 40)
+        completed = deploy.subprocess.CompletedProcess(
+            ["node"], 0, stdout=b'{"status":"PASS_PREFIX","applied":17}\n', stderr=b""
+        )
+        with patch.object(deploy, "run", return_value=completed):
+            with self.assertRaisesRegex(RuntimeError, "MIGRATION_PREFIX_COUNT_INVALID"):
+                deploy.check_migration_prefix_for_release(
+                    release, "postgres://fixture@localhost/db", expected_count=18
+                )
+
+    def test_checker_source_has_no_pinned_legacy_release(self):
+        source = Path(deploy.__file__).with_name("check_owner_test_migration_prefix.ts").read_text()
+        self.assertIn("OCTOPORT_RELEASE_ROOT", source)
+        self.assertIn("pathToFileURL", source)
+        self.assertIn("realpath(release)", source)
+        self.assertIn("lstat(path)", source)
+        self.assertIn('"/opt/octoport/ops-releases"', source)
+        self.assertNotIn("62024d192a8572c11aafab91653330d1f996699f", source)
+
+
+class CurrentFourServiceRuntimeSwitchTests(unittest.TestCase):
+    def plan(self):
+        root="/opt/octoport/ops-releases/"+"a"*40
+        services={}
+        for role in ("api","worker","portal","admin"):
+            services[role]={
+                "unit":f"seller-agents-owner-test-{role}.service",
+                "workingDirectory":root if role in ("api","worker") else f"{root}/apps/{role}",
+                "execArgv":[f"{root}/.runtime/node",f"{root}/apps/{role}/dist/main.js"],
+                "environmentFiles":[],
+                "identity":{"mode":"DYNAMIC_USER" if role=="admin" else "STATIC_CANONICAL"},
+            }
+        return {"services":services,"adminBuildBasePath":""}
+
+    def test_current_units_and_dropins_cover_four_compiled_services(self):
+        plan=self.plan()
+        self.assertEqual(
+            deploy.current_units(plan),
+            tuple(f"seller-agents-owner-test-{r}.service" for r in ("api","worker","portal","admin")),
+        )
+        for role in plan["services"]:
+            text=deploy.current_unit_dropin(plan,role)
+            self.assertIn("WorkingDirectory=",text)
+            self.assertIn("ExecStart=",text)
+            self.assertNotIn("/src/main.ts",text)
+        self.assertIn("admin.service.d",str(deploy.current_dropin_paths(plan)["admin"]))
+
+    def test_start_unmasks_all_four_before_any_start(self):
+        plan=self.plan(); masked=set(deploy.current_units(plan)); calls=[]
+        def command(args,**kwargs):
+            calls.append(tuple(args))
+            if args[1:3]==["unmask","--runtime"]: masked.discard(args[-1])
+            if args[1]=="start" and masked: raise AssertionError("START_BEFORE_ALL_UNMASKED")
+            return deploy.subprocess.CompletedProcess(args,0,stdout=b"",stderr=b"")
+        def prop(unit,name):
+            if name=="LoadState": return "masked" if unit in masked else "loaded"
+            return "unchanged"
+        with patch.object(deploy,"run",side_effect=command), patch.object(deploy,"unit_prop",side_effect=prop):
+            deploy.current_start_product_units(plan)
+        units=deploy.current_units(plan)
+        self.assertEqual([x[-1] for x in calls[:len(units)]],list(units))
+        self.assertEqual([x[-1] for x in calls[len(units):]],list(units))
+
+    def test_current_health_requires_all_four_and_admin_login(self):
+        plan=self.plan()
+        def prop(unit,name):
+            if name=="ActiveState": return "active"
+            if name=="SubState": return "running"
+            raise AssertionError((unit,name))
+        def http(url):
+            self.assertTrue(
+                url.endswith("/health/live") or url.endswith("/health/ready")
+                or url=="http://127.0.0.1:3100/login"
+                or url=="http://127.0.0.1:3101/login"
+            )
+            return (200,"")
+        completed=deploy.subprocess.CompletedProcess(["journalctl"],0,stdout=b"Worker ready\n",stderr=b"")
+        with patch.object(deploy,"unit_prop",side_effect=prop),              patch.object(deploy,"env_value",return_value="3000"),              patch.object(deploy,"http_status",side_effect=http),              patch.object(deploy,"run",return_value=completed):
+            result=deploy.current_wait_runtime(plan,"now")
+        self.assertEqual(result["admin"],200)
+        self.assertTrue(result["workerReady"])
+
+    def test_current_loaded_plan_rejects_wrong_exec_or_workdir(self):
+        plan=self.plan(); role="api"; item=plan["services"][role]
+        def good(unit,name):
+            source=next(v for v in plan["services"].values() if v["unit"]==unit)
+            if name=="WorkingDirectory": return source["workingDirectory"]
+            if name=="ExecStart":
+                return "{ path="+source["execArgv"][0]+" ; argv[]="+" ".join(source["execArgv"])+" ; ignore_errors=no ; }"
+            raise AssertionError(name)
+        with patch.object(deploy,"unit_prop",side_effect=good):
+            result=deploy.current_verify_loaded_plan(plan)
+        self.assertEqual(set(result),{"api","worker","portal","admin"})
+        def bad(unit,name):
+            if unit==item["unit"] and name=="WorkingDirectory": return "/wrong"
+            return good(unit,name)
+        with patch.object(deploy,"unit_prop",side_effect=bad):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_LOADED_WORKING_DIRECTORY_MISMATCH"):
+                deploy.current_verify_loaded_plan(plan)
+        def extra(unit,name):
+            value=good(unit,name)
+            if unit==item["unit"] and name=="ExecStart":
+                return value.replace(" ; ignore_errors=no", " --unexpected ; ignore_errors=no")
+            return value
+        with patch.object(deploy,"unit_prop",side_effect=extra):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_LOADED_EXECSTART_MISMATCH"):
+                deploy.current_verify_loaded_plan(plan)
+
+
+class CurrentRollbackBaselineTests(unittest.TestCase):
+    def plan(self):
+        root="/opt/octoport/ops-releases/"+"a"*40
+        return {"services":{
+            role:{
+                "unit":f"seller-agents-owner-test-{role}.service",
+                "workingDirectory":root,
+                "execArgv":[f"{root}/.runtime/node",f"{root}/{role}.js"],
+            }
+            for role in ("api","worker","portal","admin")
+        }}
+
+    def test_dropin_snapshot_restore_preserves_present_and_absent(self):
+        plan=self.plan()
+        root=Path(tempfile.mkdtemp(prefix="octoport-dropin-baseline-"))
+        self.addCleanup(lambda: __import__("shutil").rmtree(root,ignore_errors=True))
+        drop_root=root/"systemd"; backup=root/"backup"
+        original=deploy.CURRENT_DROPIN_ROOT
+        deploy.CURRENT_DROPIN_ROOT=drop_root
+        try:
+            paths=deploy.current_dropin_paths(plan)
+            paths["api"].parent.mkdir(parents=True)
+            paths["api"].write_text("old-api")
+            os.chmod(paths["api"],0o640)
+            with patch.object(deploy,"run",return_value=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")):
+                manifest=deploy.current_snapshot_dropins(plan,backup)
+                self.assertTrue(manifest["api"]["present"])
+                self.assertFalse(manifest["admin"]["present"])
+                for path in paths.values():
+                    path.parent.mkdir(parents=True,exist_ok=True)
+                    path.write_text("candidate")
+                    os.chmod(path,0o644)
+                deploy.current_restore_dropins(plan,backup)
+            self.assertEqual(paths["api"].read_text(),"old-api")
+            self.assertEqual(os.stat(paths["api"]).st_mode & 0o777,0o640)
+            self.assertFalse(paths["admin"].exists())
+            self.assertFalse(paths["worker"].exists())
+            self.assertFalse(paths["portal"].exists())
+        finally:
+            deploy.CURRENT_DROPIN_ROOT=original
+
+    def test_unit_state_restore_preserves_inactive_and_masked(self):
+        plan=self.plan(); units=deploy.current_units(plan)
+        baseline={
+            units[0]:{"load":"loaded","active":"active","sub":"running"},
+            units[1]:{"load":"loaded","active":"inactive","sub":"dead"},
+            units[2]:{"load":"masked","active":"inactive","sub":"dead"},
+            units[3]:{"load":"loaded","active":"active","sub":"running"},
+        }
+        state={unit:dict(value) for unit,value in baseline.items()}
+        calls=[]
+        def command(args,**kwargs):
+            calls.append(tuple(args))
+            unit=args[-1]
+            if args[1:3]==["unmask","--runtime"]:
+                state[unit]["load"]="loaded"
+            elif args[1]=="start":
+                state[unit]["active"]="active";state[unit]["sub"]="running"
+            return deploy.subprocess.CompletedProcess(args,0,stdout=b"",stderr=b"")
+        def prop(unit,name):
+            return {"LoadState":"load","ActiveState":"active","SubState":"sub"}[name] and state[unit][{"LoadState":"load","ActiveState":"active","SubState":"sub"}[name]]
+        with patch.object(deploy,"current_stop_product_units",side_effect=lambda _plan: [
+            state[u].update(load="masked",active="inactive",sub="dead") for u in units
+        ]), patch.object(deploy,"run",side_effect=command), patch.object(deploy,"unit_prop",side_effect=prop):
+            deploy.current_restore_unit_states(plan,baseline)
+        self.assertEqual(state[units[0]]["active"],"active")
+        self.assertEqual(state[units[1]]["active"],"inactive")
+        self.assertEqual(state[units[2]]["load"],"masked")
+        self.assertEqual(state[units[3]]["active"],"active")
+
+
+class CurrentApplyEngineTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-current-apply-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.release=Path("/opt/octoport/ops-releases")/("a"*40)
+        self.plan={
+            "sourceSha":"a"*40,
+            "sourceTree":"b"*40,
+            "trustedInventorySha256":"c"*64,
+            "migrationTarget":{"count":50,"latestIndex":49,"latestTag":"0061_latest"},
+            "services":{
+                role:{
+                    "unit":f"seller-agents-owner-test-{role}.service",
+                    "workingDirectory":str(self.release),
+                    "execArgv":[str(self.release/".runtime/node"),str(self.release/f"{role}.js")],
+                }
+                for role in ("api","worker","portal","admin")
+            },
+            "adminBuildBasePath":"",
+        }
+        self.events=[]
+        self.prefix=17
+        self.backup=self.root/"fresh.dump";self.backup.write_bytes(b"backup")
+        self.baseline={
+            unit:{"load":"loaded","active":"active","sub":"running"}
+            for unit in deploy.current_units(self.plan)
+        }
+
+    def patches(self, *, health_error=None, migrate_error=None):
+        def check(release,url,expected_count=None):
+            self.events.append(("prefix",self.prefix,expected_count))
+            if expected_count is not None and self.prefix!=expected_count:
+                raise RuntimeError("PREFIX_MISMATCH")
+            return {"status":"PASS_PREFIX","applied":self.prefix}
+        def migrate(release,url):
+            self.events.append(("migrate",self.prefix))
+            self.prefix=50
+            if migrate_error: raise RuntimeError(migrate_error)
+        def restore(*args,**kwargs):
+            self.events.append(("restore-db",self.prefix))
+            self.prefix=17
+            return 17
+        def health(plan,started):
+            self.events.append(("health",self.prefix))
+            if health_error: raise RuntimeError(health_error)
+            return {"live":200,"ready":200,"portal":200,"admin":200,"workerReady":True}
+        replacements={
+            "verified_current_source_plan":lambda *a,**k:self.plan,
+            "current_validate_base_units":lambda plan:{"validated":True},
+            "current_install_reboot_fence":lambda plan,**kwargs:self.events.append(("fence-install",self.prefix)),
+            "current_enable_fenced_start":lambda:self.events.append(("fence-allow",self.prefix)),
+            "current_disable_fenced_start":lambda:self.events.append(("fence-block",self.prefix)),
+            "current_remove_reboot_fence":lambda plan:self.events.append(("fence-remove",self.prefix)),
+            "current_verify_backup_receipt":lambda info:self.backup,
+            "database_url":lambda:"postgres://fixture@localhost/db",
+            "db_identity":lambda url:("fixture","pw","db",None),
+            "check_migration_prefix_for_release":check,
+            "current_capture_unit_states":lambda plan:self.baseline,
+            "current_snapshot_dropins":lambda plan,path:(path.mkdir(parents=True),deploy.write_json_durable(path/"manifest.json",{r:{"present":False} for r in plan["services"]}))[1],
+            "database_creation_meta":lambda *_:{"encoding":"UTF8","collate":"C","ctype":"C"},
+            "current_stop_product_units":lambda plan:self.events.append(("stop",self.prefix)) or {},
+            "backup_live":lambda *_:self.events.append(("backup",self.prefix)) or self.backup,
+            "current_restore_isolated":lambda *a,**k:self.events.append(("isolated",self.prefix,k["expected_target"])) or {"before":17,"after":50},
+            "migrate":migrate,
+            "current_write_dropins":lambda plan:self.events.append(("write-dropins",self.prefix)),
+            "current_start_product_units":lambda plan:self.events.append(("start",self.prefix)),
+            "current_wait_runtime":health,
+            "current_verify_loaded_plan":lambda plan:self.events.append(("loaded",self.prefix)) or {"ok":True},
+            "current_restore_live_backup":restore,
+            "current_restore_dropins":lambda plan,path:self.events.append(("restore-dropins",self.prefix)),
+            "current_restore_unit_states":lambda plan,baseline:self.events.append(("restore-units",self.prefix)),
+        }
+        stack=ExitStack()
+        for name,value in replacements.items():
+            stack.enter_context(patch.object(deploy,name,value))
+        return stack
+
+    def test_success_migrates_before_switch_and_records_target(self):
+        evidence=self.root/"apply-success";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        with self.patches():
+            result=deploy.current_apply_engine(
+                candidate_release=self.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=self.root,journal=journal,evidence_dir=evidence
+            )
+        self.assertEqual(result["status"],"APPLY_PASS")
+        self.assertFalse(result["recoveryRequired"])
+        self.assertEqual(result["predeployPrefix"],17)
+        self.assertEqual(result["candidateTarget"],50)
+        names=[e[0] for e in self.events]
+        self.assertLess(names.index("backup"),names.index("migrate"))
+        self.assertLess(names.index("migrate"),names.index("write-dropins"))
+        self.assertLess(names.index("write-dropins"),names.index("start"))
+        self.assertLess(names.index("start"),names.index("health"))
+
+    def test_health_failure_restores_database_before_old_units(self):
+        evidence=self.root/"apply-health-fail";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        with self.patches(health_error="HEALTH_FAILED"):
+            with self.assertRaisesRegex(RuntimeError,"HEALTH_FAILED"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=self.root,journal=journal,evidence_dir=evidence
+                )
+        names=[e[0] for e in self.events]
+        self.assertIn("restore-db",names)
+        self.assertLess(names.index("restore-db"),names.index("restore-dropins"))
+        self.assertLess(names.index("restore-dropins"),names.index("restore-units"))
+        state=json.loads(journal.read_text())
+        self.assertFalse(state["recoveryRequired"])
+        self.assertEqual(state["schemaState"],"PREDEPLOY_VERIFIED")
+
+    def test_prefix_ahead_fails_before_mutation(self):
+        self.prefix=51
+        evidence=self.root/"apply-ahead";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        with self.patches():
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_PREDEPLOY_PREFIX_AHEAD_OF_CANDIDATE"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=self.root,journal=journal,evidence_dir=evidence
+                )
+        self.assertEqual([e[0] for e in self.events],["prefix"])
+
+    def test_noop_schema_health_failure_does_not_restore_database(self):
+        self.prefix=50
+        evidence=self.root/"apply-noop";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        with self.patches(health_error="HEALTH_FAILED"):
+            with self.assertRaisesRegex(RuntimeError,"HEALTH_FAILED"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=self.root,journal=journal,evidence_dir=evidence
+                )
+        self.assertNotIn("restore-db",[e[0] for e in self.events])
+        self.assertIn("restore-units",[e[0] for e in self.events])
+
+
+class CurrentBaseUnitContractTests(unittest.TestCase):
+    def plan(self):
+        root="/opt/octoport/ops-releases/"+"a"*40
+        identities=deploy.canonical_identities()
+        return {"services":{
+            "api":{"unit":"seller-agents-owner-test-api.service","environmentFiles":[
+                "/etc/seller-agents-owner-test/api.env",
+                "/etc/seller-agents-owner-test/api-monitor.env"],
+                "identity":{"mode":"STATIC_CANONICAL",**identities["api"]}},
+            "worker":{"unit":"seller-agents-owner-test-worker.service","environmentFiles":[
+                "/etc/seller-agents-owner-test/api.env"],
+                "identity":{"mode":"STATIC_CANONICAL",**identities["worker"]}},
+            "portal":{"unit":"seller-agents-owner-test-portal.service","environmentFiles":[
+                "/etc/seller-agents-owner-test/portal.env"],
+                "identity":{"mode":"STATIC_CANONICAL",**identities["portal"]}},
+            "admin":{"unit":"seller-agents-owner-test-admin.service","environmentFiles":[],
+                "identity":{"mode":"DYNAMIC_USER"}},
+        }}
+
+    def test_base_units_require_exact_env_and_identity_contract(self):
+        plan=self.plan(); values={}
+        for role,item in plan["services"].items():
+            env=" ".join(f"{x} (ignore_errors=no)" for x in item["environmentFiles"])
+            identity=item["identity"]
+            values[item["unit"]]={
+                "LoadState":"loaded",
+                "EnvironmentFiles":env,
+                "DynamicUser":"yes" if identity["mode"]=="DYNAMIC_USER" else "no",
+                "User":"" if identity["mode"]=="DYNAMIC_USER" else identity["user"],
+                "Group":"" if identity["mode"]=="DYNAMIC_USER" else identity["group"],
+            }
+        with patch.object(deploy,"unit_prop",side_effect=lambda unit,name:values[unit][name]):
+            checked=deploy.current_validate_base_units(plan)
+        self.assertEqual(set(checked),{"api","worker","portal","admin"})
+        self.assertEqual(len(checked["api"]["environmentFiles"]),2)
+        self.assertEqual(checked["admin"]["identityMode"],"DYNAMIC_USER")
+
+        values["seller-agents-owner-test-worker.service"]["EnvironmentFiles"] += (
+            " /etc/seller-agents-owner-test/api-monitor.env (ignore_errors=no)"
+        )
+        with patch.object(deploy,"unit_prop",side_effect=lambda unit,name:values[unit][name]):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_BASE_ENVIRONMENT_SCOPE_MISMATCH:worker"):
+                deploy.current_validate_base_units(plan)
+
+
+class CurrentMigrationRollbackTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-current-migration-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.archive=self.root/"backup.dump";self.archive.write_bytes(b"x")
+        self.release=Path("/opt/octoport/ops-releases")/("a"*40)
+
+    def test_isolated_restore_uses_actual_predeploy_and_candidate_target(self):
+        events=[]
+        def docker(args,**kwargs):
+            events.append((list(args),dict(kwargs)))
+            return deploy.subprocess.CompletedProcess(args,0,stdout=b"",stderr=b"")
+        counts=iter([17,50])
+        with patch.object(deploy,"docker_pg",side_effect=docker),              patch.object(deploy,"check_migration_prefix_for_release",
+                          side_effect=lambda *a,**k:{"applied":next(counts)}),              patch.object(deploy,"migrate",return_value=None):
+            result=deploy.current_restore_isolated(
+                "u","postgres://u@localhost/db",self.archive,"20261024T000000Z",
+                self.release,expected_before=17,expected_target=50,
+            )
+        self.assertEqual((result["before"],result["after"]),(17,50))
+        self.assertEqual([x[0][0] for x in events],["createdb","pg_restore","dropdb"])
+
+    def test_live_restore_verifies_restored_prefix_with_candidate_lineage(self):
+        events=[]
+        def docker(args,**kwargs):
+            events.append(list(args))
+            return deploy.subprocess.CompletedProcess(args,0,stdout=b"",stderr=b"")
+        with patch.object(deploy,"docker_pg",side_effect=docker),              patch.object(deploy,"check_migration_prefix_for_release",
+                          return_value={"status":"PASS_PREFIX","applied":17}) as check:
+            result=deploy.current_restore_live_backup(
+                "u","db","postgres://u@localhost/db",self.archive,
+                {"encoding":"UTF8","collate":"C","ctype":"C"},self.release,
+                expected_prefix=17,
+            )
+        self.assertEqual(result,17)
+        self.assertEqual([x[0] for x in events],["dropdb","createdb","pg_restore"])
+        self.assertEqual(check.call_args.kwargs["expected_count"],17)
+
+    def test_migration_failure_restores_database_before_unit_baseline(self):
+        # Reuse the full engine fixture and make migration fail after schema becomes uncertain.
+        case=CurrentApplyEngineTests("test_success_migrates_before_switch_and_records_target")
+        case.setUp()
+        try:
+            evidence=case.root/"apply-migration-fail";evidence.mkdir()
+            journal=case.root/"deployment-state.json"
+            with case.patches(migrate_error="MIGRATION_FAILED"):
+                with case.assertRaisesRegex(RuntimeError,"MIGRATION_FAILED"):
+                    deploy.current_apply_engine(
+                        candidate_release=case.release,expected_source_sha="a"*40,
+                        expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                        evidence_root=case.root,journal=journal,evidence_dir=evidence,
+                    )
+            names=[e[0] for e in case.events]
+            case.assertIn("restore-db",names)
+            case.assertLess(names.index("restore-db"),names.index("restore-units"))
+        finally:
+            case.doCleanups()
+
+    def test_package_verification_failure_prevents_all_external_mutation(self):
+        plan={"migrationTarget":{"count":50},"services":{}}
+        evidence=self.root/"apply-invalid";evidence.mkdir()
+        with patch.object(deploy,"verified_current_source_plan",
+                          side_effect=RuntimeError("PACKAGE_INVALID")),              patch.object(deploy,"database_url") as db:
+            with self.assertRaisesRegex(RuntimeError,"PACKAGE_INVALID"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.root/"deployment-state.json",
+                    evidence_dir=evidence,
+                )
+            db.assert_not_called()
+
+
+class CurrentCrashRecoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-current-recovery-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.release=Path("/opt/octoport/ops-releases")/("a"*40)
+        self.plan={
+            "sourceSha":"a"*40,"sourceTree":"b"*40,"trustedInventorySha256":"c"*64,
+            "migrationTarget":{"count":50,"latestTag":"0061"},
+            "services":{
+                role:{"unit":f"seller-agents-owner-test-{role}.service"}
+                for role in ("api","worker","portal","admin")
+            },
+        }
+        self.baseline={
+            f"seller-agents-owner-test-{role}.service":
+                {"load":"loaded","active":"active","sub":"running"}
+            for role in ("api","worker","portal","admin")
+        }
+        self.evidence=self.root/"apply-x";self.evidence.mkdir()
+        (self.evidence/"dropins-before").mkdir()
+        self.backup=self.root/"backup.dump";self.backup.write_bytes(b"x")
+        self.journal=self.root/"deployment-state.json"
+
+    def write_state(self, schema, *, backup=True):
+        receipt={
+            "candidateSourceSha":"a"*40,"candidateSourceTree":"b"*40,
+            "trustedInventorySha256":"c"*64,
+            "predeployPrefix":17,"candidateTarget":50,
+            "baselineUnits":self.baseline,
+            "databaseMeta":{"encoding":"UTF8","collate":"C","ctype":"C"},
+        }
+        if backup:
+            receipt["backup"]={"path":str(self.backup),"sha256":"d"*64,"bytes":1}
+        (self.evidence/"receipt.json").write_text(json.dumps(receipt))
+        self.journal.write_text(json.dumps({
+            "phase":"LIVE_MIGRATION","schemaState":schema,"recoveryRequired":True,
+            "receipt":str(self.evidence/"receipt.json"),
+        }))
+
+    def patch_common(self, events):
+        stack=ExitStack()
+        stack.enter_context(patch.object(deploy,"verified_current_source_plan",return_value=self.plan))
+        stack.enter_context(patch.object(deploy,"current_install_reboot_fence",side_effect=lambda plan,**kwargs:events.append("fence-install")))
+        stack.enter_context(patch.object(deploy,"current_enable_fenced_start",side_effect=lambda:events.append("fence-allow")))
+        stack.enter_context(patch.object(deploy,"current_disable_fenced_start",side_effect=lambda:events.append("fence-block")))
+        stack.enter_context(patch.object(deploy,"current_remove_reboot_fence",side_effect=lambda plan:events.append("fence-remove")))
+        stack.enter_context(patch.object(deploy,"current_verify_backup_receipt",return_value=self.backup))
+        stack.enter_context(patch.object(deploy,"current_stop_product_units",
+                                         side_effect=lambda plan:events.append("stop") or {}))
+        stack.enter_context(patch.object(deploy,"current_restore_dropins",
+                                         side_effect=lambda plan,path:events.append("dropins")))
+        stack.enter_context(patch.object(deploy,"current_restore_unit_states",
+                                         side_effect=lambda plan,state:events.append("units")))
+        return stack
+
+    def test_unknown_schema_restores_database_before_application_baseline(self):
+        self.write_state("UNKNOWN");events=[]
+        with self.patch_common(events) as stack:
+            stack.enter_context(patch.object(deploy,"database_url",return_value="postgres://u@localhost/db"))
+            stack.enter_context(patch.object(deploy,"db_identity",return_value=("u","p","db",None)))
+            stack.enter_context(patch.object(deploy,"current_restore_live_backup",
+                                             side_effect=lambda *a,**k:events.append("db") or 17))
+            result=deploy.current_recover_engine(
+                candidate_release=self.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=self.root,journal=self.journal,
+            )
+        self.assertEqual(result["status"],"CURRENT_RECOVERY_PASS")
+        self.assertLess(events.index("db"),events.index("dropins"))
+        self.assertLess(events.index("dropins"),events.index("units"))
+        self.assertFalse(json.loads(self.journal.read_text())["recoveryRequired"])
+
+    def test_predeploy_verified_recovery_skips_database_restore(self):
+        self.write_state("PREDEPLOY_VERIFIED",backup=False);events=[]
+        with self.patch_common(events),              patch.object(deploy,"current_restore_live_backup") as restore:
+            result=deploy.current_recover_engine(
+                candidate_release=self.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=self.root,journal=self.journal,
+            )
+        restore.assert_not_called()
+        self.assertEqual(
+            events,
+            ["fence-block","fence-install","stop","dropins","fence-allow","units","fence-remove"],
+        )
+        self.assertEqual(result["schemaState"],"PREDEPLOY_VERIFIED")
+
+    def test_missing_backup_in_unknown_schema_keeps_recovery_required(self):
+        self.write_state("UNKNOWN",backup=False);events=[]
+        with self.patch_common(events):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_MISSING"):
+                deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+        self.assertTrue(json.loads(self.journal.read_text())["recoveryRequired"])
+
+    def test_identity_mismatch_fails_before_quiesce(self):
+        self.write_state("UNKNOWN")
+        receipt=json.loads((self.evidence/"receipt.json").read_text())
+        receipt["candidateSourceSha"]="f"*40
+        (self.evidence/"receipt.json").write_text(json.dumps(receipt))
+        with patch.object(deploy,"verified_current_source_plan",return_value=self.plan),              patch.object(deploy,"current_stop_product_units") as stop:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_IDENTITY_MISMATCH"):
+                deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+            stop.assert_not_called()
+
+
+class CurrentRebootFenceSafetyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-fence-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.plan={"services":{
+            role:{"unit":f"seller-agents-owner-test-{role}.service"}
+            for role in ("api","worker","portal","admin")
+        }}
+        self.old_root=deploy.CURRENT_DROPIN_ROOT
+        self.old_allow=deploy.CURRENT_FENCE_ALLOW
+        deploy.CURRENT_DROPIN_ROOT=self.root/"systemd"
+        deploy.CURRENT_FENCE_ALLOW=self.root/"run"/"allow"
+        deploy.CURRENT_FENCE_ALLOW.parent.mkdir()
+        self.addCleanup(setattr,deploy,"CURRENT_DROPIN_ROOT",self.old_root)
+        self.addCleanup(setattr,deploy,"CURRENT_FENCE_ALLOW",self.old_allow)
+
+    def test_persistent_fence_blocks_until_ephemeral_allow_and_explicit_remove(self):
+        completed=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")
+        with patch.object(deploy,"run",return_value=completed):
+            deploy.current_install_reboot_fence(self.plan)
+            paths=deploy.current_fence_paths(self.plan)
+            self.assertEqual(len(paths),4)
+            for path in paths.values():
+                self.assertTrue(path.is_file())
+                self.assertEqual(
+                    path.read_text(),
+                    "[Unit]\nConditionPathExists="+str(deploy.CURRENT_FENCE_ALLOW)+"\n",
+                )
+            self.assertFalse(deploy.CURRENT_FENCE_ALLOW.exists())
+            deploy.current_enable_fenced_start()
+            self.assertTrue(deploy.CURRENT_FENCE_ALLOW.is_file())
+            deploy.current_disable_fenced_start()
+            self.assertFalse(deploy.CURRENT_FENCE_ALLOW.exists())
+            # Simulated reboot: /run allow remains absent while persistent /etc-like fences remain.
+            self.assertTrue(all(path.exists() for path in paths.values()))
+            deploy.current_remove_reboot_fence(self.plan)
+            self.assertTrue(all(not path.exists() for path in paths.values()))
+
+    def test_recovery_clears_stale_allow_and_accepts_existing_persistent_fence(self):
+        completed=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")
+        with patch.object(deploy,"run",return_value=completed):
+            deploy.current_install_reboot_fence(self.plan)
+            deploy.current_enable_fenced_start()
+            self.assertTrue(deploy.CURRENT_FENCE_ALLOW.exists())
+            deploy.current_prepare_recovery_fence(self.plan)
+            self.assertFalse(deploy.CURRENT_FENCE_ALLOW.exists())
+            self.assertTrue(all(path.is_file() for path in deploy.current_fence_paths(self.plan).values()))
+
+    def test_symlinked_dropin_parent_is_rejected(self):
+        outside=self.root/"outside";outside.mkdir()
+        unit_dir=deploy.CURRENT_DROPIN_ROOT/"seller-agents-owner-test-api.service.d"
+        unit_dir.parent.mkdir(parents=True)
+        unit_dir.symlink_to(outside,target_is_directory=True)
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_PATH_SYMLINK_FORBIDDEN"):
+            deploy.current_install_reboot_fence(self.plan)
+
+
+class CurrentEvidenceAndBackupSafetyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-evidence-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.evidence=self.root/"apply-safe";self.evidence.mkdir()
+        self.journal=self.root/"deployment-state.json"
+
+    def test_evidence_paths_must_be_direct_children_of_trusted_root(self):
+        deploy.current_validate_evidence_paths(self.root,self.journal,self.evidence)
+        outside=self.root.parent/"outside-state.json"
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_EVIDENCE_PATH_INVALID"):
+            deploy.current_validate_evidence_paths(self.root,outside,self.evidence)
+
+    def test_symlinked_evidence_directory_is_rejected(self):
+        target=self.root/"real";target.mkdir()
+        link=self.root/"apply-link";link.symlink_to(target,target_is_directory=True)
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_EVIDENCE_PATH_INVALID"):
+            deploy.current_validate_evidence_paths(self.root,self.journal,link)
+
+    def test_backup_receipt_checks_containment_mode_size_and_digest(self):
+        backups=self.root/"backups";backups.mkdir(mode=0o700)
+        old=deploy.BACKUPS;deploy.BACKUPS=backups
+        self.addCleanup(setattr,deploy,"BACKUPS",old)
+        path=backups/"owner-test-safe.dump";path.write_bytes(b"backup-bytes");os.chmod(path,0o600)
+        info={"path":str(path),"bytes":path.stat().st_size,"sha256":deploy.sha256(path)}
+        real_stat=Path.stat
+        def synthetic_stat(candidate, *args, **kwargs):
+            value=real_stat(candidate,*args,**kwargs)
+            if candidate==path:
+                return SimpleNamespace(
+                    st_uid=0,st_gid=0,st_mode=value.st_mode,st_size=value.st_size
+                )
+            return value
+        with patch.object(Path,"stat",new=synthetic_stat):
+            self.assertEqual(deploy.current_verify_backup_receipt(info),path)
+            wrong=dict(info,sha256="0"*64)
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_INVALID"):
+                deploy.current_verify_backup_receipt(wrong)
+        outside=self.root/"outside.dump";outside.write_bytes(b"backup-bytes");os.chmod(outside,0o600)
+        wrong_path=dict(info,path=str(outside))
+        with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_INVALID"):
+            deploy.current_verify_backup_receipt(wrong_path)
+
+
+class CurrentOperationGuardTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-current-guard-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.evidence=self.root/"apply-test";self.evidence.mkdir()
+        self.journal=self.root/"deployment-state.json"
+        self.release=Path("/opt/octoport/ops-releases")/("a"*40)
+
+    def invoke(self):
+        return deploy.current_apply_engine(
+            candidate_release=self.release,expected_source_sha="a"*40,
+            expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+            evidence_root=self.root,journal=self.journal,evidence_dir=self.evidence,
+        )
+
+    def test_recovery_required_journal_blocks_before_package_or_mutation(self):
+        self.journal.write_text(json.dumps({"recoveryRequired":True}))
+        with patch.object(deploy,"verified_current_source_plan") as verify,              patch.object(deploy,"current_stop_product_units") as stop:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_REQUIRED"):
+                self.invoke()
+            verify.assert_not_called();stop.assert_not_called()
+
+    def test_malformed_journal_blocks_before_package_or_mutation(self):
+        self.journal.write_text("{")
+        with patch.object(deploy,"verified_current_source_plan") as verify:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_REQUIRED"):
+                self.invoke()
+            verify.assert_not_called()
+
+    def test_concurrent_lock_blocks_apply(self):
+        lock=self.root/"apply.lock"
+        fd=os.open(lock,os.O_CREAT|os.O_RDWR,0o600)
+        try:
+            deploy.fcntl.flock(fd,deploy.fcntl.LOCK_EX|deploy.fcntl.LOCK_NB)
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_APPLY_ALREADY_RUNNING"):
+                self.invoke()
+        finally:
+            deploy.fcntl.flock(fd,deploy.fcntl.LOCK_UN);os.close(fd)
+
+class CurrentCliAuthorityTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix="octoport-current-cli-")
+        self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.release=Path("/opt/octoport/ops-releases")/("a"*40)
+        self.sha="a"*40
+        self.tree="b"*40
+        self.inventory="c"*64
+        self.old_authority=deploy.CURRENT_AUTHORITY_FILE
+        deploy.CURRENT_AUTHORITY_FILE=self.root/"authority.json"
+        self.addCleanup(setattr,deploy,"CURRENT_AUTHORITY_FILE",self.old_authority)
+
+    def argv(self, mode):
+        return [
+            mode,
+            "--candidate-release",str(self.release),
+            "--source-sha",self.sha,
+            "--source-tree",self.tree,
+            "--inventory-sha256",self.inventory,
+        ]
+
+    def write_authority(self, *, modes=("apply","recover"), sha=None):
+        value={
+            "status":"AUTHORIZED",
+            "scope":"B05_CURRENT_FOUR_SERVICE_DEPLOY",
+            "authorizationId":"synthetic-test-authority",
+            "allowedModes":list(modes),
+            "sourceSha":self.sha if sha is None else sha,
+            "sourceTree":self.tree,
+            "trustedInventorySha256":self.inventory,
+        }
+        deploy.CURRENT_AUTHORITY_FILE.write_text(json.dumps(value))
+        os.chmod(deploy.CURRENT_AUTHORITY_FILE,0o600)
+
+    def root_owned_authority_metadata(self):
+        real_stat=Path.stat
+        authority=deploy.CURRENT_AUTHORITY_FILE
+        def synthetic_stat(path, *args, **kwargs):
+            value=real_stat(path,*args,**kwargs)
+            if path==authority:
+                return SimpleNamespace(
+                    st_uid=0,st_gid=0,st_mode=value.st_mode,st_size=value.st_size
+                )
+            return value
+        return patch.object(Path,"stat",new=synthetic_stat)
+
+    def test_current_plan_is_read_only_route_without_live_authority(self):
+        expected={
+            "status":"CURRENT_FOUR_SERVICE_SOURCE_PLAN_PASS",
+            "sourceSha":self.sha,
+            "sourceTree":self.tree,
+        }
+        with patch.object(deploy,"verified_current_source_plan",return_value=expected) as plan:
+            with patch.object(deploy,"current_require_cli_authority") as authority:
+                result=deploy.current_cli(self.argv("current-plan"))
+        self.assertEqual(result,expected)
+        authority.assert_not_called()
+        plan.assert_called_once_with(
+            self.release,
+            expected_source_sha=self.sha,
+            expected_source_tree=self.tree,
+            expected_inventory_sha256=self.inventory,
+        )
+        self.assertFalse(deploy.CURRENT_AUTHORITY_FILE.exists())
+
+    def test_current_apply_requires_separate_authority_before_evidence_or_engine(self):
+        evidence=self.root/"evidence"
+        with patch.object(deploy,"current_apply_engine") as engine,              patch.object(deploy,"current_trusted_evidence_root") as trusted:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_REQUIRED"):
+                deploy.current_cli(self.argv("current-apply"))
+        engine.assert_not_called()
+        trusted.assert_not_called()
+        self.assertFalse(evidence.exists())
+
+    def test_current_apply_rejects_authority_bound_to_other_source(self):
+        evidence=self.root/"evidence"
+        self.write_authority(sha="d"*40)
+        with self.root_owned_authority_metadata(),              patch.object(deploy,"current_apply_engine") as engine,              patch.object(deploy,"current_trusted_evidence_root") as trusted:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_INVALID"):
+                deploy.current_cli(self.argv("current-apply"))
+        engine.assert_not_called()
+        trusted.assert_not_called()
+        self.assertFalse(evidence.exists())
+
+    def test_current_apply_routes_exact_identity_after_authority(self):
+        evidence=self.root/"evidence"
+        self.write_authority(modes=("apply",))
+        expected={"status":"APPLY_PASS","recoveryRequired":False}
+        def trusted_root(*,create):
+            self.assertTrue(create)
+            evidence.mkdir(mode=0o700)
+            return evidence
+        with self.root_owned_authority_metadata(),              patch.object(deploy,"current_trusted_evidence_root",side_effect=trusted_root) as trusted,              patch.object(deploy,"current_apply_engine",return_value=expected) as engine:
+            result=deploy.current_cli(self.argv("current-apply"))
+        trusted.assert_called_once_with(create=True)
+        self.assertEqual(result["authorizationId"],"synthetic-test-authority")
+        self.assertEqual(result["authorityMode"],"apply")
+        kwargs=engine.call_args.kwargs
+        self.assertEqual(kwargs["candidate_release"],self.release)
+        self.assertEqual(kwargs["expected_source_sha"],self.sha)
+        self.assertEqual(kwargs["expected_source_tree"],self.tree)
+        self.assertEqual(kwargs["expected_inventory_sha256"],self.inventory)
+        self.assertEqual(kwargs["evidence_root"],evidence)
+        self.assertEqual(kwargs["journal"],evidence/"deployment-state.json")
+        self.assertTrue(kwargs["evidence_dir"].parent==evidence)
+        self.assertTrue(kwargs["evidence_dir"].name.startswith("apply-"))
+
+    def test_current_recover_routes_existing_evidence_only_with_recover_authority(self):
+        evidence=self.root/"evidence";evidence.mkdir(mode=0o700)
+        self.write_authority(modes=("recover",))
+        expected={"status":"CURRENT_RECOVERY_PASS","recoveryRequired":False}
+        with self.root_owned_authority_metadata(),              patch.object(deploy,"current_trusted_evidence_root",return_value=evidence) as trusted,              patch.object(deploy,"current_recover_engine",return_value=expected) as engine:
+            result=deploy.current_cli(self.argv("current-recover"))
+        trusted.assert_called_once_with(create=False)
+        self.assertEqual(result["authorityMode"],"recover")
+        engine.assert_called_once_with(
+            candidate_release=self.release,
+            expected_source_sha=self.sha,
+            expected_source_tree=self.tree,
+            expected_inventory_sha256=self.inventory,
+            evidence_root=evidence,
+            journal=evidence/"deployment-state.json",
+        )
+
+
+
+    def test_trusted_evidence_root_is_fixed_under_control_root(self):
+        old=deploy.CURRENT_EVIDENCE_ROOT
+        deploy.CURRENT_EVIDENCE_ROOT=self.root/"attacker-selected"
+        try:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_EVIDENCE_ROOT_INVALID"):
+                deploy.current_trusted_evidence_root(create=False)
+        finally:
+            deploy.CURRENT_EVIDENCE_ROOT=old
+    def test_authority_file_must_be_root_owned_regular_0600(self):
+        self.write_authority()
+        os.chmod(deploy.CURRENT_AUTHORITY_FILE,0o644)
+        with self.root_owned_authority_metadata():
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_INVALID"):
+                deploy.current_require_cli_authority(
+                    "apply",
+                    expected_source_sha=self.sha,
+                    expected_source_tree=self.tree,
+                    expected_inventory_sha256=self.inventory,
+                )
