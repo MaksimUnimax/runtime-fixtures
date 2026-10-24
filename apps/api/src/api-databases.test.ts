@@ -240,7 +240,10 @@ describe("API database role separation", () => {
     [undefined, monitorRole],
     [applicationUrl, "application"],
     [transferUrl, "transfer"],
-    ["postgres://octoport_monitor_pilot:fixture@127.0.0.1:5432/test", monitorRole],
+    [
+      "postgres://octoport_monitor_pilot:fixture@127.0.0.1:5432/test",
+      monitorRole,
+    ],
     [
       "postgres://application:fixture@127.0.0.1:5432/octoport_monitor_pilot",
       "application",
