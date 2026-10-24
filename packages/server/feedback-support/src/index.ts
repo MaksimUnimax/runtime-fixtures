@@ -323,7 +323,8 @@ export class FeedbackSupportService {
       .safeParse(raw);
     if (!parsed.success) return { ok: false, code: "INVALID_REQUEST" };
     const body = sanitizeFeedbackText(parsed.data.description);
-    if (!body) return { ok: false, code: "INVALID_REQUEST" };
+    if (!body || body.length > 4000)
+      return { ok: false, code: "INVALID_REQUEST" };
     const result = await this.repository.getOwnCase({ userId, caseId });
     if ("kind" in result && result.kind === "NOT_FOUND")
       return { ok: false, code: "NOT_FOUND" };
@@ -394,7 +395,8 @@ export class FeedbackSupportService {
       .safeParse(raw);
     if (!parsed.success) return { ok: false, code: "INVALID_REQUEST" };
     const body = sanitizeFeedbackText(parsed.data.description);
-    if (!body) return { ok: false, code: "INVALID_REQUEST" };
+    if (!body || body.length > 4000)
+      return { ok: false, code: "INVALID_REQUEST" };
     const result = await this.repository.addFollowup({
       actorType,
       actorId,

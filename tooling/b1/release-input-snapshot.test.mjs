@@ -925,3 +925,135 @@ test("preflight refuses a forged Win32 device-name package manifest", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+
+// The complete delivered directory is part of every B1 candidate, including
+// the default two-browser mode. All material here is synthetic test data.
+for (const mode of ["combined", "chrome", "firefox"]) {
+  test(`candidate directory membership: clean ${mode} output remains valid`, () => {
+    const root = mkdtempSync(join(tmpdir(), "octoport-c01-directory-clean-"));
+    try {
+      const { authorityPath, packages } = makeFixture(root);
+      const outputDir = join(root, "prepared");
+      const scope =
+        mode === "chrome"
+          ? { chromiumOnly: true }
+          : mode === "firefox"
+            ? { firefoxOnly: true }
+            : {};
+      const inputs =
+        mode === "chrome"
+          ? { chromium: packages.chromium }
+          : mode === "firefox"
+            ? { firefox: packages.firefox }
+            : packages;
+      const result = prepare({ authorityPath, outputDir, ...inputs, ...scope });
+      assert.equal(
+        preflight({ authorityPath, candidateDir: outputDir, ...scope }).status,
+        "PASS",
+      );
+      assert.deepEqual(
+        fs.readdirSync(outputDir).sort(),
+        [
+          "B1_RC_MANIFEST.json",
+          ...Object.values(result.packages).map((row) => row.filename),
+        ].sort(),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const kind of [
+  "archive",
+  "regular",
+  "hidden",
+  "directory",
+  "symlink",
+  "dangling-symlink",
+]) {
+  test(
+    `candidate directory membership: combined rejects undeclared ${kind}`,
+    { skip: process.platform === "win32" && kind.includes("symlink") },
+    () => {
+      const root = mkdtempSync(join(tmpdir(), "octoport-c01-directory-extra-"));
+      try {
+        const { authorityPath, packages } = makeFixture(root);
+        const outputDir = join(root, "prepared");
+        prepare({ authorityPath, outputDir, ...packages });
+        const expectedFiles = fs.readdirSync(outputDir).sort();
+        const before = expectedFiles.map((name) => [
+          name,
+          sha(readFileSync(join(outputDir, name))),
+        ]);
+        const name =
+          kind === "archive"
+            ? "unlisted.zip"
+            : kind === "hidden"
+              ? ".unlisted"
+              : "unlisted";
+        const extra = join(outputDir, name);
+        if (kind === "directory") mkdirSync(extra);
+        else if (kind === "symlink") fs.symlinkSync(packages.chromium, extra);
+        else if (kind === "dangling-symlink")
+          fs.symlinkSync(join(root, "absent"), extra);
+        else writeFileSync(extra, "SYNTHETIC_UNDECLARED_CANDIDATE_DATA");
+        assert.throws(
+          () => preflight({ authorityPath, candidateDir: outputDir }),
+          /Combined candidate contains undeclared files/,
+        );
+        // Validation must reject, not silently delete or alter the delivery.
+        assert.deepEqual(
+          expectedFiles.map((file) => [
+            file,
+            sha(readFileSync(join(outputDir, file))),
+          ]),
+          before,
+        );
+        assert.ok(fs.lstatSync(extra));
+        if (kind === "symlink")
+          assert.equal(fs.readlinkSync(extra), packages.chromium);
+        if (kind === "dangling-symlink")
+          assert.equal(fs.readlinkSync(extra), join(root, "absent"));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
+test("candidate directory membership: default CLI rejects an undeclared sibling", () => {
+  const root = mkdtempSync(join(tmpdir(), "octoport-c01-directory-cli-"));
+  try {
+    const { authorityPath, packages } = makeFixture(root);
+    const outputDir = join(root, "prepared");
+    prepare({ authorityPath, outputDir, ...packages });
+    const args = [
+      "tooling/b1/release-preflight.mjs",
+      outputDir,
+      "--authority",
+      authorityPath,
+    ];
+    const clean = spawnSync(process.execPath, args, { encoding: "utf8" });
+    assert.equal(clean.status, 0, clean.stderr);
+    assert.equal(JSON.parse(clean.stdout).status, "PASS");
+    writeFileSync(
+      join(outputDir, "unlisted.zip"),
+      "SYNTHETIC_UNDECLARED_CANDIDATE_DATA",
+    );
+    const rejected = spawnSync(process.execPath, args, { encoding: "utf8" });
+    assert.equal(rejected.status, 1, rejected.stdout);
+    assert.equal(rejected.stdout, "");
+    assert.equal(
+      JSON.parse(rejected.stderr).reason,
+      "Combined candidate contains undeclared files",
+    );
+    assert.equal(
+      JSON.parse(rejected.stderr).productionMutation,
+      "NOT_PERFORMED",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
