@@ -75,6 +75,16 @@ def main():
                        ["node", ROOT / "tests/regression/extension-core/ozon-postcallback-fence.mjs", provider])
             runner.run(label + "-ozon-seller-postfetch-diagnostics",
                        ["node", ROOT / "tests/regression/extension-core/ozon-seller-postfetch-diagnostics.mjs", provider, transport])
+            runner.run(label + "-ozon-seller-capability-public-codes",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-seller-capability-code-redaction.mjs", provider, transport, ROOT, runtime])
+            runner.run(label + "-ozon-fresh-batch-durable-probe",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-fresh-batch-probe-observation.mjs", runtime / "service_worker.js", ROOT])
+            runner.run(label + "-ozon-orphan-recovery-no-replay",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-orphan-recovery-no-replay.mjs", runtime / "service_worker.js", ROOT])
+            runner.run(label + "-ozon-late-worker-completion-fence",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-late-worker-completion-fence.mjs", runtime / "service_worker.js", ROOT])
+            runner.run(label + "-ozon-legacy-pending-capability-proof",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-legacy-pending-capability-proof.mjs", runtime / "service_worker.js", ROOT])
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
             runner.run(label + "-ozon-guidance-entitlement", ["node", ROOT / "tests/regression/extension-core/ozon-guidance-entitlement.mjs", runtime])
             runner.run(label + "-ozon-advertising-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-advertising-guidance-readiness.mjs", runtime])
@@ -85,6 +95,10 @@ def main():
             runner.run(label + "-context", ["node", ROOT / "tests/regression/extension-core/batch-context.mjs", runtime])
             runner.run(label + "-attachment-port-idle", ["node", ROOT / "tests/regression/extension-core/attachment-port-idle.mjs", runtime])
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])
+            runner.run(label + "-wb-provider-result-fence",
+                       ["node", ROOT / "tests/regression/extension-core/wb-provider-result-fence.mjs",
+                        runtime / "shared/wb_adapter.js", ROOT])
+            runner.run(label + "-wb-promotion-query-bounds", ["node", ROOT / "tests/regression/extension-core/wb-promotion-query-bounds.mjs", runtime])
             runner.run(label + "-wb-token-field-name-privacy", ["node", ROOT / "tests/regression/extension-core/wb-token-field-name-privacy.mjs", runtime])
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
             runner.run(label + "-backup-runtime-context", ["node", ROOT / "tests/regression/extension-core/client-i1/client-backup-runtime-context-wiring.mjs", runtime])
