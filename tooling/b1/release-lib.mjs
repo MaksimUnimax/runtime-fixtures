@@ -1268,7 +1268,9 @@ function validateFirefoxBuiltInConsentMinimum(manifest) {
   // stable minimum and needs separate consent-compatibility acceptance.
   const match =
     typeof minimum === "string"
-      ? /^([1-9][0-9]*)\.(0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}$/.exec(minimum)
+      ? /^([1-9][0-9]*)\.(0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}$/.exec(
+          minimum,
+        )
       : null;
   const releaseParts = match ? minimum.split(".").map(Number) : [];
   if (
@@ -1704,24 +1706,24 @@ export function preflight({
     }
   }
 
-  // A single-browser receipt must cover the exact directory delivered to
-  // the reviewer; undeclared files cannot ride alongside the validated ZIP.
-  if (scopedBrowser) {
-    const expectedFiles = [
-      "B1_RC_MANIFEST.json",
-      manifest.packages[scopedBrowser].filename,
-    ].sort();
-    const candidateFiles = readdirSync(candidateRoot).sort();
-    if (
-      candidateFiles.length !== expectedFiles.length ||
-      candidateFiles.some((name, index) => name !== expectedFiles[index])
-    ) {
-      fail(
-        scopedBrowser === "chromium"
-          ? "Chrome-only candidate contains undeclared files"
-          : "Firefox-only candidate contains undeclared files",
-      );
-    }
+  // Every receipt covers the exact directory delivered to the reviewer,
+  // including the default combined candidate, not only its declared ZIPs.
+  const expectedFiles = [
+    "B1_RC_MANIFEST.json",
+    ...browsers.map((browser) => manifest.packages[browser].filename),
+  ].sort();
+  const candidateFiles = readdirSync(candidateRoot).sort();
+  if (
+    candidateFiles.length !== expectedFiles.length ||
+    candidateFiles.some((name, index) => name !== expectedFiles[index])
+  ) {
+    fail(
+      chromiumOnly
+        ? "Chrome-only candidate contains undeclared files"
+        : firefoxOnly
+          ? "Firefox-only candidate contains undeclared files"
+          : "Combined candidate contains undeclared files",
+    );
   }
 
   return {
