@@ -35,7 +35,10 @@ describe("API database role separation", () => {
       .join("\n");
     const boundary = body.indexOf("let closing = false;");
     if (boundary < 0) throw new Error("MAIN_LIFECYCLE_BOUNDARY_DRIFT");
-    const output = ts.transpileModule(body.slice(0, boundary), {
+    const startupBody =
+      body.slice(0, boundary) +
+      "\n} catch (error) { try { await closeDatabases(); } catch {} throw error; }";
+    const output = ts.transpileModule(startupBody, {
       compilerOptions: {
         module: ts.ModuleKind.ESNext,
         target: ts.ScriptTarget.ES2022,
@@ -113,6 +116,76 @@ describe("API database role separation", () => {
       repairRead,
     ])
       expect(reader).toHaveBeenCalledWith(monitor);
+  });
+
+  it("closes all opened pools when main initialization fails after allocation", async () => {
+    const source = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+    const parsed = ts.createSourceFile(
+      "main.ts",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const importNames = parsed.statements.flatMap((statement) => {
+      if (!ts.isImportDeclaration(statement)) return [];
+      const bindings = statement.importClause?.namedBindings;
+      return bindings && ts.isNamedImports(bindings)
+        ? bindings.elements
+            .filter((element) => !element.isTypeOnly)
+            .map((element) => element.name.text)
+        : [];
+    });
+    const body = parsed.statements
+      .filter((statement) => !ts.isImportDeclaration(statement))
+      .map((statement) => source.slice(statement.getFullStart(), statement.end))
+      .join("\n");
+    const output = ts.transpileModule(body, {
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+      },
+    }).outputText;
+    const application = { close: vi.fn(async () => {}) };
+    const transfer = { close: vi.fn(async () => {}) };
+    const monitor = { close: vi.fn(async () => {}) };
+    const factory = vi.fn((url: string) =>
+      url === applicationUrl
+        ? application
+        : url === transferUrl
+          ? transfer
+          : monitor,
+    );
+    const context: Record<string, unknown> = Object.fromEntries(
+      importNames.map((name) => [
+        name,
+        function () {
+          return {};
+        },
+      ]),
+    );
+    Object.assign(context, {
+      createApiDatabases,
+      createDatabaseRuntime: factory,
+      createCredentialTransferEpochFence: () => {
+        throw new Error("SYNTHETIC_POST_POOL_STARTUP_FAILURE");
+      },
+      loadConfig: () => ({ databaseUrl: applicationUrl }),
+      process: {
+        env: {
+          CREDENTIAL_TRANSFER_DATABASE_URL: transferUrl,
+          MONITOR_HEALTH_READ_DATABASE_URL: monitorUrl,
+          MONITOR_HEALTH_READ_EXPECTED_ROLE: monitorRole,
+        },
+      },
+    });
+    await expect(
+      runInNewContext(`(async () => { ${output} })()`, context, {
+        timeout: 1_000,
+      }),
+    ).rejects.toThrow("SYNTHETIC_POST_POOL_STARTUP_FAILURE");
+    expect(application.close).toHaveBeenCalledOnce();
+    expect(transfer.close).toHaveBeenCalledOnce();
+    expect(monitor.close).toHaveBeenCalledOnce();
   });
 
   it("does not open a monitor read pool or silently use the product database when unconfigured", async () => {

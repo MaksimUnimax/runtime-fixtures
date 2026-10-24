@@ -97,218 +97,231 @@ const { database, transferDatabase, healthReadDatabase, closeDatabases } =
     process.env.MONITOR_HEALTH_READ_DATABASE_URL,
     process.env.MONITOR_HEALTH_READ_EXPECTED_ROLE,
   );
-const transferFence = createCredentialTransferEpochFence(
-  transferDatabase,
-  randomUUID(),
-);
-const transferAdmission = createCredentialTransferApiAdmission(
-  transferDatabase,
-  transferFence,
-);
-const infrastructureReady = createInfrastructureReadiness(database);
-const subscriptions = createP5SubscriptionRepository(database);
-const subscriptionAccess = createP5SubscriptionAccessResolver(subscriptions);
-const entitlements = createP4EntitlementRepository(database);
-const betaAdmission = new BetaAdmissionService(
-  createBetaAdmissionRepository(database),
-);
-const commercialAccess = new CommercialAccessService({
-  accessResolver: subscriptionAccess,
-  currentSubscriptionReader: subscriptions,
-  entitlementResolver: entitlements,
-});
-const commercialPortal = new CommercialPortalService(
-  createP5CommercialPortalRepository(database),
-  commercialAccess,
-  undefined,
-  betaAdmission,
-);
-const rootSecret = loadAuthRootSecret(process.env);
-const adminAuth = new AdminAuthService(
-  createAdminAuthRepository(database),
-  deriveAdminAuthKeys(rootSecret),
-  undefined,
-  undefined,
-  new MaintenanceAccessService(createMaintenanceRepository(database)),
-);
-const bootstrapSigningMaterial = loadConfigSigningMaterial(process.env);
-const p3Catalog = createP3BootstrapPolicyCatalogRepository(database);
-const bootstrapAiResolution = new BootstrapAiResolutionService(
-  createBootstrapAiResolutionRepository(database),
-);
-const localClientAuthority = new LocalClientAuthorityMaterializer(
-  p3Catalog,
-  bootstrapAiResolution,
-);
-await bindConfigSigningRing(bootstrapSigningMaterial, (keyId) =>
-  p3Catalog.findSigningKey(keyId),
-);
-const maintenanceCredentialFile =
-  process.env.OCTOPORT_MAINTENANCE_CREDENTIAL_FILE;
-const transferService = new CredentialTransferService(
-  createEpochFencedCredentialTransferRepository(transferFence),
-  undefined,
-  undefined,
-  () => transferAdmission.isReady(),
-);
-// Always register the *known read-only* Health routes. Without the separately
-// provisioned monitor reader they still require product-admin permissions and
-// report typed unavailability instead of an ambiguous unmatched-route 404.
-const unavailableHealth = !healthReadDatabase
-  ? createUnavailableHealthReadDependencies()
-  : undefined;
-const app = createApiApp({
-  config,
-  isInfrastructureReady: async () =>
-    transferAdmission.isReady() && (await infrastructureReady()),
-  authService: new AuthService(
-    createAuthRepository(database),
-    deriveAuthKeys(rootSecret),
-  ),
-  deviceAuthorizationService: new DeviceAuthorizationService(
-    createDeviceAuthorizationRepository(database),
-    deriveDeviceAuthKeys(rootSecret),
-  ),
-  extensionAuthService: new ExtensionAuthService(
-    createExtensionAuthRepository(database),
-    deriveExtensionAuthKeys(rootSecret),
+try {
+  const transferFence = createCredentialTransferEpochFence(
+    transferDatabase,
+    randomUUID(),
+  );
+  const transferAdmission = createCredentialTransferApiAdmission(
+    transferDatabase,
+    transferFence,
+  );
+  const infrastructureReady = createInfrastructureReadiness(database);
+  const subscriptions = createP5SubscriptionRepository(database);
+  const subscriptionAccess = createP5SubscriptionAccessResolver(subscriptions);
+  const entitlements = createP4EntitlementRepository(database);
+  const betaAdmission = new BetaAdmissionService(
+    createBetaAdmissionRepository(database),
+  );
+  const commercialAccess = new CommercialAccessService({
+    accessResolver: subscriptionAccess,
+    currentSubscriptionReader: subscriptions,
+    entitlementResolver: entitlements,
+  });
+  const commercialPortal = new CommercialPortalService(
+    createP5CommercialPortalRepository(database),
+    commercialAccess,
     undefined,
-    loadAccessTokenSigningKey(process.env),
-  ),
-  deviceManagementService: new DeviceManagementService(
-    createDeviceManagementRepository(database),
-    rootSecret,
-    loadAccessTokenSigningKey(process.env),
-    {
-      resolve: async (accountId, at) => {
-        const beta = await betaAdmission.resolve(accountId);
-        if (beta.kind === "BETA")
-          return { kind: "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT" as const };
-        if (!commercialModeEnabled)
-          return {
-            kind: "INELIGIBLE" as const,
-            reason: "NO_CURRENT_SUBSCRIPTION" as const,
-          };
-        return commercialAccess.resolveDeviceAdmission(
-          accountId,
-          at ?? new Date(),
-        );
-      },
-    },
-  ),
-  bootstrapService: new BootstrapService(
-    { resolve: (input) => resolveP3BootstrapPolicy(input, p3Catalog) },
-    createConfigSigningService(bootstrapSigningMaterial, p3Catalog),
-    undefined,
-    commercialModeEnabled ? commercialAccess : undefined,
-    bootstrapAiResolution,
     betaAdmission,
+  );
+  const rootSecret = loadAuthRootSecret(process.env);
+  const adminAuth = new AdminAuthService(
+    createAdminAuthRepository(database),
+    deriveAdminAuthKeys(rootSecret),
     undefined,
     undefined,
+    new MaintenanceAccessService(createMaintenanceRepository(database)),
+  );
+  const bootstrapSigningMaterial = loadConfigSigningMaterial(process.env);
+  const p3Catalog = createP3BootstrapPolicyCatalogRepository(database);
+  const bootstrapAiResolution = new BootstrapAiResolutionService(
+    createBootstrapAiResolutionRepository(database),
+  );
+  const localClientAuthority = new LocalClientAuthorityMaterializer(
+    p3Catalog,
+    bootstrapAiResolution,
+  );
+  await bindConfigSigningRing(bootstrapSigningMaterial, (keyId) =>
+    p3Catalog.findSigningKey(keyId),
+  );
+  const maintenanceCredentialFile =
+    process.env.OCTOPORT_MAINTENANCE_CREDENTIAL_FILE;
+  const transferService = new CredentialTransferService(
+    createEpochFencedCredentialTransferRepository(transferFence),
     undefined,
-    localClientAuthority,
-  ),
-  publicCommercialCatalogReader: createP4CommercialCatalogRepository(database),
-  commercialPortalService: commercialPortal,
-  adminAuthService: adminAuth,
-  ...(maintenanceCredentialFile
-    ? {
-        maintenanceCredentialStore: createMaintenanceCredentialFileStore(
-          maintenanceCredentialFile,
-        ),
-      }
-    : {}),
-  adminOpsService: new AdminOpsService(
-    createAdminOpsRepository(database),
-    commercialPortal,
-  ),
-  adminBillingService: new AdminBillingService(
-    createP6AdminSubscriptionCommandAdapter(database),
-    createP6AdminBillingRepository(database),
-  ),
-  adminCommercialService: createAdminCommercialService(
-    createP6AdminCommercialReadRepository(database),
-    {
-      plans: createP6AdminPlanCommandAdapter(database),
-      prices: createP6AdminPriceCommandAdapter(database),
-      overrides: createP6AdminEntitlementCommandAdapter(database),
-      compatibility: createP6AdminCompatibilityCommandAdapter(database),
-    },
-  ),
-  adminAiService: new AdminAiService(
-    createP7AdminAiReadRepository(database),
-    createP7AdminAiCommandRepository(database),
-    createProfileLifecycleRepository(database, {
-      beforeMutation: authorizeAdminMutationInTransaction,
-    }),
-  ),
-  betaAdmissionService: betaAdmission,
-  syncService: new SyncService(
-    createSyncRepository(database),
-    createSyncSnapshotReader(database),
-  ),
-  credentialTransferService: transferService,
-  feedbackSupportService: new FeedbackSupportService(
-    createFeedbackSupportRepository(database),
-  ),
-  // Product admin/session authorization remains on the product database.
-  // The monitor reader is independent; the fallback never queries any DB.
-  healthAdminService: healthReadDatabase
-    ? createHealthAdminReadRepository(healthReadDatabase)
-    : unavailableHealth?.healthAdminService,
-  healthNotificationAdminService: healthReadDatabase
-    ? createHealthNotificationAdminReadRepository(healthReadDatabase)
-    : unavailableHealth?.healthNotificationAdminService,
-  healthDiagnosticsService: healthReadDatabase
-    ? createHealthDiagnosticsReadRepository(healthReadDatabase)
-    : unavailableHealth?.healthDiagnosticsService,
-  healthRepairAdminService: healthReadDatabase
-    ? createMonitorProfileRepairReadRepository(healthReadDatabase)
-    : unavailableHealth?.healthRepairAdminService,
-});
-app.addHook("onClose", async () => {
-  transferAdmission.stop();
-  transferService.stop();
-});
-let closing = false;
-const closeApi = createApiCleanup(
-  () => {
+    undefined,
+    () => transferAdmission.isReady(),
+  );
+  // Always register the *known read-only* Health routes. Without the separately
+  // provisioned monitor reader they still require product-admin permissions and
+  // report typed unavailability instead of an ambiguous unmatched-route 404.
+  const unavailableHealth = !healthReadDatabase
+    ? createUnavailableHealthReadDependencies()
+    : undefined;
+  const app = createApiApp({
+    config,
+    isInfrastructureReady: async () =>
+      transferAdmission.isReady() && (await infrastructureReady()),
+    authService: new AuthService(
+      createAuthRepository(database),
+      deriveAuthKeys(rootSecret),
+    ),
+    deviceAuthorizationService: new DeviceAuthorizationService(
+      createDeviceAuthorizationRepository(database),
+      deriveDeviceAuthKeys(rootSecret),
+    ),
+    extensionAuthService: new ExtensionAuthService(
+      createExtensionAuthRepository(database),
+      deriveExtensionAuthKeys(rootSecret),
+      undefined,
+      loadAccessTokenSigningKey(process.env),
+    ),
+    deviceManagementService: new DeviceManagementService(
+      createDeviceManagementRepository(database),
+      rootSecret,
+      loadAccessTokenSigningKey(process.env),
+      {
+        resolve: async (accountId, at) => {
+          const beta = await betaAdmission.resolve(accountId);
+          if (beta.kind === "BETA")
+            return { kind: "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT" as const };
+          if (!commercialModeEnabled)
+            return {
+              kind: "INELIGIBLE" as const,
+              reason: "NO_CURRENT_SUBSCRIPTION" as const,
+            };
+          return commercialAccess.resolveDeviceAdmission(
+            accountId,
+            at ?? new Date(),
+          );
+        },
+      },
+    ),
+    bootstrapService: new BootstrapService(
+      { resolve: (input) => resolveP3BootstrapPolicy(input, p3Catalog) },
+      createConfigSigningService(bootstrapSigningMaterial, p3Catalog),
+      undefined,
+      commercialModeEnabled ? commercialAccess : undefined,
+      bootstrapAiResolution,
+      betaAdmission,
+      undefined,
+      undefined,
+      undefined,
+      localClientAuthority,
+    ),
+    publicCommercialCatalogReader:
+      createP4CommercialCatalogRepository(database),
+    commercialPortalService: commercialPortal,
+    adminAuthService: adminAuth,
+    ...(maintenanceCredentialFile
+      ? {
+          maintenanceCredentialStore: createMaintenanceCredentialFileStore(
+            maintenanceCredentialFile,
+          ),
+        }
+      : {}),
+    adminOpsService: new AdminOpsService(
+      createAdminOpsRepository(database),
+      commercialPortal,
+    ),
+    adminBillingService: new AdminBillingService(
+      createP6AdminSubscriptionCommandAdapter(database),
+      createP6AdminBillingRepository(database),
+    ),
+    adminCommercialService: createAdminCommercialService(
+      createP6AdminCommercialReadRepository(database),
+      {
+        plans: createP6AdminPlanCommandAdapter(database),
+        prices: createP6AdminPriceCommandAdapter(database),
+        overrides: createP6AdminEntitlementCommandAdapter(database),
+        compatibility: createP6AdminCompatibilityCommandAdapter(database),
+      },
+    ),
+    adminAiService: new AdminAiService(
+      createP7AdminAiReadRepository(database),
+      createP7AdminAiCommandRepository(database),
+      createProfileLifecycleRepository(database, {
+        beforeMutation: authorizeAdminMutationInTransaction,
+      }),
+    ),
+    betaAdmissionService: betaAdmission,
+    syncService: new SyncService(
+      createSyncRepository(database),
+      createSyncSnapshotReader(database),
+    ),
+    credentialTransferService: transferService,
+    feedbackSupportService: new FeedbackSupportService(
+      createFeedbackSupportRepository(database),
+    ),
+    // Product admin/session authorization remains on the product database.
+    // The monitor reader is independent; the fallback never queries any DB.
+    healthAdminService: healthReadDatabase
+      ? createHealthAdminReadRepository(healthReadDatabase)
+      : unavailableHealth?.healthAdminService,
+    healthNotificationAdminService: healthReadDatabase
+      ? createHealthNotificationAdminReadRepository(healthReadDatabase)
+      : unavailableHealth?.healthNotificationAdminService,
+    healthDiagnosticsService: healthReadDatabase
+      ? createHealthDiagnosticsReadRepository(healthReadDatabase)
+      : unavailableHealth?.healthDiagnosticsService,
+    healthRepairAdminService: healthReadDatabase
+      ? createMonitorProfileRepairReadRepository(healthReadDatabase)
+      : unavailableHealth?.healthRepairAdminService,
+  });
+  app.addHook("onClose", async () => {
     transferAdmission.stop();
     transferService.stop();
-  },
-  () => app.close(),
-  closeDatabases,
-);
-async function shutdown(signal: string): Promise<void> {
-  if (closing) return;
-  closing = true;
-  transferAdmission.stop();
-  transferService.stop();
-  app.log.info({ signal }, "API shutdown requested");
-  await closeApi();
-}
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, () => {
-    void shutdown(signal).catch(() => {
-      // Observe the signal promise without exposing database diagnostics.
-      process.exitCode = 1;
-      app.log.error({ signal }, "API cleanup failed");
-    });
   });
-}
-try {
-  await transferAdmission.start();
-  if (closing) throw new Error("API_STARTUP_STOPPED");
-  await app.listen({ host: "127.0.0.1", port: config.apiPort });
-} catch (error) {
-  closing = true;
-  transferAdmission.stop();
-  transferService.stop();
-  try {
+  let closing = false;
+  const closeApi = createApiCleanup(
+    () => {
+      transferAdmission.stop();
+      transferService.stop();
+    },
+    () => app.close(),
+    closeDatabases,
+  );
+  async function shutdown(signal: string): Promise<void> {
+    if (closing) return;
+    closing = true;
+    transferAdmission.stop();
+    transferService.stop();
+    app.log.info({ signal }, "API shutdown requested");
     await closeApi();
+  }
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.once(signal, () => {
+      void shutdown(signal).catch(() => {
+        // Observe the signal promise without exposing database diagnostics.
+        process.exitCode = 1;
+        app.log.error({ signal }, "API cleanup failed");
+      });
+    });
+  }
+  try {
+    await transferAdmission.start();
+    if (closing) throw new Error("API_STARTUP_STOPPED");
+    await app.listen({ host: "127.0.0.1", port: config.apiPort });
+  } catch (error) {
+    closing = true;
+    transferAdmission.stop();
+    transferService.stop();
+    try {
+      await closeApi();
+    } catch {
+      // Preserve the original startup error. Concurrent signal cleanup uses the
+      // same promise and separately records unsuccessful signal termination.
+    }
+    throw error;
+  }
+} catch (error) {
+  // Database pools exist before the rest of application initialization. If any
+  // constructor or startup binding above fails, release every allocated pool
+  // without replacing the original failure with cleanup diagnostics.
+  try {
+    await closeDatabases();
   } catch {
-    // Preserve the original startup error. Concurrent signal cleanup uses the
-    // same promise and separately records unsuccessful signal termination.
+    // Preserve the primary startup failure.
   }
   throw error;
 }
