@@ -449,7 +449,7 @@ export const PublishFeatureRuleRevisionCommandSchema = z
   })
   .strict()
   .superRefine((v, c) => {
-    if (v.minimumExtensionVersion) {
+    if (v.minimumExtensionVersion !== null) {
       try {
         compareSemVerV1(v.minimumExtensionVersion, v.minimumExtensionVersion);
       } catch {
@@ -643,7 +643,7 @@ export const P3FeatureRuleSchema = z
   })
   .strict()
   .superRefine((v, c) => {
-    if (v.minimumExtensionVersion) {
+    if (v.minimumExtensionVersion !== null) {
       try {
         compareSemVerV1(v.minimumExtensionVersion, v.minimumExtensionVersion);
       } catch {
