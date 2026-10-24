@@ -208,6 +208,12 @@ export function resolveBootstrapAiSnapshot(
 ): BootstrapAiResolutionV1 {
   const hierarchy = snapshot.hierarchy;
   if (!hierarchy) return unavailable(input.detected, "UNSUPPORTED_DETECTED_AI");
+  // A coherent foreign snapshot must not inherit the requested AI context.
+  if (
+    hierarchy.adapterKey !== input.detected.family ||
+    hierarchy.surfaceKey !== input.detected.surface
+  )
+    throw new BootstrapAiResolutionError();
   if (
     input.detected.variant !== null &&
     (hierarchy.variantId === null ||
