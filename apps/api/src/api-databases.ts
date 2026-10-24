@@ -1,5 +1,7 @@
 type ClosableDatabase = { close(): Promise<void> };
 
+const MONITOR_HEALTH_EXPECTED_ROLE = "octoport_monitor_pilot";
+
 /** Distinct authenticated pools for ordinary API writes and fenced transfers. */
 export async function createApiDatabases<T extends ClosableDatabase>(
   applicationUrl: string,
@@ -61,8 +63,8 @@ export async function createApiDatabases<T extends ClosableDatabase>(
       const role = decodeURIComponent(monitorHealth.username);
       const name = decodeURI(monitorHealth.pathname.slice(1));
       if (
-        !monitorHealthExpectedRole ||
-        role !== monitorHealthExpectedRole ||
+        monitorHealthExpectedRole !== MONITOR_HEALTH_EXPECTED_ROLE ||
+        role !== MONITOR_HEALTH_EXPECTED_ROLE ||
         role === decodeURIComponent(application.username) ||
         role === decodeURIComponent(transfer.username) ||
         name !== "octoport_monitor_pilot" ||
