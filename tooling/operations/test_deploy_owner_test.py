@@ -1802,10 +1802,11 @@ class CurrentCliAuthorityTests(unittest.TestCase):
     def test_authority_file_must_be_root_owned_regular_0600(self):
         self.write_authority()
         os.chmod(deploy.CURRENT_AUTHORITY_FILE,0o644)
-        with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_INVALID"):
-            deploy.current_require_cli_authority(
-                "apply",
-                expected_source_sha=self.sha,
-                expected_source_tree=self.tree,
-                expected_inventory_sha256=self.inventory,
-            )
+        with self.root_owned_authority_metadata():
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_INVALID"):
+                deploy.current_require_cli_authority(
+                    "apply",
+                    expected_source_sha=self.sha,
+                    expected_source_tree=self.tree,
+                    expected_inventory_sha256=self.inventory,
+                )
