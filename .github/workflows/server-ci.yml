@@ -31,6 +31,8 @@ on:
       - "tooling/operations/test_package_owner_test_release.py"
       - "tooling/operations/deploy_owner_test.py"
       - "tooling/operations/test_deploy_owner_test.py"
+      - "tooling/operations/owner_test_monitor_env.py"
+      - "tooling/operations/test_owner_test_monitor_env.py"
       - "tooling/checks/server-import-check.mjs"
       - "infra/local/**"
       - "infra/production/scripts/install-octoport-postgres-backup.sh"
@@ -134,6 +136,7 @@ jobs:
           python3 -B -m unittest discover -s tooling/operations -p 'test_four_root_owner_test_units.py' -v
           sudo -n env -i HOME=/tmp PATH=/usr/bin:/bin /usr/bin/python3 -B -m unittest discover -s tooling/operations -p 'test_package_owner_test_release.py' -v
           python3 -B -m unittest discover -s tooling/operations -p 'test_deploy_owner_test.py' -v
+          python3 -B -m unittest discover -s tooling/operations -p 'test_owner_test_monitor_env.py' -v
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
