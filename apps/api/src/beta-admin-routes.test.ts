@@ -227,6 +227,108 @@ describe("S1.1 beta admin route authorization", () => {
     },
   );
 
+  it.each([
+    ["newline", "case\u000anote"],
+    ["DEL", "case\u007fnote"],
+    ["C1", "case\u0085note"],
+    ["Arabic letter mark", "case\u061cnote"],
+    ["zero-width space", "case\u200bnote"],
+    ["word joiner", "case\u2060note"],
+    ["left-to-right mark", "case\u200enote"],
+    ["right-to-left override", "case\u202enote"],
+    ["bidi isolate", "case\u2066note"],
+    ["line separator", "case\u2028note"],
+    ["paragraph separator", "case\u2029note"],
+    ["whitespace only", "   "],
+    ["over max 512", "x".repeat(513)],
+  ])(
+    "rejects an unsafe beta invitation create reason: %s",
+    async (_, reason) => {
+      const f = fixture("ADMIN_BETA_OPERATOR");
+      try {
+        const response = await f.app.inject({
+          method: "POST",
+          url: "/v1/admin/beta/invitations",
+          headers: f.headers,
+          payload: {
+            requestId: "targeted-reason-create-test-0001",
+            expectedRevision: 1,
+            email: "reviewer@example.test",
+            reason,
+          },
+        });
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.code).toBe("INVALID_REQUEST");
+        expect(f.service.createIdentityInvitation).not.toHaveBeenCalled();
+      } finally {
+        await f.app.close();
+      }
+    },
+  );
+
+  it.each([
+    ["newline", "case\u000anote"],
+    ["DEL", "case\u007fnote"],
+    ["C1", "case\u0085note"],
+    ["Arabic letter mark", "case\u061cnote"],
+    ["zero-width space", "case\u200bnote"],
+    ["word joiner", "case\u2060note"],
+    ["left-to-right mark", "case\u200enote"],
+    ["right-to-left override", "case\u202enote"],
+    ["bidi isolate", "case\u2066note"],
+    ["line separator", "case\u2028note"],
+    ["paragraph separator", "case\u2029note"],
+    ["whitespace only", "   "],
+    ["over max 512", "x".repeat(513)],
+  ])(
+    "rejects an unsafe beta invitation revoke reason: %s",
+    async (_, reason) => {
+      const f = fixture("ADMIN_BETA_OPERATOR");
+      try {
+        const response = await f.app.inject({
+          method: "POST",
+          url: "/v1/admin/beta/invitations/00000000-0000-4000-8000-000000000010/revoke",
+          headers: f.headers,
+          payload: {
+            requestId: "targeted-reason-revoke-test-0001",
+            reason,
+          },
+        });
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.code).toBe("INVALID_REQUEST");
+        expect(f.service.revokeIdentityInvitation).not.toHaveBeenCalled();
+      } finally {
+        await f.app.close();
+      }
+    },
+  );
+
+  it.each(["p".repeat(512), "проверка приглашения", "کت\u200cاب", "क्\u200dष"])(
+    "preserves safe beta invitation reasons including the 512-character boundary",
+    async (reason) => {
+      const f = fixture("ADMIN_BETA_OPERATOR");
+      try {
+        const create = await f.app.inject({
+          method: "POST",
+          url: "/v1/admin/beta/invitations",
+          headers: f.headers,
+          payload: {
+            requestId: "targeted-reason-valid-create-0001",
+            expectedRevision: 1,
+            email: "reviewer@example.test",
+            reason,
+          },
+        });
+        expect(create.statusCode).toBe(200);
+        expect(f.service.createIdentityInvitation).toHaveBeenCalledWith(
+          expect.objectContaining({ reason }),
+        );
+      } finally {
+        await f.app.close();
+      }
+    },
+  );
+
   it("requires CSRF before targeted invitation creation reaches the service", async () => {
     const f = fixture("ADMIN_BETA_OPERATOR");
     const response = await f.app.inject({

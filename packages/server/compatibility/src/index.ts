@@ -261,6 +261,13 @@ export type CompatibilityResolverInput = {
 export function resolveCompatibility(
   input: CompatibilityResolverInput,
 ): CompatibilityResolution | undefined {
+  // A well-formed support row from another release is still corrupt input.
+  const releaseId = input.release?.id;
+  if (
+    input.releaseContracts.some((row) => row.releaseId !== releaseId) ||
+    input.releaseBrowsers.some((row) => row.releaseId !== releaseId)
+  )
+    return undefined;
   const applicable = input.policies.filter(
     (p) =>
       p.contractVersion === input.contractVersion &&
@@ -295,6 +302,15 @@ export function resolveCompatibility(
   const recommended = max(all.map((p) => p.recommendedExtensionVersion));
   if (minimum && recommended && compareSemVerV1(recommended, minimum) < 0)
     return undefined;
+  // Validate only policies consumed for this contract/browser, not unrelated scopes.
+  for (const policy of all) {
+    if (
+      (input.blockedVersions.get(policy.id) ?? []).some(
+        (row) => row.policyRevisionId !== policy.id,
+      )
+    )
+      return undefined;
+  }
   const blocked = new Set(
     all
       .flatMap((p) => input.blockedVersions.get(p.id) ?? [])

@@ -38,10 +38,15 @@ const NAMED_FIELD_MAPS = new Set([
   "dependentRequired",
   "dependencies",
   "content",
+  "encoding",
   "headers",
   "mapping",
   "scopes",
 ]);
+
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
 
 function canonical(
   value: unknown,
@@ -62,7 +67,7 @@ function canonical(
   const entries: [string, unknown][] = [];
   for (const key of Object.keys(object).sort()) {
     // Annotation names are ordinary business field names inside a field map
-    // and ordinary keys inside literal defaults/enum members.
+    // and ordinary keys inside literal defaults, enum members and extensions.
     if (
       mode === "node" &&
       (key === "description" || key === "example" || key === "examples")
@@ -73,7 +78,7 @@ function canonical(
         ? "literal"
         : mode === "named-fields"
           ? "node"
-          : ["default", "const", "enum"].includes(key)
+          : key.startsWith("x-") || ["default", "const", "enum"].includes(key)
             ? "literal"
             : NAMED_FIELD_MAPS.has(key)
               ? "named-fields"
@@ -85,7 +90,9 @@ function canonical(
       Array.isArray(field)
         ? field
             .map((item) => canonical(item, seen, childMode))
-            .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+            .sort((a, b) =>
+              compareCodeUnits(JSON.stringify(a), JSON.stringify(b)),
+            )
         : canonical(field, seen, childMode);
     entries.push([key, projected]);
   }
@@ -94,7 +101,12 @@ function canonical(
   return Object.fromEntries(entries);
 }
 
-type RefContext = "openapi" | "schema" | "schema-map" | "literal";
+type RefContext =
+  | "openapi"
+  | "openapi-map"
+  | "schema"
+  | "schema-map"
+  | "literal";
 const SCHEMA_MAP_KEYS = new Set([
   "properties",
   "patternProperties",
@@ -124,11 +136,66 @@ const SCHEMA_VALUE_KEYS = new Set([
 
 function refChildContext(context: RefContext, key: string): RefContext {
   if (context === "schema-map") return "schema";
+  if (context === "openapi-map") return "openapi";
+  // Map-entry names (headers, encoding properties, media types) are not extensions.
+  // Only an object field x-... introduces arbitrary literal extension data.
+  if (key.startsWith("x-")) return "literal";
   if (context === "schema") {
     if (SCHEMA_MAP_KEYS.has(key)) return "schema-map";
     return SCHEMA_VALUE_KEYS.has(key) ? "schema" : "literal";
   }
-  return key === "schema" ? "schema" : "openapi";
+  if (key === "schema") return "schema";
+  if (key === "content" || key === "encoding" || key === "headers")
+    return "openapi-map";
+  return "openapi";
+}
+
+// Logical schema branches form an unordered multiset. Keep duplicates (oneOf)
+// and normalize only actual schemas, never tuples or literal/extension data.
+function orderSchemaBranches(values: readonly unknown[]): unknown[] {
+  return values
+    .map((value) => ({ value, key: JSON.stringify(canonical(value)) }))
+    .sort((a, b) => compareCodeUnits(a.key, b.key))
+    .map(({ value }) => value);
+}
+
+// RFC 6901: decode the URI fragment before splitting and unescaping tokens.
+// Anchors and nonlocal references retain their existing unsupported treatment.
+function localPointerFragment(
+  ref: string,
+): { identity: string; tokens: string[] | null } | null {
+  if (!ref.startsWith("#")) return null;
+  // A second raw '#' is not fragment data; its percent-encoded form remains valid.
+  if (ref.includes("#", 1)) return { identity: ref, tokens: null };
+  let pointer: string;
+  try {
+    pointer = decodeURIComponent(ref.slice(1));
+  } catch {
+    return { identity: ref, tokens: null };
+  }
+  if (!pointer.startsWith("/")) return null;
+  const parts = pointer.slice(1).split("/");
+  if (parts.some((part) => /~(?![01])/u.test(part)))
+    return { identity: ref, tokens: null };
+  return {
+    identity: `#${pointer}`,
+    tokens: parts.map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~")),
+  };
+}
+
+function localPointerTarget(root: unknown, tokens: readonly string[]): unknown {
+  let target = root;
+  for (const key of tokens) {
+    if (
+      !target ||
+      typeof target !== "object" ||
+      !Object.hasOwn(target, key) ||
+      (Array.isArray(target) && !/^(?:0|[1-9][0-9]*)$/u.test(key))
+    )
+      return undefined;
+    target = (target as Record<string, unknown>)[key];
+  }
+  return target;
 }
 
 function localRef(
@@ -142,21 +209,19 @@ function localRef(
     return value.map((item) => localRef(item, root, seen, context));
   if (!value || typeof value !== "object") return value;
   const object = value as Record<string, unknown>;
-  if (
-    context !== "schema-map" &&
-    typeof object.$ref === "string" &&
-    object.$ref.startsWith("#/")
-  ) {
-    const ref = object.$ref;
+  const pointer =
+    context !== "schema-map" && typeof object.$ref === "string"
+      ? localPointerFragment(object.$ref)
+      : null;
+  if (pointer) {
+    const ref = pointer.identity;
     let resolved: unknown;
-    if (seen.has(ref)) {
+    if (pointer.tokens === null) {
+      resolved = { $unresolvedRef: ref };
+    } else if (seen.has(ref)) {
       resolved = { $recursiveRef: ref };
     } else {
-      const target = ref
-        .slice(2)
-        .split("/")
-        .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
-        .reduce<unknown>((at, key) => asObject(at)[key], root);
+      const target = localPointerTarget(root, pointer.tokens);
       resolved =
         target === undefined
           ? { $unresolvedRef: ref }
@@ -178,15 +243,27 @@ function localRef(
         "schema",
       );
       if (Object.keys(asObject(canonical(siblings))).length > 0)
-        return { allOf: [resolved, siblings] };
+        return { allOf: orderSchemaBranches([resolved, siblings]) };
     }
     return resolved;
   }
   return Object.fromEntries(
-    Object.entries(object).map(([key, item]) => [
-      key,
-      localRef(item, root, seen, refChildContext(context, key)),
-    ]),
+    Object.entries(object).map(([key, item]) => {
+      const resolved = localRef(
+        item,
+        root,
+        seen,
+        refChildContext(context, key),
+      );
+      return [
+        key,
+        context === "schema" &&
+        (key === "allOf" || key === "anyOf" || key === "oneOf") &&
+        Array.isArray(resolved)
+          ? orderSchemaBranches(resolved)
+          : resolved,
+      ];
+    }),
   );
 }
 
@@ -218,7 +295,7 @@ function securityFingerprint(
         .map((item) =>
           Object.fromEntries(
             Object.entries(asObject(item))
-              .sort(([a], [b]) => a.localeCompare(b))
+              .sort(([a], [b]) => compareCodeUnits(a, b))
               .map(([key, scopes]) => [
                 key,
                 [
@@ -231,7 +308,7 @@ function securityFingerprint(
               ]),
           ),
         )
-        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+        .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)))
     : value;
   const definitions = asObject(
     asObject(root.components).securitySchemes ?? root.securityDefinitions,
@@ -343,10 +420,10 @@ function parametersFingerprint(
               return false;
             return true;
           })
-          .sort(([a], [b]) => a.localeCompare(b)),
+          .sort(([a], [b]) => compareCodeUnits(a, b)),
       );
     })
-    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   return fingerprint(projected);
 }
 
@@ -378,7 +455,7 @@ function responseFingerprint(
         // HTTP header names are case-insensitive; OAS ignores Content-Type here.
         const headers = Object.entries(asObject(response.headers))
           .filter(([name]) => name.toLowerCase() !== "content-type")
-          .sort(([a], [b]) => a.localeCompare(b))
+          .sort(([a], [b]) => compareCodeUnits(a, b))
           .map(([name, rawHeader]) => {
             const header = asObject(localRef(rawHeader, root));
             const normalized = Object.fromEntries(

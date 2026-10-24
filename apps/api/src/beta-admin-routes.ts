@@ -51,7 +51,32 @@ const RequestIdSchema = z
   .min(16)
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
-const ReasonSchema = z.string().min(1).max(512);
+const ReasonSchema = z
+  .string()
+  .min(1)
+  .max(512)
+  .refine((value) =>
+    [...value].every((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      // Keep invitation audit reasons legible: reject control, bidi and
+      // invisible separators without restricting ordinary Unicode text.
+      return (
+        code > 0x1f &&
+        code !== 0x7f &&
+        (code < 0x80 || code > 0x9f) &&
+        code !== 0x061c &&
+        code !== 0x200b &&
+        code !== 0x200e &&
+        code !== 0x200f &&
+        (code < 0x2028 || code > 0x2029) &&
+        (code < 0x202a || code > 0x202e) &&
+        code !== 0x2060 &&
+        (code < 0x2066 || code > 0x2069)
+      );
+    }),
+  )
+  .transform((value) => value.trim())
+  .pipe(z.string().min(1).max(512));
 const InvitationCreateBodySchema = z
   .object({
     requestId: RequestIdSchema,

@@ -449,7 +449,7 @@ export const PublishFeatureRuleRevisionCommandSchema = z
   })
   .strict()
   .superRefine((v, c) => {
-    if (v.minimumExtensionVersion) {
+    if (v.minimumExtensionVersion !== null) {
       try {
         compareSemVerV1(v.minimumExtensionVersion, v.minimumExtensionVersion);
       } catch {
@@ -643,7 +643,7 @@ export const P3FeatureRuleSchema = z
   })
   .strict()
   .superRefine((v, c) => {
-    if (v.minimumExtensionVersion) {
+    if (v.minimumExtensionVersion !== null) {
       try {
         compareSemVerV1(v.minimumExtensionVersion, v.minimumExtensionVersion);
       } catch {
@@ -770,6 +770,8 @@ export async function listP3SelectableConfigReleases(
   if (
     !baseline ||
     !candidate ||
+    baseline.configVersion !== revision.baselineConfigVersion ||
+    candidate.configVersion !== revision.candidateConfigVersion ||
     baseline.contractVersion !== "control_plane_v1" ||
     baseline.snapshotVersion !== "bootstrap_snapshot_v1" ||
     baseline.envelopeVersion !== "bootstrap_envelope_v1" ||
@@ -857,11 +859,13 @@ export async function resolveP3BootstrapPolicy(
             subjectKind: configRollout.subjectKind,
             subjectId,
           });
-          selected = await catalog.findConfigRelease(
+          const selectedVersion =
             selectionMode === "BASELINE_ONLY" || !candidate
               ? revision.baselineConfigVersion!
-              : revision.candidateConfigVersion!,
-          );
+              : revision.candidateConfigVersion!;
+          selected = await catalog.findConfigRelease(selectedVersion);
+          if (selected && selected.configVersion !== selectedVersion)
+            return { failure: "CONFIG_SOURCE_INVALID" };
         }
       }
     }
@@ -884,6 +888,9 @@ export async function resolveP3BootstrapPolicy(
       catalog.listConfigFeatureRolloutRevisions(selected.configVersion),
     ]);
     const release = await catalog.findExtensionRelease(input.extensionVersion);
+    // Catalog lookup identity is exact, unlike SemVer precedence comparisons.
+    if (release && release.version !== input.extensionVersion)
+      return { failure: "COMPATIBILITY_SOURCE_INVALID" };
     const [contracts, browsers] = release
       ? await Promise.all([
           catalog.listReleaseContracts(release.id),
@@ -926,6 +933,7 @@ export async function resolveP3BootstrapPolicy(
             rule.minimumExtensionVersion,
           ) >= 0);
     }
+    const rolloutFeatures = new Set<string>();
     for (const revision of linkedRollouts) {
       if (
         revision.targetKind !== "FEATURE_RULE" ||
@@ -942,14 +950,21 @@ export async function resolveP3BootstrapPolicy(
       ]);
       if (
         !rollout ||
+        rollout.id !== revision.rolloutId ||
         rollout.targetKind !== "FEATURE_RULE" ||
         rollout.cohortSeed.length !== 32 ||
         !baseline ||
         !candidate ||
+        baseline.id !== revision.baselineFeatureRuleRevisionId ||
+        candidate.id !== revision.candidateFeatureRuleRevisionId ||
+        baseline.contractVersion !== input.contractVersion ||
+        candidate.contractVersion !== input.contractVersion ||
         baseline.featureKey !== candidate.featureKey ||
-        !rules.some((r) => r.id === baseline.id)
+        !rules.some((r) => r.id === baseline.id) ||
+        rolloutFeatures.has(baseline.featureKey)
       )
         return { failure: "FEATURE_SOURCE_INVALID" };
+      rolloutFeatures.add(baseline.featureKey);
       const subjectId =
         rollout.subjectKind === "ACCOUNT" ? input.accountId : input.deviceId;
       const selectedRule = selectRolloutCandidateV1({
