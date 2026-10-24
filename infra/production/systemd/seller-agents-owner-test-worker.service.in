@@ -1,0 +1,24 @@
+[Unit]
+Description=Octoport owner-test worker
+After=network.target
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+WorkingDirectory=@RELEASE_DIR@
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/seller-agents-owner-test/api.env
+ExecStart=@RELEASE_DIR@/.runtime/node @RELEASE_DIR@/apps/worker/node_modules/tsx/dist/cli.mjs @RELEASE_DIR@/apps/worker/dist/main.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
