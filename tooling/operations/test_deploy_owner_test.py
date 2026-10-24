@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
 from contextlib import ExitStack
 from unittest.mock import patch
 
@@ -1604,10 +1605,19 @@ class CurrentEvidenceAndBackupSafetyTests(unittest.TestCase):
         self.addCleanup(setattr,deploy,"BACKUPS",old)
         path=backups/"owner-test-safe.dump";path.write_bytes(b"backup-bytes");os.chmod(path,0o600)
         info={"path":str(path),"bytes":path.stat().st_size,"sha256":deploy.sha256(path)}
-        self.assertEqual(deploy.current_verify_backup_receipt(info),path)
-        wrong=dict(info,sha256="0"*64)
-        with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_INVALID"):
-            deploy.current_verify_backup_receipt(wrong)
+        real_stat=Path.stat
+        def synthetic_stat(candidate, *args, **kwargs):
+            value=real_stat(candidate,*args,**kwargs)
+            if candidate==path:
+                return SimpleNamespace(
+                    st_uid=0,st_gid=0,st_mode=value.st_mode,st_size=value.st_size
+                )
+            return value
+        with patch.object(Path,"stat",new=synthetic_stat):
+            self.assertEqual(deploy.current_verify_backup_receipt(info),path)
+            wrong=dict(info,sha256="0"*64)
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_INVALID"):
+                deploy.current_verify_backup_receipt(wrong)
         outside=self.root/"outside.dump";outside.write_bytes(b"backup-bytes");os.chmod(outside,0o600)
         wrong_path=dict(info,path=str(outside))
         with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_INVALID"):
@@ -1689,6 +1699,18 @@ class CurrentCliAuthorityTests(unittest.TestCase):
         deploy.CURRENT_AUTHORITY_FILE.write_text(json.dumps(value))
         os.chmod(deploy.CURRENT_AUTHORITY_FILE,0o600)
 
+    def root_owned_authority_metadata(self):
+        real_stat=Path.stat
+        authority=deploy.CURRENT_AUTHORITY_FILE
+        def synthetic_stat(path, *args, **kwargs):
+            value=real_stat(path,*args,**kwargs)
+            if path==authority:
+                return SimpleNamespace(
+                    st_uid=0,st_gid=0,st_mode=value.st_mode,st_size=value.st_size
+                )
+            return value
+        return patch.object(Path,"stat",new=synthetic_stat)
+
     def test_current_plan_is_read_only_route_without_live_authority(self):
         expected={
             "status":"CURRENT_FOUR_SERVICE_SOURCE_PLAN_PASS",
@@ -1720,7 +1742,7 @@ class CurrentCliAuthorityTests(unittest.TestCase):
     def test_current_apply_rejects_authority_bound_to_other_source(self):
         evidence=self.root/"evidence"
         self.write_authority(sha="d"*40)
-        with patch.object(deploy,"current_apply_engine") as engine,              patch.object(deploy,"current_trusted_evidence_root") as trusted:
+        with self.root_owned_authority_metadata(),              patch.object(deploy,"current_apply_engine") as engine,              patch.object(deploy,"current_trusted_evidence_root") as trusted:
             with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_INVALID"):
                 deploy.current_cli(self.argv("current-apply"))
         engine.assert_not_called()
@@ -1735,7 +1757,7 @@ class CurrentCliAuthorityTests(unittest.TestCase):
             self.assertTrue(create)
             evidence.mkdir(mode=0o700)
             return evidence
-        with patch.object(deploy,"current_trusted_evidence_root",side_effect=trusted_root) as trusted,              patch.object(deploy,"current_apply_engine",return_value=expected) as engine:
+        with self.root_owned_authority_metadata(),              patch.object(deploy,"current_trusted_evidence_root",side_effect=trusted_root) as trusted,              patch.object(deploy,"current_apply_engine",return_value=expected) as engine:
             result=deploy.current_cli(self.argv("current-apply"))
         trusted.assert_called_once_with(create=True)
         self.assertEqual(result["authorizationId"],"synthetic-test-authority")
@@ -1754,7 +1776,7 @@ class CurrentCliAuthorityTests(unittest.TestCase):
         evidence=self.root/"evidence";evidence.mkdir(mode=0o700)
         self.write_authority(modes=("recover",))
         expected={"status":"CURRENT_RECOVERY_PASS","recoveryRequired":False}
-        with patch.object(deploy,"current_trusted_evidence_root",return_value=evidence) as trusted,              patch.object(deploy,"current_recover_engine",return_value=expected) as engine:
+        with self.root_owned_authority_metadata(),              patch.object(deploy,"current_trusted_evidence_root",return_value=evidence) as trusted,              patch.object(deploy,"current_recover_engine",return_value=expected) as engine:
             result=deploy.current_cli(self.argv("current-recover"))
         trusted.assert_called_once_with(create=False)
         self.assertEqual(result["authorityMode"],"recover")
