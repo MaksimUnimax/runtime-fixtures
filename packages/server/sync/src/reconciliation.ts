@@ -379,6 +379,7 @@ export function applyStoreMetadataEntry({
   const desired = storeStateFromEntry(entry);
   if (
     !desired.storeId ||
+    entry.entityId !== `store:${desired.storeId}` ||
     !["ozon", "wildberries"].includes(desired.marketplace) ||
     !desired.name ||
     !Number.isSafeInteger(desired.metadataRevision) ||
@@ -396,6 +397,19 @@ export function applyStoreMetadataEntry({
       serverRevision: serverRevision + 1,
       serverState: desired as unknown as SyncPayload,
       code: null,
+    };
+  // A durable store entity must not be rewritten as a different store,
+  // marketplace, or non-store payload, even when the base revision matches.
+  if (
+    !["STORE_UPSERT", "STORE_TOMBSTONE"].includes(current.kind) ||
+    current.storeId !== desired.storeId ||
+    current.marketplace !== desired.marketplace
+  )
+    return {
+      outcome: "CONFLICT",
+      serverRevision,
+      serverState: current,
+      code: "STORE_METADATA_INVALID",
     };
   if (current.lifecycleState === "TOMBSTONED")
     return {
