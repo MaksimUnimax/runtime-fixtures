@@ -316,4 +316,39 @@ describe("B2 feedback/support API", () => {
       await server.close();
     }
   });
+
+  it("denies support admin mutations without a valid CSRF token", async () => {
+    const trackedRepository = repository();
+    const statusWrite = vi.spyOn(trackedRepository, "transitionCase");
+    const followupWrite = vi.spyOn(trackedRepository, "addFollowup");
+    const server = app(trackedRepository);
+    try {
+      const noCsrf = await server.inject({
+        method: "POST",
+        url: "/v1/admin/support/cases/" + caseId + "/status",
+        headers: { cookie: "pcp_admin_session=admin-session" },
+        payload: { status: "TRIAGED" },
+      });
+      expect(noCsrf.statusCode).toBe(403);
+      expect(noCsrf.json().error.code).toBe("ADMIN_CSRF_INVALID");
+
+      const mismatchedCsrf = await server.inject({
+        method: "POST",
+        url: "/v1/admin/support/cases/" + caseId + "/followups",
+        headers: {
+          cookie:
+            "pcp_admin_session=admin-session; pcp_admin_csrf=" + portalCsrf,
+          "x-csrf-token": "wrong-csrf-proof",
+        },
+        payload: { description: "Safe synthetic follow-up" },
+      });
+      expect(mismatchedCsrf.statusCode).toBe(403);
+      expect(mismatchedCsrf.json().error.code).toBe("ADMIN_CSRF_INVALID");
+
+      expect(statusWrite).not.toHaveBeenCalled();
+      expect(followupWrite).not.toHaveBeenCalled();
+    } finally {
+      await server.close();
+    }
+  });
 });
