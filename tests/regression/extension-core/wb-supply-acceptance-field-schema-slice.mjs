@@ -107,7 +107,16 @@ assert.equal(
 assert.equal(slice.sources.fbsSupply.fields.done.unit, "boolean");
 assert.equal(
   slice.sources.fbsSupplyOrderIds.fields.orderIds.unit,
-  "identifier_array",
+  "identifier_array_or_null",
+);
+assert.equal(
+  slice.officialSchemaReadback.nullableFields.orderIds.nullable,
+  true,
+);
+assert.equal(slice.officialSchemaReadback.liveValues, false);
+assert.equal(
+  slice.officialSchemaReadback.documentSha256,
+  "c04a6c7f5f18960e0b24d624c5b0b04e9267ed4d1325de32551d4cc036db624f",
 );
 const cap08 = scenarios.get("CAP-08");
 assert.ok(cap08, "CAP-08 missing");
@@ -214,6 +223,30 @@ assert.deepEqual(
 assert.deepEqual(
   summarizeReport(c.prematureDownload.statuses, c.prematureDownload.rows),
   c.prematureDownload.expected,
+);
+
+// A nullable membership array is unknown, not an empty accepted supply.
+for (const ids of [null, undefined]) {
+  assert.deepEqual(
+    summarizeFbs({ id: "WB-GI-NULLABLE-CONTROL", done: false }, ids),
+    {
+      status: "INCOMPLETE",
+      reason: "FBS_ORDER_IDS_INVALID",
+    },
+  );
+}
+assert.deepEqual(summarizeFbs({ id: "WB-GI-EMPTY-CONTROL", done: false }, []), {
+  status: "PASS",
+  closed: false,
+  orderCount: 0,
+  acceptedUnits: null,
+});
+assert.deepEqual(
+  summarizeFbw(c.fbw.supply, [{ barcode: "sku-null", acceptedQuantity: null }]),
+  {
+    status: "INCOMPLETE",
+    reason: "GOODS_ACCEPTED_QUANTITY_INVALID",
+  },
 );
 
 assert.equal(
