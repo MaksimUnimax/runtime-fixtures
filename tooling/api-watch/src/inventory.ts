@@ -423,7 +423,11 @@ function parametersFingerprint(
           .sort(([a], [b]) => compareCodeUnits(a, b)),
       );
     })
-    .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
+    // Sort by the same semantic representation used for the final hash. Raw
+    // nested key/annotation/enum order must not reorder distinct parameters.
+    .map((value) => ({ value, key: JSON.stringify(canonical(value)) }))
+    .sort((a, b) => compareCodeUnits(a.key, b.key))
+    .map(({ value }) => value);
   return fingerprint(projected);
 }
 
