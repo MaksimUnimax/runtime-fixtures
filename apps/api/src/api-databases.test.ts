@@ -8,8 +8,8 @@ import { createApiDatabases } from "./api-databases.js";
 const applicationUrl = "postgres://application:fixture@127.0.0.1:5432/test";
 const transferUrl = "postgres://transfer:fixture@127.0.0.1:5432/test";
 const monitorUrl =
-  "postgres://monitor_reader:fixture@127.0.0.1:5432/octoport_monitor_pilot";
-const monitorRole = "monitor_reader";
+  "postgres://octoport_monitor_pilot:fixture@127.0.0.1:5432/octoport_monitor_pilot";
+const monitorRole = "octoport_monitor_pilot";
 
 describe("API database role separation", () => {
   it("routes actual main wiring to distinct pools", async () => {
@@ -240,19 +240,23 @@ describe("API database role separation", () => {
     [undefined, monitorRole],
     [applicationUrl, "application"],
     [transferUrl, "transfer"],
-    ["postgres://monitor_reader:fixture@127.0.0.1:5432/test", monitorRole],
+    ["postgres://octoport_monitor_pilot:fixture@127.0.0.1:5432/test", monitorRole],
     [
       "postgres://application:fixture@127.0.0.1:5432/octoport_monitor_pilot",
       "application",
     ],
     [
-      "postgres://monitor_reader:fixture@127.0.0.1:5432/octoport_monitor_pilot?options=-c%20statement_timeout%3D0",
+      "postgres://octoport_monitor_pilot:fixture@127.0.0.1:5432/octoport_monitor_pilot?options=-c%20statement_timeout%3D0",
       monitorRole,
     ],
     [monitorUrl, "other_reader"],
+    [
+      "postgres://octoport_monitor_reader:fixture@127.0.0.1:5432/octoport_monitor_pilot",
+      "octoport_monitor_reader",
+    ],
     [monitorUrl + "#fragment", monitorRole],
     [
-      "https://monitor_reader:fixture@127.0.0.1:5432/octoport_monitor_pilot",
+      "https://octoport_monitor_pilot:fixture@127.0.0.1:5432/octoport_monitor_pilot",
       monitorRole,
     ],
   ])(

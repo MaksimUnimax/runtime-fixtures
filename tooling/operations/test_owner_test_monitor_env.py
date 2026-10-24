@@ -48,10 +48,10 @@ class MonitorEnvProvisionerTests(unittest.TestCase):
         )
         self.payload = {
             "MONITOR_HEALTH_READ_DATABASE_URL": (
-                "postgres://octoport_monitor_reader:%25secret@example.invalid/"
+                "postgres://octoport_monitor_pilot:%25secret@example.invalid/"
                 "octoport_monitor_pilot?sslmode=require"
             ),
-            "MONITOR_HEALTH_READ_EXPECTED_ROLE": "octoport_monitor_reader",
+            "MONITOR_HEALTH_READ_EXPECTED_ROLE": "octoport_monitor_pilot",
         }
 
     def state(self):
@@ -113,7 +113,7 @@ class MonitorEnvProvisionerTests(unittest.TestCase):
         installed_bytes = target.read_bytes()
         changed = dict(self.payload)
         changed["MONITOR_HEALTH_READ_DATABASE_URL"] = (
-            "postgres://octoport_monitor_reader:changed@example.invalid/"
+            "postgres://octoport_monitor_pilot:changed@example.invalid/"
             "octoport_monitor_pilot?sslmode=require"
         )
         target.write_bytes(monitor.render_monitor_env(changed))
@@ -132,7 +132,7 @@ class MonitorEnvProvisionerTests(unittest.TestCase):
         target = self.root / "api-monitor.env"
         changed = dict(self.payload)
         changed["MONITOR_HEALTH_READ_DATABASE_URL"] = (
-            "postgres://octoport_monitor_reader:changed@example.invalid/"
+            "postgres://octoport_monitor_pilot:changed@example.invalid/"
             "octoport_monitor_pilot?sslmode=require"
         )
         changed_bytes = monitor.render_monitor_env(changed)
@@ -195,6 +195,14 @@ class MonitorEnvProvisionerTests(unittest.TestCase):
             {**self.payload, "MONITOR_HEALTH_READ_EXPECTED_ROLE": "bad-role!"},
             {
                 **self.payload,
+                "MONITOR_HEALTH_READ_EXPECTED_ROLE": "octoport_monitor_reader",
+                "MONITOR_HEALTH_READ_DATABASE_URL": (
+                    "postgres://octoport_monitor_reader@example.invalid/"
+                    "octoport_monitor_pilot"
+                ),
+            },
+            {
+                **self.payload,
                 "MONITOR_HEALTH_READ_DATABASE_URL": (
                     "postgres://other@example.invalid/octoport_monitor_pilot"
                 ),
@@ -202,13 +210,13 @@ class MonitorEnvProvisionerTests(unittest.TestCase):
             {
                 **self.payload,
                 "MONITOR_HEALTH_READ_DATABASE_URL": (
-                    "postgres://octoport_monitor_reader@example.invalid/product_db"
+                    "postgres://octoport_monitor_pilot@example.invalid/product_db"
                 ),
             },
             {
                 **self.payload,
                 "MONITOR_HEALTH_READ_DATABASE_URL": (
-                    "https://octoport_monitor_reader@example.invalid/octoport_monitor_pilot"
+                    "https://octoport_monitor_pilot@example.invalid/octoport_monitor_pilot"
                 ),
             },
         ]
@@ -288,7 +296,7 @@ class MonitorEnvProvisionerTests(unittest.TestCase):
     def test_render_escapes_quote_and_backslash_without_new_keys(self):
         payload = dict(self.payload)
         payload["MONITOR_HEALTH_READ_DATABASE_URL"] = (
-            'postgres://octoport_monitor_reader:p%5Cq%22@example.invalid/'
+            'postgres://octoport_monitor_pilot:p%5Cq%22@example.invalid/'
             'octoport_monitor_pilot?x=\\\\"'
         )
         rendered = monitor.render_monitor_env(payload)
