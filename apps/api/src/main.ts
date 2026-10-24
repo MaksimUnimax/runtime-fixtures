@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createApiCleanup } from "./api-cleanup.js";
+import { createUnavailableHealthReadDependencies } from "./health-unavailable-read.js";
 import { createApiDatabases } from "./api-databases.js";
 import { createCredentialTransferApiAdmission } from "./credential-transfer-admission.js";
 import { createMaintenanceCredentialFileStore } from "./maintenance-credential-file.js";
@@ -88,11 +89,14 @@ import { sellerAgentsCommercialModeFromEnvironment } from "@product/entitlements
 const config = loadConfig(process.env);
 const commercialModeEnabled =
   sellerAgentsCommercialModeFromEnvironment(process.env) === "ENABLED";
-const { database, transferDatabase, closeDatabases } = await createApiDatabases(
-  config.databaseUrl,
-  process.env.CREDENTIAL_TRANSFER_DATABASE_URL,
-  createDatabaseRuntime,
-);
+const { database, transferDatabase, healthReadDatabase, closeDatabases } =
+  await createApiDatabases(
+    config.databaseUrl,
+    process.env.CREDENTIAL_TRANSFER_DATABASE_URL,
+    createDatabaseRuntime,
+    process.env.MONITOR_HEALTH_READ_DATABASE_URL,
+    process.env.MONITOR_HEALTH_READ_EXPECTED_ROLE,
+  );
 const transferFence = createCredentialTransferEpochFence(
   transferDatabase,
   randomUUID(),
@@ -147,6 +151,12 @@ const transferService = new CredentialTransferService(
   undefined,
   () => transferAdmission.isReady(),
 );
+// Always register the *known read-only* Health routes. Without the separately
+// provisioned monitor reader they still require product-admin permissions and
+// report typed unavailability instead of an ambiguous unmatched-route 404.
+const unavailableHealth = !healthReadDatabase
+  ? createUnavailableHealthReadDependencies()
+  : undefined;
 const app = createApiApp({
   config,
   isInfrastructureReady: async () =>
@@ -241,11 +251,20 @@ const app = createApiApp({
   feedbackSupportService: new FeedbackSupportService(
     createFeedbackSupportRepository(database),
   ),
-  healthAdminService: createHealthAdminReadRepository(database),
-  healthNotificationAdminService:
-    createHealthNotificationAdminReadRepository(database),
-  healthDiagnosticsService: createHealthDiagnosticsReadRepository(database),
-  healthRepairAdminService: createMonitorProfileRepairReadRepository(database),
+  // Product admin/session authorization remains on the product database.
+  // The monitor reader is independent; the fallback never queries any DB.
+  healthAdminService: healthReadDatabase
+    ? createHealthAdminReadRepository(healthReadDatabase)
+    : unavailableHealth?.healthAdminService,
+  healthNotificationAdminService: healthReadDatabase
+    ? createHealthNotificationAdminReadRepository(healthReadDatabase)
+    : unavailableHealth?.healthNotificationAdminService,
+  healthDiagnosticsService: healthReadDatabase
+    ? createHealthDiagnosticsReadRepository(healthReadDatabase)
+    : unavailableHealth?.healthDiagnosticsService,
+  healthRepairAdminService: healthReadDatabase
+    ? createMonitorProfileRepairReadRepository(healthReadDatabase)
+    : unavailableHealth?.healthRepairAdminService,
 });
 app.addHook("onClose", async () => {
   transferAdmission.stop();

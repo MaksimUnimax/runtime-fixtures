@@ -7,6 +7,9 @@ import { createApiDatabases } from "./api-databases.js";
 
 const applicationUrl = "postgres://application:fixture@127.0.0.1:5432/test";
 const transferUrl = "postgres://transfer:fixture@127.0.0.1:5432/test";
+const monitorUrl =
+  "postgres://monitor_reader:fixture@127.0.0.1:5432/octoport_monitor_pilot";
+const monitorRole = "monitor_reader";
 
 describe("API database role separation", () => {
   it("routes actual main wiring to distinct pools", async () => {
@@ -40,9 +43,19 @@ describe("API database role separation", () => {
     }).outputText;
     const application = { close: vi.fn(async () => {}) };
     const transfer = { close: vi.fn(async () => {}) };
+    const monitor = { close: vi.fn(async () => {}) };
     const factory = vi.fn((url: string) =>
-      url === applicationUrl ? application : transfer,
+      url === applicationUrl
+        ? application
+        : url === transferUrl
+          ? transfer
+          : monitor,
     );
+    const adminRead = vi.fn(() => ({}));
+    const notificationRead = vi.fn(() => ({}));
+    const diagnosticsRead = vi.fn(() => ({}));
+    const repairRead = vi.fn(() => ({}));
+    const productAdmin = vi.fn(() => ({}));
     const fence = {};
     const makeFence = vi.fn((_database: unknown, _instance: string) => fence);
     const makeAdmission = vi.fn((_database: unknown, _fence: unknown) => ({
@@ -66,17 +79,168 @@ describe("API database role separation", () => {
       createCredentialTransferEpochFence: makeFence,
       createCredentialTransferApiAdmission: makeAdmission,
       createDeviceManagementRepository: deviceRepository,
+      createHealthAdminReadRepository: adminRead,
+      createHealthNotificationAdminReadRepository: notificationRead,
+      createHealthDiagnosticsReadRepository: diagnosticsRead,
+      createMonitorProfileRepairReadRepository: repairRead,
+      createAdminAuthRepository: productAdmin,
       createApiApp: () => app,
       loadConfig: () => ({ databaseUrl: applicationUrl }),
-      process: { env: { CREDENTIAL_TRANSFER_DATABASE_URL: transferUrl } },
+      process: {
+        env: {
+          CREDENTIAL_TRANSFER_DATABASE_URL: transferUrl,
+          MONITOR_HEALTH_READ_DATABASE_URL: monitorUrl,
+          MONITOR_HEALTH_READ_EXPECTED_ROLE: monitorRole,
+        },
+      },
     });
     await runInNewContext(`(async () => { ${output} })()`, context, {
       timeout: 1_000,
     });
-    expect(factory.mock.calls).toEqual([[applicationUrl], [transferUrl]]);
+    expect(factory.mock.calls).toEqual([
+      [applicationUrl],
+      [transferUrl],
+      [monitorUrl],
+    ]);
     expect(makeFence.mock.calls[0]?.[0]).toBe(transfer);
     expect(makeAdmission.mock.calls[0]).toEqual([transfer, fence]);
     expect(deviceRepository).toHaveBeenCalledWith(application);
+    expect(productAdmin).toHaveBeenCalledWith(application);
+    for (const reader of [
+      adminRead,
+      notificationRead,
+      diagnosticsRead,
+      repairRead,
+    ])
+      expect(reader).toHaveBeenCalledWith(monitor);
+  });
+
+  it("does not open a monitor read pool or silently use the product database when unconfigured", async () => {
+    const application = { close: vi.fn(async () => {}) };
+    const transfer = { close: vi.fn(async () => {}) };
+    const factory = vi.fn((url: string) =>
+      url === applicationUrl ? application : transfer,
+    );
+    const pools = await createApiDatabases(
+      applicationUrl,
+      transferUrl,
+      factory,
+    );
+    expect(pools.healthReadDatabase).toBeUndefined();
+    expect(factory.mock.calls).toEqual([[applicationUrl], [transferUrl]]);
+    await pools.closeDatabases();
+    expect(application.close).toHaveBeenCalledTimes(1);
+    expect(transfer.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a separate monitor-only reader and closes all three pools once", async () => {
+    const runtimes = new Map(
+      [applicationUrl, transferUrl, monitorUrl].map((url) => [
+        url,
+        { close: vi.fn(async () => {}) },
+      ]),
+    );
+    const factory = vi.fn((url: string) => {
+      const runtime = runtimes.get(url);
+      if (!runtime) throw new Error("unexpected fixture url");
+      return runtime;
+    });
+    const pools = await createApiDatabases(
+      applicationUrl,
+      transferUrl,
+      factory,
+      monitorUrl,
+      monitorRole,
+    );
+    expect(pools.database).toBe(runtimes.get(applicationUrl));
+    expect(pools.transferDatabase).toBe(runtimes.get(transferUrl));
+    expect(pools.healthReadDatabase).toBe(runtimes.get(monitorUrl));
+    const first = pools.closeDatabases();
+    expect(pools.closeDatabases()).toBe(first);
+    await first;
+    for (const runtime of runtimes.values())
+      expect(runtime.close).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [monitorUrl, undefined],
+    [undefined, monitorRole],
+    [applicationUrl, "application"],
+    [transferUrl, "transfer"],
+    ["postgres://monitor_reader:fixture@127.0.0.1:5432/test", monitorRole],
+    [
+      "postgres://application:fixture@127.0.0.1:5432/octoport_monitor_pilot",
+      "application",
+    ],
+    [
+      "postgres://monitor_reader:fixture@127.0.0.1:5432/octoport_monitor_pilot?options=-c%20statement_timeout%3D0",
+      monitorRole,
+    ],
+    [monitorUrl, "other_reader"],
+    [monitorUrl + "#fragment", monitorRole],
+    [
+      "https://monitor_reader:fixture@127.0.0.1:5432/octoport_monitor_pilot",
+      monitorRole,
+    ],
+  ])(
+    "fails closed before allocation on incomplete or unsafe monitor reader configuration %s",
+    async (url, role) => {
+      const factory = vi.fn(() => ({ close: vi.fn(async () => {}) }));
+      await expect(
+        createApiDatabases(applicationUrl, transferUrl, factory, url, role),
+      ).rejects.toThrow("API_DATABASE_ROLE_OR_ENDPOINT_SEPARATION_REQUIRED");
+      expect(factory).not.toHaveBeenCalled();
+    },
+  );
+
+  it("closes both previously opened pools if monitor reader allocation fails", async () => {
+    const application = { close: vi.fn(async () => {}) };
+    const transfer = { close: vi.fn(async () => {}) };
+    // The failed driver may embed the URI and password in its error.
+    const failure = new Error("reader allocation: " + monitorUrl);
+    await expect(
+      createApiDatabases(
+        applicationUrl,
+        transferUrl,
+        (url) => {
+          if (url === applicationUrl) return application;
+          if (url === transferUrl) return transfer;
+          throw failure;
+        },
+        monitorUrl,
+        monitorRole,
+      ),
+    ).rejects.toThrow("MONITOR_HEALTH_READ_DATABASE_SETUP_FAILED");
+    expect(application.close).toHaveBeenCalledOnce();
+    expect(transfer.close).toHaveBeenCalledOnce();
+  });
+
+  it("redacts configured monitor close errors without changing two-pool behavior", async () => {
+    const application = { close: vi.fn(async () => {}) };
+    const transfer = { close: vi.fn(async () => {}) };
+    const monitor = {
+      close: vi.fn(async () => {
+        throw new Error("sensitive monitor URI: " + monitorUrl);
+      }),
+    };
+    const pools = await createApiDatabases(
+      applicationUrl,
+      transferUrl,
+      (url) =>
+        url === applicationUrl
+          ? application
+          : url === transferUrl
+            ? transfer
+            : monitor,
+      monitorUrl,
+      monitorRole,
+    );
+    await expect(pools.closeDatabases()).rejects.toThrow(
+      "MONITOR_HEALTH_READ_DATABASE_CLOSE_FAILED",
+    );
+    expect(application.close).toHaveBeenCalledOnce();
+    expect(transfer.close).toHaveBeenCalledOnce();
+    expect(monitor.close).toHaveBeenCalledOnce();
   });
 
   it.each([
