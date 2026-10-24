@@ -13,6 +13,7 @@ type Failure =
   | "arrayAccessStatus"
   | "wrongSubscriptionAccount"
   | "badAccessReason"
+  | "badBillingMarker"
   | "badSubscriptionContract"
   | "badPriceContract"
   | "badPaymentContract"
@@ -177,121 +178,130 @@ async function install(
                                   reason: "NOT_A_REASON",
                                 },
                               }
-                            : failure === "badSubscriptionContract" &&
-                                !isPayment
+                            : failure === "badBillingMarker" && !isPayment
                               ? {
                                   ...goodSubscription,
-                                  subscription: {
-                                    ...goodSubscription.subscription,
-                                    id: "not-a-uuid",
-                                    state: "ANY",
-                                    stateRevision: 0,
-                                    currentPeriodStart: "not-a-date",
-                                    cancelAtPeriodEnd: null,
+                                  billing: {
+                                    ...goodSubscription.billing,
+                                    purchaseStatus: "AVAILABLE",
                                   },
                                 }
-                              : failure === "badPriceContract" && !isPayment
+                              : failure === "badSubscriptionContract" &&
+                                  !isPayment
                                 ? {
                                     ...goodSubscription,
                                     subscription: {
                                       ...goodSubscription.subscription,
-                                      price: {
-                                        priceRevisionId: "not-a-uuid",
-                                        amountMinor: -1,
-                                        currency: "x",
-                                        billingInterval: {
-                                          unit: "WEEK",
-                                          count: 0,
-                                        },
-                                      },
+                                      id: "not-a-uuid",
+                                      state: "ANY",
+                                      stateRevision: 0,
+                                      currentPeriodStart: "not-a-date",
+                                      cancelAtPeriodEnd: null,
                                     },
                                   }
-                                : failure === "badPaymentContract" && isPayment
+                                : failure === "badPriceContract" && !isPayment
                                   ? {
-                                      payments: [
-                                        {
-                                          ...goodPayments.payments[0],
-                                          id: "x",
-                                          state: "NOT_A_STATE",
+                                      ...goodSubscription,
+                                      subscription: {
+                                        ...goodSubscription.subscription,
+                                        price: {
+                                          priceRevisionId: "not-a-uuid",
                                           amountMinor: -1,
                                           currency: "x",
-                                          priceRevisionId: "x",
-                                          createdAt: "not-a-date",
+                                          billingInterval: {
+                                            unit: "WEEK",
+                                            count: 0,
+                                          },
                                         },
-                                      ],
-                                      nextCursor: null,
+                                      },
                                     }
-                                  : failure === "badPaymentPlan" && isPayment
+                                  : failure === "badPaymentContract" &&
+                                      isPayment
                                     ? {
                                         payments: [
                                           {
                                             ...goodPayments.payments[0],
-                                            plan: {
-                                              planCode: "",
-                                              planRevision: 0,
-                                              displayName: "bad",
-                                            },
-                                            billingInterval: {
-                                              unit: "WEEK",
-                                              count: 0,
-                                            },
+                                            id: "x",
+                                            state: "NOT_A_STATE",
+                                            amountMinor: -1,
+                                            currency: "x",
+                                            priceRevisionId: "x",
+                                            createdAt: "not-a-date",
                                           },
                                         ],
                                         nextCursor: null,
                                       }
-                                    : failure === "badPaymentWrapper" &&
-                                        isPayment
+                                    : failure === "badPaymentPlan" && isPayment
                                       ? {
-                                          payments: goodPayments.payments,
-                                          nextCursor: "not-a-uuid",
-                                        }
-                                      : failure === "badUuidContract" &&
-                                          !isPayment
-                                        ? {
-                                            ...goodSubscription,
-                                            subscription: {
-                                              ...goodSubscription.subscription,
-                                              id: "00000000-0000-0000-0000-000000000001",
+                                          payments: [
+                                            {
+                                              ...goodPayments.payments[0],
+                                              plan: {
+                                                planCode: "",
+                                                planRevision: 0,
+                                                displayName: "bad",
+                                              },
+                                              billingInterval: {
+                                                unit: "WEEK",
+                                                count: 0,
+                                              },
                                             },
+                                          ],
+                                          nextCursor: null,
+                                        }
+                                      : failure === "badPaymentWrapper" &&
+                                          isPayment
+                                        ? {
+                                            payments: goodPayments.payments,
+                                            nextCursor: "not-a-uuid",
                                           }
-                                        : failure === "badCalendarDate" &&
+                                        : failure === "badUuidContract" &&
                                             !isPayment
                                           ? {
                                               ...goodSubscription,
                                               subscription: {
                                                 ...goodSubscription.subscription,
-                                                currentPeriodStart:
-                                                  "2026-02-30T00:00:00Z",
+                                                id: "00000000-0000-0000-0000-000000000001",
                                               },
                                             }
-                                          : failure === "minuteDateTime" &&
+                                          : failure === "badCalendarDate" &&
                                               !isPayment
                                             ? {
                                                 ...goodSubscription,
                                                 subscription: {
                                                   ...goodSubscription.subscription,
                                                   currentPeriodStart:
-                                                    "2026-10-01T00:00Z",
-                                                  currentPeriodEnd:
-                                                    "2026-11-01T00:00+05:30",
+                                                    "2026-02-30T00:00:00Z",
                                                 },
                                               }
                                             : failure === "minuteDateTime" &&
-                                                isPayment
+                                                !isPayment
                                               ? {
-                                                  ...goodPayments,
-                                                  payments:
-                                                    goodPayments.payments.map(
-                                                      (payment) => ({
-                                                        ...payment,
-                                                        createdAt:
-                                                          "2026-10-01T00:00Z",
-                                                      }),
-                                                    ),
+                                                  ...goodSubscription,
+                                                  subscription: {
+                                                    ...goodSubscription.subscription,
+                                                    currentPeriodStart:
+                                                      "2026-10-01T00:00Z",
+                                                    currentPeriodEnd:
+                                                      "2026-11-01T00:00+05:30",
+                                                  },
                                                 }
-                                              : isPayment
-                                                ? goodPayments
-                                                : goodSubscription;
+                                              : failure === "minuteDateTime" &&
+                                                  isPayment
+                                                ? {
+                                                    ...goodPayments,
+                                                    payments:
+                                                      goodPayments.payments.map(
+                                                        (payment) => ({
+                                                          ...payment,
+                                                          createdAt:
+                                                            "2026-10-01T00:00Z",
+                                                        }),
+                                                      ),
+                                                  }
+                                                : isPayment
+                                                  ? goodPayments
+                                                  : goodSubscription;
             const result = response(value);
             if (isPayment && deferPaymentBody) {
               const body = new Promise<unknown>((resolve) => {
@@ -521,6 +531,7 @@ test.describe("portal billing selected-account responses", () => {
     "arrayAccessStatus",
     "wrongSubscriptionAccount",
     "badAccessReason",
+    "badBillingMarker",
     "badSubscriptionContract",
     "badPriceContract",
     "badPaymentContract",

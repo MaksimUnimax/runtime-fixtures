@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { controlPlane } from "../../lib/control-plane";
+import { isDeferredBillingMarker } from "../../lib/billing-response";
 
 type Account = { id: string; displayName: string | null; status: string };
 type BillingInterval = { unit: "DAY" | "MONTH" | "YEAR"; count: number };
@@ -54,10 +55,6 @@ type SubscriptionData = {
     activeCount: number;
     remaining: number | null;
     overLimit: boolean;
-  };
-  billing: {
-    purchaseStatus: "UNAVAILABLE";
-    reason: "PAYMENT_GO_LIVE_DEFERRED";
   };
 };
 type Payment = {
@@ -180,10 +177,7 @@ function isSubscriptionData(
     !isNonnegativeSafeInteger(value.deviceAllowance.activeCount) ||
     !isNullableNonnegativeSafeInteger(value.deviceAllowance.remaining) ||
     typeof value.deviceAllowance.overLimit !== "boolean" ||
-    !isRecord(value.billing) ||
-    !exactKeys(value.billing, ["purchaseStatus", "reason"]) ||
-    value.billing.purchaseStatus !== "UNAVAILABLE" ||
-    value.billing.reason !== "PAYMENT_GO_LIVE_DEFERRED"
+    !isDeferredBillingMarker(value.billing)
   ) {
     return false;
   }
