@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ from unittest.mock import patch
 
 TARGET = Path(os.environ.get("OCTOPORT_DEPLOY_TEST_TARGET",
     str(Path(__file__).with_name("deploy_owner_test.py"))))
+sys.path.insert(0, str(TARGET.parent))
 spec = importlib.util.spec_from_file_location("deployment_under_test", TARGET)
 deploy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deploy)
@@ -823,3 +825,75 @@ class NativeServerOperationsCoverage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class CurrentFourServiceSourcePlanTests(unittest.TestCase):
+    """Pure source contract only: no systemd, DB, network or credentials."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="octoport-four-plan-")
+        self.addCleanup(self.temp.cleanup)
+        self.release = Path(self.temp.name) / ("a" * 40)
+        journal = self.release / "packages/server/db/drizzle/meta"
+        journal.mkdir(parents=True)
+        (journal / "_journal.json").write_text(json.dumps({
+            "entries": [
+                {"idx": 0, "tag": "0000_first"},
+                {"idx": 1, "tag": "0001_second"},
+                {"idx": 2, "tag": "0061_latest"},
+            ]
+        }))
+
+    def test_migration_target_is_derived_from_packaged_journal(self):
+        self.assertEqual(
+            deploy.migration_target_from_verified_release(self.release),
+            {"count": 3, "latestIndex": 2, "latestTag": "0061_latest"},
+        )
+
+    def test_migration_target_rejects_gaps_duplicates_and_symlink(self):
+        journal = self.release / deploy.MIGRATION_JOURNAL
+        bad = [
+            {"entries": [{"idx": 1, "tag": "bad"}]},
+            {"entries": [{"idx": 0, "tag": "same"}, {"idx": 1, "tag": "same"}]},
+            {"entries": []},
+        ]
+        for value in bad:
+            with self.subTest(value=value):
+                journal.write_text(json.dumps(value))
+                with self.assertRaisesRegex(RuntimeError, "MIGRATION_JOURNAL_INVALID"):
+                    deploy.migration_target_from_verified_release(self.release)
+        journal.unlink()
+        target = self.release / "outside.json"
+        target.write_text(json.dumps({"entries": [{"idx": 0, "tag": "ok"}]}))
+        journal.symlink_to(target)
+        with self.assertRaisesRegex(RuntimeError, "MIGRATION_JOURNAL_INVALID"):
+            deploy.migration_target_from_verified_release(self.release)
+
+    def test_four_service_plan_uses_compiled_entries_env_scope_and_identity_authority(self):
+        canonical = Path("/opt/octoport/ops-releases") / ("a" * 40)
+        with patch.object(
+            deploy,
+            "migration_target_from_verified_release",
+            return_value={"count": 3, "latestIndex": 2, "latestTag": "0061_latest"},
+        ):
+            plan = deploy.four_service_source_plan(canonical)
+        self.assertEqual(set(plan["services"]), {"api", "worker", "portal", "admin"})
+        api = plan["services"]["api"]
+        worker = plan["services"]["worker"]
+        admin = plan["services"]["admin"]
+        self.assertTrue(api["execArgv"][-1].endswith("/apps/api/dist/main.js"))
+        self.assertTrue(worker["execArgv"][-1].endswith("/apps/worker/dist/main.js"))
+        self.assertNotIn("/src/main.ts", " ".join(api["execArgv"] + worker["execArgv"]))
+        self.assertEqual(
+            api["environmentFiles"],
+            [
+                "/etc/seller-agents-owner-test/api.env",
+                "/etc/seller-agents-owner-test/api-monitor.env",
+            ],
+        )
+        self.assertEqual(worker["environmentFiles"], ["/etc/seller-agents-owner-test/api.env"])
+        self.assertEqual(admin["environmentFiles"], [])
+        self.assertEqual(admin["identity"], {"mode": "DYNAMIC_USER"})
+        identities = deploy.canonical_identities()
+        self.assertEqual(api["identity"]["user"], identities["api"]["user"])
+        self.assertEqual(plan["migrationTarget"]["count"], 3)
+        self.assertFalse(plan["liveMutationPerformed"])
