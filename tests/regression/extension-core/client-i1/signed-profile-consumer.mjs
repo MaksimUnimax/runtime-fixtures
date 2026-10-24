@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import { makeWorker } from "../worker-harness.mjs";
+import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const results = [];
@@ -228,6 +228,11 @@ await test("PROFILE-02A-Alice-current-authority-origin-refresh-and-receipt", asy
       "https://chat.openai.com/*",
       "https://alice.yandex.ru/*",
       "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://chat.deepseek.com/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
@@ -552,8 +557,18 @@ await test("PROFILE-08-failed-ensure-blocks-Start-and-Resume-before-legacy-actio
       const key = await worker.start();
       // Pause a real, unfinished Work through valid durable transitions.
       const active = await worker.call("workSessionFor", key);
-      const errored = await worker.call("mutateWorkSession", key, active.revision, "error");
-      const paused = await worker.call("mutateWorkSession", key, errored.revision, "inactive");
+      const errored = await worker.call(
+        "mutateWorkSession",
+        key,
+        active.revision,
+        "error",
+      );
+      const paused = await worker.call(
+        "mutateWorkSession",
+        key,
+        errored.revision,
+        "inactive",
+      );
       assert.equal(paused.work_session_id, active.work_session_id);
       assert.equal(paused.terminal_state_known, true);
       assert.equal(paused.finished, false);
@@ -598,6 +613,702 @@ await test("PROFILE-08-failed-ensure-blocks-Start-and-Resume-before-legacy-actio
     }
   }
 });
+
+const kimiScope = Object.freeze({
+  family: "kimi",
+  surface: "web",
+  variant: null,
+});
+const kimiIdentity = Object.freeze({
+  origin: "https://www.kimi.ai",
+  ai_id: "kimi",
+  conversation_id: "kimi-fixture-dialogue",
+  status: "confirmed",
+});
+function kimiSender(worker) {
+  const url = "https://www.kimi.ai/chat/kimi-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+function appliedReceipt(request, response) {
+  const { profileKey, revision, scopeVariant, contentSha256 } =
+    response.profile;
+  return {
+    messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+    protocolVersion: request.protocolVersion,
+    requestId: request.requestId,
+    ai: request.ai,
+    status: "APPLIED",
+    authority: response.authority,
+    profile: { profileKey, revision, scopeVariant, contentSha256 },
+  };
+}
+
+await test("PROFILE-09-Kimi-wire-request-response-receipt-mirror", async () => {
+  const worker = await makeWorker(runtime);
+  try {
+    // Wire validation is distinct from granting a verified Kimi worker profile.
+    const existing = await worker.request(requestFor(), trustedSender(worker));
+    assert.equal(existing.status, "AVAILABLE");
+    const request = requestFor("kimi");
+    const response = {
+      ...plain(existing),
+      requestId: request.requestId,
+      ai: request.ai,
+    };
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validRequest",
+        request,
+      ),
+      true,
+    );
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validReceipt",
+        appliedReceipt(request, response),
+      ),
+      true,
+    );
+    assert.equal(
+      await worker.call("SellerAgentsSignedAiProfileConsumer.validRequest", {
+        ...request,
+        ai: { ...request.ai, variant: "work" },
+      }),
+      false,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+await test("PROFILE-10-Kimi-exact-origin-and-current-tab-context", async () => {
+  const worker = await makeWorker(runtime);
+  try {
+    const sender = kimiSender(worker);
+    const alias = "https://kimi.ai/chat/kimi-fixture-dialogue";
+    const wrongOrigin = await worker.request(requestFor("kimi"), {
+      ...sender,
+      url: alias,
+      tab: { id: worker.tabId, url: alias },
+    });
+    assert.equal(wrongOrigin.ok, false);
+    assert.equal(wrongOrigin.code, "SIGNED_PROFILE_SENDER_UNTRUSTED");
+
+    const wrongIdentity = await worker.request(requestFor("kimi"), sender);
+    assert.equal(wrongIdentity.status, "UNAVAILABLE");
+    assert.equal(wrongIdentity.reason, "AI_SCOPE_MISMATCH");
+
+    worker.setIdentity(kimiIdentity);
+    const noKimiAuthority = await worker.request(requestFor("kimi"), sender);
+    assert.equal(noKimiAuthority.status, "UNAVAILABLE");
+    assert.equal(noKimiAuthority.reason, "NO_VERIFIED_AUTHORITY");
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", kimiIdentity),
+      false,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+await test("PROFILE-11-Kimi-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://www.kimi.ai/chat/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(kimiIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://chat.deepseek.com/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "kimi");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+await test("PROFILE-12-Kimi-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, kimiScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(kimiScope);
+      payload.entitlements["ai.kimi"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(kimiIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: kimiScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      kimiIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), kimiScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", kimiIdentity),
+      true,
+    );
+    const request = requestFor("kimi");
+    const response = await worker.request(request, kimiSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), kimiScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          kimiSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+const grokScope = Object.freeze({
+  family: "grok",
+  surface: "web",
+  variant: null,
+});
+const grokIdentity = Object.freeze({
+  origin: "https://grok.com",
+  ai_id: "grok",
+  conversation_id: "grok-fixture-dialogue",
+  status: "confirmed",
+});
+function grokSender(worker) {
+  const url = "https://grok.com/c/grok-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+await test("PROFILE-13-Grok-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, grokScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(grokScope);
+      payload.entitlements["ai.grok"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(grokIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: grokScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      grokIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), grokScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", grokIdentity),
+      true,
+    );
+    const request = requestFor("grok");
+    const response = await worker.request(request, grokSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), grokScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          grokSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+await test("PROFILE-14-Grok-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://grok.com/c/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(grokIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://chat.deepseek.com/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "grok");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+
+const geminiScope = Object.freeze({
+  family: "gemini",
+  surface: "web",
+  variant: null,
+});
+const geminiIdentity = Object.freeze({
+  origin: "https://gemini.google.com",
+  ai_id: "gemini",
+  conversation_id: "gemini-fixture-dialogue",
+  status: "confirmed",
+});
+function geminiSender(worker) {
+  const url = "https://gemini.google.com/app/gemini-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+await test("PROFILE-15-Gemini-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, geminiScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(geminiScope);
+      payload.entitlements["ai.gemini"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(geminiIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: geminiScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      geminiIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), geminiScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", geminiIdentity),
+      true,
+    );
+    const request = requestFor("gemini");
+    const response = await worker.request(request, geminiSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), geminiScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          geminiSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+
+await test("PROFILE-16-Gemini-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://gemini.google.com/app/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(geminiIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://chat.deepseek.com/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "gemini");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+const claudeScope = Object.freeze({
+  family: "claude",
+  surface: "web",
+  variant: null,
+});
+const claudeIdentity = Object.freeze({
+  origin: "https://claude.ai",
+  ai_id: "claude",
+  conversation_id: "claude-fixture-dialogue",
+  status: "confirmed",
+});
+function claudeSender(worker) {
+  const url = "https://claude.ai/chat/claude-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+await test("PROFILE-17-Claude-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, claudeScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(claudeScope);
+      payload.entitlements["ai.claude"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(claudeIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: claudeScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      claudeIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), claudeScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", claudeIdentity),
+      true,
+    );
+    const request = requestFor("claude");
+    const response = await worker.request(request, claudeSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), claudeScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          claudeSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+
+await test("PROFILE-18-Claude-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://claude.ai/chat/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(claudeIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://chat.deepseek.com/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "claude");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+const deepseekScope = Object.freeze({
+  family: "deepseek",
+  surface: "web",
+  variant: null,
+});
+const deepseekIdentity = Object.freeze({
+  origin: "https://chat.deepseek.com",
+  ai_id: "deepseek",
+  conversation_id: "deepseek-fixture-dialogue",
+  status: "confirmed",
+});
+function deepseekSender(worker) {
+  const url = "https://chat.deepseek.com/a/chat/s/deepseek-fixture-dialogue";
+  return { ...trustedSender(worker), url, tab: { id: worker.tabId, url } };
+}
+await test("PROFILE-19-DeepSeek-verified-bootstrap-response-and-applied-receipt", async () => {
+  let worker;
+  let bootstrapRequests = 0;
+  worker = await makeWorker(runtime, {
+    async fetch(url, init) {
+      assert.ok(
+        url.endsWith("/v1/bootstrap"),
+        "only the existing offline bootstrap fixture",
+      );
+      const body = JSON.parse(init.body);
+      assert.deepEqual(body.detectedAi, deepseekScope);
+      bootstrapRequests += 1;
+      const payload = plain(
+        worker.backing.local.seller_agents_control_auth_v2.authority.payload,
+      );
+      payload.ai.detected = plain(deepseekScope);
+      payload.entitlements["ai.deepseek"] = true;
+      return Response.json(await signFixtureBootstrap(worker.backing, payload));
+    },
+  });
+  try {
+    worker.setIdentity(deepseekIdentity);
+    // Use the existing signed fixture and public bootstrap API. No validation
+    // function is replaced and no family/authority gate is bypassed for this test.
+    await worker.call("SellerAgentsControlClient.bootstrap", {
+      detectedAi: deepseekScope,
+    });
+    assert.equal(bootstrapRequests, 1);
+    const authority = await worker.call(
+      "SellerAgentsControlClient.getAuthority",
+      deepseekIdentity,
+    );
+    assert.deepEqual(plain(authority.payload.ai.detected), deepseekScope);
+    assert.equal(
+      await worker.call("SellerAgentsControlClient.canWork", deepseekIdentity),
+      true,
+    );
+    const request = requestFor("deepseek");
+    const response = await worker.request(request, deepseekSender(worker));
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    assert.deepEqual(plain(response.ai), deepseekScope);
+    assert.equal(
+      await worker.call(
+        "SellerAgentsSignedAiProfileConsumer.validResponse",
+        response,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await worker.request(
+          appliedReceipt(request, response),
+          deepseekSender(worker),
+        )
+      ).accepted,
+      true,
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+
+await test("PROFILE-20-DeepSeek-refresh-routing-and-diagnostic-family", async () => {
+  const queries = [];
+  const worker = await makeWorker(runtime, {
+    tabsQuery(query) {
+      queries.push(plain(query));
+      return [
+        { id: 77, url: "https://chat.deepseek.com/chat/kimi-fixture-dialogue" },
+      ];
+    },
+  });
+  try {
+    worker.setIdentity(deepseekIdentity);
+    const before = worker.messages.length;
+    await worker.call("saBroadcastSignedProfileRefresh", "profile_changed");
+    assert.deepEqual(queries.at(-1).url, [
+      "https://chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://alice.yandex.ru/*",
+      "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://chat.deepseek.com/*",
+    ]);
+    const refreshes = worker.messages
+      .slice(before)
+      .filter((message) => message.type === "OZ_SIGNED_AI_PROFILE_REFRESH");
+    assert.equal(refreshes.length, 1);
+    assert.equal(refreshes[0].reason, "profile_changed");
+    const support = await worker.popup({
+      type: "SA_SUPPORT_SNAPSHOT",
+      tab_id: worker.tabId,
+    });
+    assert.equal(support.ok, true, JSON.stringify(support));
+    assert.equal(support.snapshot.page.aiFamily, "deepseek");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
 
 console.log(
   JSON.stringify({

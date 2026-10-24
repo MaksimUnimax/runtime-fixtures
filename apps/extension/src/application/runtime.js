@@ -1016,7 +1016,12 @@ async function saGuard(owner) {
 const SA_SIGNED_PROFILE_ORIGINS = Object.freeze({
   chatgpt: Object.freeze(["https://chatgpt.com", "https://chat.openai.com"]),
   alice: Object.freeze(["https://alice.yandex.ru"]),
-  qwen: Object.freeze(["https://chat.qwen.ai"])
+  qwen: Object.freeze(["https://chat.qwen.ai"]),
+  kimi: Object.freeze(["https://www.kimi.ai"]),
+  grok: Object.freeze(["https://grok.com"]),
+  gemini: Object.freeze(["https://gemini.google.com"]),
+  claude: Object.freeze(["https://claude.ai"]),
+  deepseek: Object.freeze(["https://chat.deepseek.com"])
 });
 function saSignedProfileOriginAllowed(family, origin) {
   const allowed = SA_SIGNED_PROFILE_ORIGINS[family];
@@ -1187,7 +1192,7 @@ async function saSignedProfileReceipt(message, sender) {
 async function saBroadcastSignedProfileRefresh(reason = "authority_changed") {
   const boundedReason = reason === "profile_changed" ? "profile_changed" : "authority_changed";
   const tabs = await chrome.tabs.query({
-    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*"]
+    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*", "https://www.kimi.ai/*", "https://grok.com/*", "https://gemini.google.com/*", "https://claude.ai/*", "https://chat.deepseek.com/*"]
   }).catch(() => []);
   await Promise.allSettled(tabs.filter(tab => Number.isSafeInteger(tab?.id))
     .map(tab => tabMessage(tab.id, { type: "OZ_SIGNED_AI_PROFILE_REFRESH", reason: boundedReason })));
@@ -1407,7 +1412,7 @@ async function saSupportSnapshot(tabId) {
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
   const detectedAiFamily = popup.identity?.ai_id || popup.page?.aiFamily;
-  const aiFamily = ["chatgpt", "alice", "qwen"].includes(detectedAiFamily) ? detectedAiFamily : null;
+  const aiFamily = ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(detectedAiFamily) ? detectedAiFamily : null;
   const lastStart = popup.lastStart || null;
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",
@@ -1777,14 +1782,19 @@ async function saHandleMessage(message, sender) {
         const baseline = message.chatgpt_user_baseline;
         if (baseline !== undefined && (!Array.isArray(baseline) || baseline.length > 4096 ||
           !Array.from(baseline).every(id => typeof id === "string" && id.length > 0 && id.length <= 512))) throw saError("DELIVERY_BASELINE_INVALID");
+        const observationEpoch = message.user_observation_epoch;
+        if (observationEpoch !== undefined && (typeof observationEpoch !== "string" ||
+          !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(observationEpoch))) throw saError("DELIVERY_BASELINE_INVALID");
         granted = true;
         committedDelivery = { ...owner.delivery, sa_send_actor: message.actor_id, sa_send_committed_at: Date.now(),
-          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null };
+          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null,
+          sa_user_observation_epoch: observationEpoch || null };
         return { ...owner, delivery: committedDelivery };
       });
       return { ok: true, click_allowed: granted, code: granted ? "SEND_COMMITTED" : "SEND_OUTCOME_UNKNOWN_NO_RETRY",
         send_click_committed: Boolean(committedDelivery?.sa_send_actor),
-        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null };
+        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null,
+        user_observation_epoch: typeof committedDelivery?.sa_user_observation_epoch === "string" ? committedDelivery.sa_user_observation_epoch : null };
     }
     if (message.type === "OZ_WORK_START") throw saError("STORE_SELECTION_REQUIRED");
     if (["OZ_WORK_SHOW", "OZ_WORK_HIDE", "OZ_WORK_FINISH", "OZ_WORK_REFRESH"].includes(message.type) && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");

@@ -287,7 +287,14 @@ function pickerFixture() {
   let connect, timerId = 0, epoch = 1, now = 1000, active = true, focused = true, uuid = 0;
   class Channel {
     constructor(name) { this.name = name; this.sent = []; channels.set(name, this); }
-    postMessage(data) { this.sent.push(structuredClone(data)); }
+    postMessage(data) {
+      // Node 22 clones a File as Blob. Browser BroadcastChannel preserves File
+      // metadata, so model that clone explicitly without sharing the object.
+      const cloned = structuredClone({ ...data, file: null });
+      if (data.file instanceof File) cloned.file = new File([data.file], data.file.name,
+        { type: data.file.type, lastModified: data.file.lastModified });
+      this.sent.push(cloned);
+    }
     close() { this.closed = true; }
   }
   const ctx = { File, BroadcastChannel: Channel, Date: { now: () => now },
@@ -331,7 +338,7 @@ function pickerFixture() {
     }
   };
 }
-await run("POPUP-FILE-RAM-RESTORE", "native File survives popup destruction and is restored once only to its original surface", async () => {
+await run("POPUP-FILE-RAM-RESTORE", "native File survives chooser closure and subsequent ordinary toolbar reopening within the original bounded draft", async () => {
   const f = pickerFixture(), first = await f.popup(), pick = await first.send("prepare");
   f.result(first, pick.pickId); await first.close();
   assert.equal(f.opens.length, 1); assert.equal(f.opens[0].windowId, 4);
@@ -339,9 +346,37 @@ await run("POPUP-FILE-RAM-RESTORE", "native File survives popup destruction and 
   const data = restored.channel.sent[0];
   assert.equal(data.file.name, "keys.json"); assert.equal(data.password, "synthetic-password");
   assert.equal(await data.file.text(), "synthetic");
-  await restored.send("restored", {pickId: data.pickId}); await restored.close();
+  await restored.send("restored", {pickId: data.pickId});
+  await restored.send("ready");
+  assert.equal(restored.channel.sent.length, 1, "ACK prevents a duplicate restore to the same popup");
+  await restored.close();
   const next = await f.popup(); await next.send("ready");
-  assert.equal(next.channel.sent.length, 0); assert.equal(f.opens.length, 1);
+  assert.equal(next.channel.sent.length, 1);
+  assert.equal(await next.channel.sent[0].file.text(), "synthetic", "actual File survives the next ordinary opening");
+  await next.send("restored", {pickId: data.pickId});
+  await restored.send("clear", {pickId: data.pickId});
+  await restored.send("restored", {pickId: data.pickId});
+  await next.close();
+  const third = await f.popup(); await third.send("ready");
+  assert.equal(await third.channel.sent[0].file.text(), "synthetic", "old holder cannot clear transferred File");
+  await third.send("restored", {pickId: data.pickId});
+  await third.send("clear", {pickId: data.pickId}); await third.close();
+  const cleared = await f.popup(); await cleared.send("ready");
+  assert.equal(cleared.channel.sent.length, 0, "current restored owner can clear its retained selection");
+  assert.equal(f.opens.length, 1, "ordinary close never causes repeated automatic popup opens");
+});
+await run("POPUP-FILE-RAM-RESTORED-EXPIRY", "restored ACK does not renew TTL or bypass an authorization change", async () => {
+  for (const invalidation of ["ttl", "auth"]) {
+    const f = pickerFixture(), first = await f.popup(), pick = await first.send("prepare");
+    f.result(first, pick.pickId); await first.close();
+    const second = await f.popup(); await second.send("ready");
+    await second.send("restored", {pickId: pick.pickId});
+    if (invalidation === "ttl") f.expire(60000); else f.invalidate();
+    await second.close();
+    const next = await f.popup(); await next.send("ready");
+    assert.equal(next.channel.sent.length, 0, invalidation);
+    assert.equal(f.opens.length, 1, invalidation);
+  }
 });
 await run("POPUP-FILE-RAM-LATE-RESULT", "queued File received after disconnect is retained without replay", async () => {
   const f = pickerFixture(), p = await f.popup(), pick = await p.send("prepare");

@@ -12,15 +12,17 @@ function inputFor(worker, overrides = {}) {
   const authority = auth.authority;
   const payload = authority.payload;
   const profile = payload.ai.profile;
+  const family = payload.ai.detected.family;
+  const origin = family === "kimi" ? "https://www.kimi.ai" : family === "grok" ? "https://grok.com" : family === "gemini" ? "https://gemini.google.com" : family === "deepseek" ? "https://chat.deepseek.com" : family === "claude" ? "https://claude.ai" : "https://chatgpt.com";
   const store = { accountId: payload.account.id, id: "c3c-store", marketplace: "ozon", credentialRevision: "credential-r1" };
-  const identity = { origin: "https://chatgpt.com", conversationId: "c3c-dialogue", key: "https://chatgpt.com|c3c-dialogue", provider: "chatgpt" };
-  const binding = { binding_id: "c3c-binding", revision: 2, origin: identity.origin, ai_id: "chatgpt", conversation_id: identity.conversationId, conversation_key: identity.key, store_context: { ...store, authGeneration: authority.generation } };
+  const identity = { origin, conversationId: "c3c-dialogue", key: origin + "|c3c-dialogue", provider: family };
+  const binding = { binding_id: "c3c-binding", revision: 2, origin: identity.origin, ai_id: family, conversation_id: identity.conversationId, conversation_key: identity.key, store_context: { ...store, authGeneration: authority.generation } };
   const current = {
     accountId: payload.account.id, expectedAccountId: payload.account.id,
     generation: authority.generation, expectedGeneration: authority.generation,
     deviceId: authority.deviceId, expectedDeviceId: authority.deviceId,
     sessionId: authority.sessionId, expectedSessionId: authority.sessionId,
-    aiFamily: "chatgpt", aiSurface: "web", aiVariant: null,
+    aiFamily: family, aiSurface: "web", aiVariant: null,
     aiProfile: { profileKey: profile.profileKey, revision: profile.revision, scopeVariant: profile.scopeVariant, contentSha256: profile.contentSha256 },
     origin: identity.origin, conversationId: identity.conversationId, conversationKey: identity.key,
     storeId: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision,
@@ -123,6 +125,61 @@ try {
     } finally { restarted.close(); }
   });
 } finally { if (worker) worker.close(); }
+
+// Kimi uses the ordinary signed offline fixture response and existing evaluator.
+// This is local functional context/lifecycle coverage, not provider activation.
+for (const family of ["kimi", "grok", "gemini", "claude", "deepseek"]) {
+for (const permission of [true, false, null]) {
+  const scope = { family, surface: "web", variant: null };
+  let kimi;
+  let requests = 0;
+  kimi = await makeWorker(runtime, { async fetch(url, init) {
+    assert.ok(url.endsWith("/v1/bootstrap"));
+    assert.deepEqual(JSON.parse(init.body).detectedAi, scope);
+    requests += 1;
+    const payload = clone(kimi.backing.local[AUTH].authority.payload);
+    payload.ai.detected = clone(scope);
+    if (permission === null) delete payload.entitlements["ai." + family];
+    else payload.entitlements["ai." + family] = permission;
+    return Response.json(await signFixtureBootstrap(kimi.backing, payload));
+  } });
+  try {
+    kimi.setIdentity({ origin: family === "kimi" ? "https://www.kimi.ai" : family === "grok" ? "https://grok.com" : family === "deepseek" ? "https://chat.deepseek.com" : family === "claude" ? "https://claude.ai" : "https://gemini.google.com", ai_id: family, conversation_id: "c3c-dialogue", status: "confirmed" });
+    await kimi.call("SellerAgentsControlClient.bootstrap", { detectedAi: scope });
+    assert.equal(requests, 1);
+    const base = inputFor(kimi);
+    for (const operation of ["START", "CONTINUE", "RESUME", "REBIND"]) {
+      await run("C3C-" + family.toUpperCase() + "-" + operation + "-permission-" + permission, async () => {
+        const input = { ...base, operation };
+        const result = await kimi.call("SellerAgentsAutonomousWorkAuthority.evaluate", input);
+        assert.equal(result.allowed, permission === true, JSON.stringify(result));
+        assert.equal(result.executionAuthority, false);
+        assert.equal(result.gates.signedBootstrap, true);
+        assert.equal(result.gates.pageIdentity, true);
+        assert.equal(result.gates.aiProfile, true);
+        assert.equal(result.gates.aiProfileContent, true);
+        if (permission !== true) assert.ok(result.deniedGates.includes("DENY_CAPABILITY"));
+      });
+    }
+    if (permission === true) {
+      await run("C3C-" + family.toUpperCase() + "-offline-grace", async () => {
+        const value = await signAuthority(kimi, base, { expiresAt: new Date(base.effectiveTimeMs - 1).toISOString(), offlineGraceUntil: new Date(base.effectiveTimeMs + 60000).toISOString() });
+        const result = await kimi.call("SellerAgentsAutonomousWorkAuthority.evaluate", value);
+        assert.equal(result.allowed, true, JSON.stringify(result));
+        assert.equal(result.authorityState, "ALLOW_OFFLINE_GRACE");
+      });
+      await run("C3C-" + family.toUpperCase() + "-page-context-changed", async () => {
+        const result = await kimi.call("SellerAgentsAutonomousWorkAuthority.evaluate", { ...base, current: { ...base.current, origin: "https://chatgpt.com" } });
+        assert.equal(result.allowed, false);
+        assert.ok(result.deniedGates.includes("DENY_BINDING_CONTEXT"));
+      });
+    }
+    assert.equal(kimi.network.length, 0);
+    assert.equal(requests, 1);
+  } finally { kimi.close(); }
+}
+
+}
 
 const failed = cases.filter(row => row.status === "FAIL");
 console.log(JSON.stringify({ status: failed.length ? "FAIL" : "PASS", suite: "C3C_AUTONOMOUS_AUTHORITY", cases, failureBatch: failed }, null, 2));

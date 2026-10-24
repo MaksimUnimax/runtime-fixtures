@@ -227,7 +227,7 @@ class VersionPolicyTests(unittest.TestCase):
                     self.last_setup_calls = setup.call_count
 
     def test_current_ai_host_inventory_is_exact(self):
-        approved = ["https://chat.qwen.ai/*", "https://www.kimi.ai/*"]
+        approved = ["https://chat.qwen.ai/*", "https://www.kimi.ai/*", "https://grok.com/*", "https://gemini.google.com/*", "https://claude.ai/*", "https://chat.deepseek.com/*"]
         with self.assertRaises(ReachedPreservedBehavior):
             self.exercise_actual_entry("0.2.37", "0.2.37", ai_hosts=approved, manifest_ai_hosts=approved)
         self.assertEqual(self.last_child_calls, 1)

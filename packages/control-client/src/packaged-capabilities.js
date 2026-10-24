@@ -44,6 +44,46 @@
       packaged: true,
       executionAuthority: false,
     },
+    {
+      id: "ai.kimi.web.adapter",
+      kind: "ai_adapter",
+      family: "kimi",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
+    {
+      id: "ai.grok.web.adapter",
+      kind: "ai_adapter",
+      family: "grok",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
+    {
+      id: "ai.gemini.web.adapter",
+      kind: "ai_adapter",
+      family: "gemini",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
+    {
+      id: "ai.claude.web.adapter",
+      kind: "ai_adapter",
+      family: "claude",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
+    {
+      id: "ai.deepseek.web.adapter",
+      kind: "ai_adapter",
+      family: "deepseek",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
   ];
 
   function deepFreeze(value) {
