@@ -949,10 +949,15 @@ export async function resolveP3BootstrapPolicy(
       ]);
       if (
         !rollout ||
+        rollout.id !== revision.rolloutId ||
         rollout.targetKind !== "FEATURE_RULE" ||
         rollout.cohortSeed.length !== 32 ||
         !baseline ||
         !candidate ||
+        baseline.id !== revision.baselineFeatureRuleRevisionId ||
+        candidate.id !== revision.candidateFeatureRuleRevisionId ||
+        baseline.contractVersion !== input.contractVersion ||
+        candidate.contractVersion !== input.contractVersion ||
         baseline.featureKey !== candidate.featureKey ||
         !rules.some((r) => r.id === baseline.id)
       )
