@@ -11,10 +11,11 @@ from collections.abc import Callable, Sequence
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-UNITS = (
-    "seller-agents-owner-test-api.service",
-    "seller-agents-owner-test-worker.service",
-    "seller-agents-owner-test-portal.service",
+from verify_owner_test_release import SERVICE_ENTRIES
+
+UNITS = tuple(
+    f"seller-agents-owner-test-{role}.service"
+    for role in SERVICE_ENTRIES
 )
 
 CONFIG_PROPERTIES = (
