@@ -305,6 +305,54 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         )
         return path
 
+    def test_invalid_retention_counts_rejected_before_backup_io(self) -> None:
+        def forbidden(*_args, **_kwargs):
+            self.fail("Invalid retention configuration performed backup I/O")
+
+        for invalid in (0, -1, False, True, "0", None, 1.5):
+            with self.subTest(keep_successful=repr(invalid)):
+                with self.assertRaisesRegex(
+                    BackupError, "BACKUP_RETENTION_INVALID"
+                ):
+                    run_backup(
+                        replace(self.config, keep_successful=invalid),
+                        mount_lookup=forbidden,
+                        device_id=forbidden,
+                        disk_free=forbidden,
+                        runner=forbidden,
+                        which=forbidden,
+                    )
+        self.assertEqual(list(self.dest.iterdir()), [])
+
+    def test_retention_rejects_nonpositive_without_removing_verified_backup(
+        self,
+    ) -> None:
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            self.assertEqual(args[0], "/fixture/pg_restore")
+            return subprocess.CompletedProcess(
+                args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+            )
+
+        for index, invalid in enumerate((0, -1)):
+            verified = self._existing_backup(
+                80 + index,
+                f"2026-09-{20 + index:02d}T00:00:00Z",
+                f"retain-valid-{index}".encode(),
+            )
+            with self.subTest(keep_successful=invalid):
+                with self.assertRaisesRegex(
+                    BackupError, "BACKUP_RETENTION_INVALID"
+                ):
+                    _apply_retention(
+                        self.dest,
+                        invalid,
+                        pg_restore="/fixture/pg_restore",
+                        runner=runner,
+                    )
+                self.assertTrue(verified.is_dir())
+        self.assertEqual(len(list(self.dest.glob("backup-existing-*"))), 2)
+
     def test_success_is_atomic_and_retains_seven(self) -> None:
         existing = [
             self._existing_backup(
