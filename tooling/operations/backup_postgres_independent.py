@@ -52,6 +52,13 @@ class BackupConfig:
     keep_successful: int = 7
 
 
+def _require_positive_retention_count(keep_successful: int) -> None:
+    # Bool is an int subclass in Python: False must never mean "keep zero",
+    # because that would delete every verified backup including the new one.
+    if type(keep_successful) is not int or keep_successful < 1:
+        raise BackupError("BACKUP_RETENTION_INVALID")
+
+
 ALLOWED_QUERY_ENV = {
     "sslmode": "PGSSLMODE",
     "sslrootcert": "PGSSLROOTCERT",
@@ -403,6 +410,7 @@ def _apply_retention(
     pg_restore: str,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> list[str]:
+    _require_positive_retention_count(keep_successful)
     valid = _verified_backup_directories(
         destination, pg_restore=pg_restore, runner=runner
     )
@@ -450,6 +458,7 @@ def run_backup(
     which: Callable[[str], str | None] = shutil.which,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
 ) -> dict[str, object]:
+    _require_positive_retention_count(config.keep_successful)
     verify_independent_mounts(
         config,
         mount_lookup=mount_lookup,
