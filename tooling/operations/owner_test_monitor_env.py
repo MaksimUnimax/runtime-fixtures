@@ -26,6 +26,7 @@ MONITOR_KEYS = (
     "MONITOR_HEALTH_READ_EXPECTED_ROLE",
 )
 MONITOR_DATABASE = "octoport_monitor_pilot"
+MONITOR_ROLE = "octoport_monitor_pilot"
 DEFAULT_ROOT = Path("/etc/seller-agents-owner-test")
 CURRENT_AUTHORITY_FILE = Path(
     "/root/octoport-control/authorizations/B05-current-four-service-deploy.json"
@@ -170,7 +171,7 @@ def _validate_payload(value: object) -> dict[str, str]:
             raise MonitorEnvError("MONITOR_ENV_INPUT_INVALID")
         result[key] = item
     role = result["MONITOR_HEALTH_READ_EXPECTED_ROLE"]
-    if not ROLE.fullmatch(role):
+    if not ROLE.fullmatch(role) or role != MONITOR_ROLE:
         raise MonitorEnvError("MONITOR_ENV_INPUT_INVALID")
     try:
         parsed = urlsplit(result["MONITOR_HEALTH_READ_DATABASE_URL"])
