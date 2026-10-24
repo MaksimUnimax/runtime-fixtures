@@ -933,6 +933,7 @@ export async function resolveP3BootstrapPolicy(
             rule.minimumExtensionVersion,
           ) >= 0);
     }
+    const rolloutFeatures = new Set<string>();
     for (const revision of linkedRollouts) {
       if (
         revision.targetKind !== "FEATURE_RULE" ||
@@ -959,9 +960,11 @@ export async function resolveP3BootstrapPolicy(
         baseline.contractVersion !== input.contractVersion ||
         candidate.contractVersion !== input.contractVersion ||
         baseline.featureKey !== candidate.featureKey ||
-        !rules.some((r) => r.id === baseline.id)
+        !rules.some((r) => r.id === baseline.id) ||
+        rolloutFeatures.has(baseline.featureKey)
       )
         return { failure: "FEATURE_SOURCE_INVALID" };
+      rolloutFeatures.add(baseline.featureKey);
       const subjectId =
         rollout.subjectKind === "ACCOUNT" ? input.accountId : input.deviceId;
       const selectedRule = selectRolloutCandidateV1({
