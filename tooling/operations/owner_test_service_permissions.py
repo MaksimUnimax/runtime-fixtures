@@ -13,6 +13,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+from four_root_owner_test_units import MONITOR_ENV, PORTAL_ENV, PRODUCT_ENV
+from owner_test_nonroot_hardening import canonical_identities
+
 VERIFY = Path(__file__).with_name("verify_ops_release.py")
 SETPRIV = Path("/usr/bin/setpriv")
 TEST_UID = 65534
@@ -25,18 +28,27 @@ RELEASE_TOKEN_RE = re.compile(
 UNIT_CONFIG = {
     "api": {
         "unit": "seller-agents-owner-test-api.service",
-        "env": Path("/etc/seller-agents-owner-test/api.env"),
-        "envLabel": "API_ENV",
+        "envs": (PRODUCT_ENV, MONITOR_ENV),
+        "envLabels": ("API_ENV", "MONITOR_ENV"),
+        "dynamicUser": False,
     },
     "worker": {
         "unit": "seller-agents-owner-test-worker.service",
-        "env": Path("/etc/seller-agents-owner-test/api.env"),
-        "envLabel": "API_ENV",
+        "envs": (PRODUCT_ENV,),
+        "envLabels": ("API_ENV",),
+        "dynamicUser": False,
     },
     "portal": {
         "unit": "seller-agents-owner-test-portal.service",
-        "env": Path("/etc/seller-agents-owner-test/portal.env"),
-        "envLabel": "PORTAL_ENV",
+        "envs": (PORTAL_ENV,),
+        "envLabels": ("PORTAL_ENV",),
+        "dynamicUser": False,
+    },
+    "admin": {
+        "unit": "seller-agents-owner-test-admin.service",
+        "envs": (),
+        "envLabels": (),
+        "dynamicUser": True,
     },
 }
 
@@ -70,9 +82,11 @@ def parse_working_directory(value: str) -> tuple[Path, str, Path]:
         fail("WORKING_DIRECTORY_NOT_PINNED_RELEASE")
     return Path(match.group(1)), match.group(2), Path(raw)
 
-def parse_environment_files(value: str) -> list[Path]:
+def parse_environment_files(value: str, *, allow_empty: bool = False) -> list[Path]:
     text = value.strip()
     if not text:
+        if allow_empty:
+            return []
         fail("ENVIRONMENT_FILE_PATH_MISSING")
     paths: list[Path] = []
     entry = re.compile(
@@ -189,9 +203,10 @@ def verify_release(root: Path, expected_sha: str) -> None:
     if value.get("status") != "PASS" or value.get("sourceSha") != expected_sha:
         fail("RELEASE_VERIFY_IDENTITY_MISMATCH")
 
-def snapshot_units() -> tuple[dict[str, dict[str, object]], dict[str, dict[str, str]]]:
+def snapshot_units() -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
     internal: dict[str, dict[str, object]] = {}
-    public: dict[str, dict[str, str]] = {}
+    public: dict[str, dict[str, object]] = {}
+    identities = canonical_identities()
     for role, config in UNIT_CONFIG.items():
         unit = str(config["unit"])
         active = unit_prop(unit, "ActiveState")
@@ -199,20 +214,31 @@ def snapshot_units() -> tuple[dict[str, dict[str, object]], dict[str, dict[str, 
         restarts = unit_prop(unit, "NRestarts")
         user = unit_prop(unit, "User")
         group = unit_prop(unit, "Group")
+        dynamic_user = unit_prop(unit, "DynamicUser")
         root, release_sha, working = parse_working_directory(
             unit_prop(unit, "WorkingDirectory")
         )
-        env_paths = parse_environment_files(unit_prop(unit, "EnvironmentFiles"))
-        expected_env = Path(config["env"])
-        if env_paths != [expected_env]:
+        expected_envs = tuple(config["envs"])
+        env_paths = parse_environment_files(
+            unit_prop(unit, "EnvironmentFiles"),
+            allow_empty=not expected_envs,
+        )
+        if tuple(env_paths) != expected_envs:
             fail("ENVIRONMENT_FILE_SCOPE_MISMATCH")
         binary, exec_paths = parse_execstart(unit_prop(unit, "ExecStart"), release_sha)
         if active != "active" or sub != "running":
             fail("OWNER_TEST_UNIT_NOT_RUNNING")
-        identity = (
-            "ROOT_OR_UNSET" if user in {"", "root"} and group in {"", "root"}
-            else "EXPLICIT_NON_ROOT"
-        )
+        if bool(config["dynamicUser"]):
+            if dynamic_user != "yes":
+                fail("DYNAMIC_USER_REQUIRED")
+            identity = "DYNAMIC_USER"
+        else:
+            expected = identities.get(role)
+            if expected is None or user != expected["user"] or group != expected["group"]:
+                fail("SERVICE_IDENTITY_NOT_CANONICAL")
+            if dynamic_user == "yes":
+                fail("STATIC_SERVICE_DYNAMIC_USER_FORBIDDEN")
+            identity = "EXPLICIT_NON_ROOT_CANONICAL"
         internal[role] = {
             "unit": unit,
             "active": active,
@@ -221,14 +247,15 @@ def snapshot_units() -> tuple[dict[str, dict[str, object]], dict[str, dict[str, 
             "root": root,
             "releaseSha": release_sha,
             "working": working,
-            "env": expected_env,
+            "envs": expected_envs,
             "binary": binary,
             "execPaths": exec_paths,
+            "dynamicUser": bool(config["dynamicUser"]),
         }
         public[role] = {
             "currentIdentity": identity,
             "releaseSha": release_sha,
-            "environmentLabel": str(config["envLabel"]),
+            "environmentLabels": list(config["envLabels"]),
         }
     return internal, public
 
@@ -327,7 +354,11 @@ def run_child_probe(
             for value in units.values()
         ],
         "releaseRoots": sorted({str(value["root"]) for value in units.values()}),
-        "protected": sorted({str(value["env"]) for value in units.values()}),
+        "protected": sorted({
+            str(path)
+            for value in units.values()
+            for path in value["envs"]
+        }),
         "writable": [str(path) for path in writable.values()],
     }
     result = subprocess.run(
@@ -396,11 +427,15 @@ def run_live() -> dict[str, object]:
         }
     protected: dict[str, dict[str, object]] = {}
     for role, value in before.items():
-        label = str(UNIT_CONFIG[role]["envLabel"])
-        if label not in protected:
-            protected[label] = validate_protected_file(
-                Path(value["env"]), TEST_UID, TEST_GID
-            )
+        labels = tuple(UNIT_CONFIG[role]["envLabels"])
+        envs = tuple(value["envs"])
+        if len(labels) != len(envs):
+            fail("PROTECTED_CONFIG_LABEL_SCOPE_MISMATCH")
+        for label, path in zip(labels, envs, strict=True):
+            if label not in protected:
+                protected[str(label)] = validate_protected_file(
+                    Path(path), TEST_UID, TEST_GID
+                )
     temp_root: Path | None = None
     cleanup_verified = False
     try:

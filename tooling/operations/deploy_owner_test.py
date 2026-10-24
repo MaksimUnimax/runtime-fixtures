@@ -11,6 +11,10 @@ from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 from urllib.request import urlopen
 
+from four_root_owner_test_units import contracts as four_unit_contracts
+from owner_test_nonroot_hardening import canonical_identities
+from verify_owner_test_release import verify_owner_test_release
+
 CANDIDATE='62024d192a8572c11aafab91653330d1f996699f'
 FLOOR='d24838669c54f21dc161dc48a7e71e0e288384c2'
 CANDIDATE_REL=Path('/opt/octoport/ops-releases')/CANDIDATE
@@ -30,6 +34,93 @@ FORWARD_RECOVERY_SOURCE_RECEIPT_SHA256='619e0c6f86b2a4128e7f5ab2f9e8db8c9a6115ac
 NODE='/root/.nvm/versions/node/v24.20.0/bin/node'
 TSX='packages/server/db/node_modules/tsx/dist/cli.mjs'
 MIGRATE='packages/server/db/src/migrate.ts'
+
+MIGRATION_JOURNAL=Path('packages/server/db/drizzle/meta/_journal.json')
+
+def migration_target_from_verified_release(release: Path) -> dict:
+    path=release/MIGRATION_JOURNAL
+    if not path.is_file() or path.is_symlink():
+        raise RuntimeError('MIGRATION_JOURNAL_INVALID')
+    try:
+        value=json.loads(path.read_text(encoding='utf-8'))
+    except (OSError,UnicodeError,ValueError):
+        raise RuntimeError('MIGRATION_JOURNAL_INVALID') from None
+    entries=value.get('entries') if isinstance(value,dict) else None
+    if not isinstance(entries,list) or not entries:
+        raise RuntimeError('MIGRATION_JOURNAL_INVALID')
+    tags=set()
+    for expected,item in enumerate(entries):
+        if not isinstance(item,dict):
+            raise RuntimeError('MIGRATION_JOURNAL_INVALID')
+        idx=item.get('idx'); tag=item.get('tag')
+        if type(idx) is not int or idx!=expected or not isinstance(tag,str) or not tag.strip():
+            raise RuntimeError('MIGRATION_JOURNAL_INVALID')
+        if tag in tags:
+            raise RuntimeError('MIGRATION_JOURNAL_INVALID')
+        tags.add(tag)
+    return {'count':len(entries),'latestIndex':len(entries)-1,'latestTag':entries[-1]['tag']}
+
+def four_service_source_plan(release: Path) -> dict:
+    raw=str(release)
+    identities=canonical_identities()
+    result={}
+    for role,contract in four_unit_contracts(raw).items():
+        if contract.dynamic_user:
+            identity={'mode':'DYNAMIC_USER'}
+        else:
+            item=identities.get(role)
+            if item is None:
+                raise RuntimeError('FOUR_SERVICE_IDENTITY_MISSING:'+role)
+            identity={'mode':'STATIC_CANONICAL','user':item['user'],'group':item['group']}
+        result[role]={
+            'unit':'seller-agents-owner-test-'+role+'.service',
+            'workingDirectory':contract.working_directory,
+            'execArgv':list(contract.exec_argv),
+            'environmentFiles':[str(path) for path in contract.environment_files],
+            'identity':identity,
+        }
+    if set(result)!={'api','worker','portal','admin'}:
+        raise RuntimeError('FOUR_SERVICE_SET_INVALID')
+    return {
+        'status':'SOURCE_PLAN_PASS',
+        'release':raw,
+        'services':result,
+        'migrationTarget':migration_target_from_verified_release(release),
+        'liveMutationPerformed':False,
+    }
+
+def verified_current_source_plan(
+    release: Path,
+    *,
+    expected_source_sha: str,
+    expected_source_tree: str,
+    expected_inventory_sha256: str,
+) -> dict:
+    verified = verify_owner_test_release(
+        release,
+        expected_source_sha=expected_source_sha,
+        expected_source_tree=expected_source_tree,
+        expected_inventory_sha256=expected_inventory_sha256,
+    )
+    plan = four_service_source_plan(release)
+    if verified.get("status") != "PASS_SOURCE_PACKAGE_ONLY":
+        raise RuntimeError("CURRENT_PACKAGE_VERIFICATION_INVALID")
+    if verified.get("sourceSha") != expected_source_sha or verified.get("sourceTree") != expected_source_tree:
+        raise RuntimeError("CURRENT_PACKAGE_IDENTITY_MISMATCH")
+    if set(verified.get("services", [])) != set(plan["services"]):
+        raise RuntimeError("CURRENT_PACKAGE_SERVICE_SET_MISMATCH")
+    return {
+        "status": "CURRENT_FOUR_SERVICE_SOURCE_PLAN_PASS",
+        "sourceSha": expected_source_sha,
+        "sourceTree": expected_source_tree,
+        "trustedInventorySha256": expected_inventory_sha256,
+        "services": plan["services"],
+        "migrationTarget": plan["migrationTarget"],
+        "liveMutationPerformed": False,
+        "databaseReadPerformed": False,
+        "secretMaterialRead": False,
+    }
+
 
 def run(args, *, check=True, input_bytes=None, stdin_file=None, stdout_file=None, env=None, timeout=120, cwd=None):
     if input_bytes is not None and stdin_file is not None:
