@@ -110,11 +110,10 @@ function findVariableInitializer(
 }
 
 function normalizePath(value: string): string {
-  const withSlash = value.startsWith("/") ? value : `/${value}`;
-  return (
-    withSlash.replace(/\/+/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") ||
-    "/"
-  );
+  // Match inventory.ts: empty segments and the final slash are part of the
+  // literal API path. Collapsing either can overwrite a distinct operation
+  // and disconnect its security/schema impact from the crosswalk row.
+  return value.startsWith("/") ? value : `/${value}`;
 }
 
 function entryFromObject(
@@ -510,6 +509,51 @@ export function productIdentity(
   return `${entry.sourceFamily}:${entry.method.toUpperCase()}:${normalizePath(entry.normalizedPath)}`;
 }
 
+// Registry paths describe runtime arguments; WB source_path retains the vendor's
+// spelling. Use it only for a declared, bijective rename of whole path segments.
+// Do not infer correspondence from aliases or change the runtime request path.
+function crosswalkRuntimeIdentity(
+  entry: ProductRegistryEntry,
+  sourceIdentities: ReadonlySet<string>,
+  familySourceIdentities?: ReadonlySet<string>,
+): string {
+  const original = productIdentity(entry);
+  // Keep exact matches, including older snapshots and another family document.
+  if (sourceIdentities.has(original) || familySourceIdentities?.has(original))
+    return original;
+  const declared = entry.providerMetadata.source_path;
+  if (
+    entry.sourceFamily !== "WILDBERRIES" ||
+    typeof declared !== "string" ||
+    !declared.startsWith("/") ||
+    declared !== normalizePath(declared)
+  )
+    return original;
+  const runtimePath = normalizePath(entry.normalizedPath);
+  if (declared === runtimePath) return original;
+  const runtimeParts = runtimePath.split("/");
+  const sourceParts = declared.split("/");
+  if (runtimeParts.length !== sourceParts.length) return original;
+  const parameter = /^\{[A-Za-z_][A-Za-z0-9_]*\}$/u;
+  const runtimeNames = new Set<string>();
+  const sourceNames = new Set<string>();
+  for (let index = 0; index < runtimeParts.length; index += 1) {
+    const runtimePart = runtimeParts[index]!;
+    const sourcePart = sourceParts[index]!;
+    if (parameter.test(runtimePart) && parameter.test(sourcePart)) {
+      if (runtimeNames.has(runtimePart) || sourceNames.has(sourcePart))
+        return original;
+      runtimeNames.add(runtimePart);
+      sourceNames.add(sourcePart);
+    } else if (runtimePart !== sourcePart) return original;
+  }
+  return inventoryIdentity({
+    sourceFamily: entry.sourceFamily,
+    method: entry.method,
+    path: declared,
+  });
+}
+
 export function inventoryIdentity(item: {
   sourceFamily: SwaggerSourceFamily;
   method: string;
@@ -544,16 +588,20 @@ export function buildProductCrosswalk(input: {
     const key = `${identity}\u0000${item.documentKey ?? ""}`;
     sourceById.set(key, item);
   }
+  const sourceIdentities = new Set(
+    [...sourceById.values()].map((item) => inventoryIdentity(item)),
+  );
   const runtimeById = new Map<string, ProductRegistryEntry[]>();
   for (const entry of input.runtimeEntries) {
-    const key = productIdentity(entry);
+    const key = crosswalkRuntimeIdentity(
+      entry,
+      sourceIdentities,
+      input.familySourceIdentities,
+    );
     const list = runtimeById.get(key) ?? [];
     list.push(entry);
     runtimeById.set(key, list);
   }
-  const sourceIdentities = new Set(
-    [...sourceById.values()].map((item) => inventoryIdentity(item)),
-  );
   const all = new Set([
     ...sourceById.keys(),
     ...[...runtimeById.keys()].filter(
@@ -585,9 +633,11 @@ export function buildProductCrosswalk(input: {
     const familyAbsence = !source && input.familySourceIdentities !== undefined;
     const impact = familyAbsence ? undefined : impactById.get(identity);
     let reviewState: import("./types.js").CrosswalkReviewState;
+    // Security-blocking impacts always outrank missing runtime mappings.
     if (
       state === "AMBIGUOUS_RUNTIME_MAPPING" ||
-      (state === "RUNTIME_ONLY" && runtimes[0]?.executionEnabled)
+      (state === "RUNTIME_ONLY" && runtimes[0]?.executionEnabled) ||
+      impact?.severity === "BLOCKING_RISK"
     )
       reviewState = "BLOCKING_RISK";
     else if (
@@ -597,8 +647,6 @@ export function buildProductCrosswalk(input: {
       impact?.severity === "UNKNOWN"
     )
       reviewState = "REVIEW_REQUIRED";
-    else if (impact?.severity === "BLOCKING_RISK")
-      reviewState = "BLOCKING_RISK";
     else reviewState = "NO_ACTION";
     const documentKey = source?.documentKey ?? null;
     const crosswalkId =
