@@ -88,37 +88,55 @@ export async function createApiDatabases<T extends ClosableDatabase>(
     // Never expose either connection string or credentials in a diagnostic.
     throw new Error("API_DATABASE_ROLE_OR_ENDPOINT_SEPARATION_REQUIRED");
   }
-  const allocated: T[] = [];
+  const allocated: Array<{
+    kind: "application" | "transfer" | "monitor";
+    runtime: T;
+  }> = [];
+  const cleanupAllocated = async () => {
+    const results = await Promise.allSettled(
+      allocated.map(({ runtime }) =>
+        Promise.resolve().then(() => runtime.close()),
+      ),
+    );
+    return results.flatMap((result, index) =>
+      result.status === "rejected"
+        ? [{ kind: allocated[index]!.kind, reason: result.reason }]
+        : [],
+    );
+  };
   let database: T;
   let transferDatabase: T;
   let healthReadDatabase: T | undefined;
   try {
     database = createRuntime(application.toString());
-    allocated.push(database);
+    allocated.push({ kind: "application", runtime: database });
     transferDatabase = createRuntime(transfer.toString());
-    allocated.push(transferDatabase);
-    if (monitorHealth) {
-      healthReadDatabase = createRuntime(monitorHealth.toString());
-      allocated.push(healthReadDatabase);
-    }
+    allocated.push({ kind: "transfer", runtime: transferDatabase });
   } catch (error) {
-    const results = await Promise.allSettled(
-      allocated.map((runtime) => Promise.resolve().then(() => runtime.close())),
-    );
-    const cleanupFailures = results.flatMap((result) =>
-      result.status === "rejected" ? [result.reason] : [],
-    );
-    // Third-pool connection/cleanup errors may include the monitor URL or
-    // password. Never expose these errors or their causes during startup.
-    // Preserve the original two-pool error contract when no monitor exists.
-    if (monitorHealth)
-      throw new Error("MONITOR_HEALTH_READ_DATABASE_SETUP_FAILED");
+    const cleanupFailures = await cleanupAllocated();
     if (cleanupFailures.length)
       throw new AggregateError(
-        [error, ...cleanupFailures],
+        [error, ...cleanupFailures.map(({ reason }) => reason)],
         "API_DATABASE_SETUP_FAILED",
       );
     throw error;
+  }
+  if (monitorHealth) {
+    try {
+      healthReadDatabase = createRuntime(monitorHealth.toString());
+      allocated.push({ kind: "monitor", runtime: healthReadDatabase });
+    } catch {
+      const cleanupFailures = await cleanupAllocated();
+      const monitorFailure = new Error(
+        "MONITOR_HEALTH_READ_DATABASE_SETUP_FAILED",
+      );
+      if (cleanupFailures.length)
+        throw new AggregateError(
+          [monitorFailure, ...cleanupFailures.map(({ reason }) => reason)],
+          "API_DATABASE_SETUP_FAILED",
+        );
+      throw monitorFailure;
+    }
   }
   let closing: Promise<void> | undefined;
   return {
@@ -128,16 +146,17 @@ export async function createApiDatabases<T extends ClosableDatabase>(
     closeDatabases() {
       if (!closing) {
         closing = (async () => {
-          const results = await Promise.allSettled(
-            allocated.map((runtime) =>
-              Promise.resolve().then(() => runtime.close()),
-            ),
-          );
-          const errors = results.flatMap((result) =>
-            result.status === "rejected" ? [result.reason] : [],
-          );
-          if (monitorHealth && errors.length)
-            throw new Error("MONITOR_HEALTH_READ_DATABASE_CLOSE_FAILED");
+          const failures = await cleanupAllocated();
+          const nonMonitor = failures
+            .filter(({ kind }) => kind !== "monitor")
+            .map(({ reason }) => reason);
+          const monitorFailed = failures.some(({ kind }) => kind === "monitor");
+          const errors = monitorFailed
+            ? [
+                ...nonMonitor,
+                new Error("MONITOR_HEALTH_READ_DATABASE_CLOSE_FAILED"),
+              ]
+            : nonMonitor;
           if (errors.length === 1) throw errors[0];
           if (errors.length > 1)
             throw new AggregateError(errors, "API_DATABASE_CLEANUP_FAILED");
