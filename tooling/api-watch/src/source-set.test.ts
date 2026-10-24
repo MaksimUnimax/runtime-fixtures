@@ -587,6 +587,18 @@ describe("production source authority model", () => {
       ),
     ).toBe("AUTHORITY_PARTIAL");
     expect(familyAuthorityStatus([blocked], ["x"])).toBe("AUTHORITY_BLOCKED");
+    // Matching cardinality is not matching the required official document IDs.
+    // A substituted accepted document must not make a family publishable.
+    expect(
+      familyAuthorityStatus([accepted("a"), accepted("unrelated")], ["a", "b"]),
+    ).toBe("AUTHORITY_PARTIAL");
+    expect(
+      familyAuthorityStatus(
+        [accepted("a"), accepted("b"), accepted("unrelated")],
+        ["a", "b"],
+      ),
+    ).toBe("AUTHORITY_PARTIAL");
+    expect(familyAuthorityStatus([], [])).toBe("AUTHORITY_BLOCKED");
   });
   it("SRC-11..SRC-14 create an order-independent manifest and fail duplicate operation identities", () => {
     const a = canonicalFamilyManifest({

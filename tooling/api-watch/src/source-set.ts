@@ -62,7 +62,13 @@ export function familyAuthorityStatus(
       .filter((document) => document.authorityStatus === "AUTHORITY_ACCEPTED")
       .map((document) => document.documentKey),
   );
-  if (accepted.size === requiredDocumentKeys.length)
+  // A full family needs each exact registered document, not merely the same
+  // number of accepted records (which may include unrelated document keys).
+  if (
+    requiredDocumentKeys.length > 0 &&
+    accepted.size === requiredDocumentKeys.length &&
+    requiredDocumentKeys.every((key) => accepted.has(key))
+  )
     return "AUTHORITY_ACCEPTED";
   if (accepted.size > 0) return "AUTHORITY_PARTIAL";
   if (
