@@ -13,6 +13,7 @@ from urllib.request import urlopen
 
 from four_root_owner_test_units import contracts as four_unit_contracts
 from owner_test_nonroot_hardening import canonical_identities
+from verify_owner_test_release import verify_owner_test_release
 
 CANDIDATE='62024d192a8572c11aafab91653330d1f996699f'
 FLOOR='d24838669c54f21dc161dc48a7e71e0e288384c2'
@@ -87,6 +88,39 @@ def four_service_source_plan(release: Path) -> dict:
         'migrationTarget':migration_target_from_verified_release(release),
         'liveMutationPerformed':False,
     }
+
+def verified_current_source_plan(
+    release: Path,
+    *,
+    expected_source_sha: str,
+    expected_source_tree: str,
+    expected_inventory_sha256: str,
+) -> dict:
+    verified = verify_owner_test_release(
+        release,
+        expected_source_sha=expected_source_sha,
+        expected_source_tree=expected_source_tree,
+        expected_inventory_sha256=expected_inventory_sha256,
+    )
+    plan = four_service_source_plan(release)
+    if verified.get("status") != "PASS_SOURCE_PACKAGE_ONLY":
+        raise RuntimeError("CURRENT_PACKAGE_VERIFICATION_INVALID")
+    if verified.get("sourceSha") != expected_source_sha or verified.get("sourceTree") != expected_source_tree:
+        raise RuntimeError("CURRENT_PACKAGE_IDENTITY_MISMATCH")
+    if set(verified.get("services", [])) != set(plan["services"]):
+        raise RuntimeError("CURRENT_PACKAGE_SERVICE_SET_MISMATCH")
+    return {
+        "status": "CURRENT_FOUR_SERVICE_SOURCE_PLAN_PASS",
+        "sourceSha": expected_source_sha,
+        "sourceTree": expected_source_tree,
+        "trustedInventorySha256": expected_inventory_sha256,
+        "services": plan["services"],
+        "migrationTarget": plan["migrationTarget"],
+        "liveMutationPerformed": False,
+        "databaseReadPerformed": False,
+        "secretMaterialRead": False,
+    }
+
 
 def run(args, *, check=True, input_bytes=None, stdin_file=None, stdout_file=None, env=None, timeout=120, cwd=None):
     if input_bytes is not None and stdin_file is not None:

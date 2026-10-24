@@ -897,3 +897,48 @@ class CurrentFourServiceSourcePlanTests(unittest.TestCase):
         self.assertEqual(api["identity"]["user"], identities["api"]["user"])
         self.assertEqual(plan["migrationTarget"]["count"], 3)
         self.assertFalse(plan["liveMutationPerformed"])
+
+
+    def test_verified_current_source_plan_requires_exact_package_identity(self):
+        canonical = Path("/opt/octoport/ops-releases") / ("a" * 40)
+        verified = {
+            "status": "PASS_SOURCE_PACKAGE_ONLY",
+            "sourceSha": "a" * 40,
+            "sourceTree": "b" * 40,
+            "services": ["admin", "api", "portal", "worker"],
+        }
+        source_plan = {
+            "status": "SOURCE_PLAN_PASS",
+            "release": str(canonical),
+            "services": {
+                role: {"unit": f"seller-agents-owner-test-{role}.service"}
+                for role in ("api", "worker", "portal", "admin")
+            },
+            "migrationTarget": {"count": 50, "latestIndex": 49, "latestTag": "0061_latest"},
+            "liveMutationPerformed": False,
+        }
+        with patch.object(deploy, "verify_owner_test_release", return_value=verified) as gate:
+            with patch.object(deploy, "four_service_source_plan", return_value=source_plan):
+                result = deploy.verified_current_source_plan(
+                    canonical,
+                    expected_source_sha="a" * 40,
+                    expected_source_tree="b" * 40,
+                    expected_inventory_sha256="c" * 64,
+                )
+        gate.assert_called_once()
+        self.assertEqual(result["status"], "CURRENT_FOUR_SERVICE_SOURCE_PLAN_PASS")
+        self.assertEqual(result["migrationTarget"]["count"], 50)
+        self.assertFalse(result["liveMutationPerformed"])
+        self.assertFalse(result["databaseReadPerformed"])
+        self.assertFalse(result["secretMaterialRead"])
+
+        wrong = dict(verified, sourceSha="d" * 40)
+        with patch.object(deploy, "verify_owner_test_release", return_value=wrong):
+            with patch.object(deploy, "four_service_source_plan", return_value=source_plan):
+                with self.assertRaisesRegex(RuntimeError, "CURRENT_PACKAGE_IDENTITY_MISMATCH"):
+                    deploy.verified_current_source_plan(
+                        canonical,
+                        expected_source_sha="a" * 40,
+                        expected_source_tree="b" * 40,
+                        expected_inventory_sha256="c" * 64,
+                    )
