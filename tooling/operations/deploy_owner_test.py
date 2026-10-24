@@ -128,6 +128,28 @@ CURRENT_DROPIN_ROOT=Path('/etc/systemd/system')
 CURRENT_FENCE_NAME='00-octoport-current-recovery-fence.conf'
 CURRENT_FENCE_ALLOW=Path('/run/octoport-owner-test-current-apply-allow')
 CURRENT_AUTHORITY_FILE=Path('/root/octoport-control/authorizations/B05-current-four-service-deploy.json')
+CURRENT_EVIDENCE_ROOT=Path('/root/octoport-control/logs/B/current-four-service-deploy')
+
+def current_trusted_evidence_root(*, create: bool) -> Path:
+    root=CURRENT_EVIDENCE_ROOT
+    trusted_parent=Path('/root/octoport-control/logs/B')
+    if root.parent!=trusted_parent or not root.is_absolute():
+        raise RuntimeError('CURRENT_EVIDENCE_ROOT_INVALID')
+    _assert_no_symlink_ancestors(trusted_parent)
+    if not trusted_parent.is_dir() or trusted_parent.is_symlink():
+        raise RuntimeError('CURRENT_EVIDENCE_ROOT_INVALID')
+    if create and not root.exists():
+        root.mkdir(mode=0o700)
+        directory=os.open(trusted_parent,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(directory)
+        finally:os.close(directory)
+    _assert_no_symlink_ancestors(root)
+    if root.is_symlink() or not root.is_dir():
+        raise RuntimeError('CURRENT_EVIDENCE_ROOT_INVALID')
+    metadata=root.stat()
+    if metadata.st_uid!=0 or metadata.st_gid!=0 or stat.S_IMODE(metadata.st_mode)!=0o700:
+        raise RuntimeError('CURRENT_EVIDENCE_ROOT_INVALID')
+    return root
 
 def current_require_cli_authority(
     mode: str,
@@ -250,6 +272,13 @@ def current_disable_fenced_start() -> None:
     if os.path.lexists(CURRENT_FENCE_ALLOW) and CURRENT_FENCE_ALLOW.is_symlink():
         raise RuntimeError('CURRENT_FENCE_ALLOW_SYMLINK')
     CURRENT_FENCE_ALLOW.unlink(missing_ok=True)
+
+def current_prepare_recovery_fence(plan: dict) -> None:
+    # A process may die after creating the ephemeral allow file. Recovery must
+    # remove that boot-local allowance first, then accept/reinstall the durable
+    # persistent fence in the same invocation.
+    current_disable_fenced_start()
+    current_install_reboot_fence(plan,allow_existing=True)
 
 def current_remove_reboot_fence(plan: dict) -> None:
     for role,path in current_fence_paths(plan).items():
@@ -1191,8 +1220,7 @@ def _current_recover_engine_locked(
         'schemaState':schema_state,
     }
     try:
-        current_install_reboot_fence(plan,allow_existing=True)
-        current_disable_fenced_start()
+        current_prepare_recovery_fence(plan)
         current_stop_product_units(plan)
         result['productQuiesced']=True
         if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
@@ -1560,7 +1588,6 @@ def current_cli(argv: list[str]) -> dict:
     parser.add_argument('--source-sha',required=True)
     parser.add_argument('--source-tree',required=True)
     parser.add_argument('--inventory-sha256',required=True)
-    parser.add_argument('--evidence-root',type=Path)
     args=parser.parse_args(argv)
     identity={
         'expected_source_sha':args.source_sha,
@@ -1568,23 +1595,12 @@ def current_cli(argv: list[str]) -> dict:
         'expected_inventory_sha256':args.inventory_sha256,
     }
     if args.mode=='current-plan':
-        if args.evidence_root is not None:
-            raise RuntimeError('CURRENT_PLAN_EVIDENCE_ROOT_FORBIDDEN')
         return verified_current_source_plan(args.candidate_release,**identity)
 
-    if args.evidence_root is None:
-        raise RuntimeError('CURRENT_EVIDENCE_ROOT_REQUIRED')
     action='apply' if args.mode=='current-apply' else 'recover'
     authority=current_require_cli_authority(action,**identity)
-
-    root=args.evidence_root
-    _assert_no_symlink_ancestors(root)
-    if root.exists() and (root.is_symlink() or not root.is_dir()):
-        raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
+    root=current_trusted_evidence_root(create=action=='apply')
     if action=='apply':
-        root.mkdir(parents=True,exist_ok=True)
-        os.chmod(root,0o700)
-        _assert_no_symlink_ancestors(root)
         stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         evidence_dir=root/f'apply-{stamp}'
         evidence_dir.mkdir(mode=0o700)
@@ -1596,8 +1612,6 @@ def current_cli(argv: list[str]) -> dict:
             **identity,
         )
     else:
-        if not root.is_dir():
-            raise RuntimeError('CURRENT_EVIDENCE_PATH_INVALID')
         result=current_recover_engine(
             candidate_release=args.candidate_release,
             evidence_root=root,

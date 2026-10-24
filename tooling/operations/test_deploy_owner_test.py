@@ -1490,7 +1490,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
         restore.assert_not_called()
         self.assertEqual(
             events,
-            ["fence-install","fence-block","stop","dropins","fence-allow","units","fence-remove"],
+            ["fence-block","fence-install","stop","dropins","fence-allow","units","fence-remove"],
         )
         self.assertEqual(result["schemaState"],"PREDEPLOY_VERIFIED")
 
@@ -1558,6 +1558,16 @@ class CurrentRebootFenceSafetyTests(unittest.TestCase):
             self.assertTrue(all(path.exists() for path in paths.values()))
             deploy.current_remove_reboot_fence(self.plan)
             self.assertTrue(all(not path.exists() for path in paths.values()))
+
+    def test_recovery_clears_stale_allow_and_accepts_existing_persistent_fence(self):
+        completed=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")
+        with patch.object(deploy,"run",return_value=completed):
+            deploy.current_install_reboot_fence(self.plan)
+            deploy.current_enable_fenced_start()
+            self.assertTrue(deploy.CURRENT_FENCE_ALLOW.exists())
+            deploy.current_prepare_recovery_fence(self.plan)
+            self.assertFalse(deploy.CURRENT_FENCE_ALLOW.exists())
+            self.assertTrue(all(path.is_file() for path in deploy.current_fence_paths(self.plan).values()))
 
     def test_symlinked_dropin_parent_is_rejected(self):
         outside=self.root/"outside";outside.mkdir()
@@ -1657,17 +1667,14 @@ class CurrentCliAuthorityTests(unittest.TestCase):
         deploy.CURRENT_AUTHORITY_FILE=self.root/"authority.json"
         self.addCleanup(setattr,deploy,"CURRENT_AUTHORITY_FILE",self.old_authority)
 
-    def argv(self, mode, *, evidence=None):
-        value=[
+    def argv(self, mode):
+        return [
             mode,
             "--candidate-release",str(self.release),
             "--source-sha",self.sha,
             "--source-tree",self.tree,
             "--inventory-sha256",self.inventory,
         ]
-        if evidence is not None:
-            value += ["--evidence-root",str(evidence)]
-        return value
 
     def write_authority(self, *, modes=("apply","recover"), sha=None):
         value={
@@ -1703,27 +1710,34 @@ class CurrentCliAuthorityTests(unittest.TestCase):
 
     def test_current_apply_requires_separate_authority_before_evidence_or_engine(self):
         evidence=self.root/"evidence"
-        with patch.object(deploy,"current_apply_engine") as engine:
+        with patch.object(deploy,"current_apply_engine") as engine,              patch.object(deploy,"current_trusted_evidence_root") as trusted:
             with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_REQUIRED"):
-                deploy.current_cli(self.argv("current-apply",evidence=evidence))
+                deploy.current_cli(self.argv("current-apply"))
         engine.assert_not_called()
+        trusted.assert_not_called()
         self.assertFalse(evidence.exists())
 
     def test_current_apply_rejects_authority_bound_to_other_source(self):
         evidence=self.root/"evidence"
         self.write_authority(sha="d"*40)
-        with patch.object(deploy,"current_apply_engine") as engine:
+        with patch.object(deploy,"current_apply_engine") as engine,              patch.object(deploy,"current_trusted_evidence_root") as trusted:
             with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_INVALID"):
-                deploy.current_cli(self.argv("current-apply",evidence=evidence))
+                deploy.current_cli(self.argv("current-apply"))
         engine.assert_not_called()
+        trusted.assert_not_called()
         self.assertFalse(evidence.exists())
 
     def test_current_apply_routes_exact_identity_after_authority(self):
         evidence=self.root/"evidence"
         self.write_authority(modes=("apply",))
         expected={"status":"APPLY_PASS","recoveryRequired":False}
-        with patch.object(deploy,"current_apply_engine",return_value=expected) as engine:
-            result=deploy.current_cli(self.argv("current-apply",evidence=evidence))
+        def trusted_root(*,create):
+            self.assertTrue(create)
+            evidence.mkdir(mode=0o700)
+            return evidence
+        with patch.object(deploy,"current_trusted_evidence_root",side_effect=trusted_root) as trusted,              patch.object(deploy,"current_apply_engine",return_value=expected) as engine:
+            result=deploy.current_cli(self.argv("current-apply"))
+        trusted.assert_called_once_with(create=True)
         self.assertEqual(result["authorizationId"],"synthetic-test-authority")
         self.assertEqual(result["authorityMode"],"apply")
         kwargs=engine.call_args.kwargs
@@ -1740,8 +1754,9 @@ class CurrentCliAuthorityTests(unittest.TestCase):
         evidence=self.root/"evidence";evidence.mkdir(mode=0o700)
         self.write_authority(modes=("recover",))
         expected={"status":"CURRENT_RECOVERY_PASS","recoveryRequired":False}
-        with patch.object(deploy,"current_recover_engine",return_value=expected) as engine:
-            result=deploy.current_cli(self.argv("current-recover",evidence=evidence))
+        with patch.object(deploy,"current_trusted_evidence_root",return_value=evidence) as trusted,              patch.object(deploy,"current_recover_engine",return_value=expected) as engine:
+            result=deploy.current_cli(self.argv("current-recover"))
+        trusted.assert_called_once_with(create=False)
         self.assertEqual(result["authorityMode"],"recover")
         engine.assert_called_once_with(
             candidate_release=self.release,
@@ -1752,6 +1767,16 @@ class CurrentCliAuthorityTests(unittest.TestCase):
             journal=evidence/"deployment-state.json",
         )
 
+
+
+    def test_trusted_evidence_root_is_fixed_under_control_root(self):
+        old=deploy.CURRENT_EVIDENCE_ROOT
+        deploy.CURRENT_EVIDENCE_ROOT=self.root/"attacker-selected"
+        try:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_EVIDENCE_ROOT_INVALID"):
+                deploy.current_trusted_evidence_root(create=False)
+        finally:
+            deploy.CURRENT_EVIDENCE_ROOT=old
     def test_authority_file_must_be_root_owned_regular_0600(self):
         self.write_authority()
         os.chmod(deploy.CURRENT_AUTHORITY_FILE,0o644)
