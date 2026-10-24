@@ -616,3 +616,149 @@ describe("C03 independent R2 named OpenAPI map boundary", () => {
     });
   }
 });
+
+// Outer schema enum is a set of allowed values; arrays inside a value are data.
+// Likewise arbitrary extension payloads must stay literal in every fingerprint phase.
+describe("C03 extension literal fingerprint canonicalization", () => {
+  const changedExtensionValues: Array<[string, unknown, unknown]> = [
+    ["description key", { description: "alpha" }, { description: "beta" }],
+    ["example key", { example: "alpha" }, { example: "beta" }],
+    ["examples key", { examples: ["alpha"] }, { examples: ["beta"] }],
+    ["literal enum order", { enum: ["A", "B"] }, { enum: ["B", "A"] }],
+    [
+      "literal required order",
+      { required: ["A", "B"] },
+      { required: ["B", "A"] },
+    ],
+    [
+      "nested schema-shaped data",
+      { schema: { description: "alpha" } },
+      { schema: { description: "beta" } },
+    ],
+  ];
+  for (const version of ["3.0.3", "3.1.0"]) {
+    for (const slot of slots) {
+      const schemaInventory = (schema: Record<string, unknown>) =>
+        inventory(
+          "#/components/schemas/Payload",
+          { Payload: schema },
+          slot,
+          version,
+        );
+      for (const [label, before, after] of changedExtensionValues) {
+        it(`${version} ${slot} ${label}: extension value change is not erased`, () => {
+          expect(
+            change(
+              schemaInventory({ type: "string", "x-vendor": before }),
+              schemaInventory({ type: "string", "x-vendor": after }),
+            ),
+          ).toBe("CHANGED");
+        });
+      }
+      it(`${version} ${slot}: outer schema enum permutation is unchanged`, () => {
+        expect(
+          change(
+            schemaInventory({ type: "string", enum: ["A", "B"] }),
+            schemaInventory({ type: "string", enum: ["B", "A"] }),
+          ),
+        ).toBe("UNCHANGED");
+      });
+      it(`${version} ${slot}: an array within an enum value keeps its order`, () => {
+        expect(
+          change(
+            schemaInventory({ type: "array", enum: [["A", "B"]] }),
+            schemaInventory({ type: "array", enum: [["B", "A"]] }),
+          ),
+        ).toBe("CHANGED");
+      });
+      it(`${version} ${slot}: actual schema description remains cosmetic`, () => {
+        expect(
+          change(
+            schemaInventory({ type: "string", description: "alpha" }),
+            schemaInventory({ type: "string", description: "beta" }),
+          ),
+        ).toBe("UNCHANGED");
+      });
+      it(`${version} ${slot}: x-prefixed property name is not an extension`, () => {
+        expect(
+          change(
+            schemaInventory({
+              type: "object",
+              properties: {
+                "x-business": { type: "string", description: "alpha" },
+              },
+            }),
+            schemaInventory({
+              type: "object",
+              properties: {
+                "x-business": { type: "string", description: "beta" },
+              },
+            }),
+          ),
+        ).toBe("UNCHANGED");
+      });
+      it(`${version} ${slot}: extension object key order is cosmetic`, () => {
+        expect(
+          change(
+            schemaInventory({
+              type: "string",
+              "x-vendor": { description: "same", values: [1, 2] },
+            }),
+            schemaInventory({
+              type: "string",
+              "x-vendor": { values: [1, 2], description: "same" },
+            }),
+          ),
+        ).toBe("UNCHANGED");
+      });
+    }
+    for (const property of ["item", "x-item"]) {
+      it(`${version} ${property}: encoding-map entry keeps actual header annotations cosmetic`, () => {
+        const documentInventory = (description: string) => {
+          const document = {
+            openapi: version,
+            info: { title: "C03 synthetic canonical encoding", version: "1" },
+            paths: {
+              "/items": {
+                post: {
+                  requestBody: {
+                    content: {
+                      "multipart/form-data": {
+                        schema: {
+                          type: "object",
+                          properties: { [property]: { type: "string" } },
+                        },
+                        encoding: {
+                          [property]: {
+                            headers: {
+                              "x-trace": {
+                                description,
+                                schema: { type: "string", minLength: 1 },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                  responses: { "200": { description: "ok" } },
+                },
+              },
+            },
+          };
+          const bytes = Buffer.from(JSON.stringify(document));
+          return buildCompleteOperationInventory({
+            sourceFamily: "OZON_SELLER",
+            documentKey: "canonical-encoding",
+            snapshotSha256: createHash("sha256").update(bytes).digest("hex"),
+            filename: "canonical-encoding.json",
+            bytes,
+          });
+        };
+        expect(
+          change(documentInventory("alpha"), documentInventory("beta")),
+        ).toBe("UNCHANGED");
+      });
+    }
+  }
+});

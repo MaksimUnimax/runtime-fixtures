@@ -38,6 +38,7 @@ const NAMED_FIELD_MAPS = new Set([
   "dependentRequired",
   "dependencies",
   "content",
+  "encoding",
   "headers",
   "mapping",
   "scopes",
@@ -66,7 +67,7 @@ function canonical(
   const entries: [string, unknown][] = [];
   for (const key of Object.keys(object).sort()) {
     // Annotation names are ordinary business field names inside a field map
-    // and ordinary keys inside literal defaults/enum members.
+    // and ordinary keys inside literal defaults, enum members and extensions.
     if (
       mode === "node" &&
       (key === "description" || key === "example" || key === "examples")
@@ -77,7 +78,7 @@ function canonical(
         ? "literal"
         : mode === "named-fields"
           ? "node"
-          : ["default", "const", "enum"].includes(key)
+          : key.startsWith("x-") || ["default", "const", "enum"].includes(key)
             ? "literal"
             : NAMED_FIELD_MAPS.has(key)
               ? "named-fields"
