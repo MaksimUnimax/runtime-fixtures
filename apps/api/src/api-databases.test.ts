@@ -288,6 +288,65 @@ describe("API database role separation", () => {
     expect(transfer.close).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ["application", applicationUrl],
+    ["transfer", transferUrl],
+  ] as const)(
+    "preserves %s allocation failure identity when monitor is configured",
+    async (_kind, failedUrl) => {
+      const application = { close: vi.fn(async () => {}) };
+      const failure = new Error("SYNTHETIC_PRODUCT_POOL_SETUP_FAILURE");
+      await expect(
+        createApiDatabases(
+          applicationUrl,
+          transferUrl,
+          (url) => {
+            if (url === failedUrl) throw failure;
+            return application;
+          },
+          monitorUrl,
+          monitorRole,
+        ),
+      ).rejects.toBe(failure);
+    },
+  );
+
+  it.each(["application", "transfer"] as const)(
+    "preserves %s close failure identity when monitor is configured",
+    async (failedPool) => {
+      const application = {
+        close: vi.fn(async () => {
+          if (failedPool === "application")
+            throw new Error("SYNTHETIC_APPLICATION_CLOSE_FAILURE");
+        }),
+      };
+      const transfer = {
+        close: vi.fn(async () => {
+          if (failedPool === "transfer")
+            throw new Error("SYNTHETIC_TRANSFER_CLOSE_FAILURE");
+        }),
+      };
+      const monitor = { close: vi.fn(async () => {}) };
+      const pools = await createApiDatabases(
+        applicationUrl,
+        transferUrl,
+        (url) =>
+          url === applicationUrl
+            ? application
+            : url === transferUrl
+              ? transfer
+              : monitor,
+        monitorUrl,
+        monitorRole,
+      );
+      await expect(pools.closeDatabases()).rejects.toThrow(
+        failedPool === "application"
+          ? "SYNTHETIC_APPLICATION_CLOSE_FAILURE"
+          : "SYNTHETIC_TRANSFER_CLOSE_FAILURE",
+      );
+    },
+  );
+
   it("redacts configured monitor close errors without changing two-pool behavior", async () => {
     const application = { close: vi.fn(async () => {}) };
     const transfer = { close: vi.fn(async () => {}) };
