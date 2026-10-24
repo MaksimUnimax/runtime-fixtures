@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   BlockedExtensionVersionSchema,
+  ExtensionReleaseSchema,
   ReleaseBrowserSupportSchema,
   ReleaseContractSupportSchema,
   resolveCompatibility,
@@ -106,7 +107,10 @@ function catalog(value: CompatibilityResolverInput): P3BootstrapPolicyCatalog {
   };
 }
 
-async function bootstrap(value: CompatibilityResolverInput) {
+async function bootstrap(
+  value: CompatibilityResolverInput,
+  source: P3BootstrapPolicyCatalog = catalog(value),
+) {
   return resolveP3BootstrapPolicy(
     {
       contractVersion: value.contractVersion,
@@ -115,7 +119,7 @@ async function bootstrap(value: CompatibilityResolverInput) {
       accountId: "synthetic-account",
       deviceId: "synthetic-device",
     },
-    catalog(value),
+    source,
   );
 }
 
@@ -265,6 +269,48 @@ describe("compatibility catalog relational identity", () => {
 });
 
 describe("real bootstrap-policy consumer rejects foreign catalog links", () => {
+  it.each([
+    ["0.2.37", "0.2.36"],
+    ["0.2.37", "0.2.38"],
+    ["0.2.37+one", "0.2.37+two"],
+    ["0.2.37-rc.1", "0.2.37"],
+  ])(
+    "rejects catalog release identity mismatch: requested %s, returned %s",
+    async (requestedVersion, returnedVersion) => {
+      const value = input();
+      value.extensionVersion = requestedVersion;
+      value.release!.version = returnedVersion;
+      expect(ExtensionReleaseSchema.safeParse(value.release).success).toBe(
+        true,
+      );
+      const source = catalog(value);
+      const lookup = vi.spyOn(source, "findExtensionRelease");
+      const contracts = vi.spyOn(source, "listReleaseContracts");
+      const browsers = vi.spyOn(source, "listReleaseBrowsers");
+      expect(await bootstrap(value, source)).toEqual({
+        failure: "COMPATIBILITY_SOURCE_INVALID",
+      });
+      expect(lookup).toHaveBeenCalledWith(requestedVersion);
+      expect(contracts).not.toHaveBeenCalled();
+      expect(browsers).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["0.2.37", "0.2.38", "0.2.37+one", "0.2.38-rc.1"])(
+    "preserves catalog release identity for matching version %s",
+    async (version) => {
+      const value = input();
+      value.extensionVersion = version;
+      value.release!.version = version;
+      expect(await bootstrap(value)).toMatchObject({
+        compatibility: {
+          extension: { status: "SUPPORTED" },
+          browser: { status: "SUPPORTED" },
+        },
+      });
+    },
+  );
+
   it.each(["contract", "browser"] as const)(
     "returns source-invalid for foreign %s support",
     async (kind) => {

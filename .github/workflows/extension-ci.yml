@@ -160,6 +160,7 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Build and verify actual popup, worker, content and attachments
         run: |
+          python -B -m unittest discover -s tests/regression/extension-core -p 'test_browser_application_worker_ready.py' -v
           node tests/regression/extension-core/client-i1/make-browser-config.mjs "$RUNNER_TEMP/seller-agents-browser-fixture-private.der" > "$RUNNER_TEMP/seller-agents-browser-fixture-config.json"
           export SA_PACKAGED_CONFIG_JSON="$(cat "$RUNNER_TEMP/seller-agents-browser-fixture-config.json")"
           python tooling/build/extension_composed.py --output build/application-browser/package

@@ -144,3 +144,178 @@ test("correcting the OTP changes the idempotency key, but retrying the same code
   expect(attempts[2]?.key).not.toBe(attempts[0]?.key);
   await expect(page).toHaveURL(`${portalOrigin}/login?returnTo=%2Fdevices`);
 });
+
+test("expired OTP can return to email without sending a hidden request", async ({
+  page,
+}) => {
+  let requests = 0;
+  const attempts: Array<{
+    challengeId: string;
+    code: string;
+    key: string | undefined;
+  }> = [];
+  await page.route(
+    "**/api/control-plane/v1/auth/otp/request",
+    async (route) => {
+      requests += 1;
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "accepted",
+          challengeId: `22222222-2222-4222-8222-${String(requests).padStart(12, "0")}`,
+          expiresAt,
+        }),
+      });
+    },
+  );
+  await page.route("**/api/control-plane/v1/auth/otp/verify", async (route) => {
+    const body = route.request().postDataJSON() as {
+      challengeId: string;
+      code: string;
+    };
+    attempts.push({
+      ...body,
+      key: route.request().headers()["idempotency-key"],
+    });
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "AUTH_OTP_EXPIRED" } }),
+    });
+  });
+  await openLogin(page);
+  await page.getByRole("button", { name: "Send code", exact: true }).click();
+  const submit = async (code: string) => {
+    await page.getByLabel("Code").fill(code);
+    const response = page.waitForResponse(
+      (value) =>
+        value.url().endsWith("/v1/auth/otp/verify") &&
+        value.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "Verify", exact: true }).click();
+    await (await response).finished();
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(
+      "Неверный или просроченный код",
+    );
+    await expect(
+      page.getByRole("button", { name: "Verify", exact: true }),
+    ).toBeEnabled();
+  };
+  await submit("111111");
+  await page
+    .getByRole("button", { name: "Запросить новый код", exact: true })
+    .click();
+  await expect(page.getByLabel("Email")).toHaveValue(
+    "otp-failclosed-e2e@example.test",
+  );
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+  await expect(page.getByLabel("Code")).toHaveCount(0);
+  expect(requests).toBe(1);
+  expect(attempts).toHaveLength(1);
+  await expect(page).toHaveURL(`${portalOrigin}/login?returnTo=%2Fdevices`);
+  await page.getByRole("button", { name: "Send code", exact: true }).click();
+  await expect(page.getByLabel("Code")).toHaveValue("");
+  await submit("222222");
+  await submit("222222");
+  expect(requests).toBe(2);
+  expect(attempts).toHaveLength(3);
+  expect(attempts[1]?.challengeId).not.toBe(attempts[0]?.challengeId);
+  expect(attempts[0]?.key).toMatch(/^[0-9a-f-]{36}$/i);
+  expect(attempts[1]?.key).toMatch(/^[0-9a-f-]{36}$/i);
+  expect(attempts[1]?.key).not.toBe(attempts[0]?.key);
+  expect(attempts[2]?.key).toBe(attempts[1]?.key);
+});
+
+for (const [phase, synchronous] of [
+  ["request", false],
+  ["verify", false],
+  ["request", true],
+  ["verify", true],
+] as const) {
+  test(`OTP ${phase} prevents overlapping submit and restart while pending (synchronous=${synchronous})`, async ({
+    page,
+  }) => {
+    let calls = 0;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    if (phase === "verify") await acceptSyntheticChallenge(page);
+    await page.route(
+      `**/api/control-plane/v1/auth/otp/${phase}`,
+      async (route) => {
+        calls += 1;
+        await gate;
+        await route.fulfill({
+          status: phase === "request" ? 202 : 401,
+          contentType: "application/json",
+          body: JSON.stringify(
+            phase === "request"
+              ? { status: "accepted", challengeId, expiresAt }
+              : { error: { code: "AUTH_OTP_EXPIRED" } },
+          ),
+        });
+      },
+    );
+    try {
+      if (phase === "request") await openLogin(page);
+      else await page.getByLabel("Code").fill("111111");
+      const submit = page.getByRole("button", {
+        name: phase === "request" ? "Send code" : "Verify",
+        exact: true,
+      });
+      if (synchronous) {
+        // Both submits occur in one browser task, without an intervening await.
+        await page.locator("main form").evaluate((form) => {
+          form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+          );
+          form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+          );
+        });
+      } else {
+        await submit.click();
+      }
+      await expect.poll(() => calls).toBe(1);
+      await expect(submit).toBeDisabled();
+      await expect(
+        page.getByLabel(phase === "request" ? "Email" : "Code"),
+      ).toBeDisabled();
+      if (phase === "verify")
+        await expect(
+          page.getByRole("button", {
+            name: "Запросить новый код",
+            exact: true,
+          }),
+        ).toBeDisabled();
+      await page.locator("main form").evaluate((form) => {
+        form.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+        form.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+      });
+      release?.();
+      if (phase === "request")
+        await expect(page.getByLabel("Code")).toBeVisible();
+      else {
+        await expect(page.getByRole("main").getByRole("alert")).toContainText(
+          "Неверный или просроченный код",
+        );
+        await expect(
+          page.getByRole("button", {
+            name: "Запросить новый код",
+            exact: true,
+          }),
+        ).toBeEnabled();
+      }
+      expect(calls).toBe(1);
+      await expect(page).toHaveURL(`${portalOrigin}/login?returnTo=%2Fdevices`);
+    } finally {
+      release?.();
+    }
+  });
+}

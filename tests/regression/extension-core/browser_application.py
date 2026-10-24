@@ -5,7 +5,7 @@ No live AI/provider or installed target-browser certification is claimed.
 """
 from pathlib import Path
 import argparse,base64,hashlib,json,tempfile,time,os,traceback
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 ROOT=Path(__file__).resolve().parents[3]
 
 def until(fn, timeout=30):
@@ -15,6 +15,79 @@ def until(fn, timeout=30):
         if value:return value
         time.sleep(.1)
     raise AssertionError('Timed out waiting for browser state')
+
+def discover_service_worker(context, timeout=30):
+    """Dispatch queued driver events while observing the real MV3 worker set.
+
+    service_workers is cached in Playwright's synchronous Python API. Sleeping
+    in Python cannot update it; a bounded Playwright wait pumps driver events.
+    Recheck the snapshot after each wait, including a missed-event timeout.
+    Never restart a worker or accept a CDP target as a usable Worker.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        worker = next(iter(context.service_workers), None)
+        if worker is not None:
+            return worker
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            context.wait_for_event("serviceworker", timeout=min(100, remaining * 1000))
+        except PlaywrightTimeoutError:
+            pass
+        # The last wait may reach the deadline while dispatching a worker.
+        # Inspect its completed observation without adding another wait.
+        worker = next(iter(context.service_workers), None)
+        if worker is not None:
+            return worker
+    raise AssertionError("Timed out waiting for browser state")
+
+
+def snapshot_worker_startup_diagnostics(context):
+    """Post-failure Chromium counters only; never persist IDs, URLs or errors."""
+    summary = {"phase": "after_discovery_timeout"}
+    try:
+        summary["playwright_worker_count"] = len(context.service_workers)
+        pages = context.pages
+        summary["existing_page_count"] = len(pages)
+        if not pages:
+            summary["cdp_status"] = "NO_EXISTING_PAGE"
+            return summary
+        session = context.new_cdp_session(pages[0])
+        counts = {"registered": 0, "deleted": 0, "worker_versions": 0,
+                  "worker_running": 0, "worker_errors": 0}
+        try:
+            def on_registrations(event):
+                for reg in event.get("registrations", []):
+                    counts["registered"] += 1
+                    counts["deleted"] += int(bool(reg.get("isDeleted")))
+            def on_versions(event):
+                for version in event.get("versions", []):
+                    counts["worker_versions"] += 1
+                    counts["worker_running"] += int(
+                        version.get("runningStatus") == "running")
+            def on_worker_error(_event):
+                counts["worker_errors"] += 1
+            session.on("ServiceWorker.workerRegistrationUpdated", on_registrations)
+            session.on("ServiceWorker.workerVersionUpdated", on_versions)
+            session.on("ServiceWorker.workerErrorReported", on_worker_error)
+            targets = session.send("Target.getTargets").get("targetInfos", [])
+            summary["cdp_worker_targets"] = sum(
+                target.get("type") == "service_worker" for target in targets)
+            summary["cdp_background_targets"] = sum(
+                target.get("type") == "background_page" for target in targets)
+            session.send("ServiceWorker.enable")
+            pages[0].wait_for_timeout(150)
+            summary.update(counts)
+            summary["cdp_status"] = "COUNTS_OBSERVED"
+        finally:
+            session.detach()
+    except Exception as error:
+        summary["cdp_status"] = "UNAVAILABLE"
+        summary["cdp_error_class"] = type(error).__name__
+    return summary
+
 
 def seed_authority(worker, private_key):
     encoded = base64.b64encode(private_key.read_bytes()).decode('ascii')
@@ -85,9 +158,11 @@ def run(runtime,output,private_key):
         if os.getenv('SA_TEST_CHROMIUM'):opts['executable_path']=os.environ['SA_TEST_CHROMIUM'];opts.pop('channel')
         context=p.chromium.launch_persistent_context(profile,**opts)
         page=popup=worker=None
+        worker_stage="initial_launch"
         errors=[]
         try:
-            worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
+            worker=discover_service_worker(context)
+            worker_stage="active"
             empty_status=worker.evaluate("async()=>SellerAgentsControlClient.status()")
             assert empty_status['authenticated'] is False
             seed_authority(worker, private_key)
@@ -95,8 +170,10 @@ def run(runtime,output,private_key):
             extension_url=worker.url
             context.close()
             context=None
+            worker_stage="relaunch"
             context=p.chromium.launch_persistent_context(profile,**opts)
-            worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
+            worker=discover_service_worker(context)
+            worker_stage="active"
             assert worker.url == extension_url
             assert worker.evaluate("()=>globalThis.__seller_agents_native_fixture_sentinel") is None
             restored=worker.evaluate("async()=>SellerAgentsControlClient.status()")
@@ -304,6 +381,10 @@ def run(runtime,output,private_key):
             result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','current li[data-message-role] fenced code','multi-block localized Copy','response-actions Copy excluded from code ownership','response-copy rerender no stale action','fenced fallback and real code-copy precedence','user/editor/ambiguous/unrelated action rejection','unmarked Response-actions plain code exact extraction','rerender no duplicates','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
         except Exception as error:
             result.update(status='FAIL',error=str(error),traceback=traceback.format_exc(),page_errors=errors)
+            if context and worker_stage in ("initial_launch", "relaunch"):
+                result["worker_startup_diagnostics"] = {
+                    "stage": worker_stage, **snapshot_worker_startup_diagnostics(context)
+                }
             if popup:
                 try:popup.screenshot(path=str(output/'failure-popup.png'),full_page=True)
                 except Exception:pass

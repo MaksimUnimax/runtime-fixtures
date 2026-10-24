@@ -5,15 +5,19 @@ export async function createApiDatabases<T extends ClosableDatabase>(
   applicationUrl: string,
   transferUrl: string | undefined,
   createRuntime: (url: string) => T,
+  monitorHealthReadUrl?: string,
+  monitorHealthExpectedRole?: string,
 ): Promise<{
   database: T;
   transferDatabase: T;
+  healthReadDatabase?: T;
   closeDatabases(): Promise<void>;
 }> {
   if (!transferUrl)
     throw new Error("CREDENTIAL_TRANSFER_DATABASE_URL_REQUIRED");
   let application: URL;
   let transfer: URL;
+  let monitorHealth: URL | undefined;
   try {
     const normalize = (value: string) => {
       const url = new URL(value);
@@ -45,6 +49,28 @@ export async function createApiDatabases<T extends ClosableDatabase>(
     };
     application = normalize(applicationUrl);
     transfer = normalize(transferUrl);
+    // The monitor database has its own isolated reader principal and schema.
+    // No silent fallback to the product database is permitted.
+    if (
+      (monitorHealthReadUrl === undefined) !==
+      (monitorHealthExpectedRole === undefined)
+    )
+      throw new Error();
+    if (monitorHealthReadUrl !== undefined) {
+      monitorHealth = normalize(monitorHealthReadUrl);
+      const role = decodeURIComponent(monitorHealth.username);
+      const name = decodeURI(monitorHealth.pathname.slice(1));
+      if (
+        !monitorHealthExpectedRole ||
+        role !== monitorHealthExpectedRole ||
+        role === decodeURIComponent(application.username) ||
+        role === decodeURIComponent(transfer.username) ||
+        name !== "octoport_monitor_pilot" ||
+        name === decodeURI(application.pathname.slice(1)) ||
+        name === decodeURI(transfer.pathname.slice(1))
+      )
+        throw new Error();
+    }
     if (
       decodeURIComponent(application.hostname) !==
         decodeURIComponent(transfer.hostname) ||
@@ -62,35 +88,75 @@ export async function createApiDatabases<T extends ClosableDatabase>(
     // Never expose either connection string or credentials in a diagnostic.
     throw new Error("API_DATABASE_ROLE_OR_ENDPOINT_SEPARATION_REQUIRED");
   }
-  const database = createRuntime(application.toString());
+  const allocated: Array<{
+    kind: "application" | "transfer" | "monitor";
+    runtime: T;
+  }> = [];
+  const cleanupAllocated = async () => {
+    const results = await Promise.allSettled(
+      allocated.map(({ runtime }) =>
+        Promise.resolve().then(() => runtime.close()),
+      ),
+    );
+    return results.flatMap((result, index) =>
+      result.status === "rejected"
+        ? [{ kind: allocated[index]!.kind, reason: result.reason }]
+        : [],
+    );
+  };
+  let database: T;
   let transferDatabase: T;
+  let healthReadDatabase: T | undefined;
   try {
+    database = createRuntime(application.toString());
+    allocated.push({ kind: "application", runtime: database });
     transferDatabase = createRuntime(transfer.toString());
+    allocated.push({ kind: "transfer", runtime: transferDatabase });
   } catch (error) {
-    try {
-      await database.close();
-    } catch (closeError) {
+    const cleanupFailures = await cleanupAllocated();
+    if (cleanupFailures.length)
       throw new AggregateError(
-        [error, closeError],
+        [error, ...cleanupFailures.map(({ reason }) => reason)],
         "API_DATABASE_SETUP_FAILED",
       );
-    }
     throw error;
+  }
+  if (monitorHealth) {
+    try {
+      healthReadDatabase = createRuntime(monitorHealth.toString());
+      allocated.push({ kind: "monitor", runtime: healthReadDatabase });
+    } catch {
+      const cleanupFailures = await cleanupAllocated();
+      const monitorFailure = new Error(
+        "MONITOR_HEALTH_READ_DATABASE_SETUP_FAILED",
+      );
+      if (cleanupFailures.length)
+        throw new AggregateError(
+          [monitorFailure, ...cleanupFailures.map(({ reason }) => reason)],
+          "API_DATABASE_SETUP_FAILED",
+        );
+      throw monitorFailure;
+    }
   }
   let closing: Promise<void> | undefined;
   return {
     database,
     transferDatabase,
+    healthReadDatabase,
     closeDatabases() {
       if (!closing) {
         closing = (async () => {
-          const results = await Promise.allSettled([
-            Promise.resolve().then(() => database.close()),
-            Promise.resolve().then(() => transferDatabase.close()),
-          ]);
-          const errors = results.flatMap((result) =>
-            result.status === "rejected" ? [result.reason] : [],
-          );
+          const failures = await cleanupAllocated();
+          const nonMonitor = failures
+            .filter(({ kind }) => kind !== "monitor")
+            .map(({ reason }) => reason);
+          const monitorFailed = failures.some(({ kind }) => kind === "monitor");
+          const errors = monitorFailed
+            ? [
+                ...nonMonitor,
+                new Error("MONITOR_HEALTH_READ_DATABASE_CLOSE_FAILED"),
+              ]
+            : nonMonitor;
           if (errors.length === 1) throw errors[0];
           if (errors.length > 1)
             throw new AggregateError(errors, "API_DATABASE_CLEANUP_FAILED");

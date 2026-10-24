@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   profileRevisionFingerprint,
   selectAssignedProfileRevision,
@@ -407,6 +407,174 @@ describe("P7.3 server AI resolution", () => {
       surface: "standard",
       variant: "standard_composer_v1",
       browserFamily: "chrome",
+    });
+  });
+});
+
+describe("P7.3 detected hierarchy lookup identity", () => {
+  const foreignHierarchies = [
+    { label: "family", changes: { adapterKey: "alice" } },
+    { label: "surface", changes: { surfaceKey: "work" } },
+  ];
+
+  for (const { label, changes } of foreignHierarchies) {
+    const foreign = () => snapshot({ hierarchy: { ...hierarchy, ...changes } });
+
+    it(`rejects a coherent foreign ${label} instead of relabelling its profile`, () => {
+      expect(() => resolveBootstrapAiSnapshot(baseInput, foreign())).toThrow(
+        BootstrapAiResolutionError,
+      );
+    });
+
+    it(`rejects a foreign ${label} for a null-variant surface default`, () => {
+      expect(() =>
+        resolveBootstrapAiSnapshot(
+          { ...baseInput, detected: { ...detected, variant: null } },
+          snapshot({
+            hierarchy: {
+              ...hierarchy,
+              ...changes,
+              variantId: null,
+              variantKey: null,
+              variantStatus: null,
+            },
+            exactAssignment: null,
+          }),
+        ),
+      ).toThrow(BootstrapAiResolutionError);
+    });
+
+    it(`does not disguise a foreign ${label} as disabled or missing a profile`, () => {
+      for (const value of [
+        snapshot({
+          hierarchy: { ...hierarchy, ...changes, adapterStatus: "DISABLED" },
+        }),
+        snapshot({
+          hierarchy: { ...hierarchy, ...changes },
+          exactAssignment: null,
+          defaultAssignment: null,
+        }),
+      ]) {
+        expect(() => resolveBootstrapAiSnapshot(baseInput, value)).toThrow(
+          BootstrapAiResolutionError,
+        );
+      }
+    });
+
+    it(`rejects a foreign ${label} through the normal resolution service`, async () => {
+      const resolve = vi.fn(async () => foreign());
+      const service = new BootstrapAiResolutionService({ resolve });
+      await expect(service.resolve(baseInput)).rejects.toMatchObject({
+        code: "AI_RESOLUTION_SOURCE_CORRUPTED",
+      });
+      expect(resolve).toHaveBeenCalledExactlyOnceWith({
+        family: detected.family,
+        surface: detected.surface,
+        variant: detected.variant,
+        browserFamily: baseInput.browser.family,
+      });
+    });
+
+    it(`never reads a prompt tree from a foreign ${label}`, async () => {
+      const promptTree = vi.fn(async () => null);
+      const service = new BootstrapAiResolutionService({
+        resolve: async () => foreign(),
+        promptTree,
+      });
+      await expect(service.resolvePromptTree(baseInput)).rejects.toMatchObject({
+        code: "AI_RESOLUTION_SOURCE_CORRUPTED",
+      });
+      expect(promptTree).not.toHaveBeenCalled();
+    });
+
+    it(`rejects a foreign ${label} through local-candidate enumeration`, async () => {
+      const service = new BootstrapAiResolutionService({
+        resolve: async ({ browserFamily }) =>
+          browserFamily === "chrome"
+            ? foreign()
+            : snapshot({ exactAssignment: null, defaultAssignment: null }),
+      });
+      await expect(
+        service.resolveLocalCandidates({
+          detected,
+          contractVersion: baseInput.contractVersion,
+          accountId: baseInput.accountId,
+          deviceId: baseInput.deviceId,
+        }),
+      ).rejects.toMatchObject({ code: "AI_RESOLUTION_SOURCE_CORRUPTED" });
+    });
+  }
+
+  it.each([
+    { family: "chatgpt", surface: "standard" },
+    { family: "chatgpt", surface: "work" },
+    { family: "alice", surface: "standard" },
+  ])("preserves an exact $family/$surface hierarchy", ({ family, surface }) => {
+    const context = { ...detected, family, surface };
+    const value = snapshot({
+      hierarchy: { ...hierarchy, adapterKey: family, surfaceKey: surface },
+    });
+    expect(
+      resolveBootstrapAiSnapshot({ ...baseInput, detected: context }, value),
+    ).toMatchObject({
+      status: "RESOLVED",
+      detected: context,
+      profile: { profileKey: "standard-profile" },
+    });
+  });
+
+  it("preserves a valid null-variant default", () => {
+    const context = { ...detected, variant: null };
+    expect(
+      resolveBootstrapAiSnapshot(
+        { ...baseInput, detected: context },
+        snapshot({
+          hierarchy: {
+            ...hierarchy,
+            variantId: null,
+            variantKey: null,
+            variantStatus: null,
+          },
+          exactAssignment: null,
+        }),
+      ),
+    ).toMatchObject({
+      status: "RESOLVED",
+      detected: context,
+      profile: { profileKey: "default-profile", scopeVariant: null },
+    });
+  });
+
+  it("reads the original prompt tree only after a valid exact hierarchy", async () => {
+    const promptTree = vi.fn(async () => null);
+    const service = new BootstrapAiResolutionService({
+      resolve: async () => snapshot(),
+      promptTree,
+    });
+    await expect(service.resolvePromptTree(baseInput)).resolves.toEqual({
+      aiId: hierarchy.adapterId,
+      publication: null,
+    });
+    expect(promptTree).toHaveBeenCalledExactlyOnceWith(hierarchy.adapterId);
+  });
+
+  it("preserves the valid browser-specific local candidate", async () => {
+    const service = new BootstrapAiResolutionService({
+      resolve: async ({ browserFamily }) =>
+        browserFamily === "chrome"
+          ? snapshot()
+          : snapshot({ exactAssignment: null, defaultAssignment: null }),
+    });
+    const result = await service.resolveLocalCandidates({
+      detected,
+      contractVersion: baseInput.contractVersion,
+      accountId: baseInput.accountId,
+      deviceId: baseInput.deviceId,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      browserFamily: "chrome",
+      resolution: { status: "RESOLVED", detected },
     });
   });
 });
