@@ -58,6 +58,34 @@ STD-21..28 — ещё 8 резервных бизнес-вопросов. Они
 | TR-16 | Server/release | OTP/refresh race, beta quota, RBAC, real PG restore, exact package/trust/manifest/contract validation |
 | TR-17 | Monitoring | Нет self-patch publication; auth lanes, scheduler, unauthorized Telegram, notification dedup, official WB bundle validation |
 
+### Per-AI hint-tree acceptance — new checks
+
+Все перечисленные ниже проверки относятся к новому согласованному контракту и имеют статус `NOT_RUN`. Детальный целевой результат — [Per-AI hint and answer trees](../../architecture/SYNC.md#per-ai-hint-and-answer-trees); запуск контроллеров, серверных исполнителей и браузерных проверок в этой документационной правке не выполнялся.
+
+| ID | Сценарий | Проверяемый результат | Статус |
+|---|---|---|---|
+| AI-TREE-01 | Новый ИИ в реестре, включая повтор операции | Собственное дерево создаётся атомарно и идемпотентно из общей стартовой заготовки без дублей; изменение заготовки не переписывает существующие деревья; создание дерева не объявляет адаптер готовым | NOT_RUN |
+| AI-TREE-02 | Черновик, публикация и права | Сохранённый черновик не виден клиентам; отдельная проверенная публикация адресована выбранному AI ID; существующие RBAC/CSRF/транзакционные проверки сохранены | NOT_RUN |
+| AI-TREE-03 | Параллельное редактирование и версия | Конфликт правок видим; опубликованное содержимое неизменно, есть автор и время; возврат содержания создаёт новую монотонную публикацию, отличимую от подачи старых данных | NOT_RUN |
+| AI-TREE-04 | Подписанная конфигурация и локальный кэш | Descriptor ID/version/format/hash и отдельные данные дерева проверяются на принадлежность, целостность, подлинность и совместимость до атомарного сохранения; неизменённая версия не загружается заново | NOT_RUN |
+| AI-TREE-05 | Обрыв загрузки | Пригодная старая копия сохраняется; при её отсутствии показывается недоступность только для выбранного ИИ без подстановки чужого дерева | NOT_RUN |
+| AI-TREE-06 | Offline и отзыв | Последняя пригодная копия работает только в границах текущего доступа и подписанного offline grace; известный revoke не игнорируется; числовой TTL не добавляется | NOT_RUN |
+| AI-TREE-07 | Выполнение во время обновления | Текущий обмен закрепляет версию до завершения, следующая операция берёт новую проверенную версию; смена дерева не сбрасывает вход/авторизацию, ввод, магазин, очередь или выполняемую работу; обновление не создаёт AI message, marketplace request или повтор delivery | NOT_RUN |
+| AI-TREE-08 | Вкладки, браузеры и разные ИИ | Дублирующие загрузки объединяются внутри установки; браузеры обновляются независимо; параллельная работа с другими ИИ сохраняет разделение деревьев/состояний и вход/авторизацию; сервер не опрашивает, вкладки не опрашивают и обычный marketplace запрос не запускает tree sync | NOT_RUN |
+| AI-TREE-09 | Общие защитные границы | Валидация команд, каталог реальных операций, permissions и marketplace limits остаются общими; дерево не исполняет код и не расширяет capabilities | NOT_RUN |
+
+Качество содержания самих подсказок и команд проверяется позже, после определения содержания по тестам. В следующую тестовую сборку после отдельного выбора решения параллельной работы входят универсальный механизм дерева с админкой, это выбранное решение, добавление и импорт магазинов внутри popup и имя продукта «Октопорт»/Octoport вместо Ozon Bridge. Решение параллельной работы остаётся невыбранным; не назначать номер сборки, исполнителей или готовность. Известное отсутствие attachment surface у гостевого GPT не добавляется в список багов и не требует guest detector.
+
+### Repeated ChatGPT Chat/Standard start defect — future patch
+
+Это отдельный повторный дефект Chat, не acceptance результата: в авторизованном ChatGPT Chat/Standard «Начать работу» завершается `COMPOSER_NOT_FOUND`. Work исследуется по собственному DOM; предоставленный snapshot Work показывает `GENERATING`, Stop visible, Send not observed, но не подтверждает ту же ошибку.
+
+| ID | Доказательство и обязательная будущая работа | Проверка/статус |
+|---|---|---|
+| TR-18 | Сверить вчерашнюю задачу (историческая запись `OWNER-0213-KEYS-IMPORT-IN-EXTENSION-20261008T052743Z`), diff, коммиты и точный состав установленного 0.2.14; не предполагать, что patch был. Установить причину по коду и доступному безопасному HTML и сделать адресное исправление. Если данных мало — запросить точные дополнительные HTML/диагностику через владельца/dot. Не переносить Alice результаты на Chat. | NOT_RUN; владелец исключил тесты для этого исправления. Будущий результат обозначать «изменение без проверки в авторизованной среде», не PASS/«исправлено тестами». Не тестировать серверный Chromium без входа в ChatGPT; quality gates не заявлять пройденными и не обходить. |
+
+Snapshot владельца `2026-10-09T04:22:14.438Z`: extension `0.2.14 PREPRODUCTION`; Chrome `152.0.0.0` — observed runtime only; extension/browser `SUPPORTED`, minimum `0.2.13`; `authenticated=true`/`workAllowed=true`, `lastErrorCode=null`, `aiStatus=null`; page `aiFamily=chatgpt`, `identityStatus=unknown`, `runtimeStatus=ready`, `lastErrorCode=null`, `transportClass=null`; work `state=null`, `pending=false`, `pendingOutcome=null`, `lastStart.stage=send`, `code=COMPOSER_NOT_FOUND`, `outcome=failed`; stores total 1, Ozon 1, WB 0. Octoport auth fields do not prove ChatGPT login; owner separately confirms authenticated ChatGPT and a personal Chat homepage with empty «Спросить ChatGPT» editor. The exact safe historical HTML and capture limitations are consolidated in [ChatGPT composer evidence](CHATGPT_CHAT_COMPOSER_NOT_FOUND_EVIDENCE.md); the excerpts do not establish the root cause. The referenced historical task record was not accessed in this documentation-only update.
+
 H2-I/category-comparison из эталона — отдельно исследуемая capability, не разрешение молча добавлять новую API-операцию. Новая операция требует собственной schema/read-effect/entitlement/privacy проверки.
 
 35 Q1-C кейсов связаны в [OWNER_Q1_CROSSWALK.tsv](OWNER_Q1_CROSSWALK.tsv). Опасные UNKNOWN/429/cache expiry тестируются детерминированно; искусственно ломать площадку или её квоты не нужно. Браузерные/изоляционные проверки по возможности выполняет A, а человек оценивает готовый UX и реальные внешние доставки.
