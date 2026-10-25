@@ -25,11 +25,20 @@
       "maxPeriodDays": 31,
       "maxCampaignIds": 50,
       "eligibleStatuses": [7, 9, 11],
-      "responseGrain": ["campaign", "day", "product"],
+      "responseGrain": ["campaign", "day", "platform", "product"],
       "fields": {
-        "advertId": { "role": "campaign_id", "unit": "identifier" },
-        "views": { "role": "views", "unit": "count" },
-        "clicks": { "role": "clicks", "unit": "count" },
+        "advertId": {
+          "role": "campaign_id",
+          "unit": "identifier"
+        },
+        "views": {
+          "role": "views",
+          "unit": "count"
+        },
+        "clicks": {
+          "role": "clicks",
+          "unit": "count"
+        },
         "sum": {
           "role": "promotion_statistics_spend",
           "unit": "provider_money_amount"
@@ -38,8 +47,22 @@
           "role": "promotion_statistics_currency",
           "unit": "currency_code_iso_4217"
         },
-        "days.date": { "role": "statistics_day", "unit": "date_time" },
-        "days.nms.nmId": { "role": "product_id", "unit": "identifier" }
+        "days.date": {
+          "role": "statistics_day",
+          "unit": "date_time"
+        },
+        "days.apps.appType": {
+          "role": "platform_type",
+          "unit": "provider_enum_integer"
+        },
+        "days.apps.nms.nmId": {
+          "role": "product_id",
+          "unit": "identifier"
+        },
+        "days.apps.nms.sum": {
+          "role": "product_attributed_promotion_statistics_spend_not_actual_cost_ledger",
+          "unit": "provider_money_amount"
+        }
       },
       "currencyFieldCurrentOpenapi": "currency"
     },
@@ -53,9 +76,18 @@
         "minItems": 1,
         "maxItems": 100,
         "variants": [
-          { "kind": "CAMPAIGN", "required": ["id"] },
-          { "kind": "DATES", "required": ["id", "dates"] },
-          { "kind": "INTERVAL", "required": ["id", "interval"] }
+          {
+            "kind": "CAMPAIGN",
+            "required": ["id"]
+          },
+          {
+            "kind": "DATES",
+            "required": ["id", "dates"]
+          },
+          {
+            "kind": "INTERVAL",
+            "required": ["id", "interval"]
+          }
         ]
       },
       "responseVariants": [
@@ -75,8 +107,14 @@
           "role": "media_campaign_type",
           "unit": "provider_enum_integer"
         },
-        "stats.views": { "role": "views", "unit": "count" },
-        "stats.clicks": { "role": "clicks", "unit": "count" },
+        "stats.views": {
+          "role": "views",
+          "unit": "count"
+        },
+        "stats.clicks": {
+          "role": "clicks",
+          "unit": "count"
+        },
         "stats.expenses": {
           "role": "media_placement_cost",
           "unit": "provider_money_amount_currency_code_absent"
@@ -114,14 +152,111 @@
     "promotion": {
       "row": {
         "advertId": 1001,
-        "views": 1000,
+        "atbs": 15,
+        "canceled": 0,
         "clicks": 50,
+        "orders": 12,
+        "shks": 12,
         "sum": 125.5,
+        "sum_price": 700,
+        "views": 1000,
+        "cpc": 2.51,
+        "cr": 24.0,
+        "ctr": 5.0,
         "currency": "RUB",
         "days": [
           {
             "date": "2026-09-26T00:00:00+03:00",
-            "nms": [{ "nmId": 90001, "views": 600, "clicks": 30 }]
+            "atbs": 15,
+            "canceled": 0,
+            "clicks": 50,
+            "orders": 12,
+            "shks": 12,
+            "sum": 125.5,
+            "sum_price": 700,
+            "views": 1000,
+            "cpc": 2.51,
+            "cr": 24.0,
+            "ctr": 5.0,
+            "apps": [
+              {
+                "appType": 1,
+                "atbs": 12,
+                "canceled": 0,
+                "clicks": 40,
+                "orders": 10,
+                "shks": 10,
+                "sum": 110,
+                "sum_price": 600,
+                "views": 800,
+                "cpc": 2.75,
+                "cr": 25.0,
+                "ctr": 5.0,
+                "nms": [
+                  {
+                    "atbs": 9,
+                    "canceled": 0,
+                    "clicks": 30,
+                    "cpc": 2.6667,
+                    "cr": 26.6667,
+                    "ctr": 5.0,
+                    "name": "SYNTHETIC_PRODUCT_A",
+                    "nmId": 90001,
+                    "orders": 8,
+                    "shks": 8,
+                    "sum": 80,
+                    "sum_price": 400,
+                    "views": 600
+                  },
+                  {
+                    "atbs": 3,
+                    "canceled": 0,
+                    "clicks": 10,
+                    "cpc": 3.0,
+                    "cr": 20.0,
+                    "ctr": 5.0,
+                    "name": "SYNTHETIC_PRODUCT_B",
+                    "nmId": 90002,
+                    "orders": 2,
+                    "shks": 2,
+                    "sum": 30,
+                    "sum_price": 200,
+                    "views": 200
+                  }
+                ]
+              },
+              {
+                "appType": 32,
+                "atbs": 3,
+                "canceled": 0,
+                "clicks": 10,
+                "orders": 2,
+                "shks": 2,
+                "sum": 15.5,
+                "sum_price": 100,
+                "views": 200,
+                "cpc": 1.55,
+                "cr": 20.0,
+                "ctr": 5.0,
+                "nms": [
+                  {
+                    "atbs": 3,
+                    "canceled": 0,
+                    "clicks": 10,
+                    "cpc": 1.55,
+                    "cr": 20.0,
+                    "ctr": 5.0,
+                    "name": "SYNTHETIC_PRODUCT_A",
+                    "nmId": 90001,
+                    "orders": 2,
+                    "shks": 2,
+                    "sum": 15.5,
+                    "sum_price": 100,
+                    "views": 200
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -133,11 +268,16 @@
         "spend": 125.5,
         "views": 1000,
         "clicks": 50,
-        "productIds": [90001]
+        "productIds": [90001, 90002]
       }
     },
     "media": {
-      "request": [{ "id": 2001, "dates": ["2026-09-26"] }],
+      "request": [
+        {
+          "id": 2001,
+          "dates": ["2026-09-26"]
+        }
+      ],
       "response": [
         {
           "dates": ["2026-09-26"],
@@ -148,7 +288,11 @@
               "views": 11849,
               "clicks": 209,
               "expenses": 175000,
-              "daily_stats": [{ "date": "2026-09-26T00:00:00+03:00" }]
+              "daily_stats": [
+                {
+                  "date": "2026-09-26T00:00:00+03:00"
+                }
+              ]
             }
           ]
         }
@@ -162,9 +306,16 @@
       }
     },
     "mediaNotFound": {
-      "request": [{ "id": 2002 }],
+      "request": [
+        {
+          "id": 2002
+        }
+      ],
       "response": [
-        { "advert_id": 2002, "error": "fixture campaign not found" }
+        {
+          "advert_id": 2002,
+          "error": "fixture campaign not found"
+        }
       ],
       "expected": {
         "status": "INCOMPLETE",

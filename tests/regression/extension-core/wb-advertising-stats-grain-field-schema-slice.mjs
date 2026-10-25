@@ -83,7 +83,18 @@ assert.deepEqual(Array.from(mediaMeta.required_query_keys), []);
 assert.equal(promotion.maxPeriodDays, 31);
 assert.equal(promotion.maxCampaignIds, 50);
 assert.deepEqual(promotion.eligibleStatuses, [7, 9, 11]);
-assert.deepEqual(promotion.responseGrain, ["campaign", "day", "product"]);
+assert.deepEqual(promotion.responseGrain, [
+  "campaign",
+  "day",
+  "platform",
+  "product",
+]);
+assert.equal(promotion.fields["days.apps.appType"].role, "platform_type");
+assert.equal(promotion.fields["days.apps.nms.nmId"].role, "product_id");
+assert.equal(
+  promotion.fields["days.apps.nms.sum"].role,
+  "product_attributed_promotion_statistics_spend_not_actual_cost_ledger",
+);
 assert.equal(promotion.fields.currency.unit, "currency_code_iso_4217");
 assert.equal(promotion.currencyFieldCurrentOpenapi, "currency");
 
@@ -130,12 +141,29 @@ function projectPromotion(row) {
 
   const productIds = [];
   for (const day of row.days) {
-    if (!day || typeof day.date !== "string" || !Array.isArray(day.nms))
+    if (
+      !day ||
+      typeof day.date !== "string" ||
+      !Array.isArray(day.apps) ||
+      Object.hasOwn(day, "nms")
+    )
       return { status: "INCOMPLETE", reason: "PROMOTION_DAY_GRAIN_INVALID" };
-    for (const nm of day.nms) {
-      if (!nm || !Number.isInteger(nm.nmId))
-        return { status: "INCOMPLETE", reason: "PROMOTION_PRODUCT_ID_INVALID" };
-      productIds.push(nm.nmId);
+    // The current WB DaysV3 schema places product rows under each platform.
+    // Do not accept the old synthetic days[].nms shortcut as provider evidence.
+    for (const app of day.apps) {
+      if (!app || !Number.isInteger(app.appType) || !Array.isArray(app.nms))
+        return {
+          status: "INCOMPLETE",
+          reason: "PROMOTION_PLATFORM_GRAIN_INVALID",
+        };
+      for (const nm of app.nms) {
+        if (!nm || !Number.isInteger(nm.nmId))
+          return {
+            status: "INCOMPLETE",
+            reason: "PROMOTION_PRODUCT_ID_INVALID",
+          };
+        productIds.push(nm.nmId);
+      }
     }
   }
 
@@ -221,6 +249,50 @@ function projectMedia(request, response) {
 
 const c = slice.syntheticCases;
 assert.deepEqual(projectPromotion(c.promotion.row), c.promotion.expected);
+// Actual 08-promotion.yaml DaysV3: campaign -> days -> apps -> nms.
+// Previous fixtures incorrectly put nms directly below days and passed.
+{
+  const flat = structuredClone(c.promotion.row);
+  flat.days[0].nms = flat.days[0].apps[0].nms;
+  delete flat.days[0].apps;
+  assert.deepEqual(projectPromotion(flat), {
+    status: "INCOMPLETE",
+    reason: "PROMOTION_DAY_GRAIN_INVALID",
+  });
+}
+{
+  const missingApps = structuredClone(c.promotion.row);
+  delete missingApps.days[0].apps;
+  assert.deepEqual(projectPromotion(missingApps), {
+    status: "INCOMPLETE",
+    reason: "PROMOTION_DAY_GRAIN_INVALID",
+  });
+}
+{
+  const missingAppType = structuredClone(c.promotion.row);
+  delete missingAppType.days[0].apps[0].appType;
+  assert.deepEqual(projectPromotion(missingAppType), {
+    status: "INCOMPLETE",
+    reason: "PROMOTION_PLATFORM_GRAIN_INVALID",
+  });
+}
+{
+  const missingAppRows = structuredClone(c.promotion.row);
+  delete missingAppRows.days[0].apps[0].nms;
+  assert.deepEqual(projectPromotion(missingAppRows), {
+    status: "INCOMPLETE",
+    reason: "PROMOTION_PLATFORM_GRAIN_INVALID",
+  });
+}
+{
+  const missingProduct = structuredClone(c.promotion.row);
+  delete missingProduct.days[0].apps[0].nms[0].nmId;
+  assert.deepEqual(projectPromotion(missingProduct), {
+    status: "INCOMPLETE",
+    reason: "PROMOTION_PRODUCT_ID_INVALID",
+  });
+}
+
 assert.deepEqual(
   projectMedia(c.media.request, c.media.response),
   c.media.expected,
@@ -260,6 +332,8 @@ console.log(
     scenario: "CAP-18",
     operations: [promotion.operationAlias, media.operationAlias],
     promotionCurrencyExplicit: true,
+    promotionPlatformNestedProductGrain: true,
+    legacyDayFlatItemFixtureRejected: true,
     mediaCampaignJoinResolved: false,
     mediaCurrencyResolved: false,
     mediaItemIsProductId: false,
