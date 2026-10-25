@@ -236,6 +236,38 @@ const ready = check(
   "report_file_get",
 );
 assert.equal(ready.next_command.params.file_ref, staleRef);
+// The report-ready route must never consume a generated-document ref.
+const generatedOnly = "rpf_s_INERT_GENERATED_ONLY";
+check(
+  "report_info",
+  {
+    status: "success",
+    code: reportCode,
+    generated_file_ref: generatedOnly,
+  },
+  "blocked_missing_fresh_file_ref",
+  null,
+);
+const bothRefs = check(
+  "report_info",
+  {
+    status: "success",
+    code: reportCode,
+    generated_file_ref: generatedOnly,
+    report_file_ref: staleRef,
+  },
+  "file_ready",
+  "report_file_get",
+);
+assert.equal(bothRefs.next_command.params.file_ref, staleRef);
+const generatedDocument = check(
+  "cargoes_label_get",
+  { generated_file_ref: generatedOnly },
+  "file_ready",
+  "report_file_get",
+);
+assert.equal(generatedDocument.kind, "generated_document");
+assert.equal(generatedDocument.next_command.params.file_ref, generatedOnly);
 check(
   "report_info",
   { status: "success", code: reportCode, generated_file_inline: true },
@@ -285,7 +317,7 @@ console.log(
     scenario: "CAP-24",
     covered:
       "Ozon placement report terminal status outranks stale file reference",
-    cases: 20,
+    cases: 23,
     providerRequests,
     autoPolling: false,
     xlsxSkuCurrencyAmounts: "NOT_VERIFIED",
