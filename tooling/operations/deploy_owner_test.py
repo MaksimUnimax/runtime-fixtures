@@ -1066,6 +1066,7 @@ def _current_apply_engine_locked(
             'receipt':str(evidence_dir/'receipt.json'),
             'candidateSourceSha':result.get('candidateSourceSha'),
             'candidateSourceTree':result.get('candidateSourceTree'),
+            'trustedInventorySha256':result.get('trustedInventorySha256'),
             'predeployPrefix':predeploy,
             'candidateTarget':target,
         })
@@ -1155,6 +1156,7 @@ def _current_apply_engine_locked(
 def current_finalize_committed_fence_cleanup(
     plan: dict, *, evidence_root: Path, journal: Path, state: dict,
     expected_source_sha: str, expected_source_tree: str,
+    expected_inventory_sha256: str,
 ) -> dict:
     """Explicit recover-authorized cleanup after a durable terminal result.
 
@@ -1167,6 +1169,7 @@ def current_finalize_committed_fence_cleanup(
         or state.get('fenceCleanupPending') is not True
         or state.get('candidateSourceSha')!=expected_source_sha
         or state.get('candidateSourceTree')!=expected_source_tree
+        or state.get('trustedInventorySha256')!=expected_inventory_sha256
     ):
         raise RuntimeError('CURRENT_FENCE_CLEANUP_STATE_INVALID')
     phase=state.get('phase')
@@ -1202,6 +1205,7 @@ def current_finalize_committed_fence_cleanup(
         or state['candidateTarget']<state['predeployPrefix']
         or receipt.get('candidateSourceSha')!=expected_source_sha
         or receipt.get('candidateSourceTree')!=expected_source_tree
+        or receipt.get('trustedInventorySha256')!=expected_inventory_sha256
         or receipt.get('predeployPrefix')!=state.get('predeployPrefix')
         or receipt.get('candidateTarget')!=state.get('candidateTarget')
     ):
@@ -1216,6 +1220,7 @@ def current_finalize_committed_fence_cleanup(
     return {
         'status':'CURRENT_FENCE_CLEANUP_PASS',
         'previousTerminalPhase':phase,
+        'trustedInventorySha256':expected_inventory_sha256,
         'recoveryRequired':False,
         'fenceCleanupPending':False,
         'candidateSourceSha':expected_source_sha,
@@ -1271,6 +1276,7 @@ def _current_recover_engine_locked(
             plan,evidence_root=evidence_root,journal=journal,state=state,
             expected_source_sha=expected_source_sha,
             expected_source_tree=expected_source_tree,
+            expected_inventory_sha256=expected_inventory_sha256,
         )
     if not isinstance(state,dict) or state.get('recoveryRequired') is not True:
         raise RuntimeError('CURRENT_RECOVERY_NOT_REQUIRED')
@@ -1311,6 +1317,7 @@ def _current_recover_engine_locked(
         'recoveryRequired':True,
         'candidateSourceSha':expected_source_sha,
         'candidateSourceTree':expected_source_tree,
+        'trustedInventorySha256':expected_inventory_sha256,
         'predeployPrefix':predeploy,
         'candidateTarget':target,
         'schemaState':schema_state,
@@ -1351,6 +1358,7 @@ def _current_recover_engine_locked(
             'phase':'CURRENT_RECOVERY_PASS',
             'schemaState':schema_state,
             'recoveryRequired':False,
+            'trustedInventorySha256':expected_inventory_sha256,
             'fenceCleanupPending':True,
             'receipt':str(evidence_dir/'recovery.json'),
             'candidateSourceSha':expected_source_sha,
@@ -1378,6 +1386,7 @@ def _current_recover_engine_locked(
             'phase':'CURRENT_RECOVERY_PASS',
             'schemaState':schema_state,
             'recoveryRequired':False,
+            'trustedInventorySha256':expected_inventory_sha256,
             'fenceCleanupPending':False,
             'receipt':str(evidence_dir/'recovery.json'),
             'candidateSourceSha':expected_source_sha,
