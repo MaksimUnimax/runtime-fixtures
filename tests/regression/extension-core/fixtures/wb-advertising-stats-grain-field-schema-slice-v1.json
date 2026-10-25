@@ -64,7 +64,8 @@
           "unit": "provider_money_amount"
         }
       },
-      "currencyFieldCurrentOpenapi": "currency"
+      "currencyFieldCurrentOpenapi": "currency",
+      "eligibleAppTypes": [1, 32, 64]
     },
     "media": {
       "operationAlias": "media_stats",

@@ -83,6 +83,8 @@ assert.deepEqual(Array.from(mediaMeta.required_query_keys), []);
 assert.equal(promotion.maxPeriodDays, 31);
 assert.equal(promotion.maxCampaignIds, 50);
 assert.deepEqual(promotion.eligibleStatuses, [7, 9, 11]);
+assert.deepEqual(promotion.eligibleAppTypes, [1, 32, 64]);
+const allowedPromotionAppTypes = new Set(promotion.eligibleAppTypes);
 assert.deepEqual(promotion.responseGrain, [
   "campaign",
   "day",
@@ -151,7 +153,11 @@ function projectPromotion(row) {
     // The current WB DaysV3 schema places product rows under each platform.
     // Do not accept the old synthetic days[].nms shortcut as provider evidence.
     for (const app of day.apps) {
-      if (!app || !Number.isInteger(app.appType) || !Array.isArray(app.nms))
+      if (
+        !app ||
+        !allowedPromotionAppTypes.has(app.appType) ||
+        !Array.isArray(app.nms)
+      )
         return {
           status: "INCOMPLETE",
           reason: "PROMOTION_PLATFORM_GRAIN_INVALID",
@@ -280,6 +286,14 @@ assert.deepEqual(projectPromotion(c.promotion.row), c.promotion.expected);
   const missingAppRows = structuredClone(c.promotion.row);
   delete missingAppRows.days[0].apps[0].nms;
   assert.deepEqual(projectPromotion(missingAppRows), {
+    status: "INCOMPLETE",
+    reason: "PROMOTION_PLATFORM_GRAIN_INVALID",
+  });
+}
+{
+  const outOfEnum = structuredClone(c.promotion.row);
+  outOfEnum.days[0].apps[0].appType = 2;
+  assert.deepEqual(projectPromotion(outOfEnum), {
     status: "INCOMPLETE",
     reason: "PROMOTION_PLATFORM_GRAIN_INVALID",
   });
