@@ -1655,6 +1655,85 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
 
 
 
+    def test_partial_real_fence_unlink_then_exact_recover_finishes_without_replay(self):
+        # Independent R2 review rework: exercise the real four-file unlink
+        # through BOTH recovery invocations rather than combining separate
+        # unit-level stubs of interrupted cleanup and idempotent replay.
+        self.write_state("PREDEPLOY_VERIFIED",backup=False)
+        old_root,old_allow=deploy.CURRENT_DROPIN_ROOT,deploy.CURRENT_FENCE_ALLOW
+        deploy.CURRENT_DROPIN_ROOT=self.root/"systemd"
+        deploy.CURRENT_FENCE_ALLOW=self.root/"run"/"allow"
+        deploy.CURRENT_FENCE_ALLOW.parent.mkdir()
+        self.addCleanup(setattr,deploy,"CURRENT_DROPIN_ROOT",old_root)
+        self.addCleanup(setattr,deploy,"CURRENT_FENCE_ALLOW",old_allow)
+        completed=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")
+        real_cleanup=deploy.current_remove_reboot_fence
+        real_disable=deploy.current_disable_fenced_start
+        real_unlink=Path.unlink
+        with patch.object(deploy,"run",return_value=completed):
+            deploy.current_install_reboot_fence(self.plan)
+            fences=list(deploy.current_fence_paths(self.plan).values())
+            self.assertEqual(len(fences),4)
+            self.assertTrue(all(p.is_file() for p in fences))
+            count=[0]
+            def interrupt_after_first(p,*args,**kwargs):
+                if p.name==deploy.CURRENT_FENCE_NAME:
+                    count[0]+=1
+                    if count[0]==2:
+                        raise RuntimeError("SYNTHETIC_CRASH_AFTER_FIRST_REAL_FENCE_UNLINK")
+                return real_unlink(p,*args,**kwargs)
+            original_events=[]
+            with self.patch_common(original_events) as stack:
+                stack.enter_context(patch.object(
+                    deploy,"current_remove_reboot_fence",side_effect=real_cleanup))
+                stack.enter_context(patch.object(
+                    deploy,"current_disable_fenced_start",side_effect=real_disable))
+                stack.enter_context(patch.object(Path,"unlink",new=interrupt_after_first))
+                with self.assertRaisesRegex(
+                    RuntimeError,"SYNTHETIC_CRASH_AFTER_FIRST_REAL_FENCE_UNLINK"
+                ):
+                    deploy.current_recover_engine(
+                        candidate_release=self.release,expected_source_sha="a"*40,
+                        expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                        evidence_root=self.root,journal=self.journal,
+                    )
+            self.assertEqual(count[0],2)
+            self.assertEqual([p.is_file() for p in fences],[False,True,True,True])
+            interrupted_state=json.loads(self.journal.read_text())
+            interrupted_receipt=json.loads((self.evidence/"recovery.json").read_text())
+            self.assertEqual(interrupted_state["phase"],"CURRENT_RECOVERY_PASS")
+            self.assertFalse(interrupted_state["recoveryRequired"])
+            self.assertTrue(interrupted_state["fenceCleanupPending"])
+            self.assertEqual(interrupted_receipt["status"],"CURRENT_RECOVERY_PASS")
+            self.assertFalse(interrupted_receipt["recoveryRequired"])
+            self.assertTrue(interrupted_receipt["fenceCleanupPending"])
+            # No helper may rerun DB restore, units, or any provider operation.
+            second_events=[]
+            with self.patch_common(second_events) as stack:
+                stack.enter_context(patch.object(
+                    deploy,"current_remove_reboot_fence",side_effect=real_cleanup))
+                stack.enter_context(patch.object(
+                    deploy,"current_disable_fenced_start",side_effect=real_disable))
+                result=deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+            self.assertEqual(second_events,[])
+            self.assertEqual(result["status"],"CURRENT_FENCE_CLEANUP_PASS")
+            self.assertTrue(result["installedHealthFollowupRequired"])
+            self.assertTrue(all(not p.exists() for p in fences))
+            final_state=json.loads(self.journal.read_text())
+            final_receipt=json.loads((self.evidence/"recovery.json").read_text())
+            self.assertFalse(final_state["recoveryRequired"])
+            self.assertFalse(final_state["fenceCleanupPending"])
+            self.assertFalse(final_receipt["fenceCleanupPending"])
+            self.assertEqual(final_receipt["status"],"CURRENT_RECOVERY_PASS")
+            self.assertEqual(final_receipt["candidateSourceSha"],"a"*40)
+            self.assertEqual(final_receipt["candidateSourceTree"],"b"*40)
+
+
+
 class CurrentRebootFenceSafetyTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(prefix="octoport-fence-")
