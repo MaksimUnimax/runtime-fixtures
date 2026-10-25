@@ -789,11 +789,14 @@ function securityReferences(
 function hasRequestBody(
   operation: Record<string, unknown>,
   parameters: readonly Record<string, unknown>[],
+  root: Record<string, unknown>,
 ): boolean {
   if (operation.requestBody && typeof operation.requestBody === "object")
     return true;
   return parameters.some(
-    (parameter) => parameter.in === "body" || parameter.in === "formData",
+    (parameter) =>
+      parameter.in === "body" ||
+      (root.swagger === "2.0" && parameter.in === "formData"),
   );
 }
 
@@ -850,7 +853,7 @@ export function buildCompleteOperationInventory(input: {
             ? null
             : createHash("sha256").update(summary).digest("hex"),
         securitySchemeReferences: securityReferences(op, document.root),
-        requestBodyPresent: hasRequestBody(op, parameters),
+        requestBodyPresent: hasRequestBody(op, parameters, document.root),
         parameterCount: parameters.length,
         responseStatusKeys: Object.keys(responses).sort(),
         parameterSchemaSha256: parametersFingerprint(parameters, document.root),
