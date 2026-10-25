@@ -500,7 +500,8 @@ async function cancelRedirectBodyWithinDeadline(
   signal: AbortSignal,
 ): Promise<boolean> {
   if (signal.aborted) return false;
-  if (!response.body) return true;
+  const body = response.body;
+  if (!body) return true;
   let removeAbortListener: () => void = () => undefined;
   const deadline = new Promise<false>((resolve) => {
     const onAbort = () => resolve(false);
@@ -510,11 +511,13 @@ async function cancelRedirectBodyWithinDeadline(
   });
   try {
     return await Promise.race([
-      response.body.cancel().then(
-        () => true as const,
-        // Failed cancellation cannot authorize another redirect request.
-        () => false as const,
-      ),
+      Promise.resolve()
+        .then(() => body.cancel())
+        .then(
+          () => true as const,
+          // Failed cancellation cannot authorize another redirect request.
+          () => false as const,
+        ),
       deadline,
     ]);
   } finally {
@@ -833,7 +836,11 @@ export async function acquireOfficialSource(input: {
     controller.abort();
     clearTimeout(timer);
     removeHeaderAbortListener();
-    void responseToClose?.body?.cancel().catch(() => undefined);
+    try {
+      void responseToClose?.body?.cancel().catch(() => undefined);
+    } catch {
+      // A nonconforming adapter can throw synchronously; preserve the result.
+    }
   }
 }
 

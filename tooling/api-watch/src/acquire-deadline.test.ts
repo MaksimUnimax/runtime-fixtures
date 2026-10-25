@@ -249,6 +249,39 @@ describe("C03 acquisition deadline", () => {
       );
   });
 
+  it("does not throw or follow a redirect when cancellation throws synchronously", async () => {
+    let requests = 0;
+    let cancellationAttempts = 0;
+    const redirect = new Response(new ReadableStream<Uint8Array>(), {
+      status: 307,
+      headers: { location: "/next.json" },
+    });
+    if (!redirect.body) throw new Error("missing redirect body");
+    Object.defineProperty(redirect.body, "cancel", {
+      value: () => {
+        cancellationAttempts += 1;
+        throw new Error("SYNCHRONOUS_REDIRECT_CANCEL_ERROR");
+      },
+    });
+
+    const result = await acquireOfficialSource({
+      entry,
+      timeoutMs: 200,
+      fetcher: async () => {
+        requests += 1;
+        return requests === 1 ? redirect : new Response(null, { status: 403 });
+      },
+    });
+
+    expect(cancellationAttempts).toBeGreaterThanOrEqual(1);
+    expect(requests).toBe(1);
+    expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    if (result.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+      expect(result.blockerReason).toBe(
+        "Official source redirect response body cleanup failed.",
+      );
+  });
+
   it("bounds a stalled header fetcher and cancels a response arriving after timeout", async () => {
     let requests = 0;
     let lateCancelCalls = 0;
