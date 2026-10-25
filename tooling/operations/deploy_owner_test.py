@@ -974,7 +974,7 @@ def current_assert_apply_journal_clear(journal: Path) -> None:
         raise RuntimeError('CURRENT_RECOVERY_REQUIRED') from None
     if not isinstance(state,dict) or state.get('recoveryRequired') is not False:
         raise RuntimeError('CURRENT_RECOVERY_REQUIRED')
-    if state.get('fenceCleanupPending') not in (None,False):
+    if 'fenceCleanupPending' in state and state['fenceCleanupPending'] is not False:
         raise RuntimeError('CURRENT_FENCE_CLEANUP_REQUIRED')
 
 def current_apply_engine(
@@ -1194,7 +1194,12 @@ def current_finalize_committed_fence_cleanup(
         not isinstance(receipt,dict)
         or receipt.get('status')!=expected[1]
         or receipt.get('recoveryRequired') is not False
-        or receipt.get('fenceCleanupPending') not in (True,False)
+        or (receipt.get('fenceCleanupPending') is not True
+            and receipt.get('fenceCleanupPending') is not False)
+        or type(state.get('predeployPrefix')) is not int
+        or type(state.get('candidateTarget')) is not int
+        or state['predeployPrefix']<0
+        or state['candidateTarget']<state['predeployPrefix']
         or receipt.get('candidateSourceSha')!=expected_source_sha
         or receipt.get('candidateSourceTree')!=expected_source_tree
         or receipt.get('predeployPrefix')!=state.get('predeployPrefix')
