@@ -427,30 +427,176 @@ function parametersFingerprint(
   return fingerprint(projected);
 }
 
+// Media type, subtype, and parameter *names* are case-insensitive.
+// Parameter values may be case-sensitive (notably multipart boundaries).
+// Canonicalize harmless whitespace/order/quotes without altering values.
+function canonicalSwagger2MediaType(value: string): string {
+  const invalid = () =>
+    new Error("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
+  const token = /^[!#$%&'*+.^_\u0060|~0-9A-Za-z-]+$/u;
+  // RFC quoted-string and quoted-pair characters: HTAB, printable ASCII,
+  // or Latin-1 obs-text. CR/LF, other controls and Unicode beyond 0xFF
+  // are not valid raw MIME parameter bytes.
+  const validQuotedChar = (ch: string): boolean => {
+    const code = ch.charCodeAt(0);
+    return (
+      code === 0x09 ||
+      (code >= 0x20 && code <= 0x7e) ||
+      (code >= 0x80 && code <= 0xff)
+    );
+  };
+  const segments: string[] = [];
+  let start = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (quoted && ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (ch === ";" && !quoted) {
+      segments.push(value.slice(start, i));
+      start = i + 1;
+    }
+  }
+  if (quoted || escaped) throw invalid();
+  segments.push(value.slice(start));
+
+  // MIME OWS permits only ASCII SP/HTAB; Unicode whitespace must fail closed.
+  const trimAsciiOws = (part: string): string =>
+    part.replace(/^[ \t]+|[ \t]+$/gu, "");
+  const media = trimAsciiOws(segments.shift() ?? "").toLowerCase();
+  const pair = media.split("/");
+  if (pair.length !== 2 || !pair.every((part) => token.test(part)))
+    throw invalid();
+
+  const params = segments.map((segment) => {
+    // Only trim OWS at semicolon/field boundaries, never around "=".
+    const parameter = trimAsciiOws(segment);
+    const equal = parameter.indexOf("=");
+    if (equal < 0) throw invalid();
+    const name = parameter.slice(0, equal).toLowerCase();
+    if (!token.test(name)) throw invalid();
+    const raw = parameter.slice(equal + 1);
+    let decoded: string;
+    if (raw.startsWith('"')) {
+      if (raw.length < 2 || !raw.endsWith('"')) throw invalid();
+      decoded = "";
+      for (let i = 1; i < raw.length - 1; i++) {
+        const ch = raw[i];
+        if (ch === "\\") {
+          const pair = raw[++i];
+          if (
+            i >= raw.length - 1 ||
+            pair === undefined ||
+            !validQuotedChar(pair)
+          )
+            throw invalid();
+          decoded += pair;
+        } else {
+          if (ch === undefined || ch === '"' || !validQuotedChar(ch))
+            throw invalid();
+          decoded += ch;
+        }
+      }
+    } else {
+      if (!token.test(raw)) throw invalid();
+      decoded = raw;
+    }
+    return [name, JSON.stringify(decoded)] as const;
+  });
+
+  // Duplicate parameter names have ambiguous authority: fail closed.
+  if (new Set(params.map(([name]) => name)).size !== params.length)
+    throw invalid();
+  params.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return (
+    media +
+    (params.length
+      ? ";" + params.map(([name, encoded]) => name + "=" + encoded).join(";")
+      : "")
+  );
+}
+
+// Fail closed on malformed Swagger 2.0 media declarations rather than
+// silently treating a string or mixed-type list as an absent MIME contract.
+function checkedSwagger2MediaList(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (item): item is string =>
+        typeof item === "string" && item.trim().length > 0,
+    )
+  )
+    throw new Error("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
+  return stringList(value.map(canonicalSwagger2MediaType));
+}
+
+// Swagger 2.0 operation MIME declarations override root declarations, and
+// an explicit [] clears the inherited set. Order and duplicates are inert.
+function swagger2MediaTypes(
+  operation: Record<string, unknown>,
+  root: Record<string, unknown>,
+  field: "consumes" | "produces",
+): string[] {
+  if (root.swagger !== "2.0") return [];
+  const inherited = checkedSwagger2MediaList(root[field]);
+  const override = checkedSwagger2MediaList(operation[field]);
+  return operation[field] === undefined ? inherited : override;
+}
+
 function requestFingerprint(
   operation: Record<string, unknown>,
   parameters: readonly Record<string, unknown>[],
   root: Record<string, unknown>,
 ): string | null {
-  if (operation.requestBody !== undefined)
-    return schemaFingerprint(operation.requestBody, root);
   const bodies = parameters
     .filter((parameter) => parameter.in === "body")
     .map((parameter) => parameter.schema ?? null);
-  return bodies.length
-    ? schemaFingerprint(bodies, root, "node", "schema")
-    : null;
+  const legacy =
+    operation.requestBody !== undefined
+      ? schemaFingerprint(operation.requestBody, root)
+      : bodies.length
+        ? schemaFingerprint(bodies, root, "node", "schema")
+        : null;
+  // Consumes applies to actual request payloads, including Swagger 2 formData.
+  // Preserve original hashes when no media contract is declared, and ignore
+  // consumes changes for an operation that accepts no request payload.
+  const hasPayload =
+    operation.requestBody !== undefined ||
+    parameters.some(
+      (parameter) => parameter.in === "body" || parameter.in === "formData",
+    );
+  // Validate the declaration even when this operation has no body, then
+  // leave the no-body request fingerprint unchanged.
+  const media = swagger2MediaTypes(operation, root, "consumes");
+  return hasPayload && media.length
+    ? fingerprint({ legacyRequestSha256: legacy, consumes: media }, "literal")
+    : legacy;
 }
 
 function responseFingerprint(
   responses: Record<string, unknown>,
   root: Record<string, unknown>,
+  operation: Record<string, unknown>,
 ): string {
-  return fingerprint(
+  let hasResponseBody = false;
+  const legacy = fingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
         const response = asObject(localRef(raw, root));
         const body = response.schema ?? response.content ?? null;
+        if (body !== null) hasResponseBody = true;
         // Response headers are contract fields, not just response annotations.
         // HTTP header names are case-insensitive; OAS ignores Content-Type here.
         const headers = Object.entries(asObject(response.headers))
@@ -508,6 +654,11 @@ function responseFingerprint(
     ),
     "named-fields",
   );
+  // Validate even inert MIME declarations, but fingerprint only a response payload.
+  const media = swagger2MediaTypes(operation, root, "produces");
+  return hasResponseBody && media.length
+    ? fingerprint({ legacyResponseSha256: legacy, produces: media }, "literal")
+    : legacy;
 }
 
 function normalizedPath(path: string): string {
@@ -638,10 +789,15 @@ function securityReferences(
 function hasRequestBody(
   operation: Record<string, unknown>,
   parameters: readonly Record<string, unknown>[],
+  root: Record<string, unknown>,
 ): boolean {
   if (operation.requestBody && typeof operation.requestBody === "object")
     return true;
-  return parameters.some((parameter) => parameter.in === "body");
+  return parameters.some(
+    (parameter) =>
+      parameter.in === "body" ||
+      (root.swagger === "2.0" && parameter.in === "formData"),
+  );
 }
 
 export function buildCompleteOperationInventory(input: {
@@ -652,6 +808,11 @@ export function buildCompleteOperationInventory(input: {
   filename: string;
 }): OperationInventory {
   const document = parseSwaggerDocument(input.bytes, input.filename);
+  if (document.root.swagger === "2.0") {
+    // Root declarations must fail closed even when no operations consume them.
+    checkedSwagger2MediaList(document.root.consumes);
+    checkedSwagger2MediaList(document.root.produces);
+  }
   const paths = asObject(document.root.paths);
   const operations: OperationInventoryItem[] = [];
   for (const path of Object.keys(paths).sort()) {
@@ -692,12 +853,12 @@ export function buildCompleteOperationInventory(input: {
             ? null
             : createHash("sha256").update(summary).digest("hex"),
         securitySchemeReferences: securityReferences(op, document.root),
-        requestBodyPresent: hasRequestBody(op, parameters),
+        requestBodyPresent: hasRequestBody(op, parameters, document.root),
         parameterCount: parameters.length,
         responseStatusKeys: Object.keys(responses).sort(),
         parameterSchemaSha256: parametersFingerprint(parameters, document.root),
         requestSchemaSha256: requestFingerprint(op, parameters, document.root),
-        responseSchemaSha256: responseFingerprint(responses, document.root),
+        responseSchemaSha256: responseFingerprint(responses, document.root, op),
         securityRequirementsSha256: securityFingerprint(op, document.root),
       });
     }
