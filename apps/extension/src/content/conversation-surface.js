@@ -75,7 +75,12 @@
       observedMessages.length === 0 &&
       ((allMainRoots.length === 0 && !composer) || qwenPartialGap) ? qwenRoots[0] : null;
     if (qwenGapRoot) pending.qwenRemountGap = true;
-    const root = aliceNoMainRoot ? document.body : qwenRoot || qwenGapRoot || (
+    const hasObservedRoot = ["claude", "deepseek"].includes(provider);
+    const observedRoot = hasObservedRoot ? adapter.conversationRoot?.() || null : null;
+    const observedRootValid = Boolean(observedRoot?.isConnected && composer?.composer?.isConnected &&
+      observedRoot.contains(composer.composer) && messages.every(node => observedRoot.contains(node)));
+    const root = hasObservedRoot ? (observedRootValid ? observedRoot : null) :
+      aliceNoMainRoot ? document.body : qwenRoot || qwenGapRoot || (
       roots.size === 1 ? [...roots][0] :
       mainRoots.length === 1 ? mainRoots[0] : composerRoot);
 

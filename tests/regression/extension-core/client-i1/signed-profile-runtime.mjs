@@ -777,6 +777,471 @@ await test("RUNTIME-11-conversation-slot-scopes-packaged-message-region", async 
   }
 });
 
+await test("RUNTIME-12-Kimi-apply-defer-refresh-rollback-clear", async () => {
+  const f = await fixture({ aiFamily: "kimi" });
+  try {
+    assert.equal(f.runtime.debugState().applied.scopeKey, "kimi|web|");
+    const request = f.sent.findLast(
+      (message) => message.messageType === "OZ_REQUEST_SIGNED_AI_PROFILE",
+    );
+    assert.deepEqual(clone(request.ai), {
+      family: "kimi",
+      surface: "web",
+      variant: null,
+    });
+    assert.equal(f.sent.at(-1).status, "APPLIED");
+    assert.equal(f.sent.at(-1).ai.family, "kimi");
+
+    f.state.profile = await f.makeProfile(2);
+    assert.equal((await f.runtime.refresh("kimi_update")).status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    f.state.profile = await f.makeProfile(3);
+    f.setWork(true);
+    const deferred = await f.runtime.refresh("kimi_active_work");
+    assert.equal(deferred.status, "DEFERRED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    assert.equal(f.sent.at(-1).status, "DEFERRED");
+    assert.equal(f.sent.at(-1).reason, "WORK_IN_FLIGHT");
+    assert.equal(f.sent.at(-1).ai.family, "kimi");
+
+    f.setWork(false);
+    assert.equal(
+      (await f.runtime.refresh("kimi_after_finish")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      f.state.profile;
+    const ensured = await f.runtime.ensure({
+      authority: clone(f.state.authority),
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+    });
+    assert.equal(ensured.applied, true);
+    f.state.profile = await f.makeProfile(1);
+    assert.equal(
+      (await f.runtime.refresh("kimi_verified_rollback")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 1);
+
+    f.state.unavailable = "WORK_NOT_ALLOWED";
+    assert.equal((await f.runtime.refresh("kimi_revoked")).status, "CLEARED");
+    assert.equal(f.runtime.debugState().applied, null);
+    assert.equal(f.sent.at(-1).status, "CLEARED");
+    assert.equal(f.sent.at(-1).ai.family, "kimi");
+    assert.equal(
+      f.sent.some(
+        (message) =>
+          typeof message.type === "string" &&
+          /WORK|SEND|EXECUTE|PROVIDER/.test(message.type),
+      ),
+      false,
+    );
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+await test("RUNTIME-13-scope-change-clears-old-profile-before-Kimi-apply", async () => {
+  const f = await fixture();
+  try {
+    f.state.profile = await f.makeProfile(2, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    assert.equal((await f.runtime.refresh("before_kimi")).status, "APPLIED");
+    const baseline = { composer: {}, root: {}, form: {} };
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), null);
+    f.setScope("kimi");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+    f.state.profile = await f.makeProfile(3);
+    assert.equal(
+      (await f.runtime.refresh("kimi_scope_change")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.scopeKey, "kimi|web|");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.sent.at(-1).ai.family, "kimi");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+await test("RUNTIME-14-Grok-apply-defer-refresh-rollback-clear", async () => {
+  const f = await fixture({ aiFamily: "grok" });
+  try {
+    assert.equal(f.runtime.debugState().applied.scopeKey, "grok|web|");
+    const request = f.sent.findLast(
+      (message) => message.messageType === "OZ_REQUEST_SIGNED_AI_PROFILE",
+    );
+    assert.deepEqual(clone(request.ai), {
+      family: "grok",
+      surface: "web",
+      variant: null,
+    });
+    assert.equal(f.sent.at(-1).status, "APPLIED");
+    assert.equal(f.sent.at(-1).ai.family, "grok");
+
+    f.state.profile = await f.makeProfile(2);
+    assert.equal((await f.runtime.refresh("grok_update")).status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    f.state.profile = await f.makeProfile(3);
+    f.setWork(true);
+    const deferred = await f.runtime.refresh("grok_active_work");
+    assert.equal(deferred.status, "DEFERRED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    assert.equal(f.sent.at(-1).status, "DEFERRED");
+    assert.equal(f.sent.at(-1).reason, "WORK_IN_FLIGHT");
+    assert.equal(f.sent.at(-1).ai.family, "grok");
+
+    f.setWork(false);
+    assert.equal(
+      (await f.runtime.refresh("grok_after_finish")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      f.state.profile;
+    const ensured = await f.runtime.ensure({
+      authority: clone(f.state.authority),
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+    });
+    assert.equal(ensured.applied, true);
+    f.state.profile = await f.makeProfile(1);
+    assert.equal(
+      (await f.runtime.refresh("grok_verified_rollback")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 1);
+
+    f.state.unavailable = "WORK_NOT_ALLOWED";
+    assert.equal((await f.runtime.refresh("grok_revoked")).status, "CLEARED");
+    assert.equal(f.runtime.debugState().applied, null);
+    assert.equal(f.sent.at(-1).status, "CLEARED");
+    assert.equal(f.sent.at(-1).ai.family, "grok");
+    assert.equal(
+      f.sent.some(
+        (message) =>
+          typeof message.type === "string" &&
+          /WORK|SEND|EXECUTE|PROVIDER/.test(message.type),
+      ),
+      false,
+    );
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+
+await test("RUNTIME-15-scope-change-clears-old-profile-before-Grok-apply", async () => {
+  const f = await fixture();
+  try {
+    f.state.profile = await f.makeProfile(2, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    assert.equal((await f.runtime.refresh("before_grok")).status, "APPLIED");
+    const baseline = { composer: {}, root: {}, form: {} };
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), null);
+    f.setScope("grok");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+    f.state.profile = await f.makeProfile(3);
+    assert.equal(
+      (await f.runtime.refresh("grok_scope_change")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.scopeKey, "grok|web|");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.sent.at(-1).ai.family, "grok");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+await test("RUNTIME-16-Gemini-apply-defer-refresh-rollback-clear", async () => {
+  const f = await fixture({ aiFamily: "gemini" });
+  try {
+    assert.equal(f.runtime.debugState().applied.scopeKey, "gemini|web|");
+    const request = f.sent.findLast(
+      (message) => message.messageType === "OZ_REQUEST_SIGNED_AI_PROFILE",
+    );
+    assert.deepEqual(clone(request.ai), {
+      family: "gemini",
+      surface: "web",
+      variant: null,
+    });
+    assert.equal(f.sent.at(-1).status, "APPLIED");
+    assert.equal(f.sent.at(-1).ai.family, "gemini");
+
+    f.state.profile = await f.makeProfile(2);
+    assert.equal((await f.runtime.refresh("gemini_update")).status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    f.state.profile = await f.makeProfile(3);
+    f.setWork(true);
+    const deferred = await f.runtime.refresh("gemini_active_work");
+    assert.equal(deferred.status, "DEFERRED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    assert.equal(f.sent.at(-1).status, "DEFERRED");
+    assert.equal(f.sent.at(-1).reason, "WORK_IN_FLIGHT");
+    assert.equal(f.sent.at(-1).ai.family, "gemini");
+
+    f.setWork(false);
+    assert.equal(
+      (await f.runtime.refresh("gemini_after_finish")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      f.state.profile;
+    const ensured = await f.runtime.ensure({
+      authority: clone(f.state.authority),
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+    });
+    assert.equal(ensured.applied, true);
+    f.state.profile = await f.makeProfile(1);
+    assert.equal(
+      (await f.runtime.refresh("gemini_verified_rollback")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 1);
+
+    f.state.unavailable = "WORK_NOT_ALLOWED";
+    assert.equal((await f.runtime.refresh("gemini_revoked")).status, "CLEARED");
+    assert.equal(f.runtime.debugState().applied, null);
+    assert.equal(f.sent.at(-1).status, "CLEARED");
+    assert.equal(f.sent.at(-1).ai.family, "gemini");
+    assert.equal(
+      f.sent.some(
+        (message) =>
+          typeof message.type === "string" &&
+          /WORK|SEND|EXECUTE|PROVIDER/.test(message.type),
+      ),
+      false,
+    );
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+
+
+await test("RUNTIME-17-scope-change-clears-old-profile-before-Gemini-apply", async () => {
+  const f = await fixture();
+  try {
+    f.state.profile = await f.makeProfile(2, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    assert.equal((await f.runtime.refresh("before_gemini")).status, "APPLIED");
+    const baseline = { composer: {}, root: {}, form: {} };
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), null);
+    f.setScope("gemini");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+    f.state.profile = await f.makeProfile(3);
+    assert.equal(
+      (await f.runtime.refresh("gemini_scope_change")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.scopeKey, "gemini|web|");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.sent.at(-1).ai.family, "gemini");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+  } finally {
+    f.runtime.dispose();
+  }
+});
+await test("RUNTIME-18-Claude-apply-defer-refresh-rollback-clear", async () => {
+  const f = await fixture({ aiFamily: "claude" });
+  try {
+    assert.equal(f.runtime.debugState().applied.scopeKey, "claude|web|");
+    const request = f.sent.findLast(
+      (message) => message.messageType === "OZ_REQUEST_SIGNED_AI_PROFILE",
+    );
+    assert.deepEqual(clone(request.ai), {
+      family: "claude",
+      surface: "web",
+      variant: null,
+    });
+    assert.equal(f.sent.at(-1).status, "APPLIED");
+    assert.equal(f.sent.at(-1).ai.family, "claude");
+
+    f.state.profile = await f.makeProfile(2);
+    assert.equal((await f.runtime.refresh("claude_update")).status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    f.state.profile = await f.makeProfile(3);
+    f.setWork(true);
+    const deferred = await f.runtime.refresh("claude_active_work");
+    assert.equal(deferred.status, "DEFERRED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    assert.equal(f.sent.at(-1).status, "DEFERRED");
+    assert.equal(f.sent.at(-1).reason, "WORK_IN_FLIGHT");
+    assert.equal(f.sent.at(-1).ai.family, "claude");
+
+    f.setWork(false);
+    assert.equal(
+      (await f.runtime.refresh("claude_after_finish")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      f.state.profile;
+    const ensured = await f.runtime.ensure({
+      authority: clone(f.state.authority),
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+    });
+    assert.equal(ensured.applied, true);
+    f.state.profile = await f.makeProfile(1);
+    assert.equal(
+      (await f.runtime.refresh("claude_verified_rollback")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 1);
+
+    f.state.unavailable = "WORK_NOT_ALLOWED";
+    assert.equal((await f.runtime.refresh("claude_revoked")).status, "CLEARED");
+    assert.equal(f.runtime.debugState().applied, null);
+    assert.equal(f.sent.at(-1).status, "CLEARED");
+    assert.equal(f.sent.at(-1).ai.family, "claude");
+    assert.equal(
+      f.sent.some(
+        (message) =>
+          typeof message.type === "string" &&
+          /WORK|SEND|EXECUTE|PROVIDER/.test(message.type),
+      ),
+      false,
+    );
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+
+
+await test("RUNTIME-19-scope-change-clears-old-profile-before-Claude-apply", async () => {
+  const f = await fixture();
+  try {
+    f.state.profile = await f.makeProfile(2, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    assert.equal((await f.runtime.refresh("before_claude")).status, "APPLIED");
+    const baseline = { composer: {}, root: {}, form: {} };
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), null);
+    f.setScope("claude");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+    f.state.profile = await f.makeProfile(3);
+    assert.equal(
+      (await f.runtime.refresh("claude_scope_change")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.scopeKey, "claude|web|");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.sent.at(-1).ai.family, "claude");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+  } finally {
+    f.runtime.dispose();
+  }
+});
+await test("RUNTIME-20-DeepSeek-apply-defer-refresh-rollback-clear", async () => {
+  const f = await fixture({ aiFamily: "deepseek" });
+  try {
+    assert.equal(f.runtime.debugState().applied.scopeKey, "deepseek|web|");
+    const request = f.sent.findLast(
+      (message) => message.messageType === "OZ_REQUEST_SIGNED_AI_PROFILE",
+    );
+    assert.deepEqual(clone(request.ai), {
+      family: "deepseek",
+      surface: "web",
+      variant: null,
+    });
+    assert.equal(f.sent.at(-1).status, "APPLIED");
+    assert.equal(f.sent.at(-1).ai.family, "deepseek");
+
+    f.state.profile = await f.makeProfile(2);
+    assert.equal((await f.runtime.refresh("deepseek_update")).status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    f.state.profile = await f.makeProfile(3);
+    f.setWork(true);
+    const deferred = await f.runtime.refresh("deepseek_active_work");
+    assert.equal(deferred.status, "DEFERRED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    assert.equal(f.sent.at(-1).status, "DEFERRED");
+    assert.equal(f.sent.at(-1).reason, "WORK_IN_FLIGHT");
+    assert.equal(f.sent.at(-1).ai.family, "deepseek");
+
+    f.setWork(false);
+    assert.equal(
+      (await f.runtime.refresh("deepseek_after_finish")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      f.state.profile;
+    const ensured = await f.runtime.ensure({
+      authority: clone(f.state.authority),
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+    });
+    assert.equal(ensured.applied, true);
+    f.state.profile = await f.makeProfile(1);
+    assert.equal(
+      (await f.runtime.refresh("deepseek_verified_rollback")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.profile.revision, 1);
+
+    f.state.unavailable = "WORK_NOT_ALLOWED";
+    assert.equal((await f.runtime.refresh("deepseek_revoked")).status, "CLEARED");
+    assert.equal(f.runtime.debugState().applied, null);
+    assert.equal(f.sent.at(-1).status, "CLEARED");
+    assert.equal(f.sent.at(-1).ai.family, "deepseek");
+    assert.equal(
+      f.sent.some(
+        (message) =>
+          typeof message.type === "string" &&
+          /WORK|SEND|EXECUTE|PROVIDER/.test(message.type),
+      ),
+      false,
+    );
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+
+
+await test("RUNTIME-21-scope-change-clears-old-profile-before-DeepSeek-apply", async () => {
+  const f = await fixture();
+  try {
+    f.state.profile = await f.makeProfile(2, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    assert.equal((await f.runtime.refresh("before_deepseek")).status, "APPLIED");
+    const baseline = { composer: {}, root: {}, form: {} };
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), null);
+    f.setScope("deepseek");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+    f.state.profile = await f.makeProfile(3);
+    assert.equal(
+      (await f.runtime.refresh("deepseek_scope_change")).status,
+      "APPLIED",
+    );
+    assert.equal(f.runtime.debugState().applied.scopeKey, "deepseek|web|");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.sent.at(-1).ai.family, "deepseek");
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
 console.log(
   JSON.stringify({
     status: "PASS",

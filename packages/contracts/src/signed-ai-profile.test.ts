@@ -222,4 +222,331 @@ describe("verified profile consumer wire boundary", () => {
       }).success,
     ).toBe(true);
   });
+  it("carries Kimi request, response and applied receipt through the strict wire boundary", () => {
+    const ai = { family: "kimi", surface: "web", variant: null };
+    const kimiRequest = { ...request, ai };
+    const kimiResponse = { ...response, ai };
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const receipt = {
+      ...kimiRequest,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "APPLIED",
+    };
+    expect(SignedAiProfileRequestV1Schema.parse(kimiRequest)).toEqual(
+      kimiRequest,
+    );
+    expect(SignedAiProfileResponseV1Schema.parse(kimiResponse)).toEqual(
+      kimiResponse,
+    );
+    expect(SignedAiProfileReceiptV1Schema.parse(receipt)).toEqual(receipt);
+  });
+
+  it("keeps Kimi scope, fingerprint and deferred receipt requirements strict", () => {
+    const ai = { family: "kimi", surface: "web", variant: null };
+    for (const scope of [
+      { ...ai, surface: "native" },
+      { ...ai, variant: "work" },
+      { ...ai, unexpected: true },
+    ]) {
+      expect(
+        SignedAiProfileRequestV1Schema.safeParse({ ...request, ai: scope })
+          .success,
+      ).toBe(false);
+      expect(
+        SignedAiProfileResponseV1Schema.safeParse({ ...response, ai: scope })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      SignedAiProfileResponseV1Schema.safeParse({
+        ...response,
+        ai,
+        profile: { ...response.profile, contentSha256: "unverified" },
+      }).success,
+    ).toBe(false);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const deferred = {
+      ...request,
+      ai,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "DEFERRED",
+    };
+    expect(SignedAiProfileReceiptV1Schema.safeParse(deferred).success).toBe(
+      false,
+    );
+    expect(
+      SignedAiProfileReceiptV1Schema.parse({
+        ...deferred,
+        reason: "WORK_IN_FLIGHT",
+      }).status,
+    ).toBe("DEFERRED");
+  });
+
+  it("carries Grok request, response and applied receipt through the strict wire boundary", () => {
+    const ai = { family: "grok", surface: "web", variant: null };
+    const grokRequest = { ...request, ai };
+    const grokResponse = { ...response, ai };
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const receipt = {
+      ...grokRequest,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "APPLIED",
+    };
+    expect(SignedAiProfileRequestV1Schema.parse(grokRequest)).toEqual(
+      grokRequest,
+    );
+    expect(SignedAiProfileResponseV1Schema.parse(grokResponse)).toEqual(
+      grokResponse,
+    );
+    expect(SignedAiProfileReceiptV1Schema.parse(receipt)).toEqual(receipt);
+  });
+
+  it("keeps Grok scope, fingerprint and deferred receipt requirements strict", () => {
+    const ai = { family: "grok", surface: "web", variant: null };
+    for (const scope of [
+      { ...ai, surface: "native" },
+      { ...ai, variant: "work" },
+      { ...ai, unexpected: true },
+    ]) {
+      expect(
+        SignedAiProfileRequestV1Schema.safeParse({ ...request, ai: scope })
+          .success,
+      ).toBe(false);
+      expect(
+        SignedAiProfileResponseV1Schema.safeParse({ ...response, ai: scope })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      SignedAiProfileResponseV1Schema.safeParse({
+        ...response,
+        ai,
+        profile: { ...response.profile, contentSha256: "unverified" },
+      }).success,
+    ).toBe(false);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const deferred = {
+      ...request,
+      ai,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "DEFERRED",
+    };
+    expect(SignedAiProfileReceiptV1Schema.safeParse(deferred).success).toBe(
+      false,
+    );
+    expect(
+      SignedAiProfileReceiptV1Schema.parse({
+        ...deferred,
+        reason: "WORK_IN_FLIGHT",
+      }).status,
+    ).toBe("DEFERRED");
+  });
+
+  it("carries Gemini request, response and applied receipt through the strict wire boundary", () => {
+    const ai = { family: "gemini", surface: "web", variant: null };
+    const geminiRequest = { ...request, ai };
+    const geminiResponse = { ...response, ai };
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const receipt = {
+      ...geminiRequest,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "APPLIED",
+    };
+    expect(SignedAiProfileRequestV1Schema.parse(geminiRequest)).toEqual(
+      geminiRequest,
+    );
+    expect(SignedAiProfileResponseV1Schema.parse(geminiResponse)).toEqual(
+      geminiResponse,
+    );
+    expect(SignedAiProfileReceiptV1Schema.parse(receipt)).toEqual(receipt);
+  });
+
+  it("keeps Gemini scope, fingerprint and deferred receipt requirements strict", () => {
+    const ai = { family: "gemini", surface: "web", variant: null };
+    for (const scope of [
+      { ...ai, surface: "native" },
+      { ...ai, variant: "work" },
+      { ...ai, unexpected: true },
+    ]) {
+      expect(
+        SignedAiProfileRequestV1Schema.safeParse({ ...request, ai: scope })
+          .success,
+      ).toBe(false);
+      expect(
+        SignedAiProfileResponseV1Schema.safeParse({ ...response, ai: scope })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      SignedAiProfileResponseV1Schema.safeParse({
+        ...response,
+        ai,
+        profile: { ...response.profile, contentSha256: "unverified" },
+      }).success,
+    ).toBe(false);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const deferred = {
+      ...request,
+      ai,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "DEFERRED",
+    };
+    expect(SignedAiProfileReceiptV1Schema.safeParse(deferred).success).toBe(
+      false,
+    );
+    expect(
+      SignedAiProfileReceiptV1Schema.parse({
+        ...deferred,
+        reason: "WORK_IN_FLIGHT",
+      }).status,
+    ).toBe("DEFERRED");
+  });
+  it("carries Claude request, response and applied receipt through the strict wire boundary", () => {
+    const ai = { family: "claude", surface: "web", variant: null };
+    const claudeRequest = { ...request, ai };
+    const claudeResponse = { ...response, ai };
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const receipt = {
+      ...claudeRequest,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "APPLIED",
+    };
+    expect(SignedAiProfileRequestV1Schema.parse(claudeRequest)).toEqual(
+      claudeRequest,
+    );
+    expect(SignedAiProfileResponseV1Schema.parse(claudeResponse)).toEqual(
+      claudeResponse,
+    );
+    expect(SignedAiProfileReceiptV1Schema.parse(receipt)).toEqual(receipt);
+  });
+
+  it("keeps Claude scope, fingerprint and deferred receipt requirements strict", () => {
+    const ai = { family: "claude", surface: "web", variant: null };
+    for (const scope of [
+      { ...ai, surface: "native" },
+      { ...ai, variant: "work" },
+      { ...ai, unexpected: true },
+    ]) {
+      expect(
+        SignedAiProfileRequestV1Schema.safeParse({ ...request, ai: scope })
+          .success,
+      ).toBe(false);
+      expect(
+        SignedAiProfileResponseV1Schema.safeParse({ ...response, ai: scope })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      SignedAiProfileResponseV1Schema.safeParse({
+        ...response,
+        ai,
+        profile: { ...response.profile, contentSha256: "unverified" },
+      }).success,
+    ).toBe(false);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const deferred = {
+      ...request,
+      ai,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "DEFERRED",
+    };
+    expect(SignedAiProfileReceiptV1Schema.safeParse(deferred).success).toBe(
+      false,
+    );
+    expect(
+      SignedAiProfileReceiptV1Schema.parse({
+        ...deferred,
+        reason: "WORK_IN_FLIGHT",
+      }).status,
+    ).toBe("DEFERRED");
+  });
+  it("carries DeepSeek request, response and applied receipt through the strict wire boundary", () => {
+    const ai = { family: "deepseek", surface: "web", variant: null };
+    const deepseekRequest = { ...request, ai };
+    const deepseekResponse = { ...response, ai };
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const receipt = {
+      ...deepseekRequest,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "APPLIED",
+    };
+    expect(SignedAiProfileRequestV1Schema.parse(deepseekRequest)).toEqual(
+      deepseekRequest,
+    );
+    expect(SignedAiProfileResponseV1Schema.parse(deepseekResponse)).toEqual(
+      deepseekResponse,
+    );
+    expect(SignedAiProfileReceiptV1Schema.parse(receipt)).toEqual(receipt);
+  });
+
+  it("keeps DeepSeek scope, fingerprint and deferred receipt requirements strict", () => {
+    const ai = { family: "deepseek", surface: "web", variant: null };
+    for (const scope of [
+      { ...ai, surface: "native" },
+      { ...ai, variant: "work" },
+      { ...ai, unexpected: true },
+    ]) {
+      expect(
+        SignedAiProfileRequestV1Schema.safeParse({ ...request, ai: scope })
+          .success,
+      ).toBe(false);
+      expect(
+        SignedAiProfileResponseV1Schema.safeParse({ ...response, ai: scope })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      SignedAiProfileResponseV1Schema.safeParse({
+        ...response,
+        ai,
+        profile: { ...response.profile, contentSha256: "unverified" },
+      }).success,
+    ).toBe(false);
+    const { profileKey, revision, scopeVariant, contentSha256 } =
+      response.profile;
+    const deferred = {
+      ...request,
+      ai,
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      authority: response.authority,
+      profile: { profileKey, revision, scopeVariant, contentSha256 },
+      status: "DEFERRED",
+    };
+    expect(SignedAiProfileReceiptV1Schema.safeParse(deferred).success).toBe(
+      false,
+    );
+    expect(
+      SignedAiProfileReceiptV1Schema.parse({
+        ...deferred,
+        reason: "WORK_IN_FLIGHT",
+      }).status,
+    ).toBe("DEFERRED");
+  });
 });

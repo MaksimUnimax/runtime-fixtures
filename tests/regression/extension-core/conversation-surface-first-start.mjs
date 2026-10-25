@@ -280,8 +280,13 @@ class AliceElement {
 const aliceContext = { Element: AliceElement, HTMLElement: AliceElement,
   getComputedStyle: node => ({ display: node.hidden ? "none" : "block", visibility: "visible" }) };
 aliceContext.SellerAgentsQwenAdapter = { create: () => ({ id: "qwen" }) };
-// The patched registry constructs Kimi too; load its real dependencies even in the Alice-only fixture.
-for (const file of ["apps/extension/src/content/kimi-code-reader.js",
+// Load every added registry adapter with its real reader dependencies, even in the Alice-only fixture.
+for (const file of ["apps/extension/src/content/observed-ai-code-readers.js",
+  "apps/extension/src/content/kimi-code-reader.js",
+  "apps/extension/src/content/deepseek-adapter.js",
+  "apps/extension/src/content/claude-adapter.js",
+  "apps/extension/src/content/grok-adapter.js",
+  "apps/extension/src/content/gemini-adapter.js",
   "apps/extension/src/content/kimi-adapter.js"]) vm.runInNewContext(source(file), aliceContext);
 vm.runInNewContext(composedSource("apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js", "shared/ai_adapters.js"), aliceContext);
 const realAlice = aliceContext.OzonAIAdapters.ADAPTERS.alice;
@@ -305,7 +310,7 @@ for (const variant of ["missing", "duplicate", "hidden", "disconnected", "nested
 }
 function responseWatchFixture() {
   const content = composedSource("apps/extension/src/imported/ozon-v0.1.22/content_script.js", "content_script.js");
-  const begin = content.indexOf("  function stopWorkStartWatch("), end = content.indexOf("  async function sendWorkSessionPrompt(", begin);
+  const begin = content.indexOf("  function setWorkStartObservationNotice("), end = content.indexOf("  async function sendWorkSessionPrompt(", begin);
   assert(begin >= 0 && end > begin);
   const timers = new Map(), watches = new Map(), calls = [], events = [];
   let timerId = 0, live = true, now = 0;
@@ -313,7 +318,8 @@ function responseWatchFixture() {
   const context = { SellerAgentsConversationSurface: { endStart: () => {} }, workStartWatches: watches, workRuntimeGeneration: "owned-runtime", Date: { now: () => now },
     setInterval: callback => { const id = ++timerId; timers.set(id, callback); return id; },
     clearInterval: id => timers.delete(id), current: () => live, conversationIdentity: () => identity,
-    assistantMessages: () => [{ id: "new-assistant" }], currentAIAdapter: () => ({ messageId: x => x.id }),
+    assistantMessages: () => [{ id: "new-assistant", text: "Own assistant reply" }],
+    assistantMessageText: node => node.text, currentAIAdapter: () => ({ messageId: x => x.id }),
     assistantTurnComplete: () => true, recordContentDiagnostic: (event, detail) => events.push({ event, ...detail }),
     sendRuntime: (type, detail) => new Promise((resolve, reject) => calls.push({ type, detail, resolve, reject })) };
   vm.runInNewContext(content.slice(begin, end), context);
