@@ -67,6 +67,13 @@ function check(operationName, body, status, next, httpStatus = 200) {
     operationName + " next command must stay explicit and safe",
   );
   assert.equal(result?.automatic_continuation, false);
+  if (next === "report_info") {
+    assert.equal(
+      result?.next_command?.params?.code,
+      reportCode,
+      operationName + " must preserve the exact report identity",
+    );
+  }
   return result;
 }
 
@@ -141,6 +148,17 @@ check(
   null,
 );
 
+check(
+  "report_info",
+  {
+    status: "processing",
+    code: "INVALID REPORT CODE",
+    report_file_ref: staleRef,
+  },
+  "blocked_missing_fresh_code",
+  null,
+);
+
 // Only a confirmed successful report with a trusted opaque ref is file-ready.
 const ready = check(
   "report_info",
@@ -198,7 +216,7 @@ console.log(
     scenario: "CAP-24",
     covered:
       "Ozon placement report terminal status outranks stale file reference",
-    cases: 16,
+    cases: 17,
     providerRequests,
     autoPolling: false,
     xlsxSkuCurrencyAmounts: "NOT_VERIFIED",
