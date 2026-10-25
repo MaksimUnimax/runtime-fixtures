@@ -1724,7 +1724,7 @@ class CurrentRebootFenceSafetyTests(unittest.TestCase):
         with patch.object(deploy,"run",return_value=completed):
             deploy.current_install_reboot_fence(self.plan)
             target=deploy.current_fence_paths(self.plan)["api"]
-            target.write_text("[Unit]\\nConditionPathExists=/unexpected\\n")
+            target.write_text("[Unit]\nConditionPathExists=/unexpected\n")
             with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_FENCE_CONFLICT:api"):
                 deploy.current_remove_reboot_fence(self.plan)
             self.assertTrue(target.is_file())
