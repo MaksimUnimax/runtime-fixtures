@@ -283,7 +283,7 @@ def current_prepare_recovery_fence(plan: dict) -> None:
 def current_remove_reboot_fence(plan: dict) -> None:
     # Idempotent after an interrupted post-commit cleanup; never unlink a
     # foreign/mutated drop-in merely because it has our historical filename.
-    expected='[Unit]\\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\\n'
+    expected='[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n'
     for role,path in current_fence_paths(plan).items():
         _assert_no_symlink_ancestors(path.parent)
         if os.path.lexists(path):
