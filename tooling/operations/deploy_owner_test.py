@@ -281,10 +281,13 @@ def current_prepare_recovery_fence(plan: dict) -> None:
     current_install_reboot_fence(plan,allow_existing=True)
 
 def current_remove_reboot_fence(plan: dict) -> None:
+    # Idempotent after an interrupted post-commit cleanup; never unlink a
+    # foreign/mutated drop-in merely because it has our historical filename.
+    expected='[Unit]\\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\\n'
     for role,path in current_fence_paths(plan).items():
         _assert_no_symlink_ancestors(path.parent)
         if os.path.lexists(path):
-            if path.is_symlink() or not path.is_file():
+            if path.is_symlink() or not path.is_file() or path.read_text()!=expected:
                 raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
             path.unlink()
             directory=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
@@ -971,6 +974,8 @@ def current_assert_apply_journal_clear(journal: Path) -> None:
         raise RuntimeError('CURRENT_RECOVERY_REQUIRED') from None
     if not isinstance(state,dict) or state.get('recoveryRequired') is not False:
         raise RuntimeError('CURRENT_RECOVERY_REQUIRED')
+    if state.get('fenceCleanupPending') not in (None,False):
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_REQUIRED')
 
 def current_apply_engine(
     *,
@@ -1057,6 +1062,7 @@ def _current_apply_engine_locked(
             'phase':phase,
             'schemaState':schema_state,
             'recoveryRequired':result['recoveryRequired'],
+            'fenceCleanupPending':result.get('fenceCleanupPending',False),
             'receipt':str(evidence_dir/'receipt.json'),
             'candidateSourceSha':result.get('candidateSourceSha'),
             'candidateSourceTree':result.get('candidateSourceTree'),
@@ -1094,12 +1100,10 @@ def _current_apply_engine_locked(
         current_start_product_units(plan)
         result['applicationHealth']=current_wait_runtime(plan,started)
         result['loadedIdentity']=current_verify_loaded_plan(plan)
-        current_remove_reboot_fence(plan)
         result['status']='APPLY_PASS'
         result['recoveryRequired']=False
+        result['fenceCleanupPending']=True
         phase='CANDIDATE_PASS'
-        record()
-        return result
     except BaseException as error:
         result['status']='FAILED'
         result['error']=error_code(error)
@@ -1119,9 +1123,9 @@ def _current_apply_engine_locked(
             current_restore_dropins(plan,dropin_backup)
             current_enable_fenced_start()
             current_restore_unit_states(plan,baseline_units)
-            current_remove_reboot_fence(plan)
             result['baselineRestored']=True
             result['recoveryRequired']=False
+            result['fenceCleanupPending']=True
             phase='ROLLBACK_PASS'
         except BaseException as rollback_error:
             result['rollbackError']=error_code(rollback_error)
@@ -1131,7 +1135,88 @@ def _current_apply_engine_locked(
             except BaseException as stop_error:
                 result['quiesceError']=error_code(stop_error)
         record()
+        if phase=='ROLLBACK_PASS':
+            # Never remove a persistent startup fence before the recovered
+            # baseline has a durable terminal journal.
+            current_remove_reboot_fence(plan)
+            result['fenceCleanupPending']=False
+            record()
         raise
+    else:
+        # Cleanup errors after this durable commit must NOT run rollback:
+        # a partial unlink plus recoveryRequired=True is unsafe on reboot.
+        record()
+        current_remove_reboot_fence(plan)
+        result['fenceCleanupPending']=False
+        record()
+        return result
+
+
+def current_finalize_committed_fence_cleanup(
+    plan: dict, *, evidence_root: Path, journal: Path, state: dict,
+    expected_source_sha: str, expected_source_tree: str,
+) -> dict:
+    """Explicit recover-authorized cleanup after a durable terminal result.
+
+    A crash may interrupt the unlink of four distinct unit drop-ins. It must
+    never reopen DB recovery after a terminal commit merely to finish unlinking.
+    This operation does not migrate, start, stop or restore any product service.
+    """
+    if (
+        state.get('recoveryRequired') is not False
+        or state.get('fenceCleanupPending') is not True
+        or state.get('candidateSourceSha')!=expected_source_sha
+        or state.get('candidateSourceTree')!=expected_source_tree
+    ):
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_STATE_INVALID')
+    phase=state.get('phase')
+    expected={
+        'CANDIDATE_PASS':('receipt.json','APPLY_PASS'),
+        'ROLLBACK_PASS':('receipt.json','FAILED'),
+        'CURRENT_RECOVERY_PASS':('recovery.json','CURRENT_RECOVERY_PASS'),
+    }.get(phase)
+    if expected is None:
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_STATE_INVALID')
+    raw=state.get('receipt')
+    if not isinstance(raw,str):
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_STATE_INVALID')
+    receipt_path=Path(raw)
+    evidence_dir=receipt_path.parent
+    current_validate_evidence_paths(evidence_root,journal,evidence_dir)
+    if receipt_path!=evidence_dir/expected[0] or receipt_path.is_symlink() or not receipt_path.is_file():
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_STATE_INVALID')
+    _assert_no_symlink_ancestors(receipt_path)
+    try:
+        receipt=json.loads(receipt_path.read_text(encoding='utf-8'))
+    except (OSError,UnicodeError,ValueError):
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_STATE_INVALID') from None
+    if (
+        not isinstance(receipt,dict)
+        or receipt.get('status')!=expected[1]
+        or receipt.get('recoveryRequired') is not False
+        or receipt.get('fenceCleanupPending') not in (True,False)
+        or receipt.get('candidateSourceSha')!=expected_source_sha
+        or receipt.get('candidateSourceTree')!=expected_source_tree
+        or receipt.get('predeployPrefix')!=state.get('predeployPrefix')
+        or receipt.get('candidateTarget')!=state.get('candidateTarget')
+    ):
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_STATE_INVALID')
+    # Both terminal receipts are already durable and release identity is
+    # verified by the caller. This does not repeat an external API/DB action.
+    current_remove_reboot_fence(plan)
+    updated_receipt=dict(receipt,fenceCleanupPending=False)
+    updated_state=dict(state,fenceCleanupPending=False)
+    write_json_durable(receipt_path,updated_receipt)
+    write_json_durable(journal,updated_state)
+    return {
+        'status':'CURRENT_FENCE_CLEANUP_PASS',
+        'previousTerminalPhase':phase,
+        'recoveryRequired':False,
+        'fenceCleanupPending':False,
+        'candidateSourceSha':expected_source_sha,
+        'liveHealthRechecked':False,
+        'installedHealthFollowupRequired':True,
+    }
 
 def current_recover_engine(
     *,
@@ -1176,6 +1261,12 @@ def _current_recover_engine_locked(
         state=json.loads(journal.read_text())
     except (OSError,ValueError):
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID') from None
+    if isinstance(state,dict) and state.get('recoveryRequired') is False and state.get('fenceCleanupPending') is True:
+        return current_finalize_committed_fence_cleanup(
+            plan,evidence_root=evidence_root,journal=journal,state=state,
+            expected_source_sha=expected_source_sha,
+            expected_source_tree=expected_source_tree,
+        )
     if not isinstance(state,dict) or state.get('recoveryRequired') is not True:
         raise RuntimeError('CURRENT_RECOVERY_NOT_REQUIRED')
     raw_receipt=state.get('receipt')
@@ -1243,10 +1334,10 @@ def _current_recover_engine_locked(
         current_restore_dropins(plan,evidence_dir/'dropins-before')
         current_enable_fenced_start()
         current_restore_unit_states(plan,baseline)
-        current_remove_reboot_fence(plan)
         result.update(
             status='CURRENT_RECOVERY_PASS',
             recoveryRequired=False,
+            fenceCleanupPending=True,
             schemaState=schema_state,
             baselineRestored=True,
         )
@@ -1255,13 +1346,13 @@ def _current_recover_engine_locked(
             'phase':'CURRENT_RECOVERY_PASS',
             'schemaState':schema_state,
             'recoveryRequired':False,
+            'fenceCleanupPending':True,
             'receipt':str(evidence_dir/'recovery.json'),
             'candidateSourceSha':expected_source_sha,
             'candidateSourceTree':expected_source_tree,
             'predeployPrefix':predeploy,
             'candidateTarget':target,
         })
-        return result
     except BaseException as error:
         result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
         try:
@@ -1272,6 +1363,24 @@ def _current_recover_engine_locked(
             result['quiesceError']=error_code(stop_error)
         write_json_durable(evidence_dir/'recovery.json',result)
         raise
+    else:
+        # The explicit recovery's terminal journal is durable before the first
+        # unlink. A cleanup failure leaves a resumable, safe pending marker.
+        current_remove_reboot_fence(plan)
+        result['fenceCleanupPending']=False
+        write_json_durable(evidence_dir/'recovery.json',result)
+        write_json_durable(journal,{
+            'phase':'CURRENT_RECOVERY_PASS',
+            'schemaState':schema_state,
+            'recoveryRequired':False,
+            'fenceCleanupPending':False,
+            'receipt':str(evidence_dir/'recovery.json'),
+            'candidateSourceSha':expected_source_sha,
+            'candidateSourceTree':expected_source_tree,
+            'predeployPrefix':predeploy,
+            'candidateTarget':target,
+        })
+        return result
 
 @contextmanager
 def deployment_guard():
