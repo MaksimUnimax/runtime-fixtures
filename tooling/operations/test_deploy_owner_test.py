@@ -1602,7 +1602,8 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
         state=json.loads(self.journal.read_text())
         state.update(phase="CANDIDATE_PASS",recoveryRequired=False,
                      fenceCleanupPending=True,candidateSourceSha="a"*40,
-                     candidateSourceTree="b"*40,predeployPrefix=17,candidateTarget=50)
+                     candidateSourceTree="b"*40,trustedInventorySha256="c"*64,
+                     predeployPrefix=17,candidateTarget=50)
         self.journal.write_text(json.dumps(state))
 
     def test_committed_terminal_cleanup_is_recovered_without_db_or_service_restart(self):
@@ -1615,6 +1616,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 evidence_root=self.root,journal=self.journal,
             )
         self.assertEqual(result["status"],"CURRENT_FENCE_CLEANUP_PASS")
+        self.assertEqual(result["trustedInventorySha256"],"c"*64)
         self.assertTrue(result["installedHealthFollowupRequired"])
         self.assertEqual(events,["fence-remove"])
         state=json.loads(self.journal.read_text())
@@ -1654,6 +1656,44 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 )
 
 
+
+    def test_pending_cleanup_rejects_missing_or_changed_inventory_without_mutation(self):
+        for side in ("journal", "receipt"):
+            for failure in ("missing", "changed"):
+                with self.subTest(side=side,failure=failure):
+                    self.terminal_cleanup_state()
+                    path=self.journal if side=="journal" else self.evidence/"receipt.json"
+                    data=json.loads(path.read_text())
+                    if failure=="missing":
+                        data.pop("trustedInventorySha256",None)
+                    else:
+                        data["trustedInventorySha256"]="d"*64
+                    path.write_text(json.dumps(data))
+                    events=[]
+                    with self.patch_common(events):
+                        with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_STATE_INVALID"):
+                            deploy.current_recover_engine(
+                                candidate_release=self.release,expected_source_sha="a"*40,
+                                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                                evidence_root=self.root,journal=self.journal,
+                            )
+                    self.assertEqual(events,[])
+                    state=json.loads(self.journal.read_text())
+                    self.assertTrue(state["fenceCleanupPending"])
+                    self.assertFalse(state["recoveryRequired"])
+
+    def test_pending_cleanup_rejects_new_inventory_for_same_source_tree(self):
+        self.terminal_cleanup_state()
+        events=[]
+        with self.patch_common(events):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_STATE_INVALID"):
+                deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="d"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+        self.assertEqual(events,[])
+        self.assertTrue(json.loads(self.journal.read_text())["fenceCleanupPending"])
 
     def test_partial_real_fence_unlink_then_exact_recover_finishes_without_replay(self):
         # Independent R2 review rework: exercise the real four-file unlink
@@ -1705,6 +1745,8 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
             self.assertFalse(interrupted_state["recoveryRequired"])
             self.assertTrue(interrupted_state["fenceCleanupPending"])
             self.assertEqual(interrupted_receipt["status"],"CURRENT_RECOVERY_PASS")
+            self.assertEqual(interrupted_state["trustedInventorySha256"],"c"*64)
+            self.assertEqual(interrupted_receipt["trustedInventorySha256"],"c"*64)
             self.assertFalse(interrupted_receipt["recoveryRequired"])
             self.assertTrue(interrupted_receipt["fenceCleanupPending"])
             # No helper may rerun DB restore, units, or any provider operation.
@@ -1728,6 +1770,8 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
             self.assertFalse(final_state["recoveryRequired"])
             self.assertFalse(final_state["fenceCleanupPending"])
             self.assertFalse(final_receipt["fenceCleanupPending"])
+            self.assertEqual(final_state["trustedInventorySha256"],"c"*64)
+            self.assertEqual(final_receipt["trustedInventorySha256"],"c"*64)
             self.assertEqual(final_receipt["status"],"CURRENT_RECOVERY_PASS")
             self.assertEqual(final_receipt["candidateSourceSha"],"a"*40)
             self.assertEqual(final_receipt["candidateSourceTree"],"b"*40)
