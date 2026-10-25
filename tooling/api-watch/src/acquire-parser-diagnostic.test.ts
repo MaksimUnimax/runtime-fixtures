@@ -92,6 +92,29 @@ describe("C03 official-source diagnostic privacy", () => {
     expect(result.blockerReason).toBe("SOURCE_SERVER_IDENTITY_MISMATCH");
   });
 
+  it("rejects an invalid Swagger marker instead of falling through to matching OpenAPI 3 servers", async () => {
+    const result = await acquireSynthetic(
+      entry.officialUrl!,
+      JSON.stringify({
+        swagger: "2.0.0.0",
+        openapi: "3.0.3",
+        info: { title: "Seller API", version: "1" },
+        paths: {
+          "/items": {
+            get: { responses: { "200": { description: "ok" } } },
+          },
+        },
+        host: "other.example",
+        schemes: ["https"],
+        servers: [{ url: "https://api-seller.ozon.ru" }],
+      }),
+      { requiredServerIdentity: "https://api-seller.ozon.ru" },
+    );
+    expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+    if (result.kind !== "INVALID_OFFICIAL_SOURCE_RESPONSE") return;
+    expect(result.blockerReason).toBe("OPENAPI_VERSION_MISSING");
+  });
+
   const swagger2 = (identity: Record<string, unknown>) => ({
     swagger: "2.0",
     info: { title: "Seller API", version: "1" },
