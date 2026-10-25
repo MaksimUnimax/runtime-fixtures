@@ -218,6 +218,37 @@ describe("C03 acquisition deadline", () => {
     }
   });
 
+  it("does not follow a redirect if cancelling the previous response body rejects", async () => {
+    let requests = 0;
+    let cancellationAttempts = 0;
+    const result = await acquireOfficialSource({
+      entry,
+      timeoutMs: 200,
+      fetcher: async () => {
+        requests += 1;
+        if (requests === 1)
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              cancel() {
+                cancellationAttempts += 1;
+                throw new Error("REDIRECT_BODY_CANCEL_REJECTED");
+              },
+            }),
+            { status: 307, headers: { location: "/next.json" } },
+          );
+        return new Response(null, { status: 403 });
+      },
+    });
+
+    expect(cancellationAttempts).toBe(1);
+    expect(requests).toBe(1);
+    expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    if (result.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+      expect(result.blockerReason).toBe(
+        "Official source redirect response body cleanup failed.",
+      );
+  });
+
   it("bounds a stalled header fetcher and cancels a response arriving after timeout", async () => {
     let requests = 0;
     let lateCancelCalls = 0;

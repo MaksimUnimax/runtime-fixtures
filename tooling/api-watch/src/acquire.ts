@@ -512,7 +512,8 @@ async function cancelRedirectBodyWithinDeadline(
     return await Promise.race([
       response.body.cancel().then(
         () => true as const,
-        () => true as const,
+        // Failed cancellation cannot authorize another redirect request.
+        () => false as const,
       ),
       deadline,
     ]);
@@ -660,11 +661,13 @@ export async function acquireOfficialSource(input: {
           response,
           controller.signal,
         );
-        if (!cancelled || controller.signal.aborted)
+        if (controller.signal.aborted)
           throw new DOMException(
             "Redirect body cleanup exceeded deadline",
             "AbortError",
           );
+        if (!cancelled)
+          throw new Error("OFFICIAL_SOURCE_REDIRECT_BODY_CANCEL_FAILED");
         currentUrl = nextUrl.toString();
       }
     } catch (error) {
@@ -673,7 +676,10 @@ export async function acquireOfficialSource(input: {
         "SOURCE_TEMPORARILY_UNAVAILABLE",
         error instanceof DOMException && error.name === "AbortError"
           ? "Official source acquisition timed out."
-          : "Official source network acquisition failed.",
+          : error instanceof Error &&
+              error.message === "OFFICIAL_SOURCE_REDIRECT_BODY_CANCEL_FAILED"
+            ? "Official source redirect response body cleanup failed."
+            : "Official source network acquisition failed.",
       );
     }
 
