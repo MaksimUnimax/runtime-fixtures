@@ -1639,6 +1639,21 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
         self.assertEqual(events,[])
         self.assertTrue(json.loads(self.journal.read_text())["fenceCleanupPending"])
 
+    def test_finalizer_rejects_numeric_receipt_cleanup_marker(self):
+        self.terminal_cleanup_state()
+        receipt_path=self.evidence/"receipt.json"
+        receipt=json.loads(receipt_path.read_text())
+        receipt["fenceCleanupPending"]=0
+        receipt_path.write_text(json.dumps(receipt))
+        with self.patch_common([]) as stack:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_STATE_INVALID"):
+                deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+
+
 
 class CurrentRebootFenceSafetyTests(unittest.TestCase):
     def setUp(self):
@@ -1827,6 +1842,18 @@ class CurrentOperationGuardTests(unittest.TestCase):
                 self.invoke()
             verify.assert_not_called()
             stop.assert_not_called()
+
+    def test_explicit_null_or_numeric_cleanup_marker_fails_closed(self):
+        with patch.object(deploy,"verified_current_source_plan") as verify:
+            for invalid in (None,0,1,"false",[],{}):
+                with self.subTest(value=invalid):
+                    self.journal.write_text(json.dumps({
+                        "recoveryRequired":False,
+                        "fenceCleanupPending":invalid,
+                    }))
+                    with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_REQUIRED"):
+                        self.invoke()
+        verify.assert_not_called()
 
 class CurrentCliAuthorityTests(unittest.TestCase):
     def setUp(self):
