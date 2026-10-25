@@ -156,11 +156,35 @@
     const operation = String(envelope?.operation || "");
     if (!operation || !successfulEnvelope(envelope)) return null;
     const result = plain(envelope?.result) ? envelope.result : {};
+
+    // Ozon report readiness is authoritative. A stale/foreign-looking file ref
+    // must not turn a failed, pending or unknown report into a ready download.
+    if (operation === "report_info") {
+      const status = normalizedStatus(result);
+      if (FAILED_STATUSES.has(status)) {
+        return Object.freeze({ source_result_index: resultIndex, source_operation: operation, kind: "report_download", state: "failed", next_command: null, automatic_continuation: false });
+      }
+      if (!READY_STATUSES.has(status)) {
+        const code = validReportCode(findFirstField(result, "code"));
+        if (!code) {
+          return Object.freeze({ source_result_index: resultIndex, source_operation: operation, kind: "report_download", state: "blocked_missing_fresh_code", next_command: null, automatic_continuation: false });
+        }
+        return Object.freeze({
+          source_result_index: resultIndex,
+          source_operation: operation,
+          kind: "report_download",
+          state: PENDING_STATUSES.has(status) || !status ? "pending" : "pending_unclassified_status",
+          next_command: Object.freeze({ operation: "report_info", params: Object.freeze({ code }) }),
+          automatic_continuation: false
+        });
+      }
+    }
+
     const generatedInline = findFirstField(result, "generated_file_inline") === true;
     const generatedFileRef = validFileRef(findFirstField(result, "generated_file_ref"));
     const reportFileRef = validFileRef(findFirstField(result, "report_file_ref"));
 
-    if (generatedInline) {
+    if (generatedInline && operation !== "report_info") {
       return Object.freeze({ source_result_index: resultIndex, source_operation: operation, kind: "generated_document", state: "file_downloaded", next_command: null, automatic_continuation: false });
     }
 
@@ -192,25 +216,9 @@
     }
 
     if (operation === "report_info") {
-      const status = normalizedStatus(result);
-      const code = validReportCode(findFirstField(result, "code"));
-      if (FAILED_STATUSES.has(status)) {
-        return Object.freeze({ source_result_index: resultIndex, source_operation: operation, kind: "report_download", state: "failed", next_command: null, automatic_continuation: false });
-      }
-      if (READY_STATUSES.has(status)) {
-        return Object.freeze({ source_result_index: resultIndex, source_operation: operation, kind: "report_download", state: "blocked_missing_fresh_file_ref", next_command: null, automatic_continuation: false });
-      }
-      if (!code) {
-        return Object.freeze({ source_result_index: resultIndex, source_operation: operation, kind: "report_download", state: "blocked_missing_fresh_code", next_command: null, automatic_continuation: false });
-      }
-      return Object.freeze({
-        source_result_index: resultIndex,
-        source_operation: operation,
-        kind: "report_download",
-        state: PENDING_STATUSES.has(status) || !status ? "pending" : "pending_unclassified_status",
-        next_command: Object.freeze({ operation: "report_info", params: Object.freeze({ code }) }),
-        automatic_continuation: false
-      });
+      // Only confirmed READY statuses reach this point. No unverified raw URL
+      // or missing opaque file reference is treated as a completed download.
+      return Object.freeze({ source_result_index: resultIndex, source_operation: operation, kind: "report_download", state: "blocked_missing_fresh_file_ref", next_command: null, automatic_continuation: false });
     }
 
     if (operation === "report_file_get") {
