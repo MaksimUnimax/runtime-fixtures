@@ -147,8 +147,17 @@ describe("C03 official-source diagnostic privacy", () => {
         servers: [{ url: "https://api-seller.ozon.ru" }],
       },
     ],
+    [
+      "Swagger 2.1 cannot use an OpenAPI 3 servers override",
+      {
+        swagger: "2.1",
+        host: "other.example",
+        schemes: ["https"],
+        servers: [{ url: "https://api-seller.ozon.ru" }],
+      },
+    ],
   ] as const)(
-    "rejects Swagger 2.0 %s against the approved server identity",
+    "rejects a mismatched server identity from %s against the approved identity",
     async (_name, fields) => {
       const result = await acquireSynthetic(
         entry.officialUrl!,

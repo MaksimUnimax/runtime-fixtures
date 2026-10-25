@@ -68,7 +68,10 @@ function matchesRequiredServerIdentity(
   requiredServerIdentity: string,
   documentUrl: string,
 ): boolean {
-  if (root.swagger !== "2.0") {
+  if (
+    typeof root.swagger !== "string" ||
+    !/^2\.\d+(?:\.\d+)?$/u.test(root.swagger)
+  ) {
     // OpenAPI 3.x uses servers; retain its exact URL matching rule.
     const servers = Array.isArray(root.servers)
       ? root.servers
