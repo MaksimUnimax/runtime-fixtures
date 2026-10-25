@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "wb_cap24_sku_source_provenance_v1",
+  "scope": {
+    "scenarioId": "CAP-24",
+    "evidence": "ACCEPTED_SCHEMA_FIXTURES_AND_SYNTHETIC_INPUT_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "sources": {
+    "finance": {
+      "alias": "finance_sales_detail_period",
+      "rowId": "rrdId",
+      "product": "nmId",
+      "currency": "report metadata",
+      "money": ["retailAmount", "forPay"]
+    },
+    "storage": {
+      "alias": "paid_storage_download",
+      "product": "nmId",
+      "rowId": null,
+      "money": "warehousePrice",
+      "currency": "separate account binding"
+    },
+    "actualAds": {
+      "alias": "promo_spend_history",
+      "campaign": "advertId",
+      "product": null,
+      "rowId": null,
+      "money": "updSum",
+      "currency": "separate account binding"
+    },
+    "attributionOnly": {
+      "alias": "promo_fullstats",
+      "product": "days.apps.nms.nmId",
+      "money": "days.apps.nms.sum",
+      "actualLedger": false
+    }
+  },
+  "positive": {
+    "period": "2026-09-01/2026-09-30",
+    "timezone": "Europe/Moscow",
+    "reads": {
+      "financeThrough204": true,
+      "storageStatus": "done",
+      "storageHttp": 200,
+      "adsPeriodComplete": true
+    },
+    "sourcePeriods": {
+      "finance": "2026-09-01/2026-09-30",
+      "storage": "2026-09-01/2026-09-30",
+      "ads": "2026-09-01/2026-09-30"
+    },
+    "currencyBindings": {
+      "financeReport": "RUB",
+      "verifiedStorageAccount": "RUB",
+      "verifiedAdsAccount": "RUB"
+    },
+    "financeRows": [
+      {
+        "rrdId": 1101,
+        "reportId": 901,
+        "nmId": 1001,
+        "retailAmount": "120.00",
+        "forPay": "80.00"
+      },
+      {
+        "rrdId": 1102,
+        "reportId": 901,
+        "nmId": 1002,
+        "retailAmount": "50.00",
+        "forPay": "35.00"
+      }
+    ],
+    "storageRows": [
+      {
+        "date": "2026-09-10",
+        "originalDate": "2026-09-10",
+        "nmId": 1001,
+        "warehousePrice": "5.125"
+      },
+      {
+        "date": "2026-09-10",
+        "originalDate": "2026-09-10",
+        "nmId": 1001,
+        "warehousePrice": "5.125"
+      },
+      {
+        "date": "2026-09-10",
+        "originalDate": "2026-09-03",
+        "nmId": 1003,
+        "warehousePrice": "-1.005"
+      }
+    ],
+    "adsRows": [
+      {
+        "advertId": 77,
+        "updNum": 1,
+        "updSum": 100
+      },
+      {
+        "advertId": 77,
+        "updNum": 1,
+        "updSum": 100
+      }
+    ],
+    "financeReportCurrencies": {
+      "901": "RUB"
+    }
+  }
+}
