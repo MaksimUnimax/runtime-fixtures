@@ -27,8 +27,8 @@ describe("C03 retry provenance migration source contract", () => {
     expect(sql).toContain('"active_run_entered_at" timestamp with time zone');
     expect(sql).not.toContain("WHERE \"lane\" = 'LLM'");
     // The migration must not guess which old lane deadline was periodic.
-    expect(sql).not.toMatch(/UPDATE\\s+"monitoring_lane_schedules"/i);
-    expect(sql).not.toMatch(/"ordinary_next_run_at"\\s*=\\s*"next_run_at"/i);
+    expect(sql).not.toMatch(/UPDATE\s+"monitoring_lane_schedules"/i);
+    expect(sql).not.toMatch(/"ordinary_next_run_at"\s*=\s*"next_run_at"/i);
 
     // Prior column declarations guarantee the actual DDL types, not a guess.
     const priorSchedule = await readFile(
@@ -68,5 +68,25 @@ describe("C03 retry provenance migration source contract", () => {
     );
     // These are source-level assertions only. Real PostgreSQL interleaving,
     // migration history, and operator resolution still require separate tests.
+  });
+
+  it("rejects forbidden schedule rewrites even in adversarial SQL variants", async () => {
+    const sql = await readFile(join(migrationsFolder, tag + ".sql"), "utf8");
+    const overwritesRegular =
+      /UPDATE\s+"monitoring_lane_schedules"\s+SET\s+"next_run_at"/i;
+    const inventsBaseline = /"ordinary_next_run_at"\s*=\s*"next_run_at"/i;
+    expect(overwritesRegular.test(sql)).toBe(false);
+    expect(inventsBaseline.test(sql)).toBe(false);
+    expect(
+      overwritesRegular.test(
+        sql + '\nUPDATE "monitoring_lane_schedules" SET "next_run_at" = now();',
+      ),
+    ).toBe(true);
+    expect(
+      inventsBaseline.test(
+        sql +
+          '\nUPDATE "monitoring_lane_schedules" SET "ordinary_next_run_at" = "next_run_at";',
+      ),
+    ).toBe(true);
   });
 });
