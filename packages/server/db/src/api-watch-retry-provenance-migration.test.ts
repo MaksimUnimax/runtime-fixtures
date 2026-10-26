@@ -25,7 +25,7 @@ describe("C03 retry provenance migration source contract", () => {
     );
     expect(sql).toContain('"ordinary_next_run_at" timestamp with time zone');
     expect(sql).toContain('"active_run_entered_at" timestamp with time zone');
-    expect(sql).toContain("WHERE \"lane\" = 'LLM'");
+    expect(sql).not.toContain("WHERE \"lane\" = 'LLM'");
     // The migration must not guess which old lane deadline was periodic.
     expect(sql).not.toMatch(/UPDATE\\s+"monitoring_lane_schedules"/i);
     expect(sql).not.toMatch(/"ordinary_next_run_at"\\s*=\\s*"next_run_at"/i);
