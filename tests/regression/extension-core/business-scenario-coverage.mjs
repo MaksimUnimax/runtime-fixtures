@@ -281,6 +281,15 @@ for (const row of coverage.scenarios) {
     );
 }
 
+// A missing numerical source is not the same as an observed zero.
+// Keep existing finite numeric/string metrics while rejecting null and blank.
+function finiteRecordedMetric(value) {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 const calculators = {
   sales_totals(input) {
     const rows = Array.isArray(input.rows) ? input.rows : [];
@@ -304,9 +313,20 @@ const calculators = {
     };
   },
   daily_rank(input) {
+    if (
+      !Array.isArray(input?.rows) ||
+      input.rows.some(
+        (row) =>
+          !row ||
+          typeof row.day !== "string" ||
+          !row.day ||
+          finiteRecordedMetric(row.money) === null,
+      )
+    )
+      return null;
     const rows = input.rows.map((row) => ({
       ...row,
-      money: Number(row.money),
+      money: finiteRecordedMetric(row.money),
     }));
     const best = [...rows]
       .sort((a, b) => b.money - a.money || a.day.localeCompare(b.day))
@@ -319,37 +339,40 @@ const calculators = {
     return { best, worst };
   },
   percent_change(input) {
-    const current = Number(input.current),
-      previous = Number(input.previous);
-    if (
-      !Number.isFinite(current) ||
-      !Number.isFinite(previous) ||
-      previous === 0
-    )
-      return null;
+    const current = finiteRecordedMetric(input?.current),
+      previous = finiteRecordedMetric(input?.previous);
+    if (current === null || previous === null || previous === 0) return null;
     return ((current - previous) / Math.abs(previous)) * 100;
   },
   warehouse_sort(input) {
+    if (
+      !Array.isArray(input?.rows) ||
+      input.rows.some(
+        (row) =>
+          !row ||
+          typeof row.warehouse !== "string" ||
+          !row.warehouse ||
+          finiteRecordedMetric(row.units) === null,
+      )
+    )
+      return null;
     return [...input.rows]
       .sort(
         (a, b) =>
-          Number(b.units) - Number(a.units) ||
+          finiteRecordedMetric(b.units) - finiteRecordedMetric(a.units) ||
           compareCodeUnits(a.warehouse, b.warehouse),
       )
       .map((row) => row.warehouse);
   },
   days_cover(input) {
+    if (input?.complete !== true) return null;
+    const stock = finiteRecordedMetric(input.stock),
+      demand = finiteRecordedMetric(input.demandUnits),
+      days = finiteRecordedMetric(input.days);
     if (
-      !input.complete ||
-      input.demandUnits === null ||
-      input.demandUnits === undefined
-    )
-      return null;
-    const stock = Number(input.stock),
-      demand = Number(input.demandUnits),
-      days = Number(input.days);
-    if (
-      ![stock, demand, days].every(Number.isFinite) ||
+      stock === null ||
+      demand === null ||
+      days === null ||
       stock < 0 ||
       demand <= 0 ||
       days <= 0
@@ -358,11 +381,10 @@ const calculators = {
     return stock / (demand / days);
   },
   drr(input) {
-    if (!input.complete) return null;
-    const spend = Number(input.spend),
-      revenue = Number(input.revenue);
-    if (!Number.isFinite(spend) || !Number.isFinite(revenue) || revenue <= 0)
-      return null;
+    if (input?.complete !== true) return null;
+    const spend = finiteRecordedMetric(input.spend),
+      revenue = finiteRecordedMetric(input.revenue);
+    if (spend === null || revenue === null || revenue <= 0) return null;
     return (spend / revenue) * 100;
   },
   platform_contribution(input) {
@@ -965,6 +987,103 @@ for (const row of numeric.cases) {
     row.expected,
     `${row.id}: deterministic fixture mismatch`,
   );
+}
+
+// Explicitly distinguish missing values from real observed zero.
+// These are source-only checks, not real marketplace or owner acceptance.
+const missingNumberCases = [
+  [
+    "day_rank_null",
+    "daily_rank",
+    {
+      rows: [
+        { day: "2026-09-01", money: 100 },
+        { day: "2026-09-02", money: null },
+      ],
+    },
+  ],
+  [
+    "day_rank_blank",
+    "daily_rank",
+    {
+      rows: [
+        { day: "2026-09-01", money: 100 },
+        { day: "2026-09-02", money: "  " },
+      ],
+    },
+  ],
+  ["percent_null", "percent_change", { current: null, previous: 20 }],
+  ["percent_blank", "percent_change", { current: "", previous: 20 }],
+  ["percent_missing_prior", "percent_change", { current: 20 }],
+  [
+    "warehouse_null",
+    "warehouse_sort",
+    {
+      rows: [
+        { warehouse: "A", units: 3 },
+        { warehouse: "B", units: null },
+      ],
+    },
+  ],
+  [
+    "warehouse_blank",
+    "warehouse_sort",
+    {
+      rows: [
+        { warehouse: "A", units: 3 },
+        { warehouse: "B", units: "" },
+      ],
+    },
+  ],
+  [
+    "cover_null_stock",
+    "days_cover",
+    { complete: true, stock: null, demandUnits: 5, days: 7 },
+  ],
+  [
+    "cover_blank_demand",
+    "days_cover",
+    { complete: true, stock: 5, demandUnits: "", days: 7 },
+  ],
+  [
+    "cover_missing_days",
+    "days_cover",
+    { complete: true, stock: 5, demandUnits: 4 },
+  ],
+  ["drr_null_spend", "drr", { complete: true, spend: null, revenue: 100 }],
+  ["drr_blank_spend", "drr", { complete: true, spend: "  ", revenue: 100 }],
+];
+for (const [name, kind, input] of missingNumberCases) {
+  assert.equal(
+    calculators[kind](input),
+    null,
+    name + " must not fabricate zero",
+  );
+}
+const observedZeroCases = [
+  ["real_zero_drr", "drr", { complete: true, spend: 0, revenue: 100 }, 0],
+  ["real_zero_percent", "percent_change", { current: 0, previous: 100 }, -100],
+  [
+    "real_zero_stock",
+    "days_cover",
+    { complete: true, stock: 0, demandUnits: 10, days: 7 },
+    0,
+  ],
+  [
+    "numeric_string_percent",
+    "percent_change",
+    { current: "100", previous: "50" },
+    100,
+  ],
+  [
+    "numeric_string_drr",
+    "drr",
+    { complete: true, spend: "15.5", revenue: "100" },
+    15.5,
+  ],
+];
+for (const [name, kind, input, expected] of observedZeroCases) {
+  assert.equal(calculators[kind](input), expected, name + " must stay valid");
 }
 
 const requiredKinds = new Set([
