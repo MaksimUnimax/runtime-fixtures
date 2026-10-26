@@ -316,10 +316,19 @@ function redactMultilineQuotedSecrets(input: string): string {
     objectStart < 0 ? output.length : objectStart,
     arrayStart < 0 ? output.length : arrayStart,
   );
+  // A verified severity prefix like "[ERROR] " is not a JSON array.
+  // Strip only these known-safe log labels before validation; arbitrary
+  // bracketed text cannot establish a trusted boundary for a damaged secret.
+  const safeLogPrefix = output.match(
+    /^\[(?:TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL)\][ \t]+/iu,
+  )?.[0];
+  const candidate = safeLogPrefix
+    ? output.slice(safeLogPrefix.length)
+    : firstContainer < output.length
+      ? output.slice(firstContainer)
+      : output;
   try {
-    JSON.parse(
-      firstContainer < output.length ? output.slice(firstContainer) : output,
-    );
+    JSON.parse(candidate);
     return output;
   } catch {
     return "[REDACTED_SECRET]";

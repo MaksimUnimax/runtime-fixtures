@@ -578,6 +578,36 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitized).toContain("[REDACTED_SECRET]");
   });
 
+  it.each(["[ERROR] ", "[WARN] ", "[INFO] "])(
+    "preserves a recognized harmless log-level prefix %s when the following JSON is verifiably safe",
+    (prefix) => {
+      const raw =
+        prefix +
+        '{"password":"SYNTHETIC_LOG_HEAD_521\nSYNTHETIC_LOG_TAIL_522","requestId":"safe-log-521"}';
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).toContain(prefix);
+      expect(sanitized).toContain('"requestId":"safe-log-521"');
+      expect(sanitized).not.toContain("SYNTHETIC_LOG_HEAD_521");
+      expect(sanitized).not.toContain("SYNTHETIC_LOG_TAIL_522");
+    },
+  );
+
+  it("does not treat an arbitrary malformed prefix as a trusted JSON boundary", () => {
+    const raw =
+      '[unknown] {"password":"SYNTHETIC_UNTRUSTED_HEAD_523\nSYNTHETIC_UNTRUSTED_TAIL_524","requestId":"safe"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).toBe("[REDACTED_SECRET]");
+  });
+
+  it("preserves a safe large-number lexeme in a verified multiline redaction", () => {
+    const raw =
+      '{"id":9007199254740993,"password":"SYNTHETIC_LONG_HEAD_525\nSYNTHETIC_LONG_TAIL_526"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).toContain('"id":9007199254740993');
+    expect(sanitized).not.toContain("SYNTHETIC_LONG_HEAD_525");
+    expect(sanitized).not.toContain("SYNTHETIC_LONG_TAIL_526");
+  });
+
   it("preserves harmless raw multiline feedback and valid escaped newlines", () => {
     const prose = "Support details on one line\nand useful details on the next";
     expect(sanitizeFeedbackText(prose)).toBe(prose);
