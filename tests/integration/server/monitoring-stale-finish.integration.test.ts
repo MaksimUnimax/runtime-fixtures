@@ -167,4 +167,51 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(durable.activeRun).toBeNull();
     expect(durable.lastResult?.runId).toBe(replacement);
   });
+  it("rejects a finish after expiry with unchanged run ID on real PostgreSQL", async () => {
+    const runId = requiredRunId(
+      await storeA.startRun({
+        lane: "SWAGGER_API",
+        source: "FORCED",
+        now: at(50),
+        leaseMs: 1000,
+      }),
+    );
+    await expect(
+      storeA.finishRun({
+        lane: "SWAGGER_API",
+        runId,
+        now: at(52),
+        result,
+      }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    const held = await storeB.getState("SWAGGER_API");
+    expect(held.activeRun?.runId).toBe(runId);
+    expect(held.lastResult?.runId).not.toBe(runId);
+
+    const replacement = requiredRunId(
+      await storeB.startRun({
+        lane: "SWAGGER_API",
+        source: "FORCED",
+        now: at(53),
+        leaseMs: 5000,
+      }),
+    );
+    expect(replacement).not.toBe(runId);
+    await expect(
+      storeA.finishRun({
+        lane: "SWAGGER_API",
+        runId,
+        now: at(54),
+        result,
+      }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    const completed = await storeB.finishRun({
+      lane: "SWAGGER_API",
+      runId: replacement,
+      now: at(54),
+      result,
+    });
+    expect(completed.activeRun).toBeNull();
+    expect(completed.lastResult?.runId).toBe(replacement);
+  });
 });
