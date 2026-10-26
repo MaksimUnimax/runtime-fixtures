@@ -146,6 +146,26 @@ function reportDependencies(
 }
 
 describe("A6 API-watch report lifecycle", () => {
+  it("a zero-source pass is blocked, not an empty successful report", async () => {
+    const reportStore = new InMemoryApiWatchReportStore();
+    const blankRegistry = {
+      ...createSourceRegistry(),
+      list: () => [],
+    };
+    const fixture = reportDependencies(blankRegistry, "/unused", reportStore);
+    const result = await runApiWatchReport({
+      dependencies: fixture.dependencies,
+      runId: "empty-source-pass",
+      source: "SCHEDULED",
+    });
+    const completed = await reportStore.getReport(
+      "api-watch:empty-source-pass",
+    );
+    expect(completed?.sources).toEqual([]);
+    expect(completed?.state).toBe("BLOCKED");
+    expect(result.status).not.toBe("SUCCEEDED");
+  });
+
   it("rejects a fixture registry that accidentally retains production URLs", () => {
     expect(() => reportDependencies(createSourceRegistry(), "/unused")).toThrow(
       "EXTERNAL_NETWORK_FORBIDDEN_IN_REPORT_FIXTURE",

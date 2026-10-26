@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { productionSourceRegistry } from "./source-registry.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPostgresApiWatchIncidentStore,
@@ -496,72 +497,92 @@ describe("acquisition recovery remains automatic", () => {
     expect(await store.listOpen()).toHaveLength(1);
   });
 
-  it("keeps global failure open until a proven full completed pass", async () => {
+  function officialFullReport(
+    state: ApiWatchReport["state"] = "COMPLETED",
+  ): ApiWatchReport {
+    const template = comparableReport();
+    return {
+      ...template,
+      state,
+      sources: productionSourceRegistry.list().flatMap((entry) =>
+        (entry.documents ?? []).map((doc) => ({
+          ...template.sources[0]!,
+          sourceFamily: entry.sourceFamily,
+          documentKey: doc.documentKey,
+        })),
+      ),
+    };
+  }
+
+  it("only complete accepted 15-document evidence closes a global failure", async () => {
     const store = new InMemoryApiWatchIncidentStore();
-    const failed = comparableReport();
-    failed.state = "FAILED";
-    await evaluateApiWatchIncidents({
-      report: failed,
-      store,
-      fullAcquisitionScope: true,
-    });
-    const partial = comparableReport();
-    partial.state = "PARTIAL";
-    await evaluateApiWatchIncidents({
-      report: partial,
-      store,
-      fullAcquisitionScope: true,
-    });
+    const initial = officialFullReport("FAILED");
+    expect(initial.sources).toHaveLength(15);
+    expect(
+      initial.sources.filter((item) => item.sourceFamily === "WILDBERRIES"),
+    ).toHaveLength(13);
+    await evaluateApiWatchIncidents({ report: initial, store });
     expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
 
-    // The one-family retry may succeed, but the other marketplaces have not
-    // been observed. A completed *scoped* report must not close the alert.
-    await evaluateApiWatchIncidents({
-      report: comparableReport(),
-      store,
-      fullAcquisitionScope: false,
-    });
-    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
-    await evaluateApiWatchIncidents({ report: comparableReport(), store });
+    const onlySeller = comparableReport();
+    await evaluateApiWatchIncidents({ report: onlySeller, store });
     expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
 
-    await evaluateApiWatchIncidents({
-      report: comparableReport(),
-      store,
-      fullAcquisitionScope: true,
-    });
+    const withoutWb = officialFullReport();
+    withoutWb.sources.pop();
+    await evaluateApiWatchIncidents({ report: withoutWb, store });
+    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
+
+    const duplicate = officialFullReport();
+    duplicate.sources[14] = { ...duplicate.sources[0]! };
+    await evaluateApiWatchIncidents({ report: duplicate, store });
+    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
+
+    const extra = officialFullReport();
+    extra.sources.push({ ...extra.sources[0]! });
+    await evaluateApiWatchIncidents({ report: extra, store });
+    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
+
+    const unverified = officialFullReport();
+    unverified.sources[5] = {
+      ...unverified.sources[5]!,
+      blockerCode: "SOURCE_TEMPORARILY_UNAVAILABLE",
+      authorityStatus: "AUTHORITY_BLOCKED",
+      snapshotSha256: null,
+    };
+    await evaluateApiWatchIncidents({ report: unverified, store });
+    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
+
+    await evaluateApiWatchIncidents({ report: officialFullReport(), store });
     expect(await store.listOpen()).toHaveLength(0);
   });
 
-  it("does not declare a global outage from a failed one-family retry", async () => {
-    const store = new InMemoryApiWatchIncidentStore();
-    const failure = comparableReport();
-    failure.state = "FAILED";
-    await evaluateApiWatchIncidents({
-      report: failure,
-      store,
-      fullAcquisitionScope: false,
-    });
-    expect(await store.listOpen()).toHaveLength(0);
-  });
-
-  it("a completed report without any observed documents does not resolve the global incident", async () => {
+  it("cannot open a global failure from only one failed family", async () => {
     const store = new InMemoryApiWatchIncidentStore();
     const failed = comparableReport();
     failed.state = "FAILED";
+    await evaluateApiWatchIncidents({ report: failed, store });
+    expect(await store.listOpen()).toHaveLength(0);
+  });
+
+  it("cannot resolve a global failure from an empty completed pass", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
     await evaluateApiWatchIncidents({
-      report: failed,
+      report: officialFullReport("FAILED"),
       store,
-      fullAcquisitionScope: true,
     });
-    const empty = comparableReport();
+    const empty = officialFullReport();
     empty.sources = [];
-    await evaluateApiWatchIncidents({
-      report: empty,
-      store,
-      fullAcquisitionScope: true,
-    });
+    await evaluateApiWatchIncidents({ report: empty, store });
     expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
+  });
+
+  it("a failed report with missing official documents cannot falsely open a global alert", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const failed = officialFullReport("FAILED");
+    failed.sources.pop();
+    await evaluateApiWatchIncidents({ report: failed, store });
+    expect(await store.listOpen()).toHaveLength(0);
   });
 });
 

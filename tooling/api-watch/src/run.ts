@@ -614,7 +614,7 @@ export async function runApiWatchReport(input: {
         sourceOutcome.errorCode !== "PRODUCT_BASELINE_REFERENCE_INVALID",
     ).length;
     const state =
-      usable === pass.outcomes.length
+      pass.outcomes.length > 0 && usable === pass.outcomes.length
         ? "COMPLETED"
         : usable > 0
           ? "PARTIAL"
@@ -634,15 +634,6 @@ export async function runApiWatchReport(input: {
     if (completedReport && dependencies.incidentStore)
       await evaluateApiWatchIncidents({
         report: completedReport,
-        // A family-scoped retry cannot prove recovery of an unrelated failed
-        // full watch. Require an unscoped pass with observed evidence from
-        // all three configured marketplace families.
-        fullAcquisitionScope:
-          input.sourceFamilies === undefined &&
-          (["OZON_SELLER", "OZON_PERFORMANCE", "WILDBERRIES"] as const).every(
-            (family) =>
-              pass.outcomes.some((outcome) => outcome.sourceFamily === family),
-          ),
         crosswalkRows,
         verifiedFamilyAbsenceRowIds,
         store: dependencies.incidentStore,
