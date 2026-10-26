@@ -74,9 +74,16 @@ export class InMemoryApiWatchIncidentStore implements ApiWatchIncidentStore {
     this.incidents.set(input.incidentKey, created);
     return { incident: copy(created), opened: true };
   }
-  async resolve(key: string, at: Date) {
+  async resolve(key: string, at: Date, expectedOccurrenceCount: number) {
     const current = this.incidents.get(key);
-    if (!current || current.state !== "OPEN") return undefined;
+    if (
+      !Number.isSafeInteger(expectedOccurrenceCount) ||
+      expectedOccurrenceCount <= 0 ||
+      !current ||
+      current.state !== "OPEN" ||
+      current.occurrenceCount !== expectedOccurrenceCount
+    )
+      return undefined;
     const next = {
       ...current,
       state: "RESOLVED" as const,
@@ -154,7 +161,12 @@ export function createPostgresApiWatchIncidentStore(
         return { incident: map(saved.rows[0]!), opened };
       });
     },
-    async resolve(key, at) {
+    async resolve(key, at, expectedOccurrenceCount) {
+      if (
+        !Number.isSafeInteger(expectedOccurrenceCount) ||
+        expectedOccurrenceCount <= 0
+      )
+        return undefined;
       // Serialize OPENED and RESOLVED under the same incident-key lock, so
       // an observer cannot reopen after a concurrent close without OPENED.
       return runtime.transaction(async (tx) => {
@@ -165,8 +177,8 @@ export function createPostgresApiWatchIncidentStore(
         // Returning only the changed row preserves exactly-once RESOLVED
         // transitions even when multiple evaluators concurrently close a key.
         const result = await tx.query<Record<string, unknown>>(
-          `UPDATE api_watch_incidents SET state='RESOLVED',resolved_at=$2,last_seen_at=$2 WHERE incident_key=$1 AND state='OPEN' RETURNING ${projectionColumns}`,
-          [key, at],
+          `UPDATE api_watch_incidents SET state='RESOLVED',resolved_at=$2,last_seen_at=$2 WHERE incident_key=$1 AND state='OPEN' AND occurrence_count=$3 RETURNING ${projectionColumns}`,
+          [key, at, expectedOccurrenceCount],
         );
         return result.rows[0] ? map(result.rows[0]) : undefined;
       });
@@ -402,7 +414,13 @@ export async function evaluateApiWatchIncidents(input: {
           matchingDocumentSources.every(atAcceptedBaseline)) ||
           familyRecovered);
       if (acquisitionRecovered || productRecovered) {
-        const resolved = await input.store.resolve(open.incidentKey, now);
+        // The recovery proof was built from this particular OPEN version.
+        // A concurrent observer invalidates it by incrementing occurrenceCount.
+        const resolved = await input.store.resolve(
+          open.incidentKey,
+          now,
+          open.occurrenceCount,
+        );
         if (resolved && input.notifier)
           await input.notifier({ kind: "RESOLVED", incident: resolved });
       }
