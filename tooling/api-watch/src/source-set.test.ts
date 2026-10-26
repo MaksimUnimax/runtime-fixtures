@@ -587,7 +587,104 @@ describe("production source authority model", () => {
       ),
     ).toBe("AUTHORITY_PARTIAL");
     expect(familyAuthorityStatus([blocked], ["x"])).toBe("AUTHORITY_BLOCKED");
+    // Matching cardinality is not matching the required official document IDs.
+    // A substituted accepted document must not make a family publishable.
+    expect(
+      familyAuthorityStatus([accepted("a"), accepted("unrelated")], ["a", "b"]),
+    ).toBe("AUTHORITY_PARTIAL");
+    expect(
+      familyAuthorityStatus(
+        [accepted("a"), accepted("b"), accepted("unrelated")],
+        ["a", "b"],
+      ),
+    ).toBe("AUTHORITY_PARTIAL");
+    expect(familyAuthorityStatus([], [])).toBe("AUTHORITY_BLOCKED");
   });
+  describe("C03 exact Wildberries family also rejects hidden extra document rows", () => {
+    const accepted = (key: string) => ({
+      sourceFamily: "WILDBERRIES" as const,
+      documentKey: key,
+      officialUrl: "https://dev.wildberries.ru/x",
+      status: "ACQUIRED" as const,
+      sha256: "a",
+      sizeBytes: 1,
+      specVersion: "3.0.3",
+      authorityStatus: "AUTHORITY_ACCEPTED" as const,
+      blockerReason: null,
+    });
+    const blocked = (key: string) => ({
+      ...accepted(key),
+      status: "OPERATOR_SOURCE_REQUIRED" as const,
+      sha256: null,
+      sizeBytes: null,
+      specVersion: null,
+      authorityStatus: "AUTHORITY_BLOCKED" as const,
+      blockerReason: "synthetic blocked document",
+    });
+
+    it("does not ignore an accepted duplicate of a required document", () => {
+      expect(
+        familyAuthorityStatus(
+          [accepted("a"), accepted("b"), accepted("a")],
+          ["a", "b"],
+        ),
+      ).toBe("AUTHORITY_PARTIAL");
+    });
+
+    it("does not ignore a rejected duplicate when all required keys are accepted", () => {
+      expect(
+        familyAuthorityStatus(
+          [accepted("a"), accepted("b"), blocked("a")],
+          ["a", "b"],
+        ),
+      ).toBe("AUTHORITY_PARTIAL");
+    });
+
+    it("does not mistake accepted unknown-only evidence for a partial required family", () => {
+      expect(familyAuthorityStatus([accepted("intruder")], ["a", "b"])).toBe(
+        "AUTHORITY_BLOCKED",
+      );
+    });
+
+    it("rejects a complete accepted family containing one extra rejected document", () => {
+      expect(
+        familyAuthorityStatus(
+          [accepted("a"), accepted("b"), blocked("outsider")],
+          ["a", "b"],
+        ),
+      ).toBe("AUTHORITY_PARTIAL");
+    });
+
+    it("rejects accepted unrelated evidence when no required keys are configured", () => {
+      expect(familyAuthorityStatus([accepted("intruder")], [])).toBe(
+        "AUTHORITY_BLOCKED",
+      );
+    });
+
+    it("requires all thirteen configured Wildberries document IDs without substitutions", () => {
+      const officialKeys = productionSourceRegistry
+        .list()
+        .find((entry) => entry.sourceFamily === "WILDBERRIES")!
+        .documents!.map((document) => document.documentKey);
+      expect(officialKeys).toHaveLength(13);
+      expect(
+        familyAuthorityStatus(officialKeys.map(accepted), officialKeys),
+      ).toBe("AUTHORITY_ACCEPTED");
+      expect(
+        familyAuthorityStatus(
+          [...officialKeys.slice(0, 12).map(accepted), accepted("intruder")],
+          officialKeys,
+        ),
+      ).toBe("AUTHORITY_PARTIAL");
+      expect(
+        familyAuthorityStatus(
+          [...officialKeys.map(accepted), blocked(officialKeys[0]!)],
+          officialKeys,
+        ),
+      ).toBe("AUTHORITY_PARTIAL");
+    });
+  });
+
   it("SRC-11..SRC-14 create an order-independent manifest and fail duplicate operation identities", () => {
     const a = canonicalFamilyManifest({
       sourceFamily: "WILDBERRIES",

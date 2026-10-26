@@ -62,9 +62,24 @@ export function familyAuthorityStatus(
       .filter((document) => document.authorityStatus === "AUTHORITY_ACCEPTED")
       .map((document) => document.documentKey),
   );
-  if (accepted.size === requiredDocumentKeys.length)
+  const required = new Set(requiredDocumentKeys);
+  // A matching accepted-key count is insufficient: reject substituted keys,
+  // duplicate required keys, duplicate/denied rows, and extra unregistered rows.
+  if (
+    required.size > 0 &&
+    required.size === requiredDocumentKeys.length &&
+    documents.length === required.size &&
+    accepted.size === required.size &&
+    documents.every(
+      (document) =>
+        document.authorityStatus === "AUTHORITY_ACCEPTED" &&
+        required.has(document.documentKey),
+    ) &&
+    [...required].every((key) => accepted.has(key))
+  )
     return "AUTHORITY_ACCEPTED";
-  if (accepted.size > 0) return "AUTHORITY_PARTIAL";
+  if ([...accepted].some((key) => required.has(key)))
+    return "AUTHORITY_PARTIAL";
   if (
     documents.some(
       (document) => document.authorityStatus === "AUTHORITY_REVIEW_REQUIRED",
