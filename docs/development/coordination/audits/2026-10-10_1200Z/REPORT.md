@@ -1,3 +1,66 @@
+# Поиск простоя: ресурсная граница PR308 установлена; PR326 exact CI и merge потреблены — 26.10.2026
+
+<!-- CONTROLLER_PR308_RESOURCE_PRIMARY_PROVENANCE_AND_PR326_E5_MERGE_20261026 -->
+
+Продолжение REPORT1e401a39/readback20:18:16. Все прежние байты,21цель PLAN, принятые результаты и раздельные отказы сохранены ниже. Новых source/runtime/test/review/CI действий ради аудита нет; Tester/docs работают у прежних авторов, их уже сообщённые результаты не осматривались повторно.
+
+## Свежий вход и действительно доступная ресурсная первичка
+
+Guard **20:24:02.934902UTC+5**:7existinglocks эксклюзивны, othernoticewriters=[],unknownvisibility=[], canonicalHEAD030ce4bb356208e9dd0cda21b860d769d56ec807/indexSHA96916746f57956d4394de396dc299aecece21a74b8c5e52fb3dceb4098b59ad4/fullWIPSHA76b6681f42d0b9f1ad2ec7f19677b91af970e1f0494f19ccf68427b970aee7d6 совпали; Gitmarkersнет. Read-onlyguard завершён20:24:02.935452.
+
+Проверены только заголовки/provenance существующих разрешённых B-notice24876ce6… и B_EXECUTION_RESPONSEe46b4e…, без protectedB.json/трёхallocationcontents и без чисел/проксисуммрезервов. Адресный кандидат **B_B04_EXISTING_B_SOURCE_RESV_THREE_RESOURCE_CANDIDATES_20261026/NET_NEGATIVE_RESOURCE_GATE_READBACK_20261026**, issued26Oct**15:46:43.935UTC+5**, является прежним B04negative, а не свежимwholePR308admission. В declaredsources есть **/root/octoport-control/B.json** и **/root/octoport-control/disk-allocations/**. Егоschema содержит rootdisk/free/reserve/floor/inodes/B04demand/shortfall; unusedparallelmemory/tmpfs там не установлены. Даже существование этого aggregate не даёт ни свежести, ни недостающегоU, ни доказаннойнезависимойразрешённости reuseдляPR308. АвторB не обвиняется в нарушении собственногопрежнегоscope.
+
+Полученныйрезультат **не новыйподсчётR/U**: в проверенных первичныхrecords нет полного текущего independentlypermitted PR308reservefact. Старые физическиеснимки06:36 и namespacepresence06:40 не переименованы в текущие20:25. FreshOSfree/MemAvailable сами по себе commitments не заменяют; новыйтакойзамер не запускался.
+
+## Конкретная missing операция/target и сохранённыйSTOP PR308
+
+Требуемаяоперацияполученияфактов — **consistentcurrentbalance всегоexistingdisk-allocations ledger поvalidOPEN/HELD плюс пряморазрешённые текущиеunusedparallelmemory/tmpfs/owner/purpose/current/max и incrementalpeak/growth целойPR308операции**. Не частичнаяарифметика и не новыйregistry.
+
+Сохранённая первичнаяboundary указывает три protectedtargets:
+- /root/octoport-control/disk-allocations/B-B04-CONSUMED-OTP-REPLAY-CODE-20261018.json
+- /root/octoport-control/disk-allocations/a27b25e35a5f4d3e81372bd058114d8d.json
+- /root/octoport-control/disk-allocations/DOT-B04-SOURCE-MAIN9EB-20261015.json
+
+B-state также защищён отобходногополучения. Ниодин изэтихфайловнеоткрывался; namespaceнеобходилсяglob/копией/другимавтором/host. Исходная№41commandSHA **139fdd3ad190363ec9946c1fefd888eab2e0afacbe1a4c26edcafc620b80f458**, первичныйответ «Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.», internalcauseUNKNOWN, executionoutcome **UNKNOWN_NO_EXHAUSTIVE_EXECUTION_OR_NONEXECUTION_PROOF**, repeats0. Поэтому повторнеразрешён ещё и без доказанногоневыполнения.
+
+Минимальнонеобходимый следующийфактическийрезультат — поддержанный исходoriginal41 и точнаяdispositionэтойinputboundary изсуществующейnativeprimary, либо уже независиморазрешённая полнаятекущаяквитанция с явнойprovenanceвнеэтойboundary, покрывающаяPR308. Такихданных текущиеадресныеrecords неустанавливают; **новый исполняемыйacquisitioncall сейчас квалифицироватьнельзя**. Не выдумываются общийownerYES или обязательностьвнешнейподдержки. Сам№41/его части/эквивалентныйaggregate/one-offI1илиTesteradmission не запускаются и не распространяются наPR308.
+
+В20:29:07.688527 fresh7locks/noticeflock/solewriter/WIP/CAS сохранил только собственное решение **allowed_resource_primary_admissibility_decision_20261026** внутри существующегоPR308раздела B-notice. Независимый полныйreadback **20:30:23.714535MATCH**, SHA **3e0b5b8be898a73843096ba1d322f3445735f36c447e4371f4c09c4a5822adfc**, inverseвозвращает24876ce6…; каждыйпредыдущийбайт/поле и canonicalWIP/index сохранены.
+
+CustodyController/immutable840baseline уже доказаны; не новыйB-release. Действующая зависимаяцелаяоперация — materializeexact840→обаP1repair→необходимыеcrash/zero-effectchecks→exactindependentreview. Покаwholeadmissionотсутствует, она остановлена перед materialization, не выполняетсяsource-onlyfragment. ОбеP1OPEN,85B-WIP/другойcarrier0885сохранены. Выявленнаянепригодность конкретногоavailableB04receipt — предметныйresource-result; она не превращена в общийSTOPвсегоPLAN.
+
+## Независимый результат PR326: новыйacceptedsourcebaseline безinstalledподмены
+
+Без новогоrun/dispatch прочитаны originalexactce9 jobs:5pushworkflows **40345519022Docs(1),40345519204Safety(1),40345519313I1(3),40345519790Extension(6),40345519338Server(2)**,attempt1, **13/13SUCCESS**. Последнийserver121651350796 завершён **20:29:02UTC+5**. Expectedfrozenserverimport иwb-nodes/ozonfrozenbrowser/Chromeselectionskips не названы исполненными. Дополнительный PRServer40345328075 имеет2/2SUCCESS20:15:47, package/preserve steps наPR-eventexpectedskipped. ГотовыеPR325/PR238CIиR2reviewнеповторялись.
+
+Сначала20:31snapshot ещёпоказывалPR326open/mergedfalse; ненулевойmerge_commit_sha94c01… былsyntheticpreview, не merge. После личноготерминальногофактаdot прочитаны только новыемergecommitmetadata иpostmergecollection:
+**PR326merged20:31:59UTC+5**, merge/sourcebaseline **e5cf08d795b04ad2e771e58d32b9a0013d68a9a1**, parents9d21ec61…/ce9faf5e….
+Дваblobs совпали сcandidate: feedbackindex.ts **d3370eefc83d084f4a600a0fd97b6e60fba33ec9**, test **6094f6717d886bec3c0fa9abe2d5de8334d5c04f**. MergeController/rootне выполняли.
+
+**Postmergeотдельно:** срез **20:37:35UTC+5** originale5pushattempt1: Docs40350254148/Safety40350254220SUCCESS; I140350253928/Extension40350253834/Server40350253796in_progress. Полногоpostmerge5/13/installedPASS невыведено, ожиданиебудущегоисхода неусловиеокончанияаудита. НовыйartifactmetadataGET не делался: сохранённый400URLnotallowed — отдельныйknownerror, другойendpoint/ZIPdownload неиспользованы.
+
+Issuercompatibilityтеперь учитывает **mergede5APIsource**, не автоматическистарыйc72,9d21artifact илипростоlatestcandidate. Exactc72dependencyblobs всёещё отличаются отпринятыхprivacyrepairbytes; это source-currentnessgap, не новаяподтверждённаяфункциональнаярепродукция. IntendedsourceдолженучестьновыйacceptedAPIbaseline и согласованнуюпятиcapabilityдельту либоиметь конкретныйcompatibilitydisposition. Sourceвыбор/rebase/build/package/deploy не выполнялся. R2executabletoolingHOLD иlocaladmission/API-onlyswitch отдельны; mergedmainне выдаётся заустановленныйAPI.
+
+## Собственный transportсбой: результатпроверен перед последующимсохранением
+
+Попыткасохранить nativece9terminal-record в B-notice вернула **McpServerError: Connection failed**, error_codeUNAVAILABLE, безPID/nativecallID. Originalnativecompletion не восстановлен, не названsecuritydenial. ПовторCASбезпроверкинепроизводился.
+
+Независимый exacttargetprobe **20:35:59.135334**: childPR326_original_native_exact_terminal_result_20261026отсутствует, прежнийцелыйSHA3e0b5b8b… совпал, bytesstable, ownpendingtempfiles0, процессовсточным write-marker0. Это доказательство отсутствия insertion-at-probe, не выдуманныйnativefinish. Старые726896/four-lockunknowncalls не переоткрывались/незакрывались.
+
+Послеэтогосохранена ужеактуальная merged-e5проекция подfresh7locks/solewriter/CAS, нестарыйopenpayload. В20:39:07.744374 записьуспешна; независимый полныйreadback **20:40:13.406974MATCH**, wholeSHA **d8f06da2b32d77677301cb15927f74ec355e05f1546a96e9acec73a20a219bec**, inverseвозвращает3e0b5b8b…, всеpriorbytes/index/WIPсохранены. ИсторияtransportedgeUNKNOWN иeffectprobe сохранена внутриrecord. Никакогоповтора черездругойtool/endpoint/автора или третьейпопыткинет.
+
+## Native-заявки и полная цель
+
+В20:24:27 existingB_EXECUTION_RESPONSEe46b4e… поB-state/R3inputkeys пуст; readback20:40:13 подтверждаеттотжеB-responsehash. В20:41:51.943935 C_EXECUTION_RESPONSE133427a8… поC.json/R9keys по-прежнемуответовнет. Requestsнепродублированы; B.json/checkpointwriteUNKNOWN не объявленNOTEXECUTEDилиSUCCESS. C.jsonnativeargs/time/ID/edge такжеUNKNOWN. РаскрытияprotectedBstate/триinputs/privateregulesecrets небыло.
+
+Все21цель и предыдущиетаблицы сохранены. Новыйпроверенныйобъём: resourceprovenancedecisionB05, terminalnative/inclusionB06/C00/C02 иcurrentAPIsourcequalificationB02/C01. A01/A03brandedbrowser/Storematrix,A02/B03protocol,A04installed/PR205P2,A05sourceboundary,A06remoteNext,B01legacy,B04eligiblebound/resources,B07beta,C03physicalPG/I1,C04loadedTelegram,C05realrecovery,C06/C07safeStore/release имеют прежниеконкретныеусловия. Старыеmain/I1успехине закрываютoriginalABORTactor/ZIP403/4361reviewrefusal; PR308дваP1,case6R2,protected34/36/41/48/50,PR200bindingNONE,PR205STOP,C-noticeCAS и2publication040STOP остаютсяраздельными. MAINresume33неактуален и R13завершён — не повторять.
+
+Тестерскийсрез с реальнымOzonHTTP400/доставкой/Finish/Start19:59 иretiredproxy уже сообщёнroot; Controllerего не пересматривал/не вмешивался/не объявлялHTTP400businessPASS. Документальныйисполнитель единственныйавторблоков; общиедокументы не менялись. РаннийStoreпоPLANнеприравнен к ожиданиювсех21, новыедashboard/submissionreceiptsвэтомпродолжении неустановлены.
+
+Текущийконечныйрезультат — доказаннаяграница невозможностиwholePR308repair безразрешённыхрезервныхфактов и независимыйacceptedsource/CIпрогрессPR326, сохранённые в собственныхдокументах сreadback. Все product/live/DB/security/network/session/authorization/model/scheduleграницы сохранены; новыхtests/review/CI/helper/реестров нет. Это неотчётоfullhistoricalcoverage илиотсутствиивсехпростоев.
+
+---
+
 # Поиск простоя: точная граница PR308, новые B-state/I1 факты и фактическое продвижение Тестера/документов — 26.10.2026
 
 <!-- CONTROLLER_PR308_REPAIR_BOUNDARY_B_STATE_PRIMARY_AND_R125_ACTUAL_PROGRESS_20261026 -->
