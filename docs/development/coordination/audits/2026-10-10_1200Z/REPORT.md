@@ -1,3 +1,85 @@
+# Поиск простоя: проверка продолжения C и завершённое потребление R3 input — 26.10.2026
+
+<!-- CONTROLLER_POSTE0C_C_FOUR_P2_CONTINUATION_AND_R3_ORIGINAL_INPUT_20261026 -->
+
+Продолжение REPORTe0c37616/readback21:14:23. Все21цель, старый REPORT и принятые результаты сохранены ниже побайтно. PR327 уже передаёт существующему отказнику B dot; его предметная работа не дублировалась. Новых tests/review/CI, source/runtime/live/DB/security/network/session действий нет.
+
+## C: что установлено и чего первичка не доказывает
+
+В **21:17:21.815825 UTC+5** freshguard подтвердил7эксклюзивных locks, отсутствие другого writableFD собственного C-notice/неизвестной видимости и сохранность canonicalHEAD030ce4bb/indexSHA96916746…/fullWIPSHA76b6681f…. Guard завершён21:17:21.816856; дальнейшие записи имели собственные свежие guards/CAS.
+
+Адресный read-only срез **21:17:53.883918**:
+- C.json стабилен, SHA **576a660b5a1b7b4b4faae58b71f9baf76e8f51534d36207bb77636243970174f**, совпадает с предыдущим. Именованный C03retrytask: exact **7b58d7b274a1ba7837adee2ee91b5a41545c6613**, последний доказанный R6/R7/R8result **20:14:31.335165**, REWORK4P2, publication не выполнена. Нового source-исправления или проверки в этом срезе нет.
+- Конкретный `next` уже существует: durableclaim/cancel/restart; safelegacyearly-schedule upgrade/hold; renewal/version/staleownerfence; immutableclaimed-family RETRY/operatorisolation. Один productsourceauthorC, старые2897/7b58непубликовать; nativePG/concurrency/affectedchecks/review/exactgates только при своём доказанном допуске.
+- Поля authoritative currentturn/lastoperation/completed-turn отсутствуют; безопасные C_EXECUTION_RESPONSE133427a8… и C-noticead903d17… стабильны, нового matchingoutcome/acceptedexecution нет. Историческая one_writerзапись в задаче не подменена свежим доказательством текущего sourceпроцесса/WIP. Source не перехватывался.
+- Поэтому **продолжение документально поставлено; его фактическое исполнение и завершённость текущего roleturn не подтверждены**. Разница времени не доказывает ни активную работу, ни простой. Автоматического повторного запуска/нового автора/дубля sourceзадачи не сделано; активная работа не остановлена.
+
+Доступное организационное действие доведено: отсутствие первички текущего исполнения адресовано **одним новым узким запросом уже существующего результата**, а не повтором четырёхP2task. В C-notice сохранён ключ
+`controller_C03_retry_four_P2_existing_continuation_outcome_request_20261026`.
+Запись **21:21:43.897961**, независимый полный readback **21:22:02.351610 MATCH**, SHA **4873214ea4021376d7b945232c2ae10401629cbaf2679fec3d1743f95fba11aa**, +5367bytes; inverse возвращаетad903d17…, все старые байты/поля и canonicalHEAD/index/WIP сохранены. Fresh6locks+noticeflock, targetwriters=[],unknownvisibility=[], CAS C-response133427a8….
+
+Запрошены только retained primary последней операции/времени/target/carrier/ref/outcome и реально принятого продолжения той же задачи; отсутствующее помечать UNKNOWN. При активной операции — не прерывать её ради ответа. Новые процессы, statusloops, resource/Gitpreflight/test/review для получения квитанции не предписаны. Это не R9/C.jsonзаявка, они не продублированы. **Запись не является ACK C, запуском sourceремонта или закрытием простоя.** Точная недостающая граница — существующий authoritative turn/outcome/continuationreceipt, а не новое общее согласие владельца.
+
+## Полный доступный остаток C00–C07
+
+| Цель | Текущая граница и допустимое продолжение |
+|---|---|
+| C00 | PR317 source/частичныйCI удерживается исходным I1negative. Существующий отказник/Controller ведёт причинную границу; потокC не назначается повторять I1. |
+| C01 | Принятый PR318 source и завершённый lifecycle сохранены. Старые Draftpending/повторCI/tempcleanup не возобновлять; реальные Store/release/owner границы отдельно. |
+| C02 | Принятый integrationsource сохраняется, не installed. Следующий runtimeproof зависит от разрешённого точного package/consumer, не от нового syntheticPASS. |
+| C03 | Четыре причинных P2 exact7b58 остаются productsourceREWORK C; фактическое продолжение проверяется указанной квитанцией. I1/R9/PR320/PR327/platformrefusals — отдельные владельцы и исходы. Нативные PG/concurrency требуют wholeoperationadmission; protectedinputs/отказы не обходить. |
+| C04 | Шесть Telegramsource/compiledconsumer mismatch и реальный разрешённый receipt открыты. Нужны legitimate source-pinned release/rollback/loadedidentity; только затем независимый consumerreadback. СтарыеPR242/retention/synthetic не заменяют deployedприёмку. |
+| C05 | PhysicalPG, backup/restore/recovery/rollback остаются отдельными непроверенными liveграницами. Новых DB/restore/checks ради аудита нет. |
+| C06 | ActualChrome/Store/owner acceptance не выводится из source/devZIP/I1synthetic или R118/R121пилотов. Единственный Тестер продолжает B02 без вмешательства Controller. |
+| C07 | Publication действует только в собственном exactsource/authority/requiredgates scope. Два STOP0.2.40 сохранены при существующем точном согласии владельца; повтор не выполнен. |
+
+В проверенных документах нет доказательства завершённого текущего Cответа с пропущенным разрешённым sourceпродолжением. Поэтому такой факт не выдуман и C не перебит новым repairпоручением. При поступлении исходной квитанции применим следующий шаг: потребить её и обеспечить уже назначенное допустимое продолжение при доказанном завершении; не повторять request или отказанный процессный check.
+
+## Независимый завершённый результат: исходные R3 bytes лично проверены
+
+Открытая документальная зависимость PR325R3 была уже снята ответом B20:54:22; теперь проверены **сами сохранённые артефакты**, без нового reviewer или regenerateddiff. В **21:20:23.641711 UTC+5** точный readonly journalctl для
+`octoport-b-b06-feedback-independent-diff-review-20261026-r3.service`
+завершился exit0/stderr0:
+- journal **30441bytes**, SHA **9a5653a6efbeba029cffbfe2b3f96b4d2101a2588e05687a08b7222b6c3ea8d5**, совпал с originalBreceipt;
+- originaldeclared fb84479c32cc0d5fa6e4a8042c1d0c21d0990551/tree2c4e5009… присутствуют; по одной BEGIN/ENDпаре originaldiff и finalsource;
+- saved verdict **260bytes**, SHA **623b99ebe0d725829d6ae205777f2889ccc49135d0deebe286582cad206c4329**, совпал; он явно ограничивает ACCEPT suppliedimmutablepatchtext, не directGitcheckout и не independentlyverifiedtests.
+
+Полныйjournalhash совпал; отдельные userinput/diff-segmenthash из ответа B остаются его extractionметаданными, не названы самостоятельно вычисленными Controller. PromptSHA не превращён в signedrawstdin/source-treeattestation. Scope независимой textualsourceприёмки сохранён.
+
+Исправлена собственная устаревшая проекция «input not yet consumed»: в существующем B-noticerequest добавлен
+`Controller_original_R3_journal_verdict_consumption_20261026`.
+Запись **21:23:28.758201**, независимый полный readback **21:23:55.063162 MATCH**, SHA **07ba0f516c1efe41159d019ceab11caa61d6ae599df0e56fef1fd0a9627b4573**, +4526bytes. Fresh7locks/noticeflock/solewriter/CAS; inverse возвращает2fcc8e50…, весь старый notice/index/WIP сохранён. **Этот documentaryrequest потреблён в точном text-onlyscope.** Исходный R2no-verdict и B-stateSTOP/writeUNKNOWN не закрываются этим успехом.
+
+Следующая releaseграница issuer остаётся предметной: совместимый exact intendedsource с accepted e5privacybaseline и пятилучевойcapabilitydelta, законный acceptedR2immutabletooling/package, sourcegates/wholeadmission и qualifiedAPI-onlytransition. Старый c72 или verdictR3 сами по себе этого не дают. R2HOLD, PR308обаP1/недостающийwholeoperationadmission и protected41 не исследовались/неповторялись заново.
+
+## Новая первичка R127: пять поверхностей, автор и действительная releaseзависимость
+
+Лично прочитаны безопасные existing1047/1050R127 в **21:27:03UTC+5**, без нового запроса к issuer/браузеру:
+`1047-R127-current-signed-capability-prerequisites.json` SHA **78973c3013ae8a1f2b4dd6e4c25d30ae5e36080ebd9eb69f2120d0743f8c6a45**; фактический signedread **21:20:25.614** — ONLINE/FRESH/BETA/configVersion8/executionAuthority=false. Точные пять отсутствующих signedpermissions: **DeepSeek ai.deepseek; Grok ai.grok; Claude ai.claude; Gemini ai.gemini; Kimi ai.kimi**. У каждой packaged=true, signedPermissionPresent/Allowed=false,permissionSatisfied=false. Существующие Ozon/WB/ChatGPT/Alice/Qwen present/allowed. Это verifiedintersectiongetter installed039, не независимый rolloutproof и не Startadmission; новых Start/Send/Finish/marketplacerequests в1047ноль.
+
+`1050-R127-checkpoint-independent-readback.json` SHA **58438f8c7a53e4596851a75a4ad0383a3f3535b0587811bdf48ebae74af9a576**, MATCH **21:22:40.162457**, checkpoint **2e108afea949a59d1525b2deb6cdb8dc72f61ef6d7f611bb5fd255688f559df5**. Текущий safe-result **21PASS/0FAIL/5BLOCKED/7PARTIAL/48NOT_RUN**, sharedB02-12 отдельноBLOCKED, newproductPASS0. Историческая25PASS/3PARTIAL не выдаётся за текущую после correction/reclassification. Причины всех прежних переоценок этим срезом заново не исследовались.
+
+Ответственный — **тот же Controller**, подтверждён собственным approvedissuerrecord и R127issuer_owner; не Тестер и не новый исполнитель. Существующее точное разрешение00c4a053… от09:17:59 сохраняется: только статическая BOOLEAN/CAPABILITY/executionAuthority=false политика PREPRODUCTION для подходящих BETAаккаунтов, без новых grants/ключей/секретов. Выполнены source28be→successorc72 и scopedreview/dualpinprototype45966; **серверное применение и положительная выдача пяти прав не выполнены**. Историческая processobservation09:19 не названа текущей.
+
+Адресный currentcase6response read **21:27:40.992261**, B_EXECUTION_RESPONSE0e77cdae…: replyпо-прежнему issued08:26:18.719, acceptedR2immutableartifactNONE_CONFIRMED, retainedpairHOLD_NOT_TRANSFERRED. Нового materialartifact/releaseнет; sourceWIP/защищённые inputs/oldcall не открывались. Следующий допустимый предметный результат — supporteddisposition исходнойcase6boundary и legitimateacceptedimmutableR2/toolingsuccessor, затем intendedsourcecompatibility с accepted e5 плюс пятьkeys, exactsourcegates/package/wholeadmission и qualified API-onlyswitch/rollback **seller-agents-owner-test-api.service**. Только после допустимого целого перехода и проверки отсутствия неизвестного/inflightисхода возможен свежий signedreadback согласованногонабора. Широкий current-apply/DB/четыреunit не выполняются. Новое общееYES не запрашивается и не заменяет недостающийartifact/nativeboundary.
+
+В собственном issuerразделе B-notice сохранён ключ `R127_five_capability_current_prerequisite_and_release_dependency_20261026`: запись **21:28:54.328850**, независимый полный readback **21:29:11.702773 MATCH**, SHA **8701c40e44879fc9bdc1eedd38d8d482f8e44916bb050f640c8c01add83404d4**, +7670bytes. Fresh7locks/noticeflock/solewriter/CAS; inverseвозвращаетa6d85d32…, все прежние байты/поля, index/WIP сохранены. Это актуализация собственного releasegate, **не применение политики**.
+
+R127development ZIP **73eac2383b49c810adc1aa9c445ad321e5beedf1d8e52b14bcfe2c7d206e4bab**,2766453bytes/41files, source **004e7bf41cea46d7819ae4e8c4d8149e761889ed**, treefcbcb21f… — пакет четырёх исправлений, не independentcodereview, installedacceptance или разрешённаяpublication0.2.40. Installed039exact43 и39WIP сохранены по1050; Тестер уже продолжен, работа не дублируется.
+
+## PR327: потребление адресатом подтверждено, отрицательный исход открыт
+
+Новая primaryквитанция dot потреблена **без повторного joblog/sourceпросмотра**: refusalB записал `refusal_B_PR327_exact_original_negative_consumed_20261026` в21:25:36, независимыйreadback **21:26:12MATCH**, тогдашний wholeB-noticeSHA **a6d85d3252f562bd35ec5a82536c7016fe3c2472041a91c80d04ec3848cbc616**, receiptSHA **eb5c7b92ccb5dc37da67279a4a1292484eef806841bab15323196109dfdcc1f7**.
+Originalrun40348310456/job121661253915 checkoutfb8c56c5976b4347512f3aa4c6640c867a2c05c7; exit1 **20:21:02.815266**,41tests/3errors в2scenarios. tmp_idx_yQjsFE исчез при lstat174 **до try/run_package**, cleanupErrno39.git/objects. Fixture245bb8ac/producer08eb998e — те же неисправленные inputs; actualwriterUNKNOWN, maintenanceгипотеза. **Ожидание intakeACK снято**, codefix/wholeoperation50STOP/resourceadmission не закрыты. Дубль отказнику/новыйперезапуск не выполнен.
+
+## Принятая первичка R126 и итог
+
+По новому первичному результату dot **R126**: прежняя Ozonпара была старой syntheticкарточкой Тестера; неисправность реального ключа владельца **не доказана**. Восемь sourceпроверок исправления диагностики PASS; installed ещё не выполнена. Readback **21:14:12 MATCH**, checkpoint **8d50ff1fc0d9b19d1803509d89ab79b17778d7dfdeba50b6019c47f2ab14e9d3**. Это переданная первичка, не новый тест/серверный осмотр Controller. Тестер уже продолжен, сообщения/пилоты за него не отправлялись. B02общийPASS не заявлен.
+
+Объём: новая проверка текущего исполнения C и всех восьми Cgoalграниц; один адресный existing-outcome request(+5367bytes); независимое чтение originalR3journal/verdict; собственная R3consumptionкоррекция(+4526bytes); R126/R127потреблены со source/installedразделением; собственный issuergate актуализирован(+7670bytes), PR327intakeACK принят без повторной проверки. Нет нового полного прогона правил/PLAN, программного приёмщика, registry или product/sourceизменения. Все21цель A/B/C, предыдущие принятые результаты, unknownnativecalls и отдельные STOP сохранены ниже.
+
+---
+
 # Поиск простоя: новые результаты A/C и отдельный intake PR327 — 26.10.2026
 
 <!-- CONTROLLER_POST789_A_C_FULL_PLAN_AND_PR327_ROUTING_20261026 -->
