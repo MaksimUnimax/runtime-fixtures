@@ -39,6 +39,9 @@ def main():
         runner.run("core-button-anchor-occlusion", ["node", ROOT / "tests/regression/extension-core/button-anchor-occlusion.mjs"])
         runner.run("core-qwen-adapter", ["node", ROOT / "tests/regression/extension-core/qwen-adapter.mjs"])
         runner.run("core-qwen-code-reader", ["node", ROOT / "tests/regression/extension-core/qwen-code-reader.mjs"])
+        # Business-scenario completeness and numeric guards run in the native source gate.
+        runner.run("core-business-scenario-coverage",
+                   ["node", ROOT / "tests/regression/extension-core/business-scenario-coverage.mjs"])
         runner.run("core-native-import-panel-entry", ["node", ROOT / "tests/regression/extension-core/native-import-panel-entry.mjs"])
         runner.run("core-content-read-block-dispatch", ["node", ROOT / "tests/regression/extension-core/content-read-block-dispatch.mjs"])
         runner.run("core-start-dispatch-progress", ["node", ROOT / "tests/regression/extension-core/start-dispatch-progress.mjs"])
