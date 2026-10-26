@@ -1,3 +1,63 @@
+# Поиск простоя: C.json native-primary intake, PR325 terminal CI и происхождение R122 helper — 26.10.2026
+
+<!-- CONTROLLER_CJSON_PRIMARY_PR325_TERMINAL_AND_PROXY_ORIGIN_20261026 -->
+
+Продолжение REPORT1e861fb0/readback19:04:18. Все прежние байты,21цель PLAN, принятые результаты и отдельные отказы сохранены ниже. Полный часовой комплект/готовая PR238-приёмка не повторялись; чатыA/B/C/Тестера не открывались.
+
+## Действующий автор/locks и C.json: установленное отдельно от неизвестного
+
+В19:08:21.347316UTC+5 прочитаны только /proc/locks записи точного inode /root/octoport-control/B.lock (fc:01:4370233). Текущих kernelholders нет, lock не менялся, процессы/команды/окружения не читались. Кто держал B.lock при19:04:36BUSY исторически, не установлен; отсутствие держателя теперь не переписывает тот исход. Перед каждой последующей документальной записью freshexclusive locks/solewriter/CAS/WIP обеспечены заново, а не предположены по времени.
+
+Отказ C.json известен пока **по опубликованному PR323**, не по полному nativecapture. Лично прочитаны exactdirectorymetadata /root/octoport-control/logs/C/C03_SNAPSHOT_PARENT_MAIN220B_20261026 (R1–R19source/reviewlogs; namedstate-writecapture нет), существующий C_EXECUTION_RESPONSE и точный C323subrecord C.json. В19:10:22 C.jsonSHA05e335f92185df7cea76c27f00493c71cd7f3e4bdbef8a25c253dc993a234a3c содержит C03_SNAPSHOT_PARENT_PATH_RACE_MAIN220B_20261026 с independentreviewPENDING и candidateunpublished. Публичный R19/source результат уже иной; эта проекция отстаёт. Это не доказательство полного невыполнения неизвестного исходного payload: originalargs не восстановлены.
+
+Доступные поля: reportedoperation=попытка сохранить новое заключение, target=/root/octoport-control/C.json, reportedresponse=«Command not allowed», автор сообщает отсутствие альтернативного повтора. **Native tool,полныеargs,originaltime,nativecallID,точнаяпервичнаяexecutionedge и внутреннееоснование UNKNOWN.** UpdateGitHub18:32:15 не подменяет время вызова. Другие одноимённые исторические CommandNotAllowed в C.json не объединены с этим случаем и не расследовались.
+
+Нового originalcapture в адресной первичке нет; прежней заявки на этот отдельный вызов не было. В19:13:08.394474 после fresh6locks/noticeflock/solewriter/WIP/CAS сохранён только новый небольшой адресный запрос **controller_PR323_CJSON_CommandNotAllowed_existing_native_primary_receipt_request_20261026** в существующем C-notice. Независимый полный readback **19:14:39.144099MATCH**, wholeSHA **ad903d17719acd54e7a76c19e67ced796bb8daf9630527a9f85baf8a19dc28f5**, inverseвозвращаетeea1ae51…; все прежние байты/поля и source/WIP/index сохранены.
+
+C должен вернуть лишь уже существующие tool/args/targets/times/callID/response и сохранённые contemporaneousoutcomechecks либо точный перечень отсутствующих полей. Новые capture не реконструировать, команду/еёчасти не выполнять, C не назначен решать отказ. На19:22:08.299941 ответа по точномуresponsekey нет, C_EXECUTION_RESPONSE133427a8… прежний. Requestreadback не recipientconsumption и не отказ, снятый документированием. Заявка R9 сохранена и не продублирована. Старый отклонённый C-noticeauditpayload не копировался/не возобновлялся; C.json не исправлялся другим исполнителем.
+
+## PR325: точный terminal исход, ограниченная независимая приёмка
+
+Exactfb84479c32cc0d5fa6e4a8042c1d0c21d0990551/tree2c4e5009d2a08cc463647aabc0f5bafbca3c32e9, два B06feedback-supportпути и+360/−3 прежние. Лично прочитаны originalnative push runs **40333355682Docs/40333355721Safety/40333355711Extension/40333355717I1/40333355743Server**, attempt1, каждыйheadточный; затем все их **13jobs SUCCESS**. Новыеterminalфакты относительно прежнегоREPORT: I1actualinstalledlocal121608348514 SUCCESS18:57:45, Server121608349349 SUCCESS**19:03:33UTC+5**. Server frozenimport и wb-nodes/ozon frozenbrowser/Chromeselection steps ожидаемоskipped, не названы исполненными. Это не повторtests/CI Controller и не перенос CI mainf5ec. PR325 в прочитанном GitHubсрезе open/notmerged; current-base/protectedmerge/postmerge и installed/live приёмка отдельно.
+
+В19:10:22.977176 полностью прочитан сохранённый R3вердикт /root/octoport-control/logs/B/B06_FEEDBACK_STRUCTURED_JSON_SECRET_MASKING_20261026/INDEPENDENT_REVIEW_R3.txt,260bytes,SHA **623b99ebe0d725829d6ae205777f2889ccc49135d0deebe286582cad206c4329**:
+ACCEPT предоставленного immutablepatchtext; directGitcheckout не читался, suppliedtests независимо не проверялись. В этом файле нет SHA исходногоinput, candidatehead/tree илиnativecallID. Авторское сообщение привязывает R3 к exacthead, но саму input→verdict связь Controller пока независимо не аутентифицировал. R2filea0fdb026… сохранён: checkout отсутствовал, reviewне завершён; этот исход не переименован вACCEPT.
+
+В19:15:57.023610 после fresh6locks/solewriter/WIP/CAS сохранён только адресный запрос уже существующих inputcapture/hash/pin/nativeoutcomemetadata к B в прежнем B-notice. Readback **19:17:05.391570MATCH**, wholeSHA **f0e0dfcb6d127e5915dd75174cbbc9f68fbdd4d1612d2ba618545b69c761b8a2**, inverseвозвращаетb1ed6723…. Не запрошены новыйreview/тесты/профиль/tierprobe или protectedB.json export. На19:22:08.301387 exactresponsekeyотсутствует, B-responsee46b4e… прежний. Отсутствие полной inputсвязи не отменяет настоящий CI и не означает автоматически новыйreview; нужен уже существующий первичный input/result linkage либо честный precisegap. SourceB06 не перехвачен. PR205upstreamP2, case6R2 и PR308P1 не закрываются PR325.
+
+## Отдельный вопрос владельца: откуда proxy/helper и зачем он был нужен
+
+По адресному поручению19:17:47 полностью прочитан **968-R122-exact-existing-stand-guard-proposal.json**,7193bytes,SHA **c4325e5ec52a36666ab3e829ae99423e3fc448a4cae488288493d24c558596c7** MATCH. Это подготовленный временный guard существующего authenticatedстенда, не внешнийproxy/VPN. 968 на время18:42:46 имел PREPARED_NOT_AUTHORIZED_NOT_EXECUTED; actualdeployment здесь не выполнялся.
+
+Происхождение прослежено по безопасным918/949/950 и исходным байтам. Действующий Тестер подготовил R119source ceb3439368275ec38b20057269156c80c209a58a/tree1468d0017ad0b12879d879dd5658d2f2a3970b06, файл:
+**/var/lib/octoport-monitor/health-manual-20261025/b02-r92-installed/r119-proxy-guard-source/tests/regression/extension-core/observed-start-cycle.mjs**, SHA **65c3c738c6c2c7a0ddbb56ec0f09c15191e2fb4ddc6569c946a0d8d40e37b079**.
+В R12217:58:36 извлечён denycallbackстроки487–503; затем18:01:15 standaloneобвязка изменена на privateactor-owned0700outputdir, callbackнеизменен. Текущий helper:
+**/var/lib/octoport-monitor/health-manual-20261025/b02-r92-installed/r122-product-guard-candidate/egress-guard.mjs**,2537bytes,SHA **330311f8857f476b1162024fc6f3ce44336c908147d515624ab3cbf2e5c1d802**.
+В19:19:59 и19:20:29.919833 лично проверена exactbyteпоследовательность17строк внутриhelper и recordedfragmentSHA **c29a73f4392400c54c739c325827f54ff8f24d2c0c00a633e94571932095263f**. Различие хеша при включении финальногоnewline было проверено, причина — documentedfragment без trailingnewline; семантического/байтового расхожденияcallback нет.
+
+Код использует только стандартные node:net/fs/promises/path, слушает127.0.0.1, на любой принятыйHTTP/CONNECT отвечает **403Forbidden**, не открываетupstreamconnection и не реализуетDIRECTfallback. Запись ограничена method/hostname,4096bytes входа/128events,timeout1s/жизнь600s, actor994/privateoutput. Цель — независимая от CDP блокировка случайного настоящего marketplaceegress, если Fetchinterception отключится/отсоединится/новыйworker не будет перевооружён. Для самой Алисы нужен реальный AI/controlplaneдоступ, поэтому totalPrivateNetwork deny не покрывал смешанныйсценарий; proposalпредлагал точныеAlice/static/api.octoport bypasshosts, остальныеdeny. Это не исправление исходного handled0/HTTP400 и не самостоятельное требование Алисы иметьproxy.
+
+Проверенный объём:
+- 938-R121native147page5/5, finished17:34:19.547UTC+5: syntheticfulfill; Fetchdisable и interceptordetach дали ERR_TUNNEL_CONNECTION_FAILED; потеряrejector дала ERR_PROXY_CONNECTION_FAILED безdirectfallback. OuterPrivateNetwork/нулевыеcapabilities сохранялись. Этоpage, неproductworker.
+- 953-R122actualhelper3/3, finished18:10:48.327UTC+5: actorreadiness/exactdeny,oversizedinputclose,gracefulshutdown/boundedmetadata. 955cleanup18:14:33MATCH.
+- CfT151syntheticMV3R1184/4 — другой отдельныйproof. CombinedauthenticatedChrome147+настоящийproductworker+этотproxy в прочитаннойпервичке **не испытан**; B02PASS не выведен.
+
+Новый прямой ownerфакт: реальныеmarketplaceзапросы для тестов теперь разрешены и уже переданы Тестеру; действующие сессии сохранять. Старый абсолютный запрет такихзапросов не является текущим желаниемвладельца. Он объясняет историческую цель guard, но не создаёт новое обязательство применять968. Согласие на тестовые запросы не расширено на любые businessmutations/сменуlauncher/network/профилей. Controller ничего не запускал/не перезапускал, профиль/сессии не читал и не менял; дальнейший productпуть остаётся у действующего Тестера без нового сообщения ему.
+
+## Независимый охват полной цели: ранний Store и сохранённые21
+
+Чтобы не свести работу к C.json/PR325, адресно прочитан актуальный docs/product/readiness/PUBLICATION.md13437символов и толькоexistingC06storecheckpointmetadata. Документ подтверждает: registeredpublisheraccounts и earlySubmit/Publish разрешены, STORE1 готовится по полезному безопасному срезу одного канала; STORE2/3 не ждут полногоA03/A04/B02/B04/B05/C05 илиC06. Нужны конкретныйpackage/source/version/channelidentity, заявленный сценарий обычнойустановки, фактическиеdata/security/backend/trustграницы, privacy/card/reviewerflow и acceptanceдоказательства. Раннийпуть не превращён в общийWAIT поissuer/всем21.
+
+C.jsonв19:14:39 содержит адресныеC06read-onlyconsumerreceipts20Oct13:49/23:30: developmentarchives/browserproof, явно notSTORE_READY; sourceowner A, releaseconsumer C, originalTester/ownerbrowser не заменены. Это исторические receipts, не свежийdashboard. В этомисточнике нет нового realitem/version/submissionreceipt; полная непубликация или отсутствие другихфактов не доказаны. Следующий проверяемыйStoreрезультат — уже существующий конкретный qualifiedchannelcandidate/reviewer/install/store receipt, а не новое абстрактное ownerYES или ожиданиевсегоB02. Никакой старыйdevelopmentZIP не выдан за signedStoreartifact, security/trust не менялись, чужие Storeисходники не перехватывались.
+
+Все21ID и их предыдущая точная таблица ниже сохранены. Новаядельта относится к B06/C00/C02nativeCI, C03documentaryrefusal, A02/A04/B02guardprovenance, A03/C06/C07Storequalification. A01brandedOpera/A03реальнаяmatrix, A05P2/sourceboundary,A06remoteportal, B01legacy,B03transfer,B04eligiblebound/admission,B05R2/48/50/PR320/дваPR308P1,B07betaacceptance,C01trustedrelease,C04loadedTelegram,C05physicalPG/recovery не объявлены закрытыми этимсрезом. Новых fullsource/runtimeпроверокэтихнаправлений нет; их нельзя объявить ни простаивающими, ни готовыми по данномуограниченномуохвату.
+
+R2HOLD остаётся, source successor не материализован; нормальный B06push не разрешает иной case6commit+B.json. I1two-pathrelease на19:22:08 всё ещё[]; ответAпотреблён, новаязаявка не создаётся. PR308custody ужеController, не возврат к ожиданиюB; wholeoperationadmission/точнаяeditablelineage нужны перед ремонтом. R9nativeprimary, старыеI1causalactor/ZIP403/refusals, PR205sourceP2/STOP, PR200bindingreviewNONE, old4361reviewrefusal, rejectedC-noticeCAS, protected34/36/41/48/50 и два0.2.40STOP сохраняют своиразныеboundaries. MAINresume33 неактуален, R13завершён — не запускать. Разрешенияна44catalogдействия/пятьcapabilities и новыеmarketplacetestrequests не теряются.
+
+Доступные собственные documenterrors исправлены: прежние «PR325дваjobsinprogress» заменены terminalnativefacts с сохранениемистории; неопределённая приёмка ограничена фактическипрочитанным R3scope; новый C.jsonrefusal получил точный неповторный primaryrequest. Полныеnativeполя C.json и R3inputbinding ещё не получены — это честный частичныйрезультат, не снятиеотказа передачей. Source/live/DB/security/полномочия/модели/расписания не менялись; tests/review/CI/build/controllerhelper/newregistry не запускались.
+
+---
+
 # Поиск простоя: полный PLAN21, R122, R2/tooling scope и новые опубликованные исходы — 26.10.2026
 
 <!-- CONTROLLER_PLAN21_R122_R2_SUCCESSOR_INPUTS_AND_PR325_20261026 -->
