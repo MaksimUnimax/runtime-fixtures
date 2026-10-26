@@ -62,7 +62,8 @@
           "forPay",
           "rrDate"
         ],
-        "initialRrdId": 0
+        "initialRrdId": 0,
+        "limit": 2
       },
       "pages": [
         {
@@ -101,6 +102,7 @@
         "create": {
           "dateFrom": "2026-09-01",
           "dateTo": "2026-09-08",
+          "httpStatus": 200,
           "response": {
             "data": {
               "taskId": "00000000-0000-4000-8000-000000000001"
@@ -108,6 +110,7 @@
           }
         },
         "status": {
+          "httpStatus": 200,
           "response": {
             "data": {
               "id": "00000000-0000-4000-8000-000000000001",
@@ -125,6 +128,7 @@
         "create": {
           "dateFrom": "2026-09-09",
           "dateTo": "2026-09-16",
+          "httpStatus": 200,
           "response": {
             "data": {
               "taskId": "00000000-0000-4000-8000-000000000002"
@@ -132,6 +136,7 @@
           }
         },
         "status": {
+          "httpStatus": 200,
           "response": {
             "data": {
               "id": "00000000-0000-4000-8000-000000000002",
@@ -168,6 +173,7 @@
         "create": {
           "dateFrom": "2026-09-17",
           "dateTo": "2026-09-24",
+          "httpStatus": 200,
           "response": {
             "data": {
               "taskId": "00000000-0000-4000-8000-000000000003"
@@ -175,6 +181,7 @@
           }
         },
         "status": {
+          "httpStatus": 200,
           "response": {
             "data": {
               "id": "00000000-0000-4000-8000-000000000003",
@@ -192,6 +199,7 @@
         "create": {
           "dateFrom": "2026-09-25",
           "dateTo": "2026-09-30",
+          "httpStatus": 200,
           "response": {
             "data": {
               "taskId": "00000000-0000-4000-8000-000000000004"
@@ -199,6 +207,7 @@
           }
         },
         "status": {
+          "httpStatus": 200,
           "response": {
             "data": {
               "id": "00000000-0000-4000-8000-000000000004",

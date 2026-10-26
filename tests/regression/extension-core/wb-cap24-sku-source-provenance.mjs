@@ -60,7 +60,8 @@ assert.equal(
 );
 
 const decimal = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/;
-const integerLexeme = /^[1-9]\d{0,39}$/;
+const integerLexeme = /^[1-9]\d{0,18}$/;
+const maxSignedInt64 = 9223372036854775807n;
 const isoTime =
   /^\d{4}-\d\d-\d\dT(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
 const DAY = 86400000;
@@ -78,7 +79,7 @@ function identifier(value) {
     return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
   return typeof value === "string" &&
     integerLexeme.test(value) &&
-    BigInt(value) > 0n
+    BigInt(value) <= maxSignedInt64
     ? value
     : null;
 }
@@ -164,6 +165,9 @@ function inspect(input) {
     request.timezone !== input.timezone ||
     !finance.sources.salesDetailPeriod.periodEnum.includes(request.period) ||
     request.initialRrdId !== 0 ||
+    !Number.isInteger(request.limit) ||
+    request.limit < 1 ||
+    request.limit > finance.sources.salesDetailPeriod.limitMax ||
     !Array.isArray(request.fields) ||
     !["rrdId", "reportId", "nmId", "retailAmount", "forPay", "rrDate"].every(
       (k) => request.fields.includes(k),
@@ -188,6 +192,8 @@ function inspect(input) {
     }
     if (page.httpStatus !== 200 || page.rows.length === 0)
       return incomplete("FINANCE_READ_INCOMPLETE");
+    if (page.rows.length > request.limit)
+      return incomplete("FINANCE_PAGE_LIMIT_EXCEEDED");
     for (const row of page.rows) {
       const id = identifier(row?.rrdId);
       const reportId = identifier(row?.reportId);
@@ -251,6 +257,9 @@ function inspect(input) {
     const id = task.create?.response?.data?.taskId;
     const status = task.status?.response?.data;
     const download = task.download;
+    // Creating and polling the task must each have a successful provider response.
+    if (task.create.httpStatus !== 200 || task.status?.httpStatus !== 200)
+      return incomplete("STORAGE_TASK_HTTP_FAILED");
     if (
       typeof id !== "string" ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -279,11 +288,14 @@ function inspect(input) {
       )
         return incomplete("STORAGE_ROW_OR_DECIMAL_LEXEME_INVALID");
       const day = dayNum(row.date);
+      const originalDay =
+        row.originalDate == null ? day : dayNum(row.originalDate);
       if (
         day === null ||
         day < start ||
         day > end ||
-        (row.originalDate != null && dayNum(row.originalDate) === null)
+        originalDay === null ||
+        originalDay > day
       )
         return incomplete("STORAGE_ROW_DATE_INVALID");
       storageProducts.add(nm); // No undocumented row de-duplication.
@@ -537,6 +549,44 @@ reject("SOURCE_CURRENCY_BINDING_MISSING", (x) => {
 reject("SOURCE_CURRENCY_MISMATCH", (x) => {
   x.currencyBindings.verifiedStorageAccount = "USD";
 });
+// Reviewer R2: reject missing HTTP proof, unbounded pages, overflowing IDs and future recalculation dates.
+reject("FINANCE_REQUEST_WINDOW_MISMATCH", (x) => {
+  delete x.financeRead.request.limit;
+});
+reject("FINANCE_REQUEST_WINDOW_MISMATCH", (x) => {
+  x.financeRead.request.limit = finance.sources.salesDetailPeriod.limitMax + 1;
+});
+reject("FINANCE_REQUEST_WINDOW_MISMATCH", (x) => {
+  x.financeRead.request.limit = 1.5;
+});
+reject("FINANCE_PAGE_LIMIT_EXCEEDED", (x) => {
+  x.financeRead.request.limit = 1;
+});
+reject("STORAGE_TASK_HTTP_FAILED", (x) => {
+  x.storageTasks[0].create.httpStatus = 503;
+});
+reject("STORAGE_TASK_HTTP_FAILED", (x) => {
+  x.storageTasks[0].status.httpStatus = 503;
+});
+reject("STORAGE_TASK_HTTP_FAILED", (x) => {
+  delete x.storageTasks[0].create.httpStatus;
+});
+reject("STORAGE_TASK_HTTP_FAILED", (x) => {
+  delete x.storageTasks[0].status.httpStatus;
+});
+reject("FINANCE_ROW_ID_OR_PRODUCT_INVALID", (x) => {
+  x.financeRead.pages[0].rows[0].nmId = "9223372036854775808";
+});
+reject("STORAGE_ROW_OR_DECIMAL_LEXEME_INVALID", (x) => {
+  x.storageTasks[1].download.rows[0].nmId = "9223372036854775808";
+});
+reject("ACTUAL_CAMPAIGN_SPEND_ROW_INVALID", (x) => {
+  x.adsRead.rows[0].advertId = "9223372036854775808";
+});
+reject("STORAGE_ROW_DATE_INVALID", (x) => {
+  x.storageTasks[1].download.rows[0].originalDate = "2026-09-11";
+});
+
 const large = structuredClone(positive);
 large.financeRead.pages[0].rows[0].rrdId = "9223372036854775806";
 large.financeRead.pages[0].rows[1].rrdId = "9223372036854775807";
