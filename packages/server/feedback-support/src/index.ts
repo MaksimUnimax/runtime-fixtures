@@ -183,7 +183,7 @@ const quotedJsonScalarField =
 const singleQuotedScalarField =
   /('(?:\\.|[^'\\\r\n])*')(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
-  /(?:password|passwd|secret|token|api[_-]?key|authorization)$/iu;
+  /(?:password|passwd|secret|token|api[_-]?key|authorization|cookies?|set[-_]?cookie)$/iu;
 
 function isSensitiveQuotedKey(encodedKey: string): boolean {
   if (encodedKey.startsWith('"')) {
@@ -198,6 +198,60 @@ function isSensitiveQuotedKey(encodedKey: string): boolean {
   const key = encodedKey.slice(1, -1);
   // Single-quoted pseudo-JSON cannot reliably decode arbitrary escapes.
   return key.includes("\\") || sensitiveJsonKey.test(key);
+}
+
+// A sensitive quoted JSON or pseudo-JSON field may hold an array/object,
+// not just a scalar. Consume that entire value without swallowing subsequent
+// sibling metadata, respecting quotes, escapes and nested delimiters.
+const quotedStructuredField =
+  /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*)(\{|\[)/gu;
+
+function redactStructuredCredentialValues(input: string): string {
+  let output = "";
+  let cursor = 0;
+  quotedStructuredField.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = quotedStructuredField.exec(input)) !== null) {
+    const key = match[1]!;
+    if (!isSensitiveQuotedKey(key)) continue;
+
+    const valueStart = match.index + match[0].length - 1;
+    const stack: string[] = [];
+    let quote: string | null = null;
+    let escaped = false;
+    // An unmatched or truncated container is private through end-of-input.
+    let valueEnd = input.length;
+    for (let index = valueStart; index < input.length; index++) {
+      const char = input[index]!;
+      if (quote !== null) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === quote) quote = null;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        continue;
+      }
+      if (char === "[" || char === "{") {
+        stack.push(char);
+        continue;
+      }
+      if (char === "]" || char === "}") {
+        const open = stack.pop();
+        if ((char === "]" && open !== "[") || (char === "}" && open !== "{"))
+          break;
+        if (stack.length === 0) {
+          valueEnd = index + 1;
+          break;
+        }
+      }
+    }
+    output += input.slice(cursor, valueStart) + '"[REDACTED_SECRET]"';
+    cursor = valueEnd;
+    quotedStructuredField.lastIndex = valueEnd;
+  }
+  return output + input.slice(cursor);
 }
 
 export function redactAccidentalSecrets(input: string): string {
@@ -224,7 +278,7 @@ export function redactAccidentalSecrets(input: string): string {
   );
   return secretPatterns.reduce(
     (value, [pattern, replacement]) => value.replace(pattern, replacement),
-    pseudoScalarsRedacted,
+    redactStructuredCredentialValues(pseudoScalarsRedacted),
   );
 }
 
