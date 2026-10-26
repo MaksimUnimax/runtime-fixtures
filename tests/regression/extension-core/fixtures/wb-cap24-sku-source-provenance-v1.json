@@ -1,0 +1,248 @@
+{
+  "schemaVersion": "wb_cap24_sku_source_provenance_v2",
+  "scope": {
+    "scenarioId": "CAP-24",
+    "evidence": "ACCEPTED_SCHEMA_FIXTURES_AND_SYNTHETIC_INPUT_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false,
+    "boundary": "OFFLINE_DECLARED_REQUEST_RESPONSE_WINDOWS_NOT_LIVE_PROVENANCE_OR_SKU_PROFIT"
+  },
+  "sources": {
+    "finance": {
+      "alias": "finance_sales_detail_period",
+      "rowId": "rrdId",
+      "product": "nmId",
+      "currency": "report metadata",
+      "money": ["retailAmount", "forPay"]
+    },
+    "storage": {
+      "alias": "paid_storage_download",
+      "product": "nmId",
+      "rowId": null,
+      "money": "warehousePrice",
+      "currency": "separate account binding"
+    },
+    "actualAds": {
+      "alias": "promo_spend_history",
+      "campaign": "advertId",
+      "product": null,
+      "rowId": null,
+      "money": "updSum",
+      "currency": "separate account binding"
+    },
+    "attributionOnly": {
+      "alias": "promo_fullstats",
+      "product": "days.apps.nms.nmId",
+      "money": "days.apps.nms.sum",
+      "actualLedger": false
+    }
+  },
+  "positive": {
+    "period": "2026-09-01/2026-09-30",
+    "timezone": "Europe/Moscow",
+    "currencyBindings": {
+      "financeReport": "RUB",
+      "verifiedStorageAccount": "RUB",
+      "verifiedAdsAccount": "RUB"
+    },
+    "financeReportCurrencies": {
+      "901": "RUB"
+    },
+    "financeRead": {
+      "request": {
+        "dateFrom": "2026-09-01",
+        "dateTo": "2026-09-30",
+        "timezone": "Europe/Moscow",
+        "period": "weekly",
+        "fields": [
+          "rrdId",
+          "reportId",
+          "nmId",
+          "retailAmount",
+          "forPay",
+          "rrDate"
+        ],
+        "initialRrdId": 0,
+        "limit": 2
+      },
+      "pages": [
+        {
+          "requestRrdId": 0,
+          "httpStatus": 200,
+          "rows": [
+            {
+              "rrdId": 1101,
+              "reportId": 901,
+              "nmId": 1001,
+              "retailAmount": "120.00",
+              "forPay": "80.00",
+              "rrDate": "2026-09-10",
+              "saleDt": "2026-09-10T11:00:00+03:00"
+            },
+            {
+              "rrdId": 1102,
+              "reportId": 901,
+              "nmId": 1002,
+              "retailAmount": "50.00",
+              "forPay": "35.00",
+              "rrDate": "2026-09-12",
+              "saleDt": "2026-08-31T11:00:00+03:00"
+            }
+          ]
+        },
+        {
+          "requestRrdId": 1102,
+          "httpStatus": 204,
+          "rows": []
+        }
+      ]
+    },
+    "storageTasks": [
+      {
+        "create": {
+          "dateFrom": "2026-09-01",
+          "dateTo": "2026-09-08",
+          "httpStatus": 200,
+          "response": {
+            "data": {
+              "taskId": "00000000-0000-4000-8000-000000000001"
+            }
+          }
+        },
+        "status": {
+          "httpStatus": 200,
+          "response": {
+            "data": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "status": "done"
+            }
+          }
+        },
+        "download": {
+          "taskId": "00000000-0000-4000-8000-000000000001",
+          "httpStatus": 204,
+          "rows": []
+        }
+      },
+      {
+        "create": {
+          "dateFrom": "2026-09-09",
+          "dateTo": "2026-09-16",
+          "httpStatus": 200,
+          "response": {
+            "data": {
+              "taskId": "00000000-0000-4000-8000-000000000002"
+            }
+          }
+        },
+        "status": {
+          "httpStatus": 200,
+          "response": {
+            "data": {
+              "id": "00000000-0000-4000-8000-000000000002",
+              "status": "done"
+            }
+          }
+        },
+        "download": {
+          "taskId": "00000000-0000-4000-8000-000000000002",
+          "httpStatus": 200,
+          "rows": [
+            {
+              "date": "2026-09-10",
+              "originalDate": "2026-09-10",
+              "nmId": 1001,
+              "warehousePrice": "5.125"
+            },
+            {
+              "date": "2026-09-10",
+              "originalDate": "2026-09-10",
+              "nmId": 1001,
+              "warehousePrice": "5.125"
+            },
+            {
+              "date": "2026-09-10",
+              "originalDate": "2026-09-03",
+              "nmId": 1003,
+              "warehousePrice": "-1.005"
+            }
+          ]
+        }
+      },
+      {
+        "create": {
+          "dateFrom": "2026-09-17",
+          "dateTo": "2026-09-24",
+          "httpStatus": 200,
+          "response": {
+            "data": {
+              "taskId": "00000000-0000-4000-8000-000000000003"
+            }
+          }
+        },
+        "status": {
+          "httpStatus": 200,
+          "response": {
+            "data": {
+              "id": "00000000-0000-4000-8000-000000000003",
+              "status": "done"
+            }
+          }
+        },
+        "download": {
+          "taskId": "00000000-0000-4000-8000-000000000003",
+          "httpStatus": 204,
+          "rows": []
+        }
+      },
+      {
+        "create": {
+          "dateFrom": "2026-09-25",
+          "dateTo": "2026-09-30",
+          "httpStatus": 200,
+          "response": {
+            "data": {
+              "taskId": "00000000-0000-4000-8000-000000000004"
+            }
+          }
+        },
+        "status": {
+          "httpStatus": 200,
+          "response": {
+            "data": {
+              "id": "00000000-0000-4000-8000-000000000004",
+              "status": "done"
+            }
+          }
+        },
+        "download": {
+          "taskId": "00000000-0000-4000-8000-000000000004",
+          "httpStatus": 204,
+          "rows": []
+        }
+      }
+    ],
+    "adsRead": {
+      "request": {
+        "from": "2026-09-01",
+        "to": "2026-09-30",
+        "timeZoneEvidence": "Europe/Moscow"
+      },
+      "httpStatus": 200,
+      "rows": [
+        {
+          "advertId": 77,
+          "updNum": 1,
+          "updSum": 100,
+          "updTime": "2026-09-14T12:00:00+03:00"
+        },
+        {
+          "advertId": 77,
+          "updNum": 1,
+          "updSum": 100,
+          "updTime": null
+        }
+      ]
+    }
+  }
+}
