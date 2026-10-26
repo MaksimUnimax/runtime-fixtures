@@ -159,6 +159,185 @@ describe("B2 feedback/support safety foundation", () => {
     });
   });
 
+  it.each([
+    [
+      "JSON cookie string",
+      '{"cookie":"SYNTHETIC_COOKIE_JSON_SECRET_01","requestId":"safe-cookie"}',
+      "SYNTHETIC_COOKIE_JSON_SECRET_01",
+      "safe-cookie",
+    ],
+    [
+      "JSON Set-Cookie string",
+      '{"setCookie":"SYNTHETIC_SET_COOKIE_SECRET_02","requestId":"safe-set"}',
+      "SYNTHETIC_SET_COOKIE_SECRET_02",
+      "safe-set",
+    ],
+    [
+      "JSON password array",
+      '{"password":["SYNTHETIC_PASSWORD_ARRAY_SECRET_03"],"requestId":"safe-array"}',
+      "SYNTHETIC_PASSWORD_ARRAY_SECRET_03",
+      "safe-array",
+    ],
+    [
+      "nested JSON cookie object",
+      '{"cookies":{"session":["SYNTHETIC_COOKIE_OBJECT_SECRET_04"]},"requestId":"safe-nested"}',
+      "SYNTHETIC_COOKIE_OBJECT_SECRET_04",
+      "safe-nested",
+    ],
+    [
+      "nested JSON clientSecret object",
+      '{"clientSecret":{"credential":{"value":"SYNTHETIC_CLIENT_OBJECT_SECRET_05"}},"requestId":"safe-client"}',
+      "SYNTHETIC_CLIENT_OBJECT_SECRET_05",
+      "safe-client",
+    ],
+    [
+      "single-quoted diagnostic token array",
+      "{'token':['SYNTHETIC_PSEUDO_ARRAY_SECRET_06'],'requestId':'safe-pseudo'}",
+      "SYNTHETIC_PSEUDO_ARRAY_SECRET_06",
+      "safe-pseudo",
+    ],
+  ])(
+    "redacts JSON composite credential and cookie fields: %s",
+    (_label, raw, secret, safe) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain(secret);
+      expect(sanitized).toContain("[REDACTED_SECRET]");
+      expect(sanitized).toContain(safe);
+      if (raw.startsWith('{"'))
+        expect(() => JSON.parse(sanitized)).not.toThrow();
+    },
+  );
+
+  it("preserves a nonsensitive JSON array unchanged", () => {
+    const raw = '{"labels":["safe-1","safe-2"],"requestId":"safe-3"}';
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("handles quoted delimiters inside sensitive structured values", () => {
+    const raw = JSON.stringify({
+      password: ['SYNTHETIC_BRACKET_SECRET_07 including ] } and " quote'],
+      requestId: "safe-bracket",
+    });
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-bracket",
+    });
+  });
+
+  it("masks multiple sensitive siblings but retains nonsensitive JSON arrays", () => {
+    const raw = JSON.stringify({
+      cookie: "SYNTHETIC_COOKIE_SECRET_08",
+      labels: ["safe-label"],
+      password: [{ token: "SYNTHETIC_PASSWORD_SECRET_09" }],
+      requestId: "safe-multiple",
+    });
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      cookie: "[REDACTED_SECRET]",
+      labels: ["safe-label"],
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-multiple",
+    });
+  });
+
+  it("redacts a structured JSON key with escaped characters", () => {
+    const raw =
+      '{"pass\\u0077ord":["SYNTHETIC_ESCAPED_KEY_SECRET_10"],"requestId":"safe-escaped"}';
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-escaped",
+    });
+  });
+
+  it("fails closed on an unterminated credential array", () => {
+    const raw = '{"password":["SYNTHETIC_TRUNCATED_ARRAY_SECRET_11"';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("SYNTHETIC_TRUNCATED_ARRAY_SECRET_11");
+    expect(sanitized).toContain("[REDACTED_SECRET]");
+  });
+
+  it("masks double-serialized diagnostic JSON while preserving safe metadata", () => {
+    const raw = JSON.stringify({
+      error: JSON.stringify({
+        password: ["SYNTHETIC_EMBEDDED_PASSWORD_101"],
+        trace: "safe-trace-101",
+      }),
+      requestId: "safe-outer-101",
+    });
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("SYNTHETIC_EMBEDDED_PASSWORD_101");
+    const parsed = JSON.parse(sanitized);
+    expect(parsed.requestId).toBe("safe-outer-101");
+    expect(JSON.parse(parsed.error)).toEqual({
+      password: "[REDACTED_SECRET]",
+      trace: "safe-trace-101",
+    });
+  });
+
+  it("masks pasted JSON cookie within a JSON text field without dropping other fields", () => {
+    const raw = JSON.stringify({
+      message:
+        "Error: " + JSON.stringify({ cookie: "SYNTHETIC_PASTED_COOKIE_102" }),
+      requestId: "safe-outer-102",
+    });
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("SYNTHETIC_PASTED_COOKIE_102");
+    const parsed = JSON.parse(sanitized);
+    expect(parsed.requestId).toBe("safe-outer-102");
+    expect(parsed.message).toContain("[REDACTED_SECRET]");
+  });
+
+  it("redacts multiple nested serializations without leaking a credential", () => {
+    let embedded = JSON.stringify({
+      password: ["SYNTHETIC_TRIPLE_JSON_SECRET_104"],
+    });
+    for (let depth = 0; depth < 3; depth++) {
+      embedded = JSON.stringify({
+        message: embedded,
+        requestId: "safe-nested-104",
+      });
+    }
+    const sanitized = sanitizeFeedbackText(embedded);
+    expect(sanitized).not.toContain("SYNTHETIC_TRIPLE_JSON_SECRET_104");
+    expect(JSON.parse(sanitized).requestId).toBe("safe-nested-104");
+  });
+
+  it("keeps a large integer lexical value intact while redacting an embedded credential", () => {
+    const raw =
+      '{"count":9007199254740993,"message":' +
+      JSON.stringify(
+        JSON.stringify({ password: ["SYNTHETIC_LARGE_INTEGER_SECRET_401"] }),
+      ) +
+      ',"requestId":"safe-numeric-401"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("SYNTHETIC_LARGE_INTEGER_SECRET_401");
+    expect(sanitized).toContain('"count":9007199254740993');
+    expect(sanitized).toContain('"requestId":"safe-numeric-401"');
+  });
+
+  it("retains deeply nested safe JSON content beyond the embedded-string depth limit", () => {
+    let raw = '{"leaf":"safe-leaf-402"}';
+    for (let depth = 0; depth < 30; depth++) {
+      raw = '{"wrapper":' + raw + "}";
+    }
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("preserves pseudo-JSON single quotes when masking structured secrets", () => {
+    const raw =
+      "{'password':['SYNTHETIC_PSEUDO_SECRET_403'],'requestId':'safe-pseudo-403'}";
+    expect(sanitizeFeedbackText(raw)).toBe(
+      "{'password':'[REDACTED_SECRET]','requestId':'safe-pseudo-403'}",
+    );
+  });
+
+  it("does not alter harmless embedded JSON diagnostics", () => {
+    const raw = JSON.stringify({
+      detail: JSON.stringify({ count: 2, labels: ["safe-1", "safe-2"] }),
+      requestId: "safe-outer-103",
+    });
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
   it("preserves both pseudo-JSON quote delimiters around a masked value", () => {
     const raw = "{'clientSecret':'synthetic-private-C789'}";
     expect(sanitizeFeedbackText(raw)).toBe(
@@ -379,6 +558,53 @@ describe("B2 feedback/support safety foundation", () => {
       '"access_token":"[REDACTED_SECRET]"',
     );
     expect(forwarded?.description).toContain('"requestId":"r-1"');
+  });
+
+  it("scrubs double-encoded JSON before both repository writes", async () => {
+    const caseMarker = "SYNTHETIC_CASE_REPOSITORY_SECRET_201";
+    const followupMarker = "SYNTHETIC_FOLLOWUP_REPOSITORY_SECRET_202";
+    const persisted: string[] = [];
+    const repository = {
+      createCase: async (input: { description: string }) => {
+        persisted.push(input.description);
+        throw new Error("SYNTHETIC_CASE_CAPTURED");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        persisted.push(input.body);
+        throw new Error("SYNTHETIC_FOLLOWUP_CAPTURED");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description: JSON.stringify({
+          error: JSON.stringify({ password: [caseMarker] }),
+          requestId: "safe-case-201",
+        }),
+      }),
+    ).rejects.toThrow("SYNTHETIC_CASE_CAPTURED");
+    await expect(
+      service.addUserFollowup(userId, caseId, {
+        description: JSON.stringify({
+          message: "Error: " + JSON.stringify({ cookie: followupMarker }),
+          requestId: "safe-followup-202",
+        }),
+      }),
+    ).rejects.toThrow("SYNTHETIC_FOLLOWUP_CAPTURED");
+
+    expect(persisted).toHaveLength(2);
+    expect(persisted[0]).not.toContain(caseMarker);
+    expect(persisted[0]).toContain("safe-case-201");
+    expect(persisted[1]).not.toContain(followupMarker);
+    expect(persisted[1]).toContain("safe-followup-202");
+    expect(persisted.join(" ")).toContain("[REDACTED_SECRET]");
   });
 
   it("keeps ordinary support text that is not an auth header", () => {

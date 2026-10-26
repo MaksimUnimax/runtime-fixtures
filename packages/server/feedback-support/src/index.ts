@@ -183,7 +183,7 @@ const quotedJsonScalarField =
 const singleQuotedScalarField =
   /('(?:\\.|[^'\\\r\n])*')(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
-  /(?:password|passwd|secret|token|api[_-]?key|authorization)$/iu;
+  /(?:password|passwd|secret|token|api[_-]?key|authorization|cookies?|set[-_]?cookie)$/iu;
 
 function isSensitiveQuotedKey(encodedKey: string): boolean {
   if (encodedKey.startsWith('"')) {
@@ -200,7 +200,66 @@ function isSensitiveQuotedKey(encodedKey: string): boolean {
   return key.includes("\\") || sensitiveJsonKey.test(key);
 }
 
-export function redactAccidentalSecrets(input: string): string {
+// A sensitive quoted JSON or pseudo-JSON field may hold an array/object,
+// not just a scalar. Consume that entire value without swallowing subsequent
+// sibling metadata, respecting quotes, escapes and nested delimiters.
+const quotedStructuredField =
+  /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*)(\{|\[)/gu;
+
+function redactStructuredCredentialValues(input: string): string {
+  let output = "";
+  let cursor = 0;
+  quotedStructuredField.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = quotedStructuredField.exec(input)) !== null) {
+    const key = match[1]!;
+    if (!isSensitiveQuotedKey(key)) continue;
+
+    const valueStart = match.index + match[0].length - 1;
+    const stack: string[] = [];
+    let quote: string | null = null;
+    let escaped = false;
+    // An unmatched or truncated container is private through end-of-input.
+    let valueEnd = input.length;
+    for (let index = valueStart; index < input.length; index++) {
+      const char = input[index]!;
+      if (quote !== null) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === quote) quote = null;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        continue;
+      }
+      if (char === "[" || char === "{") {
+        stack.push(char);
+        continue;
+      }
+      if (char === "]" || char === "}") {
+        const open = stack.pop();
+        if ((char === "]" && open !== "[") || (char === "}" && open !== "{"))
+          break;
+        if (stack.length === 0) {
+          valueEnd = index + 1;
+          break;
+        }
+      }
+    }
+    const replacementQuote = key.startsWith("'") ? "'" : '"';
+    output +=
+      input.slice(cursor, valueStart) +
+      replacementQuote +
+      "[REDACTED_SECRET]" +
+      replacementQuote;
+    cursor = valueEnd;
+    quotedStructuredField.lastIndex = valueEnd;
+  }
+  return output + input.slice(cursor);
+}
+
+function redactAccidentalSecretsBasic(input: string): string {
   const stringsRedacted = input.replace(
     quotedStringField,
     (field, encodedKey: string, _keyQuote: string, delimiter: string) =>
@@ -224,8 +283,80 @@ export function redactAccidentalSecrets(input: string): string {
   );
   return secretPatterns.reduce(
     (value, [pattern, replacement]) => value.replace(pattern, replacement),
-    pseudoScalarsRedacted,
+    redactStructuredCredentialValues(pseudoScalarsRedacted),
   );
+}
+
+// User-provided diagnostic text may contain a JSON object serialized inside
+// another JSON string. Decode only valid JSON envelopes and inspect their
+// string values; retain the original formatting when nothing needs masking.
+const MAX_EMBEDDED_JSON_DEPTH = 24;
+
+function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
+  const basic = redactAccidentalSecretsBasic(input);
+  if (depth >= MAX_EMBEDDED_JSON_DEPTH) return "[REDACTED_SECRET]";
+  try {
+    JSON.parse(basic);
+  } catch {
+    // A complete JSON envelope preceded by diagnostic prose is still safe
+    // to parse independently. The prefix is retained; nested string values
+    // are processed by the same bounded redactor as ordinary JSON.
+    const objectStart = basic.indexOf("{");
+    const arrayStart = basic.indexOf("[");
+    const candidateStart = Math.min(
+      objectStart < 0 ? basic.length : objectStart,
+      arrayStart < 0 ? basic.length : arrayStart,
+    );
+    if (candidateStart > 0 && candidateStart < basic.length) {
+      const candidate = basic.slice(candidateStart);
+      try {
+        JSON.parse(candidate);
+        return (
+          basic.slice(0, candidateStart) +
+          redactEmbeddedDiagnosticJson(candidate, depth + 1)
+        );
+      } catch {
+        // Damaged or truncated envelopes must not expose escaped embedded
+        // JSON credentials whose keys are hidden behind backslash quotes.
+      }
+    }
+    const hasNestedEscapes =
+      basic.includes('\\"') ||
+      basic.includes("\\'") ||
+      /\\u002[27]/iu.test(basic);
+    if (hasNestedEscapes && (basic.includes("{") || basic.includes("[")))
+      return "[REDACTED_SECRET]";
+    // Ordinary text and pseudo-JSON remain covered by the existing scrubbers.
+    return basic;
+  }
+
+  // Never parse-and-reserialize the entire document after masking an
+  // embedded string: JSON.parse loses integer precision above 2^53. Scan
+  // validated JSON string tokens instead, replacing only changed string
+  // values and leaving numeric fields and untouched lexemes byte-identical.
+  // The depth limit counts encoded JSON within strings, not ordinary object
+  // nesting, so a deeply nested *safe* document is never erased by the guard.
+  let rewritten = "";
+  let cursor = 0;
+  for (const match of basic.matchAll(/"(?:\\.|[^"\\])*"/gu)) {
+    const start = match.index;
+    const encoded = match[0];
+    let following = start + encoded.length;
+    while (following < basic.length && /\s/u.test(basic[following]!))
+      following++;
+    if (basic[following] === ":") continue; // JSON object key, not value
+
+    const literal = JSON.parse(encoded) as string;
+    const sanitized = redactEmbeddedDiagnosticJson(literal, depth + 1);
+    if (literal === sanitized) continue;
+    rewritten += basic.slice(cursor, start) + JSON.stringify(sanitized);
+    cursor = start + encoded.length;
+  }
+  return cursor === 0 ? basic : rewritten + basic.slice(cursor);
+}
+
+export function redactAccidentalSecrets(input: string): string {
+  return redactEmbeddedDiagnosticJson(input, 0);
 }
 
 export function sanitizeFeedbackText(input: string): string {
