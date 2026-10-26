@@ -1,3 +1,66 @@
+# Поиск простоя: полные A/B критерии и исправленная собственная PR327-проекция — 26.10.2026
+
+<!-- CONTROLLER_POST574_A_B_FULL_GOALS_AND_PR327_CURRENT_FIELDS_20261026 -->
+
+Продолжение REPORT574fef75/readback21:53:17. Все21цель и каждый прежний байт сохранены ниже. Готовый R128review не повторялся: P2невернойpopup401 уже записан и independentlyreadback21:46:32; исправленного входа здесь не было. Неизвестную доставку продолжения Тестеру проверяет dot; Controller не повторял её черезчат/файл/другоймаршрут. UNKNOWN I1readback не повторялся. C/I1requests не продублированы.
+
+Freshread-onlyguard **21:58:08.229004 UTC+5** подтвердил7locks/solewriter/canonicalHEAD030ce4bb/index96916746…/fullWIP76b6681f…; завершён21:58:08.229884. Перед фактической правкой выполнены новые проверки B-notice/response и7locks.
+
+## Новый предметный результат A: complete source proof уже встроен в native runner
+
+A.json **21:58:41/21:59:08** стабилен, SHA **5ec9bdbb52ae7521c45f40421998d95db8421f3099daa0b2f72116e7c16689dc**. Именованная новая стадия `A04_PR327_NATIVE_BUSINESS_SCENARIO_RUNNER_COVERAGE_20261026`:
+- Existing fullmoduleквитанция **21:24:44.394482** exactfb8/38directinputs сохранена. Это source synthetic, не45cleanPASS/installed; CAP22PARTIAL/CAP24REOPENED/CAP25IN_PROGRESS остаются.
+- **21:45:40.025298** опубликован successor **22e8b50312cc93c8ab6b2706906d285ecadfd354**, tree **99a6ab4af8df5abdfd2e93f6e15db1b4e8c0d06c**, parentfb8. Два пути: business-scenario-coverage.mjs (тот же blob **ea3a72baa54054dc9b20b0eec4cfc2c72041e4e7**) и tooling/checks/extension_core.py (новый blob **f086732bf5f787968ccba0e845e31143aea7b77d**), одна fail-fastкоманда core-business-scenario-coverage.
+- Aprimary **21:48:09.015529**: R2gpt6luna ACCEPT_SOURCE_SCOPED suppliedexacttwo-filediff, verdictSHA **8543a1543bdb5a50edb5faad242214ec7c03072237253d25c739117454a65779**; reviewerнеcheckout/неtest. OriginalExtensionCI40361654037/corejob121708542509SUCCESS, originalRUN→PASScore-business-scenario-coverage. Это потреблённая primaryA; Controller не запускалreview и не перечитывалготовыйjoblog.
+- Последняя доказанная Aквитанция **21:58:11.572324**: Extension/Docs/SafetyoriginalpushSUCCESS, Server40361654235/I140361654406inprogress; триPR-eventfamiliesSUCCESS. НовыйServer safeguardstepSUCCESS не устанавливаетwriter/cause старогоfb8failure.
+- GitHubлично подтверждает [PR327](https://github.com/MaksimUnimax/runtime-fixtures/pull/327) open/draft/nonmerged и exacthead22e8/twopaths. Syntheticmergepreview не объявленmerge. Терминального5/5на22eControllerне заявляет и не ждётрадиотчёта; чтение уже идущих originaloutcomes обеспечено существующимA.
+
+Следовательно, прежняяcurrentграница «native recipe не вызывает полный module» теперь устарела для22e. Она остаётся в историческомcutoff, но **не повод повторно поручать A уже выполненную wiringработу**. Это реальная sourcecoverageдельта; originalfb8Servernegative, source/main/protectedmerge/installedgates не отменены. Другойauthor/nodefilesystem/CIне создан.
+
+## Соответствие полным A/B целям, а не одному тесту
+
+CanonicalPLAN blob102e955a… содержит A01–A06, B01–B07 и C00–C07 — всего21ID. Новые A00/B00 или перенумерация не создавались.
+
+| Требование | Что даёт новое доказательство и что ещё требуется |
+|---|---|
+| A01 — browser WorkStart/account cause | Nodebusinessmodule не исполняет реальный WorkStart, popup/AIотправку или поискaccount. ExistingTester/отказники сохраняют свои текущие задачи; sourceREWORKR128непревращён в установленноеисправление. |
+| A02 — MV3 transfer/resume | Нет доказательства reload/restart/recipientkeymap/ACK/no-replayот этогоmodule. Принятаяsourceabsorption старогоWIP сохраняется; реальные протокольные критерии совместноB03открыты. |
+| A03 — brandedbrowsermatrix | Node24 неChrome/Opera/Yandex/Firefox. Нужны прежние отдельные realversion/profile/package/receipt; SafariDEFERRED не блокирует и неPASS. |
+| A04 — полный Q1-A/B/C | Подтверждены numericmethodology и её complete/native sourcecoverage. Не закрыты реальнаяmulti-store/account/dialogueизоляция, AIscopes, delivery/recovery/sync/revocation и бизнессемантика. |
+| A05 — постепенное извлечение buildpatches | Добавлениеrunner не извлекает изменяемыйruntimeмодуль и не доказывает differential/hashguardрезультат дляA05. Старыеcandidate/releaseграницы остаются. |
+| A06 — UX/diagnostics/betafeedback | Sourceданные помогают достоверности диагностики, но R128подтверждённыйP2иinstalledUXостаются. АвторТестер, неизвестную доставку продолжения проверяетdot; Controller не назначил второе исправление. |
+| B01 — migrationcompatibility/legacylineage | Модуль не работает сPostgreSQL/appliedjournal/backup/restore; отдельные ранее согласованные границы сохраняются. |
+| B02 — signedbootstrap/catalog | R98публикация44/44 сохранена; R127пятьcapabilitiesmissing и issuerControllerотдельно. Numeric/sourceCI не заменяет freshsignedissuance. |
+| B03 — boundedtransferrelay | TTL/quota/ACK/delete/flood/restartпротокол не принимается этимmodule. Нужен совместныйactualA02+B03результат у имеющихсяавторов. |
+| B04 — OTP/SMTP/auth/sync/revoke | Нет новых mail/job/refreshrace/realconfirmationдоказательств; соответствующий допустимыйsource/live/admissionисход остаётся отдельным. Protectedresourceboundary не читается ради выбораочереди. |
+| B05 — эксплуатация/recovery | Native22eнефиксит causalfixture48/50, retainedR2, дваP1PR308 или realdisposablePG/applicationrestore. Их существующиеcustody/STOP/wholeoperationadmission сохраняются. |
+| B06 — server/admin/support/privacy | PR326acceptedsource и originalR3textreviewbinding сохранены. Nodebusinessmodule не подтверждает loadedserver/каждуюмутацию/accountisolation/квоты/retention. |
+| B07 — feedbackпослебеты | Нужны реальные измеримые пользовательские проблемы и ихriskregressions, не переименованиеsyntheticrows вownerPASS. НезависимаяактивнаяB02работаТестеранеперехвачена. |
+
+Незанятый допустимый sourceшаг для новогоauthor не доказан: Aявно продолжает exact22eoriginalCI/currentcandidategate; TesterведётB02/R128, dotпроверяет свою deliveryUNKNOWN; C/I1имеют existingrequests; sourceкарьерыB/retainedR2непереданы, PR308уControllerцелаяоперация недопущена. ProtectedB.json не читался, из старогоBresponseвремя завершения текущегоBturn не выводилось. Обычный A/Bproductкод не назначен ради снятия чужогоplatformrefusal. Это точные границы выбранных операций, не всеобщийWAIT/новыйroadmap.
+
+## Выполненная собственная документальная коррекция
+
+В существующем B-notice PR327intake ещё стояли:
+1. currentstatus ADDRESSED…CONSUMPTION_NOT_YET_CONFIRMED при уже принятой квитанции refusalB;
+2. nextдействия потребить уже потреблённый intake и получить full-runnerproof без нового22e/nativeфакта.
+
+Исправлены **только два собственных currentполя status/next_permitted** и добавлена historyrecord
+`Controller_A04_full_module_R2_proof_and_full_goal_boundary_20261026`
+внутри existingPR327subject. Старые значения этихдвухполей сохранены в record; сам originalfb8negative и весь nestedrefusalBreceipt не изменены. Currentstatus теперь **RECEIVER_PRIMARY_CONSUMED_ORIGINAL_FAILURE_OPEN_CURRENT_A_SOURCE_22E8**. Новыйnext запрещает повторACK/готовогоwiring и сохраняет уже назначенное чтениеoriginalServer/I1 уA без новогоdispatch/merge/waiver.
+
+Запись **22:03:31.220769**, независимый полныйreadback **22:03:59.400243 MATCH**, B-noticeSHA **f3f1a87de70142fd2bd59f4ed892767bd80e39053b79718f6bd180b50b4140bf**,353400bytes. Точный inverse трёхeditspans восстановил прежние348594bytes/SHA8701c40e…; каждый другой priorbyte/поле/receiverprimary и canonicalHEAD/index/fullWIP сохранены. Fresh7locks/noticeflock/solewriter/CAS. Само дефектное поведение не объявлено исправленным документированием.
+
+Предшествующий writecall **22:02:07** остановлен DOCUMENT_CAS_DRIFT, written=false,pendingtemp=null, locksосвобождены. Проверка22:02:30 установила неизменныйnotice8701… и новыйB_EXECresponse5077d4ea…; в22:03:01 потреблены только safeheaders/currentcase6result, без protectedBstate/резервныхзначений. Новый acceptedR2artifact/release отсутствует. После этого применён актуальный CAS, не retrydenial и не обход неизвестного I1вызова.
+
+## Последние доказанные действия и открытое
+
+A — квитанция **21:58:11**, активное source/nativeпродвижение22e; B — последняя полученная предметная native-responseквитанция **20:54:22.413**, safeheadersновых source/toolingрезультатов не дали, фактическая текущаяактивностьBUNKNOWN. C — прежняя именованная REWORKквитанция20:14:31, новыйturnoutcomeUNKNOWN по последнему принятому срезу; Cнеперечитывался в этом узком A/Bпроходе. Квитанция PR327отказника21:25:36 не названа работойproductB; исходныеjoblogs неоткрывались.
+
+R128reviewготов кпотреблению; исправленногоinputнет, повторногоreviewнет. I1двухпутевойscopeзапрос21:48:18writeуспешен, independentreadbackUNKNOWN; егоисходнеповторён и не закрыт новойBnoticeправкой. Доставкаdot→TesterUNKNOWNостаётся уdot. №41/STOP50/resourceacquisition/security/live/DB/сессии неизменны; новогообщегоYESнет. Объём — новое source/native22eдоказательство сопоставлено всем13A/Bкритериям, исправлены два своих currentполя с историей и полнымreadback; новыеproductruns/sourceавторы не создавались.
+
+---
+
 # Поиск простоя: продуктовый R128 REWORK, новое доказательство A и точная I1 custody-граница — 26.10.2026
 
 <!-- CONTROLLER_POST18B_R128_SOURCE_REVIEW_A_FULL_MODULE_AND_I1_OWNER_DISPOSITION_20261026 -->
