@@ -146,6 +146,26 @@ function reportDependencies(
 }
 
 describe("A6 API-watch report lifecycle", () => {
+  it("a zero-source pass is blocked, not an empty successful report", async () => {
+    const reportStore = new InMemoryApiWatchReportStore();
+    const blankRegistry = {
+      ...createSourceRegistry(),
+      list: () => [],
+    };
+    const fixture = reportDependencies(blankRegistry, "/unused", reportStore);
+    const result = await runApiWatchReport({
+      dependencies: fixture.dependencies,
+      runId: "empty-source-pass",
+      source: "SCHEDULED",
+    });
+    const completed = await reportStore.getReport(
+      "api-watch:empty-source-pass",
+    );
+    expect(completed?.sources).toEqual([]);
+    expect(completed?.state).toBe("BLOCKED");
+    expect(result.status).not.toBe("SUCCEEDED");
+  });
+
   it("rejects a fixture registry that accidentally retains production URLs", () => {
     expect(() => reportDependencies(createSourceRegistry(), "/unused")).toThrow(
       "EXTERNAL_NETWORK_FORBIDDEN_IN_REPORT_FIXTURE",
@@ -289,16 +309,170 @@ describe("A6 API-watch report lifecycle", () => {
         source: "FORCED",
       });
       expect(result.code).toBe("API_WATCH_REPORT_FAILED");
+      const failedReport = await setup.reportStore.getReport(
+        "api-watch:inventory-first-rejection",
+      );
+      expect(failedReport?.state).toBe("FAILED");
+      // Even though semantic inventory evaluation threw before writing an
+      // accepted snapshot, the failed report retains all three observed
+      // family outcomes rather than losing the source coverage.
+      expect(failedReport?.sources.map((row) => row.sourceFamily)).toEqual([
+        "OZON_SELLER",
+        "OZON_PERFORMANCE",
+        "WILDBERRIES",
+      ]);
       expect(
-        (
-          await setup.reportStore.getReport(
-            "api-watch:inventory-first-rejection",
-          )
-        )?.state,
-      ).toBe("FAILED");
+        failedReport?.sources.find((row) => row.sourceFamily === "OZON_SELLER")
+          ?.snapshotSha256,
+      ).toBeNull();
       expect(await setup.dependencies.store.listSnapshots()).toHaveLength(0);
       expect(setup.apiState.inventories.size).toBe(0);
       expect(await readdir(root)).toHaveLength(0);
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 preserves acknowledged snapshot identity if later diff persistence fails", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-post-accept-"));
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(registry, root);
+      await runApiWatchReport({
+        ...setup,
+        runId: "post-accept-baseline",
+        source: "FORCED",
+      });
+      expect(await setup.dependencies.store.listSnapshots()).toHaveLength(1);
+      const snapshots = await setup.dependencies.store.listSnapshots();
+      server.setBody(DOCUMENT_B);
+      setup.dependencies.store.saveSemanticDiff = async () => {
+        throw new Error("SIMULATED_POST_ACCEPTED_DIFF_WRITE_FAILURE");
+      };
+      const failed = await runApiWatchReport({
+        ...setup,
+        runId: "post-accept-failure",
+        source: "FORCED",
+      });
+      expect(failed.code).toBe("API_WATCH_REPORT_FAILED");
+      const report = await setup.reportStore.getReport(
+        "api-watch:post-accept-failure",
+      );
+      expect(report?.state).toBe("FAILED");
+      expect(report?.sources).toHaveLength(3);
+      const seller = report?.sources.find(
+        (row) => row.sourceFamily === "OZON_SELLER",
+      );
+      const accepted = (await setup.dependencies.store.listSnapshots()).find(
+        (item) =>
+          item.sourceFamily === "OZON_SELLER" &&
+          item.sha256 !== snapshots[0]!.sha256,
+      );
+      expect(accepted).toBeDefined();
+      expect(seller?.snapshotSha256).toBe(accepted?.sha256);
+      expect(seller?.inventoryOperationCount).toBeGreaterThan(0);
+      expect(seller?.errorCode).toBe("SOURCE_ANALYSIS_INCOMPLETE");
+      expect(seller?.impactSeverity).toBe("UNKNOWN");
+      expect(seller?.unknownCount).toBe(1);
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 preserves FAILED report result if incident store cannot observe", async () => {
+    const invalidSource = Buffer.from(
+      JSON.stringify({
+        openapi: "3.1.0",
+        info: { title: "invalid reference", version: "1" },
+        paths: { "/orders": { $ref: "#/components/pathItems/Missing" } },
+      }),
+    );
+    const server = await fixtureServer(invalidSource);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-incident-fail-"));
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(registry, root);
+      const incidentStore = new InMemoryApiWatchIncidentStore();
+      incidentStore.observe = async () => {
+        throw new Error("SIMULATED_INCIDENT_STORE_FAILURE");
+      };
+      const result = await runApiWatchReport({
+        dependencies: { ...setup.dependencies, incidentStore },
+        runId: "incident-store-failure",
+        source: "FORCED",
+      });
+      expect(result.code).toBe("API_WATCH_REPORT_FAILED");
+      expect(result.summary).toContain("incident delivery is unknown");
+      expect(
+        (await setup.reportStore.getReport("api-watch:incident-store-failure"))
+          ?.state,
+      ).toBe("FAILED");
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 preserves FAILED report result if incident notifier fails", async () => {
+    const invalidSource = Buffer.from(
+      JSON.stringify({
+        openapi: "3.1.0",
+        info: { title: "invalid reference", version: "1" },
+        paths: { "/orders": { $ref: "#/components/pathItems/Missing" } },
+      }),
+    );
+    const server = await fixtureServer(invalidSource);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-notifier-fail-"));
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(registry, root);
+      const result = await runApiWatchReport({
+        dependencies: {
+          ...setup.dependencies,
+          incidentStore: new InMemoryApiWatchIncidentStore(),
+          incidentNotifier: async () => {
+            throw new Error("SIMULATED_INCIDENT_NOTIFIER_FAILURE");
+          },
+        },
+        runId: "incident-notifier-failure",
+        source: "FORCED",
+      });
+      expect(result.code).toBe("API_WATCH_REPORT_FAILED");
+      expect(result.summary).toContain("incident delivery is unknown");
+      expect(
+        (
+          await setup.reportStore.getReport(
+            "api-watch:incident-notifier-failure",
+          )
+        )?.state,
+      ).toBe("FAILED");
     } finally {
       await server.close();
       await rm(root, { recursive: true, force: true });

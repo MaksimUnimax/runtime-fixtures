@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { productionSourceRegistry } from "./source-registry.js";
 import type {
   ApiWatchIncident,
   ApiWatchIncidentEvent,
@@ -270,6 +271,57 @@ function atAcceptedBaseline(source: ApiWatchReportSourceOutcome): boolean {
   );
 }
 
+/** Exact document coverage, not a caller-supplied "full run" declaration.
+ * A global alert must never close from a successful subset of provider URLs.
+ * Keep the official production set pinned (Seller, Performance, 13 WB docs).
+ */
+function hasWholeOfficialDocumentSet(
+  sources: readonly ApiWatchReportSourceOutcome[],
+  requireAccepted: boolean,
+): boolean {
+  const entries = productionSourceRegistry.list();
+  if (entries.length !== 3) return false;
+  const sourceFamilies = new Set(entries.map((entry) => entry.sourceFamily));
+  if (
+    sourceFamilies.size !== 3 ||
+    !(["OZON_SELLER", "OZON_PERFORMANCE", "WILDBERRIES"] as const).every(
+      (family) => sourceFamilies.has(family),
+    )
+  )
+    return false;
+  const expectedKeys = new Set<string>();
+  for (const entry of entries) {
+    const requiredDocumentCount = entry.sourceFamily === "WILDBERRIES" ? 13 : 1;
+    if (entry.documents?.length !== requiredDocumentCount) return false;
+    for (const document of entry.documents) {
+      const key = JSON.stringify([entry.sourceFamily, document.documentKey]);
+      if (expectedKeys.has(key)) return false;
+      expectedKeys.add(key);
+    }
+  }
+  if (expectedKeys.size !== 15 || sources.length !== expectedKeys.size)
+    return false;
+  const observed = new Set<string>();
+  for (const source of sources) {
+    const key = JSON.stringify([
+      source.sourceFamily,
+      source.documentKey ?? null,
+    ]);
+    if (!expectedKeys.has(key) || observed.has(key)) return false;
+    observed.add(key);
+    if (
+      requireAccepted &&
+      (source.acquisitionOutcome !== "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" ||
+        source.authorityStatus !== "AUTHORITY_ACCEPTED" ||
+        source.blockerCode !== null ||
+        !source.snapshotSha256 ||
+        !/^[a-f0-9]{64}$/i.test(source.snapshotSha256))
+    )
+      return false;
+  }
+  return observed.size === expectedKeys.size;
+}
+
 export async function evaluateApiWatchIncidents(input: {
   report: ApiWatchReport;
   crosswalkRows?: ProductCrosswalkRow[];
@@ -280,6 +332,11 @@ export async function evaluateApiWatchIncidents(input: {
 }) {
   const now = input.now ?? new Date();
   const activeKeys = new Set<string>();
+  const wholeObserved = hasWholeOfficialDocumentSet(
+    input.report.sources,
+    false,
+  );
+  const wholeAccepted = hasWholeOfficialDocumentSet(input.report.sources, true);
   for (const source of input.report.sources) {
     if (
       source.blockerCode === "SOURCE_URL_AUTHORITY_MISSING" ||
@@ -302,7 +359,7 @@ export async function evaluateApiWatchIncidents(input: {
       activeKeys.add(value.incidentKey);
     }
   }
-  if (input.report.state === "FAILED") {
+  if (input.report.state === "FAILED" && wholeObserved) {
     const value = await observeAndNotify(
       input.store,
       input.notifier,
@@ -378,7 +435,7 @@ export async function evaluateApiWatchIncidents(input: {
       )
         continue;
       const acquisitionRecovered =
-        open.incidentType === "WATCH_RUN_FAILED" ||
+        (open.incidentType === "WATCH_RUN_FAILED" && wholeAccepted) ||
         open.incidentType === "SOURCE_AUTHORITY_BLOCKED";
       const matchingDocumentSources =
         open.sourceFamily !== null && open.documentKey !== null

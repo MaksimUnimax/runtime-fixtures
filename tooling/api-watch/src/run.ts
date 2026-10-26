@@ -3,6 +3,7 @@ import type {
   MonitoringCoverage,
   MonitoringLaneRunner,
   MonitoringRunResult,
+  SwaggerSourceFamily,
 } from "@product/monitoring-control";
 import { evaluateOperatorCandidate, runAuthorityPass } from "./authority.js";
 import { diffInventories } from "./diff.js";
@@ -308,6 +309,8 @@ async function analyzeAcceptedOutcome(input: {
   previousSnapshots: Awaited<
     ReturnType<ApiWatchDependencies["store"]["listSnapshots"]>
   >;
+  /** Fired only after snapshot+inventory persistence returns an ACK. */
+  onSnapshotAccepted?: (sha256: string, operationCount: number) => void;
 }): Promise<ApiWatchReportSourceOutcome> {
   const { dependencies, outcome, record, previousSnapshots } = input;
   const now = currentTime(dependencies);
@@ -332,6 +335,9 @@ async function analyzeAcceptedOutcome(input: {
     documentKey,
     now: () => now,
   });
+  // An ACK here is the first reliable evidence that this exact snapshot and
+  // inventory are accepted. Keep it even if later baseline/diff work fails.
+  input.onSnapshotAccepted?.(snapshot.sha256, inventory.operationCount);
   const baseline = dependencies.productBaselineRepository
     ? await dependencies.productBaselineRepository.read({
         sourceFamily: outcome.sourceFamily,
@@ -558,6 +564,8 @@ export async function runApiWatchReport(input: {
   };
   runId: string;
   source: "SCHEDULED" | "FORCED";
+  /** Only a validated run-bound retry owner may provide selected families. */
+  sourceFamilies?: readonly SwaggerSourceFamily[];
 }): Promise<MonitoringRunResult> {
   const { dependencies, runId, source } = input;
   const reportStore = dependencies.reportStore;
@@ -572,30 +580,47 @@ export async function runApiWatchReport(input: {
     state: "RUNNING",
     at: now,
   });
+  // Keep the actual source observations outside the try so a later analysis
+  // failure cannot erase already acquired source identities.
+  let observedPass: AuthorityPassResult | undefined;
+  const observedSources: ApiWatchReportSourceOutcome[] = [];
   try {
     const previousSnapshots = await dependencies.store.listSnapshots();
     const pass = await runAuthorityPass({
       ...dependencies,
       now: dependencies.clock,
       skipOperatorBlocked: input.source === "SCHEDULED",
+      sourceFamilies: input.sourceFamilies,
     });
-    const sources: ApiWatchReportSourceOutcome[] = [];
+    observedPass = pass;
+    const sources = observedSources;
     const crosswalkDocuments: CrosswalkDocument[] = [];
     for (const [index, outcome] of pass.outcomes.entries()) {
       const record = pass.records[index];
       if (outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" && record) {
-        sources.push(
-          await analyzeAcceptedOutcome({
-            dependencies,
-            reportId: report.reportId,
-            crosswalkDocuments,
-            outcome,
-            record,
-            previousSnapshots,
-          }),
-        );
+        sources[index] = await analyzeAcceptedOutcome({
+          dependencies,
+          reportId: report.reportId,
+          crosswalkDocuments,
+          outcome,
+          record,
+          previousSnapshots,
+          onSnapshotAccepted: (sha256, operationCount) => {
+            // Do not label an accepted snapshot as absent if a later semantic
+            // comparison throws. Comparison evidence is UNKNOWN, not success.
+            sources[index] = {
+              ...blockedOutcome(outcome, record),
+              snapshotSha256: sha256,
+              inventoryOperationCount: operationCount,
+              blockerCode: null,
+              errorCode: "SOURCE_ANALYSIS_INCOMPLETE",
+              impactSeverity: "UNKNOWN",
+              unknownCount: 1,
+            };
+          },
+        });
       } else {
-        sources.push(blockedOutcome(outcome, record));
+        sources[index] = blockedOutcome(outcome, record);
       }
     }
     const verifiedFamilyAbsenceRowIds = await persistProductCrosswalks({
@@ -610,7 +635,7 @@ export async function runApiWatchReport(input: {
         sourceOutcome.errorCode !== "PRODUCT_BASELINE_REFERENCE_INVALID",
     ).length;
     const state =
-      usable === pass.outcomes.length
+      pass.outcomes.length > 0 && usable === pass.outcomes.length
         ? "COMPLETED"
         : usable > 0
           ? "PARTIAL"
@@ -656,16 +681,49 @@ export async function runApiWatchReport(input: {
       });
     return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
-    // A terminal transition may commit before its ACK or a later pipeline step
-    // fails. Without a completion receipt the exact artifact remains resumable.
+    // A terminal transition may commit before its ACK or a later pipeline
+    // step fails. A failed RUNNING report must retain the true observed set,
+    // including source outcomes not yet analyzed into accepted snapshots.
     const persisted = await reportStore.getReport(report.reportId);
-    if (persisted?.state === "RUNNING")
+    if (persisted?.state === "RUNNING") {
+      const recordedPass = observedPass;
+      const failedSources = recordedPass
+        ? recordedPass.outcomes.map(
+            (outcome, index) =>
+              observedSources[index] ??
+              blockedOutcome(outcome, recordedPass.records[index]),
+          )
+        : [];
       await reportStore.transitionReport({
         reportId: report.reportId,
         state: "FAILED",
         at: currentTime(dependencies),
-        counts: { overallImpactSeverity: null },
+        sources: failedSources,
+        counts: reportCounts(failedSources),
       });
+      const failed = await reportStore.getReport(report.reportId);
+      // Only the evaluator's exact 15-document proof may open the global
+      // incident; an aborted pre-acquisition run never fabricates coverage.
+      if (failed && dependencies.incidentStore) {
+        try {
+          await evaluateApiWatchIncidents({
+            report: failed,
+            store: dependencies.incidentStore,
+            notifier: dependencies.incidentNotifier,
+            now: currentTime(dependencies),
+          });
+        } catch {
+          // The report is already durable FAILED. A failed or ambiguous
+          // incident-notification write must not replace that primary result.
+          // State the uncertainty in the returned safe summary; the original
+          // report remains available for the authorized incident consumer.
+          return {
+            ...reportResult("FAILED"),
+            summary: "API-watch report failed; incident delivery is unknown.",
+          };
+        }
+      }
+    }
     return reportResult("FAILED");
   }
 }
