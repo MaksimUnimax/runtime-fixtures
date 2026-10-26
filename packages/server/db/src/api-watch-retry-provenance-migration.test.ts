@@ -26,12 +26,27 @@ describe("C03 retry provenance migration source contract", () => {
     expect(sql).toContain('"ordinary_next_run_at" timestamp with time zone');
     expect(sql).toContain('"active_run_entered_at" timestamp with time zone');
     expect(sql).toContain("WHERE \"lane\" = 'LLM'");
-    const backfill = sql.match(
-      /UPDATE "monitoring_lane_schedules"\s+SET "ordinary_next_run_at" = "next_run_at"[\s\S]*?;/,
-    )?.[0];
-    expect(backfill).toBeDefined();
-    expect(backfill).toContain("WHERE \"lane\" = 'LLM'");
-    expect(backfill).not.toContain("SWAGGER_API");
+    // The migration must not guess which old lane deadline was periodic.
+    expect(sql).not.toMatch(/UPDATE\\s+"monitoring_lane_schedules"/i);
+    expect(sql).not.toMatch(/"ordinary_next_run_at"\\s*=\\s*"next_run_at"/i);
+
+    // Prior column declarations guarantee the actual DDL types, not a guess.
+    const priorSchedule = await readFile(
+      join(migrationsFolder, "0038_s2_tg2_monitoring_lanes.sql"),
+      "utf8",
+    );
+    const priorRetries = await readFile(
+      join(migrationsFolder, "0045_s2_api_watch_retry_state.sql"),
+      "utf8",
+    );
+    expect(priorSchedule).toContain(
+      '"next_run_at" timestamp with time zone NOT NULL',
+    );
+    expect(priorSchedule).toContain('"active_run_id" uuid');
+    expect(priorRetries).toContain(
+      '"source_family" varchar(32) PRIMARY KEY NOT NULL',
+    );
+
     expect(sql).toContain("api_watch_family_attempt_fences");
     expect(sql).toContain("'CLAIMED'");
     expect(sql).toContain("'ENTERED'");

@@ -21,12 +21,11 @@ ALTER TABLE "monitoring_lane_schedules"
   ADD CONSTRAINT "monitoring_active_trigger_value_check"
   CHECK ("active_run_trigger" IS NULL OR "active_run_trigger" IN ('PERIODIC','RETRY','FORCED'));
 --> statement-breakpoint
--- Only LLM has no source-family scheduleEarlier producer in the current runtime.
--- Do not assign the legacy Swagger next_run_at to ordinary_next_run_at.
-UPDATE "monitoring_lane_schedules"
-SET "ordinary_next_run_at" = "next_run_at", "ordinary_due_provenance" = 'KNOWN'
-WHERE "lane" = 'LLM';
---> statement-breakpoint
+-- Do not backfill ordinary_next_run_at from any legacy next_run_at.
+-- SWAGGER_API might have been advanced by a now-revoked family retry.
+-- LLM continues to use its unchanged next_run_at field; the new columns
+-- are reserved for the separately reviewed Swagger source/runtime consumer.
+-- UNKNOWN is a hold state for new Swagger scheduling until a trusted baseline.
 CREATE TABLE "api_watch_family_attempt_fences" (
   "source_family" varchar(32) PRIMARY KEY NOT NULL,
   "claimed_run_id" uuid,
