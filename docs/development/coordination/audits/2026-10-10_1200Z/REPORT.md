@@ -1,3 +1,64 @@
+# Поиск простоя: продуктовый R128 REWORK, новое доказательство A и точная I1 custody-граница — 26.10.2026
+
+<!-- CONTROLLER_POST18B_R128_SOURCE_REVIEW_A_FULL_MODULE_AND_I1_OWNER_DISPOSITION_20261026 -->
+
+Продолжение REPORT18bccc66/readback21:30:54. Все21цель и прежние байты сохранены ниже. Чаты A/B/C не открывались. Единственный новый review выполнен лично существующим Controller по прямо назначенному продуктовому R128diff; helper/test/CI/build/installed/API не запускались.
+
+## Фактическая дельта потоков и PLAN
+
+Freshguard **21:34:54.293537 UTC+5**:7locks эксклюзивны, ownCnotice4873214e…/writers=[]/unknownvisibility=[], canonicalHEAD030ce4bb/indexSHA96916746…/fullWIPSHA76b6681f… сохранены. Guard освобождён21:34:54.294958. Это входная проверка, не обещание удержания до будущих записей.
+
+**A:** новая именованная запись `A04_PR327_FULL_BUSINESS_SOURCE_EXACT_MODULE_R2_20261026`, issued **21:24:44.394482**. Адресное чтение21:36:34 A.jsonSHA **62b838db686e601aa8f9f888f0a43458bed9d166190ad330269f7015217890af** стабильно. В21:37:31 лично прочитан существующий12395-byte primary stdout, SHA **25125ed53902070ceb4ed5d493935d4e5638f5d910e83cfbb7c794fd898617aa**, совпал; serviceexit0,464ms. Node24registerHooks загрузил exactfb8entry blob ea3a72…;38directdependencies сверены в существующем cleancarrier5b3ae479. Это completeoriginalmodule SOURCE_SYNTHETIC, а не полная isolatedexacttree/installed/liveпроверка. 45scenario rows,69numericfixtures,63WBprovenance/23Ozonreportcases; общийвывод модуля явно сохраняет CAP22PARTIAL/CAP24REOPENED/CAP25IN_PROGRESS, а не45cleanPASS.
+
+**Собственная прежняя currentотметка fullmoduleNOT_RUN исправлена этим результатом.** Она остаётся ниже как история своих срезов. Час фактического unitstart/end в прочитанном stdout не дан; issuedвремя не названо точным timestampисполнения. R1transport CANDIDATE_BLOB_MISMATCH произошёл до entrymodule и не скрыт; физическая причина повреждения аргументаR1UNKNOWN. Нативныйrecipe ещё не включает целыйmodule, originalPR327ServerFAIL не снят. Следующее уже обеспеченное A-продолжение — сохранить принятое sourceдоказательство/negative и после законного fixturefix квалифицировать свежий exactcandidate/нужные gates; не новый rerun/foreignfixturewriter. Простою A новое доказательство противоречит, завершённость его текущегоturn здесь не устанавливается.
+
+**B:** последнее потреблённое продуктовоеsourceрезультат — PR326ce9→main e5, merge20:31:59; последняя полученная новая документальная квитанция продуктаB — ответы R3/B-state issued20:54:22.413. Это разные действия/уровни, времяCI не переименовано в работу B. Originalpostmerge13jobsSUCCESS уже приняты отdot, не перечитывались. FreshB_EXECresponse **21:35:38.819590**, SHA0e77cdae…: новый acceptedR2immutable/toolingsuccessor не появился; issuer не переключён, кейс6/егооперация не повторялись. Сам B.json и protectedinputs не читались. ОтказникB отдельно принял PR32721:25:36/readback21:26:12; не назван productB.
+
+**C:** read21:35:38.806378 снова даёт исходныйSHA576a660b…, последнее доказанное C03R6/R7/R8result20:14:31.335165, exact7b58REWORK4P2. C_EXECresponse133427a8… не содержит ответа на существующий continuationrequest/R9/C.json. Запросы не продублированы, новый sourcewriter или запуск не созданы. Конкретные четыре инварианта и остаток C00–C07 уже разобраны в предыдущем принятом REPORT; нового исхода нет. Факт завершённого ответа/простоя или фактического начала исправления по этим документам всё ещё **UNKNOWN**.
+
+CurrentGitHub **docs/development/coordination/PLAN.md** прочитан адресно:12499chars, blob **102e955a68d228abd67420c9496e01a5fd98ea72**,21ID; изменений относительно принятогоPLANнет. Ошибочный путь PLAN.md внутри auditdirectory вернул404, это отсутствие файла, не securityrefusal; затем использован уже указанный в собственномREPORT canonicalcoordinationpath. PLAN не переписан. РаннийStore допускает независимый минимальныйсрез до общегоC06; это не снимает конкретные exactpackage/authority/STOP0.2.40 и не превращает developmentZIP в Storeприёмку. Другие A01–A06/B01–B07/C00–C07 не объявлены повторно полностью проверенными.
+
+## R128 — выполненный независимый продуктовый review, один подтверждённый P2
+
+Проверен предложенный полный **16047byte** patch **18ab12238fe6cca63361bcddc10bda68027f63de256cf78ea21f5e0e369ca791** exactsource **004e7bf41cea46d7819ae4e8c4d8149e761889ed/tree fcbcb21f879efe482de7d6a8e05755b7f54666bd**. Прочитаны окружающие popup/runtimeпути и existingZIP73eac2383…; хеши трёхsourceфайлов и ZIPсовпали, новых runsнет. В R128handoff/именах existingR128evidence другого готового review не найдено; offer адресован этому Controller, Tester остаётся sourceauthor.
+
+**REWORK_REQUIRED_SOURCE_SCOPED, P2=1.** Runtime1991–1996 теперь классифицирует наблюдённый OzonSellerHTTP400/code3/auth_or_permission какCREDENTIAL_REJECTED и сохраняет httpStatus400. Popup.js:56 hardcodes «Ключ отклонён(401)», а фактический renderverification на292 использует только texts[v.code], игнорируя сохранённыйv.httpStatus. Это же содержится в developmentZIPpopup56/292 и shared/application.js3280–3283. Новый400путь выдаёт владельцу не наблюдавшийся401. Диагностический дефект, не заявленная утечка/accessbypass.
+
+Причина: domainсемантического кода расширен за пределы401, но старое соответствие code→fixedHTTPв публичномconsumer не обновлено. Не выдуманы мотивы автора или полный охват старыхtests. Требуемое причинное исправление — agnosticcredentiallabel либо отображение реально сохранённого/валидированногоhttpStatus; не маскировать400под401, не ослаблять узкое распознавание400/code3/message/privacy/no-retry/revision. Нужная последующая проверка реальногоpopupconsumer должна различать observed400credential,обычный401,иной400и403. Controller не запускал её.
+
+Для R109sameStart/statusownership, R115WBquota-copyboundary, R122terminaloutcome/retention/replayfence в прочитанномpatch/context дополнительного подтверждённогоP1/P2 не установлено; это ограниченныйsourceвывод, не полная concurrency/installedприёмка. B02-03 допускает реальный ответ **или понятную ошибку**, остальные realfullreport/expiryсценарии остаются отдельными. Повторыпубликации040/issuer/профилей не разрешены review.
+
+Заключение сохранено прямо в **существующей секции12 DOT_AI_SNAPSHOT_HANDOFF.md**, marker `CONTROLLER_R128_FOUR_FIX_SOURCE_REVIEW_EXACT004E_20261026`.
+Запись **21:46:11.414441**, независимый полный readback **21:46:32.511706 MATCH**, SHA **2f06031979128aee47c4d97fd3d032a9bc363c71e387b3b1f1f820b0d316fa54**, +4579bytes. Fresh7locks/handoffflock, targetsotherwriters=[],unknownvisibility=[], source3hash/CAS/canonicalWIPпроверены. Inverseвозвращает7538f3a6…, каждый старыйбайт сохранён. Это завершённый sourceREWORK, **не исправление автором и не егоACK**.
+
+## I1 — актуальный источник прав найден; scope не захвачен
+
+В21:38:24 лично прочитаны exacthandoffSHA96149da8… и существующая Acoordinationrecord; A_EXECresponse **26025b52…** остаётся тем же. Сам scheme лежит по уже сохранённому nestedpointer, не создан заново. Aответ18:17:32 уже потреблён Controller18:42:25: **released_paths=[]**, Aне доказал исключительные права двух sharedsourcepaths и не может их передать.
+
+Точные четыре пути:
+1. packages/control-client/src/client.js;
+2. packages/control-client/src/parallel-authority.js;
+3. tests/regression/extension-core/client-i1/installed_local_integration.py;
+4. tests/regression/extension-core/client-i1/test_bootstrap_response_observer.py.
+
+Существующий I1отказник **01a1665e-bc9e-77eb-b810-956c852990ec** уже владеет только двумяharnesspaths и сохраняетихWIP. Подготовленный detachedcarrier **/root/octoport-control/worktrees/controller/REFUSAL-I1-PR253-20261025**, HEAD1c6dcc88…/tree41789f3b…,17:31receipt — **исторический**, не новая sourceпроверка. Изготовление дополнительных copies/схем, sourceGit/processpreflight или I1rerun не выполнялись.
+
+В **21:39:49.236307** адресно прочитан известный pointer operator/state.json#/current_personal_implementation/latest_successor_continuation/active_source_scope. SHA **09f50639cccc32fe91ae7883db99366826fb6132e5ca0fc5a3cc7440519595ad** совпал со старым: оба control-clientпути сохраняются в историческом authorizationscope Tester/OPERATOR, record19Oct16:28Z. Это действующая документальная competingclaim до явнойdisposition, **не доказательство активногоредактирования и не freshrelease**. Нельзя выдавать A, Controller или I1исключительные sourceправа по одному cleanfile/отсутствиюновыхmtime.
+
+Продвинут следующий требуемый шаг вместо второго запроса A: в существующем Testerhandoff секции12 записан **узкий запрос текущей disposition только этих двух paths** к уже записанномувладельцу на его обычномcheckpoint, без остановки B02/новыхprocesschecks. Marker `CONTROLLER_I1_EXISTING_TWO_PATH_OWNER_DISPOSITION_20261026`, та же существующая I1coordinationtask. Запрошены retainedcurrentowner/carrier/ref/WIP/lastoutcome либо explicitnarrowrelease/nonoverlap при реальной безопасности; возвращать в собственномexistingcheckpoint/handoff, не в чужойAstate. Это не новое поручение реализоватьI1 или общая просьба разрешитьоперацию владельцу.
+
+**Запись21:48:18.884486** вернула success/written=true, targetSHA **8f3d52958b9a0d449bff2cc6b2373f1dd036a1088abac414d84a9feeadc355f6**, +2602bytes, все priorbytes включаяR128review сохранены по собственномуpostwritecheck. Fresh7locks+handoffflock/solewriter/CAS/canonicalWIP; освобождение21:48:18.885777 подтверждено writecall. **Независимый readback этого второго дополнения НЕ подтверждён:** start_process вернул `McpServerError: Connection timed out.`, UNAVAILABLE/network_error, безPID/callID. Исход nativeREADBACK **UNKNOWN**, не объявленNOT_EXECUTED. Оригинальная запись известнауспешной; повторнойзаписинет.
+
+Штатный **list_remote_tool_calls(limit3)** вернул `No retained background Remote MCP tool calls`; подходящегоcallID дляget_tool_result нет. Это не доказательство исполнения/неисполнения readback. Сам readbackчерездругойtool/author/device не повторён. Подтверждённый R128readback21:46 этим последующим transportedge не отменён. Последнее I1дополнение остаётся с точной границей независимогоподтверждения; release/receiveracceptance не состоялись.
+
+Следующая допустимая sourceпередача всё ещё требует текущую dispositionTester, свежую законную no-collision/WIPграницу и explicitacceptance существующегоI1executor. Новый общийownerYES этого факта не создаёт. Во время неизвестной активности sourceне перехвачен.
+
+## Объём и ограничения среза
+
+Исправлена собственная текущая AfullmoduleNOT_RUNпроекция по новойпервичке; выполнен адресныйпродуктовый R128review с конкретнымP2иverifiedhandoff; I1custodyупёрта в точногодержателя, уже записан адресныйдвухпутевой запрос без второгоsourceавтора. Cпродолжение и R2successor проверены одинраз: новогоисходанет, запросы/STOP/ресурсныеоперации не повторены. PR327ACKсохранён, те жеjoblogsнечитались. C00–C07 и все21цель прежнегоPLAN сохраняются. Неизвестнаяактивность потоков не названа простоемилиисполнением; новыйR128REWORKиunknownI1readback не подменены успешным другимдействием.
+
+---
+
 # Поиск простоя: проверка продолжения C и завершённое потребление R3 input — 26.10.2026
 
 <!-- CONTROLLER_POSTE0C_C_FOUR_P2_CONTINUATION_AND_R3_ORIGINAL_INPUT_20261026 -->
