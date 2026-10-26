@@ -70,6 +70,52 @@ describe("PostgreSQL incident state transition parity", () => {
     expect(locks).toBe(1);
   });
 
+  it("preserves firstSeenAt on re-observation and reopening while updating lastSeenAt", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const first = await store.observe(incidentInput);
+    expect(first.incident.firstSeenAt.toISOString()).toBe(
+      "2026-10-26T00:00:00.000Z",
+    );
+    const second = await store.observe({
+      ...incidentInput,
+      firstSeenAt: new Date("2026-10-26T00:00:01Z"),
+      lastSeenAt: new Date("2026-10-26T00:00:01Z"),
+      latestReportId: "second-report",
+    });
+    expect(second.incident.firstSeenAt.toISOString()).toBe(
+      "2026-10-26T00:00:00.000Z",
+    );
+    expect(second.incident.lastSeenAt.toISOString()).toBe(
+      "2026-10-26T00:00:01.000Z",
+    );
+    expect(second.incident.occurrenceCount).toBe(2);
+    expect(second.opened).toBe(false);
+    expect(
+      (
+        await store.resolve(
+          incidentInput.incidentKey,
+          new Date("2026-10-26T00:00:02Z"),
+          2,
+        )
+      )?.state,
+    ).toBe("RESOLVED");
+    const reopened = await store.observe({
+      ...incidentInput,
+      firstSeenAt: new Date("2026-10-26T00:00:03Z"),
+      lastSeenAt: new Date("2026-10-26T00:00:03Z"),
+      latestReportId: "third-report",
+    });
+    expect(reopened.opened).toBe(true);
+    expect(reopened.incident.firstSeenAt.toISOString()).toBe(
+      "2026-10-26T00:00:00.000Z",
+    );
+    expect(reopened.incident.lastSeenAt.toISOString()).toBe(
+      "2026-10-26T00:00:03.000Z",
+    );
+    expect(reopened.incident.latestReportId).toBe("third-report");
+    expect(reopened.incident.occurrenceCount).toBe(3);
+  });
+
   it("keeps a newer in-memory observation open if recovery uses an old occurrence count", async () => {
     const memory = new InMemoryApiWatchIncidentStore();
     const first = await memory.observe(incidentInput);
