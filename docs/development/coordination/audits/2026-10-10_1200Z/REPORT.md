@@ -1,3 +1,81 @@
+# Поиск простоя: полный PLAN21, R122, R2/tooling scope и новые опубликованные исходы — 26.10.2026
+
+<!-- CONTROLLER_PLAN21_R122_R2_SUCCESSOR_INPUTS_AND_PR325_20261026 -->
+
+Продолжение REPORT59c18bdc/readback18:44:09. Все прежние байты,21 цель, принятые результаты и история ниже сохранены. Это не новый roadmap, не общий audit_complete и не B02/B03 PASS. ЧатыA/B/C/Тестера, частные permissions, профили/секреты и protected resource inputs не открывались.
+
+## Текущий вход и охват
+
+В18:51:35.711577UTC+5 выполнен адресный documentary guard:7locks эксклюзивны, other_notice_writers=[],unknown_visibility=[], незавершённых Git markers нет. CanonicalHEAD030ce4bb356208e9dd0cda21b860d769d56ec807, indexSHA96916746f57956d4394de396dc299aecece21a74b8c5e52fb3dceb4098b59ad4, fullWIPSHA76b6681f42d0b9f1ad2ec7f19677b91af970e1f0494f19ccf68427b970aee7d6 совпали. Guard завершён18:51:35.712143 без записи; это не доказательство исхода двух старых unknown вызовов.
+
+Текущий GitHub PLAN.md прочитан адресно целиком:12499символов, точное равенство принятому blob102e955a68d228abd67420c9496e01a5fd98ea72, все21ID. PRIORITY_TASKS.md18:52:36 SHA297da8d8c81bd0e305d0f8207dccf6df17323a46265b6d8116c05d67957f6710 прежний. Полный часовой комплект не перечитывался.
+
+## Фактическая дельта A/B/C и действующих исполнителей
+
+**A.** В прочитанной текущей публикации PR283 последнее предметное действие остаётся локальный atomic apply17:21:15.436. Нового remote source inclusion/Next/PG E2E Controller не установил. Отдельный ответ A18:17:32 по I1 потреблён предыдущим продолжением; released_paths=[] сохраняется, не новое ожидание неполученного ответа. Текущие адресные A-response и ownership metadata проверены повторно только по заданию новой disposition, не Git/process-preflight за A.
+
+**B.** Новый [PR325](https://github.com/MaksimUnimax/runtime-fixtures/pull/325) открыт18:33:33, updated18:42:01, exactfb84479c32cc0d5fa6e4a8042c1d0c21d0990551/tree2c4e5009d2a08cc463647aabc0f5bafbca3c32e9. Лично прочитаны body и GitHub file metadata: packages/server/feedback-support/src/index.ts и index.test.ts, всего+360/−3. Автор сообщает soleB, nested/double-serialized JSON credential redaction, сохранение safe diagnostics, точных large-number lexemes и harmless deep JSON; R1REWORK/P2,3RED→3GREEN,156/156 author tests и R3ACCEPT по supplieddiff, без доступного reviewer checkout. Это атрибутированный опубликованный результат, не новый Controller review или installed acceptance.
+
+Его оригинальные push runs созданы18:45:15:40333355682Docs/40333355721Safety/40333355711Extension SUCCESS,40333355717I1 и40333355743Server in_progress на адресном срезе. Дополнительно дваPR-event runs Docs40331631649 иServer40331631906 SUCCESS. Значит5/5 native terminal SUCCESS ещё не подтверждены; полный job-count Controller не заявляет. Ожидание этих двух jobs не условие окончания данного аудита; Controller ничего не dispatch/rerun.
+
+Сопоставление с PR205 выполнено по текущей публикации: PR205upstream redactor own-__proto__ P2 относится к другой цепочке OzonProvider/redactSensitiveResult/projection и четырём иным source путям. PR325 не объявлен исправлением PR205. PR308/fixture48/50/case6 не поглощены новым B06-кандидатом.
+
+**C.** Принятый исход PR238/mainf5ec и three-pathR8/5nativefamilies13jobsSUCCESS сохранён без повторных проверок. Текущий PR323 c2f2f857… остаётся Draft/source-only, публикация updated18:32:15; старые I1ABORT и product PG/Telegram не закрыты. В body PR323 опубликован ещё один отрицательный исход: попытка сохранить новое заключение в /root/octoport-control/C.json получила «Command not allowed», автор сообщает отсутствие альтернативного повтора. Native tool/callID/fullargs/время этого отказа не представлены; это атрибутированная первичка публикации, не восстановленный native envelope или новый отказ Controller. Не повторять команду или её части за C. Полнота исторического индекса не заявляется. Body PR323 «ACKPR320неподтверждён» не отменяет уже потреблённый Controller intake существующего отказникаB13:16/readback13:17; intake не sourcefix.
+
+## R122 лично потреблён: источник исправлен, installed остаток открыт
+
+В18:53:38 прочитаны полностью безопасные965/966/970/971-R122 JSON. 971SHAe737fbed1292a2f26ccc08ed90fb18bcbbc20fc77fbabc12bb15b6bf8dd5dcb4 подтверждает независимый checkpointreadback **18:45:57.990630MATCH**, checkpoint1d17aa66872f825ed229e41ebd2e4a1a101d8fbb3f849d170c5c1bc77fab5ff2, B02checkpoint3bb3c37c12bcb1997b370c91b1cb249d443f8edfb4c249cf53900b5e2c134a21. Прежние122records,39WIP hashes,43installedfiles0.2.39 сохранены; actualstandlauncher/networkchanges0. 0.2.40publicationSTOP прежний, proposal968 не применён и не получает разрешения здесь.
+
+965SHAfd1cb19585e8cfb0cbad24d7bdd133322ae9a7b3548a2c5e2e3e9fd5b25bd632 документирует причинную цепочку: исходный saPrunePayload безусловно менял outcome на FAILED; поздний retention сохранял completed buffer для Copy; cleanup этого retainedbuffer переворачивал completed вfailed при delivery_confirmedtrue. APP06 не проходил completion→expiry, поэтому этот переход не был покрыт. Мотивы автора/reviewer и неизвестный исторический release-process не выдуманы.
+
+Исправление сохраняет уже COMPLETED/FAILED outcome/error/time при удалении reportbytes, сохраняет replayfence; незавершённое поTTL по-прежнему FAILED/RESULT_BUFFER_EXPIRED. Sourcea71f4d96ca0ba17ec974c69bf58466c0ed397fea/tree849c7dfb1b34f77a8efe23e76cbdcca2c1cedc51, patchSHA648ae6b1470af113b475a863ae38cc11789d04c7a27e08896d5c3edd30d12cd2; runtime.js+application.mjs,134inputs/41outputs, только shared/application.js executableoutput изменён. Сохранённые RED959/afterGREEN964 и helper3/3PASS не названы installed regression. НовыйB02criterionPASS0; матрица **25PASS/0FAIL/5BLOCKED/3PARTIAL/48NOT_RUN**. B02-11loginexpiry,remoteattachmentbytes/реальнаяdelivery и пятьAIgates отдельны. R122source ещё требует независимого source review и installed acceptance; Controller здесь их не запускал. Обычное дальнейшее продолжение уже у того же Тестера, не дублировалось.
+
+## Продвинутый R2/tooling scope; точная текущая I1 disposition
+
+В18:59:30.810921 fresh7locks/noticeflock/solewriter/WIP/CAS сохранил только собственную подготовку **R2_tooling_successor_source_scope_preparation_20261026** в существующем issuer-разделе B-notice. Независимый полный readback **18:59:46.905879MATCH**, wholeSHA **b1ed67236a690a9c4c9682e9da6ac1868b157ac60df557b75a4057c423a7b89e**. Удаление единственной вставки возвращает прежнийcea1db52…; каждый старый байт/поле и canonicalsource/WIP/index сохранены.
+
+Минимальная source-интеграция будущего tooling successor теперь задана точно: retainedR2 producer package_owner_test_release.py + его test_package_owner_test_release.py у исходного B; workflow owner-test-package.yml Controller exact45966/blob4f79b9a5… с уже сохранённым scopedreview. Исторические dirtySHA93669fb5…/e34a0165… не названы свежим WIP. Eventualtoolingcommit/tree **UNSET**, executableR2artifact **NONE_CONFIRMED**. Это подготовка допустимой границы, а не изготовленный код/package.
+
+Ответ B прочитан18:52:36, documentSHAe46b4e2654b807f27135befc86f205dbc6281c2117b9a2bf9ef1c8d66cad4232: HOLD_RETAINED_BY_B_NOT_TRANSFERRED_TO_CONTROLLER; original combinedR2commit+B.json refusal/fullnativeargsUNKNOWN без новых существенных оснований. Нельзя копировать/пересоздавать heldpatch или выполнять commit как «новую» часть старого отказа. Сначала supported originaldisposition и legitimateexactsource/custodyrelease/acceptance; затем законный reviewedimmutable successor, source/toolingpublication с проверенными trigger-effects, настоящие gates/package, позднее localwholeadmission и квалифицированный API-onlyswitch. Ничего из этого не подменено общимYES на пятьcapabilities; этот YES уже действует. Hosted/local admission не смешиваются, probes/security/permissions/ROOTS не ослабляются.
+
+По I1 A-response в18:52:36 прежний26025b52…, release0. В18:55:39.921982 адресныеownershipmetadata state09f50639… прежние: active_source_scope sameexistingTester/OPERATOR, timestamp19Oct16:28:33UTC; обаcontrol-clientпути присутствуют, более поздний exacttwo-pathrelease в прочитанном источнике не установлен. Это не доказательство активной записи сегодня или отсутствия пересечения. Точный недостающий факт — текущая документальная disposition ровно client.js/parallel-authority.js от действующего держателя, с carrier/WIP/непересечением activeB02; затем законный senderrelease и existingI1executoracceptance. Нового общего ownerсогласия не требуется; Controller не вправе выдать Testerrelease сам и не отправляет ему новую работу/сообщение. Существующая A-заявка/её consumedprojection не дублируется. R9C-response133427a8… в18:52:36 по точному существующемуresponsekey по-прежнему отсутствует; новый запрос/PG не выполнялся.
+
+## Все21 цели: текущий доступный остаток
+
+| ID | Проверенный остаток/следующий результат |
+|---|---|
+| A01 | BrandedOpera/browser-family cause и productfix не приняты; syntheticChrome не замена. |
+| A02 | Productworker/transferresume/no-replay у действующего Тестера; helperPASS не весьprotocol. |
+| A03 | Реальная четырёхбраузерная installation/update matrix; Safariотложен. |
+| A04 | R122source outcome/retention новый; installed+multi-store/AI+PR205P2/I1 остаются. |
+| A05 | ДваP2 и исходная source/author platformграница; heldWIP не пересоздавать. |
+| A06 | Локальныйatomicapply доказан, remoteinclusion/6NextE2E ещёнет; старый Git/processSTOP не обходить. |
+| B01 | Legacy/appliedjournal/recovery separateacceptance, live не проверялся/не менялся. |
+| B02 | R98catalog44/44 сохранён; пятьsignedAIcapabilitygates ждут issuer, не новогоYES. |
+| B03 | Полный boundedrelay/accountquota/restart/no-replay совместноA02; R13завершён, не повторять. |
+| B04 | EligibleboundPR220/sourceCI/admission и36/41 отдельны, непринятый consumer не закрытmainf5ec. |
+| B05 | R2scope подготовлен; heldartifact/case6,48/50,PR320 и дваPR308P1 остаются отдельными. |
+| B06 | Новый2-file PR325/source+authorreview; nativeгейты ещёне5/5terminal, current-base/protectedmerge/readback открыты. |
+| B07 | Измеримыеbetaissues по прежнимкритериям; R115/R122source не installedacceptance. |
+| C00 | PR238nativepass сохранён; oldI1initiatorUNKNOWN, новыеB325runs не перезапускались. |
+| C01 | Принятый двухpinworkflow не acceptedR2package; fourrefSTOP не обходить. |
+| C02 | Mainf5ec интегрировал PR238; прочиеDraft/consumeracceptance не поглощены этимmerge. |
+| C03 | WBsource238 принят;323/324/320 и реальнаяPG/Telegram имеют собственныеgates. |
+| C04 | LoadedTelegram/monitoringroute/lanes/dedup/permissions не доказаны sourceCI. |
+| C05 | RealPG/app/recovery proof и R9primary отсутствуют, mocks не rehearsal. |
+| C06 | Browser/installed/rollback/support/Store доказательства неполны; общегоPASSнет. |
+| C07 | Exactartifact+health+rollback перед конкретнымrelease; sourceprep не deployment. |
+
+РаннийStore минимум поPLAN параллелен и не заблокирован автоматически всеми21целями. Dashboard/item/storeID/submissionreceipt в этом срезе не проверялись: ни выполненность, ни простой Store этим не установлены. Документальный исполнитель PR322/общихправил сохранён; нового автора нет.
+
+## Открытые отрицательные границы и организация
+
+Старый полный список и каждый его ответственный/сделанное/closurecondition сохранены ниже. Текущие зависимости: case6 — originaldisposition+R2release/artifact; PR308journalidentity и receipt/journal splitwrite/recovery — acceptedControllercustody уже есть, whole-operationadmission/exacteditablelineage ещёнет; fixture48/50 у existingrefusalB — егоSTOP/resourceproof отдельны; protected41/36/compound34 и C01fourrefs — без replay/proxy; PR320 — actual packwriterUNKNOWN, intake не repair; R9 — originalnativecapture; I1 — causalactor и новаяtwo-pathcustody; PR205 — upstreamP2 и originalsource-editSTOP; PR200 — profile/account envelopebindingUNKNOWN,reviewNONE; old4361reviewrefusal и старый C-noticeCASSTOP сохраняются; два0.2.40STOP не отсутствие точного ownerразрешения. Новый опубликованный C.jsonCommandNotAllowed добавлен отдельно с неизвестнымnativeenvelope, без повтора. Старый MAIN-resume№33 доказаннонеактуален именно как дополнительнаяоперация; этим не закрыты дваотдельныхP2. ЗавершённыйR13 не реанимирован.
+
+Установленный собственный пропуск — новый B06/source и R122final не были в предыдущемREPORT; теперь они потреблены с раздельной границейacceptance. Текущие R2/I1переходы не достигнуты, их документальная подготовка не названа ремонтом. Нового независимого productsource шага в этих двухграницах без отсутствующихcustody/disposition нет; это не общийSTOP всех21работ. Все остальные непроверенные пути не объявлены ни простаивающими, ни выполненными. Новых tests/review/CI/build, чужогоsource/live/DB/security, исходовunknown/rejectedreplay, моделей/расписаний не менялось.
+
+---
+
 # Поиск простоя: PR238 exact39df принят в трёхпутном SOURCE-scope; issuer stages уточнены — 26.10.2026
 
 <!-- CONTROLLER_PR238_EXACT39DF_ACCEPTANCE_AND_ISSUER_STAGE_QUALIFICATION_20261026 -->
