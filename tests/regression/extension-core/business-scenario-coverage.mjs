@@ -568,7 +568,7 @@ const calculators = {
           uniqueCount: null,
           pageCountProvesCompleteness: false,
         };
-      keys.push(`${row.period}\u0000${row.product}\u0000${row.query}`);
+      keys.push(JSON.stringify([row.period, row.product, row.query]));
     }
     return {
       uniqueCount: new Set(keys).size,
@@ -577,7 +577,7 @@ const calculators = {
   },
   search_fact_boundary(input) {
     if (
-      typeof input.period !== "string" ||
+      typeof input?.period !== "string" ||
       !input.period ||
       !Array.isArray(input.rows) ||
       !Array.isArray(input.aiSuggestions)
@@ -602,7 +602,7 @@ const calculators = {
           status: "INCOMPLETE",
           reason: "PROVIDER_SEARCH_METRIC_MISSING",
         };
-      const key = [input.period, row.product, row.query].join("\u0000");
+      const key = JSON.stringify([input.period, row.product, row.query]);
       if (keys.has(key))
         return {
           status: "INCOMPLETE",
@@ -619,7 +619,7 @@ const calculators = {
     };
   },
   search_position_boundary(input) {
-    if (typeof input.period !== "string" || !input.period)
+    if (typeof input?.period !== "string" || !input.period)
       return { status: "INCOMPLETE", reason: "PERIOD_MISSING" };
     if (input.region !== null && input.region !== undefined)
       return { status: "INCOMPLETE", reason: "REGION_FILTER_UNSUPPORTED" };

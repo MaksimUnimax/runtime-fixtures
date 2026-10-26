@@ -1518,6 +1518,75 @@
         "providerMovementEvents": 0,
         "writeoffOrTransferCauseProven": false
       }
+    },
+    {
+      "id": "search_dedup_delimiter_tuple_collision",
+      "kind": "search_dedup",
+      "input": {
+        "rows": [
+          {
+            "period": "2026-08",
+            "product": "1001\u0000sub",
+            "query": "dress"
+          },
+          {
+            "period": "2026-08",
+            "product": "1001",
+            "query": "sub\u0000dress"
+          }
+        ],
+        "pageCount": 2
+      },
+      "expected": {
+        "uniqueCount": 2,
+        "pageCountProvesCompleteness": false
+      }
+    },
+    {
+      "id": "search_fact_boundary_delimiter_distinct",
+      "kind": "search_fact_boundary",
+      "input": {
+        "period": "2026-08",
+        "rows": [
+          {
+            "product": "1001\u0000sub",
+            "query": "dress",
+            "frequency": 10,
+            "position": 5
+          },
+          {
+            "product": "1001",
+            "query": "sub\u0000dress",
+            "frequency": 10,
+            "position": 5
+          }
+        ],
+        "aiSuggestions": []
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "providerFactCount": 2,
+        "aiSuggestionCount": 0,
+        "aiSuggestionsAreProviderFacts": false
+      }
+    },
+    {
+      "id": "search_fact_boundary_null_input",
+      "kind": "search_fact_boundary",
+      "input": null,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PERIOD_OR_ROWS_MISSING"
+      }
+    },
+    {
+      "id": "search_position_boundary_null_input",
+      "kind": "search_position_boundary",
+      "input": null,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PERIOD_MISSING"
+      }
     }
   ]
 }
