@@ -62,15 +62,24 @@ export function familyAuthorityStatus(
       .filter((document) => document.authorityStatus === "AUTHORITY_ACCEPTED")
       .map((document) => document.documentKey),
   );
-  // A full family needs each exact registered document, not merely the same
-  // number of accepted records (which may include unrelated document keys).
+  const required = new Set(requiredDocumentKeys);
+  // A matching accepted-key count is insufficient: reject substituted keys,
+  // duplicate required keys, duplicate/denied rows, and extra unregistered rows.
   if (
-    requiredDocumentKeys.length > 0 &&
-    accepted.size === requiredDocumentKeys.length &&
-    requiredDocumentKeys.every((key) => accepted.has(key))
+    required.size > 0 &&
+    required.size === requiredDocumentKeys.length &&
+    documents.length === required.size &&
+    accepted.size === required.size &&
+    documents.every(
+      (document) =>
+        document.authorityStatus === "AUTHORITY_ACCEPTED" &&
+        required.has(document.documentKey),
+    ) &&
+    [...required].every((key) => accepted.has(key))
   )
     return "AUTHORITY_ACCEPTED";
-  if (accepted.size > 0) return "AUTHORITY_PARTIAL";
+  if ([...accepted].some((key) => required.has(key)))
+    return "AUTHORITY_PARTIAL";
   if (
     documents.some(
       (document) => document.authorityStatus === "AUTHORITY_REVIEW_REQUIRED",
