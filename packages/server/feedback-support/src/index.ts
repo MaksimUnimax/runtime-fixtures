@@ -294,6 +294,34 @@ function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
   try {
     parsed = JSON.parse(basic);
   } catch {
+    // A complete JSON envelope preceded by diagnostic prose is still safe
+    // to parse independently. The prefix is retained; nested string values
+    // are processed by the same bounded redactor as ordinary JSON.
+    const objectStart = basic.indexOf("{");
+    const arrayStart = basic.indexOf("[");
+    const candidateStart = Math.min(
+      objectStart < 0 ? basic.length : objectStart,
+      arrayStart < 0 ? basic.length : arrayStart,
+    );
+    if (candidateStart > 0 && candidateStart < basic.length) {
+      const candidate = basic.slice(candidateStart);
+      try {
+        JSON.parse(candidate);
+        return (
+          basic.slice(0, candidateStart) +
+          redactEmbeddedDiagnosticJson(candidate, depth + 1)
+        );
+      } catch {
+        // Damaged or truncated envelopes must not expose escaped embedded
+        // JSON credentials whose keys are hidden behind backslash quotes.
+      }
+    }
+    const hasNestedEscapes =
+      basic.includes('\\"') ||
+      basic.includes("\\'") ||
+      /\\u002[27]/iu.test(basic);
+    if (hasNestedEscapes && (basic.includes("{") || basic.includes("[")))
+      return "[REDACTED_SECRET]";
     // Ordinary text and pseudo-JSON remain covered by the existing scrubbers.
     return basic;
   }
