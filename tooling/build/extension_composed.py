@@ -88,6 +88,13 @@ def canonical_https_origin(value):
     assert isinstance(value, str)
     parsed = urlsplit(value)
     assert parsed.scheme == "https" and parsed.hostname
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise AssertionError("Invalid HTTPS origin port") from error
+    assert not parsed.netloc.endswith(":") and (port is None or 1 <= port <= 65535), (
+        "Invalid HTTPS origin port"
+    )
     assert parsed.username is None and parsed.password is None
     assert parsed.path in ("", "/") and not parsed.query and not parsed.fragment
     origin = "https://" + parsed.netloc
@@ -134,9 +141,10 @@ def read_store_authority_snapshot(path):
     # issuer acceptance, an Ed25519 signing permission or Store approval.
     no_follow = getattr(os, "O_NOFOLLOW", 0)
     directory_only = getattr(os, "O_DIRECTORY", 0)
-    if not no_follow or not directory_only:
+    nonblocking = getattr(os, "O_NONBLOCK", 0)
+    if not no_follow or not directory_only or not nonblocking:
         raise AssertionError("Secure store authority file opening is unavailable")
-    flags = os.O_RDONLY | no_follow | getattr(os, "O_NONBLOCK", 0)
+    flags = os.O_RDONLY | no_follow | nonblocking
     flags |= getattr(os, "O_CLOEXEC", 0)
     descriptor = None
     parent_descriptors = []

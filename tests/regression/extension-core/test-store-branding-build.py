@@ -146,6 +146,30 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
                 "Store receipt must hash bytes actually used to create packaged config",
             )
 
+    def test_store_authority_accepts_valid_https_ports(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-valid-port-") as temp:
+            file = Path(temp) / "synthetic.json"
+            for origin in ("https://api-a.example.test:443", "https://[::1]:8443"):
+                with self.subTest(origin=origin):
+                    file.write_bytes(self.serialized(origin))
+                    config, _ = composed.store_config(file, {"version": "0.2.37"})
+                    self.assertEqual(config["controlApiOrigin"], origin)
+
+    def test_store_authority_rejects_malformed_origin_ports(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-invalid-port-") as temp:
+            file = Path(temp) / "synthetic.json"
+            for origin in (
+                "https://api-a.example.test:not-a-port",
+                "https://api-a.example.test:65536",
+                "https://api-a.example.test:-1",
+                "https://api-a.example.test:",
+                "https://api-a.example.test:0",
+            ):
+                with self.subTest(origin=origin):
+                    file.write_bytes(self.serialized(origin))
+                    with self.assertRaisesRegex(AssertionError, "Invalid HTTPS origin port"):
+                        composed.store_config(file, {"version": "0.2.37"})
+
     def test_store_authority_duplicate_json_keys_fail_closed(self):
         original = self.serialized("https://api-a.example.test").decode("utf-8")
         self.assertIn('"controlApiOrigin":', original)
@@ -393,6 +417,17 @@ class StoreAuthoritySnapshotTests(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, "Invalid store release authority file"):
                     composed.store_config(file, {"version": "0.2.37"})
             self.assertTrue(swapped)
+
+    def test_store_authority_missing_nonblocking_flag_fails_before_open(self):
+        # Simulate the missing platform capability WITHOUT opening any FIFO.
+        with patch.object(composed.os, "O_NONBLOCK", 0), patch.object(
+            composed.os, "open", side_effect=AssertionError("UNSAFE_OPEN_ATTEMPT")
+        ) as attempted_open:
+            with self.assertRaisesRegex(
+                AssertionError, "Secure store authority file opening is unavailable"
+            ):
+                composed.store_config(Path("/synthetic-unused-authority.json"), {"version": "0.2.37"})
+            attempted_open.assert_not_called()
 
     def test_store_authority_fifo_refused_without_blocking(self):
         if not hasattr(os, "mkfifo"):
