@@ -259,8 +259,75 @@ function redactStructuredCredentialValues(input: string): string {
   return output + input.slice(cursor);
 }
 
+// A quoted sensitive value can contain an actual LF/CR even though that is
+// malformed JSON. The ordinary line-scoped redactor stops at that line break,
+// exposing the remaining credential in the persisted support description.
+// Consume the *whole* value, or fail closed on the entire malformed diagnostic
+// when its end cannot be established without guessing a safe boundary.
+const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
+
+function redactMultilineQuotedSecrets(input: string): string {
+  let output = "";
+  let cursor = 0;
+  let changed = false;
+  quotedValueStart.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = quotedValueStart.exec(input)) !== null) {
+    if (!isSensitiveQuotedKey(match[1]!)) continue;
+    const quote = match[4]!;
+    const valueStart = match.index + match[0].length - 1;
+    let escaped = false;
+    let rawNewline = false;
+    let closingIndex = -1;
+    for (let index = valueStart + 1; index < input.length; index++) {
+      const char = input[index]!;
+      if (char === "\n" || char === "\r") rawNewline = true;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) {
+        closingIndex = index;
+        break;
+      }
+    }
+    if (!rawNewline) continue;
+    changed = true;
+    output +=
+      input.slice(cursor, valueStart) +
+      quote +
+      "[REDACTED_SECRET]" +
+      (closingIndex >= 0 ? quote : "");
+    cursor = closingIndex >= 0 ? closingIndex + 1 : input.length;
+    quotedValueStart.lastIndex = cursor;
+  }
+  if (!changed) return input;
+  output += input.slice(cursor);
+  // A well-formed outer envelope or a JSON object pasted after a diagnostic
+  // prefix has a provable end. Otherwise an apparent closing quote might be
+  // just part of the credential: retaining any residual text would be unsafe.
+  const objectStart = output.indexOf("{");
+  const arrayStart = output.indexOf("[");
+  const firstContainer = Math.min(
+    objectStart < 0 ? output.length : objectStart,
+    arrayStart < 0 ? output.length : arrayStart,
+  );
+  try {
+    JSON.parse(
+      firstContainer < output.length ? output.slice(firstContainer) : output,
+    );
+    return output;
+  } catch {
+    return "[REDACTED_SECRET]";
+  }
+}
+
 function redactAccidentalSecretsBasic(input: string): string {
-  const stringsRedacted = input.replace(
+  const stringsRedacted = redactMultilineQuotedSecrets(input).replace(
     quotedStringField,
     (field, encodedKey: string, _keyQuote: string, delimiter: string) =>
       isSensitiveQuotedKey(encodedKey)
