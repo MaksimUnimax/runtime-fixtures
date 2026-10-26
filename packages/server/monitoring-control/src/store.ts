@@ -253,7 +253,8 @@ type StateRow = {
   updatedAt: Date;
 };
 
-const stateProjection = `SELECT lane,enabled,interval_seconds AS "intervalSeconds",next_run_at AS "nextRunAt",last_run_at AS "lastRunAt",active_run_id AS "activeRunId",active_run_source AS "activeRunSource",active_run_started_at AS "activeRunStartedAt",active_run_lease_expires_at AS "activeRunLeaseExpiresAt",last_result AS "lastResult",notification_failure_count AS "notificationFailureCount",last_notification_error AS "lastNotificationError",updated_at AS "updatedAt" FROM monitoring_lane_schedules`;
+const stateColumns = `lane,enabled,interval_seconds AS "intervalSeconds",next_run_at AS "nextRunAt",last_run_at AS "lastRunAt",active_run_id AS "activeRunId",active_run_source AS "activeRunSource",active_run_started_at AS "activeRunStartedAt",active_run_lease_expires_at AS "activeRunLeaseExpiresAt",last_result AS "lastResult",notification_failure_count AS "notificationFailureCount",last_notification_error AS "lastNotificationError",updated_at AS "updatedAt"`;
+const stateProjection = `SELECT ${stateColumns} FROM monitoring_lane_schedules`;
 
 function mapState(row: StateRow): MonitoringLaneState {
   const lane = MonitoringLaneSchema.parse(row.lane);
@@ -417,11 +418,11 @@ export function createPostgresMonitoringScheduleStore(
 
     async finishRun({ lane, runId, now, result }) {
       const safe = safeMonitoringResult(result);
-      const current = await read(runtime, lane);
-      if (!current.activeRun || current.activeRun.runId !== runId)
-        throw new Error("MONITORING_RUN_STALE_OWNER");
-      await runtime.query(
-        `UPDATE monitoring_lane_schedules SET last_run_at=$2,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,last_result=$3::jsonb,updated_at=$2 WHERE lane=$1 AND active_run_id=$4`,
+      // The conditional UPDATE owns completion. Reading the previous run
+      // outside this write cannot prove ownership across a lease takeover.
+      // RETURNING captures the exact committed row rather than a later run.
+      const changed = await runtime.query<StateRow>(
+        `UPDATE monitoring_lane_schedules SET last_run_at=$2,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,last_result=$3::jsonb,updated_at=$2 WHERE lane=$1 AND active_run_id=$4 RETURNING ${stateColumns}`,
         [
           lane,
           now,
@@ -429,7 +430,9 @@ export function createPostgresMonitoringScheduleStore(
           runId,
         ],
       );
-      return read(runtime, lane);
+      if (changed.rows.length !== 1)
+        throw new Error("MONITORING_RUN_STALE_OWNER");
+      return mapState(changed.rows[0]!);
     },
     async recordNotificationFailure({ lane, now, error }) {
       await runtime.query(
