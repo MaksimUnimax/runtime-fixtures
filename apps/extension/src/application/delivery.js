@@ -42,7 +42,7 @@ async function saPrepareDelivery(entries, owner) {
     const ref = await saWbOriginalArtifactRef(owner, entry, entryIndex);
     const filename = data.original_filename || `wb-report-${entry.operation || "result"}.${/pdf/i.test(data.content_type) ? "pdf" : /csv/i.test(data.content_type) ? "csv" : /spreadsheetml/i.test(data.content_type) ? "xlsx" : "bin"}`;
     await guard.assertCurrent();
-    const descriptor = await OzonFileDeliveryWorker.storeApplicationArtifact({ artifact_key: `provider:${ref}`,
+    const descriptor = await OzonFileDeliveryWorker.storeApplicationArtifact({ artifact_key: "provider:" + ref,
       source_kind: "original_provider_file", filename, mime_type: data.content_type,
       extension: OzonAIDeliveryCapabilities.extensionFromFilename(filename), bytes,
       created_at_ms: Date.now(), expires_at_ms: owner.payload_expires_at_ms });

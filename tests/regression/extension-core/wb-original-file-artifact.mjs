@@ -134,6 +134,7 @@ await check("provider_bytes_persist_before_descriptor", async () => {
   assert.match(first.provider_file_ref, /^sa_file_[a-f0-9]{64}$/);
   assert.equal(first.report_text.includes("content_base64"), false);
   original = records.get("provider:" + first.provider_file_ref);
+  assert.equal(original.artifact_key, "provider:" + first.provider_file_ref);
   assert.equal(original.byte_length, 9);
   assert.equal(original.sha256, crypto.createHash("sha256").update("synthetic").digest("hex"));
   assert(commits > 0);
