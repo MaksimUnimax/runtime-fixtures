@@ -29,6 +29,7 @@ ALTER TABLE "monitoring_lane_schedules"
 CREATE TABLE "api_watch_family_attempt_fences" (
   "source_family" varchar(32) PRIMARY KEY NOT NULL,
   "claimed_run_id" uuid,
+  "claimed_lease_expires_at" timestamp with time zone,
   "claim_stage" varchar(16) NOT NULL DEFAULT 'IDLE',
   "claimed_at" timestamp with time zone,
   "entered_at" timestamp with time zone,
@@ -38,14 +39,16 @@ CREATE TABLE "api_watch_family_attempt_fences" (
     CHECK ("source_family" IN ('OZON_SELLER','OZON_PERFORMANCE','WILDBERRIES')),
   CONSTRAINT "api_watch_family_claim_stage_check"
     CHECK (
-      ("claim_stage" = 'IDLE' AND "claimed_run_id" IS NULL AND "claimed_at" IS NULL AND "entered_at" IS NULL)
+      ("claim_stage" = 'IDLE' AND "claimed_run_id" IS NULL AND "claimed_lease_expires_at" IS NULL AND "claimed_at" IS NULL AND "entered_at" IS NULL)
       OR
-      ("claim_stage" = 'CLAIMED' AND "claimed_run_id" IS NOT NULL AND "claimed_at" IS NOT NULL AND "entered_at" IS NULL)
+      ("claim_stage" = 'CLAIMED' AND "claimed_run_id" IS NOT NULL AND "claimed_lease_expires_at" IS NOT NULL AND "claimed_at" IS NOT NULL AND "entered_at" IS NULL)
       OR
-      ("claim_stage" = 'ENTERED' AND "claimed_run_id" IS NOT NULL AND "claimed_at" IS NOT NULL AND "entered_at" IS NOT NULL)
+      ("claim_stage" = 'ENTERED' AND "claimed_run_id" IS NOT NULL AND "claimed_lease_expires_at" IS NOT NULL AND "claimed_at" IS NOT NULL AND "entered_at" IS NOT NULL)
     ),
   CONSTRAINT "api_watch_family_unknown_idle_check"
-    CHECK (NOT "outcome_unknown" OR "claim_stage" = 'IDLE')
+    CHECK (NOT "outcome_unknown" OR "claim_stage" = 'IDLE'),
+  CONSTRAINT "api_watch_family_claim_lease_valid_check"
+    CHECK ("claimed_lease_expires_at" IS NULL OR ("claimed_at" IS NOT NULL AND "claimed_lease_expires_at" > "claimed_at"))
 );
 --> statement-breakpoint
 INSERT INTO "api_watch_family_attempt_fences" ("source_family")

@@ -51,6 +51,12 @@ describe("C03 retry provenance migration source contract", () => {
     expect(sql).toContain("'CLAIMED'");
     expect(sql).toContain("'ENTERED'");
     expect(sql).toContain('"outcome_unknown" boolean NOT NULL DEFAULT false');
+    expect(sql).toContain(
+      '"claimed_lease_expires_at" timestamp with time zone',
+    );
+    expect(sql).toContain('"claimed_lease_expires_at" IS NULL');
+    expect(sql).toContain('"claimed_lease_expires_at" IS NOT NULL');
+    expect(sql).toContain("api_watch_family_claim_lease_valid_check");
     expect(sql).toContain('retry."next_retry_at" IS NOT NULL');
     expect(sql).toContain('"active_run_id" IS NOT NULL');
   });

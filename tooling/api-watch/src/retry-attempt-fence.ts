@@ -14,6 +14,8 @@ export type ApiWatchAttemptFence = {
   sourceFamily: SwaggerSourceFamily;
   claimStage: "IDLE" | "CLAIMED" | "ENTERED";
   claimedRunId: string | null;
+  /** Persisted original run lease boundary, not a caller's recovery guess. */
+  claimedLeaseExpiresAt: Date | null;
   claimedAt: Date | null;
   enteredAt: Date | null;
   outcomeUnknown: boolean;
@@ -43,14 +45,17 @@ function verifyFence(state: ApiWatchAttemptFence): void {
   if (
     (state.claimStage === "IDLE" &&
       (state.claimedRunId !== null ||
+        state.claimedLeaseExpiresAt !== null ||
         state.claimedAt !== null ||
         state.enteredAt !== null)) ||
     (state.claimStage === "CLAIMED" &&
       (!state.claimedRunId ||
+        state.claimedLeaseExpiresAt === null ||
         state.claimedAt === null ||
         state.enteredAt !== null)) ||
     (state.claimStage === "ENTERED" &&
       (!state.claimedRunId ||
+        state.claimedLeaseExpiresAt === null ||
         state.claimedAt === null ||
         state.enteredAt === null)) ||
     !["IDLE", "CLAIMED", "ENTERED"].includes(state.claimStage) ||
@@ -61,7 +66,8 @@ function verifyFence(state: ApiWatchAttemptFence): void {
     if (!UUID.test(state.claimedRunId ?? ""))
       throw new Error("API_WATCH_RETRY_FENCE_RUN_INVALID");
     const claimed = validTime(state.claimedAt!);
-    if (claimed > validTime(state.updatedAt))
+    const expiry = validTime(state.claimedLeaseExpiresAt!);
+    if (expiry <= claimed || claimed > validTime(state.updatedAt))
       throw new Error("API_WATCH_RETRY_FENCE_TIME_INVALID");
     if (
       state.enteredAt &&
@@ -81,16 +87,26 @@ function requireLease(
   lease: ApiWatchAttemptLease,
   expectedRunId: string,
   now: Date,
+  persistedLeaseExpiresAt?: Date | null,
 ): void {
   if (!UUID.test(expectedRunId) || lease.runId !== expectedRunId)
     throw new Error("API_WATCH_RETRY_FENCE_STALE_OWNER");
-  if (validTime(lease.leaseExpiresAt) <= validTime(now))
+  const offeredExpiry = validTime(lease.leaseExpiresAt);
+  if (
+    persistedLeaseExpiresAt &&
+    offeredExpiry !== validTime(persistedLeaseExpiresAt)
+  )
+    throw new Error("API_WATCH_RETRY_FENCE_STALE_OWNER");
+  if (offeredExpiry <= validTime(now))
     throw new Error("API_WATCH_RETRY_FENCE_LEASE_EXPIRED");
 }
 
 function copyFence(state: ApiWatchAttemptFence): ApiWatchAttemptFence {
   return {
     ...state,
+    claimedLeaseExpiresAt: state.claimedLeaseExpiresAt
+      ? new Date(state.claimedLeaseExpiresAt)
+      : null,
     claimedAt: state.claimedAt ? new Date(state.claimedAt) : null,
     enteredAt: state.enteredAt ? new Date(state.enteredAt) : null,
     updatedAt: new Date(state.updatedAt),
@@ -108,6 +124,7 @@ export function emptyApiWatchAttemptFence(
     sourceFamily,
     claimStage: "IDLE",
     claimedRunId: null,
+    claimedLeaseExpiresAt: null,
     claimedAt: null,
     enteredAt: null,
     outcomeUnknown: false,
@@ -136,6 +153,7 @@ export function claimDueApiWatchAttempt(input: {
     ...copyFence(state),
     claimStage: "CLAIMED",
     claimedRunId: lease.runId,
+    claimedLeaseExpiresAt: new Date(lease.leaseExpiresAt),
     claimedAt: new Date(now),
     enteredAt: null,
     updatedAt: new Date(now),
@@ -157,7 +175,7 @@ export function enterClaimedApiWatchAttempt(input: {
   requireClock(state, now);
   if (state.claimStage !== "CLAIMED" || !state.claimedRunId)
     throw new Error("API_WATCH_RETRY_NOT_CLAIMED");
-  requireLease(lease, state.claimedRunId, now);
+  requireLease(lease, state.claimedRunId, now, state.claimedLeaseExpiresAt);
   return {
     ...copyFence(state),
     claimStage: "ENTERED",
@@ -182,10 +200,13 @@ export function releaseUnenteredApiWatchAttempt(input: {
     throw new Error("API_WATCH_RETRY_WAS_ENTERED_OR_NOT_CLAIMED");
   if (state.claimedRunId !== runId)
     throw new Error("API_WATCH_RETRY_FENCE_STALE_OWNER");
+  if (validTime(state.claimedLeaseExpiresAt!) <= validTime(now))
+    throw new Error("API_WATCH_RETRY_FENCE_LEASE_EXPIRED");
   return {
     ...copyFence(state),
     claimStage: "IDLE",
     claimedRunId: null,
+    claimedLeaseExpiresAt: null,
     claimedAt: null,
     enteredAt: null,
     updatedAt: new Date(now),
@@ -200,20 +221,22 @@ export function releaseUnenteredApiWatchAttempt(input: {
 export function expireApiWatchAttemptFence(input: {
   state: ApiWatchAttemptFence;
   priorRunId: string;
-  priorLeaseExpiresAt: Date;
   now: Date;
 }): ApiWatchAttemptFence {
-  const { state, priorRunId, priorLeaseExpiresAt, now } = input;
+  const { state, priorRunId, now } = input;
   verifyFence(state);
   requireClock(state, now);
   if (state.claimedRunId !== priorRunId || state.claimStage === "IDLE")
     throw new Error("API_WATCH_RETRY_FENCE_STALE_OWNER");
-  if (validTime(now) < validTime(priorLeaseExpiresAt))
+  // Recovery trusts only the deadline stamped on the persisted claim.
+  // The eventual DB consumer must lock the lane and family row first.
+  if (validTime(now) < validTime(state.claimedLeaseExpiresAt!))
     throw new Error("API_WATCH_RETRY_FENCE_NOT_EXPIRED");
   return {
     ...copyFence(state),
     claimStage: "IDLE",
     claimedRunId: null,
+    claimedLeaseExpiresAt: null,
     claimedAt: null,
     enteredAt: null,
     outcomeUnknown: state.claimStage === "ENTERED",
