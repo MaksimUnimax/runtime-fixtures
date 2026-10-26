@@ -698,7 +698,7 @@ export async function runAuthorityPass(input: {
   // A retry is not permission to ingest an unrelated ready upload.
   const scopedRegistry = input.sourceFamilies
     ? scopeSourceRegistry(input.registry, input.sourceFamilies)
-    : safeInput.registry;
+    : input.registry;
   const safeInput = { ...input, registry: scopedRegistry };
   const ready = input.sourceFamilies
     ? []
