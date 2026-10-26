@@ -210,6 +210,34 @@ describe("C03 per-family durable retry fence state", () => {
     ).toThrow("API_WATCH_RETRY_WAS_ENTERED_OR_NOT_CLAIMED");
   });
 
+  it("rejects forged family values and a nonboolean UNKNOWN flag at runtime", () => {
+    expect(() =>
+      emptyApiWatchAttemptFence("UNAUTHORIZED_SOURCE" as never, t0),
+    ).toThrow("API_WATCH_RETRY_FENCE_FAMILY_INVALID");
+    expect(() =>
+      claimDueApiWatchAttempt({
+        state: {
+          ...emptyApiWatchAttemptFence("OZON_SELLER", t0),
+          sourceFamily: "OTHER_MARKETPLACE" as never,
+        },
+        nextRetryAt: t0,
+        lease,
+        now: at(1),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_FAMILY_INVALID");
+    expect(() =>
+      claimDueApiWatchAttempt({
+        state: {
+          ...emptyApiWatchAttemptFence("OZON_SELLER", t0),
+          outcomeUnknown: "false" as never,
+        },
+        nextRetryAt: t0,
+        lease,
+        now: at(1),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_STATE_INVALID");
+  });
+
   it("refuses invalid state and a reversed clock", () => {
     expect(() =>
       claimDueApiWatchAttempt({

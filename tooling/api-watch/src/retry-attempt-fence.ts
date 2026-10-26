@@ -1,3 +1,4 @@
+import { SwaggerSourceFamilySchema } from "@product/monitoring-control";
 import type { SwaggerSourceFamily } from "./types.js";
 
 /**
@@ -35,6 +36,10 @@ function validTime(date: Date): number {
 
 function verifyFence(state: ApiWatchAttemptFence): void {
   validTime(state.updatedAt);
+  if (!SwaggerSourceFamilySchema.safeParse(state.sourceFamily).success)
+    throw new Error("API_WATCH_RETRY_FENCE_FAMILY_INVALID");
+  if (typeof state.outcomeUnknown !== "boolean")
+    throw new Error("API_WATCH_RETRY_FENCE_STATE_INVALID");
   if (
     (state.claimStage === "IDLE" &&
       (state.claimedRunId !== null ||
@@ -97,6 +102,8 @@ export function emptyApiWatchAttemptFence(
   now: Date,
 ): ApiWatchAttemptFence {
   validTime(now);
+  if (!SwaggerSourceFamilySchema.safeParse(sourceFamily).success)
+    throw new Error("API_WATCH_RETRY_FENCE_FAMILY_INVALID");
   return {
     sourceFamily,
     claimStage: "IDLE",
