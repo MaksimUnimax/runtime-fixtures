@@ -1,3 +1,79 @@
+# Поиск простоя: восстановлен полный адресный охват аудита — 26.10.2026
+
+<!-- CONTROLLER_FULL_PLAN_CONTINUATION_GAP_154323_163447_20261026 -->
+
+**Период проверки15:43:23–16:34:47UTC+5; адресное чтение16:37–16:44.** Продолжение того же Controller, не новыйroadmap и не объявление полного исторического auditPASS. Старый REPORT99636439 и весь его текст сохранены. После узкого R119ответа16:12 общий аудит ещё не был доведён: новые разрешённые публикации A/C и связь со всеми21целями PLAN не были потреблены в собственном REPORT. Это конкретный пропуск собственного документального охвата; ниже он устранён. Данных для заявления «простоев нигде нет» недостаточно. Время чтения не считается временем работы исполнителя.
+
+Freshownauthor/locks/WIPguard16:37:12.987576:6locks, othernoticewriters=[],unknownvisibility=[],pendingdocumentWIP=[],Gitoperationmarkers=[]; canonicalHEAD030ce4bb/indexSHA96916746…/fullWIPSHA76b6681f… совпали с предыдущим срезом. Guard освобождён16:37:13 без записи. Main по GitHub остаётся416acb5b49284cf65604945094f641fca7727586; PLAN immutableblob102e955a68d228abd67420c9496e01a5fd98ea72 прочитан полностью из уже сохранённой первички, все21ID сохранены. PRIORITY_TASKS.md SHA297da8d8c81bd0e305d0f8207dccf6df17323a46265b6d8116c05d67957f6710 прежний. Полный часовой комплект, чатыA/B/C/Тестера и защищённые ресурсные inputs не читались.
+
+## Дельта предметной работы
+
+**A.** [PR283comment6408447235](https://github.com/MaksimUnimax/runtime-fixtures/pull/283#issuecomment-6408447235): новое действие16:03:54.644UTC+5, публикация16:04:09. Один detachedpatch22259байт/SHA2566500969adbf94d73c4a29ef87d37c08e6c855b570df1e8d70fc1521586de27e5 объединяет прежние paging/ABA и exactR3selector hunks в3пути. Новый prospective main416treee91ba527b18e88d1814ba6da5d49ae03dfd7901d; это не GitHub/Easyscriptsourcecommit. Ожидаемые blobs:page d7cae8e4afe62affc01fb969f35cbf3f9d090041;paginationtest06e520fac26adf2066dba5f76fe10890bc0339d6;R3test98b6ad0506725a5ba4a7d6f63bbe43d97b61703a. Шесть новых pagination/ABA E2E NOT_RUN; старое число5 относится к прежнему proposal. Standalonetranspile PASS не React/Next/PG/E2E. Прежний14/14hookstub и вопрос page2revoke/возврата к первой50 относятся к14:34, не приросту этого периода. Поведение после revoke — UXвопрос, не выдуманныйsecurityP2. PRhead8e644/Draft прежний, исходная compoundGit/process safetyграница остаётсяUNKNOWN; копировать/applyproposal другимactor нельзя. Новая независимая работа A есть; весь A не объявлен простаивающим.
+
+**B.** В16:37:13 B_EXECUTION_RESPONSE SHAe46b4e2654b807f27135befc86f205dbc6281c2117b9a2bf9ef1c8d66cad4232 отличается от прежнего61036…; это не время новой предметной операции. Адресно потреблены только case6/sourcecustody/c72review поля: case6return08:26:18.719 сохраняет retainedR2HOLD, acceptedimmutableartifactNONE, originalcompoundargsUNKNOWN; PR308release09:33:40.480 историческийoffer уже принят Controller09:48/readback09:49, ожиданиеB-release НЕреанимируется; c72four-fileACCEPT10:21:43.108 остаётсяSOURCE-only. Изменённый resourcecandidate-раздел не использован для обхода№41 или полученияaggregateadmission. PR308/266/220/200/191comments API_since15:43:23 не вернул новых публикаций. Свежего B sourcefix/завершения в доступной границе не установлено; отсутствие комментария и staleполе не доказывают globalidle. Custody fixture остаётся у отказникаB, не уproductB/Controller.
+
+**C.** [PR324](https://github.com/MaksimUnimax/runtime-fixtures/pull/324), sourceissued16:13:54.214/created16:13:57: exact3b2f4e0e4472dc536eb36c7b5f1b932150f6cd8a,tree993bc23474d5df2ff2a2e4abace036b56e828776,parentmain416. Три пути report.ts/report-transition-row-lock.test.ts/report-read-consistency.test.ts,+166/-12. Предмет: header/source SELECT под однимtransaction/FORSHARE; createReportINSERT+readback атомарны. Авторские800/800 и локальныеR1–R8 — опубликованная authorprimary, не повтор Controller. Лично прочитан существующий R11verdict16:43:54, SHA2567ae176bab2ceb8568bf7b8ef038a8ea8ee6c6761a24e1453da9058ea248d8b14, resultnativeexit0: ACCEPT_SOURCE_SCOPED,0sourceP0/P1/P2, но отдельный **P2validationgap** — SQLfakes не доказывают PGlockwaits/READCOMMITTEDvisibility/sametransactionclient. Контроллер не запускал reviewer или PG.
+
+Лично прочитаны оригинальные nativejobs exact3b2: pushServer40313600865(2),Extension40313600868(6),I140313600915(3),Docs40313600884(1),Safety40313600888(1),13/13SUCCESS; последнийserver121540627270 завершён16:33:39, внутри проверяемого периода. Отдельные PRServer40313517191(2)/Docs40313517204(1) такжеSUCCESS. Expectedskippedsteps frozenserverimport/frozenbrowserselection, а наPRServer package/preserve-package не названы исполненными. Terminalcomment6415053235 issued16:36:51.722/posted16:36:56 — отдельный post-cutoffaddendum, не подмена времени результата16:33:39. PR324остаётсяDraft/NOmerge до физическойPGвалидации либо подлинного разрешённогоdisposition.
+
+PR323c2f прежнийDraft: originalselectedbootstrapABORT160ms не закрыт successI1PR324. [PR317comment6407199677](https://github.com/MaksimUnimax/runtime-fixtures/pull/317#issuecomment-6407199677), новое source-onlyобъяснение16:28:24.571: ещё один exactselectedbootstrapSUCCESS на неизменномharnessff963bba… среди прежних140/141/160msFAIL. Это наблюдение, не установленный инициатор/причина старогоabort. Нового I1rerun Controller не делал. A/Cexecution-response fingerprints e7117d59…/133427a8… прежние и не использованы как доказательство отсутствия работы.
+
+## Полная цель PLAN: проверенный остаток и доступность продолжения
+
+| ID | Остаток, граница и следующий предметный результат |
+|---|---|
+| A01 | Opera/browser-family реальная причина и исправление ещё не подтверждены этим срезом; R118syntheticChrome не заменяет brandedOpera. Новую browserпроверку Controller не назначал. |
+| A02 | R1184/4 касается syntheticworkertransport, не переносаproductсекретов/resume/no-replay. Следующий результат — настоящий productworker lifecycle в custody действующего Тестера; не второй запуск. |
+| A03 | Реальная Chrome/Opera/Yandex/Firefox matrix и установки остаются отдельными; Safarideferred. Нет новых browserrelease receipts в проверенной границе, а не установленный общий запрет работы. |
+| A04 | AliceR119 движется; multi-store/AI/delivery/sync/revocation не приняты полностью. PR205P2/старыйI1аборт и поздниеcallbackfences отдельно; новые source/stubPASS не закрывают Q1-C. |
+| A05 | ДваP2/R23 source исправления сохраняются; исходная platform/sourceboundary не разрешена. Custodyнеповторять, запрещённыйguard не обойти независимымкопированием. |
+| A06 | Новый3-file proposal готов толькоdetached;6NextE2E NOT_RUN. Нужна допустимая originalwriter/Gitграница, затем productintegration наexactcandidate; currentproposal не deployedfix. |
+| B01 | Live/appliedjournal/legacyline не проверялись и не менялись. Fresh/canonicalmigrationCI не fulllegacyacceptance; отдельныйauthorizedcompatibility/recoveryproof нужен. |
+| B02 | Согласованные44catalogдействияR98 сохранены; пятьAIgates ждут actualissuerrelease/readback. c72SOURCEACCEPT не подпись/installedPASS. Полномочие09:17:59 действует. |
+| B03 | BoundedrelayTTL/accountquota/restart/no-replay остаются общейprotocolцепочкой сA02; старыйR13не запускать, нового boundedruntime результата здесь нет. |
+| B04 | PR220073c2/5 и eligibleboundнеabsorb/main; resource36/41admission не доказан. Новые scope-limited Testeradmission904 не допуск issuer/fixture/PR308. |
+| B05 | case6R2retainedWIP/acceptedimmutableNONE,48/50STOP,PR320negative и обаPR308P1 отдельны. Wholeoperationadmission/exacteditablelineage нужны до ремонта; новогоstorageconsent не требуется. |
+| B06 | PR235IDNA/admission/admin/support и межаккаунтныеconsumeracceptance не закрыты этимсрезом; sourceCI другогоSHA не их приёмка. Новыхmutations Controller не назначал. |
+| B07 | Новые измеримыеbetaissues продолжают прежние критерии; R115подсказка6/6composed не installedregression. ЧужойWIP не передавался. |
+| C00 | NativeCI проверен exact3b2; recurringI1initiatorUNKNOWN. Fresh native success не обнуляет прежниеFAIL и не делает общуюочередьWAIT. |
+| C01 | Существующие exactrelease/trustфакты сохраняются; fourrefSTOP иcase6toolinggap не обходились. c72/45966reviews не qualificationpackage; ниpermissions,ниROOTS не менять. |
+| C02 | PR324/323/320Draft, main416прежний; normalintegration только после конкретныхreleasegates. Новых mergeполномочий/действий Controller не выводит из greenCI. |
+| C03 | НовыйPR324coherentreport SOURCE готов; физическийPGproofblocked отдельно. PR323sourceacceptedноI1FAIL,PR320PRServerFAIL; никакого productwidePASS. |
+| C04 | ActualTelegram/monitoringservicewiring/lanes/dedup/permissions не доказаны новымиsourceCI; Health/B02 уТестера. Не создаватьновыйстенд/расписание. |
+| C05 | RealdisposablePG/app/recovery остаётсянепринятой; JSON/mocks не rehearsal. Запрет новогоDB/test в этомаудите не объявлен вечным ownerзапретом всей независимойразработки. |
+| C06 | Общаяreadiness не пройдена: installed/browser/rollback/security/supportevidence неполное. Audit_complete=false; неизвестный historicalindex не восстановленизсводок. |
+| C07 | Отдельное разрешение на конкретныйrelease требует exactartifact/health/rollback. Нет deployment,production илиновогоStoreдействия; раннийsafeStoreпуть не поставлен в зависимость от всех21целей. |
+
+Это сопоставление всех21целей, а не утверждение свежей проверки каждого кода/браузера/Store/dashboard. РаннийChrome/Opera/Firefox/YandexStoreминимум поPLAN параллелен разработке; ownerрегистрация/ранняяподача уже разрешены. Dashboard/storeID/version/submissionreceipts здесь не прочитаны: отсутствиепубликации/простойStore не доказаны. PR3227e3952Draftтриdoc сохранён, futureautoclicker только после полногоproductB02 передproductB03; техническиеIDнеперенумерованы. Новыйdocauthor не создан, чужиеобщиеправиланепереписаны.
+
+## Тестер и служебные исполнители
+
+После900прочитаны только безопасные903/904/905/906/908/910/911R119JSON. Последние внутренние времена:90316:13:39.644 — exactinstalledOzoncontractinput/90байтsyntheticresponse подготовлены pureVM,actualsettings=false/forbiddenfetch0/productAPI=false;90416:21:40.382796 — admittedonlyreadonlyexistingstand;90616:22:11.190779 — startreturnedexit0/active,прежние8h/4GiB/Tasks1024. Это действиеТестера, неControllerrestart и не issuerdeploy.
+
+90816:25:05.215Chrome147/protocol1.3:emulateNetworkConditionsByRule присутствуетвprotocol,нонеприменялось; раннее workerabsent/Alicecount0 не названо окончательной неисправностью. 91016:29:17.511 — productworkerpresent и executingfunction executeOzonCoreSHA7e95247d50e9598c57a768cc24a3b4a1b933c79e1c696c6d947aece278643c39. **91116:31:30.416UTC+5** (SHA256f1b4610fc7e909263cf68971c4c4fe04682529d03c170fc2c80c45cfbf0f6067): settledproductextension+Alice metadata,syntheticfilemessagepresent, sign-in/challengefalse, no_remote_byte_claim=true; новыеStart/Send/Finish/API/networkrules0. Rawdialog/profile/cookies/secrets не читались. Это полезные подготовительные действия, но Alicecriterion/productnetworkbarrier/remote-filebytes/installedPASS не закрыты. Последняя операция названа поinternalfinishedtime,неmtime/времениаудита. Более позднийфиналR119 в этомсрезе не установлен; глобальноеidle/нетidle поодномуactiveответу не выводится.
+
+ExistingrefusalB01a1665d: ownBnoticeSHAf01d15ab… прежний, последняя доступнаяnativeintake13:16/readback13:17 сохранена. PR320интейкНЕждётACK, newrepairнеподтверждён. Исторический Cpeerhandoff I1(sha84732a98…) по-прежнему WRITTEN_NOT_PROVEN_CONSUMED: это не разрешение переназначитьотказыпотокам, неACKдействующегоотказника и не новый taskТестеру. Техническая custody, назначеннаяownerсуществующимdot/Controller/отказникам, сохраняется; Csourceанализнеобъявляетсяremedy. Limits/ChatControlнеизмерялись, расписаниянеменялись; поихполнойактивности этотохватнеполон.
+
+## Отказы и независимые ограничения — по отдельным операциям
+
+1. **НовыйPR324R9:** подготовка исполняемогоизолированногоPG18test/wrapper получила явный platformsecurityответ; nonexecution/absenttargets и отсутствиеповтора сообщил CвпервичномPR. R11review подтверждаетUNKNOWNphysicalPG. Полныеnativeargs/toolname/callID/точныеgeneratedtargetnames не предъявлены в доступнойprimary; в адресном logdir личноустановленыR1–R8/R10/R11, R9capture отсутствует. Не реконструировать/неповторять черездругогоactor. Снимающийзависимость следующийдопустимыйфакт — подлинный originalcapture/неисполнение и supporteddisposition в existingрабочихдокументах, после чего только разрешённыйactualPGproof либо документированныйдопустимыйdispositionreleasegate. Разборотказа принадлежитdot/Controller, CостаётсяавторомPR324, не получателемновогопорученияобходитьотказ. Это validationgap, не доказанныйновыйsourcebug/DBинцидент.
+2. **Case6:** exactcombinedGitcommit+B.json platformrefusal; R2HOLD, nativeenvelopeне восстановлен, acceptedartifactNONE. Receipt08:26неразрешаетpublication/reimplementationчерезController. Issuerследующийцелыйpackage/switchпутьзависит от lawfulR2/toolingqualification,неотновогоYESнапятьправ.
+3. **№33/34:** A05sourceP2 и originalguard/unknownsourceоперации остаются отдельнымиSTOP. DetachedAproposal не freshGit/processreadback; нового nativeзапроса не было.
+4. **№41/36:** OPEN/HELD иunusedparallelbudget длянужнойцелойоперации не доказаны. Protectedinputs/копии/aggregateproxy не потреблены дляновогоподсчёта; R119904разовыйstandдопускнепереносится.
+5. **№48/50:** fixtureуexistingrefusalB; whole source+subjecttest Commandnotallowed/INVALID_ARGUMENTSTOP сохранён, single-subjectнепокрываетPR320четыресценария. Неисполнятьчастями.
+6. **PR320:** exactPR-eventcheckoutdfb61ca5,41tests/5errorsв4scenarios; actualwriterUNKNOWN, intakeconsumed,позднийPR324packagePASSне causalfix/закрытие. НовыйCIrerunнебыл.
+7. **PR308P1journalidentity:** ControllercustodyACCEPTED, published840Draft; clean0885/85WIPдругойlineage. Нуженexacteditablecandidate иwholeadmission, sourceматериализациянепроизводилась.
+8. **PR308P1receipt/journal split-write включаяrecovery.json:** отдельноOPEN, R6designнеfix; нет admittedrepair/crashregression/independentreview. НеожидатьповторногоB-release.
+9. **PR205upstreamredactorP2/source-edit-archive:** раннийACCEPTнеотменяетпозднийP2иexactSTOP; новогоsourcefix/надежногодопуска нет.
+10. **PR200review:** originalselector/accountreadbindingUNKNOWN, поздняяPlusсводканеnativeenvelope; reviewNONE. Новыйhelper/замернебыл.
+11. **PR317/323I1:** ABORT141/160ms physicalinitiatorUNKNOWN; nolease/requestidentitycausalproof. PR324SUCCESSс темжеharnessнепричинаинеwaiver. ExistingI1executorcustodyнеперехвачена, новыхStart/CIнебыло.
+12. **Дваотказапередачипубликации0.2.40:** каждыйSTOP, ownerподтверждение14:05существует; args/reasonsполногоnativeenvelopeвэтомаудитенеобнаружены. Нетретьегоповтора/другогопубликатора; R118/R119/PR322ихнезакрывают.
+13. **Старыеunknown/denieddocumentcalls:** PID726896/старыйfourlockstart/C-noticeCASsupplementнеповторялись, неизвестностьнеснятапозднейуспешнойдокументальнойзаписью. ОтклонённыйC-noticepayloadсюданеперенесён. Полныйисторическийиндекс№38/45/56необъявленвосстановленным.
+
+**Выполненное Controller.** ПотребленыновыеA3-fileproposal/C3-fileSOURCE+nativeCI/R119evidence и сохранён полный21-goalразбор; исправленпропуск,когдасобственныйauditсводилсякТестеру. Не создан новыйregistry/программныйприёмщик; нетtest/review/CI/helper/sourceedit/bootstrap/networkrule/deploy/DB/security/model/scheduleдействий. Новая запись — ordinaryownREPORT, не remediationproductP1/P2 и непередачаsourcecustody. ПубличнаяterminalCквитанцияпослеcutoffотделенаотфактическихjobtimesвнутрипериода. Другого доказанного собственногоordinarydocдефекта в этой провереннойгранице не найдено; это неутверждение отсутствия простоев по непровереннымисполнителям/Store/всемуисторическомуостатку.
+
+---
+
 # Поиск простоя: продолжение аудита после13:03, PR320 receipt/checkout, A proposal и main416 — 26.10.2026
 
 <!-- CONTROLLER_AUDIT_AFTER_130341_PR320_DFB_PR321_PR322_20261026 -->
