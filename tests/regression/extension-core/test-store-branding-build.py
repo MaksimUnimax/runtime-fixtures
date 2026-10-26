@@ -1,7 +1,14 @@
 from pathlib import Path
+import hashlib
+import json
+import os
 import importlib.util
+import subprocess
+import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -68,6 +75,354 @@ class StoreBrandingBuildTests(unittest.TestCase):
             (root / "popup.html").write_bytes("Октопорт".encode())
             (root / "attachment_delivery_port_content.js").write_bytes("Октопорт".encode())
             composed.assert_no_store_brand_leaks(root)
+
+
+class StoreAuthoritySnapshotTests(unittest.TestCase):
+    """Verify build-time authority config and its receipt hash bind one input."""
+
+    @staticmethod
+    def authority(control="https://api-a.example.test"):
+        return {
+            "schemaVersion": "octoport_release_authority_v1",
+            "source": {"head": "0" * 40, "tree": "1" * 40},
+            "productVersion": "0.2.37",
+            "contractVersion": "control_plane_v2",
+            "migrationLevel": 61,
+            "environment": "PREPRODUCTION",
+            "origins": {
+                "controlApiOrigin": control,
+                "portalOrigin": "https://portal.example.test",
+            },
+            "trustBundle": {
+                "trustBundleVersion": "bootstrap_trust_bundle_v1",
+                "algorithm": "Ed25519",
+                "publicKeyFormat": "spki_der",
+                "publicKeyEncoding": "base64",
+                "fingerprintAlgorithm": "sha256",
+                "fingerprintEncoding": "lowercase_hex",
+                "keys": [{
+                    "keyId": "synthetic-store-read-test",
+                    "publicKey": "MCowBQYDK2VwAyEAFG3DxyJOAU0cI1T50i6+tDUonQ74Qzw1Ra6USuEWYRg=",
+                    "fingerprintSha256": "69e2ddf7c78d4221d06b65be0212063b923e4e827c2e271385fef0d04cce85dc",
+                    "lifecycle": "ACTIVE",
+                    "trustEligibility": "SIGNING_AND_VERIFICATION",
+                }],
+            },
+        }
+
+    @staticmethod
+    def serialized(control):
+        return json.dumps(
+            StoreAuthoritySnapshotTests.authority(control),
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+    def test_store_authority_config_sha_references_same_snapshot(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-store-authority-") as temp:
+            file = Path(temp) / "synthetic.json"
+            original = self.serialized("https://api-a.example.test")
+            replacement = self.serialized("https://api-b.example.test")
+            self.assertEqual(len(original), len(replacement))
+            file.write_bytes(original)
+            original_json_loads = json.loads
+            changed = []
+
+            def overwrite_after_parse(text, *args, **kwargs):
+                parsed = original_json_loads(text, *args, **kwargs)
+                if isinstance(parsed, dict) and parsed.get("schemaVersion") == "octoport_release_authority_v1" and not changed:
+                    file.write_bytes(replacement)
+                    changed.append(True)
+                return parsed
+
+            with patch.object(composed.json, "loads", overwrite_after_parse):
+                config, digest = composed.store_config(file, {"version": "0.2.37"})
+            self.assertEqual(changed, [True], "Test must actually replace the source pathname")
+            self.assertEqual(file.read_bytes(), replacement)
+            self.assertNotEqual(hashlib.sha256(original).digest(), hashlib.sha256(replacement).digest())
+            self.assertEqual(config["controlApiOrigin"], "https://api-a.example.test")
+            self.assertEqual(
+                digest, hashlib.sha256(original).hexdigest(),
+                "Store receipt must hash bytes actually used to create packaged config",
+            )
+
+    def test_store_authority_duplicate_json_keys_fail_closed(self):
+        original = self.serialized("https://api-a.example.test").decode("utf-8")
+        self.assertIn('"controlApiOrigin":', original)
+        self.assertIn('"trustBundle":', original)
+        duplicate_nested = original.replace(
+            '"controlApiOrigin":',
+            '"controlApiOrigin":"https://api-b.example.test","controlApiOrigin":',
+            1,
+        )
+        synthetic_trust = json.dumps(
+            self.authority()["trustBundle"], separators=(",", ":"), ensure_ascii=False
+        )
+        duplicate_root = original.replace(
+            '"trustBundle":', '"trustBundle":' + synthetic_trust + ',"trustBundle":', 1
+        )
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-duplicate-json-") as temp:
+            authority = Path(temp) / "candidate.json"
+            for case, candidate in [
+                ("nested_origin", duplicate_nested),
+                ("root_trust_bundle", duplicate_root),
+            ]:
+                with self.subTest(case=case):
+                    authority.write_text(candidate, encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        AssertionError, "Duplicate store release authority JSON member"
+                    ):
+                        composed.store_config(authority, {"version": "0.2.37"})
+
+    def test_store_authority_nonfinite_json_constants_fail_at_parse(self):
+        original = self.serialized("https://api-a.example.test").decode("utf-8")
+        self.assertIn('"migrationLevel":61', original)
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-nonfinite-json-") as temp:
+            authority = Path(temp) / "candidate.json"
+            for constant in ("NaN", "Infinity", "-Infinity", "1e999", "-1e999"):
+                with self.subTest(constant=constant):
+                    candidate = original.replace(
+                        '"migrationLevel":61', f'"migrationLevel":{constant}', 1
+                    )
+                    authority.write_text(candidate, encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        AssertionError, "Non-finite store release authority JSON number"
+                    ):
+                        composed.store_config(authority, {"version": "0.2.37"})
+
+    def test_store_authority_boolean_migration_level_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-bool-migration-") as temp:
+            authority = Path(temp) / "candidate.json"
+            for value in (True, False):
+                with self.subTest(value=value):
+                    candidate = self.authority()
+                    candidate["migrationLevel"] = value
+                    authority.write_text(
+                        json.dumps(candidate, separators=(",", ":")), encoding="utf-8"
+                    )
+                    with self.assertRaisesRegex(
+                        AssertionError, "Invalid store release authority migration level"
+                    ):
+                        composed.store_config(authority, {"version": "0.2.37"})
+
+    def test_store_authority_same_size_write_during_fd_read_fails_closed(self):
+        if not hasattr(os, "pwrite"):
+            self.skipTest("synthetic concurrent overwrite requires os.pwrite")
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-mutation-") as temp:
+            file = Path(temp) / "synthetic.json"
+            original = self.serialized("https://api-a.example.test")
+            replacement = self.serialized("https://api-b.example.test")
+            self.assertEqual(len(original), len(replacement))
+            file.write_bytes(original)
+            identity = file.stat()
+            actual_read = os.read
+            changed = []
+
+            def mutate_before_read(fd, count):
+                if not changed and os.fstat(fd).st_ino == identity.st_ino:
+                    writer = os.open(file, os.O_WRONLY)
+                    try:
+                        os.pwrite(writer, replacement, 0)
+                    finally:
+                        os.close(writer)
+                    os.utime(
+                        file, ns=(identity.st_atime_ns, identity.st_mtime_ns + 1_000_000_000)
+                    )
+                    changed.append(True)
+                return actual_read(fd, count)
+
+            with patch.object(composed.os, "read", mutate_before_read):
+                with self.assertRaisesRegex(AssertionError, "changed during"):
+                    composed.store_config(file, {"version": "0.2.37"})
+            self.assertTrue(changed, "The authority descriptor must actually be read")
+
+    def test_store_authority_same_size_rewrite_between_reads_ignores_coarse_stat(self):
+        if not hasattr(os, "pwrite"):
+            self.skipTest("coarse timestamp simulated concurrent write requires os.pwrite")
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-store-coarse-clock-") as temp:
+            file = Path(temp) / "synthetic.json"
+            original = self.serialized("https://api-a.example.test")
+            replacement = self.serialized("https://api-b.example.test")
+            self.assertEqual(len(original), len(replacement))
+            file.write_bytes(original)
+            identity = file.stat()
+            real_fstat = os.fstat
+            real_lseek = os.lseek
+            changed = []
+
+            def coarse_timestamp_fstat(fd):
+                state = real_fstat(fd)
+                if state.st_ino != identity.st_ino or state.st_dev != identity.st_dev:
+                    return state
+                # Model a filesystem where equal-length writes do not advance
+                # mtime/ctime at the granularity observed by fstat.
+                return SimpleNamespace(
+                    st_mode=state.st_mode, st_dev=state.st_dev, st_ino=state.st_ino,
+                    st_size=state.st_size, st_mtime_ns=identity.st_mtime_ns,
+                    st_ctime_ns=identity.st_ctime_ns,
+                )
+
+            def mutate_after_first_read(fd, offset, whence):
+                current = real_fstat(fd)
+                if not changed and current.st_dev == identity.st_dev and current.st_ino == identity.st_ino:
+                    writer = os.open(file, os.O_WRONLY)
+                    try:
+                        os.pwrite(writer, replacement, 0)
+                    finally:
+                        os.close(writer)
+                    changed.append(True)
+                return real_lseek(fd, offset, whence)
+
+            with patch.object(composed.os, "fstat", coarse_timestamp_fstat), patch.object(
+                composed.os, "lseek", mutate_after_first_read
+            ):
+                with self.assertRaisesRegex(AssertionError, "changed during"):
+                    composed.store_config(file, {"version": "0.2.37"})
+            self.assertEqual(changed, [True], "Coarse-stat regression must really change bytes")
+            self.assertEqual(file.read_bytes(), replacement)
+
+    def test_store_authority_symlinked_parent_directory_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-parent-") as temp:
+            root = Path(temp)
+            real = root / "real"
+            real.mkdir()
+            file = real / "candidate.json"
+            file.write_bytes(self.serialized("https://api-a.example.test"))
+            linked_parent = root / "linked-parent"
+            linked_parent.symlink_to(real, target_is_directory=True)
+
+            config, _ = composed.store_config(file, {"version": "0.2.37"})
+            self.assertEqual(config["controlApiOrigin"], "https://api-a.example.test")
+            with self.assertRaisesRegex(AssertionError, "Invalid store release authority file"):
+                composed.store_config(linked_parent / "candidate.json", {"version": "0.2.37"})
+
+    def test_store_authority_ancestor_symlink_and_parent_swap_fail_closed(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-ancestor-") as temp:
+            root = Path(temp)
+            real = root / "real"
+            (real / "nested").mkdir(parents=True)
+            (real / "nested" / "candidate.json").write_bytes(
+                self.serialized("https://api-a.example.test")
+            )
+            alias = root / "ancestor-link"
+            alias.symlink_to(real, target_is_directory=True)
+            with self.assertRaisesRegex(AssertionError, "Invalid store release authority file"):
+                composed.store_config(alias / "nested" / "candidate.json", {"version": "0.2.37"})
+
+            active = root / "candidate-parent"
+            active.mkdir()
+            (active / "candidate.json").write_bytes(self.serialized("https://api-a.example.test"))
+            alternative = root / "alternative"
+            alternative.mkdir()
+            (alternative / "candidate.json").write_bytes(self.serialized("https://api-b.example.test"))
+            actual_open = os.open
+            swapped = []
+
+            def swap_parent_before_open(path, flags, *args, **kwargs):
+                if not swapped and os.fspath(path) == active.name and kwargs.get("dir_fd") is not None:
+                    active.rename(root / "old-parent")
+                    active.symlink_to(alternative, target_is_directory=True)
+                    swapped.append(True)
+                return actual_open(path, flags, *args, **kwargs)
+
+            with patch.object(composed.os, "open", swap_parent_before_open):
+                with self.assertRaisesRegex(AssertionError, "Invalid store release authority file"):
+                    composed.store_config(active / "candidate.json", {"version": "0.2.37"})
+            self.assertEqual(swapped, [True], "Parent directory swap must occur")
+
+    def test_store_authority_cleanup_closes_all_fds_after_one_close_error(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-close-error-") as temp:
+            file = Path(temp) / "parent" / "candidate.json"
+            file.parent.mkdir()
+            file.write_bytes(self.serialized("https://api-a.example.test"))
+            real_open = os.open
+            real_close = os.close
+            opened = []
+            file_descriptors = []
+            failed = []
+
+            def record_open(path, flags, *args, **kwargs):
+                fd = real_open(path, flags, *args, **kwargs)
+                opened.append(fd)
+                if os.fspath(path) == file.name and kwargs.get("dir_fd") is not None:
+                    file_descriptors.append(fd)
+                return fd
+
+            def close_then_fail_once(fd):
+                real_close(fd)
+                if file_descriptors and fd == file_descriptors[0] and not failed:
+                    failed.append(fd)
+                    raise OSError("synthetic error after final file is closed")
+
+            with patch.object(composed.os, "open", record_open), patch.object(
+                composed.os, "close", close_then_fail_once
+            ):
+                with self.assertRaises((OSError, AssertionError)):
+                    composed.store_config(file, {"version": "0.2.37"})
+            self.assertEqual(len(file_descriptors), 1, "Final file must have opened")
+            self.assertEqual(failed, file_descriptors, "Final file close must fail")
+            self.assertGreaterEqual(len(opened), 3)
+            for fd in opened:
+                with self.assertRaises(OSError, msg=f"Descriptor {fd} remained open"):
+                    os.fstat(fd)
+
+    def test_store_authority_open_swap_to_symlink_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-link-") as temp:
+            root = Path(temp)
+            file = root / "candidate.json"
+            alternate = root / "alternate.json"
+            file.write_bytes(self.serialized("https://api-a.example.test"))
+            alternate.write_bytes(self.serialized("https://api-b.example.test"))
+            actual_open = os.open
+            swapped = []
+
+            def replace_path_before_open(path, flags, *args, **kwargs):
+                if (
+                    not swapped
+                    and (
+                        Path(path) == file
+                        or (os.fspath(path) == file.name and kwargs.get("dir_fd") is not None)
+                    )
+                ):
+                    file.unlink()
+                    file.symlink_to(alternate.name)
+                    swapped.append(True)
+                return actual_open(path, flags, *args, **kwargs)
+
+            with patch.object(composed.os, "open", replace_path_before_open):
+                with self.assertRaisesRegex(AssertionError, "Invalid store release authority file"):
+                    composed.store_config(file, {"version": "0.2.37"})
+            self.assertTrue(swapped)
+
+    def test_store_authority_fifo_refused_without_blocking(self):
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("FIFO test requires POSIX")
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-fifo-") as temp:
+            fifo = Path(temp) / "candidate.fifo"
+            os.mkfifo(fifo)
+            # O_NONBLOCK prevents the open() call waiting for an absent writer.
+            with self.assertRaisesRegex(AssertionError, "regular file"):
+                composed.store_config(fifo, {"version": "0.2.37"})
+
+    def test_store_composer_refuses_optimized_python_before_any_build(self):
+        with patch.dict(os.environ, {"PYTHONDONTWRITEBYTECODE": "1"}):
+            proc = subprocess.run(
+                [sys.executable, "-O", "-c",
+                 "import runpy; runpy.run_path(" +
+                 repr(str(ROOT / "tooling/build/extension_composed.py")) +
+                 ", run_name='not_a_full_build')"],
+                capture_output=True, text=True, timeout=8,
+            )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("EXTENSION_COMPOSITION_ASSERTIONS_DISABLED", proc.stderr)
+
+    def test_store_authority_input_larger_than_one_megabyte_fails_closed(self):
+        with tempfile.TemporaryDirectory(prefix="octoport-c01-authority-cap-") as temp:
+            file = Path(temp) / "synthetic.json"
+            content = self.serialized("https://api-a.example.test")
+            file.write_bytes(content + b" " * (1024 * 1024 + 1 - len(content)))
+            with self.assertRaisesRegex(AssertionError, "too large"):
+                composed.store_config(file, {"version": "0.2.37"})
 
 
 if __name__ == "__main__":
