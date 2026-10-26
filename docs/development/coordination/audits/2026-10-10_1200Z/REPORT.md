@@ -1,3 +1,83 @@
+# Поиск простоя: новые результаты A/C и отдельный intake PR327 — 26.10.2026
+
+<!-- CONTROLLER_POST789_A_C_FULL_PLAN_AND_PR327_ROUTING_20261026 -->
+
+Продолжение REPORT78942ffe/readback20:46:30. Этот адресный срез сохраняет все21цель PLAN и каждый прежний байт ниже. Проверены текущие именованные результаты A/C и новые безопасные ответы B; чаты потоков не открывались. Всеобщий вывод об отсутствии простоев или полном завершении аудита не делается: завершённость текущих role-turn по этим документам не установлена.
+
+## Сделанное и организационный контроль
+
+Свежий read-only guard **20:53:25.683366 UTC+5** подтвердил7эксклюзивных locks, отсутствие другого writableFD собственного notice/неизвестной видимости и Git-operation markers; canonical HEAD030ce4bb356208e9dd0cda21b860d769d56ec807, indexSHA96916746f57956d4394de396dc299aecece21a74b8c5e52fb3dceb4098b59ad4, fullWIPSHA76b6681f42d0b9f1ad2ec7f19677b91af970e1f0494f19ccf68427b970aee7d6 сохранены. Guard освобождён20:53:25.683849. Перед фактической записью выполнены новые проверки, перечисленные ниже; непрерывность старого guard не предполагается.
+
+Новая доказанная организационная неточность — опубликованный маршрут нового отрицательного ServerCI PR327 к «B/B05 owner or Controller» без различения productB и уже назначенного refusalB. Исправлена **только маршрутизация нового subject** в существующем B-notice:
+`/controller_B02_approved_BETA_issuer_source_and_transition_boundary_20261026/PR327_original_push_Server_negative_to_existing_refusal_B_20261026`.
+Адресат — существующий отказник **01a1665d-595c-7370-92e1-2d983a6d70f4**, ранее принявший fixturecustody; не потокB, не новый исполнитель. Запись **21:09:53.523970**, независимый полный readback **21:10:12.309049 MATCH**, SHA **2fcc8e5093c6ca748dac99a69bf03f831e2f5eaccda8760a56cf76a801d7c765**, +6122bytes. Inverse insertion возвращает прежний SHA d8f06da2…; каждый старый байт/поле и canonicalHEAD/index/WIP сохранены. Fresh7locks/noticeflock, otherwriters=[], unknownvisibility=[], CAS. **ACK нового subject и ремонт не подтверждены.** Старый PR320 intake/его потребление13:16:32 не отправлены повторно и не названы новым PR327ACK.
+
+В21:07:15 и21:08:32 CAS остановил предшествующие попытки ДО записи: written=false,pendingtemp=null,7locks освобождены. Адресные проверки21:07:30/21:09:40 установили: notice оставался d8f06da2…, изменялся B_EXECUTION_RESPONSE (e46b4e→6418266d→d748c42a), появились ответы на существующие заявки. Это precondition drift, не safetydenial и не неизвестная мутация. После потребления новой разрешённой первички использован актуальный CAS; требования locks/scope не ослаблялись.
+
+## A: полная цель, новое действие, реальный остаток
+
+A.json прочитан стабильно20:54:02 (SHA ddbec107…); адресный повтор текущей выбранной задачи20:58 обнаружил уже новый SHA **0b11b4a2176acf6b32501b1b048e6552a23b39f84ca96d7ce7a7a1310dd8a309**. Изменение между чтениями и новый предметный результат исключают вывод «A стоит» по старому A06checkpoint.
+
+- **A04:** новый draft [PR327](https://github.com/MaksimUnimax/runtime-fixtures/pull/327), exact **fb8c56c5976b4347512f3aa4c6640c867a2c05c7**, tree7ab2ab46…, один business-scenario-coverage.mjs, blob ea3a72baa54054dc9b20b0eec4cfc2c72041e4e7. Пять пропусков numeric-missing/blank→Number0 получили 12negative и5zero/stringcontrols; 69старых+17новых=86/86 focused in-memory. Независимый R1 Luna ACCEPT_SOURCE_SCOPED, supplied immutable diff, P0/P1/P2=0, не checkout/test/installed. Saved verdict SHA c1590e56… по записи A, не новый review Controller.
+- Original push exactfb8: **4/5SUCCESS**, Server **40348310456/job121661253915**, attempt1, FAILURE. В A native record issued **20:29:07.182905** и terminal record **20:42:04.749975**: 41tests/3ERROR, два cleanup Errno39 и FileNotFoundError tmp_idx* при lstat/chown; remainingServerstepsSKIPPED. Это времена записи первички, не выдуманный timestamp самого jobfailure. [Отрицательная первичка](https://github.com/MaksimUnimax/runtime-fixtures/pull/327#issuecomment-6419925291). Фактический writer/cause UNKNOWN, maintenance гипотеза. Самый новый scoped-source ACCEPT не отменяет ServerFAIL.
+- **Последнее доказанное предметное действие A — 20:55:34.011727 UTC+5**, `A04_PR327_EXACT_LOCAL_DEPENDENCY_PARITY_20261026`: 36directimports+2fixtures,26байтово совпали,12missing/different в старом carrier09e12fab. Это не complete/transitive source tree и не запуск. В пяти проверенных native recipes directinvocation полного business-scenario runner не найден; нельзя объявлять, что его не вызывает вообще никакой потребитель. Полный exact runner **NOT_RUN**. Старый checkout не годится как доказательство exactfb8. [Coverage evidence](https://github.com/MaksimUnimax/runtime-fixtures/pull/327#issuecomment-6420198069).
+- Следующее A-продолжение уже названо в актуальной записи: сохранить Draft/negative; подготовить законный exact-tree/full-runner proof или его реальный nativeconsumer при собственном source-scope и admission, затем review нового SHA при изменениях/необходимые gates. **Audit не запускает этот runner/CI**, не назначает A ремонт foreignfixture и не разрешает A remoteGit/process refusal. Нового дубля задания A не требуется.
+- **A01:** сохранены source-guards popup/store/pending; реальная пользовательская race/owneracceptance отдельно. **A02:** reconciliation81paths в18:40:24.608637 подтвердил sourceabsorption прежнего productWIP;21distinctcoord/evidencepaths сохраняются, без cleanup. Два устройства/ACK/installed transfer/restart не доказаны этим source-result. **A03/A05:** Firefox/upgrade/background/защита остаются отдельными exactrelease/installed границами; старые3/5 CI не становятся5/5 от PR326.
+- **A06:** PR283 atomic22259byte patch, три blobs совпали в отдельной локальной копии17:21:15.436; не source inclusion наEasyscript/GitHub, не Next/PG E2E. RemoteGit/process preflight refusal остаётся отдельным STOP. Его повтор/части не поручаются A или другому автору. I1каузальность у существующего отказника/Controller, не новое поручение потокуA.
+
+Отдельная новая организационная первичка A→B B06: existing handoff SHA6c0c7e2d… содержит B_received_and_progress **20:27:23.289**. Историческое верхнее WRITTEN_NOT_PROVEN_CONSUMED уже не текущая стадия этого handoff. Его `separate_platform_refusal` сообщает о заблокированном functions.exec для optional двух-SHA sanitizer comparison; nestedreceipts нет, executionUNKNOWN, retries0. Полные args/nativeID/точное время в этом safe record не предоставлены. Не реконструированы, не повторены через Controller. Это не отказ исходного B06fix и не B-state refusal; успешно принятый PR326 source сохраняется отдельно.
+
+## C: фактическое REWORK вместо устаревшего REVIEW_PENDING
+
+C.json в20:54/20:58 стабилен, SHA **576a660b5a1b7b4b4faae58b71f9baf76e8f51534d36207bb77636243970174f**. Общий header REVIEW_PENDING отстаёт от именованной `C03_RETRY_TERMINAL_AUTHORITY_DEADLINE_FENCE_20261026`. Чужой C.json не переписан; текущая проекция в собственном REPORT исправлена.
+
+Последняя доказанная новая C03запись — **20:14:31.335165 UTC+5**, R6/R7/R8 для exact **7b58d7b274a1ba7837adee2ee91b5a41545c6613**, treeb66ae903…. Семь путей contracts/store/scheduler/retry/run/Telegrammain/retrytest. Кандидат не опубликован; старый2897 не подменяет новый7b58. Author4/4 in-memory и syntax/format не nativeVitest/PG/installed. R7 независимый supplied-source REWORK:3P2; R8 реального run.ts с моделируемым authorityPass выявил четвёртый P2 — RETRY одной OZON_SELLER передаёт registry всех трёх families. Реальных network/DBвызовов не было.
+
+Текущий результат **REWORK,4P2,не ACCEPT**:
+1. Durable claim/cancel/crash/restart не должен терять earlyretry до настоящего providerrequest.
+2. Legacy early next_run_at требует безопасного upgrade/hold с сохранением обычной cadence.
+3. Renewal/version/stale-owner fencing не должен позволять старому runner перезаписать новыйretryresult.
+4. Immutable claimed family должен ограничивать RETRY acquisition/operatorcandidate; SCHEDULED/FORCED сохраняют свой контракт.
+
+В C уже есть конкретное продолжение одного productauthor для этих четырёх причинных инвариантов; новый дубль поручения/второй sourceauthor не создан. Это **отрицательная sourceприёмка**, не разрешение Controller обойти protectedresource/PG18R9/прочие platformSTOP. Нативные PG/concurrency/affected tests требуют своего допуска. Завершение текущего roleturn из C.json не установлено; по одному отсутствию новых timestamp простой не доказан.
+
+Полный C00–C07 остаётся:
+**C00** names/source PR317 удерживается отдельным I1negative;
+**C01** принятый PR318 source/lifecycle не возвращается в старый Draftpending;
+**C02** integration source не installed;
+**C03** retry4P2 плюс отдельные R9/I1/PR320/PR327границы;
+**C04** шесть несовпавших Telegramsource/actualcompiledconsumer и реальный receipt требуют source-pinned разрешённого release, без повторного merge старогоPR242;
+**C05** physicalPG/backup/recovery,не modelPASS;
+**C06** actualChrome/Store/ownerприёмка;
+**C07** публикация при своих полномочиях. РаннийStore/dashboard/liveнеобъявлены проверенными. Существующие Cnext/предыдущие адресные requests сохраняются; отказанное действие не поручено C как «независимое продолжение».
+
+## Новые ответы B и принятый postmerge результат
+
+B_EXECUTION_RESPONSE **6418266d…** лично прочитан21:07:54 только по двум существующим native-заявкам, без B.json:
+- Ответ issued **20:54:22.413** сохранил R3 supplied-input binding к fb84479/tree2c4e5009/base86c8: originalunit/journal/input/diff/source-segment/verdict, исходное окно **18:30:09.619–18:30:39.458 UTC+5**, session01a17867…; argvсгенератор/HEADguard по первичке автора. journalSHA9a5653a6…, originalinputSHA d03193d6…, diffSHA ce178997…, verdict260B SHA623b99eb…. Это квитанция B о сохранённом оригинале, Controller не перечитывал journalbytes и не выполнял новый review. ACCEPT только suppliedpatchtext, не прямой checkout/installed. Предыдущая документальная зависимость «Bответ не пришёл» снята; независимая проверка самих сохранённых inputbytes при необходимости остаётся своим точным следующим шагом.
+- Original role-state readback: первичный ответ «Этот вызов инструмента был заблокирован системами безопасности OpenAI. Внимательно проверьте отправляемые данные.» Точный nativeID/время отсутствуют; executionUNKNOWN. Original checkpoint: startPID **866807**, затем **No session found for PID866807**; terminalwriteoutcomeUNKNOWN. Сводка не доказывает ни запись, ни её отсутствие. Запросы не дублированы; protectedB.json/PIDsession не читались/не вызывались.
+
+Новый terminal-факт dot потреблён **без повторного GitHubCIчтения**: PR326 merge **e5cf08d795b04ad2e771e58d32b9a0013d68a9a1**, originalpostmerge pushruns40350254148/40350253928/40350253796/40350254220/40350253834, **5workflows/13jobsSUCCESS**. ПоследнийServer **20:50:58**, I1installedlocal **20:46:39**. Это CIнаmain, **не owner-testdeployment/production**, не закрытие PR327 Servernegative или B02. c72issuercompatibility, acceptedR2tooling/package/wholeadmission/API-onlyswitch остаются отдельными. Согласие на пятьcapabilities сохраняется; повторYES не нужен.
+
+## Итог объёма и точные открытые границы
+
+Новый объём после78942: текущие A/Cименованные результаты и полныеgoalграницы сопоставлены; отдельно маршрутизирован PR327negative (+6122bytes,readbackMATCH); собственная Ccurrentprojection исправлена; потреблены два новых nativeответа B и terminalPR3265/13. Source/tests/review/CI/build/deploy не выполнялись; авторы/сессии/сеть/модели/расписания не менялись.
+
+Открытые исходы не объединяются:
+1. **PR327 ServerFAIL:** новый intake у refusalB; consumptionещёUNKNOWN, causeUNKNOWN; дальнейший уже допустимый результат — его primaryconsumption/disposition, не rerun. Закрытие только exactadmissiblefix/acceptance либо доказанная nonblockingdisposition.
+2. **Fixture48/50 и отдельный PR320:** прежний custodian/negative/CommandnotallowedSTOP; PR327 не новое разрешение того же wholeoperation. #41protectedboundary не исследовалась повторно.
+3. **PR308 дваP1:** custodyController принята, baseline840сохранён; wholeoperationadmissionmissing. Резервы вновь не искались, materialization/repairfragment не запускались.
+4. **Case6/R2:** heldpair не передана, acceptedimmutabletoolingsuccessor не доказан; не копировался/не пересоздавался. Issuerc72+dualpinworkflow scopedreview не равны package/APItransition.
+5. **I1:** causalactorне установлен, дваextra-pathrelease не получены; существующие запросы/исполнитель сохраняются, sourceкод не перехвачен.
+6. **R9PG18/C.json:** прежние native-заявки сохраняются, нового ответа в этом узком срезе не заявляется; PG/отказанные processcalls не повторялись.
+7. **B-state:** новый safe-nativeответ получен, readbackSTOP/writeUNKNOWN остаются; не компенсировать повторной checkpointзаписью.
+8. **AremoteGit/process и optionalB06comparison:** разные scopes, первичные STOP/UNKNOWN сохраняются; fullargs/IDs отсутствующие не реконструированы.
+9. **0.2.40 publication,artifactmetadata400,oldC-noticeCAS и прежние unknowntransportcalls:** прежние статусы сохранены; не повторялись/не закрыты чужим успешным действием.
+
+Все предыдущие таблицы21цели, договорённости, принятые проверки и история следуют ниже без изменений. Это проверенный ограниченный срез и организационное исправление, а не общее закрытие аудита/B02/B03.
+
+---
+
 # Поиск простоя: ресурсная граница PR308 установлена; PR326 exact CI и merge потреблены — 26.10.2026
 
 <!-- CONTROLLER_PR308_RESOURCE_PRIMARY_PROVENANCE_AND_PR326_E5_MERGE_20261026 -->
