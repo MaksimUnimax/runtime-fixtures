@@ -1,3 +1,69 @@
+# Поиск простоя: PR325 фактически merged, postmerge13/13 и новый concrete issuer source-gap — 26.10.2026
+
+<!-- CONTROLLER_PR325_MERGED_POSTMERGE_AND_C72_DIRECT_API_DEPENDENCY_20261026 -->
+
+Продолжение REPORTdb2010cb/readback19:26:25. Прежний REPORT и все21цели/отказы сохраняются байт-в-байт ниже. Общие blockдокументы по разрешённым реальнымmarketplaceзапросам сейчас у существующего документального автора; Controller их не меняет. Готовая PR238acceptance и установленное происхождениеproxy не повторялись.
+
+## Fresh вход, ответы и собственная ошибка прошлой проекции
+
+Guard **19:30:44.667233UTC+5**:7existinglocks эксклюзивны, othernoticewriters=[],unknownvisibility=[], canonicalHEAD030ce4bb356208e9dd0cda21b860d769d56ec807/indexSHA96916746f57956d4394de396dc299aecece21a74b8c5e52fb3dceb4098b59ad4/fullWIPSHA76b6681f42d0b9f1ad2ec7f19677b91af970e1f0494f19ccf68427b970aee7d6 прежние, Git-operation markers отсутствуют. Read-onlyguard завершён19:30:44.667752. В19:31:30.065762 отдельно подтверждено отсутствие прежнего собственногоguardPID869644; исторические дваunknownRDMвызова этим не закрыты.
+
+В19:31:30.060724–065294 по существующим точнымresponsekeys:
+- C_EXECUTION_RESPONSE133427a849caf2a5d3473157d6a76e761e181aeb36247723ef548aa19d6db786 без новогоC.jsonnativeprimary и безR9ответа.
+- B_EXECUTION_RESPONSEe46b4e2654b807f27135befc86f205dbc6281c2117b9a2bf9ef1c8d66cad4232 безPR325input→candidate→verdict ответа; originalcase6R2HOLD прежний.
+- A_EXECUTION_RESPONSE26025b52e8d8cad8bcbdc3027064180db6bb874e3c007fcd90f2fc96c8731def сохраняет responseconsumed/solecustodyNOTPROVEN/released_paths=[].
+
+Заявки не повторялись; ожидание этихданных не остановило независимую разрешённую issuerqualification. C.jsontool/полныеargs/originaltime/nativeID/первичнаяexecutionedge остаютсяUNKNOWN; publishedCommandNotAllowed не превращён в новое правило владельца, stale state не подменяет originalnonexecutionproof. R3ACCEPT остаётся suppliedpatchtext с неаутентифицированным originalinputlinkage; merge не создаёт отсутствующую квитанцию.
+
+**Собственная доказанная ошибка исправлена.** ПредыдущийREPORT сообщал PR325open/notmerged. В сохранённом уже полученном в19:08 GitHubответе на самомделе присутствовали merged=true,state=closed,merged_at14:06:48Z,mergecommit9d21ec61…. Controller обработал обновлённыйbody/CI, но не потребил этиструктурированныеполя и перенёс старуюпроекцию. Это не позднее появление merge после отчёта. Ниже текущийфакт исправлен; ошибочный прежний текст остаётся историей, не актуальнымreleasegate. Нового merge Controller не выполнял.
+
+## PR325: фактическое inclusion и postmerge acceptance boundary
+
+Лично проверены GitHubPR325, mergecommit и branches/main. PR325 exacthead **fb84479c32cc0d5fa6e4a8042c1d0c21d0990551** объединён **26Oct19:06:48UTC+5**; commit timestamp19:06:47. Main на адресномGitHubсрезе19:31 — **9d21ec61d471864c855b4d94b360e8bbb7669cd0**, parentsf5ecffc867b507f9cd5ff84be3ec72d39199bf66/fb84479c….
+
+Изменены ровно2пути:
+- packages/server/feedback-support/src/index.ts,blob **752b1cbc64b494dea09dec9e73bfd08064db8fa1**, +134/−3;
+- packages/server/feedback-support/src/index.test.ts,blob **71641647be7c3dbcd444f932c31b2f413e560041**, +226/0.
+Итого+360/−3; совпали точныеcandidateblobs. Это отдельныйB06sourceintegration, не PR205own-__proto__ upstreamfix, не issuerrollout/installedproduct.
+
+Прочитаны все5originalpostmerge pushruns на точномmain9d21, attempt1, и каждыйиз13jobs:
+- I140336601306 —3SUCCESS;
+- Extension40336601202 —6SUCCESS;
+- Docs40336601181 —1SUCCESS;
+- Safety40336601131 —1SUCCESS;
+- Server40336601290 —2SUCCESS.
+
+Последний реальныйjob server121619819503 завершён **19:22:28UTC+5**, все13terminalSUCCESS. Runupdated19:22:37 не подменяет jobtime. Expectedskips frozenserverimport и wb-nodes/ozon frozenbrowser/Chromeselection сохранены, не названы исполненными. Старые exacthead5/13 и ограниченныйR3supplied-inputACCEPT не перезапускались. Новыхtests/review/CI/dispatch/merge не было. Название CIjob InstalledlocalAPI/portal/PG не означает installedownerB02PASS, production/Store/настоящуюcurrentdeviceacceptance.
+
+Текущаяграница: фактmerge/sourceinclusion и nativepostmerge13/13 установлен. Ожиданиеmerge/terminalCI снято. Независимая исходнаяinputсвязь R3, actualdeployment и installedconsumeracceptance остаются отдельными доказательствами, не выведены из зелёногоmain. Отсутствие нашейinputквитанции не названо само по себе нарушением законности уже выполненного merge.
+
+## Независимый разрешённый остаток: c72 API имеет изменившуюся прямую зависимость
+
+Существующая ранее установленнаяdeclaredAPIclosure30workspaces содержит прямой **@product/feedback-support** и тот жеconsumer черезDB. В19:33:48.356219 readonlyGitobjectmetadata подтверждены собственный **c72bf12b17defda9fecfe3e3f699dbf6f948bb1b/tree6e808f5c82e902a37af23da850e22405a89fc0ba**, apps/api/package.jsonblob785986fb322cc26e02a06fbb89a0fdbaec78c661 и dependencies["@product/feedback-support"]="workspace:*".
+
+В c72:
+- feedbackindex.ts blob **e37e4053eab8b87d513ad9cb0fb517b4016a1764**;
+- feedbackindex.test.ts blob **8e69e579d8fcae742f6240977655428c42e42c5c**.
+Они отличаются от обоих принятых9d21/PR325blobs выше. Это проверенное отсутствие **точныхновыхblobbytes** в retainedproductsource, не новаяфункциональнаярепродукция или доказанныйP1/P2. Одного различияSHA недостаточно для вывода «пакетсломается». Но новыйtoolingpin выбирает packager и не заменяетproductcheckout: genuinefullpackageизc72 собирает егоproductsource, а не новуюmainlibrary. Поэтому source-currentness/compatibility этогопакета относительно принятойпрямойAPIзависимости **не доказана**, новыйmainCI её не подтверждает.
+
+В19:36:15.725830 fresh7locks/noticeflock/solewriter/WIP/CAS сохранил только собственный qualifier **current_main9d21_direct_API_feedback_dependency_gap_20261026** в существующем issuer-разделе B-notice. Независимый полный readback **19:36:30.078135MATCH**, wholeSHA **43abb2d650ffd9ddbc061968e9d79a62916ac1a5b1bfdfa39649888238c5076f**. Inverseвозвращаетf0e0dfcb…; каждыйпрежнийбайт/поле, canonicalHEAD/index/fullWIP, foreignresponse сохранены.
+
+Это новый конкретный вход в уже обязательную проверку source-currentness, не новый общийYES и не новое требование вне releaseпорядка. До fullpackage/switch требуется разрешить intendedproductlineage в существующемissuer-scope: legitimate successor, сохраняющий согласованнуюпятиcapabilityдельту и относящиеся кAPIпринятыеизменения, либо конкретно доказанныйcompatibilitydisposition. Текущее поручение запрещаетsourceизменения — никакогоrebase/cherry-pick/copy/commit/ref/build/test/review/CI не выполнено. Старыйc72 и45966 сохранены, новыйsourceSHA не выдуман.
+
+Отдельно остаётся **tooling/case6R2**: heldproducer/test не переданы, acceptedexecutabletoolingpin=null/readyR2artifactNONE. Productsource-currentness и legitimateR2toolingsuccessor — разныегейты; один не заменяет другой. Последующие exactsourcegates/nativefullpackage/provenance/artifact, localwholeadmission и квалифицированныйAPI-onlyswitch/rollback остаются обязательными; four-servicecurrentapply/DB не запускались. Разрешениевладельца на точныепятьcapabilities уже есть и не запрашивалось заново.
+
+## Полная цель и организационный итог
+
+ВсеA01–A06/B01–B07/C00–C07, полная21-строчнаятаблица и каждыйисторическийотказ сохранены ниже. Проверенныйmerge9d21 меняет только2B06пути; PLAN/docs он не переписывает. Новаядельта относится кB06sourceintegration,C00nativeCI,C02integration и конкретнойB02/C01issuerdependencyqualification. Остальныецели не объявлены повторнопроверенными/закрытыми по чужомуmainCI.
+
+A01Opera/A03реальнаяbrowser+Storematrix,A02/B03полныйtransfer/no-replay,A04installedAlice/multi-store/PR205upstreamP2,A05source/refusalграница,A06remoteportal/NextE2E,B01legacy/appliedjournal,B04eligiblebound/resources,B05R2/48/50/PR320/обаPR308P1,B07betaacceptance,C03physicalPG/snapshot/I1,C04loadedTelegram,C05realPG/app/recovery,C06/C07конкретныйsafeStore/release сохраняют прежниеотдельныеусловия. Store1/2 не поставлены в зависимость от всех21целей; реальные dashboard/submission и ownerinstalledresults в этом продолжении не читались. B02матрица не меняется из-за CIfeedbacklibrary. Proxyorigin не расследовался повторно, новыеmarketplacetestразрешения и запрет потерятьсессии сохранены; документациюобщихблоков Controller не переписывает.
+
+Организационно доступная независимаяработа выполнена вместо ожиданияB/Cответов: устранена собственнаяfalseopenпроекция и конкретизирован недостающийproductsourcefact issuer. **ПередачаR2 и I1неполучена**, не обойдена другимавтором/копией. PR308custody ужеController; задача не возвращена к ожиданиюB-release, но wholeoperationadmission/exacteditablelineage ещё не доказаны. СтарыеunknownRDMвызовы, originaldeniedC-noticesupplement, protected34/36/41/48/50, R9PG, oldI1causalactor/ZIP403/review4361, PR200selector/accountbinding, PR205source-editSTOP и два0.2.40publicationSTOP не повторялись/не закрыты. MAINresume33неактуален и R13завершён — не реанимированы.
+
+Полного исторического nativeиндекса нет, отсутствия простоев по непроверенным источникам не заявляю. Сделанное — проверяемая собственная sourcequalification/doccorrection сreadback; продуктоваяоперация и недостающиеnativeквитанции остаютсяточным остатком. РаботаТестера не перехвачена, нового сообщения ему нет. Source/live/DB/security/network/session/authorizations/models/schedules не менялись; новых программныхприёмщиков/реестров нет.
+
+---
+
 # Поиск простоя: C.json native-primary intake, PR325 terminal CI и происхождение R122 helper — 26.10.2026
 
 <!-- CONTROLLER_CJSON_PRIMARY_PR325_TERMINAL_AND_PROXY_ORIGIN_20261026 -->
