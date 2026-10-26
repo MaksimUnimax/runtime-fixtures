@@ -3,6 +3,7 @@ import type {
   MonitoringCoverage,
   MonitoringLaneRunner,
   MonitoringRunResult,
+  type SwaggerSourceFamily,
 } from "@product/monitoring-control";
 import { evaluateOperatorCandidate, runAuthorityPass } from "./authority.js";
 import { diffInventories } from "./diff.js";
@@ -558,6 +559,8 @@ export async function runApiWatchReport(input: {
   };
   runId: string;
   source: "SCHEDULED" | "FORCED";
+  /** Only a validated run-bound retry owner may provide selected families. */
+  sourceFamilies?: readonly SwaggerSourceFamily[];
 }): Promise<MonitoringRunResult> {
   const { dependencies, runId, source } = input;
   const reportStore = dependencies.reportStore;
@@ -578,6 +581,7 @@ export async function runApiWatchReport(input: {
       ...dependencies,
       now: dependencies.clock,
       skipOperatorBlocked: input.source === "SCHEDULED",
+      sourceFamilies: input.sourceFamilies,
     });
     const sources: ApiWatchReportSourceOutcome[] = [];
     const crosswalkDocuments: CrosswalkDocument[] = [];
@@ -630,6 +634,15 @@ export async function runApiWatchReport(input: {
     if (completedReport && dependencies.incidentStore)
       await evaluateApiWatchIncidents({
         report: completedReport,
+        // A family-scoped retry cannot prove recovery of an unrelated failed
+        // full watch. Require an unscoped pass with observed evidence from
+        // all three configured marketplace families.
+        fullAcquisitionScope:
+          input.sourceFamilies === undefined &&
+          (["OZON_SELLER", "OZON_PERFORMANCE", "WILDBERRIES"] as const).every(
+            (family) =>
+              pass.outcomes.some((outcome) => outcome.sourceFamily === family),
+          ),
         crosswalkRows,
         verifiedFamilyAbsenceRowIds,
         store: dependencies.incidentStore,

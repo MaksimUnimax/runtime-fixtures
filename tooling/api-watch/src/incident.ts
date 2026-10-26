@@ -272,6 +272,9 @@ function atAcceptedBaseline(source: ApiWatchReportSourceOutcome): boolean {
 
 export async function evaluateApiWatchIncidents(input: {
   report: ApiWatchReport;
+  /** Only a verified all-family report may open/resolve the GLOBAL run incident.
+   * Omission is deliberately fail-closed for standalone incident consumers. */
+  fullAcquisitionScope?: boolean;
   crosswalkRows?: ProductCrosswalkRow[];
   verifiedFamilyAbsenceRowIds?: readonly string[];
   store: ApiWatchIncidentStore;
@@ -302,7 +305,7 @@ export async function evaluateApiWatchIncidents(input: {
       activeKeys.add(value.incidentKey);
     }
   }
-  if (input.report.state === "FAILED") {
+  if (input.report.state === "FAILED" && input.fullAcquisitionScope === true) {
     const value = await observeAndNotify(
       input.store,
       input.notifier,
@@ -378,7 +381,9 @@ export async function evaluateApiWatchIncidents(input: {
       )
         continue;
       const acquisitionRecovered =
-        open.incidentType === "WATCH_RUN_FAILED" ||
+        (open.incidentType === "WATCH_RUN_FAILED" &&
+          input.fullAcquisitionScope === true &&
+          input.report.sources.length > 0) ||
         open.incidentType === "SOURCE_AUTHORITY_BLOCKED";
       const matchingDocumentSources =
         open.sourceFamily !== null && open.documentKey !== null

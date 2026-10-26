@@ -496,17 +496,72 @@ describe("acquisition recovery remains automatic", () => {
     expect(await store.listOpen()).toHaveLength(1);
   });
 
-  it("closes a failed watch only after a completed report", async () => {
+  it("keeps global failure open until a proven full completed pass", async () => {
     const store = new InMemoryApiWatchIncidentStore();
     const failed = comparableReport();
     failed.state = "FAILED";
-    await evaluateApiWatchIncidents({ report: failed, store });
+    await evaluateApiWatchIncidents({
+      report: failed,
+      store,
+      fullAcquisitionScope: true,
+    });
     const partial = comparableReport();
     partial.state = "PARTIAL";
-    await evaluateApiWatchIncidents({ report: partial, store });
+    await evaluateApiWatchIncidents({
+      report: partial,
+      store,
+      fullAcquisitionScope: true,
+    });
+    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
+
+    // The one-family retry may succeed, but the other marketplaces have not
+    // been observed. A completed *scoped* report must not close the alert.
+    await evaluateApiWatchIncidents({
+      report: comparableReport(),
+      store,
+      fullAcquisitionScope: false,
+    });
     expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
     await evaluateApiWatchIncidents({ report: comparableReport(), store });
+    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
+
+    await evaluateApiWatchIncidents({
+      report: comparableReport(),
+      store,
+      fullAcquisitionScope: true,
+    });
     expect(await store.listOpen()).toHaveLength(0);
+  });
+
+  it("does not declare a global outage from a failed one-family retry", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const failure = comparableReport();
+    failure.state = "FAILED";
+    await evaluateApiWatchIncidents({
+      report: failure,
+      store,
+      fullAcquisitionScope: false,
+    });
+    expect(await store.listOpen()).toHaveLength(0);
+  });
+
+  it("a completed report without any observed documents does not resolve the global incident", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const failed = comparableReport();
+    failed.state = "FAILED";
+    await evaluateApiWatchIncidents({
+      report: failed,
+      store,
+      fullAcquisitionScope: true,
+    });
+    const empty = comparableReport();
+    empty.sources = [];
+    await evaluateApiWatchIncidents({
+      report: empty,
+      store,
+      fullAcquisitionScope: true,
+    });
+    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
   });
 });
 
