@@ -4,9 +4,11 @@ import argparse
 import base64
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
+import stat
 import sys
 import zipfile
 from urllib.parse import urlsplit
@@ -22,6 +24,7 @@ spec = importlib.util.spec_from_file_location("extension_baseline", ROOT / "tool
 baseline = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(baseline)
 RECIPE = ROOT / "apps/extension/composition.json"
+MAX_STORE_AUTHORITY_BYTES = 1024 * 1024
 STORE_VISIBLE_BRAND_TARGETS = (
     "popup.html",
     "popup.js",
@@ -85,6 +88,13 @@ def canonical_https_origin(value):
     assert isinstance(value, str)
     parsed = urlsplit(value)
     assert parsed.scheme == "https" and parsed.hostname
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise AssertionError("Invalid HTTPS origin port") from error
+    assert not parsed.netloc.endswith(":") and (port is None or 1 <= port <= 65535), (
+        "Invalid HTTPS origin port"
+    )
     assert parsed.username is None and parsed.password is None
     assert parsed.path in ("", "/") and not parsed.query and not parsed.fragment
     origin = "https://" + parsed.netloc
@@ -125,10 +135,121 @@ def validate_trust_bundle(bundle):
     assert active >= 1
 
 
+def read_store_authority_snapshot(path):
+    """Read one regular, size-bounded release authority input as one snapshot."""
+    # This only establishes internal bytes/hash identity, not genuine authority
+    # issuer acceptance, an Ed25519 signing permission or Store approval.
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    directory_only = getattr(os, "O_DIRECTORY", 0)
+    nonblocking = getattr(os, "O_NONBLOCK", 0)
+    if not no_follow or not directory_only or not nonblocking:
+        raise AssertionError("Secure store authority file opening is unavailable")
+    flags = os.O_RDONLY | no_follow | nonblocking
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    descriptor = None
+    parent_descriptors = []
+    try:
+        # Do not resolve symlinks. Open every parent by directory fd, so a
+        # symlink in an ancestor cannot redirect the final authority open.
+        absolute = Path(os.path.abspath(os.fspath(path)))
+        parts = absolute.parts
+        if len(parts) < 2:
+            raise AssertionError("Invalid store release authority file")
+        parent_flags = os.O_RDONLY | directory_only | no_follow
+        parent_flags |= getattr(os, "O_CLOEXEC", 0)
+        parent_descriptor = os.open(absolute.anchor, parent_flags)
+        parent_descriptors.append(parent_descriptor)
+        for segment in parts[1:-1]:
+            next_descriptor = os.open(
+                segment, parent_flags, dir_fd=parent_descriptor
+            )
+            parent_descriptors.append(next_descriptor)
+            parent_descriptor = next_descriptor
+        descriptor = os.open(parts[-1], flags, dir_fd=parent_descriptor)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise AssertionError("Store authority must be a regular file")
+        if not 0 <= before.st_size <= MAX_STORE_AUTHORITY_BYTES:
+            raise AssertionError("Store authority too large")
+
+        def bounded_bytes():
+            payload = bytearray()
+            while len(payload) <= MAX_STORE_AUTHORITY_BYTES:
+                chunk = os.read(
+                    descriptor,
+                    min(65536, MAX_STORE_AUTHORITY_BYTES + 1 - len(payload)),
+                )
+                if not chunk:
+                    break
+                payload.extend(chunk)
+            if len(payload) > MAX_STORE_AUTHORITY_BYTES:
+                raise AssertionError("Store authority too large")
+            return bytes(payload)
+
+        # A same-sized rewrite can evade mtime/ctime on coarse-clock filesystems.
+        # Compare two bounded reads on the SAME no-follow descriptor, not paths.
+        primary = bounded_bytes()
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        confirmed = bounded_bytes()
+        after = os.fstat(descriptor)
+        if not (
+            stat.S_ISREG(after.st_mode)
+            and before.st_dev == after.st_dev
+            and before.st_ino == after.st_ino
+            and before.st_size == after.st_size == len(primary) == len(confirmed)
+            and before.st_mtime_ns == after.st_mtime_ns
+            and before.st_ctime_ns == after.st_ctime_ns
+            and primary == confirmed
+        ):
+            raise AssertionError("Store authority changed during verified read")
+        return primary
+    except OSError as error:
+        raise AssertionError("Invalid store release authority file") from error
+    finally:
+        # A failed close must not skip remaining descriptors. Never retry the
+        # same fd after an ambiguous close error (its number may be reused).
+        close_error = None
+        descriptors = ([descriptor] if descriptor is not None else [])
+        descriptors.extend(reversed(parent_descriptors))
+        for current in descriptors:
+            try:
+                os.close(current)
+            except OSError as error:
+                if close_error is None:
+                    close_error = error
+        if close_error is not None:
+            raise AssertionError("Invalid store release authority file") from close_error
+
+
 def store_config(authority_path, recipe):
-    authority_path = Path(authority_path)
-    assert authority_path.is_file() and not authority_path.is_symlink()
-    authority = baseline.read_json(authority_path)
+    authority_bytes = read_store_authority_snapshot(Path(authority_path))
+
+    # Release authority must have one unambiguous interpretation throughout
+    # tooling, reviewers and the packaged runtime. The default JSON decoder
+    # silently overwrites repeated members, including nested trust bundles.
+    def unique_members(pairs):
+        value = {}
+        for name, item in pairs:
+            if name in value:
+                raise AssertionError("Duplicate store release authority JSON member")
+            value[name] = item
+        return value
+
+    def reject_nonfinite_number(value):
+        raise AssertionError("Non-finite store release authority JSON number")
+
+    def parse_finite_float(value):
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            raise AssertionError("Non-finite store release authority JSON number")
+        return numeric
+
+    authority = json.loads(
+        authority_bytes.decode("utf-8"),
+        object_pairs_hook=unique_members,
+        parse_constant=reject_nonfinite_number,
+        parse_float=parse_finite_float,
+    )
     assert isinstance(authority, dict) and set(authority) == {
         "schemaVersion", "source", "productVersion", "contractVersion", "migrationLevel",
         "environment", "origins", "trustBundle"
@@ -139,7 +260,7 @@ def store_config(authority_path, recipe):
     assert re.fullmatch(r"[a-f0-9]{40}", authority["source"]["tree"])
     assert authority["productVersion"] == recipe["version"]
     assert authority["contractVersion"] == "control_plane_v2"
-    assert isinstance(authority["migrationLevel"], int) and authority["migrationLevel"] >= 0
+    assert type(authority["migrationLevel"]) is int and authority["migrationLevel"] >= 0, "Invalid store release authority migration level"
     assert authority["environment"] == "PREPRODUCTION"
     assert isinstance(authority["origins"], dict) and set(authority["origins"]) == {
         "controlApiOrigin", "portalOrigin"
@@ -156,7 +277,7 @@ def store_config(authority_path, recipe):
         "contractVersion": authority["contractVersion"],
         "trustBundle": authority["trustBundle"],
     }
-    return config, baseline.sha256(authority_path.read_bytes())
+    return config, baseline.sha256(authority_bytes)
 
 
 def compose(directory, mode="development", release_authority=None):
@@ -417,6 +538,7 @@ if __name__ == "__main__":
     _, _, receipt = build(
         args.output.resolve(),
         mode=args.mode,
-        release_authority=args.release_authority.resolve() if args.release_authority else None,
+        # Preserve the supplied final component for O_NOFOLLOW.
+        release_authority=args.release_authority if args.release_authority else None,
     )
     print(receipt["package"])
