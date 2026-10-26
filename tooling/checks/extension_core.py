@@ -42,6 +42,7 @@ def main():
         # Business-scenario completeness and numeric guards run in the native source gate.
         runner.run("core-business-scenario-coverage",
                    ["node", ROOT / "tests/regression/extension-core/business-scenario-coverage.mjs"])
+        runner.run("core-wb-original-file-artifact", ["node", ROOT / "tests/regression/extension-core/wb-original-file-artifact.mjs"])
         runner.run("core-native-import-panel-entry", ["node", ROOT / "tests/regression/extension-core/native-import-panel-entry.mjs"])
         runner.run("core-content-read-block-dispatch", ["node", ROOT / "tests/regression/extension-core/content-read-block-dispatch.mjs"])
         runner.run("core-start-dispatch-progress", ["node", ROOT / "tests/regression/extension-core/start-dispatch-progress.mjs"])
