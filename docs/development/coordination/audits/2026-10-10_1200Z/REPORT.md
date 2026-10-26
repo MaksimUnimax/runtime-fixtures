@@ -1,3 +1,62 @@
+# Поиск простоя: PR238 exact39df принят в трёхпутном SOURCE-scope; issuer stages уточнены — 26.10.2026
+
+<!-- CONTROLLER_PR238_EXACT39DF_ACCEPTANCE_AND_ISSUER_STAGE_QUALIFICATION_20261026 -->
+
+Продолжение REPORT780e604a/readback18:08:54. Все прежние байты,21 цель PLAN, принятые результаты и каждый открытый отказ сохранены ниже. Это не новый roadmap, не новая приёмка B02/B03 и не доказательство отсутствия простоев во всех непроверенных источниках. Полный комплект правил не перечитывался.
+
+## Выполненный независимый шаг: acceptance изменившегося PR238
+
+В18:14:59 GitHub подтвердил [PR238](https://github.com/MaksimUnimax/runtime-fixtures/pull/238): merged18:08:42UTC+5, merge/main **f5ecffc867b507f9cd5ff84be3ec72d39199bf66**, parents416acb5b…/39dfb693…. Только3пути: .github/workflows/extension-ci.yml, tooling/api-watch/src/source-set.ts, source-set.test.ts. Старое body PR с c6f/two-file/Draft и прежний REPORT-период17:56 не использованы как текущий статус.
+
+В18:20:07.078969 лично прочитан уже существующий R8_EXACT39DF_INDEPENDENT_VERDICT.txt в /root/octoport-control/logs/C/C03_WB_FAMILY_PR238_CURRENT_MAIN416_20261026/. SHA256 **7e2eb809240fbe09f04de443b800abb752d16dd868bf0788c0551feb13a2219d**, native result exit0. Вердикт ACCEPT_SOURCE_SCOPED exact39dfb6931cd9d414e594fb1baa12005e1be8c56c/tree5a877f4f4e59529f1f3259aa5af5f922d7f8aa48a сравнил cumulative diff **всех3путей**, включая workflow; P0/P1/P2=0. Поэтому прежняя собственная проекция «acceptance третьего пути не предъявлен» больше не текущая. Это не перенос R6acceptance8369 на новый SHA и не новый review Controller.
+
+Лично прочитаны все original native jobs exact39df:5push workflows/13jobsSUCCESS и дополнительные3PRworkflows/9jobsSUCCESS, attempt1. Существенный исход: push native Chromium fixture121581008375 выполнил Install fixture browser17:49:43–17:50:02, затем actual popup/worker/content/attachments17:50:02–17:51:16 SUCCESS; такой же PRfixture121580544263 SUCCESS. Исходный8369 cancellation не назван PASS и не был rerun; source successor изменил provisioning, сохранил15min timeout и обязательный application test.
+
+После содержательного issuer-действия прочитаны original postmerge jobs mainf5ec: I140328067180(3),Server40328067073(2),Docs40328066969(1),Extension40328066981(6),Safety40328067269(1) — **13/13SUCCESS**, последнийserver121589929304 завершён **18:22:42UTC+5**. Все5семейств покрыты; expected skipped frozen-server-import и wb-nodes/ozon frozen-browser/Chrome-selection не названы исполненными. Ни run/review/test, ни merge Controller не запускал.
+
+Таким образом, ожидание merge/CI и неподтверждённая exact39df three-path SOURCEacceptance сняты фактическими первичными результатами. Это SOURCE+nativeCI уровень PR238; реальный WB/Telegram/Store/production не принят. Старый physical cancel actor8369 остаётся неизвестным историческим фактом. Старый I1abort c6f/PR317/323 и old4361 reviewer-refusal не объявлены закрытыми одной новой зелёной сборкой.
+
+## Выполненная квалификация issuer в собственном рабочем документе
+
+В18:26:55.639855 после fresh7locks/notice-flock/author/WIP/CAS добавлен только собственный child **current_immutable_package_qualification_stage_reconciliation_20261026** внутри controller_B02_approved_BETA_issuer_source_and_transition_boundary_20261026 существующего B-notice. Независимый полный readback **18:28:32.446461MATCH**, SHA256 **cea1db52487c64028acf0289219afe1b962c2ff3ba0d58e402160f556d5752c5**. Обратная проверка восстанавливает прежний f01d15ab…; все старые поля/байты, source/WIP/index и foreign response сохранены. Это конкретное устранение смешанных текущих стадий, не новый реестр и не runtimeизменение.
+
+Зафиксирована последовательность из5этапов:
+1. Qualification законной публикации/регистрации exactsource c72bf12b17defda9fecfe3e3f699dbf6f948bb1b/tree6e808f5c82e902a37af23da850e22405a89fc0ba и принятого immutabletooling. Source независимый four-file B ACCEPT10:21 сохранён. Публикация не выполнена; последний pinGET12:14 не назван свежим.
+2. Подготовленный **механизм двухpins уже существует** в45966b940d873dcc1d5a470e645ecb3e5d4faca5/treeaa969d222f75e7db1d77be8eb0ef31deb2be73dc и имеет dotSOURCE_REVIEW_ACCEPT_SCOPED. Его не нужно повторно реализовывать из-за старой формулировки missing mechanism. Однако он содержит producer08eb998e/test245bb8 — **pre-R2**. accepted_executable_tooling_pin=null, ready_immutable_R2=NONE_CONFIRMED. Для executabletooling нужен законный acceptedR2successor, а не переименование45966 в acceptedR2. Новая mainf5ec изменила только3PR238пути, не этот producer/fixture, поэтому её зелёный CI не добавляет отсутствующийR2artifact.
+3. После source/tooling/native-gates — настоящий GitHub-hosted full-package build с Node24.20.0/pnpm10.34.5, frozen dependencies, всеми четырьмяruntime и обязательными probes/sandbox/floors. Hosted admission **не зависит автоматически от Easyscript OPEN/HELD**. Запрет№41 не общийSTOP всей независимой подготовки. Ни build, ни dispatch здесь не выполнялся.
+4. Независимая acceptance настоящего tuple sourceSha/sourceTree/toolingSha/toolingTree/toolingBlobs/workflowSha/ref/runId/attempt/artifactID/archiveSHA/receipt/inventory. Только после появления реального package вычисляются физическиеB/F/S/D/L и localwhole import/switch/readback admission. Не создавать круговую зависимость «сначала неизвестный размер ещё не собранного hostedartifact». Ни защищённыхinputs, ни proxyaggregate, ни нового замера не было.
+5. Отдельно квалифицированный API-only switch/rollback seller-agents-owner-test-api.service: сохраняются config/trust/user/group, exact50-r3-0216 override/rollback, package/entry/loadedidentity/health и durableoutcome. Факт root/src live vs non-root/dist renderer не замалчивается; four-unit current-apply/DB не делится и не запускается.
+
+Первый отсутствующий решающий source-факт — supported originalcase6disposition и законный принятый R2/tooling artifact. Существующий Breturn остаётся HOLD_NOT_TRANSFERRED/NONE_CONFIRMED; новый общийYES на пятьправ этот факт не создаёт. После него ещё потребуются реальные exact-source gates, artifact и локальный admission/квалификация API-only пути. Это точная граница невозможности dependent package/switch сейчас, а не отсутствие ownerсогласия. Свежая подписанная930-R120проекция17:26:18 с отсутствующими пятьюAIправами сохранена; issuer deploy/readback и пять installedсценариев этим не закрыты.
+
+## Адресные ответы и текущая работа Тестера
+
+Первый адресный срез18:14:59 ещё не содержал A-ответа; это сохранённое историческое время, не текущая неизвестность. При завершающей проверке18:35:18 найден и в18:35:53.577847 лично прочитан новый ответ A в A_EXECUTION_RESPONSE.json, ключ CONTROLLER_I1_SELECTED_REQUEST_CAUSAL_FOUR_PATH_SOURCE_CUSTODY_COORDINATION_20261026, issued18:17:32.041948UTC+5, SHA256 **26025b52e8d8cad8bcbdc3027064180db6bb874e3c007fcd90f2fc96c8731def**. Исход: SOLE_CURRENT_TWO_PATH_SOURCE_CUSTODY_NOT_PROVEN__NARROW_RELEASE_NOT_ISSUED, released_paths=[]. A не может передать чужой scope.
+
+В18:37:44.310343 адресно прочитаны только ownership-метаданные /root/octoport-control/operator/state.json#/current_personal_implementation/latest_successor_continuation/active_source_scope, SHA25609f50639cccc32fe91ae7883db99366826fb6132e5ca0fc5a3cc7440519595ad. Сохранённый scope same existing Tester/OPERATOR включает client.js и parallel-authority.js; статус PASS_SOURCE_SCOPED_CODE_AND_DEVELOPMENT_PACKAGE_NOT_FULL_B02. Это историческое членство, не доказательство текущей записи/эксклюзивности или её отсутствия; более поздний точный release двух путей не установлен. Нужна текущая per-path disposition/непересечение от действующего держателя, затем законный release и acceptance существующим I1executor. Общий YES не заменяет этих фактов; Controller не пишет Тестеру, не меняет его source/процессы и не выдаёт source-права по одному чистому carrier.
+
+В18:42:25.967014 после fresh7locks/notice-flock/author/WIP/CAS обновлена только собственная существующая A-notice заявка: currentstatus A_RESPONSE_CONSUMED_NO_RELEASE_CURRENT_TESTER_OPERATOR_SCOPE_DISPOSITION_REQUIRED; исторический исходный запрос сохранён в current_A_response_consumption_20261026. Независимый полный readback **18:42:46.459516MATCH**, wholeSHA256 **0e8257f6e30bb34c377d065db25bbb15c328a43db30465fd29f253d46187f633**. Обратная проверка восстанавливает прежний6ea439e4…; все остальные байты/поля, source/WIP/index сохранены. Ответ A потреблён, но передачи source нет. Заявка не дублирована и новый обходной документ не создан.
+
+C_EXECUTION_RESPONSE133427a8… на последнем адресном срезе18:35:18 всё ещё без ответа на уже сохранённую R9-заявку. Нужен существующий originalnativecapture/toolargs/targets/response/nonexecution, не новый PG и не повтор запроса. Existing I1executor01a1665e… пока сохраняет только два ранее принятых harness-пути. Ответы/ограничения не остановили независимую PR238/issuer-документальную работу.
+
+По новому адресному поручению dot в18:29:53–18:31:02 прочитаны только безопасные R122resultmetadata в прежнем b02-r92-installed, без диалогов/секретов/профиля. Checkpoint на момент чтения ещё **bbdfa380…/R121**, это не доказательство отсутствия работы: новые файлы существуют.
+
+- 948: собственная synthetic attachment metadata прочитана17:49:57.874; remote bytes не приняты этим наблюдением.
+- 949/950: подготовлены отдельные product-guard candidate и portable private-output helper, syntaxPASS; это не применение к существующему стенду.
+- 952/953: один isolated helper wiring start18:10:48.149799; **3/3PASS18:10:48.327**, readied exactdeny/oversized-input/shutdown cases; namespace и OSbarrier сохраняются. Это не browser/B02PASS. Primary953SHA256fd1aa00194268b5c8057b38e5f296723f287e163392d4edbc129022d6d604b70.
+- 955: cleanupMATCH18:14:33.549863, own group/child absent, runtime removed; не Controllercleanup.
+- **957: последний подтверждённый предметный read в этом адресном срезе завершён18:19:13.795UTC+5**, SHA256d27f44f4469f1fb5bb019144d5f3506fb9dc0c307f506f454477602464db1dce. Наблюдалась старая R105операция: statusfailed/delivery_confirmedtrue/RESULT_BUFFER_EXPIRED, updated09:10:02.453UTC+5; это не новый failure18:19. Workinactive/finishedtrue, но safe_inflight_count в предшествующем956=null, не выдуманный0. Новых Start/Send/Finish/marketplacecalls в этих reads0.
+
+Следовательно, есть фактическое продвижение после R121, но R122финальный checkpoint/продуктовая приёмка на этом срезе не установлены. Более поздняя деятельность не измерена; ни RUNNING, ни старый checkpoint не дают вывода о полном простое/полном отсутствии простоя. Новые процессы/тесты Тестера Controller не запускал, его source/stand не менял и сообщений ему не отправлял. Принятое/прочитанное им сообщение dot18:17 — переданный parentфакт, не исход старых недоставленных отправок или новый scope для Controller.
+
+## Сохранённая полная цель и независимый остаток
+
+Все A01–A06/B01–B07/C00–C07 и полный открытый список ниже сохранены. Новая mainf5ec/readiness относится к C03WB-source/C00CI/C02integration, не к прочим release-blockers. A-localatomicapply, остальные браузеры/A05P2, relay/OTP/admin, Store, реальная PG/recovery и loadedTelegram не переоценены по чужому CI. PR324R9, PR320, оба PR308P1,case6,№33/34/41/36/48/50,PR205,PR200,старыеI1ABORT и два0.2.40STOP сохраняют собственные причины, ответственных и closureconditions. Исторические отменённые job/отказы не удалены; именно текущие ожидания PR238 исправлены. Неполный historicalindex не объявлен полным.
+
+Доступный предметный результат этого продолжения — прочитанная exact39dfтрёхпутная acceptance с native/postmergeCI и исправленная текущая issuerqualification без ложного отсутствия механизма и без кругового resourceSTOP. Дальнейший source/build/switch зависит от конкретных отсутствующих оснований выше; никаких forbiddencalls/новыхreview/tests/CI/реестров/source/live/DB/security/permissions/models/schedules не было. Обновляется только собственный REPORT; все ранее принятые результаты остаются с исходными временами.
+
+---
+
 # Поиск простоя: отложенный аудит17:30 и проверенная дельта — 26.10.2026
 
 <!-- CONTROLLER_AUDIT_1730_ISSUER_SIGNED_R121_AND_PR238_SUCCESSOR_20261026 -->
