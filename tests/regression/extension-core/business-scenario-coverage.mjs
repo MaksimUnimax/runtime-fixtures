@@ -568,7 +568,7 @@ const calculators = {
           uniqueCount: null,
           pageCountProvesCompleteness: false,
         };
-      keys.push(`${row.period}\u0000${row.product}\u0000${row.query}`);
+      keys.push(JSON.stringify([row.period, row.product, row.query]));
     }
     return {
       uniqueCount: new Set(keys).size,
@@ -577,7 +577,7 @@ const calculators = {
   },
   search_fact_boundary(input) {
     if (
-      typeof input.period !== "string" ||
+      typeof input?.period !== "string" ||
       !input.period ||
       !Array.isArray(input.rows) ||
       !Array.isArray(input.aiSuggestions)
@@ -602,7 +602,7 @@ const calculators = {
           status: "INCOMPLETE",
           reason: "PROVIDER_SEARCH_METRIC_MISSING",
         };
-      const key = [input.period, row.product, row.query].join("\u0000");
+      const key = JSON.stringify([input.period, row.product, row.query]);
       if (keys.has(key))
         return {
           status: "INCOMPLETE",
@@ -619,7 +619,7 @@ const calculators = {
     };
   },
   search_position_boundary(input) {
-    if (typeof input.period !== "string" || !input.period)
+    if (typeof input?.period !== "string" || !input.period)
       return { status: "INCOMPLETE", reason: "PERIOD_MISSING" };
     if (input.region !== null && input.region !== undefined)
       return { status: "INCOMPLETE", reason: "REGION_FILTER_UNSUPPORTED" };
@@ -1084,6 +1084,56 @@ const observedZeroCases = [
 ];
 for (const [name, kind, input, expected] of observedZeroCases) {
   assert.equal(calculators[kind](input), expected, name + " must stay valid");
+}
+
+// CAP-25 business identity guards supplement the immutable owner-curated
+// gold/numeric fixture case list rather than changing its accepted bindings.
+const searchKeyIntegrityCases = [
+  [
+    "search_dedup_distinct_delimiter_tuples",
+    "search_dedup",
+    {
+      rows: [
+        { period: "2026-08", product: "1001\u0000sub", query: "dress" },
+        { period: "2026-08", product: "1001", query: "sub\u0000dress" },
+      ],
+      pageCount: 2,
+    },
+    { uniqueCount: 2, pageCountProvesCompleteness: false },
+  ],
+  [
+    "search_fact_distinct_delimiter_tuples",
+    "search_fact_boundary",
+    {
+      period: "2026-08",
+      rows: [
+        { product: "1001\u0000sub", query: "dress", frequency: 10, position: 5 },
+        { product: "1001", query: "sub\u0000dress", frequency: 10, position: 5 },
+      ],
+      aiSuggestions: [],
+    },
+    {
+      status: "COMPLETE",
+      providerFactCount: 2,
+      aiSuggestionCount: 0,
+      aiSuggestionsAreProviderFacts: false,
+    },
+  ],
+  [
+    "search_fact_null_input",
+    "search_fact_boundary",
+    null,
+    { status: "INCOMPLETE", reason: "PERIOD_OR_ROWS_MISSING" },
+  ],
+  [
+    "search_position_null_input",
+    "search_position_boundary",
+    null,
+    { status: "INCOMPLETE", reason: "PERIOD_MISSING" },
+  ],
+];
+for (const [name, kind, input, expected] of searchKeyIntegrityCases) {
+  assert.deepEqual(calculators[kind](input), expected, name + ": integrity drift");
 }
 
 const requiredKinds = new Set([
