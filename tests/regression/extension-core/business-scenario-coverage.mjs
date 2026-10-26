@@ -1086,6 +1086,56 @@ for (const [name, kind, input, expected] of observedZeroCases) {
   assert.equal(calculators[kind](input), expected, name + " must stay valid");
 }
 
+// CAP-25 business identity guards supplement the immutable owner-curated
+// gold/numeric fixture case list rather than changing its accepted bindings.
+const searchKeyIntegrityCases = [
+  [
+    "search_dedup_distinct_delimiter_tuples",
+    "search_dedup",
+    {
+      rows: [
+        { period: "2026-08", product: "1001\u0000sub", query: "dress" },
+        { period: "2026-08", product: "1001", query: "sub\u0000dress" },
+      ],
+      pageCount: 2,
+    },
+    { uniqueCount: 2, pageCountProvesCompleteness: false },
+  ],
+  [
+    "search_fact_distinct_delimiter_tuples",
+    "search_fact_boundary",
+    {
+      period: "2026-08",
+      rows: [
+        { product: "1001\u0000sub", query: "dress", frequency: 10, position: 5 },
+        { product: "1001", query: "sub\u0000dress", frequency: 10, position: 5 },
+      ],
+      aiSuggestions: [],
+    },
+    {
+      status: "COMPLETE",
+      providerFactCount: 2,
+      aiSuggestionCount: 0,
+      aiSuggestionsAreProviderFacts: false,
+    },
+  ],
+  [
+    "search_fact_null_input",
+    "search_fact_boundary",
+    null,
+    { status: "INCOMPLETE", reason: "PERIOD_OR_ROWS_MISSING" },
+  ],
+  [
+    "search_position_null_input",
+    "search_position_boundary",
+    null,
+    { status: "INCOMPLETE", reason: "PERIOD_MISSING" },
+  ],
+];
+for (const [name, kind, input, expected] of searchKeyIntegrityCases) {
+  assert.deepEqual(calculators[kind](input), expected, name + ": integrity drift");
+}
+
 const requiredKinds = new Set([
   "sales_totals",
   "daily_rank",
