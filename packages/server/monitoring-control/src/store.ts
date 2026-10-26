@@ -192,7 +192,11 @@ export class InMemoryMonitoringScheduleStore
     result,
   }: FinishRunInput): Promise<MonitoringLaneState> {
     const state = this.state(lane);
-    if (!state.activeRun || state.activeRun.runId !== runId)
+    if (
+      !state.activeRun ||
+      state.activeRun.runId !== runId ||
+      state.activeRun.leaseExpiresAt <= now
+    )
       throw new Error("MONITORING_RUN_STALE_OWNER");
     state.lastRunAt = new Date(now);
     state.lastResult = {
@@ -422,7 +426,7 @@ export function createPostgresMonitoringScheduleStore(
       // outside this write cannot prove ownership across a lease takeover.
       // RETURNING captures the exact committed row rather than a later run.
       const changed = await runtime.query<StateRow>(
-        `UPDATE monitoring_lane_schedules SET last_run_at=$2,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,last_result=$3::jsonb,updated_at=$2 WHERE lane=$1 AND active_run_id=$4 RETURNING ${stateColumns}`,
+        `UPDATE monitoring_lane_schedules SET last_run_at=$2,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,last_result=$3::jsonb,updated_at=$2 WHERE lane=$1 AND active_run_id=$4 AND active_run_lease_expires_at>$2 RETURNING ${stateColumns}`,
         [
           lane,
           now,
