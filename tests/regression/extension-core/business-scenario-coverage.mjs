@@ -292,7 +292,9 @@ function finiteRecordedMetric(value) {
 
 const calculators = {
   sales_totals(input) {
-    const rows = Array.isArray(input.rows) ? input.rows : [];
+    if (input?.complete !== true || !Array.isArray(input.rows))
+      return { status: "INCOMPLETE", money: null, units: null };
+    const rows = input.rows;
     const invalid = rows.some(
       (row) =>
         row?.money === null ||
@@ -304,8 +306,7 @@ const calculators = {
         !Number.isFinite(row.money) ||
         !Number.isFinite(row.units),
     );
-    if (!input.complete || invalid)
-      return { status: "INCOMPLETE", money: null, units: null };
+    if (invalid) return { status: "INCOMPLETE", money: null, units: null };
     return {
       status: "COMPLETE",
       money: rows.reduce((sum, row) => sum + row.money, 0),
@@ -948,6 +949,46 @@ const calculators = {
     };
   },
 };
+
+// STD-01: unknown sales rows are not proof of zero turnover or zero units.
+// An explicitly complete, valid empty page collection remains a genuine zero.
+const salesTotalsIncomplete = {
+  status: "INCOMPLETE",
+  money: null,
+  units: null,
+};
+for (const [name, source] of [
+  ["no_input", undefined],
+  ["null_input", null],
+  ["missing_rows", { complete: true }],
+  ["null_rows", { complete: true, rows: null }],
+  ["object_rows", { complete: true, rows: { length: 0 } }],
+  ["text_rows", { complete: true, rows: "" }],
+  ["string_completeness", { complete: "true", rows: [] }],
+  ["numeric_completeness", { complete: 1, rows: [] }],
+]) {
+  assert.deepEqual(
+    calculators.sales_totals(source),
+    salesTotalsIncomplete,
+    "sales_totals " + name + " must not fabricate zero sales",
+  );
+}
+assert.deepEqual(
+  calculators.sales_totals({ complete: true, rows: [] }),
+  { status: "COMPLETE", money: 0, units: 0 },
+  "proven complete zero-row sales period is genuine zero",
+);
+assert.deepEqual(
+  calculators.sales_totals({
+    complete: true,
+    rows: [
+      { money: 90.5, units: 2 },
+      { money: 9.5, units: 1 },
+    ],
+  }),
+  { status: "COMPLETE", money: 100, units: 3 },
+  "valid complete sales rows preserve numeric money and units",
+);
 
 // STD-03 top-N must fail closed on an invalid N or incomplete join identity.
 const validTopNCatalog = [{ id: "p", name: "Product" }];
