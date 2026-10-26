@@ -254,7 +254,7 @@ function redactStructuredCredentialValues(input: string): string {
   return output + input.slice(cursor);
 }
 
-export function redactAccidentalSecrets(input: string): string {
+function redactAccidentalSecretsBasic(input: string): string {
   const stringsRedacted = input.replace(
     quotedStringField,
     (field, encodedKey: string, _keyQuote: string, delimiter: string) =>
@@ -280,6 +280,54 @@ export function redactAccidentalSecrets(input: string): string {
     (value, [pattern, replacement]) => value.replace(pattern, replacement),
     redactStructuredCredentialValues(pseudoScalarsRedacted),
   );
+}
+
+// User-provided diagnostic text may contain a JSON object serialized inside
+// another JSON string. Decode only valid JSON envelopes and inspect their
+// string values; retain the original formatting when nothing needs masking.
+const MAX_EMBEDDED_JSON_DEPTH = 24;
+
+function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
+  const basic = redactAccidentalSecretsBasic(input);
+  if (depth >= MAX_EMBEDDED_JSON_DEPTH) return "[REDACTED_SECRET]";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(basic);
+  } catch {
+    // Ordinary text and pseudo-JSON remain covered by the existing scrubbers.
+    return basic;
+  }
+
+  let changed = false;
+  const visit = (value: unknown, nesting: number): unknown => {
+    if (nesting >= MAX_EMBEDDED_JSON_DEPTH) {
+      // A deeply nested diagnostic must fail closed instead of exhausting
+      // the stack or exposing an uninspected embedded credential.
+      changed = true;
+      return "[REDACTED_SECRET]";
+    }
+    if (typeof value === "string") {
+      const next = redactEmbeddedDiagnosticJson(value, nesting + 1);
+      if (next !== value) changed = true;
+      return next;
+    }
+    if (Array.isArray(value))
+      return value.map((part) => visit(part, nesting + 1));
+    if (value && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value).map(([key, part]) => [
+          key,
+          visit(part, nesting + 1),
+        ]),
+      );
+    return value;
+  };
+  const updated = visit(parsed, depth);
+  return changed ? JSON.stringify(updated) : basic;
+}
+
+export function redactAccidentalSecrets(input: string): string {
+  return redactEmbeddedDiagnosticJson(input, 0);
 }
 
 export function sanitizeFeedbackText(input: string): string {

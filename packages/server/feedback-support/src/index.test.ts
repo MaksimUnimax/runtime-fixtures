@@ -255,6 +255,60 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitized).toContain("[REDACTED_SECRET]");
   });
 
+  it("masks double-serialized diagnostic JSON while preserving safe metadata", () => {
+    const raw = JSON.stringify({
+      error: JSON.stringify({
+        password: ["SYNTHETIC_EMBEDDED_PASSWORD_101"],
+        trace: "safe-trace-101",
+      }),
+      requestId: "safe-outer-101",
+    });
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("SYNTHETIC_EMBEDDED_PASSWORD_101");
+    const parsed = JSON.parse(sanitized);
+    expect(parsed.requestId).toBe("safe-outer-101");
+    expect(JSON.parse(parsed.error)).toEqual({
+      password: "[REDACTED_SECRET]",
+      trace: "safe-trace-101",
+    });
+  });
+
+  it("masks pasted JSON cookie within a JSON text field without dropping other fields", () => {
+    const raw = JSON.stringify({
+      message:
+        "Error: " + JSON.stringify({ cookie: "SYNTHETIC_PASTED_COOKIE_102" }),
+      requestId: "safe-outer-102",
+    });
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("SYNTHETIC_PASTED_COOKIE_102");
+    const parsed = JSON.parse(sanitized);
+    expect(parsed.requestId).toBe("safe-outer-102");
+    expect(parsed.message).toContain("[REDACTED_SECRET]");
+  });
+
+  it("redacts multiple nested serializations without leaking a credential", () => {
+    let embedded = JSON.stringify({
+      password: ["SYNTHETIC_TRIPLE_JSON_SECRET_104"],
+    });
+    for (let depth = 0; depth < 3; depth++) {
+      embedded = JSON.stringify({
+        message: embedded,
+        requestId: "safe-nested-104",
+      });
+    }
+    const sanitized = sanitizeFeedbackText(embedded);
+    expect(sanitized).not.toContain("SYNTHETIC_TRIPLE_JSON_SECRET_104");
+    expect(JSON.parse(sanitized).requestId).toBe("safe-nested-104");
+  });
+
+  it("does not alter harmless embedded JSON diagnostics", () => {
+    const raw = JSON.stringify({
+      detail: JSON.stringify({ count: 2, labels: ["safe-1", "safe-2"] }),
+      requestId: "safe-outer-103",
+    });
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
   it("preserves both pseudo-JSON quote delimiters around a masked value", () => {
     const raw = "{'clientSecret':'synthetic-private-C789'}";
     expect(sanitizeFeedbackText(raw)).toBe(
