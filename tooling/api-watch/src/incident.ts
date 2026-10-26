@@ -281,6 +281,14 @@ function hasWholeOfficialDocumentSet(
 ): boolean {
   const entries = productionSourceRegistry.list();
   if (entries.length !== 3) return false;
+  const sourceFamilies = new Set(entries.map((entry) => entry.sourceFamily));
+  if (
+    sourceFamilies.size !== 3 ||
+    !(["OZON_SELLER", "OZON_PERFORMANCE", "WILDBERRIES"] as const).every(
+      (family) => sourceFamilies.has(family),
+    )
+  )
+    return false;
   const expectedKeys = new Set<string>();
   for (const entry of entries) {
     const requiredDocumentCount = entry.sourceFamily === "WILDBERRIES" ? 13 : 1;

@@ -575,6 +575,10 @@ export async function runApiWatchReport(input: {
     state: "RUNNING",
     at: now,
   });
+  // Keep the actual source observations outside the try so a later analysis
+  // failure cannot erase already acquired source identities.
+  let observedPass: AuthorityPassResult | undefined;
+  const observedSources: ApiWatchReportSourceOutcome[] = [];
   try {
     const previousSnapshots = await dependencies.store.listSnapshots();
     const pass = await runAuthorityPass({
@@ -583,7 +587,8 @@ export async function runApiWatchReport(input: {
       skipOperatorBlocked: input.source === "SCHEDULED",
       sourceFamilies: input.sourceFamilies,
     });
-    const sources: ApiWatchReportSourceOutcome[] = [];
+    observedPass = pass;
+    const sources = observedSources;
     const crosswalkDocuments: CrosswalkDocument[] = [];
     for (const [index, outcome] of pass.outcomes.entries()) {
       const record = pass.records[index];
@@ -660,16 +665,35 @@ export async function runApiWatchReport(input: {
       });
     return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
-    // A terminal transition may commit before its ACK or a later pipeline step
-    // fails. Without a completion receipt the exact artifact remains resumable.
+    // A terminal transition may commit before its ACK or a later pipeline
+    // step fails. A failed RUNNING report must retain the true observed set,
+    // including source outcomes not yet analyzed into accepted snapshots.
     const persisted = await reportStore.getReport(report.reportId);
-    if (persisted?.state === "RUNNING")
+    if (persisted?.state === "RUNNING") {
+      const failedSources =
+        observedPass?.outcomes.map(
+          (outcome, index) =>
+            observedSources[index] ??
+            blockedOutcome(outcome, observedPass.records[index]),
+        ) ?? [];
       await reportStore.transitionReport({
         reportId: report.reportId,
         state: "FAILED",
         at: currentTime(dependencies),
-        counts: { overallImpactSeverity: null },
+        sources: failedSources,
+        counts: reportCounts(failedSources),
       });
+      const failed = await reportStore.getReport(report.reportId);
+      // Only the evaluator's exact 15-document proof may open the global
+      // incident; an aborted pre-acquisition run never fabricates coverage.
+      if (failed && dependencies.incidentStore)
+        await evaluateApiWatchIncidents({
+          report: failed,
+          store: dependencies.incidentStore,
+          notifier: dependencies.incidentNotifier,
+          now: currentTime(dependencies),
+        });
+    }
     return reportResult("FAILED");
   }
 }

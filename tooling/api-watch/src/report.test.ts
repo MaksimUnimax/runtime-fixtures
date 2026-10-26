@@ -309,13 +309,22 @@ describe("A6 API-watch report lifecycle", () => {
         source: "FORCED",
       });
       expect(result.code).toBe("API_WATCH_REPORT_FAILED");
+      const failedReport = await setup.reportStore.getReport(
+        "api-watch:inventory-first-rejection",
+      );
+      expect(failedReport?.state).toBe("FAILED");
+      // Even though semantic inventory evaluation threw before writing an
+      // accepted snapshot, the failed report retains all three observed
+      // family outcomes rather than losing the source coverage.
+      expect(failedReport?.sources.map((row) => row.sourceFamily)).toEqual([
+        "OZON_SELLER",
+        "OZON_PERFORMANCE",
+        "WILDBERRIES",
+      ]);
       expect(
-        (
-          await setup.reportStore.getReport(
-            "api-watch:inventory-first-rejection",
-          )
-        )?.state,
-      ).toBe("FAILED");
+        failedReport?.sources.find((row) => row.sourceFamily === "OZON_SELLER")
+          ?.snapshotSha256,
+      ).toBeNull();
       expect(await setup.dependencies.store.listSnapshots()).toHaveLength(0);
       expect(setup.apiState.inventories.size).toBe(0);
       expect(await readdir(root)).toHaveLength(0);
