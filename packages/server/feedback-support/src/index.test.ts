@@ -414,21 +414,20 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitizeFeedbackText(raw)).toBe(raw);
   });
 
-  it.each([
-    ['{"password":123\nX-Trace: preserved', "123"],
-    [
-      "{'clientSecret':'synthetic-line-secret\nX-Trace: preserved",
-      "synthetic-line-secret",
-    ],
-  ])(
-    "redacts truncated line-scoped credentials without consuming the next line: %s",
-    (raw, secret) => {
-      const sanitized = sanitizeFeedbackText(raw);
-      expect(sanitized).not.toContain(secret);
-      expect(sanitized).toContain("[REDACTED_SECRET]");
-      expect(sanitized).toContain("X-Trace: preserved");
-    },
-  );
+  it("keeps a separate safe line after a truncated numeric secret", () => {
+    const raw = '{"password":123\nX-Trace: preserved';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("123");
+    expect(sanitized).toContain("[REDACTED_SECRET]");
+    expect(sanitized).toContain("X-Trace: preserved");
+  });
+
+  it("fails closed when an unterminated sensitive quote crosses a raw line break", () => {
+    const raw = "{'clientSecret':'synthetic-line-secret\nX-Trace: preserved";
+    // The content after the LF might be the credential itself. The parser
+    // cannot prove a separate safe line without a terminating value quote.
+    expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+  });
 
   it.each([
     [
@@ -499,7 +498,9 @@ describe("B2 feedback/support safety foundation", () => {
       const sanitized = sanitizeFeedbackText(raw);
       expect(sanitized).not.toContain(secret);
       expect(sanitized).toContain("[REDACTED_SECRET]");
-      if (following) expect(sanitized).toContain(following);
+      // With a raw LF/CR inside an unterminated quoted credential, even an
+      // apparent header-like continuation has no provably safe boundary.
+      if (following) expect(sanitized).toBe("[REDACTED_SECRET]");
     },
   );
 
@@ -534,6 +535,142 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitized).not.toContain("synthetic-tail");
     expect(sanitized).toContain('"access_token":"[REDACTED_SECRET]"');
     expect(sanitized).toContain('"status":"ok"');
+  });
+
+  it.each([
+    ["LF", "\n"],
+    ["CR", "\r"],
+    ["CRLF", "\r\n"],
+  ])(
+    "masks the entire sensitive quoted JSON value containing an actual %s",
+    (_label, linebreak) => {
+      const raw =
+        '{"password":"SYNTHETIC_MULTILINE_HEAD_501' +
+        linebreak +
+        'SYNTHETIC_MULTILINE_TAIL_502","requestId":"safe-multiline"}';
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain("SYNTHETIC_MULTILINE_HEAD_501");
+      expect(sanitized).not.toContain("SYNTHETIC_MULTILINE_TAIL_502");
+      expect(sanitized).toContain("[REDACTED_SECRET]");
+    },
+  );
+
+  it.each(["cookie", "setCookie", "clientSecret", "access_token"])(
+    "masks the raw-LF suffix of the sensitive %s field",
+    (key) => {
+      const raw =
+        '{"' +
+        key +
+        '":"SYNTHETIC_MULTILINE_HEAD_503\nSYNTHETIC_MULTILINE_TAIL_504","requestId":"safe"}';
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).not.toContain("SYNTHETIC_MULTILINE_HEAD_503");
+      expect(sanitized).not.toContain("SYNTHETIC_MULTILINE_TAIL_504");
+      expect(sanitized).toContain("[REDACTED_SECRET]");
+    },
+  );
+
+  it("masks a sensitive quoted value even if it never closes after raw LF", () => {
+    const raw =
+      '{"password":"SYNTHETIC_UNTERMINATED_HEAD_505\nSYNTHETIC_UNTERMINATED_TAIL_506';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("SYNTHETIC_UNTERMINATED_HEAD_505");
+    expect(sanitized).not.toContain("SYNTHETIC_UNTERMINATED_TAIL_506");
+    expect(sanitized).toContain("[REDACTED_SECRET]");
+  });
+
+  it.each(["[ERROR] ", "[WARN] ", "[INFO] "])(
+    "preserves a recognized harmless log-level prefix %s when the following JSON is verifiably safe",
+    (prefix) => {
+      const raw =
+        prefix +
+        '{"password":"SYNTHETIC_LOG_HEAD_521\nSYNTHETIC_LOG_TAIL_522","requestId":"safe-log-521"}';
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).toContain(prefix);
+      expect(sanitized).toContain('"requestId":"safe-log-521"');
+      expect(sanitized).not.toContain("SYNTHETIC_LOG_HEAD_521");
+      expect(sanitized).not.toContain("SYNTHETIC_LOG_TAIL_522");
+    },
+  );
+
+  it("does not treat an arbitrary malformed prefix as a trusted JSON boundary", () => {
+    const raw =
+      '[unknown] {"password":"SYNTHETIC_UNTRUSTED_HEAD_523\nSYNTHETIC_UNTRUSTED_TAIL_524","requestId":"safe"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).toBe("[REDACTED_SECRET]");
+  });
+
+  it("preserves a safe large-number lexeme in a verified multiline redaction", () => {
+    const raw =
+      '{"id":9007199254740993,"password":"SYNTHETIC_LONG_HEAD_525\nSYNTHETIC_LONG_TAIL_526"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).toContain('"id":9007199254740993');
+    expect(sanitized).not.toContain("SYNTHETIC_LONG_HEAD_525");
+    expect(sanitized).not.toContain("SYNTHETIC_LONG_TAIL_526");
+  });
+
+  it("preserves harmless raw multiline feedback and valid escaped newlines", () => {
+    const prose = "Support details on one line\nand useful details on the next";
+    expect(sanitizeFeedbackText(prose)).toBe(prose);
+    const benign = '{"note":"safe-first\nsafe-second","requestId":"safe-note"}';
+    expect(sanitizeFeedbackText(benign)).toBe(benign);
+    const credential = JSON.stringify({
+      password: "SYNTHETIC_ESCAPED_HEAD_507\nSYNTHETIC_ESCAPED_TAIL_508",
+      requestId: "safe-escaped",
+    });
+    const sanitized = sanitizeFeedbackText(credential);
+    expect(sanitized).not.toContain("SYNTHETIC_ESCAPED_HEAD_507");
+    expect(sanitized).not.toContain("SYNTHETIC_ESCAPED_TAIL_508");
+    expect(JSON.parse(sanitized)).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-escaped",
+    });
+  });
+
+  it("masks raw LF/CR sensitive tails before all feedback repository writes", async () => {
+    const captured: string[] = [];
+    const repo = {
+      createCase: async (input: { description: string }) => {
+        captured.push(input.description);
+        throw new Error("SYNTHETIC_CASE_WRITE_CAPTURED");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTHETIC_FOLLOWUP_WRITE_CAPTURED");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repo);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const rawLF =
+      '{"password":"SYNTHETIC_CASE_HEAD_511\nSYNTHETIC_CASE_TAIL_512","requestId":"safe-511"}';
+    const rawCR =
+      '{"cookie":"SYNTHETIC_USER_HEAD_513\rSYNTHETIC_USER_TAIL_514","requestId":"safe-513"}';
+    const rawAdmin =
+      '{"clientSecret":"SYNTHETIC_ADMIN_HEAD_515\nSYNTHETIC_ADMIN_TAIL_516","requestId":"safe-515"}';
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description: rawLF,
+      }),
+    ).rejects.toThrow("SYNTHETIC_CASE_WRITE_CAPTURED");
+    await expect(
+      service.addUserFollowup(userId, caseId, { description: rawCR }),
+    ).rejects.toThrow("SYNTHETIC_FOLLOWUP_WRITE_CAPTURED");
+    await expect(
+      service.addAdminFollowup("SUPPORT", userId, caseId, {
+        description: rawAdmin,
+      }),
+    ).rejects.toThrow("SYNTHETIC_FOLLOWUP_WRITE_CAPTURED");
+    expect(captured).toHaveLength(3);
+    for (const entry of captured) {
+      expect(entry).not.toContain("SYNTHETIC_CASE_TAIL_512");
+      expect(entry).not.toContain("SYNTHETIC_USER_TAIL_514");
+      expect(entry).not.toContain("SYNTHETIC_ADMIN_TAIL_516");
+      expect(entry).toContain("[REDACTED_SECRET]");
+    }
   });
 
   it("redacts JSON credentials before the user case repository call", async () => {
