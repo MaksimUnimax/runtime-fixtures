@@ -439,6 +439,25 @@ const calculators = {
     };
   },
   top_n_join(input) {
+    if (!input || !Array.isArray(input.catalog) || !Array.isArray(input.sales))
+      return { status: "INCOMPLETE", reason: "JOIN_INPUT_MISSING" };
+    if (!Number.isSafeInteger(input.n) || input.n < 1)
+      return { status: "INCOMPLETE", reason: "TOP_N_INVALID" };
+    // Missing source product identity cannot be reported as joined sales.
+    const recordedId = (value) =>
+      (typeof value === "string" && value.trim() !== "") ||
+      (typeof value === "number" && Number.isSafeInteger(value));
+    if (
+      input.catalog.some((row) => !row || !recordedId(row.id)) ||
+      input.sales.some((row) => !row || !recordedId(row.id))
+    )
+      return { status: "INCOMPLETE", reason: "SOURCE_ITEM_ID_MISSING" };
+    if (
+      input.catalog.some(
+        (row) => typeof row.name !== "string" || !row.name.trim(),
+      )
+    )
+      return { status: "INCOMPLETE", reason: "CATALOG_NAME_MISSING" };
     const catalogIds = input.catalog.map((row) => row.id);
     if (new Set(catalogIds).size !== catalogIds.length)
       return { status: "DUPLICATE_KEY", side: "catalog" };
@@ -930,6 +949,79 @@ const calculators = {
   },
 };
 
+// STD-03 top-N must fail closed on an invalid N or incomplete join identity.
+const validTopNCatalog = [{ id: "p", name: "Product" }];
+const validTopNSales = [{ id: "p", money: 100 }];
+for (const [name, input, reason] of [
+  [
+    "missing_n",
+    { catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "null_n",
+    { n: null, catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "zero_n",
+    { n: 0, catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "negative_n",
+    { n: -1, catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "fractional_n",
+    { n: 1.5, catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "text_n",
+    { n: "1", catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  ["missing_catalog", { n: 1, sales: validTopNSales }, "JOIN_INPUT_MISSING"],
+  ["missing_sales", { n: 1, catalog: validTopNCatalog }, "JOIN_INPUT_MISSING"],
+  [
+    "null_catalog_row",
+    { n: 1, catalog: [null], sales: validTopNSales },
+    "SOURCE_ITEM_ID_MISSING",
+  ],
+  [
+    "blank_sales_id",
+    { n: 1, catalog: validTopNCatalog, sales: [{ id: "", money: 100 }] },
+    "SOURCE_ITEM_ID_MISSING",
+  ],
+  [
+    "null_sales_id",
+    { n: 1, catalog: validTopNCatalog, sales: [{ id: null, money: 100 }] },
+    "SOURCE_ITEM_ID_MISSING",
+  ],
+  [
+    "missing_catalog_name",
+    { n: 1, catalog: [{ id: "p" }], sales: validTopNSales },
+    "CATALOG_NAME_MISSING",
+  ],
+]) {
+  assert.deepEqual(
+    calculators.top_n_join(input),
+    { status: "INCOMPLETE", reason },
+    "top_n_join " + name + " must not fabricate a complete ranking",
+  );
+}
+assert.deepEqual(
+  calculators.top_n_join({
+    n: 1,
+    catalog: [{ id: 0, name: "Zero" }],
+    sales: [{ id: 0, money: 25 }],
+  }),
+  { top: [{ id: 0, name: "Zero", money: 25 }], missingCatalog: [] },
+  "valid zero-valued numeric product ID remains joinable",
+);
+
 assert.deepEqual(
   calculators.warehouse_sort({
     rows: [
@@ -1107,8 +1199,18 @@ const searchKeyIntegrityCases = [
     {
       period: "2026-08",
       rows: [
-        { product: "1001\u0000sub", query: "dress", frequency: 10, position: 5 },
-        { product: "1001", query: "sub\u0000dress", frequency: 10, position: 5 },
+        {
+          product: "1001\u0000sub",
+          query: "dress",
+          frequency: 10,
+          position: 5,
+        },
+        {
+          product: "1001",
+          query: "sub\u0000dress",
+          frequency: 10,
+          position: 5,
+        },
       ],
       aiSuggestions: [],
     },
@@ -1133,7 +1235,11 @@ const searchKeyIntegrityCases = [
   ],
 ];
 for (const [name, kind, input, expected] of searchKeyIntegrityCases) {
-  assert.deepEqual(calculators[kind](input), expected, name + ": integrity drift");
+  assert.deepEqual(
+    calculators[kind](input),
+    expected,
+    name + ": integrity drift",
+  );
 }
 
 const requiredKinds = new Set([
