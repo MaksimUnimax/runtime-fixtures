@@ -20,7 +20,7 @@ describe("C03 retry family scope is an egress fence, not only a display filter",
       "SOURCE_FAMILY_OUT_OF_SCOPE",
     );
     const entry = scoped.get("OZON_SELLER");
-    entry.acceptedHosts?.splice(0);
+    (entry.acceptedHosts as string[] | undefined)?.splice(0);
     expect(scoped.get("OZON_SELLER").acceptedHosts).toEqual(["docs.ozon.ru"]);
   });
 
