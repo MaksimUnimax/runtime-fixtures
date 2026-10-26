@@ -35,9 +35,16 @@ function receiptPath(root: string, artifactId: string): string {
 async function readReceipt(
   path: string,
 ): Promise<ConsumptionReceipt | undefined> {
+  // Never open a FIFO in blocking mode, and do not silently drop the
+  // no-follow requirement on a platform without either safety flag.
+  if (!constants.O_NOFOLLOW || !constants.O_NONBLOCK)
+    throw new Error("OPERATOR_RECEIPT_SAFE_OPEN_UNAVAILABLE");
   let handle;
   try {
-    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    handle = await open(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
@@ -46,7 +53,28 @@ async function readReceipt(
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size > 64 * 1024)
       throw new Error("OPERATOR_RECEIPT_INVALID");
-    return JSON.parse(await handle.readFile("utf8")) as ConsumptionReceipt;
+    // A file may grow after fstat. Read at most the claimed size plus one
+    // byte to detect growth, never readFile() to an unbounded EOF.
+    const bytes = Buffer.alloc(stat.size + 1);
+    let received = 0;
+    while (received < bytes.length) {
+      const { bytesRead } = await handle.read(
+        bytes,
+        received,
+        bytes.length - received,
+        received,
+      );
+      if (bytesRead === 0) break;
+      received += bytesRead;
+    }
+    if (received !== stat.size) throw new Error("OPERATOR_RECEIPT_INVALID");
+    try {
+      return JSON.parse(
+        bytes.subarray(0, received).toString("utf8"),
+      ) as ConsumptionReceipt;
+    } catch {
+      throw new Error("OPERATOR_RECEIPT_INVALID");
+    }
   } finally {
     await handle.close();
   }
