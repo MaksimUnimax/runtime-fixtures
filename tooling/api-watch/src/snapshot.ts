@@ -70,12 +70,35 @@ async function openPinnedDirectory(
   try {
     for (const name of resolve(path).split("/").filter(Boolean)) {
       const next = await openPinnedChildDirectory(current, name, create);
-      await current.close();
+      // If the previous descriptor fails to close, next is already open.
+      // Release both before rethrowing the original handoff failure.
+      try {
+        await current.close();
+      } catch (handoffError) {
+        try {
+          await next.close();
+        } catch (nextCloseError) {
+          throw new AggregateError(
+            [handoffError, nextCloseError],
+            "SNAPSHOT_DIRECTORY_HANDOFF_CLEANUP_FAILED",
+            { cause: handoffError },
+          );
+        }
+        throw handoffError;
+      }
       current = next;
     }
     return current;
   } catch (error) {
-    await current.close();
+    try {
+      await current.close();
+    } catch (closeError) {
+      throw new AggregateError(
+        [error, closeError],
+        "SNAPSHOT_DIRECTORY_PARENT_CLEANUP_FAILED",
+        { cause: error },
+      );
+    }
     throw error;
   }
 }

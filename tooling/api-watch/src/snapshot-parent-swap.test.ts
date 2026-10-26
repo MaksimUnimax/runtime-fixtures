@@ -21,12 +21,45 @@ const race = vi.hoisted(() => ({
   outside: "" as string,
   moved: "" as string,
   triggered: false,
+  failDirectoryClose: false,
+  directoryCloseInjected: false,
+  directoryHandles: [] as Array<{
+    close: () => Promise<void>;
+    closed: boolean;
+  }>,
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof Fs>();
+  const { constants } = await import("node:fs");
   return {
     ...fs,
+    open: async (...args: Parameters<typeof fs.open>) => {
+      const handle = await fs.open(...args);
+      if (
+        !race.failDirectoryClose ||
+        typeof args[1] !== "number" ||
+        !(args[1] & constants.O_DIRECTORY)
+      )
+        return handle;
+      const tracked = { close: () => handle.close(), closed: false };
+      race.directoryHandles.push(tracked);
+      return new Proxy(handle, {
+        get(target, key) {
+          if (key === "close")
+            return async () => {
+              if (!race.directoryCloseInjected && String(args[0]) === "/") {
+                race.directoryCloseInjected = true;
+                throw new Error("SYNTHETIC_PARENT_DIRECTORY_CLOSE_FAILED");
+              }
+              await tracked.close();
+              tracked.closed = true;
+            };
+          const value = Reflect.get(target, key, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    },
     lstat: async (...args: Parameters<typeof fs.lstat>) => {
       const original = await fs.lstat(...args);
       if (race.target && String(args[0]) === race.target) {
@@ -43,6 +76,11 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 const dirs: string[] = [];
 afterEach(async () => {
+  for (const tracked of race.directoryHandles.splice(0)) {
+    if (!tracked.closed) await tracked.close();
+  }
+  race.failDirectoryClose = false;
+  race.directoryCloseInjected = false;
   race.target = "";
   race.outside = "";
   race.moved = "";
@@ -162,4 +200,37 @@ it("creates missing snapshot-root ancestors through pinned directory handles", a
     snapshotRoot: root,
   });
   expect(await readAcceptedSnapshot(saved)).toEqual(bytes);
+});
+
+it("closes both pinned handles when a directory handoff close rejects", async () => {
+  const root = await mkdtemp(join(tmpdir(), "octoport-c03-directory-close-"));
+  dirs.push(root);
+  const bytes = Buffer.from(
+    '{"openapi":"3.0.3","info":{"version":"1"},"paths":{}}',
+  );
+  const record = {
+    recordId: "directory-close-test",
+    sourceFamily: "OZON_SELLER",
+    officialUrl: "https://example.test/openapi.json",
+    acquisitionMode: "AUTOMATIC",
+    authorityStatus: "AUTHORITY_ACCEPTED",
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    sizeBytes: bytes.length,
+    specVersion: "3.0.3",
+    acquiredAt: new Date(0),
+    validatedAt: new Date(0),
+    operatorRequestId: null,
+    artifactExtension: ".json",
+    safeProvenance: {},
+    failureClassification: null,
+  } as AuthorityRecord;
+  const store = new InMemoryApiWatchStore();
+  race.failDirectoryClose = true;
+  await expect(
+    promoteAcceptedSnapshot({ record, bytes, store, snapshotRoot: root }),
+  ).rejects.toThrow("SYNTHETIC_PARENT_DIRECTORY_CLOSE_FAILED");
+  expect(race.directoryCloseInjected).toBe(true);
+  expect(race.directoryHandles.length).toBeGreaterThan(1);
+  expect(race.directoryHandles.every((handle) => handle.closed)).toBe(true);
+  expect(await store.listSnapshots()).toEqual([]);
 });
