@@ -101,7 +101,10 @@ export class InMemoryApiWatchIncidentStore implements ApiWatchIncidentStore {
 export function createPostgresApiWatchIncidentStore(
   runtime: ApiWatchSqlRuntime,
 ): ApiWatchIncidentStore {
-  const projection = `SELECT incident_id AS "incidentId",incident_key AS "incidentKey",incident_type AS "incidentType",source_family AS "sourceFamily",document_key AS "documentKey",operation_identity AS "operationIdentity",first_seen_at AS "firstSeenAt",last_seen_at AS "lastSeenAt",resolved_at AS "resolvedAt",occurrence_count AS "occurrenceCount",severity,latest_report_id AS "latestReportId",latest_diff_sha256 AS "latestDiffSha256",safe_summary_code AS "safeSummaryCode",state FROM api_watch_incidents`;
+  const projectionColumns = `incident_id AS "incidentId",incident_key AS "incidentKey",incident_type AS "incidentType",source_family AS "sourceFamily",document_key AS "documentKey",operation_identity AS "operationIdentity",first_seen_at AS "firstSeenAt",last_seen_at AS "lastSeenAt",resolved_at AS "resolvedAt",occurrence_count AS "occurrenceCount",severity,latest_report_id AS "latestReportId",latest_diff_sha256 AS "latestDiffSha256",safe_summary_code AS "safeSummaryCode",state`;
+  const projection = `SELECT ${projectionColumns} FROM api_watch_incidents`;
+  const transitionLockKey = (key: string) =>
+    "octoport/api-watch/incident/" + key;
   const map = (row: Record<string, unknown>) =>
     ({
       ...row,
@@ -113,47 +116,60 @@ export function createPostgresApiWatchIncidentStore(
     }) as unknown as ApiWatchIncident;
   return {
     async observe(input) {
-      const current = await runtime.query<Record<string, unknown>>(
-        `${projection} WHERE incident_key=$1`,
-        [input.incidentKey],
-      );
-      const row = current.rows[0];
-      const opened = !row || row.state !== "OPEN";
-      const incidentId = row?.incidentId ?? randomUUID();
-      await runtime.query(
-        `INSERT INTO api_watch_incidents(incident_id,incident_key,incident_type,source_family,document_key,operation_identity,first_seen_at,last_seen_at,resolved_at,occurrence_count,severity,latest_report_id,latest_diff_sha256,safe_summary_code,state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULL,$9,$10,$11,$12,$13,'OPEN') ON CONFLICT (incident_key) DO UPDATE SET document_key=EXCLUDED.document_key,last_seen_at=EXCLUDED.last_seen_at,resolved_at=NULL,occurrence_count=api_watch_incidents.occurrence_count+1,severity=EXCLUDED.severity,latest_report_id=EXCLUDED.latest_report_id,latest_diff_sha256=EXCLUDED.latest_diff_sha256,safe_summary_code=EXCLUDED.safe_summary_code,state='OPEN'`,
-        [
-          incidentId,
-          input.incidentKey,
-          input.incidentType,
-          input.sourceFamily,
-          input.documentKey,
-          input.operationIdentity,
-          input.firstSeenAt,
-          input.lastSeenAt,
-          row ? Number(row.occurrenceCount) + 1 : 1,
-          input.severity,
-          input.latestReportId,
-          input.latestDiffSha256,
-          input.safeSummaryCode,
-        ],
-      );
-      const saved = await runtime.query<Record<string, unknown>>(
-        `${projection} WHERE incident_key=$1`,
-        [input.incidentKey],
-      );
-      return { incident: map(saved.rows[0]!), opened };
+      // Serialize one incident's state transition across database connections.
+      return runtime.transaction(async (tx) => {
+        await tx.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+          [transitionLockKey(input.incidentKey)],
+        );
+        const current = await tx.query<Record<string, unknown>>(
+          `${projection} WHERE incident_key=$1`,
+          [input.incidentKey],
+        );
+        const row = current.rows[0];
+        const opened = !row || row.state !== "OPEN";
+        const incidentId = row?.incidentId ?? randomUUID();
+        await tx.query(
+          `INSERT INTO api_watch_incidents(incident_id,incident_key,incident_type,source_family,document_key,operation_identity,first_seen_at,last_seen_at,resolved_at,occurrence_count,severity,latest_report_id,latest_diff_sha256,safe_summary_code,state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULL,$9,$10,$11,$12,$13,'OPEN') ON CONFLICT (incident_key) DO UPDATE SET document_key=EXCLUDED.document_key,last_seen_at=EXCLUDED.last_seen_at,resolved_at=NULL,occurrence_count=api_watch_incidents.occurrence_count+1,severity=EXCLUDED.severity,latest_report_id=EXCLUDED.latest_report_id,latest_diff_sha256=EXCLUDED.latest_diff_sha256,safe_summary_code=EXCLUDED.safe_summary_code,state='OPEN'`,
+          [
+            incidentId,
+            input.incidentKey,
+            input.incidentType,
+            input.sourceFamily,
+            input.documentKey,
+            input.operationIdentity,
+            input.firstSeenAt,
+            input.lastSeenAt,
+            row ? Number(row.occurrenceCount) + 1 : 1,
+            input.severity,
+            input.latestReportId,
+            input.latestDiffSha256,
+            input.safeSummaryCode,
+          ],
+        );
+        const saved = await tx.query<Record<string, unknown>>(
+          `${projection} WHERE incident_key=$1`,
+          [input.incidentKey],
+        );
+        return { incident: map(saved.rows[0]!), opened };
+      });
     },
     async resolve(key, at) {
-      await runtime.query(
-        `UPDATE api_watch_incidents SET state='RESOLVED',resolved_at=$2,last_seen_at=$2 WHERE incident_key=$1 AND state='OPEN'`,
-        [key, at],
-      );
-      const result = await runtime.query<Record<string, unknown>>(
-        `${projection} WHERE incident_key=$1`,
-        [key],
-      );
-      return result.rows[0] ? map(result.rows[0]) : undefined;
+      // Serialize OPENED and RESOLVED under the same incident-key lock, so
+      // an observer cannot reopen after a concurrent close without OPENED.
+      return runtime.transaction(async (tx) => {
+        await tx.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+          [transitionLockKey(key)],
+        );
+        // Returning only the changed row preserves exactly-once RESOLVED
+        // transitions even when multiple evaluators concurrently close a key.
+        const result = await tx.query<Record<string, unknown>>(
+          `UPDATE api_watch_incidents SET state='RESOLVED',resolved_at=$2,last_seen_at=$2 WHERE incident_key=$1 AND state='OPEN' RETURNING ${projectionColumns}`,
+          [key, at],
+        );
+        return result.rows[0] ? map(result.rows[0]) : undefined;
+      });
     },
     async listOpen() {
       const result = await runtime.query<Record<string, unknown>>(
