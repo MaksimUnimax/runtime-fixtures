@@ -12,6 +12,7 @@ const PLAN_SOURCE = readFileSync(new URL("../../../packages/marketplaces/ozon/sr
 // in memory. The real browser transaction remains covered by installed tests.
 const records = new Map();
 let commits = 0, inserts = 0;
+let connectPortListener = null;
 const db = {
   objectStoreNames: { contains: () => true },
   close() {},
@@ -56,18 +57,19 @@ const db = {
   }
 };
 const context = {
-  OzonRuntime: { STORAGE_KEYS: {} },
+  OzonRuntime: { STORAGE_KEYS: { MANUAL_OPERATIONS: "manual-records", AUTO_RUNS: "autorun-records" } },
   BridgeAutorunModel: { ATTACHMENT_PHASES: {} },
   ProviderTransportCore: {
     reportBase64ToBytes: (value) => Uint8Array.from(Buffer.from(value, "base64"))
   },
-  chrome: { runtime: { onConnect: { addListener() {} } } },
+  chrome: { runtime: { onConnect: { addListener(listener) { connectPortListener = listener; } } } },
   setTimeout() {},
   indexedDB: { open() {
     const req = { result: db };
     queueMicrotask(() => req.onsuccess?.());
     return req;
   } },
+  BB2ConversationIdentity: { providerForOrigin(origin) { return origin === "https://chatgpt.com" ? "chatgpt" : null; }, conversationIdFromPath(path, provider) { return provider === "chatgpt" && path.startsWith("/c/") ? path.slice(3) : null; } },
   saEnabled: async () => true,
   saGuard: async () => ({ assertCurrent: async () => {} }),
   saError: (code) => Object.assign(new Error(code), { code }),
@@ -112,6 +114,14 @@ function result(id, body = "synthetic") {
     provider_attempt: { provider_attempt_id: id }, request_id: id
   };
 }
+
+// Verify the actual compose/import order, not a simulated order only.
+const COMPOSITION = JSON.parse(readFileSync(new URL("../../../apps/extension/composition.json", import.meta.url), "utf8"));
+const ENTRY_SOURCE = readFileSync(new URL("../../../apps/extension/src/imported/ozon-v0.1.22/service_worker_entry.js", import.meta.url), "utf8");
+assert(COMPOSITION.worker_postload.includes("shared/application.js"));
+assert.equal(COMPOSITION.application_files["shared/application.js"].at(-1), "apps/extension/src/application/delivery.js");
+assert(ENTRY_SOURCE.includes('importScripts("shared/file_delivery_port_worker.js")'));
+
 const checks = [];
 async function check(name, test) {
   try { await test(); checks.push({ name, pass: true }); }
@@ -199,6 +209,93 @@ await check("expired_owner_data_cannot_be_saved", async () => {
   await assert.rejects(context.testPrepare([result("SYNTH/a")], expired), /EXPIRED_NO_RETRY/);
   assert.equal(inserts, before);
 });
+
+// The real frozen background worker delivers bytes over a port, independently
+// of R3's text/COPY manifest metadata. Verify the original chunk handler and
+// its owner guard against the exact bytes the application saved.
+const confirmedOwner = {
+  operation_id: "synthetic-operation",
+  tab_id: 71,
+  origin: "https://chatgpt.com",
+  conversation_id: "synthetic-chat",
+  conversation_key: "conv-safe",
+  delivery: {
+    mode: "attachment_watch_v1",
+    phase: "attachment_committed",
+    delivery_id: "delivery-1",
+    artifact_descriptors: [descriptor()]
+  }
+};
+context.chrome.storage = { local: { async get(key) {
+  return { [key]: key === "manual-records" ? { "conv-safe": confirmedOwner } : {} };
+} } };
+assert.equal(typeof connectPortListener, "function", "frozen worker must register its port");
+
+const correctSender = Object.freeze({
+  tab: { id: 71, url: "https://chatgpt.com/c/synthetic-chat" },
+  url: "https://chatgpt.com/c/synthetic-chat"
+});
+let requestCount = 0;
+async function askArtifactPort(payload, sender = correctSender) {
+  const requestId = "test-artifact-port-" + (++requestCount);
+  return await Promise.race([
+    new Promise((resolve, reject) => {
+      let processMessage = null;
+      const port = {
+        name: bridge.PORT_NAME, sender,
+        onMessage: { addListener(listener) { processMessage = listener; } },
+        postMessage(message) {
+          if (message?.request_id !== requestId) reject(new Error("PORT_RESPONSE_REQUEST_ID_MISMATCH"));
+          else resolve(message.response);
+        }
+      };
+      connectPortListener(port);
+      if (!processMessage) return reject(new Error("PORT_MESSAGE_LISTENER_MISSING"));
+      processMessage({ request_id: requestId, type: "OZ_ATTACHMENT_ARTIFACT_CHUNK", ...payload });
+    }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("FROZEN_PORT_RESPONSE_TIMEOUT")), 2500))
+  ]);
+}
+const boundMessage = {
+  conversation_key: "conv-safe",
+  owner_kind: "manual",
+  owner_id: "synthetic-operation",
+  delivery_id: "delivery-1",
+  artifact_key: original.artifact_key,
+  live_owner: { origin: "https://chatgpt.com", conversation_id: "synthetic-chat" }
+};
+await check("frozen_port_chunks_reconstruct_original_sha256_file", async () => {
+  const chunks = [];
+  for (const offset of [0, 4, 8]) {
+    const message = await askArtifactPort({ ...boundMessage, offset, length: 4 });
+    assert.equal(message.ok, true);
+    assert.equal(message.offset, offset);
+    assert.equal(message.total_byte_length, original.byte_length);
+    chunks.push(Buffer.from(message.chunk_base64, "base64"));
+  }
+  const assembled = Buffer.concat(chunks);
+  assert.equal(assembled.toString("utf8"), "synthetic");
+  assert.equal(crypto.createHash("sha256").update(assembled).digest("hex"), original.sha256);
+});
+await check("frozen_port_denies_different_tab", async () => {
+  const response = await askArtifactPort({ ...boundMessage, offset: 0, length: 5 },
+    { tab: { id: 72, url: correctSender.url }, url: correctSender.url });
+  assert.equal(response.ok, false);
+  assert.equal(response.code, "ATTACHMENT_NON_OWNER_TAB");
+});
+await check("frozen_port_denies_different_live_conversation", async () => {
+  const response = await askArtifactPort({
+    ...boundMessage, live_owner: { origin: "https://chatgpt.com", conversation_id: "foreign-chat" }
+  });
+  assert.equal(response.ok, false);
+  assert.equal(response.code, "ATTACHMENT_CONVERSATION_MISMATCH");
+});
+await check("frozen_port_denies_artifact_outside_bound_owner", async () => {
+  const response = await askArtifactPort({ ...boundMessage, artifact_key: "provider:sa_file_" + "f".repeat(64) });
+  assert.equal(response.ok, false);
+  assert.equal(response.code, "ATTACHMENT_ARTIFACT_NOT_OWNED");
+});
+
 const failed = checks.filter((entry) => !entry.pass);
 console.log("WB_ORIGINAL_APPLICATION_FILE_REGRESSION " + JSON.stringify({
   total: checks.length, pass: checks.length - failed.length,
