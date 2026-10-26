@@ -39,6 +39,9 @@ function sqlRow(activeRunId: string | null) {
 function simulateConditionalWrite(affected: boolean) {
   const sqlTexts: string[] = [];
   const params: unknown[][] = [];
+  // Another scheduler may take over after the old owner's conditional
+  // completion attempt. A later SELECT must not be treated as its receipt.
+  let visibleActiveRun = oldRun;
   const runtime: MonitoringSqlRuntime = {
     async query<T extends Record<string, unknown>>(
       statement: string,
@@ -47,13 +50,16 @@ function simulateConditionalWrite(affected: boolean) {
       sqlTexts.push(statement);
       params.push(values);
       if (statement.startsWith("SELECT"))
-        return { rows: [sqlRow(oldRun)] as unknown as T[] };
+        return { rows: [sqlRow(visibleActiveRun)] as unknown as T[] };
       if (
         statement.startsWith(
           "UPDATE monitoring_lane_schedules SET last_run_at=",
         )
       ) {
         expect(values[3]).toBe(oldRun);
+        // Simulate ownership moving to a replacement run immediately
+        // around this write. RETURNING still describes this exact UPDATE.
+        visibleActiveRun = replacement;
         return {
           rows: (affected ? [sqlRow(null)] : []) as unknown as T[],
         };
@@ -64,7 +70,14 @@ function simulateConditionalWrite(affected: boolean) {
       return operation(this);
     },
   };
-  return { runtime, sqlTexts, params };
+  return {
+    runtime,
+    sqlTexts,
+    params,
+    get visibleActiveRun() {
+      return visibleActiveRun;
+    },
+  };
 }
 
 describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
@@ -80,6 +93,7 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
       }),
     ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
     expect(fixture.sqlTexts).toHaveLength(1);
+    expect(fixture.visibleActiveRun).toBe(replacement);
     expect(fixture.sqlTexts[0]).toContain("AND active_run_id=$4");
     expect(fixture.sqlTexts[0]).toContain("RETURNING lane,");
   });
@@ -96,6 +110,7 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
     expect(confirmed.activeRun).toBeNull();
     expect(confirmed.lastResult?.runId).toBe(oldRun);
     expect(confirmed.lastResult?.status).toBe("SUCCEEDED");
+    expect(fixture.visibleActiveRun).toBe(replacement);
     expect(fixture.sqlTexts).toHaveLength(1);
   });
 });
