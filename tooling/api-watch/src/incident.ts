@@ -69,6 +69,9 @@ export class InMemoryApiWatchIncidentStore implements ApiWatchIncidentStore {
     }
     const created: ApiWatchIncident = {
       ...input,
+      // Keep caller-owned mutable Date instances out of stored incident state.
+      firstSeenAt: new Date(input.firstSeenAt),
+      lastSeenAt: new Date(input.lastSeenAt),
       incidentId: randomUUID(),
       occurrenceCount: 1,
       state: "OPEN",

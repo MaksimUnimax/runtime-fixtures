@@ -70,6 +70,30 @@ describe("PostgreSQL incident state transition parity", () => {
     expect(locks).toBe(1);
   });
 
+  it("does not alias mutable first/last observation Dates supplied by the caller", async () => {
+    const memory = new InMemoryApiWatchIncidentStore();
+    const incoming = {
+      ...incidentInput,
+      firstSeenAt: new Date("2026-10-26T00:00:00Z"),
+      lastSeenAt: new Date("2026-10-26T00:00:00Z"),
+    };
+    const result = await memory.observe(incoming);
+    expect(result.incident.firstSeenAt.toISOString()).toBe(
+      "2026-10-26T00:00:00.000Z",
+    );
+    incoming.firstSeenAt.setUTCSeconds(25);
+    incoming.lastSeenAt.setUTCSeconds(26);
+    expect(await memory.find(incidentInput.incidentKey)).toMatchObject({
+      state: "OPEN",
+      occurrenceCount: 1,
+    });
+    const retained = await memory.find(incidentInput.incidentKey);
+    expect(retained?.firstSeenAt.toISOString()).toBe(
+      "2026-10-26T00:00:00.000Z",
+    );
+    expect(retained?.lastSeenAt.toISOString()).toBe("2026-10-26T00:00:00.000Z");
+  });
+
   it("preserves firstSeenAt on re-observation and reopening while updating lastSeenAt", async () => {
     const store = new InMemoryApiWatchIncidentStore();
     const first = await store.observe(incidentInput);
