@@ -152,12 +152,7 @@ function inspect(input) {
   const r = input.financeRead,
     request = r?.request,
     pages = r?.pages;
-  if (
-    !request ||
-    !Array.isArray(pages) ||
-    pages.length === 0 ||
-    pages.length > 100
-  )
+  if (!request || !Array.isArray(pages) || pages.length === 0)
     return incomplete("FINANCE_READ_INCOMPLETE");
   if (
     request.dateFrom !== dates[0] ||
@@ -265,12 +260,14 @@ function inspect(input) {
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         id,
       ) ||
-      taskIds.has(id) ||
-      status?.id !== id ||
-      download?.taskId !== id
+      taskIds.has(id.toLowerCase()) ||
+      typeof status?.id !== "string" ||
+      status.id.toLowerCase() !== id.toLowerCase() ||
+      typeof download?.taskId !== "string" ||
+      download.taskId.toLowerCase() !== id.toLowerCase()
     )
       return incomplete("STORAGE_TASK_ID_MISMATCH");
-    taskIds.add(id);
+    taskIds.add(id.toLowerCase());
     if (status.status !== "done") return incomplete("SOURCE_READ_INCOMPLETE");
     if (
       !Array.isArray(download.rows) ||
@@ -585,6 +582,52 @@ reject("ACTUAL_CAMPAIGN_SPEND_ROW_INVALID", (x) => {
 });
 reject("STORAGE_ROW_DATE_INVALID", (x) => {
   x.storageTasks[1].download.rows[0].originalDate = "2026-09-11";
+});
+
+// Reviewer R3: completion is driven by 204, not an undocumented 100-page ceiling.
+accept(
+  (x) => {
+    x.financeRead.request.limit = 1;
+    x.financeRead.pages = Array.from({ length: 101 }, (_, index) => {
+      const id = 1101 + index;
+      return index === 100
+        ? { requestRrdId: id - 1, httpStatus: 204, rows: [] }
+        : {
+            requestRrdId: index === 0 ? 0 : id - 1,
+            httpStatus: 200,
+            rows: [
+              {
+                rrdId: id,
+                reportId: 901,
+                nmId: 1001,
+                retailAmount: "1.00",
+                forPay: "0.80",
+                rrDate: "2026-09-10",
+              },
+            ],
+          };
+    });
+  },
+  (result) => assert.equal(result.financeRows, 100),
+);
+// One UUID with a different hex letter case is the same task, never a second one.
+reject("STORAGE_TASK_ID_MISMATCH", (x) => {
+  const lower = "11111111-1111-4111-8111-11111111111a";
+  const upper = lower.toUpperCase();
+  for (const [index, id] of [
+    [1, lower],
+    [2, upper],
+  ]) {
+    x.storageTasks[index].create.response.data.taskId = id;
+    x.storageTasks[index].status.response.data.id = id;
+    x.storageTasks[index].download.taskId = id;
+  }
+});
+accept((x) => {
+  const lower = "11111111-1111-4111-8111-11111111111a";
+  x.storageTasks[1].create.response.data.taskId = lower;
+  x.storageTasks[1].status.response.data.id = lower.toUpperCase();
+  x.storageTasks[1].download.taskId = lower.toUpperCase();
 });
 
 const large = structuredClone(positive);
