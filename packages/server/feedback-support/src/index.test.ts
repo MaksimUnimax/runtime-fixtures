@@ -531,6 +531,53 @@ describe("B2 feedback/support safety foundation", () => {
     expect(forwarded?.description).toContain('"requestId":"r-1"');
   });
 
+  it("scrubs double-encoded JSON before both repository writes", async () => {
+    const caseMarker = "SYNTHETIC_CASE_REPOSITORY_SECRET_201";
+    const followupMarker = "SYNTHETIC_FOLLOWUP_REPOSITORY_SECRET_202";
+    const persisted: string[] = [];
+    const repository = {
+      createCase: async (input: { description: string }) => {
+        persisted.push(input.description);
+        throw new Error("SYNTHETIC_CASE_CAPTURED");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        persisted.push(input.body);
+        throw new Error("SYNTHETIC_FOLLOWUP_CAPTURED");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description: JSON.stringify({
+          error: JSON.stringify({ password: [caseMarker] }),
+          requestId: "safe-case-201",
+        }),
+      }),
+    ).rejects.toThrow("SYNTHETIC_CASE_CAPTURED");
+    await expect(
+      service.addUserFollowup(userId, caseId, {
+        description: JSON.stringify({
+          message: "Error: " + JSON.stringify({ cookie: followupMarker }),
+          requestId: "safe-followup-202",
+        }),
+      }),
+    ).rejects.toThrow("SYNTHETIC_FOLLOWUP_CAPTURED");
+
+    expect(persisted).toHaveLength(2);
+    expect(persisted[0]).not.toContain(caseMarker);
+    expect(persisted[0]).toContain("safe-case-201");
+    expect(persisted[1]).not.toContain(followupMarker);
+    expect(persisted[1]).toContain("safe-followup-202");
+    expect(persisted.join(" ")).toContain("[REDACTED_SECRET]");
+  });
+
   it("keeps ordinary support text that is not an auth header", () => {
     expect(sanitizeFeedbackText("authorization failed for test browser")).toBe(
       "authorization failed for test browser",
