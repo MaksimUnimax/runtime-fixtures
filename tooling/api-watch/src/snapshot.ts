@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, lstat, mkdir, open, unlink } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { SwaggerSourceFamilySchema } from "@product/monitoring-control";
 import type {
   ApiWatchStore,
@@ -22,17 +22,86 @@ function extensionFor(record: AuthorityRecord): string {
   return extension;
 }
 
-async function assertDirectory(path: string): Promise<void> {
+// Every path segment is resolved under a pinned directory descriptor.
+function directoryFlags(): number {
+  if (!constants.O_DIRECTORY || !constants.O_NOFOLLOW)
+    throw new Error("SNAPSHOT_PINNED_DIRECTORY_UNAVAILABLE");
+  return constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW;
+}
+
+function pinnedChildPath(parent: FileHandle, name: string): string {
+  return join("/proc/self/fd", String(parent.fd), name);
+}
+
+async function openPinnedChildDirectory(
+  parent: FileHandle,
+  name: string,
+  create: boolean,
+): Promise<FileHandle> {
+  const path = pinnedChildPath(parent, name);
+  try {
+    return await open(path, directoryFlags());
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOTDIR" || code === "ELOOP")
+      throw new Error("SNAPSHOT_PATH_NOT_DIRECTORY", { cause: error });
+    if (!create || code !== "ENOENT") throw error;
+  }
+  try {
+    await mkdir(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+  try {
+    return await open(path, directoryFlags());
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOTDIR" || code === "ELOOP")
+      throw new Error("SNAPSHOT_PATH_NOT_DIRECTORY", { cause: error });
+    throw error;
+  }
+}
+
+async function openPinnedDirectory(
+  path: string,
+  create: boolean,
+): Promise<FileHandle> {
+  let current = await open("/", directoryFlags());
+  try {
+    for (const name of resolve(path).split("/").filter(Boolean)) {
+      const next = await openPinnedChildDirectory(current, name, create);
+      await current.close();
+      current = next;
+    }
+    return current;
+  } catch (error) {
+    await current.close();
+    throw error;
+  }
+}
+
+async function assertSameDirectory(
+  path: string,
+  pinned: FileHandle,
+): Promise<void> {
+  const [actual, retained] = await Promise.all([lstat(path), pinned.stat()]);
+  if (
+    !actual.isDirectory() ||
+    actual.dev !== retained.dev ||
+    actual.ino !== retained.ino
+  )
+    throw new Error("SNAPSHOT_DIRECTORY_IDENTITY_CHANGED");
+}
+
+// Read-only validation before pinning; a post-check swap cannot authorize an
+// open through a symlink, because each later component uses O_NOFOLLOW.
+async function verifyExistingRoot(path: string): Promise<void> {
   try {
     const stat = await lstat(path);
     if (stat.isSymbolicLink() || !stat.isDirectory())
       throw new Error("SNAPSHOT_PATH_NOT_DIRECTORY");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    await mkdir(path, { recursive: true });
-    const stat = await lstat(path);
-    if (stat.isSymbolicLink() || !stat.isDirectory())
-      throw new Error("SNAPSHOT_PATH_NOT_DIRECTORY");
   }
 }
 
@@ -129,96 +198,126 @@ export async function promoteAcceptedSnapshot(input: {
       process.env.API_WATCH_SNAPSHOT_ROOT ??
       DEFAULT_API_WATCH_SNAPSHOT_ROOT,
   );
-  await assertDirectory(root);
-  const familyDirectory = resolve(root, record.sourceFamily);
-  await assertDirectory(familyDirectory);
-  const extension = extensionFor(record);
-  const artifactPath = join(familyDirectory, `${sha256}${extension}`);
-  if (!artifactPath.startsWith(`${familyDirectory}/`))
-    throw new Error("SNAPSHOT_PATH_TRAVERSAL");
-  const existing = await assertExistingFile(artifactPath);
-  if (existing === "file") {
-    await verifyExistingSnapshot(artifactPath, bytes.byteLength, sha256);
-  } else {
-    const temporaryPath = join(
-      familyDirectory,
-      `.${sha256}.${randomUUID()}.tmp`,
+  await verifyExistingRoot(root);
+  const rootDirectory = await openPinnedDirectory(root, true);
+  try {
+    const familyDirectoryHandle = await openPinnedChildDirectory(
+      rootDirectory,
+      record.sourceFamily,
+      true,
     );
-    const handle = await open(temporaryPath, "wx", 0o600);
-    let failed = false;
-    let failure: unknown;
     try {
-      let writingFailed = false;
-      let writeFailure: unknown;
-      try {
-        await handle.writeFile(bytes);
-        await handle.sync();
-      } catch (error) {
-        writingFailed = true;
-        writeFailure = error;
+      const familyDirectory = resolve(root, record.sourceFamily);
+      const pinnedFamilyDirectory = pinnedChildPath(familyDirectoryHandle, ".");
+      const extension = extensionFor(record);
+      const artifactPath = join(familyDirectory, `${sha256}${extension}`);
+      if (!artifactPath.startsWith(`${familyDirectory}/`))
+        throw new Error("SNAPSHOT_PATH_TRAVERSAL");
+      const stableArtifactPath = join(
+        pinnedFamilyDirectory,
+        basename(artifactPath),
+      );
+      const existing = await assertExistingFile(stableArtifactPath);
+      if (existing === "file") {
+        await verifyExistingSnapshot(
+          stableArtifactPath,
+          bytes.byteLength,
+          sha256,
+        );
+      } else {
+        const temporaryPath = join(
+          pinnedFamilyDirectory,
+          `.${sha256}.${randomUUID()}.tmp`,
+        );
+        const handle = await open(temporaryPath, "wx", 0o600);
+        let failed = false;
+        let failure: unknown;
+        try {
+          let writingFailed = false;
+          let writeFailure: unknown;
+          try {
+            await handle.writeFile(bytes);
+            await handle.sync();
+          } catch (error) {
+            writingFailed = true;
+            writeFailure = error;
+          }
+          try {
+            await handle.close();
+          } catch (closeError) {
+            if (writingFailed)
+              throw new AggregateError(
+                [writeFailure, closeError],
+                "SNAPSHOT_WRITE_AND_CLOSE_FAILED",
+                { cause: writeFailure },
+              );
+            throw closeError;
+          }
+          if (writingFailed) throw writeFailure;
+          try {
+            // Publishing must not replace an entry created by a competing writer.
+            await link(temporaryPath, stableArtifactPath);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+            await verifyExistingSnapshot(
+              stableArtifactPath,
+              bytes.byteLength,
+              sha256,
+            );
+          }
+        } catch (error) {
+          failed = true;
+          failure = error;
+        }
+        // Remove only this invocation's temporary name, even after a successful link.
+        // The canonical snapshot may be referenced by another writer or DB record.
+        try {
+          await unlink(temporaryPath);
+        } catch (cleanupError) {
+          if ((cleanupError as NodeJS.ErrnoException).code !== "ENOENT") {
+            if (failed)
+              throw new AggregateError(
+                [failure, cleanupError],
+                "SNAPSHOT_TEMP_CLEANUP_FAILED",
+              );
+            throw cleanupError;
+          }
+        }
+        if (failed) throw failure;
       }
-      try {
-        await handle.close();
-      } catch (closeError) {
-        if (writingFailed)
-          throw new AggregateError(
-            [writeFailure, closeError],
-            "SNAPSHOT_WRITE_AND_CLOSE_FAILED",
-            { cause: writeFailure },
-          );
-        throw closeError;
-      }
-      if (writingFailed) throw writeFailure;
-      try {
-        // Publishing must not replace an entry created by a competing writer.
-        await link(temporaryPath, artifactPath);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-        await verifyExistingSnapshot(artifactPath, bytes.byteLength, sha256);
-      }
-    } catch (error) {
-      failed = true;
-      failure = error;
+      const documentKey = input.documentKey ?? null;
+      const snapshotId =
+        documentKey === null
+          ? `${record.sourceFamily}:${sha256}`
+          : `${record.sourceFamily}:${sha256}:${createHash("sha256")
+              .update(documentKey)
+              .digest("hex")}`;
+      const metadata: SnapshotMetadata = {
+        snapshotId,
+        sourceFamily: record.sourceFamily,
+        sha256,
+        sizeBytes: bytes.byteLength,
+        specVersion: record.specVersion,
+        officialUrl: record.officialUrl,
+        acquisitionMode: record.acquisitionMode,
+        createdAt: (input.now ?? (() => new Date()))(),
+        authorityRecordId: record.recordId,
+        artifactPath,
+        documentKey: input.documentKey ?? null,
+      };
+      // Only persist a pathname still bound to the original pinned directories.
+      await assertSameDirectory(root, rootDirectory);
+      await assertSameDirectory(familyDirectory, familyDirectoryHandle);
+      // Await the metadata transaction before releasing the pinned parent FDs.
+      return await (input.inventory
+        ? store.saveSnapshotWithInventory(metadata, input.inventory)
+        : store.saveSnapshot(metadata));
+    } finally {
+      await familyDirectoryHandle.close();
     }
-    // Remove only this invocation's temporary name, even after a successful link.
-    // The canonical snapshot may be referenced by another writer or DB record.
-    try {
-      await unlink(temporaryPath);
-    } catch (cleanupError) {
-      if ((cleanupError as NodeJS.ErrnoException).code !== "ENOENT") {
-        if (failed)
-          throw new AggregateError(
-            [failure, cleanupError],
-            "SNAPSHOT_TEMP_CLEANUP_FAILED",
-          );
-        throw cleanupError;
-      }
-    }
-    if (failed) throw failure;
+  } finally {
+    await rootDirectory.close();
   }
-  const documentKey = input.documentKey ?? null;
-  const snapshotId =
-    documentKey === null
-      ? `${record.sourceFamily}:${sha256}`
-      : `${record.sourceFamily}:${sha256}:${createHash("sha256")
-          .update(documentKey)
-          .digest("hex")}`;
-  const metadata: SnapshotMetadata = {
-    snapshotId,
-    sourceFamily: record.sourceFamily,
-    sha256,
-    sizeBytes: bytes.byteLength,
-    specVersion: record.specVersion,
-    officialUrl: record.officialUrl,
-    acquisitionMode: record.acquisitionMode,
-    createdAt: (input.now ?? (() => new Date()))(),
-    authorityRecordId: record.recordId,
-    artifactPath,
-    documentKey: input.documentKey ?? null,
-  };
-  return input.inventory
-    ? store.saveSnapshotWithInventory(metadata, input.inventory)
-    : store.saveSnapshot(metadata);
 }
 
 export async function readAcceptedSnapshot(
@@ -226,26 +325,33 @@ export async function readAcceptedSnapshot(
 ): Promise<Uint8Array> {
   // Verify the opened descriptor, not a path that can become a symlink after
   // publication. Nonblocking open rejects named pipes without waiting for a writer.
-  const handle = await open(
-    metadata.artifactPath,
-    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-  );
+  const parentPath = dirname(metadata.artifactPath);
+  const directory = await openPinnedDirectory(parentPath, false);
   try {
-    const stat = await handle.stat();
-    if (!stat.isFile()) throw new Error("SNAPSHOT_PATH_NOT_FILE");
-    if (stat.size > API_WATCH_MAX_ARTIFACT_BYTES)
-      throw new Error("SNAPSHOT_TOO_LARGE");
-    if (stat.size !== metadata.sizeBytes)
-      throw new Error("SNAPSHOT_SIZE_MISMATCH");
-    const bytes = await readExactSnapshotBytes(
-      handle,
-      metadata.sizeBytes,
-      "SNAPSHOT_SIZE_MISMATCH",
+    const handle = await open(
+      pinnedChildPath(directory, basename(metadata.artifactPath)),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
-    if (createHash("sha256").update(bytes).digest("hex") !== metadata.sha256)
-      throw new Error("SNAPSHOT_DIGEST_MISMATCH");
-    return bytes;
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile()) throw new Error("SNAPSHOT_PATH_NOT_FILE");
+      if (stat.size > API_WATCH_MAX_ARTIFACT_BYTES)
+        throw new Error("SNAPSHOT_TOO_LARGE");
+      if (stat.size !== metadata.sizeBytes)
+        throw new Error("SNAPSHOT_SIZE_MISMATCH");
+      const bytes = await readExactSnapshotBytes(
+        handle,
+        metadata.sizeBytes,
+        "SNAPSHOT_SIZE_MISMATCH",
+      );
+      if (createHash("sha256").update(bytes).digest("hex") !== metadata.sha256)
+        throw new Error("SNAPSHOT_DIGEST_MISMATCH");
+      await assertSameDirectory(parentPath, directory);
+      return bytes;
+    } finally {
+      await handle.close();
+    }
   } finally {
-    await handle.close();
+    await directory.close();
   }
 }
