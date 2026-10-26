@@ -3,7 +3,7 @@ import type {
   MonitoringCoverage,
   MonitoringLaneRunner,
   MonitoringRunResult,
-  type SwaggerSourceFamily,
+  SwaggerSourceFamily,
 } from "@product/monitoring-control";
 import { evaluateOperatorCandidate, runAuthorityPass } from "./authority.js";
 import { diffInventories } from "./diff.js";
