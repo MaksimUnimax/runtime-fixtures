@@ -686,12 +686,14 @@ export async function runApiWatchReport(input: {
     // including source outcomes not yet analyzed into accepted snapshots.
     const persisted = await reportStore.getReport(report.reportId);
     if (persisted?.state === "RUNNING") {
-      const failedSources =
-        observedPass?.outcomes.map(
-          (outcome, index) =>
-            observedSources[index] ??
-            blockedOutcome(outcome, observedPass.records[index]),
-        ) ?? [];
+      const recordedPass = observedPass;
+      const failedSources = recordedPass
+        ? recordedPass.outcomes.map(
+            (outcome, index) =>
+              observedSources[index] ??
+              blockedOutcome(outcome, recordedPass.records[index]),
+          )
+        : [];
       await reportStore.transitionReport({
         reportId: report.reportId,
         state: "FAILED",
