@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createPostgresMonitoringScheduleStore,
+  InMemoryMonitoringScheduleStore,
   type MonitoringSqlQuery,
   type MonitoringSqlRuntime,
 } from "./store.js";
@@ -36,7 +37,10 @@ function sqlRow(activeRunId: string | null) {
   };
 }
 
-function simulateConditionalWrite(affected: boolean) {
+function simulateConditionalWrite(
+  affected: boolean,
+  options?: { expiredWithoutTakeover?: boolean },
+) {
   const sqlTexts: string[] = [];
   const params: unknown[][] = [];
   // Another scheduler may take over after the old owner's conditional
@@ -60,6 +64,14 @@ function simulateConditionalWrite(affected: boolean) {
         // Simulate ownership moving to a replacement run immediately
         // around this write. RETURNING still describes this exact UPDATE.
         visibleActiveRun = replacement;
+        // The old implementation ignored lease expiration. In the test the
+        // underlying row still has the same run ID, but its lease is expired.
+        if (options?.expiredWithoutTakeover)
+          return {
+            rows: (statement.includes("active_run_lease_expires_at>$2")
+              ? []
+              : [sqlRow(null)]) as unknown as T[],
+          };
         return {
           rows: (affected ? [sqlRow(null)] : []) as unknown as T[],
         };
@@ -112,5 +124,45 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
     expect(confirmed.lastResult?.status).toBe("SUCCEEDED");
     expect(fixture.visibleActiveRun).toBe(replacement);
     expect(fixture.sqlTexts).toHaveLength(1);
+  });
+
+  it("rejects an expired lease even without a replacement run", async () => {
+    const fixture = simulateConditionalWrite(true, {
+      expiredWithoutTakeover: true,
+    });
+    const store = createPostgresMonitoringScheduleStore(fixture.runtime);
+    await expect(
+      store.finishRun({
+        lane: "SWAGGER_API",
+        runId: oldRun,
+        now: new Date(now.valueOf() + 10001),
+        result,
+      }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    expect(fixture.sqlTexts).toHaveLength(1);
+    expect(fixture.sqlTexts[0]).toContain("active_run_lease_expires_at>$2");
+  });
+
+  it("the in-memory store also rejects an expired unchanged lease", async () => {
+    const store = new InMemoryMonitoringScheduleStore();
+    await store.ensureDefaults(now);
+    const started = await store.startRun({
+      lane: "SWAGGER_API",
+      source: "FORCED",
+      now,
+      leaseMs: 1000,
+    });
+    if (started.kind !== "STARTED") throw new Error("TEST_START_FAILED");
+    await expect(
+      store.finishRun({
+        lane: "SWAGGER_API",
+        runId: started.run.runId,
+        now: new Date(now.valueOf() + 1001),
+        result,
+      }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    const current = await store.getState("SWAGGER_API");
+    expect(current.activeRun?.runId).toBe(started.run.runId);
+    expect(current.lastResult).toBeNull();
   });
 });

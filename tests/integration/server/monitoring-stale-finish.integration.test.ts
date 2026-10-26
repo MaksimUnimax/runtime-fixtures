@@ -167,4 +167,43 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(durable.activeRun).toBeNull();
     expect(durable.lastResult?.runId).toBe(replacement);
   });
+
+  it("rejects expired active lease without a successor and permits later takeover", async () => {
+    const original = requiredRunId(
+      await storeA.startRun({
+        lane: "SWAGGER_API",
+        source: "FORCED",
+        now: at(50),
+        leaseMs: 1000,
+      }),
+    );
+    await expect(
+      storeA.finishRun({
+        lane: "SWAGGER_API",
+        runId: original,
+        now: at(52),
+        result,
+      }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    const stillActive = await storeB.getState("SWAGGER_API");
+    expect(stillActive.activeRun?.runId).toBe(original);
+    expect(stillActive.lastResult?.runId).not.toBe(original);
+
+    const next = requiredRunId(
+      await storeB.startRun({
+        lane: "SWAGGER_API",
+        source: "FORCED",
+        now: at(53),
+        leaseMs: 5000,
+      }),
+    );
+    expect(next).not.toBe(original);
+    const finished = await storeB.finishRun({
+      lane: "SWAGGER_API",
+      runId: next,
+      now: at(54),
+      result,
+    });
+    expect(finished.lastResult?.runId).toBe(next);
+  });
 });
