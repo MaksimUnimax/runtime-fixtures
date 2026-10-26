@@ -247,7 +247,12 @@ function redactStructuredCredentialValues(input: string): string {
         }
       }
     }
-    output += input.slice(cursor, valueStart) + '"[REDACTED_SECRET]"';
+    const replacementQuote = key.startsWith("'") ? "'" : '"';
+    output +=
+      input.slice(cursor, valueStart) +
+      replacementQuote +
+      "[REDACTED_SECRET]" +
+      replacementQuote;
     cursor = valueEnd;
     quotedStructuredField.lastIndex = valueEnd;
   }
@@ -290,9 +295,8 @@ const MAX_EMBEDDED_JSON_DEPTH = 24;
 function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
   const basic = redactAccidentalSecretsBasic(input);
   if (depth >= MAX_EMBEDDED_JSON_DEPTH) return "[REDACTED_SECRET]";
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(basic);
+    JSON.parse(basic);
   } catch {
     // A complete JSON envelope preceded by diagnostic prose is still safe
     // to parse independently. The prefix is retained; nested string values
@@ -326,32 +330,29 @@ function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
     return basic;
   }
 
-  let changed = false;
-  const visit = (value: unknown, nesting: number): unknown => {
-    if (nesting >= MAX_EMBEDDED_JSON_DEPTH) {
-      // A deeply nested diagnostic must fail closed instead of exhausting
-      // the stack or exposing an uninspected embedded credential.
-      changed = true;
-      return "[REDACTED_SECRET]";
-    }
-    if (typeof value === "string") {
-      const next = redactEmbeddedDiagnosticJson(value, nesting + 1);
-      if (next !== value) changed = true;
-      return next;
-    }
-    if (Array.isArray(value))
-      return value.map((part) => visit(part, nesting + 1));
-    if (value && typeof value === "object")
-      return Object.fromEntries(
-        Object.entries(value).map(([key, part]) => [
-          key,
-          visit(part, nesting + 1),
-        ]),
-      );
-    return value;
-  };
-  const updated = visit(parsed, depth);
-  return changed ? JSON.stringify(updated) : basic;
+  // Never parse-and-reserialize the entire document after masking an
+  // embedded string: JSON.parse loses integer precision above 2^53. Scan
+  // validated JSON string tokens instead, replacing only changed string
+  // values and leaving numeric fields and untouched lexemes byte-identical.
+  // The depth limit counts encoded JSON within strings, not ordinary object
+  // nesting, so a deeply nested *safe* document is never erased by the guard.
+  let rewritten = "";
+  let cursor = 0;
+  for (const match of basic.matchAll(/"(?:\\.|[^"\\])*"/gu)) {
+    const start = match.index;
+    const encoded = match[0];
+    let following = start + encoded.length;
+    while (following < basic.length && /\s/u.test(basic[following]!))
+      following++;
+    if (basic[following] === ":") continue; // JSON object key, not value
+
+    const literal = JSON.parse(encoded) as string;
+    const sanitized = redactEmbeddedDiagnosticJson(literal, depth + 1);
+    if (literal === sanitized) continue;
+    rewritten += basic.slice(cursor, start) + JSON.stringify(sanitized);
+    cursor = start + encoded.length;
+  }
+  return cursor === 0 ? basic : rewritten + basic.slice(cursor);
 }
 
 export function redactAccidentalSecrets(input: string): string {

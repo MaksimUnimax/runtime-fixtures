@@ -301,6 +301,35 @@ describe("B2 feedback/support safety foundation", () => {
     expect(JSON.parse(sanitized).requestId).toBe("safe-nested-104");
   });
 
+  it("keeps a large integer lexical value intact while redacting an embedded credential", () => {
+    const raw =
+      '{"count":9007199254740993,"message":' +
+      JSON.stringify(
+        JSON.stringify({ password: ["SYNTHETIC_LARGE_INTEGER_SECRET_401"] }),
+      ) +
+      ',"requestId":"safe-numeric-401"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("SYNTHETIC_LARGE_INTEGER_SECRET_401");
+    expect(sanitized).toContain('"count":9007199254740993');
+    expect(sanitized).toContain('"requestId":"safe-numeric-401"');
+  });
+
+  it("retains deeply nested safe JSON content beyond the embedded-string depth limit", () => {
+    let raw = '{"leaf":"safe-leaf-402"}';
+    for (let depth = 0; depth < 30; depth++) {
+      raw = '{"wrapper":' + raw + "}";
+    }
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("preserves pseudo-JSON single quotes when masking structured secrets", () => {
+    const raw =
+      "{'password':['SYNTHETIC_PSEUDO_SECRET_403'],'requestId':'safe-pseudo-403'}";
+    expect(sanitizeFeedbackText(raw)).toBe(
+      "{'password':'[REDACTED_SECRET]','requestId':'safe-pseudo-403'}",
+    );
+  });
+
   it("does not alter harmless embedded JSON diagnostics", () => {
     const raw = JSON.stringify({
       detail: JSON.stringify({ count: 2, labels: ["safe-1", "safe-2"] }),
