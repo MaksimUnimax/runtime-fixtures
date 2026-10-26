@@ -746,13 +746,13 @@
       "scenarioId": "CAP-19",
       "marketplace": "OZON",
       "periodRef": "GOLD_MONTH_2026_09_MSK",
-      "definitionsHash": "43466a70d92b9649d7218a10bd6eab61ec9fba5e29622d668267d41a1f8a5695"
+      "definitionsHash": "7615c48d5370bfedfc479442f699b4fabebdb1d297f515076b68462c03009ea0"
     },
     {
       "scenarioId": "CAP-19",
       "marketplace": "WILDBERRIES",
       "periodRef": "GOLD_MONTH_2026_09_MSK",
-      "definitionsHash": "871c9037bc53c75ba87aa8d62272fcc461b4580a65c99254293b5b8063fea351"
+      "definitionsHash": "e9850deec6884b9c75f475f1797333f1a6d398b20ef330b1c60c6e65e1559b85"
     },
     {
       "scenarioId": "CAP-20",
@@ -827,7 +827,7 @@
       "definitionsHash": "14287e8439610217c351a3960ef310cb3c70aece0c96962683cfc949b2c6c150"
     }
   ],
-  "definitionIndexSha256": "42db216a18e971bf9f0407dd3745c4cbf6f660115c7c857c49455f645c0c7ec7",
+  "definitionIndexSha256": "b87a3ae566eb344e827e29dcdf90c21d09412ef3c68ed387b6f58d60bdd6d2a5",
   "providerFactStatus": "SOURCE_DEFINED_NOT_LIVE_ACCEPTED",
   "ownerSemanticDefaultStatus": "PENDING_OWNER",
   "externalDependencyDefaultStatus": "PENDING_EXTERNAL",
