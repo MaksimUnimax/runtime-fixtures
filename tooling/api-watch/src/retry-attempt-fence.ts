@@ -57,7 +57,7 @@ function verifyFence(state: ApiWatchAttemptFence): void {
       (!state.claimedRunId ||
         state.claimedLeaseExpiresAt === null ||
         state.claimedAt === null ||
-        state.enteredAt === null)) ||
+        !(state.enteredAt instanceof Date))) ||
     !["IDLE", "CLAIMED", "ENTERED"].includes(state.claimStage) ||
     (state.outcomeUnknown && state.claimStage !== "IDLE")
   )

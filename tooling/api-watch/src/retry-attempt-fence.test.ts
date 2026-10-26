@@ -306,6 +306,49 @@ describe("C03 per-family durable retry fence state", () => {
     ).toThrow("API_WATCH_RETRY_FENCE_STATE_INVALID");
   });
 
+  it("rejects an ENTERED record with undefined or inverted timestamps", () => {
+    const claimed = claimDueApiWatchAttempt({
+      state: emptyApiWatchAttemptFence("WILDBERRIES", t0),
+      nextRetryAt: t0,
+      lease,
+      now: at(1),
+    })!;
+    const entered = enterClaimedApiWatchAttempt({
+      state: claimed,
+      lease,
+      now: at(2),
+    });
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: { ...entered, enteredAt: undefined as never },
+        priorRunId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_STATE_INVALID");
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: { ...entered, enteredAt: at(0) },
+        priorRunId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: { ...entered, enteredAt: at(4) },
+        priorRunId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    const corrupt = { ...entered, claimedAt: at(8) };
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: corrupt,
+        priorRunId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+  });
+
   it("refuses invalid state and a reversed clock", () => {
     expect(() =>
       claimDueApiWatchAttempt({

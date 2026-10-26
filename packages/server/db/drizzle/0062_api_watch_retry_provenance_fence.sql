@@ -48,7 +48,15 @@ CREATE TABLE "api_watch_family_attempt_fences" (
   CONSTRAINT "api_watch_family_unknown_idle_check"
     CHECK (NOT "outcome_unknown" OR "claim_stage" = 'IDLE'),
   CONSTRAINT "api_watch_family_claim_lease_valid_check"
-    CHECK ("claimed_lease_expires_at" IS NULL OR ("claimed_at" IS NOT NULL AND "claimed_lease_expires_at" > "claimed_at"))
+    CHECK ("claimed_lease_expires_at" IS NULL OR ("claimed_at" IS NOT NULL AND "claimed_lease_expires_at" > "claimed_at")),
+  CONSTRAINT "api_watch_family_claim_temporal_order_check"
+    CHECK (
+      ("claimed_at" IS NULL AND "entered_at" IS NULL)
+      OR
+      ("claimed_at" IS NOT NULL AND "claimed_at" <= "updated_at"
+        AND ("entered_at" IS NULL OR
+          ("entered_at" >= "claimed_at" AND "entered_at" <= "updated_at")))
+    )
 );
 --> statement-breakpoint
 INSERT INTO "api_watch_family_attempt_fences" ("source_family")
