@@ -866,7 +866,9 @@
             "product": "1002",
             "period": "2026-09-20/2026-09-26"
           }
-        ]
+        ],
+        "leftComplete": true,
+        "rightComplete": true
       },
       "expected": {
         "status": "COMPLETE",
@@ -907,7 +909,9 @@
             "product": "1001",
             "period": "2026-09-20/2026-09-26"
           }
-        ]
+        ],
+        "leftComplete": true,
+        "rightComplete": true
       },
       "expected": {
         "status": "INCOMPLETE",
@@ -932,7 +936,9 @@
             "product": "1002",
             "period": "2026-09-20/2026-09-26"
           }
-        ]
+        ],
+        "leftComplete": true,
+        "rightComplete": true
       },
       "expected": {
         "status": "INCOMPLETE",

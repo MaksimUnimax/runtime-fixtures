@@ -57,6 +57,27 @@ assert.equal(slice.scope.acceptedOperationMappingChanged, false);
 
 const fbw = slice.sources.fbwSupplies;
 const fbs = slice.sources.fbsSupplies;
+// These nulls are explicitly allowed by the captured official WB FBS schema.
+// Optionality and nullability are different; neither implies a zero/date/false value.
+const nullableSupplyFields = {
+  closedAt: "datetime_or_null",
+  scanDt: "datetime_or_null",
+  isB2b: "boolean_optional_or_null",
+  crossBorderType: "provider_enum_integer_or_null",
+  destinationOfficeId: "identifier_or_null",
+};
+for (const [name, unit] of Object.entries(nullableSupplyFields)) {
+  assert.equal(fbs.fields[name].unit, unit, name + ": nullable schema lost");
+  assert.equal(
+    slice.officialSchemaReadback.nullableFields[name].nullable,
+    true,
+  );
+}
+assert.equal(slice.officialSchemaReadback.liveValues, false);
+assert.equal(
+  slice.officialSchemaReadback.documentSha256,
+  "c04a6c7f5f18960e0b24d624c5b0b04e9267ed4d1325de32551d4cc036db624f",
+);
 assert.match(fbw.url, /^https:\/\/dev\.wildberries\.ru\//);
 assert.match(fbs.url, /^https:\/\/dev\.wildberries\.ru\//);
 const fbwMeta = assertOperation(fbw);
@@ -114,6 +135,21 @@ for (const row of slice.syntheticCases.fbw)
 for (const row of slice.syntheticCases.fbs)
   assert.equal(fbsStatus(row), row.expected);
 
+// Valid unknown logistics fields must not turn an open FBS supply into an error.
+const openWithNullableFields = {
+  id: "WB-GI-NULLABLE-CONTROL",
+  done: false,
+  closedAt: null,
+  scanDt: null,
+  isB2b: null,
+  crossBorderType: null,
+  destinationOfficeId: null,
+};
+assert.equal(fbsStatus(openWithNullableFields), "OPEN");
+assert.deepEqual(fbsStatus({ ...openWithNullableFields, done: null }), {
+  status: "INCOMPLETE",
+  reason: "FBS_DONE_MISSING",
+});
 const invalidFbw = slice.syntheticCases.invalidFbw;
 assert.deepEqual(fbwStatus(invalidFbw), invalidFbw.expected);
 const missingFbs = slice.syntheticCases.missingFbsDone;

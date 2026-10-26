@@ -101,6 +101,7 @@ async function fixture(swaggerDelayMs = 0) {
       answerCallback: async () => {},
     },
     operatorIds: new Set(["7"]),
+    notificationChatIds: ["42"],
   });
   let updateId = 0;
   const command = (text: string, userId = "7") =>
@@ -132,6 +133,34 @@ async function fixture(swaggerDelayMs = 0) {
         },
       },
     });
+  const uploadBare = (
+    options: {
+      userId?: string;
+      chatId?: string;
+      caption?: string;
+      payload?: Uint8Array;
+      fileName?: string;
+      fileSize?: number;
+      sourceFamily?: "WILDBERRIES" | "OZON_SELLER";
+      documentKey?: string;
+    } = {},
+  ) =>
+    bot.handleUpdate({
+      updateId: ++updateId,
+      message: {
+        chatId: options.chatId ?? "42",
+        userId: options.userId ?? "7",
+        ...(options.caption === undefined ? {} : { caption: options.caption }),
+        document: {
+          fileId: "synthetic-bundle",
+          fileName: options.fileName ?? "WB_OPENAPI_BUNDLE_V1.json",
+          bytes: options.payload ?? bytes(),
+          fileSize: options.fileSize,
+          sourceFamily: options.sourceFamily,
+          documentKey: options.documentKey,
+        },
+      },
+    });
   await runApiWatchReport({
     dependencies,
     runId: "before-upload",
@@ -149,6 +178,7 @@ async function fixture(swaggerDelayMs = 0) {
     messages,
     command,
     upload,
+    uploadBare,
     renewButton,
     first,
   };
@@ -311,6 +341,176 @@ describe("review main109ce9df public WB recovery", () => {
       );
     },
   );
+});
+
+describe("owner single-file WB bundle attachment without a typed request ID", () => {
+  it("accepts exactly one active official request in its configured owner chat", async () => {
+    const f = await fixture();
+    // The test observes upload routing, not an asynchronously scheduled
+    // provider report that could outlive and race fixture cleanup.
+    vi.spyOn(f.scheduler, "runNow").mockResolvedValue({
+      kind: "NOT_DUE",
+      lane: "SWAGGER_API",
+    });
+    // The fixture probes 13 synthetic official endpoints before this upload;
+    // a captionless candidate registration must not add another fetch cycle.
+    const before = vi.mocked(f.fetcher).mock.calls.length;
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toContain("Swagger candidate ready");
+    expect(
+      (await f.pendingStore.listArtifacts(f.first.requestId))[0]?.status,
+    ).toBe("CANDIDATE_READY");
+    expect(f.fetcher).toHaveBeenCalledTimes(before);
+  });
+
+  it("resolves the one pending generation after service recreation, not from volatile chat state", async () => {
+    const f = await fixture();
+    vi.spyOn(f.scheduler, "runNow").mockResolvedValue({
+      kind: "NOT_DUE",
+      lane: "SWAGGER_API",
+    });
+    const restarted = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      swaggerHandoff: createSwaggerHandoffService({
+        store: new InMemorySwaggerSourceStore(f.handoffState),
+        quarantineDir: f.dependencies.quarantineDir,
+        validateUpload: validateWbBundleUpload,
+      }),
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        sendMessage: async (_chat, text) => {
+          f.messages.push(text);
+        },
+        answerCallback: async () => {},
+      },
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["42"],
+    });
+    await restarted.handleUpdate({
+      updateId: 42,
+      message: {
+        chatId: "42",
+        userId: "7",
+        document: {
+          fileId: "restarted-synthetic-bundle",
+          fileName: "WB_OPENAPI_BUNDLE_V1.json",
+          bytes: bytes(),
+        },
+      },
+    });
+    expect(f.messages.at(-1)).toContain("Swagger candidate ready");
+    expect(
+      (await f.pendingStore.listArtifacts(f.first.requestId))[0]?.status,
+    ).toBe("CANDIDATE_READY");
+  });
+
+  it("rejects an unauthorized actor or a non-destination chat before storage", async () => {
+    const f = await fixture();
+    await f.uploadBare({ userId: "8" });
+    expect(f.messages.at(-1)).toBe("DENIED");
+    await f.uploadBare({ chatId: "unauthorized-chat" });
+    expect(f.messages.at(-1)).toBe("DENIED");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("rejects two waiting generations without arbitrarily choosing either", async () => {
+    const f = await fixture();
+    const original = f.first;
+    const other = await f.pendingStore.createRequest({
+      requestId: "synthetic-second-official-wb-request",
+      sourceFamily: original.sourceFamily,
+      officialUrl: original.officialUrl,
+      documentKey: original.documentKey,
+      bundleVersion: original.bundleVersion,
+      expectedArtifactType: original.expectedArtifactType,
+      blockerReason: "synthetic simultaneous official bundle request",
+    });
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_AMBIGUOUS");
+    expect(await f.pendingStore.listArtifacts(original.requestId)).toHaveLength(
+      0,
+    );
+    expect(await f.pendingStore.listArtifacts(other.requestId)).toHaveLength(0);
+  });
+
+  it("rejects a finalized request and unrelated source-family requests", async () => {
+    const f = await fixture();
+    await f.pendingStore.setRequestStatus(f.first.requestId, "CANCELLED");
+    await f.pendingStore.createRequest({
+      requestId: "synthetic-ozon-only",
+      sourceFamily: "OZON_SELLER",
+      officialUrl: "https://example.test/unrelated-ozon.json",
+      expectedArtifactType: "JSON",
+      blockerReason: "not the official WB bundle",
+    });
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_MISSING");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("rejects oversized envelopes and foreign declared family/key", async () => {
+    const f = await fixture();
+    await f.uploadBare({ fileSize: 25 * 1024 * 1024 + 1 });
+    expect(f.messages.at(-1)).toBe("UPLOAD_TOO_LARGE");
+    await f.uploadBare({ sourceFamily: "OZON_SELLER" });
+    expect(f.messages.at(-1)).toBe("SOURCE_FAMILY_MISMATCH");
+    await f.uploadBare({ documentKey: "FOREIGN_DOCUMENT" });
+    expect(f.messages.at(-1)).toBe("DOCUMENT_KEY_MISMATCH");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("explains the one-attachment route after the owner's new WB request action", async () => {
+    const f = await fixture();
+    await f.renewButton();
+    expect(f.messages.at(-1)).toContain("all 13 official YAML documents");
+    expect(f.messages.at(-1)).toContain("without a caption or request_id");
+  });
+
+  it("rejects a stale expired generation and an unrelated file type", async () => {
+    const f = await fixture();
+    await f.uploadBare({ fileName: "unrelated.txt" });
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_FILE_INVALID");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+    // A personal JSON attachment must not be downloaded or retained in quarantine.
+    await f.uploadBare({ fileName: "personal.json" });
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_FILE_INVALID");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+    await f.pendingStore.setRequestStatus(f.first.requestId, "EXPIRED");
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_MISSING");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      0,
+    );
+  });
+
+  it("rejects arbitrary captions and never rebinds a finalized generation", async () => {
+    const f = await fixture();
+    // The test observes upload routing, not an asynchronously scheduled
+    // provider report that could outlive and race fixture cleanup.
+    vi.spyOn(f.scheduler, "runNow").mockResolvedValue({
+      kind: "NOT_DUE",
+      lane: "SWAGGER_API",
+    });
+    await f.uploadBare({ caption: "my personal file" });
+    expect(f.messages.at(-1)).toContain("Attach one official WB bundle");
+    await f.uploadBare({ caption: "/swagger_upload" });
+    expect(f.messages.at(-1)).toContain("Swagger candidate ready");
+    await f.uploadBare();
+    expect(f.messages.at(-1)).toBe("WB_BUNDLE_REQUEST_MISSING");
+    expect(await f.pendingStore.listArtifacts(f.first.requestId)).toHaveLength(
+      1,
+    );
+  });
 });
 
 function officialV2(input: Parameters<typeof fetch>[0]): Response {

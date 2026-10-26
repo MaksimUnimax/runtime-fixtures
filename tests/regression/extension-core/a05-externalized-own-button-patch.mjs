@@ -30,14 +30,23 @@ const standardComposerPatch = standardComposerPatches[0];
 assert.deepEqual(Object.keys(standardComposerPatch).sort(), ["new", "old", "target"]);
 assert.equal(hash(standardComposerPatch.old), "2149944069f6f17e75d2eb9d7861906854d66b08afcf3f224b5f22e7f28e21bc");
 assert.equal(hash(standardComposerPatch.new), "dfa900cbbe80eab472d738c2125bac806252875011e64abbdffa29720b46f235");
-// Kimi routing is appended as thirteen exact overlays; the accepted A05 baseline remains intact.
-const kimiPatches = patches.slice(179);
+// Keep the thirteen previously-reviewed Kimi overlays in their exact original slice.
+// The separate CAP-24 composition overlay must not silently become a Kimi patch.
+const kimiPatches = patches.slice(179, 192);
 assert.equal(kimiPatches.length, 13);
 assert.equal(hash(JSON.stringify(patches.slice(0, 179))), "18a6b8c9943d4b2f67c118c149fcc335d83629081059a6ab107f73ebe081c1aa",
   "accepted pre-Kimi patch inventory remains byte-equivalent");
 assert.equal(hash(JSON.stringify(kimiPatches)), "5d3ce6e16fa3ffeb3778bee63171d421866d237cf84200d710a0eb7b73df89cd",
   "only the exact reviewed Kimi routing overlays are additional");
-assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length);
+// Pin the one additional independently-reviewed CAP-24 composition patch.
+const cap24ReportPatches = patches.slice(192);
+assert.equal(cap24ReportPatches.length, 1, "exactly one approved Ozon CAP-24 app patch");
+const cap24ReportPatch = cap24ReportPatches[0];
+assert.equal(cap24ReportPatch.target, "shared/llm_output_report_workflow_patch.js");
+assert.deepEqual(Object.keys(cap24ReportPatch).sort(), ["new", "old", "target"]);
+assert.equal(hash(cap24ReportPatch.old), "a6ad130dd40809bdf56ead39d31a097ec1bdb7b211592e3d81e789922f0208d2");
+assert.equal(hash(cap24ReportPatch.new), "47f3d67550b8fb0968f42a5b362ed63f2186eb95c10c8e4c285ecbdff723018c");
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + cap24ReportPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];

@@ -175,7 +175,7 @@
           lifecycleState: "ACTIVE",
           providerAccountId: previous?.providerAccountId || null,
           providerIdentityState: previous?.providerIdentityState || "UNCONFIRMED",
-          credentialsStale: false,
+          credentialsStale: credentialsUnchanged && previous?.credentialsStale === true,
           personalDataEnabled:
             input.personalDataEnabled === undefined
               ? previous?.personalDataEnabled === true
@@ -348,6 +348,7 @@
           createdAt: Date.now(),
         };
         const previousCredentialRevision = previous?.credentialRevision || null;
+        const previousCredentialsStale = previous?.credentialsStale === true;
         store.name = String(input.name || "").trim();
         store.marketplace = input.marketplace;
         store.providerIdentityState = previous?.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : input.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : "UNCONFIRMED";
@@ -356,7 +357,7 @@
         store.metadataRevision = incomingRevision;
         store.lifecycleState = input.kind === "STORE_TOMBSTONE" ? "TOMBSTONED" : "ACTIVE";
         store.credentials = input.kind === "STORE_TOMBSTONE" ? {} : (previous?.credentials || {});
-        store.credentialsStale = input.kind === "STORE_TOMBSTONE" || !Object.keys(store.credentials || {}).length || Boolean(previous?.credentials && previousCredentialRevision !== store.credentialRevision);
+        store.credentialsStale = input.kind === "STORE_TOMBSTONE" || previousCredentialsStale || !Object.keys(store.credentials || {}).length || Boolean(previous?.credentials && previousCredentialRevision !== store.credentialRevision);
         if (store.lifecycleState === "TOMBSTONED") store.verification = {};
         scope.stores[store.id] = store;
         return publicStore(store);

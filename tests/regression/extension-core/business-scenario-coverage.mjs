@@ -1,4 +1,5 @@
 import "./ozon-capability-status-boundary.mjs";
+import "./ozon-cap24-report-status-failclosed.mjs";
 import "./wb-stock-field-schema-slice.mjs";
 import "./wb-operational-sales-field-schema-slice.mjs";
 import "./wb-finance-sales-field-schema-slice.mjs";
@@ -23,6 +24,7 @@ import "./wb-campaign-status-field-schema-slice.mjs";
 import "./wb-advertising-stats-grain-field-schema-slice.mjs";
 import "./wb-advertised-stock-reuse.mjs";
 import "./wb-paid-storage-contribution-field-schema-slice.mjs";
+import "./wb-cap24-sku-source-provenance.mjs";
 import "./wb-sales-geography-field-schema-slice.mjs";
 import "./wb-sales-decline-evidence-reuse.mjs";
 import "./wb-cross-source-join-field-schema-slice.mjs";
@@ -464,6 +466,12 @@ const calculators = {
       !Array.isArray(input.right)
     )
       return { status: "INCOMPLETE", reason: "PERIOD_OR_SOURCE_MISSING" };
+
+    // A source that has not confirmed all pages/read completion is UNKNOWN,
+    // not a legitimately empty reporting period. Both read sides must prove
+    // completeness before comparing their product populations.
+    if (input.leftComplete !== true || input.rightComplete !== true)
+      return { status: "INCOMPLETE", reason: "SOURCE_READ_INCOMPLETE" };
 
     const project = (rows, side) => {
       const ids = new Set();
@@ -909,6 +917,42 @@ assert.deepEqual(
   }),
   ["Z", "Ä"],
   "warehouse_sort equal-unit tie must use exact ECMAScript code-unit order",
+);
+
+// CAP24_JOIN_SOURCE_READ_PROOF_REGRESSIONS: missing or unfinished pages are
+// UNKNOWN, not evidence that a product had no sales or fees in a period.
+// Preserve the existing three Gold-bound cases; test proof-state failures here.
+const joinProofPeriod = "2026-09-20/2026-09-26";
+const joinProofRows = {
+  left: [{ rowId: "S-PROOF", product: "1001", period: joinProofPeriod }],
+  right: [{ rowId: "R-PROOF", product: "1001", period: joinProofPeriod }],
+};
+for (const [caseId, proof] of [
+  ["no_source_proof", {}],
+  ["left_source_incomplete", { leftComplete: false, rightComplete: true }],
+  ["right_source_incomplete", { leftComplete: true, rightComplete: false }],
+  ["truthy_not_boolean", { leftComplete: "true", rightComplete: true }],
+]) {
+  assert.deepEqual(
+    calculators.cross_source_join({
+      period: joinProofPeriod,
+      ...joinProofRows,
+      ...proof,
+    }),
+    { status: "INCOMPLETE", reason: "SOURCE_READ_INCOMPLETE" },
+    "cross_source_join " + caseId + " must fail closed",
+  );
+}
+assert.deepEqual(
+  calculators.cross_source_join({
+    period: joinProofPeriod,
+    left: [],
+    right: [],
+    leftComplete: true,
+    rightComplete: true,
+  }),
+  { status: "COMPLETE", rows: [] },
+  "proven complete zero-row period is distinct from unknown data",
 );
 
 for (const row of numeric.cases) {

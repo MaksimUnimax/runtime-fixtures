@@ -143,7 +143,10 @@
       "path": "/api/marketplace/v3/supplies/{supplyId}/order-ids",
       "rowGrain": ["supplyId"],
       "fields": {
-        "orderIds": { "role": "assembly_order_ids", "unit": "identifier_array" }
+        "orderIds": {
+          "role": "assembly_order_ids",
+          "unit": "identifier_array_or_null"
+        }
       }
     },
     "acceptanceCreate": {
@@ -303,5 +306,25 @@
     "business reconciliation when FBW acceptedQuantity differs from acceptance-report count by period or grain",
     "FBS closed supply does not itself expose accepted-unit count",
     "204 report-download business interpretation requires explicit requested-period context"
-  ]
+  ],
+  "officialSchemaReadback": {
+    "evidence": "OFFICIAL_RU_SOURCE_FIELD_SCHEMA_ONLY",
+    "capturedAt": "2026-10-22T16:28:17.689565+00:00",
+    "sourceCommit": "07aff45acb375ec22dda43756a05d95dba7f3513",
+    "bundleSha256": "bce15f89e86b4a105a0137d8b667c0ad648a65c3db60bfdf04a1b05c5e7882ab",
+    "documentKey": "WB_03_ORDERS_FBS",
+    "filename": "03-orders-fbs.yaml",
+    "officialUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/03-orders-fbs.yaml?region=ru",
+    "documentSha256": "c04a6c7f5f18960e0b24d624c5b0b04e9267ed4d1325de32551d4cc036db624f",
+    "nullableFields": {
+      "orderIds": {
+        "schemaPointer": "#/components/schemas/v3.SupplyOrderIDsAPI/properties/orderIds",
+        "type": "array",
+        "nullable": true
+      }
+    },
+    "liveValues": false,
+    "runtimeBehaviorChanged": false,
+    "scope": "Correct only field nullability; original capture and earlier mapping evidence remain historical. No live completeness or business acceptance claim."
+  }
 }

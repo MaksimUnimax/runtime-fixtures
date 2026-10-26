@@ -1,5 +1,43 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as React from "react";
+import { createElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import HealthTargetPage from "../app/health/[targetId]/page";
+
+const healthRender = vi.hoisted(() => ({
+  data: null as unknown,
+  allowed: true,
+}));
+
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ targetId: "test-target" }),
+}));
+
+vi.mock("next/link", async () => {
+  const { createElement } = await import("react");
+  return {
+    default: ({ href, children }: { href: string; children: ReactNode }) =>
+      createElement("a", { href }, children),
+  };
+});
+
+vi.mock("../app/admin-ui", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../app/admin-ui")>();
+  const { createElement } = await import("react");
+  return {
+    ...original,
+    useAdmin: () => ({
+      me: healthRender.allowed ? { permissions: ["health.read"] } : null,
+    }),
+    has: (me: { permissions: string[] } | null, permission: string) =>
+      Boolean(me?.permissions.includes(permission)),
+    useData: () => ({ data: healthRender.data, busy: false, error: null }),
+    Shell: ({ children }: { children: ReactNode }) =>
+      createElement("main", null, children),
+    LoadState: () => null,
+  };
+});
 
 const healthPage = readFileSync(
   new URL("../app/health/page.tsx", import.meta.url),
@@ -58,5 +96,73 @@ describe("Health admin UI boundary", () => {
     expect(diagnosticsPage).not.toMatch(
       /success percentage|failure percentage|Retry now|Send now|claimToken|payload/,
     );
+  });
+});
+
+const safeTargetDetail = {
+  targetId: "test-target",
+  provider: "chatgpt",
+  surface: "CHATGPT_WORK",
+  variant: "work",
+  browserFamily: "chrome",
+  browserVersion: "155",
+  latestHealthState: "DEGRADED",
+  latestObservationAt: "2026-10-22T00:00:00Z",
+  latestSuccessfulRunAt: null,
+  baselineProfile: null,
+  candidateProfile: null,
+  contourStatuses: [] as { contourKey: string; outcome: string }[],
+  evaluations: [],
+  evidenceReferences: [],
+  healthRecommendation: null,
+  activeIncident: null,
+};
+
+// Vitest's JSX transform uses React.createElement here; Next handles the
+// production client component separately using its configured JSX runtime.
+beforeEach(() => {
+  vi.stubGlobal("React", React);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  healthRender.data = null;
+  healthRender.allowed = true;
+});
+
+describe("Health target detail rendered contour outcomes", () => {
+  it("shows actual PASS, DRIFT, BROKEN and UNKNOWN contour rows without deriving a global PASS", () => {
+    healthRender.data = {
+      ...safeTargetDetail,
+      contourStatuses: [
+        { contourKey: "C01", outcome: "PASS" },
+        { contourKey: "C02", outcome: "DRIFT" },
+        { contourKey: "C03", outcome: "BROKEN" },
+        { contourKey: "C04", outcome: "UNKNOWN" },
+      ],
+    };
+    const html = renderToStaticMarkup(createElement(HealthTargetPage));
+    expect(html).toContain("Observed contour outcomes");
+    expect(html).toContain("<td>C01</td><td>PASS</td>");
+    expect(html).toContain("<td>C02</td><td>DRIFT</td>");
+    expect(html).toContain("<td>C03</td><td>BROKEN</td>");
+    expect(html).toContain("<td>C04</td><td>UNKNOWN</td>");
+    expect(html).not.toContain("All contours passed");
+  });
+
+  it("states that no per-contour observation is available when the API list is empty", () => {
+    healthRender.data = { ...safeTargetDetail, contourStatuses: [] };
+    const html = renderToStaticMarkup(createElement(HealthTargetPage));
+    expect(html).toContain("No per-contour observations are recorded");
+    expect(html).not.toContain("<td>C01</td><td>PASS</td>");
+  });
+
+  it("does not expose contour details without the health.read permission", () => {
+    healthRender.allowed = false;
+    healthRender.data = {
+      ...safeTargetDetail,
+      contourStatuses: [{ contourKey: "C01", outcome: "PASS" }],
+    };
+    expect(renderToStaticMarkup(createElement(HealthTargetPage))).toBe("");
   });
 });

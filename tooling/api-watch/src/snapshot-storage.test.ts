@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as Fs from "node:fs/promises";
 import { InMemoryApiWatchStore } from "./authority.js";
-import { promoteAcceptedSnapshot } from "./snapshot.js";
+import { promoteAcceptedSnapshot, readAcceptedSnapshot } from "./snapshot.js";
 import type { AuthorityRecord } from "./types.js";
 
 const fault = vi.hoisted(() => ({
@@ -14,6 +14,9 @@ const fault = vi.hoisted(() => ({
   racedInode: 0,
   cleanup: false,
   closeFailure: undefined as Error | undefined,
+  growAfterStat: undefined as Buffer | undefined,
+  readFileCalls: 0,
+  maxReadLength: 0,
 }));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof Fs>();
@@ -32,6 +35,31 @@ vi.mock("node:fs/promises", async (importOriginal) => {
       const handle = await fs.open(...args);
       return new Proxy(handle, {
         get(target, key) {
+          if (key === "stat")
+            return async () => {
+              const observed = await target.stat();
+              if (fault.growAfterStat) {
+                const append = fault.growAfterStat;
+                fault.growAfterStat = undefined;
+                await fs.appendFile(String(args[0]), append);
+              }
+              return observed;
+            };
+          if (key === "readFile")
+            return async () => {
+              fault.readFileCalls += 1;
+              return target.readFile();
+            };
+          if (key === "read")
+            return async (
+              buffer: Buffer,
+              offset: number,
+              length: number,
+              position: number,
+            ) => {
+              fault.maxReadLength = Math.max(fault.maxReadLength, length);
+              return target.read(buffer, offset, length, position);
+            };
           if (key === "writeFile")
             return async (...values: Parameters<typeof handle.writeFile>) => {
               if (fault.stage === "write") {
@@ -80,6 +108,9 @@ afterEach(async () => {
   fault.racedBytes = undefined;
   fault.racedInode = 0;
   fault.closeFailure = undefined;
+  fault.growAfterStat = undefined;
+  fault.readFileCalls = 0;
+  fault.maxReadLength = 0;
   fault.cleanup = false;
   for (const root of roots.splice(0))
     await realFs.rm(root, { recursive: true, force: true });
@@ -115,6 +146,50 @@ async function fixture() {
     snapshotRoot: root,
   };
 }
+describe("read accepted snapshot filesystem identity", () => {
+  it("rejects a symbolic-link replacement even with identical expected bytes", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    const outside = join(input.snapshotRoot, "same-bytes.json");
+    await realFs.writeFile(outside, input.bytes);
+    await realFs.unlink(saved.artifactPath);
+    await realFs.symlink(outside, saved.artifactPath);
+    await expect(readAcceptedSnapshot(saved)).rejects.toMatchObject({
+      code: "ELOOP",
+    });
+  });
+
+  it("still reads the original accepted regular file by its recorded digest", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    expect(await readAcceptedSnapshot(saved)).toEqual(input.bytes);
+  });
+
+  it("bounds a regular-file growth race after fstat without readFile-to-EOF", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    fault.growAfterStat = Buffer.from("extra bytes after stat");
+    fault.readFileCalls = 0;
+    fault.maxReadLength = 0;
+    await expect(readAcceptedSnapshot(saved)).rejects.toThrow(
+      "SNAPSHOT_SIZE_MISMATCH",
+    );
+    expect(fault.readFileCalls).toBe(0);
+    expect(fault.maxReadLength).toBeLessThanOrEqual(input.bytes.length + 1);
+  });
+
+  it("rejects changed regular-file bytes even when the recorded length still matches", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    const altered = Buffer.from(input.bytes);
+    altered[0] = (altered[0] ?? 0) ^ 1;
+    await realFs.writeFile(saved.artifactPath, altered);
+    await expect(readAcceptedSnapshot(saved)).rejects.toThrow(
+      "SNAPSHOT_DIGEST_MISMATCH",
+    );
+  });
+});
+
 describe("snapshot filesystem failure cleanup", () => {
   it.each(["EACCES", "EIO"])(
     "propagates %s instead of treating an unchecked destination as missing",
@@ -146,6 +221,20 @@ describe("snapshot filesystem failure cleanup", () => {
       await realFs.readdir(join(input.snapshotRoot, "OZON_SELLER")),
     ).toEqual([`${input.record.sha256}.json`]);
   });
+  it("bounds growth of an existing accepted file after descriptor stat", async () => {
+    const input = await fixture();
+    const saved = await promoteAcceptedSnapshot(input);
+    fault.growAfterStat = Buffer.from("bytes appended after the first stat");
+    fault.readFileCalls = 0;
+    fault.maxReadLength = 0;
+    await expect(promoteAcceptedSnapshot(input)).rejects.toThrow(
+      "SNAPSHOT_CONTENT_ADDRESS_COLLISION",
+    );
+    expect(fault.readFileCalls).toBe(0);
+    expect(fault.maxReadLength).toBeLessThanOrEqual(input.bytes.length + 1);
+    expect((await realFs.lstat(saved.artifactPath)).isFile()).toBe(true);
+  });
+
   it("reuses an identical raced publication without replacing its inode", async () => {
     const input = await fixture();
     fault.racedBytes = input.bytes;

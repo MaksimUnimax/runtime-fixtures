@@ -1653,3 +1653,28 @@ test("preparer never claims browser/live/deployment acceptance", () => {
     cleanup(value);
   }
 });
+
+test("dual-browser preflight rejects a file added after manifest preparation", () => {
+  const value = fixture();
+  try {
+    const { output } = prepare(value);
+    writeFileSync(
+      join(output, "UNDECLARED_NONPRIVATE_FIXTURE.txt"),
+      "fixture bytes",
+    );
+    assert.throws(() => preflight(value, output), /undeclared/i);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("dual-browser preflight rejects extra child directory after preparation", () => {
+  const value = fixture();
+  try {
+    const { output } = prepare(value);
+    mkdirSync(join(output, "EXTRA_NONPRIVATE_DIRECTORY"));
+    assert.throws(() => preflight(value, output), /undeclared/i);
+  } finally {
+    cleanup(value);
+  }
+});

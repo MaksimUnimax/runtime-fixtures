@@ -795,13 +795,23 @@ function validateRoot(value: unknown): {
     Array.isArray(root.paths)
   )
     throw new Error("OPENAPI_PATHS_MISSING");
-  const version =
+  const hasSwaggerMarker = Object.prototype.hasOwnProperty.call(
+    root,
+    "swagger",
+  );
+  const swaggerVersion =
     typeof root.swagger === "string" && /^2\.\d+(?:\.\d+)?$/.test(root.swagger)
       ? root.swagger
-      : typeof root.openapi === "string" &&
-          /^3\.\d+(?:\.\d+)?$/.test(root.openapi)
-        ? root.openapi
-        : null;
+      : null;
+  // A malformed/unsupported Swagger discriminator must not be rescued by a
+  // second, valid OpenAPI 3 marker. Fail closed on the document's own marker.
+  if (hasSwaggerMarker && !swaggerVersion)
+    throw new Error("OPENAPI_VERSION_MISSING");
+  const version =
+    swaggerVersion ??
+    (typeof root.openapi === "string" && /^3\.\d+(?:\.\d+)?$/.test(root.openapi)
+      ? root.openapi
+      : null);
   if (!version) throw new Error("OPENAPI_VERSION_MISSING");
   return { version, root };
 }

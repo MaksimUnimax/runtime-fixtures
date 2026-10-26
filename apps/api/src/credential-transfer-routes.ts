@@ -34,6 +34,21 @@ function principal(request: FastifyRequest): ExtensionPrincipal {
   return request.extensionPrincipal as ExtensionPrincipal;
 }
 
+// Fastify validates body UUIDs before the handler. A body must not redirect a
+// route addressing another transfer; UUID letter case does not change identity.
+function requestIdentity(request: FastifyRequest): string {
+  const { requestId } = request.params as { requestId: string };
+  const body = request.body as { requestId: string };
+  if (requestId.toLowerCase() !== body.requestId.toLowerCase()) {
+    throw new ControlledError(
+      "TRANSFER_INVALID",
+      "Transfer request identity mismatch",
+      409,
+    );
+  }
+  return requestId.toLowerCase();
+}
+
 export function registerCredentialTransferRoutes(
   app: App,
   service: CredentialTransferService,
@@ -50,7 +65,7 @@ export function registerCredentialTransferRoutes(
       request.extensionPrincipal = result.value;
     },
   };
-  const handle = async (fn: () => Promise<unknown>) => {
+  const handle = async <T>(fn: () => Promise<T>): Promise<T> => {
     try {
       return await fn();
     } catch (error) {
@@ -108,10 +123,12 @@ export function registerCredentialTransferRoutes(
         response: {
           200: TransferRequestV1Schema.array(),
           401: ApiErrorEnvelopeV1Schema,
+          409: ApiErrorEnvelopeV1Schema,
+          410: ApiErrorEnvelopeV1Schema,
         },
       },
     },
-    async (request) => service.listForSource(principal(request)),
+    async (request) => handle(() => service.listForSource(principal(request))),
   );
   app.get(
     "/v1/credential-transfers/:requestId",
@@ -122,12 +139,16 @@ export function registerCredentialTransferRoutes(
           200: TransferRequestV1Schema,
           401: ApiErrorEnvelopeV1Schema,
           404: ApiErrorEnvelopeV1Schema,
+          409: ApiErrorEnvelopeV1Schema,
+          410: ApiErrorEnvelopeV1Schema,
         },
       },
     },
     async (request) => {
       const { requestId } = request.params as { requestId: string };
-      const value = await service.read(principal(request), requestId);
+      const value = await handle(() =>
+        service.read(principal(request), requestId),
+      );
       if (!value)
         throw new ControlledError(
           "TRANSFER_ACCOUNT_MISMATCH",
@@ -171,8 +192,10 @@ export function registerCredentialTransferRoutes(
       },
     },
     async (request) => {
+      const requestId = requestIdentity(request);
+      const body = request.body as Record<string, unknown>;
       const result = (await handle(() =>
-        service.submit(principal(request), request.body),
+        service.submit(principal(request), { ...body, requestId }),
       )) as { request: unknown };
       return result.request;
     },
@@ -212,8 +235,13 @@ export function registerCredentialTransferRoutes(
         },
       },
     },
-    async (request) =>
-      handle(() => service.acknowledge(principal(request), request.body)),
+    async (request) => {
+      const requestId = requestIdentity(request);
+      const body = request.body as Record<string, unknown>;
+      return handle(() =>
+        service.acknowledge(principal(request), { ...body, requestId }),
+      );
+    },
   );
   app.post(
     "/v1/credential-transfers/:requestId/cancel",

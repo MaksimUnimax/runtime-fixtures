@@ -936,3 +936,25 @@ describe("A4 semantic API diffs", () => {
     expect(JSON.stringify(stored)).not.toContain("description");
   });
 });
+
+describe("C03 current-main canonical Unicode route ordering across default locales", () => {
+  it("uses raw code unit path order instead of locale-sensitive collation", () => {
+    const ascii = operation({
+      identity: FAMILY + ":GET:/z",
+      path: "/z",
+    });
+    const accented = operation({
+      identity: FAMILY + ":GET:/ä",
+      path: "/ä",
+    });
+    const diff = compare([], [accented, ascii]);
+    expect(diff.operations.map((item) => item.path)).toEqual(["/z", "/ä"]);
+    expect(diff.diffSha256).toBe(compare([], [ascii, accented]).diffSha256);
+    expect(canonicalSemanticDiff(diff)).toBe(
+      canonicalSemanticDiff({
+        ...diff,
+        operations: [...diff.operations].reverse(),
+      }),
+    );
+  });
+});

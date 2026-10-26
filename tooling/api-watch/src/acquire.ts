@@ -42,6 +42,95 @@ function failure(
   };
 }
 
+// Parser messages may include raw source text. Only allow the fixed validation
+// codes intended for operator-facing diagnostics; everything else is generic.
+const SAFE_OFFICIAL_VALIDATION_REASONS = new Set([
+  "UPLOAD_TOO_LARGE",
+  "UNSUPPORTED_ARTIFACT_EXTENSION",
+  "TEXT_CONTENT_INVALID",
+  "OPENAPI_ROOT_NOT_OBJECT",
+  "OPENAPI_INFO_MISSING",
+  "OPENAPI_PATHS_MISSING",
+  "OPENAPI_VERSION_MISSING",
+  "SOURCE_SERVER_IDENTITY_MISMATCH",
+  "SOURCE_TITLE_IDENTITY_MISMATCH",
+]);
+
+function safeOfficialValidationReason(error: unknown): string {
+  return error instanceof Error &&
+    SAFE_OFFICIAL_VALIDATION_REASONS.has(error.message)
+    ? error.message
+    : "Official source document validation failed.";
+}
+
+function matchesRequiredServerIdentity(
+  root: Record<string, unknown>,
+  requiredServerIdentity: string,
+  documentUrl: string,
+): boolean {
+  if (
+    typeof root.swagger !== "string" ||
+    !/^2\.\d+(?:\.\d+)?$/u.test(root.swagger)
+  ) {
+    // OpenAPI 3.x uses servers; retain its exact URL matching rule.
+    const servers = Array.isArray(root.servers)
+      ? root.servers
+          .filter(
+            (server): server is Record<string, unknown> =>
+              Boolean(server) && typeof server === "object",
+          )
+          .map((server) => server.url)
+          .filter((url): url is string => typeof url === "string")
+      : [];
+    return servers.includes(requiredServerIdentity);
+  }
+
+  // Swagger 2.0 uses host/basePath/schemes. Do not let an OAS3 servers
+  // extension spoof the required API identity.
+  try {
+    const required = new URL(requiredServerIdentity);
+    const document = new URL(documentUrl);
+    if (
+      required.username ||
+      required.password ||
+      required.search ||
+      required.hash
+    )
+      return false;
+    const host = root.host === undefined ? document.host : root.host;
+    if (
+      typeof host !== "string" ||
+      !host ||
+      /[/?#@]/u.test(host) ||
+      host.includes(String.fromCharCode(92))
+    )
+      return false;
+    const authority = new URL(required.protocol + "//" + host + "/");
+    if (
+      authority.host !== required.host ||
+      authority.username ||
+      authority.password ||
+      authority.search ||
+      authority.hash ||
+      authority.pathname !== "/"
+    )
+      return false;
+    const basePath = root.basePath === undefined ? "/" : root.basePath;
+    if (
+      typeof basePath !== "string" ||
+      !basePath.startsWith("/") ||
+      basePath !== required.pathname
+    )
+      return false;
+    const scheme = required.protocol.slice(0, -1);
+    if (root.schemes === undefined)
+      return document.protocol === required.protocol;
+    return Array.isArray(root.schemes) && root.schemes.includes(scheme);
+  } catch {
+    return false;
+  }
+}
+
 const HTTP_MONTH_INDEX = Object.freeze({
   Jan: 0,
   Feb: 1,
@@ -500,7 +589,8 @@ async function cancelRedirectBodyWithinDeadline(
   signal: AbortSignal,
 ): Promise<boolean> {
   if (signal.aborted) return false;
-  if (!response.body) return true;
+  const body = response.body;
+  if (!body) return true;
   let removeAbortListener: () => void = () => undefined;
   const deadline = new Promise<false>((resolve) => {
     const onAbort = () => resolve(false);
@@ -510,10 +600,13 @@ async function cancelRedirectBodyWithinDeadline(
   });
   try {
     return await Promise.race([
-      response.body.cancel().then(
-        () => true as const,
-        () => true as const,
-      ),
+      Promise.resolve()
+        .then(() => body.cancel())
+        .then(
+          () => true as const,
+          // Failed cancellation cannot authorize another redirect request.
+          () => false as const,
+        ),
       deadline,
     ]);
   } finally {
@@ -660,11 +753,13 @@ export async function acquireOfficialSource(input: {
           response,
           controller.signal,
         );
-        if (!cancelled || controller.signal.aborted)
+        if (controller.signal.aborted)
           throw new DOMException(
             "Redirect body cleanup exceeded deadline",
             "AbortError",
           );
+        if (!cancelled)
+          throw new Error("OFFICIAL_SOURCE_REDIRECT_BODY_CANCEL_FAILED");
         currentUrl = nextUrl.toString();
       }
     } catch (error) {
@@ -673,7 +768,10 @@ export async function acquireOfficialSource(input: {
         "SOURCE_TEMPORARILY_UNAVAILABLE",
         error instanceof DOMException && error.name === "AbortError"
           ? "Official source acquisition timed out."
-          : "Official source network acquisition failed.",
+          : error instanceof Error &&
+              error.message === "OFFICIAL_SOURCE_REDIRECT_BODY_CANCEL_FAILED"
+            ? "Official source redirect response body cleanup failed."
+            : "Official source network acquisition failed.",
       );
     }
 
@@ -771,19 +869,15 @@ export async function acquireOfficialSource(input: {
         `official${extension}`,
         Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
       );
-      if (entry.requiredServerIdentity) {
-        const servers = Array.isArray(validation.document.root.servers)
-          ? validation.document.root.servers
-              .filter(
-                (server): server is Record<string, unknown> =>
-                  Boolean(server) && typeof server === "object",
-              )
-              .map((server) => server.url)
-              .filter((url): url is string => typeof url === "string")
-          : [];
-        if (!servers.some((server) => server === entry.requiredServerIdentity))
-          throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
-      }
+      if (
+        entry.requiredServerIdentity &&
+        !matchesRequiredServerIdentity(
+          validation.document.root,
+          entry.requiredServerIdentity,
+          currentUrl,
+        )
+      )
+        throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
       if (entry.titlePattern) {
         const info = validation.document.root.info;
         const title =
@@ -814,9 +908,7 @@ export async function acquireOfficialSource(input: {
       return failure(
         entry,
         "INVALID_OFFICIAL_SOURCE_RESPONSE",
-        error instanceof Error
-          ? error.message
-          : "Official source document validation failed.",
+        safeOfficialValidationReason(error),
         response.status,
       );
     }
@@ -827,7 +919,11 @@ export async function acquireOfficialSource(input: {
     controller.abort();
     clearTimeout(timer);
     removeHeaderAbortListener();
-    void responseToClose?.body?.cancel().catch(() => undefined);
+    try {
+      void responseToClose?.body?.cancel().catch(() => undefined);
+    } catch {
+      // A nonconforming adapter can throw synchronously; preserve the result.
+    }
   }
 }
 

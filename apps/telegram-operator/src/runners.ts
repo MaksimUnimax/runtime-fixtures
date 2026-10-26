@@ -92,6 +92,17 @@ export function resultFromNoSessionBatch(
       ...(coverage ? { coverage } : {}),
     };
   }
+  // A completed attempt is not evidence that every provider surface was
+  // observed. Security checkpoints, access blocks and regional restrictions
+  // remain unverified, even when another surface was publicly observable.
+  if (coverage && coverage.unverifiedTargets.length > 0) {
+    return {
+      status: "NOT_OBSERVABLE",
+      code: "NO_SESSION_NOT_OBSERVABLE",
+      summary: "No-session monitoring did not verify all provider surfaces.",
+      coverage,
+    };
+  }
   return {
     status: "SUCCEEDED",
     code: null,
