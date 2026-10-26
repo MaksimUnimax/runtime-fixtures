@@ -11,6 +11,8 @@ describe("SensitiveLogPaths", () => {
         "password",
         "token",
         "secret",
+        "err",
+        "error",
         "refresh_token",
         "refreshToken",
         "access_token",
@@ -225,6 +227,51 @@ describe("SensitiveLogPaths", () => {
       expect(result).not.toContain(marker);
       expect(result).toContain("synthetic-redaction-check");
       expect(result).toContain('"method":"');
+    },
+  );
+
+  it.each([
+    {
+      label: "Fastify-style error",
+      errorKey: "err",
+      payload: new Error("SYNTHETIC_PRIVATE_ERROR_MESSAGE_411"),
+      privateValue: "SYNTHETIC_PRIVATE_ERROR_MESSAGE_411",
+    },
+    {
+      label: "structured error",
+      errorKey: "error",
+      payload: { message: "SYNTHETIC_PRIVATE_ERROR_MESSAGE_412" },
+      privateValue: "SYNTHETIC_PRIVATE_ERROR_MESSAGE_412",
+    },
+  ])(
+    "redacts $label diagnostics without removing safe correlation metadata",
+    ({ errorKey, payload, privateValue }) => {
+      const lines: string[] = [];
+      const logger = createLogger("info", {
+        write: (line: string) => {
+          lines.push(line);
+          return true;
+        },
+      });
+      logger.error(
+        {
+          [errorKey]: payload,
+          correlationId: "synthetic-safe-correlation",
+          req: {
+            method: "POST",
+            body: { token: "SYNTHETIC_PRIVATE_REQUEST_BODY_413" },
+          },
+        },
+        "Unhandled API error",
+      );
+      expect(lines).toHaveLength(1);
+      const encoded = lines[0]!;
+      const logged = JSON.parse(encoded) as Record<string, unknown>;
+      expect(logged[errorKey]).toBe("[REDACTED]");
+      expect(logged.correlationId).toBe("synthetic-safe-correlation");
+      expect((logged.req as { method?: string }).method).toBe("POST");
+      expect(encoded).not.toContain(privateValue);
+      expect(encoded).not.toContain("SYNTHETIC_PRIVATE_REQUEST_BODY_413");
     },
   );
 

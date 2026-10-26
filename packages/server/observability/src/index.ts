@@ -17,6 +17,10 @@ export const SensitiveLogPaths = [
   "api_key",
   "apiKey",
   "secret",
+  // Unhandled errors can contain credentials in their message, stack or cause.
+  // Censor the whole diagnostic object; keep safe event metadata separately.
+  "err",
+  "error",
   "authRootSecret",
   "authRootSecretB64",
   "accessTokenSigningPrivateKey",
