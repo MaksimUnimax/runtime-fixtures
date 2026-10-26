@@ -30,6 +30,7 @@ import type {
 } from "./types.js";
 import { API_WATCH_MAX_ARTIFACT_BYTES } from "./types.js";
 import { runDocumentAuthorityPass } from "./source-set.js";
+import { scopeSourceRegistry } from "./source-registry.js";
 import {
   authorityRecordSequence,
   nextAuthorityRecordSequence,
@@ -686,15 +687,27 @@ export async function runAuthorityPass(input: {
   fetcher?: typeof fetch;
   now?: () => Date;
   skipOperatorBlocked?: boolean;
+  /** A run-bound automatic retry may read and fetch only its leased families. */
+  sourceFamilies?: readonly SwaggerSourceFamily[];
   quarantineDir?: string;
   reportStore?: ApiWatchReportStore;
 }): Promise<AuthorityPassResult> {
-  const ready = await input.pendingStore.listReadyRequests();
+  if (input.sourceFamilies && input.skipOperatorBlocked !== true)
+    throw new Error("SOURCE_FAMILY_SCOPE_REQUIRES_AUTOMATIC_PASS");
+  // Validate before reading operator state or issuing any provider request.
+  // A retry is not permission to ingest an unrelated ready upload.
+  const scopedRegistry = input.sourceFamilies
+    ? scopeSourceRegistry(input.registry, input.sourceFamilies)
+    : safeInput.registry;
+  const safeInput = { ...input, registry: scopedRegistry };
+  const ready = input.sourceFamilies
+    ? []
+    : await safeInput.pendingStore.listReadyRequests();
   const request = ready.find(
     (request) =>
       request.sourceFamily === "WILDBERRIES" &&
       request.documentKey === WB_BUNDLE_DOCUMENT_KEY &&
-      input.registry
+      safeInput.registry
         .list()
         .some(
           (entry) =>
@@ -708,7 +721,7 @@ export async function runAuthorityPass(input: {
     "/var/lib/octoport/api-watch/quarantine";
   let operator: AuthorityPassResult | undefined;
   const artifact = request
-    ? (await input.pendingStore.listArtifacts(request.requestId)).find(
+    ? (await safeInput.pendingStore.listArtifacts(request.requestId)).find(
         (candidate) => candidate.status === "CANDIDATE_READY",
       )
     : undefined;
@@ -717,10 +730,10 @@ export async function runAuthorityPass(input: {
   if (
     request &&
     artifact &&
-    !(await operatorPipelineConsumed({ ...input, artifact, quarantineDir }))
+    !(await operatorPipelineConsumed({ ...safeInput, artifact, quarantineDir }))
   ) {
     const review = await evaluateOperatorCandidate({
-      ...input,
+      ...safeInput,
       requestId: request.requestId,
       quarantineDir,
     });
@@ -745,14 +758,14 @@ export async function runAuthorityPass(input: {
   }
   const registry = operator
     ? {
-        get: input.registry.get.bind(input.registry),
+        get: safeInput.registry.get.bind(safeInput.registry),
         list: () =>
-          input.registry
+          safeInput.registry
             .list()
             .filter((entry) => entry.sourceFamily !== "WILDBERRIES"),
       }
-    : input.registry;
-  const pass = await runDocumentAuthorityPass({ ...input, registry });
+    : safeInput.registry;
+  const pass = await runDocumentAuthorityPass({ ...safeInput, registry });
   return {
     ...(operator?.operatorCandidate
       ? { operatorCandidate: operator.operatorCandidate }
