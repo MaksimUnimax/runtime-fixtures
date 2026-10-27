@@ -89,6 +89,29 @@ class ChildOutputSinkTest(unittest.TestCase):
             if process.stderr is not None:
                 process.stderr.close()
 
+    def test_dead_service_fails_before_readiness_poll_without_child_output(self):
+        tree = ast.parse(SOURCE.read_text(encoding="utf-8"), filename=str(SOURCE))
+        function = next(n for n in tree.body
+                        if isinstance(n, ast.FunctionDef) and n.name == "wait_for")
+        class Clock:
+            @staticmethod
+            def monotonic():
+                return 0
+            @staticmethod
+            def sleep(_seconds):
+                raise AssertionError("Dead service must not sleep until timeout")
+        class DeadProcess:
+            returncode = 7
+            @staticmethod
+            def poll():
+                return 7
+        namespace = {"time": Clock}
+        exec(compile(ast.Module(body=[function], type_ignores=[]),
+                     str(SOURCE), "exec"), namespace)
+        with self.assertRaisesRegex(RuntimeError, r"^LOCAL_SERVICE_EXITED:7$"):
+            namespace["wait_for"]("http://127.0.0.1:43100/health/ready",
+                                  process=DeadProcess())
+
     def test_api_stdout_above_pipe_capacity(self):
         self.run_child("api", 1)
 

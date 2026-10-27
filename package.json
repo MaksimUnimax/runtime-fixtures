@@ -54,7 +54,10 @@
     "typescript": "5.9.2",
     "typescript-eslint": "8.42.0",
     "tsx": "4.20.5",
-    "vitest": "3.2.6"
+    "vitest": "3.2.6",
+    "@product/beta-access": "workspace:*",
+    "@product/bootstrap": "workspace:*",
+    "@product/remote-config": "workspace:*"
   },
   "description": "Octoport monorepo: extension, backend, monitoring and release tooling",
   "sellerAgents": {

@@ -38,9 +38,12 @@ def expect_portal_post(page, portal_port, endpoint, action, expected, stage):
         raise SafeStageError(stage, response.status, response_code(response))
     return response
 
-def wait_for(url, timeout=60):
+def wait_for(url, timeout=60, *, process=None):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            # Report lifecycle only; child output may contain sensitive data.
+            raise RuntimeError(f"LOCAL_SERVICE_EXITED:{process.returncode}")
         try:
             with urllib.request.urlopen(url, timeout=2) as response:
                 if response.status < 500:
@@ -375,7 +378,7 @@ def run(runtime, output):
             api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=api_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(api)
             stage = _mark_stage(output, "api_ready_wait", started)
-            wait_for(f"http://127.0.0.1:{api_port}/health/ready")
+            wait_for(f"http://127.0.0.1:{api_port}/health/ready", process=api)
             if not trust_path.exists():
                 raise RuntimeError("API did not export public trust bundle")
             if not fixture_evidence_path.exists() or json.loads(fixture_evidence_path.read_text())["existing_fixture_accounts"] != 2 or json.loads(fixture_evidence_path.read_text())["beta_unchanged"] is not True:
@@ -416,7 +419,7 @@ def run(runtime, output):
             portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", portal_port], cwd=ROOT, env=portal_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(portal)
             stage = _mark_stage(output, "portal_ready_wait", started)
-            wait_for(f"http://127.0.0.1:{portal_port}/login")
+            wait_for(f"http://127.0.0.1:{portal_port}/login", process=portal)
             fixture = (ROOT / "tests/regression/extension-core/fixtures/application-chat.html").read_text()
             # This account/restart fixture exposes a provider conversation ID.
             # Its URL is deliberately unrelated; an address alone is not proof.

@@ -34,6 +34,7 @@ import {
   type DatabaseRuntime,
 } from "../../../packages/server/db/src/index.js";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
+import { TRANSFER_FENCE_RUNTIME_CHECK_SQL } from "../../../packages/server/db/src/credential-transfer-fence-readiness.js";
 import { validateIsolatedDatabaseUrl } from "../../../tooling/server/isolated-auth-lifecycle.js";
 
 const connectionString = validateIsolatedDatabaseUrl(
@@ -170,6 +171,32 @@ describe.sequential(
     });
     afterAll(async () => {
       await db?.close();
+    });
+
+    it("runtime admission requires both migration guards and rejects altered layouts", async () => {
+      const current = await query(TRANSFER_FENCE_RUNTIME_CHECK_SQL);
+      expect(current.rows[0]?.mandatory_statement_trigger).toBe(true);
+      const mutations = [
+        "ALTER TABLE public.credential_transfer_requests DISABLE TRIGGER credential_transfer_epoch_guard",
+        "ALTER TABLE public.credential_transfer_requests DISABLE TRIGGER connection_transfer_approval_guard",
+        "DROP TRIGGER connection_transfer_approval_guard ON public.credential_transfer_requests",
+        "CREATE TRIGGER connection_extra_test_guard BEFORE INSERT ON public.credential_transfer_requests FOR EACH STATEMENT EXECUTE FUNCTION octoport_transfer_fence.guard_transfer_statement()",
+      ];
+      for (const mutation of mutations) {
+        const rollback = new Error("ROLL_BACK_ISOLATED_GUARD_PROBE");
+        try {
+          await db.transaction(async (tx) => {
+            await tx.query(mutation);
+            const probe = await tx.query(TRANSFER_FENCE_RUNTIME_CHECK_SQL);
+            expect(probe.rows[0]?.mandatory_statement_trigger).toBe(false);
+            throw rollback;
+          });
+        } catch (error) {
+          if (error !== rollback) throw error;
+        }
+        const restored = await query(TRANSFER_FENCE_RUNTIME_CHECK_SQL);
+        expect(restored.rows[0]?.mandatory_statement_trigger).toBe(true);
+      }
     });
 
     it("additive migration preserves existing legacy device and runs idempotently", async () => {

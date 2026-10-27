@@ -39,6 +39,15 @@ importers:
       '@product/extension-auth':
         specifier: workspace:*
         version: link:packages/server/extension-auth
+      '@product/beta-access':
+        specifier: workspace:*
+        version: link:packages/server/beta-access
+      '@product/bootstrap':
+        specifier: workspace:*
+        version: link:packages/server/bootstrap
+      '@product/remote-config':
+        specifier: workspace:*
+        version: link:packages/server/remote-config
       '@product/shared':
         specifier: workspace:*
         version: link:packages/shared

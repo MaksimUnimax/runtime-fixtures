@@ -88,9 +88,15 @@ SELECT
   NOT EXISTS(SELECT 1 FROM routines p,
     LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
     WHERE a.grantee=0 AND a.privilege_type='EXECUTE') AS functions_not_public,
-  (SELECT count(*)=1 AND bool_and(tgname='credential_transfer_epoch_guard'
-      AND tgtype=62 AND tgenabled='A'
-      AND tgfoid=pg_catalog.to_regprocedure('octoport_transfer_fence.guard_transfer_statement()'))
+  -- Migration 0062 adds a separate row guard for code-enrolled recipients.
+  -- Require both exact guards; missing, disabled, replaced or additional
+  -- triggers remain a refusal, never an unprovisioned runtime fallback.
+  (SELECT count(*)=2 AND bool_and(
+      (tgname='credential_transfer_epoch_guard' AND tgtype=62 AND tgenabled='A'
+       AND tgfoid=pg_catalog.to_regprocedure('octoport_transfer_fence.guard_transfer_statement()'))
+      OR
+      (tgname='connection_transfer_approval_guard' AND tgtype=23 AND tgenabled='O'
+       AND tgfoid=pg_catalog.to_regprocedure('public.octoport_guard_connection_transfer_approval()')))
     FROM pg_catalog.pg_trigger
     WHERE tgrelid=pg_catalog.to_regclass('public.credential_transfer_requests') AND NOT tgisinternal) AS mandatory_statement_trigger,
   (SELECT count(*)=3 AND bool_and(attnotnull AND
