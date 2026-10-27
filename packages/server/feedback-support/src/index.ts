@@ -270,8 +270,11 @@ const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
 // The ordinary line-level regex would mask only the first physical line.
 // If its quoted credential spans a raw LF/CR, no trustworthy free-text
 // suffix boundary exists: discard the entire diagnostic, never its tail.
+// Match the same horizontal whitespace as the fallback secret redactor,
+// including Unicode separators, and optional log-escaped quote prefixes.
+// Never let a first-line-only mask expose subsequent secret text.
 const bareQuotedCredentialValueStart =
-  /\b([A-Za-z_][A-Za-z0-9_-]{0,63})[ \t]*[:=][ \t]*(["'])/gu;
+  /\b([A-Za-z_][A-Za-z0-9_-]{0,63})[^\S\r\n]*[:=][^\S\r\n]*(?:\\*)(["'])/gu;
 
 function hasBareQuotedMultilineCredential(input: string): boolean {
   bareQuotedCredentialValueStart.lastIndex = 0;
