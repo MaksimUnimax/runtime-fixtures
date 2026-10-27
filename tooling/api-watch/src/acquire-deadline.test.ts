@@ -46,6 +46,20 @@ describe("C03 acquisition deadline", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("cannot dispatch deferred header fetch after owner revocation in the same turn", async () => {
+    const owner = new AbortController();
+    const fetcher = vi.fn(async () => new Response(null, { status: 503 }));
+    const pending = acquireOfficialSource({
+      entry,
+      signal: owner.signal,
+      timeoutMs: 60_000,
+      fetcher: fetcher as typeof fetch,
+    });
+    owner.abort();
+    await expect(pending).rejects.toThrow("API_WATCH_ACQUISITION_REVOKED");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("revokes a stalled header fetch even when the injected fetcher ignores AbortSignal", async () => {
     const owner = new AbortController();
     let started!: () => void;

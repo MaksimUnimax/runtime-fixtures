@@ -694,13 +694,21 @@ export async function acquireOfficialSource(input: {
   try {
     try {
       while (true) {
-        const pendingHeaders = Promise.resolve().then(() =>
-          fetcher(currentUrl, {
+        const pendingHeaders = Promise.resolve().then(() => {
+          // The owner may revoke synchronously after this async function
+          // scheduled fetch but before this microtask actually dispatches it.
+          assertNotRevoked();
+          if (controller.signal.aborted)
+            throw new DOMException(
+              "Official source acquisition timed out",
+              "AbortError",
+            );
+          return fetcher(currentUrl, {
             method: "GET",
             redirect: "manual",
             signal: controller.signal,
-          }),
-        );
+          });
+        });
         // A late response after timeout is no longer owned by the caller.
         // Discard its body without awaiting possibly stuck cancellation.
         void pendingHeaders.then(
