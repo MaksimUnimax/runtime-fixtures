@@ -76,42 +76,42 @@ function compare(before: MediaCase, after: MediaCase) {
   };
 }
 
-it("does not treat an OpenAPI 3 formData parameter as a request body", () => {
-  const inventory = buildCompleteOperationInventory({
-    sourceFamily: "OZON_SELLER",
-    snapshotSha256: "b".repeat(64),
-    filename: "openapi3-invalid-formdata.json",
-    bytes: new TextEncoder().encode(
-      JSON.stringify({
-        openapi: "3.1.0",
-        info: { title: "invalid formData control", version: "1" },
-        paths: {
-          "/sample": {
-            post: {
-              parameters: [
-                {
-                  name: "value",
-                  in: "formData",
-                  required: true,
-                  schema: { type: "string" },
-                },
-              ],
-              responses: {
-                "200": {
-                  description: "ok",
-                  content: {
-                    "application/json": { schema: { type: "string" } },
+it("rejects unsupported OpenAPI 3 formData instead of granting request-body authority", () => {
+  expect(() =>
+    buildCompleteOperationInventory({
+      sourceFamily: "OZON_SELLER",
+      snapshotSha256: "b".repeat(64),
+      filename: "openapi3-invalid-formdata.json",
+      bytes: new TextEncoder().encode(
+        JSON.stringify({
+          openapi: "3.1.0",
+          info: { title: "invalid formData control", version: "1" },
+          paths: {
+            "/sample": {
+              post: {
+                parameters: [
+                  {
+                    name: "value",
+                    in: "formData",
+                    required: true,
+                    schema: { type: "string" },
+                  },
+                ],
+                responses: {
+                  "200": {
+                    description: "ok",
+                    content: {
+                      "application/json": { schema: { type: "string" } },
+                    },
                   },
                 },
               },
             },
           },
-        },
-      }),
-    ),
-  });
-
-  expect(inventory.operations[0]?.requestBodyPresent).toBe(false);
+        }),
+      ),
+    }),
+  ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
 });
 
 describe("Swagger 2.0 effective MIME contracts and stable unrelated hashes", () => {
