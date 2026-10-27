@@ -268,9 +268,14 @@ def wb_route(runner, runtime, label, mode):
               and not p.stem.startswith("run_") and p.stem not in ("worker_rpc", "worker_harness")}
     assert actual == declared and len(actual) == 52
     if mode == "browsers":
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as pw:
-            chromium = os.environ.get("WB_TEST_CHROMIUM") or pw.chromium.executable_path
+        chromium = os.environ.get("WB_TEST_CHROMIUM")
+        if not chromium:
+            import asyncio
+            from playwright.async_api import async_playwright
+            async def fallback_chromium_path():
+                async with async_playwright() as pw:
+                    return pw.chromium.executable_path
+            chromium = asyncio.run(fallback_chromium_path())
         assert Path(chromium).is_file(), f"Chromium missing: {chromium}"
         runner.env["WB_TEST_CHROMIUM"] = chromium
         baseline.write_json(runner.output / "browser-environment.json", {
