@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { FEEDBACK_CATEGORIES, buildFeedbackPayload, ownSupportResponse } from "./feedback-ui";
+import {
+  FEEDBACK_CATEGORIES,
+  buildFeedbackPayload,
+  ownSupportResponse,
+} from "./feedback-ui";
 
 describe("B2 portal feedback form", () => {
   it("offers only the stable support categories", () => {
