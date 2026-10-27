@@ -135,6 +135,21 @@ export class EphemeralTransferRelay {
 
   public constructor(options: Partial<EphemeralTransferRelayOptions> = {}) {
     this.limits = { ...DEFAULT_RELAY_LIMITS, ...options };
+    // A NaN, Infinity or undefined override silently disables numerical
+    // comparisons and defeats the bounded memory quotas. Zero is a valid
+    // fail-closed limit for deliberately disabled capacity.
+    const configuredLimits = [
+      this.limits.maxPackets,
+      this.limits.maxPacketsPerAccount,
+      this.limits.maxEnvelopeBytes,
+      this.limits.maxEnvelopeBytesPerAccount,
+    ];
+    if (
+      configuredLimits.some(
+        (limit) => !Number.isSafeInteger(limit) || limit < 0,
+      )
+    )
+      throw new TransferError("TRANSFER_INVALID");
   }
 
   reserve(
