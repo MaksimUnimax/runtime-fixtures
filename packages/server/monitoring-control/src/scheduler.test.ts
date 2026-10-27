@@ -281,6 +281,12 @@ describe("TG2 independent monitoring scheduler", () => {
     const runtime: MonitoringSqlRuntime = {
       async query<T extends Record<string, unknown>>(text: string) {
         queries.push(text);
+        if (text === 'SELECT clock_timestamp() AS "now"')
+          return {
+            rows: [
+              { now: new Date("2026-09-22T00:00:00.000Z") },
+            ] as unknown as T[],
+          };
         return { rows: [row] as unknown as T[] };
       },
       async transaction<T>(
@@ -299,6 +305,9 @@ describe("TG2 independent monitoring scheduler", () => {
     expect(result.kind).toBe("STARTED");
     expect(
       queries.some((query) => /WHERE lane=\$1 FOR UPDATE$/.test(query)),
+    ).toBe(true);
+    expect(
+      queries.some((query) => query === 'SELECT clock_timestamp() AS "now"'),
     ).toBe(true);
   });
 });

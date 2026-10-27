@@ -639,11 +639,53 @@ describe.sequential(
       ).toBe(4);
     });
 
+    async function testDatabaseNow(): Promise<Date> {
+      const clock = await scoped.query<{ now: Date }>(
+        'SELECT clock_timestamp() AS "now"',
+      );
+      const now = clock.rows[0]?.now;
+      if (!(now instanceof Date) || !Number.isFinite(now.getTime()))
+        throw new Error("REVIEW_FIX_DATABASE_CLOCK_INVALID");
+      return now;
+    }
+
+    async function simulateDatabaseScheduleDue(
+      lane: "SWAGGER_API" | "LLM",
+    ): Promise<void> {
+      // Only the freshly created, disposable random test schema is writable.
+      // This represents reaching a future due time without sleeping 20+ minutes
+      // or giving production code a caller-controlled database clock.
+      const updated = await scoped.query<{ lane: string }>(
+        `UPDATE monitoring_lane_schedules
+           SET next_run_at=clock_timestamp() - interval '1 second'
+           WHERE lane=$1 RETURNING lane`,
+        [lane],
+      );
+      expect(updated.rows).toHaveLength(1);
+      expect(updated.rows[0]?.lane).toBe(lane);
+    }
+
+    async function expireTestLease(runId: string): Promise<void> {
+      const updated = await scoped.query<{ activeRunId: string }>(
+        `UPDATE monitoring_lane_schedules
+           SET active_run_lease_expires_at=clock_timestamp() - interval '1 second'
+           WHERE lane='SWAGGER_API' AND active_run_id=$1
+           RETURNING active_run_id AS "activeRunId"`,
+        [runId],
+      );
+      expect(updated.rows).toHaveLength(1);
+      expect(updated.rows[0]?.activeRunId).toBe(runId);
+    }
+
     it("native PG preserves HTTP-date retry deadline across scheduler/store restart for all 13 WB documents", async () => {
       await scoped.query(
         "TRUNCATE monitoring_lane_schedules, api_watch_retry_state, api_watch_authority_records",
       );
-      let now = new Date("2026-10-14T10:00:00Z"),
+      // Align retry control time with the authoritative PostgreSQL clock.
+      // HTTP-date is second-precision; round the logical time up to seconds.
+      let now = new Date(
+          Math.ceil((await testDatabaseNow()).getTime() / 1000) * 1000,
+        ),
         calls = 0,
         passes = 0;
       const due = now.valueOf() + 20 * 60_000;
@@ -703,7 +745,7 @@ describe.sequential(
                     return new Response("synthetic rate limit", {
                       status: 429,
                       headers: {
-                        "Retry-After": "Wed, 14 Oct 2026 10:20:00 GMT",
+                        "Retry-After": new Date(due).toUTCString(),
                       },
                     });
                   }) as typeof fetch,
@@ -731,6 +773,7 @@ describe.sequential(
         await current.instance.tick();
         expect(calls).toBe(13);
         now = new Date(due);
+        await simulateDatabaseScheduleDue("SWAGGER_API");
         await current.instance.tick();
         expect(calls).toBe(26);
         expect(passes).toBe(2);
@@ -751,7 +794,7 @@ describe.sequential(
       await scoped.query(
         "TRUNCATE monitoring_lane_schedules, api_watch_retry_state",
       );
-      let now = new Date("2026-10-14T00:00:00Z"),
+      let now = await testDatabaseNow(),
         calls = 0,
         passes = 0;
       const store = createPostgresMonitoringScheduleStore(scoped);
@@ -814,9 +857,11 @@ describe.sequential(
       await scheduler.runNowAndWait("SWAGGER_API");
       expect((await retryStore.get("WILDBERRIES"))?.retryCount).toBe(1);
       now = new Date(now.valueOf() + 15 * 60_000);
+      await simulateDatabaseScheduleDue("SWAGGER_API");
       await scheduler.tick();
       expect((await retryStore.get("WILDBERRIES"))?.retryCount).toBe(2);
       now = new Date(now.valueOf() + 60 * 60_000);
+      await simulateDatabaseScheduleDue("SWAGGER_API");
       await scheduler.tick();
       expect(passes).toBe(3);
       expect(calls).toBe(39);
@@ -830,6 +875,19 @@ describe.sequential(
         const now = new Date("2026-10-15T01:00:00Z"),
           store = createPostgresMonitoringScheduleStore(scoped);
         const original = store.startRun.bind(store);
+        const originalRelease = store.releaseUnstartedRun.bind(store);
+        // start() rejects as soon as one lane fails. The other lane may still
+        // be settling its post-stop reservation; check *its* actual release
+        // before asserting the durable state, without polling or sleeps.
+        let signalCompensation!: (released: boolean) => void;
+        const compensation = new Promise<boolean>((resolve) => {
+          signalCompensation = resolve;
+        });
+        store.releaseUnstartedRun = async (input) => {
+          const released = await originalRelease(input);
+          if (input.lane === "LLM") signalCompensation(released);
+          return released;
+        };
         let release!: () => void,
           entered!: () => void,
           block = true;
@@ -875,12 +933,17 @@ describe.sequential(
           await scheduler.stop();
           release();
           await rejected;
+          // A different lane can reject Promise.all before LLM compensation
+          // returns. The bounded test timeout exposes a missing release.
+          expect(await compensation).toBe(true);
           expect(runner).not.toHaveBeenCalled();
           const stopped = await store.getState("LLM");
           expect(stopped.activeRun).toBeNull();
           expect(stopped.lastResult).toBeNull();
+          // A released reservation is due according to the PostgreSQL clock,
+          // not according to this synthetic scheduler's 2026-10-15 timestamp.
           expect(stopped.nextRunAt.valueOf()).toBeLessThanOrEqual(
-            now.valueOf(),
+            (await testDatabaseNow()).getTime(),
           );
           await scheduler.start();
           expect(runner).toHaveBeenCalledTimes(1);
@@ -899,13 +962,13 @@ describe.sequential(
     it("native reservation release preserves a replacement owner, prior result and earlier retry", async () => {
       await scoped.query("TRUNCATE monitoring_lane_schedules");
       const store = createPostgresMonitoringScheduleStore(scoped),
-        now = new Date("2026-10-15T01:00:00Z");
+        now = await testDatabaseNow();
       await store.ensureDefaults(now);
       const prior = await store.startRun({
         lane: "SWAGGER_API",
         source: "FORCED",
         now,
-        leaseMs: 100,
+        leaseMs: 60000,
       });
       if (prior.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
       await store.finishRun({
@@ -930,12 +993,13 @@ describe.sequential(
         leaseMs: 100,
       });
       if (old.kind !== "STARTED") throw new Error("CONTROL_NOT_STARTED");
+      await expireTestLease(old.run.runId);
       const later = new Date(now.valueOf() + 101);
       const replacement = await store.startRun({
         lane: "SWAGGER_API",
         source: "FORCED",
         now: later,
-        leaseMs: 100,
+        leaseMs: 60000,
       });
       if (replacement.kind !== "STARTED")
         throw new Error("CONTROL_NOT_STARTED");
