@@ -290,9 +290,24 @@ function finiteRecordedMetric(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+// Validate a real UTC calendar day before using it in a best/worst ranking.
+function exactUtcDay(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return null;
+  const time = Date.parse(value + "T00:00:00.000Z");
+  if (
+    !Number.isFinite(time) ||
+    new Date(time).toISOString().slice(0, 10) !== value
+  )
+    return null;
+  return time;
+}
+
 const calculators = {
   sales_totals(input) {
-    const rows = Array.isArray(input.rows) ? input.rows : [];
+    if (input?.complete !== true || !Array.isArray(input.rows))
+      return { status: "INCOMPLETE", money: null, units: null };
+    const rows = input.rows;
     const invalid = rows.some(
       (row) =>
         row?.money === null ||
@@ -304,8 +319,7 @@ const calculators = {
         !Number.isFinite(row.money) ||
         !Number.isFinite(row.units),
     );
-    if (!input.complete || invalid)
-      return { status: "INCOMPLETE", money: null, units: null };
+    if (invalid) return { status: "INCOMPLETE", money: null, units: null };
     return {
       status: "COMPLETE",
       money: rows.reduce((sum, row) => sum + row.money, 0),
@@ -313,29 +327,48 @@ const calculators = {
     };
   },
   daily_rank(input) {
-    if (
-      !Array.isArray(input?.rows) ||
-      input.rows.some(
-        (row) =>
-          !row ||
-          typeof row.day !== "string" ||
-          !row.day ||
-          finiteRecordedMetric(row.money) === null,
+    if (!Array.isArray(input?.rows) || input.rows.length === 0) return null;
+    const seenDays = new Set();
+    const rows = [];
+    for (const row of input.rows) {
+      const dayMs = exactUtcDay(row?.day);
+      const money = finiteRecordedMetric(row?.money);
+      if (dayMs === null || money === null || seenDays.has(row.day))
+        return null;
+      seenDays.add(row.day);
+      rows.push({ day: row.day, money });
+    }
+    // Historical numeric fixtures rank supplied rows only; a declared
+    // completeness claim needs a bounded inclusive period and every day.
+    if (input.period !== undefined || input.complete !== undefined) {
+      const startMs = exactUtcDay(input.period?.start);
+      const endMs = exactUtcDay(input.period?.end);
+      if (
+        input.complete !== true ||
+        startMs === null ||
+        endMs === null ||
+        startMs > endMs
       )
-    )
-      return null;
-    const rows = input.rows.map((row) => ({
-      ...row,
-      money: finiteRecordedMetric(row.money),
-    }));
+        return null;
+      const count = (endMs - startMs) / 86400000 + 1;
+      if (
+        !Number.isSafeInteger(count) ||
+        count !== 14 ||
+        rows.length !== count ||
+        rows.some(
+          (r) => exactUtcDay(r.day) < startMs || exactUtcDay(r.day) > endMs,
+        )
+      )
+        return null;
+    }
     const best = [...rows]
       .sort((a, b) => b.money - a.money || a.day.localeCompare(b.day))
       .slice(0, 3)
-      .map((row) => row.day);
+      .map((r) => r.day);
     const worst = [...rows]
       .sort((a, b) => a.money - b.money || a.day.localeCompare(b.day))
       .slice(0, 3)
-      .map((row) => row.day);
+      .map((r) => r.day);
     return { best, worst };
   },
   percent_change(input) {
@@ -949,6 +982,46 @@ const calculators = {
   },
 };
 
+// STD-01: unknown sales rows are not proof of zero turnover or zero units.
+// An explicitly complete, valid empty page collection remains a genuine zero.
+const salesTotalsIncomplete = {
+  status: "INCOMPLETE",
+  money: null,
+  units: null,
+};
+for (const [name, source] of [
+  ["no_input", undefined],
+  ["null_input", null],
+  ["missing_rows", { complete: true }],
+  ["null_rows", { complete: true, rows: null }],
+  ["object_rows", { complete: true, rows: { length: 0 } }],
+  ["text_rows", { complete: true, rows: "" }],
+  ["string_completeness", { complete: "true", rows: [] }],
+  ["numeric_completeness", { complete: 1, rows: [] }],
+]) {
+  assert.deepEqual(
+    calculators.sales_totals(source),
+    salesTotalsIncomplete,
+    "sales_totals " + name + " must not fabricate zero sales",
+  );
+}
+assert.deepEqual(
+  calculators.sales_totals({ complete: true, rows: [] }),
+  { status: "COMPLETE", money: 0, units: 0 },
+  "proven complete zero-row sales period is genuine zero",
+);
+assert.deepEqual(
+  calculators.sales_totals({
+    complete: true,
+    rows: [
+      { money: 90.5, units: 2 },
+      { money: 9.5, units: 1 },
+    ],
+  }),
+  { status: "COMPLETE", money: 100, units: 3 },
+  "valid complete sales rows preserve numeric money and units",
+);
+
 // STD-03 top-N must fail closed on an invalid N or incomplete join identity.
 const validTopNCatalog = [{ id: "p", name: "Product" }];
 const validTopNSales = [{ id: "p", money: 100 }];
@@ -1241,6 +1314,92 @@ for (const [name, kind, input, expected] of searchKeyIntegrityCases) {
     name + ": integrity drift",
   );
 }
+
+// STD-02 SOURCE only: missing, repeated, or impossible calendar dates must
+// never be silently ranked as complete observations of an announced period.
+const rank14 = Array.from({ length: 14 }, (_, i) => ({
+  day: "2026-09-" + String(i + 1).padStart(2, "0"),
+  money: i * 10,
+}));
+const rankPeriod = { start: "2026-09-01", end: "2026-09-14" };
+for (const [name, input] of [
+  [
+    "duplicate",
+    {
+      rows: [
+        { day: "2026-09-01", money: 10 },
+        { day: "2026-09-01", money: 20 },
+      ],
+    },
+  ],
+  ["impossible_day", { rows: [{ day: "2026-02-30", money: 10 }] }],
+  ["non_iso_day", { rows: [{ day: "2026-9-01", money: 10 }] }],
+  ["blank_day", { rows: [{ day: " ", money: 10 }] }],
+  ["empty", { rows: [] }],
+  ["incomplete", { complete: false, period: rankPeriod, rows: rank14 }],
+  [
+    "string_completeness",
+    { complete: "true", period: rankPeriod, rows: rank14 },
+  ],
+  ["no_completeness", { period: rankPeriod, rows: rank14 }],
+  ["no_period", { complete: true, rows: rank14 }],
+  [
+    "complete_two_day_period",
+    {
+      complete: true,
+      period: { start: "2026-09-01", end: "2026-09-02" },
+      rows: rank14.slice(0, 2),
+    },
+  ],
+  [
+    "complete_fifteen_day_period",
+    {
+      complete: true,
+      period: { start: "2026-09-01", end: "2026-09-15" },
+      rows: [...rank14, { day: "2026-09-15", money: 140 }],
+    },
+  ],
+  [
+    "missing_middle_day",
+    { complete: true, period: rankPeriod, rows: rank14.slice(1) },
+  ],
+  [
+    "foreign_day",
+    {
+      complete: true,
+      period: rankPeriod,
+      rows: [...rank14.slice(0, 13), { day: "2026-09-15", money: 140 }],
+    },
+  ],
+  [
+    "reversed_bounds",
+    {
+      complete: true,
+      period: { start: "2026-09-14", end: "2026-09-01" },
+      rows: rank14,
+    },
+  ],
+]) {
+  assert.equal(calculators.daily_rank(input), null, "STD-02 " + name);
+}
+assert.deepEqual(
+  calculators.daily_rank({ complete: true, period: rankPeriod, rows: rank14 }),
+  {
+    best: ["2026-09-14", "2026-09-13", "2026-09-12"],
+    worst: ["2026-09-01", "2026-09-02", "2026-09-03"],
+  },
+  "STD-02 14 days explicitly complete",
+);
+assert.deepEqual(
+  calculators.daily_rank({
+    rows: [
+      { day: "2024-02-29", money: 0 },
+      { day: "2024-03-01", money: 1 },
+    ],
+  }),
+  { best: ["2024-03-01", "2024-02-29"], worst: ["2024-02-29", "2024-03-01"] },
+  "valid leap day and genuine zero",
+);
 
 const requiredKinds = new Set([
   "sales_totals",

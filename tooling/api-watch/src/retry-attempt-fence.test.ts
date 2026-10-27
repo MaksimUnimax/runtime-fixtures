@@ -40,8 +40,12 @@ describe("C03 per-family durable retry fence state", () => {
     });
     expect(claimed?.claimStage).toBe("CLAIMED");
     expect(claimed?.claimedRunId).toBe(runA);
+    expect(claimed?.claimedLeaseExpiresAt?.toISOString()).toBe(
+      at(900).toISOString(),
+    );
     expect(initial.claimStage).toBe("IDLE");
     expect(initial.claimedRunId).toBeNull();
+    expect(initial.claimedLeaseExpiresAt).toBeNull();
     expect(initial.updatedAt.toISOString()).toBe(t0.toISOString());
   });
 
@@ -124,6 +128,7 @@ describe("C03 per-family durable retry fence state", () => {
       now: at(61),
     });
     expect(released.claimStage).toBe("IDLE");
+    expect(released.claimedLeaseExpiresAt).toBeNull();
     expect(released.outcomeUnknown).toBe(false);
     expect(
       claimDueApiWatchAttempt({
@@ -146,14 +151,12 @@ describe("C03 per-family durable retry fence state", () => {
       expireApiWatchAttemptFence({
         state: claimed,
         priorRunId: runA,
-        priorLeaseExpiresAt: at(900),
         now: at(899),
       }),
     ).toThrow("API_WATCH_RETRY_FENCE_NOT_EXPIRED");
     const recovered = expireApiWatchAttemptFence({
       state: claimed,
       priorRunId: runA,
-      priorLeaseExpiresAt: at(900),
       now: at(900),
     });
     expect(recovered.outcomeUnknown).toBe(false);
@@ -166,11 +169,11 @@ describe("C03 per-family durable retry fence state", () => {
     const quarantined = expireApiWatchAttemptFence({
       state: entered,
       priorRunId: runA,
-      priorLeaseExpiresAt: at(900),
       now: at(900),
     });
     expect(quarantined.claimStage).toBe("IDLE");
     expect(quarantined.outcomeUnknown).toBe(true);
+    expect(quarantined.claimedLeaseExpiresAt).toBeNull();
     expect(() =>
       claimDueApiWatchAttempt({
         state: quarantined,
@@ -183,7 +186,6 @@ describe("C03 per-family durable retry fence state", () => {
       expireApiWatchAttemptFence({
         state: entered,
         priorRunId: runB,
-        priorLeaseExpiresAt: at(900),
         now: at(901),
       }),
     ).toThrow("API_WATCH_RETRY_FENCE_STALE_OWNER");
@@ -237,6 +239,177 @@ describe("C03 per-family durable retry fence state", () => {
       }),
     ).toThrow("API_WATCH_RETRY_FENCE_STATE_INVALID");
   });
+
+  it("does not reclaim a still-live longer lease using a guessed short deadline", () => {
+    const initial = emptyApiWatchAttemptFence("WILDBERRIES", t0);
+    const short = claimDueApiWatchAttempt({
+      state: initial,
+      nextRetryAt: t0,
+      lease: { runId: runA, leaseExpiresAt: at(60) },
+      now: t0,
+    })!;
+    const long = claimDueApiWatchAttempt({
+      state: initial,
+      nextRetryAt: t0,
+      lease,
+      now: t0,
+    })!;
+    expect(short.claimedLeaseExpiresAt?.toISOString()).toBe(
+      at(60).toISOString(),
+    );
+    expect(long.claimedLeaseExpiresAt?.toISOString()).toBe(
+      at(900).toISOString(),
+    );
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: long,
+        priorRunId: runA,
+        now: at(120),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_NOT_EXPIRED");
+    expect(
+      expireApiWatchAttemptFence({
+        state: short,
+        priorRunId: runA,
+        now: at(120),
+      }).claimStage,
+    ).toBe("IDLE");
+  });
+
+  it("rejects forged lease renewal and a missing persisted expiry", () => {
+    const claimed = claimDueApiWatchAttempt({
+      state: emptyApiWatchAttemptFence("OZON_SELLER", t0),
+      nextRetryAt: t0,
+      lease,
+      now: at(1),
+    })!;
+    expect(() =>
+      enterClaimedApiWatchAttempt({
+        state: claimed,
+        lease: { runId: runA, leaseExpiresAt: at(1200) },
+        now: at(2),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_STALE_OWNER");
+    expect(() =>
+      releaseUnenteredApiWatchAttempt({
+        state: claimed,
+        runId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_LEASE_EXPIRED");
+    expect(() =>
+      enterClaimedApiWatchAttempt({
+        state: { ...claimed, claimedLeaseExpiresAt: null },
+        lease,
+        now: at(3),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_STATE_INVALID");
+  });
+
+  it("rejects an ENTERED record with undefined or inverted timestamps", () => {
+    const claimed = claimDueApiWatchAttempt({
+      state: emptyApiWatchAttemptFence("WILDBERRIES", t0),
+      nextRetryAt: t0,
+      lease,
+      now: at(1),
+    })!;
+    const entered = enterClaimedApiWatchAttempt({
+      state: claimed,
+      lease,
+      now: at(2),
+    });
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: { ...entered, enteredAt: undefined as never },
+        priorRunId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_STATE_INVALID");
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: { ...entered, enteredAt: at(0) },
+        priorRunId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: { ...entered, enteredAt: at(4) },
+        priorRunId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    const corrupt = { ...entered, claimedAt: at(8) };
+    expect(() =>
+      expireApiWatchAttemptFence({
+        state: corrupt,
+        priorRunId: runA,
+        now: at(901),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+  });
+
+  it("rejects invalid Date internals even when valueOf forges a timestamp", () => {
+    const spoof = new Date(Number.NaN);
+    Object.defineProperty(spoof, "valueOf", {
+      value: () => t0.getTime(),
+    });
+    expect(() => emptyApiWatchAttemptFence("WILDBERRIES", spoof)).toThrow(
+      "API_WATCH_RETRY_FENCE_TIME_INVALID",
+    );
+    const empty = emptyApiWatchAttemptFence("WILDBERRIES", t0);
+    expect(() =>
+      claimDueApiWatchAttempt({
+        state: empty,
+        nextRetryAt: t0,
+        lease,
+        now: spoof,
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    expect(() =>
+      claimDueApiWatchAttempt({
+        state: empty,
+        nextRetryAt: t0,
+        lease: { runId: runA, leaseExpiresAt: spoof },
+        now: at(1),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    const valid = new Date(t0.getTime());
+    Object.defineProperty(valid, "valueOf", { value: () => Number.NaN });
+    expect(
+      emptyApiWatchAttemptFence("WILDBERRIES", valid).updatedAt.toISOString(),
+    ).toBe(t0.toISOString());
+  });
+
+  it.each([900, 901])(
+    "rejects entered-at time %i seconds at or past claimed lease expiry",
+    (seconds) => {
+      const claimed = claimDueApiWatchAttempt({
+        state: emptyApiWatchAttemptFence("WILDBERRIES", t0),
+        nextRetryAt: t0,
+        lease,
+        now: at(1),
+      })!;
+      const entered = enterClaimedApiWatchAttempt({
+        state: claimed,
+        lease,
+        now: at(2),
+      });
+      // This forged durable state is otherwise temporally ordered:
+      // enteredAt lies before updatedAt, but outside the claimed lease.
+      expect(() =>
+        expireApiWatchAttemptFence({
+          state: {
+            ...entered,
+            enteredAt: at(seconds),
+            updatedAt: at(902),
+          },
+          priorRunId: runA,
+          now: at(903),
+        }),
+      ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    },
+  );
 
   it("refuses invalid state and a reversed clock", () => {
     expect(() =>
