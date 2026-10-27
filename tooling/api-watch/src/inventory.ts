@@ -635,6 +635,15 @@ function responseFingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
         const response = asObject(localRef(raw, root));
+        // A Response Object is a trust boundary. An unresolved or external
+        // Reference Object is not equivalent to a known empty response, and
+        // forged sibling content cannot stand in for its unknown target.
+        if (
+          Object.hasOwn(response, "$ref") ||
+          Object.hasOwn(response, "$unresolvedRef") ||
+          Object.hasOwn(response, "$recursiveRef")
+        )
+          throw new Error("APIWATCH_RESPONSE_REF_UNRESOLVED");
         const body = response.schema ?? response.content ?? null;
         if (body !== null) hasResponseBody = true;
         // Response headers are contract fields, not just response annotations.
@@ -644,6 +653,15 @@ function responseFingerprint(
           .sort(([a], [b]) => compareCodeUnits(a, b))
           .map(([name, rawHeader]) => {
             const header = asObject(localRef(rawHeader, root));
+            // Header Reference Objects also require a resolved authority:
+            // do not present unknown remote/missing header definitions as
+            // a verified response contract or a valid semantic fingerprint.
+            if (
+              Object.hasOwn(header, "$ref") ||
+              Object.hasOwn(header, "$unresolvedRef") ||
+              Object.hasOwn(header, "$recursiveRef")
+            )
+              throw new Error("APIWATCH_RESPONSE_HEADER_REF_UNRESOLVED");
             const normalized = Object.fromEntries(
               Object.entries(header).filter(([key, value]) => {
                 if (
