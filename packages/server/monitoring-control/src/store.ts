@@ -382,33 +382,52 @@ export function createPostgresMonitoringScheduleStore(
         updatedAt: new Date(now),
       };
     },
-    async startRun({ lane, source, now, leaseMs }) {
+    async startRun({ lane, source, leaseMs }) {
       return runtime.transaction(async (query) => {
         // The lane row is the durable single-flight lock. A transaction alone
         // is not sufficient: without FOR UPDATE, concurrent schedulers can
         // both observe an idle row and overwrite each other's active run.
         const current = await read(query, lane, true);
-        if (current.activeRun && current.activeRun.leaseExpiresAt > now)
+        // The row lock and the DB clock establish one lease authority.
+        // The scheduler's (possibly skewed) supplied clock is not trusted.
+        const clock = await query.query<{ now: Date }>(
+          'SELECT clock_timestamp() AS "now"',
+        );
+        const databaseNow = clock.rows[0]?.now;
+        if (
+          !(databaseNow instanceof Date) ||
+          !Number.isFinite(databaseNow.getTime())
+        )
+          throw new Error("MONITORING_DATABASE_CLOCK_INVALID");
+        if (current.activeRun && current.activeRun.leaseExpiresAt > databaseNow)
           return { kind: "ALREADY_RUNNING", runId: current.activeRun.runId };
         if (
           source === "SCHEDULED" &&
-          (!current.enabled || current.nextRunAt > now)
+          (!current.enabled || current.nextRunAt > databaseNow)
         )
           return { kind: "NOT_DUE" };
         const run: MonitoringRun = {
           runId: randomUUID(),
           lane,
           source,
-          startedAt: new Date(now),
-          leaseExpiresAt: new Date(now.valueOf() + leaseMs),
+          startedAt: new Date(databaseNow),
+          leaseExpiresAt: new Date(databaseNow.valueOf() + leaseMs),
         };
         const nextRunAt =
           source === "SCHEDULED"
-            ? new Date(now.valueOf() + current.intervalSeconds * 1000)
+            ? new Date(databaseNow.valueOf() + current.intervalSeconds * 1000)
             : current.nextRunAt;
         await query.query(
           `UPDATE monitoring_lane_schedules SET active_run_id=$2,active_run_source=$3,active_run_started_at=$4,active_run_lease_expires_at=$5,next_run_at=$6,updated_at=$7 WHERE lane=$1`,
-          [lane, run.runId, source, now, run.leaseExpiresAt, nextRunAt, now],
+          [
+            lane,
+            run.runId,
+            source,
+            databaseNow,
+            run.leaseExpiresAt,
+            nextRunAt,
+            databaseNow,
+          ],
         );
         return { kind: "STARTED", run };
       });
@@ -427,11 +446,11 @@ export function createPostgresMonitoringScheduleStore(
       const safe = safeMonitoringResult(result);
       // The conditional UPDATE owns completion. Reading the previous run
       // outside this write cannot prove ownership across a lease takeover.
-      // Reject an owner whose lease expired before the supplied completion
-      // clock, even when no replacement has been claimed yet.
+      // The database clock fences this lease, including any backdated
+      // completion argument, even when no replacement has claimed the lane.
       // RETURNING captures the exact committed row rather than a later run.
       const changed = await runtime.query<StateRow>(
-        `UPDATE monitoring_lane_schedules SET last_run_at=$2,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,last_result=$3::jsonb,updated_at=$2 WHERE lane=$1 AND active_run_id=$4 AND active_run_lease_expires_at>$2 RETURNING ${stateColumns}`,
+        `UPDATE monitoring_lane_schedules SET last_run_at=$2,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,last_result=$3::jsonb,updated_at=$2 WHERE lane=$1 AND active_run_id=$4 AND active_run_lease_expires_at>clock_timestamp() RETURNING ${stateColumns}`,
         [
           lane,
           now,

@@ -119,7 +119,7 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
     ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
     expect(fixture.sqlTexts).toHaveLength(1);
     expect(fixture.sqlTexts[0]).toContain(
-      "AND active_run_id=$4 AND active_run_lease_expires_at>$2",
+      "AND active_run_id=$4 AND active_run_lease_expires_at>clock_timestamp()",
     );
   });
 

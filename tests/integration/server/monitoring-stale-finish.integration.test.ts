@@ -42,6 +42,19 @@ const result = {
 };
 let created = false;
 
+async function expireActiveLease(runId: string): Promise<void> {
+  // Synthetic time passage in the isolated disposable schema, without sleeps.
+  const changed = await workerB.query<{ activeRunId: string }>(
+    `UPDATE monitoring_lane_schedules
+      SET active_run_lease_expires_at = clock_timestamp() - interval '1 second'
+      WHERE lane='SWAGGER_API' AND active_run_id=$1
+      RETURNING active_run_id AS "activeRunId"`,
+    [runId],
+  );
+  expect(changed.rows).toHaveLength(1);
+  expect(changed.rows[0]?.activeRunId).toBe(runId);
+}
+
 function requiredRunId(
   start: Awaited<ReturnType<typeof storeA.startRun>>,
 ): string {
@@ -93,12 +106,13 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
         leaseMs: 1000,
       }),
     );
+    await expireActiveLease(first);
     const replacement = requiredRunId(
       await storeB.startRun({
         lane: "SWAGGER_API",
         source: "FORCED",
         now: at(12),
-        leaseMs: 5000,
+        leaseMs: 60000,
       }),
     );
     expect(replacement).not.toBe(first);
@@ -133,12 +147,13 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
         leaseMs: 1000,
       }),
     );
+    await expireActiveLease(first);
     const replacement = requiredRunId(
       await storeB.startRun({
         lane: "SWAGGER_API",
         source: "FORCED",
         now: at(32),
-        leaseMs: 5000,
+        leaseMs: 60000,
       }),
     );
     const [stale, current] = await Promise.allSettled([
@@ -168,16 +183,32 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(durable.lastResult?.runId).toBe(replacement);
   });
   it("rejects an expired owner without a replacement on physical PostgreSQL", async () => {
-    const runId = requiredRunId(
-      await storeA.startRun({
-        lane: "SWAGGER_API",
-        source: "FORCED",
-        now: at(45),
-        leaseMs: 1000,
-      }),
+    const beforeDb = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
     );
+    const begun = await storeA.startRun({
+      lane: "SWAGGER_API",
+      source: "FORCED",
+      now: at(45), // deliberately backdated to test clock authority
+      leaseMs: 60000,
+    });
+    const runId = requiredRunId(begun);
+    const afterDb = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
+    if (begun.kind !== "STARTED") throw new Error("C03_EXPECTED_STARTED");
+    expect(begun.run.startedAt.getTime()).toBeGreaterThanOrEqual(
+      beforeDb.rows[0]!.now.getTime(),
+    );
+    expect(begun.run.startedAt.getTime()).toBeLessThanOrEqual(
+      afterDb.rows[0]!.now.getTime(),
+    );
+    expect(
+      begun.run.leaseExpiresAt.getTime() - begun.run.startedAt.getTime(),
+    ).toBe(60000);
     const before = await storeB.getState("SWAGGER_API");
     expect(before.activeRun?.runId).toBe(runId);
+    await expireActiveLease(runId);
     await expect(
       storeA.finishRun({
         lane: "SWAGGER_API",
