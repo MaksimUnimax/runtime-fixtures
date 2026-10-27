@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "wb_cap24_sku_source_provenance_v2",
+  "schemaVersion": "wb_cap24_sku_source_provenance_v3",
   "scope": {
     "scenarioId": "CAP-24",
     "evidence": "ACCEPTED_SCHEMA_FIXTURES_AND_SYNTHETIC_INPUT_ONLY",
@@ -40,6 +40,12 @@
   "positive": {
     "period": "2026-09-01/2026-09-30",
     "timezone": "Europe/Moscow",
+    "sourceStoreBindings": {
+      "selectedStoreId": "wb-store-1",
+      "financeStoreId": "wb-store-1",
+      "storageStoreId": "wb-store-1",
+      "actualAdsStoreId": "wb-store-1"
+    },
     "currencyBindings": {
       "financeReport": "RUB",
       "verifiedStorageAccount": "RUB",
