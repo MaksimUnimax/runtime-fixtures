@@ -76,7 +76,7 @@ responsible_role может передать карточку другой A/B/C
   `release_present=true`, `extension_status=SUPPORTED|UPDATE_RECOMMENDED`,
   `browser_status=SUPPORTED`, `profile_status=RESOLVED` по целевому серверу.
 - `installed_authentication`: `control_plane=TARGET_SERVER`,
-  `method=NORMAL_DEVICE_FLOW`, `authenticated=true` на точных установленных байтах.
+  `authenticated=true` на точных установленных байтах; `method` должен описывать фактически использованный механизм и совпадать с техническим контрактом точного кандидата. Для утверждённого code-flow одно `NORMAL_DEVICE_FLOW` не доказывает вход по коду; доказательство должно показывать фактическое прохождение code-пути точным установленным пакетом, а не только уже активную авторизацию. Точный идентификатор метода, схема/enum квитанции и её потребители определяются Тестером в контракте реализации; этот документ не вводит новое поле, enum или приёмщик. Пока новый путь и его точная квитанция не определены и не подтверждены на целевом сервере, code-flow не считается принятым.
 - `installed_start`: `exact_installed_artifact=true`, `work_allowed=true`,
   `start_outcome=STARTED`, `finish_outcome=FINISHED` в заявленном браузере.
   Допустимый локальный AI-стенд явно отличается от LIVE_OWNER; он не подменяет
