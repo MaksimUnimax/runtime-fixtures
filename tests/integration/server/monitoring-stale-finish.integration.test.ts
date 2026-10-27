@@ -182,6 +182,48 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(durable.activeRun).toBeNull();
     expect(durable.lastResult?.runId).toBe(replacement);
   });
+  it("uses PostgreSQL clock for completion metadata even with backdated caller time", async () => {
+    const started = await storeA.startRun({
+      lane: "SWAGGER_API",
+      source: "FORCED",
+      now: at(39),
+      leaseMs: 60000,
+    });
+    const runId = requiredRunId(started);
+    const clockBefore = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
+    const completed = await storeA.finishRun({
+      lane: "SWAGGER_API",
+      runId,
+      now: new Date("2000-01-01T00:00:00.000Z"),
+      result,
+    });
+    const clockAfter = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
+    expect(completed.activeRun).toBeNull();
+    expect(completed.lastResult?.runId).toBe(runId);
+    if (!completed.lastRunAt || !completed.lastResult)
+      throw new Error("C03_MISSING_COMPLETION_METADATA");
+    const earliest = clockBefore.rows[0]!.now.getTime();
+    const latest = clockAfter.rows[0]!.now.getTime();
+    for (const time of [
+      completed.lastRunAt,
+      completed.lastResult.finishedAt,
+      completed.updatedAt,
+    ]) {
+      expect(time.getTime()).toBeGreaterThanOrEqual(earliest);
+      expect(time.getTime()).toBeLessThanOrEqual(latest);
+    }
+    const persisted = await storeB.getState("SWAGGER_API");
+    expect(persisted.lastRunAt).toEqual(completed.lastRunAt);
+    expect(persisted.lastResult?.finishedAt).toEqual(
+      completed.lastResult.finishedAt,
+    );
+    expect(persisted.updatedAt).toEqual(completed.updatedAt);
+  });
+
   it("rejects an expired owner without a replacement on physical PostgreSQL", async () => {
     const beforeDb = await workerB.query<{ now: Date }>(
       'SELECT clock_timestamp() AS "now"',

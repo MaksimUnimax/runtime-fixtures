@@ -52,12 +52,8 @@ function simulateConditionalWrite(affected: boolean) {
       params.push(values);
       if (statement.startsWith("SELECT"))
         return { rows: [sqlRow(visibleActiveRun)] as unknown as T[] };
-      if (
-        statement.startsWith(
-          "UPDATE monitoring_lane_schedules SET last_run_at=",
-        )
-      ) {
-        expect(values[3]).toBe(oldRun);
+      if (statement.startsWith("UPDATE monitoring_lane_schedules")) {
+        expect(values[2]).toBe(oldRun);
         // Simulate ownership moving to a replacement run immediately
         // around this write. RETURNING still describes this exact UPDATE.
         visibleActiveRun = replacement;
@@ -119,7 +115,7 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
     ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
     expect(fixture.sqlTexts).toHaveLength(1);
     expect(fixture.sqlTexts[0]).toContain(
-      "AND active_run_id=$4 AND active_run_lease_expires_at>clock_timestamp()",
+      "AND active_run_id=$3 AND active_run_lease_expires_at>clock_timestamp()",
     );
   });
 
@@ -136,8 +132,31 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
     ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
     expect(fixture.sqlTexts).toHaveLength(1);
     expect(fixture.visibleActiveRun).toBe(replacement);
-    expect(fixture.sqlTexts[0]).toContain("AND active_run_id=$4");
+    expect(fixture.sqlTexts[0]).toContain("AND active_run_id=$3");
     expect(fixture.sqlTexts[0]).toContain("RETURNING lane,");
+  });
+
+  it("uses PostgreSQL clock for completion metadata rather than caller timestamp", async () => {
+    const fixture = simulateConditionalWrite(true);
+    const store = createPostgresMonitoringScheduleStore(fixture.runtime);
+    await store.finishRun({
+      lane: "SWAGGER_API",
+      runId: oldRun,
+      now: new Date("2000-01-01T00:00:00.000Z"),
+      result,
+    });
+    expect(fixture.sqlTexts).toHaveLength(1);
+    expect(fixture.sqlTexts[0]).toContain("last_run_at=clock_timestamp()");
+    expect(fixture.sqlTexts[0]).toContain("updated_at=clock_timestamp()");
+    expect(fixture.sqlTexts[0]).toContain(
+      "last_result=jsonb_set($2::jsonb,'{finishedAt}',to_jsonb(clock_timestamp()),true)",
+    );
+    expect(fixture.params[0]).toHaveLength(3);
+    expect(fixture.params[0]?.[2]).toBe(oldRun);
+    expect(JSON.parse(fixture.params[0]?.[1] as string)).toEqual({
+      ...result,
+      runId: oldRun,
+    });
   });
 
   it("returns the exact written row without reading a replacement run", async () => {

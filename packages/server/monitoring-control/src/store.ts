@@ -442,21 +442,26 @@ export function createPostgresMonitoringScheduleStore(
       return released.rows.length === 1;
     },
 
-    async finishRun({ lane, runId, now, result }) {
+    async finishRun({ lane, runId, result }) {
       const safe = safeMonitoringResult(result);
-      // The conditional UPDATE owns completion. Reading the previous run
-      // outside this write cannot prove ownership across a lease takeover.
-      // The database clock fences this lease, including any backdated
-      // completion argument, even when no replacement has claimed the lane.
-      // RETURNING captures the exact committed row rather than a later run.
+      // Fencing and metadata are one conditional PostgreSQL UPDATE.
+      // Caller-supplied 'now' cannot make an expired lease valid, nor
+      // forge old completion timestamps in the durable row.
+      // RETURNING captures only this writer's committed row.
       const changed = await runtime.query<StateRow>(
-        `UPDATE monitoring_lane_schedules SET last_run_at=$2,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,last_result=$3::jsonb,updated_at=$2 WHERE lane=$1 AND active_run_id=$4 AND active_run_lease_expires_at>clock_timestamp() RETURNING ${stateColumns}`,
-        [
-          lane,
-          now,
-          JSON.stringify({ ...safe, runId, finishedAt: now.toISOString() }),
-          runId,
-        ],
+        `UPDATE monitoring_lane_schedules
+          SET last_run_at=clock_timestamp(),
+              active_run_id=NULL,
+              active_run_source=NULL,
+              active_run_started_at=NULL,
+              active_run_lease_expires_at=NULL,
+              last_result=jsonb_set($2::jsonb,'{finishedAt}',to_jsonb(clock_timestamp()),true),
+              updated_at=clock_timestamp()
+          WHERE lane=$1
+            AND active_run_id=$3
+            AND active_run_lease_expires_at>clock_timestamp()
+          RETURNING ${stateColumns}`,
+        [lane, JSON.stringify({ ...safe, runId }), runId],
       );
       if (changed.rows.length !== 1)
         throw new Error("MONITORING_RUN_STALE_OWNER");
