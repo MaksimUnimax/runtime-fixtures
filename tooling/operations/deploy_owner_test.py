@@ -1048,6 +1048,7 @@ def _current_apply_engine_locked(
         'baselineUnits':baseline_units,
         'baseUnitContract':result_base_units,
         'databaseMeta':db_meta,
+        'applicationMayHaveWritten':False,
     }
     def record():
         result['phase']=phase
@@ -1058,6 +1059,7 @@ def _current_apply_engine_locked(
             'schemaState':schema_state,
             'recoveryRequired':result['recoveryRequired'],
             'receipt':str(evidence_dir/'receipt.json'),
+            'applicationMayHaveWritten':result['applicationMayHaveWritten'],
             'candidateSourceSha':result.get('candidateSourceSha'),
             'candidateSourceTree':result.get('candidateSourceTree'),
             'predeployPrefix':predeploy,
@@ -1089,6 +1091,8 @@ def _current_apply_engine_locked(
             schema_state='CANDIDATE_VERIFIED'
         phase='SWITCHING_APPLICATION'; record()
         current_write_dropins(plan)
+        result['applicationMayHaveWritten']=True
+        phase='APPLICATION_START_REQUESTED'; record()
         current_enable_fenced_start()
         started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
         current_start_product_units(plan)
@@ -1109,6 +1113,10 @@ def _current_apply_engine_locked(
             current_disable_fenced_start()
             current_stop_product_units(plan)
             result['rollbackQuiesced']=True
+            if result['applicationMayHaveWritten'] and predeploy<target:
+                # Starting even one service can admit durable writes before health
+                # acceptance. Restoring a predeploy dump would discard them.
+                raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
             if backup is not None and schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
                 current_verify_backup_receipt(result.get('backup'))
                 result['restoredMigrationCount']=current_restore_live_backup(
@@ -1156,6 +1164,103 @@ def current_recover_engine(
             journal=journal,
         )
 
+
+def current_application_may_have_written(state: dict, receipt: dict) -> bool:
+    """A persisted start intent is conservative across crashes and older receipts."""
+    possible=False
+    for item in (state, receipt):
+        marker=item.get('applicationMayHaveWritten')
+        if marker is not None and type(marker) is not bool:
+            raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
+        if marker is True or item.get('phase') in (
+            'APPLICATION_START_REQUESTED','SWITCHING_APPLICATION','CANDIDATE_PASS',
+        ):
+            possible=True
+    # Older receipts did not persist the start boundary. A verified migrated
+    # schema cannot prove that the candidate has never accepted a write.
+    return possible or state.get('schemaState')=='CANDIDATE_VERIFIED'
+
+
+def current_forward_recover(
+    *, plan: dict, candidate_release: Path, state: dict, receipt: dict,
+    evidence_dir: Path, journal: Path, target: int,
+) -> dict:
+    """Use the separately authorized exact target on the retained forward DB."""
+    if state.get('schemaState')!='CANDIDATE_VERIFIED':
+        raise RuntimeError('CURRENT_FORWARD_SCHEMA_UNCONFIRMED')
+    if plan.get('migrationTarget',{}).get('count')!=target:
+        raise RuntimeError('CURRENT_FORWARD_SCHEMA_TARGET_MISMATCH')
+    for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix','candidateTarget'):
+        if state.get(field)!=receipt.get(field):
+            raise RuntimeError('CURRENT_FORWARD_ORIGIN_UNCONFIRMED')
+    current_validate_base_units(plan)
+    result={
+        'status':'CURRENT_FORWARD_RECOVERY_STARTED','recoveryRequired':True,
+        'originSourceSha':receipt['candidateSourceSha'],
+        'originSourceTree':receipt['candidateSourceTree'],
+        'candidateSourceSha':plan['sourceSha'],
+        'candidateSourceTree':plan['sourceTree'],
+        'trustedInventorySha256':plan['trustedInventorySha256'],
+        'predeployPrefix':receipt['predeployPrefix'],'candidateTarget':target,
+        'schemaState':'CANDIDATE_VERIFIED','applicationMayHaveWritten':True,
+        'databaseRestored':False,
+    }
+    stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    output=evidence_dir/f'forward-recovery-{stamp}.json'
+    write_json_durable(output,result)
+    recovering_state={
+        **state,'phase':'CURRENT_FORWARD_RECOVERY_STARTED',
+        'applicationMayHaveWritten':True,'lastRecoveryReceipt':str(output),
+        'requestedRecoverySourceSha':plan['sourceSha'],
+    }
+    write_json_durable(journal,recovering_state)
+    try:
+        current_prepare_recovery_fence(plan)
+        current_stop_product_units(plan)
+        result['productQuiesced']=True
+        # The native prefix check compares migration hashes, not just a count.
+        # No migrate/restore/dropdb path is reachable from forward recovery.
+        result['forwardSchema']=check_migration_prefix_for_release(
+            candidate_release,database_url(),expected_count=target,
+        )
+        current_write_dropins(plan)
+        current_enable_fenced_start()
+        started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+        current_start_product_units(plan)
+        result['applicationHealth']=current_wait_runtime(plan,started)
+        result['loadedIdentity']=current_verify_loaded_plan(plan)
+        current_remove_reboot_fence(plan)
+        result.update(status='CURRENT_FORWARD_RECOVERY_PASS',recoveryRequired=False)
+        write_json_durable(output,result)
+        write_json_durable(journal,{
+            'phase':'CURRENT_FORWARD_RECOVERY_PASS',
+            'schemaState':'CANDIDATE_VERIFIED','recoveryRequired':False,
+            'applicationMayHaveWritten':True,'receipt':str(output),
+            'originSourceSha':receipt['candidateSourceSha'],
+            'candidateSourceSha':plan['sourceSha'],
+            'candidateSourceTree':plan['sourceTree'],
+            'predeployPrefix':receipt['predeployPrefix'],'candidateTarget':target,
+        })
+        return result
+    except BaseException as error:
+        result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
+        try:
+            current_disable_fenced_start()
+            current_stop_product_units(plan)
+            result['productQuiesced']=True
+        except BaseException as stop_error:
+            result['quiesceError']=error_code(stop_error)
+        write_json_durable(output,result)
+        # Preserve the original apply receipt and source binding for a later
+        # explicit recovery, and retain each failed recovery outcome separately.
+        write_json_durable(journal,{
+            **recovering_state,'phase':'CURRENT_FORWARD_RECOVERY_FAILED',
+            'recoveryRequired':True,'applicationMayHaveWritten':True,
+            'lastRecoveryReceipt':str(output),
+        })
+        raise
+
+
 def _current_recover_engine_locked(
     *,
     candidate_release: Path,
@@ -1165,7 +1270,7 @@ def _current_recover_engine_locked(
     evidence_root: Path,
     journal: Path,
 ) -> dict:
-    """Recover an interrupted current apply back to its exact predeploy baseline."""
+    """Recover before startup, or retain the forward DB after possible writes."""
     plan=verified_current_source_plan(
         candidate_release,
         expected_source_sha=expected_source_sha,
@@ -1192,11 +1297,22 @@ def _current_recover_engine_locked(
     current_validate_evidence_paths(evidence_root,journal,evidence_dir)
     if receipt_path!=evidence_dir/'receipt.json':
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
-    if (
-        receipt.get('candidateSourceSha')!=expected_source_sha
-        or receipt.get('candidateSourceTree')!=expected_source_tree
-        or receipt.get('trustedInventorySha256')!=expected_inventory_sha256
-    ):
+    if not isinstance(receipt,dict):
+        raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
+    same_source=(
+        receipt.get('candidateSourceSha')==expected_source_sha
+        and receipt.get('candidateSourceTree')==expected_source_tree
+        and receipt.get('trustedInventorySha256')==expected_inventory_sha256
+    )
+    may_have_written=current_application_may_have_written(state,receipt)
+    if not same_source and not may_have_written:
+        raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
+    if any(not isinstance(receipt.get(field),str) or not re.fullmatch(pattern,receipt[field])
+           for field,pattern in (
+               ('candidateSourceSha',r'[0-9a-f]{40}'),
+               ('candidateSourceTree',r'[0-9a-f]{40}'),
+               ('trustedInventorySha256',r'[0-9a-f]{64}'),
+           )):
         raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
     predeploy=receipt.get('predeployPrefix')
     target=receipt.get('candidateTarget')
@@ -1210,6 +1326,13 @@ def _current_recover_engine_locked(
     schema_state=state.get('schemaState')
     if schema_state not in ('PREDEPLOY_VERIFIED','UNKNOWN','CANDIDATE_VERIFIED'):
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
+    if may_have_written and predeploy<target:
+        return current_forward_recover(
+            plan=plan,candidate_release=candidate_release,state=state,receipt=receipt,
+            evidence_dir=evidence_dir,journal=journal,target=target,
+        )
+    if not same_source:
+        raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
     result={
         'status':'CURRENT_RECOVERY_STARTED',
         'recoveryRequired':True,

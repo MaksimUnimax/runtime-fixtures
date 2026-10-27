@@ -1242,7 +1242,39 @@ class CurrentApplyEngineTests(unittest.TestCase):
         self.assertLess(names.index("write-dropins"),names.index("start"))
         self.assertLess(names.index("start"),names.index("health"))
 
-    def test_health_failure_restores_database_before_old_units(self):
+
+    def test_post_start_failure_preserves_new_device_session_rows(self):
+        evidence=self.root/"apply-new-session";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        retained=[]
+        def start(plan):
+            self.events.append(("start-with-write",self.prefix))
+            self.assertTrue(json.loads(journal.read_text())["applicationMayHaveWritten"])
+            retained.append({"device":"synthetic-new-device","session":"synthetic-new-session"})
+        def destructive_restore(*args,**kwargs):
+            self.events.append(("restore-db",self.prefix))
+            retained.clear()
+            self.prefix=17
+            return 17
+        with self.patches(health_error="HEALTH_FAILED"), \
+             patch.object(deploy,"current_start_product_units",side_effect=start), \
+             patch.object(deploy,"current_restore_live_backup",side_effect=destructive_restore):
+            with self.assertRaisesRegex(RuntimeError,"HEALTH_FAILED"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=journal,evidence_dir=evidence,
+                )
+        self.assertEqual(retained,[{"device":"synthetic-new-device","session":"synthetic-new-session"}])
+        self.assertNotIn("restore-db",[e[0] for e in self.events])
+        self.assertNotIn("restore-units",[e[0] for e in self.events])
+        state=json.loads(journal.read_text())
+        self.assertTrue(state["recoveryRequired"])
+        self.assertTrue(state["applicationMayHaveWritten"])
+        self.assertEqual(state["schemaState"],"CANDIDATE_VERIFIED")
+        self.assertEqual(self.prefix,50)
+
+    def test_health_failure_after_start_requires_forward_recovery(self):
         evidence=self.root/"apply-health-fail";evidence.mkdir()
         journal=self.root/"deployment-state.json"
         with self.patches(health_error="HEALTH_FAILED"):
@@ -1253,12 +1285,13 @@ class CurrentApplyEngineTests(unittest.TestCase):
                 evidence_root=self.root,journal=journal,evidence_dir=evidence
                 )
         names=[e[0] for e in self.events]
-        self.assertIn("restore-db",names)
-        self.assertLess(names.index("restore-db"),names.index("restore-dropins"))
-        self.assertLess(names.index("restore-dropins"),names.index("restore-units"))
+        self.assertNotIn("restore-db",names)
+        self.assertNotIn("restore-dropins",names)
+        self.assertNotIn("restore-units",names)
         state=json.loads(journal.read_text())
-        self.assertFalse(state["recoveryRequired"])
-        self.assertEqual(state["schemaState"],"PREDEPLOY_VERIFIED")
+        self.assertTrue(state["recoveryRequired"])
+        self.assertTrue(state["applicationMayHaveWritten"])
+        self.assertEqual(state["schemaState"],"CANDIDATE_VERIFIED")
 
     def test_prefix_ahead_fails_before_mutation(self):
         self.prefix=51
@@ -1519,6 +1552,160 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                     evidence_root=self.root,journal=self.journal,
                 )
             stop.assert_not_called()
+
+
+    def forward_state(self, *, legacy=False):
+        self.write_state("CANDIDATE_VERIFIED")
+        path=self.evidence/"receipt.json"
+        receipt=json.loads(path.read_text())
+        receipt["phase"]="SWITCHING_APPLICATION" if legacy else "APPLICATION_START_REQUESTED"
+        if not legacy:
+            receipt["applicationMayHaveWritten"]=True
+        path.write_text(json.dumps(receipt))
+        state=json.loads(self.journal.read_text())
+        state.update({k:receipt[k] for k in (
+            "candidateSourceSha","candidateSourceTree","predeployPrefix","candidateTarget",
+        )})
+        state["phase"]=receipt["phase"]
+        if not legacy:
+            state["applicationMayHaveWritten"]=True
+        self.journal.write_text(json.dumps(state))
+        self.forward_rows=["retained-new-session"]
+
+    def forward_patches(self, events, *, health_error=None, prefix_error=None, start_error=None):
+        stack=self.patch_common(events)
+        def prefix(release,url,expected_count=None):
+            events.append(("prefix",str(release),expected_count))
+            if prefix_error: raise RuntimeError(prefix_error)
+            return {"status":"PASS_PREFIX","applied":50}
+        def start(plan):
+            events.append("start-forward")
+            self.forward_rows.append("write-during-forward-start")
+            # Intent must be durable before starting even the first service.
+            recorded=json.loads(self.journal.read_text())
+            self.assertTrue(recorded["applicationMayHaveWritten"])
+            self.assertTrue(Path(recorded["lastRecoveryReceipt"]).is_file())
+            if start_error: raise RuntimeError(start_error)
+        def health(*args):
+            events.append("health-forward")
+            if health_error: raise RuntimeError(health_error)
+            return {"ready":True}
+        def forbidden(*args,**kwargs):
+            raise AssertionError("forward recovery must not migrate or restore DB/baseline")
+        stack.enter_context(patch.object(deploy,"current_validate_base_units",side_effect=lambda plan:events.append("base-contract") or {}))
+        stack.enter_context(patch.object(deploy,"database_url",return_value="postgres://fixture@localhost/db"))
+        stack.enter_context(patch.object(deploy,"check_migration_prefix_for_release",side_effect=prefix))
+        stack.enter_context(patch.object(deploy,"current_write_dropins",side_effect=lambda plan:events.append(("forward-target",plan["sourceSha"]))))
+        stack.enter_context(patch.object(deploy,"current_start_product_units",side_effect=start))
+        stack.enter_context(patch.object(deploy,"current_wait_runtime",side_effect=health))
+        stack.enter_context(patch.object(deploy,"current_verify_loaded_plan",return_value={"exact":True}))
+        for name in ("current_restore_live_backup","migrate","current_restore_dropins","current_restore_unit_states"):
+            stack.enter_context(patch.object(deploy,name,side_effect=forbidden))
+        return stack
+
+    def recover_forward_target(self):
+        return deploy.current_recover_engine(
+            candidate_release=Path("/opt/octoport/ops-releases")/self.plan["sourceSha"],
+            expected_source_sha=self.plan["sourceSha"],expected_source_tree=self.plan["sourceTree"],
+            expected_inventory_sha256=self.plan["trustedInventorySha256"],
+            evidence_root=self.root,journal=self.journal,
+        )
+
+    def test_post_start_recovery_keeps_rows_and_restarts_exact_current_target(self):
+        self.forward_state();events=[]
+        with self.forward_patches(events):
+            result=self.recover_forward_target()
+        self.assertEqual(result["status"],"CURRENT_FORWARD_RECOVERY_PASS")
+        self.assertFalse(result["databaseRestored"])
+        self.assertEqual(self.forward_rows,["retained-new-session","write-during-forward-start"])
+        state=json.loads(self.journal.read_text())
+        self.assertFalse(state["recoveryRequired"])
+        self.assertEqual(state["schemaState"],"CANDIDATE_VERIFIED")
+        self.assertIn(("prefix",str(self.release),50),events)
+
+    def test_post_start_recovery_can_use_separately_authorized_same_schema_floor(self):
+        self.forward_state();events=[]
+        self.plan.update(sourceSha="d"*40,sourceTree="e"*40,trustedInventorySha256="f"*64)
+        with self.forward_patches(events):
+            result=self.recover_forward_target()
+        self.assertEqual(result["originSourceSha"],"a"*40)
+        self.assertEqual(result["candidateSourceSha"],"d"*40)
+        self.assertIn(("forward-target","d"*40),events)
+        self.assertIn(("prefix","/opt/octoport/ops-releases/"+"d"*40,50),events)
+        self.assertEqual(self.forward_rows[0],"retained-new-session")
+
+    def test_forward_recovery_rejects_different_schema_before_mutation(self):
+        self.forward_state();events=[]
+        self.plan["migrationTarget"]["count"]=49
+        with self.forward_patches(events):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FORWARD_SCHEMA_TARGET_MISMATCH"):
+                self.recover_forward_target()
+        self.assertEqual(events,[])
+        self.assertEqual(self.forward_rows,["retained-new-session"])
+
+    def test_forward_recovery_prefix_mismatch_preserves_rows_and_quiescence(self):
+        self.forward_state();events=[]
+        with self.forward_patches(events,prefix_error="MIGRATION_HASH_MISMATCH"):
+            with self.assertRaisesRegex(RuntimeError,"MIGRATION_HASH_MISMATCH"):
+                self.recover_forward_target()
+        self.assertNotIn("start-forward",events)
+        self.assertEqual(self.forward_rows,["retained-new-session"])
+        state=json.loads(self.journal.read_text())
+        self.assertTrue(state["recoveryRequired"])
+        self.assertEqual(state["candidateSourceSha"],"a"*40)
+        self.assertEqual(state["receipt"],str(self.evidence/"receipt.json"))
+        self.assertEqual(json.loads(Path(state["lastRecoveryReceipt"]).read_text())["status"],"FAILED")
+
+    def test_forward_recovery_health_or_partial_start_failure_keeps_every_write(self):
+        for stage in ("health","start"):
+            with self.subTest(stage=stage):
+                self.forward_state();events=[]
+                opts={"health_error":"FORWARD_FAILED"} if stage=="health" else {"start_error":"FORWARD_FAILED"}
+                with self.forward_patches(events,**opts):
+                    with self.assertRaisesRegex(RuntimeError,"FORWARD_FAILED"):
+                        self.recover_forward_target()
+                self.assertEqual(self.forward_rows,["retained-new-session","write-during-forward-start"])
+                self.assertTrue(json.loads(self.journal.read_text())["recoveryRequired"])
+                self.assertGreaterEqual(events.count("stop"),2)
+        self.assertEqual(len(list(self.evidence.glob("forward-recovery-*.json"))),2)
+
+    def test_legacy_switching_receipt_is_conservatively_forward_only(self):
+        self.forward_state(legacy=True);events=[]
+        with self.forward_patches(events):
+            result=self.recover_forward_target()
+        self.assertEqual(result["status"],"CURRENT_FORWARD_RECOVERY_PASS")
+        self.assertEqual(self.forward_rows[0],"retained-new-session")
+
+    def test_possible_write_with_unknown_schema_never_restores_dump(self):
+        self.forward_state();events=[]
+        state=json.loads(self.journal.read_text());state["schemaState"]="UNKNOWN"
+        self.journal.write_text(json.dumps(state))
+        with self.forward_patches(events):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FORWARD_SCHEMA_UNCONFIRMED"):
+                self.recover_forward_target()
+        self.assertEqual(events,[])
+
+    def test_malformed_start_marker_in_either_record_fails_before_mutation(self):
+        for name in ("receipt", "journal"):
+            with self.subTest(record=name):
+                self.forward_state();events=[]
+                path=self.evidence/"receipt.json" if name=="receipt" else self.journal
+                value=json.loads(path.read_text());value["applicationMayHaveWritten"]="true"
+                path.write_text(json.dumps(value))
+                with self.forward_patches(events):
+                    with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_STATE_INVALID"):
+                        self.recover_forward_target()
+                self.assertEqual(events,[])
+
+    def test_forward_recovery_rejects_unconfirmed_original_source_binding(self):
+        self.forward_state();events=[]
+        state=json.loads(self.journal.read_text());state["candidateSourceSha"]="f"*40
+        self.journal.write_text(json.dumps(state))
+        with self.forward_patches(events):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FORWARD_ORIGIN_UNCONFIRMED"):
+                self.recover_forward_target()
+        self.assertEqual(events,[])
+
 
 
 class CurrentRebootFenceSafetyTests(unittest.TestCase):
