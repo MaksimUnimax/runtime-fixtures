@@ -1178,5 +1178,154 @@ await test('APP-60-identity-timeout-start-does-not-inject-or-send', async () => 
     assert.equal(Object.keys(await s.worker.call('getPendingWorkStarts')).length, 0);
   } finally { s.worker.close(); }
 });
+async function finishAckFixture() {
+  const remote = new Map();
+  const s = await setup({ syncFetch: async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const results = body.entries.map(entry => {
+      const previous = remote.get(entry.entityId);
+      const conflicts = entry.kind === 'BINDING_UPSERT' &&
+        previous?.payload.bindingState === 'FINISHED' &&
+        entry.payload.bindingRevision <= previous.payload.bindingRevision;
+      if (conflicts) return { requestId: entry.requestId, mutationId: entry.mutationId,
+        entityId: entry.entityId, outcome: 'CONFLICT', serverRevision: previous.revision,
+        serverState: previous.payload, code: 'SYNC_CONFLICT' };
+      const revision = Number(entry.baseRevision || 0) + 1;
+      remote.set(entry.entityId, { revision, payload: plain(entry.payload) });
+      return { requestId: entry.requestId, mutationId: entry.mutationId,
+        entityId: entry.entityId, outcome: 'ACK', serverRevision: revision,
+        serverState: entry.payload, code: null };
+    });
+    return Response.json({ syncVersion: 'seller_agents_sync_v1', results });
+  } });
+  const store = await s.save(ozon('FIXTURE_R105_CLIENT', 'FIXTURE_R105_KEY'));
+  const first = await s.start(store);
+  assert.equal((await s.worker.call('SellerAgentsSyncJournal.syncNow', 'first-binding')).ok, true);
+  const finished = await s.popup('OZ_WORK_FINISH', { conversation_key: first.key });
+  assert.equal(finished.ok, true, JSON.stringify(finished));
+  assert.equal((await s.worker.call('SellerAgentsSyncJournal.syncNow', 'finish')).ok, true);
+  const journal = await s.worker.call('SellerAgentsSyncJournal.read');
+  const known = Object.values(journal.reconciliation).find(x => x.serverState?.bindingState === 'FINISHED');
+  assert.ok(known); assert.equal(Object.values(journal.entries).length, 0);
+  return { s, store, first, finish: plain(known.serverState), remote };
+}
+await test('APP-61-real-bind-after-acknowledged-finish', async () => {
+  const { s, store, first, finish } = await finishAckFixture();
+  try {
+    const second = await s.start(store);
+    const binding = await s.worker.call('bindingForConversationKey', second.key);
+    assert.notEqual(second.session.start_intent_id, first.session.start_intent_id);
+    assert.equal(binding.revision, finish.bindingRevision + 1,
+      'a new real binding must follow the server-acknowledged Finish revision');
+    const beforeAck = await s.worker.call('SellerAgentsSyncJournal.read');
+    const entry = Object.values(beforeAck.entries).find(x => x.kind === 'BINDING_UPSERT');
+    assert.equal(entry.payload.bindingRevision, binding.revision);
+    assert.equal(entry.payload.workGeneration, second.session.start_intent_id);
+    assert.equal((await s.worker.call('SellerAgentsSyncJournal.syncNow', 'successor-binding')).ok, true);
+    const afterAck = await s.worker.call('SellerAgentsSyncJournal.read');
+    assert.equal(Object.values(afterAck.entries).length, 0, 'no concealed CONFLICT entry');
+    const current = Object.values(afterAck.reconciliation).find(x => x.serverState?.workGeneration === second.session.start_intent_id);
+    assert.equal(current.serverState.bindingState, 'BOUND');
+    assert.equal(current.serverState.bindingRevision, binding.revision);
+    const decision = await s.worker.call('SellerAgentsSyncJournal.assertCurrentActionAllowed',
+      { binding, store, conversationKey: second.key, workGeneration: second.session.start_intent_id });
+    assert.equal(decision.allowed, true, JSON.stringify(decision));
+    const oldCommand = await s.worker.request({ type: 'OZ_EXECUTE_COMMAND',
+      conversation_key: first.key, command_text: 'OZON_HELP_V2 {"cluster":"catalog_products"}',
+      manual_request_id: 'r105-old-command', work_session_id: first.session.start_intent_id });
+    assert.equal(oldCommand.ok, false); assert.equal(oldCommand.code, 'WORK_SESSION_CHANGED');
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, 2);
+    assert.equal(s.worker.network.length, 0);
+  } finally { s.worker.close(); }
+});
+await test('APP-62-finish-change-before-real-bind-is-fenced', async () => {
+  const { s, store, first } = await finishAckFixture();
+  try {
+    const previousBinding = plain(await s.worker.call('bindingForConversationKey', first.key));
+    const started = await s.popup('SA_WORK_START', { store_id: store.id });
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const pending = await until(async () => {
+      const p = (await s.worker.call('getPendingWorkStarts'))[s.worker.tabId];
+      return p?.send_outcome === 'sent_acknowledged' && p;
+    }, 'R105 pending successor');
+    // A different remote generation arrives after admission and before the real commit.
+    const journal = s.worker.backing.local.seller_agents_sync_journal_v1;
+    const known = Object.values(journal.reconciliation).find(x => x.serverState?.bindingState === 'FINISHED');
+    known.serverState.workGeneration = 'different-remote-work';
+    const result = await s.worker.request({ type: 'OZ_WORK_PENDING_IDENTITY',
+      identity: s.worker.identity, intent_id: pending.intent_id, revision: pending.revision,
+      first_response_complete: true });
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'SYNC_SERVER_FINISH_FENCE');
+    assert.deepEqual(plain(await s.worker.call('bindingForConversationKey', first.key)), previousBinding);
+    const after = await s.worker.call('SellerAgentsSyncJournal.read');
+    assert.equal(Object.values(after.entries).filter(x => x.kind === 'BINDING_UPSERT').length, 0);
+    assert.equal(s.worker.network.length, 0);
+  } finally { s.worker.close(); }
+});
+
+
+// R106: exercise the real commit over repeated cycles and a different selected
+// store. Admission-only mocks cannot prove the monotonic binding invariant.
+await test('APP-63-repeated-finish-rebind-and-legacy-generation', async () => {
+  const { s, store, first } = await finishAckFixture();
+  try {
+    const second = await s.start(store);
+    assert.equal((await s.worker.call('SellerAgentsSyncJournal.syncNow', 'second-binding')).ok, true);
+    const binding2 = plain(await s.worker.call('bindingForConversationKey', second.key));
+    assert.equal(binding2.revision, 3);
+    assert.equal((await s.popup('OZ_WORK_FINISH', { conversation_key: second.key })).ok, true);
+    assert.equal((await s.worker.call('SellerAgentsSyncJournal.syncNow', 'second-finish')).ok, true);
+    const journal = s.worker.backing.local.seller_agents_sync_journal_v1;
+    const known = Object.values(journal.reconciliation).find(x => x.serverState?.bindingState === 'FINISHED');
+    assert.equal(known.serverState.bindingRevision, 4);
+    // Accepted legacy Finish has no generation; do not invent one in the input.
+    known.serverState.workGeneration = null;
+    const third = await s.start(store);
+    const binding3 = plain(await s.worker.call('bindingForConversationKey', third.key));
+    assert.equal(binding3.revision, 5);
+    assert.notEqual(third.session.start_intent_id, second.session.start_intent_id);
+    assert.notEqual(third.session.start_intent_id, first.session.start_intent_id);
+    assert.equal((await s.worker.call('SellerAgentsSyncJournal.syncNow', 'third-binding')).ok, true);
+    const after = await s.worker.call('SellerAgentsSyncJournal.read');
+    assert.equal(Object.values(after.entries).length, 0);
+    const ack = Object.values(after.reconciliation).find(x => x.serverState?.workGeneration === third.session.start_intent_id);
+    assert.equal(ack.serverState.bindingRevision, 5);
+    assert.equal(ack.serverState.bindingState, 'BOUND');
+    const old = await s.worker.request({ type: 'OZ_EXECUTE_COMMAND', conversation_key: third.key,
+      command_text: 'OZON_HELP_V2 {"cluster":"catalog_products"}',
+      manual_request_id: 'r106-stale-second-work', work_session_id: second.session.start_intent_id });
+    assert.equal(old.ok, false); assert.equal(old.code, 'WORK_SESSION_CHANGED');
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, 3);
+    assert.equal(s.worker.network.length, 0);
+  } finally { s.worker.close(); }
+});
+await test('APP-64-confirmed-store-change-after-finish-real-commit', async () => {
+  const { s, store, first, finish } = await finishAckFixture();
+  try {
+    const selected = await s.save(ozon('FIXTURE_R106_OTHER_CLIENT', 'FIXTURE_R106_OTHER_KEY'));
+    assert.notEqual(selected.id, store.id);
+    const second = await s.start(selected, { confirm: true });
+    const binding = plain(await s.worker.call('bindingForConversationKey', second.key));
+    assert.equal(binding.revision, finish.bindingRevision + 1);
+    assert.equal(binding.store_context.storeId, selected.id);
+    assert.equal((await s.worker.call('SellerAgentsSyncJournal.syncNow', 'changed-store-binding')).ok, true);
+    const after = await s.worker.call('SellerAgentsSyncJournal.read');
+    assert.equal(Object.values(after.entries).length, 0);
+    const ack = Object.values(after.reconciliation).find(x => x.serverState?.workGeneration === second.session.start_intent_id);
+    assert.equal(ack.serverState.storeId, selected.id);
+    assert.equal(ack.serverState.bindingRevision, binding.revision);
+    const allowed = await s.worker.call('SellerAgentsSyncJournal.assertCurrentActionAllowed',
+      { binding, store: selected, conversationKey: second.key, workGeneration: second.session.start_intent_id });
+    assert.equal(allowed.allowed, true, JSON.stringify(allowed));
+    const stale = await s.worker.request({ type: 'OZ_EXECUTE_COMMAND', conversation_key: first.key,
+      command_text: 'OZON_HELP_V2 {"cluster":"catalog_products"}',
+      manual_request_id: 'r106-stale-source-store', work_session_id: first.session.start_intent_id });
+    assert.equal(stale.ok, false); assert.equal(stale.code, 'WORK_SESSION_CHANGED');
+    assert.equal(s.worker.messages.filter(x => x.type === 'OZ_WORK_SEND_INITIAL_PROMPT').length, 2);
+    assert.equal(s.worker.network.length, 0);
+  } finally { s.worker.close(); }
+});
+
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker, popup, attachment port and content delivery watcher; simulated browser and provider; not installed live acceptance' },null,2));

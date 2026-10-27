@@ -82,6 +82,7 @@ export function registerCredentialTransferRoutes(
         "TRANSFER_PACKET_TOO_LARGE",
         "TRANSFER_DEVICE_REVOKED",
         "TRANSFER_ACCOUNT_MISMATCH",
+        "CONNECTION_TRANSFER_APPROVAL_REQUIRED",
       ];
       if (known.includes(code))
         throw new ControlledError(

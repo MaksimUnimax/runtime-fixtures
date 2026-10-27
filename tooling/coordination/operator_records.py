@@ -238,8 +238,14 @@ def _release_acceptance(record, review_path):
     if catalog.get("target_contract_version") != packaged["contractVersion"] or catalog.get("control_api_origin") != packaged["controlApiOrigin"] or catalog.get("target_version") != record["version"] or catalog.get("target_artifact_sha256") != record["artifact_sha256"] or catalog.get("release_present") is not True or catalog.get("extension_status") not in {"SUPPORTED", "UPDATE_RECOMMENDED"} or catalog.get("browser_status") != "SUPPORTED" or catalog.get("profile_status") != "RESOLVED":
         raise ValueError("RELEASE_ACCEPTANCE_CATALOG_INCOMPATIBLE")
     auth = checks["installed_authentication"]
-    if auth.get("control_plane") != "TARGET_SERVER" or auth.get("method") != "NORMAL_DEVICE_FLOW" or auth.get("authenticated") is not True:
+    if auth.get("control_plane") != "TARGET_SERVER" or auth.get("method") not in {"NORMAL_DEVICE_FLOW", "ACCOUNT_CONNECTION_CODE"} or auth.get("authenticated") is not True:
         raise ValueError("RELEASE_ACCEPTANCE_REAL_AUTH_REQUIRED")
+    if auth.get("method") == "ACCOUNT_CONNECTION_CODE" and (
+        auth.get("code_exchange_outcome") != "CONFIRMED"
+        or auth.get("signed_account_binding") != "MATCH"
+        or auth.get("exact_installed_artifact") is not True
+    ):
+        raise ValueError("RELEASE_ACCEPTANCE_CONNECTION_CODE_PROOF_REQUIRED")
     start = checks["installed_start"]
     if start.get("exact_installed_artifact") is not True or start.get("work_allowed") is not True or start.get("start_outcome") != "STARTED" or start.get("finish_outcome") != "FINISHED":
         raise ValueError("RELEASE_ACCEPTANCE_INSTALLED_START_REQUIRED")

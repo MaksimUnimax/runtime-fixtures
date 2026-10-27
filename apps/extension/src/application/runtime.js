@@ -331,13 +331,13 @@ function saAdmissionError(code, deniedGates = []) {
   error.deniedGates = [...deniedGates];
   return error;
 }
-async function saRecordBindingMutation(binding, conversationKey, store = null) {
+async function saRecordBindingMutation(binding, conversationKey, store = null, workGeneration = null) {
   if (!globalThis.SellerAgentsSyncJournal || !binding) return null;
-  return SellerAgentsSyncJournal.recordBinding({ binding, conversationKey, store }).catch(() => null);
+  return SellerAgentsSyncJournal.recordBinding({ binding, conversationKey, store, workGeneration }).catch(() => null);
 }
-async function saRecordFinishMutation(conversationKey, binding = null, store = null) {
+async function saRecordFinishMutation(conversationKey, binding = null, store = null, workGeneration = null) {
   if (!globalThis.SellerAgentsSyncJournal) return null;
-  return SellerAgentsSyncJournal.recordFinish({ binding, conversationKey, store }).catch(() => null);
+  return SellerAgentsSyncJournal.recordFinish({ binding, conversationKey, store, workGeneration }).catch(() => null);
 }
 async function saRecordDeliveryMarker(conversationKey, binding = null, store = null, deliveryId = "", deliveryOrder = null) {
   if (!globalThis.SellerAgentsSyncJournal) return null;
@@ -1016,7 +1016,12 @@ async function saGuard(owner) {
 const SA_SIGNED_PROFILE_ORIGINS = Object.freeze({
   chatgpt: Object.freeze(["https://chatgpt.com", "https://chat.openai.com"]),
   alice: Object.freeze(["https://alice.yandex.ru"]),
-  qwen: Object.freeze(["https://chat.qwen.ai"])
+  qwen: Object.freeze(["https://chat.qwen.ai"]),
+  kimi: Object.freeze(["https://www.kimi.ai"]),
+  grok: Object.freeze(["https://grok.com"]),
+  gemini: Object.freeze(["https://gemini.google.com"]),
+  claude: Object.freeze(["https://claude.ai"]),
+  deepseek: Object.freeze(["https://chat.deepseek.com"])
 });
 function saSignedProfileOriginAllowed(family, origin) {
   const allowed = SA_SIGNED_PROFILE_ORIGINS[family];
@@ -1187,7 +1192,7 @@ async function saSignedProfileReceipt(message, sender) {
 async function saBroadcastSignedProfileRefresh(reason = "authority_changed") {
   const boundedReason = reason === "profile_changed" ? "profile_changed" : "authority_changed";
   const tabs = await chrome.tabs.query({
-    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*"]
+    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*", "https://www.kimi.ai/*", "https://grok.com/*", "https://gemini.google.com/*", "https://claude.ai/*", "https://chat.deepseek.com/*"]
   }).catch(() => []);
   await Promise.allSettled(tabs.filter(tab => Number.isSafeInteger(tab?.id))
     .map(tab => tabMessage(tab.id, { type: "OZ_SIGNED_AI_PROFILE_REFRESH", reason: boundedReason })));
@@ -1407,7 +1412,7 @@ async function saSupportSnapshot(tabId) {
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
   const detectedAiFamily = popup.identity?.ai_id || popup.page?.aiFamily;
-  const aiFamily = ["chatgpt", "alice", "qwen"].includes(detectedAiFamily) ? detectedAiFamily : null;
+  const aiFamily = ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(detectedAiFamily) ? detectedAiFamily : null;
   const lastStart = popup.lastStart || null;
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",
@@ -1503,6 +1508,83 @@ async function saPopupState(tabId) {
     recovery: key ? await saR3RecoverySummary(key, work) : [],
     operation: key ? publicManualOperation(await getManualOperation(key)) : null };
 }
+// The binding commit follows an acknowledged Finish, whose revision is one
+// greater than the local binding. Recheck that exact predecessor here: Start
+// admission may have happened before an asynchronous identity/response wait.
+async function saNextBindingRevision({ binding, conversationKey, workStartIntentId }) {
+  const revision = Number(binding?.revision || 0);
+  if (!Number.isSafeInteger(revision) || revision < 0 || !Number.isSafeInteger(revision + 1))
+    throw saError("SYNC_BINDING_FENCE");
+  if (!binding || !workStartIntentId || !await saEnabled() || !globalThis.SellerAgentsSyncJournal)
+    return revision + 1;
+  const accountId = await SellerAgentsControlClient.currentAccount();
+  const entityId = await SellerAgentsSyncJournal.entityIdForConversation(conversationKey);
+  const journal = await SellerAgentsSyncJournal.read();
+  const known = journal.reconciliation[`${accountId}\u001f${entityId}`];
+  const server = known?.serverState;
+  if (server?.bindingState !== "FINISHED") return revision + 1;
+  const work = await workSessionFor(conversationKey);
+  const source = binding.store_context;
+  const unresolved = Object.values(journal.entries).some(entry =>
+    entry.accountId === accountId && entry.entityId === entityId &&
+    ["BINDING_UPSERT", "FINISH"].includes(entry.kind));
+  if (!accountId || source?.accountId !== accountId ||
+      unresolved || !["IN_SYNC", "SERVER_AHEAD_COMPATIBLE"].includes(known?.classification) ||
+      work?.state !== OzonWorkSessionModel.STATES.INACTIVE ||
+      work.finished !== true || work.terminal_state_known !== true ||
+      !work.start_intent_id || work.work_session_id !== work.start_intent_id ||
+      workStartIntentId === work.start_intent_id ||
+      server.bindingId !== binding.binding_id || server.bindingRevision !== revision + 1 ||
+      server.storeId !== source.storeId || server.marketplace !== source.marketplace ||
+      (server.workGeneration !== null && server.workGeneration !== work.start_intent_id) ||
+      (server.accountId != null && server.accountId !== accountId) ||
+      (server.entityId != null && server.entityId !== entityId) ||
+      !Number.isSafeInteger(server.bindingRevision + 1) ||
+      manualOperationActive(await getManualOperation(conversationKey)) ||
+      await SellerAgentsControlClient.currentAccount() !== accountId)
+    throw saError("SYNC_SERVER_FINISH_FENCE");
+  return server.bindingRevision + 1;
+}
+
+async function saAssertExplicitStartReconciliation({ binding, store, sourceStore = null, key, work, intentId, plan }) {
+  try {
+    return await saAssertReconciliationAction(binding, sourceStore || store, key, work?.start_intent_id || null);
+  } catch (error) {
+    // A new explicit Start may supersede only this Work's acknowledged Finish.
+    // Resume, commands, deliveries and genuine conflicts retain the normal fence.
+    if (error?.code !== "SYNC_SERVER_FINISH_FENCE" || !plan) throw error;
+    const current = await saReadAdmissionSnapshot({
+      operation: "start", tabId: plan.tabId, store, intentId, conversationKey: key,
+    });
+    saValidateRebindPlan(plan, current);
+    const finished = current.work;
+    if (finished?.state !== OzonWorkSessionModel.STATES.INACTIVE ||
+        finished.finished !== true || finished.terminal_state_known !== true ||
+        !finished.start_intent_id || finished.work_session_id !== finished.start_intent_id ||
+        finished.start_intent_id !== plan.sourceWorkIntentId ||
+        !intentId || intentId === finished.start_intent_id) throw error;
+    if (manualOperationActive(await getManualOperation(key))) throw saError("WORK_START_ALREADY_IN_PROGRESS");
+    const accountId = await SellerAgentsControlClient.currentAccount();
+    if (!accountId || accountId !== plan.accountId) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+    const entityId = await SellerAgentsSyncJournal.entityIdForConversation(key);
+    const journal = await SellerAgentsSyncJournal.read();
+    const known = journal.reconciliation[`${accountId}\u001f${entityId}`];
+    const server = known?.serverState;
+    const unresolved = Object.values(journal.entries).some(entry =>
+      entry.accountId === accountId && entry.entityId === entityId &&
+      ["BINDING_UPSERT", "FINISH"].includes(entry.kind));
+    if (unresolved || !["IN_SYNC", "SERVER_AHEAD_COMPATIBLE"].includes(known?.classification) ||
+        server?.bindingState !== "FINISHED" || server.bindingId !== plan.bindingId ||
+        !Number.isSafeInteger(plan.bindingRevision) || server.bindingRevision !== plan.bindingRevision + 1 ||
+        server.storeId !== plan.sourceStoreId || server.marketplace !== plan.sourceMarketplace ||
+        (server.workGeneration !== null && server.workGeneration !== finished.start_intent_id) ||
+        (server.accountId != null && server.accountId !== accountId) ||
+        (server.entityId != null && server.entityId !== entityId)) throw error;
+    // A null generation is retained only for the already-acknowledged legacy
+    // Finish. The successor gets a new intent and binding through normal Start.
+    return true;
+  }
+}
 async function saWorkStart(message, sender) {
   OzonWorkSessionModel.assertStorageAvailable();
   try {
@@ -1548,9 +1630,12 @@ async function saWorkStart(message, sender) {
     if (changingStore && await getManualOperation(key).then(manualOperationActive)) throw saError("WORK_START_ALREADY_IN_PROGRESS");
     const intentId = String(message.start_intent_id || "").trim() || `work-start-${crypto.randomUUID()}`;
     const authority = await SellerAgentsControlClient.getAuthority(live);
-    const sourceStore = changingStore ? await saAssertStore(binding.store_context) : null;
-    await saAssertReconciliationAction(binding, sourceStore || store, key);
-    const plan = changingStore ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
+    const restartingFinished = Boolean(binding && work?.state === OzonWorkSessionModel.STATES.INACTIVE &&
+      work.finished === true && work.terminal_state_known === true);
+    const sourceStore = changingStore ? await saAssertStore(binding.store_context) : restartingFinished ? store : null;
+    const plan = changingStore || restartingFinished
+      ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
+    await saAssertExplicitStartReconciliation({ binding, store, sourceStore, key, work, intentId, plan });
     if (key && !changingStore && ![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(work?.state))
       throw saError("WORK_START_ALREADY_IN_PROGRESS");
     if (entry.generation !== await SellerAgentsControlClient.generation()) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
@@ -1571,6 +1656,10 @@ async function saWorkStart(message, sender) {
         await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
         await saEnsureTabSignedProfile(message.tab_id, admission.snapshot.fence);
         await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
+        if (restartingFinished) {
+          await saAssertExplicitStartReconciliation({ binding, store, sourceStore, key, work, intentId, plan });
+          await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
+        }
         const started = await saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId, admission_provenance: provenance, prompt_tree: promptTree.pin }, sender);
         return { ...started, prompt_tree_available: promptTree.available, prompt_tree_warning: promptTree.warning };
       });
@@ -1643,6 +1732,8 @@ async function saHandleMessage(message, sender) {
   if (message?.type?.startsWith("SA_")) {
     if (!saPopupSender(sender) && !saBackupImportSender(sender, message.type)) throw saError("POPUP_SENDER_REQUIRED");
     if (message.type === "SA_AUTH_STATE") return { ok: true, auth: await SellerAgentsControlClient.status() };
+    if (message.type === "SA_AUTH_CONNECT_CODE") return { ok: true, auth: await SellerAgentsControlClient.connectWithCode({ code: message.code }) };
+    if (message.type === "SA_AUTH_OPEN_CABINET") return { ok: true, portalUrl: await SellerAgentsControlClient.openConnectionCabinet() };
     if (message.type === "SA_AUTH_START") return { ok: true, auth: await SellerAgentsControlClient.startActivation() };
     if (message.type === "SA_AUTH_OPEN_PORTAL") return { ok: true, portalUrl: await SellerAgentsControlClient.openPortal() };
     if (message.type === "SA_AUTH_CANCEL") return { ok: true, auth: await SellerAgentsControlClient.cancelActivation() };
@@ -1777,14 +1868,19 @@ async function saHandleMessage(message, sender) {
         const baseline = message.chatgpt_user_baseline;
         if (baseline !== undefined && (!Array.isArray(baseline) || baseline.length > 4096 ||
           !Array.from(baseline).every(id => typeof id === "string" && id.length > 0 && id.length <= 512))) throw saError("DELIVERY_BASELINE_INVALID");
+        const observationEpoch = message.user_observation_epoch;
+        if (observationEpoch !== undefined && (typeof observationEpoch !== "string" ||
+          !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(observationEpoch))) throw saError("DELIVERY_BASELINE_INVALID");
         granted = true;
         committedDelivery = { ...owner.delivery, sa_send_actor: message.actor_id, sa_send_committed_at: Date.now(),
-          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null };
+          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null,
+          sa_user_observation_epoch: observationEpoch || null };
         return { ...owner, delivery: committedDelivery };
       });
       return { ok: true, click_allowed: granted, code: granted ? "SEND_COMMITTED" : "SEND_OUTCOME_UNKNOWN_NO_RETRY",
         send_click_committed: Boolean(committedDelivery?.sa_send_actor),
-        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null };
+        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null,
+        user_observation_epoch: typeof committedDelivery?.sa_user_observation_epoch === "string" ? committedDelivery.sa_user_observation_epoch : null };
     }
     if (message.type === "OZ_WORK_START") throw saError("STORE_SELECTION_REQUIRED");
     if (["OZ_WORK_SHOW", "OZ_WORK_HIDE", "OZ_WORK_FINISH", "OZ_WORK_REFRESH"].includes(message.type) && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");
@@ -1808,7 +1904,8 @@ async function saHandleMessage(message, sender) {
         if (pending.conversation_key) {
           const binding = await bindingForConversationKey(pending.conversation_key);
           const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
-          await saRecordFinishMutation(pending.conversation_key, binding, store);
+          const work = await workSessionFor(pending.conversation_key);
+          await saRecordFinishMutation(pending.conversation_key, binding, store, work?.start_intent_id || null);
         }
         return { ok: true, pending_cancelled: true };
       }
@@ -1843,12 +1940,15 @@ async function saHandleMessage(message, sender) {
   const result = await saLegacyMessage(message, sender);
   if (enabled && result?.ok && message.type === "OZ_WORK_PENDING_IDENTITY" && result.binding) {
     const store = result.binding.store_context ? await saAssertStore(result.binding.store_context) : null;
-    await saRecordBindingMutation(result.binding, result.binding.conversation_key || message.conversation_key, store);
+    const key = result.binding.conversation_key || message.conversation_key;
+    const work = await workSessionFor(key);
+    await saRecordBindingMutation(result.binding, key, store, work?.start_intent_id || null);
   }
   if (enabled && result?.ok && message.type === "OZ_WORK_FINISH") {
     const key = normalizeConversationKey(message.conversation_key), binding = await bindingForConversationKey(key);
     const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
-    await saRecordFinishMutation(key, binding, store);
+    const work = await workSessionFor(key);
+    await saRecordFinishMutation(key, binding, store, work?.start_intent_id || null);
   }
   if (enabled && result?.ok && ["OZ_BATCH_DELIVERY_COMPLETE", "OZ_REPORT_DELIVERY_CONFIRMED"].includes(message.type)) {
     const copyOwner = await getManualOperation(message.conversation_key);
@@ -1890,7 +1990,10 @@ async function saCheckStore(message) {
   } catch (error) { result = { ok: false, http_status: error.http_status || 0 }; }
   await saAssertStore(pinned);
   const httpStatus = Number(result.http_status || 0);
-  const code = result.ok ? "ACCESS_CONFIRMED" : httpStatus === 401 ? "CREDENTIAL_REJECTED" : httpStatus === 403 ? "ACCESS_DENIED" : "CHECK_FAILED";
+  const credentialsRejected = httpStatus === 401 ||
+    (store.marketplace === "ozon" && message.part !== "performance" && httpStatus === 400 &&
+      String(result.code) === "3" && result.provider_error_category === "auth_or_permission");
+  const code = result.ok ? "ACCESS_CONFIRMED" : credentialsRejected ? "CREDENTIAL_REJECTED" : httpStatus === 403 ? "ACCESS_DENIED" : "CHECK_FAILED";
   let saved = await saCatalog.noteVerification(store.id, store.credentialRevision,
     store.marketplace === "wildberries" ? "token" : message.part === "performance" ? "performance" : "seller", { code, httpStatus });
   // Provider identity is authoritative only when the provider path explicitly
@@ -1931,9 +2034,18 @@ function saPrunePayload(owner, now = Date.now()) {
     })).slice(-32),
     delivery_id: owner.delivery?.delivery_id || owner.delivery_id || null,
   };
-  return { ...owner, status: "failed", batch: null, outgoing_text: null, delivery: null,
-    completed_at: owner.completed_at || new Date(now).toISOString(), recovery_fence: replayFence,
-    last_error: { code: "RESULT_BUFFER_EXPIRED" } };
+  // Retention expires report bytes, not a recorded terminal outcome. Completed
+  // delivery may retain its original buffer for Copy; failed/unknown outcomes
+  // must retain their original cause. Unfinished work still fails closed.
+  const terminal = owner.status === MANUAL_OPERATION_STATUSES.COMPLETED ||
+    owner.status === MANUAL_OPERATION_STATUSES.FAILED;
+  const outcome = terminal ? {} : {
+    status: MANUAL_OPERATION_STATUSES.FAILED,
+    completed_at: owner.completed_at || new Date(now).toISOString(),
+    last_error: { code: "RESULT_BUFFER_EXPIRED" },
+  };
+  return { ...owner, ...outcome, batch: null, outgoing_text: null, delivery: null,
+    recovery_fence: replayFence };
 }
 async function saAssertDeliveryOwner(owner) {
   if (!owner?.execution_context) throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_MISSING");

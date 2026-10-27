@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "stage": "I1-C1",
-  "version": "0.2.37",
+  "version": "0.2.42",
   "purpose": "LOCAL_DEVELOPMENT_CANDIDATE_DEVICE_AUTH_SIGNED_ACCOUNT_BINDING",
   "control_api_origin": "http://127.0.0.1:43100",
   "portal_origin": "http://127.0.0.1:43101",
@@ -229,7 +229,12 @@
       "apps/extension/src/application/popup.css"
     ],
     "shared/ai_adapters.js": [
+      "apps/extension/src/content/observed-ai-code-readers.js",
       "apps/extension/src/content/kimi-code-reader.js",
+      "apps/extension/src/content/deepseek-adapter.js",
+      "apps/extension/src/content/claude-adapter.js",
+      "apps/extension/src/content/grok-adapter.js",
+      "apps/extension/src/content/gemini-adapter.js",
       "apps/extension/src/content/kimi-adapter.js",
       "apps/extension/src/content/qwen-adapter.js",
       "apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js",
@@ -262,6 +267,10 @@
   ],
   "ai_hosts": [
     "https://chat.qwen.ai/*",
-    "https://www.kimi.ai/*"
+    "https://www.kimi.ai/*",
+    "https://grok.com/*",
+    "https://gemini.google.com/*",
+    "https://claude.ai/*",
+    "https://chat.deepseek.com/*"
   ]
 }

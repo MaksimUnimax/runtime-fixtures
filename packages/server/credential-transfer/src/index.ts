@@ -19,6 +19,7 @@ export type TransferFailure =
   | "TRANSFER_PACKET_TOO_LARGE"
   | "TRANSFER_DEVICE_REVOKED"
   | "TRANSFER_ACCOUNT_MISMATCH"
+  | "CONNECTION_TRANSFER_APPROVAL_REQUIRED"
   | "SOURCE_OFFLINE";
 
 export class TransferError extends Error {

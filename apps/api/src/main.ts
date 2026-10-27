@@ -10,6 +10,7 @@ import {
   createDeviceAuthorizationRepository,
   createExtensionAuthRepository,
   createDeviceManagementRepository,
+  createConnectionCodeRepository,
   createP3BootstrapPolicyCatalogRepository,
   createP4CommercialCatalogRepository,
   createP4EntitlementRepository,
@@ -62,7 +63,11 @@ import {
   deriveExtensionAuthKeys,
   loadAccessTokenSigningKey,
 } from "@product/extension-auth";
-import { DeviceManagementService } from "@product/device-management";
+import {
+  ConnectionCodeService,
+  DeviceManagementService,
+  type DeviceLimitResolver,
+} from "@product/device-management";
 import {
   BootstrapAiResolutionService,
   BootstrapService,
@@ -158,6 +163,22 @@ try {
   const unavailableHealth = !healthReadDatabase
     ? createUnavailableHealthReadDependencies()
     : undefined;
+  const deviceAdmissionLimits: DeviceLimitResolver = {
+    resolve: async (accountId, at) => {
+      const beta = await betaAdmission.resolve(accountId);
+      if (beta.kind === "BETA")
+        return { kind: "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT" as const };
+      if (!commercialModeEnabled)
+        return {
+          kind: "INELIGIBLE" as const,
+          reason: "NO_CURRENT_SUBSCRIPTION" as const,
+        };
+      return commercialAccess.resolveDeviceAdmission(
+        accountId,
+        at ?? new Date(),
+      );
+    },
+  };
   const app = createApiApp({
     config,
     isInfrastructureReady: async () =>
@@ -176,26 +197,17 @@ try {
       undefined,
       loadAccessTokenSigningKey(process.env),
     ),
+    connectionCodeService: new ConnectionCodeService(
+      createConnectionCodeRepository(database),
+      rootSecret,
+      loadAccessTokenSigningKey(process.env),
+      deviceAdmissionLimits,
+    ),
     deviceManagementService: new DeviceManagementService(
       createDeviceManagementRepository(database),
       rootSecret,
       loadAccessTokenSigningKey(process.env),
-      {
-        resolve: async (accountId, at) => {
-          const beta = await betaAdmission.resolve(accountId);
-          if (beta.kind === "BETA")
-            return { kind: "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT" as const };
-          if (!commercialModeEnabled)
-            return {
-              kind: "INELIGIBLE" as const,
-              reason: "NO_CURRENT_SUBSCRIPTION" as const,
-            };
-          return commercialAccess.resolveDeviceAdmission(
-            accountId,
-            at ?? new Date(),
-          );
-        },
-      },
+      deviceAdmissionLimits,
     ),
     bootstrapService: new BootstrapService(
       { resolve: (input) => resolveP3BootstrapPolicy(input, p3Catalog) },

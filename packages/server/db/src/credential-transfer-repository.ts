@@ -122,6 +122,13 @@ export function createCredentialTransferRepository(
             request.recipientDeviceId,
           ),
         );
+        const approval = await tx.query<{ required: boolean }>(
+          "SELECT connection_credential_id IS NOT NULL AND credential_transfer_approved_at IS NULL AS required " +
+            "FROM devices WHERE id=$1 AND account_id=$2",
+          [principal.deviceId, principal.accountId],
+        );
+        if (approval.rows[0]?.required)
+          fail("CONNECTION_TRANSFER_APPROVAL_REQUIRED");
         const existing = await load(tx, request.requestId, now);
         if (existing) {
           if (

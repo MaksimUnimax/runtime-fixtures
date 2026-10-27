@@ -41,7 +41,11 @@ import {
   type ExtensionAuthRepository,
 } from "@product/extension-auth";
 import { registerRefreshRoutes } from "./refresh-routes.js";
-import type { DeviceManagementService } from "@product/device-management";
+import type {
+  ConnectionCodeService,
+  DeviceManagementService,
+} from "@product/device-management";
+import { registerConnectionCodeRoutes } from "./connection-code-routes.js";
 import { registerDeviceManagementRoutes } from "./device-management-routes.js";
 import { registerPortalSupportRoutes } from "./portal-support-routes.js";
 import type { BootstrapService } from "@product/bootstrap";
@@ -105,6 +109,7 @@ export interface ApiDependencies {
   readonly deviceAuthorizationService?: DeviceAuthorizationService;
   readonly extensionAuthService?: ExtensionAuthService;
   readonly deviceManagementService?: DeviceManagementService;
+  readonly connectionCodeService?: ConnectionCodeService;
   readonly bootstrapService?: BootstrapService;
   readonly publicCommercialCatalogReader?: PublicCommercialCatalogReader;
   readonly catalogClock?: () => Date;
@@ -299,6 +304,13 @@ export function createApiApp(
         dependencies.authService ??
           new AuthService(unavailable, deriveAuthKeys(Buffer.alloc(32))),
         dependencies.deviceAuthorizationService,
+      );
+    if (dependencies.connectionCodeService)
+      registerConnectionCodeRoutes(
+        app,
+        dependencies.authService ??
+          new AuthService(unavailable, deriveAuthKeys(Buffer.alloc(32))),
+        dependencies.connectionCodeService,
       );
     if (dependencies.deviceManagementService)
       registerDeviceManagementRoutes(

@@ -306,3 +306,5 @@ export class DeviceManagementService {
       : { kind: "REVOKED" as const, idempotent: r === "already-revoked" };
   }
 }
+
+export * from "./connection-code.js";

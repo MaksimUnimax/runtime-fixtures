@@ -7,7 +7,9 @@ let backupText = "", backupPreview = null, backupSelectionRevision = 0;
 let nativeBackupBridge = null, nativeBackupBridgeFlight = null;
 let nativeBackupPickerPending = false, nativeBackupPickId = null;
 let r3Review = null;
+let connectionSubmitPending = false, connectionCancelConfirmation = false;
 let actionGeneration = 0, refreshGeneration = 0;
+let startFeedback = null;
 let refreshTimer, refreshRequested = false;
 const FIREFOX_TECHNICAL_CATEGORY = "technicalAndInteraction";
 function firefoxTechnicalPermissions() { return globalThis.browser?.permissions || null; }
@@ -51,17 +53,28 @@ function revokeFirefoxTechnicalConsentFromClick() {
     .catch(() => { $("status").textContent = "Не удалось изменить разрешение"; })
     .finally(() => { $("firefox-technical-revoke").disabled = false; refreshFirefoxTechnicalConsent().catch(() => null); });
 }
-const texts = { TAB_MESSAGE_TIMEOUT: "Вкладка ИИ не отвечает. После восстановления связи проверьте состояние работы; повторная отправка не выполнялась.", PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разрешил подключиться к странице. Проверьте разрешение расширения для этого сайта и повторите Start", PAGE_RUNTIME_RECOVERY_UNAVAILABLE: "Эта сборка не поддерживает восстановление связи со страницей", PAGE_TAB_UNAVAILABLE: "Вкладка закрыта или недоступна", PAGE_RUNTIME_NOT_PACKAGED: "В сборке отсутствует обработчик этой страницы", ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
-  CREDENTIAL_REJECTED: "Ключ отклонён (401). Причина и срок действия не подтверждены", ACCESS_DENIED: "Недостаточно прав (403)",
+const texts = { CONNECTION_CODE_INVALID: "Проверьте полный код из кабинета. Публичный ID аккаунта не подходит.", CONNECTION_CODE_CLOSED: "Этот код или попытка больше не действует. Отмените попытку и проверьте актуальный код в кабинете.", CONNECTION_CODE_CONFLICT: "Код или состояние изменились. Проверьте кабинет перед новой попыткой.", CONNECTION_CODE_RATE_LIMITED: "Слишком много попыток. Повторите ту же попытку позже.", CONNECTION_PREVIOUS_OUTCOME_UNKNOWN: "Исход прежней попытки не подтверждён. Используйте тот же код либо явно отмените попытку.", CONNECTION_EXCHANGE_UNKNOWN: "Ответ сервера не подтверждён. Автоматического повтора нет: введите тот же код, чтобы проверить ту же попытку.", CONNECTION_TRANSFER_APPROVAL_REQUIRED: "Перед получением ключей подтвердите эту установку через почту в кабинете. Сам код подключения не разрешает перенос ключей.", TAB_MESSAGE_TIMEOUT: "Вкладка ИИ не отвечает. После восстановления связи проверьте состояние работы; повторная отправка не выполнялась.", PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разрешил подключиться к странице. Проверьте разрешение расширения для этого сайта и повторите Start", PAGE_RUNTIME_RECOVERY_UNAVAILABLE: "Эта сборка не поддерживает восстановление связи со страницей", PAGE_TAB_UNAVAILABLE: "Вкладка закрыта или недоступна", PAGE_RUNTIME_NOT_PACKAGED: "В сборке отсутствует обработчик этой страницы", ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
+  CREDENTIAL_REJECTED: "Ключ отклонён. Причина и срок действия не подтверждены", ACCESS_DENIED: "Недостаточно прав (403)",
   CHECK_FAILED: "Не удалось проверить: сеть, ответ площадки или формат запроса", STORE_CHANGE_CONFIRMATION_REQUIRED: "Подтвердите смену магазина",
   WORK_SESSION_ALREADY_ACTIVE: "Этот магазин уже подключён", STORE_NOT_FOUND: "Магазин удалён. Откройте список заново",
-  POPUP_CONTEXT_STALE: "Диалог изменился. Откройте расширение в нужной вкладке", WORK_START_UNSUPPORTED_PAGE: "Откройте поддерживаемый ИИ: ChatGPT, Алису или Qwen",
+  POPUP_CONTEXT_STALE: "Диалог изменился. Откройте расширение в нужной вкладке", WORK_START_UNSUPPORTED_PAGE: "Откройте ChatGPT Standard, Алису, Qwen, DeepSeek, Claude, Gemini, Grok или Kimi",
   WORK_START_ALREADY_PENDING: "Запуск уже выполняется. Повторная инструкция не отправлена", WORK_START_ALREADY_IN_PROGRESS: "Запуск уже выполняется. Дождитесь результата или завершите текущую работу",
   EXECUTION_CONTEXT_CHANGED: "Магазин или рабочая сессия изменились. Нажмите «Начать работу»", RESULT_EXPIRED: "Часовой срок результата истёк", NO_QUOTA_WAIT: "Нет пакета, ожидающего продолжения",
-  AUTH_REQUIRED: "Выполните вход через портал", WORK_POLICY_BLOCKED: "Работа недоступна: подписанная политика не разрешила этот профиль ИИ", DEVICE_AUTH_CLOSED: "Попытка входа закрыта. Начните новую попытку", BOOTSTRAP_EXPIRED: "Проверенная сессия истекла. Выполните вход заново",
-  UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанная конфигурация не разрешает текущую версию расширения или браузера", WORK_UNSUPPORTED_AI: "Откройте поддерживаемый ИИ: ChatGPT, Алису или Qwen",
+  AUTH_REQUIRED: "Подключите аккаунт кодом из кабинета или подтвердите вход через портал", WORK_POLICY_BLOCKED: "Работа недоступна: подписанная политика не разрешила этот профиль ИИ", DEVICE_AUTH_CLOSED: "Попытка входа закрыта. Начните новую попытку", BOOTSTRAP_EXPIRED: "Проверенная сессия истекла. Выполните вход заново",
+  UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанный профиль ИИ или параметры совместимости не разрешают запуск", WORK_UNSUPPORTED_AI: "Откройте ChatGPT Standard, Алису, Qwen, DeepSeek, Claude, Gemini, Grok или Kimi",
   SOURCE_OFFLINE: "Источник передачи сейчас недоступен. Повтор не считается доставкой", TRANSFER_VAULT_UNAVAILABLE: "Безопасное локальное хранилище ключа передачи недоступно. Передача не начата", TRANSFER_VAULT_PERSIST_FAILED: "Не удалось безопасно сохранить локальный ключ передачи. Запрос не считается готовым", TRANSFER_VAULT_CLEAR_FAILED: "Не удалось подтвердить очистку локального ключа передачи. Сброс не считается завершённым",
   TRANSFER_KEY_MISSING: "Локальный ключ этой передачи отсутствует. Создайте новый запрос на получающей установке", TRANSFER_ACCOUNT_MISMATCH: "Передача относится к другому аккаунту или установке и заблокирована", TRANSFER_EXPIRED: "Срок запроса передачи истёк. Создайте новый запрос", TRANSFER_REPLAY: "Передача уже завершена или повтор заблокирован" };
+function authErrorText(auth) {
+  const failure = auth?.lastError;
+  if (!failure) return null;
+  const diagnostic = failure.bootstrapDiagnostic;
+  if (failure.code === "BOOTSTRAP_PROFILE_INCOMPATIBLE" &&
+      diagnostic?.diagnosticVersion === "bootstrap_rejection_v1" &&
+      diagnostic.stage === "SIGNED_AUTHORITY" &&
+      diagnostic.checks?.some(row => row.check === "AI_UNAVAILABLE_LOCAL" && row.passed === false))
+    return "Для выбранного ИИ нет доступного подписанного профиля.";
+  return texts[failure.code] || failure.code;
+}
 async function request(type, fields = {}) {
   const response = await chrome.runtime.sendMessage({ type, tab_id: tabId, ...fields });
   if (!response?.ok) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
@@ -101,10 +114,66 @@ function startStatusText(lastStart) {
 function actionSuccessText(result) {
   if (result?.popupAction === "TRANSFER_RECEIVE") return result.text;
   if (result?.popupAction !== "WORK_START_ACCEPTED") return "Готово";
-  if (result.promptTreeAvailable === false) return "Запуск принят. Дополнительные подсказки этого ИИ недоступны; чужое дерево не использовано.";
-  if (result.promptTreeWarning) return "Запуск принят. Используется сохранённая проверенная версия подсказок этого ИИ.";
-  if (state?.context?.work_active === true && ["active_visible", "active_hidden"].includes(state?.work?.state)) return "Работа запущена";
-  return startStatusText(state?.lastStart) || "Запуск принят. Ожидаем подтверждение инструкции и ответа ИИ";
+  // Acceptance is not completion. A prompt warning must never hide a terminal
+  // outcome or turn an unknown send into confirmed active work.
+  if (result.startIntentId && state?.pending?.intent_id === result.startIntentId &&
+      ["failed", "blocked", "cancelled", "finished"].includes(state?.lastStart?.outcome)) {
+    return "Состояние запуска ещё уточняется: ожидание отправки и завершённый исход не согласованы.";
+  }
+  if (["failed", "blocked", "unknown_no_retry", "cancelled", "finished"].includes(state?.lastStart?.outcome)) {
+    return startStatusText(state.lastStart);
+  }
+  if (state?.auth?.authenticated === false) return texts.AUTH_REQUIRED || "Войдите в аккаунт";
+  if (state?.auth?.workAllowed === false) return "Запуск не подтверждён: доступ к работе сейчас не разрешён.";
+  const ownWork = !result.startIntentId || [state?.work?.start_intent_id, state?.work?.work_session_id].includes(result.startIntentId);
+  let text = startStatusText(state?.lastStart) || "Запуск принят. Ожидаем подтверждение инструкции и ответа ИИ";
+  if (ownWork && !state?.pending) {
+    if (state?.work?.finished === true) text = "Работа завершена по вашему запросу.";
+    else if (state?.context?.work_active === true && ["active_visible", "active_hidden"].includes(state?.work?.state)) text = "Работа запущена";
+    else if (state?.work?.state === "recovering") text = "Восстанавливаем подключение. Работа ещё не подтверждена.";
+    else if (state?.work?.state === "error") text = "Ошибка запуска. Проверьте состояние подключения.";
+    else if (state?.work?.state === "inactive") text = "Работа приостановлена.";
+  }
+  if (result.promptTreeAvailable === false) text += " Дополнительные подсказки этого ИИ недоступны; чужое дерево не использовано.";
+  else if (result.promptTreeWarning) text += " Используется сохранённая проверенная версия подсказок этого ИИ.";
+  return text;
+}
+function rememberStartFeedback(result, generation, context, text) {
+  if (result?.popupAction !== "WORK_START_ACCEPTED" || !result.startIntentId) return;
+  startFeedback = { result, generation, context, text };
+}
+function refreshStartFeedback() {
+  const feedback = startFeedback;
+  if (!feedback || busy) return;
+  // A later action or a separate error/status writer owns its own message.
+  // Only replace text last written by this exact accepted Start.
+  if (feedback.generation !== actionGeneration || $("status").textContent !== feedback.text) {
+    startFeedback = null;
+    return;
+  }
+  if (state?.auth?.authenticated === false) {
+    $("status").textContent = texts.AUTH_REQUIRED || "Войдите в аккаунт";
+    startFeedback = null;
+    return;
+  }
+  const { result, context } = feedback;
+  const pendingId = state?.pending?.intent_id;
+  const workId = state?.work?.start_intent_id || state?.work?.work_session_id;
+  const ownsPending = pendingId === result.startIntentId;
+  const ownsWork = workId === result.startIntentId;
+  const changed = tabId !== context.tabId ||
+    (state?.auth?.accountId || null) !== context.accountId ||
+    (pendingId && !ownsPending) ||
+    (workId && !ownsWork && workId !== context.workId) ||
+    (ownsWork && state?.context?.store_id && state.context.store_id !== result.storeId) ||
+    (!ownsWork && !ownsPending && (state?.conversation_key || null) !== context.conversationKey);
+  if (changed) {
+    $("status").textContent = "Контекст запуска изменился. Проверьте текущий диалог.";
+    startFeedback = null;
+    return;
+  }
+  feedback.text = actionSuccessText(result);
+  $("status").textContent = feedback.text;
 }
 function transferReceivePresentation(result) {
   if (result?.ok === false && result?.ackConfirmed === false) {
@@ -137,6 +206,12 @@ async function action(fn, { interrupt = false, accountOnly = false } = {}) {
     return { popupAction: "BUSY_REJECTED" };
   }
   const generation = ++actionGeneration;
+  startFeedback = null;
+  const feedbackContext = {
+    tabId, accountId: state?.auth?.accountId || null,
+    workId: state?.work?.start_intent_id || state?.work?.work_session_id || null,
+    conversationKey: state?.conversation_key || null,
+  };
   refreshGeneration += 1;
   busy = true;
   $("status").textContent = "Выполняем…";
@@ -145,13 +220,18 @@ async function action(fn, { interrupt = false, accountOnly = false } = {}) {
     const result = await fn();
     if (generation !== actionGeneration) return;
     if (!accountOnly) await refresh();
-    if (generation === actionGeneration) $("status").textContent = actionSuccessText(result);
+    if (generation === actionGeneration) {
+      const text = actionSuccessText(result);
+      $("status").textContent = text;
+      rememberStartFeedback(result, generation, feedbackContext, text);
+    }
   } catch (e) {
     if (generation === actionGeneration) $("status").textContent = e.message;
   } finally {
     if (generation === actionGeneration) {
       busy = false;
       if (!accountOnly && typeof render === "function") render();
+      if (!accountOnly) refreshStartFeedback();
       if (!accountOnly && refreshRequested) scheduleRefresh();
     }
   }
@@ -163,7 +243,7 @@ function onboardingModel(value) {
   const aiReady = Boolean(value?.page?.supported ?? value?.identity?.ai_id);
   const workReady = Boolean(value?.context?.work_active === true && ["active_visible", "active_hidden", "recovering"].includes(value?.work?.state));
   return [
-    { id: "onboarding-auth", done: authenticated, text: authenticated ? "1. Вход через портал подтверждён." : "1. Войдите через портал и подтвердите эту установку." },
+    { id: "onboarding-auth", done: authenticated, text: authenticated ? "1. Аккаунт подключён, подписанный доступ проверен." : "1. Подключите аккаунт кодом из кабинета." },
     { id: "onboarding-store", done: hasStore, text: hasStore ? "2. Магазин добавлен." : "2. Добавьте магазин Ozon или WB и сохраните его ключи локально." },
     { id: "onboarding-ai", done: aiReady, text: aiReady ? "3. Поддерживаемый ИИ открыт." : "3. Откройте поддерживаемый ИИ в текущей вкладке." },
     { id: "onboarding-work", done: workReady, text: workReady ? "4. Work активен — расширение готово к командам." : "4. После первых трёх шагов выберите магазин и нажмите «Начать работу»." },
@@ -186,19 +266,29 @@ function render() {
   $("catalog").hidden = !authenticated;
   $("add").disabled = !authenticated || busy;
   $("edit").disabled = $("remove").disabled = !authenticated || busy;
-  $("auth-status").textContent = state.auth?.lastError ? (texts[state.auth.lastError.code] || state.auth.lastError.code) : authenticated ? "Вход подтверждён подписанным bootstrap V2." : state.auth?.pending ? "Откройте портал и подтвердите устройство для своего аккаунта." : "Войдите, чтобы подключить принадлежащий вам аккаунт.";
+  const connectionPending = state.auth?.connectionPending;
+  const bootstrapRetry = state.auth?.bootstrapRetryAvailable === true;
+  $("auth-status").textContent = state.auth?.lastError ? authErrorText(state.auth) : authenticated ? "Вход подтверждён подписанным ответом сервера." : connectionPending ? "Исход подключения ещё не подтверждён. Для проверки той же попытки снова введите тот же код. Автоматической отправки нет." : bootstrapRetry ? "Установка подключена, но подписанный доступ ещё не подтверждён. Проверьте доступ повторно." : state.auth?.pending ? "Откройте портал и подтвердите устройство для своего аккаунта." : "Введите сохранённый код подключения из кабинета.";
   $("auth-code").textContent = state.auth?.pending ? `Код подтверждения: ${state.auth.pending.userCode}` : "";
+  $("connection-form").hidden = Boolean(state.auth?.pending || bootstrapRetry);
+  $("connection-code").disabled = busy;
+  $("connection-submit").disabled = busy || connectionPending?.outcome === "REJECTED";
+  $("connection-submit").textContent = connectionPending ? "Проверить ту же попытку" : "Подключить";
+  $("connection-cabinet").disabled = busy;
   $("auth-open").hidden = !state.auth?.pending;
-  $("auth-start").textContent = state.auth?.pending ? "Открыть портал ещё раз" : "Войти через портал";
-  $("auth-start").disabled = busy;
-  $("auth-reset").hidden = !authenticated && !state.auth?.pending;
-  $("auth-cancel").hidden = !state.auth?.pending;
+  $("auth-start").textContent = bootstrapRetry ? "Проверить доступ" : state.auth?.pending ? "Открыть портал ещё раз" : "Другой способ: подтвердить через портал";
+  $("auth-start").disabled = busy || Boolean(connectionPending);
+  $("auth-reset").hidden = !authenticated && !bootstrapRetry;
+  $("auth-cancel").hidden = !state.auth?.pending && !connectionPending && !connectionSubmitPending;
+  $("auth-cancel").disabled = false;
+  $("connection-device").hidden = state.auth?.authenticationMethod !== "ACCOUNT_CONNECTION_CODE";
+  $("connection-device-id").textContent = state.auth?.deviceId || "";
   const extensionCompatibility = state.auth?.compatibility?.extension;
   const updateRecommended = authenticated && extensionCompatibility?.status === "UPDATE_RECOMMENDED";
   $("compatibility-note").hidden = !updateRecommended;
   $("compatibility-note").textContent = updateRecommended ? `Подписанная конфигурация рекомендует обновить расширение. Текущая версия пока разрешена.${extensionCompatibility.minimumVersion ? ` Минимально допустимая версия: ${extensionCompatibility.minimumVersion}.` : ""}` : "";
   renderOnboarding();
-  if (!authenticated) { closeCard(); confirmAction = null; $("confirmation").hidden = true; selectedId = ""; $("r3-recovery").hidden = true; $("r3-review").hidden = true; r3Review = null; return; }
+  if (!authenticated) { closeCard(); if (!connectionCancelConfirmation || (!connectionPending && !connectionSubmitPending)) { confirmAction = null; connectionCancelConfirmation = false; $("confirmation").hidden = true; } selectedId = ""; $("r3-recovery").hidden = true; $("r3-review").hidden = true; r3Review = null; return; }
   if (nativeBackupPickerAvailable()) void ensureNativeBackupBridge().catch(() => null);
   for (const id of ["ozon", "wildberries"]) $(id).setAttribute("aria-pressed", String(id === marketplace));
   const choices = state.stores.filter(s => s.marketplace === marketplace);
@@ -260,6 +350,7 @@ async function refresh(first = false) {
   state = next;
   if (first && state.context.store_id) { const current = state.stores.find(s => s.id === state.context.store_id); if (current) { selectedId = current.id; marketplace = current.marketplace; } }
   render();
+  refreshStartFeedback();
   await refreshFirefoxTechnicalConsent();
 }
 function popupAuthChangeNeedsRefresh(change) {
@@ -315,7 +406,7 @@ function openCard(store) {
   $("seller").hidden = $("performance").hidden = marketplace !== "ozon"; $("wb").hidden = marketplace !== "wildberries";
   $("name").focus();
 }
-function confirm(text, fn) { $("confirmation-text").style.whiteSpace = "pre-wrap"; $("confirmation-text").textContent = text; confirmAction = fn; $("confirmation").hidden = false; $("confirm").focus(); }
+function confirm(text, fn) { connectionCancelConfirmation = false; $("confirmation-text").style.whiteSpace = "pre-wrap"; $("confirmation-text").textContent = text; confirmAction = fn; $("confirmation").hidden = false; $("confirm").focus(); }
 for (const id of ["ozon", "wildberries"]) $(id).onclick = () => { marketplace = id; selectedId = ""; closeCard(); render(); };
 $("stores").onchange = () => { selectedId = $("stores").value; closeCard(); render(); };
 $("add").onclick = () => openCard(null); $("edit").onclick = () => { if (storeControlsAllowed()) openCard(selected()); }; $("cancel").onclick = closeCard;
@@ -326,10 +417,10 @@ $("card").onsubmit = e => { e.preventDefault(); if (!storeControlsAllowed()) ret
   selectedId = response.store.id; closeCard();
 }); };
 $("remove").onclick = () => { if (!storeControlsAllowed()) return; const id = selectedId; confirm(`Удалить магазин «${selected()?.name}» и его ключи? Все связанные с ним локальные рабочие сессии будут завершены.`, () => { if (!storeControlsAllowed()) throw new Error(texts.AUTH_REQUIRED); return request("SA_STORE_DELETE", { store_id: id, confirm: true }); }); };
-$("start").onclick = () => { const id = selectedId; const run = async confirm_change => { const started = await requestStart({ store_id: id, confirm_change, start_intent_id: crypto.randomUUID() }); return { popupAction: "WORK_START_ACCEPTED", promptTreeAvailable: started.prompt_tree_available, promptTreeWarning: started.prompt_tree_warning }; };
+$("start").onclick = () => { const id = selectedId; const run = async confirm_change => { const startIntentId = crypto.randomUUID(); const started = await requestStart({ store_id: id, confirm_change, start_intent_id: startIntentId }); return { popupAction: "WORK_START_ACCEPTED", startIntentId, storeId: id, promptTreeAvailable: started.prompt_tree_available, promptTreeWarning: started.prompt_tree_warning }; };
   if (state.context.store_id && state.context.store_id !== id) confirm("В диалоге останутся данные предыдущего магазина. ИИ может смешать их в ответах. Старую работу завершим и отправим новую инструкцию для выбранного магазина.", () => run(true)); else action(() => run(false)); };
-$("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; if (fn) action(fn); };
-$("reject").onclick = () => { confirmAction = null; $("confirmation").hidden = true; };
+$("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; const interrupt = connectionCancelConfirmation; connectionCancelConfirmation = false; if (fn) action(fn, { interrupt }); };
+$("reject").onclick = () => { connectionCancelConfirmation = false; confirmAction = null; $("confirmation").hidden = true; };
 $("work-resume").onclick = () => action(() => request("SA_WORK_RESUME", { conversation_key: state.conversation_key }));
 $("visibility").onclick = () => action(() => request(state.context.button_visible ? "OZ_WORK_HIDE" : "OZ_WORK_SHOW", { conversation_key: state.conversation_key }));
 $("finish").onclick = () => {
@@ -359,9 +450,33 @@ $("support-generate").onclick = () => action(async () => {
 });
 $("firefox-technical-grant").onclick = requestFirefoxTechnicalConsentFromClick;
 $("firefox-technical-revoke").onclick = revokeFirefoxTechnicalConsentFromClick;
+$("connection-form").onsubmit = event => {
+  event.preventDefault();
+  if (busy) return;
+  const code = $("connection-code").value.trim();
+  $("connection-code").value = "";
+  connectionSubmitPending = true;
+  return action(async () => { try { return await request("SA_AUTH_CONNECT_CODE", { code }); } finally { await refresh(); } }).finally(() => {
+    connectionSubmitPending = false;
+    if (state) render();
+  });
+};
+$("connection-cabinet").onclick = () => action(() => request("SA_AUTH_OPEN_CABINET"));
+$("connection-device-cabinet").onclick = () => action(() => request("SA_AUTH_OPEN_CABINET"));
 $("auth-start").onclick = () => action(() => request("SA_AUTH_START"));
 $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
-$("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
+$("auth-cancel").onclick = () => {
+  if (connectionSubmitPending || state?.auth?.connectionPending) {
+    const warning = "Остановить эту локальную попытку? Уже принятый сервером запрос не отменяется. При неизвестном исходе проверьте список устройств в кабинете перед новым подключением.";
+    $("confirmation-text").textContent = warning;
+    $("confirmation").hidden = false;
+    confirmAction = () => request("SA_AUTH_CANCEL");
+    // The confirmation below uses the same interruptible action as Finish.
+    connectionCancelConfirmation = true;
+    return;
+  }
+  return action(() => request("SA_AUTH_CANCEL"), { interrupt: true });
+};
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
 function nativeBackupPickerAvailable() {
@@ -428,6 +543,9 @@ async function ensureNativeBackupBridge() {
           $("backup-file").dispatchEvent(new Event("change", { bubbles: true }));
           $("backup").scrollIntoView({ block: "start" });
           if (data.error === "BACKUP_FILE_TOO_LARGE") $("backup-status").textContent = "Файл больше 8 MiB";
+          // Keep ownership so password edits, Preview and a new selection can
+          // explicitly clear the retained draft after a successful restore.
+          nativeBackupPickId = data.pickId;
           post({ type: "restored", pickId: data.pickId });
         };
         post({ type: "ready" });
