@@ -343,30 +343,15 @@ export function createPostgresMonitoringScheduleStore(
     },
     getState: (lane) => read(runtime, lane),
     async setInterval(lane, intervalSeconds, now) {
-      const result = await runtime.query<StateRow>(
-        `${stateProjection} WHERE lane=$1`,
-        [lane],
+      // Return the row produced by the write itself. A separate prior SELECT
+      // can report another scheduler's obsolete owner or result after a race.
+      const nextRunAt = new Date(now.valueOf() + intervalSeconds * 1000);
+      const changed = await runtime.query<StateRow>(
+        `UPDATE monitoring_lane_schedules SET interval_seconds=$2,next_run_at=$3,updated_at=$4 WHERE lane=$1 RETURNING ${stateColumns}`,
+        [lane, intervalSeconds, nextRunAt, now],
       );
-      if (!result.rows[0]) throw new Error("MONITORING_SCHEDULE_NOT_FOUND");
-      const updated = await runtime.query<StateRow>(
-        `${stateProjection} WHERE lane=$1`,
-        [lane],
-      );
-      await runtime.query(
-        `UPDATE monitoring_lane_schedules SET interval_seconds=$2,next_run_at=$3,updated_at=$4 WHERE lane=$1`,
-        [
-          lane,
-          intervalSeconds,
-          new Date(now.valueOf() + intervalSeconds * 1000),
-          now,
-        ],
-      );
-      return mapState({
-        ...updated.rows[0]!,
-        intervalSeconds,
-        nextRunAt: new Date(now.valueOf() + intervalSeconds * 1000),
-        updatedAt: now,
-      });
+      if (!changed.rows[0]) throw new Error("MONITORING_SCHEDULE_NOT_FOUND");
+      return mapState(changed.rows[0]);
     },
     async scheduleEarlier(lane, retryAt, _now) {
       // The minimum must be computed under PostgreSQL's row-level UPDATE lock.

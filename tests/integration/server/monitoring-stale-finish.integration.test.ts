@@ -405,4 +405,79 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(after.activeRun?.runId).toBe(runId);
     expect(after.lastResult?.runId).not.toBe(runId);
   }, 12000);
+  it("setInterval returns the committed owner after concurrent PostgreSQL row change", async () => {
+    const lane = "SWAGGER_API" as const;
+    const previous = await storeA.getState(lane);
+    const replacementRunId = randomUUID();
+    expect(replacementRunId).not.toBe(previous.activeRun?.runId);
+    let ready!: () => void;
+    let failReady!: (reason: unknown) => void;
+    let release!: () => void;
+    const locked = new Promise<void>((resolve, reject) => {
+      ready = resolve;
+      failReady = reject;
+    });
+    const permit = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const holding = workerB.transaction(async (query) => {
+      await query.query(
+        "SELECT lane FROM monitoring_lane_schedules WHERE lane=$1 FOR UPDATE",
+        [lane],
+      );
+      await query.query(
+        `UPDATE monitoring_lane_schedules
+            SET active_run_id=$2,active_run_source='FORCED',
+                active_run_started_at=clock_timestamp(),
+                active_run_lease_expires_at=clock_timestamp() + interval '1 minute'
+            WHERE lane=$1`,
+        [lane, replacementRunId],
+      );
+      ready();
+      await permit;
+    });
+    void holding.catch(failReady);
+    let reachedWrite!: () => void;
+    let failWrite!: (reason: unknown) => void;
+    const writeReady = new Promise<void>((resolve, reject) => {
+      reachedWrite = resolve;
+      failWrite = reject;
+    });
+    const delayedRuntime: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>(
+        statement: string,
+        values?: unknown[],
+      ) {
+        if (
+          statement.startsWith(
+            "UPDATE monitoring_lane_schedules SET interval_seconds",
+          )
+        )
+          reachedWrite();
+        return workerA.query<T>(statement, values);
+      },
+      transaction<T>(operation: (query: MonitoringSqlQuery) => Promise<T>) {
+        return workerA.transaction(operation);
+      },
+    };
+    let pending: ReturnType<typeof storeA.setInterval> | null = null;
+    try {
+      await locked;
+      pending = createPostgresMonitoringScheduleStore(
+        delayedRuntime,
+      ).setInterval(lane, 900, at(100));
+      void pending.catch(failWrite);
+      await writeReady;
+    } finally {
+      release();
+      // Never leave a blocked SQL request running while afterAll drops schema.
+      await Promise.allSettled([holding, ...(pending ? [pending] : [])]);
+    }
+    if (!pending) throw new Error("C03_SET_INTERVAL_WRITE_NOT_STARTED");
+    const updated = await pending;
+    const durable = await storeB.getState(lane);
+    expect(updated.activeRun?.runId).toBe(replacementRunId);
+    expect(updated.intervalSeconds).toBe(900);
+    expect(updated).toEqual(durable);
+  }, 12000);
 });

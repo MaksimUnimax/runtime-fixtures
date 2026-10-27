@@ -82,6 +82,77 @@ function simulateConditionalWrite(affected: boolean, expiredAtLock = false) {
 }
 
 describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
+  it("setInterval returns only the committed row, never a stale owner snapshot", async () => {
+    const statements: string[] = [];
+    const params: unknown[][] = [];
+    const intervalSeconds = 900;
+    const nextRunAt = new Date(now.valueOf() + intervalSeconds * 1000);
+    const databaseUpdatedAt = new Date(now.valueOf() + 120_000);
+    const committed = {
+      ...sqlRow(replacement),
+      intervalSeconds,
+      nextRunAt,
+      updatedAt: databaseUpdatedAt,
+    };
+    const mock: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>(
+        statement: string,
+        values: unknown[] = [],
+      ) {
+        statements.push(statement);
+        params.push(values);
+        // The old two-read implementation receives stale oldRun in both SELECTs;
+        // the conditional update commits a replacement owner's current row.
+        if (statement.startsWith("SELECT"))
+          return { rows: [sqlRow(oldRun)] as unknown as T[] };
+        expect(statement).toContain(
+          "SET interval_seconds=$2,next_run_at=$3,updated_at=$4",
+        );
+        expect(statement).toContain("RETURNING lane,");
+        return { rows: [committed] as unknown as T[] };
+      },
+      async transaction<T>(
+        operation: (query: MonitoringSqlQuery) => Promise<T>,
+      ) {
+        return operation(this);
+      },
+    };
+    const returned = await createPostgresMonitoringScheduleStore(
+      mock,
+    ).setInterval("SWAGGER_API", intervalSeconds, now);
+    expect(statements).toHaveLength(1);
+    expect(params[0]).toEqual(["SWAGGER_API", intervalSeconds, nextRunAt, now]);
+    expect(returned.activeRun?.runId).toBe(replacement);
+    expect(returned.intervalSeconds).toBe(intervalSeconds);
+    expect(returned.nextRunAt).toEqual(nextRunAt);
+    expect(returned.updatedAt).toEqual(databaseUpdatedAt);
+    expect(returned.lastResult).toBeNull();
+  });
+
+  it("setInterval fails closed when no PostgreSQL lane was updated", async () => {
+    const statements: string[] = [];
+    const mock: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>(statement: string) {
+        statements.push(statement);
+        return { rows: [] as T[] };
+      },
+      async transaction<T>(
+        operation: (query: MonitoringSqlQuery) => Promise<T>,
+      ) {
+        return operation(this);
+      },
+    };
+    await expect(
+      createPostgresMonitoringScheduleStore(mock).setInterval(
+        "SWAGGER_API",
+        900,
+        now,
+      ),
+    ).rejects.toThrow("MONITORING_SCHEDULE_NOT_FOUND");
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain("RETURNING lane,");
+  });
+
   it("updates scheduled retry deadline atomically without reading a stale snapshot", async () => {
     const statements: string[] = [];
     const timestamp = new Date(now.valueOf() + 30_000);
