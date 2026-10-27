@@ -508,8 +508,14 @@ const calculators = {
       days <= 0
     )
       return null;
-    const coverage = stock / (demand / days);
-    return Number.isFinite(coverage) ? coverage : null;
+    if (stock === 0) return 0;
+    // Neither division order is universally safe at IEEE-754 limits.
+    // Try a total-period quotient first, then a daily-rate quotient.
+    // Underflow is UNKNOWN rather than fabricated zero stock coverage.
+    const periodRatio = (stock / demand) * days;
+    if (Number.isFinite(periodRatio) && periodRatio > 0) return periodRatio;
+    const dailyRatio = stock / (demand / days);
+    return Number.isFinite(dailyRatio) && dailyRatio > 0 ? dailyRatio : null;
   },
   drr(input) {
     if (input?.complete !== true) return null;
@@ -1849,11 +1855,11 @@ const finiteOverflowCases = [
     null,
   ],
   [
-    "STD-07 long_period_overflow",
+    "STD-07 large_stock_and_period_true_overflow",
     "days_cover",
     {
       complete: true,
-      stock: 1,
+      stock: 2,
       demandUnits: 1,
       days: Number.MAX_VALUE,
     },
@@ -1918,6 +1924,72 @@ for (const [name, kind, input, expected] of [
       ],
     },
     { status: "COMPLETE", money: Number.MAX_VALUE / 2, units: 2 },
+  ],
+  [
+    "STD-07 tiny_demand_cancellation_is_finite",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MIN_VALUE,
+      demandUnits: Number.MIN_VALUE,
+      days: Number.MAX_VALUE,
+    },
+    Number.MAX_VALUE,
+  ],
+  [
+    "STD-07 large_period_is_finite",
+    "days_cover",
+    {
+      complete: true,
+      stock: 1,
+      demandUnits: 1,
+      days: Number.MAX_VALUE,
+    },
+    Number.MAX_VALUE,
+  ],
+  [
+    "STD-07 tiny_period_does_not_round_to_zero",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MAX_VALUE,
+      demandUnits: Number.MAX_VALUE,
+      days: Number.MIN_VALUE,
+    },
+    Number.MIN_VALUE,
+  ],
+  [
+    "STD-07 balanced_subnormal_demand_and_days",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MAX_VALUE,
+      demandUnits: Number.MIN_VALUE,
+      days: Number.MIN_VALUE,
+    },
+    Number.MAX_VALUE,
+  ],
+  [
+    "STD-07 severe_underflow_in_first_ratio",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MIN_VALUE,
+      demandUnits: Number.MAX_VALUE,
+      days: Number.MAX_VALUE,
+    },
+    Number.MIN_VALUE,
+  ],
+  [
+    "STD-07 tiny_vs_huge_source_range",
+    "days_cover",
+    {
+      complete: true,
+      stock: 1e-300,
+      demandUnits: 1e300,
+      days: 1e300,
+    },
+    1e-300,
   ],
   [
     "STD-07 zero_stock_observed",
