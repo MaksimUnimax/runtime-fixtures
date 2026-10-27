@@ -614,14 +614,29 @@ async function cancelRedirectBodyWithinDeadline(
   }
 }
 
+/** Revoked run ownership must never masquerade as retryable network failure. */
+export class ApiWatchAcquisitionRevokedError extends Error {
+  constructor() {
+    super("API_WATCH_ACQUISITION_REVOKED");
+    this.name = "ApiWatchAcquisitionRevokedError";
+  }
+}
+
 export async function acquireOfficialSource(input: {
   entry: SourceRegistryEntry;
   document?: SourceDocument;
   fetcher?: FetchLike;
   timeoutMs?: number;
   maxRedirects?: number;
+  /** Optional external run-owner cancellation; no ownership is created here. */
+  signal?: AbortSignal;
 }): Promise<AcquisitionOutcome> {
   const { entry } = input;
+  // Revoked ownership takes precedence over all source-specific outcomes.
+  const assertNotRevoked = () => {
+    if (input.signal?.aborted) throw new ApiWatchAcquisitionRevokedError();
+  };
+  assertNotRevoked();
   const document = input.document;
   const officialUrl = document?.officialUrl ?? entry.officialUrl;
   if (!officialUrl)
@@ -648,6 +663,8 @@ export async function acquireOfficialSource(input: {
       "INVALID_OFFICIAL_SOURCE_RESPONSE",
       "Official source URL scheme or authority is not trusted.",
     );
+  // A stale externally cancelled owner can never launch source egress.
+  assertNotRevoked();
   const fetcher = input.fetcher ?? pinnedOfficialSourceFetch;
   const timeoutMs = input.timeoutMs ?? API_WATCH_TIMEOUT_MS;
   const maxRedirects = input.maxRedirects ?? API_WATCH_MAX_REDIRECTS;
@@ -657,6 +674,9 @@ export async function acquireOfficialSource(input: {
   let response: Response;
   let responseToClose: Response | undefined;
   const controller = new AbortController();
+  const revoke = () => controller.abort();
+  input.signal?.addEventListener("abort", revoke, { once: true });
+  if (input.signal?.aborted) controller.abort();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // An injected transport can ignore AbortSignal even before headers arrive.
   // Bound the entire request promise, not just redirect cleanup and body read.
@@ -695,6 +715,7 @@ export async function acquireOfficialSource(input: {
           () => undefined,
         );
         response = await Promise.race([pendingHeaders, headersAborted]);
+        assertNotRevoked();
         responseToClose = response;
         if (![301, 302, 303, 307, 308].includes(response.status)) break;
         const location = response.headers.get("location");
@@ -763,6 +784,8 @@ export async function acquireOfficialSource(input: {
         currentUrl = nextUrl.toString();
       }
     } catch (error) {
+      // Cancellation is a revoked run, never a new NETWORK retry episode.
+      assertNotRevoked();
       return failure(
         entry,
         "SOURCE_TEMPORARILY_UNAVAILABLE",
@@ -824,6 +847,8 @@ export async function acquireOfficialSource(input: {
         controller.signal,
       );
     } catch (error) {
+      // A revoked lease must not be converted into a temporary source failure.
+      assertNotRevoked();
       if (controller.signal.aborted)
         return failure(
           entry,
@@ -840,6 +865,7 @@ export async function acquireOfficialSource(input: {
         response.status,
       );
     }
+    assertNotRevoked();
     if (isHtml(response, bytes)) {
       return isAccessControlPage(bytes)
         ? failure(
@@ -905,6 +931,7 @@ export async function acquireOfficialSource(input: {
         documentKey: document?.documentKey ?? null,
       };
     } catch (error) {
+      assertNotRevoked();
       return failure(
         entry,
         "INVALID_OFFICIAL_SOURCE_RESPONSE",
@@ -918,6 +945,7 @@ export async function acquireOfficialSource(input: {
     // Do not await a trusted test adapter's possibly unbounded cancellation.
     controller.abort();
     clearTimeout(timer);
+    input.signal?.removeEventListener("abort", revoke);
     removeHeaderAbortListener();
     try {
       void responseToClose?.body?.cancel().catch(() => undefined);
