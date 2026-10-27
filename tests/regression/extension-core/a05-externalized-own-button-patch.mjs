@@ -43,14 +43,34 @@ const laterB02Patches = patches.slice(192, 359);
 assert.equal(laterB02Patches.length, 167);
 assert.equal(hash(JSON.stringify(laterB02Patches)), "138ff29bb349c6fd808546a169c4164db134b2d3021ef42370c4d32681a25bbd",
   "exact preserved B02 overlays before the CAP-24 patch");
-const cap24ReportPatches = patches.slice(359);
+const cap24ReportPatches = patches.slice(359, 360);
 assert.equal(cap24ReportPatches.length, 1, "exactly one approved Ozon CAP-24 app patch");
 const cap24ReportPatch = cap24ReportPatches[0];
 assert.equal(cap24ReportPatch.target, "shared/llm_output_report_workflow_patch.js");
 assert.deepEqual(Object.keys(cap24ReportPatch).sort(), ["new", "old", "target"]);
 assert.equal(hash(cap24ReportPatch.old), "a6ad130dd40809bdf56ead39d31a097ec1bdb7b211592e3d81e789922f0208d2");
 assert.equal(hash(cap24ReportPatch.new), "47f3d67550b8fb0968f42a5b362ed63f2186eb95c10c8e4c285ecbdff723018c");
-assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length);
+const groupedResultPatches = patches.slice(360);
+assert.equal(groupedResultPatches.length, 3, "exactly three retained PR205 Ozon JSON-copy overlays");
+assert.deepEqual(groupedResultPatches.map(row => {
+  assert.equal(row.target, "shared/ozon_contract.js");
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+  return [hash(row.old), hash(row.new)];
+}), [
+  [
+    "de977049fe188bce48fdc32df214867384616f6c6043a2dabb8da605c97ced5c",
+    "e45657bdc13b3defa99c5a10fd1214caf2dc925da3022b8c6941ae14dc6a4be4"
+  ],
+  [
+    "9b0e9cd3db262fead5fe49df362c67d6b8e93386fcdd3e8adf1bce4f630d67e5",
+    "add2b522fb406a259115c6c795e469a9ee9c1c5c46d97f860577b38ee7816c4a"
+  ],
+  [
+    "9199df7bdf5ff2b40d78f513747be33e653f6f62484fc593fb7eaf7154cc5dd0",
+    "4e258bf72d73bf39d0180c5dd4084534ba5ecbd12cb107a7161ae37616052878"
+  ]
+]);
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];
