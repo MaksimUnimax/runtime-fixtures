@@ -56,7 +56,9 @@ export default function FeedbackPage() {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
-  const [supportDetail, setSupportDetail] = useState<SupportDetail | null>(null);
+  const [supportDetail, setSupportDetail] = useState<SupportDetail | null>(
+    null,
+  );
   // Refs fence repeated events before React commits the disabled controls.
   const loading = useRef(false);
   const submitting = useRef(false);
