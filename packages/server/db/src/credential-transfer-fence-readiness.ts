@@ -91,12 +91,13 @@ SELECT
   -- Migration 0062 adds a separate row guard for code-enrolled recipients.
   -- Require both exact guards; missing, disabled, replaced or additional
   -- triggers remain a refusal, never an unprovisioned runtime fallback.
-  (SELECT count(*)=2 AND bool_and(
+  -- bool_and ignores NULL, so an unresolved expected function must be false.
+  (SELECT count(*)=2 AND bool_and(coalesce(
       (tgname='credential_transfer_epoch_guard' AND tgtype=62 AND tgenabled='A'
        AND tgfoid=pg_catalog.to_regprocedure('octoport_transfer_fence.guard_transfer_statement()'))
       OR
       (tgname='connection_transfer_approval_guard' AND tgtype=23 AND tgenabled='O'
-       AND tgfoid=pg_catalog.to_regprocedure('public.octoport_guard_connection_transfer_approval()')))
+       AND tgfoid=pg_catalog.to_regprocedure('public.octoport_guard_connection_transfer_approval()')),false))
     FROM pg_catalog.pg_trigger
     WHERE tgrelid=pg_catalog.to_regclass('public.credential_transfer_requests') AND NOT tgisinternal) AS mandatory_statement_trigger,
   (SELECT count(*)=3 AND bool_and(attnotnull AND

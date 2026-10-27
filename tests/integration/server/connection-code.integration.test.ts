@@ -177,6 +177,7 @@ describe.sequential(
       const current = await query(TRANSFER_FENCE_RUNTIME_CHECK_SQL);
       expect(current.rows[0]?.mandatory_statement_trigger).toBe(true);
       const mutations = [
+        "ALTER FUNCTION public.octoport_guard_connection_transfer_approval() RENAME TO octoport_guard_connection_transfer_approval_probe",
         "ALTER TABLE public.credential_transfer_requests DISABLE TRIGGER credential_transfer_epoch_guard",
         "ALTER TABLE public.credential_transfer_requests DISABLE TRIGGER connection_transfer_approval_guard",
         "DROP TRIGGER connection_transfer_approval_guard ON public.credential_transfer_requests",
