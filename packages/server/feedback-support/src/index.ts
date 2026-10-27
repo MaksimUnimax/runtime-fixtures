@@ -266,7 +266,43 @@ function redactStructuredCredentialValues(input: string): string {
 // when its end cannot be established without guessing a safe boundary.
 const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
 
+// A bare log-style key such as password: "..." has no quoted JSON key.
+// The ordinary line-level regex would mask only the first physical line.
+// If its quoted credential spans a raw LF/CR, no trustworthy free-text
+// suffix boundary exists: discard the entire diagnostic, never its tail.
+const bareQuotedCredentialValueStart =
+  /\b([A-Za-z_][A-Za-z0-9_-]{0,63})[ \t]*[:=][ \t]*(["'])/gu;
+
+function hasBareQuotedMultilineCredential(input: string): boolean {
+  bareQuotedCredentialValueStart.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = bareQuotedCredentialValueStart.exec(input)) !== null) {
+    if (!sensitiveJsonKey.test(match[1]!)) continue;
+    const quote = match[2]!;
+    let escaped = false;
+    for (
+      let index = bareQuotedCredentialValueStart.lastIndex;
+      index < input.length;
+      index++
+    ) {
+      const char = input[index]!;
+      if (char === "\n" || char === "\r") return true;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) break;
+    }
+  }
+  return false;
+}
+
 function redactMultilineQuotedSecrets(input: string): string {
+  if (hasBareQuotedMultilineCredential(input)) return "[REDACTED_SECRET]";
   let output = "";
   let cursor = 0;
   let changed = false;
