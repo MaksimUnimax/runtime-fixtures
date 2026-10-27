@@ -280,13 +280,16 @@ function hasBareQuotedMultilineCredential(input: string): boolean {
     if (!sensitiveJsonKey.test(match[1]!)) continue;
     const quote = match[2]!;
     let escaped = false;
+    let closed = false;
     for (
       let index = bareQuotedCredentialValueStart.lastIndex;
       index < input.length;
       index++
     ) {
       const char = input[index]!;
-      if (char === "\n" || char === "\r") return true;
+      // The basic token matcher stops at whitespace, commas and semicolons.
+      // A partial replacement would disclose the rest of this credential.
+      if (/[\s,;]/u.test(char)) return true;
       if (escaped) {
         escaped = false;
         continue;
@@ -295,8 +298,13 @@ function hasBareQuotedMultilineCredential(input: string): boolean {
         escaped = true;
         continue;
       }
-      if (char === quote) break;
+      if (char === quote) {
+        closed = true;
+        break;
+      }
     }
+    // An unterminated quoted secret has no trustworthy value boundary.
+    if (!closed) return true;
   }
   return false;
 }
@@ -537,11 +545,14 @@ export class FeedbackSupportService {
     const description = sanitizeFeedbackText(body.description);
     if (!description || description.length > 4000)
       return { ok: false, code: "INVALID_REQUEST" };
+    const diagnostics = sanitizeDiagnostics(body.diagnostics);
     const result = await this.repository.createCase({
       userId,
-      body,
+      // Never carry the raw user description across the repository boundary
+      // inside an auxiliary copy of the validated request body.
+      body: { ...body, description, diagnostics: diagnostics ?? undefined },
       description,
-      diagnostics: sanitizeDiagnostics(body.diagnostics),
+      diagnostics,
       correlationId,
     });
     if ("kind" in result) {
