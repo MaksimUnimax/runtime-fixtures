@@ -1287,6 +1287,56 @@ class CurrentApplyEngineTests(unittest.TestCase):
         self.assertNotIn("restore-db",[e[0] for e in self.events])
         self.assertIn("restore-units",[e[0] for e in self.events])
 
+    def test_success_crash_during_fence_cleanup_keeps_terminal_journal(self):
+        evidence=self.root/"apply-cleanup-interrupted";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        def interrupted(_plan):
+            state=json.loads(journal.read_text())
+            self.assertEqual(state["phase"],"CANDIDATE_PASS")
+            self.assertFalse(state["recoveryRequired"])
+            self.assertTrue(state["fenceCleanupPending"])
+            raise RuntimeError("SYNTHETIC_FENCE_UNLINK_INTERRUPTED")
+        with self.patches() as stack:
+            stack.enter_context(patch.object(deploy,"current_remove_reboot_fence",side_effect=interrupted))
+            with self.assertRaisesRegex(RuntimeError,"SYNTHETIC_FENCE_UNLINK_INTERRUPTED"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=journal,evidence_dir=evidence,
+                )
+        state=json.loads(journal.read_text())
+        self.assertFalse(state["recoveryRequired"])
+        self.assertTrue(state["fenceCleanupPending"])
+        self.assertEqual(state["phase"],"CANDIDATE_PASS")
+        self.assertNotIn("restore-db",[e[0] for e in self.events])
+        self.assertNotIn("restore-units",[e[0] for e in self.events])
+        self.assertEqual(self.prefix,50)
+
+    def test_rollback_crash_during_fence_cleanup_does_not_reopen_recovery(self):
+        evidence=self.root/"apply-rollback-cleanup-interrupted";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        def interrupted(_plan):
+            state=json.loads(journal.read_text())
+            self.assertEqual(state["phase"],"ROLLBACK_PASS")
+            self.assertFalse(state["recoveryRequired"])
+            self.assertTrue(state["fenceCleanupPending"])
+            raise RuntimeError("SYNTHETIC_ROLLBACK_FENCE_UNLINK_INTERRUPTED")
+        with self.patches(health_error="SYNTHETIC_HEALTH_FAILURE") as stack:
+            stack.enter_context(patch.object(deploy,"current_remove_reboot_fence",side_effect=interrupted))
+            with self.assertRaisesRegex(RuntimeError,"SYNTHETIC_ROLLBACK_FENCE_UNLINK_INTERRUPTED"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=journal,evidence_dir=evidence,
+                )
+        state=json.loads(journal.read_text())
+        self.assertEqual(state["phase"],"ROLLBACK_PASS")
+        self.assertFalse(state["recoveryRequired"])
+        self.assertTrue(state["fenceCleanupPending"])
+        self.assertEqual([e[0] for e in self.events].count("restore-db"),1)
+        self.assertEqual([e[0] for e in self.events].count("restore-units"),1)
+        self.assertEqual(self.prefix,17)
+
 
 class CurrentBaseUnitContractTests(unittest.TestCase):
     def plan(self):
@@ -1520,6 +1570,213 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 )
             stop.assert_not_called()
 
+    def test_recovery_crash_during_fence_cleanup_keeps_terminal_journal(self):
+        self.write_state("PREDEPLOY_VERIFIED",backup=False)
+        events=[]
+        def interrupted(_plan):
+            state=json.loads(self.journal.read_text())
+            self.assertEqual(state["phase"],"CURRENT_RECOVERY_PASS")
+            self.assertFalse(state["recoveryRequired"])
+            self.assertTrue(state["fenceCleanupPending"])
+            raise RuntimeError("SYNTHETIC_RECOVERY_FENCE_UNLINK_INTERRUPTED")
+        with self.patch_common(events) as stack:
+            stack.enter_context(patch.object(deploy,"current_remove_reboot_fence",side_effect=interrupted))
+            with self.assertRaisesRegex(RuntimeError,"SYNTHETIC_RECOVERY_FENCE_UNLINK_INTERRUPTED"):
+                deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+        state=json.loads(self.journal.read_text())
+        self.assertFalse(state["recoveryRequired"])
+        self.assertTrue(state["fenceCleanupPending"])
+        self.assertEqual(state["phase"],"CURRENT_RECOVERY_PASS")
+        self.assertEqual(events,["fence-block","fence-install","stop","dropins","fence-allow","units"])
+
+    def terminal_cleanup_state(self):
+        self.write_state("PREDEPLOY_VERIFIED",backup=False)
+        receipt_path=self.evidence/"receipt.json"
+        receipt=json.loads(receipt_path.read_text())
+        receipt.update(status="APPLY_PASS",recoveryRequired=False,fenceCleanupPending=True)
+        receipt_path.write_text(json.dumps(receipt))
+        state=json.loads(self.journal.read_text())
+        state.update(phase="CANDIDATE_PASS",recoveryRequired=False,
+                     fenceCleanupPending=True,candidateSourceSha="a"*40,
+                     candidateSourceTree="b"*40,trustedInventorySha256="c"*64,
+                     predeployPrefix=17,candidateTarget=50)
+        self.journal.write_text(json.dumps(state))
+
+    def test_committed_terminal_cleanup_is_recovered_without_db_or_service_restart(self):
+        self.terminal_cleanup_state()
+        events=[]
+        with self.patch_common(events):
+            result=deploy.current_recover_engine(
+                candidate_release=self.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=self.root,journal=self.journal,
+            )
+        self.assertEqual(result["status"],"CURRENT_FENCE_CLEANUP_PASS")
+        self.assertEqual(result["trustedInventorySha256"],"c"*64)
+        self.assertTrue(result["installedHealthFollowupRequired"])
+        self.assertEqual(events,["fence-remove"])
+        state=json.loads(self.journal.read_text())
+        self.assertFalse(state["recoveryRequired"])
+        self.assertFalse(state["fenceCleanupPending"])
+        self.assertFalse(json.loads((self.evidence/"receipt.json").read_text())["fenceCleanupPending"])
+
+    def test_committed_terminal_cleanup_rejects_invalid_original_receipt(self):
+        self.terminal_cleanup_state()
+        receipt_path=self.evidence/"receipt.json"
+        receipt=json.loads(receipt_path.read_text())
+        receipt["status"]="FORGED_SUCCESS"
+        receipt_path.write_text(json.dumps(receipt))
+        events=[]
+        with self.patch_common(events):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_STATE_INVALID"):
+                deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+        self.assertEqual(events,[])
+        self.assertTrue(json.loads(self.journal.read_text())["fenceCleanupPending"])
+
+    def test_finalizer_rejects_numeric_receipt_cleanup_marker(self):
+        self.terminal_cleanup_state()
+        receipt_path=self.evidence/"receipt.json"
+        receipt=json.loads(receipt_path.read_text())
+        receipt["fenceCleanupPending"]=0
+        receipt_path.write_text(json.dumps(receipt))
+        with self.patch_common([]) as stack:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_STATE_INVALID"):
+                deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+
+
+
+    def test_pending_cleanup_rejects_missing_or_changed_inventory_without_mutation(self):
+        for side in ("journal", "receipt"):
+            for failure in ("missing", "changed"):
+                with self.subTest(side=side,failure=failure):
+                    self.terminal_cleanup_state()
+                    path=self.journal if side=="journal" else self.evidence/"receipt.json"
+                    data=json.loads(path.read_text())
+                    if failure=="missing":
+                        data.pop("trustedInventorySha256",None)
+                    else:
+                        data["trustedInventorySha256"]="d"*64
+                    path.write_text(json.dumps(data))
+                    events=[]
+                    with self.patch_common(events):
+                        with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_STATE_INVALID"):
+                            deploy.current_recover_engine(
+                                candidate_release=self.release,expected_source_sha="a"*40,
+                                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                                evidence_root=self.root,journal=self.journal,
+                            )
+                    self.assertEqual(events,[])
+                    state=json.loads(self.journal.read_text())
+                    self.assertTrue(state["fenceCleanupPending"])
+                    self.assertFalse(state["recoveryRequired"])
+
+    def test_pending_cleanup_rejects_new_inventory_for_same_source_tree(self):
+        self.terminal_cleanup_state()
+        events=[]
+        with self.patch_common(events):
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_STATE_INVALID"):
+                deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="d"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+        self.assertEqual(events,[])
+        self.assertTrue(json.loads(self.journal.read_text())["fenceCleanupPending"])
+
+    def test_partial_real_fence_unlink_then_exact_recover_finishes_without_replay(self):
+        # Independent R2 review rework: exercise the real four-file unlink
+        # through BOTH recovery invocations rather than combining separate
+        # unit-level stubs of interrupted cleanup and idempotent replay.
+        self.write_state("PREDEPLOY_VERIFIED",backup=False)
+        old_root,old_allow=deploy.CURRENT_DROPIN_ROOT,deploy.CURRENT_FENCE_ALLOW
+        deploy.CURRENT_DROPIN_ROOT=self.root/"systemd"
+        deploy.CURRENT_FENCE_ALLOW=self.root/"run"/"allow"
+        deploy.CURRENT_FENCE_ALLOW.parent.mkdir()
+        self.addCleanup(setattr,deploy,"CURRENT_DROPIN_ROOT",old_root)
+        self.addCleanup(setattr,deploy,"CURRENT_FENCE_ALLOW",old_allow)
+        completed=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")
+        real_cleanup=deploy.current_remove_reboot_fence
+        real_disable=deploy.current_disable_fenced_start
+        real_unlink=Path.unlink
+        with patch.object(deploy,"run",return_value=completed):
+            deploy.current_install_reboot_fence(self.plan)
+            fences=list(deploy.current_fence_paths(self.plan).values())
+            self.assertEqual(len(fences),4)
+            self.assertTrue(all(p.is_file() for p in fences))
+            count=[0]
+            def interrupt_after_first(p,*args,**kwargs):
+                if p.name==deploy.CURRENT_FENCE_NAME:
+                    count[0]+=1
+                    if count[0]==2:
+                        raise RuntimeError("SYNTHETIC_CRASH_AFTER_FIRST_REAL_FENCE_UNLINK")
+                return real_unlink(p,*args,**kwargs)
+            original_events=[]
+            with self.patch_common(original_events) as stack:
+                stack.enter_context(patch.object(
+                    deploy,"current_remove_reboot_fence",side_effect=real_cleanup))
+                stack.enter_context(patch.object(
+                    deploy,"current_disable_fenced_start",side_effect=real_disable))
+                stack.enter_context(patch.object(Path,"unlink",new=interrupt_after_first))
+                with self.assertRaisesRegex(
+                    RuntimeError,"SYNTHETIC_CRASH_AFTER_FIRST_REAL_FENCE_UNLINK"
+                ):
+                    deploy.current_recover_engine(
+                        candidate_release=self.release,expected_source_sha="a"*40,
+                        expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                        evidence_root=self.root,journal=self.journal,
+                    )
+            self.assertEqual(count[0],2)
+            self.assertEqual([p.is_file() for p in fences],[False,True,True,True])
+            interrupted_state=json.loads(self.journal.read_text())
+            interrupted_receipt=json.loads((self.evidence/"recovery.json").read_text())
+            self.assertEqual(interrupted_state["phase"],"CURRENT_RECOVERY_PASS")
+            self.assertFalse(interrupted_state["recoveryRequired"])
+            self.assertTrue(interrupted_state["fenceCleanupPending"])
+            self.assertEqual(interrupted_receipt["status"],"CURRENT_RECOVERY_PASS")
+            self.assertEqual(interrupted_state["trustedInventorySha256"],"c"*64)
+            self.assertEqual(interrupted_receipt["trustedInventorySha256"],"c"*64)
+            self.assertFalse(interrupted_receipt["recoveryRequired"])
+            self.assertTrue(interrupted_receipt["fenceCleanupPending"])
+            # No helper may rerun DB restore, units, or any provider operation.
+            second_events=[]
+            with self.patch_common(second_events) as stack:
+                stack.enter_context(patch.object(
+                    deploy,"current_remove_reboot_fence",side_effect=real_cleanup))
+                stack.enter_context(patch.object(
+                    deploy,"current_disable_fenced_start",side_effect=real_disable))
+                result=deploy.current_recover_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=self.journal,
+                )
+            self.assertEqual(second_events,[])
+            self.assertEqual(result["status"],"CURRENT_FENCE_CLEANUP_PASS")
+            self.assertTrue(result["installedHealthFollowupRequired"])
+            self.assertTrue(all(not p.exists() for p in fences))
+            final_state=json.loads(self.journal.read_text())
+            final_receipt=json.loads((self.evidence/"recovery.json").read_text())
+            self.assertFalse(final_state["recoveryRequired"])
+            self.assertFalse(final_state["fenceCleanupPending"])
+            self.assertFalse(final_receipt["fenceCleanupPending"])
+            self.assertEqual(final_state["trustedInventorySha256"],"c"*64)
+            self.assertEqual(final_receipt["trustedInventorySha256"],"c"*64)
+            self.assertEqual(final_receipt["status"],"CURRENT_RECOVERY_PASS")
+            self.assertEqual(final_receipt["candidateSourceSha"],"a"*40)
+            self.assertEqual(final_receipt["candidateSourceTree"],"b"*40)
+
+
 
 class CurrentRebootFenceSafetyTests(unittest.TestCase):
     def setUp(self):
@@ -1577,6 +1834,38 @@ class CurrentRebootFenceSafetyTests(unittest.TestCase):
         unit_dir.symlink_to(outside,target_is_directory=True)
         with self.assertRaisesRegex(RuntimeError,"CURRENT_PATH_SYMLINK_FORBIDDEN"):
             deploy.current_install_reboot_fence(self.plan)
+
+    def test_partial_unlink_can_resume_only_after_terminal_journal(self):
+        completed=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")
+        with patch.object(deploy,"run",return_value=completed):
+            deploy.current_install_reboot_fence(self.plan)
+            paths=list(deploy.current_fence_paths(self.plan).values())
+            old_unlink=Path.unlink
+            attempts=[0]
+            def interrupt_second_fence(p, *a, **kw):
+                if p.name==deploy.CURRENT_FENCE_NAME:
+                    attempts[0]+=1
+                    if attempts[0]==2:
+                        raise RuntimeError("SYNTHETIC_SECOND_FENCE_UNLINK_ABORT")
+                return old_unlink(p,*a,**kw)
+            with patch.object(Path,"unlink",new=interrupt_second_fence):
+                with self.assertRaisesRegex(RuntimeError,"SYNTHETIC_SECOND_FENCE_UNLINK_ABORT"):
+                    deploy.current_remove_reboot_fence(self.plan)
+            self.assertEqual(sum(p.exists() for p in paths),3)
+            deploy.current_remove_reboot_fence(self.plan)
+            self.assertTrue(all(not p.exists() for p in paths))
+            # Idempotent finalization after a crash just after the last unlink.
+            deploy.current_remove_reboot_fence(self.plan)
+
+    def test_modified_persistent_fence_is_not_unlinked(self):
+        completed=deploy.subprocess.CompletedProcess([],0,stdout=b"",stderr=b"")
+        with patch.object(deploy,"run",return_value=completed):
+            deploy.current_install_reboot_fence(self.plan)
+            target=deploy.current_fence_paths(self.plan)["api"]
+            target.write_text("[Unit]\nConditionPathExists=/unexpected\n")
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_FENCE_CONFLICT:api"):
+                deploy.current_remove_reboot_fence(self.plan)
+            self.assertTrue(target.is_file())
 
 
 class CurrentEvidenceAndBackupSafetyTests(unittest.TestCase):
@@ -1663,6 +1952,31 @@ class CurrentOperationGuardTests(unittest.TestCase):
                 self.invoke()
         finally:
             deploy.fcntl.flock(fd,deploy.fcntl.LOCK_UN);os.close(fd)
+
+    def test_committed_but_partially_cleaned_fence_blocks_new_apply(self):
+        self.journal.write_text(json.dumps({
+            "phase":"CANDIDATE_PASS",
+            "recoveryRequired":False,
+            "fenceCleanupPending":True,
+        }))
+        with patch.object(deploy,"verified_current_source_plan") as verify, \
+             patch.object(deploy,"current_stop_product_units") as stop:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_REQUIRED"):
+                self.invoke()
+            verify.assert_not_called()
+            stop.assert_not_called()
+
+    def test_explicit_null_or_numeric_cleanup_marker_fails_closed(self):
+        with patch.object(deploy,"verified_current_source_plan") as verify:
+            for invalid in (None,0,1,"false",[],{}):
+                with self.subTest(value=invalid):
+                    self.journal.write_text(json.dumps({
+                        "recoveryRequired":False,
+                        "fenceCleanupPending":invalid,
+                    }))
+                    with self.assertRaisesRegex(RuntimeError,"CURRENT_FENCE_CLEANUP_REQUIRED"):
+                        self.invoke()
+        verify.assert_not_called()
 
 class CurrentCliAuthorityTests(unittest.TestCase):
     def setUp(self):
