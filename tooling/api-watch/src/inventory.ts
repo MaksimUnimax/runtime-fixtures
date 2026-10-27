@@ -330,6 +330,16 @@ function securityFingerprint(
   return fingerprint({ requirements, schemes }, "literal");
 }
 
+// The OpenAPI parser validates the document root, not every operation or
+// Path Item. A malformed non-array parameters field must not be interpreted
+// as a valid empty list or silently produce an unchanged semantic fingerprint.
+function optionalParameterArray(value: unknown): readonly unknown[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value))
+    throw new Error("APIWATCH_PARAMETERS_INVALID_CONTAINER");
+  return value;
+}
+
 // Operation parameters override Path Item parameters with the same name and
 // location (OAS 2 and 3). Resolve local references before identifying them.
 function effectiveParameters(
@@ -385,7 +395,7 @@ function effectiveParameters(
     }
   };
   addLevel(pathParameters);
-  addLevel(Array.isArray(operation.parameters) ? operation.parameters : []);
+  addLevel(optionalParameterArray(operation.parameters));
   const parameters = [...effective.values()];
   // OAS 3.2 querystring represents the ENTIRE query. It may occur only
   // once, and must not coexist with ordinary query parameters after valid
@@ -897,9 +907,7 @@ export function buildCompleteOperationInventory(input: {
   const operations: OperationInventoryItem[] = [];
   for (const path of Object.keys(paths).sort()) {
     const pathItem = resolvePathItem(paths[path], document.root);
-    const pathParameterValues = Array.isArray(pathItem.parameters)
-      ? pathItem.parameters
-      : [];
+    const pathParameterValues = optionalParameterArray(pathItem.parameters);
     for (const method of HTTP_METHODS) {
       const operation = pathItem[method.toLowerCase()];
       if (

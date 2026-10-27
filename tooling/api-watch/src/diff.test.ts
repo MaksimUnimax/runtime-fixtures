@@ -152,6 +152,68 @@ describe("C03 canonical fallback for synthetic Unicode-equivalent identities", (
 });
 
 describe("A4 semantic API diffs", () => {
+  it.each(["3.0.3", "2.0"] as const)(
+    "C03 rejects malformed Path Item and Operation parameters in OAS %s",
+    (version) => {
+      const page = {
+        name: "page",
+        in: "query",
+        required: true,
+        schema: { type: "integer" },
+      };
+      const build = (
+        pathParameterValue?: unknown,
+        operationParameterValue?: unknown,
+      ) => {
+        const pathItem = {
+          ...(pathParameterValue === undefined
+            ? {}
+            : { parameters: pathParameterValue }),
+          get: {
+            ...(operationParameterValue === undefined
+              ? {}
+              : { parameters: operationParameterValue }),
+            responses: { "200": { description: "ok" } },
+          },
+        };
+        return buildCompleteOperationInventory({
+          sourceFamily: FAMILY,
+          snapshotSha256: BASE_SHA,
+          filename: "openapi.json",
+          bytes: Buffer.from(
+            JSON.stringify({
+              ...(version === "2.0"
+                ? { swagger: "2.0" }
+                : { openapi: "3.0.3" }),
+              info: { title: "parameter container proof", version: "1" },
+              paths: { "/orders": pathItem },
+            }),
+          ),
+        });
+      };
+      const empty = build();
+      for (const invalid of [null, { ...page }, 42, false, "query"]) {
+        expect(() => build(invalid)).toThrow(
+          "APIWATCH_PARAMETERS_INVALID_CONTAINER",
+        );
+        expect(() => build(undefined, invalid)).toThrow(
+          "APIWATCH_PARAMETERS_INVALID_CONTAINER",
+        );
+      }
+      const emptyPath = build([]);
+      const emptyOperation = build(undefined, []);
+      expect(empty.operations[0]?.parameterCount).toBe(0);
+      expect(emptyPath.operations[0]?.parameterSchemaSha256).toBe(
+        empty.operations[0]?.parameterSchemaSha256,
+      );
+      expect(emptyOperation.operations[0]?.parameterSchemaSha256).toBe(
+        empty.operations[0]?.parameterSchemaSha256,
+      );
+      expect(build([page]).operations[0]?.parameterCount).toBe(1);
+      expect(build(undefined, [page]).operations[0]?.parameterCount).toBe(1);
+    },
+  );
+
   it("C03 rejects duplicate same-level parameter identities instead of hiding changed contracts", () => {
     const page = (type: string, required = false) => ({
       name: "page",
