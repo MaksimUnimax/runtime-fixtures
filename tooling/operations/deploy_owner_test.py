@@ -960,6 +960,10 @@ def current_operation_lock(evidence_root: Path):
     finally:
         os.close(fd)
 
+# Version 1 persists baseline start intent in both original records before
+# admitting writers. Unversioned old attempts cannot prove safe dump replay.
+CURRENT_BASELINE_RECOVERY_PROTOCOL = 1
+
 def current_assert_apply_journal_clear(journal: Path) -> None:
     if not journal.exists():
         return
@@ -1037,6 +1041,7 @@ def _current_apply_engine_locked(
     backup=None
     result={
         'status':'STARTED',
+        'baselineRecoveryProtocol':CURRENT_BASELINE_RECOVERY_PROTOCOL,
         'phase':phase,
         'recoveryRequired':True,
         'candidateSourceSha':plan.get('sourceSha'),
@@ -1055,6 +1060,7 @@ def _current_apply_engine_locked(
         result['schemaState']=schema_state
         write_json_durable(evidence_dir/'receipt.json',result)
         write_json_durable(journal,{
+            'baselineRecoveryProtocol':result['baselineRecoveryProtocol'],
             'phase':phase,
             'schemaState':schema_state,
             'recoveryRequired':result['recoveryRequired'],
@@ -1351,6 +1357,20 @@ def _current_recover_engine_locked(
         raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
     if plan.get('migrationTarget',{}).get('count')!=target:
         raise RuntimeError('CURRENT_BASELINE_SCHEMA_TARGET_MISMATCH')
+    # Missing recovery.json can mean an old process died AFTER admitting a
+    # writer. Only two matching records written by this durable-start protocol
+    # can authorize a destructive pre-start restore; never upgrade legacy
+    # UNKNOWN evidence or infer safety from absence of a final result file.
+    if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
+        for item in (state,receipt):
+            if (type(item.get('baselineRecoveryProtocol')) is not int
+                    or item['baselineRecoveryProtocol']!=CURRENT_BASELINE_RECOVERY_PROTOCOL
+                    or item.get('applicationMayHaveWritten') is not False):
+                raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+        for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix',
+                      'candidateTarget','schemaState','phase'):
+            if state.get(field)!=receipt.get(field):
+                raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
     # Pre-fix failed recovery did not record whether baseline writers started.
     previous=evidence_dir/'recovery.json'
     if not may_have_written and schema_state!='PREDEPLOY_VERIFIED' and os.path.lexists(previous):

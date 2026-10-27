@@ -1243,6 +1243,25 @@ class CurrentApplyEngineTests(unittest.TestCase):
         self.assertLess(names.index("start"),names.index("health"))
 
 
+
+    def test_replay_protocol_is_durable_before_first_migration(self):
+        evidence=self.root/"apply-protocol";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        def migrate(release,url):
+            for path in (journal,evidence/"receipt.json"):
+                saved=json.loads(path.read_text())
+                self.assertEqual(saved["baselineRecoveryProtocol"],1)
+                self.assertIs(saved["applicationMayHaveWritten"],False)
+                self.assertEqual(saved["schemaState"],"UNKNOWN")
+                self.assertEqual(saved["phase"],"LIVE_MIGRATION")
+            self.prefix=50
+        with self.patches(),patch.object(deploy,"migrate",side_effect=migrate):
+            deploy.current_apply_engine(
+                candidate_release=self.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=self.root,journal=journal,evidence_dir=evidence,
+            )
+
     def test_post_start_failure_preserves_new_device_session_rows(self):
         evidence=self.root/"apply-new-session";evidence.mkdir()
         journal=self.root/"deployment-state.json"
@@ -1471,12 +1490,16 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
             "predeployPrefix":17,"candidateTarget":50,
             "baselineUnits":self.baseline,
             "databaseMeta":{"encoding":"UTF8","collate":"C","ctype":"C"},
+            "baselineRecoveryProtocol":1,
+            "phase":"LIVE_MIGRATION","schemaState":schema,"applicationMayHaveWritten":False,
         }
         if backup:
             receipt["backup"]={"path":str(self.backup),"sha256":"d"*64,"bytes":1}
         (self.evidence/"receipt.json").write_text(json.dumps(receipt))
         self.journal.write_text(json.dumps({
             "phase":"LIVE_MIGRATION","schemaState":schema,"recoveryRequired":True,
+            "baselineRecoveryProtocol":1,"applicationMayHaveWritten":False,
+            **{k:receipt[k] for k in ("candidateSourceSha","candidateSourceTree","predeployPrefix","candidateTarget")},
             "receipt":str(self.evidence/"receipt.json"),
         }))
 
@@ -1693,6 +1716,66 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 self.recover_forward_target()
         restore.assert_not_called()
         self.assertEqual(events,[])
+
+
+    def test_old_baseline_crash_without_final_receipt_never_replays_dump(self):
+        # Persisted 780979e3 state: baseline already wrote, then process loss
+        # prevented BOTH the final recovery file and any original-state update.
+        self.write_state("UNKNOWN");events=[];rows=["device-after-old-start","session-after-old-start"]
+        for path in (self.evidence/"receipt.json",self.journal):
+            payload=json.loads(path.read_text())
+            payload.update(phase="LIVE_MIGRATION",schemaState="UNKNOWN",applicationMayHaveWritten=False)
+            payload.pop("baselineRecoveryProtocol",None)
+            path.write_text(json.dumps(payload))
+        self.assertFalse((self.evidence/"recovery.json").exists())
+        before={path:path.read_bytes() for path in (self.journal,self.evidence/"receipt.json")}
+        def restore(*args,**kwargs):
+            rows.clear()
+            return 17
+        with self.patch_common(events), \
+             patch.object(deploy,"db_identity",return_value=("u","p","db",None)), \
+             patch.object(deploy,"current_restore_live_backup",side_effect=restore) as restore_mock:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_BASELINE_REPLAY_UNCONFIRMED"):
+                self.recover_forward_target()
+        restore_mock.assert_not_called()
+        self.assertEqual(rows,["device-after-old-start","session-after-old-start"])
+        self.assertEqual(events,[])
+        self.assertEqual(before,{path:path.read_bytes() for path in before})
+
+
+    def test_unconfirmed_or_conflicting_replay_protocol_never_mutates(self):
+        cases=[
+            ("both","baselineRecoveryProtocol",None),
+            ("journal","baselineRecoveryProtocol",None),
+            ("receipt","baselineRecoveryProtocol",None),
+            ("both","baselineRecoveryProtocol",0),
+            ("both","baselineRecoveryProtocol",True),
+            ("both","baselineRecoveryProtocol","1"),
+            ("both","baselineRecoveryProtocol",2),
+            ("journal","applicationMayHaveWritten",None),
+            ("receipt","applicationMayHaveWritten",None),
+            ("journal","candidateSourceSha","f"*40),
+            ("journal","predeployPrefix",16),
+            ("receipt","schemaState","PREDEPLOY_VERIFIED"),
+            ("receipt","phase","PRE"),
+        ]
+        for record,key,value in cases:
+            with self.subTest(record=record,key=key,value=value):
+                self.write_state("UNKNOWN");events=[]
+                paths=[self.journal,self.evidence/"receipt.json"]
+                selected=paths if record=="both" else [paths[0 if record=="journal" else 1]]
+                for path in selected:
+                    payload=json.loads(path.read_text())
+                    if value is None: payload.pop(key,None)
+                    else: payload[key]=value
+                    path.write_text(json.dumps(payload))
+                before={p:p.read_bytes() for p in paths}
+                with self.patch_common(events),patch.object(deploy,"current_restore_live_backup") as restore:
+                    with self.assertRaisesRegex(RuntimeError,"CURRENT_BASELINE_REPLAY_UNCONFIRMED"):
+                        self.recover_forward_target()
+                restore.assert_not_called()
+                self.assertEqual(events,[])
+                self.assertEqual(before,{p:p.read_bytes() for p in paths})
 
     def test_legacy_failed_recovery_does_not_authorize_dump_replay(self):
         self.write_state("UNKNOWN");events=[]
