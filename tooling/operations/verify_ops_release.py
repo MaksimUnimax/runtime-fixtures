@@ -15,6 +15,10 @@ class ReleaseVerificationError(RuntimeError):
     pass
 
 
+# Immutable root-owned release trees must reject setuid/setgid/sticky bits.
+SPECIAL_MODE_BITS = stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -140,12 +144,12 @@ def verify_release(
             continue
         if path.is_dir():
             mode = stat.S_IMODE(metadata.st_mode)
-            if mode & 0o022 or mode & 0o005 != 0o005:
+            if mode & (0o022 | SPECIAL_MODE_BITS) or mode & 0o005 != 0o005:
                 raise ReleaseVerificationError("RELEASE_PERMISSIONS_INVALID")
             continue
         if path.is_file():
             mode = stat.S_IMODE(metadata.st_mode)
-            if mode & 0o022 or mode & 0o004 != 0o004:
+            if mode & (0o022 | SPECIAL_MODE_BITS) or mode & 0o004 != 0o004:
                 raise ReleaseVerificationError("RELEASE_PERMISSIONS_INVALID")
             name = path.relative_to(root).as_posix()
             if name != "RELEASE_SHA256SUMS":
