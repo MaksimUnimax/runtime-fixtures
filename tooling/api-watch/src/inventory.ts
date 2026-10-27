@@ -380,6 +380,15 @@ function effectiveParameters(
         throw new Error("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
       if (parameter.name.length === 0 || !allowedLocations.has(parameter.in))
         throw new Error("APIWATCH_PARAMETER_IDENTITY_INVALID");
+      // An OpenAPI 3 Parameter Object has either a schema OR one media-type
+      // content definition. Treat an ambiguous declaration as untrusted,
+      // including resolved local references and shadowed Path Item entries.
+      if (
+        root.swagger !== "2.0" &&
+        Object.hasOwn(parameter, "schema") &&
+        Object.hasOwn(parameter, "content")
+      )
+        throw new Error("APIWATCH_PARAMETER_SCHEMA_CONTENT_CONFLICT");
       const identity = JSON.stringify([
         parameter.in === "header"
           ? parameter.name.toLowerCase()
