@@ -303,6 +303,17 @@ function exactUtcDay(value) {
   return time;
 }
 
+function validDeclaredTimeZone(value) {
+  if (typeof value !== "string" || !value || value !== value.trim())
+    return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const calculators = {
   sales_totals(input) {
     if (input?.complete !== true || !Array.isArray(input.rows))
@@ -372,10 +383,96 @@ const calculators = {
     return { best, worst };
   },
   percent_change(input) {
+    // SOURCE-ONLY: validate a DECLARED pair of source rows, not provider
+    // authenticity or authoritative sales/revenue field semantics. Callers must
+    // independently establish those before claiming a live business answer.
+    if (input?.complete !== undefined || input?.proof !== undefined) {
+      const asOf = input.proof?.asOf;
+      const currentProof = input.proof?.current;
+      const previousProof = input.proof?.previous;
+      const asOfDay = exactUtcDay(asOf?.day);
+      const currentDay = exactUtcDay(currentProof?.day);
+      const previousDay = exactUtcDay(previousProof?.day);
+      if (
+        input.complete !== true ||
+        currentProof?.complete !== true ||
+        previousProof?.complete !== true ||
+        asOfDay === null ||
+        currentDay === null ||
+        previousDay === null ||
+        currentDay !== asOfDay - 86400000 ||
+        previousDay !== asOfDay - 172800000 ||
+        !validDeclaredTimeZone(asOf?.timeZone)
+      )
+        return null;
+      const sameFields = [
+        "timeZone",
+        "definition",
+        "source",
+        "storeId",
+        "operation",
+        "field",
+        "metric",
+        "unit",
+        "currency",
+      ];
+      if (
+        currentProof.timeZone !== asOf.timeZone ||
+        sameFields.some((name) => currentProof[name] !== previousProof[name]) ||
+        [
+          "definition",
+          "source",
+          "storeId",
+          "operation",
+          "field",
+          "metric",
+          "unit",
+        ].some(
+          (name) =>
+            typeof currentProof[name] !== "string" ||
+            !currentProof[name].trim(),
+        )
+      )
+        return null;
+      if (
+        !["ozon", "wildberries"].includes(currentProof.source) ||
+        !["money", "units"].includes(currentProof.metric)
+      )
+        return null;
+      const std04 = coverage.scenarios.find((row) => row.id === "STD-04");
+      const operations =
+        currentProof.source === "ozon"
+          ? std04?.ozonOperations
+          : std04?.wbOperations;
+      if (
+        !Array.isArray(operations) ||
+        !operations.includes(currentProof.operation)
+      )
+        return null;
+      if (
+        currentProof.metric === "money"
+          ? typeof currentProof.currency !== "string" ||
+            currentProof.currency.length !== 3 ||
+            !/^[A-Z]{3}$/.test(currentProof.currency) ||
+            currentProof.unit !== currentProof.currency
+          : currentProof.currency !== null || currentProof.unit !== "count"
+      )
+        return null;
+      if (
+        typeof input.current !== "number" ||
+        typeof input.previous !== "number" ||
+        !Number.isFinite(currentProof.value) ||
+        !Number.isFinite(previousProof.value) ||
+        input.current !== currentProof.value ||
+        input.previous !== previousProof.value
+      )
+        return null;
+    }
     const current = finiteRecordedMetric(input?.current),
       previous = finiteRecordedMetric(input?.previous);
     if (current === null || previous === null || previous === 0) return null;
-    return ((current - previous) / Math.abs(previous)) * 100;
+    const percent = ((current - previous) / Math.abs(previous)) * 100;
+    return Number.isFinite(percent) ? percent : null;
   },
   warehouse_sort(input) {
     if (
@@ -1250,6 +1347,458 @@ const observedZeroCases = [
 for (const [name, kind, input, expected] of observedZeroCases) {
   assert.equal(calculators[kind](input), expected, name + " must stay valid");
 }
+
+// STD-04 SOURCE-only: require declared complete source rows, amounts, matching
+// provider/store/operation/field/metric/currency, and yesterday/prior relative
+// to a stated calendar reference. Declared identities do not prove real provider
+// field semantics; those still require separate authoritative mapping and live
+// evidence. Legacy numeric fixtures exercise arithmetic only.
+const std04Proof = {
+  asOf: { day: "2026-10-27", timeZone: "Europe/Moscow" },
+  current: {
+    day: "2026-10-26",
+    complete: true,
+    value: 120,
+    timeZone: "Europe/Moscow",
+    source: "ozon",
+    storeId: "synthetic-store-one",
+    operation: "analytics_data",
+    field: "synthetic_revenue",
+    definition: "synthetic_sales_revenue",
+    metric: "money",
+    unit: "RUB",
+    currency: "RUB",
+  },
+  previous: {
+    day: "2026-10-25",
+    complete: true,
+    value: 100,
+    timeZone: "Europe/Moscow",
+    source: "ozon",
+    storeId: "synthetic-store-one",
+    operation: "analytics_data",
+    field: "synthetic_revenue",
+    definition: "synthetic_sales_revenue",
+    metric: "money",
+    unit: "RUB",
+    currency: "RUB",
+  },
+};
+const std04Base = {
+  current: 120,
+  previous: 100,
+  complete: true,
+  proof: std04Proof,
+};
+const std04InvalidClaims = [
+  ["missing_proof", { ...std04Base, proof: undefined }],
+  ["missing_complete", { ...std04Base, complete: undefined }],
+  ["false_complete", { ...std04Base, complete: false }],
+  ["textual_complete", { ...std04Base, complete: "true" }],
+  [
+    "missing_current",
+    { ...std04Base, proof: { previous: std04Proof.previous } },
+  ],
+  [
+    "missing_previous",
+    { ...std04Base, proof: { current: std04Proof.current } },
+  ],
+  [
+    "current_incomplete",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, complete: false },
+      },
+    },
+  ],
+  [
+    "previous_incomplete",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, complete: false },
+      },
+    },
+  ],
+  [
+    "current_invalid_date",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, day: "2026-02-30" },
+      },
+    },
+  ],
+  [
+    "previous_invalid_date",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-02-30" },
+      },
+    },
+  ],
+  [
+    "equal_days",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-26" },
+      },
+    },
+  ],
+  [
+    "reversed_days",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-27" },
+      },
+    },
+  ],
+  [
+    "missing_middle_day",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-24" },
+      },
+    },
+  ],
+  [
+    "timezone_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, timeZone: "UTC" },
+      },
+    },
+  ],
+  [
+    "timezone_blank",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, timeZone: "  " },
+      },
+    },
+  ],
+  [
+    "definition_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, definition: "orders_revenue" },
+      },
+    },
+  ],
+  [
+    "definition_blank",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, definition: " " },
+      },
+    },
+  ],
+  [
+    "as_of_missing",
+    {
+      ...std04Base,
+      proof: { ...std04Proof, asOf: undefined },
+    },
+  ],
+  [
+    "as_of_wrong_day",
+    {
+      ...std04Base,
+      proof: { ...std04Proof, asOf: { ...std04Proof.asOf, day: "2026-10-28" } },
+    },
+  ],
+  [
+    "as_of_invalid_day",
+    {
+      ...std04Base,
+      proof: { ...std04Proof, asOf: { ...std04Proof.asOf, day: "2026-02-30" } },
+    },
+  ],
+  [
+    "as_of_invalid_zone",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        asOf: { ...std04Proof.asOf, timeZone: "Bogus/Zone" },
+        current: { ...std04Proof.current, timeZone: "Bogus/Zone" },
+        previous: { ...std04Proof.previous, timeZone: "Bogus/Zone" },
+      },
+    },
+  ],
+  [
+    "source_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, source: "wildberries" },
+      },
+    },
+  ],
+  [
+    "source_unknown",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, source: "unverified" },
+        previous: { ...std04Proof.previous, source: "unverified" },
+      },
+    },
+  ],
+  [
+    "store_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, storeId: "synthetic-other-store" },
+      },
+    },
+  ],
+  [
+    "store_blank",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, storeId: " " },
+        previous: { ...std04Proof.previous, storeId: " " },
+      },
+    },
+  ],
+  [
+    "operation_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, operation: "statistics_orders" },
+      },
+    },
+  ],
+  [
+    "operation_unpinned",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, operation: "unknown_alias" },
+        previous: { ...std04Proof.previous, operation: "unknown_alias" },
+      },
+    },
+  ],
+  [
+    "field_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, field: "different_money" },
+      },
+    },
+  ],
+  [
+    "current_value_unbound",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, value: 119 },
+      },
+    },
+  ],
+  [
+    "previous_value_unbound",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, value: 101 },
+      },
+    },
+  ],
+  [
+    "source_value_nonfinite",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, value: Infinity },
+      },
+    },
+  ],
+  ["numeric_string_claim", { ...std04Base, current: "120" }],
+  [
+    "currency_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, currency: "USD" },
+      },
+    },
+  ],
+  [
+    "currency_bad_format",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, currency: "RUB4", unit: "RUB4" },
+        previous: { ...std04Proof.previous, currency: "RUB4", unit: "RUB4" },
+      },
+    },
+  ],
+  [
+    "currency_final_line_feed",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, currency: "RUB\n", unit: "RUB\n" },
+        previous: { ...std04Proof.previous, currency: "RUB\n", unit: "RUB\n" },
+      },
+    },
+  ],
+  [
+    "unit_currency_disagree",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, unit: "USD" },
+        previous: { ...std04Proof.previous, unit: "USD" },
+      },
+    },
+  ],
+  [
+    "metric_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, metric: "units" },
+      },
+    },
+  ],
+  [
+    "metric_unrecognized",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, metric: "net_profit" },
+        previous: { ...std04Proof.previous, metric: "net_profit" },
+      },
+    },
+  ],
+  [
+    "timezone_invalid_whitespace",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        asOf: { ...std04Proof.asOf, timeZone: " Europe/Moscow " },
+        current: { ...std04Proof.current, timeZone: " Europe/Moscow " },
+        previous: { ...std04Proof.previous, timeZone: " Europe/Moscow " },
+      },
+    },
+  ],
+];
+for (const [name, input] of std04InvalidClaims) {
+  assert.equal(calculators.percent_change(input), null, "STD-04 " + name);
+}
+assert.equal(
+  calculators.percent_change({
+    current: Number.MAX_VALUE,
+    previous: Number.MIN_VALUE,
+  }),
+  null,
+  "STD-04 finite source values must not produce infinite percentages",
+);
+assert.equal(
+  calculators.percent_change(std04Base),
+  20,
+  "STD-04 complete comparable days",
+);
+assert.equal(
+  calculators.percent_change({
+    ...std04Base,
+    current: 0,
+    proof: {
+      ...std04Proof,
+      current: { ...std04Proof.current, value: 0 },
+    },
+  }),
+  -100,
+  "STD-04 observed zero after a nonzero previous day",
+);
+assert.equal(
+  calculators.percent_change({
+    ...std04Base,
+    current: 150,
+    proof: {
+      ...std04Proof,
+      asOf: { ...std04Proof.asOf, day: "2024-03-02" },
+      current: { ...std04Proof.current, day: "2024-03-01", value: 150 },
+      previous: { ...std04Proof.previous, day: "2024-02-29" },
+    },
+  }),
+  50,
+  "STD-04 complete comparison over valid leap day anchored to its as-of date",
+);
+assert.equal(
+  calculators.percent_change({
+    current: 12,
+    previous: 8,
+    complete: true,
+    proof: {
+      ...std04Proof,
+      current: {
+        ...std04Proof.current,
+        value: 12,
+        metric: "units",
+        unit: "count",
+        currency: null,
+        field: "synthetic_units",
+        definition: "synthetic_ordered_units",
+      },
+      previous: {
+        ...std04Proof.previous,
+        value: 8,
+        metric: "units",
+        unit: "count",
+        currency: null,
+        field: "synthetic_units",
+        definition: "synthetic_ordered_units",
+      },
+    },
+  }),
+  50,
+  "STD-04 complete and matching unit-count comparison",
+);
 
 // CAP-25 business identity guards supplement the immutable owner-curated
 // gold/numeric fixture case list rather than changing its accepted bindings.
