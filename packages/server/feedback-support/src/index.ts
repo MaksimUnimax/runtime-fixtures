@@ -266,7 +266,57 @@ function redactStructuredCredentialValues(input: string): string {
 // when its end cannot be established without guessing a safe boundary.
 const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
 
+// A bare log-style key such as password: "..." has no quoted JSON key.
+// The ordinary line-level regex would mask only the first physical line.
+// If its quoted credential spans a raw LF/CR, no trustworthy free-text
+// suffix boundary exists: discard the entire diagnostic, never its tail.
+// Recognize the entire sensitive bare key, even with a long prefix, and
+// the same Unicode whitespace as the fallback first-line secret redactor.
+// Also recognize log-escaped quote openers. Fail closed on line breaks,
+// including those between the key and value, before redaction can leak a tail.
+const bareQuotedCredentialValueStart =
+  /\b([A-Za-z_][A-Za-z0-9_-]*)\s*[:=]\s*(?:\\*)(["'])/gu;
+
+function hasBareQuotedMultilineCredential(input: string): boolean {
+  bareQuotedCredentialValueStart.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = bareQuotedCredentialValueStart.exec(input)) !== null) {
+    if (!sensitiveJsonKey.test(match[1]!)) continue;
+    // A CR/LF before the opening quote is just as ambiguous as one inside it.
+    if (/[\r\n]/u.test(match[0])) return true;
+    const quote = match[2]!;
+    let escaped = false;
+    let closed = false;
+    for (
+      let index = bareQuotedCredentialValueStart.lastIndex;
+      index < input.length;
+      index++
+    ) {
+      const char = input[index]!;
+      // The basic token matcher stops at whitespace, commas and semicolons.
+      // A partial replacement would disclose the rest of this credential.
+      if (/[\s,;]/u.test(char)) return true;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) {
+        closed = true;
+        break;
+      }
+    }
+    // An unterminated quoted secret has no trustworthy value boundary.
+    if (!closed) return true;
+  }
+  return false;
+}
+
 function redactMultilineQuotedSecrets(input: string): string {
+  if (hasBareQuotedMultilineCredential(input)) return "[REDACTED_SECRET]";
   let output = "";
   let cursor = 0;
   let changed = false;
@@ -501,11 +551,14 @@ export class FeedbackSupportService {
     const description = sanitizeFeedbackText(body.description);
     if (!description || description.length > 4000)
       return { ok: false, code: "INVALID_REQUEST" };
+    const diagnostics = sanitizeDiagnostics(body.diagnostics);
     const result = await this.repository.createCase({
       userId,
-      body,
+      // Never carry the raw user description across the repository boundary
+      // inside an auxiliary copy of the validated request body.
+      body: { ...body, description, diagnostics: diagnostics ?? undefined },
       description,
-      diagnostics: sanitizeDiagnostics(body.diagnostics),
+      diagnostics,
       correlationId,
     });
     if ("kind" in result) {
