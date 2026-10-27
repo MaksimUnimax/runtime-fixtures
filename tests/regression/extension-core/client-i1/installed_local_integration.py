@@ -121,7 +121,11 @@ def safe_bootstrap_response_lifecycle(selected, responses, evidence_path):
         return unknown
     try:
         def ordinal(response):
-            value = response.header_value(_BOOTSTRAP_ORDINAL_HEADER)
+            # Response.headers is the already received provisional snapshot.
+            # header_value/all_headers perform a raw-header RPC with no deadline;
+            # missing CDP ExtraInfo must never stall FAIL evidence and cleanup.
+            headers = response.headers
+            value = headers.get(_BOOTSTRAP_ORDINAL_HEADER) if isinstance(headers, dict) else None
             if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{32}:[1-9][0-9]?", value) is None:
                 raise ValueError("invalid ordinal")
             run_id, raw_number = value.split(":")

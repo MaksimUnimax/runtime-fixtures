@@ -524,7 +524,11 @@ class BootstrapResponseLifecycleTest(unittest.TestCase):
 
     def response(self, ordinal, run_id=None, failure=None):
         response = FakeResponse(request=FakeRequest(failure=failure))
-        response.header_value = lambda name: (run_id or self.run_id) + ":" + str(ordinal) if name == module._BOOTSTRAP_ORDINAL_HEADER else None
+        response.headers = {module._BOOTSTRAP_ORDINAL_HEADER: (run_id or self.run_id) + ":" + str(ordinal)}
+        def unavailable_raw_headers(name):
+            response.calls.append("raw_headers")
+            raise AssertionError("diagnostics must not request raw headers without a deadline")
+        response.header_value = unavailable_raw_headers
         return response
 
     def test_exact_selected_header_survives_different_arrival_order(self):
@@ -549,7 +553,7 @@ class BootstrapResponseLifecycleTest(unittest.TestCase):
         selected = self.response(1)
         for responses in ([selected, self.response(1)], [selected, self.response(2, "b" * 32)], [self.response(1)], [selected, selected]):
             self.assertEqual(module.safe_bootstrap_response_lifecycle(selected, responses, self.path)["correlation"], "UNCONFIRMED")
-        selected.header_value = lambda name: "SECRET"
+        selected.headers = {module._BOOTSTRAP_ORDINAL_HEADER: "SECRET"}
         self.assertEqual(module.safe_bootstrap_response_lifecycle(selected, [selected], self.path)["correlation"], "UNCONFIRMED")
 
     def test_malformed_overflow_extra_fields_and_incomplete_evidence_fail_closed(self):
@@ -576,6 +580,57 @@ class BootstrapResponseLifecycleTest(unittest.TestCase):
             request = FakeRequest(failure=raw)
             self.assertEqual(module.safe_bootstrap_failure_code_family(request), expected)
         self.assertEqual(module.safe_bootstrap_failure_class(FakeRequest(failure="net::ERR_ABORTED")), "ABORTED")
+
+    def test_failed_selected_or_unselected_response_uses_cached_headers_without_rpc(self):
+        for failed_ordinal in (1, 2):
+            with self.subTest(failed_ordinal=failed_ordinal):
+                self.save([self.row(1, False), self.row(2)])
+                selected = self.response(1, failure="net::ERR_ABORTED" if failed_ordinal == 1 else None)
+                other = self.response(2, failure="net::ERR_ABORTED" if failed_ordinal == 2 else None)
+                result = module.safe_bootstrap_response_lifecycle(selected, [other, selected], self.path)
+                self.assertEqual(result["correlation"], "EXACT_RESPONSE_HEADER")
+                self.assertEqual(result["selected_server_ordinal"], 1)
+                self.assertFalse(result["server_finished"])
+                self.assertEqual(selected.calls, [])
+                self.assertEqual(other.calls, [])
+
+    def test_missing_or_ambiguous_cached_headers_are_unconfirmed_without_rpc(self):
+        import json
+        for selected_missing in (True, False):
+            for headers in (None, {}, {module._BOOTSTRAP_ORDINAL_HEADER: None},
+                            {module._BOOTSTRAP_ORDINAL_HEADER: "SECRET"},
+                            {module._BOOTSTRAP_ORDINAL_HEADER: self.run_id + ":1\n" + self.run_id + ":1"}):
+                with self.subTest(selected_missing=selected_missing, headers_type=type(headers).__name__):
+                    self.save([self.row(1), self.row(2)])
+                    selected, other = self.response(1), self.response(2)
+                    (selected if selected_missing else other).headers = headers
+                    result = module.safe_bootstrap_response_lifecycle(selected, [other, selected], self.path)
+                    self.assertEqual(result, {"schema_version": 1, "correlation": "UNCONFIRMED"})
+                    self.assertNotIn("SECRET", json.dumps(result))
+                    self.assertEqual(selected.calls, [])
+                    self.assertEqual(other.calls, [])
+
+    def test_only_fixed_cached_header_is_read_and_unrelated_secrets_are_not_exported(self):
+        import json
+        class ObservedHeaders(dict):
+            def __init__(self, values):
+                super().__init__(values)
+                self.lookups = []
+            def get(self, name, default=None):
+                self.lookups.append(name)
+                return super().get(name, default)
+        self.save([self.row(1)])
+        selected = self.response(1)
+        selected.headers = ObservedHeaders({
+            module._BOOTSTRAP_ORDINAL_HEADER: self.run_id + ":1",
+            "set-cookie": "SECRET_COOKIE",
+            "authorization": "SECRET_AUTH",
+        })
+        result = module.safe_bootstrap_response_lifecycle(selected, [selected], self.path)
+        self.assertEqual(result["correlation"], "EXACT_RESPONSE_HEADER")
+        self.assertEqual(selected.headers.lookups, [module._BOOTSTRAP_ORDINAL_HEADER])
+        self.assertNotIn("SECRET", json.dumps(result))
+        self.assertEqual(selected.calls, [])
 
     def test_node_response_lifecycle_and_real_loopback_controls(self):
         import subprocess
