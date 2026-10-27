@@ -773,7 +773,19 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(154);
+    ).toBe(159);
+    expect(
+      Object.fromEntries(
+        Object.entries(document.paths)
+          .filter(([route]) => route.startsWith("/v1/connection-codes"))
+          .map(([route, methods]) => [route, Object.keys(methods).sort()]),
+      ),
+    ).toEqual({
+      "/v1/connection-codes": ["get", "post"],
+      "/v1/connection-codes/devices": ["get"],
+      "/v1/connection-codes/devices/approve-transfer": ["post"],
+      "/v1/connection-codes/exchange": ["post"],
+    });
     expect(
       Object.keys(document.paths["/v1/admin/maintenance-grants"] ?? {}).sort(),
     ).toEqual(["get", "post"]);
