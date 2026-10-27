@@ -67,7 +67,7 @@ export const accountConnectionCredentials = pgTable(
     check(
       "account_connection_credentials_revocation_shape",
       sql.raw(
-        "(revoked_at IS NULL AND revocation_reason IS NULL) OR (revoked_at >= created_at AND revocation_reason IS NOT NULL)",
+        "(revoked_at IS NULL AND revocation_reason IS NULL) OR (revoked_at IS NOT NULL AND revoked_at >= created_at AND revocation_reason IS NOT NULL)",
       ),
     ),
   ],

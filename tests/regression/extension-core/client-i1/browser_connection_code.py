@@ -7,6 +7,9 @@ from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[4]
 NODE="/root/.nvm/versions/node/v24.20.0/bin/node"
 PNPM="/root/.nvm/versions/node/v24.20.0/bin/pnpm"
+def cabinet_session_absent(context):
+    return not any(c["name"]=="pcp_portal_session" for c in context.cookies())
+
 def ready(url,limit=20):
     until=time.monotonic()+limit
     while time.monotonic()<until:
@@ -422,13 +425,18 @@ def run(output):
                 checks["sandbox_not_disabled"]=True
                 result.update(status="PASS",stage="owner_lifecycle_completed",checks=checks)
             else:
+                # The actual logged-in cabinet is the negative control for the
+                # same predicate used on the independent second browser.
+                assert not cabinet_session_absent(ca)
+                checks["cabinet_cookie_detector_rejects_authenticated_browser"]=True
                 ba.close();browsers.remove(ba);a.terminate();a.wait(timeout=10)
                 stage="second_browser";b,bb,cb,pb=launch("profile-b",43103)
                 second=connect(pb,saved)
                 assert second["accountId"]==account and second["deviceId"]!=first["deviceId"]
                 checks["second_browser_without_website"]=True
                 checks["separate_device"]=True
-                checks["no_cabinet_cookie_second_browser"]=not any(c["name"]=="pcp_session" for c in cb.cookies())
+                assert cabinet_session_absent(cb)
+                checks["no_cabinet_cookie_second_browser"]=True
                 bb.close();browsers.remove(bb);b.terminate();b.wait(timeout=10)
                 stage="restart_first_browser";a2,ba2,ca2,pa2=launch("profile-a",43102)
                 pa2.locator("#catalog").wait_for(state="visible",timeout=15000)

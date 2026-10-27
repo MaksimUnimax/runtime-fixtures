@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
   AuthService,
@@ -171,6 +172,92 @@ describe.sequential(
     });
     afterAll(async () => {
       await db?.close();
+    });
+
+    it("revocation shape rejects every partial pair and migration preserves invalid data on failure", async () => {
+      const state = await owner();
+      await issue(state);
+      const row = (
+        await query<{ id: string }>(
+          "SELECT id FROM account_connection_credentials WHERE account_id=$1",
+          [state.accountId],
+        )
+      ).rows[0]!;
+      for (const expression of [
+        "revoked_at=NULL,revocation_reason='REPLACED'",
+        "revoked_at=created_at,revocation_reason=NULL",
+        "revoked_at=created_at-interval '1 second',revocation_reason='REPLACED'",
+      ]) {
+        await expect(
+          query(
+            "UPDATE account_connection_credentials SET " +
+              expression +
+              " WHERE id=$1",
+            [row.id],
+          ),
+        ).rejects.toMatchObject({
+          code: "23514",
+          constraint: "account_connection_credentials_revocation_shape",
+        });
+      }
+      expect(
+        (
+          await query(
+            "SELECT revoked_at,revocation_reason FROM account_connection_credentials WHERE id=$1",
+            [row.id],
+          )
+        ).rows[0],
+      ).toEqual({ revoked_at: null, revocation_reason: null });
+      const correction = readFileSync(
+        new URL(
+          "../../../packages/server/db/drizzle/0063_connection_revocation_shape.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      await expect(
+        db.transaction(async (tx) => {
+          await tx.query(
+            "ALTER TABLE account_connection_credentials DROP CONSTRAINT account_connection_credentials_revocation_shape, ADD CONSTRAINT account_connection_credentials_revocation_shape CHECK((revoked_at IS NULL AND revocation_reason IS NULL) OR (revoked_at >= created_at AND revocation_reason IS NOT NULL))",
+          );
+          await tx.query(
+            "UPDATE account_connection_credentials SET revocation_reason='REPLACED' WHERE id=$1",
+            [row.id],
+          );
+          const retained = await tx.query(
+            "SELECT revoked_at,revocation_reason FROM account_connection_credentials WHERE id=$1",
+            [row.id],
+          );
+          expect(retained.rows[0]).toEqual({
+            revoked_at: null,
+            revocation_reason: "REPLACED",
+          });
+          await tx.query(correction);
+        }),
+      ).rejects.toMatchObject({
+        code: "23514",
+        constraint: "account_connection_credentials_revocation_shape",
+      });
+      expect(
+        (
+          await query(
+            "SELECT revoked_at,revocation_reason FROM account_connection_credentials WHERE id=$1",
+            [row.id],
+          )
+        ).rows[0],
+      ).toEqual({ revoked_at: null, revocation_reason: null });
+      await query(
+        "UPDATE account_connection_credentials SET revoked_at=created_at,revocation_reason='REPLACED' WHERE id=$1",
+        [row.id],
+      );
+      expect(
+        (
+          await query(
+            "SELECT revoked_at IS NOT NULL AS revoked,revocation_reason FROM account_connection_credentials WHERE id=$1",
+            [row.id],
+          )
+        ).rows[0],
+      ).toEqual({ revoked: true, revocation_reason: "REPLACED" });
     });
 
     it("runtime admission requires both migration guards and rejects altered layouts", async () => {

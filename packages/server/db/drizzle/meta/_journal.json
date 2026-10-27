@@ -358,6 +358,13 @@
       "when": 1793086921650,
       "tag": "0062_account_connection_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793114658111,
+      "tag": "0063_connection_revocation_shape",
+      "breakpoints": true
     }
   ]
 }

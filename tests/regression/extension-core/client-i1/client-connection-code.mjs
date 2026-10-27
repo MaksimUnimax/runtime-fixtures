@@ -13,12 +13,13 @@ const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:
 const tokens=(overrides={})=>({status:"activated",authenticationMethod:"ACCOUNT_CONNECTION_CODE",accountId,deviceId,sessionId,tokenType:"Bearer",accessToken:"connection_access_fixture",accessTokenExpiresAt:new Date(Date.now()+3600000).toISOString(),refreshToken:"C".repeat(43),refreshTokenExpiresAt:new Date(Date.now()+7200000).toISOString(),...overrides});
 async function setup(options={}) {
  const backing=options.backing||{local:{},session:{}};
- let envelope,exchanges=[];
+ let envelope,exchanges=[],legacyStarts=[];
  const worker=await makeWorker(runtime,{...options,backing,fetch:async(url,init)=>{
   if(url.endsWith("/v1/connection-codes/exchange")){
    exchanges.push({key:init.headers.get("Idempotency-Key"),body:JSON.parse(init.body)});
    return options.exchange?options.exchange(url,init):json(tokens(options.tokens));
   }
+  if(url.endsWith("/v1/device-authorizations")){legacyStarts.push({method:init.method});return options.legacyStart?options.legacyStart(url,init):json({error:{code:"UNAVAILABLE"}},503);}
   if(url.includes("/v1/bootstrap")) return json(options.bootstrap?await options.bootstrap(backing,envelope):envelope);
   if(url.endsWith("/v1/auth/refresh")) return json({tokenType:"Bearer",accessToken:"connection_refresh_fixture",accessTokenExpiresAt:new Date(Date.now()+3600000).toISOString(),refreshToken:"D".repeat(43),refreshTokenExpiresAt:new Date(Date.now()+7200000).toISOString()});
   throw new Error("Unexpected fixture endpoint");
@@ -27,7 +28,7 @@ async function setup(options={}) {
   envelope=structuredClone(backing.local[AUTH].authority.envelope);
   await worker.call("SellerAgentsControlClient.localReset");
  }
- return {worker,backing,exchanges};
+ return {worker,backing,exchanges,legacyStarts};
 }
 test("code is exchanged once, signed account verified, secret never persisted or projected",async()=>{
  const {worker,backing,exchanges}=await setup();
@@ -171,4 +172,57 @@ test("late cancellation after confirmed enrollment does not invalidate its signe
    assert.equal((await worker.call("SellerAgentsControlClient.status")).authenticated,true);
   }
  }finally{worker.close();}
+});
+
+for (const outcome of ["PENDING", "UNKNOWN", "REJECTED", "ACTIVE"]) {
+ test("overlapping enrollment after consent preserves one durable method: "+outcome, async()=>{
+  let holdConsent=false,releaseConsent,releaseExchange;
+  const permissions={getAll:()=>holdConsent?(holdConsent=false,new Promise(resolve=>{releaseConsent=()=>resolve({data_collection:["technicalAndInteraction"]});})):Promise.resolve({data_collection:["technicalAndInteraction"]})};
+  const options={userAgent:"Mozilla/5.0 Firefox/140.0",firefoxPermissions:permissions,
+   exchange:async()=>{
+    if(outcome==="PENDING")await new Promise(resolve=>{releaseExchange=resolve;});
+    if(outcome==="UNKNOWN"||outcome==="PENDING")throw new Error("isolated network uncertainty");
+    return outcome==="REJECTED"?json({error:{code:"CONNECTION_CODE_CLOSED"}},403):json(tokens());
+   }};
+  const {worker,backing,exchanges,legacyStarts}=await setup(options);
+  try {
+   holdConsent=true;
+   const old=worker.call("SellerAgentsControlClient.startActivation");old.catch(()=>{});
+   await until(()=>releaseConsent,"legacy consent yield");
+   const connection=worker.call("SellerAgentsControlClient.connectWithCode",{code:CODE});connection.catch(()=>{});
+   await until(()=>exchanges.length===1,"connection intent dispatched");
+   if(outcome!=="PENDING")await connection.catch(()=>{});
+   releaseConsent();
+   if(outcome==="ACTIVE")assert.equal((await old).authenticated,true);
+   else await assert.rejects(old,{code:"CONNECTION_PREVIOUS_OUTCOME_UNKNOWN"});
+   assert.equal(legacyStarts.length,0);
+   assert.equal(backing.local[AUTH].pending,null);
+   assert.equal(exchanges.length,1);
+   releaseExchange?.();await connection.catch(()=>{});
+  } finally {releaseConsent?.();releaseExchange?.();worker.close();}
+  const restored=await setup({...options,backing,seedAuthority:false});
+  try {
+   const status=await restored.worker.call("SellerAgentsControlClient.status");
+   assert.equal(status.authenticated,outcome==="ACTIVE");
+   assert.equal(restored.exchanges.length,0);
+   assert.equal(restored.legacyStarts.length,0);
+   await restored.worker.call("SellerAgentsControlClient.localReset");
+   assert.equal(backing.local[AUTH].connectionAttempt,null);
+   assert.equal(backing.local[AUTH].pending,null);
+  } finally {restored.worker.close();}
+ });
+}
+test("legacy reservation before code intent rejects the other method without dispatch",async()=>{
+ let release;
+ const {worker,exchanges,legacyStarts,backing}=await setup({legacyStart:()=>new Promise(resolve=>{release=()=>resolve(json({error:{code:"UNAVAILABLE"}},503));})});
+ try {
+  const old=worker.call("SellerAgentsControlClient.startActivation");old.catch(()=>{});
+  await until(()=>release,"legacy dispatch reserved");
+  await assert.rejects(worker.call("SellerAgentsControlClient.connectWithCode",{code:CODE}),{code:"CONNECTION_LEGACY_ATTEMPT_PENDING"});
+  assert.equal(exchanges.length,0);assert.equal(legacyStarts.length,1);
+  assert.equal(backing.local[AUTH].connectionAttempt,null);
+  release();await old.catch(()=>{});
+  await worker.call("SellerAgentsControlClient.cancelActivation");
+  assert.equal(backing.local[AUTH].pending,null);
+ } finally {release?.();worker.close();}
 });
