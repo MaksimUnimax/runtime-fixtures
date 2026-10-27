@@ -444,28 +444,45 @@ export function createPostgresMonitoringScheduleStore(
 
     async finishRun({ lane, runId, result }) {
       const safe = safeMonitoringResult(result);
-      // Fencing and metadata are one conditional PostgreSQL UPDATE.
-      // Caller-supplied 'now' cannot make an expired lease valid, nor
-      // forge old completion timestamps in the durable row.
-      // RETURNING captures only this writer's committed row.
-      const changed = await runtime.query<StateRow>(
-        `UPDATE monitoring_lane_schedules
-          SET last_run_at=clock_timestamp(),
-              active_run_id=NULL,
-              active_run_source=NULL,
-              active_run_started_at=NULL,
-              active_run_lease_expires_at=NULL,
-              last_result=jsonb_set($2::jsonb,'{finishedAt}',to_jsonb(clock_timestamp()),true),
-              updated_at=clock_timestamp()
-          WHERE lane=$1
-            AND active_run_id=$3
-            AND active_run_lease_expires_at>clock_timestamp()
-          RETURNING ${stateColumns}`,
-        [lane, JSON.stringify({ ...safe, runId }), runId],
-      );
-      if (changed.rows.length !== 1)
-        throw new Error("MONITORING_RUN_STALE_OWNER");
-      return mapState(changed.rows[0]!);
+      // Read + lock the lane before reading the database completion clock.
+      // The final UPDATE rechecks expiry at execution, avoiding a stale
+      // predicate evaluated before a competing transaction's row lock.
+      return runtime.transaction(async (query) => {
+        const current = await read(query, lane, true);
+        if (!current.activeRun || current.activeRun.runId !== runId)
+          throw new Error("MONITORING_RUN_STALE_OWNER");
+        const clock = await query.query<{ now: Date }>(
+          'SELECT clock_timestamp() AS "now"',
+        );
+        const databaseNow = clock.rows[0]?.now;
+        if (
+          !(databaseNow instanceof Date) ||
+          !Number.isFinite(databaseNow.getTime())
+        )
+          throw new Error("MONITORING_DATABASE_CLOCK_INVALID");
+        if (current.activeRun.leaseExpiresAt <= databaseNow)
+          throw new Error("MONITORING_RUN_STALE_OWNER");
+        // All metadata for this completion uses one post-lock DB timestamp.
+        // A separate UPDATE-time clock guard fences any expiry after sampling.
+        const changed = await query.query<StateRow>(
+          `UPDATE monitoring_lane_schedules
+            SET last_run_at=$2,
+                active_run_id=NULL,
+                active_run_source=NULL,
+                active_run_started_at=NULL,
+                active_run_lease_expires_at=NULL,
+                last_result=jsonb_set($3::jsonb,'{finishedAt}',to_jsonb($2::timestamptz),true),
+                updated_at=$2
+            WHERE lane=$1
+              AND active_run_id=$4
+              AND active_run_lease_expires_at>clock_timestamp()
+            RETURNING ${stateColumns}`,
+          [lane, databaseNow, JSON.stringify({ ...safe, runId }), runId],
+        );
+        if (changed.rows.length !== 1)
+          throw new Error("MONITORING_RUN_STALE_OWNER");
+        return mapState(changed.rows[0]!);
+      });
     },
     async recordNotificationFailure({ lane, now, error }) {
       await runtime.query(

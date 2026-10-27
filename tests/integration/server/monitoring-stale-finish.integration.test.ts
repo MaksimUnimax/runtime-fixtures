@@ -222,6 +222,8 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
       completed.lastResult.finishedAt,
     );
     expect(persisted.updatedAt).toEqual(completed.updatedAt);
+    expect(completed.lastRunAt).toEqual(completed.lastResult.finishedAt);
+    expect(completed.updatedAt).toEqual(completed.lastRunAt);
   });
 
   it("rejects an expired owner without a replacement on physical PostgreSQL", async () => {
@@ -264,4 +266,58 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(after.lastResult).toEqual(before.lastResult);
     expect(after.lastRunAt).toEqual(before.lastRunAt);
   });
+  it("rejects a finish that waited on the row lock beyond lease expiry", async () => {
+    const start = await storeA.startRun({
+      lane: "SWAGGER_API",
+      source: "FORCED",
+      now: at(50),
+      leaseMs: 1600,
+    });
+    const runId = requiredRunId(start);
+    let lockAcquired!: () => void;
+    let releaseLock!: () => void;
+    const locked = new Promise<void>((resolve) => {
+      lockAcquired = resolve;
+    });
+    const permitRelease = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const holder = workerB.transaction(async (query) => {
+      const row = await query.query<{ activeRunId: string }>(
+        'SELECT active_run_id AS "activeRunId" FROM monitoring_lane_schedules WHERE lane=$1 FOR UPDATE',
+        ["SWAGGER_API"],
+      );
+      expect(row.rows[0]?.activeRunId).toBe(runId);
+      lockAcquired();
+      await permitRelease;
+    });
+    await locked;
+    const pending = storeA.finishRun({
+      lane: "SWAGGER_API",
+      runId,
+      now: at(51),
+      result,
+    });
+    let settled = false;
+    void pending.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    try {
+      // The finish is blocked by the existing holder, while the lease expires.
+      await new Promise((resolve) => setTimeout(resolve, 1900));
+      expect(settled).toBe(false);
+    } finally {
+      releaseLock();
+      await holder;
+    }
+    await expect(pending).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    const after = await storeB.getState("SWAGGER_API");
+    expect(after.activeRun?.runId).toBe(runId);
+    expect(after.lastResult?.runId).not.toBe(runId);
+  }, 12000);
 });

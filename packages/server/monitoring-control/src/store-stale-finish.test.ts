@@ -15,7 +15,7 @@ const result = {
   summary: "synthetic successful monitoring",
 };
 
-function sqlRow(activeRunId: string | null) {
+function sqlRow(activeRunId: string | null, expiredAtLock = false) {
   return {
     lane: "SWAGGER_API",
     enabled: true,
@@ -26,7 +26,7 @@ function sqlRow(activeRunId: string | null) {
     activeRunSource: activeRunId ? "SCHEDULED" : null,
     activeRunStartedAt: activeRunId ? new Date(now.valueOf() - 5000) : null,
     activeRunLeaseExpiresAt: activeRunId
-      ? new Date(now.valueOf() + 10000)
+      ? new Date(now.valueOf() + (expiredAtLock ? -10000 : 10000))
       : null,
     lastResult: activeRunId
       ? null
@@ -37,7 +37,7 @@ function sqlRow(activeRunId: string | null) {
   };
 }
 
-function simulateConditionalWrite(affected: boolean) {
+function simulateConditionalWrite(affected: boolean, expiredAtLock = false) {
   const sqlTexts: string[] = [];
   const params: unknown[][] = [];
   // Another scheduler may take over after the old owner's conditional
@@ -50,10 +50,14 @@ function simulateConditionalWrite(affected: boolean) {
     ) {
       sqlTexts.push(statement);
       params.push(values);
+      if (statement === 'SELECT clock_timestamp() AS "now"')
+        return { rows: [{ now }] as unknown as T[] };
       if (statement.startsWith("SELECT"))
-        return { rows: [sqlRow(visibleActiveRun)] as unknown as T[] };
+        return {
+          rows: [sqlRow(visibleActiveRun, expiredAtLock)] as unknown as T[],
+        };
       if (statement.startsWith("UPDATE monitoring_lane_schedules")) {
-        expect(values[2]).toBe(oldRun);
+        expect(values[3]).toBe(oldRun);
         // Simulate ownership moving to a replacement run immediately
         // around this write. RETURNING still describes this exact UPDATE.
         visibleActiveRun = replacement;
@@ -113,9 +117,11 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
         result,
       }),
     ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
-    expect(fixture.sqlTexts).toHaveLength(1);
-    expect(fixture.sqlTexts[0]).toMatch(
-      /AND active_run_id=\$3\s+AND active_run_lease_expires_at>clock_timestamp\(\)/,
+    expect(fixture.sqlTexts).toHaveLength(3);
+    expect(fixture.sqlTexts[0]).toContain("FOR UPDATE");
+    expect(fixture.sqlTexts[1]).toBe('SELECT clock_timestamp() AS "now"');
+    expect(fixture.sqlTexts[2]).toMatch(
+      /AND active_run_id=\$4\s+AND active_run_lease_expires_at>clock_timestamp\(\)/,
     );
   });
 
@@ -130,10 +136,10 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
         result,
       }),
     ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
-    expect(fixture.sqlTexts).toHaveLength(1);
+    expect(fixture.sqlTexts).toHaveLength(3);
     expect(fixture.visibleActiveRun).toBe(replacement);
-    expect(fixture.sqlTexts[0]).toContain("AND active_run_id=$3");
-    expect(fixture.sqlTexts[0]).toContain("RETURNING lane,");
+    expect(fixture.sqlTexts[2]).toContain("AND active_run_id=$4");
+    expect(fixture.sqlTexts[2]).toContain("RETURNING lane,");
   });
 
   it("uses PostgreSQL clock for completion metadata rather than caller timestamp", async () => {
@@ -145,15 +151,18 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
       now: new Date("2000-01-01T00:00:00.000Z"),
       result,
     });
-    expect(fixture.sqlTexts).toHaveLength(1);
-    expect(fixture.sqlTexts[0]).toContain("last_run_at=clock_timestamp()");
-    expect(fixture.sqlTexts[0]).toContain("updated_at=clock_timestamp()");
-    expect(fixture.sqlTexts[0]).toContain(
-      "last_result=jsonb_set($2::jsonb,'{finishedAt}',to_jsonb(clock_timestamp()),true)",
+    expect(fixture.sqlTexts).toHaveLength(3);
+    expect(fixture.sqlTexts[0]).toContain("FOR UPDATE");
+    expect(fixture.sqlTexts[1]).toBe('SELECT clock_timestamp() AS "now"');
+    expect(fixture.sqlTexts[2]).toContain("last_run_at=$2");
+    expect(fixture.sqlTexts[2]).toContain("updated_at=$2");
+    expect(fixture.sqlTexts[2]).toContain(
+      "last_result=jsonb_set($3::jsonb,'{finishedAt}',to_jsonb($2::timestamptz),true)",
     );
-    expect(fixture.params[0]).toHaveLength(3);
-    expect(fixture.params[0]?.[2]).toBe(oldRun);
-    expect(JSON.parse(fixture.params[0]?.[1] as string)).toEqual({
+    expect(fixture.params[2]).toHaveLength(4);
+    expect(fixture.params[2]?.[1]).toEqual(now);
+    expect(fixture.params[2]?.[3]).toBe(oldRun);
+    expect(JSON.parse(fixture.params[2]?.[2] as string)).toEqual({
       ...result,
       runId: oldRun,
     });
@@ -172,6 +181,18 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
     expect(confirmed.lastResult?.runId).toBe(oldRun);
     expect(confirmed.lastResult?.status).toBe("SUCCEEDED");
     expect(fixture.visibleActiveRun).toBe(replacement);
-    expect(fixture.sqlTexts).toHaveLength(1);
+    expect(fixture.sqlTexts).toHaveLength(3);
+  });
+
+  it("rejects an expired lease after the lane row is locked, without writing", async () => {
+    const fixture = simulateConditionalWrite(true, true);
+    const store = createPostgresMonitoringScheduleStore(fixture.runtime);
+    await expect(
+      store.finishRun({ lane: "SWAGGER_API", runId: oldRun, now, result }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    expect(fixture.sqlTexts).toHaveLength(2);
+    expect(fixture.sqlTexts[0]).toContain("FOR UPDATE");
+    expect(fixture.sqlTexts[1]).toBe('SELECT clock_timestamp() AS "now"');
+    expect(fixture.visibleActiveRun).toBe(oldRun);
   });
 });
