@@ -2533,5 +2533,117 @@ class CurrentCliAuthorityTests(unittest.TestCase):
                 )
 
 
+class CurrentSchemaPauseTests(unittest.TestCase):
+    def make_case(self):
+        case=CurrentApplyEngineTests("test_success_migrates_before_switch_and_records_target")
+        case.setUp();self.addCleanup(case.doCleanups)
+        self.case=case
+        self.evidence=case.root/"apply-paused";self.evidence.mkdir()
+        self.journal=case.root/"deployment-state.json"
+        return case
+
+    def apply(self):
+        c=self.case
+        return deploy.current_apply_engine(
+            candidate_release=c.release,expected_source_sha="a"*40,
+            expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+            evidence_root=c.root,journal=self.journal,evidence_dir=self.evidence,
+            pause_after_migration=True)
+
+    def test_prepared_schema_retains_fence_and_requires_explicit_forward_resume(self):
+        c=self.make_case()
+        with c.patches():
+            prepared=self.apply()
+        self.assertEqual(prepared["status"],"CURRENT_SCHEMA_PREPARED")
+        self.assertTrue(prepared["recoveryRequired"])
+        self.assertFalse(prepared["applicationMayHaveWritten"])
+        for p in (self.journal,self.evidence/"receipt.json"):
+            value=json.loads(p.read_text())
+            self.assertEqual(value["phase"],"SCHEMA_PREPARED")
+            self.assertEqual(value["schemaState"],"CANDIDATE_VERIFIED")
+            self.assertEqual(value["migrationSettlement"]["outcome"],"COMPLETED")
+            self.assertTrue(value["pauseAfterMigration"])
+        self.assertFalse(any(e[0] in ("write-dropins","fence-allow","start","restore-units","fence-remove") for e in c.events))
+        before=list(c.events)
+        with c.patches(),patch.object(deploy,"migrate",side_effect=AssertionError("never repeat migration")):
+            resumed=deploy.current_recover_engine(
+                candidate_release=c.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=c.root,journal=self.journal)
+        self.assertEqual(resumed["status"],"CURRENT_FORWARD_RECOVERY_PASS")
+        self.assertFalse(resumed["databaseRestored"])
+        self.assertEqual(c.prefix,50)
+        self.assertEqual([e for e in c.events if e[0]=="migrate"],[e for e in before if e[0]=="migrate"])
+        self.assertTrue(any(e[0]=="start" for e in c.events[len(before):]))
+
+    def test_second_apply_cannot_repeat_prepared_migration(self):
+        c=self.make_case()
+        with c.patches():self.apply()
+        before=list(c.events)
+        with c.patches(),patch.object(deploy,"verified_current_source_plan") as plan:
+            with self.assertRaisesRegex(RuntimeError,"RECOVERY"):
+                self.apply()
+        plan.assert_not_called()
+        self.assertEqual(c.events,before)
+
+    def test_failed_migration_is_not_a_prepared_schema(self):
+        c=self.make_case()
+        with c.patches(migrate_error="MIGRATION_FAILED"):
+            with self.assertRaisesRegex(RuntimeError,"MIGRATION_FAILED"):
+                self.apply()
+        saved=json.loads(self.journal.read_text())
+        self.assertEqual(saved["schemaState"],"UNKNOWN")
+        self.assertEqual(saved["migrationSettlement"]["outcome"],"UNCONFIRMED")
+        self.assertTrue(saved["recoveryRequired"])
+        self.assertFalse(any(e[0] in ("fence-allow","start","restore-units","fence-remove") for e in c.events))
+
+    def test_already_applied_schema_requires_no_staging_pause(self):
+        c=self.make_case();c.prefix=50
+        with c.patches():
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_SCHEMA_PAUSE_REQUIRES_PENDING_MIGRATIONS"):
+                self.apply()
+        self.assertTrue(all(e[0]=="prefix" for e in c.events))
+        self.assertFalse(self.journal.exists())
+
+    def test_pause_checkpoint_loss_keeps_unconfirmed_state_and_never_starts(self):
+        c=self.make_case();real_write=deploy.write_json_durable
+        class PowerLoss(BaseException):pass
+        def fail_completion(path,value):
+            if value.get("migrationSettlement",{}).get("outcome")=="COMPLETED":
+                raise PowerLoss("completion lost")
+            return real_write(path,value)
+        with c.patches(),patch.object(deploy,"write_json_durable",side_effect=fail_completion):
+            with self.assertRaises(PowerLoss):self.apply()
+        self.assertEqual(json.loads(self.journal.read_text())["schemaState"],"UNKNOWN")
+        self.assertFalse(any(e[0] in ("fence-allow","start","restore-units","fence-remove") for e in c.events))
+
+    def test_cli_pause_retains_apply_authority_and_exact_identity(self):
+        c=CurrentCliAuthorityTests("test_current_apply_routes_exact_identity_after_authority")
+        c.setUp();self.addCleanup(c.doCleanups)
+        argv=c.argv("current-apply")+["--pause-after-migration"]
+        with patch.object(deploy,"current_apply_engine") as engine,patch.object(deploy,"current_trusted_evidence_root") as root:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_DEPLOY_AUTHORIZATION_REQUIRED"):
+                deploy.current_cli(argv)
+        engine.assert_not_called();root.assert_not_called()
+        c.write_authority(modes=("apply",))
+        evidence=c.root/"prepared";evidence.mkdir()
+        with c.root_owned_authority_metadata(),patch.object(deploy,"current_trusted_evidence_root",return_value=evidence),patch.object(deploy,"current_apply_engine",return_value={"status":"CURRENT_SCHEMA_PREPARED","recoveryRequired":True}) as engine:
+            result=deploy.current_cli(argv)
+        self.assertEqual(result["authorityMode"],"apply")
+        self.assertTrue(engine.call_args.kwargs["pause_after_migration"])
+        self.assertEqual(engine.call_args.kwargs["expected_source_sha"],c.sha)
+        self.assertTrue(result["recoveryRequired"])
+
+    def test_cli_pause_is_not_valid_for_plan_or_recover(self):
+        import io
+        c=CurrentCliAuthorityTests("test_current_plan_is_read_only_route_without_live_authority")
+        c.setUp();self.addCleanup(c.doCleanups)
+        for mode in ("current-plan","current-recover"):
+            with self.subTest(mode=mode),patch("sys.stderr",new=io.StringIO()),patch.object(deploy,"current_require_cli_authority") as authority:
+                with self.assertRaises(SystemExit):
+                    deploy.current_cli(c.argv(mode)+["--pause-after-migration"])
+                authority.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

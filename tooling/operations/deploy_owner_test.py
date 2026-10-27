@@ -1011,7 +1011,10 @@ def current_apply_engine(
     evidence_root: Path,
     journal: Path,
     evidence_dir: Path,
+    pause_after_migration: bool = False,
 ) -> dict:
+    if type(pause_after_migration) is not bool:
+        raise RuntimeError('CURRENT_PAUSE_OPTION_INVALID')
     current_validate_evidence_paths(evidence_root,journal,evidence_dir)
     with current_operation_lock(evidence_root):
         current_assert_apply_journal_clear(journal)
@@ -1023,6 +1026,7 @@ def current_apply_engine(
             evidence_root=evidence_root,
             journal=journal,
             evidence_dir=evidence_dir,
+            pause_after_migration=pause_after_migration,
         )
 
 def _current_apply_engine_locked(
@@ -1034,6 +1038,7 @@ def _current_apply_engine_locked(
     evidence_root: Path,
     journal: Path,
     evidence_dir: Path,
+    pause_after_migration: bool = False,
 ) -> dict:
     """Current four-service mutation engine. No CLI/live authority is wired here."""
     if not journal.is_absolute() or journal.parent!=evidence_root:
@@ -1057,6 +1062,8 @@ def _current_apply_engine_locked(
     predeploy=live['applied']
     if predeploy>target:
         raise RuntimeError('CURRENT_PREDEPLOY_PREFIX_AHEAD_OF_CANDIDATE')
+    if pause_after_migration and predeploy==target:
+        raise RuntimeError('CURRENT_SCHEMA_PAUSE_REQUIRES_PENDING_MIGRATIONS')
     result_base_units=current_validate_base_units(plan)
     baseline_units=current_capture_unit_states(plan)
     dropin_backup=evidence_dir/'dropins-before'
@@ -1067,6 +1074,7 @@ def _current_apply_engine_locked(
     backup=None
     result={
         'status':'STARTED',
+        'pauseAfterMigration':pause_after_migration,
         'baselineRecoveryProtocol':CURRENT_BASELINE_RECOVERY_PROTOCOL,
         'migrationSettlement':{'protocol':1,'intentId':os.urandom(16).hex(),'outcome':'NOT_STARTED'},
         'phase':phase,
@@ -1089,6 +1097,7 @@ def _current_apply_engine_locked(
         write_json_durable(journal,{
             'baselineRecoveryProtocol':result['baselineRecoveryProtocol'],
             'migrationSettlement':dict(result['migrationSettlement']),
+            'pauseAfterMigration':pause_after_migration,
             'phase':phase,
             'schemaState':schema_state,
             'recoveryRequired':result['recoveryRequired'],
@@ -1127,6 +1136,13 @@ def _current_apply_engine_locked(
         else:
             result['liveMigration']={'status':'NOOP_ALREADY_TARGET','applied':predeploy}
             schema_state='CANDIDATE_VERIFIED'
+        if pause_after_migration:
+            # Required target grants/config can now be provisioned separately
+            # under their own authority. No permission or secret is issued here.
+            # Leave the persistent fence and original apply recovery binding.
+            result['status']='CURRENT_SCHEMA_PREPARED'
+            phase='SCHEMA_PREPARED'; record()
+            return result
         phase='SWITCHING_APPLICATION'; record()
         current_write_dropins(plan)
         result['applicationMayHaveWritten']=True
@@ -1805,7 +1821,11 @@ def current_cli(argv: list[str]) -> dict:
     parser.add_argument('--source-sha',required=True)
     parser.add_argument('--source-tree',required=True)
     parser.add_argument('--inventory-sha256',required=True)
+    parser.add_argument('--pause-after-migration',action='store_true',
+                        help='Apply only: keep services fenced after confirmed pending migrations; resume via separately authorized current-recover.')
     args=parser.parse_args(argv)
+    if args.pause_after_migration and args.mode!='current-apply':
+        parser.error('--pause-after-migration is only valid for current-apply')
     identity={
         'expected_source_sha':args.source_sha,
         'expected_source_tree':args.source_tree,
@@ -1826,6 +1846,7 @@ def current_cli(argv: list[str]) -> dict:
             evidence_root=root,
             journal=root/'deployment-state.json',
             evidence_dir=evidence_dir,
+            pause_after_migration=args.pause_after_migration,
             **identity,
         )
     else:
@@ -1847,7 +1868,7 @@ def main():
     if mode.startswith('current-'):
         result=current_cli(sys.argv[1:])
         print(json.dumps(result,sort_keys=True))
-        if mode=='current-apply' and result.get('status')!='APPLY_PASS':
+        if mode=='current-apply' and result.get('status') not in ('APPLY_PASS','CURRENT_SCHEMA_PREPARED'):
             raise SystemExit(2)
         return
     EVID.mkdir(parents=True,exist_ok=True); BACKUPS.mkdir(parents=True,exist_ok=True); os.chmod(EVID,0o700); os.chmod(BACKUPS,0o700)
