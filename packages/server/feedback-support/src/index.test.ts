@@ -626,6 +626,75 @@ describe("B2 feedback/support safety foundation", () => {
     });
   });
 
+  it.each([
+    ["LF", "\n", "password"],
+    ["CR", "\r", "access_token"],
+    ["CRLF", "\r\n", "clientSecret"],
+  ])(
+    "fails closed when a bare log-style %s credential contains a raw line break",
+    (_kind, linebreak, key) => {
+      const raw =
+        '[WARN] ' +
+        key +
+        ': "SYNTHETIC_BARE_CREDENTIAL_HEAD_601' +
+        linebreak +
+        'SYNTHETIC_BARE_CREDENTIAL_TAIL_602" requestId=safe';
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).toBe("[REDACTED_SECRET]");
+      expect(sanitized).not.toContain("SYNTHETIC_BARE_CREDENTIAL_HEAD_601");
+      expect(sanitized).not.toContain("SYNTHETIC_BARE_CREDENTIAL_TAIL_602");
+    },
+  );
+
+  it("preserves harmless bare-key multiline text and masks single-line credentials", () => {
+    const safe = 'message: "safe first line\nsafe second line"';
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+    const credential = 'password: "SYNTHETIC_BARE_INLINE_603"';
+    const sanitized = sanitizeFeedbackText(credential);
+    expect(sanitized).not.toContain("SYNTHETIC_BARE_INLINE_603");
+    expect(sanitized).toContain("[REDACTED_SECRET]");
+  });
+
+  it("never forwards a bare-key multiline credential to feedback case/followup sinks", async () => {
+    const writes: string[] = [];
+    const repo = {
+      createCase: async (input: { description: string }) => {
+        writes.push(input.description);
+        throw new Error("SYNTHETIC_CASE_WRITE_CAPTURED");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        writes.push(input.body);
+        throw new Error("SYNTHETIC_FOLLOWUP_WRITE_CAPTURED");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repo);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const text = 'password: "SYNTHETIC_BARE_HEAD_611\nSYNTHETIC_BARE_TAIL_612"';
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description: text,
+      }),
+    ).rejects.toThrow("SYNTHETIC_CASE_WRITE_CAPTURED");
+    await expect(
+      service.addUserFollowup(userId, caseId, { description: text }),
+    ).rejects.toThrow("SYNTHETIC_FOLLOWUP_WRITE_CAPTURED");
+    await expect(
+      service.addAdminFollowup("SUPPORT", userId, caseId, {
+        description: text,
+      }),
+    ).rejects.toThrow("SYNTHETIC_FOLLOWUP_WRITE_CAPTURED");
+    expect(writes).toEqual([
+      "[REDACTED_SECRET]",
+      "[REDACTED_SECRET]",
+      "[REDACTED_SECRET]",
+    ]);
+  });
+
   it("masks raw LF/CR sensitive tails before all feedback repository writes", async () => {
     const captured: string[] = [];
     const repo = {
