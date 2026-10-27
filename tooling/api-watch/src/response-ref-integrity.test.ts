@@ -103,6 +103,93 @@ describe("C03 unresolved OpenAPI response references fail closed", () => {
     ).toThrow("APIWATCH_RESPONSE_HEADER_REF_UNRESOLVED");
   });
 
+  it.each([42, "bad", null, []])(
+    "rejects primitive or array response objects %#",
+    (response) => {
+      expect(() => inventory(response)).toThrow(
+        "APIWATCH_RESPONSE_OBJECT_INVALID",
+      );
+    },
+  );
+
+  it.each([42, "bad", null, []])(
+    "rejects locally referenced primitive response objects %#",
+    (target) => {
+      expect(() =>
+        inventory(
+          { $ref: "#/components/responses/Primitive" },
+          { responses: { Primitive: target } },
+        ),
+      ).toThrow("APIWATCH_RESPONSE_OBJECT_INVALID");
+    },
+  );
+
+  it.each(["bad", [], null])(
+    "rejects malformed response headers containers %#",
+    (headers) => {
+      expect(() => inventory({ description: "ok", headers })).toThrow(
+        "APIWATCH_RESPONSE_HEADERS_INVALID",
+      );
+    },
+  );
+
+  it.each([42, "bad", null, []])(
+    "rejects malformed individual response header objects %#",
+    (header) => {
+      expect(() =>
+        inventory({
+          description: "ok",
+          headers: { "X-Trace": header },
+        }),
+      ).toThrow("APIWATCH_RESPONSE_HEADER_OBJECT_INVALID");
+    },
+  );
+
+  it("keeps a valid Swagger2 local response reference equivalent to inline", () => {
+    const body = { description: "ok", schema: { type: "string" } };
+    const root = (
+      response: unknown,
+      definitions: Record<string, unknown> = {},
+    ) => ({
+      swagger: "2.0",
+      info: { title: "swagger2 responses", version: "1" },
+      ...(Object.keys(definitions).length ? { responses: definitions } : {}),
+      paths: {
+        "/items": { get: { responses: { "200": response } } },
+      },
+    });
+    const build = (input: Record<string, unknown>) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE,
+        filename: "swagger.json",
+        bytes: Buffer.from(JSON.stringify(input)),
+      });
+    const byReference = build(
+      root({ $ref: "#/responses/Good" }, { Good: body }),
+    );
+    const inline = build(root(body));
+    expect(byReference.operations[0]?.responseSchemaSha256).toBe(
+      inline.operations[0]?.responseSchemaSha256,
+    );
+  });
+
+  it("detects response changes expressed only in valid response headers", () => {
+    const base = inventory({
+      description: "ok",
+      headers: { "X-Trace": { schema: { type: "string" } } },
+    });
+    const target = inventory(
+      {
+        description: "ok",
+        headers: { "X-Trace": { schema: { type: "integer" } } },
+      },
+      {},
+      TARGET,
+    );
+    expect(diffInventories({ base, target }).changedCount).toBe(1);
+  });
+
   it("keeps a valid local response reference equivalent to inline content", () => {
     const resolved = inventory(
       { $ref: "#/components/responses/Good" },

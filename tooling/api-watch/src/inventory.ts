@@ -634,7 +634,14 @@ function responseFingerprint(
   const legacy = fingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
-        const response = asObject(localRef(raw, root));
+        const responseValue = localRef(raw, root);
+        if (
+          !responseValue ||
+          typeof responseValue !== "object" ||
+          Array.isArray(responseValue)
+        )
+          throw new Error("APIWATCH_RESPONSE_OBJECT_INVALID");
+        const response = responseValue as Record<string, unknown>;
         // A Response Object is a trust boundary. An unresolved or external
         // Reference Object is not equivalent to a known empty response, and
         // forged sibling content cannot stand in for its unknown target.
@@ -646,13 +653,28 @@ function responseFingerprint(
           throw new Error("APIWATCH_RESPONSE_REF_UNRESOLVED");
         const body = response.schema ?? response.content ?? null;
         if (body !== null) hasResponseBody = true;
+        // A malformed headers container must not silently become an empty map.
+        if (
+          response.headers !== undefined &&
+          (!response.headers ||
+            typeof response.headers !== "object" ||
+            Array.isArray(response.headers))
+        )
+          throw new Error("APIWATCH_RESPONSE_HEADERS_INVALID");
         // Response headers are contract fields, not just response annotations.
         // HTTP header names are case-insensitive; OAS ignores Content-Type here.
         const headers = Object.entries(asObject(response.headers))
           .filter(([name]) => name.toLowerCase() !== "content-type")
           .sort(([a], [b]) => compareCodeUnits(a, b))
           .map(([name, rawHeader]) => {
-            const header = asObject(localRef(rawHeader, root));
+            const headerValue = localRef(rawHeader, root);
+            if (
+              !headerValue ||
+              typeof headerValue !== "object" ||
+              Array.isArray(headerValue)
+            )
+              throw new Error("APIWATCH_RESPONSE_HEADER_OBJECT_INVALID");
+            const header = headerValue as Record<string, unknown>;
             // Header Reference Objects also require a resolved authority:
             // do not present unknown remote/missing header definitions as
             // a verified response contract or a valid semantic fingerprint.
