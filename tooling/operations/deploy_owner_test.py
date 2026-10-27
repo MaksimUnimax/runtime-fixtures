@@ -931,19 +931,24 @@ def current_restore_live_backup(
     *,
     expected_prefix: int,
 ) -> int:
-    docker_pg(['dropdb','--if-exists','--force','-U',user,db],timeout=60)
-    docker_pg([
-        'createdb','-U',user,'-O',user,'-T','template0','-E',meta['encoding'],
-        '--lc-collate',meta['collate'],'--lc-ctype',meta['ctype'],db
-    ],timeout=60)
-    docker_pg(
-        ['pg_restore','--exit-on-error','--no-owner','--no-privileges','-U',user,'-d',db],
-        stdin_file=backup,timeout=180,
-    )
-    restored=check_migration_prefix_for_release(
-        release,base_url,expected_count=expected_prefix
-    )['applied']
-    return restored
+    # Kept as an explicit refusal for stale callers: the custom dump omits
+    # privileges and the old restore changed owners/database settings.
+    # Current apply/recover preserve the existing database instead.
+    raise RuntimeError('CURRENT_DESTRUCTIVE_RESTORE_DISABLED')
+
+
+def current_retained_schema(release: Path, base_url: str, predeploy: int, target: int) -> dict:
+    # The native checker validates the complete ordered (hash,timestamp) prefix.
+    # A process exit/timeout alone says nothing about transaction commit.
+    checked=check_migration_prefix_for_release(release,base_url)
+    count=checked.get('applied')
+    if type(count) is not int or count not in (predeploy,target):
+        raise RuntimeError('CURRENT_RETAINED_SCHEMA_UNCONFIRMED')
+    return {
+        'schemaState':'PREDEPLOY_VERIFIED' if count==predeploy else 'CANDIDATE_VERIFIED',
+        'migrationPrefix':checked,
+        'databaseRestored':False,
+    }
 
 @contextmanager
 def current_operation_lock(evidence_root: Path):
@@ -1123,13 +1128,13 @@ def _current_apply_engine_locked(
                 # Starting even one service can admit durable writes before health
                 # acceptance. Restoring a predeploy dump would discard them.
                 raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
-            if backup is not None and schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
-                current_verify_backup_receipt(result.get('backup'))
-                result['restoredMigrationCount']=current_restore_live_backup(
-                    user,db,base_url,backup,db_meta,candidate_release,
-                    expected_prefix=predeploy,
+            if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
+                result['retainedSchema']=current_retained_schema(
+                    candidate_release,base_url,predeploy,target,
                 )
-                schema_state='PREDEPLOY_VERIFIED'
+                schema_state=result['retainedSchema']['schemaState']
+                if schema_state=='CANDIDATE_VERIFIED':
+                    raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
             current_restore_dropins(plan,dropin_backup)
             check_migration_prefix_for_release(
                 candidate_release,base_url,expected_count=predeploy,
@@ -1358,9 +1363,9 @@ def _current_recover_engine_locked(
     if plan.get('migrationTarget',{}).get('count')!=target:
         raise RuntimeError('CURRENT_BASELINE_SCHEMA_TARGET_MISMATCH')
     # Missing recovery.json can mean an old process died AFTER admitting a
-    # writer. Only two matching records written by this durable-start protocol
-    # can authorize a destructive pre-start restore; never upgrade legacy
-    # UNKNOWN evidence or infer safety from absence of a final result file.
+    # writer. Require matching durable-start evidence before resuming an old
+    # baseline; never upgrade legacy UNKNOWN evidence or infer safety from
+    # absence of a final result file. This path never replays a database dump.
     if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
         for item in (state,receipt):
             if (type(item.get('baselineRecoveryProtocol')) is not int
@@ -1402,22 +1407,19 @@ def _current_recover_engine_locked(
         current_stop_product_units(plan)
         result['productQuiesced']=True
         if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
-            backup_info=receipt.get('backup')
-            if not isinstance(backup_info,dict) or not isinstance(backup_info.get('path'),str):
-                raise RuntimeError('CURRENT_RECOVERY_BACKUP_MISSING')
-            backup=current_verify_backup_receipt(backup_info)
-            base_url=database_url()
-            user,_password,db,_parsed=db_identity(base_url)
-            meta=receipt.get('databaseMeta')
-            if not isinstance(meta,dict):
-                # Older interrupted receipt may not expose this field; do not
-                # infer database creation metadata after destructive failure.
-                raise RuntimeError('CURRENT_RECOVERY_DATABASE_META_MISSING')
-            result['restoredMigrationCount']=current_restore_live_backup(
-                user,db,base_url,backup,meta,candidate_release,
-                expected_prefix=predeploy,
+            result['retainedSchema']=current_retained_schema(
+                candidate_release,database_url(),predeploy,target,
             )
-            schema_state='PREDEPLOY_VERIFIED'
+            schema_state=result['retainedSchema']['schemaState']
+            result['schemaState']=schema_state
+            if schema_state=='CANDIDATE_VERIFIED':
+                # Commit may have succeeded before its response was lost.
+                # Persist the observed schema, then require an explicit forward
+                # recovery. Neither old application nor old dump is admitted.
+                resolved_receipt={**receipt,'schemaState':schema_state,'recoveryRequired':True}
+                write_json_durable(receipt_path,resolved_receipt)
+                write_json_durable(journal,{**state,'schemaState':schema_state,'recoveryRequired':True})
+                raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
         # Verify the ordered migration hashes and count; a mismatch is a stop,
         # never a reason to restore a dump over possible post-start writes.
         result['baselineSchema']=check_migration_prefix_for_release(

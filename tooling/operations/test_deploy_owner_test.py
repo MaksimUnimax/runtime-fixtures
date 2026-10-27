@@ -1262,6 +1262,75 @@ class CurrentApplyEngineTests(unittest.TestCase):
                 evidence_root=self.root,journal=journal,evidence_dir=evidence,
             )
 
+
+    def test_migration_error_retains_database_ownership_acl_and_rows(self):
+        evidence=self.root/"apply-preserved-metadata";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        retained={"owner":"original_owner","acl":["transfer_runtime:SELECT"],"settings":["search_path=public"],"rows":["existing-session"]}
+        before=json.loads(json.dumps(retained))
+        def failed_migration(*args):
+            # The pending migration transaction rolled back; original prefix remains.
+            raise RuntimeError("MIGRATION_FAILED")
+        def destructive_restore(*args,**kwargs):
+            retained.update(owner="restore_user",acl=[],settings=[],rows=[])
+            return 17
+        with self.patches(),patch.object(deploy,"migrate",side_effect=failed_migration), \
+             patch.object(deploy,"current_restore_live_backup",side_effect=destructive_restore) as restore:
+            with self.assertRaisesRegex(RuntimeError,"MIGRATION_FAILED"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=journal,evidence_dir=evidence,
+                )
+        restore.assert_not_called()
+        self.assertEqual(retained,before)
+        self.assertIn(("restore-units",17),self.events)
+
+
+    def test_committed_migration_error_retains_candidate_schema_for_forward_recovery(self):
+        evidence=self.root/"apply-commit-response-loss";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        with self.patches(migrate_error="COMMIT_RESPONSE_LOST"), \
+             patch.object(deploy,"current_restore_live_backup") as restore:
+            with self.assertRaisesRegex(RuntimeError,"COMMIT_RESPONSE_LOST"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=journal,evidence_dir=evidence,
+                )
+        restore.assert_not_called()
+        self.assertEqual(self.prefix,50)
+        self.assertNotIn(("restore-units",50),self.events)
+        saved=json.loads(journal.read_text())
+        self.assertEqual(saved["schemaState"],"CANDIDATE_VERIFIED")
+        self.assertTrue(saved["recoveryRequired"])
+        self.assertEqual(json.loads((evidence/"receipt.json").read_text())["rollbackError"],"CURRENT_FORWARD_RECOVERY_REQUIRED")
+
+
+    def test_auto_recovery_unknown_history_keeps_fence_without_database_replay(self):
+        evidence=self.root/"apply-unconfirmed-prefix";evidence.mkdir()
+        journal=self.root/"deployment-state.json"
+        calls=0
+        def prefix(*args,**kwargs):
+            nonlocal calls
+            calls+=1
+            if calls==1:return {"status":"PASS_PREFIX","applied":17}
+            raise RuntimeError("HISTORY_READBACK_LOST")
+        with self.patches(migrate_error="MIGRATION_FAILED"), \
+             patch.object(deploy,"check_migration_prefix_for_release",side_effect=prefix), \
+             patch.object(deploy,"current_restore_live_backup") as restore:
+            with self.assertRaisesRegex(RuntimeError,"MIGRATION_FAILED"):
+                deploy.current_apply_engine(
+                    candidate_release=self.release,expected_source_sha="a"*40,
+                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                    evidence_root=self.root,journal=journal,evidence_dir=evidence,
+                )
+        restore.assert_not_called()
+        self.assertFalse(any(e[0] in ("restore-units","fence-allow","start") for e in self.events))
+        saved=json.loads(journal.read_text())
+        self.assertEqual(saved["schemaState"],"UNKNOWN")
+        self.assertTrue(saved["recoveryRequired"])
+
     def test_post_start_failure_preserves_new_device_session_rows(self):
         evidence=self.root/"apply-new-session";evidence.mkdir()
         journal=self.root/"deployment-state.json"
@@ -1408,30 +1477,23 @@ class CurrentMigrationRollbackTests(unittest.TestCase):
         self.assertEqual((result["before"],result["after"]),(17,50))
         self.assertEqual([x[0][0] for x in events],["createdb","pg_restore","dropdb"])
 
-    def test_live_restore_verifies_restored_prefix_with_candidate_lineage(self):
-        events=[]
-        def docker(args,**kwargs):
-            events.append(list(args))
-            return deploy.subprocess.CompletedProcess(args,0,stdout=b"",stderr=b"")
-        with patch.object(deploy,"docker_pg",side_effect=docker),              patch.object(deploy,"check_migration_prefix_for_release",
-                          return_value={"status":"PASS_PREFIX","applied":17}) as check:
-            result=deploy.current_restore_live_backup(
-                "u","db","postgres://u@localhost/db",self.archive,
-                {"encoding":"UTF8","collate":"C","ctype":"C"},self.release,
-                expected_prefix=17,
-            )
-        self.assertEqual(result,17)
-        self.assertEqual([x[0] for x in events],["dropdb","createdb","pg_restore"])
-        self.assertEqual(check.call_args.kwargs["expected_count"],17)
+    def test_current_destructive_restore_is_disabled_before_database_io(self):
+        with patch.object(deploy,"docker_pg") as command, patch.object(deploy,"check_migration_prefix_for_release") as check:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_DESTRUCTIVE_RESTORE_DISABLED"):
+                deploy.current_restore_live_backup(
+                    "u","db","postgres://u@localhost/db",self.archive,
+                    {"encoding":"UTF8","collate":"C","ctype":"C"},self.release,expected_prefix=17,
+                )
+        command.assert_not_called()
+        check.assert_not_called()
 
-    def test_migration_failure_restores_database_before_unit_baseline(self):
-        # Reuse the full engine fixture and make migration fail after schema becomes uncertain.
+    def test_migration_failure_retains_rolled_back_database_before_unit_baseline(self):
         case=CurrentApplyEngineTests("test_success_migrates_before_switch_and_records_target")
         case.setUp()
         try:
             evidence=case.root/"apply-migration-fail";evidence.mkdir()
             journal=case.root/"deployment-state.json"
-            with case.patches(migrate_error="MIGRATION_FAILED"):
+            with case.patches(),patch.object(deploy,"migrate",side_effect=RuntimeError("MIGRATION_FAILED")):
                 with case.assertRaisesRegex(RuntimeError,"MIGRATION_FAILED"):
                     deploy.current_apply_engine(
                         candidate_release=case.release,expected_source_sha="a"*40,
@@ -1439,8 +1501,9 @@ class CurrentMigrationRollbackTests(unittest.TestCase):
                         evidence_root=case.root,journal=journal,evidence_dir=evidence,
                     )
             names=[e[0] for e in case.events]
-            case.assertIn("restore-db",names)
-            case.assertLess(names.index("restore-db"),names.index("restore-units"))
+            case.assertNotIn("restore-db",names)
+            case.assertIn(("restore-units",17),case.events)
+            case.assertEqual(json.loads(journal.read_text())["schemaState"],"PREDEPLOY_VERIFIED")
         finally:
             case.doCleanups()
 
@@ -1522,7 +1585,22 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                                          side_effect=lambda plan,state:events.append("units")))
         return stack
 
-    def test_unknown_schema_restores_database_before_application_baseline(self):
+
+    def test_unknown_recovery_retains_existing_ownership_acl_and_rows(self):
+        self.write_state("UNKNOWN");events=[]
+        retained={"owner":"original_owner","acl":["transfer_runtime:SELECT"],"rows":["existing-session"]}
+        before=json.loads(json.dumps(retained))
+        def destructive_restore(*args,**kwargs):
+            retained.update(owner="restore_user",acl=[],rows=[])
+            return 17
+        with self.patch_common(events),patch.object(deploy,"db_identity",return_value=("u","p","db",None)), \
+             patch.object(deploy,"current_restore_live_backup",side_effect=destructive_restore) as restore:
+            result=self.recover_forward_target()
+        restore.assert_not_called()
+        self.assertEqual(retained,before)
+        self.assertEqual(result["status"],"CURRENT_RECOVERY_PASS")
+
+    def test_unknown_schema_checks_retained_database_before_application_baseline(self):
         self.write_state("UNKNOWN");events=[]
         with self.patch_common(events) as stack:
             stack.enter_context(patch.object(deploy,"database_url",return_value="postgres://u@localhost/db"))
@@ -1535,7 +1613,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 evidence_root=self.root,journal=self.journal,
             )
         self.assertEqual(result["status"],"CURRENT_RECOVERY_PASS")
-        self.assertLess(events.index("db"),events.index("dropins"))
+        self.assertNotIn("db",events)
         self.assertLess(events.index("dropins"),events.index("units"))
         self.assertFalse(json.loads(self.journal.read_text())["recoveryRequired"])
 
@@ -1554,16 +1632,78 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
         )
         self.assertEqual(result["schemaState"],"PREDEPLOY_VERIFIED")
 
-    def test_missing_backup_in_unknown_schema_keeps_recovery_required(self):
+    def test_unknown_schema_readback_failure_keeps_database_and_recovery_required(self):
         self.write_state("UNKNOWN",backup=False);events=[]
-        with self.patch_common(events):
-            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_BACKUP_MISSING"):
-                deploy.current_recover_engine(
-                    candidate_release=self.release,expected_source_sha="a"*40,
-                    expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
-                    evidence_root=self.root,journal=self.journal,
-                )
+        with self.patch_common(events), \
+             patch.object(deploy,"check_migration_prefix_for_release",side_effect=RuntimeError("HISTORY_READBACK_LOST")), \
+             patch.object(deploy,"current_restore_live_backup") as restore:
+            with self.assertRaisesRegex(RuntimeError,"HISTORY_READBACK_LOST"):
+                self.recover_forward_target()
+        restore.assert_not_called()
+        self.assertNotIn("units",events)
+        self.assertNotIn("dropins",events)
         self.assertTrue(json.loads(self.journal.read_text())["recoveryRequired"])
+
+
+    def test_unknown_recovery_resolves_committed_prefix_without_replacing_database(self):
+        self.write_state("UNKNOWN");events=[]
+        with self.patch_common(events), \
+             patch.object(deploy,"check_migration_prefix_for_release",return_value={"status":"PASS_PREFIX","applied":50}), \
+             patch.object(deploy,"current_restore_live_backup") as restore:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FORWARD_RECOVERY_REQUIRED"):
+                self.recover_forward_target()
+        restore.assert_not_called()
+        self.assertNotIn("units",events)
+        for path in (self.journal,self.evidence/"receipt.json"):
+            saved=json.loads(path.read_text())
+            self.assertEqual(saved["schemaState"],"CANDIDATE_VERIFIED")
+            self.assertTrue(saved["recoveryRequired"])
+        self.forward_rows=["retained-session"]
+        with self.forward_patches(events):
+            result=self.recover_forward_target()
+        self.assertEqual(result["status"],"CURRENT_FORWARD_RECOVERY_PASS")
+        self.assertEqual(self.forward_rows,["retained-session","write-during-forward-start"])
+
+    def test_unresolved_retained_prefix_cannot_restore_or_start_baseline(self):
+        for count in (0,18,49,51,True,None):
+            with self.subTest(count=count):
+                self.evidence=self.root/("apply-unresolved-"+str(count));self.evidence.mkdir()
+                (self.evidence/"dropins-before").mkdir()
+                self.write_state("UNKNOWN");events=[]
+                with self.patch_common(events), \
+                     patch.object(deploy,"check_migration_prefix_for_release",return_value={"status":"PASS_PREFIX","applied":count}), \
+                     patch.object(deploy,"current_restore_live_backup") as restore:
+                    with self.assertRaisesRegex(RuntimeError,"CURRENT_RETAINED_SCHEMA_UNCONFIRMED"):
+                        self.recover_forward_target()
+                restore.assert_not_called()
+                self.assertNotIn("units",events)
+                self.assertNotIn("dropins",events)
+                self.assertNotIn("fence-allow",events)
+                self.assertTrue(json.loads(self.journal.read_text())["recoveryRequired"])
+
+
+    def test_resolved_candidate_journal_loss_cannot_restart_or_replay_database(self):
+        self.write_state("UNKNOWN");events=[]
+        real_write=deploy.write_json_durable
+        def fail_resolved_journal(path,value):
+            if path==self.journal and value.get("schemaState")=="CANDIDATE_VERIFIED":
+                raise OSError("RESOLVED_JOURNAL_WRITE_FAILED")
+            return real_write(path,value)
+        with self.patch_common(events), \
+             patch.object(deploy,"check_migration_prefix_for_release",return_value={"status":"PASS_PREFIX","applied":50}), \
+             patch.object(deploy,"current_restore_live_backup") as restore:
+            with patch.object(deploy,"write_json_durable",side_effect=fail_resolved_journal):
+                with self.assertRaisesRegex(OSError,"RESOLVED_JOURNAL_WRITE_FAILED"):
+                    self.recover_forward_target()
+            events_before=list(events)
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_BASELINE_REPLAY_UNCONFIRMED"):
+                self.recover_forward_target()
+        restore.assert_not_called()
+        self.assertEqual(events,events_before)
+        self.assertNotIn("units",events)
+        self.assertNotIn("fence-allow",events)
+        self.assertEqual(json.loads(self.journal.read_text())["schemaState"],"UNKNOWN")
+        self.assertEqual(json.loads((self.evidence/"receipt.json").read_text())["schemaState"],"CANDIDATE_VERIFIED")
 
     def test_identity_mismatch_fails_before_quiesce(self):
         self.write_state("UNKNOWN")
@@ -1622,7 +1762,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                     crashed=False
                     self.recover_forward_target()
                 self.assertEqual(rows,["session-1","session-2"])
-                self.assertEqual(restores,["restore"])
+                self.assertEqual(restores,[])
         attempts=list(self.root.glob("apply-baseline-*/baseline-recovery-*.json"))
         self.assertEqual(len(attempts),4)
         self.assertEqual(sum(json.loads(p.read_text())["status"]=="CURRENT_RECOVERY_PASS" for p in attempts),2)
@@ -1653,7 +1793,8 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
             if starts==1:
                 crashed=True
                 raise PowerLoss("POWER_LOSS")
-        with case.patches(migrate_error="MIGRATION_FAILED"), \
+        with case.patches(), \
+             patch.object(deploy,"migrate",side_effect=RuntimeError("MIGRATION_FAILED")), \
              patch.object(deploy,"current_restore_live_backup",side_effect=restore), \
              patch.object(deploy,"current_restore_unit_states",side_effect=start):
             with patch.object(deploy,"write_json_durable",side_effect=durable):
@@ -1670,7 +1811,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 evidence_root=case.root,journal=journal,
             )
         self.assertEqual(rows,["baseline-session-1","baseline-session-2"])
-        self.assertEqual(restores,["restore"])
+        self.assertEqual(restores,[])
 
     def baseline_started_state(self):
         self.forward_state()
@@ -1814,7 +1955,7 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
             self.assertNotIn("fence-allow",events)
             with self.assertRaisesRegex(RuntimeError,"CURRENT_FORWARD_SCHEMA_UNCONFIRMED"):
                 self.recover_forward_target()
-            self.assertEqual(restore.call_count,1)
+            restore.assert_not_called()
 
     def forward_state(self, *, legacy=False):
         self.write_state("CANDIDATE_VERIFIED")
