@@ -237,4 +237,113 @@ test.describe("portal feedback recovery", () => {
     await expect(field(page)).toHaveValue("");
     await expect(field(page)).toBeEnabled();
   });
+  test("shows only the verified same-case support reply in the existing feedback list", async ({
+    page,
+  }) => {
+    const userNote = "SYNTHETIC_USER_NOTE_NOT_SUPPORT";
+    const staffReply = "SYNTHETIC_SUPPORT_REPLY_B16";
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    await page.route("**/api/control-plane/v1/support/cases", (route) =>
+      json(route, { items: [submittedCase] }),
+    );
+    await page.route(
+      `**/api/control-plane/v1/support/cases/${caseId}`,
+      (route) =>
+        json(route, {
+          ...submittedCase,
+          status: "TRIAGED",
+          followups: [
+            {
+              followupId: "11111111-1111-4111-8111-111111111102",
+              authorType: "USER",
+              body: userNote,
+              createdAt: "2026-10-24T00:01:00Z",
+            },
+            {
+              followupId: "11111111-1111-4111-8111-111111111103",
+              authorType: "SUPPORT",
+              body: staffReply,
+              createdAt: "2026-10-24T00:02:00Z",
+            },
+          ],
+        }),
+    );
+    await page.goto("/feedback");
+    await expect(
+      main(page).getByText(`Номер обращения: ${caseId}`),
+    ).toBeVisible();
+    await main(page)
+      .getByRole("button", { name: "Проверить ответ поддержки" })
+      .click();
+    await expect(main(page).getByText(staffReply)).toBeVisible();
+    await expect(
+      main(page).getByText("Актуальный статус: TRIAGED"),
+    ).toBeVisible();
+    await expect(main(page).getByText(userNote)).toHaveCount(0);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("a pending old support reply cannot reappear after case-list refresh", async ({
+    page,
+  }) => {
+    const staleReply = "SYNTHETIC_STALE_SUPPORT_REPLY_B16";
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    let reads = 0;
+    await page.route("**/api/control-plane/v1/support/cases", (route) => {
+      reads += 1;
+      return json(route, { items: reads === 1 ? [submittedCase] : [] });
+    });
+    let started!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      `**/api/control-plane/v1/support/cases/${caseId}`,
+      async (route) => {
+        started();
+        await pending;
+        await json(route, {
+          ...submittedCase,
+          followups: [
+            {
+              followupId: "11111111-1111-4111-8111-111111111104",
+              authorType: "SUPPORT",
+              body: staleReply,
+              createdAt: "2026-10-24T00:03:00Z",
+            },
+          ],
+        });
+      },
+    );
+    try {
+      await page.goto("/feedback");
+      await main(page)
+        .getByRole("button", { name: "Проверить ответ поддержки" })
+        .click();
+      await entered;
+      await main(page)
+        .getByRole("button", { name: "Обновить", exact: true })
+        .click();
+      await expect(main(page).getByText("Обращений пока нет.")).toBeVisible();
+      expect(reads).toBe(2);
+      const fulfilled = page.waitForResponse((response) =>
+        response.url().endsWith(`/v1/support/cases/${caseId}`),
+      );
+      release();
+      await fulfilled;
+      await expect(main(page).getByText(staleReply)).toHaveCount(0);
+      await expect(
+        main(page).getByRole("button", { name: "Проверить ответ поддержки" }),
+      ).toHaveCount(0);
+      expect(pageErrors).toEqual([]);
+    } finally {
+      release();
+    }
+  });
 });
