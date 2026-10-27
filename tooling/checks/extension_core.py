@@ -55,6 +55,8 @@ def main():
         runner.run("core-store-package-contract", [sys.executable, ROOT / "tests/regression/extension-core/store-package-contract.py"])
         runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
         runner.run("core-work-start-pending-readback", ["node", "--test", ROOT / "tests/regression/extension-core/client-i1/client-a01-pending-readback.mjs"])
+        runner.run("core-source-ozon-grouped-json-projection",
+                   ["node", ROOT / "tests/regression/extension-core/ozon-grouped-json-projection.mjs", ROOT])
         source, extracted, receipt = composed.build(output / "package")
         result["composition"] = receipt
         runner.run("core-store-metadata-and-import-fences", ["node", ROOT / "tests/regression/extension-core/client-i1/client-d3s2-store-metadata-state.mjs", ROOT])
@@ -79,6 +81,8 @@ def main():
             runner.run(label + "-ozon-seller-postfetch-diagnostics",
                        ["node", ROOT / "tests/regression/extension-core/ozon-seller-postfetch-diagnostics.mjs", provider, transport])
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
+            runner.run(label + "-ozon-grouped-json-projection",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-grouped-json-projection.mjs", runtime])
             runner.run(label + "-ozon-guidance-entitlement", ["node", ROOT / "tests/regression/extension-core/ozon-guidance-entitlement.mjs", runtime])
             runner.run(label + "-ozon-advertising-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-advertising-guidance-readiness.mjs", runtime])
             runner.run(label + "-ozon-search-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-search-guidance-readiness.mjs", runtime])
