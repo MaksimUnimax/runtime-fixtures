@@ -634,7 +634,7 @@ describe("B2 feedback/support safety foundation", () => {
     "fails closed when a bare log-style %s credential contains a raw line break",
     (_kind, linebreak, key) => {
       const raw =
-        '[WARN] ' +
+        "[WARN] " +
         key +
         ': "SYNTHETIC_BARE_CREDENTIAL_HEAD_601' +
         linebreak +
@@ -647,17 +647,35 @@ describe("B2 feedback/support safety foundation", () => {
   );
 
   it.each([
-    ["unterminated double quote", 'password: "SYNTHETIC_BARE_QUOTE_HEAD_701 SYNTHETIC_BARE_QUOTE_TAIL_702'],
-    ["unterminated single quote", "access_token = 'SYNTHETIC_BARE_QUOTE_HEAD_703 SYNTHETIC_BARE_QUOTE_TAIL_704"],
-    ["quoted whitespace", 'clientSecret: "SYNTHETIC_BARE_QUOTE_HEAD_705 SYNTHETIC_BARE_QUOTE_TAIL_706" requestId=safe'],
-    ["quoted comma", 'password: "SYNTHETIC_BARE_QUOTE_HEAD_707,SYNTHETIC_BARE_QUOTE_TAIL_708" requestId=safe'],
-    ["quoted semicolon", 'token: "SYNTHETIC_BARE_QUOTE_HEAD_709;SYNTHETIC_BARE_QUOTE_TAIL_710" requestId=safe'],
-  ])("fails closed on a %s credential whose value could be partially masked", (_case, raw) => {
-    const sanitized = sanitizeFeedbackText(raw);
-    expect(sanitized).toBe("[REDACTED_SECRET]");
-    expect(sanitized).not.toContain("SYNTHETIC_BARE_QUOTE_HEAD_");
-    expect(sanitized).not.toContain("SYNTHETIC_BARE_QUOTE_TAIL_");
-  });
+    [
+      "unterminated double quote",
+      'password: "SYNTHETIC_BARE_QUOTE_HEAD_701 SYNTHETIC_BARE_QUOTE_TAIL_702',
+    ],
+    [
+      "unterminated single quote",
+      "access_token = 'SYNTHETIC_BARE_QUOTE_HEAD_703 SYNTHETIC_BARE_QUOTE_TAIL_704",
+    ],
+    [
+      "quoted whitespace",
+      'clientSecret: "SYNTHETIC_BARE_QUOTE_HEAD_705 SYNTHETIC_BARE_QUOTE_TAIL_706" requestId=safe',
+    ],
+    [
+      "quoted comma",
+      'password: "SYNTHETIC_BARE_QUOTE_HEAD_707,SYNTHETIC_BARE_QUOTE_TAIL_708" requestId=safe',
+    ],
+    [
+      "quoted semicolon",
+      'token: "SYNTHETIC_BARE_QUOTE_HEAD_709;SYNTHETIC_BARE_QUOTE_TAIL_710" requestId=safe',
+    ],
+  ])(
+    "fails closed on a %s credential whose value could be partially masked",
+    (_case, raw) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).toBe("[REDACTED_SECRET]");
+      expect(sanitized).not.toContain("SYNTHETIC_BARE_QUOTE_HEAD_");
+      expect(sanitized).not.toContain("SYNTHETIC_BARE_QUOTE_TAIL_");
+    },
+  );
 
   it("preserves harmless bare-key multiline text and masks single-line credentials", () => {
     const safe = 'message: "safe first line\nsafe second line"';
@@ -671,13 +689,16 @@ describe("B2 feedback/support safety foundation", () => {
   it("passes only the sanitized description through both create-case repository fields", async () => {
     let forwarded: Parameters<FeedbackRepository["createCase"]>[0] | undefined;
     const repository = {
-      createCase: async (input: Parameters<FeedbackRepository["createCase"]>[0]) => {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
         forwarded = input;
         throw new Error("SYNTHETIC_SAFE_REPOSITORY_CAPTURED");
       },
     } as unknown as FeedbackRepository;
     const service = new FeedbackSupportService(repository);
-    const original = 'password: "SYNTHETIC_RAW_BODY_HEAD_711 SYNTHETIC_RAW_BODY_TAIL_712"';
+    const original =
+      'password: "SYNTHETIC_RAW_BODY_HEAD_711 SYNTHETIC_RAW_BODY_TAIL_712"';
     await expect(
       service.createCase("00000000-0000-4000-8000-000000000001", {
         accountId: "00000000-0000-4000-8000-000000000002",
@@ -692,8 +713,12 @@ describe("B2 feedback/support safety foundation", () => {
       productVersion: "0.2.37",
     });
     expect(forwarded?.body.diagnostics).toEqual(forwarded?.diagnostics);
-    expect(JSON.stringify(forwarded)).not.toContain("SYNTHETIC_RAW_BODY_HEAD_711");
-    expect(JSON.stringify(forwarded)).not.toContain("SYNTHETIC_RAW_BODY_TAIL_712");
+    expect(JSON.stringify(forwarded)).not.toContain(
+      "SYNTHETIC_RAW_BODY_HEAD_711",
+    );
+    expect(JSON.stringify(forwarded)).not.toContain(
+      "SYNTHETIC_RAW_BODY_TAIL_712",
+    );
   });
 
   it("never forwards a bare-key multiline credential to feedback case/followup sinks", async () => {
