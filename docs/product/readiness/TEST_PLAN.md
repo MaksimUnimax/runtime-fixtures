@@ -54,9 +54,10 @@ STD-21..28 — ещё 8 резервных бизнес-вопросов. Они
 | TR-12 | Delivery | Реальный attachment/composer/send, session fence, local resend без provider request, TTL expiry |
 | TR-13 | Account/store/dialogue | Межаккаунтная/межмагазинная изоляция, Finish/rebind/generation fence, старая история не исполняется |
 | TR-14 | Authority/sync | Подписанный допуск и exact expiry, known revoke, offline grace; sync не становится разрешением каждой команды |
-| TR-15 | Transfer/export | Recipient-only confirmation, key persistence, TTL/caps/revoke/timeout/restart/replay, wrong password/corrupt import |
+| TR-15 | Transfer/export | Отдельное подтверждение владельца до выдачи ключей новой установке; key persistence, TTL/caps/revoke/timeout/restart/replay, wrong password/corrupt import |
 | TR-16 | Server/release | OTP/refresh race, beta quota, RBAC, real PG restore, exact package/trust/manifest/contract validation |
 | TR-17 | Monitoring | Нет self-patch publication; auth lanes, scheduler, unauthorized Telegram, notification dedup, official WB bundle validation |
+| TR-18 | Account connection code | Повторно используемый сохранённый код прямо подключает новую установку без обязательного сайта; отдельные device/session/access/refresh; замена инвалидирует старый код для новых подключений; получение ключей ждёт отдельного подтверждения владельца |
 
 H2-I/category-comparison из эталона — отдельно исследуемая capability, не разрешение молча добавлять новую API-операцию. Новая операция требует собственной schema/read-effect/entitlement/privacy проверки.
 

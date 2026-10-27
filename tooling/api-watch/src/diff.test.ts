@@ -152,6 +152,236 @@ describe("C03 canonical fallback for synthetic Unicode-equivalent identities", (
 });
 
 describe("A4 semantic API diffs", () => {
+  it.each(["3.0.3", "2.0"] as const)(
+    "C03 rejects malformed Path Item and Operation parameters in OAS %s",
+    (version) => {
+      const page = {
+        name: "page",
+        in: "query",
+        required: true,
+        schema: { type: "integer" },
+      };
+      const build = (
+        pathParameterValue?: unknown,
+        operationParameterValue?: unknown,
+      ) => {
+        const pathItem = {
+          ...(pathParameterValue === undefined
+            ? {}
+            : { parameters: pathParameterValue }),
+          get: {
+            ...(operationParameterValue === undefined
+              ? {}
+              : { parameters: operationParameterValue }),
+            responses: { "200": { description: "ok" } },
+          },
+        };
+        return buildCompleteOperationInventory({
+          sourceFamily: FAMILY,
+          snapshotSha256: BASE_SHA,
+          filename: "openapi.json",
+          bytes: Buffer.from(
+            JSON.stringify({
+              ...(version === "2.0"
+                ? { swagger: "2.0" }
+                : { openapi: "3.0.3" }),
+              info: { title: "parameter container proof", version: "1" },
+              paths: { "/orders": pathItem },
+            }),
+          ),
+        });
+      };
+      const empty = build();
+      for (const invalid of [null, { ...page }, 42, false, "query"]) {
+        expect(() => build(invalid)).toThrow(
+          "APIWATCH_PARAMETERS_INVALID_CONTAINER",
+        );
+        expect(() => build(undefined, invalid)).toThrow(
+          "APIWATCH_PARAMETERS_INVALID_CONTAINER",
+        );
+      }
+      const emptyPath = build([]);
+      const emptyOperation = build(undefined, []);
+      expect(empty.operations[0]?.parameterCount).toBe(0);
+      expect(emptyPath.operations[0]?.parameterSchemaSha256).toBe(
+        empty.operations[0]?.parameterSchemaSha256,
+      );
+      expect(emptyOperation.operations[0]?.parameterSchemaSha256).toBe(
+        empty.operations[0]?.parameterSchemaSha256,
+      );
+      expect(build([page]).operations[0]?.parameterCount).toBe(1);
+      expect(build(undefined, [page]).operations[0]?.parameterCount).toBe(1);
+    },
+  );
+
+  it("C03 rejects duplicate same-level parameter identities instead of hiding changed contracts", () => {
+    const page = (type: string, required = false) => ({
+      name: "page",
+      in: "query",
+      required,
+      schema: { type },
+    });
+    const build = (pathParameters: unknown[], operationParameters: unknown[]) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.0.3",
+            info: { title: "duplicate guard", version: "1" },
+            components: { parameters: { RequiredPage: page("integer", true) } },
+            paths: {
+              "/orders": {
+                parameters: pathParameters,
+                get: {
+                  parameters: operationParameters,
+                  responses: { "200": { description: "ok" } },
+                },
+              },
+            },
+          }),
+        ),
+      });
+    const last = page("string", false);
+    expect(() => build([page("integer", true), last], [])).toThrow(
+      "APIWATCH_DUPLICATE_PARAMETER_IDENTITY",
+    );
+    expect(() => build([], [page("integer", true), last])).toThrow(
+      "APIWATCH_DUPLICATE_PARAMETER_IDENTITY",
+    );
+    expect(() =>
+      build([], [{ $ref: "#/components/parameters/RequiredPage" }, last]),
+    ).toThrow("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+    expect(() =>
+      build(
+        [],
+        [
+          { name: "X-Trace", in: "header", schema: { type: "string" } },
+          { name: "x-trace", in: "header", schema: { type: "integer" } },
+        ],
+      ),
+    ).toThrow("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+
+    // An unresolved local or external $ref cannot be a trusted parameter.
+    const missingRef = { $ref: "#/components/parameters/Missing" };
+    expect(() => build([], [missingRef])).toThrow(
+      "APIWATCH_PARAMETER_IDENTITY_UNRESOLVED",
+    );
+    expect(() => build([], [missingRef, missingRef])).toThrow(
+      "APIWATCH_PARAMETER_IDENTITY_UNRESOLVED",
+    );
+    expect(() =>
+      build([], [{ $ref: "remote.yaml#/components/parameters/Page" }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ name: "page", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ in: "query", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    // An external ref with fake sibling identity still has unknown contents.
+    expect(() =>
+      build(
+        [],
+        [
+          {
+            $ref: "remote.yaml#/components/parameters/Page",
+            name: "page",
+            in: "query",
+          },
+        ],
+      ),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ name: "", in: "query", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+    expect(() =>
+      build([], [{ name: "page", in: "", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+    expect(() =>
+      build([], [{ name: "page", in: "unknown", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+
+    // Cross-level overrides are legal, and query parameter case matters.
+    const overridden = build([page("integer", true)], [last]);
+    const onlyOperation = build([], [last]);
+    expect(overridden.operations[0]?.parameterCount).toBe(1);
+    expect(overridden.operations[0]?.parameterSchemaSha256).toBe(
+      onlyOperation.operations[0]?.parameterSchemaSha256,
+    );
+    const distinct = build([], [last, { ...last, name: "Page" }]);
+    expect(distinct.operations[0]?.parameterCount).toBe(2);
+  });
+
+  it("C03 enforces OpenAPI 3.2 querystring exclusivity", () => {
+    const parameter = (name: string, location: string) => ({
+      name,
+      in: location,
+      content: {
+        "application/x-www-form-urlencoded": {
+          schema: { type: "object", properties: { name: { type: "string" } } },
+        },
+      },
+    });
+    const build = (
+      version: string,
+      pathParameters: unknown[],
+      operationParameters: unknown[],
+    ) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: version,
+            info: { title: "querystring", version: "1" },
+            paths: {
+              "/orders": {
+                parameters: pathParameters,
+                get: {
+                  parameters: operationParameters,
+                  responses: { "200": { description: "ok" } },
+                },
+              },
+            },
+          }),
+        ),
+      });
+    expect(() =>
+      build(
+        "3.2.0",
+        [],
+        [
+          parameter("whole", "querystring"),
+          parameter("alternate", "querystring"),
+        ],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(() =>
+      build(
+        "3.2.0",
+        [],
+        [parameter("page", "query"), parameter("whole", "querystring")],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(() =>
+      build(
+        "3.2.0",
+        [parameter("whole", "querystring")],
+        [parameter("page", "query")],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(
+      build("3.2.0", [], [parameter("whole", "querystring")]).operations[0]
+        ?.parameterCount,
+    ).toBe(1);
+    expect(() =>
+      build("3.1.0", [], [parameter("whole", "querystring")]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+  });
+
   it("C03 detects requiredness, type, enum, request, response and security changes from OpenAPI", () => {
     const make = (
       schema: unknown,

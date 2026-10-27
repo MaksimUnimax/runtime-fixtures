@@ -11,6 +11,7 @@ const allowed = new Set([
   "GET /v1/subscription",
   "GET /v1/billing/payments",
   "GET /v1/support/cases",
+  "GET /v1/support/cases/:id",
   "POST /v1/support/cases",
 ]);
 

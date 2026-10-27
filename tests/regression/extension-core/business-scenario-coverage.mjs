@@ -290,9 +290,35 @@ function finiteRecordedMetric(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+// Validate a real UTC calendar day before using it in a best/worst ranking.
+function exactUtcDay(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return null;
+  const time = Date.parse(value + "T00:00:00.000Z");
+  if (
+    !Number.isFinite(time) ||
+    new Date(time).toISOString().slice(0, 10) !== value
+  )
+    return null;
+  return time;
+}
+
+function validDeclaredTimeZone(value) {
+  if (typeof value !== "string" || !value || value !== value.trim())
+    return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const calculators = {
   sales_totals(input) {
-    const rows = Array.isArray(input.rows) ? input.rows : [];
+    if (input?.complete !== true || !Array.isArray(input.rows))
+      return { status: "INCOMPLETE", money: null, units: null };
+    const rows = input.rows;
     const invalid = rows.some(
       (row) =>
         row?.money === null ||
@@ -304,8 +330,7 @@ const calculators = {
         !Number.isFinite(row.money) ||
         !Number.isFinite(row.units),
     );
-    if (!input.complete || invalid)
-      return { status: "INCOMPLETE", money: null, units: null };
+    if (invalid) return { status: "INCOMPLETE", money: null, units: null };
     return {
       status: "COMPLETE",
       money: rows.reduce((sum, row) => sum + row.money, 0),
@@ -313,36 +338,141 @@ const calculators = {
     };
   },
   daily_rank(input) {
-    if (
-      !Array.isArray(input?.rows) ||
-      input.rows.some(
-        (row) =>
-          !row ||
-          typeof row.day !== "string" ||
-          !row.day ||
-          finiteRecordedMetric(row.money) === null,
+    if (!Array.isArray(input?.rows) || input.rows.length === 0) return null;
+    const seenDays = new Set();
+    const rows = [];
+    for (const row of input.rows) {
+      const dayMs = exactUtcDay(row?.day);
+      const money = finiteRecordedMetric(row?.money);
+      if (dayMs === null || money === null || seenDays.has(row.day))
+        return null;
+      seenDays.add(row.day);
+      rows.push({ day: row.day, money });
+    }
+    // Historical numeric fixtures rank supplied rows only; a declared
+    // completeness claim needs a bounded inclusive period and every day.
+    if (input.period !== undefined || input.complete !== undefined) {
+      const startMs = exactUtcDay(input.period?.start);
+      const endMs = exactUtcDay(input.period?.end);
+      if (
+        input.complete !== true ||
+        startMs === null ||
+        endMs === null ||
+        startMs > endMs
       )
-    )
-      return null;
-    const rows = input.rows.map((row) => ({
-      ...row,
-      money: finiteRecordedMetric(row.money),
-    }));
+        return null;
+      const count = (endMs - startMs) / 86400000 + 1;
+      if (
+        !Number.isSafeInteger(count) ||
+        count !== 14 ||
+        rows.length !== count ||
+        rows.some(
+          (r) => exactUtcDay(r.day) < startMs || exactUtcDay(r.day) > endMs,
+        )
+      )
+        return null;
+    }
     const best = [...rows]
       .sort((a, b) => b.money - a.money || a.day.localeCompare(b.day))
       .slice(0, 3)
-      .map((row) => row.day);
+      .map((r) => r.day);
     const worst = [...rows]
       .sort((a, b) => a.money - b.money || a.day.localeCompare(b.day))
       .slice(0, 3)
-      .map((row) => row.day);
+      .map((r) => r.day);
     return { best, worst };
   },
   percent_change(input) {
+    // SOURCE-ONLY: validate a DECLARED pair of source rows, not provider
+    // authenticity or authoritative sales/revenue field semantics. Callers must
+    // independently establish those before claiming a live business answer.
+    if (input?.complete !== undefined || input?.proof !== undefined) {
+      const asOf = input.proof?.asOf;
+      const currentProof = input.proof?.current;
+      const previousProof = input.proof?.previous;
+      const asOfDay = exactUtcDay(asOf?.day);
+      const currentDay = exactUtcDay(currentProof?.day);
+      const previousDay = exactUtcDay(previousProof?.day);
+      if (
+        input.complete !== true ||
+        currentProof?.complete !== true ||
+        previousProof?.complete !== true ||
+        asOfDay === null ||
+        currentDay === null ||
+        previousDay === null ||
+        currentDay !== asOfDay - 86400000 ||
+        previousDay !== asOfDay - 172800000 ||
+        !validDeclaredTimeZone(asOf?.timeZone)
+      )
+        return null;
+      const sameFields = [
+        "timeZone",
+        "definition",
+        "source",
+        "storeId",
+        "operation",
+        "field",
+        "metric",
+        "unit",
+        "currency",
+      ];
+      if (
+        currentProof.timeZone !== asOf.timeZone ||
+        sameFields.some((name) => currentProof[name] !== previousProof[name]) ||
+        [
+          "definition",
+          "source",
+          "storeId",
+          "operation",
+          "field",
+          "metric",
+          "unit",
+        ].some(
+          (name) =>
+            typeof currentProof[name] !== "string" ||
+            !currentProof[name].trim(),
+        )
+      )
+        return null;
+      if (
+        !["ozon", "wildberries"].includes(currentProof.source) ||
+        !["money", "units"].includes(currentProof.metric)
+      )
+        return null;
+      const std04 = coverage.scenarios.find((row) => row.id === "STD-04");
+      const operations =
+        currentProof.source === "ozon"
+          ? std04?.ozonOperations
+          : std04?.wbOperations;
+      if (
+        !Array.isArray(operations) ||
+        !operations.includes(currentProof.operation)
+      )
+        return null;
+      if (
+        currentProof.metric === "money"
+          ? typeof currentProof.currency !== "string" ||
+            currentProof.currency.length !== 3 ||
+            !/^[A-Z]{3}$/.test(currentProof.currency) ||
+            currentProof.unit !== currentProof.currency
+          : currentProof.currency !== null || currentProof.unit !== "count"
+      )
+        return null;
+      if (
+        typeof input.current !== "number" ||
+        typeof input.previous !== "number" ||
+        !Number.isFinite(currentProof.value) ||
+        !Number.isFinite(previousProof.value) ||
+        input.current !== currentProof.value ||
+        input.previous !== previousProof.value
+      )
+        return null;
+    }
     const current = finiteRecordedMetric(input?.current),
       previous = finiteRecordedMetric(input?.previous);
     if (current === null || previous === null || previous === 0) return null;
-    return ((current - previous) / Math.abs(previous)) * 100;
+    const percent = ((current - previous) / Math.abs(previous)) * 100;
+    return Number.isFinite(percent) ? percent : null;
   },
   warehouse_sort(input) {
     if (
@@ -439,6 +569,25 @@ const calculators = {
     };
   },
   top_n_join(input) {
+    if (!input || !Array.isArray(input.catalog) || !Array.isArray(input.sales))
+      return { status: "INCOMPLETE", reason: "JOIN_INPUT_MISSING" };
+    if (!Number.isSafeInteger(input.n) || input.n < 1)
+      return { status: "INCOMPLETE", reason: "TOP_N_INVALID" };
+    // Missing source product identity cannot be reported as joined sales.
+    const recordedId = (value) =>
+      (typeof value === "string" && value.trim() !== "") ||
+      (typeof value === "number" && Number.isSafeInteger(value));
+    if (
+      input.catalog.some((row) => !row || !recordedId(row.id)) ||
+      input.sales.some((row) => !row || !recordedId(row.id))
+    )
+      return { status: "INCOMPLETE", reason: "SOURCE_ITEM_ID_MISSING" };
+    if (
+      input.catalog.some(
+        (row) => typeof row.name !== "string" || !row.name.trim(),
+      )
+    )
+      return { status: "INCOMPLETE", reason: "CATALOG_NAME_MISSING" };
     const catalogIds = input.catalog.map((row) => row.id);
     if (new Set(catalogIds).size !== catalogIds.length)
       return { status: "DUPLICATE_KEY", side: "catalog" };
@@ -568,7 +717,7 @@ const calculators = {
           uniqueCount: null,
           pageCountProvesCompleteness: false,
         };
-      keys.push(`${row.period}\u0000${row.product}\u0000${row.query}`);
+      keys.push(JSON.stringify([row.period, row.product, row.query]));
     }
     return {
       uniqueCount: new Set(keys).size,
@@ -577,7 +726,7 @@ const calculators = {
   },
   search_fact_boundary(input) {
     if (
-      typeof input.period !== "string" ||
+      typeof input?.period !== "string" ||
       !input.period ||
       !Array.isArray(input.rows) ||
       !Array.isArray(input.aiSuggestions)
@@ -602,7 +751,7 @@ const calculators = {
           status: "INCOMPLETE",
           reason: "PROVIDER_SEARCH_METRIC_MISSING",
         };
-      const key = [input.period, row.product, row.query].join("\u0000");
+      const key = JSON.stringify([input.period, row.product, row.query]);
       if (keys.has(key))
         return {
           status: "INCOMPLETE",
@@ -619,7 +768,7 @@ const calculators = {
     };
   },
   search_position_boundary(input) {
-    if (typeof input.period !== "string" || !input.period)
+    if (typeof input?.period !== "string" || !input.period)
       return { status: "INCOMPLETE", reason: "PERIOD_MISSING" };
     if (input.region !== null && input.region !== undefined)
       return { status: "INCOMPLETE", reason: "REGION_FILTER_UNSUPPORTED" };
@@ -930,6 +1079,119 @@ const calculators = {
   },
 };
 
+// STD-01: unknown sales rows are not proof of zero turnover or zero units.
+// An explicitly complete, valid empty page collection remains a genuine zero.
+const salesTotalsIncomplete = {
+  status: "INCOMPLETE",
+  money: null,
+  units: null,
+};
+for (const [name, source] of [
+  ["no_input", undefined],
+  ["null_input", null],
+  ["missing_rows", { complete: true }],
+  ["null_rows", { complete: true, rows: null }],
+  ["object_rows", { complete: true, rows: { length: 0 } }],
+  ["text_rows", { complete: true, rows: "" }],
+  ["string_completeness", { complete: "true", rows: [] }],
+  ["numeric_completeness", { complete: 1, rows: [] }],
+]) {
+  assert.deepEqual(
+    calculators.sales_totals(source),
+    salesTotalsIncomplete,
+    "sales_totals " + name + " must not fabricate zero sales",
+  );
+}
+assert.deepEqual(
+  calculators.sales_totals({ complete: true, rows: [] }),
+  { status: "COMPLETE", money: 0, units: 0 },
+  "proven complete zero-row sales period is genuine zero",
+);
+assert.deepEqual(
+  calculators.sales_totals({
+    complete: true,
+    rows: [
+      { money: 90.5, units: 2 },
+      { money: 9.5, units: 1 },
+    ],
+  }),
+  { status: "COMPLETE", money: 100, units: 3 },
+  "valid complete sales rows preserve numeric money and units",
+);
+
+// STD-03 top-N must fail closed on an invalid N or incomplete join identity.
+const validTopNCatalog = [{ id: "p", name: "Product" }];
+const validTopNSales = [{ id: "p", money: 100 }];
+for (const [name, input, reason] of [
+  [
+    "missing_n",
+    { catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "null_n",
+    { n: null, catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "zero_n",
+    { n: 0, catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "negative_n",
+    { n: -1, catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "fractional_n",
+    { n: 1.5, catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  [
+    "text_n",
+    { n: "1", catalog: validTopNCatalog, sales: validTopNSales },
+    "TOP_N_INVALID",
+  ],
+  ["missing_catalog", { n: 1, sales: validTopNSales }, "JOIN_INPUT_MISSING"],
+  ["missing_sales", { n: 1, catalog: validTopNCatalog }, "JOIN_INPUT_MISSING"],
+  [
+    "null_catalog_row",
+    { n: 1, catalog: [null], sales: validTopNSales },
+    "SOURCE_ITEM_ID_MISSING",
+  ],
+  [
+    "blank_sales_id",
+    { n: 1, catalog: validTopNCatalog, sales: [{ id: "", money: 100 }] },
+    "SOURCE_ITEM_ID_MISSING",
+  ],
+  [
+    "null_sales_id",
+    { n: 1, catalog: validTopNCatalog, sales: [{ id: null, money: 100 }] },
+    "SOURCE_ITEM_ID_MISSING",
+  ],
+  [
+    "missing_catalog_name",
+    { n: 1, catalog: [{ id: "p" }], sales: validTopNSales },
+    "CATALOG_NAME_MISSING",
+  ],
+]) {
+  assert.deepEqual(
+    calculators.top_n_join(input),
+    { status: "INCOMPLETE", reason },
+    "top_n_join " + name + " must not fabricate a complete ranking",
+  );
+}
+assert.deepEqual(
+  calculators.top_n_join({
+    n: 1,
+    catalog: [{ id: 0, name: "Zero" }],
+    sales: [{ id: 0, money: 25 }],
+  }),
+  { top: [{ id: 0, name: "Zero", money: 25 }], missingCatalog: [] },
+  "valid zero-valued numeric product ID remains joinable",
+);
+
 assert.deepEqual(
   calculators.warehouse_sort({
     rows: [
@@ -1085,6 +1347,608 @@ const observedZeroCases = [
 for (const [name, kind, input, expected] of observedZeroCases) {
   assert.equal(calculators[kind](input), expected, name + " must stay valid");
 }
+
+// STD-04 SOURCE-only: require declared complete source rows, amounts, matching
+// provider/store/operation/field/metric/currency, and yesterday/prior relative
+// to a stated calendar reference. Declared identities do not prove real provider
+// field semantics; those still require separate authoritative mapping and live
+// evidence. Legacy numeric fixtures exercise arithmetic only.
+const std04Proof = {
+  asOf: { day: "2026-10-27", timeZone: "Europe/Moscow" },
+  current: {
+    day: "2026-10-26",
+    complete: true,
+    value: 120,
+    timeZone: "Europe/Moscow",
+    source: "ozon",
+    storeId: "synthetic-store-one",
+    operation: "analytics_data",
+    field: "synthetic_revenue",
+    definition: "synthetic_sales_revenue",
+    metric: "money",
+    unit: "RUB",
+    currency: "RUB",
+  },
+  previous: {
+    day: "2026-10-25",
+    complete: true,
+    value: 100,
+    timeZone: "Europe/Moscow",
+    source: "ozon",
+    storeId: "synthetic-store-one",
+    operation: "analytics_data",
+    field: "synthetic_revenue",
+    definition: "synthetic_sales_revenue",
+    metric: "money",
+    unit: "RUB",
+    currency: "RUB",
+  },
+};
+const std04Base = {
+  current: 120,
+  previous: 100,
+  complete: true,
+  proof: std04Proof,
+};
+const std04InvalidClaims = [
+  ["missing_proof", { ...std04Base, proof: undefined }],
+  ["missing_complete", { ...std04Base, complete: undefined }],
+  ["false_complete", { ...std04Base, complete: false }],
+  ["textual_complete", { ...std04Base, complete: "true" }],
+  [
+    "missing_current",
+    { ...std04Base, proof: { previous: std04Proof.previous } },
+  ],
+  [
+    "missing_previous",
+    { ...std04Base, proof: { current: std04Proof.current } },
+  ],
+  [
+    "current_incomplete",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, complete: false },
+      },
+    },
+  ],
+  [
+    "previous_incomplete",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, complete: false },
+      },
+    },
+  ],
+  [
+    "current_invalid_date",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, day: "2026-02-30" },
+      },
+    },
+  ],
+  [
+    "previous_invalid_date",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-02-30" },
+      },
+    },
+  ],
+  [
+    "equal_days",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-26" },
+      },
+    },
+  ],
+  [
+    "reversed_days",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-27" },
+      },
+    },
+  ],
+  [
+    "missing_middle_day",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-24" },
+      },
+    },
+  ],
+  [
+    "timezone_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, timeZone: "UTC" },
+      },
+    },
+  ],
+  [
+    "timezone_blank",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, timeZone: "  " },
+      },
+    },
+  ],
+  [
+    "definition_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, definition: "orders_revenue" },
+      },
+    },
+  ],
+  [
+    "definition_blank",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, definition: " " },
+      },
+    },
+  ],
+  [
+    "as_of_missing",
+    {
+      ...std04Base,
+      proof: { ...std04Proof, asOf: undefined },
+    },
+  ],
+  [
+    "as_of_wrong_day",
+    {
+      ...std04Base,
+      proof: { ...std04Proof, asOf: { ...std04Proof.asOf, day: "2026-10-28" } },
+    },
+  ],
+  [
+    "as_of_invalid_day",
+    {
+      ...std04Base,
+      proof: { ...std04Proof, asOf: { ...std04Proof.asOf, day: "2026-02-30" } },
+    },
+  ],
+  [
+    "as_of_invalid_zone",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        asOf: { ...std04Proof.asOf, timeZone: "Bogus/Zone" },
+        current: { ...std04Proof.current, timeZone: "Bogus/Zone" },
+        previous: { ...std04Proof.previous, timeZone: "Bogus/Zone" },
+      },
+    },
+  ],
+  [
+    "source_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, source: "wildberries" },
+      },
+    },
+  ],
+  [
+    "source_unknown",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, source: "unverified" },
+        previous: { ...std04Proof.previous, source: "unverified" },
+      },
+    },
+  ],
+  [
+    "store_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, storeId: "synthetic-other-store" },
+      },
+    },
+  ],
+  [
+    "store_blank",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, storeId: " " },
+        previous: { ...std04Proof.previous, storeId: " " },
+      },
+    },
+  ],
+  [
+    "operation_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, operation: "statistics_orders" },
+      },
+    },
+  ],
+  [
+    "operation_unpinned",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, operation: "unknown_alias" },
+        previous: { ...std04Proof.previous, operation: "unknown_alias" },
+      },
+    },
+  ],
+  [
+    "field_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, field: "different_money" },
+      },
+    },
+  ],
+  [
+    "current_value_unbound",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, value: 119 },
+      },
+    },
+  ],
+  [
+    "previous_value_unbound",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, value: 101 },
+      },
+    },
+  ],
+  [
+    "source_value_nonfinite",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, value: Infinity },
+      },
+    },
+  ],
+  ["numeric_string_claim", { ...std04Base, current: "120" }],
+  [
+    "currency_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, currency: "USD" },
+      },
+    },
+  ],
+  [
+    "currency_bad_format",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, currency: "RUB4", unit: "RUB4" },
+        previous: { ...std04Proof.previous, currency: "RUB4", unit: "RUB4" },
+      },
+    },
+  ],
+  [
+    "currency_final_line_feed",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, currency: "RUB\n", unit: "RUB\n" },
+        previous: { ...std04Proof.previous, currency: "RUB\n", unit: "RUB\n" },
+      },
+    },
+  ],
+  [
+    "unit_currency_disagree",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, unit: "USD" },
+        previous: { ...std04Proof.previous, unit: "USD" },
+      },
+    },
+  ],
+  [
+    "metric_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, metric: "units" },
+      },
+    },
+  ],
+  [
+    "metric_unrecognized",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, metric: "net_profit" },
+        previous: { ...std04Proof.previous, metric: "net_profit" },
+      },
+    },
+  ],
+  [
+    "timezone_invalid_whitespace",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        asOf: { ...std04Proof.asOf, timeZone: " Europe/Moscow " },
+        current: { ...std04Proof.current, timeZone: " Europe/Moscow " },
+        previous: { ...std04Proof.previous, timeZone: " Europe/Moscow " },
+      },
+    },
+  ],
+];
+for (const [name, input] of std04InvalidClaims) {
+  assert.equal(calculators.percent_change(input), null, "STD-04 " + name);
+}
+assert.equal(
+  calculators.percent_change({
+    current: Number.MAX_VALUE,
+    previous: Number.MIN_VALUE,
+  }),
+  null,
+  "STD-04 finite source values must not produce infinite percentages",
+);
+assert.equal(
+  calculators.percent_change(std04Base),
+  20,
+  "STD-04 complete comparable days",
+);
+assert.equal(
+  calculators.percent_change({
+    ...std04Base,
+    current: 0,
+    proof: {
+      ...std04Proof,
+      current: { ...std04Proof.current, value: 0 },
+    },
+  }),
+  -100,
+  "STD-04 observed zero after a nonzero previous day",
+);
+assert.equal(
+  calculators.percent_change({
+    ...std04Base,
+    current: 150,
+    proof: {
+      ...std04Proof,
+      asOf: { ...std04Proof.asOf, day: "2024-03-02" },
+      current: { ...std04Proof.current, day: "2024-03-01", value: 150 },
+      previous: { ...std04Proof.previous, day: "2024-02-29" },
+    },
+  }),
+  50,
+  "STD-04 complete comparison over valid leap day anchored to its as-of date",
+);
+assert.equal(
+  calculators.percent_change({
+    current: 12,
+    previous: 8,
+    complete: true,
+    proof: {
+      ...std04Proof,
+      current: {
+        ...std04Proof.current,
+        value: 12,
+        metric: "units",
+        unit: "count",
+        currency: null,
+        field: "synthetic_units",
+        definition: "synthetic_ordered_units",
+      },
+      previous: {
+        ...std04Proof.previous,
+        value: 8,
+        metric: "units",
+        unit: "count",
+        currency: null,
+        field: "synthetic_units",
+        definition: "synthetic_ordered_units",
+      },
+    },
+  }),
+  50,
+  "STD-04 complete and matching unit-count comparison",
+);
+
+// CAP-25 business identity guards supplement the immutable owner-curated
+// gold/numeric fixture case list rather than changing its accepted bindings.
+const searchKeyIntegrityCases = [
+  [
+    "search_dedup_distinct_delimiter_tuples",
+    "search_dedup",
+    {
+      rows: [
+        { period: "2026-08", product: "1001\u0000sub", query: "dress" },
+        { period: "2026-08", product: "1001", query: "sub\u0000dress" },
+      ],
+      pageCount: 2,
+    },
+    { uniqueCount: 2, pageCountProvesCompleteness: false },
+  ],
+  [
+    "search_fact_distinct_delimiter_tuples",
+    "search_fact_boundary",
+    {
+      period: "2026-08",
+      rows: [
+        {
+          product: "1001\u0000sub",
+          query: "dress",
+          frequency: 10,
+          position: 5,
+        },
+        {
+          product: "1001",
+          query: "sub\u0000dress",
+          frequency: 10,
+          position: 5,
+        },
+      ],
+      aiSuggestions: [],
+    },
+    {
+      status: "COMPLETE",
+      providerFactCount: 2,
+      aiSuggestionCount: 0,
+      aiSuggestionsAreProviderFacts: false,
+    },
+  ],
+  [
+    "search_fact_null_input",
+    "search_fact_boundary",
+    null,
+    { status: "INCOMPLETE", reason: "PERIOD_OR_ROWS_MISSING" },
+  ],
+  [
+    "search_position_null_input",
+    "search_position_boundary",
+    null,
+    { status: "INCOMPLETE", reason: "PERIOD_MISSING" },
+  ],
+];
+for (const [name, kind, input, expected] of searchKeyIntegrityCases) {
+  assert.deepEqual(
+    calculators[kind](input),
+    expected,
+    name + ": integrity drift",
+  );
+}
+
+// STD-02 SOURCE only: missing, repeated, or impossible calendar dates must
+// never be silently ranked as complete observations of an announced period.
+const rank14 = Array.from({ length: 14 }, (_, i) => ({
+  day: "2026-09-" + String(i + 1).padStart(2, "0"),
+  money: i * 10,
+}));
+const rankPeriod = { start: "2026-09-01", end: "2026-09-14" };
+for (const [name, input] of [
+  [
+    "duplicate",
+    {
+      rows: [
+        { day: "2026-09-01", money: 10 },
+        { day: "2026-09-01", money: 20 },
+      ],
+    },
+  ],
+  ["impossible_day", { rows: [{ day: "2026-02-30", money: 10 }] }],
+  ["non_iso_day", { rows: [{ day: "2026-9-01", money: 10 }] }],
+  ["blank_day", { rows: [{ day: " ", money: 10 }] }],
+  ["empty", { rows: [] }],
+  ["incomplete", { complete: false, period: rankPeriod, rows: rank14 }],
+  [
+    "string_completeness",
+    { complete: "true", period: rankPeriod, rows: rank14 },
+  ],
+  ["no_completeness", { period: rankPeriod, rows: rank14 }],
+  ["no_period", { complete: true, rows: rank14 }],
+  [
+    "complete_two_day_period",
+    {
+      complete: true,
+      period: { start: "2026-09-01", end: "2026-09-02" },
+      rows: rank14.slice(0, 2),
+    },
+  ],
+  [
+    "complete_fifteen_day_period",
+    {
+      complete: true,
+      period: { start: "2026-09-01", end: "2026-09-15" },
+      rows: [...rank14, { day: "2026-09-15", money: 140 }],
+    },
+  ],
+  [
+    "missing_middle_day",
+    { complete: true, period: rankPeriod, rows: rank14.slice(1) },
+  ],
+  [
+    "foreign_day",
+    {
+      complete: true,
+      period: rankPeriod,
+      rows: [...rank14.slice(0, 13), { day: "2026-09-15", money: 140 }],
+    },
+  ],
+  [
+    "reversed_bounds",
+    {
+      complete: true,
+      period: { start: "2026-09-14", end: "2026-09-01" },
+      rows: rank14,
+    },
+  ],
+]) {
+  assert.equal(calculators.daily_rank(input), null, "STD-02 " + name);
+}
+assert.deepEqual(
+  calculators.daily_rank({ complete: true, period: rankPeriod, rows: rank14 }),
+  {
+    best: ["2026-09-14", "2026-09-13", "2026-09-12"],
+    worst: ["2026-09-01", "2026-09-02", "2026-09-03"],
+  },
+  "STD-02 14 days explicitly complete",
+);
+assert.deepEqual(
+  calculators.daily_rank({
+    rows: [
+      { day: "2024-02-29", money: 0 },
+      { day: "2024-03-01", money: 1 },
+    ],
+  }),
+  { best: ["2024-03-01", "2024-02-29"], worst: ["2024-02-29", "2024-03-01"] },
+  "valid leap day and genuine zero",
+);
 
 const requiredKinds = new Set([
   "sales_totals",
