@@ -515,15 +515,28 @@ const calculators = {
     const periodRatio = (stock / demand) * days;
     if (Number.isFinite(periodRatio) && periodRatio > 0) return periodRatio;
     const dailyRatio = stock / (demand / days);
-    return Number.isFinite(dailyRatio) && dailyRatio > 0 ? dailyRatio : null;
+    if (Number.isFinite(dailyRatio) && dailyRatio > 0) return dailyRatio;
+    // Either earlier quotient can overflow before its later cancellation.
+    // This final product-first order still rejects genuinely infinite output.
+    const productRatio = (stock * days) / demand;
+    return Number.isFinite(productRatio) && productRatio > 0
+      ? productRatio
+      : null;
   },
   drr(input) {
     if (input?.complete !== true) return null;
     const spend = finiteRecordedMetric(input.spend),
       revenue = finiteRecordedMetric(input.revenue);
     if (spend === null || revenue === null || revenue <= 0) return null;
+    if (spend === 0) return 0;
+    // An intermediate ratio can underflow although the scaled percentage
+    // is representable. Unknown subnormal values must never be called 0%.
     const percentage = (spend / revenue) * 100;
-    return Number.isFinite(percentage) ? percentage : null;
+    if (Number.isFinite(percentage) && percentage !== 0) return percentage;
+    const scaledNumerator = (spend * 100) / revenue;
+    return Number.isFinite(scaledNumerator) && scaledNumerator !== 0
+      ? scaledNumerator
+      : null;
   },
   platform_contribution(input) {
     const incomplete = {
@@ -1886,6 +1899,26 @@ const finiteOverflowCases = [
     null,
   ],
   [
+    "ad_percentage_tiny_nonzero_spend_not_observed_zero",
+    "drr",
+    {
+      complete: true,
+      spend: Number.MIN_VALUE,
+      revenue: Number.MAX_VALUE,
+    },
+    null,
+  ],
+  [
+    "ad_percentage_tiny_negative_spend_not_observed_zero",
+    "drr",
+    {
+      complete: true,
+      spend: -Number.MIN_VALUE,
+      revenue: Number.MAX_VALUE,
+    },
+    null,
+  ],
+  [
     "CAP-24 finite_components_sum_overflow",
     "platform_contribution",
     {
@@ -1992,10 +2025,27 @@ for (const [name, kind, input, expected] of [
     1e-300,
   ],
   [
+    "STD-07 product_before_quotient_cancellation",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MAX_VALUE,
+      demandUnits: 0.125,
+      days: Number.MIN_VALUE,
+    },
+    Number.MAX_VALUE * Number.MIN_VALUE * 8,
+  ],
+  [
     "STD-07 zero_stock_observed",
     "days_cover",
     { complete: true, stock: 0, demandUnits: 2, days: 7 },
     0,
+  ],
+  [
+    "ad_percentage_tiny_nonzero_is_representable",
+    "drr",
+    { complete: true, spend: Number.MIN_VALUE, revenue: 10 },
+    Number.MIN_VALUE * 10,
   ],
   [
     "ad_percentage_zero_spend_observed",
