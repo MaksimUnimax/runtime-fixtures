@@ -343,44 +343,25 @@ export function createPostgresMonitoringScheduleStore(
     },
     getState: (lane) => read(runtime, lane),
     async setInterval(lane, intervalSeconds, now) {
-      const result = await runtime.query<StateRow>(
-        `${stateProjection} WHERE lane=$1`,
-        [lane],
+      // Return the row produced by the write itself. A separate prior SELECT
+      // can report another scheduler's obsolete owner or result after a race.
+      const nextRunAt = new Date(now.valueOf() + intervalSeconds * 1000);
+      const changed = await runtime.query<StateRow>(
+        `UPDATE monitoring_lane_schedules SET interval_seconds=$2,next_run_at=$3,updated_at=$4 WHERE lane=$1 RETURNING ${stateColumns}`,
+        [lane, intervalSeconds, nextRunAt, now],
       );
-      if (!result.rows[0]) throw new Error("MONITORING_SCHEDULE_NOT_FOUND");
-      const updated = await runtime.query<StateRow>(
-        `${stateProjection} WHERE lane=$1`,
-        [lane],
-      );
-      await runtime.query(
-        `UPDATE monitoring_lane_schedules SET interval_seconds=$2,next_run_at=$3,updated_at=$4 WHERE lane=$1`,
-        [
-          lane,
-          intervalSeconds,
-          new Date(now.valueOf() + intervalSeconds * 1000),
-          now,
-        ],
-      );
-      return mapState({
-        ...updated.rows[0]!,
-        intervalSeconds,
-        nextRunAt: new Date(now.valueOf() + intervalSeconds * 1000),
-        updatedAt: now,
-      });
+      if (!changed.rows[0]) throw new Error("MONITORING_SCHEDULE_NOT_FOUND");
+      return mapState(changed.rows[0]);
     },
-    async scheduleEarlier(lane, retryAt, now) {
-      const current = await read(runtime, lane);
-      const nextRunAt =
-        retryAt < current.nextRunAt ? retryAt : current.nextRunAt;
-      await runtime.query(
-        `UPDATE monitoring_lane_schedules SET next_run_at=$2,updated_at=$3 WHERE lane=$1`,
-        [lane, nextRunAt, now],
+    async scheduleEarlier(lane, retryAt, _now) {
+      // The minimum must be computed under PostgreSQL's row-level UPDATE lock.
+      // A read-then-unconditional-write can lose another worker's earlier retry.
+      const changed = await runtime.query<StateRow>(
+        `UPDATE monitoring_lane_schedules SET next_run_at=LEAST(next_run_at,$2),updated_at=clock_timestamp() WHERE lane=$1 RETURNING ${stateColumns}`,
+        [lane, retryAt],
       );
-      return {
-        ...current,
-        nextRunAt: new Date(nextRunAt),
-        updatedAt: new Date(now),
-      };
+      if (!changed.rows[0]) throw new Error("MONITORING_SCHEDULE_NOT_FOUND");
+      return mapState(changed.rows[0]);
     },
     async startRun({ lane, source, leaseMs }) {
       return runtime.transaction(async (query) => {
@@ -442,25 +423,47 @@ export function createPostgresMonitoringScheduleStore(
       return released.rows.length === 1;
     },
 
-    async finishRun({ lane, runId, now, result }) {
+    async finishRun({ lane, runId, result }) {
       const safe = safeMonitoringResult(result);
-      // The conditional UPDATE owns completion. Reading the previous run
-      // outside this write cannot prove ownership across a lease takeover.
-      // The database clock fences this lease, including any backdated
-      // completion argument, even when no replacement has claimed the lane.
-      // RETURNING captures the exact committed row rather than a later run.
-      const changed = await runtime.query<StateRow>(
-        `UPDATE monitoring_lane_schedules SET last_run_at=$2,active_run_id=NULL,active_run_source=NULL,active_run_started_at=NULL,active_run_lease_expires_at=NULL,last_result=$3::jsonb,updated_at=$2 WHERE lane=$1 AND active_run_id=$4 AND active_run_lease_expires_at>clock_timestamp() RETURNING ${stateColumns}`,
-        [
-          lane,
-          now,
-          JSON.stringify({ ...safe, runId, finishedAt: now.toISOString() }),
-          runId,
-        ],
-      );
-      if (changed.rows.length !== 1)
-        throw new Error("MONITORING_RUN_STALE_OWNER");
-      return mapState(changed.rows[0]!);
+      // Read + lock the lane before reading the database completion clock.
+      // The final UPDATE rechecks expiry at execution, avoiding a stale
+      // predicate evaluated before a competing transaction's row lock.
+      return runtime.transaction(async (query) => {
+        const current = await read(query, lane, true);
+        if (!current.activeRun || current.activeRun.runId !== runId)
+          throw new Error("MONITORING_RUN_STALE_OWNER");
+        const clock = await query.query<{ now: Date }>(
+          'SELECT clock_timestamp() AS "now"',
+        );
+        const databaseNow = clock.rows[0]?.now;
+        if (
+          !(databaseNow instanceof Date) ||
+          !Number.isFinite(databaseNow.getTime())
+        )
+          throw new Error("MONITORING_DATABASE_CLOCK_INVALID");
+        if (current.activeRun.leaseExpiresAt <= databaseNow)
+          throw new Error("MONITORING_RUN_STALE_OWNER");
+        // All metadata for this completion uses one post-lock DB timestamp.
+        // A separate UPDATE-time clock guard fences any expiry after sampling.
+        const changed = await query.query<StateRow>(
+          `UPDATE monitoring_lane_schedules
+            SET last_run_at=$2,
+                active_run_id=NULL,
+                active_run_source=NULL,
+                active_run_started_at=NULL,
+                active_run_lease_expires_at=NULL,
+                last_result=jsonb_set($3::jsonb,'{finishedAt}',to_jsonb($2::timestamptz),true),
+                updated_at=$2
+            WHERE lane=$1
+              AND active_run_id=$4
+              AND active_run_lease_expires_at>clock_timestamp()
+            RETURNING ${stateColumns}`,
+          [lane, databaseNow, JSON.stringify({ ...safe, runId }), runId],
+        );
+        if (changed.rows.length !== 1)
+          throw new Error("MONITORING_RUN_STALE_OWNER");
+        return mapState(changed.rows[0]!);
+      });
     },
     async recordNotificationFailure({ lane, now, error }) {
       await runtime.query(

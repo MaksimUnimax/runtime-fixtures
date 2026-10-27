@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabaseRuntime } from "@product/db";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
-import { createPostgresMonitoringScheduleStore } from "../../../packages/server/monitoring-control/src/store.js";
+import {
+  createPostgresMonitoringScheduleStore,
+  type MonitoringSqlRuntime,
+  type MonitoringSqlQuery,
+} from "../../../packages/server/monitoring-control/src/store.js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
@@ -182,6 +186,50 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(durable.activeRun).toBeNull();
     expect(durable.lastResult?.runId).toBe(replacement);
   });
+  it("uses PostgreSQL clock for completion metadata even with backdated caller time", async () => {
+    const started = await storeA.startRun({
+      lane: "SWAGGER_API",
+      source: "FORCED",
+      now: at(39),
+      leaseMs: 60000,
+    });
+    const runId = requiredRunId(started);
+    const clockBefore = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
+    const completed = await storeA.finishRun({
+      lane: "SWAGGER_API",
+      runId,
+      now: new Date("2000-01-01T00:00:00.000Z"),
+      result,
+    });
+    const clockAfter = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
+    expect(completed.activeRun).toBeNull();
+    expect(completed.lastResult?.runId).toBe(runId);
+    if (!completed.lastRunAt || !completed.lastResult)
+      throw new Error("C03_MISSING_COMPLETION_METADATA");
+    const earliest = clockBefore.rows[0]!.now.getTime();
+    const latest = clockAfter.rows[0]!.now.getTime();
+    for (const time of [
+      completed.lastRunAt,
+      completed.lastResult.finishedAt,
+      completed.updatedAt,
+    ]) {
+      expect(time.getTime()).toBeGreaterThanOrEqual(earliest);
+      expect(time.getTime()).toBeLessThanOrEqual(latest);
+    }
+    const persisted = await storeB.getState("SWAGGER_API");
+    expect(persisted.lastRunAt).toEqual(completed.lastRunAt);
+    expect(persisted.lastResult?.finishedAt).toEqual(
+      completed.lastResult.finishedAt,
+    );
+    expect(persisted.updatedAt).toEqual(completed.updatedAt);
+    expect(completed.lastRunAt).toEqual(completed.lastResult.finishedAt);
+    expect(completed.updatedAt).toEqual(completed.lastRunAt);
+  });
+
   it("rejects an expired owner without a replacement on physical PostgreSQL", async () => {
     const beforeDb = await workerB.query<{ now: Date }>(
       'SELECT clock_timestamp() AS "now"',
@@ -222,4 +270,214 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(after.lastResult).toEqual(before.lastResult);
     expect(after.lastRunAt).toEqual(before.lastRunAt);
   });
+  it("keeps the earliest retry deadline across overlapping PostgreSQL writers", async () => {
+    // Deterministically hold the later request immediately before its UPDATE.
+    // On the old read/write implementation it has already read stale nextRunAt,
+    // so running the earlier writer now demonstrates a lost update.
+    await workerB.query(
+      "UPDATE monitoring_lane_schedules SET next_run_at=clock_timestamp() + interval '1 day' WHERE lane=$1",
+      ["SWAGGER_API"],
+    );
+    const initial = await storeB.getState("SWAGGER_API");
+    const earlier = new Date(initial.nextRunAt.valueOf() - 20 * 60_000);
+    const later = new Date(initial.nextRunAt.valueOf() - 10 * 60_000);
+    let entered!: () => void;
+    let release!: () => void;
+    const updateEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const resume = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const delayedRuntime: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>(
+        text: string,
+        values?: unknown[],
+      ) {
+        if (
+          text.startsWith("UPDATE monitoring_lane_schedules SET next_run_at")
+        ) {
+          entered();
+          await resume;
+        }
+        return workerA.query<T>(text, values);
+      },
+      transaction<T>(operation: (query: MonitoringSqlQuery) => Promise<T>) {
+        return workerA.transaction(operation);
+      },
+    };
+    const lateStore = createPostgresMonitoringScheduleStore(delayedRuntime);
+    // A deliberately backdated caller must not backdate the durable updatedAt.
+    const callerNow = new Date("2000-01-01T00:00:00.000Z");
+    const beforeDb = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
+    const late = lateStore.scheduleEarlier("SWAGGER_API", later, callerNow);
+    try {
+      await updateEntered;
+      const first = await storeB.scheduleEarlier(
+        "SWAGGER_API",
+        earlier,
+        callerNow,
+      );
+      expect(first.nextRunAt).toEqual(earlier);
+    } finally {
+      release();
+      // Always join the delayed writer before schema teardown, preserving
+      // any earlier assertion error from the concurrent writer.
+      await Promise.allSettled([late]);
+    }
+    const result = await late;
+    const afterDb = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
+    const durable = await storeA.getState("SWAGGER_API");
+    expect(result.nextRunAt).toEqual(earlier);
+    expect(durable.nextRunAt).toEqual(earlier);
+    expect(durable.updatedAt).toEqual(result.updatedAt);
+    expect(result.updatedAt.getTime()).toBeGreaterThanOrEqual(
+      beforeDb.rows[0]!.now.getTime(),
+    );
+    expect(result.updatedAt.getTime()).toBeLessThanOrEqual(
+      afterDb.rows[0]!.now.getTime(),
+    );
+  }, 12000);
+
+  it("rejects a finish that waited on the row lock beyond lease expiry", async () => {
+    const start = await storeA.startRun({
+      lane: "SWAGGER_API",
+      source: "FORCED",
+      now: at(50),
+      leaseMs: 1600,
+    });
+    const runId = requiredRunId(start);
+    let lockAcquired!: () => void;
+    let lockFailed!: (reason: unknown) => void;
+    let releaseLock!: () => void;
+    const locked = new Promise<void>((resolve, reject) => {
+      lockAcquired = resolve;
+      lockFailed = reject;
+    });
+    const permitRelease = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const holder = workerB.transaction(async (query) => {
+      const row = await query.query<{ activeRunId: string }>(
+        'SELECT active_run_id AS "activeRunId" FROM monitoring_lane_schedules WHERE lane=$1 FOR UPDATE',
+        ["SWAGGER_API"],
+      );
+      expect(row.rows[0]?.activeRunId).toBe(runId);
+      lockAcquired();
+      await permitRelease;
+    });
+    // If acquiring the lane row itself fails, reject the readiness barrier,
+    // rather than waiting until the test's timeout with a pending promise.
+    void holder.catch(lockFailed);
+    let pending: ReturnType<typeof storeA.finishRun> | null = null;
+    try {
+      // Readiness and the blocked completion are both covered by cleanup.
+      await locked;
+      pending = storeA.finishRun({
+        lane: "SWAGGER_API",
+        runId,
+        now: at(51),
+        result,
+      });
+      let settled = false;
+      void pending.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      // Finish must be blocked by the holder while its lease expires.
+      await new Promise((resolve) => setTimeout(resolve, 1900));
+      expect(settled).toBe(false);
+    } finally {
+      releaseLock();
+      await holder;
+    }
+    if (!pending) throw new Error("C03_LOCK_TEST_MISSING_PENDING_FINISH");
+    await expect(pending).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    const after = await storeB.getState("SWAGGER_API");
+    expect(after.activeRun?.runId).toBe(runId);
+    expect(after.lastResult?.runId).not.toBe(runId);
+  }, 12000);
+  it("setInterval returns the committed owner after concurrent PostgreSQL row change", async () => {
+    const lane = "SWAGGER_API" as const;
+    const previous = await storeA.getState(lane);
+    const replacementRunId = randomUUID();
+    expect(replacementRunId).not.toBe(previous.activeRun?.runId);
+    let ready!: () => void;
+    let failReady!: (reason: unknown) => void;
+    let release!: () => void;
+    const locked = new Promise<void>((resolve, reject) => {
+      ready = resolve;
+      failReady = reject;
+    });
+    const permit = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const holding = workerB.transaction(async (query) => {
+      await query.query(
+        "SELECT lane FROM monitoring_lane_schedules WHERE lane=$1 FOR UPDATE",
+        [lane],
+      );
+      await query.query(
+        `UPDATE monitoring_lane_schedules
+            SET active_run_id=$2,active_run_source='FORCED',
+                active_run_started_at=clock_timestamp(),
+                active_run_lease_expires_at=clock_timestamp() + interval '1 minute'
+            WHERE lane=$1`,
+        [lane, replacementRunId],
+      );
+      ready();
+      await permit;
+    });
+    void holding.catch(failReady);
+    let reachedWrite!: () => void;
+    let failWrite!: (reason: unknown) => void;
+    const writeReady = new Promise<void>((resolve, reject) => {
+      reachedWrite = resolve;
+      failWrite = reject;
+    });
+    const delayedRuntime: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>(
+        statement: string,
+        values?: unknown[],
+      ) {
+        if (
+          statement.startsWith(
+            "UPDATE monitoring_lane_schedules SET interval_seconds",
+          )
+        )
+          reachedWrite();
+        return workerA.query<T>(statement, values);
+      },
+      transaction<T>(operation: (query: MonitoringSqlQuery) => Promise<T>) {
+        return workerA.transaction(operation);
+      },
+    };
+    let pending: ReturnType<typeof storeA.setInterval> | null = null;
+    try {
+      await locked;
+      pending = createPostgresMonitoringScheduleStore(
+        delayedRuntime,
+      ).setInterval(lane, 900, at(100));
+      void pending.catch(failWrite);
+      await writeReady;
+    } finally {
+      release();
+      // Never leave a blocked SQL request running while afterAll drops schema.
+      await Promise.allSettled([holding, ...(pending ? [pending] : [])]);
+    }
+    if (!pending) throw new Error("C03_SET_INTERVAL_WRITE_NOT_STARTED");
+    const updated = await pending;
+    const durable = await storeB.getState(lane);
+    expect(updated.activeRun?.runId).toBe(replacementRunId);
+    expect(updated.intervalSeconds).toBe(900);
+    expect(updated).toEqual(durable);
+  }, 12000);
 });
