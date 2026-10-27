@@ -65,11 +65,15 @@ export default function FeedbackPage() {
   const submitting = useRef(false);
   const detailLoading = useRef(false);
   const detailGeneration = useRef(0);
+  const detailAbort = useRef<AbortController | null>(null);
 
   const load = async () => {
     if (loading.current) return;
     loading.current = true;
-    // Old own-case replies cannot survive a refreshed user-case list.
+    // An in-flight old reply must neither consume the list-refresh budget nor
+    // commit its payload after a newer snapshot replaces the visible rows.
+    detailAbort.current?.abort();
+    detailAbort.current = null;
     detailGeneration.current++;
     detailLoading.current = false;
     setSupportDetail(null);
@@ -126,11 +130,14 @@ export default function FeedbackPage() {
     )
       return;
     const requestGeneration = ++detailGeneration.current;
+    const requestAbort = new AbortController();
+    detailAbort.current = requestAbort;
     detailLoading.current = true;
     setSupportDetail({ caseId, state: "loading" });
     try {
       const response = await controlPlane(
         `/v1/support/cases/${encodeURIComponent(caseId)}`,
+        { signal: requestAbort.signal },
       );
       if (!response.ok) throw new Error("SUPPORT_DETAIL_NOT_CONFIRMED");
       const detail: unknown = await response.json();
@@ -142,8 +149,10 @@ export default function FeedbackPage() {
       if (requestGeneration === detailGeneration.current)
         setSupportDetail({ caseId, state: "error" });
     } finally {
-      if (requestGeneration === detailGeneration.current)
+      if (requestGeneration === detailGeneration.current) {
+        detailAbort.current = null;
         detailLoading.current = false;
+      }
     }
   };
 
