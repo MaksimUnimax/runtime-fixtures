@@ -56,6 +56,41 @@ describe("P6.2 admin reason contract", () => {
   ])("rejects unsafe reason %j", (reason) =>
     expect(AdminReasonV1Schema.safeParse(reason).success).toBe(false),
   );
+  it.each([
+    "operator\u0085ticket",
+    "operator\u009fticket",
+    "operator\u061cticket",
+    "operator\u200eticket",
+    "operator\u200fticket",
+    "operator\u202aticket",
+    "operator\u202eticket",
+    "operator\u2066ticket",
+    "operator\u2069ticket",
+  ])("rejects invisible admin audit-control reason %j", (reason) =>
+    expect(AdminReasonV1Schema.safeParse(reason).success).toBe(false),
+  );
+  it.each(["\u0085", "\u202e"])(
+    "rejects invisible reason control %j across admin mutation schemas",
+    (control) => {
+      const reason = `ticket${control}123`;
+      expect(
+        AdminPrincipalCreateBodyV1Schema.safeParse({
+          userId: uuid,
+          initialRole: "ADMIN_OWNER",
+          reason,
+        }).success,
+      ).toBe(false);
+      expect(
+        AdminPrincipalMutationBodyV1Schema.safeParse({
+          expectedRevision: 1,
+          reason,
+        }).success,
+      ).toBe(false);
+      expect(AdminDeviceRevokeBodyV1Schema.safeParse({ reason }).success).toBe(
+        false,
+      );
+    },
+  );
 });
 
 describe("last active owner decision", () => {
