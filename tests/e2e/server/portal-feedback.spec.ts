@@ -293,7 +293,9 @@ test.describe("portal feedback recovery", () => {
     let reads = 0;
     await page.route("**/api/control-plane/v1/support/cases", (route) => {
       reads += 1;
-      return json(route, { items: reads === 1 ? [submittedCase] : [] });
+      const current =
+        reads === 1 ? submittedCase : { ...submittedCase, status: "TRIAGED" };
+      return json(route, { items: [current] });
     });
     let started!: () => void;
     let release!: () => void;
@@ -330,17 +332,24 @@ test.describe("portal feedback recovery", () => {
       await main(page)
         .getByRole("button", { name: "Обновить", exact: true })
         .click();
-      await expect(main(page).getByText("Обращений пока нет.")).toBeVisible();
+      await expect(
+        main(page).getByText(`Номер обращения: ${caseId}`),
+      ).toBeVisible();
+      await expect(main(page).getByRole("listitem").first()).toContainText(
+        "TRIAGED",
+      );
       expect(reads).toBe(2);
       const fulfilled = page.waitForResponse((response) =>
         response.url().endsWith(`/v1/support/cases/${caseId}`),
       );
       release();
       await fulfilled;
+      // Let React process the delayed reply before checking the retained row.
+      await page.waitForTimeout(100);
       await expect(main(page).getByText(staleReply)).toHaveCount(0);
       await expect(
         main(page).getByRole("button", { name: "Проверить ответ поддержки" }),
-      ).toHaveCount(0);
+      ).toHaveAttribute("aria-expanded", "false");
       expect(pageErrors).toEqual([]);
     } finally {
       release();
