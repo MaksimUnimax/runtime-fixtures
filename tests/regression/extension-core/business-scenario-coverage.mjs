@@ -314,6 +314,33 @@ function validDeclaredTimeZone(value) {
   }
 }
 
+// SOURCE-only finite aggregation: alternate positive and negative operands
+// to avoid intermediate Infinity before a valid cancellation is applied.
+// Do not convert an unrepresentable aggregate into observed zero.
+function balancedFiniteSum(values) {
+  const positives = [];
+  const negatives = [];
+  for (const value of values) {
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    if (value > 0) positives.push(value);
+    else if (value < 0) negatives.push(value);
+  }
+  positives.sort((a, b) => b - a);
+  negatives.sort((a, b) => a - b);
+  let total = 0;
+  let pos = 0;
+  let neg = 0;
+  while (pos < positives.length || neg < negatives.length) {
+    const next =
+      (total <= 0 && pos < positives.length) || neg >= negatives.length
+        ? positives[pos++]
+        : negatives[neg++];
+    total += next;
+    if (!Number.isFinite(total)) return null;
+  }
+  return total;
+}
+
 const calculators = {
   sales_totals(input) {
     if (input?.complete !== true || !Array.isArray(input.rows))
@@ -331,9 +358,9 @@ const calculators = {
         !Number.isFinite(row.units),
     );
     if (invalid) return { status: "INCOMPLETE", money: null, units: null };
-    const money = rows.reduce((sum, row) => sum + row.money, 0);
-    const units = rows.reduce((sum, row) => sum + row.units, 0);
-    if (!Number.isFinite(money) || !Number.isFinite(units))
+    const money = balancedFiniteSum(rows.map((row) => row.money));
+    const units = balancedFiniteSum(rows.map((row) => row.units));
+    if (money === null || units === null)
       return { status: "INCOMPLETE", money: null, units: null };
     return { status: "COMPLETE", money, units };
   },
@@ -580,8 +607,14 @@ const calculators = {
     )
       return incomplete;
 
-    const amount = raw[0] - raw.slice(1).reduce((sum, value) => sum + value, 0);
-    if (!Number.isFinite(amount)) return incomplete;
+    const amount = balancedFiniteSum([
+      raw[0],
+      -raw[1],
+      -raw[2],
+      -raw[3],
+      -raw[4],
+    ]);
+    if (amount === null) return incomplete;
     return {
       status: "COMPLETE",
       label: "platform_contribution",
@@ -1947,6 +1980,34 @@ for (const [name, kind, input, expected] of finiteOverflowCases) {
 }
 for (const [name, kind, input, expected] of [
   [
+    "STD-01 finite_after_signed_cancellation",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: -Number.MAX_VALUE, units: 0 },
+      ],
+    },
+    { status: "COMPLETE", money: Number.MAX_VALUE, units: 2 },
+  ],
+  [
+    "STD-01 tiny_remainder_after_large_cancellation",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: -Number.MAX_VALUE, units: 0 },
+        { money: -Number.MAX_VALUE, units: 0 },
+        { money: 1, units: 0 },
+      ],
+    },
+    { status: "COMPLETE", money: 1, units: 2 },
+  ],
+  [
     "STD-01 large_finite_total",
     "sales_totals",
     {
@@ -2052,6 +2113,25 @@ for (const [name, kind, input, expected] of [
     "drr",
     { complete: true, spend: 0, revenue: 10 },
     0,
+  ],
+  [
+    "CAP-24 finite_component_cancellation_without_intermediate_overflow",
+    "platform_contribution",
+    {
+      complete: true,
+      revenue: Number.MAX_VALUE,
+      fees: Number.MAX_VALUE,
+      storage: Number.MAX_VALUE,
+      logistics: 0,
+      ads: 0,
+      currencyByComponent: finiteOverflowCurrencies,
+    },
+    {
+      status: "COMPLETE",
+      label: "platform_contribution",
+      amount: -Number.MAX_VALUE,
+      isNetProfit: false,
+    },
   ],
   [
     "CAP-24 finite_negative_contribution",
