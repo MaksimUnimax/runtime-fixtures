@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabaseRuntime } from "@product/db";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
-import { createPostgresMonitoringScheduleStore } from "../../../packages/server/monitoring-control/src/store.js";
+import {
+  createPostgresMonitoringScheduleStore,
+  type MonitoringSqlRuntime,
+  type MonitoringSqlQuery,
+} from "../../../packages/server/monitoring-control/src/store.js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
@@ -266,6 +270,61 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect(after.lastResult).toEqual(before.lastResult);
     expect(after.lastRunAt).toEqual(before.lastRunAt);
   });
+  it("keeps the earliest retry deadline across overlapping PostgreSQL writers", async () => {
+    // Deterministically hold the later request immediately before its UPDATE.
+    // On the old read/write implementation it has already read stale nextRunAt,
+    // so running the earlier writer now demonstrates a lost update.
+    await workerB.query(
+      "UPDATE monitoring_lane_schedules SET next_run_at=clock_timestamp() + interval '1 day' WHERE lane=$1",
+      ["SWAGGER_API"],
+    );
+    const initial = await storeB.getState("SWAGGER_API");
+    const earlier = new Date(initial.nextRunAt.valueOf() - 20 * 60_000);
+    const later = new Date(initial.nextRunAt.valueOf() - 10 * 60_000);
+    let entered!: () => void;
+    let release!: () => void;
+    const updateEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const resume = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const delayedRuntime: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>(
+        text: string,
+        values?: unknown[],
+      ) {
+        if (
+          text.startsWith("UPDATE monitoring_lane_schedules SET next_run_at")
+        ) {
+          entered();
+          await resume;
+        }
+        return workerA.query<T>(text, values);
+      },
+      transaction<T>(operation: (query: MonitoringSqlQuery) => Promise<T>) {
+        return workerA.transaction(operation);
+      },
+    };
+    const lateStore = createPostgresMonitoringScheduleStore(delayedRuntime);
+    const late = lateStore.scheduleEarlier("SWAGGER_API", later, new Date());
+    try {
+      await updateEntered;
+      const first = await storeB.scheduleEarlier(
+        "SWAGGER_API",
+        earlier,
+        new Date(),
+      );
+      expect(first.nextRunAt).toEqual(earlier);
+    } finally {
+      release();
+    }
+    const result = await late;
+    const durable = await storeA.getState("SWAGGER_API");
+    expect(result.nextRunAt).toEqual(earlier);
+    expect(durable.nextRunAt).toEqual(earlier);
+  }, 12000);
+
   it("rejects a finish that waited on the row lock beyond lease expiry", async () => {
     const start = await storeA.startRun({
       lane: "SWAGGER_API",

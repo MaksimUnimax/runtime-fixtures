@@ -82,6 +82,40 @@ function simulateConditionalWrite(affected: boolean, expiredAtLock = false) {
 }
 
 describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
+  it("updates scheduled retry deadline atomically without reading a stale snapshot", async () => {
+    const statements: string[] = [];
+    const timestamp = new Date(now.valueOf() + 30_000);
+    const earlier = new Date(now.valueOf() + 12_000);
+    const mock: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>(
+        statement: string,
+        values: unknown[] = [],
+      ) {
+        statements.push(statement);
+        expect(statement).toContain("next_run_at=LEAST(next_run_at,$2)");
+        expect(statement).toContain("RETURNING lane,");
+        expect(values).toEqual(["SWAGGER_API", earlier, timestamp]);
+        // Return the actual row from the atomic write, not a stale pre-write read.
+        return {
+          rows: [
+            { ...sqlRow(null), nextRunAt: earlier, updatedAt: timestamp },
+          ] as unknown as T[],
+        };
+      },
+      async transaction<T>(
+        callback: (query: MonitoringSqlQuery) => Promise<T>,
+      ) {
+        return callback(this);
+      },
+    };
+    const current = await createPostgresMonitoringScheduleStore(
+      mock,
+    ).scheduleEarlier("SWAGGER_API", earlier, timestamp);
+    expect(statements).toHaveLength(1);
+    expect(current.nextRunAt).toEqual(earlier);
+    expect(current.updatedAt).toEqual(timestamp);
+  });
+
   it("rejects an expired owner without a takeover in memory", async () => {
     const store = new InMemoryMonitoringScheduleStore();
     await store.ensureDefaults(now);
