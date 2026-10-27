@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -257,6 +257,30 @@ describe("STORE release transition preflight", () => {
     expect(successor.value.profileContentSha256).toBe(
       "cab55851bd2d571c19de5d44f3f8b3c40ff0ba3eb44e346307a2578894b1b2c1",
     );
+  });
+
+  it("rejects a Chrome-only manifest as an Opera release target", () => {
+    const fixture = target();
+    const manifest = JSON.parse(
+      readFileSync(fixture.manifest, "utf8"),
+    ) as Record<string, unknown>;
+    manifest.releaseScope = "CHROME_ONLY";
+    writeFileSync(fixture.manifest, JSON.stringify(manifest));
+    expect(() =>
+      readStoreReleaseTransitionTarget(fixture.manifest, fixture.zip),
+    ).toThrow("RELEASE_TRANSITION_BROWSER_SCOPE_CONFLICT");
+  });
+
+  it("rejects a Firefox-only manifest as an Opera release target", () => {
+    const fixture = target();
+    const manifest = JSON.parse(
+      readFileSync(fixture.manifest, "utf8"),
+    ) as Record<string, unknown>;
+    manifest.releaseScope = "FIREFOX_ONLY";
+    writeFileSync(fixture.manifest, JSON.stringify(manifest));
+    expect(() =>
+      readStoreReleaseTransitionTarget(fixture.manifest, fixture.zip),
+    ).toThrow("RELEASE_TRANSITION_BROWSER_SCOPE_CONFLICT");
   });
 
   it("rejects package bytes that do not match the candidate manifest", () => {

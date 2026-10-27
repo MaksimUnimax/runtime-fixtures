@@ -1,0 +1,58 @@
+{
+  "recorded_at": "2026-10-19T14:17:53.794194+00:00",
+  "prior_candidate": "50fab768be1af46404869bbd8a7462d94089c8fd",
+  "native_failure": {
+    "run": 39266760618,
+    "job": 118108373018,
+    "reason": "Existing source/package manifest checker hardcodes Qwen-only ai_hosts",
+    "native_first_start_and_A05": "PASS on50fab"
+  },
+  "paths": {
+    "tooling/checks/extension_import.py": "6fa9bd9d93be3070064252edc4e8f6839b71751c40030b4b59fdb209abf4e19c",
+    "tests/regression/extension-core/test-composed-version-policy.py": "eee8f5b9271ad1e02c6f1264d1062842763b86e7cf9463c7566b919e9a83b63e"
+  },
+  "fix": "Strict current-source checker accepts exactly the already owner-approved ordered Qwen + www.kimi.ai list. Actual manifest must still exactly match expected permissions. No runtime/signing/host-permission source changed by this correction.",
+  "red": "Actual ozon_route entry failed precisely at previous line133 before any child; no suite replay",
+  "green": {
+    "unittest_methods": 1,
+    "accepted_inventory_cases": 1,
+    "negative_inventory_cases": 10,
+    "cases": [
+      "missing",
+      "duplicate",
+      "reordered",
+      "unapproved alias",
+      "extra origin"
+    ],
+    "each_negative_checked_in": [
+      "recipe",
+      "actual manifest"
+    ],
+    "all_negative_child_calls": 0,
+    "status": "PASS"
+  },
+  "units": [
+    {
+      "unit": "octo-tester-kimi-host-check-red-20261019t1417",
+      "Result": "exit-code",
+      "ExecMainStatus": "1",
+      "ControlGroup": "",
+      "ActiveState": "failed",
+      "cgroup_empty": true
+    },
+    {
+      "unit": "octo-tester-kimi-host-check-green-20261019t1418",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "cgroup_empty": true
+    }
+  ],
+  "historical_route_logic_unchanged": true,
+  "old_test_default_setup_unchanged": true,
+  "new_provider_sends": 0,
+  "old_kimi59_reader30_firststart68_A05_not_rerun": true,
+  "source_runtime_files_unchanged": 41,
+  "review": "Exact current candidate pending independent follow-up"
+}

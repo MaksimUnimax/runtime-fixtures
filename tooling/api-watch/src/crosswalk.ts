@@ -9,23 +9,31 @@ function clone(row: ProductCrosswalkRow): ProductCrosswalkRow {
   return { ...row, createdAt: new Date(row.createdAt) };
 }
 
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export class InMemoryProductCrosswalkStore implements ProductCrosswalkStore {
   private readonly rows = new Map<string, ProductCrosswalkRow>();
   async saveRows(rows: ProductCrosswalkRow[]) {
-    for (const row of rows)
-      this.rows.set(row.crosswalkId, {
+    const saved: ProductCrosswalkRow[] = [];
+    for (const row of rows) {
+      const stored = clone({
         ...row,
         crosswalkId: row.crosswalkId || randomUUID(),
       });
-    return rows.map((row) => clone(this.rows.get(row.crosswalkId)!));
+      this.rows.set(stored.crosswalkId, stored);
+      saved.push(clone(stored));
+    }
+    return saved;
   }
   async listRows(reportId: string) {
     return [...this.rows.values()]
       .filter((row) => row.reportId === reportId)
       .sort(
         (a, b) =>
-          a.sourceIdentity.localeCompare(b.sourceIdentity) ||
-          (a.documentKey ?? "").localeCompare(b.documentKey ?? ""),
+          compareCodeUnits(a.sourceIdentity, b.sourceIdentity) ||
+          compareCodeUnits(a.documentKey ?? "", b.documentKey ?? ""),
       )
       .map(clone);
   }

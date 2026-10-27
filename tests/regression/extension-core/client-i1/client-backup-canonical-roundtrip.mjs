@@ -88,4 +88,74 @@ await run("credential change after preview rejects stale plan without overwritin
   await assert.rejects(() => f.catalog.applyBackupImport(payload, plan), error => error.code === "IMPORT_PLAN_STALE");
   assert.deepEqual(f.snapshot(), changed);
 });
+
+const backupFailure = (code) => (error) => error?.code === code;
+
+await run("partial Performance credentials are rejected instead of silently dropped", async () => {
+  const f = fixture();
+  await seed(f.catalog);
+  const stores = await f.catalog.backupSnapshot();
+  stores[0].credentials.performance = {
+    clientId: "200",
+    clientSecret: "",
+  };
+  assert.throws(
+    () => backup.payloadFromStores(account, stores),
+    (error) =>
+      ["BACKUP_PERFORMANCE_CLIENT_ID_INVALID", "BACKUP_PERFORMANCE_CLIENT_SECRET_INVALID"].includes(
+        error?.code,
+      ),
+  );
+});
+
+await run("stale credentials are rejected before backup payload creation", async () => {
+  const f = fixture();
+  const saved = await seed(f.catalog);
+  const metadata = await f.catalog.metadataForSync(saved.id);
+  await f.catalog.applyRemoteMetadata({
+    ...metadata,
+    credentialRevision: "remote-revision-2",
+    metadataRevision: metadata.metadataRevision + 1,
+  });
+  assert.equal((await f.catalog.get(saved.id)).credentialsStale, true);
+  const snapshot = await f.catalog.backupSnapshot();
+  assert.throws(
+    () => backup.payloadFromStores(account, snapshot),
+    backupFailure("BACKUP_CREDENTIALS_STALE"),
+  );
+});
+
+await run("rename does not clear a stale credential fence", async () => {
+  const f = fixture();
+  const saved = await seed(f.catalog);
+  const metadata = await f.catalog.metadataForSync(saved.id);
+  await f.catalog.applyRemoteMetadata({
+    ...metadata,
+    credentialRevision: "remote-revision-2",
+    metadataRevision: metadata.metadataRevision + 1,
+  });
+  const stale = await f.catalog.get(saved.id);
+  assert.equal(stale.credentialsStale, true);
+  const renamed = await f.catalog.save({ id: saved.id, name: "Renamed synthetic store" });
+  assert.equal(renamed.credentialsStale, true);
+  assert.equal((await f.catalog.get(saved.id)).credentials.seller.apiKey, "synthetic-seller-key");
+});
+
+await run("repeated remote metadata does not clear a stale credential fence", async () => {
+  const f = fixture();
+  const saved = await seed(f.catalog);
+  const metadata = await f.catalog.metadataForSync(saved.id);
+  const remote = {
+    ...metadata,
+    credentialRevision: "remote-revision-2",
+    metadataRevision: metadata.metadataRevision + 1,
+  };
+  await f.catalog.applyRemoteMetadata(remote);
+  assert.equal((await f.catalog.get(saved.id)).credentialsStale, true);
+  await f.catalog.applyRemoteMetadata(remote);
+  const repeated = await f.catalog.get(saved.id);
+  assert.equal(repeated.credentialsStale, true);
+  assert.equal(repeated.credentials.seller.apiKey, "synthetic-seller-key");
+});
+
 console.log(JSON.stringify({ status: "PASS", checks, sourceOnly: true }));

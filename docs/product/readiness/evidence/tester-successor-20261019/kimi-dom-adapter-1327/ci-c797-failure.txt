@@ -1,0 +1,31 @@
+2026-10-19T13:53:33.6118890Z RUN core-conversation-surface-first-start
+2026-10-19T13:53:33.6635866Z FAIL core-conversation-surface-first-start
+2026-10-19T13:53:33.6636986Z evalmachine.<anonymous>:538
+2026-10-19T13:53:33.6638119Z   const KIMI = SellerAgentsKimiAdapter.create({ readComposerText, setComposerText });
+2026-10-19T13:53:33.6639347Z                ^
+2026-10-19T13:53:33.6639740Z 
+2026-10-19T13:53:33.6640310Z ReferenceError: SellerAgentsKimiAdapter is not defined
+2026-10-19T13:53:33.6640994Z     at evalmachine.<anonymous>:538:16
+2026-10-19T13:53:33.6641576Z     at evalmachine.<anonymous>:562:3
+2026-10-19T13:53:33.6642131Z     at Script.runInContext (node:vm:149:12)
+2026-10-19T13:53:33.6642732Z     at Script.runInNewContext (node:vm:154:17)
+2026-10-19T13:53:33.6643339Z     at Object.runInNewContext (node:vm:310:38)
+2026-10-19T13:53:33.6644286Z     at file:///home/runner/work/runtime-fixtures/runtime-fixtures/tests/regression/extension-core/conversation-surface-first-start.mjs:283:4
+2026-10-19T13:53:33.6645235Z     at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+2026-10-19T13:53:33.6645837Z     at async node:internal/modules/esm/loader:643:26
+2026-10-19T13:53:33.6646554Z     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+2026-10-19T13:53:33.6647067Z 
+2026-10-19T13:53:33.6647317Z Node.js v24.19.0
+2026-10-19T13:53:33.6647595Z 
+2026-10-19T13:53:33.6647866Z {
+2026-10-19T13:53:33.6648209Z   "stage": "D2.4",
+2026-10-19T13:53:33.6648748Z   "status": "FAIL",
+2026-10-19T13:53:33.6649132Z   "os": "Linux",
+2026-10-19T13:53:33.6649491Z   "python": "3.12.14",
+2026-10-19T13:53:33.6649865Z   "node": "v24.19.0",
+2026-10-19T13:53:33.6650242Z   "live_provider_calls": 0,
+2026-10-19T13:53:33.6650688Z   "installed_acceptance": false,
+2026-10-19T13:53:33.6651333Z   "error": "GateFailure: core-conversation-surface-first-start: exit 1",
+2026-10-19T13:53:33.6651934Z   "gate_processes": 2
+2026-10-19T13:53:33.6652346Z }
+2026-10-19T13:53:33.6776985Z ##[error]Process completed with exit code 1.

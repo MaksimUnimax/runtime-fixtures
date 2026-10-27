@@ -496,7 +496,8 @@ export async function runNoSessionBatch(
         null,
       );
       results.push(attachEvidence(fallback));
-      await browser.stop();
+      // runNoSessionProbe already attempts cleanup in its finally block.
+      // A failed stop must not cancel the remaining provider observations.
     }
   }
   return Object.freeze(results);

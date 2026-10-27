@@ -62,9 +62,24 @@ export function familyAuthorityStatus(
       .filter((document) => document.authorityStatus === "AUTHORITY_ACCEPTED")
       .map((document) => document.documentKey),
   );
-  if (accepted.size === requiredDocumentKeys.length)
+  const required = new Set(requiredDocumentKeys);
+  // A matching accepted-key count is insufficient: reject substituted keys,
+  // duplicate required keys, duplicate/denied rows, and extra unregistered rows.
+  if (
+    required.size > 0 &&
+    required.size === requiredDocumentKeys.length &&
+    documents.length === required.size &&
+    accepted.size === required.size &&
+    documents.every(
+      (document) =>
+        document.authorityStatus === "AUTHORITY_ACCEPTED" &&
+        required.has(document.documentKey),
+    ) &&
+    [...required].every((key) => accepted.has(key))
+  )
     return "AUTHORITY_ACCEPTED";
-  if (accepted.size > 0) return "AUTHORITY_PARTIAL";
+  if ([...accepted].some((key) => required.has(key)))
+    return "AUTHORITY_PARTIAL";
   if (
     documents.some(
       (document) => document.authorityStatus === "AUTHORITY_REVIEW_REQUIRED",
@@ -305,22 +320,23 @@ export async function activateProductionSources(input: {
     );
     const record = pass.records[index];
     if (!document || !record) continue;
-    const snapshot = await promoteAcceptedSnapshot({
+    // Check semantic inventory before any accepted snapshot is persisted.
+    const inventory = buildCompleteOperationInventory({
+      sourceFamily: outcome.sourceFamily,
+      documentKey: document.documentKey,
+      snapshotSha256: outcome.sha256,
+      bytes: outcome.bytes,
+      filename: `source${outcome.artifactType === "YAML" ? ".yaml" : outcome.artifactType === "YML" ? ".yml" : ".json"}`,
+    });
+    await promoteAcceptedSnapshot({
       record,
       bytes: outcome.bytes,
       store: input.store,
+      inventory,
       snapshotRoot: input.snapshotRoot,
       documentKey: document.documentKey,
       now: input.now,
     });
-    const inventory = buildCompleteOperationInventory({
-      sourceFamily: outcome.sourceFamily,
-      documentKey: document.documentKey,
-      snapshotSha256: snapshot.sha256,
-      bytes: outcome.bytes,
-      filename: `source${outcome.artifactType === "YAML" ? ".yaml" : outcome.artifactType === "YML" ? ".yml" : ".json"}`,
-    });
-    await input.store.saveInventory(inventory);
     inventories.push(inventory);
   }
   const wbDocuments = pass.documents.filter(

@@ -328,6 +328,10 @@ export interface ApiWatchStore {
   listAuthorityRecords(): Promise<AuthorityRecord[]>;
   findAuthorityRecord(recordId: string): Promise<AuthorityRecord | undefined>;
   saveSnapshot(metadata: SnapshotMetadata): Promise<SnapshotMetadata>;
+  saveSnapshotWithInventory(
+    metadata: SnapshotMetadata,
+    inventory: OperationInventory,
+  ): Promise<SnapshotMetadata>;
   listSnapshots(): Promise<SnapshotMetadata[]>;
   saveInventory(inventory: OperationInventory): Promise<void>;
   findInventory(
@@ -540,7 +544,13 @@ export interface ApiWatchIncidentStore {
       "incidentId" | "occurrenceCount" | "state" | "resolvedAt"
     >,
   ): Promise<{ incident: ApiWatchIncident; opened: boolean }>;
-  resolve(incidentKey: string, at: Date): Promise<ApiWatchIncident | undefined>;
+  // The version must come from the OPEN row that established recovery proof.
+  // A later observe increment invalidates that decision and prevents RESOLVED.
+  resolve(
+    incidentKey: string,
+    at: Date,
+    expectedOccurrenceCount: number,
+  ): Promise<ApiWatchIncident | undefined>;
   listOpen(): Promise<ApiWatchIncident[]>;
   find(incidentKey: string): Promise<ApiWatchIncident | undefined>;
 }

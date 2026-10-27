@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 280, in <module>
+    raise SystemExit(run(args.runtime.resolve(),args.output.resolve(),args.provider))
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 115, in run
+    return run_kimi(runtime, output)
+  File "/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/tests/regression/extension-core/chatgpt-dom-compat.py", line 64, in run_kimi
+    assert actual == expected, (name, actual, expected)
+AssertionError: ('plaintext_pre_rejected', ['BAD'], [])

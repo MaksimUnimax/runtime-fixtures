@@ -38,10 +38,15 @@ const NAMED_FIELD_MAPS = new Set([
   "dependentRequired",
   "dependencies",
   "content",
+  "encoding",
   "headers",
   "mapping",
   "scopes",
 ]);
+
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
 
 function canonical(
   value: unknown,
@@ -62,7 +67,7 @@ function canonical(
   const entries: [string, unknown][] = [];
   for (const key of Object.keys(object).sort()) {
     // Annotation names are ordinary business field names inside a field map
-    // and ordinary keys inside literal defaults/enum members.
+    // and ordinary keys inside literal defaults, enum members and extensions.
     if (
       mode === "node" &&
       (key === "description" || key === "example" || key === "examples")
@@ -73,7 +78,7 @@ function canonical(
         ? "literal"
         : mode === "named-fields"
           ? "node"
-          : ["default", "const", "enum"].includes(key)
+          : key.startsWith("x-") || ["default", "const", "enum"].includes(key)
             ? "literal"
             : NAMED_FIELD_MAPS.has(key)
               ? "named-fields"
@@ -85,7 +90,9 @@ function canonical(
       Array.isArray(field)
         ? field
             .map((item) => canonical(item, seen, childMode))
-            .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+            .sort((a, b) =>
+              compareCodeUnits(JSON.stringify(a), JSON.stringify(b)),
+            )
         : canonical(field, seen, childMode);
     entries.push([key, projected]);
   }
@@ -94,7 +101,12 @@ function canonical(
   return Object.fromEntries(entries);
 }
 
-type RefContext = "openapi" | "schema" | "schema-map" | "literal";
+type RefContext =
+  | "openapi"
+  | "openapi-map"
+  | "schema"
+  | "schema-map"
+  | "literal";
 const SCHEMA_MAP_KEYS = new Set([
   "properties",
   "patternProperties",
@@ -124,11 +136,66 @@ const SCHEMA_VALUE_KEYS = new Set([
 
 function refChildContext(context: RefContext, key: string): RefContext {
   if (context === "schema-map") return "schema";
+  if (context === "openapi-map") return "openapi";
+  // Map-entry names (headers, encoding properties, media types) are not extensions.
+  // Only an object field x-... introduces arbitrary literal extension data.
+  if (key.startsWith("x-")) return "literal";
   if (context === "schema") {
     if (SCHEMA_MAP_KEYS.has(key)) return "schema-map";
     return SCHEMA_VALUE_KEYS.has(key) ? "schema" : "literal";
   }
-  return key === "schema" ? "schema" : "openapi";
+  if (key === "schema") return "schema";
+  if (key === "content" || key === "encoding" || key === "headers")
+    return "openapi-map";
+  return "openapi";
+}
+
+// Logical schema branches form an unordered multiset. Keep duplicates (oneOf)
+// and normalize only actual schemas, never tuples or literal/extension data.
+function orderSchemaBranches(values: readonly unknown[]): unknown[] {
+  return values
+    .map((value) => ({ value, key: JSON.stringify(canonical(value)) }))
+    .sort((a, b) => compareCodeUnits(a.key, b.key))
+    .map(({ value }) => value);
+}
+
+// RFC 6901: decode the URI fragment before splitting and unescaping tokens.
+// Anchors and nonlocal references retain their existing unsupported treatment.
+function localPointerFragment(
+  ref: string,
+): { identity: string; tokens: string[] | null } | null {
+  if (!ref.startsWith("#")) return null;
+  // A second raw '#' is not fragment data; its percent-encoded form remains valid.
+  if (ref.includes("#", 1)) return { identity: ref, tokens: null };
+  let pointer: string;
+  try {
+    pointer = decodeURIComponent(ref.slice(1));
+  } catch {
+    return { identity: ref, tokens: null };
+  }
+  if (!pointer.startsWith("/")) return null;
+  const parts = pointer.slice(1).split("/");
+  if (parts.some((part) => /~(?![01])/u.test(part)))
+    return { identity: ref, tokens: null };
+  return {
+    identity: `#${pointer}`,
+    tokens: parts.map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~")),
+  };
+}
+
+function localPointerTarget(root: unknown, tokens: readonly string[]): unknown {
+  let target = root;
+  for (const key of tokens) {
+    if (
+      !target ||
+      typeof target !== "object" ||
+      !Object.hasOwn(target, key) ||
+      (Array.isArray(target) && !/^(?:0|[1-9][0-9]*)$/u.test(key))
+    )
+      return undefined;
+    target = (target as Record<string, unknown>)[key];
+  }
+  return target;
 }
 
 function localRef(
@@ -142,21 +209,19 @@ function localRef(
     return value.map((item) => localRef(item, root, seen, context));
   if (!value || typeof value !== "object") return value;
   const object = value as Record<string, unknown>;
-  if (
-    context !== "schema-map" &&
-    typeof object.$ref === "string" &&
-    object.$ref.startsWith("#/")
-  ) {
-    const ref = object.$ref;
+  const pointer =
+    context !== "schema-map" && typeof object.$ref === "string"
+      ? localPointerFragment(object.$ref)
+      : null;
+  if (pointer) {
+    const ref = pointer.identity;
     let resolved: unknown;
-    if (seen.has(ref)) {
+    if (pointer.tokens === null) {
+      resolved = { $unresolvedRef: ref };
+    } else if (seen.has(ref)) {
       resolved = { $recursiveRef: ref };
     } else {
-      const target = ref
-        .slice(2)
-        .split("/")
-        .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
-        .reduce<unknown>((at, key) => asObject(at)[key], root);
+      const target = localPointerTarget(root, pointer.tokens);
       resolved =
         target === undefined
           ? { $unresolvedRef: ref }
@@ -178,15 +243,27 @@ function localRef(
         "schema",
       );
       if (Object.keys(asObject(canonical(siblings))).length > 0)
-        return { allOf: [resolved, siblings] };
+        return { allOf: orderSchemaBranches([resolved, siblings]) };
     }
     return resolved;
   }
   return Object.fromEntries(
-    Object.entries(object).map(([key, item]) => [
-      key,
-      localRef(item, root, seen, refChildContext(context, key)),
-    ]),
+    Object.entries(object).map(([key, item]) => {
+      const resolved = localRef(
+        item,
+        root,
+        seen,
+        refChildContext(context, key),
+      );
+      return [
+        key,
+        context === "schema" &&
+        (key === "allOf" || key === "anyOf" || key === "oneOf") &&
+        Array.isArray(resolved)
+          ? orderSchemaBranches(resolved)
+          : resolved,
+      ];
+    }),
   );
 }
 
@@ -218,7 +295,7 @@ function securityFingerprint(
         .map((item) =>
           Object.fromEntries(
             Object.entries(asObject(item))
-              .sort(([a], [b]) => a.localeCompare(b))
+              .sort(([a], [b]) => compareCodeUnits(a, b))
               .map(([key, scopes]) => [
                 key,
                 [
@@ -231,7 +308,7 @@ function securityFingerprint(
               ]),
           ),
         )
-        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+        .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)))
     : value;
   const definitions = asObject(
     asObject(root.components).securitySchemes ?? root.securityDefinitions,
@@ -253,6 +330,16 @@ function securityFingerprint(
   return fingerprint({ requirements, schemes }, "literal");
 }
 
+// The OpenAPI parser validates the document root, not every operation or
+// Path Item. A malformed non-array parameters field must not be interpreted
+// as a valid empty list or silently produce an unchanged semantic fingerprint.
+function optionalParameterArray(value: unknown): readonly unknown[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value))
+    throw new Error("APIWATCH_PARAMETERS_INVALID_CONTAINER");
+  return value;
+}
+
 // Operation parameters override Path Item parameters with the same name and
 // location (OAS 2 and 3). Resolve local references before identifying them.
 function effectiveParameters(
@@ -261,26 +348,66 @@ function effectiveParameters(
   root: Record<string, unknown>,
 ): Record<string, unknown>[] {
   const effective = new Map<string, Record<string, unknown>>();
-  let unresolvedIndex = 0;
-  const add = (raw: unknown) => {
-    const parameter = asObject(localRef(raw, root));
-    const identity =
-      typeof parameter.name === "string" && typeof parameter.in === "string"
-        ? JSON.stringify([
-            parameter.in === "header"
-              ? parameter.name.toLowerCase()
-              : parameter.name,
-            parameter.in,
-          ])
-        : "unresolved:" + unresolvedIndex++;
-    effective.set(identity, parameter);
+  const allowedLocations = new Set(
+    root.swagger === "2.0"
+      ? ["query", "header", "path", "body", "formData"]
+      : [
+          "query",
+          "header",
+          "path",
+          "cookie",
+          ...(typeof root.openapi === "string" &&
+          /^3\.2(?:\.|$)/u.test(root.openapi)
+            ? ["querystring"]
+            : []),
+        ],
+  );
+  // Path Item and Operation parameter arrays must EACH be duplicate-free.
+  // An Operation-level declaration may still replace one Path-level parameter.
+  const addLevel = (values: readonly unknown[]) => {
+    const seenAtLevel = new Set<string>();
+    for (const raw of values) {
+      const parameter = asObject(localRef(raw, root));
+      // Do not trust an external/unresolved Reference Object even if it
+      // carries fake sibling name/in fields that look like a valid parameter.
+      if (
+        Object.hasOwn(parameter, "$ref") ||
+        Object.hasOwn(parameter, "$unresolvedRef") ||
+        Object.hasOwn(parameter, "$recursiveRef") ||
+        typeof parameter.name !== "string" ||
+        typeof parameter.in !== "string"
+      )
+        throw new Error("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+      if (parameter.name.length === 0 || !allowedLocations.has(parameter.in))
+        throw new Error("APIWATCH_PARAMETER_IDENTITY_INVALID");
+      const identity = JSON.stringify([
+        parameter.in === "header"
+          ? parameter.name.toLowerCase()
+          : parameter.name,
+        parameter.in,
+      ]);
+      // Do not let last-write-wins hide conflicting schema or requiredness
+      // within the same source declaration, including resolved $ref aliases.
+      if (seenAtLevel.has(identity))
+        throw new Error("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+      seenAtLevel.add(identity);
+      effective.set(identity, parameter);
+    }
   };
-  for (const parameter of pathParameters) add(parameter);
-  for (const parameter of Array.isArray(operation.parameters)
-    ? operation.parameters
-    : [])
-    add(parameter);
-  return [...effective.values()];
+  addLevel(pathParameters);
+  addLevel(optionalParameterArray(operation.parameters));
+  const parameters = [...effective.values()];
+  // OAS 3.2 querystring represents the ENTIRE query. It may occur only
+  // once, and must not coexist with ordinary query parameters after valid
+  // Operation-over-Path overrides have been applied.
+  if (
+    parameters.filter((parameter) => parameter.in === "querystring").length >
+      1 ||
+    (parameters.some((parameter) => parameter.in === "querystring") &&
+      parameters.some((parameter) => parameter.in === "query"))
+  )
+    throw new Error("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+  return parameters;
 }
 
 function parametersFingerprint(
@@ -343,11 +470,139 @@ function parametersFingerprint(
               return false;
             return true;
           })
-          .sort(([a], [b]) => a.localeCompare(b)),
+          .sort(([a], [b]) => compareCodeUnits(a, b)),
       );
     })
-    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   return fingerprint(projected);
+}
+
+// Media type, subtype, and parameter *names* are case-insensitive.
+// Parameter values may be case-sensitive (notably multipart boundaries).
+// Canonicalize harmless whitespace/order/quotes without altering values.
+function canonicalSwagger2MediaType(value: string): string {
+  const invalid = () =>
+    new Error("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
+  const token = /^[!#$%&'*+.^_\u0060|~0-9A-Za-z-]+$/u;
+  // RFC quoted-string and quoted-pair characters: HTAB, printable ASCII,
+  // or Latin-1 obs-text. CR/LF, other controls and Unicode beyond 0xFF
+  // are not valid raw MIME parameter bytes.
+  const validQuotedChar = (ch: string): boolean => {
+    const code = ch.charCodeAt(0);
+    return (
+      code === 0x09 ||
+      (code >= 0x20 && code <= 0x7e) ||
+      (code >= 0x80 && code <= 0xff)
+    );
+  };
+  const segments: string[] = [];
+  let start = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (quoted && ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (ch === ";" && !quoted) {
+      segments.push(value.slice(start, i));
+      start = i + 1;
+    }
+  }
+  if (quoted || escaped) throw invalid();
+  segments.push(value.slice(start));
+
+  // MIME OWS permits only ASCII SP/HTAB; Unicode whitespace must fail closed.
+  const trimAsciiOws = (part: string): string =>
+    part.replace(/^[ \t]+|[ \t]+$/gu, "");
+  const media = trimAsciiOws(segments.shift() ?? "").toLowerCase();
+  const pair = media.split("/");
+  if (pair.length !== 2 || !pair.every((part) => token.test(part)))
+    throw invalid();
+
+  const params = segments.map((segment) => {
+    // Only trim OWS at semicolon/field boundaries, never around "=".
+    const parameter = trimAsciiOws(segment);
+    const equal = parameter.indexOf("=");
+    if (equal < 0) throw invalid();
+    const name = parameter.slice(0, equal).toLowerCase();
+    if (!token.test(name)) throw invalid();
+    const raw = parameter.slice(equal + 1);
+    let decoded: string;
+    if (raw.startsWith('"')) {
+      if (raw.length < 2 || !raw.endsWith('"')) throw invalid();
+      decoded = "";
+      for (let i = 1; i < raw.length - 1; i++) {
+        const ch = raw[i];
+        if (ch === "\\") {
+          const pair = raw[++i];
+          if (
+            i >= raw.length - 1 ||
+            pair === undefined ||
+            !validQuotedChar(pair)
+          )
+            throw invalid();
+          decoded += pair;
+        } else {
+          if (ch === undefined || ch === '"' || !validQuotedChar(ch))
+            throw invalid();
+          decoded += ch;
+        }
+      }
+    } else {
+      if (!token.test(raw)) throw invalid();
+      decoded = raw;
+    }
+    return [name, JSON.stringify(decoded)] as const;
+  });
+
+  // Duplicate parameter names have ambiguous authority: fail closed.
+  if (new Set(params.map(([name]) => name)).size !== params.length)
+    throw invalid();
+  params.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return (
+    media +
+    (params.length
+      ? ";" + params.map(([name, encoded]) => name + "=" + encoded).join(";")
+      : "")
+  );
+}
+
+// Fail closed on malformed Swagger 2.0 media declarations rather than
+// silently treating a string or mixed-type list as an absent MIME contract.
+function checkedSwagger2MediaList(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (item): item is string =>
+        typeof item === "string" && item.trim().length > 0,
+    )
+  )
+    throw new Error("APIWATCH_SWAGGER2_MEDIA_DECLARATION_INVALID");
+  return stringList(value.map(canonicalSwagger2MediaType));
+}
+
+// Swagger 2.0 operation MIME declarations override root declarations, and
+// an explicit [] clears the inherited set. Order and duplicates are inert.
+function swagger2MediaTypes(
+  operation: Record<string, unknown>,
+  root: Record<string, unknown>,
+  field: "consumes" | "produces",
+): string[] {
+  if (root.swagger !== "2.0") return [];
+  const inherited = checkedSwagger2MediaList(root[field]);
+  const override = checkedSwagger2MediaList(operation[field]);
+  return operation[field] === undefined ? inherited : override;
 }
 
 function requestFingerprint(
@@ -355,32 +610,90 @@ function requestFingerprint(
   parameters: readonly Record<string, unknown>[],
   root: Record<string, unknown>,
 ): string | null {
-  if (operation.requestBody !== undefined)
-    return schemaFingerprint(operation.requestBody, root);
   const bodies = parameters
     .filter((parameter) => parameter.in === "body")
     .map((parameter) => parameter.schema ?? null);
-  return bodies.length
-    ? schemaFingerprint(bodies, root, "node", "schema")
-    : null;
+  const legacy =
+    operation.requestBody !== undefined
+      ? schemaFingerprint(operation.requestBody, root)
+      : bodies.length
+        ? schemaFingerprint(bodies, root, "node", "schema")
+        : null;
+  // Consumes applies to actual request payloads, including Swagger 2 formData.
+  // Preserve original hashes when no media contract is declared, and ignore
+  // consumes changes for an operation that accepts no request payload.
+  const hasPayload =
+    operation.requestBody !== undefined ||
+    parameters.some(
+      (parameter) => parameter.in === "body" || parameter.in === "formData",
+    );
+  // Validate the declaration even when this operation has no body, then
+  // leave the no-body request fingerprint unchanged.
+  const media = swagger2MediaTypes(operation, root, "consumes");
+  return hasPayload && media.length
+    ? fingerprint({ legacyRequestSha256: legacy, consumes: media }, "literal")
+    : legacy;
 }
 
 function responseFingerprint(
   responses: Record<string, unknown>,
   root: Record<string, unknown>,
+  operation: Record<string, unknown>,
 ): string {
-  return fingerprint(
+  let hasResponseBody = false;
+  const legacy = fingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
-        const response = asObject(localRef(raw, root));
+        const responseValue = localRef(raw, root);
+        if (
+          !responseValue ||
+          typeof responseValue !== "object" ||
+          Array.isArray(responseValue)
+        )
+          throw new Error("APIWATCH_RESPONSE_OBJECT_INVALID");
+        const response = responseValue as Record<string, unknown>;
+        // A Response Object is a trust boundary. An unresolved or external
+        // Reference Object is not equivalent to a known empty response, and
+        // forged sibling content cannot stand in for its unknown target.
+        if (
+          Object.hasOwn(response, "$ref") ||
+          Object.hasOwn(response, "$unresolvedRef") ||
+          Object.hasOwn(response, "$recursiveRef")
+        )
+          throw new Error("APIWATCH_RESPONSE_REF_UNRESOLVED");
         const body = response.schema ?? response.content ?? null;
+        if (body !== null) hasResponseBody = true;
+        // A malformed headers container must not silently become an empty map.
+        if (
+          response.headers !== undefined &&
+          (!response.headers ||
+            typeof response.headers !== "object" ||
+            Array.isArray(response.headers))
+        )
+          throw new Error("APIWATCH_RESPONSE_HEADERS_INVALID");
         // Response headers are contract fields, not just response annotations.
         // HTTP header names are case-insensitive; OAS ignores Content-Type here.
         const headers = Object.entries(asObject(response.headers))
           .filter(([name]) => name.toLowerCase() !== "content-type")
-          .sort(([a], [b]) => a.localeCompare(b))
+          .sort(([a], [b]) => compareCodeUnits(a, b))
           .map(([name, rawHeader]) => {
-            const header = asObject(localRef(rawHeader, root));
+            const headerValue = localRef(rawHeader, root);
+            if (
+              !headerValue ||
+              typeof headerValue !== "object" ||
+              Array.isArray(headerValue)
+            )
+              throw new Error("APIWATCH_RESPONSE_HEADER_OBJECT_INVALID");
+            const header = headerValue as Record<string, unknown>;
+            // Header Reference Objects also require a resolved authority:
+            // do not present unknown remote/missing header definitions as
+            // a verified response contract or a valid semantic fingerprint.
+            if (
+              Object.hasOwn(header, "$ref") ||
+              Object.hasOwn(header, "$unresolvedRef") ||
+              Object.hasOwn(header, "$recursiveRef")
+            )
+              throw new Error("APIWATCH_RESPONSE_HEADER_REF_UNRESOLVED");
             const normalized = Object.fromEntries(
               Object.entries(header).filter(([key, value]) => {
                 if (
@@ -431,11 +744,113 @@ function responseFingerprint(
     ),
     "named-fields",
   );
+  // Validate even inert MIME declarations, but fingerprint only a response payload.
+  const media = swagger2MediaTypes(operation, root, "produces");
+  return hasResponseBody && media.length
+    ? fingerprint({ legacyResponseSha256: legacy, produces: media }, "literal")
+    : legacy;
 }
 
 function normalizedPath(path: string): string {
-  const withSlash = path.startsWith("/") ? path : `/${path}`;
-  return withSlash.replace(/\/{2,}/g, "/") || "/";
+  // OpenAPI paths are appended verbatim to their server URL. A repeated slash
+  // denotes an empty segment and may identify a different endpoint.
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+const PATH_ITEM_METHOD_NAMES = new Set(
+  HTTP_METHODS.map((method) => method.toLowerCase()),
+);
+
+// A JSON Pointer can resolve to any JSON object, including non-Path Item
+// components. Never turn an unrelated object into a synthetic API operation.
+function assertReferencedPathItem(value: Record<string, unknown>): void {
+  for (const [name, field] of Object.entries(value)) {
+    if (name === "summary" || name === "description") {
+      if (typeof field !== "string")
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    } else if (name === "parameters" || name === "servers") {
+      if (!Array.isArray(field))
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    } else if (PATH_ITEM_METHOD_NAMES.has(name)) {
+      const operation = asObject(field);
+      if (
+        !Object.hasOwn(operation, "responses") ||
+        !operation.responses ||
+        typeof operation.responses !== "object" ||
+        Array.isArray(operation.responses)
+      )
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    } else if (!name.startsWith("x-")) {
+      throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    }
+  }
+}
+
+// Resolve Path Item references before enumerating methods. Schema references are
+// handled independently below; expanding only this top-level reference avoids
+// altering fingerprints for ordinary inline operations.
+function resolvePathItem(
+  raw: unknown,
+  root: Record<string, unknown>,
+  seen = new Set<string>(),
+): Record<string, unknown> {
+  const item = asObject(raw);
+  if (!Object.hasOwn(item, "$ref")) return item;
+  const ref = item.$ref;
+  if (typeof ref !== "string" || !ref.startsWith("#"))
+    throw new Error("APIWATCH_PATH_ITEM_REF_UNSUPPORTED");
+  // Percent-decode the URI fragment before splitting JSON Pointer tokens.
+  let pointer: string;
+  try {
+    pointer = decodeURIComponent(ref.slice(1));
+  } catch {
+    throw new Error("APIWATCH_PATH_ITEM_REF_INVALID");
+  }
+  if (!pointer.startsWith("/"))
+    throw new Error("APIWATCH_PATH_ITEM_REF_UNSUPPORTED");
+  if (seen.has(pointer) || seen.size >= 64)
+    throw new Error("APIWATCH_PATH_ITEM_REF_CYCLE_OR_DEPTH");
+  const tokens = pointer
+    .slice(1)
+    .split("/")
+    .map((segment) => {
+      if (/~(?![01])/u.test(segment))
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID");
+      return segment.replace(/~1/g, "/").replace(/~0/g, "~");
+    });
+  // Only actual Path Item catalog positions can supply Path Items. This
+  // excludes unrelated parameter/schema maps even when they contain a "get" key.
+  const inPaths =
+    tokens.length === 2 &&
+    tokens[0] === "paths" &&
+    tokens[1]?.startsWith("/") === true;
+  const inPathItems =
+    typeof root.openapi === "string" &&
+    /^3\.1(?:\.|$)/u.test(root.openapi) &&
+    tokens.length === 3 &&
+    tokens[0] === "components" &&
+    tokens[1] === "pathItems";
+  if (!inPaths && !inPathItems)
+    throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+  let target: unknown = root;
+  for (const key of tokens) {
+    const object = asObject(target);
+    if (!Object.hasOwn(object, key))
+      throw new Error("APIWATCH_PATH_ITEM_REF_UNRESOLVED");
+    target = object[key];
+  }
+  if (!target || typeof target !== "object" || Array.isArray(target))
+    throw new Error("APIWATCH_PATH_ITEM_REF_NOT_OBJECT");
+  const referenced = resolvePathItem(target, root, new Set([...seen, pointer]));
+  const siblings = Object.entries(item).filter(([key]) => key !== "$ref");
+  // OAS defines overlapping Path Item and referenced fields as undefined.
+  // Reject ambiguity rather than silently selecting an operation or parameter.
+  for (const [key] of siblings)
+    if (Object.hasOwn(referenced, key))
+      throw new Error("APIWATCH_PATH_ITEM_REF_CONFLICT");
+  const resolved = { ...referenced, ...Object.fromEntries(siblings) };
+  assertReferencedPathItem(resolved);
+  return resolved;
 }
 
 function stringList(value: unknown): string[] {
@@ -464,10 +879,15 @@ function securityReferences(
 function hasRequestBody(
   operation: Record<string, unknown>,
   parameters: readonly Record<string, unknown>[],
+  root: Record<string, unknown>,
 ): boolean {
   if (operation.requestBody && typeof operation.requestBody === "object")
     return true;
-  return parameters.some((parameter) => parameter.in === "body");
+  return parameters.some(
+    (parameter) =>
+      parameter.in === "body" ||
+      (root.swagger === "2.0" && parameter.in === "formData"),
+  );
 }
 
 export function buildCompleteOperationInventory(input: {
@@ -478,13 +898,16 @@ export function buildCompleteOperationInventory(input: {
   filename: string;
 }): OperationInventory {
   const document = parseSwaggerDocument(input.bytes, input.filename);
+  if (document.root.swagger === "2.0") {
+    // Root declarations must fail closed even when no operations consume them.
+    checkedSwagger2MediaList(document.root.consumes);
+    checkedSwagger2MediaList(document.root.produces);
+  }
   const paths = asObject(document.root.paths);
   const operations: OperationInventoryItem[] = [];
   for (const path of Object.keys(paths).sort()) {
-    const pathItem = asObject(paths[path]);
-    const pathParameterValues = Array.isArray(pathItem.parameters)
-      ? pathItem.parameters
-      : [];
+    const pathItem = resolvePathItem(paths[path], document.root);
+    const pathParameterValues = optionalParameterArray(pathItem.parameters);
     for (const method of HTTP_METHODS) {
       const operation = pathItem[method.toLowerCase()];
       if (
@@ -518,12 +941,12 @@ export function buildCompleteOperationInventory(input: {
             ? null
             : createHash("sha256").update(summary).digest("hex"),
         securitySchemeReferences: securityReferences(op, document.root),
-        requestBodyPresent: hasRequestBody(op, parameters),
+        requestBodyPresent: hasRequestBody(op, parameters, document.root),
         parameterCount: parameters.length,
         responseStatusKeys: Object.keys(responses).sort(),
         parameterSchemaSha256: parametersFingerprint(parameters, document.root),
         requestSchemaSha256: requestFingerprint(op, parameters, document.root),
-        responseSchemaSha256: responseFingerprint(responses, document.root),
+        responseSchemaSha256: responseFingerprint(responses, document.root, op),
         securityRequirementsSha256: securityFingerprint(op, document.root),
       });
     }
@@ -565,6 +988,7 @@ export async function inventoryAcceptedSnapshots(input: {
         : "snapshot.json";
     const inventory = buildCompleteOperationInventory({
       sourceFamily: snapshot.sourceFamily,
+      documentKey: snapshot.documentKey ?? null,
       snapshotSha256: snapshot.sha256,
       bytes,
       filename,

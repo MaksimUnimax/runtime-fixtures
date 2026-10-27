@@ -21,6 +21,18 @@ on:
       - "tooling/operations/test_backup_postgres_independent.py"
       - "tooling/operations/offsite_backup_policy.py"
       - "tooling/operations/test_offsite_backup_policy.py"
+      - "tooling/operations/verify_ops_release.py"
+      - "tooling/operations/test_verify_ops_release.py"
+      - "tooling/operations/verify_owner_test_release.py"
+      - "tooling/operations/test_verify_owner_test_release.py"
+      - "tooling/operations/four_root_owner_test_units.py"
+      - "tooling/operations/test_four_root_owner_test_units.py"
+      - "tooling/operations/package_owner_test_release.py"
+      - "tooling/operations/test_package_owner_test_release.py"
+      - "tooling/operations/deploy_owner_test.py"
+      - "tooling/operations/test_deploy_owner_test.py"
+      - "tooling/operations/owner_test_monitor_env.py"
+      - "tooling/operations/test_owner_test_monitor_env.py"
       - "tooling/checks/server-import-check.mjs"
       - "infra/local/**"
       - "infra/production/scripts/install-octoport-postgres-backup.sh"
@@ -117,6 +129,14 @@ jobs:
         run: |
           python3 -B -m unittest discover -s tooling/operations -p 'test_backup_postgres_independent.py' -v
           python3 -B -m unittest discover -s tooling/operations -p 'test_offsite_backup_policy.py' -v
+      - name: Verify ops release and legacy owner-test restore safeguards
+        run: |
+          sudo -n env -i HOME=/tmp PATH=/usr/bin:/bin /usr/bin/python3 -B -m unittest discover -s tooling/operations -p 'test_verify_ops_release.py' -v
+          sudo -n env -i HOME=/tmp PATH=/usr/bin:/bin /usr/bin/python3 -B -m unittest discover -s tooling/operations -p 'test_verify_owner_test_release.py' -v
+          python3 -B -m unittest discover -s tooling/operations -p 'test_four_root_owner_test_units.py' -v
+          sudo -n env -i HOME=/tmp PATH=/usr/bin:/bin /usr/bin/python3 -B -m unittest discover -s tooling/operations -p 'test_package_owner_test_release.py' -v
+          python3 -B -m unittest discover -s tooling/operations -p 'test_deploy_owner_test.py' -v
+          python3 -B -m unittest discover -s tooling/operations -p 'test_owner_test_monitor_env.py' -v
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
@@ -188,8 +208,58 @@ jobs:
       - run: pnpm openapi:check
       - run: pnpm bridge:guard
       - run: pnpm build
+      - name: Package exact four-service runtime without deployment
+        if: github.event_name == 'push'
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          df -Pm "$RUNNER_TEMP"
+          # Root-only parent under /var/lib prevents user-controlled path replacement.
+          package_parent="/var/lib/octoport-ci-package-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo -n test ! -e "$package_parent"
+          sudo -n mkdir -m 0755 -- "$package_parent"
+          # A read-only host filesystem, quota-bounded scratch, and a single
+          # finite cgroup cover the probe AND descendants that create sessions.
+          sudo -n env -i HOME=/tmp PATH="$PATH" /usr/bin/systemd-run \
+            --unit="octoport-ci-package-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --collect --wait --pipe \
+            --property="WorkingDirectory=$GITHUB_WORKSPACE" \
+            --property="ReadWritePaths=$package_parent" \
+            --property="ProtectSystem=strict" \
+            --property="ProtectHome=read-only" \
+            --property="PrivateDevices=yes" \
+            --property="PrivateNetwork=yes" \
+            --property="TemporaryFileSystem=/tmp:rw,size=64M,mode=1777 /dev/shm:rw,size=64M,mode=1777" \
+            --property="MemoryAccounting=yes" \
+            --property="MemoryMax=3072M" \
+            --property="MemorySwapMax=0" \
+            --property="TasksMax=128" \
+            --property="KillMode=control-group" \
+            --property="TimeoutStopSec=5s" \
+            --property="SendSIGKILL=yes" \
+            --property="OOMPolicy=stop" \
+            --property="RuntimeMaxSec=330" \
+            /usr/bin/python3 -B tooling/operations/package_owner_test_release.py \
+            --source "$GITHUB_WORKSPACE" \
+            --output "$package_parent/owner-test-runtime-$GITHUB_SHA" \
+            --node "$(command -v node)" \
+            --expected-source-sha "$GITHUB_SHA" \
+            --expected-source-tree "$(git rev-parse HEAD^{tree})"
+          test -f "$package_parent/owner-test-runtime-$GITHUB_SHA/PACKAGE_RECEIPT.json"
       - run: pnpm test:e2e
         env:
           PRODUCT_CONTROL_PLANE_E2E: "1"
           DATABASE_URL: postgres://product_control_plane_ci:ci_development_only_password@127.0.0.1:5432/product_control_plane_test
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/product-control-plane-playwright
+      - name: Preserve verified four-service runtime package
+        if: success() && github.event_name == 'push'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: owner-test-runtime-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            /var/lib/octoport-ci-package-${{ github.run_id }}-${{ github.run_attempt }}/owner-test-runtime-${{ github.sha }}/*.tar.gz
+            /var/lib/octoport-ci-package-${{ github.run_id }}-${{ github.run_attempt }}/owner-test-runtime-${{ github.sha }}/PACKAGE_RECEIPT.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3

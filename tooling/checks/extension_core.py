@@ -39,6 +39,9 @@ def main():
         runner.run("core-button-anchor-occlusion", ["node", ROOT / "tests/regression/extension-core/button-anchor-occlusion.mjs"])
         runner.run("core-qwen-adapter", ["node", ROOT / "tests/regression/extension-core/qwen-adapter.mjs"])
         runner.run("core-qwen-code-reader", ["node", ROOT / "tests/regression/extension-core/qwen-code-reader.mjs"])
+        # Business-scenario completeness and numeric guards run in the native source gate.
+        runner.run("core-business-scenario-coverage",
+                   ["node", ROOT / "tests/regression/extension-core/business-scenario-coverage.mjs"])
         runner.run("core-native-import-panel-entry", ["node", ROOT / "tests/regression/extension-core/native-import-panel-entry.mjs"])
         runner.run("core-content-read-block-dispatch", ["node", ROOT / "tests/regression/extension-core/content-read-block-dispatch.mjs"])
         runner.run("core-start-dispatch-progress", ["node", ROOT / "tests/regression/extension-core/start-dispatch-progress.mjs"])
@@ -59,6 +62,22 @@ def main():
         work.mkdir()
         for runtime, label, source_route in [(source, "core-source", True), (extracted, "core-package", False)]:
             original.ozon_route(runner, work, runtime, label, source_route, expected_version=original.current_composed_version())
+            # A04 safety regressions must exercise the composed runtime AND
+            # the exact extracted ZIP, not merely the repository source.
+            provider = runtime / "shared/ozon_provider.js"
+            transport = runtime / "shared/provider_transport_core.js"
+            runner.run(label + "-ozon-performance-postfetch-diagnostics",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-performance-connection-diagnostics.mjs", provider, transport])
+            runner.run(label + "-ozon-performance-auth-business-postfetch",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-performance-operation-errors.mjs", provider, transport])
+            runner.run(label + "-ozon-report-session-commit",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-report-session-commit.mjs", provider])
+            runner.run(label + "-ozon-report-state-error-redaction",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-report-state-error-redaction.mjs", provider])
+            runner.run(label + "-ozon-postcallback-fence",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-postcallback-fence.mjs", provider])
+            runner.run(label + "-ozon-seller-postfetch-diagnostics",
+                       ["node", ROOT / "tests/regression/extension-core/ozon-seller-postfetch-diagnostics.mjs", provider, transport])
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
             runner.run(label + "-ozon-guidance-entitlement", ["node", ROOT / "tests/regression/extension-core/ozon-guidance-entitlement.mjs", runtime])
             runner.run(label + "-ozon-advertising-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-advertising-guidance-readiness.mjs", runtime])

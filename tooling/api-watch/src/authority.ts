@@ -1,6 +1,7 @@
 import { operatorPipelineConsumed } from "./operator-receipt.js";
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
   OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE,
@@ -21,10 +22,13 @@ import type {
   AuthorityRecordInput,
   AuthorityStatus,
   OperatorCandidateReview,
+  OperationInventory,
+  SnapshotMetadata,
   SemanticDiff,
   SemanticDiffOperation,
   SourceRegistry,
 } from "./types.js";
+import { API_WATCH_MAX_ARTIFACT_BYTES } from "./types.js";
 import { runDocumentAuthorityPass } from "./source-set.js";
 import {
   authorityRecordSequence,
@@ -105,6 +109,63 @@ function assertSameAuthority(
     throw new Error("API_WATCH_AUTHORITY_IDENTITY_COLLISION");
 }
 
+function assertSnapshotInventoryPair(
+  metadata: SnapshotMetadata,
+  inventory: OperationInventory,
+): void {
+  if (
+    metadata.sourceFamily !== inventory.sourceFamily ||
+    metadata.sha256 !== inventory.snapshotSha256 ||
+    inventory.operations.some(
+      (operation) =>
+        (operation.documentKey ?? null) !== (metadata.documentKey ?? null),
+    )
+  )
+    throw new Error("API_WATCH_SNAPSHOT_INVENTORY_IDENTITY_MISMATCH");
+}
+
+// The existing inventory SQL key lacks documentKey. A source-scoped write
+// may reuse a digest only when there is a single unambiguous document scope.
+function inventoryDocumentScope(
+  inventory: OperationInventory,
+): string | null | undefined {
+  const scopes = new Set(
+    inventory.operations.map((operation) => operation.documentKey ?? null),
+  );
+  if (scopes.size > 1)
+    throw new Error("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+  return scopes.size ? scopes.values().next().value : undefined;
+}
+
+function assertInventoryDocumentScope(
+  inventory: OperationInventory,
+  acceptedScopes: readonly (string | null)[],
+  prior?: OperationInventory,
+): void {
+  const distinctAccepted = new Set(acceptedScopes);
+  const operationScope = inventoryDocumentScope(inventory);
+  if (
+    distinctAccepted.size > 1 ||
+    (distinctAccepted.size === 1 &&
+      operationScope !== undefined &&
+      !distinctAccepted.has(operationScope))
+  )
+    throw new Error("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+  const resolvedScope =
+    operationScope ??
+    (distinctAccepted.size === 1
+      ? distinctAccepted.values().next().value
+      : undefined);
+  if (prior) {
+    const priorScope = inventoryDocumentScope(prior);
+    if (
+      priorScope !== undefined &&
+      (resolvedScope === undefined || resolvedScope !== priorScope)
+    )
+      throw new Error("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+  }
+}
+
 export class InMemoryApiWatchStore implements ApiWatchStore {
   public constructor(
     private readonly state: InMemoryApiWatchState = createInMemoryApiWatchState(),
@@ -170,17 +231,75 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
     return cloneSnapshot(metadata);
   }
 
+  async saveSnapshotWithInventory(
+    metadata: SnapshotMetadata,
+    inventory: OperationInventory,
+  ): Promise<SnapshotMetadata> {
+    assertSnapshotInventoryPair(metadata, inventory);
+    // Prepare all serializable data before publishing either in-memory row.
+    const inventoryCopy = JSON.parse(
+      JSON.stringify(inventory),
+    ) as OperationInventory;
+    const key = JSON.stringify([
+      metadata.sourceFamily,
+      metadata.documentKey ?? null,
+      metadata.sha256,
+    ]);
+    // The existing inventory PK is family+digest, without documentKey.
+    const inventoryKey = `${metadata.sourceFamily}:${metadata.sha256}`;
+    assertInventoryDocumentScope(
+      inventory,
+      [...this.state.snapshots.values()]
+        .filter(
+          (previous) =>
+            previous.sourceFamily === metadata.sourceFamily &&
+            previous.sha256 === metadata.sha256,
+        )
+        .map((previous) => previous.documentKey ?? null),
+      this.state.inventories.get(inventoryKey),
+    );
+    if (
+      [...this.state.snapshots.values()].some(
+        (previous) =>
+          previous.sourceFamily === metadata.sourceFamily &&
+          previous.sha256 === metadata.sha256 &&
+          (previous.documentKey ?? null) !== (metadata.documentKey ?? null),
+      )
+    )
+      throw new Error("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+    const prior = this.state.snapshots.get(key);
+    const published = prior ?? { ...metadata };
+    // No await separates these two mutations.
+    this.state.snapshots.set(key, published);
+    this.state.inventories.set(
+      `${inventory.sourceFamily}:${inventory.snapshotSha256}`,
+      inventoryCopy,
+    );
+    return cloneSnapshot(published);
+  }
+
   async listSnapshots() {
     return [...this.state.snapshots.values()].map(cloneSnapshot);
   }
 
   async saveInventory(inventory: import("./types.js").OperationInventory) {
-    this.state.inventories.set(
-      `${inventory.sourceFamily}:${inventory.snapshotSha256}`,
-      JSON.parse(
-        JSON.stringify(inventory),
-      ) as import("./types.js").OperationInventory,
+    const key = `${inventory.sourceFamily}:${inventory.snapshotSha256}`;
+    const compatible = [...this.state.snapshots.values()]
+      .filter(
+        (metadata) =>
+          metadata.sourceFamily === inventory.sourceFamily &&
+          metadata.sha256 === inventory.snapshotSha256,
+      )
+      .map((metadata) => metadata.documentKey ?? null);
+    assertInventoryDocumentScope(
+      inventory,
+      compatible,
+      this.state.inventories.get(key),
     );
+    const serialized = JSON.parse(
+      JSON.stringify(inventory),
+    ) as import("./types.js").OperationInventory;
+    this.state.inventories.set(key, serialized);
   }
 
   async findInventory(
@@ -379,6 +498,59 @@ export function createPostgresApiWatchStore(
       if (committed.rows[0]) return mapSnapshot(committed.rows[0]);
       throw new Error("API_WATCH_SNAPSHOT_CREATE_FAILED");
     },
+    async saveSnapshotWithInventory(metadata, inventory) {
+      assertSnapshotInventoryPair(metadata, inventory);
+      // Both existing SQL paths share one transaction and one connection;
+      // neither row is accepted if the inventory insert fails.
+      return runtime.transaction(async (query) => {
+        // Serialize competing pair writers for this exact family+digest
+        // before scope discovery; PostgreSQL's existing inventory PK has
+        // no documentKey, so conflicting scopes must fail closed.
+        await query.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+          `api-watch-inventory:${metadata.sourceFamily}:${metadata.sha256}`,
+        ]);
+        const conflictingSnapshots = await query.query<{ snapshotId: string }>(
+          'SELECT snapshot_id AS "snapshotId" FROM api_watch_snapshots WHERE source_family=$1 AND sha256=$2 AND document_key IS DISTINCT FROM $3 LIMIT 1',
+          [
+            metadata.sourceFamily,
+            metadata.sha256,
+            metadata.documentKey ?? null,
+          ],
+        );
+        if (conflictingSnapshots.rows.length > 0)
+          throw new Error("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+        const transactionRuntime: ApiWatchSqlRuntime = {
+          query<T extends Record<string, unknown> = Record<string, unknown>>(
+            text: string,
+            values?: unknown[],
+          ) {
+            return query.query<T>(text, values);
+          },
+          transaction<T>(
+            operation: (scopedQuery: ApiWatchSqlQuery) => Promise<T>,
+          ) {
+            return operation(query);
+          },
+        };
+        const transactionStore =
+          createPostgresApiWatchStore(transactionRuntime);
+        const existingInventory = await transactionStore.findInventory(
+          metadata.sourceFamily,
+          metadata.sha256,
+        );
+        if (
+          existingInventory?.operations.some(
+            (operation) =>
+              (operation.documentKey ?? null) !==
+              (metadata.documentKey ?? null),
+          )
+        )
+          throw new Error("API_WATCH_INVENTORY_DOCUMENT_SCOPE_CONFLICT");
+        const snapshot = await transactionStore.saveSnapshot(metadata);
+        await transactionStore.saveInventory(inventory);
+        return snapshot;
+      });
+    },
     async listSnapshots() {
       const result = await runtime.query<Record<string, unknown>>(
         `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots ORDER BY created_at,snapshot_id`,
@@ -386,20 +558,40 @@ export function createPostgresApiWatchStore(
       return result.rows.map(mapSnapshot);
     },
     async saveInventory(inventory) {
-      await runtime.query(
-        `INSERT INTO api_watch_inventories(source_family,snapshot_sha256,path_count,operation_count,deprecated_count,operation_id_present_count,operation_id_missing_count,operations_by_method,inventory) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb) ON CONFLICT (source_family,snapshot_sha256) DO UPDATE SET path_count=EXCLUDED.path_count,operation_count=EXCLUDED.operation_count,deprecated_count=EXCLUDED.deprecated_count,operation_id_present_count=EXCLUDED.operation_id_present_count,operation_id_missing_count=EXCLUDED.operation_id_missing_count,operations_by_method=EXCLUDED.operations_by_method,inventory=EXCLUDED.inventory`,
-        [
-          inventory.sourceFamily,
-          inventory.snapshotSha256,
-          inventory.pathCount,
-          inventory.operationCount,
-          inventory.deprecatedCount,
-          inventory.operationIdPresentCount,
-          inventory.operationIdMissingCount,
-          JSON.stringify(inventory.operationsByMethod),
-          JSON.stringify(inventory),
-        ],
-      );
+      // The cache refresh path also writes by family+digest: it must not
+      // bypass the same document-scope fence used during pair promotion.
+      await runtime.transaction(async (query) => {
+        await query.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+          `api-watch-inventory:${inventory.sourceFamily}:${inventory.snapshotSha256}`,
+        ]);
+        const accepted = await query.query<{ documentKey: string | null }>(
+          'SELECT document_key AS "documentKey" FROM api_watch_snapshots WHERE source_family=$1 AND sha256=$2',
+          [inventory.sourceFamily, inventory.snapshotSha256],
+        );
+        const previous = await query.query<{ inventory: OperationInventory }>(
+          "SELECT inventory FROM api_watch_inventories WHERE source_family=$1 AND snapshot_sha256=$2",
+          [inventory.sourceFamily, inventory.snapshotSha256],
+        );
+        assertInventoryDocumentScope(
+          inventory,
+          accepted.rows.map((row) => row.documentKey ?? null),
+          previous.rows[0]?.inventory,
+        );
+        await query.query(
+          `INSERT INTO api_watch_inventories(source_family,snapshot_sha256,path_count,operation_count,deprecated_count,operation_id_present_count,operation_id_missing_count,operations_by_method,inventory) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb) ON CONFLICT (source_family,snapshot_sha256) DO UPDATE SET path_count=EXCLUDED.path_count,operation_count=EXCLUDED.operation_count,deprecated_count=EXCLUDED.deprecated_count,operation_id_present_count=EXCLUDED.operation_id_present_count,operation_id_missing_count=EXCLUDED.operation_id_missing_count,operations_by_method=EXCLUDED.operations_by_method,inventory=EXCLUDED.inventory`,
+          [
+            inventory.sourceFamily,
+            inventory.snapshotSha256,
+            inventory.pathCount,
+            inventory.operationCount,
+            inventory.deprecatedCount,
+            inventory.operationIdPresentCount,
+            inventory.operationIdMissingCount,
+            JSON.stringify(inventory.operationsByMethod),
+            JSON.stringify(inventory),
+          ],
+        );
+      });
     },
     async findInventory(sourceFamily, snapshotSha256) {
       const result = await runtime.query<{ inventory: unknown }>(
@@ -585,6 +777,51 @@ function candidatePath(root: string, artifact: SwaggerArtifact): string {
   return path;
 }
 
+// A quarantined candidate may be replaced after its upload receipt is stored.
+// Pin and bound the actual regular file before the operator authority decision.
+async function readQuarantinedCandidate(
+  path: string,
+  expectedSize: number,
+  maximumBytes: number,
+): Promise<Uint8Array> {
+  const limit = Math.min(API_WATCH_MAX_ARTIFACT_BYTES, maximumBytes);
+  if (
+    !Number.isSafeInteger(expectedSize) ||
+    expectedSize < 0 ||
+    expectedSize > limit
+  )
+    throw new Error("CANDIDATE_SIZE_MISMATCH");
+  const handle = await open(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) throw new Error("CANDIDATE_BYTES_UNAVAILABLE");
+    if (!Number.isSafeInteger(stat.size) || stat.size > limit)
+      throw new Error("CANDIDATE_SIZE_MISMATCH");
+    // Preserve the historical digest-before-size classification for ordinary
+    // changed candidate bytes. A single extra byte detects post-stat growth.
+    const buffer = Buffer.alloc(Math.max(expectedSize, stat.size) + 1);
+    let received = 0;
+    while (received < buffer.length) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        received,
+        buffer.length - received,
+        received,
+      );
+      if (bytesRead === 0) break;
+      received += bytesRead;
+    }
+    if (received === buffer.length)
+      throw new Error("CANDIDATE_DIGEST_MISMATCH");
+    return buffer.subarray(0, received);
+  } finally {
+    await handle.close();
+  }
+}
+
 function operatorAuthorityId(artifactId: string, documentKey: string): string {
   const hex = createHash("sha256")
     .update(JSON.stringify([artifactId, documentKey]))
@@ -657,9 +894,19 @@ export async function evaluateOperatorCandidate(input: {
     return invalidCandidate("CANDIDATE_STATE_INVALID");
   let bytes: Uint8Array;
   try {
-    bytes = await readFile(candidatePath(input.quarantineDir, candidate));
-  } catch {
-    return invalidCandidate("CANDIDATE_BYTES_UNAVAILABLE");
+    bytes = await readQuarantinedCandidate(
+      candidatePath(input.quarantineDir, candidate),
+      candidate.sizeBytes,
+      entry.maximumBytes,
+    );
+  } catch (error) {
+    return invalidCandidate(
+      error instanceof Error &&
+        (error.message === "CANDIDATE_SIZE_MISMATCH" ||
+          error.message === "CANDIDATE_DIGEST_MISMATCH")
+        ? error.message
+        : "CANDIDATE_BYTES_UNAVAILABLE",
+    );
   }
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== candidate.sha256)

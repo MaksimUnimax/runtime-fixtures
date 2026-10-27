@@ -1,0 +1,21 @@
+{
+  "at_utc": "2026-10-19T11:41:42.133708+00:00",
+  "previous_candidate": "50b9d300ef7262a5f47482b6d389bb9b751c4a3f",
+  "previous_exact_review": "PASS_SOURCE_SCOPED_EXACT_50B9",
+  "native_failure": {
+    "run": 39246051418,
+    "job": 118038165709,
+    "attempt": 1,
+    "original": "179 !== 178; unchanged A05 inventory pinned previous composition",
+    "raw_server_path": "/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/CHATGPT_STANDARD_COMPOSER_20261019T112000Z/NATIVE_50B9_CORE_ORIGINAL_FAILURE.txt",
+    "raw_sha256": "57a971a60b9a45dd17953ae57dfecd46c68f3b84f97681e0dae7902d8c0c30e7"
+  },
+  "fix": "Existing inventory test explicitly pins one Standard composer old/new hash, preserves 176+2 old total and 68 accepted content patches and original full baseline hash, then asserts69 content patches,179 total and exact new full output hash",
+  "product_code_changed_since_50b9": false,
+  "existing_offline50_repeated": false,
+  "focused_inventory_test": "PASS179total69content",
+  "expected_new_raw_content_sha256": "3ffafc00da373a1a6bf017bf62f3babc25d1a2a14f4038d9204710ed4579f2fb",
+  "existing_A05_externalized_function_hash_checks": "UNCHANGED",
+  "other_authors": "A04 provider-runtime and ozon-postcallback-fence; B Telegram; C api-watch. Current source paths clean in their copies before edit.",
+  "owner_acceptance": false
+}

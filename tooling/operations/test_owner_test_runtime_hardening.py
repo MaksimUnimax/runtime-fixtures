@@ -54,6 +54,18 @@ class FakeRunner:
 
 
 class HardeningAuditTest(unittest.TestCase):
+
+
+    def test_audit_unit_set_tracks_all_four_verified_services(self) -> None:
+        self.assertEqual(
+            hardening.UNITS,
+            (
+                "seller-agents-owner-test-api.service",
+                "seller-agents-owner-test-worker.service",
+                "seller-agents-owner-test-portal.service",
+                "seller-agents-owner-test-admin.service",
+            ),
+        )
     def test_root_unbounded_configuration_is_explicit(self) -> None:
         summary = hardening.summarize_samples([base_snapshot()], [1])
         gaps = set(summary["gaps"])
@@ -278,7 +290,16 @@ class HardeningAuditTest(unittest.TestCase):
         # Every synthetic service consumes one CPU-nanosecond per wall-nanosecond.
         # Variable systemctl latency must not turn another unit's interval into
         # this unit's denominator. No real process or systemctl is involved.
-        for delays in ((1, 9, 1, 1, 1, 1), (1, 1, 1, 9, 1, 1), (1, 1, 1, 1, 1, 1)):
+        base = [1] * (2 * len(hardening.UNITS))
+        cases = []
+        first = base.copy()
+        first[1] = 9
+        cases.append(tuple(first))
+        second = base.copy()
+        second[len(hardening.UNITS) + 1] = 9
+        cases.append(tuple(second))
+        cases.append(tuple(base))
+        for delays in cases:
             with self.subTest(delays=delays):
                 elapsed_ns = 0
                 pending_delays = iter(delays)

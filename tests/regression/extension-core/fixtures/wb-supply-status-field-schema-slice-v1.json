@@ -85,17 +85,20 @@
         "id": { "role": "fbs_supply_id", "unit": "identifier" },
         "done": { "role": "fbs_supply_closed_or_done_flag", "unit": "boolean" },
         "createdAt": { "role": "created_time", "unit": "datetime" },
-        "closedAt": { "role": "closed_time", "unit": "datetime" },
-        "scanDt": { "role": "scan_time", "unit": "datetime" },
-        "isB2b": { "role": "business_sale_flag", "unit": "boolean_optional" },
+        "closedAt": { "role": "closed_time", "unit": "datetime_or_null" },
+        "scanDt": { "role": "scan_time", "unit": "datetime_or_null" },
+        "isB2b": {
+          "role": "business_sale_flag",
+          "unit": "boolean_optional_or_null"
+        },
         "cargoType": { "role": "cargo_type", "unit": "provider_enum_integer" },
         "crossBorderType": {
           "role": "cross_border_type",
-          "unit": "provider_enum_integer"
+          "unit": "provider_enum_integer_or_null"
         },
         "destinationOfficeId": {
           "role": "destination_office_id",
-          "unit": "identifier"
+          "unit": "identifier_or_null"
         }
       },
       "pagination": {
@@ -158,5 +161,45 @@
     "full-list pagination terminal proof on real provider responses",
     "cross-scheme business normalization if the owner needs one combined supply status vocabulary",
     "FBW/FBS supply-detail field reconciliation beyond the list use case"
-  ]
+  ],
+  "officialSchemaReadback": {
+    "evidence": "OFFICIAL_RU_SOURCE_FIELD_SCHEMA_ONLY",
+    "capturedAt": "2026-10-22T16:28:17.689565+00:00",
+    "sourceCommit": "07aff45acb375ec22dda43756a05d95dba7f3513",
+    "bundleSha256": "bce15f89e86b4a105a0137d8b667c0ad648a65c3db60bfdf04a1b05c5e7882ab",
+    "documentKey": "WB_03_ORDERS_FBS",
+    "filename": "03-orders-fbs.yaml",
+    "officialUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/03-orders-fbs.yaml?region=ru",
+    "documentSha256": "c04a6c7f5f18960e0b24d624c5b0b04e9267ed4d1325de32551d4cc036db624f",
+    "nullableFields": {
+      "closedAt": {
+        "schemaPointer": "#/components/schemas/Supply/properties/closedAt",
+        "type": "string",
+        "nullable": true
+      },
+      "scanDt": {
+        "schemaPointer": "#/components/schemas/Supply/properties/scanDt",
+        "type": "string",
+        "nullable": true
+      },
+      "isB2b": {
+        "schemaPointer": "#/components/schemas/Supply/properties/isB2b",
+        "type": "boolean",
+        "nullable": true
+      },
+      "crossBorderType": {
+        "schemaPointer": "#/components/schemas/Supply/properties/crossBorderType",
+        "type": "integer",
+        "nullable": true
+      },
+      "destinationOfficeId": {
+        "schemaPointer": "#/components/schemas/Supply/properties/destinationOfficeId",
+        "type": "integer",
+        "nullable": true
+      }
+    },
+    "liveValues": false,
+    "runtimeBehaviorChanged": false,
+    "scope": "Correct only field nullability; original capture and earlier mapping evidence remain historical. No live completeness or business acceptance claim."
+  }
 }

@@ -12,6 +12,7 @@ import {
   readFileSync,
   rmdirSync,
   readSync,
+  readdirSync,
   realpathSync,
   statSync,
   unlinkSync,
@@ -36,6 +37,23 @@ const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 256 * 1024 * 1024;
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
 const FIREFOX_STORE_ID = "octoport@octoport.ru";
+const FIREFOX_REQUIRED_DATA_TYPES = new Set([
+  "authenticationInfo",
+  "bookmarksInfo",
+  "browsingActivity",
+  "financialAndPaymentInfo",
+  "healthInfo",
+  "locationInfo",
+  "personalCommunications",
+  "personallyIdentifyingInfo",
+  "searchTerms",
+  "websiteActivity",
+  "websiteContent",
+]);
+const FIREFOX_OPTIONAL_DATA_TYPES = new Set([
+  ...FIREFOX_REQUIRED_DATA_TYPES,
+  "technicalAndInteraction",
+]);
 const STORE_REVIEW_ENVIRONMENT = "PREPRODUCTION";
 const STORE_BACKGROUND_FORBIDDEN_MARKERS = [
   Buffer.from("LOCAL DEVELOPMENT"),
@@ -276,12 +294,13 @@ export function readAuthority(file, candidateDir) {
     fail("Authority must be outside the candidate directory");
   }
 
-  const authorityStat = statSync(authorityPath);
-  if (!authorityStat.isFile() || authorityStat.size > MAX_AUTHORITY_BYTES) {
-    fail("Authority file is invalid or too large");
-  }
-
-  const bytes = readFileSync(authorityPath);
+  // Read the same bounded regular-file descriptor once. A size check before
+  // readFileSync(path) can reopen a replaced or growing authority without a cap.
+  const bytes = readBoundedRegularFile(
+    authorityPath,
+    MAX_AUTHORITY_BYTES,
+    "Authority file",
+  );
   let authority;
   try {
     authority = JSON.parse(bytes.toString("utf8"));
@@ -1202,15 +1221,17 @@ function validatePackagedConfig(config, authority) {
   }
 }
 
-function readBoundedRegularFile(path, maxBytes) {
+function readBoundedRegularFile(path, maxBytes, label = "Package input") {
   const noFollow = fsConstants.O_NOFOLLOW ?? 0;
-  const fd = openSync(path, fsConstants.O_RDONLY | noFollow);
+  // Opening a FIFO for read blocks before fstat can reject non-regular input.
+  const nonBlock = fsConstants.O_NONBLOCK ?? 0;
+  const fd = openSync(path, fsConstants.O_RDONLY | noFollow | nonBlock);
   try {
-    const before = fstatSync(fd);
-    if (!before.isFile()) fail("Package input must be a regular file");
-    if (before.size > maxBytes) fail("Package input exceeds size limit");
+    const before = fstatSync(fd, { bigint: true });
+    if (!before.isFile()) fail(`${label} must be a regular file`);
+    if (before.size > BigInt(maxBytes)) fail(`${label} exceeds size limit`);
 
-    const bytes = Buffer.allocUnsafe(before.size + 1);
+    const bytes = Buffer.allocUnsafe(Number(before.size) + 1);
     let total = 0;
     while (total < bytes.length) {
       const read = readSync(fd, bytes, total, bytes.length - total, null);
@@ -1218,20 +1239,89 @@ function readBoundedRegularFile(path, maxBytes) {
       total += read;
     }
 
-    const after = fstatSync(fd);
+    const after = fstatSync(fd, { bigint: true });
     if (
       !after.isFile() ||
       after.dev !== before.dev ||
       after.ino !== before.ino ||
       after.size !== before.size ||
-      total !== before.size
+      after.mtimeNs !== before.mtimeNs ||
+      after.ctimeNs !== before.ctimeNs ||
+      BigInt(total) !== before.size
     ) {
-      fail("Package input changed during bounded read");
+      fail(`${label} changed during bounded read`);
     }
-    if (total > maxBytes) fail("Package input exceeds size limit");
+    if (total > maxBytes) fail(`${label} exceeds size limit`);
     return bytes.subarray(0, total);
   } finally {
     closeSync(fd);
+  }
+}
+
+function validateFirefoxBuiltInConsentMinimum(manifest) {
+  // Mozilla's built-in data consent only exists on desktop Firefox 140+.
+  // The accepted Octoport Firefox carrier does not provide older-version
+  // custom consent; reject release ZIPs that would install without consent.
+  const minimum = manifest.browser_specific_settings?.gecko?.strict_min_version;
+  // Accept canonical numeric Gecko release version components (major.minor,
+  // optionally patch/build). A prerelease such as 140.0a1 is not a 140.0
+  // stable minimum and needs separate consent-compatibility acceptance.
+  const match =
+    typeof minimum === "string"
+      ? /^([1-9][0-9]*)\.(0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}$/.exec(
+          minimum,
+        )
+      : null;
+  const releaseParts = match ? minimum.split(".").map(Number) : [];
+  if (
+    !match ||
+    releaseParts.some((part) => !Number.isSafeInteger(part)) ||
+    releaseParts[0] < 140
+  ) {
+    fail("Firefox built-in data consent requires Firefox 140 or newer");
+  }
+}
+
+function validateFirefoxDataCollection(manifest) {
+  const disclosure =
+    manifest.browser_specific_settings?.gecko?.data_collection_permissions;
+  const invalid = () => fail("Firefox data collection declaration invalid");
+  if (
+    !disclosure ||
+    typeof disclosure !== "object" ||
+    Array.isArray(disclosure) ||
+    !Object.hasOwn(disclosure, "required") ||
+    Object.keys(disclosure).some(
+      (key) => key !== "required" && key !== "optional",
+    )
+  ) {
+    invalid();
+  }
+  const required = disclosure.required;
+  const optional = Object.hasOwn(disclosure, "optional")
+    ? disclosure.optional
+    : [];
+  if (
+    !Array.isArray(required) ||
+    required.length === 0 ||
+    !Array.isArray(optional) ||
+    required.some(
+      (type) =>
+        typeof type !== "string" ||
+        (type !== "none" && !FIREFOX_REQUIRED_DATA_TYPES.has(type)),
+    ) ||
+    optional.some(
+      (type) =>
+        typeof type !== "string" || !FIREFOX_OPTIONAL_DATA_TYPES.has(type),
+    ) ||
+    new Set(required).size !== required.length ||
+    new Set(optional).size !== optional.length ||
+    optional.some((type) => required.includes(type)) ||
+    required.includes("none")
+  ) {
+    // Octoport transfers selected marketplace data to third-party AI;
+    // claiming no required or optional data transfer is not valid for it.
+    invalid();
   }
 }
 
@@ -1267,11 +1357,12 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   ) {
     fail("Package manifest version does not match release authority");
   }
-  if (
-    browser === "firefox" &&
-    manifest.browser_specific_settings?.gecko?.id !== FIREFOX_STORE_ID
-  ) {
-    fail("Firefox package stable extension ID mismatch");
+  if (browser === "firefox") {
+    if (manifest.browser_specific_settings?.gecko?.id !== FIREFOX_STORE_ID) {
+      fail("Firefox package stable extension ID mismatch");
+    }
+    validateFirefoxBuiltInConsentMinimum(manifest);
+    validateFirefoxDataCollection(manifest);
   }
   // A manifest declaration is not evidence that its icon exists or decodes.
   // Check the same bounded ZIP member bytes the browser would install.
@@ -1398,7 +1489,34 @@ function discardOwnedCandidateOutput(output, directoryIdentity, ownedFiles) {
   }
 }
 
-export function prepare({ authorityPath, outputDir, chromium, firefox }) {
+function releaseBrowsers(chromiumOnly, firefoxOnly) {
+  if (
+    typeof chromiumOnly !== "boolean" ||
+    typeof firefoxOnly !== "boolean" ||
+    (chromiumOnly && firefoxOnly)
+  ) {
+    fail("Candidate browser scope is invalid");
+  }
+  if (chromiumOnly) return ["chromium"];
+  if (firefoxOnly) return ["firefox"];
+  return ["chromium", "firefox"];
+}
+
+export function prepare({
+  authorityPath,
+  outputDir,
+  chromium,
+  firefox,
+  chromiumOnly = false,
+  firefoxOnly = false,
+}) {
+  const browsers = releaseBrowsers(chromiumOnly, firefoxOnly);
+  if (chromiumOnly && firefox !== undefined) {
+    fail("Chrome-only candidate cannot include Firefox input");
+  }
+  if (firefoxOnly && chromium !== undefined) {
+    fail("Firefox-only candidate cannot include Chromium input");
+  }
   const output = resolve(outputDir);
   if (existsSync(output)) {
     fail("Candidate output directory must not already exist");
@@ -1406,28 +1524,37 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
 
   const authorityReceipt = readAuthority(authorityPath, output);
   const authority = authorityReceipt.value;
-  const checked = {
-    chromium: checkPackage(chromium, "chromium", authority),
-    firefox: checkPackage(firefox, "firefox", authority),
-  };
-  const packages = {
-    chromium: checked.chromium.metadata,
-    firefox: checked.firefox.metadata,
-  };
+  // A single-browser Store candidate does not depend on the other browser's ZIP.
+  // Every included archive retains the same B1 authority and ZIP validations.
+  const checked = {};
+  const packages = {};
+  for (const browser of browsers) {
+    checked[browser] = checkPackage(
+      browser === "chromium" ? chromium : firefox,
+      browser,
+      authority,
+    );
+    packages[browser] = checked[browser].metadata;
+  }
 
   // A reserved DOS device basename (for example CON.zip) can be written
   // on POSIX but cannot be safely materialized on a Windows release host.
-  // Validate both filenames before creating any output directory.
+  // Validate every output filename before creating any output directory.
   if (
-    !safePackageFilename(packages.chromium.filename) ||
-    !safePackageFilename(packages.firefox.filename)
+    browsers.some((browser) => !safePackageFilename(packages[browser].filename))
   ) {
     fail("Unsafe package filename");
   }
 
   // Reject output basenames that collide on case-insensitive filesystems.
   // The same candidate must remain portable across release hosts.
-  if (collidingPackageFilenames(packages.chromium.filename, packages.firefox.filename)) {
+  if (
+    browsers.length === 2 &&
+    collidingPackageFilenames(
+      packages.chromium.filename,
+      packages.firefox.filename,
+    )
+  ) {
     fail("Package filenames have a case-insensitive collision");
   }
 
@@ -1435,7 +1562,7 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
   const directoryIdentity = lstatSync(output);
   const ownedFiles = [];
   try {
-    for (const browser of ["chromium", "firefox"]) {
+    for (const browser of browsers) {
       const { metadata, validatedBytes } = checked[browser];
       writeExclusiveCandidateOutput(
         join(output, metadata.filename),
@@ -1451,6 +1578,11 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
       productVersion: authority.productVersion,
       contractVersion: authority.contractVersion,
       migrationLevel: authority.migrationLevel,
+      ...(chromiumOnly
+        ? { releaseScope: "CHROME_ONLY" }
+        : firefoxOnly
+          ? { releaseScope: "FIREFOX_ONLY" }
+          : {}),
       packages,
     };
 
@@ -1466,14 +1598,29 @@ export function prepare({ authorityPath, outputDir, chromium, firefox }) {
   }
 }
 
-export function preflight({ authorityPath, candidateDir }) {
+export function preflight({
+  authorityPath,
+  candidateDir,
+  chromiumOnly = false,
+  firefoxOnly = false,
+}) {
+  const browsers = releaseBrowsers(chromiumOnly, firefoxOnly);
+  const scopedBrowser = browsers.length === 1 ? browsers[0] : null;
+  const expectedScope = chromiumOnly ? "CHROME_ONLY" : "FIREFOX_ONLY";
   const { candidateRoot, path } = candidateManifestPath(candidateDir);
   const authorityReceipt = readAuthority(authorityPath, candidateRoot);
   const authority = authorityReceipt.value;
 
+  // The earlier path stat can become stale. Bind the size limit and bytes
+  // to one verified descriptor, rather than reopening an unbounded path.
+  const manifestBytes = readBoundedRegularFile(
+    path,
+    MAX_CANDIDATE_MANIFEST_BYTES,
+    "Candidate manifest",
+  );
   let manifest;
   try {
-    manifest = JSON.parse(readFileSync(path, "utf8"));
+    manifest = JSON.parse(manifestBytes.toString("utf8"));
   } catch {
     fail("Candidate manifest is invalid JSON");
   }
@@ -1487,7 +1634,9 @@ export function preflight({ authorityPath, candidateDir }) {
       "contractVersion",
       "migrationLevel",
       "packages",
+      ...(scopedBrowser ? ["releaseScope"] : []),
     ]) ||
+    (scopedBrowser && manifest.releaseScope !== expectedScope) ||
     manifest.schemaVersion !== CANDIDATE_SCHEMA ||
     manifest.authoritySha256 !== authorityReceipt.sha256 ||
     !exactKeys(manifest.source, ["head", "tree"]) ||
@@ -1495,7 +1644,7 @@ export function preflight({ authorityPath, candidateDir }) {
     manifest.productVersion !== authority.productVersion ||
     manifest.contractVersion !== authority.contractVersion ||
     manifest.migrationLevel !== authority.migrationLevel ||
-    !exactKeys(manifest.packages, ["chromium", "firefox"])
+    !exactKeys(manifest.packages, browsers)
   ) {
     fail("Candidate source, authority, or product facts are stale");
   }
@@ -1503,6 +1652,7 @@ export function preflight({ authorityPath, candidateDir }) {
   // A modified candidate can bypass prepare(), so revalidate both names
   // together before accepting files on a case-sensitive host for a Win32 release.
   if (
+    browsers.length === 2 &&
     collidingPackageFilenames(
       manifest.packages.chromium?.filename,
       manifest.packages.firefox?.filename,
@@ -1511,7 +1661,7 @@ export function preflight({ authorityPath, candidateDir }) {
     fail("Package filenames have a case-insensitive collision");
   }
 
-  for (const browser of ["chromium", "firefox"]) {
+  for (const browser of browsers) {
     const row = manifest.packages[browser];
     if (
       !exactKeys(row, [
@@ -1556,10 +1706,31 @@ export function preflight({ authorityPath, candidateDir }) {
     }
   }
 
+  // Every receipt covers the exact directory delivered to the reviewer,
+  // including the default combined candidate, not only its declared ZIPs.
+  const expectedFiles = [
+    "B1_RC_MANIFEST.json",
+    ...browsers.map((browser) => manifest.packages[browser].filename),
+  ].sort();
+  const candidateFiles = readdirSync(candidateRoot).sort();
+  if (
+    candidateFiles.length !== expectedFiles.length ||
+    candidateFiles.some((name, index) => name !== expectedFiles[index])
+  ) {
+    fail(
+      chromiumOnly
+        ? "Chrome-only candidate contains undeclared files"
+        : firefoxOnly
+          ? "Firefox-only candidate contains undeclared files"
+          : "Combined candidate contains undeclared files",
+    );
+  }
+
   return {
     status: "PASS",
     productionMutation: "NOT_PERFORMED",
     evidenceLevel: "PACKAGE",
+    ...(scopedBrowser ? { releaseScope: expectedScope } : {}),
     source: authority.source,
     productVersion: authority.productVersion,
     contractVersion: authority.contractVersion,

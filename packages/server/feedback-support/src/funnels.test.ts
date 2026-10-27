@@ -1,4 +1,7 @@
-import { FeedbackCommercialFunnelStageV1Schema } from "@product/contracts";
+import {
+  FeedbackCommercialFunnelStageV1Schema,
+  FeedbackFunnelResponseV1Schema,
+} from "@product/contracts";
 import { describe, expect, it } from "vitest";
 import {
   calculateFunnel,
@@ -53,6 +56,158 @@ describe("M1-C privacy-safe funnel calculations", () => {
     expect(result.stages[3]?.conversionFromPrevious).toBe(1);
     expect(result.stages[3]?.cumulativeConversion).toBe(0.5);
     expect(result.stages[4]?.cumulativeConversion).toBe(0.5);
+  });
+
+  it("does not count a later funnel stage when its preceding stage was missed", () => {
+    const result = calculateFunnel({
+      funnel: "FIRST_VALUE",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("account_created", accountA, 0),
+        row("device_activated", accountA, 10),
+        row("first_store_added", accountA, 20),
+        row("first_start", accountA, 30),
+        row("account_created", accountB, 0),
+        row("first_store_added", accountB, 5),
+        row("first_start", accountB, 6),
+      ],
+    });
+    expect(result.cohortCount).toBe(2);
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      2, 1, 1, 1,
+    ]);
+    expect(result.stages[2]?.conversionFromPrevious).toBe(1);
+    expect(FeedbackFunnelResponseV1Schema.safeParse(result).success).toBe(true);
+  });
+
+  it("rejects equal-time successor before its predecessor in stable input order", () => {
+    const result = calculateFunnel({
+      funnel: "FIRST_VALUE",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("device_activated", accountA, 0),
+        row("account_created", accountA, 0),
+        row("first_store_added", accountA, 0),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 0, 0, 0,
+    ]);
+  });
+
+  it("counts equal-time successors when input tie order follows stage progression", () => {
+    const result = calculateFunnel({
+      funnel: "FIRST_VALUE",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("account_created", accountA, 0),
+        row("device_activated", accountA, 0),
+        row("first_store_added", accountA, 0, { marketplace: "OZON" }),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 1, 1, 0,
+    ]);
+  });
+
+  it("selects a later eligible same-time marketplace event rather than a preceding one", () => {
+    const result = calculateFunnel({
+      funnel: "FIRST_VALUE",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("account_created", accountA, 0),
+        row("first_store_added", accountA, 0, { marketplace: "WILDBERRIES" }),
+        row("device_activated", accountA, 0),
+        row("first_store_added", accountA, 0, { marketplace: "OZON" }),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 1, 1, 0,
+    ]);
+    expect(result.breakdowns).toContainEqual({
+      stage: "first_store_added",
+      dimension: "marketplace",
+      value: "OZON",
+      count: 1,
+    });
+    expect(result.breakdowns).not.toContainEqual({
+      stage: "first_store_added",
+      dimension: "marketplace",
+      value: "WILDBERRIES",
+      count: 1,
+    });
+  });
+
+  it("rejects same-time support triage before the corresponding case creation", () => {
+    const result = calculateFunnel({
+      funnel: "SUPPORT",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("feedback_case_triaged", accountA, 0, { subjectId: "case-tie" }),
+        row("feedback_case_created", accountA, 0, { subjectId: "case-tie" }),
+        row("feedback_case_resolved", accountA, 0, { subjectId: "case-tie" }),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 0, 0, 0,
+    ]);
+  });
+
+  it("counts the first eligible event after the previous reached stage", () => {
+    const result = calculateFunnel({
+      funnel: "FIRST_VALUE",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("account_created", accountA, 0),
+        row("first_store_added", accountA, 2, { marketplace: "WILDBERRIES" }),
+        row("device_activated", accountA, 3),
+        row("first_store_added", accountA, 5, { marketplace: "OZON" }),
+        row("first_start", accountA, 7),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      1, 1, 1, 1,
+    ]);
+    expect(result.stages[2]?.medianSeconds).toBe(5);
+    expect(result.breakdowns).toContainEqual({
+      stage: "first_store_added",
+      dimension: "marketplace",
+      value: "OZON",
+      count: 1,
+    });
+    expect(result.breakdowns).not.toContainEqual({
+      stage: "first_store_added",
+      dimension: "marketplace",
+      value: "WILDBERRIES",
+      count: 1,
+    });
+  });
+
+  it("requires ordered support events before resolved and closed conversions", () => {
+    const result = calculateFunnel({
+      funnel: "SUPPORT",
+      from: base,
+      to: new Date("2026-09-02T00:00:00.000Z"),
+      records: [
+        row("feedback_case_created", accountA, 0, { subjectId: "case-a" }),
+        row("feedback_case_resolved", accountA, 2, { subjectId: "case-a" }),
+        row("feedback_case_closed", accountA, 3, { subjectId: "case-a" }),
+        row("feedback_case_created", accountB, 0, { subjectId: "case-b" }),
+        row("feedback_case_triaged", accountB, 1, { subjectId: "case-b" }),
+        row("feedback_case_resolved", accountB, 2, { subjectId: "case-b" }),
+        row("feedback_case_closed", accountB, 3, { subjectId: "case-b" }),
+      ],
+    });
+    expect(result.stages.map((stage) => stage.reachedCount)).toEqual([
+      2, 1, 1, 1,
+    ]);
+    expect(FeedbackFunnelResponseV1Schema.safeParse(result).success).toBe(true);
   });
 
   it("keeps account counts stable across devices, stores, and marketplace breakdowns", () => {

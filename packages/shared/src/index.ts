@@ -18,17 +18,26 @@ export const StableMachineIdentifierV1Schema = z
 export function compareSemVerV1(a: string, b: string): -1 | 0 | 1 {
   const left = SemVerV1Schema.parse(a);
   const right = SemVerV1Schema.parse(b);
+  // The schema admits integers beyond Number precision, without leading zeroes.
+  const compareNumeric = (l: string, r: string): -1 | 0 | 1 => {
+    if (l.length !== r.length) return l.length < r.length ? -1 : 1;
+    return l === r ? 0 : l < r ? -1 : 1;
+  };
   const parse = (value: string) => {
     const withoutBuild = value.split("+", 1)[0]!;
-    const [core, prerelease] = withoutBuild.split("-", 2);
-    const parts = core!.split(".").map(Number);
-    const [major, minor, patch] = parts as [number, number, number];
-    return { major, minor, patch, prerelease: prerelease?.split(".") ?? [] };
+    const separator = withoutBuild.indexOf("-");
+    const core =
+      separator < 0 ? withoutBuild : withoutBuild.slice(0, separator);
+    const prerelease =
+      separator < 0 ? [] : withoutBuild.slice(separator + 1).split(".");
+    const [major, minor, patch] = core.split(".") as [string, string, string];
+    return { major, minor, patch, prerelease };
   };
   const x = parse(left),
     y = parse(right);
   for (const key of ["major", "minor", "patch"] as const) {
-    if (x[key] !== y[key]) return x[key] < y[key] ? -1 : 1;
+    const order = compareNumeric(x[key], y[key]);
+    if (order !== 0) return order;
   }
   if (!x.prerelease.length || !y.prerelease.length)
     return x.prerelease.length === y.prerelease.length
@@ -42,7 +51,7 @@ export function compareSemVerV1(a: string, b: string): -1 | 0 | 1 {
     if (l === r) continue;
     const ln = /^\d+$/.test(l),
       rn = /^\d+$/.test(r);
-    if (ln && rn) return Number(l) < Number(r) ? -1 : 1;
+    if (ln && rn) return compareNumeric(l, r);
     if (ln !== rn) return ln ? -1 : 1;
     return l < r ? -1 : 1; // ASCII code-unit ordering; never locale-sensitive.
   }

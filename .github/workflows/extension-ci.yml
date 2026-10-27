@@ -157,9 +157,26 @@ jobs:
       - name: Install fixture browser
         run: |
           python -m pip install -r tooling/checks/extension-test-requirements.txt
-          python -m playwright install --with-deps chromium
+          # Reuse runner system libraries and verify by launching Chromium;
+          # missing libraries still fail this job and block source acceptance.
+          # Avoid the network-dependent APT upgrade of optional fonts/libs
+          # that exhausted this job's 15-minute limit on the original SHA.
+          python -m playwright install chromium
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch(headless=True)
+              try:
+                  page = browser.new_page()
+                  page.goto("data:text/html,<main>Chromium fixture ready</main>")
+                  assert page.locator("main").inner_text() == "Chromium fixture ready"
+                  print("NATIVE_CHROMIUM_LAUNCH_READY")
+              finally:
+                  browser.close()
+          PY
       - name: Build and verify actual popup, worker, content and attachments
         run: |
+          python -B -m unittest discover -s tests/regression/extension-core -p 'test_browser_application_worker_ready.py' -v
           node tests/regression/extension-core/client-i1/make-browser-config.mjs "$RUNNER_TEMP/seller-agents-browser-fixture-private.der" > "$RUNNER_TEMP/seller-agents-browser-fixture-config.json"
           export SA_PACKAGED_CONFIG_JSON="$(cat "$RUNNER_TEMP/seller-agents-browser-fixture-config.json")"
           python tooling/build/extension_composed.py --output build/application-browser/package

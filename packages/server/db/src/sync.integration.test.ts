@@ -735,6 +735,8 @@ describe.sequential("C3E real PostgreSQL sync acceptance", () => {
           kind: "STORE_UPSERT",
           conversationKeyDigest: "6".repeat(64),
           bindingId: null,
+          // Keep the existing entity key and payload identity consistent.
+          storeId: "stable-id",
         }),
         name: "Store",
         providerIdentityState: "UNCONFIRMED",
@@ -749,6 +751,85 @@ describe.sequential("C3E real PostgreSQL sync acceptance", () => {
       [fixture.accountId],
     );
     expect(rows.rows.map((row) => row.entity_id)).toEqual([storeId]);
+  });
+
+  it("rejects inconsistent store identity and marketplace without changing persisted metadata", async () => {
+    const entityId = "store:stable-id";
+    const metadata = (overrides: Record<string, unknown> = {}) => ({
+      ...payload({
+        kind: "STORE_UPSERT",
+        conversationKeyDigest: "6".repeat(64),
+        bindingId: null,
+        storeId: "stable-id",
+      }),
+      name: "Store",
+      providerIdentityState: "UNCONFIRMED",
+      metadataRevision: 1,
+      lifecycleState: "ACTIVE",
+      ...overrides,
+    });
+    const invalidCreate = await post(
+      body([
+        entry({
+          entityId,
+          kind: "STORE_UPSERT",
+          payload: metadata({ storeId: "another-store" }),
+        }),
+      ]),
+    );
+    expect(invalidCreate.statusCode).toBe(200);
+    expect(invalidCreate.json().results?.[0]).toMatchObject({
+      outcome: "CONFLICT",
+      serverRevision: 0,
+      serverState: null,
+      code: "STORE_METADATA_INVALID",
+    });
+    const before = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM sync_entities WHERE account_id=$1",
+      [fixture.accountId],
+    );
+    expect(before.rows[0]?.count).toBe("0");
+
+    const accepted = await post(
+      body([entry({ entityId, kind: "STORE_UPSERT", payload: metadata() })]),
+    );
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().results?.[0]).toMatchObject({
+      outcome: "ACK",
+      serverRevision: 1,
+      serverState: { storeId: "stable-id", marketplace: "ozon" },
+    });
+    const invalidUpdate = await post(
+      body([
+        entry({
+          entityId,
+          baseRevision: 1,
+          kind: "STORE_UPSERT",
+          payload: metadata({
+            marketplace: "wildberries",
+            metadataRevision: 2,
+          }),
+        }),
+      ]),
+    );
+    expect(invalidUpdate.statusCode).toBe(200);
+    expect(invalidUpdate.json().results?.[0]).toMatchObject({
+      outcome: "CONFLICT",
+      serverRevision: 1,
+      code: "STORE_METADATA_INVALID",
+      serverState: { storeId: "stable-id", marketplace: "ozon" },
+    });
+    const rows = await runtime.query<{
+      entity_id: string;
+      store_id: string;
+      marketplace: string;
+    }>(
+      "SELECT entity_id,state->>'storeId' AS store_id,state->>'marketplace' AS marketplace FROM sync_entities WHERE account_id=$1 ORDER BY entity_id",
+      [fixture.accountId],
+    );
+    expect(rows.rows).toEqual([
+      { entity_id: entityId, store_id: "stable-id", marketplace: "ozon" },
+    ]);
   });
 
   it("reads canonical snapshots in request order without receipts, state writes, or timestamp changes", async () => {

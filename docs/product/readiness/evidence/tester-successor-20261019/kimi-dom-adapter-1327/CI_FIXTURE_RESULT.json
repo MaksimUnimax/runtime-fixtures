@@ -1,0 +1,43 @@
+{
+  "recorded_at": "2026-10-19T13:57:45.829950+00:00",
+  "prior_candidate": "c7972fddb1cd916b7a4d0011df81e0dd21accfbe",
+  "failure_run": 39263967717,
+  "failure_job": 118098691391,
+  "failure": "ReferenceError SellerAgentsKimiAdapter is not defined in isolated Alice first-start VM fixture",
+  "fixture_path": "tests/regression/extension-core/conversation-surface-first-start.mjs",
+  "fixture_sha256": "6d4a72a5e9a34e11166c80c6f29f2457a7d330b0c4ef595f915d509f398a5e5a",
+  "fix": "Load real Kimi reader and adapter before patched registry in existing Alice fixture; no stub and no assertion deletion",
+  "prior_five_source_test_hashes_unchanged": {
+    "apps/extension/src/content/kimi-adapter.js": "e2753efcd33ca84d71e0fef015a4055d66b32f9cadae5e63adaa8623306af680",
+    "apps/extension/composition.json": "6fc497d1a558fd36929c590e95fad2e330c0f327f498489a7fd81e3d691bcf2c",
+    "apps/extension/application-patches.json": "2df6d956cb1bce16eb0cc1297b34a32815cfc29a92aecb4818bbad67e1c2adc4",
+    "apps/extension/src/background/compat/conversation-identity.js": "61d3886898ca3785deabf316552df7b2d02f5b49fc698623d98d95c333b72a9e",
+    "tests/regression/extension-core/chatgpt-dom-compat.py": "aab7517e8af6cdbe730a3bf4a9ab49254e8c8653ef3e2812f889570ee7b4bf7f"
+  },
+  "protected_unchanged_hashes": {
+    "apps/extension/src/application/runtime.js": "e0284148e76e49e730b96776a4262b7a7fce0a5bebe61ccae66c0c87168aba20",
+    "apps/extension/src/content/signed-profile-runtime.js": "84e0fbeaf39a87c49c7e21d9da9733078f217c9b0bd25893b06b6fad736dbfa8",
+    "packages/contracts/src/signed-ai-profile.ts": "21ea13fef1f5229cfdc59c6e21a1131a5f0bb0dae22db3c24e3d685d1ff6a67e",
+    "packages/control-client/src/signed-ai-profile-consumer.js": "fca63d7905a6906ef318d4bb784dd17ca9b81f25b42a70d5c3770fcf13680729",
+    "apps/extension/src/content/kimi-code-reader.js": "89a5e229e443b0ba01bd9d5d41f078d5f85337079439d465301a93a5736e4643"
+  },
+  "red_sha256": "b783a3d90114326797b1e0463c6eb8649529d3b7248fe30ecb7ffcb6e1b4abca",
+  "green": {
+    "status": "PASS",
+    "cases": 68,
+    "result_sha256": "4b26e6f57bb3a8e65bc697e2fc399e4847fb9a349b001d2633c09f893f2de504",
+    "node": "v22.22.2",
+    "exit": 0,
+    "cgroup_empty": true
+  },
+  "local_operator_errors": [
+    "First local fixture invoked /usr/bin/node v12.22.9 and failed top-level-await parse before tests. Log retained, exit1/cgroup empty; corrected to existing PATH node22.",
+    "First evidence assembly expected nonexistent top-level status; KeyError before writes. Read actual results[] statuses; no test rerun."
+  ],
+  "kimi59_not_rerun": true,
+  "prior_reader30_not_rerun": true,
+  "live_calls": 0,
+  "reruns": 0,
+  "dispatches": 0,
+  "review": "Revised exact candidate review required; prior c797 PASS remains scoped evidence only"
+}

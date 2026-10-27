@@ -42,6 +42,95 @@ function failure(
   };
 }
 
+// Parser messages may include raw source text. Only allow the fixed validation
+// codes intended for operator-facing diagnostics; everything else is generic.
+const SAFE_OFFICIAL_VALIDATION_REASONS = new Set([
+  "UPLOAD_TOO_LARGE",
+  "UNSUPPORTED_ARTIFACT_EXTENSION",
+  "TEXT_CONTENT_INVALID",
+  "OPENAPI_ROOT_NOT_OBJECT",
+  "OPENAPI_INFO_MISSING",
+  "OPENAPI_PATHS_MISSING",
+  "OPENAPI_VERSION_MISSING",
+  "SOURCE_SERVER_IDENTITY_MISMATCH",
+  "SOURCE_TITLE_IDENTITY_MISMATCH",
+]);
+
+function safeOfficialValidationReason(error: unknown): string {
+  return error instanceof Error &&
+    SAFE_OFFICIAL_VALIDATION_REASONS.has(error.message)
+    ? error.message
+    : "Official source document validation failed.";
+}
+
+function matchesRequiredServerIdentity(
+  root: Record<string, unknown>,
+  requiredServerIdentity: string,
+  documentUrl: string,
+): boolean {
+  if (
+    typeof root.swagger !== "string" ||
+    !/^2\.\d+(?:\.\d+)?$/u.test(root.swagger)
+  ) {
+    // OpenAPI 3.x uses servers; retain its exact URL matching rule.
+    const servers = Array.isArray(root.servers)
+      ? root.servers
+          .filter(
+            (server): server is Record<string, unknown> =>
+              Boolean(server) && typeof server === "object",
+          )
+          .map((server) => server.url)
+          .filter((url): url is string => typeof url === "string")
+      : [];
+    return servers.includes(requiredServerIdentity);
+  }
+
+  // Swagger 2.0 uses host/basePath/schemes. Do not let an OAS3 servers
+  // extension spoof the required API identity.
+  try {
+    const required = new URL(requiredServerIdentity);
+    const document = new URL(documentUrl);
+    if (
+      required.username ||
+      required.password ||
+      required.search ||
+      required.hash
+    )
+      return false;
+    const host = root.host === undefined ? document.host : root.host;
+    if (
+      typeof host !== "string" ||
+      !host ||
+      /[/?#@]/u.test(host) ||
+      host.includes(String.fromCharCode(92))
+    )
+      return false;
+    const authority = new URL(required.protocol + "//" + host + "/");
+    if (
+      authority.host !== required.host ||
+      authority.username ||
+      authority.password ||
+      authority.search ||
+      authority.hash ||
+      authority.pathname !== "/"
+    )
+      return false;
+    const basePath = root.basePath === undefined ? "/" : root.basePath;
+    if (
+      typeof basePath !== "string" ||
+      !basePath.startsWith("/") ||
+      basePath !== required.pathname
+    )
+      return false;
+    const scheme = required.protocol.slice(0, -1);
+    if (root.schemes === undefined)
+      return document.protocol === required.protocol;
+    return Array.isArray(root.schemes) && root.schemes.includes(scheme);
+  } catch {
+    return false;
+  }
+}
+
 const HTTP_MONTH_INDEX = Object.freeze({
   Jan: 0,
   Feb: 1,
@@ -500,7 +589,8 @@ async function cancelRedirectBodyWithinDeadline(
   signal: AbortSignal,
 ): Promise<boolean> {
   if (signal.aborted) return false;
-  if (!response.body) return true;
+  const body = response.body;
+  if (!body) return true;
   let removeAbortListener: () => void = () => undefined;
   const deadline = new Promise<false>((resolve) => {
     const onAbort = () => resolve(false);
@@ -510,14 +600,25 @@ async function cancelRedirectBodyWithinDeadline(
   });
   try {
     return await Promise.race([
-      response.body.cancel().then(
-        () => true as const,
-        () => true as const,
-      ),
+      Promise.resolve()
+        .then(() => body.cancel())
+        .then(
+          () => true as const,
+          // Failed cancellation cannot authorize another redirect request.
+          () => false as const,
+        ),
       deadline,
     ]);
   } finally {
     removeAbortListener();
+  }
+}
+
+/** Revoked run ownership must never masquerade as retryable network failure. */
+export class ApiWatchAcquisitionRevokedError extends Error {
+  constructor() {
+    super("API_WATCH_ACQUISITION_REVOKED");
+    this.name = "ApiWatchAcquisitionRevokedError";
   }
 }
 
@@ -527,8 +628,15 @@ export async function acquireOfficialSource(input: {
   fetcher?: FetchLike;
   timeoutMs?: number;
   maxRedirects?: number;
+  /** Optional external run-owner cancellation; no ownership is created here. */
+  signal?: AbortSignal;
 }): Promise<AcquisitionOutcome> {
   const { entry } = input;
+  // Revoked ownership takes precedence over all source-specific outcomes.
+  const assertNotRevoked = () => {
+    if (input.signal?.aborted) throw new ApiWatchAcquisitionRevokedError();
+  };
+  assertNotRevoked();
   const document = input.document;
   const officialUrl = document?.officialUrl ?? entry.officialUrl;
   if (!officialUrl)
@@ -555,6 +663,8 @@ export async function acquireOfficialSource(input: {
       "INVALID_OFFICIAL_SOURCE_RESPONSE",
       "Official source URL scheme or authority is not trusted.",
     );
+  // A stale externally cancelled owner can never launch source egress.
+  assertNotRevoked();
   const fetcher = input.fetcher ?? pinnedOfficialSourceFetch;
   const timeoutMs = input.timeoutMs ?? API_WATCH_TIMEOUT_MS;
   const maxRedirects = input.maxRedirects ?? API_WATCH_MAX_REDIRECTS;
@@ -564,6 +674,9 @@ export async function acquireOfficialSource(input: {
   let response: Response;
   let responseToClose: Response | undefined;
   const controller = new AbortController();
+  const revoke = () => controller.abort();
+  input.signal?.addEventListener("abort", revoke, { once: true });
+  if (input.signal?.aborted) controller.abort();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // An injected transport can ignore AbortSignal even before headers arrive.
   // Bound the entire request promise, not just redirect cleanup and body read.
@@ -581,13 +694,21 @@ export async function acquireOfficialSource(input: {
   try {
     try {
       while (true) {
-        const pendingHeaders = Promise.resolve().then(() =>
-          fetcher(currentUrl, {
+        const pendingHeaders = Promise.resolve().then(() => {
+          // The owner may revoke synchronously after this async function
+          // scheduled fetch but before this microtask actually dispatches it.
+          assertNotRevoked();
+          if (controller.signal.aborted)
+            throw new DOMException(
+              "Official source acquisition timed out",
+              "AbortError",
+            );
+          return fetcher(currentUrl, {
             method: "GET",
             redirect: "manual",
             signal: controller.signal,
-          }),
-        );
+          });
+        });
         // A late response after timeout is no longer owned by the caller.
         // Discard its body without awaiting possibly stuck cancellation.
         void pendingHeaders.then(
@@ -602,6 +723,7 @@ export async function acquireOfficialSource(input: {
           () => undefined,
         );
         response = await Promise.race([pendingHeaders, headersAborted]);
+        assertNotRevoked();
         responseToClose = response;
         if (![301, 302, 303, 307, 308].includes(response.status)) break;
         const location = response.headers.get("location");
@@ -660,20 +782,27 @@ export async function acquireOfficialSource(input: {
           response,
           controller.signal,
         );
-        if (!cancelled || controller.signal.aborted)
+        if (controller.signal.aborted)
           throw new DOMException(
             "Redirect body cleanup exceeded deadline",
             "AbortError",
           );
+        if (!cancelled)
+          throw new Error("OFFICIAL_SOURCE_REDIRECT_BODY_CANCEL_FAILED");
         currentUrl = nextUrl.toString();
       }
     } catch (error) {
+      // Cancellation is a revoked run, never a new NETWORK retry episode.
+      assertNotRevoked();
       return failure(
         entry,
         "SOURCE_TEMPORARILY_UNAVAILABLE",
         error instanceof DOMException && error.name === "AbortError"
           ? "Official source acquisition timed out."
-          : "Official source network acquisition failed.",
+          : error instanceof Error &&
+              error.message === "OFFICIAL_SOURCE_REDIRECT_BODY_CANCEL_FAILED"
+            ? "Official source redirect response body cleanup failed."
+            : "Official source network acquisition failed.",
       );
     }
 
@@ -726,6 +855,8 @@ export async function acquireOfficialSource(input: {
         controller.signal,
       );
     } catch (error) {
+      // A revoked lease must not be converted into a temporary source failure.
+      assertNotRevoked();
       if (controller.signal.aborted)
         return failure(
           entry,
@@ -742,6 +873,7 @@ export async function acquireOfficialSource(input: {
         response.status,
       );
     }
+    assertNotRevoked();
     if (isHtml(response, bytes)) {
       return isAccessControlPage(bytes)
         ? failure(
@@ -771,19 +903,15 @@ export async function acquireOfficialSource(input: {
         `official${extension}`,
         Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
       );
-      if (entry.requiredServerIdentity) {
-        const servers = Array.isArray(validation.document.root.servers)
-          ? validation.document.root.servers
-              .filter(
-                (server): server is Record<string, unknown> =>
-                  Boolean(server) && typeof server === "object",
-              )
-              .map((server) => server.url)
-              .filter((url): url is string => typeof url === "string")
-          : [];
-        if (!servers.some((server) => server === entry.requiredServerIdentity))
-          throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
-      }
+      if (
+        entry.requiredServerIdentity &&
+        !matchesRequiredServerIdentity(
+          validation.document.root,
+          entry.requiredServerIdentity,
+          currentUrl,
+        )
+      )
+        throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
       if (entry.titlePattern) {
         const info = validation.document.root.info;
         const title =
@@ -811,12 +939,11 @@ export async function acquireOfficialSource(input: {
         documentKey: document?.documentKey ?? null,
       };
     } catch (error) {
+      assertNotRevoked();
       return failure(
         entry,
         "INVALID_OFFICIAL_SOURCE_RESPONSE",
-        error instanceof Error
-          ? error.message
-          : "Official source document validation failed.",
+        safeOfficialValidationReason(error),
         response.status,
       );
     }
@@ -826,8 +953,13 @@ export async function acquireOfficialSource(input: {
     // Do not await a trusted test adapter's possibly unbounded cancellation.
     controller.abort();
     clearTimeout(timer);
+    input.signal?.removeEventListener("abort", revoke);
     removeHeaderAbortListener();
-    void responseToClose?.body?.cancel().catch(() => undefined);
+    try {
+      void responseToClose?.body?.cancel().catch(() => undefined);
+    } catch {
+      // A nonconforming adapter can throw synchronously; preserve the result.
+    }
   }
 }
 

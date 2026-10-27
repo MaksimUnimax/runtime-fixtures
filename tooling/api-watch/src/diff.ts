@@ -51,14 +51,20 @@ function semanticOperation(item: OperationInventoryItem): SemanticOperation {
   };
 }
 
+// Canonical diff bytes must not depend on host locale or ICU collation.
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function compareOperation(
   a: SemanticDiffOperation,
   b: SemanticDiffOperation,
 ): number {
   return (
-    a.sourceFamily.localeCompare(b.sourceFamily) ||
-    a.path.localeCompare(b.path) ||
-    a.method.localeCompare(b.method)
+    compareCodeUnits(a.sourceFamily, b.sourceFamily) ||
+    compareCodeUnits(a.path, b.path) ||
+    compareCodeUnits(a.method, b.method) ||
+    compareCodeUnits(a.identity, b.identity)
   );
 }
 
@@ -86,13 +92,13 @@ function deltas(
     return JSON.stringify(beforeValue) === JSON.stringify(afterValue)
       ? []
       : [{ field, before: beforeValue, after: afterValue }];
-  }).sort((a, b) => a.field.localeCompare(b.field));
+  }).sort((a, b) => compareCodeUnits(a.field, b.field));
 }
 
 function methodCounts(inventory: OperationInventory): Record<string, number> {
   return Object.fromEntries(
     Object.entries(inventory.operationsByMethod).sort(([a], [b]) =>
-      a.localeCompare(b),
+      compareCodeUnits(a, b),
     ),
   );
 }
@@ -148,12 +154,18 @@ export function diffInventories(input: {
       semanticOperation(operation),
     ]),
   );
+  // A duplicate identity otherwise overwrites an earlier operation and
+  // produces a misleading "UNCHANGED" result for a corrupt inventory.
+  if (base.size !== input.base.operations.length)
+    throw new Error("DIFF_DUPLICATE_OPERATION_IDENTITY");
   const target = new Map(
     input.target.operations.map((operation) => [
       operation.identity,
       semanticOperation(operation),
     ]),
   );
+  if (target.size !== input.target.operations.length)
+    throw new Error("DIFF_DUPLICATE_OPERATION_IDENTITY");
   const identities = [...new Set([...base.keys(), ...target.keys()])].sort();
   const operations: SemanticDiffOperation[] = identities
     .map((identity) => {
@@ -225,7 +237,7 @@ export function canonicalSemanticDiff(diff: SemanticDiff): string {
         .map((operation) => ({
           ...operation,
           deltas: [...operation.deltas].sort((a, b) =>
-            a.field.localeCompare(b.field),
+            compareCodeUnits(a.field, b.field),
           ),
         }))
         .sort(compareOperation),

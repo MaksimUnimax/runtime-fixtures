@@ -7,6 +7,7 @@ import {
   createSwaggerHandoffService,
   InMemorySwaggerSourceStore,
   OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE,
+  parseSwaggerDocument,
   type SwaggerSourceFamily,
 } from "./swagger-handoff.js";
 
@@ -46,6 +47,44 @@ async function fixture(
 async function close(directory: string) {
   await rm(directory, { recursive: true, force: true });
 }
+
+describe("Swagger discriminator validation", () => {
+  it.each([
+    ["malformed version", "2.0.0.0"],
+    ["non-string marker", 2],
+    ["null marker", null],
+  ] as const)(
+    "rejects an invalid Swagger marker despite a valid OpenAPI 3 marker (%s)",
+    (_name, swagger) => {
+      const bytes = Buffer.from(
+        JSON.stringify({
+          swagger,
+          openapi: "3.0.3",
+          info: { title: "Official fixture", version: "1" },
+          paths: {},
+          servers: [{ url: "https://api-seller.ozon.ru" }],
+        }),
+      );
+      expect(() => parseSwaggerDocument(bytes, "source.json")).toThrow(
+        "OPENAPI_VERSION_MISSING",
+      );
+    },
+  );
+
+  it("continues to recognize the existing supported Swagger 2.x range", () => {
+    const document = parseSwaggerDocument(
+      Buffer.from(
+        JSON.stringify({
+          swagger: "2.1",
+          info: { title: "Official fixture", version: "1" },
+          paths: {},
+        }),
+      ),
+      "source.json",
+    );
+    expect(document.version).toBe("2.1");
+  });
+});
 
 describe("S2-TG3 operator-supplied Swagger handoff", () => {
   it("TG3-01 authorized operator lists pending requests", async () => {

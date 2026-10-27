@@ -141,9 +141,10 @@ const reportProjection = `SELECT report_id AS "reportId",run_source AS "runSourc
 async function readReport(
   query: ApiWatchSqlQuery,
   reportId: string,
+  forUpdate = false,
 ): Promise<ApiWatchReport | undefined> {
   const result = await query.query<ReportRow>(
-    `${reportProjection} WHERE report_id=$1`,
+    `${reportProjection} WHERE report_id=$1${forUpdate ? " FOR UPDATE" : ""}`,
     [reportId],
   );
   const row = result.rows[0];
@@ -176,7 +177,9 @@ export function createPostgresApiWatchReportStore(
     },
     async transitionReport(input) {
       return runtime.transaction(async (query) => {
-        const current = await readReport(query, input.reportId);
+        // Serialize transitions of the same report before checking its state.
+        // A competing transaction then reads the committed terminal outcome.
+        const current = await readReport(query, input.reportId, true);
         if (!current) throw new Error("REPORT_NOT_FOUND");
         const next = transition(current, input);
         const counts = next;

@@ -99,6 +99,7 @@ describe("portal control-plane BFF boundary", () => {
     ["POST", `/v1/devices/${id}/revoke`],
     ["GET", "/v1/subscription"],
     ["GET", "/v1/billing/payments"],
+    ["GET", `/v1/support/cases/${id}`],
   ])("allows %s %s", (method, path) =>
     expect(allowedRoute(method, path)).toBeTruthy(),
   );
@@ -113,11 +114,73 @@ describe("portal control-plane BFF boundary", () => {
     ["POST", "/v1/billing/checkouts"],
     ["POST", "/v1/billing/events"],
     ["DELETE", "/v1/support/cases"],
-    ["GET", "/v1/support/cases/" + id],
     ["POST", "/v1/support/cases/admin"],
   ])("rejects %s %s", (method, path) =>
     expect(allowedRoute(method, path)).toBeUndefined(),
   );
+
+  it("forwards only the original session to same-case support detail and preserves upstream denial", async () => {
+    vi.stubEnv("CONTROL_PLANE_API_ORIGIN", "https://api.example.test");
+    const downstream = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const cookie = new Headers(init?.headers).get("cookie");
+        if (cookie !== "pcp_portal_session=synthetic-user-session") {
+          return Response.json(
+            { error: { code: "AUTH_SESSION_INVALID" } },
+            { status: 401 },
+          );
+        }
+        return Response.json(
+          {
+            caseId: id,
+            status: "TRIAGED",
+            followups: [
+              {
+                followupId: "00000000-0000-4000-8000-000000000005",
+                authorType: "SUPPORT",
+                body: "Synthetic support response",
+                createdAt: "2030-01-01T00:00:00.000Z",
+              },
+            ],
+          },
+          { status: 200 },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", downstream);
+    const path = `/v1/support/cases/${id}`;
+    const url = `https://portal.example.test/api/control-plane${path}`;
+    const context = {
+      params: Promise.resolve({ path: ["v1", "support", "cases", id] }),
+    };
+    const authorized = await GET(
+      new NextRequest(url, {
+        headers: {
+          cookie: "pcp_portal_session=synthetic-user-session",
+          "x-unapproved-header": "must-not-pass",
+        },
+      }),
+      context,
+    );
+    expect(authorized.status).toBe(200);
+    expect((await authorized.json()).caseId).toBe(id);
+    expect(downstream).toHaveBeenCalledTimes(1);
+    const [target, init] = downstream.mock.calls[0]!;
+    expect(target).toBe(`https://api.example.test${path}`);
+    expect(init?.method).toBe("GET");
+    expect(init?.body).toBeUndefined();
+    const headers = new Headers(init?.headers);
+    expect(headers.get("cookie")).toBe(
+      "pcp_portal_session=synthetic-user-session",
+    );
+    expect(headers.has("x-unapproved-header")).toBe(false);
+    const denied = await GET(new NextRequest(url), context);
+    expect(denied.status).toBe(401);
+    expect((await denied.json()).error.code).toBe("AUTH_SESSION_INVALID");
+    const [, deniedInit] = downstream.mock.calls[1]!;
+    expect(new Headers(deniedInit?.headers).has("cookie")).toBe(false);
+    expect(downstream).toHaveBeenCalledTimes(2);
+  });
 
   it.each(["GET", "POST"])(
     "forwards support cases through the real %s handler",

@@ -125,6 +125,17 @@ assert.equal(
 assert.equal(stats.fields.currency.role, "promotion_statistics_currency");
 assert.equal(stats.fields.currency.unit, "currency_code_iso_4217");
 assert.equal(stats.currencyField, "currency");
+assert.equal(stats.fields["days.apps.nms.nmId"].role, "product_id");
+assert.deepEqual(
+  stats.fields["days.apps.nms.nmId"],
+  statsGrain.sources.promotion.fields["days.apps.nms.nmId"],
+  "STD advertising and CAP-18 must use the same official app-nested product grain",
+);
+assert.equal(
+  stats.fields["days.apps.nms.sum"].role,
+  "product_attributed_promotion_statistics_spend_not_actual_cost_ledger",
+);
+
 assert.equal(
   stats.currencyField,
   statsGrain.sources.promotion.currencyFieldCurrentOpenapi,

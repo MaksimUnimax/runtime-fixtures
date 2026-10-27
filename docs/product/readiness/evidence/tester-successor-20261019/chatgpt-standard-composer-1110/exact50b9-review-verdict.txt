@@ -1,0 +1,10 @@
+**PASS_SOURCE_SCOPED_EXACT_50B9**
+
+Candidate `50b9d300ef7262a5f47482b6d389bb9b751c4a3f` descends from base `850ff17db1fe7cdf012f30546b2f8d7225f6c0ab`. Its diff contains only the two requested product/test files and six focused evidence files; no other product source changed.
+
+Both target blobs exactly match reviewed commit `60c8884513ec6fc27f668550f6afc3b781712deb` and the expected IDs:
+
+- `application-patches.json`: `27c422831e61099652decce92f3b80c85fe1e1f3`
+- `chatgpt-dom-compat.py`: `1484787942a2f01baa31aaadb5121a99b635b780`
+
+The evidence preserves the original RED result, the first harness error, and the subsequent 50/50 GREEN result. The scoped verdict and its unchanged ancestor-opacity residual are preserved in [source-review-verdict.txt](/root/octoport-control/worktrees/controller/OPERATOR-R3-PERSONAL-20261010/docs/product/readiness/evidence/tester-successor-20261019/chatgpt-standard-composer-1110/source-review-verdict.txt). The evidence limits the claim to offline synthetic coverage; it does not claim an installed or full owner-accepted flow. No tests or browser were run for this binding review.

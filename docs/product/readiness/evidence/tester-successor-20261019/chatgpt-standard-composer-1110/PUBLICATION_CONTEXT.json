@@ -1,0 +1,22 @@
+{
+  "at_utc": "2026-10-19T11:37:05.261126+00:00",
+  "owner": "same existing Tester, same working directory, no second source owner",
+  "archive_branch": "controller/b01-0237-evidence-20261016",
+  "archive_commit": "fb793ed60bb7bf375617230dedffea8c6da3ceb6",
+  "archive_status": "Full preserved checkpoint and canonical handoff mirror; not proposed for main because server-relative snapshot links are not repository files",
+  "native_documentation_failure": {
+    "run_id": 39245679443,
+    "job_id": 118036881817,
+    "attempt": 1,
+    "error_count": 75,
+    "cause": "64 broken server-relative links in canonical snapshot and 11 prior JSON files without final newline",
+    "raw_server_log": "/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/CHATGPT_STANDARD_COMPOSER_20261019T112000Z/ARCHIVE_DOCUMENTATION_CI_ORIGINAL.txt",
+    "raw_log_sha256": "5bcc8663c70cefc9027e4257e7c3dbe8f0eac92a59eb3ff3fba6360d948138df"
+  },
+  "new_candidate_base": "850ff17db1fe7cdf012f30546b2f8d7225f6c0ab",
+  "new_candidate_scope": "Only two reviewed source/test paths and this current focused evidence; no old shared handoff or unrelated historical acceptance documents included",
+  "canonical_server_handoff": "unchanged outside Tester section12; dot sections not rewritten",
+  "old_accepted_bytes": "preserved exactly in archive commit and server paths",
+  "reviewed_product_commit": "60c8884513ec6fc27f668550f6afc3b781712deb",
+  "reviewed_source_blobs_unchanged": true
+}

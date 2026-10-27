@@ -31,6 +31,169 @@ function abortAwareDelay(signal: AbortSignal, milliseconds: number) {
 }
 
 describe("C03 acquisition deadline", () => {
+  it("refuses a revoked run before invoking any source fetcher", async () => {
+    const owner = new AbortController();
+    owner.abort();
+    const fetcher = vi.fn(async () => new Response(null, { status: 204 }));
+    await expect(
+      acquireOfficialSource({
+        entry,
+        timeoutMs: 60_000,
+        signal: owner.signal,
+        fetcher: fetcher as typeof fetch,
+      }),
+    ).rejects.toThrow("API_WATCH_ACQUISITION_REVOKED");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("cannot dispatch deferred header fetch after owner revocation in the same turn", async () => {
+    const owner = new AbortController();
+    const fetcher = vi.fn(async () => new Response(null, { status: 503 }));
+    const pending = acquireOfficialSource({
+      entry,
+      signal: owner.signal,
+      timeoutMs: 60_000,
+      fetcher: fetcher as typeof fetch,
+    });
+    owner.abort();
+    await expect(pending).rejects.toThrow("API_WATCH_ACQUISITION_REVOKED");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("revokes a stalled header fetch even when the injected fetcher ignores AbortSignal", async () => {
+    const owner = new AbortController();
+    let started!: () => void;
+    const begun = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const deliveredSignals: AbortSignal[] = [];
+    const run = acquireOfficialSource({
+      entry,
+      timeoutMs: 60_000,
+      signal: owner.signal,
+      fetcher: async (_url, init) => {
+        if (init?.signal) deliveredSignals.push(init.signal);
+        started();
+        return new Promise<Response>(() => undefined);
+      },
+    });
+    await begun;
+    owner.abort();
+    await expect(run).rejects.toThrow("API_WATCH_ACQUISITION_REVOKED");
+    expect(deliveredSignals).toHaveLength(1);
+    expect(deliveredSignals[0]?.aborted).toBe(true);
+  });
+
+  it("revokes a stalled bodyless read without converting it to a retry", async () => {
+    const owner = new AbortController();
+    let beginRead!: () => void;
+    const readStarted = new Promise<void>((resolve) => {
+      beginRead = resolve;
+    });
+    const signals: AbortSignal[] = [];
+    const response = new Response(null, {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+    Object.defineProperty(response, "arrayBuffer", {
+      value: () => {
+        beginRead();
+        return new Promise<ArrayBuffer>(() => undefined);
+      },
+    });
+    const run = acquireOfficialSource({
+      entry,
+      timeoutMs: 60_000,
+      signal: owner.signal,
+      fetcher: async (_url, init) => {
+        if (init?.signal) signals.push(init.signal);
+        return response;
+      },
+    });
+    // This signal fires ONLY after response headers and body reading began.
+    await readStarted;
+    owner.abort();
+    await expect(run).rejects.toThrow("API_WATCH_ACQUISITION_REVOKED");
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(true);
+  });
+
+  it("cancels stalled streaming reader.read without waiting for a hanging cancel callback", async () => {
+    const owner = new AbortController();
+    let reading!: () => void;
+    const readStarted = new Promise<void>((resolve) => {
+      reading = resolve;
+    });
+    let cancellations = 0;
+    const signals: AbortSignal[] = [];
+    const stream = new ReadableStream<Uint8Array>(
+      {
+        pull() {
+          reading();
+          return new Promise<void>(() => undefined);
+        },
+        cancel() {
+          cancellations += 1;
+          return new Promise<void>(() => undefined);
+        },
+      },
+      // Do not initiate pull until acquireOfficialSource starts reader.read().
+      { highWaterMark: 0 },
+    );
+    const run = acquireOfficialSource({
+      entry,
+      timeoutMs: 60_000,
+      signal: owner.signal,
+      fetcher: async (_url, init) => {
+        if (init?.signal) signals.push(init.signal);
+        return new Response(stream, {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    await readStarted;
+    owner.abort();
+    await expect(run).rejects.toThrow("API_WATCH_ACQUISITION_REVOKED");
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(true);
+    await vi.waitFor(() => expect(cancellations).toBeGreaterThan(0), {
+      timeout: 150,
+      interval: 5,
+    });
+  });
+
+  it("prevents a second redirect hop after run ownership is revoked", async () => {
+    const owner = new AbortController();
+    let requests = 0;
+    let firstCancel!: () => void;
+    const firstCancellation = new Promise<void>((resolve) => {
+      firstCancel = resolve;
+    });
+    const run = acquireOfficialSource({
+      entry,
+      timeoutMs: 60_000,
+      signal: owner.signal,
+      maxRedirects: 5,
+      fetcher: async () => {
+        requests += 1;
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            cancel() {
+              firstCancel();
+              return new Promise<void>(() => undefined);
+            },
+          }),
+          { status: 307, headers: { location: "/next.json" } },
+        );
+      },
+    });
+    await firstCancellation;
+    owner.abort();
+    await expect(run).rejects.toThrow("API_WATCH_ACQUISITION_REVOKED");
+    expect(requests).toBe(1);
+  });
+
   it("aborts a stalled body read through the shared deadline and releases the stream", async () => {
     let body: ReadableStream<Uint8Array> | undefined;
     let controllerRef: ReadableStreamDefaultController<Uint8Array> | undefined;
@@ -216,6 +379,70 @@ describe("C03 acquisition deadline", () => {
     } finally {
       if (watchdog) clearTimeout(watchdog);
     }
+  });
+
+  it("does not follow a redirect if cancelling the previous response body rejects", async () => {
+    let requests = 0;
+    let cancellationAttempts = 0;
+    const result = await acquireOfficialSource({
+      entry,
+      timeoutMs: 200,
+      fetcher: async () => {
+        requests += 1;
+        if (requests === 1)
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              cancel() {
+                cancellationAttempts += 1;
+                throw new Error("REDIRECT_BODY_CANCEL_REJECTED");
+              },
+            }),
+            { status: 307, headers: { location: "/next.json" } },
+          );
+        return new Response(null, { status: 403 });
+      },
+    });
+
+    expect(cancellationAttempts).toBe(1);
+    expect(requests).toBe(1);
+    expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    if (result.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+      expect(result.blockerReason).toBe(
+        "Official source redirect response body cleanup failed.",
+      );
+  });
+
+  it("does not throw or follow a redirect when cancellation throws synchronously", async () => {
+    let requests = 0;
+    let cancellationAttempts = 0;
+    const redirect = new Response(new ReadableStream<Uint8Array>(), {
+      status: 307,
+      headers: { location: "/next.json" },
+    });
+    if (!redirect.body) throw new Error("missing redirect body");
+    Object.defineProperty(redirect.body, "cancel", {
+      value: () => {
+        cancellationAttempts += 1;
+        throw new Error("SYNCHRONOUS_REDIRECT_CANCEL_ERROR");
+      },
+    });
+
+    const result = await acquireOfficialSource({
+      entry,
+      timeoutMs: 200,
+      fetcher: async () => {
+        requests += 1;
+        return requests === 1 ? redirect : new Response(null, { status: 403 });
+      },
+    });
+
+    expect(cancellationAttempts).toBeGreaterThanOrEqual(1);
+    expect(requests).toBe(1);
+    expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    if (result.kind === "SOURCE_TEMPORARILY_UNAVAILABLE")
+      expect(result.blockerReason).toBe(
+        "Official source redirect response body cleanup failed.",
+      );
   });
 
   it("bounds a stalled header fetcher and cancels a response arriving after timeout", async () => {

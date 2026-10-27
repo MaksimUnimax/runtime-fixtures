@@ -701,7 +701,7 @@ export function createFeedbackSupportRepository(
         marketplace: string | null;
         supportCode: string | null;
       }>(
-        `SELECT event::text AS event,account_id AS "accountId",subject_id AS "subjectId",occurred_at AS "occurredAt",product_version AS "productVersion",extension_version AS "extensionVersion",release_identity AS "releaseIdentity",browser_family AS "browserFamily",browser_version AS "browserVersion",marketplace::text AS marketplace,support_code AS "supportCode" FROM feedback_signal_events WHERE ${clauses.join(" AND ")}`,
+        `SELECT event::text AS event,account_id AS "accountId",subject_id AS "subjectId",occurred_at AS "occurredAt",product_version AS "productVersion",extension_version AS "extensionVersion",release_identity AS "releaseIdentity",browser_family AS "browserFamily",browser_version AS "browserVersion",marketplace::text AS marketplace,support_code AS "supportCode" FROM feedback_signal_events WHERE ${clauses.join(" AND ")} ORDER BY occurred_at ASC, id ASC`,
         values,
       );
       return calculateFunnel({

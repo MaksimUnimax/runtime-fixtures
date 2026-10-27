@@ -1,0 +1,55 @@
+2026-10-19T14:12:21.5562660Z RUN core-composed-version-policy
+2026-10-19T14:12:21.8214294Z PASS core-composed-version-policy
+2026-10-19T14:12:21.8214973Z RUN core-conversation-surface-first-start
+2026-10-19T14:12:22.1869540Z PASS core-conversation-surface-first-start
+2026-10-19T14:12:22.1870340Z RUN core-a05-externalized-own-button-differential
+2026-10-19T14:12:22.2518571Z PASS core-a05-externalized-own-button-differential
+2026-10-19T14:12:22.2519189Z RUN core-button-anchor-occlusion
+2026-10-19T14:12:22.3669917Z PASS core-button-anchor-occlusion
+2026-10-19T14:12:22.3670739Z RUN core-qwen-adapter
+2026-10-19T14:12:22.4322415Z PASS core-qwen-adapter
+2026-10-19T14:12:22.4323013Z RUN core-qwen-code-reader
+2026-10-19T14:12:22.4971362Z PASS core-qwen-code-reader
+2026-10-19T14:12:22.4972075Z RUN core-native-import-panel-entry
+2026-10-19T14:12:22.5622954Z PASS core-native-import-panel-entry
+2026-10-19T14:12:22.5623855Z RUN core-content-read-block-dispatch
+2026-10-19T14:12:22.6274690Z PASS core-content-read-block-dispatch
+2026-10-19T14:12:22.6275521Z RUN core-start-dispatch-progress
+2026-10-19T14:12:22.6602387Z PASS core-start-dispatch-progress
+2026-10-19T14:12:22.6603145Z RUN core-compose-optimized-python-guard
+2026-10-19T14:12:23.4032194Z PASS core-compose-optimized-python-guard
+2026-10-19T14:12:23.4038398Z RUN before
+2026-10-19T14:12:23.4201097Z PASS before
+2026-10-19T14:12:23.4201839Z RUN middle-failure
+2026-10-19T14:12:23.4472817Z FAIL middle-failure
+2026-10-19T14:12:23.4473497Z 
+2026-10-19T14:12:23.4475949Z RUN core-provider-response-policy-differential
+2026-10-19T14:12:23.5419255Z PASS core-provider-response-policy-differential
+2026-10-19T14:12:23.5420783Z RUN core-provider-response-verifier-differential
+2026-10-19T14:12:23.6387350Z PASS core-provider-response-verifier-differential
+2026-10-19T14:12:23.6388855Z RUN core-provider-response-disposition-differential
+2026-10-19T14:12:23.7038370Z PASS core-provider-response-disposition-differential
+2026-10-19T14:12:23.7039656Z RUN core-provider-response-retention-differential
+2026-10-19T14:12:23.7691532Z PASS core-provider-response-retention-differential
+2026-10-19T14:12:23.7692357Z RUN core-provider-response-composition
+2026-10-19T14:12:23.8344619Z PASS core-provider-response-composition
+2026-10-19T14:12:23.8345682Z RUN core-store-package-contract
+2026-10-19T14:12:25.5545082Z PASS core-store-package-contract
+2026-10-19T14:12:25.5546063Z RUN core-build-create-pending-extraction
+2026-10-19T14:12:25.6198305Z PASS core-build-create-pending-extraction
+2026-10-19T14:12:25.6199385Z RUN core-work-start-pending-readback
+2026-10-19T14:12:25.7852848Z PASS core-work-start-pending-readback
+2026-10-19T14:12:26.3372695Z RUN core-store-metadata-and-import-fences
+2026-10-19T14:12:26.4524483Z PASS core-store-metadata-and-import-fences
+2026-10-19T14:12:26.4633733Z {
+2026-10-19T14:12:26.4634123Z   "stage": "D2.4",
+2026-10-19T14:12:26.4634491Z   "status": "FAIL",
+2026-10-19T14:12:26.4634824Z   "os": "Linux",
+2026-10-19T14:12:26.4635158Z   "python": "3.12.14",
+2026-10-19T14:12:26.4635510Z   "node": "v24.19.0",
+2026-10-19T14:12:26.4635859Z   "live_provider_calls": 0,
+2026-10-19T14:12:26.4636783Z   "installed_acceptance": false,
+2026-10-19T14:12:26.4637280Z   "error": "AssertionError: ",
+2026-10-19T14:12:26.4637661Z   "gate_processes": 19
+2026-10-19T14:12:26.4637981Z }
+2026-10-19T14:12:26.4765784Z ##[error]Process completed with exit code 1.

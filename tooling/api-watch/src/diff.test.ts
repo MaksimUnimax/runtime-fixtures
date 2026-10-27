@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffInventories } from "./diff.js";
+import { canonicalSemanticDiff, diffInventories } from "./diff.js";
 import { InMemoryApiWatchStore } from "./authority.js";
 import type { OperationInventory, OperationInventoryItem } from "./types.js";
 import { buildCompleteOperationInventory } from "./inventory.js";
@@ -66,7 +66,322 @@ function compare(
   });
 }
 
+describe("C03 duplicate semantic identity fail-closed", () => {
+  it("rejects duplicate identities in the base inventory rather than hiding a removal", () => {
+    const duplicated = [
+      operation({ operationId: "first" }),
+      operation({ operationId: "second" }),
+    ];
+    expect(() =>
+      diffInventories({
+        base: inventory(duplicated),
+        target: inventory([operation({ operationId: "second" })], TARGET_SHA),
+      }),
+    ).toThrow("DIFF_DUPLICATE_OPERATION_IDENTITY");
+  });
+
+  it("rejects duplicate identities in the target inventory rather than hiding an addition", () => {
+    const duplicated = [
+      operation({ operationId: "first" }),
+      operation({ operationId: "second" }),
+    ];
+    expect(() =>
+      diffInventories({
+        base: inventory([operation({ operationId: "first" })]),
+        target: inventory(duplicated, TARGET_SHA),
+      }),
+    ).toThrow("DIFF_DUPLICATE_OPERATION_IDENTITY");
+  });
+});
+
+// These tests exercise the canonicalizer's fallback ordering when two
+// *synthetic* semantic identities share the preceding family/path/method keys.
+// buildCompleteOperationInventory constructs sourceFamily:method:path identities
+// and cannot emit either pair. These are deliberately non-builder fixtures,
+// not evidence of two accepted WB documents with overlapping routes.
+describe("C03 canonical fallback order for synthetic semantic identities", () => {
+  it("preserves canonical bytes for fabricated equal-key operations in either order", () => {
+    const first = operation({
+      identity: "SYNTHETIC:A:GET:/orders",
+      path: "/orders",
+      operationId: "readA",
+    });
+    const second = operation({
+      identity: "SYNTHETIC:B:GET:/orders",
+      path: "/orders",
+      operationId: "readB",
+    });
+    const diff = diffInventories({
+      base: inventory([]),
+      target: inventory([first, second], TARGET_SHA),
+      createdAt: new Date("2026-10-19T00:00:00Z"),
+    });
+    expect(diff.operations).toHaveLength(2);
+    expect(
+      canonicalSemanticDiff({
+        ...diff,
+        operations: [...diff.operations].reverse(),
+      }),
+    ).toEqual(canonicalSemanticDiff(diff));
+  });
+});
+
+describe("C03 canonical fallback for synthetic Unicode-equivalent identities", () => {
+  it("orders fabricated NFC/NFD tie identities by exact code units, not locale collation", () => {
+    const firstIdentity = "SYNTHETIC:" + String.fromCharCode(0xc9);
+    const secondIdentity = "SYNTHETIC:E" + String.fromCharCode(0x301);
+    expect(firstIdentity).not.toEqual(secondIdentity);
+    const mk = (identity: string) =>
+      operation({
+        identity,
+        path: "/orders",
+      });
+    const diff = diffInventories({
+      base: inventory([]),
+      target: inventory([mk(firstIdentity), mk(secondIdentity)], TARGET_SHA),
+      createdAt: new Date("2026-10-19T00:00:00Z"),
+    });
+    expect(diff.operations).toHaveLength(2);
+    expect(
+      canonicalSemanticDiff({
+        ...diff,
+        operations: [...diff.operations].reverse(),
+      }),
+    ).toEqual(canonicalSemanticDiff(diff));
+  });
+});
+
 describe("A4 semantic API diffs", () => {
+  it.each(["3.0.3", "2.0"] as const)(
+    "C03 rejects malformed Path Item and Operation parameters in OAS %s",
+    (version) => {
+      const page = {
+        name: "page",
+        in: "query",
+        required: true,
+        schema: { type: "integer" },
+      };
+      const build = (
+        pathParameterValue?: unknown,
+        operationParameterValue?: unknown,
+      ) => {
+        const pathItem = {
+          ...(pathParameterValue === undefined
+            ? {}
+            : { parameters: pathParameterValue }),
+          get: {
+            ...(operationParameterValue === undefined
+              ? {}
+              : { parameters: operationParameterValue }),
+            responses: { "200": { description: "ok" } },
+          },
+        };
+        return buildCompleteOperationInventory({
+          sourceFamily: FAMILY,
+          snapshotSha256: BASE_SHA,
+          filename: "openapi.json",
+          bytes: Buffer.from(
+            JSON.stringify({
+              ...(version === "2.0"
+                ? { swagger: "2.0" }
+                : { openapi: "3.0.3" }),
+              info: { title: "parameter container proof", version: "1" },
+              paths: { "/orders": pathItem },
+            }),
+          ),
+        });
+      };
+      const empty = build();
+      for (const invalid of [null, { ...page }, 42, false, "query"]) {
+        expect(() => build(invalid)).toThrow(
+          "APIWATCH_PARAMETERS_INVALID_CONTAINER",
+        );
+        expect(() => build(undefined, invalid)).toThrow(
+          "APIWATCH_PARAMETERS_INVALID_CONTAINER",
+        );
+      }
+      const emptyPath = build([]);
+      const emptyOperation = build(undefined, []);
+      expect(empty.operations[0]?.parameterCount).toBe(0);
+      expect(emptyPath.operations[0]?.parameterSchemaSha256).toBe(
+        empty.operations[0]?.parameterSchemaSha256,
+      );
+      expect(emptyOperation.operations[0]?.parameterSchemaSha256).toBe(
+        empty.operations[0]?.parameterSchemaSha256,
+      );
+      expect(build([page]).operations[0]?.parameterCount).toBe(1);
+      expect(build(undefined, [page]).operations[0]?.parameterCount).toBe(1);
+    },
+  );
+
+  it("C03 rejects duplicate same-level parameter identities instead of hiding changed contracts", () => {
+    const page = (type: string, required = false) => ({
+      name: "page",
+      in: "query",
+      required,
+      schema: { type },
+    });
+    const build = (pathParameters: unknown[], operationParameters: unknown[]) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.0.3",
+            info: { title: "duplicate guard", version: "1" },
+            components: { parameters: { RequiredPage: page("integer", true) } },
+            paths: {
+              "/orders": {
+                parameters: pathParameters,
+                get: {
+                  parameters: operationParameters,
+                  responses: { "200": { description: "ok" } },
+                },
+              },
+            },
+          }),
+        ),
+      });
+    const last = page("string", false);
+    expect(() => build([page("integer", true), last], [])).toThrow(
+      "APIWATCH_DUPLICATE_PARAMETER_IDENTITY",
+    );
+    expect(() => build([], [page("integer", true), last])).toThrow(
+      "APIWATCH_DUPLICATE_PARAMETER_IDENTITY",
+    );
+    expect(() =>
+      build([], [{ $ref: "#/components/parameters/RequiredPage" }, last]),
+    ).toThrow("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+    expect(() =>
+      build(
+        [],
+        [
+          { name: "X-Trace", in: "header", schema: { type: "string" } },
+          { name: "x-trace", in: "header", schema: { type: "integer" } },
+        ],
+      ),
+    ).toThrow("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+
+    // An unresolved local or external $ref cannot be a trusted parameter.
+    const missingRef = { $ref: "#/components/parameters/Missing" };
+    expect(() => build([], [missingRef])).toThrow(
+      "APIWATCH_PARAMETER_IDENTITY_UNRESOLVED",
+    );
+    expect(() => build([], [missingRef, missingRef])).toThrow(
+      "APIWATCH_PARAMETER_IDENTITY_UNRESOLVED",
+    );
+    expect(() =>
+      build([], [{ $ref: "remote.yaml#/components/parameters/Page" }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ name: "page", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ in: "query", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    // An external ref with fake sibling identity still has unknown contents.
+    expect(() =>
+      build(
+        [],
+        [
+          {
+            $ref: "remote.yaml#/components/parameters/Page",
+            name: "page",
+            in: "query",
+          },
+        ],
+      ),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ name: "", in: "query", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+    expect(() =>
+      build([], [{ name: "page", in: "", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+    expect(() =>
+      build([], [{ name: "page", in: "unknown", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+
+    // Cross-level overrides are legal, and query parameter case matters.
+    const overridden = build([page("integer", true)], [last]);
+    const onlyOperation = build([], [last]);
+    expect(overridden.operations[0]?.parameterCount).toBe(1);
+    expect(overridden.operations[0]?.parameterSchemaSha256).toBe(
+      onlyOperation.operations[0]?.parameterSchemaSha256,
+    );
+    const distinct = build([], [last, { ...last, name: "Page" }]);
+    expect(distinct.operations[0]?.parameterCount).toBe(2);
+  });
+
+  it("C03 enforces OpenAPI 3.2 querystring exclusivity", () => {
+    const parameter = (name: string, location: string) => ({
+      name,
+      in: location,
+      content: {
+        "application/x-www-form-urlencoded": {
+          schema: { type: "object", properties: { name: { type: "string" } } },
+        },
+      },
+    });
+    const build = (
+      version: string,
+      pathParameters: unknown[],
+      operationParameters: unknown[],
+    ) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: version,
+            info: { title: "querystring", version: "1" },
+            paths: {
+              "/orders": {
+                parameters: pathParameters,
+                get: {
+                  parameters: operationParameters,
+                  responses: { "200": { description: "ok" } },
+                },
+              },
+            },
+          }),
+        ),
+      });
+    expect(() =>
+      build(
+        "3.2.0",
+        [],
+        [
+          parameter("whole", "querystring"),
+          parameter("alternate", "querystring"),
+        ],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(() =>
+      build(
+        "3.2.0",
+        [],
+        [parameter("page", "query"), parameter("whole", "querystring")],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(() =>
+      build(
+        "3.2.0",
+        [parameter("whole", "querystring")],
+        [parameter("page", "query")],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(
+      build("3.2.0", [], [parameter("whole", "querystring")]).operations[0]
+        ?.parameterCount,
+    ).toBe(1);
+    expect(() =>
+      build("3.1.0", [], [parameter("whole", "querystring")]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+  });
+
   it("C03 detects requiredness, type, enum, request, response and security changes from OpenAPI", () => {
     const make = (
       schema: unknown,
@@ -201,6 +516,375 @@ describe("A4 semantic API diffs", () => {
       expect(diff.operations[0]?.state).toBe("CHANGED");
       expect(diff.operations[0]?.deltas.length).toBeGreaterThan(0);
     }
+  });
+
+  it("C03 preserves distinct OpenAPI paths with empty URL segments", () => {
+    const make = (paths: Record<string, unknown>, sha256: string) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: sha256,
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.0.3",
+            info: { title: "synthetic paths", version: "1" },
+            paths,
+          }),
+        ),
+        filename: "openapi.json",
+      });
+    const operation = (operationId: string) => ({
+      get: {
+        operationId,
+        responses: { "200": { description: "ok" } },
+      },
+    });
+    const base = make({ "/orders/detail": operation("original") }, BASE_SHA);
+    const target = make(
+      {
+        "/orders/detail": operation("original"),
+        "/orders//detail": operation("additional"),
+      },
+      TARGET_SHA,
+    );
+    expect(base.operationCount).toBe(1);
+    expect(target.operationCount).toBe(2);
+    expect(target.operations.map((item) => item.identity)).toEqual([
+      "OZON_SELLER:GET:/orders//detail",
+      "OZON_SELLER:GET:/orders/detail",
+    ]);
+    const added = diffInventories({ base, target });
+    expect(added.addedCount).toBe(1);
+    expect(added.unchangedCount).toBe(1);
+    expect(added.operations.map((item) => item.state)).toEqual([
+      "ADDED",
+      "UNCHANGED",
+    ]);
+    const removed = diffInventories({ base: target, target: base });
+    expect(removed.removedCount).toBe(1);
+    expect(removed.unchangedCount).toBe(1);
+    expect(removed.operations.map((item) => item.state)).toEqual([
+      "REMOVED",
+      "UNCHANGED",
+    ]);
+  });
+
+  it("C03 resolves local OpenAPI Path Item refs and detects contract deltas", () => {
+    const build = (
+      oas: "3.0.3" | "3.1.0",
+      status: string,
+      referenced: boolean,
+      sha256: string,
+    ) => {
+      const operation = {
+        get: {
+          operationId: "listOrders",
+          responses: { [status]: { description: "synthetic" } },
+        },
+      };
+      const document =
+        oas === "3.1.0"
+          ? {
+              openapi: oas,
+              info: { title: "ref", version: "1" },
+              components: { pathItems: { Orders: operation } },
+              paths: {
+                "/orders": referenced
+                  ? { $ref: "#/components/pathItems/Orders" }
+                  : operation,
+              },
+            }
+          : {
+              openapi: oas,
+              info: { title: "ref", version: "1" },
+              paths: {
+                "/prototype": operation,
+                "/orders": referenced
+                  ? { $ref: "#/paths/~1prototype" }
+                  : operation,
+              },
+            };
+      return buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: sha256,
+        bytes: Buffer.from(JSON.stringify(document)),
+        filename: "openapi.json",
+      });
+    };
+    for (const oas of ["3.0.3", "3.1.0"] as const) {
+      const inline = build(oas, "200", false, BASE_SHA);
+      const base = build(oas, "200", true, BASE_SHA);
+      const target = build(oas, "201", true, TARGET_SHA);
+      expect(base.operationCount).toBe(inline.operationCount);
+      expect(base.operations.find((op) => op.path === "/orders")?.method).toBe(
+        "GET",
+      );
+      const diff = diffInventories({ base, target });
+      expect(diff.changedCount).toBe(base.operationCount);
+      expect(diff.operations.find((op) => op.path === "/orders")?.state).toBe(
+        "CHANGED",
+      );
+      expect(
+        diff.operations.find((op) => op.path === "/orders")?.deltas,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: "responseStatusKeys" }),
+        ]),
+      );
+    }
+  });
+
+  it("C03 preserves nonconflicting local Path Item reference siblings", () => {
+    const inventory = buildCompleteOperationInventory({
+      sourceFamily: FAMILY,
+      snapshotSha256: BASE_SHA,
+      filename: "openapi.json",
+      bytes: Buffer.from(
+        JSON.stringify({
+          openapi: "3.1.0",
+          info: { title: "ref siblings", version: "1" },
+          components: {
+            pathItems: {
+              Shared: {
+                get: { responses: { "200": { description: "ok" } } },
+              },
+            },
+          },
+          paths: {
+            "/orders": {
+              $ref: "#/components/pathItems/Shared",
+              post: { responses: { "204": { description: "ok" } } },
+            },
+          },
+        }),
+      ),
+    });
+    expect(inventory.operations.map((op) => op.method)).toEqual([
+      "GET",
+      "POST",
+    ]);
+    expect(inventory.operations.every((op) => op.path === "/orders")).toBe(
+      true,
+    );
+  });
+
+  it("C03 refuses unresolved, recursive, external and overlapping Path Item refs", () => {
+    const build = (pathItem: unknown, referenced: unknown = {}) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "invalid ref", version: "1" },
+            components: { pathItems: { Shared: referenced } },
+            paths: { "/orders": pathItem },
+          }),
+        ),
+      });
+    expect(() => build({ $ref: "#/components/pathItems/Missing" })).toThrow(
+      "APIWATCH_PATH_ITEM_REF_UNRESOLVED",
+    );
+    expect(() => build({ $ref: "remote.yml#/paths/~1orders" })).toThrow(
+      "APIWATCH_PATH_ITEM_REF_UNSUPPORTED",
+    );
+    expect(() =>
+      build(
+        { $ref: "#/components/pathItems/Shared" },
+        { $ref: "#/components/pathItems/Shared" },
+      ),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_CYCLE_OR_DEPTH");
+    expect(() =>
+      build(
+        {
+          $ref: "#/components/pathItems/Shared",
+          get: { responses: { "201": { description: "local" } } },
+        },
+        { get: { responses: { "200": { description: "ref" } } } },
+      ),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_CONFLICT");
+  });
+
+  it("C03 decodes URI-fragment local Path Item refs but rejects invalid pointer escapes", () => {
+    const operation = {
+      get: { responses: { "200": { description: "ok" } } },
+    };
+    const pathItems = Object.fromEntries([
+      ["Shared", operation],
+      ["Bad~2Name", operation],
+      ["__proto__", operation],
+      ["constructor", operation],
+    ]);
+    const build = (ref: string) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "pointers", version: "1" },
+            components: { pathItems },
+            paths: { "/orders": { $ref: ref } },
+          }),
+        ),
+      });
+    for (const ref of [
+      "#/components/pathItems/Shared",
+      "#%2Fcomponents%2FpathItems%2FShared",
+      "#/components/pathItems/Bad~02Name",
+      "#/components/pathItems/__proto__",
+      "#/components/pathItems/constructor",
+    ]) {
+      expect(build(ref).operations.map((op) => op.path)).toEqual(["/orders"]);
+    }
+    expect(() => build("#/components/pathItems/Bad~2Name")).toThrow(
+      "APIWATCH_PATH_ITEM_REF_INVALID",
+    );
+    expect(() => build("#/%ZZ")).toThrow("APIWATCH_PATH_ITEM_REF_INVALID");
+    expect(() => build("#/components/pathItems/toString")).toThrow(
+      "APIWATCH_PATH_ITEM_REF_UNRESOLVED",
+    );
+  });
+
+  it("C03 retains referenced inline fingerprints and limits local reference depth", () => {
+    const shared = {
+      parameters: [{ name: "count", in: "query", schema: { type: "integer" } }],
+      get: {
+        security: [{ bearer: [] }],
+        responses: {
+          "200": {
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { id: { type: "string" } },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const make = (referenced: boolean, sha256: string) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: sha256,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "hash parity", version: "1" },
+            components: {
+              pathItems: { Shared: shared },
+              securitySchemes: {
+                bearer: { type: "http", scheme: "bearer" },
+              },
+            },
+            paths: {
+              "/orders": referenced
+                ? { $ref: "#/components/pathItems/Shared" }
+                : shared,
+            },
+          }),
+        ),
+      });
+    const inline = make(false, BASE_SHA);
+    const referenced = make(true, TARGET_SHA);
+    expect(
+      diffInventories({ base: inline, target: referenced }).unchangedCount,
+    ).toBe(1);
+    for (const field of [
+      "parameterSchemaSha256",
+      "responseSchemaSha256",
+      "securityRequirementsSha256",
+    ] as const)
+      expect(referenced.operations[0]?.[field]).toBe(
+        inline.operations[0]?.[field],
+      );
+
+    const chain = (pathItems: Record<string, unknown>) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "bounded chain", version: "1" },
+            components: { pathItems },
+            paths: { "/orders": { $ref: "#/components/pathItems/P0" } },
+          }),
+        ),
+      });
+    expect(
+      chain({
+        P0: { $ref: "#/components/pathItems/P1" },
+        P1: { get: { responses: { "200": {} } } },
+      }).operationCount,
+    ).toBe(1);
+    const tooDeep = Object.fromEntries(
+      Array.from({ length: 66 }, (_, i) => [
+        `P${i}`,
+        i === 65
+          ? { get: { responses: { "200": {} } } }
+          : { $ref: `#/components/pathItems/P${i + 1}` },
+      ]),
+    );
+    expect(() => chain(tooDeep)).toThrow(
+      "APIWATCH_PATH_ITEM_REF_CYCLE_OR_DEPTH",
+    );
+  });
+
+  it("C03 rejects a Path Item ref into an unrelated component even with a get key", () => {
+    const build = (ref: string, pathItem: Record<string, unknown>) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.1.0",
+            info: { title: "wrong target", version: "1" },
+            components: {
+              parameters: {
+                get: { name: "count", in: "query" },
+              },
+              pathItems: {
+                Shared: pathItem,
+              },
+            },
+            paths: { "/orders": { $ref: ref } },
+          }),
+        ),
+      });
+    expect(() =>
+      build("#/components/parameters", {
+        get: { responses: { "200": {} } },
+      }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    expect(() =>
+      build("#/components/pathItems/Shared", {
+        get: { name: "count", in: "query" },
+      }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    expect(() =>
+      build("#/components/pathItems/Shared", {
+        get: { responses: null },
+      }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    expect(() =>
+      build("#/components/pathItems/Shared", {
+        name: "not a path item",
+      }),
+    ).toThrow("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    expect(
+      build("#/components/pathItems/Shared", {
+        summary: "permitted",
+        get: { responses: { "200": {} } },
+        "x-reference": true,
+      }).operations.map((operation) => operation.method),
+    ).toEqual(["GET"]);
   });
 
   it("C03 detects response-level local ref target changes", () => {
@@ -480,5 +1164,27 @@ describe("A4 semantic API diffs", () => {
     const stored = await new InMemoryApiWatchStore().saveSemanticDiff(diff);
     expect(JSON.stringify(stored)).not.toContain("responses");
     expect(JSON.stringify(stored)).not.toContain("description");
+  });
+});
+
+describe("C03 current-main canonical Unicode route ordering across default locales", () => {
+  it("uses raw code unit path order instead of locale-sensitive collation", () => {
+    const ascii = operation({
+      identity: FAMILY + ":GET:/z",
+      path: "/z",
+    });
+    const accented = operation({
+      identity: FAMILY + ":GET:/ä",
+      path: "/ä",
+    });
+    const diff = compare([], [accented, ascii]);
+    expect(diff.operations.map((item) => item.path)).toEqual(["/z", "/ä"]);
+    expect(diff.diffSha256).toBe(compare([], [ascii, accented]).diffSha256);
+    expect(canonicalSemanticDiff(diff)).toBe(
+      canonicalSemanticDiff({
+        ...diff,
+        operations: [...diff.operations].reverse(),
+      }),
+    );
   });
 });

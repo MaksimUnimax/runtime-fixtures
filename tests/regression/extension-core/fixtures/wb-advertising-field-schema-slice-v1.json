@@ -136,9 +136,17 @@
           "role": "views",
           "unit": "count"
         },
-        "days.nms.nmId": {
+        "days.apps.appType": {
+          "role": "platform_type",
+          "unit": "provider_enum_integer"
+        },
+        "days.apps.nms.nmId": {
           "role": "product_id",
           "unit": "identifier"
+        },
+        "days.apps.nms.sum": {
+          "role": "product_attributed_promotion_statistics_spend_not_actual_cost_ledger",
+          "unit": "provider_money_amount"
         }
       },
       "currencyField": "currency",

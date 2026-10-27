@@ -6,12 +6,14 @@ import json
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
 
 SOURCE = Path(__file__).with_name("owner_test_service_permissions.py")
+sys.path.insert(0, str(SOURCE.parent))
 SPEC = importlib.util.spec_from_file_location("permissions", SOURCE)
 assert SPEC and SPEC.loader
 p = importlib.util.module_from_spec(SPEC)
@@ -57,6 +59,7 @@ class PermissionHelpersTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(p.ProbeError, "ENVIRONMENT_FILE_PATH_MISSING"):
             p.parse_environment_files("")
+        self.assertEqual(p.parse_environment_files("", allow_empty=True), [])
         with self.assertRaisesRegex(p.ProbeError, "ENVIRONMENT_FILE_ENTRY_INVALID"):
             p.parse_environment_files(
                 "/etc/seller-agents-owner-test/api.env (ignore_errors=no) trailing-junk"
@@ -202,14 +205,17 @@ class PermissionHelpersTest(unittest.TestCase):
                 "working": root_a / "apps/api",
                 "binary": root_a / ".runtime/node",
                 "execPaths": [root_a / ".runtime/node", root_a / "apps/api/src/main.ts"],
-                "env": Path("/etc/seller-agents-owner-test/api.env"),
+                "envs": (
+                    Path("/etc/seller-agents-owner-test/api.env"),
+                    Path("/etc/seller-agents-owner-test/api-monitor.env"),
+                ),
             },
             "portal": {
                 "root": root_b,
                 "working": root_b / "apps/portal",
                 "binary": root_b / ".runtime/node",
                 "execPaths": [root_b / ".runtime/node", root_b / "apps/portal/server.js"],
-                "env": Path("/etc/seller-agents-owner-test/portal.env"),
+                "envs": (Path("/etc/seller-agents-owner-test/portal.env"),),
             },
         }
         writable = {"api": Path("/tmp/disposable-api")}
@@ -250,13 +256,99 @@ class PermissionHelpersTest(unittest.TestCase):
                 "sub": "running",
                 "restarts": "2",
                 "releaseSha": SHA,
-                "env": Path("/secret"),
+                "envs": (Path("/secret"),),
             }
         }
         self.assertEqual(
             p.state_signature(units),
             {"api": ("active", "running", "2", SHA)},
         )
+
+
+    def test_snapshot_units_enforces_four_service_env_and_identity_contract(self):
+        values = {}
+        for role, config in p.UNIT_CONFIG.items():
+            unit = config["unit"]
+            root = ROOT
+            wd = str(root / ("apps/admin" if role == "admin" else "apps/portal" if role == "portal" else ""))
+            wd = wd.rstrip("/")
+            envs = {
+                "api": (
+                    "/etc/seller-agents-owner-test/api.env (ignore_errors=no) "
+                    "/etc/seller-agents-owner-test/api-monitor.env (ignore_errors=no)"
+                ),
+                "worker": "/etc/seller-agents-owner-test/api.env (ignore_errors=no)",
+                "portal": "/etc/seller-agents-owner-test/portal.env (ignore_errors=no)",
+                "admin": "",
+            }[role]
+            identities = p.canonical_identities()
+            values[unit] = {
+                "ActiveState": "active",
+                "SubState": "running",
+                "NRestarts": "0",
+                "WorkingDirectory": wd,
+                "EnvironmentFiles": envs,
+                "DynamicUser": "yes" if role == "admin" else "no",
+                "User": "" if role == "admin" else identities[role]["user"],
+                "Group": "" if role == "admin" else identities[role]["group"],
+                "ExecStart": "{ path=" + str(root / ".runtime/node") + " ; argv[]="
+                + str(root / ".runtime/node") + " "
+                + str(root / ("apps/admin/node_modules/next/dist/bin/next" if role == "admin" else
+                              "apps/portal/node_modules/next/dist/bin/next" if role == "portal" else
+                              f"apps/{role}/dist/main.js"))
+                + " ; ignore_errors=no ; }",
+            }
+        def prop(unit, name):
+            return values[unit][name]
+        with mock.patch.object(p, "unit_prop", side_effect=prop):
+            internal, public = p.snapshot_units()
+        self.assertEqual(set(internal), {"api", "worker", "portal", "admin"})
+        self.assertEqual(
+            internal["api"]["envs"],
+            (
+                Path("/etc/seller-agents-owner-test/api.env"),
+                Path("/etc/seller-agents-owner-test/api-monitor.env"),
+            ),
+        )
+        self.assertEqual(internal["admin"]["envs"], ())
+        self.assertEqual(public["admin"]["currentIdentity"], "DYNAMIC_USER")
+        self.assertEqual(public["api"]["currentIdentity"], "EXPLICIT_NON_ROOT_CANONICAL")
+
+    def test_snapshot_units_rejects_monitor_env_leak_and_identity_drift(self):
+        identities = p.canonical_identities()
+        base = {
+            "ActiveState": "active",
+            "SubState": "running",
+            "NRestarts": "0",
+            "WorkingDirectory": str(ROOT),
+            "EnvironmentFiles": (
+                "/etc/seller-agents-owner-test/api.env (ignore_errors=no) "
+                "/etc/seller-agents-owner-test/api-monitor.env (ignore_errors=no)"
+            ),
+            "DynamicUser": "no",
+            "User": identities["worker"]["user"],
+            "Group": identities["worker"]["group"],
+            "ExecStart": "{ path=" + str(ROOT / ".runtime/node") + " ; argv[]="
+            + str(ROOT / ".runtime/node") + " " + str(ROOT / "apps/worker/dist/main.js")
+            + " ; ignore_errors=no ; }",
+        }
+        def prop(unit, name):
+            if unit == "seller-agents-owner-test-worker.service":
+                return base[name]
+            raise AssertionError(unit)
+        original = p.UNIT_CONFIG
+        p.UNIT_CONFIG = {"worker": original["worker"]}
+        try:
+            with mock.patch.object(p, "unit_prop", side_effect=prop):
+                with self.assertRaisesRegex(p.ProbeError, "ENVIRONMENT_FILE_SCOPE_MISMATCH"):
+                    p.snapshot_units()
+            base["EnvironmentFiles"] = "/etc/seller-agents-owner-test/api.env (ignore_errors=no)"
+            base["User"] = "octoport-wrong"
+            with mock.patch.object(p, "unit_prop", side_effect=prop):
+                with self.assertRaisesRegex(p.ProbeError, "SERVICE_IDENTITY_NOT_CANONICAL"):
+                    p.snapshot_units()
+        finally:
+            p.UNIT_CONFIG = original
 
 if __name__ == "__main__":
     unittest.main()

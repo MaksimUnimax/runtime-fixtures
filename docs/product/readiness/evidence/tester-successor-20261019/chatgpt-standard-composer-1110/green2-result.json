@@ -1,0 +1,245 @@
+{
+  "status": "PASS",
+  "scope": "offline synthetic Chromium adapter and composer-state classification",
+  "source_sha256": "29de8892afa63e7f0da1f2c897ac27776275e14dbc83c368fd464c72a4364a59",
+  "content_source_sha256": "c203d65aaa09f17908ab37359f75623e55fa72effcfd97027483372ac49348de",
+  "cases": {
+    "observed_standard_form": {
+      "composer": "observed",
+      "form": "observed-form"
+    },
+    "observed_hidden_clone": {
+      "composer": "observed",
+      "form": "observed-form"
+    },
+    "observed_multiple_forms_rejected": null,
+    "observed_two_fields_rejected": null,
+    "observed_user_message_rejected": null,
+    "observed_assistant_message_rejected": null,
+    "observed_author_role_rejected": null,
+    "observed_section_turn_rejected": null,
+    "observed_article_rejected": null,
+    "observed_role_article_rejected": null,
+    "observed_writing_block_rejected": null,
+    "observed_dialog_rejected": null,
+    "observed_outside_form_rejected": null,
+    "unobserved_label_rejected": null,
+    "legacy_prompt_preserved": {
+      "composer": "legacy",
+      "form": "legacy-form"
+    },
+    "legacy_prompt_precedence": {
+      "composer": "legacy",
+      "form": "legacy-form"
+    },
+    "nested_explicit_outer_actions": [
+      {
+        "id": "inner",
+        "blocks": [
+          "WB_HELP_V1 {}"
+        ],
+        "anchors": [
+          null
+        ]
+      }
+    ],
+    "mixed_document_order": [
+      {
+        "id": "first",
+        "blocks": [
+          "FIRST"
+        ],
+        "anchors": [
+          null
+        ]
+      },
+      {
+        "id": "last",
+        "blocks": [
+          "LAST"
+        ],
+        "anchors": [
+          null
+        ]
+      }
+    ],
+    "old_and_new_same_text": [
+      {
+        "id": "old",
+        "blocks": [
+          "SAME"
+        ],
+        "anchors": [
+          null
+        ]
+      },
+      {
+        "id": "new",
+        "blocks": [
+          "SAME"
+        ],
+        "anchors": [
+          null
+        ]
+      }
+    ],
+    "plain_text_copy": [
+      {
+        "id": "plain",
+        "blocks": [
+          "OZON_HELP_V2 {}\nLINE2"
+        ],
+        "anchors": [
+          null
+        ]
+      }
+    ],
+    "late_copy_pre": [
+      {
+        "id": "late",
+        "blocks": [
+          "WB_API_V1 {\n  \"operation\":\"seller_info\",\n  \"params\":{}\n}"
+        ],
+        "anchors": [
+          null
+        ]
+      }
+    ],
+    "legacy_viewer_cm": [
+      {
+        "id": "legacy",
+        "blocks": [
+          "LEGACY",
+          "CM"
+        ],
+        "anchors": [
+          null,
+          null
+        ]
+      }
+    ],
+    "user_reject": [],
+    "ambiguous_nested_user": [],
+    "unrelated_actions": [],
+    "two_actions": [],
+    "response_copy_only_plain": [
+      {
+        "id": "response-only",
+        "blocks": [],
+        "anchors": []
+      }
+    ],
+    "response_copy_data_state_plain": [
+      {
+        "id": "response-data-state",
+        "blocks": [],
+        "anchors": []
+      }
+    ],
+    "fenced_response_copy": [
+      {
+        "id": "fenced-response",
+        "blocks": [
+          "FENCED"
+        ],
+        "anchors": [
+          "fenced-pre"
+        ]
+      }
+    ],
+    "real_and_response_copy": [
+      {
+        "id": "both",
+        "blocks": [
+          "REAL"
+        ],
+        "anchors": [
+          "real-copy"
+        ]
+      }
+    ],
+    "localized_response_copy": [
+      {
+        "id": "localized-response",
+        "blocks": [],
+        "anchors": []
+      }
+    ],
+    "attributed_user": {
+      "id": "u1",
+      "text": "Exact instruction"
+    },
+    "localized_attribution": {
+      "id": "u2",
+      "text": "Exact instruction"
+    },
+    "literal_label_in_body": {
+      "id": "u3",
+      "text": "You said: is part of my instruction"
+    },
+    "ambiguous_bodies": {
+      "id": "u4",
+      "text": ""
+    },
+    "legacy_user": {
+      "id": "u5",
+      "text": "Exact instruction"
+    },
+    "modern_submit_active": {
+      "kind": "work_send_active",
+      "id": "modern"
+    },
+    "modern_submit_aria_disabled": {
+      "kind": "work_send_disabled",
+      "id": "modern"
+    },
+    "modern_submit_native_disabled": {
+      "kind": "work_send_disabled",
+      "id": "modern"
+    },
+    "modern_submit_stop": {
+      "kind": "stop",
+      "id": "modern"
+    },
+    "localized_submit_active": {
+      "kind": "work_send_active",
+      "id": "localized"
+    },
+    "localized_submit_stop": {
+      "kind": "stop",
+      "id": "localized"
+    },
+    "duplicate_submit_rejected": {
+      "kind": "unknown",
+      "id": null
+    },
+    "assistant_submit_rejected": {
+      "kind": "unknown",
+      "id": null
+    },
+    "outside_submit_rejected": {
+      "kind": "unknown",
+      "id": null
+    },
+    "legacy_work_submit": {
+      "kind": "work_send_disabled",
+      "id": "composer-submit-button"
+    },
+    "legacy_microphone": {
+      "kind": "microphone",
+      "id": null
+    },
+    "active_send_with_microphone": {
+      "kind": "send_active",
+      "id": null
+    },
+    "disabled_send_with_microphone": {
+      "kind": "microphone",
+      "id": null
+    },
+    "stop_with_microphone": {
+      "kind": "stop",
+      "id": null
+    }
+  }
+}
