@@ -980,9 +980,6 @@ class CurrentMigrationSettlementTests(unittest.TestCase):
         self.assertEqual(before,{p:p.read_bytes() for p in before})
         self.assertEqual(case.events,events_before)
 
-if __name__ == "__main__":
-    unittest.main()
-
 class CurrentFourServiceSourcePlanTests(unittest.TestCase):
     """Pure source contract only: no systemd, DB, network or credentials."""
 
@@ -2534,3 +2531,7 @@ class CurrentCliAuthorityTests(unittest.TestCase):
                     expected_source_tree=self.tree,
                     expected_inventory_sha256=self.inventory,
                 )
+
+
+if __name__ == "__main__":
+    unittest.main()
