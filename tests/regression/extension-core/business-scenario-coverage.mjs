@@ -451,7 +451,9 @@ const calculators = {
         return null;
       if (
         currentProof.metric === "money"
-          ? !/^[A-Z]{3}$/.test(currentProof.currency) ||
+          ? typeof currentProof.currency !== "string" ||
+            currentProof.currency.length !== 3 ||
+            !/^[A-Z]{3}$/.test(currentProof.currency) ||
             currentProof.unit !== currentProof.currency
           : currentProof.currency !== null || currentProof.unit !== "count"
       )
@@ -1666,6 +1668,17 @@ const std04InvalidClaims = [
         ...std04Proof,
         current: { ...std04Proof.current, currency: "RUB4", unit: "RUB4" },
         previous: { ...std04Proof.previous, currency: "RUB4", unit: "RUB4" },
+      },
+    },
+  ],
+  [
+    "currency_final_line_feed",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, currency: "RUB\n", unit: "RUB\n" },
+        previous: { ...std04Proof.previous, currency: "RUB\n", unit: "RUB\n" },
       },
     },
   ],
