@@ -1,4 +1,11 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import {
+  adminLogin,
+  adminOrigin,
+  login,
+  reset,
+  seedAdminIdentity,
+} from "./support/fixtures.js";
 
 const accountId = "11111111-1111-4111-8111-111111111111";
 const caseId = "22222222-2222-4222-8222-222222222222";
@@ -362,4 +369,97 @@ test.describe("portal feedback recovery", () => {
       release();
     }
   });
+});
+
+/**
+ * B16-03: real disposable E2E API, PostgreSQL, Portal and Admin, rather than
+ * the page.route canned support detail used by the isolated UI tests above.
+ * The suite harness refuses non-loopback/non-test DBs before any reset.
+ */
+test("B16-03 staff status and note reach the original case owner through the real BFF/API", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  await reset();
+  await login(page, "/feedback");
+  const userMain = page.getByRole("main");
+  const supportEmail = "b16-03-support@example.test";
+  await seedAdminIdentity(supportEmail, "ADMIN_SUPPORT");
+  const staffReply = "SYNTHETIC_B16_APPROVED_SUPPORT_RESPONSE";
+  const userReport = "SYNTHETIC_B16_OWNER_CASE_DESCRIPTION";
+
+  await expect(
+    userMain.getByRole("heading", { name: "Обратная связь" }),
+  ).toBeVisible();
+  await userMain.getByRole("textbox", { name: "Описание" }).fill(userReport);
+  const created = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/api/control-plane/v1/support/cases"),
+  );
+  await userMain
+    .getByRole("button", { name: "Отправить", exact: true })
+    .click();
+  const createdResponse = await created;
+  expect(createdResponse.status()).toBe(200);
+  const createdPayload = (await createdResponse.json()) as {
+    case?: { caseId?: string };
+  };
+  const createdCaseId = createdPayload.case?.caseId;
+  if (!createdCaseId || !/^[0-9a-f-]{36}$/iu.test(createdCaseId))
+    throw new Error("B16_REAL_USER_CASE_ID_UNCONFIRMED");
+  await expect(
+    userMain.getByText(`Номер обращения: ${createdCaseId}`),
+  ).toBeVisible();
+
+  // A distinct browser context represents the prepared support role. Its
+  // admin session and cookies are never shared with the original user.
+  const adminContext = await browser.newContext();
+  try {
+    const adminPage = await adminContext.newPage();
+    await adminLogin(adminPage, supportEmail);
+    await adminPage.goto(`${adminOrigin}/support`);
+    await expect(
+      adminPage.getByRole("heading", { name: "Support cases" }),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByRole("link", { name: "Plans", exact: true }),
+    ).toHaveCount(0);
+    const supportRow = adminPage
+      .getByRole("row")
+      .filter({ hasText: createdCaseId });
+    await expect(supportRow).toBeVisible();
+    await supportRow.getByRole("button", { name: "Open" }).click();
+    await expect(
+      adminPage.getByRole("heading", {
+        name: `OTHER · ${createdCaseId}`,
+      }),
+    ).toBeVisible();
+
+    await adminPage
+      .getByRole("button", { name: "TRIAGED", exact: true })
+      .click();
+    await expect(adminPage.getByText("Support case updated.")).toBeVisible();
+    await adminPage
+      .getByRole("textbox", { name: "Follow-up" })
+      .fill(staffReply);
+    await adminPage.getByRole("button", { name: "Add follow-up" }).click();
+    await expect(adminPage.getByText(`SUPPORT: ${staffReply}`)).toBeVisible();
+  } finally {
+    await adminContext.close();
+  }
+
+  await userMain.getByRole("button", { name: "Обновить", exact: true }).click();
+  const ownRow = userMain
+    .getByRole("listitem")
+    .filter({ hasText: createdCaseId })
+    .first();
+  await expect(ownRow).toContainText("TRIAGED");
+  await ownRow
+    .getByRole("button", { name: "Проверить ответ поддержки" })
+    .click();
+  await expect(ownRow.getByText(staffReply)).toBeVisible();
+  await expect(ownRow.getByText("Актуальный статус: TRIAGED")).toBeVisible();
+  await expect(userMain.getByText(userReport)).toBeVisible();
 });
