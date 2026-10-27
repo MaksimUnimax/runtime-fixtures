@@ -270,17 +270,20 @@ const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
 // The ordinary line-level regex would mask only the first physical line.
 // If its quoted credential spans a raw LF/CR, no trustworthy free-text
 // suffix boundary exists: discard the entire diagnostic, never its tail.
-// Match the same horizontal whitespace as the fallback secret redactor,
-// including Unicode separators, and optional log-escaped quote prefixes.
-// Never let a first-line-only mask expose subsequent secret text.
+// Recognize the entire sensitive bare key, even with a long prefix, and
+// the same Unicode whitespace as the fallback first-line secret redactor.
+// Also recognize log-escaped quote openers. Fail closed on line breaks,
+// including those between the key and value, before redaction can leak a tail.
 const bareQuotedCredentialValueStart =
-  /\b([A-Za-z_][A-Za-z0-9_-]{0,63})[^\S\r\n]*[:=][^\S\r\n]*(?:\\*)(["'])/gu;
+  /\b([A-Za-z_][A-Za-z0-9_-]*)\s*[:=]\s*(?:\\*)(["'])/gu;
 
 function hasBareQuotedMultilineCredential(input: string): boolean {
   bareQuotedCredentialValueStart.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = bareQuotedCredentialValueStart.exec(input)) !== null) {
     if (!sensitiveJsonKey.test(match[1]!)) continue;
+    // A CR/LF before the opening quote is just as ambiguous as one inside it.
+    if (/[\r\n]/u.test(match[0])) return true;
     const quote = match[2]!;
     let escaped = false;
     let closed = false;

@@ -701,6 +701,27 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitized).not.toContain("SYNTHETIC_UNSAFE_TAIL_");
   });
 
+  it.each([
+    [
+      "LF between delimiter and opening quote",
+      'password:\n"SYNTHETIC_PREFIX_HEAD_841\nSYNTHETIC_PREFIX_TAIL_842"',
+    ],
+    [
+      "CR before the delimiter",
+      'access_token\r=\r"SYNTHETIC_PREFIX_HEAD_843\rSYNTHETIC_PREFIX_TAIL_844"',
+    ],
+    [
+      "long key with sensitive suffix",
+      "x".repeat(100) +
+        '_password: "SYNTHETIC_PREFIX_HEAD_845\nSYNTHETIC_PREFIX_TAIL_846"',
+    ],
+  ])("fails closed on a %s in a bare credential", (_case, raw) => {
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).toBe("[REDACTED_SECRET]");
+    expect(sanitized).not.toContain("SYNTHETIC_PREFIX_HEAD_");
+    expect(sanitized).not.toContain("SYNTHETIC_PREFIX_TAIL_");
+  });
+
   it("preserves harmless bare-key multiline text and masks single-line credentials", () => {
     const safe = 'message: "safe first line\nsafe second line"';
     expect(sanitizeFeedbackText(safe)).toBe(safe);
@@ -793,6 +814,15 @@ describe("B2 feedback/support safety foundation", () => {
     [
       "Unicode whitespace",
       'access_token:\u00a0"SYNTHETIC_SINK_HEAD_833\rSYNTHETIC_SINK_TAIL_834"',
+    ],
+    [
+      "LF before quote",
+      'password:\n"SYNTHETIC_SINK_HEAD_835\nSYNTHETIC_SINK_TAIL_836"',
+    ],
+    [
+      "long suffix key",
+      "z".repeat(100) +
+        '_password: "SYNTHETIC_SINK_HEAD_837\nSYNTHETIC_SINK_TAIL_838"',
     ],
   ])("blocks %s secret in repository sinks", async (_case, text) => {
     const forwarded: string[] = [];
