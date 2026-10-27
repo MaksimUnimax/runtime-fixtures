@@ -115,6 +115,43 @@ class VerifyOpsReleaseTest(unittest.TestCase):
         ):
             verify_release(self.root)
 
+    def test_special_mode_bits_on_release_files_fail_closed(self) -> None:
+        payload = self.root / "payload.txt"
+        for name, mode in (
+            ("setuid", 0o4755),
+            ("setgid", 0o2755),
+            ("sticky", 0o1755),
+        ):
+            with self.subTest(special_bit=name):
+                try:
+                    payload.chmod(mode)
+                    self._refresh_metadata()
+                    self.assertEqual(payload.stat().st_mode & 0o7777, mode)
+                    with self.assertRaisesRegex(
+                        ReleaseVerificationError, "RELEASE_PERMISSIONS_INVALID"
+                    ):
+                        verify_release(self.root)
+                finally:
+                    payload.chmod(0o644)
+
+    def test_special_mode_bits_on_release_directories_fail_closed(self) -> None:
+        runtime = self.root / "runtime"
+        for name, mode in (
+            ("setuid", 0o4755),
+            ("setgid", 0o2755),
+            ("sticky", 0o1755),
+        ):
+            with self.subTest(special_bit=name):
+                try:
+                    runtime.chmod(mode)
+                    self.assertEqual(runtime.stat().st_mode & 0o7777, mode)
+                    with self.assertRaisesRegex(
+                        ReleaseVerificationError, "RELEASE_PERMISSIONS_INVALID"
+                    ):
+                        verify_release(self.root)
+                finally:
+                    runtime.chmod(0o755)
+
     def test_untraversable_directory_fails(self) -> None:
         runtime = self.root / "runtime"
         runtime.chmod(0o700)
@@ -224,6 +261,21 @@ class VerifyOpsReleaseTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertEqual(json.loads(result.stdout)["sourceSha"], SOURCE_SHA)
+
+    def test_cli_exact_expected_pair_rejects_special_file_mode(self) -> None:
+        payload = self.root / "payload.txt"
+        payload.chmod(0o4755)
+        self._refresh_metadata()
+        result = self._run_cli(
+            "--expected-source-sha",
+            SOURCE_SHA,
+            "--expected-source-tree",
+            SOURCE_TREE,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(
+            json.loads(result.stderr)["code"], "RELEASE_PERMISSIONS_INVALID"
+        )
 
     def test_cli_wrong_expected_tree_fails_without_accepted_release(self) -> None:
         result = self._run_cli(
