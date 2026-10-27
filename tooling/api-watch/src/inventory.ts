@@ -339,24 +339,31 @@ function effectiveParameters(
 ): Record<string, unknown>[] {
   const effective = new Map<string, Record<string, unknown>>();
   let unresolvedIndex = 0;
-  const add = (raw: unknown) => {
-    const parameter = asObject(localRef(raw, root));
-    const identity =
-      typeof parameter.name === "string" && typeof parameter.in === "string"
-        ? JSON.stringify([
-            parameter.in === "header"
-              ? parameter.name.toLowerCase()
-              : parameter.name,
-            parameter.in,
-          ])
-        : "unresolved:" + unresolvedIndex++;
-    effective.set(identity, parameter);
+  // Path Item and Operation parameter arrays must EACH be duplicate-free.
+  // An Operation-level declaration may still replace one Path-level parameter.
+  const addLevel = (values: readonly unknown[]) => {
+    const seenAtLevel = new Set<string>();
+    for (const raw of values) {
+      const parameter = asObject(localRef(raw, root));
+      const identity =
+        typeof parameter.name === "string" && typeof parameter.in === "string"
+          ? JSON.stringify([
+              parameter.in === "header"
+                ? parameter.name.toLowerCase()
+                : parameter.name,
+              parameter.in,
+            ])
+          : "unresolved:" + unresolvedIndex++;
+      // Do not let last-write-wins hide conflicting schema or requiredness
+      // within the same source declaration, including resolved $ref aliases.
+      if (seenAtLevel.has(identity))
+        throw new Error("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+      seenAtLevel.add(identity);
+      effective.set(identity, parameter);
+    }
   };
-  for (const parameter of pathParameters) add(parameter);
-  for (const parameter of Array.isArray(operation.parameters)
-    ? operation.parameters
-    : [])
-    add(parameter);
+  addLevel(pathParameters);
+  addLevel(Array.isArray(operation.parameters) ? operation.parameters : []);
   return [...effective.values()];
 }
 

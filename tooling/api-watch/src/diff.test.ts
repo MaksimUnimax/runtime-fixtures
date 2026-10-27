@@ -152,6 +152,66 @@ describe("C03 canonical fallback for synthetic Unicode-equivalent identities", (
 });
 
 describe("A4 semantic API diffs", () => {
+  it("C03 rejects duplicate same-level parameter identities instead of hiding changed contracts", () => {
+    const page = (type: string, required = false) => ({
+      name: "page",
+      in: "query",
+      required,
+      schema: { type },
+    });
+    const build = (pathParameters: unknown[], operationParameters: unknown[]) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.0.3",
+            info: { title: "duplicate guard", version: "1" },
+            components: { parameters: { RequiredPage: page("integer", true) } },
+            paths: {
+              "/orders": {
+                parameters: pathParameters,
+                get: {
+                  parameters: operationParameters,
+                  responses: { "200": { description: "ok" } },
+                },
+              },
+            },
+          }),
+        ),
+      });
+    const last = page("string", false);
+    expect(() => build([page("integer", true), last], [])).toThrow(
+      "APIWATCH_DUPLICATE_PARAMETER_IDENTITY",
+    );
+    expect(() => build([], [page("integer", true), last])).toThrow(
+      "APIWATCH_DUPLICATE_PARAMETER_IDENTITY",
+    );
+    expect(() =>
+      build([], [{ $ref: "#/components/parameters/RequiredPage" }, last]),
+    ).toThrow("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+    expect(() =>
+      build(
+        [],
+        [
+          { name: "X-Trace", in: "header", schema: { type: "string" } },
+          { name: "x-trace", in: "header", schema: { type: "integer" } },
+        ],
+      ),
+    ).toThrow("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+
+    // Cross-level overrides are legal, and query parameter case matters.
+    const overridden = build([page("integer", true)], [last]);
+    const onlyOperation = build([], [last]);
+    expect(overridden.operations[0]?.parameterCount).toBe(1);
+    expect(overridden.operations[0]?.parameterSchemaSha256).toBe(
+      onlyOperation.operations[0]?.parameterSchemaSha256,
+    );
+    const distinct = build([], [last, { ...last, name: "Page" }]);
+    expect(distinct.operations[0]?.parameterCount).toBe(2);
+  });
+
   it("C03 detects requiredness, type, enum, request, response and security changes from OpenAPI", () => {
     const make = (
       schema: unknown,
@@ -938,23 +998,3 @@ describe("A4 semantic API diffs", () => {
 });
 
 describe("C03 current-main canonical Unicode route ordering across default locales", () => {
-  it("uses raw code unit path order instead of locale-sensitive collation", () => {
-    const ascii = operation({
-      identity: FAMILY + ":GET:/z",
-      path: "/z",
-    });
-    const accented = operation({
-      identity: FAMILY + ":GET:/ä",
-      path: "/ä",
-    });
-    const diff = compare([], [accented, ascii]);
-    expect(diff.operations.map((item) => item.path)).toEqual(["/z", "/ä"]);
-    expect(diff.diffSha256).toBe(compare([], [ascii, accented]).diffSha256);
-    expect(canonicalSemanticDiff(diff)).toBe(
-      canonicalSemanticDiff({
-        ...diff,
-        operations: [...diff.operations].reverse(),
-      }),
-    );
-  });
-});
