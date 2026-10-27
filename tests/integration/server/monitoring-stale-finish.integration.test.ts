@@ -275,9 +275,11 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     });
     const runId = requiredRunId(start);
     let lockAcquired!: () => void;
+    let lockFailed!: (reason: unknown) => void;
     let releaseLock!: () => void;
-    const locked = new Promise<void>((resolve) => {
+    const locked = new Promise<void>((resolve, reject) => {
       lockAcquired = resolve;
+      lockFailed = reject;
     });
     const permitRelease = new Promise<void>((resolve) => {
       releaseLock = resolve;
@@ -291,30 +293,36 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
       lockAcquired();
       await permitRelease;
     });
-    await locked;
-    const pending = storeA.finishRun({
-      lane: "SWAGGER_API",
-      runId,
-      now: at(51),
-      result,
-    });
-    let settled = false;
-    void pending.then(
-      () => {
-        settled = true;
-      },
-      () => {
-        settled = true;
-      },
-    );
+    // If acquiring the lane row itself fails, reject the readiness barrier,
+    // rather than waiting until the test's timeout with a pending promise.
+    void holder.catch(lockFailed);
+    let pending: ReturnType<typeof storeA.finishRun> | null = null;
     try {
-      // The finish is blocked by the existing holder, while the lease expires.
+      // Readiness and the blocked completion are both covered by cleanup.
+      await locked;
+      pending = storeA.finishRun({
+        lane: "SWAGGER_API",
+        runId,
+        now: at(51),
+        result,
+      });
+      let settled = false;
+      void pending.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      // Finish must be blocked by the holder while its lease expires.
       await new Promise((resolve) => setTimeout(resolve, 1900));
       expect(settled).toBe(false);
     } finally {
       releaseLock();
       await holder;
     }
+    if (!pending) throw new Error("C03_LOCK_TEST_MISSING_PENDING_FINISH");
     await expect(pending).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
     const after = await storeB.getState("SWAGGER_API");
     expect(after.activeRun?.runId).toBe(runId);
