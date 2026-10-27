@@ -1483,6 +1483,9 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
     def patch_common(self, events):
         stack=ExitStack()
         stack.enter_context(patch.object(deploy,"verified_current_source_plan",return_value=self.plan))
+        stack.enter_context(patch.object(deploy,"database_url",return_value="postgres://fixture@localhost/db"))
+        stack.enter_context(patch.object(deploy,"check_migration_prefix_for_release",
+                                         return_value={"status":"PASS_PREFIX","applied":17}))
         stack.enter_context(patch.object(deploy,"current_install_reboot_fence",side_effect=lambda plan,**kwargs:events.append("fence-install")))
         stack.enter_context(patch.object(deploy,"current_enable_fenced_start",side_effect=lambda:events.append("fence-allow")))
         stack.enter_context(patch.object(deploy,"current_disable_fenced_start",side_effect=lambda:events.append("fence-block")))
@@ -1553,6 +1556,182 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 )
             stop.assert_not_called()
 
+
+    def test_baseline_partial_start_and_power_loss_preserve_rows_on_retry(self):
+        for crash in (False, True):
+            with self.subTest(power_loss=crash):
+                # Separate apply evidence: a completed previous deployment must
+                # not be rewritten into an unrelated UNKNOWN recovery attempt.
+                self.evidence=self.root/("apply-baseline-"+str(crash))
+                self.evidence.mkdir();(self.evidence/"dropins-before").mkdir()
+                self.write_state("UNKNOWN");events=[];rows=[];restores=[]
+                crashed=False;starts=0
+                real_write=deploy.write_json_durable
+                class PowerLoss(BaseException):
+                    pass
+                def durable(path,value):
+                    if crashed: raise PowerLoss("POWER_LOSS")
+                    return real_write(path,value)
+                def restore(*args,**kwargs):
+                    restores.append("restore");rows.clear();return 17
+                def start(plan,baseline):
+                    nonlocal crashed,starts
+                    starts+=1;rows.append("session-"+str(starts))
+                    for path in (self.journal,self.evidence/"receipt.json"):
+                        saved=json.loads(path.read_text())
+                        self.assertTrue(saved["applicationMayHaveWritten"])
+                        self.assertEqual(saved["schemaState"],"PREDEPLOY_VERIFIED")
+                        self.assertEqual(saved["phase"],"BASELINE_START_REQUESTED")
+                    if starts==1:
+                        if crash:
+                            crashed=True
+                            raise PowerLoss("POWER_LOSS")
+                        raise RuntimeError("PARTIAL_BASELINE_START")
+                with self.patch_common(events) as stack:
+                    stack.enter_context(patch.object(deploy,"database_url",return_value="postgres://u@localhost/db"))
+                    stack.enter_context(patch.object(deploy,"db_identity",return_value=("u","p","db",None)))
+                    stack.enter_context(patch.object(deploy,"check_migration_prefix_for_release",return_value={"status":"PASS_PREFIX","applied":17}))
+                    stack.enter_context(patch.object(deploy,"current_restore_live_backup",side_effect=restore))
+                    stack.enter_context(patch.object(deploy,"current_restore_unit_states",side_effect=start))
+                    with patch.object(deploy,"write_json_durable",side_effect=durable):
+                        with self.assertRaises(PowerLoss if crash else RuntimeError):
+                            self.recover_forward_target()
+                    crashed=False
+                    self.recover_forward_target()
+                self.assertEqual(rows,["session-1","session-2"])
+                self.assertEqual(restores,["restore"])
+        attempts=list(self.root.glob("apply-baseline-*/baseline-recovery-*.json"))
+        self.assertEqual(len(attempts),4)
+        self.assertEqual(sum(json.loads(p.read_text())["status"]=="CURRENT_RECOVERY_PASS" for p in attempts),2)
+
+    def test_automatic_baseline_power_loss_preserves_rows_on_recovery(self):
+        case=CurrentApplyEngineTests("test_success_migrates_before_switch_and_records_target")
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        evidence=case.root/"apply-baseline-power-loss";evidence.mkdir()
+        journal=case.root/"deployment-state.json"
+        rows=[];restores=[];crashed=False;starts=0
+        real_write=deploy.write_json_durable
+        class PowerLoss(BaseException):
+            pass
+        def durable(path,value):
+            if crashed: raise PowerLoss("POWER_LOSS")
+            return real_write(path,value)
+        def restore(*args,**kwargs):
+            restores.append("restore");rows.clear();case.prefix=17;return 17
+        def start(plan,baseline):
+            nonlocal crashed,starts
+            starts+=1;rows.append("baseline-session-"+str(starts))
+            for path in (journal,evidence/"receipt.json"):
+                saved=json.loads(path.read_text())
+                self.assertTrue(saved["applicationMayHaveWritten"])
+                self.assertEqual(saved["schemaState"],"PREDEPLOY_VERIFIED")
+                self.assertEqual(saved["phase"],"BASELINE_START_REQUESTED")
+            if starts==1:
+                crashed=True
+                raise PowerLoss("POWER_LOSS")
+        with case.patches(migrate_error="MIGRATION_FAILED"), \
+             patch.object(deploy,"current_restore_live_backup",side_effect=restore), \
+             patch.object(deploy,"current_restore_unit_states",side_effect=start):
+            with patch.object(deploy,"write_json_durable",side_effect=durable):
+                with self.assertRaises(PowerLoss):
+                    deploy.current_apply_engine(
+                        candidate_release=case.release,expected_source_sha="a"*40,
+                        expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                        evidence_root=case.root,journal=journal,evidence_dir=evidence,
+                    )
+            crashed=False
+            deploy.current_recover_engine(
+                candidate_release=case.release,expected_source_sha="a"*40,
+                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                evidence_root=case.root,journal=journal,
+            )
+        self.assertEqual(rows,["baseline-session-1","baseline-session-2"])
+        self.assertEqual(restores,["restore"])
+
+    def baseline_started_state(self):
+        self.forward_state()
+        for path in (self.evidence/"receipt.json",self.journal):
+            value=json.loads(path.read_text())
+            value.update(schemaState="PREDEPLOY_VERIFIED",phase="BASELINE_START_REQUESTED")
+            path.write_text(json.dumps(value))
+
+    def test_baseline_retry_checks_retained_prefix_without_dump_replay(self):
+        self.baseline_started_state();events=[]
+        with self.patch_common(events), \
+             patch.object(deploy,"check_migration_prefix_for_release",side_effect=RuntimeError("MIGRATION_HASH_MISMATCH")), \
+             patch.object(deploy,"current_restore_live_backup") as restore:
+            with self.assertRaisesRegex(RuntimeError,"MIGRATION_HASH_MISMATCH"):
+                self.recover_forward_target()
+        restore.assert_not_called()
+        self.assertNotIn("units",events)
+        self.assertNotIn("dropins",events)
+        self.assertTrue(json.loads(self.journal.read_text())["applicationMayHaveWritten"])
+
+    def test_baseline_retry_rejects_torn_or_unbound_records_before_mutation(self):
+        cases=[
+            ("receipt","schemaState","UNKNOWN","CURRENT_BASELINE_SCHEMA_UNCONFIRMED"),
+            ("journal","schemaState","UNKNOWN","CURRENT_FORWARD_SCHEMA_UNCONFIRMED"),
+            ("journal","candidateSourceSha","f"*40,"CURRENT_BASELINE_ORIGIN_UNCONFIRMED"),
+        ]
+        for name,key,value,error in cases:
+            with self.subTest(record=name,field=key):
+                self.baseline_started_state();events=[]
+                path=self.journal if name=="journal" else self.evidence/"receipt.json"
+                payload=json.loads(path.read_text());payload[key]=value;path.write_text(json.dumps(payload))
+                with self.patch_common(events),patch.object(deploy,"current_restore_live_backup") as restore:
+                    with self.assertRaisesRegex(RuntimeError,error):
+                        self.recover_forward_target()
+                restore.assert_not_called()
+                self.assertEqual(events,[])
+
+    def test_baseline_retry_cannot_substitute_a_different_source(self):
+        self.baseline_started_state();events=[]
+        self.plan.update(sourceSha="d"*40,sourceTree="e"*40,trustedInventorySha256="f"*64)
+        with self.patch_common(events),patch.object(deploy,"current_restore_live_backup") as restore:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_RECOVERY_IDENTITY_MISMATCH"):
+                self.recover_forward_target()
+        restore.assert_not_called()
+        self.assertEqual(events,[])
+
+    def test_legacy_failed_recovery_does_not_authorize_dump_replay(self):
+        self.write_state("UNKNOWN");events=[]
+        (self.evidence/"recovery.json").write_text(json.dumps({"status":"FAILED","schemaState":"UNKNOWN"}))
+        with self.patch_common(events),patch.object(deploy,"current_restore_live_backup") as restore:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_BASELINE_REPLAY_UNCONFIRMED"):
+                self.recover_forward_target()
+        restore.assert_not_called()
+        self.assertEqual(events,[])
+
+    def test_previous_recovery_symlink_is_not_followed(self):
+        self.write_state("UNKNOWN");events=[]
+        outside=self.root/"unrelated-record.json"
+        outside.write_text(json.dumps({"applicationMayHaveWritten":False}))
+        (self.evidence/"recovery.json").symlink_to(outside)
+        with self.patch_common(events),patch.object(deploy,"current_restore_live_backup") as restore:
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_BASELINE_REPLAY_UNCONFIRMED"):
+                self.recover_forward_target()
+        restore.assert_not_called()
+        self.assertEqual(events,[])
+
+    def test_baseline_journal_write_failure_never_starts_or_replays_dump(self):
+        self.write_state("UNKNOWN");events=[]
+        real_write=deploy.write_json_durable
+        def fail_start_journal(path,value):
+            if path==self.journal and value.get("phase")=="BASELINE_START_REQUESTED":
+                raise OSError("JOURNAL_WRITE_FAILED")
+            return real_write(path,value)
+        with self.patch_common(events), \
+             patch.object(deploy,"db_identity",return_value=("u","p","db",None)), \
+             patch.object(deploy,"current_restore_live_backup",return_value=17) as restore:
+            with patch.object(deploy,"write_json_durable",side_effect=fail_start_journal):
+                with self.assertRaisesRegex(OSError,"JOURNAL_WRITE_FAILED"):
+                    self.recover_forward_target()
+            self.assertNotIn("units",events)
+            self.assertNotIn("fence-allow",events)
+            with self.assertRaisesRegex(RuntimeError,"CURRENT_FORWARD_SCHEMA_UNCONFIRMED"):
+                self.recover_forward_target()
+            self.assertEqual(restore.call_count,1)
 
     def forward_state(self, *, legacy=False):
         self.write_state("CANDIDATE_VERIFIED")

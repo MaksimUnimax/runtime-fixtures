@@ -1125,6 +1125,14 @@ def _current_apply_engine_locked(
                 )
                 schema_state='PREDEPLOY_VERIFIED'
             current_restore_dropins(plan,dropin_backup)
+            check_migration_prefix_for_release(
+                candidate_release,base_url,expected_count=predeploy,
+            )
+            # Baseline services may write before a later service fails.
+            # Both durable records must precede admission of the first writer.
+            schema_state='PREDEPLOY_VERIFIED'
+            result['applicationMayHaveWritten']=True
+            phase='BASELINE_START_REQUESTED'; record()
             current_enable_fenced_start()
             current_restore_unit_states(plan,baseline_units)
             current_remove_reboot_fence(plan)
@@ -1173,7 +1181,8 @@ def current_application_may_have_written(state: dict, receipt: dict) -> bool:
         if marker is not None and type(marker) is not bool:
             raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
         if marker is True or item.get('phase') in (
-            'APPLICATION_START_REQUESTED','SWITCHING_APPLICATION','CANDIDATE_PASS',
+            'APPLICATION_START_REQUESTED','BASELINE_START_REQUESTED',
+            'SWITCHING_APPLICATION','CANDIDATE_PASS',
         ):
             possible=True
     # Older receipts did not persist the start boundary. A verified migrated
@@ -1326,13 +1335,35 @@ def _current_recover_engine_locked(
     schema_state=state.get('schemaState')
     if schema_state not in ('PREDEPLOY_VERIFIED','UNKNOWN','CANDIDATE_VERIFIED'):
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
-    if may_have_written and predeploy<target:
+    if may_have_written and schema_state=='PREDEPLOY_VERIFIED':
+        # Torn or conflicting records never justify a destructive dump replay.
+        if receipt.get('schemaState')!='PREDEPLOY_VERIFIED':
+            raise RuntimeError('CURRENT_BASELINE_SCHEMA_UNCONFIRMED')
+        for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix','candidateTarget'):
+            if state.get(field)!=receipt.get(field):
+                raise RuntimeError('CURRENT_BASELINE_ORIGIN_UNCONFIRMED')
+    elif may_have_written and predeploy<target:
         return current_forward_recover(
             plan=plan,candidate_release=candidate_release,state=state,receipt=receipt,
             evidence_dir=evidence_dir,journal=journal,target=target,
         )
     if not same_source:
         raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
+    if plan.get('migrationTarget',{}).get('count')!=target:
+        raise RuntimeError('CURRENT_BASELINE_SCHEMA_TARGET_MISMATCH')
+    # Pre-fix failed recovery did not record whether baseline writers started.
+    previous=evidence_dir/'recovery.json'
+    if not may_have_written and schema_state!='PREDEPLOY_VERIFIED' and os.path.lexists(previous):
+        if previous.is_symlink() or not previous.is_file():
+            raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+        try:
+            prior=json.loads(previous.read_text())
+        except (OSError,ValueError):
+            raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED') from None
+        if not isinstance(prior,dict) or type(prior.get('applicationMayHaveWritten')) is not bool:
+            raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+        if prior['applicationMayHaveWritten']:
+            raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
     result={
         'status':'CURRENT_RECOVERY_STARTED',
         'recoveryRequired':True,
@@ -1341,7 +1372,11 @@ def _current_recover_engine_locked(
         'predeployPrefix':predeploy,
         'candidateTarget':target,
         'schemaState':schema_state,
+        'applicationMayHaveWritten':may_have_written,
     }
+    stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    output=evidence_dir/f'baseline-recovery-{stamp}.json'
+    write_json_durable(output,result)
     try:
         current_prepare_recovery_fence(plan)
         current_stop_product_units(plan)
@@ -1363,7 +1398,29 @@ def _current_recover_engine_locked(
                 expected_prefix=predeploy,
             )
             schema_state='PREDEPLOY_VERIFIED'
+        # Verify the ordered migration hashes and count; a mismatch is a stop,
+        # never a reason to restore a dump over possible post-start writes.
+        result['baselineSchema']=check_migration_prefix_for_release(
+            candidate_release,database_url(),expected_count=predeploy,
+        )
+        schema_state='PREDEPLOY_VERIFIED'
         current_restore_dropins(plan,evidence_dir/'dropins-before')
+        result.update(schemaState=schema_state,applicationMayHaveWritten=True)
+        starting_receipt={
+            **receipt,'phase':'BASELINE_START_REQUESTED','schemaState':schema_state,
+            'applicationMayHaveWritten':True,'recoveryRequired':True,
+        }
+        write_json_durable(receipt_path,starting_receipt)
+        starting_state={
+            **state,'phase':'BASELINE_START_REQUESTED','schemaState':schema_state,
+            'applicationMayHaveWritten':True,'recoveryRequired':True,
+            'candidateSourceSha':receipt['candidateSourceSha'],
+            'candidateSourceTree':receipt['candidateSourceTree'],
+            'predeployPrefix':predeploy,'candidateTarget':target,
+            'lastRecoveryReceipt':str(output),
+        }
+        write_json_durable(journal,starting_state)
+        write_json_durable(output,result)
         current_enable_fenced_start()
         current_restore_unit_states(plan,baseline)
         current_remove_reboot_fence(plan)
@@ -1373,9 +1430,11 @@ def _current_recover_engine_locked(
             schemaState=schema_state,
             baselineRestored=True,
         )
+        write_json_durable(output,result)
         write_json_durable(evidence_dir/'recovery.json',result)
         write_json_durable(journal,{
             'phase':'CURRENT_RECOVERY_PASS',
+            'applicationMayHaveWritten':True,
             'schemaState':schema_state,
             'recoveryRequired':False,
             'receipt':str(evidence_dir/'recovery.json'),
@@ -1393,6 +1452,7 @@ def _current_recover_engine_locked(
             result['productQuiesced']=True
         except BaseException as stop_error:
             result['quiesceError']=error_code(stop_error)
+        write_json_durable(output,result)
         write_json_durable(evidence_dir/'recovery.json',result)
         raise
 
