@@ -232,6 +232,54 @@ describe("C03 unresolved OpenAPI response references fail closed", () => {
     );
   });
 
+  it("preserves valid empty Header Objects and annotation-only changes", () => {
+    const withoutAnnotation = inventory({
+      description: "ok",
+      headers: { "X-Trace": {} },
+    });
+    const withAnnotation = inventory({
+      description: "ok",
+      headers: { "X-Trace": { description: "diagnostic only" } },
+    });
+    expect(withoutAnnotation.operations[0]?.responseSchemaSha256).toBe(
+      withAnnotation.operations[0]?.responseSchemaSha256,
+    );
+    expect(withoutAnnotation.operations[0]?.responseStatusKeys).toEqual([
+      "200",
+    ]);
+  });
+
+  it("resolves valid nested local Schema refs and detects changed targets", () => {
+    const response = {
+      description: "ok",
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/Payload" },
+        },
+      },
+    };
+    const referenced = inventory(response, {
+      schemas: { Payload: { type: "string" } },
+    });
+    const inline = inventory(bodyResponse("string"));
+    expect(referenced.operations[0]?.responseSchemaSha256).toBe(
+      inline.operations[0]?.responseSchemaSha256,
+    );
+
+    const changed = inventory(
+      response,
+      { schemas: { Payload: { type: "integer" } } },
+      TARGET,
+    );
+    const semantic = diffInventories({ base: referenced, target: changed });
+    expect(semantic.changedCount).toBe(1);
+    expect(semantic.operations[0]?.deltas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "responseSchemaSha256" }),
+      ]),
+    );
+  });
+
   it("preserves existing no-body response hashes and annotation invariants", () => {
     const one = inventory({ description: "ok" });
     const two = inventory({ description: "another description" });
