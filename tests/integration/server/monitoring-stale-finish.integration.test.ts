@@ -307,22 +307,40 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
       },
     };
     const lateStore = createPostgresMonitoringScheduleStore(delayedRuntime);
-    const late = lateStore.scheduleEarlier("SWAGGER_API", later, new Date());
+    // A deliberately backdated caller must not backdate the durable updatedAt.
+    const callerNow = new Date("2000-01-01T00:00:00.000Z");
+    const beforeDb = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
+    const late = lateStore.scheduleEarlier("SWAGGER_API", later, callerNow);
     try {
       await updateEntered;
       const first = await storeB.scheduleEarlier(
         "SWAGGER_API",
         earlier,
-        new Date(),
+        callerNow,
       );
       expect(first.nextRunAt).toEqual(earlier);
     } finally {
       release();
+      // Always join the delayed writer before schema teardown, preserving
+      // any earlier assertion error from the concurrent writer.
+      await Promise.allSettled([late]);
     }
     const result = await late;
+    const afterDb = await workerB.query<{ now: Date }>(
+      'SELECT clock_timestamp() AS "now"',
+    );
     const durable = await storeA.getState("SWAGGER_API");
     expect(result.nextRunAt).toEqual(earlier);
     expect(durable.nextRunAt).toEqual(earlier);
+    expect(durable.updatedAt).toEqual(result.updatedAt);
+    expect(result.updatedAt.getTime()).toBeGreaterThanOrEqual(
+      beforeDb.rows[0]!.now.getTime(),
+    );
+    expect(result.updatedAt.getTime()).toBeLessThanOrEqual(
+      afterDb.rows[0]!.now.getTime(),
+    );
   }, 12000);
 
   it("rejects a finish that waited on the row lock beyond lease expiry", async () => {

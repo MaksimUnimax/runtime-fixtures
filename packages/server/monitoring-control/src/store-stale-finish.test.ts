@@ -86,6 +86,7 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
     const statements: string[] = [];
     const timestamp = new Date(now.valueOf() + 30_000);
     const earlier = new Date(now.valueOf() + 12_000);
+    const databaseTime = new Date(now.valueOf() + 120_000);
     const mock: MonitoringSqlRuntime = {
       async query<T extends Record<string, unknown>>(
         statement: string,
@@ -94,11 +95,12 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
         statements.push(statement);
         expect(statement).toContain("next_run_at=LEAST(next_run_at,$2)");
         expect(statement).toContain("RETURNING lane,");
-        expect(values).toEqual(["SWAGGER_API", earlier, timestamp]);
+        expect(values).toEqual(["SWAGGER_API", earlier]);
+        expect(statement).toContain("updated_at=clock_timestamp()");
         // Return the actual row from the atomic write, not a stale pre-write read.
         return {
           rows: [
-            { ...sqlRow(null), nextRunAt: earlier, updatedAt: timestamp },
+            { ...sqlRow(null), nextRunAt: earlier, updatedAt: databaseTime },
           ] as unknown as T[],
         };
       },
@@ -113,7 +115,27 @@ describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
     ).scheduleEarlier("SWAGGER_API", earlier, timestamp);
     expect(statements).toHaveLength(1);
     expect(current.nextRunAt).toEqual(earlier);
-    expect(current.updatedAt).toEqual(timestamp);
+    expect(current.updatedAt).toEqual(databaseTime);
+  });
+
+  it("rejects missing scheduled lane on an atomic update with no row", async () => {
+    const mock: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>() {
+        return { rows: [] as T[] };
+      },
+      async transaction<T>(
+        callback: (query: MonitoringSqlQuery) => Promise<T>,
+      ) {
+        return callback(this);
+      },
+    };
+    await expect(
+      createPostgresMonitoringScheduleStore(mock).scheduleEarlier(
+        "SWAGGER_API",
+        now,
+        now,
+      ),
+    ).rejects.toThrow("MONITORING_SCHEDULE_NOT_FOUND");
   });
 
   it("rejects an expired owner without a takeover in memory", async () => {

@@ -368,12 +368,12 @@ export function createPostgresMonitoringScheduleStore(
         updatedAt: now,
       });
     },
-    async scheduleEarlier(lane, retryAt, now) {
+    async scheduleEarlier(lane, retryAt, _now) {
       // The minimum must be computed under PostgreSQL's row-level UPDATE lock.
       // A read-then-unconditional-write can lose another worker's earlier retry.
       const changed = await runtime.query<StateRow>(
-        `UPDATE monitoring_lane_schedules SET next_run_at=LEAST(next_run_at,$2),updated_at=$3 WHERE lane=$1 RETURNING ${stateColumns}`,
-        [lane, retryAt, now],
+        `UPDATE monitoring_lane_schedules SET next_run_at=LEAST(next_run_at,$2),updated_at=clock_timestamp() WHERE lane=$1 RETURNING ${stateColumns}`,
+        [lane, retryAt],
       );
       if (!changed.rows[0]) throw new Error("MONITORING_SCHEDULE_NOT_FOUND");
       return mapState(changed.rows[0]);
