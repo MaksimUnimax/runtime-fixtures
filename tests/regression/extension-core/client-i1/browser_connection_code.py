@@ -44,6 +44,15 @@ def run(output):
                 proc=subprocess.Popen(args,cwd="/tmp",env={"PATH":"/usr/bin:/bin","LANG":"C.UTF-8","XDG_CACHE_HOME":str(profile/"cache"),"XDG_CONFIG_HOME":str(profile/"config")},user=owner.pw_uid,group=owner.pw_gid,extra_groups=[],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
                 processes.append(proc);ready(f"http://127.0.0.1:{port}/json/version")
                 browser=pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}");browsers.append(browser);context=browser.contexts[0]
+                if os.environ.get("SA_CONNECTION_BROWSER_SCENARIO")=="legacy_upgrade" and name=="profile-b":
+                    # Owner explicitly approved this setting only in the disposable
+                    # profile used for the real unpacked upgrade, preserving sandbox.
+                    settings=context.new_page();settings.goto("chrome://extensions/")
+                    toggle=settings.locator("#devMode");toggle.wait_for()
+                    if not toggle.evaluate("(e)=>e.checked"):toggle.click()
+                    settings.wait_for_function("()=>document.querySelector('extensions-manager')?.shadowRoot?.querySelector('extensions-toolbar')?.shadowRoot?.querySelector('#devMode')?.checked===true")
+                    result.setdefault("disposable_developer_mode",[]).append({"profile":name,"enabled":toggle.evaluate("(e)=>e.checked"),"method":"standard_chrome_extensions_ui"})
+                    settings.close()
                 result.setdefault("observed_worker_paths",[]).append([w.url for w in context.service_workers])
                 is_product=lambda worker: worker.url.startswith("chrome-extension://") and worker.url.endswith("/service_worker_entry.js")
                 workers=[worker for worker in context.service_workers if is_product(worker)]
@@ -54,7 +63,7 @@ def run(output):
                 popup.locator("#auth-start").wait_for(state="attached")
                 return proc,browser,context,popup
             def status(popup):
-                return popup.evaluate("""async()=>{const v=await chrome.runtime.sendMessage({type:'SA_POPUP_STATE'});return {ok:v.ok,authenticated:v.auth?.authenticated,accountId:v.auth?.accountId,deviceId:v.auth?.deviceId,method:v.auth?.authenticationMethod,lastError:v.auth?.lastError?.code};}""")
+                return popup.evaluate("""async()=>{const v=await chrome.runtime.sendMessage({type:'SA_POPUP_STATE'});return {ok:v.ok,authenticated:v.auth?.authenticated,accountId:v.auth?.accountId,deviceId:v.auth?.deviceId,method:v.auth?.authenticationMethod,bootstrapRetryAvailable:v.auth?.bootstrapRetryAvailable,lastError:v.auth?.lastError?.code};}""")
             def connect(popup,code):
                 popup.locator("#connection-code").fill(code);popup.locator("#connection-submit").click()
                 try:
@@ -87,6 +96,7 @@ def run(output):
                 archive=Path(os.environ["SA_CONNECTION_LEGACY_ARCHIVE"])
                 assert hashlib.sha256(archive.read_bytes()).hexdigest()=="8a1e0e3a7b238787160fcd1525d70fd9ab6849afb95852e2a5526150a4674c01"
                 ba.close();browsers.remove(ba);a.terminate();a.wait(timeout=10)
+                result["candidate_product_hashes"]={n:hashlib.sha256((runtime/n).read_bytes()).hexdigest() for n in ["service_worker.js","popup.js","popup.html"]}
                 candidate=output/"new-candidate-runtime";runtime.rename(candidate);runtime.mkdir()
                 with zipfile.ZipFile(archive) as z:
                     assert all(not Path(n).is_absolute() and ".." not in Path(n).parts for n in z.namelist())
@@ -148,9 +158,16 @@ def run(output):
                     stage="upgrade_requires_disposable_profile_developer_mode"
                     raise RuntimeError("UNPACKED_RELOAD_DISABLED_BY_BROWSER")
                 pb=cb.new_page();pb.goto(f"chrome-extension://{old_id}/popup.html")
-                pb.locator("#catalog").wait_for()
                 workers=[w for w in cb.service_workers if w.url.endswith("/service_worker_entry.js")]
                 worker=workers[0] if workers else cb.wait_for_event("serviceworker",predicate=lambda w:w.url.endswith("/service_worker_entry.js"),timeout=10000)
+                result["upgrade_revalidation_initial_status"]=status(pb)
+                result["upgrade_revalidation_worker"]=worker.evaluate("()=>({version:chrome.runtime.getManifest().version,codeMethod:typeof SellerAgentsControlClient.connectWithCode})")
+                if result["upgrade_revalidation_initial_status"]["bootstrapRetryAvailable"]:
+                    # Existing normal action obtains a new signed version-bound
+                    # bootstrap; it must not create a new enrollment.
+                    pb.locator("#auth-start").filter(has_text="Проверить доступ").click()
+                try:pb.locator("#catalog").wait_for()
+                finally:result["upgrade_revalidation_final_status"]=status(pb)
                 upgraded=status(pb)
                 result["upgrade_after_reload"]={"status":upgraded,"worker":worker.evaluate("()=>({version:chrome.runtime.getManifest().version,codeMethod:typeof SellerAgentsControlClient.connectWithCode})")}
                 assert result["upgrade_after_reload"]["worker"]=={"version":"0.2.42","codeMethod":"function"}
