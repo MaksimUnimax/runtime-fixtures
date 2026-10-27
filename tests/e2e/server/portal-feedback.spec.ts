@@ -382,7 +382,8 @@ test("B16-03 staff status and note reach the original case owner through the rea
 }) => {
   test.setTimeout(120_000);
   await reset();
-  await login(page, "/feedback");
+  await login(page);
+  await page.goto("/feedback");
   const userMain = page.getByRole("main");
   const supportEmail = "b16-03-support@example.test";
   await seedAdminIdentity(supportEmail, "ADMIN_SUPPORT");
@@ -402,7 +403,7 @@ test("B16-03 staff status and note reach the original case owner through the rea
     .getByRole("button", { name: "Отправить", exact: true })
     .click();
   const createdResponse = await created;
-  expect(createdResponse.status()).toBe(200);
+  expect(createdResponse.status()).toBe(201);
   const createdPayload = (await createdResponse.json()) as {
     case?: { caseId?: string };
   };
