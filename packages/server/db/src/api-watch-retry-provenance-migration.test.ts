@@ -60,6 +60,7 @@ describe("C03 retry provenance migration source contract", () => {
     expect(sql).toContain("api_watch_family_claim_temporal_order_check");
     expect(sql).toContain('"claimed_at" <= "updated_at"');
     expect(sql).toContain('"entered_at" >= "claimed_at"');
+    expect(sql).toContain('"entered_at" < "claimed_lease_expires_at"');
     expect(sql).toContain('"entered_at" <= "updated_at"');
     expect(sql).toContain('retry."next_retry_at" IS NOT NULL');
     expect(sql).toContain('"active_run_id" IS NOT NULL');

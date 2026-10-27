@@ -31,9 +31,18 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function validTime(date: Date): number {
-  if (!(date instanceof Date) || !Number.isFinite(date.valueOf()))
+  if (!(date instanceof Date))
     throw new Error("API_WATCH_RETRY_FENCE_TIME_INVALID");
-  return date.valueOf();
+  // Read the Date internal slot; user-defined valueOf must not forge time.
+  let time: number;
+  try {
+    time = Date.prototype.getTime.call(date);
+  } catch {
+    throw new Error("API_WATCH_RETRY_FENCE_TIME_INVALID");
+  }
+  if (!Number.isFinite(time))
+    throw new Error("API_WATCH_RETRY_FENCE_TIME_INVALID");
+  return time;
 }
 
 function verifyFence(state: ApiWatchAttemptFence): void {
@@ -72,6 +81,7 @@ function verifyFence(state: ApiWatchAttemptFence): void {
     if (
       state.enteredAt &&
       (validTime(state.enteredAt) < claimed ||
+        validTime(state.enteredAt) >= expiry ||
         validTime(state.enteredAt) > validTime(state.updatedAt))
     )
       throw new Error("API_WATCH_RETRY_FENCE_TIME_INVALID");
@@ -105,11 +115,11 @@ function copyFence(state: ApiWatchAttemptFence): ApiWatchAttemptFence {
   return {
     ...state,
     claimedLeaseExpiresAt: state.claimedLeaseExpiresAt
-      ? new Date(state.claimedLeaseExpiresAt)
+      ? new Date(validTime(state.claimedLeaseExpiresAt))
       : null,
-    claimedAt: state.claimedAt ? new Date(state.claimedAt) : null,
-    enteredAt: state.enteredAt ? new Date(state.enteredAt) : null,
-    updatedAt: new Date(state.updatedAt),
+    claimedAt: state.claimedAt ? new Date(validTime(state.claimedAt)) : null,
+    enteredAt: state.enteredAt ? new Date(validTime(state.enteredAt)) : null,
+    updatedAt: new Date(validTime(state.updatedAt)),
   };
 }
 
@@ -128,7 +138,7 @@ export function emptyApiWatchAttemptFence(
     claimedAt: null,
     enteredAt: null,
     outcomeUnknown: false,
-    updatedAt: new Date(now),
+    updatedAt: new Date(validTime(now)),
   };
 }
 
@@ -153,10 +163,10 @@ export function claimDueApiWatchAttempt(input: {
     ...copyFence(state),
     claimStage: "CLAIMED",
     claimedRunId: lease.runId,
-    claimedLeaseExpiresAt: new Date(lease.leaseExpiresAt),
-    claimedAt: new Date(now),
+    claimedLeaseExpiresAt: new Date(validTime(lease.leaseExpiresAt)),
+    claimedAt: new Date(validTime(now)),
     enteredAt: null,
-    updatedAt: new Date(now),
+    updatedAt: new Date(validTime(now)),
   };
 }
 
@@ -179,8 +189,8 @@ export function enterClaimedApiWatchAttempt(input: {
   return {
     ...copyFence(state),
     claimStage: "ENTERED",
-    enteredAt: new Date(now),
-    updatedAt: new Date(now),
+    enteredAt: new Date(validTime(now)),
+    updatedAt: new Date(validTime(now)),
   };
 }
 
@@ -209,7 +219,7 @@ export function releaseUnenteredApiWatchAttempt(input: {
     claimedLeaseExpiresAt: null,
     claimedAt: null,
     enteredAt: null,
-    updatedAt: new Date(now),
+    updatedAt: new Date(validTime(now)),
   };
 }
 
@@ -240,6 +250,6 @@ export function expireApiWatchAttemptFence(input: {
     claimedAt: null,
     enteredAt: null,
     outcomeUnknown: state.claimStage === "ENTERED",
-    updatedAt: new Date(now),
+    updatedAt: new Date(validTime(now)),
   };
 }

@@ -349,6 +349,68 @@ describe("C03 per-family durable retry fence state", () => {
     ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
   });
 
+  it("rejects invalid Date internals even when valueOf forges a timestamp", () => {
+    const spoof = new Date(Number.NaN);
+    Object.defineProperty(spoof, "valueOf", {
+      value: () => t0.getTime(),
+    });
+    expect(() => emptyApiWatchAttemptFence("WILDBERRIES", spoof)).toThrow(
+      "API_WATCH_RETRY_FENCE_TIME_INVALID",
+    );
+    const empty = emptyApiWatchAttemptFence("WILDBERRIES", t0);
+    expect(() =>
+      claimDueApiWatchAttempt({
+        state: empty,
+        nextRetryAt: t0,
+        lease,
+        now: spoof,
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    expect(() =>
+      claimDueApiWatchAttempt({
+        state: empty,
+        nextRetryAt: t0,
+        lease: { runId: runA, leaseExpiresAt: spoof },
+        now: at(1),
+      }),
+    ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    const valid = new Date(t0.getTime());
+    Object.defineProperty(valid, "valueOf", { value: () => Number.NaN });
+    expect(
+      emptyApiWatchAttemptFence("WILDBERRIES", valid).updatedAt.toISOString(),
+    ).toBe(t0.toISOString());
+  });
+
+  it.each([900, 901])(
+    "rejects entered-at time %i seconds at or past claimed lease expiry",
+    (seconds) => {
+      const claimed = claimDueApiWatchAttempt({
+        state: emptyApiWatchAttemptFence("WILDBERRIES", t0),
+        nextRetryAt: t0,
+        lease,
+        now: at(1),
+      })!;
+      const entered = enterClaimedApiWatchAttempt({
+        state: claimed,
+        lease,
+        now: at(2),
+      });
+      // This forged durable state is otherwise temporally ordered:
+      // enteredAt lies before updatedAt, but outside the claimed lease.
+      expect(() =>
+        expireApiWatchAttemptFence({
+          state: {
+            ...entered,
+            enteredAt: at(seconds),
+            updatedAt: at(902),
+          },
+          priorRunId: runA,
+          now: at(903),
+        }),
+      ).toThrow("API_WATCH_RETRY_FENCE_TIME_INVALID");
+    },
+  );
+
   it("refuses invalid state and a reversed clock", () => {
     expect(() =>
       claimDueApiWatchAttempt({

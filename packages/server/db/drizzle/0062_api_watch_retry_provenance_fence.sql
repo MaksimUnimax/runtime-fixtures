@@ -55,7 +55,7 @@ CREATE TABLE "api_watch_family_attempt_fences" (
       OR
       ("claimed_at" IS NOT NULL AND "claimed_at" <= "updated_at"
         AND ("entered_at" IS NULL OR
-          ("entered_at" >= "claimed_at" AND "entered_at" <= "updated_at")))
+          ("entered_at" >= "claimed_at" AND "entered_at" < "claimed_lease_expires_at" AND "entered_at" <= "updated_at")))
     )
 );
 --> statement-breakpoint
