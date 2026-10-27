@@ -937,18 +937,39 @@ def current_restore_live_backup(
     raise RuntimeError('CURRENT_DESTRUCTIVE_RESTORE_DISABLED')
 
 
-def current_retained_schema(release: Path, base_url: str, predeploy: int, target: int) -> dict:
-    # The native checker validates the complete ordered (hash,timestamp) prefix.
-    # A process exit/timeout alone says nothing about transaction commit.
-    checked=check_migration_prefix_for_release(release,base_url)
-    count=checked.get('applied')
-    if type(count) is not int or count not in (predeploy,target):
-        raise RuntimeError('CURRENT_RETAINED_SCHEMA_UNCONFIRMED')
-    return {
-        'schemaState':'PREDEPLOY_VERIFIED' if count==predeploy else 'CANDIDATE_VERIFIED',
-        'migrationPrefix':checked,
-        'databaseRestored':False,
-    }
+def current_require_migration_settled(state: dict, receipt: dict) -> dict:
+    """A visible committed prefix cannot settle a timed-out migration process.
+
+    Only this version's durable NOT_STARTED intent, or a successful awaited
+    migration + pool close + exact target readback, admits an application.
+    Missing/old/torn evidence and failed/lost invocations remain fenced.
+    This helper performs no process, database or evidence mutation.
+    """
+    proofs=[]
+    for item in (state,receipt):
+        proof=item.get('migrationSettlement')
+        if (not isinstance(proof,dict)
+                or set(proof)!={'protocol','intentId','outcome'}
+                or type(proof.get('protocol')) is not int or proof['protocol']!=1
+                or not isinstance(proof.get('intentId'),str)
+                or not re.fullmatch(r'[0-9a-f]{32}',proof['intentId'])
+                or proof.get('outcome') not in ('NOT_STARTED','COMPLETED')):
+            raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+        proofs.append(proof)
+    if proofs[0]!=proofs[1]:
+        raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+    for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix','candidateTarget'):
+        if state.get(field)!=receipt.get(field):
+            raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+    if state['predeployPrefix']<state['candidateTarget']:
+        expected='PREDEPLOY_VERIFIED' if proofs[0]['outcome']=='NOT_STARTED' else 'CANDIDATE_VERIFIED'
+        if any(item.get('schemaState')!=expected for item in (state,receipt)):
+            raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+    elif (proofs[0]['outcome']!='NOT_STARTED'
+            or any(item.get('schemaState') not in ('PREDEPLOY_VERIFIED','CANDIDATE_VERIFIED')
+                   for item in (state,receipt))):
+        raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+    return proofs[0]
 
 @contextmanager
 def current_operation_lock(evidence_root: Path):
@@ -1047,6 +1068,7 @@ def _current_apply_engine_locked(
     result={
         'status':'STARTED',
         'baselineRecoveryProtocol':CURRENT_BASELINE_RECOVERY_PROTOCOL,
+        'migrationSettlement':{'protocol':1,'intentId':os.urandom(16).hex(),'outcome':'NOT_STARTED'},
         'phase':phase,
         'recoveryRequired':True,
         'candidateSourceSha':plan.get('sourceSha'),
@@ -1066,6 +1088,7 @@ def _current_apply_engine_locked(
         write_json_durable(evidence_dir/'receipt.json',result)
         write_json_durable(journal,{
             'baselineRecoveryProtocol':result['baselineRecoveryProtocol'],
+            'migrationSettlement':dict(result['migrationSettlement']),
             'phase':phase,
             'schemaState':schema_state,
             'recoveryRequired':result['recoveryRequired'],
@@ -1091,11 +1114,15 @@ def _current_apply_engine_locked(
         )
         phase='ISOLATED_TARGET_VERIFIED'; record()
         if predeploy<target:
+            result['migrationSettlement']['outcome']='UNCONFIRMED'
             phase='LIVE_MIGRATION'; schema_state='UNKNOWN'; record()
             migrate(candidate_release,base_url)
             result['liveMigration']=check_migration_prefix_for_release(
                 candidate_release,base_url,expected_count=target
             )
+            # migrate.ts awaits the transaction AND runtime.close(); only a
+            # successful command and exact target readback settle this intent.
+            result['migrationSettlement']['outcome']='COMPLETED'
             schema_state='CANDIDATE_VERIFIED'
         else:
             result['liveMigration']={'status':'NOOP_ALREADY_TARGET','applied':predeploy}
@@ -1128,13 +1155,10 @@ def _current_apply_engine_locked(
                 # Starting even one service can admit durable writes before health
                 # acceptance. Restoring a predeploy dump would discard them.
                 raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
-            if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
-                result['retainedSchema']=current_retained_schema(
-                    candidate_release,base_url,predeploy,target,
-                )
-                schema_state=result['retainedSchema']['schemaState']
-                if schema_state=='CANDIDATE_VERIFIED':
-                    raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
+            settled={**result,'schemaState':schema_state}
+            current_require_migration_settled(settled,settled)
+            if schema_state=='CANDIDATE_VERIFIED' and predeploy<target:
+                raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
             current_restore_dropins(plan,dropin_backup)
             check_migration_prefix_for_release(
                 candidate_release,base_url,expected_count=predeploy,
@@ -1213,6 +1237,7 @@ def current_forward_recover(
     for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix','candidateTarget'):
         if state.get(field)!=receipt.get(field):
             raise RuntimeError('CURRENT_FORWARD_ORIGIN_UNCONFIRMED')
+    current_require_migration_settled(state,receipt)
     current_validate_base_units(plan)
     result={
         'status':'CURRENT_FORWARD_RECOVERY_STARTED','recoveryRequired':True,
@@ -1389,6 +1414,7 @@ def _current_recover_engine_locked(
             raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
         if prior['applicationMayHaveWritten']:
             raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+    current_require_migration_settled(state,receipt)
     result={
         'status':'CURRENT_RECOVERY_STARTED',
         'recoveryRequired':True,
@@ -1406,20 +1432,6 @@ def _current_recover_engine_locked(
         current_prepare_recovery_fence(plan)
         current_stop_product_units(plan)
         result['productQuiesced']=True
-        if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
-            result['retainedSchema']=current_retained_schema(
-                candidate_release,database_url(),predeploy,target,
-            )
-            schema_state=result['retainedSchema']['schemaState']
-            result['schemaState']=schema_state
-            if schema_state=='CANDIDATE_VERIFIED':
-                # Commit may have succeeded before its response was lost.
-                # Persist the observed schema, then require an explicit forward
-                # recovery. Neither old application nor old dump is admitted.
-                resolved_receipt={**receipt,'schemaState':schema_state,'recoveryRequired':True}
-                write_json_durable(receipt_path,resolved_receipt)
-                write_json_durable(journal,{**state,'schemaState':schema_state,'recoveryRequired':True})
-                raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
         # Verify the ordered migration hashes and count; a mismatch is a stop,
         # never a reason to restore a dump over possible post-start writes.
         result['baselineSchema']=check_migration_prefix_for_release(
