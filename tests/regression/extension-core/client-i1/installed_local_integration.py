@@ -88,6 +88,113 @@ def safe_bootstrap_failure_class(request):
     return _SAFE_BOOTSTRAP_FAILURE_CLASSES.get(detail.strip().upper(), "OTHER")
 
 
+
+_BOOTSTRAP_ORDINAL_HEADER = "x-oct-i1-bootstrap-ordinal"
+
+
+def safe_bootstrap_failure_code_family(request):
+    try:
+        detail = request.failure
+    except Exception:
+        return "UNOBSERVABLE"
+    if detail is None:
+        return "NONE"
+    families = {
+        "NET::ERR_ABORTED": "NET_ERR_ABORTED",
+        "NS_BINDING_ABORTED": "NS_BINDING_ABORTED",
+        "NET::ERR_CONNECTION_RESET": "NET_ERR_CONNECTION_RESET",
+        "NET::ERR_CONNECTION_CLOSED": "NET_ERR_CONNECTION_CLOSED",
+        "NET::ERR_CONNECTION_REFUSED": "NET_ERR_CONNECTION_REFUSED",
+        "NET::ERR_TIMED_OUT": "NET_ERR_TIMED_OUT",
+        "NET::ERR_EMPTY_RESPONSE": "NET_ERR_EMPTY_RESPONSE",
+        "NET::ERR_HTTP2_PROTOCOL_ERROR": "NET_ERR_HTTP2_PROTOCOL_ERROR",
+        "NET::ERR_FAILED": "NET_ERR_FAILED",
+    }
+    return families.get(detail.strip().upper(), "OTHER") if isinstance(detail, str) else "UNOBSERVABLE"
+
+
+def safe_bootstrap_response_lifecycle(selected, responses, evidence_path):
+    # The fixed response header maps the exact selected Playwright Response to
+    # a server-assigned ordinal. Never infer identity by timing or list order.
+    unknown = {"schema_version": 1, "correlation": "UNCONFIRMED"}
+    if selected is None or sum(item is selected for item in responses) != 1:
+        return unknown
+    try:
+        def ordinal(response):
+            # Response.headers is the already received provisional snapshot.
+            # header_value/all_headers perform a raw-header RPC with no deadline;
+            # missing CDP ExtraInfo must never stall FAIL evidence and cleanup.
+            headers = response.headers
+            value = headers.get(_BOOTSTRAP_ORDINAL_HEADER) if isinstance(headers, dict) else None
+            if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{32}:[1-9][0-9]?", value) is None:
+                raise ValueError("invalid ordinal")
+            run_id, raw_number = value.split(":")
+            number = int(raw_number)
+            if number > 64:
+                raise ValueError("invalid ordinal")
+            return (run_id, number)
+        ids = [ordinal(response) for response in responses]
+        if len(set(ids)) != len(ids):
+            return unknown
+        selected_identity = ids[next(i for i, response in enumerate(responses) if response is selected)]
+        with evidence_path.open("rb") as source:
+            raw = source.read(65537)
+        if len(raw) > 65536:
+            return unknown
+        data = json.loads(raw)
+        if (not isinstance(data, dict) or set(data) != {"schema_version", "run_id", "complete", "records"}
+                or type(data["schema_version"]) is not int or data["schema_version"] != 1
+                or not isinstance(data["run_id"], str) or re.fullmatch(r"[0-9a-f]{32}", data["run_id"]) is None
+                or data["complete"] is not True or not isinstance(data["records"], list)
+                or not 1 <= len(data["records"]) <= 64):
+            return unknown
+        by_id = {}
+        for row in data["records"]:
+            if (not isinstance(row, dict) or set(row) != {"ordinal", "events"}
+                    or type(row["ordinal"]) is not int or not 1 <= row["ordinal"] <= 64
+                    or row["ordinal"] in by_id or not isinstance(row["events"], list)
+                    or not 1 <= len(row["events"]) <= 3):
+                return unknown
+            seen = []
+            for event in row["events"]:
+                if (not isinstance(event, dict) or set(event) != {"phase", "elapsed_ms", "status", "writable_finished"}
+                        or event["phase"] not in ("RECEIVED", "FINISH", "CLOSE")
+                        or event["phase"] in seen):
+                    return unknown
+                seen.append(event["phase"])
+                elapsed = event["elapsed_ms"]
+                status = event["status"]
+                finished = event["writable_finished"]
+                if (elapsed is not None and (type(elapsed) is not int or not 0 <= elapsed <= 180000)
+                        or status is not None and (type(status) is not int or not 100 <= status <= 599)
+                        or finished is not None and type(finished) is not bool):
+                    return unknown
+                if event["phase"] == "RECEIVED" and (status is not None or finished is not None):
+                    return unknown
+                if event["phase"] != "RECEIVED" and type(finished) is not bool:
+                    return unknown
+            if seen[0] != "RECEIVED" or ("CLOSE" in seen and seen[-1] != "CLOSE"):
+                return unknown
+            by_id[row["ordinal"]] = row["events"]
+        if any(run_id != data["run_id"] or number not in by_id for run_id, number in ids):
+            return unknown
+        selected_id = selected_identity[1]
+        events = by_id[selected_id]
+        closed = next((event for event in events if event["phase"] == "CLOSE"), None)
+        return {
+            "schema_version": 1, "correlation": "EXACT_RESPONSE_HEADER",
+            "selected_server_ordinal": selected_id,
+            "browser_code_family": safe_bootstrap_failure_code_family(selected.request),
+            "server_finished": any(event["phase"] == "FINISH" for event in events),
+            "server_closed": closed is not None,
+            "server_close_writable_finished": closed["writable_finished"] if closed else None,
+            "events": [{key: event[key] for key in ("phase", "elapsed_ms", "status", "writable_finished")} for event in events],
+        }
+    except Exception:
+        # Fixed result only, including malformed files, header errors and races.
+        return unknown
+
+
 def safe_bootstrap_event_counts(responses, finished, failed, started, second_activation_at=None, work_start_at=None, selected_response=None, failed_at=None, work_started_at=None):
     # Only fixed keys, numbers, booleans and allowlisted phase labels leave CI.
     # No request URL, header, body, token or account/subject identity is stored.
@@ -373,7 +480,7 @@ def run(runtime, output):
             except subprocess.CalledProcessError as error:
                 result.update(status="FAIL", stage="database_migrate", error=type(error).__name__, safe_failure={"stage": "database_migrate", "status": None, "error_code": "DATABASE_MIGRATION_FAILED"}, safe_counts={"control_responses": 0}, migration_exit_code=error.returncode)
                 raise
-            api_env = {**env, "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust_path), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture_evidence_path)}
+            api_env = {**env, "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust_path), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture_evidence_path), "SA_I1_BOOTSTRAP_LIFECYCLE_EVIDENCE_PATH": str(output / "bootstrap-response-lifecycle.json")}
             # Output is not consumed; a PIPE can stall the child and must not retain raw data.
             api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=api_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(api)
@@ -912,6 +1019,12 @@ def run(runtime, output):
                         bootstrap_response, failed_bootstrap_times, work_start_started_at,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
+                    response_lifecycle = safe_bootstrap_response_lifecycle(
+                        locals().get("bootstrap_response"), bootstrap_http_responses,
+                        output / "bootstrap-response-lifecycle.json",
+                    )
+                    result["bootstrap_response_lifecycle"] = response_lifecycle
+                    print("I1_SAFE_BOOTSTRAP_RESPONSE_LIFECYCLE " + json.dumps(response_lifecycle, sort_keys=True), flush=True)
                     result.update(
                         status="PASS",
                         bootstrap_observer_counts=counts,
@@ -977,6 +1090,12 @@ def run(runtime, output):
                         failed_bootstrap_times, work_start_started_at,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
+                    response_lifecycle = safe_bootstrap_response_lifecycle(
+                        locals().get("bootstrap_response"), bootstrap_http_responses,
+                        output / "bootstrap-response-lifecycle.json",
+                    )
+                    result["bootstrap_response_lifecycle"] = response_lifecycle
+                    print("I1_SAFE_BOOTSTRAP_RESPONSE_LIFECYCLE " + json.dumps(response_lifecycle, sort_keys=True), flush=True)
                     result["failure_observation"] = {
                         "bootstrap_http_200_events": len(bootstrap_http_responses),
                         "bootstrap_body_parsed": bootstrap_envelope is not None,
