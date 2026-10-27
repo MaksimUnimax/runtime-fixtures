@@ -502,5 +502,89 @@ class BootstrapObserverTest(unittest.TestCase):
 
 
 
+
+class BootstrapResponseLifecycleTest(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "lifecycle.json"
+        self.run_id = "a" * 32
+
+    def row(self, ordinal, finished=True):
+        events = [{"phase": "RECEIVED", "elapsed_ms": 0, "status": None, "writable_finished": None}]
+        if finished:
+            events.append({"phase": "FINISH", "elapsed_ms": 1, "status": 200, "writable_finished": True})
+        events.append({"phase": "CLOSE", "elapsed_ms": 2, "status": 200, "writable_finished": finished})
+        return {"ordinal": ordinal, "events": events}
+
+    def save(self, rows, **extra):
+        import json
+        self.path.write_text(json.dumps({"schema_version": 1, "run_id": self.run_id, "complete": True, "records": rows, **extra}))
+
+    def response(self, ordinal, run_id=None, failure=None):
+        response = FakeResponse(request=FakeRequest(failure=failure))
+        response.header_value = lambda name: (run_id or self.run_id) + ":" + str(ordinal) if name == module._BOOTSTRAP_ORDINAL_HEADER else None
+        return response
+
+    def test_exact_selected_header_survives_different_arrival_order(self):
+        self.save([self.row(1), self.row(2, False), self.row(3)])
+        one, two, three = [self.response(i) for i in (1, 2, 3)]
+        result = module.safe_bootstrap_response_lifecycle(two, [three, one, two], self.path)
+        self.assertEqual(result["correlation"], "EXACT_RESPONSE_HEADER")
+        self.assertEqual(result["selected_server_ordinal"], 2)
+        self.assertFalse(result["server_finished"])
+        self.assertFalse(result["server_close_writable_finished"])
+        self.assertEqual(result["browser_code_family"], "NONE")
+
+    def test_unrelated_success_cannot_replace_selected_premature_response(self):
+        self.save([self.row(1, False), self.row(2)])
+        selected, other = self.response(1, failure="net::ERR_ABORTED"), self.response(2)
+        result = module.safe_bootstrap_response_lifecycle(selected, [other, selected], self.path)
+        self.assertEqual(result["browser_code_family"], "NET_ERR_ABORTED")
+        self.assertFalse(result["server_finished"])
+
+    def test_duplicate_missing_foreign_or_restarted_server_identity_is_unconfirmed(self):
+        self.save([self.row(1), self.row(2)])
+        selected = self.response(1)
+        for responses in ([selected, self.response(1)], [selected, self.response(2, "b" * 32)], [self.response(1)], [selected, selected]):
+            self.assertEqual(module.safe_bootstrap_response_lifecycle(selected, responses, self.path)["correlation"], "UNCONFIRMED")
+        selected.header_value = lambda name: "SECRET"
+        self.assertEqual(module.safe_bootstrap_response_lifecycle(selected, [selected], self.path)["correlation"], "UNCONFIRMED")
+
+    def test_malformed_overflow_extra_fields_and_incomplete_evidence_fail_closed(self):
+        import json
+        response = self.response(1)
+        variants = [
+            {"complete": False},
+            {"secret": "SECRET"},
+            {"records": [self.row(1), self.row(1)]},
+            {"records": [{"ordinal": 1, "events": [{**self.row(1)["events"][0], "body": "SECRET"}]}]},
+            {"records": [self.row(i) for i in range(1, 66)]},
+            {"records": [{"ordinal": True, "events": self.row(1)["events"]}]},
+        ]
+        for extra in variants:
+            self.save([self.row(1)], **extra)
+            result = module.safe_bootstrap_response_lifecycle(response, [response], self.path)
+            self.assertEqual(result["correlation"], "UNCONFIRMED")
+            self.assertNotIn("SECRET", json.dumps(result))
+        self.path.write_text("{" + " " * 65536)
+        self.assertEqual(module.safe_bootstrap_response_lifecycle(response, [response], self.path)["correlation"], "UNCONFIRMED")
+
+    def test_code_family_is_fixed_and_does_not_change_old_class(self):
+        for raw, expected in [("net::ERR_ABORTED", "NET_ERR_ABORTED"), ("NS_BINDING_ABORTED", "NS_BINDING_ABORTED"), ("SECRET_URL_TOKEN", "OTHER"), (None, "NONE")]:
+            request = FakeRequest(failure=raw)
+            self.assertEqual(module.safe_bootstrap_failure_code_family(request), expected)
+        self.assertEqual(module.safe_bootstrap_failure_class(FakeRequest(failure="net::ERR_ABORTED")), "ABORTED")
+
+    def test_node_response_lifecycle_and_real_loopback_controls(self):
+        import subprocess
+        result = subprocess.run(
+            ["node", "--test", str(Path(__file__).with_name("bootstrap-response-lifecycle.test.mjs"))],
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

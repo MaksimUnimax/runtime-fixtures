@@ -1,3 +1,4 @@
+import { createBootstrapResponseLifecycle } from "./bootstrap-response-lifecycle.mjs";
 import {
   createHash,
   createPrivateKey,
@@ -292,6 +293,21 @@ const app = createApiApp({
   bootstrapService: bootstrap,
   credentialTransferService: r5cTransferService,
 });
+const bootstrapLifecyclePath =
+  process.env.SA_I1_BOOTSTRAP_LIFECYCLE_EVIDENCE_PATH;
+if (bootstrapLifecyclePath) {
+  const lifecycle = createBootstrapResponseLifecycle((value: unknown) => {
+    writeFileSync(bootstrapLifecyclePath, JSON.stringify(value));
+  });
+  app.addHook("onRequest", async (request, reply) => {
+    if (
+      request.method === "POST" &&
+      request.url.split("?", 1)[0] === "/v1/bootstrap"
+    )
+      lifecycle.attach(reply);
+  });
+}
+
 const networkEvidencePath = process.env.SA_I1_NETWORK_EVIDENCE_PATH;
 const safeNetworkEvents: Array<{
   method: string;
