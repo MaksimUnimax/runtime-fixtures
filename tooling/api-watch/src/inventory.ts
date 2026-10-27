@@ -338,22 +338,26 @@ function effectiveParameters(
   root: Record<string, unknown>,
 ): Record<string, unknown>[] {
   const effective = new Map<string, Record<string, unknown>>();
-  let unresolvedIndex = 0;
   // Path Item and Operation parameter arrays must EACH be duplicate-free.
   // An Operation-level declaration may still replace one Path-level parameter.
   const addLevel = (values: readonly unknown[]) => {
     const seenAtLevel = new Set<string>();
     for (const raw of values) {
       const parameter = asObject(localRef(raw, root));
-      const identity =
-        typeof parameter.name === "string" && typeof parameter.in === "string"
-          ? JSON.stringify([
-              parameter.in === "header"
-                ? parameter.name.toLowerCase()
-                : parameter.name,
-              parameter.in,
-            ])
-          : "unresolved:" + unresolvedIndex++;
+      // Unresolved local/external $ref or missing name/in is not a parameter
+      // identity. Never convert unsupported authority to a synthetic unique
+      // key that would make a malformed contract appear semantically safe.
+      if (
+        typeof parameter.name !== "string" ||
+        typeof parameter.in !== "string"
+      )
+        throw new Error("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+      const identity = JSON.stringify([
+        parameter.in === "header"
+          ? parameter.name.toLowerCase()
+          : parameter.name,
+        parameter.in,
+      ]);
       // Do not let last-write-wins hide conflicting schema or requiredness
       // within the same source declaration, including resolved $ref aliases.
       if (seenAtLevel.has(identity))

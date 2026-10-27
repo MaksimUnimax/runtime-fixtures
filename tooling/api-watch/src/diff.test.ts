@@ -201,6 +201,24 @@ describe("A4 semantic API diffs", () => {
       ),
     ).toThrow("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
 
+    // An unresolved local or external $ref cannot be a trusted parameter.
+    const missingRef = { $ref: "#/components/parameters/Missing" };
+    expect(() => build([], [missingRef])).toThrow(
+      "APIWATCH_PARAMETER_IDENTITY_UNRESOLVED",
+    );
+    expect(() => build([], [missingRef, missingRef])).toThrow(
+      "APIWATCH_PARAMETER_IDENTITY_UNRESOLVED",
+    );
+    expect(() =>
+      build([], [{ $ref: "remote.yaml#/components/parameters/Page" }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ name: "page", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ in: "query", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+
     // Cross-level overrides are legal, and query parameter case matters.
     const overridden = build([page("integer", true)], [last]);
     const onlyOperation = build([], [last]);
