@@ -331,11 +331,11 @@ const calculators = {
         !Number.isFinite(row.units),
     );
     if (invalid) return { status: "INCOMPLETE", money: null, units: null };
-    return {
-      status: "COMPLETE",
-      money: rows.reduce((sum, row) => sum + row.money, 0),
-      units: rows.reduce((sum, row) => sum + row.units, 0),
-    };
+    const money = rows.reduce((sum, row) => sum + row.money, 0);
+    const units = rows.reduce((sum, row) => sum + row.units, 0);
+    if (!Number.isFinite(money) || !Number.isFinite(units))
+      return { status: "INCOMPLETE", money: null, units: null };
+    return { status: "COMPLETE", money, units };
   },
   daily_rank(input) {
     if (!Array.isArray(input?.rows) || input.rows.length === 0) return null;
@@ -508,14 +508,16 @@ const calculators = {
       days <= 0
     )
       return null;
-    return stock / (demand / days);
+    const coverage = stock / (demand / days);
+    return Number.isFinite(coverage) ? coverage : null;
   },
   drr(input) {
     if (input?.complete !== true) return null;
     const spend = finiteRecordedMetric(input.spend),
       revenue = finiteRecordedMetric(input.revenue);
     if (spend === null || revenue === null || revenue <= 0) return null;
-    return (spend / revenue) * 100;
+    const percentage = (spend / revenue) * 100;
+    return Number.isFinite(percentage) ? percentage : null;
   },
   platform_contribution(input) {
     const incomplete = {
@@ -559,12 +561,12 @@ const calculators = {
     )
       return incomplete;
 
-    const values = raw;
+    const amount = raw[0] - raw.slice(1).reduce((sum, value) => sum + value, 0);
+    if (!Number.isFinite(amount)) return incomplete;
     return {
       status: "COMPLETE",
       label: "platform_contribution",
-      amount:
-        values[0] - values.slice(1).reduce((sum, value) => sum + value, 0),
+      amount,
       isNetProfit: false,
     };
   },
@@ -1799,6 +1801,162 @@ assert.equal(
   50,
   "STD-04 complete and matching unit-count comparison",
 );
+
+// A04 SOURCE arithmetic integrity: finite rows can overflow while summing,
+// dividing or scaling. Never label a non-finite aggregate as a complete
+// provider figure; 69 owner-curated numeric fixtures remain immutable.
+const finiteOverflowCurrencies = {
+  revenue: "RUB",
+  fees: "RUB",
+  storage: "RUB",
+  logistics: "RUB",
+  ads: "RUB",
+};
+const finiteOverflowCases = [
+  [
+    "STD-01 money_sum_overflow",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: Number.MAX_VALUE, units: 2 },
+      ],
+    },
+    { status: "INCOMPLETE", money: null, units: null },
+  ],
+  [
+    "STD-01 units_sum_overflow",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: 1, units: Number.MAX_VALUE },
+        { money: 2, units: Number.MAX_VALUE },
+      ],
+    },
+    { status: "INCOMPLETE", money: null, units: null },
+  ],
+  [
+    "STD-07 stock_over_tiny_demand",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MAX_VALUE,
+      demandUnits: Number.MIN_VALUE,
+      days: 1,
+    },
+    null,
+  ],
+  [
+    "STD-07 long_period_overflow",
+    "days_cover",
+    {
+      complete: true,
+      stock: 1,
+      demandUnits: 1,
+      days: Number.MAX_VALUE,
+    },
+    null,
+  ],
+  [
+    "ad_percentage_tiny_revenue",
+    "drr",
+    {
+      complete: true,
+      spend: Number.MAX_VALUE,
+      revenue: Number.MIN_VALUE,
+    },
+    null,
+  ],
+  [
+    "ad_percentage_scale_overflow",
+    "drr",
+    {
+      complete: true,
+      spend: Number.MAX_VALUE,
+      revenue: 10,
+    },
+    null,
+  ],
+  [
+    "CAP-24 finite_components_sum_overflow",
+    "platform_contribution",
+    {
+      complete: true,
+      revenue: 1,
+      fees: Number.MAX_VALUE,
+      storage: Number.MAX_VALUE,
+      logistics: 0,
+      ads: 0,
+      currencyByComponent: finiteOverflowCurrencies,
+    },
+    {
+      status: "INCOMPLETE",
+      label: "platform_contribution",
+      amount: null,
+      isNetProfit: false,
+    },
+  ],
+];
+for (const [name, kind, input, expected] of finiteOverflowCases) {
+  assert.deepEqual(
+    calculators[kind](input),
+    expected,
+    name + ": non-finite result",
+  );
+}
+for (const [name, kind, input, expected] of [
+  [
+    "STD-01 large_finite_total",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: Number.MAX_VALUE / 4, units: 1 },
+        { money: Number.MAX_VALUE / 4, units: 1 },
+      ],
+    },
+    { status: "COMPLETE", money: Number.MAX_VALUE / 2, units: 2 },
+  ],
+  [
+    "STD-07 zero_stock_observed",
+    "days_cover",
+    { complete: true, stock: 0, demandUnits: 2, days: 7 },
+    0,
+  ],
+  [
+    "ad_percentage_zero_spend_observed",
+    "drr",
+    { complete: true, spend: 0, revenue: 10 },
+    0,
+  ],
+  [
+    "CAP-24 finite_negative_contribution",
+    "platform_contribution",
+    {
+      complete: true,
+      revenue: 1000,
+      fees: 1100,
+      storage: 0,
+      logistics: 0,
+      ads: 0,
+      currencyByComponent: finiteOverflowCurrencies,
+    },
+    {
+      status: "COMPLETE",
+      label: "platform_contribution",
+      amount: -100,
+      isNetProfit: false,
+    },
+  ],
+]) {
+  assert.deepEqual(
+    calculators[kind](input),
+    expected,
+    name + ": finite control",
+  );
+}
 
 // CAP-25 business identity guards supplement the immutable owner-curated
 // gold/numeric fixture case list rather than changing its accepted bindings.
