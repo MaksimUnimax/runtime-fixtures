@@ -353,6 +353,7 @@ const calculators = {
       const count = (endMs - startMs) / 86400000 + 1;
       if (
         !Number.isSafeInteger(count) ||
+        count !== 14 ||
         rows.length !== count ||
         rows.some(
           (r) => exactUtcDay(r.day) < startMs || exactUtcDay(r.day) > endMs,
@@ -1342,6 +1343,22 @@ for (const [name, input] of [
   ],
   ["no_completeness", { period: rankPeriod, rows: rank14 }],
   ["no_period", { complete: true, rows: rank14 }],
+  [
+    "complete_two_day_period",
+    {
+      complete: true,
+      period: { start: "2026-09-01", end: "2026-09-02" },
+      rows: rank14.slice(0, 2),
+    },
+  ],
+  [
+    "complete_fifteen_day_period",
+    {
+      complete: true,
+      period: { start: "2026-09-01", end: "2026-09-15" },
+      rows: [...rank14, { day: "2026-09-15", money: 140 }],
+    },
+  ],
   [
     "missing_middle_day",
     { complete: true, period: rankPeriod, rows: rank14.slice(1) },
