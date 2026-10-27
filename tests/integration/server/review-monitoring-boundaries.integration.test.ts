@@ -875,6 +875,19 @@ describe.sequential(
         const now = new Date("2026-10-15T01:00:00Z"),
           store = createPostgresMonitoringScheduleStore(scoped);
         const original = store.startRun.bind(store);
+        const originalRelease = store.releaseUnstartedRun.bind(store);
+        // start() rejects as soon as one lane fails. The other lane may still
+        // be settling its post-stop reservation; check *its* actual release
+        // before asserting the durable state, without polling or sleeps.
+        let signalCompensation!: (released: boolean) => void;
+        const compensation = new Promise<boolean>((resolve) => {
+          signalCompensation = resolve;
+        });
+        store.releaseUnstartedRun = async (input) => {
+          const released = await originalRelease(input);
+          if (input.lane === "LLM") signalCompensation(released);
+          return released;
+        };
         let release!: () => void,
           entered!: () => void,
           block = true;
@@ -920,6 +933,9 @@ describe.sequential(
           await scheduler.stop();
           release();
           await rejected;
+          // A different lane can reject Promise.all before LLM compensation
+          // returns. The bounded test timeout exposes a missing release.
+          expect(await compensation).toBe(true);
           expect(runner).not.toHaveBeenCalled();
           const stopped = await store.getState("LLM");
           expect(stopped.activeRun).toBeNull();
