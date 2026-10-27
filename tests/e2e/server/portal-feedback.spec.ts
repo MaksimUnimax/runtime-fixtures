@@ -283,4 +283,83 @@ test.describe("portal feedback recovery", () => {
     await expect(main(page).getByText(userNote)).toHaveCount(0);
     expect(pageErrors).toEqual([]);
   });
+
+  test("refresh aborts an in-flight own-case detail while keeping the case visible", async ({
+    page,
+  }) => {
+    const staleReply = "SYNTHETIC_CANCELLED_SUPPORT_REPLY_B16";
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    let reads = 0;
+    await page.route("**/api/control-plane/v1/support/cases", (route) => {
+      reads += 1;
+      const current =
+        reads === 1 ? submittedCase : { ...submittedCase, status: "TRIAGED" };
+      return json(route, { items: [current] });
+    });
+    let entered!: () => void;
+    let release!: () => void;
+    const intercepted = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      `**/api/control-plane/v1/support/cases/${caseId}`,
+      async (route) => {
+        entered();
+        await held;
+        // After the browser aborts the request, its intercepted route is
+        // no longer active; never let a mock exception obscure the result.
+        if (!route.request().failure()) {
+          await json(route, {
+            ...submittedCase,
+            followups: [
+              {
+                followupId: "11111111-1111-4111-8111-111111111104",
+                authorType: "SUPPORT",
+                body: staleReply,
+                createdAt: "2026-10-24T00:03:00Z",
+              },
+            ],
+          }).catch(() => {});
+        }
+      },
+    );
+    try {
+      await page.goto("/feedback");
+      const caseRow = main(page).getByRole("listitem").first();
+      await expect(caseRow).toContainText("OPEN");
+      await expect(
+        main(page).getByText(`Номер обращения: ${caseId}`),
+      ).toBeVisible();
+      await main(page)
+        .getByRole("button", { name: "Проверить ответ поддержки" })
+        .click();
+      await intercepted;
+      // A requestfailed event is the actual browser acknowledgement that
+      // the stale fetch was canceled, not a guessed React render deadline.
+      const failedRequest = page.waitForEvent("requestfailed", (request) =>
+        request.url().endsWith(`/v1/support/cases/${caseId}`),
+      );
+      await main(page)
+        .getByRole("button", { name: "Обновить", exact: true })
+        .click();
+      const aborted = await failedRequest;
+      expect(aborted.failure()?.errorText).toContain("ERR_ABORTED");
+      await expect(caseRow).toContainText("TRIAGED");
+      await expect(
+        main(page).getByText(`Номер обращения: ${caseId}`),
+      ).toBeVisible();
+      expect(reads).toBe(2);
+      await expect(main(page).getByText(staleReply)).toHaveCount(0);
+      await expect(
+        main(page).getByRole("button", { name: "Проверить ответ поддержки" }),
+      ).toHaveAttribute("aria-expanded", "false");
+      expect(pageErrors).toEqual([]);
+    } finally {
+      release();
+    }
+  });
 });
