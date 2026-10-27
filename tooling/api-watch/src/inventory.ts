@@ -389,6 +389,18 @@ function effectiveParameters(
         Object.hasOwn(parameter, "content")
       )
         throw new Error("APIWATCH_PARAMETER_SCHEMA_CONTENT_CONFLICT");
+      // OAS 3 permits one and only one media type in Parameter.content.
+      // An empty or multi-media declaration has no unique wire contract.
+      if (root.swagger !== "2.0" && Object.hasOwn(parameter, "content")) {
+        const content = parameter.content;
+        if (
+          !content ||
+          typeof content !== "object" ||
+          Array.isArray(content) ||
+          Object.keys(content).length !== 1
+        )
+          throw new Error("APIWATCH_PARAMETER_CONTENT_CARDINALITY_INVALID");
+      }
       const identity = JSON.stringify([
         parameter.in === "header"
           ? parameter.name.toLowerCase()
