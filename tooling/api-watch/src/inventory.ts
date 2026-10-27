@@ -338,26 +338,66 @@ function effectiveParameters(
   root: Record<string, unknown>,
 ): Record<string, unknown>[] {
   const effective = new Map<string, Record<string, unknown>>();
-  let unresolvedIndex = 0;
-  const add = (raw: unknown) => {
-    const parameter = asObject(localRef(raw, root));
-    const identity =
-      typeof parameter.name === "string" && typeof parameter.in === "string"
-        ? JSON.stringify([
-            parameter.in === "header"
-              ? parameter.name.toLowerCase()
-              : parameter.name,
-            parameter.in,
-          ])
-        : "unresolved:" + unresolvedIndex++;
-    effective.set(identity, parameter);
+  const allowedLocations = new Set(
+    root.swagger === "2.0"
+      ? ["query", "header", "path", "body", "formData"]
+      : [
+          "query",
+          "header",
+          "path",
+          "cookie",
+          ...(typeof root.openapi === "string" &&
+          /^3\.2(?:\.|$)/u.test(root.openapi)
+            ? ["querystring"]
+            : []),
+        ],
+  );
+  // Path Item and Operation parameter arrays must EACH be duplicate-free.
+  // An Operation-level declaration may still replace one Path-level parameter.
+  const addLevel = (values: readonly unknown[]) => {
+    const seenAtLevel = new Set<string>();
+    for (const raw of values) {
+      const parameter = asObject(localRef(raw, root));
+      // Do not trust an external/unresolved Reference Object even if it
+      // carries fake sibling name/in fields that look like a valid parameter.
+      if (
+        Object.hasOwn(parameter, "$ref") ||
+        Object.hasOwn(parameter, "$unresolvedRef") ||
+        Object.hasOwn(parameter, "$recursiveRef") ||
+        typeof parameter.name !== "string" ||
+        typeof parameter.in !== "string"
+      )
+        throw new Error("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+      if (parameter.name.length === 0 || !allowedLocations.has(parameter.in))
+        throw new Error("APIWATCH_PARAMETER_IDENTITY_INVALID");
+      const identity = JSON.stringify([
+        parameter.in === "header"
+          ? parameter.name.toLowerCase()
+          : parameter.name,
+        parameter.in,
+      ]);
+      // Do not let last-write-wins hide conflicting schema or requiredness
+      // within the same source declaration, including resolved $ref aliases.
+      if (seenAtLevel.has(identity))
+        throw new Error("APIWATCH_DUPLICATE_PARAMETER_IDENTITY");
+      seenAtLevel.add(identity);
+      effective.set(identity, parameter);
+    }
   };
-  for (const parameter of pathParameters) add(parameter);
-  for (const parameter of Array.isArray(operation.parameters)
-    ? operation.parameters
-    : [])
-    add(parameter);
-  return [...effective.values()];
+  addLevel(pathParameters);
+  addLevel(Array.isArray(operation.parameters) ? operation.parameters : []);
+  const parameters = [...effective.values()];
+  // OAS 3.2 querystring represents the ENTIRE query. It may occur only
+  // once, and must not coexist with ordinary query parameters after valid
+  // Operation-over-Path overrides have been applied.
+  if (
+    parameters.filter((parameter) => parameter.in === "querystring").length >
+      1 ||
+    (parameters.some((parameter) => parameter.in === "querystring") &&
+      parameters.some((parameter) => parameter.in === "query"))
+  )
+    throw new Error("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+  return parameters;
 }
 
 function parametersFingerprint(
@@ -594,16 +634,56 @@ function responseFingerprint(
   const legacy = fingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
-        const response = asObject(localRef(raw, root));
+        const responseValue = localRef(raw, root);
+        if (
+          !responseValue ||
+          typeof responseValue !== "object" ||
+          Array.isArray(responseValue)
+        )
+          throw new Error("APIWATCH_RESPONSE_OBJECT_INVALID");
+        const response = responseValue as Record<string, unknown>;
+        // A Response Object is a trust boundary. An unresolved or external
+        // Reference Object is not equivalent to a known empty response, and
+        // forged sibling content cannot stand in for its unknown target.
+        if (
+          Object.hasOwn(response, "$ref") ||
+          Object.hasOwn(response, "$unresolvedRef") ||
+          Object.hasOwn(response, "$recursiveRef")
+        )
+          throw new Error("APIWATCH_RESPONSE_REF_UNRESOLVED");
         const body = response.schema ?? response.content ?? null;
         if (body !== null) hasResponseBody = true;
+        // A malformed headers container must not silently become an empty map.
+        if (
+          response.headers !== undefined &&
+          (!response.headers ||
+            typeof response.headers !== "object" ||
+            Array.isArray(response.headers))
+        )
+          throw new Error("APIWATCH_RESPONSE_HEADERS_INVALID");
         // Response headers are contract fields, not just response annotations.
         // HTTP header names are case-insensitive; OAS ignores Content-Type here.
         const headers = Object.entries(asObject(response.headers))
           .filter(([name]) => name.toLowerCase() !== "content-type")
           .sort(([a], [b]) => compareCodeUnits(a, b))
           .map(([name, rawHeader]) => {
-            const header = asObject(localRef(rawHeader, root));
+            const headerValue = localRef(rawHeader, root);
+            if (
+              !headerValue ||
+              typeof headerValue !== "object" ||
+              Array.isArray(headerValue)
+            )
+              throw new Error("APIWATCH_RESPONSE_HEADER_OBJECT_INVALID");
+            const header = headerValue as Record<string, unknown>;
+            // Header Reference Objects also require a resolved authority:
+            // do not present unknown remote/missing header definitions as
+            // a verified response contract or a valid semantic fingerprint.
+            if (
+              Object.hasOwn(header, "$ref") ||
+              Object.hasOwn(header, "$unresolvedRef") ||
+              Object.hasOwn(header, "$recursiveRef")
+            )
+              throw new Error("APIWATCH_RESPONSE_HEADER_REF_UNRESOLVED");
             const normalized = Object.fromEntries(
               Object.entries(header).filter(([key, value]) => {
                 if (
