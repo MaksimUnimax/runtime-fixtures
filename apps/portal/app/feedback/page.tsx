@@ -17,7 +17,8 @@ type CaseItem = {
   description: string;
 };
 type SupportDetail =
-  | { caseId: string; state: "loading" | "error" }
+  | { caseId: string; state: "loading" }
+  | { caseId: string; state: "error" }
   | { caseId: string; state: "ready"; response: OwnSupportResponse };
 
 const caseIdPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu;
