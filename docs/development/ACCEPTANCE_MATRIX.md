@@ -26,7 +26,7 @@ Requirement IDs соответствуют [SPEC](../product/SPEC.md). При р
 | A19 | SA-SYNC-02 | Ошибка/таймаут optional sync, большой pending backlog или конфликт одного диалога не блокируют обычный другой диалог |
 | A20 | SA-SYNC-01, SA-WORK-02 | Поздний старый report, clock skew, out-of-order ACK: не отменяют новую привязку/Finish и не создают переключение по кругу |
 | A21 | SA-QUOTA-01 | Локальный минутный лимит/429/Retry-After/другой браузер: нет скрытого retry; факт и предположение различаются |
-| A22 | SA-KEY-01 | Перенос с согласием только получателя; source offline понятен; серверные DB/log/queue не содержат секретный payload |
+| A22 | SA-KEY-01 | Перенос требует согласия получателя и отдельного подтверждения владельца до выдачи ключей; без подтверждения ключи не выдаются. Source offline понятен; серверные DB/log/queue не содержат секретный payload |
 | A23 | SA-KEY-01, SA-AUTH-01 | Recipient/account substitution, expiry, logout/revoke, повтор packet отвергаются; чужие ключи не сохраняются |
 | A24 | SA-KEY-02 | Один файл все магазины; пароль/целостность/version/старый формат/конфликт проверены; импорт не запускает Work |
 | A25 | SA-AI-01, SA-CMD-03 | Composer replacement, user draft, empty composer без нового turn, attachment readiness: честный send proof/UNKNOWN |
