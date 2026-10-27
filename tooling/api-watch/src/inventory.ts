@@ -338,20 +338,38 @@ function effectiveParameters(
   root: Record<string, unknown>,
 ): Record<string, unknown>[] {
   const effective = new Map<string, Record<string, unknown>>();
+  const allowedLocations = new Set(
+    root.swagger === "2.0"
+      ? ["query", "header", "path", "body", "formData"]
+      : [
+          "query",
+          "header",
+          "path",
+          "cookie",
+          ...(typeof root.openapi === "string" &&
+          /^3\.2(?:\.|$)/u.test(root.openapi)
+            ? ["querystring"]
+            : []),
+        ],
+  );
   // Path Item and Operation parameter arrays must EACH be duplicate-free.
   // An Operation-level declaration may still replace one Path-level parameter.
   const addLevel = (values: readonly unknown[]) => {
     const seenAtLevel = new Set<string>();
     for (const raw of values) {
       const parameter = asObject(localRef(raw, root));
-      // Unresolved local/external $ref or missing name/in is not a parameter
-      // identity. Never convert unsupported authority to a synthetic unique
-      // key that would make a malformed contract appear semantically safe.
+      // Do not trust an external/unresolved Reference Object even if it
+      // carries fake sibling name/in fields that look like a valid parameter.
       if (
+        Object.hasOwn(parameter, "$ref") ||
+        Object.hasOwn(parameter, "$unresolvedRef") ||
+        Object.hasOwn(parameter, "$recursiveRef") ||
         typeof parameter.name !== "string" ||
         typeof parameter.in !== "string"
       )
         throw new Error("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+      if (parameter.name.length === 0 || !allowedLocations.has(parameter.in))
+        throw new Error("APIWATCH_PARAMETER_IDENTITY_INVALID");
       const identity = JSON.stringify([
         parameter.in === "header"
           ? parameter.name.toLowerCase()
@@ -368,7 +386,18 @@ function effectiveParameters(
   };
   addLevel(pathParameters);
   addLevel(Array.isArray(operation.parameters) ? operation.parameters : []);
-  return [...effective.values()];
+  const parameters = [...effective.values()];
+  // OAS 3.2 querystring represents the ENTIRE query. It may occur only
+  // once, and must not coexist with ordinary query parameters after valid
+  // Operation-over-Path overrides have been applied.
+  if (
+    parameters.filter((parameter) => parameter.in === "querystring").length >
+      1 ||
+    (parameters.some((parameter) => parameter.in === "querystring") &&
+      parameters.some((parameter) => parameter.in === "query"))
+  )
+    throw new Error("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+  return parameters;
 }
 
 function parametersFingerprint(

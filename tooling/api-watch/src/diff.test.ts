@@ -218,6 +218,28 @@ describe("A4 semantic API diffs", () => {
     expect(() =>
       build([], [{ in: "query", schema: { type: "string" } }]),
     ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    // An external ref with fake sibling identity still has unknown contents.
+    expect(() =>
+      build(
+        [],
+        [
+          {
+            $ref: "remote.yaml#/components/parameters/Page",
+            name: "page",
+            in: "query",
+          },
+        ],
+      ),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
+    expect(() =>
+      build([], [{ name: "", in: "query", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+    expect(() =>
+      build([], [{ name: "page", in: "", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
+    expect(() =>
+      build([], [{ name: "page", in: "unknown", schema: { type: "string" } }]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
 
     // Cross-level overrides are legal, and query parameter case matters.
     const overridden = build([page("integer", true)], [last]);
@@ -228,6 +250,74 @@ describe("A4 semantic API diffs", () => {
     );
     const distinct = build([], [last, { ...last, name: "Page" }]);
     expect(distinct.operations[0]?.parameterCount).toBe(2);
+  });
+
+  it("C03 enforces OpenAPI 3.2 querystring exclusivity", () => {
+    const parameter = (name: string, location: string) => ({
+      name,
+      in: location,
+      content: {
+        "application/x-www-form-urlencoded": {
+          schema: { type: "object", properties: { name: { type: "string" } } },
+        },
+      },
+    });
+    const build = (
+      version: string,
+      pathParameters: unknown[],
+      operationParameters: unknown[],
+    ) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        filename: "openapi.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: version,
+            info: { title: "querystring", version: "1" },
+            paths: {
+              "/orders": {
+                parameters: pathParameters,
+                get: {
+                  parameters: operationParameters,
+                  responses: { "200": { description: "ok" } },
+                },
+              },
+            },
+          }),
+        ),
+      });
+    expect(() =>
+      build(
+        "3.2.0",
+        [],
+        [
+          parameter("whole", "querystring"),
+          parameter("alternate", "querystring"),
+        ],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(() =>
+      build(
+        "3.2.0",
+        [],
+        [parameter("page", "query"), parameter("whole", "querystring")],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(() =>
+      build(
+        "3.2.0",
+        [parameter("whole", "querystring")],
+        [parameter("page", "query")],
+      ),
+    ).toThrow("APIWATCH_QUERYSTRING_PARAMETER_CONFLICT");
+    expect(
+      build("3.2.0", [], [parameter("whole", "querystring")]).operations[0]
+        ?.parameterCount,
+    ).toBe(1);
+    expect(() =>
+      build("3.1.0", [], [parameter("whole", "querystring")]),
+    ).toThrow("APIWATCH_PARAMETER_IDENTITY_INVALID");
   });
 
   it("C03 detects requiredness, type, enum, request, response and security changes from OpenAPI", () => {
