@@ -5,6 +5,8 @@ import { controlPlane } from "../../lib/control-plane";
 import {
   FEEDBACK_CATEGORIES,
   buildFeedbackPayload,
+  ownSupportResponse,
+  type OwnSupportResponse,
 } from "../../lib/feedback-ui";
 
 type Account = { id: string; displayName: string | null; status: string };
@@ -14,6 +16,11 @@ type CaseItem = {
   status: string;
   description: string;
 };
+type SupportDetail =
+  | { caseId: string; state: "loading" | "error" }
+  | { caseId: string; state: "ready"; response: OwnSupportResponse };
+
+const caseIdPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -31,6 +38,7 @@ function isCase(value: unknown): value is CaseItem {
   return (
     isRecord(value) &&
     typeof value.caseId === "string" &&
+    caseIdPattern.test(value.caseId) &&
     typeof value.category === "string" &&
     typeof value.status === "string" &&
     typeof value.description === "string"
@@ -48,13 +56,20 @@ export default function FeedbackPage() {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [supportDetail, setSupportDetail] = useState<SupportDetail | null>(null);
   // Refs fence repeated events before React commits the disabled controls.
   const loading = useRef(false);
   const submitting = useRef(false);
+  const detailLoading = useRef(false);
+  const detailGeneration = useRef(0);
 
   const load = async () => {
     if (loading.current) return;
     loading.current = true;
+    // Old own-case replies cannot survive a refreshed user-case list.
+    detailGeneration.current++;
+    detailLoading.current = false;
+    setSupportDetail(null);
     setBusy(true);
     setLoadError("");
     try {
@@ -97,6 +112,37 @@ export default function FeedbackPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  const showSupportReply = async (caseId: string) => {
+    if (
+      loading.current ||
+      submitting.current ||
+      detailLoading.current ||
+      !caseIdPattern.test(caseId) ||
+      !cases.some((item) => item.caseId === caseId)
+    )
+      return;
+    const requestGeneration = ++detailGeneration.current;
+    detailLoading.current = true;
+    setSupportDetail({ caseId, state: "loading" });
+    try {
+      const response = await controlPlane(
+        `/v1/support/cases/${encodeURIComponent(caseId)}`,
+      );
+      if (!response.ok) throw new Error("SUPPORT_DETAIL_NOT_CONFIRMED");
+      const detail: unknown = await response.json();
+      const projected = ownSupportResponse(detail, caseId);
+      if (!projected) throw new Error("SUPPORT_DETAIL_INVALID");
+      if (requestGeneration === detailGeneration.current)
+        setSupportDetail({ caseId, state: "ready", response: projected });
+    } catch {
+      if (requestGeneration === detailGeneration.current)
+        setSupportDetail({ caseId, state: "error" });
+    } finally {
+      if (requestGeneration === detailGeneration.current)
+        detailLoading.current = false;
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -232,6 +278,42 @@ export default function FeedbackPage() {
             <li key={item.caseId}>
               <strong>{item.category}</strong> — {item.status} —{" "}
               {item.description}
+              <p>Номер обращения: {item.caseId}</p>
+              <button
+                type="button"
+                onClick={() => void showSupportReply(item.caseId)}
+                disabled={busy || sending || supportDetail?.state === "loading"}
+                aria-expanded={supportDetail?.caseId === item.caseId}
+              >
+                Проверить ответ поддержки
+              </button>
+              {supportDetail?.caseId === item.caseId ? (
+                <section aria-label={`Ответ по обращению ${item.caseId}`}>
+                  {supportDetail.state === "loading" ? (
+                    <p role="status">Загрузка ответа…</p>
+                  ) : supportDetail.state === "error" ? (
+                    <p role="alert">
+                      Не удалось подтвердить ответ по этому обращению.
+                      Попробуйте проверить его ещё раз.
+                    </p>
+                  ) : (
+                    <>
+                      <p>Актуальный статус: {supportDetail.response.status}</p>
+                      {supportDetail.response.replies.length === 0 ? (
+                        <p>Ответ поддержки пока не поступил.</p>
+                      ) : (
+                        <ul>
+                          {supportDetail.response.replies.map((reply) => (
+                            <li key={reply.followupId}>
+                              <strong>Ответ поддержки</strong> — {reply.body}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </section>
+              ) : null}
             </li>
           ))}
         </ul>
