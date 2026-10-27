@@ -372,10 +372,34 @@ const calculators = {
     return { best, worst };
   },
   percent_change(input) {
+    // A two-day claim must establish both days and comparable source
+    // definitions. Older curated numeric fixtures exercise arithmetic only.
+    if (input?.complete !== undefined || input?.proof !== undefined) {
+      const currentProof = input.proof?.current;
+      const previousProof = input.proof?.previous;
+      const currentDay = exactUtcDay(currentProof?.day);
+      const previousDay = exactUtcDay(previousProof?.day);
+      if (
+        input.complete !== true ||
+        currentProof?.complete !== true ||
+        previousProof?.complete !== true ||
+        currentDay === null ||
+        previousDay === null ||
+        currentDay - previousDay !== 86400000 ||
+        typeof currentProof.timeZone !== "string" ||
+        currentProof.timeZone.trim() === "" ||
+        currentProof.timeZone !== previousProof.timeZone ||
+        typeof currentProof.definition !== "string" ||
+        currentProof.definition.trim() === "" ||
+        currentProof.definition !== previousProof.definition
+      )
+        return null;
+    }
     const current = finiteRecordedMetric(input?.current),
       previous = finiteRecordedMetric(input?.previous);
     if (current === null || previous === null || previous === 0) return null;
-    return ((current - previous) / Math.abs(previous)) * 100;
+    const percent = ((current - previous) / Math.abs(previous)) * 100;
+    return Number.isFinite(percent) ? percent : null;
   },
   warehouse_sort(input) {
     if (
@@ -1250,6 +1274,187 @@ const observedZeroCases = [
 for (const [name, kind, input, expected] of observedZeroCases) {
   assert.equal(calculators[kind](input), expected, name + " must stay valid");
 }
+
+// STD-04: two-day source claims need both observed complete calendar days,
+// the same timezone and the same metric definition. Historical numeric fixtures
+// without a proof remain arithmetic-only, not verified live comparisons.
+const std04Proof = {
+  current: {
+    day: "2026-10-26",
+    complete: true,
+    timeZone: "Europe/Moscow",
+    definition: "realized_sales_revenue",
+  },
+  previous: {
+    day: "2026-10-25",
+    complete: true,
+    timeZone: "Europe/Moscow",
+    definition: "realized_sales_revenue",
+  },
+};
+const std04Base = {
+  current: 120,
+  previous: 100,
+  complete: true,
+  proof: std04Proof,
+};
+const std04InvalidClaims = [
+  ["missing_proof", { ...std04Base, proof: undefined }],
+  ["missing_complete", { ...std04Base, complete: undefined }],
+  ["false_complete", { ...std04Base, complete: false }],
+  ["textual_complete", { ...std04Base, complete: "true" }],
+  [
+    "missing_current",
+    { ...std04Base, proof: { previous: std04Proof.previous } },
+  ],
+  [
+    "missing_previous",
+    { ...std04Base, proof: { current: std04Proof.current } },
+  ],
+  [
+    "current_incomplete",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, complete: false },
+      },
+    },
+  ],
+  [
+    "previous_incomplete",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, complete: false },
+      },
+    },
+  ],
+  [
+    "current_invalid_date",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, day: "2026-02-30" },
+      },
+    },
+  ],
+  [
+    "previous_invalid_date",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-02-30" },
+      },
+    },
+  ],
+  [
+    "equal_days",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-26" },
+      },
+    },
+  ],
+  [
+    "reversed_days",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-27" },
+      },
+    },
+  ],
+  [
+    "missing_middle_day",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, day: "2026-10-24" },
+      },
+    },
+  ],
+  [
+    "timezone_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, timeZone: "UTC" },
+      },
+    },
+  ],
+  [
+    "timezone_blank",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        current: { ...std04Proof.current, timeZone: "  " },
+      },
+    },
+  ],
+  [
+    "definition_mismatch",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, definition: "orders_revenue" },
+      },
+    },
+  ],
+  [
+    "definition_blank",
+    {
+      ...std04Base,
+      proof: {
+        ...std04Proof,
+        previous: { ...std04Proof.previous, definition: " " },
+      },
+    },
+  ],
+];
+for (const [name, input] of std04InvalidClaims) {
+  assert.equal(calculators.percent_change(input), null, "STD-04 " + name);
+}
+assert.equal(
+  calculators.percent_change({
+    current: Number.MAX_VALUE,
+    previous: Number.MIN_VALUE,
+  }),
+  null,
+  "STD-04 finite source values must not produce infinite percentages",
+);
+assert.equal(
+  calculators.percent_change(std04Base),
+  20,
+  "STD-04 complete comparable days",
+);
+assert.equal(
+  calculators.percent_change({ ...std04Base, current: 0 }),
+  -100,
+  "STD-04 observed zero after a nonzero previous day",
+);
+assert.equal(
+  calculators.percent_change({
+    ...std04Base,
+    current: 150,
+    proof: {
+      current: { ...std04Proof.current, day: "2024-03-01" },
+      previous: { ...std04Proof.previous, day: "2024-02-29" },
+    },
+  }),
+  50,
+  "STD-04 complete comparison over valid leap day",
+);
 
 // CAP-25 business identity guards supplement the immutable owner-curated
 // gold/numeric fixture case list rather than changing its accepted bindings.
