@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createPostgresMonitoringScheduleStore,
+  InMemoryMonitoringScheduleStore,
   type MonitoringSqlQuery,
   type MonitoringSqlRuntime,
 } from "./store.js";
@@ -81,6 +82,47 @@ function simulateConditionalWrite(affected: boolean) {
 }
 
 describe("C03 PostgreSQL monitor completion stale owner fencing", () => {
+  it("rejects an expired owner without a takeover in memory", async () => {
+    const store = new InMemoryMonitoringScheduleStore();
+    await store.ensureDefaults(now);
+    const started = await store.startRun({
+      lane: "SWAGGER_API",
+      source: "FORCED",
+      now,
+      leaseMs: 1000,
+    });
+    expect(started.kind).toBe("STARTED");
+    if (started.kind !== "STARTED") throw new Error("EXPECTED_STARTED");
+    await expect(
+      store.finishRun({
+        lane: "SWAGGER_API",
+        runId: started.run.runId,
+        now: new Date(now.valueOf() + 1000),
+        result,
+      }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    const retained = await store.getState("SWAGGER_API");
+    expect(retained.activeRun?.runId).toBe(started.run.runId);
+    expect(retained.lastResult).toBeNull();
+  });
+
+  it("requires a nonexpired lease in the atomic PostgreSQL completion", async () => {
+    const fixture = simulateConditionalWrite(false);
+    const store = createPostgresMonitoringScheduleStore(fixture.runtime);
+    await expect(
+      store.finishRun({
+        lane: "SWAGGER_API",
+        runId: oldRun,
+        now,
+        result,
+      }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    expect(fixture.sqlTexts).toHaveLength(1);
+    expect(fixture.sqlTexts[0]).toContain(
+      "AND active_run_id=$4 AND active_run_lease_expires_at>$2",
+    );
+  });
+
   it("rejects stale owner if its conditional update affected no row", async () => {
     const fixture = simulateConditionalWrite(false);
     const store = createPostgresMonitoringScheduleStore(fixture.runtime);

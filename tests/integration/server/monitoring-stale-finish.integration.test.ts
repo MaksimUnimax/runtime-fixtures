@@ -124,6 +124,31 @@ describe.sequential("C03 PostgreSQL stale finish ownership", () => {
     expect((await storeA.getState("LLM")).lastResult).toBeNull();
   });
 
+  it("rejects an expired owner without a replacement on physical PostgreSQL", async () => {
+    const runId = requiredRunId(
+      await storeA.startRun({
+        lane: "SWAGGER_API",
+        source: "FORCED",
+        now: at(45),
+        leaseMs: 1000,
+      }),
+    );
+    const before = await storeB.getState("SWAGGER_API");
+    expect(before.activeRun?.runId).toBe(runId);
+    await expect(
+      storeA.finishRun({
+        lane: "SWAGGER_API",
+        runId,
+        now: at(46),
+        result,
+      }),
+    ).rejects.toThrow("MONITORING_RUN_STALE_OWNER");
+    const after = await storeB.getState("SWAGGER_API");
+    expect(after.activeRun?.runId).toBe(runId);
+    expect(after.lastResult).toEqual(before.lastResult);
+    expect(after.lastRunAt).toEqual(before.lastRunAt);
+  });
+
   it("serializes simultaneous old and valid finishes across separate connections", async () => {
     const first = requiredRunId(
       await storeA.startRun({
