@@ -36,7 +36,6 @@ describe("B2 portal feedback form", () => {
   });
 });
 
-
 describe("B16-03 own-case visible support response", () => {
   const caseId = "00000000-0000-4000-8000-000000000003";
   const staff = {
@@ -72,10 +71,7 @@ describe("B16-03 own-case visible support response", () => {
 
   it("does not invent an answer when support has not replied", () => {
     expect(
-      ownSupportResponse(
-        { caseId, status: "NEW", followups: [user] },
-        caseId,
-      ),
+      ownSupportResponse({ caseId, status: "NEW", followups: [user] }, caseId),
     ).toEqual({ caseId, status: "NEW", replies: [] });
   });
 
@@ -98,7 +94,11 @@ describe("B16-03 own-case visible support response", () => {
     { caseId, status: "NEW", followups: "invalid" },
     { caseId, status: "NEW", followups: [{ ...staff, authorType: "SYSTEM" }] },
     { caseId, status: "NEW", followups: [{ ...staff, body: 13 }] },
-    { caseId, status: "NEW", followups: [{ ...staff, body: "a".repeat(4001) }] },
+    {
+      caseId,
+      status: "NEW",
+      followups: [{ ...staff, body: "a".repeat(4001) }],
+    },
     { caseId, status: "NEW", followups: [null] },
   ])("fails closed for malformed or unexpected own-case details", (value) => {
     expect(ownSupportResponse(value, caseId)).toBeNull();
