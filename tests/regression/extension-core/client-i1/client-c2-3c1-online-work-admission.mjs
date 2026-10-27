@@ -271,8 +271,36 @@ await run("C1-31B", "parallel same-marketplace stores pin distinct conversation 
 });
 await run("C1-32", "B2 result is not persisted as execution authority", async () => { const f = await fixture(); try { await activeStart(f); assert.equal(JSON.stringify(f.backing.local).includes("online_work_authority_decision"), false); } finally { await close(f); } });
 await run("C1-33", "B2 executionAuthority remains false", async () => { const f = await fixture(); try { const r = await activeStart(f); assert.equal(r.ok, true); assert.equal(JSON.stringify(f.backing.local).includes('"executionAuthority":true'), false); } finally { await close(f); } });
-await run("C1-34", "Start admission makes zero marketplace calls", async () => { const f = await fixture(); try { await start(f); assert.equal(f.calls.some(row => row.url.includes("ozon.ru") || row.url.includes("wildberries")), false); } finally { await close(f); } });
-await run("C1-35", "Start admission makes zero provider calls", async () => { const f = await fixture(); try { await start(f); assert.equal(f.calls.filter(row => !row.url.endsWith("/v1/health-authority")).length, 0); } finally { await close(f); } });
+await run("C1-34", "Start admission makes zero marketplace calls", async () => {
+  const f = await fixture();
+  try {
+    const intent = "c1-34-no-egress";
+    const response = await start(f, { start_intent_id: intent });
+    assert.equal(response.ok, true);
+    assert.equal(response.accepted, true, "only an admitted Start can establish non-egress");
+    const pending = (await f.worker.call("getPendingWorkStarts"))[f.worker.tabId];
+    assert.equal(pending?.intent_id, intent, "require durably pending exact first Start");
+    assert.equal(pending?.store_context?.storeId, f.store.id);
+    assert.equal(f.worker.network.filter(row =>
+      /(?:ozon\.ru|wildberries|wb\.ru)/i.test(row.url)).length, 0,
+    "Start must not send any marketplace request through the actual fixture fetch");
+  } finally { await close(f); }
+});
+await run("C1-35", "Start admission makes zero provider calls", async () => {
+  const f = await fixture();
+  try {
+    const intent = "c1-35-no-provider-egress";
+    const response = await start(f, { start_intent_id: intent });
+    assert.equal(response.ok, true);
+    assert.equal(response.accepted, true, "only an admitted Start can establish non-egress");
+    const pending = (await f.worker.call("getPendingWorkStarts"))[f.worker.tabId];
+    assert.equal(pending?.intent_id, intent, "require durably pending exact first Start");
+    assert.equal(pending?.store_context?.storeId, f.store.id);
+    assert.equal(healthCalls(f).length, 1, "Start must observe its one synthetic Health response");
+    assert.equal(f.worker.network.length, 0,
+      "Start cannot make independent provider/network calls without explicit manual command");
+  } finally { await close(f); }
+});
 await run("C1-36", "Start admission sends zero marketplace command payloads", async () => { const f = await fixture(); try { await start(f); assert.equal(f.worker.messages.some(message => /API_V1|COMMAND/.test(JSON.stringify(message))), false); } finally { await close(f); } });
 await run("C1-37", "ordinary command path adds zero Health calls", async () => { const f = await fixture(); try { await activeStart(f); const before = healthCalls(f).length; await f.worker.request({ type: "OZ_GET_MANUAL_STATE", conversation_key: f.key }, { tab: { id: f.worker.tabId } }); assert.equal(healthCalls(f).length, before); } finally { await close(f); } });
 await run("C1-38", "ordinary command path adds zero Bootstrap calls", async () => { const f = await fixture(); try { await activeStart(f); assert.equal(f.calls.some(row => row.url.endsWith("/v1/bootstrap")), false); } finally { await close(f); } });

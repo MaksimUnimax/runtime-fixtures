@@ -1,5 +1,5 @@
-import { chromium } from "playwright";
-import { describe, expect, it } from "vitest";
+import { chromium, type Browser } from "playwright";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   chatGPTAssistantMessages,
   chatGPTElementInsideAssistantContext,
@@ -9,10 +9,21 @@ import {
 const TOKEN = "BRIDGE_HEALTHCHECK_V1";
 
 describe("A117-compatible ChatGPT H3 DOM ownership", () => {
+  let browser: Browser | undefined;
+
+  beforeEach(async () => {
+    browser = await chromium.launch({ headless: true });
+  }, 20_000);
+
+  afterEach(async () => {
+    const activeBrowser = browser;
+    browser = undefined;
+    await activeBrowser?.close();
+  }, 20_000);
+
   it("canonicalizes current and inferred assistant roots in document order", async () => {
-    const browser = await chromium.launch({ headless: true });
+    const page = await browser!.newPage();
     try {
-      const page = await browser.newPage();
       await page.setContent(`
         <article id="inferred">
           <div data-assistant-markdown><pre><code>FIRST</code></pre></div>
@@ -46,14 +57,13 @@ describe("A117-compatible ChatGPT H3 DOM ownership", () => {
         0,
       );
     } finally {
-      await browser.close();
+      await page.close();
     }
   });
 
   it("rejects response-level Copy and keeps the one code-owned Copy", async () => {
-    const browser = await chromium.launch({ headless: true });
+    const page = await browser!.newPage();
     try {
-      const page = await browser.newPage();
       await page.setContent(`
         <li data-message-role="assistant" id="response-only">
           <div><code>${TOKEN}</code></div>
@@ -103,14 +113,13 @@ describe("A117-compatible ChatGPT H3 DOM ownership", () => {
         ),
       ).toEqual({ present: true, actionable: true });
     } finally {
-      await browser.close();
+      await page.close();
     }
   });
 
   it("keeps composer ownership out of assistant and user contamination", async () => {
-    const browser = await chromium.launch({ headless: true });
+    const page = await browser!.newPage();
     try {
-      const page = await browser.newPage();
       await page.setContent(`
         <li data-message-role="assistant"><div id="inside" contenteditable="true"></div></li>
         <form><div id="composer" contenteditable="true"></div></form>
@@ -131,7 +140,7 @@ describe("A117-compatible ChatGPT H3 DOM ownership", () => {
         ),
       ).toBe(false);
     } finally {
-      await browser.close();
+      await page.close();
     }
   });
 });
