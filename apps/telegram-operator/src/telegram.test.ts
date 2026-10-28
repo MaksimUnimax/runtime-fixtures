@@ -559,7 +559,7 @@ describe("TG4 Telegram operator integration hardening", () => {
     const sends: string[] = [];
     const stored = new InMemoryMonitoringScheduleStore();
     await stored.ensureDefaults(new Date("2026-09-22T00:00:00Z"));
-    let service!: TelegramOperatorService;
+    const serviceRef: { current?: TelegramOperatorService } = {};
     let failSecondOnce = true;
     const scheduler = new IndependentMonitoringScheduler({
       store: stored,
@@ -576,7 +576,7 @@ describe("TG4 Telegram operator integration hardening", () => {
           summary: "Synthetic success.",
         }),
       },
-      notifier: async (notification) => service.notify(notification),
+      notifier: async (notification) => serviceRef.current?.notify(notification),
     });
     const transport: TelegramTransport = {
       getUpdates: async () => ({ updates: [] }),
@@ -589,12 +589,13 @@ describe("TG4 Telegram operator integration hardening", () => {
         }
       },
     };
-    service = new TelegramOperatorService({
+    const service = new TelegramOperatorService({
       scheduler,
       transport,
       operatorIds: new Set(["7"]),
       notificationChatIds: ["fixture-A", "fixture-B"],
     });
+    serviceRef.current = service;
     try {
       expect((await scheduler.runNowAndWait("LLM")).status).toBe("SUCCEEDED");
       expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-B"]);
