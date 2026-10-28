@@ -34,6 +34,10 @@ const scope={
 };
 scope.globalThis=scope;
 vm.createContext(scope);
+// Real pinned execution-context contract, rather than a permissive test stub.
+vm.runInContext(fs.readFileSync(
+  path.join(root,"packages/bridge-core/src/execution/context.js"),"utf8"),scope,
+  {filename:"packages/bridge-core/src/execution/context.js",timeout:1600});
 vm.runInContext(source+"\nglobalThis.__prepare=saPrepareDelivery;",scope,{filename:"apps/extension/src/application/delivery.js",timeout:1600});
 const entry=(attempt,content="SYNTHETIC")=>{
   const b=Buffer.from(content);
@@ -48,7 +52,8 @@ const entry=(attempt,content="SYNTHETIC")=>{
 const owner=(account="acctA",store="storeA",operation="op1",marketplace="wildberries")=>({
   operation_id:operation,payload_expires_at_ms:Date.now()+60000,
   execution_context:{accountId:account,storeId:store,marketplace,
-    bindingId:"binding1",bindingRevision:1,workSessionId:"session1",conversationKey:"conversation1"}
+    bindingId:"binding1",bindingRevision:1,workSessionId:"session1",conversationKey:"conversation1",
+    credentialRevision:1,policyRevision:1,commandHash:"synthetic-command-hash",requestId:"synthetic-context-request"}
 });
 async function ref(attempt,account,store,operation,marketplace,content){
   sourceCalls++;
@@ -62,7 +67,7 @@ async function ref(attempt,account,store,operation,marketplace,content){
 }
 const different=[await ref("first"),await ref("second")];assert.notEqual(...different);
 const punctuation=[await ref("p:a"),await ref("p/a")];assert.notEqual(...punctuation);
-const crossAccount=[await ref("shared","acctA","storeA"),await ref("shared","acctB","storeB")];assert.notEqual(...crossAccount);
+const crossAccount=[await ref("shared","acctA","storeA"),await ref("shared","acctB","storeA")];assert.notEqual(...crossAccount);
 const crossStore=[await ref("shared","acctA","storeA"),await ref("shared","acctA","storeB")];assert.notEqual(...crossStore);
 const longIds=[await ref("x".repeat(180)+"1"),await ref("x".repeat(180)+"2")];assert.notEqual(...longIds);
 const operations=[await ref("same","acctA","storeA","op1"),await ref("same","acctA","storeA","op2")];assert.notEqual(...operations);
@@ -119,9 +124,39 @@ assert.notEqual(attemptRef[0].provider_file_ref,requestRef[0].provider_file_ref,
   "attempt and request identity namespaces must not collide");
 sourceCalls += 8;
 
+// R13: exact context and bounded identity parts fail closed before fake storage.
+// Reuse the product's real ExecutionContext.snapshot contract in the VM above.
+const writesBeforeInvalid = fakeWrites;
+for (const changes of [
+  { bindingId:undefined },{ bindingId:"x".repeat(513) },
+  { bindingRevision:undefined },{ bindingRevision:-1 },{ bindingRevision:1.5 },
+  { workSessionId:undefined },{ workSessionId:"x".repeat(513) },
+  { accountId:"x".repeat(513) },{ storeId:"x".repeat(513) },
+]) {
+  const subject=owner();
+  subject.execution_context={...subject.execution_context,...changes};
+  await assert.rejects(()=>scope.__prepare([entry("invalid")],subject),
+    error=>error.code==="EXECUTION_CONTEXT_MISSING");
+}
+for (const operationId of [undefined,"","x".repeat(513)]) {
+  const subject=owner();subject.operation_id=operationId;
+  await assert.rejects(()=>scope.__prepare([entry("invalid")],subject),
+    error=>error.code==="EXECUTION_CONTEXT_MISSING");
+}
+for (const changed of [
+  {provider_attempt:{provider_attempt_id:"x".repeat(513)}},
+  {provider_attempt:{provider_attempt_id:123}},
+  {request_id:"x".repeat(513)},
+  {request_id:123},
+]) {
+  await assert.rejects(()=>scope.__prepare([{...entry("invalid"),...changed}],owner()),
+    error=>error.code==="FILE_REFERENCE_IDENTITY_INVALID");
+}
+assert.equal(fakeWrites,writesBeforeInvalid,"rejected oversized/missing identity must not reach storage");
+
 console.log(JSON.stringify({status:"PASS",scenario:"A04_WB_ORIGINAL_FILE_REF_SCOPED_INJECTIVITY",level:"SOURCE_VM_SYNTHETIC_ONLY",
- sourceGitBlob,checks:15,
+ sourceGitBlob,checks:16,
  assertions:{different_attempts:true,punctuation_distinct:true,account_and_store_separated:true,truncated_raw_ids_distinct:true,
- operation_separated:true,same_logical_key_stable:true,invalid_scope_rejected:true,changed_bytes_mock_rejected:true,non_WB_unchanged:true,stable_identity_across_ordinal_shift:true,request_fallback_stable:true,missing_ids_use_ordinal:true,attempt_id_priority:true,identity_type_domain_separated:true},
+ operation_separated:true,same_logical_key_stable:true,invalid_scope_rejected:true,changed_bytes_mock_rejected:true,non_WB_unchanged:true,stable_identity_across_ordinal_shift:true,request_fallback_stable:true,missing_ids_use_ordinal:true,attempt_id_priority:true,identity_type_domain_separated:true,strict_bounded_context_and_raw_ids:true},
  calls:{source:sourceCalls,mock_persistence:fakeWrites,owner_guard:guards,provider_http:0},
  limitations:"Real IndexedDB artifact storage, copyManifest, installed attachment, owner/providers and production NOT VERIFIED"}));

@@ -42,23 +42,30 @@ async function saPrepareDelivery(entries, owner) {
     // Include the pinned account, store and logical result so two independent
     // provider attempts cannot alias after lossy sanitization or truncation.
     // Keep the key stable across worker restarts for the same accepted result.
-    const scope = owner.execution_context;
-    if (typeof scope.accountId !== "string" || !scope.accountId ||
-        typeof scope.storeId !== "string" || !scope.storeId)
+    const scope = SellerAgentsExecutionContext.snapshot(owner.execution_context);
+    // Same bounded string identity convention as the established browser/ledger
+    // contracts: reject malformed or excessive context before SHA-256.
+    const boundedId = value => typeof value === "string" &&
+      value.length > 0 && value.length <= 512;
+    if (![scope.accountId, scope.storeId, scope.bindingId,
+          scope.workSessionId, owner.operation_id].every(boundedId) ||
+        !Number.isSafeInteger(scope.bindingRevision) || scope.bindingRevision < 0)
       throw saError("EXECUTION_CONTEXT_MISSING");
     // The same logical provider attempt must retain its ref even if an
     // unrelated batch entry moves its ordinal during restart reconciliation.
-    const attemptId = typeof entry.provider_attempt?.provider_attempt_id === "string" &&
-      entry.provider_attempt.provider_attempt_id.length > 0
-      ? entry.provider_attempt.provider_attempt_id : null;
-    const requestId = typeof entry.request_id === "string" &&
-      entry.request_id.length > 0 ? entry.request_id : null;
+    const rawAttemptId = entry.provider_attempt?.provider_attempt_id;
+    const rawRequestId = entry.request_id;
+    if ((rawAttemptId != null && rawAttemptId !== "" && !boundedId(rawAttemptId)) ||
+        (rawRequestId != null && rawRequestId !== "" && !boundedId(rawRequestId)))
+      throw saError("FILE_REFERENCE_IDENTITY_INVALID");
+    const attemptId = boundedId(rawAttemptId) ? rawAttemptId : null;
+    const requestId = boundedId(rawRequestId) ? rawRequestId : null;
     const logicalId = attemptId ? ["provider_attempt", attemptId]
       : requestId ? ["request", requestId] : ["ordinal", entryIndex];
     const ref = `sa_file_${await sha256Hex(JSON.stringify([
       "wb_file_ref_v1", scope.marketplace, scope.accountId, scope.storeId,
-      scope.bindingId ?? null, scope.bindingRevision ?? null, scope.workSessionId ?? null,
-      owner.operation_id ?? null, logicalId,
+      scope.bindingId, scope.bindingRevision, scope.workSessionId,
+      owner.operation_id, logicalId,
     ]))}`;
     const filename = data.original_filename || `wb-report-${entry.operation || "result"}.${/pdf/i.test(data.content_type) ? "pdf" : /csv/i.test(data.content_type) ? "csv" : /spreadsheetml/i.test(data.content_type) ? "xlsx" : "bin"}`;
     await guard.assertCurrent();
