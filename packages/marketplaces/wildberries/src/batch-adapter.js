@@ -2,6 +2,17 @@
   "use strict";
   const A = globalThis.SellerAgentsWBAdapter;
   const changed = () => { throw globalThis.SellerAgentsExecutionContext.error(); };
+  // Replays and processing must use the same authority fence: requestId and
+  // commandHash are not sufficient after an account grant/epoch transition.
+  function samePinnedOwner(owner, snapshot) {
+    const pinned = owner?.execution_context;
+    const E = globalThis.SellerAgentsExecutionContext;
+    return owner?.operation_id === snapshot.requestId &&
+      E.fields.every((field) => pinned?.[field] === snapshot[field]) &&
+      E.authorityFields.every((field) => pinned?.[field] === snapshot[field]) &&
+      pinned?.authGeneration === snapshot.authGeneration;
+  }
+
   const forbiddenPlan = () => {
     throw Object.assign(new Error("WB cache/coalescing/prefetch policy is not enabled"), { code: "WB_UNREVIEWED_PLAN" });
   };
@@ -23,9 +34,7 @@
           // A request ID alone does not authorize replay under a different
           // store/account/binding or credential. Match the same pinned fields
           // used by process.ownerMatches before exposing an existing owner.
-          if (!globalThis.SellerAgentsExecutionContext.fields.every(
-            (field) => old.execution_context?.[field] === snapshot[field]
-          )) changed();
+          if (!samePinnedOwner(old, snapshot)) changed();
           return old; // Completed, dispatched and unknown requests are never readmitted.
         }
         if (old?.status === "collecting") throw Object.assign(new Error("Another batch owns this dialogue"), { code: "BATCH_BUSY" });
@@ -37,8 +46,7 @@
     async function process({ context }) {
       const { snapshot } = context, key = snapshot.conversationKey;
       if (snapshot.marketplace !== "wildberries") changed();
-      const ownerMatches = (owner) => owner?.operation_id === snapshot.requestId &&
-        globalThis.SellerAgentsExecutionContext.fields.every((field) => owner.execution_context?.[field] === snapshot[field]);
+      const ownerMatches = (owner) => samePinnedOwner(owner, snapshot);
       const isCollecting = (owner) => owner?.status === "collecting";
       const options = {
         conversationKey: key, ownerKind: "wildberries", ownerId: snapshot.requestId,
