@@ -17,6 +17,7 @@ import {
   issueAccessToken,
   type ExtensionAuthRepository,
   type ExtensionPrincipal,
+  type AccessTokenSigningKey,
 } from "../../../../packages/server/extension-auth/src/index.js";
 import type { AppConfig } from "../../../../packages/shared/src/index.js";
 import { createApiApp } from "../../../../apps/api/src/app.js";
@@ -75,17 +76,45 @@ export type RecipientRelayStage =
   | "restarted"
   | "replacement"
   | "terminal";
+export type RecipientRelayApi = {
+  inject(input: {
+    method: "POST" | "GET" | "DELETE";
+    url: string;
+    headers: Record<string, string>;
+    payload?: string | Record<string, unknown>;
+  }): Promise<{ statusCode: number; body: string; json(): unknown }>;
+  setTime(now: number): Promise<void>;
+  readState(
+    requestId: string,
+    principal: ExtensionPrincipal,
+    now: number,
+  ): Promise<string | undefined>;
+  stop(): Promise<void>;
+};
+export type RecipientRelayApiContext = {
+  signing: AccessTokenSigningKey;
+  now: number;
+};
 type Options = {
   recipient: ExtensionPrincipal;
   source: ExtensionPrincipal;
   foreign: ExtensionPrincipal;
-  authRepository: ExtensionAuthRepository;
-  nextRepository: () => Promise<{
-    repository: TransferRepository;
-    isAvailable?: () => boolean;
-  }>;
   observe?: (stage: RecipientRelayStage, requestId: string) => Promise<void>;
-};
+} & (
+  | {
+      nextApi?: undefined;
+      authRepository: ExtensionAuthRepository;
+      nextRepository: () => Promise<{
+        repository: TransferRepository;
+        isAvailable?: () => boolean;
+      }>;
+    }
+  | {
+      nextApi: (
+        context: RecipientRelayApiContext,
+      ) => Promise<RecipientRelayApi>;
+    }
+);
 type LocalRequest = {
   requestId: string;
   recipientPublicKeySpki: string;
@@ -110,24 +139,26 @@ export async function proveRecipientRelayRecovery(
   const signing = createEphemeralAccessTokenSigningKey(
     "synthetic-joint-transfer",
   );
-  const auth = new ExtensionAuthService(
-    options.authRepository,
-    deriveExtensionAuthKeys(Buffer.alloc(32, 31)),
-    () => new Date(serverTime),
-    signing,
-  );
   const [recipientToken, sourceToken, foreignToken] = await Promise.all(
     [recipient, source, foreign].map((value) =>
       issueAccessToken(signing, value, new Date(clientTime)),
     ),
   );
-  // Assigned by the awaited nextApp before any recipient operation.
-  let repository!: TransferRepository;
-  const services: CredentialTransferService[] = [];
-  const apps: ReturnType<typeof createApiApp>[] = [];
-  async function nextApp() {
+  const apps: RecipientRelayApi[] = [];
+  async function nextApp(): Promise<RecipientRelayApi> {
+    if (options.nextApi) {
+      const api = await options.nextApi({ signing, now: serverTime });
+      apps.push(api);
+      return api;
+    }
     const next = await options.nextRepository();
-    repository = next.repository;
+    const repository = next.repository;
+    const auth = new ExtensionAuthService(
+      options.authRepository,
+      deriveExtensionAuthKeys(Buffer.alloc(32, 31)),
+      () => new Date(serverTime),
+      signing,
+    );
     const service = new CredentialTransferService(
       repository,
       new EphemeralTransferRelay(),
@@ -146,11 +177,30 @@ export async function proveRecipientRelayRecovery(
       extensionAuthService: auth,
       credentialTransferService: service,
     });
-    services.push(service);
-    apps.push(app);
-    return app;
+    const api: RecipientRelayApi = {
+      inject: async (input) => {
+        const reply = await app.inject(input);
+        return {
+          statusCode: reply.statusCode,
+          body: reply.body,
+          json: () => reply.json(),
+        };
+      },
+      setTime: async (now) => {
+        serverTime = now;
+      },
+      readState: async (requestId, principal, now) =>
+        (await repository.read({ requestId, principal, now: new Date(now) }))
+          ?.state,
+      stop: async () => {
+        await service.stop();
+        await app.close();
+      },
+    };
+    apps.push(api);
+    return api;
   }
-  let app = await nextApp();
+  let app!: RecipientRelayApi;
   let wrongReadback = false;
   const recipientPackets: string[] = [],
     ackPackets: string[] = [];
@@ -207,7 +257,12 @@ export async function proveRecipientRelayRecovery(
     expect(reply.statusCode, reply.body).toBe(200);
     return reply.json();
   };
+  const errors: unknown[] = [];
+  let result:
+    | { requestId: string; verdict: "IMPORTED_P1_PRESERVED_TERMINAL_EXPIRED" }
+    | undefined;
   try {
+    app = await nextApp();
     worker = await makeRecipient(true);
     worker.close();
     const localAuth = backing.local.seller_agents_control_auth_v2 as {
@@ -291,8 +346,7 @@ export async function proveRecipientRelayRecovery(
     // replaces the repository adapter and relay; the chosen fixture determines
     // whether persistence is memory or actual disposable PostgreSQL.
     worker.close();
-    await services[0]!.stop();
-    await app.close();
+    await app.stop();
     await options.observe?.("stopped", request.requestId);
     app = await nextApp();
     await options.observe?.("restarted", request.requestId);
@@ -327,6 +381,7 @@ export async function proveRecipientRelayRecovery(
     // Server expiry can precede the local timer. A valid JWT for another
     // account still cannot provide terminal authority for this recipient.
     serverTime += 301_000;
+    await app.setTime(serverTime);
     wrongReadback = true;
     const unauthenticatedTerminal = await worker.popup<{
       ackConfirmed: boolean;
@@ -355,23 +410,28 @@ export async function proveRecipientRelayRecovery(
     expect(JSON.stringify(backing.local.seller_agents_stores_v1)).toBe(
       localStores,
     );
-    expect(
-      (
-        await repository.read({
-          principal: recipient,
-          requestId: request.requestId,
-          now: new Date(serverTime),
-        })
-      )?.state,
-    ).toBe("EXPIRED");
+    expect(await app.readState(request.requestId, recipient, serverTime)).toBe(
+      "EXPIRED",
+    );
     await options.observe?.("terminal", request.requestId);
-    return {
+    result = {
       requestId: request.requestId,
       verdict: "IMPORTED_P1_PRESERVED_TERMINAL_EXPIRED" as const,
     };
+  } catch (error) {
+    errors.push(error);
   } finally {
     worker?.close();
-    for (const service of services) await service.stop();
-    for (const instance of apps) await instance.close();
+    const results = await Promise.allSettled(
+      apps.map((instance) => instance.stop()),
+    );
+    const failures = results.filter(
+      (r): r is PromiseRejectedResult => r.status === "rejected",
+    );
+    errors.push(...failures.map((r) => r.reason));
   }
+  if (errors.length)
+    throw new AggregateError(errors, "TRANSFER_RECIPIENT_SCENARIO_FAILED");
+  if (!result) throw new Error("TRANSFER_RECIPIENT_SCENARIO_NO_RESULT");
+  return result;
 }
