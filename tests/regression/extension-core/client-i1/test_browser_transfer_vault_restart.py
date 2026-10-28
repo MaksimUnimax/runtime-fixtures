@@ -1,5 +1,9 @@
 """Offline fault controls for the browser proof, not browser acceptance."""
+import ast
 import copy
+import json
+import os
+import subprocess
 import tempfile
 import unittest
 from contextlib import contextmanager, nullcontext
@@ -30,7 +34,7 @@ class BrowserVaultProofTest(unittest.TestCase):
                         "packetId": proof.PACKET,
                         "result": {"importState": "IMPORTED", "results": [{"storeId": "fixture", "kind": "IMPORTED"}]}}
 
-    def exercise(self, *, active_change=None, pending_change=None, close_failure=None):
+    def exercise(self, *, first_change=None, pending_change=None, close_failure=None):
         opened, closed, profiles = [], [], []
 
         @contextmanager
@@ -50,12 +54,12 @@ class BrowserVaultProofTest(unittest.TestCase):
             if number == 0:
                 return {"envelope": "inert", "expiresAt": self.active["expiresAt"],
                         "publicKeySpki": self.active["publicKeySpki"],
-                        "activeMetadata": copy.deepcopy(self.active)}
+                        "metadata": copy.deepcopy(self.pending)}
             if number == 1:
-                active = copy.deepcopy(self.active)
-                if active_change:
-                    active_change(active)
-                return {"activeMetadata": active, "metadata": copy.deepcopy(self.pending)}
+                result = copy.deepcopy(self.pending)
+                if first_change:
+                    first_change(result)
+                return result
             result = copy.deepcopy(self.pending)
             if pending_change:
                 pending_change(result)
@@ -73,22 +77,26 @@ class BrowserVaultProofTest(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertFalse(result["apiRelayAndCatalogAcceptance"])
         self.assertFalse(result["installedOwnerAcceptance"])
+        self.assertEqual(result["pendingBrowserRestarts"], 2)
+        self.assertFalse(result["pendingRecordRewrittenBetweenRestarts"])
 
     def test_healthy_control_keeps_claims_scoped(self):
         self.exercise()
 
-    def test_changed_active_identity_is_not_accepted(self):
+    def test_changed_pending_identity_after_first_restart_is_not_accepted(self):
         for field in ("accountId", "recipientDeviceId", "sessionId", "sourceDeviceId"):
             with self.subTest(field=field), self.assertRaises(AssertionError):
-                self.exercise(active_change=lambda row: row.update({field: "changed"}))
+                self.exercise(first_change=lambda row: row.update({field: "changed"}))
 
     def test_changed_pending_fields_are_not_accepted(self):
         for field, value in (("phase", "ACTIVE"), ("packetId", "P2"),
                              ("expiresAt", "2099-02-01T00:00:00Z"),
                              ("selectedStoreIds", ["foreign-store"]),
                              ("result", {"importState": "IMPORTED", "results": []})):
-            with self.subTest(field=field), self.assertRaises(AssertionError):
-                self.exercise(pending_change=lambda row: row.update({field: value}))
+            for restart in (1, 2):
+                with self.subTest(field=field, restart=restart), self.assertRaises(AssertionError):
+                    change = lambda row: row.update({field: value})
+                    self.exercise(**{"first_change" if restart == 1 else "pending_change": change})
 
     def test_each_failed_browser_close_prevents_pass(self):
         for number in range(3):
@@ -115,6 +123,56 @@ class BrowserVaultProofTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "symlink"):
                 proof.run(self.args)
             launch.assert_not_called()
+
+    def test_embedded_setup_precedes_two_read_only_pending_restores(self):
+        tree = ast.parse(Path(proof.__file__).read_text())
+        calls = sorted((node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name) and node.func.id == "evaluate"),
+                       key=lambda node: node.lineno)
+        self.assertEqual(len(calls), 3)
+        fragments = [eval(compile(ast.Expression(call.args[1]), proof.__file__, "eval"),
+                          {"KEY_AND_PAYLOAD": proof.KEY_AND_PAYLOAD}) for call in calls]
+        # Execute the actual embedded fixture fragments. These are offline
+        # protocol controls; the CryptoKey/IndexedDB implementations are fake.
+        program = r"""
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const fragments=JSON.parse(fs.readFileSync(0,'utf8'));
+let row=null, writes=0, removes=0;
+const copy=v=>structuredClone(v);
+const realm=vm.createContext({
+  SellerAgentsCredentialTransferVault:{VERSION:1,
+    put:async value=>{writes++;row=copy(value);return copy(row);},
+    get:async()=>copy(row),
+    update:async(_id,fn)=>{writes++;row=copy(fn(copy(row)));return copy(row);},
+    remove:async()=>{removes++;row=null;},
+  },
+  SellerAgentsCredentialTransferCrypto:{
+    generateRecipientKeyPair:async()=>({publicKeySpki:'fixture-public',privateKey:{type:'private',extractable:false}}),
+    encrypt:async value=>copy(value.payload),
+    decrypt:async value=>copy(value.envelope),
+  },
+  crypto:{subtle:{exportKey:async()=>{throw Error('nonextractable fixture');}}},
+});
+const values={requestId:'request',accountId:'account',recipientDeviceId:'recipient',sessionId:'session',sourceDeviceId:'source',packetId:'P1'};
+const initial=await vm.runInContext('('+fragments[0]+')',realm)(values);
+assert.equal(row.phase,'IMPORTED_PENDING_ACK','pending must be durable before the FIRST browser close');
+assert.equal(row.packetId,'P1');assert.equal(row.result.importState,'IMPORTED');
+const before=copy(row), written=writes;
+Object.assign(values,initial);
+const first=await vm.runInContext('('+fragments[1]+')',realm)(values);
+assert.deepEqual(copy(first),copy(initial.metadata));
+assert.deepEqual(row,before,'first pending restart must not rewrite any vault field');
+assert.equal(writes,written);assert.equal(removes,0,'no ACK/removal between restarts');
+const second=await vm.runInContext('('+fragments[2]+')',realm)(values);
+assert.deepEqual(copy(second),copy(initial.metadata));
+assert.equal(writes,written);assert.equal(removes,1);assert.equal(row,null);
+console.log('PASS actual embedded setup + two read-only pending restore fragments');
+"""
+        result = subprocess.run([os.environ.get("SA_NODE_BIN", "node"), "--input-type=module", "-e", program],
+                                input=json.dumps(fragments), capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real IndexedDB/CryptoKey persistence across two owned browser restarts.
+"""Pending IndexedDB/CryptoKey persistence across two owned browser restarts.
 
 The pending import record is a synthetic vault fixture. This does not claim
 API authentication, catalog import, relay recovery or ACK acceptance.
@@ -129,33 +129,29 @@ def run(args):
               });
               const stored = await SellerAgentsCredentialTransferVault.get(v.requestId);
               if (stored.phase !== 'ACTIVE') throw new Error('VAULT_ACTIVE_NOT_DURABLE');
-              const {privateKey, ...activeMetadata} = stored;
-              return {envelope, expiresAt, publicKeySpki:keys.publicKeySpki, activeMetadata};
-            }""", values)
-
-        values.update(prepared)
-        with opened_worker(pw, profile, options, runtime, entry, extension_id) as (second, _):
-            pending = evaluate(second, """async (v) => {
-              const stored = await SellerAgentsCredentialTransferVault.get(v.requestId);
-              """ + KEY_AND_PAYLOAD + """
-              if (stored.phase !== 'ACTIVE' || stored.expiresAt !== v.expiresAt ||
-                  stored.publicKeySpki !== v.publicKeySpki)
-                throw new Error('VAULT_ACTIVE_CHANGED_AFTER_RESTART');
-              // Set up the missing persistence dimension, without claiming a
-              // real catalog import or bypassing the client's authority guards.
+              // Pending is durable BEFORE the first close. Both subsequent
+              // contexts must read this same record, without ACK or rewrite.
               const result = {requestId:v.requestId, importState:'IMPORTED', results:[{
                 storeId:'installed-vault-store', kind:'IMPORTED', code:null,
                 store:{id:'installed-vault-store', marketplace:'wildberries', credentialRevision:'P1'}
               }]};
               const record = await SellerAgentsCredentialTransferVault.update(v.requestId,
                 current => ({...current, phase:'IMPORTED_PENDING_ACK', packetId:v.packetId, result}));
-              const {privateKey:activeKey, ...activeMetadata} = stored;
               const {privateKey, ...metadata} = record;
-              return {activeMetadata, metadata};
+              return {envelope, expiresAt, publicKeySpki:keys.publicKeySpki, metadata};
             }""", values)
-        if pending["activeMetadata"] != prepared["activeMetadata"]:
-            raise AssertionError("Active vault identity changed across browser restart")
-        pending = pending["metadata"]
+
+        values.update(prepared)
+        with opened_worker(pw, profile, options, runtime, entry, extension_id) as (second, _):
+            restored_first = evaluate(second, """async (v) => {
+              const stored = await SellerAgentsCredentialTransferVault.get(v.requestId);
+              """ + KEY_AND_PAYLOAD + """
+              const {privateKey, ...metadata} = stored;
+              return metadata;
+            }""", values)
+        pending = prepared["metadata"]
+        if restored_first != pending or pending["phase"] != "IMPORTED_PENDING_ACK":
+            raise AssertionError("Pending import record changed across first browser restart")
 
         with opened_worker(pw, profile, options, runtime, entry, extension_id) as (third, _):
             restored = evaluate(third, """async (v) => {
@@ -170,7 +166,7 @@ def run(args):
         # Compare all persisted fields, including identity, expiry, packet and
         # result. A surviving key alone cannot hide a lost/changed pending phase.
         if restored != pending or restored["phase"] != "IMPORTED_PENDING_ACK":
-            raise AssertionError("Pending import record changed across browser restart")
+            raise AssertionError("Pending import record changed across second browser restart")
         if restored["packetId"] != PACKET or restored["result"]["importState"] != "IMPORTED":
             raise AssertionError("Pending packet or import result was not restored")
 
@@ -179,6 +175,7 @@ def run(args):
     return {"status": "PASS", "label": args.label,
             "runtimeSha256": hashlib.sha256("".join(rows).encode()).hexdigest(),
             "workerUrlStable": True, "browserRestarts": 2,
+            "pendingBrowserRestarts": 2, "pendingRecordRewrittenBetweenRestarts": False,
             "keyType": "private", "keyExtractable": False, "exportRejected": True,
             "decryptedAfterRestart": True, "pendingRecordExactAfterRestart": True,
             "cleanupConfirmed": True, "fixturePhases": ["ACTIVE", "IMPORTED_PENDING_ACK"],
