@@ -149,8 +149,12 @@ export class TelegramOperatorService {
   private offset: number | undefined;
   private polling = false;
   private pollingTask: Promise<void> | undefined;
-  // Bounded per-run successes; a later recipient's failure must not resend them.
-  private readonly notificationDelivered = new Map<string, Set<string>>();
+  // ACK or UNKNOWN per recipient in this process; persistent restart fencing
+  // belongs to the separately authorized incident notification outbox.
+  private readonly notificationOutcomes = new Map<
+    string,
+    Map<string, "ACKNOWLEDGED" | "UNKNOWN">
+  >();
   // Serialize only simultaneous callbacks for the same incident event.
   private readonly incidentNotificationFlights = new Map<
     string,
@@ -555,29 +559,53 @@ export class TelegramOperatorService {
     }
   }
 
+  private async notifyRecipients(
+    key: string,
+    lane: MonitoringLane,
+    text: string,
+    clearAcknowledgedOnSuccess: boolean,
+  ): Promise<void> {
+    let outcomes = this.notificationOutcomes.get(key);
+    if (!outcomes) {
+      if (this.notificationOutcomes.size >= 64) {
+        const oldest = this.notificationOutcomes.keys().next().value;
+        if (oldest !== undefined) this.notificationOutcomes.delete(oldest);
+      }
+      outcomes = new Map<string, "ACKNOWLEDGED" | "UNKNOWN">();
+      this.notificationOutcomes.set(key, outcomes);
+    }
+    let unknown = false;
+    for (const chatId of new Set(this.options.notificationChatIds ?? [])) {
+      const previous = outcomes.get(chatId);
+      if (previous === "ACKNOWLEDGED") continue;
+      if (previous === "UNKNOWN") {
+        unknown = true;
+        continue;
+      }
+      // A rejected mutating HTTP request can have reached Telegram. Record
+      // UNKNOWN before dispatch so automatic retries cannot send it twice.
+      outcomes.set(chatId, "UNKNOWN");
+      try {
+        await this.options.transport.sendMessage(chatId, text, keyboard(lane));
+        outcomes.set(chatId, "ACKNOWLEDGED");
+      } catch {
+        unknown = true;
+      }
+      // Other, independently addressed chats can still be attempted once.
+    }
+    if (unknown)
+      throw new Error("TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY");
+    if (clearAcknowledgedOnSuccess) this.notificationOutcomes.delete(key);
+  }
+
   async notify(notification: MonitoringNotification): Promise<void> {
     const key = `${notification.lane}:${notification.runId}:${notification.source}`;
-    const sent = this.notificationDelivered.get(key) ?? new Set<string>();
-    const recipients = [...new Set(this.options.notificationChatIds ?? [])];
-    const text = explainMonitoringResult(notification);
-    for (const chatId of recipients) {
-      if (sent.has(chatId)) continue;
-      await this.options.transport.sendMessage(
-        chatId,
-        text,
-        keyboard(notification.lane),
-      );
-      // Only an acknowledged success is safely skipped on this run's retries.
-      sent.add(chatId);
-      if (!this.notificationDelivered.has(key)) {
-        if (this.notificationDelivered.size >= 64) {
-          const oldest = this.notificationDelivered.keys().next().value;
-          if (oldest !== undefined) this.notificationDelivered.delete(oldest);
-        }
-        this.notificationDelivered.set(key, sent);
-      }
-    }
-    this.notificationDelivered.delete(key);
+    await this.notifyRecipients(
+      key,
+      notification.lane,
+      explainMonitoringResult(notification),
+      true,
+    );
   }
 
   async notifyIncident(event: {
@@ -610,28 +638,10 @@ export class TelegramOperatorService {
     const pending = this.incidentNotificationFlights.get(key);
     if (pending) return pending;
     // Publish the flight before its first sendMessage starts.
-    const work = Promise.resolve().then(async () => {
-      const sent = this.notificationDelivered.get(key) ?? new Set<string>();
-      const recipients = [...new Set(this.options.notificationChatIds ?? [])];
-      const text = `API-watch incident ${event.kind.toLowerCase()}: ${incident.sourceFamily ?? "GLOBAL"} ${incident.incidentType} ${incident.severity} ${incident.safeSummaryCode} report=${incident.latestReportId}`;
-      for (const chatId of recipients) {
-        if (sent.has(chatId)) continue;
-        await this.options.transport.sendMessage(
-          chatId,
-          text,
-          keyboard("SWAGGER_API"),
-        );
-        // Never mark a rejected or ambiguous transport outcome as delivered.
-        sent.add(chatId);
-        if (!this.notificationDelivered.has(key)) {
-          if (this.notificationDelivered.size >= 64) {
-            const oldest = this.notificationDelivered.keys().next().value;
-            if (oldest !== undefined) this.notificationDelivered.delete(oldest);
-          }
-          this.notificationDelivered.set(key, sent);
-        }
-      }
-    });
+    const text = `API-watch incident ${event.kind.toLowerCase()}: ${incident.sourceFamily ?? "GLOBAL"} ${incident.incidentType} ${incident.severity} ${incident.safeSummaryCode} report=${incident.latestReportId}`;
+    const work = Promise.resolve().then(() =>
+      this.notifyRecipients(key, "SWAGGER_API", text, false),
+    );
     this.incidentNotificationFlights.set(key, work);
     try {
       await work;

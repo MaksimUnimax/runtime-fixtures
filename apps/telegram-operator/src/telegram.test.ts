@@ -555,7 +555,7 @@ describe("TG4 Telegram operator integration hardening", () => {
     await f.scheduler.stop();
   });
 
-  it("TG4-31 retries only failed monitoring recipients, not earlier successful chats", async () => {
+  it("TG4-31 suppresses automatic retries for any unconfirmed recipient", async () => {
     const sends: string[] = [];
     const stored = new InMemoryMonitoringScheduleStore();
     await stored.ensureDefaults(new Date("2026-09-22T00:00:00Z"));
@@ -599,11 +599,15 @@ describe("TG4 Telegram operator integration hardening", () => {
     serviceRef.current = service;
     try {
       expect((await scheduler.runNowAndWait("LLM")).status).toBe("SUCCEEDED");
-      expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-B"]);
+      expect(sends).toEqual(["fixture-A", "fixture-B"]);
+      const afterUnknown = await scheduler.status("LLM");
+      expect(afterUnknown.notificationFailureCount).toBe(1);
+      expect(afterUnknown.lastNotificationError).toBe(
+        "TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY",
+      );
       expect((await scheduler.runNowAndWait("LLM")).status).toBe("SUCCEEDED");
       expect(sends).toEqual([
         "fixture-A",
-        "fixture-B",
         "fixture-B",
         "fixture-A",
         "fixture-B",
@@ -702,20 +706,18 @@ describe("TG4 Telegram operator integration hardening", () => {
     };
     await expect(
       service.notifyIncident({ kind: "OPENED", incident }),
-    ).rejects.toThrow("SYNTHETIC_SECOND_CHAT_BEFORE_DELIVERY");
+    ).rejects.toThrow("TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY");
     expect(sends).toEqual(["fixture-A", "fixture-B"]);
-    await service.notifyIncident({ kind: "OPENED", incident });
-    expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-B"]);
-    await service.notifyIncident({ kind: "OPENED", incident });
-    expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-B"]);
+    await expect(
+      service.notifyIncident({ kind: "OPENED", incident }),
+    ).rejects.toThrow("TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY");
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
+    await expect(
+      service.notifyIncident({ kind: "OPENED", incident }),
+    ).rejects.toThrow("TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY");
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
     await service.notifyIncident({ kind: "RESOLVED", incident });
-    expect(sends).toEqual([
-      "fixture-A",
-      "fixture-B",
-      "fixture-B",
-      "fixture-A",
-      "fixture-B",
-    ]);
+    expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-A", "fixture-B"]);
     await service.notifyIncident({
       kind: "OPENED",
       incident: {
@@ -772,6 +774,90 @@ describe("TG4 Telegram operator integration hardening", () => {
     releaseFirst();
     await Promise.all([first, second]);
     expect(sends).toEqual(["fixture-A", "fixture-B"]);
+  });
+
+  it("TG4-36 never retries a possibly accepted monitoring send after its ACK is lost", async () => {
+    const f = await fixture();
+    const sends: string[] = [];
+    let dropReply = true;
+    const service = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        answerCallback: async () => {},
+        sendMessage: async (chatId) => {
+          // Model a physically accepted Telegram message whose response vanished.
+          sends.push(chatId);
+          if (chatId === "fixture-A" && dropReply) {
+            dropReply = false;
+            throw new Error("SYNTHETIC_DELIVERED_BUT_ACK_UNKNOWN");
+          }
+        },
+      },
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["fixture-A", "fixture-B"],
+    });
+    const notification = {
+      lane: "LLM" as const,
+      runId: "fixture-run-ack-lost",
+      source: "FORCED" as const,
+      result: {
+        status: "SUCCEEDED" as const,
+        code: null,
+        summary: "Synthetic only.",
+      },
+    };
+    await expect(service.notify(notification)).rejects.toThrow(
+      "TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY",
+    );
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
+    await expect(service.notify(notification)).rejects.toThrow(
+      "TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY",
+    );
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
+    await service.notify({ ...notification, runId: "fixture-next-run" });
+    expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-A", "fixture-B"]);
+  });
+
+  it("TG4-37 repeated incident callbacks never retry an accepted message with lost ACK", async () => {
+    const f = await fixture();
+    const sends: string[] = [];
+    let dropReply = true;
+    const service = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        answerCallback: async () => {},
+        sendMessage: async (chatId) => {
+          sends.push(chatId);
+          if (chatId === "fixture-A" && dropReply) {
+            dropReply = false;
+            throw new Error("SYNTHETIC_INCIDENT_ACCEPTED_ACK_UNKNOWN");
+          }
+        },
+      },
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["fixture-A", "fixture-B"],
+    });
+    const incident = {
+      incidentKey: "fixture-ack-unknown",
+      occurrenceCount: 1,
+      sourceFamily: "WILDBERRIES",
+      incidentType: "API_CHANGE_REVIEW_REQUIRED",
+      severity: "WARNING",
+      safeSummaryCode: "SAFE_FIXTURE_ONLY",
+      latestReportId: "fixture-report-lost-ack",
+    };
+    await expect(
+      service.notifyIncident({ kind: "OPENED", incident }),
+    ).rejects.toThrow("TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY");
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
+    await expect(
+      service.notifyIncident({ kind: "OPENED", incident }),
+    ).rejects.toThrow("TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY");
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
+    await service.notifyIncident({ kind: "RESOLVED", incident });
+    expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-A", "fixture-B"]);
   });
 
   it("TG4-30 LLM and Swagger UI/control state remain separate", async () => {
