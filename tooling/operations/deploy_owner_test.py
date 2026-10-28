@@ -601,6 +601,32 @@ def current_capture_unit_states(plan: dict) -> dict:
     return states
 
 
+def current_systemd_logical_lines(content: str):
+    # systemd v249 conf-parser.c: comments are skipped before continuation;
+    # only an odd trailing backslash joins lines, with a space replacing it.
+    # Preserve blank lines and trailing whitespace. Reject NUL instead of
+    # treating an ambiguous byte stream as a safe runtime override.
+    if '\x00' in content:
+        raise ValueError('NUL in drop-in')
+    continued=''
+    bom_seen=False
+    for line in content.split('\n'):
+        if line.lstrip(' \t\r').startswith(('#',';')):
+            continue
+        if not bom_seen and line.startswith('\ufeff'):
+            line=line[1:]
+            bom_seen=True
+        logical=continued+line
+        trailing=len(logical)-len(logical.rstrip('\\'))
+        if trailing % 2:
+            continued=logical[:-1]+' '
+            continue
+        yield logical
+        continued=''
+    if continued:
+        yield continued
+
+
 def current_validate_runtime_overrides(plan: dict, role: str) -> None:
     unit=str(plan['services'][role]['unit'])
     if unit_prop(unit,'NeedDaemonReload')!='no':
@@ -622,9 +648,11 @@ def current_validate_runtime_overrides(plan: dict, role: str) -> None:
             if path.is_symlink() or not path.is_file():
                 raise ValueError('not regular')
             content=path.read_text(encoding='utf-8')
+            overridden=any(re.match(r'^\s*(?:ExecStart|WorkingDirectory)\s*=',line)
+                           for line in current_systemd_logical_lines(content))
         except (OSError,UnicodeError,ValueError):
             raise RuntimeError('CURRENT_BASE_DROPIN_INVALID:'+role) from None
-        if re.search(r'^\s*(?:ExecStart|WorkingDirectory)\s*=',content,re.MULTILINE):
+        if overridden:
             raise RuntimeError('CURRENT_BASE_ENTRYPOINT_OVERRIDDEN:'+role)
 
 def current_validate_base_units(plan: dict) -> dict:

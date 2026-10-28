@@ -1653,6 +1653,101 @@ class CurrentBaseUnitContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,expected+':api'):
                     deploy.current_validate_runtime_overrides(plan,'api')
 
+    def test_systemd_logical_entrypoint_lines_rejected_for_every_role(self):
+        # Match systemd's logical-line boundary, including comments skipped
+        # inside a continuation and a first UTF-8 BOM after the section line.
+        cases = {
+            'split-cwd': '[Service]\nWorkingDirectory\\\n=/var/tmp\n',
+            'split-exec': '[Service]\nExecStart\\\n=/bin/true\n',
+            'continued-comments': '[Service]\nWorkingDirectory\\\n # comment\\\n ; ignored\n =/var/tmp\n',
+            'multiple-continuations': '[Service]\nExecStart\\\n\\\n =/bin/true\n',
+            'crlf': '[Service]\r\nWorkingDirectory\\\r\n=/var/tmp\r\n',
+            'bom-first-directive': '[Service]\n\ufeffWorkingDirectory=/var/tmp\n',
+            'bom-split-directive': '\ufeff[Service]\nExecStart\\\n=/bin/true\n',
+            'comment-cannot-hide-directive': '[Service]\n# ignored\\\nExecStart=/bin/true\n',
+            'even-backslashes-end-line': '[Service]\nEnvironment=FIXTURE=two\\\\\nWorkingDirectory=/var/tmp\n',
+            'continued-eof': '[Service]\nWorkingDirectory=/var/tmp\\',
+        }
+        plan = self.plan()
+        with tempfile.TemporaryDirectory() as temp:
+            override = Path(temp)/'50-runtime.conf'
+            for role in plan['services']:
+                for name, text in cases.items():
+                    with self.subTest(role=role, case=name):
+                        original = text.encode('utf-8')
+                        override.write_bytes(original)
+                        props = {'NeedDaemonReload':'no', 'DropInPaths':str(override)}
+                        with patch.object(deploy,'unit_prop',side_effect=lambda u,n:props[n]), \
+                             patch.object(deploy,'run') as action:
+                            with self.assertRaisesRegex(RuntimeError,'CURRENT_BASE_ENTRYPOINT_OVERRIDDEN:'+role):
+                                deploy.current_validate_runtime_overrides(plan,role)
+                            action.assert_not_called()
+                        self.assertEqual(override.read_bytes(),original)
+
+    def test_systemd_benign_logical_lines_preserve_hardening_and_comments(self):
+        cases = {
+            'hardening': '[Service]\nNoNewPrivileges=yes\nReadWritePaths=/owned\\\n /other\n',
+            'hardening-comments': '[Service]\nReadWritePaths=/owned\\\n# comment\\\n ; ignored\n /other\n',
+            'environment-value-not-directive': '[Service]\nEnvironment=FIXTURE=value\\\nWorkingDirectory=/inert\n',
+            'comments': '[Service]\n # WorkingDirectory\\\n ; ExecStart=/inert\nNoNewPrivileges=yes\n',
+            'blank-ends-continuation': '[Service]\nWorkingDirectory\\\n\n=/var/tmp\n',
+            'escaped-backslash-not-continuation': '[Service]\nEnvironment=FIXTURE=two\\\\\nNoNewPrivileges=yes\n',
+            'whitespace-after-backslash': '[Service]\nWorkingDirectory\\ \n=/var/tmp\n',
+            'continued-benign-eof': '[Service]\nReadWritePaths=/owned\\',
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            override = Path(temp)/'60-hardening.conf'
+            for name, text in cases.items():
+                with self.subTest(case=name):
+                    original = text.encode('utf-8')
+                    override.write_bytes(original)
+                    props = {'NeedDaemonReload':'no', 'DropInPaths':str(override)}
+                    with patch.object(deploy,'unit_prop',side_effect=lambda u,n:props[n]), \
+                         patch.object(deploy,'run') as action:
+                        deploy.current_validate_runtime_overrides(self.plan(),'api')
+                        action.assert_not_called()
+                    self.assertEqual(override.read_bytes(),original)
+
+    def test_systemd_nul_is_invalid_instead_of_hiding_an_entrypoint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            override = Path(temp)/'50-runtime.conf'
+            original = b'[Service]\n\x00WorkingDirectory=/var/tmp\n'
+            override.write_bytes(original)
+            props = {'NeedDaemonReload':'no', 'DropInPaths':str(override)}
+            with patch.object(deploy,'unit_prop',side_effect=lambda u,n:props[n]), \
+                 patch.object(deploy,'run') as action:
+                with self.assertRaisesRegex(RuntimeError,'CURRENT_BASE_DROPIN_INVALID:api'):
+                    deploy.current_validate_runtime_overrides(self.plan(),'api')
+                action.assert_not_called()
+            self.assertEqual(override.read_bytes(),original)
+
+    def test_continued_entrypoint_blocks_apply_before_any_target_mutation(self):
+        case = CurrentApplyEngineTests('test_success_migrates_before_switch_and_records_target')
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        override = case.root/'50-runtime.conf'
+        original = b'[Service]\nWorkingDirectory\\\n=/var/tmp\n'
+        override.write_bytes(original)
+        props = {'NeedDaemonReload':'no', 'DropInPaths':str(override)}
+        evidence = case.root/'apply-rejected'
+        evidence.mkdir()
+        with case.patches(), \
+             patch.object(deploy,'current_validate_base_units',side_effect=lambda plan:deploy.current_validate_runtime_overrides(plan,'api')), \
+             patch.object(deploy,'unit_prop',side_effect=lambda u,n:props[n]), \
+             patch.object(deploy,'run') as action:
+            with self.assertRaisesRegex(RuntimeError,'CURRENT_BASE_ENTRYPOINT_OVERRIDDEN:api'):
+                deploy.current_apply_engine(
+                    candidate_release=case.release,expected_source_sha='a'*40,
+                    expected_source_tree='b'*40,expected_inventory_sha256='c'*64,
+                    evidence_root=case.root,journal=case.root/'deployment-state.json',
+                    evidence_dir=evidence,
+                )
+            action.assert_not_called()
+        self.assertEqual([event[0] for event in case.events],['prefix'])
+        self.assertEqual(list(evidence.iterdir()),[])
+        self.assertFalse((case.root/'deployment-state.json').exists())
+        self.assertEqual(override.read_bytes(),original)
+
 
 class CurrentMigrationRollbackTests(unittest.TestCase):
     def setUp(self):
