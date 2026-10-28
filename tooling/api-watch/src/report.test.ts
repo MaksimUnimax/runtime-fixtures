@@ -246,21 +246,15 @@ describe("A6 API-watch report lifecycle", () => {
           runId,
           source: "FORCED",
         });
-        const durable = await setup.reportStore.getReport(
-          `api-watch:${runId}`,
-        );
+        const durable = await setup.reportStore.getReport(`api-watch:${runId}`);
         expect(durable?.state).toBe(state);
-        expect(durable?.completedAt).toEqual(
-          new Date("2026-09-22T00:00:00Z"),
-        );
+        expect(durable?.completedAt).toEqual(new Date("2026-09-22T00:00:00Z"));
         expect(durable?.sources).toHaveLength(3);
         expect(result.status).toBe("FAILED");
         expect(result.code).toBe("API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN");
         expect(result.summary).toContain("report was saved");
         expect(result.coverage?.checkDepth).toBe("API_DOCUMENT_COMPARISON");
-        expect(result.coverage?.observedAt).toBe(
-          "2026-09-22T00:00:00.000Z",
-        );
+        expect(result.coverage?.observedAt).toBe("2026-09-22T00:00:00.000Z");
         expect(result.summary).not.toContain(
           "SYNTHETIC_POSTCOMMIT_CROSSWALK_READ_FAILED",
         );
