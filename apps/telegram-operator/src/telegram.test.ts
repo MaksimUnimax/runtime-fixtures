@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createInMemorySwaggerSourceState,
   createSwaggerHandoffService,
@@ -882,5 +882,110 @@ describe("TG4 Telegram operator integration hardening", () => {
       },
     });
     expect(f.messages.at(-1)?.text).toContain("req-telegram-1");
+  });
+  it("TG4-38 does not send a misleading second reply if interval-change ACK is unknown", async () => {
+    const f = await fixture();
+    const sends: string[] = [];
+    const transport: TelegramTransport = {
+      getUpdates: async () => ({ updates: [] }),
+      answerCallback: async () => {},
+      sendMessage: async (_chatId, message) => {
+        sends.push(message);
+        if (sends.length === 1) {
+          // Simulate Telegram accepting the response but the HTTP ACK vanishing.
+          throw new Error("SYNTHETIC_FIRST_SEND_ACK_UNKNOWN");
+        }
+      },
+    };
+    const service = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      transport,
+      operatorIds: new Set(["7"]),
+    });
+    await f.scheduler.start();
+    try {
+      await expect(
+        service.handleUpdate({
+          updateId: 400,
+          message: { chatId: "42", userId: "7", text: "/llm_interval 1h" },
+        }),
+      ).rejects.toThrow("SYNTHETIC_FIRST_SEND_ACK_UNKNOWN");
+      expect(sends).toEqual(["LLM interval set to 1h; no run was started."]);
+      expect((await f.scheduler.status("LLM")).intervalSeconds).toBe(3600);
+    } finally {
+      await f.scheduler.stop();
+    }
+  });
+
+  it("TG4-39 never claims a committed interval failed after losing the store ACK", async () => {
+    const f = await fixture();
+    await f.scheduler.start();
+    const original = f.scheduler.setInterval.bind(f.scheduler);
+    const spy = vi
+      .spyOn(f.scheduler, "setInterval")
+      .mockImplementationOnce(async (lane, seconds) => {
+        await original(lane, seconds);
+        // The durable change took effect, but its acknowledgement was lost.
+        throw new Error("SYNTHETIC_DB_PASSWORD_NEVER_LOG");
+      });
+    try {
+      await expect(
+        f.service.handleUpdate({
+          updateId: 401,
+          message: { chatId: "42", userId: "7", text: "/llm_interval 1h" },
+        }),
+      ).rejects.toThrow("SYNTHETIC_DB_PASSWORD_NEVER_LOG");
+      expect(f.messages).toHaveLength(0);
+      expect((await f.scheduler.status("LLM")).intervalSeconds).toBe(3600);
+    } finally {
+      spy.mockRestore();
+      await f.scheduler.stop();
+    }
+  });
+  it("TG4-40 never copies raw transport exception text into poll logs", async () => {
+    const f = await fixture();
+    const logs: Array<{ event: string; details?: Record<string, unknown> }> =
+      [];
+    let markLogged!: () => void;
+    const logged = new Promise<void>((resolve) => {
+      markLogged = resolve;
+    });
+    let polls = 0;
+    const service = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      transport: {
+        getUpdates: async () => {
+          polls++;
+          if (polls === 1)
+            throw new Error("SYNTHETIC_URL_WITH_BOT_TOKEN_NEVER_LOG");
+          return { updates: [] };
+        },
+        sendMessage: async () => {},
+        answerCallback: async () => {},
+      },
+      operatorIds: new Set(["7"]),
+      logger: (event, details) => {
+        logs.push({ event, details });
+        markLogged();
+      },
+      sleep: async () => {},
+    });
+    await service.start();
+    try {
+      await Promise.race([
+        logged,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("POLL_LOG_MISSING")), 1_000),
+        ),
+      ]);
+    } finally {
+      await service.stop();
+    }
+    expect(polls).toBeGreaterThanOrEqual(1);
+    expect(logs[0]?.event).toBe("telegram_poll_failed");
+    expect(JSON.stringify(logs)).not.toContain(
+      "SYNTHETIC_URL_WITH_BOT_TOKEN_NEVER_LOG",
+    );
+    expect(logs[0]?.details?.error).toBe("TELEGRAM_OPERATOR_POLL_FAILED");
   });
 });

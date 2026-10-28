@@ -541,22 +541,35 @@ export class TelegramOperatorService {
       );
       return;
     }
+    let seconds: number;
     try {
-      const seconds = parseLaneInterval(lane, raw);
-      const state = await this.options.scheduler.setInterval(lane, seconds);
-      await this.options.transport.sendMessage(
-        chatId,
-        `${laneLabel(lane)} interval set to ${formatMonitoringDuration(state.intervalSeconds)}; no run was started.`,
-        keyboard(lane),
-      );
+      seconds = parseLaneInterval(lane, raw);
     } catch (error) {
+      // Only pure validation errors get a reply. Store mutations may commit
+      // before an acknowledgement is lost; never claim they failed.
       const code =
-        error instanceof Error ? error.message : "INVALID_MONITORING_DURATION";
+        error instanceof Error &&
+        [
+          "INVALID_MONITORING_DURATION",
+          "MONITORING_DURATION_OUT_OF_RANGE",
+          "HEALTH_SCHEDULE_INTERVAL_OUT_OF_RANGE",
+        ].includes(error.message)
+          ? error.message
+          : "INVALID_MONITORING_DURATION";
       await this.options.transport.sendMessage(
         chatId,
         `${code}: use ${intervalRangeLabel(lane)}.`,
       );
+      return;
     }
+    // Neither database ACK loss nor Telegram send ACK loss is safely
+    // retryable by sending a second message within this handler.
+    const state = await this.options.scheduler.setInterval(lane, seconds);
+    await this.options.transport.sendMessage(
+      chatId,
+      `${laneLabel(lane)} interval set to ${formatMonitoringDuration(state.intervalSeconds)}; no run was started.`,
+      keyboard(lane),
+    );
   }
 
   private async notifyRecipients(
@@ -669,10 +682,10 @@ export class TelegramOperatorService {
           response.nextOffset >= 0
         )
           this.offset = Math.max(this.offset ?? -1, response.nextOffset);
-      } catch (error) {
+      } catch {
+        // Transport errors may contain a URL with a bot token.
         this.options.logger?.("telegram_poll_failed", {
-          error:
-            error instanceof Error ? error.message : "TELEGRAM_UNAVAILABLE",
+          error: "TELEGRAM_OPERATOR_POLL_FAILED",
         });
         await (
           this.options.sleep ??
