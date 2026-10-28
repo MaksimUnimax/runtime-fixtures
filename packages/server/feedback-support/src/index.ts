@@ -393,11 +393,11 @@ function redactMultilineQuotedSecrets(input: string): string {
   }
 }
 
-// A literal CR/LF inside a quoted diagnostic KEY makes JSON invalid, and
-// the ordinary quoted-field matchers intentionally do not cross key lines.
+// A literal CR/LF inside a quoted diagnostic KEY or an invisible Unicode
+// separator after the closing key quote makes embedded JSON untrustworthy.
 // Recognizable or ambiguously escaped credential keys must fail closed before
 // a support description or followup reaches any repository sink.
-function hasMultilineQuotedCredentialKey(input: string): boolean {
+function hasUnsafeQuotedCredentialKey(input: string): boolean {
   // Match each potential key independently: an unmatched apostrophe in
   // ordinary prose must not hide a later double- or single-quoted key.
   // A slash may escape a literal line break; the guard must inspect it.
@@ -413,7 +413,15 @@ function hasMultilineQuotedCredentialKey(input: string): boolean {
   ];
   for (const match of candidates) {
     const key = match[1]!.slice(1, -1);
-    if (!/[\r\n]/u.test(key)) continue;
+    // The parser also cannot trust invisible characters inserted between
+    // a closing quoted credential key and its colon/equal delimiter. This
+    // is malformed embedded JSON even without a physical line break.
+    const separator = match[0].slice(match[1]!.length, -1);
+    if (
+      !/[\r\n]/u.test(key) &&
+      !/\p{Default_Ignorable_Code_Point}/u.test(separator)
+    )
+      continue;
     // Decode spelling escapes only for classification of a malformed key.
     // Never alter user-visible text or trust an ambiguous persisted value.
     const canonicalKey = key
@@ -447,7 +455,7 @@ function hasMultilineQuotedCredentialKey(input: string): boolean {
 }
 
 function redactAccidentalSecretsBasic(input: string): string {
-  if (hasMultilineQuotedCredentialKey(input)) return "[REDACTED_SECRET]";
+  if (hasUnsafeQuotedCredentialKey(input)) return "[REDACTED_SECRET]";
   // A free-text "api key:" may precede a structured or multiline secret.
   // Its value boundary is not trustworthy: discard the diagnostic in full.
   const spacedBareApiKey =

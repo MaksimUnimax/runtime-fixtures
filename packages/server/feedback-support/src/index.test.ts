@@ -2346,3 +2346,88 @@ describe("B06 nested quote and invisible delimiter defense in all persistence fi
     },
   );
 });
+
+describe("B06 quoted inline default-ignorable diagnostic delimiters", () => {
+  const risky = [
+    [
+      "word joiner after apiKey",
+      'diagnostic {"apiKey"\u2060:"SYNTH_B06_P1_INLINE_JOINER"}',
+      "SYNTH_B06_P1_INLINE_JOINER",
+    ],
+    [
+      "ZWSP after token with ordinary prose apostrophe",
+      'can\'t parse {"token"\u200B:"SYNTH_B06_P1_INLINE_ZWSP"}',
+      "SYNTH_B06_P1_INLINE_ZWSP",
+    ],
+    [
+      "ZWNJ after single-quoted password",
+      "diagnostic {'password'\u200C:'SYNTH_B06_P1_INLINE_ZWNJ'}",
+      "SYNTH_B06_P1_INLINE_ZWNJ",
+    ],
+    [
+      "ZWJ before equals",
+      'diagnostic {"clientSecret"\u200D = "SYNTH_B06_P1_INLINE_ZWJ"}',
+      "SYNTH_B06_P1_INLINE_ZWJ",
+    ],
+    [
+      "word joiner after invisible credential key",
+      'diagnostic {"api\u200BKey"\u2060:"SYNTH_B06_P1_INLINE_DOUBLE"}',
+      "SYNTH_B06_P1_INLINE_DOUBLE",
+    ],
+  ] as const;
+  it.each(risky)("fails closed on %s", (_variant, raw, secret) => {
+    const masked = sanitizeFeedbackText(raw);
+    expect(masked).toBe("[REDACTED_SECRET]");
+    expect(masked).not.toContain(secret);
+  });
+  it.each(risky)(
+    "protects all four repository fields for %s",
+    async (_variant, raw, secret) => {
+      const received: string[] = [];
+      const repo = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          received.push(input.description, input.body.description);
+          throw new Error("INLINE_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          received.push(input.body);
+          throw new Error("INLINE_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repo);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("INLINE_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("INLINE_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("INLINE_FOLLOWUP_CAPTURE");
+      expect(received).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(received)).not.toContain(secret);
+    },
+  );
+  it.each([
+    'diagnostic {"requestId"\u2060:"safe-id"}',
+    "diagnostic {'note'\u200B:'normal'}",
+    "text with zero-width \u2060 but no credential",
+    'diagnostic {"safe\nnote"\u2060:"normal"}',
+  ])("preserves benign diagnostic text: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+});
