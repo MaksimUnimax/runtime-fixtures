@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from "./rate-limit-client-ip.js";
 import type {
   FastifyInstance,
   RawReplyDefaultExpression,
@@ -98,7 +99,7 @@ export function registerDeviceManagementRoutes(
         result = await service.exchange(
           body.deviceCode,
           key,
-          request.ip,
+          rateLimitClientIp(request),
           request.id,
         );
       } catch {

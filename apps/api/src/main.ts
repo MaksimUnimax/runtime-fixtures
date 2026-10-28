@@ -1,3 +1,4 @@
+import { loadRateLimitIpSource } from "./rate-limit-client-ip.js";
 import { randomUUID } from "node:crypto";
 import { createApiCleanup } from "./api-cleanup.js";
 import { createUnavailableHealthReadDependencies } from "./health-unavailable-read.js";
@@ -92,6 +93,9 @@ import { FeedbackSupportService } from "@product/feedback-support";
 import { sellerAgentsCommercialModeFromEnvironment } from "@product/entitlements/seller-agents-commercial-policy";
 
 const config = loadConfig(process.env);
+const rateLimitIpSource = loadRateLimitIpSource(
+  process.env.API_RATE_LIMIT_IP_SOURCE,
+);
 const commercialModeEnabled =
   sellerAgentsCommercialModeFromEnvironment(process.env) === "ENABLED";
 const { database, transferDatabase, healthReadDatabase, closeDatabases } =
@@ -181,6 +185,7 @@ try {
   };
   const app = createApiApp({
     config,
+    rateLimitIpSource,
     isInfrastructureReady: async () =>
       transferAdmission.isReady() && (await infrastructureReady()),
     authService: new AuthService(

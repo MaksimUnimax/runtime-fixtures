@@ -1,3 +1,7 @@
+import {
+  configureRateLimitClientIp,
+  type RateLimitIpSource,
+} from "./rate-limit-client-ip.js";
 import type { MaintenanceCredentialStore } from "./maintenance-credential-file.js";
 import { randomUUID } from "node:crypto";
 import swagger from "@fastify/swagger";
@@ -103,6 +107,7 @@ export class ControlledError extends Error {
 }
 
 export interface ApiDependencies {
+  readonly rateLimitIpSource?: RateLimitIpSource;
   readonly config: AppConfig;
   readonly isInfrastructureReady: () => Promise<boolean>;
   readonly authService?: AuthServiceType;
@@ -177,6 +182,7 @@ export function createApiApp(
         : randomUUID();
     },
   });
+  configureRateLimitClientIp(app, dependencies.rateLimitIpSource);
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   void app.register(cookie);

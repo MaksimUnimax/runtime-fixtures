@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from "./rate-limit-client-ip.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -239,7 +240,7 @@ export function registerConnectionCodeRoutes(
       const result = await guarded(() =>
         service.exchange(
           { ...input, idempotencyKey: key },
-          request.ip,
+          rateLimitClientIp(request),
           request.id,
         ),
       );
