@@ -203,6 +203,70 @@ describe("B2 feedback/support safety foundation", () => {
   });
 
   it.each([
+    ['{"api key":"SYNTH_SPACE_01","requestId":"safe"}', "string"],
+    ['{"api key":{"value":"SYNTH_SPACE_02"},"requestId":"safe"}', "nested"],
+    ['{"api\\u0020key":["SYNTH_SPACE_03"],"requestId":"safe"}', "escaped"],
+  ])("redacts spaced quoted API key (%s)", (raw) => {
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      "api key": "[REDACTED_SECRET]",
+      requestId: "safe",
+    });
+  });
+
+  it.each([
+    "diagnostic API key: SYNTH_SPACE_04",
+    "diagnostic api key: { value: 'SYNTH_SPACE_05' }",
+    "diagnostic api key: 'SYNTH_SPACE_06\nSYNTH_SPACE_06_TAIL'",
+  ])("fails closed on spaced bare API key", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+  });
+
+  it("preserves ordinary API labels and masks pseudo-JSON spaced keys", () => {
+    const safe = "diagnostic api label: { value: 'SYNTH_SAFE_07' }";
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+    const raw = "diagnostic 'api key': { value: 'SYNTH_SPACE_08' }";
+    expect(sanitizeFeedbackText(raw)).toContain("[REDACTED_SECRET]");
+    expect(sanitizeFeedbackText(raw)).not.toContain("SYNTH_SPACE_08");
+  });
+
+  it("redacts spaced API keys before case and followup repository writes", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_SPACED_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_SPACED_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const raw = "api key: { value: 'SYNTH_SPACED_PERSIST_SECRET' }";
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description: raw,
+      }),
+    ).rejects.toThrow("SYNTH_SPACED_CASE_CAPTURE");
+    await expect(
+      service.addUserFollowup(userId, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_SPACED_FOLLOWUP_CAPTURE");
+    await expect(
+      service.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_SPACED_FOLLOWUP_CAPTURE");
+    expect(captured).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    expect(captured.join("|")).not.toContain("SYNTH_SPACED_PERSIST_SECRET");
+  });
+
+  it.each([
     [
       "CGJ bare object",
       "diagnostic pass\u034Fword: { value: 'SYNTH_DICP_PRIVATE_01' }",

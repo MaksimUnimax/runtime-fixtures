@@ -183,7 +183,7 @@ const quotedJsonScalarField =
 const singleQuotedScalarField =
   /('(?:\\.|[^'\\\r\n])*')(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
-  /(?:password|passwd|secret|token|api[_-]?key|authorization|cookies?|set[-_]?cookie)$/iu;
+  /(?:password|passwd|secret|token|api(?:[_-]|[ \t]+)?key|authorization|cookies?|set[-_]?cookie)$/iu;
 
 // Ignore invisible joiners only when classifying a diagnostic KEY; do not
 // rewrite harmless Unicode text or the original JSON key spelling.
@@ -394,6 +394,12 @@ function redactMultilineQuotedSecrets(input: string): string {
 }
 
 function redactAccidentalSecretsBasic(input: string): string {
+  // A free-text "api key:" may precede a structured or multiline secret.
+  // Its value boundary is not trustworthy: discard the diagnostic in full.
+  const spacedBareApiKey =
+    /\bapi[ \t]+key[\s\p{Default_Ignorable_Code_Point}]*[:=]/iu;
+  if (spacedBareApiKey.test(input)) return "[REDACTED_SECRET]";
+
   // Detect Unicode default-ignorable controls in bare diagnostic keys even
   // when their values are scalars. Preserve the rest of a user's text.
   const ignoredBareKey =
