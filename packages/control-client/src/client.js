@@ -2,6 +2,7 @@
 (() => {
   "use strict";
 
+  /* I1_CLIENT_DIAGNOSTICS_BEGIN */
   // Optional in-memory I1 observation. It has no authority or transport effects.
   function i1BootstrapDiagnostic(event, fields = {}, links = {}) {
     let port;
@@ -30,6 +31,7 @@
   function i1BootstrapRequestDiagnostic(event, context, fields = {}, links = {}) {
     try { if (context) i1BootstrapDiagnostic(event, { ...context, ...fields }, links); } catch (_) {}
   }
+  /* I1_CLIENT_DIAGNOSTICS_END */
 
   const config = globalThis.SellerAgentsControlConfig;
   const verifier = globalThis.SellerAgentsBootstrapVerifier;

@@ -2,6 +2,7 @@
 (() => {
   "use strict";
 
+  /* I1_SCHEDULER_DIAGNOSTICS_BEGIN */
   // Optional in-memory I1 observation. It has no authority or transport effects.
   function i1BootstrapDiagnostic(event, fields = {}, links = {}) {
     let port;
@@ -14,6 +15,7 @@
     }
   }
 
+  /* I1_SCHEDULER_DIAGNOSTICS_END */
   const WAIT_MS = 65000, ACTIVE_MS = 60000;
   const fenceFields = ["principalEpoch", "accessEpoch", "grantEpoch", "environmentKey", "scopeKey"];
   const failure = (code, details = {}) => Object.assign(new Error(code), { code, ...details });

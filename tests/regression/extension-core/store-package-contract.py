@@ -143,6 +143,9 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert development_receipt["version"] == "0.2.42"
     development_worker = (development_runtime / "service_worker.js").read_bytes()
     assert b'development: config.environment === "LOCAL DEVELOPMENT"' in development_worker
+    assert development_worker.count(b"I1_CLIENT_DIAGNOSTICS_BEGIN") == 1
+    assert development_worker.count(b"I1_SCHEDULER_DIAGNOSTICS_BEGIN") == 1
+    assert b"__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__" in development_worker
     assert (development_runtime / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
     assert (development_extracted / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
     firefox_development = root / "firefox-development-runtime"
@@ -193,6 +196,12 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "control_plane_v2" in worker and "PREPRODUCTION" in worker
     assert "PACKAGED_CONFIG_REQUIRED" in worker
     assert "LOCAL DEVELOPMENT" not in worker
+    assert "__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__" not in worker
+    assert "I1_CLIENT_DIAGNOSTICS_BEGIN" not in worker
+    assert "I1_SCHEDULER_DIAGNOSTICS_BEGIN" not in worker
+    assert worker.count("function i1BootstrapDiagnostic() {}") == 2
+    assert worker.count("function i1BootstrapDiagnosticContext() { return null; }") == 1
+    assert worker.count("function i1BootstrapRequestDiagnostic() {}") == 1
     assert "development: false" in worker
     assert "127.0.0.1:43100" not in worker and "127.0.0.1:43101" not in worker
     assert "config-local-development" not in worker

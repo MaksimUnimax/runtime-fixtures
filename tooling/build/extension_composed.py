@@ -388,6 +388,28 @@ def compose(directory, mode="development", release_authority=None):
             output["service_worker.js"] = output["service_worker.js"].replace(
                 development_scope, b"development: false", 1
             )
+            # A store package cannot acquire the local I1 observation port,
+            # even if one is injected into its privileged worker at runtime.
+            # Compile only the two explicitly delimited diagnostic helpers to
+            # no-ops. Transport, limits, scheduling and authority code remain.
+            for relative, marker, replacement in (
+                ("packages/control-client/src/client.js", b"I1_CLIENT_DIAGNOSTICS",
+                 b"function i1BootstrapDiagnostic() {}\n"
+                 b"function i1BootstrapDiagnosticContext() { return null; }\n"
+                 b"function i1BootstrapRequestDiagnostic() {}"),
+                ("packages/control-client/src/parallel-authority.js", b"I1_SCHEDULER_DIAGNOSTICS",
+                 b"function i1BootstrapDiagnostic() {}"),
+            ):
+                source = read_input(relative, inputs)
+                begin = b"/* " + marker + b"_BEGIN */"
+                end = b"/* " + marker + b"_END */"
+                assert source.count(begin) == source.count(end) == 1
+                start, stop = source.index(begin), source.index(end) + len(end)
+                assert start < stop
+                helpers = source[start:stop]
+                assert output["service_worker.js"].count(helpers) == 1
+                output["service_worker.js"] = output["service_worker.js"].replace(helpers, replacement, 1)
+            assert b"__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__" not in output["service_worker.js"]
     for patch in json.loads(read_input(recipe["application_patches"], inputs)):
         text = output[patch["target"]].decode()
         assert isinstance(patch["old"], str)
