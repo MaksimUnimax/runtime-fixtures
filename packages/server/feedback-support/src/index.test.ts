@@ -875,6 +875,74 @@ describe("B2 feedback/support safety foundation", () => {
     );
   });
 
+  it.each([
+    [
+      "zero-width before the delimiter",
+      "diagnostic password\u200B: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_01' }",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "word joiner after the delimiter",
+      "diagnostic token: \u2060['SYNTHETIC_B06_SINK_PRIVATE_02']",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "zero-width within the credential key",
+      "diagnostic pass\u200Bword: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_03' }",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "harmless noncredential joiner",
+      "diagnostic note: \u200B{ value: 'safe-text' }",
+      "diagnostic note: \u200B{ value: 'safe-text' }",
+    ],
+  ])(
+    "masks %s before all support repository writes",
+    async (_case, raw, expected) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("SYNTHETIC_B06_SINK_CASE_CAPTURED");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("SYNTHETIC_B06_SINK_FOLLOWUP_CAPTURED");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTHETIC_B06_SINK_CASE_CAPTURED");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTHETIC_B06_SINK_FOLLOWUP_CAPTURED");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTHETIC_B06_SINK_FOLLOWUP_CAPTURED");
+      expect(forwarded).toEqual([expected, expected, expected, expected]);
+      if (expected === "[REDACTED_SECRET]") {
+        expect(JSON.stringify(forwarded)).not.toContain(
+          "SYNTHETIC_B06_SINK_PRIVATE_",
+        );
+      }
+    },
+  );
+
   it("never forwards a bare-key multiline credential to feedback case/followup sinks", async () => {
     const writes: string[] = [];
     const repo = {
