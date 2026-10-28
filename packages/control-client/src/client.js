@@ -565,11 +565,11 @@
     }
     if (requestOptions.body !== undefined) { headers.set("Content-Type", "application/json"); requestOptions.body = JSON.stringify(requestOptions.body); }
     const callerSignal = requestOptions.signal, controller = new AbortController();
-    let timer = null, rejectInterrupted, resolveInterrupted, observedHttpDenial = null;
+    let timer = null, rejectInterrupted, resolveInterrupted, observedHttpFailure = null, observedHttpDenial = null;
     const interrupted = callerSignal ? new Promise((resolve, reject) => { resolveInterrupted = resolve; rejectInterrupted = reject; }) : null;
     const abortFromCaller = () => {
       i1BootstrapRequestDiagnostic("CALLER_SIGNAL_ABORT", diagnosticContext, {caller_aborted:callerSignal.aborted}, {callerSignal});
-      rejectInterrupted(observedHttpDenial || error("CONTROL_REQUEST_ABORTED"));
+      rejectInterrupted(observedHttpFailure || error("CONTROL_REQUEST_ABORTED"));
       i1BootstrapRequestDiagnostic("WRAPPER_ABORT_CALLER", diagnosticContext, {wrapper_aborted:controller.signal.aborted}, {wrapperSignal:controller.signal});
       controller.abort();
     };
@@ -594,21 +594,27 @@
       try { response = await fetch(endpoint, requestOptions); }
       catch (_) { i1BootstrapRequestDiagnostic("FETCH_REJECTED", diagnosticContext); const failure = error("CONTROL_TRANSPORT_UNAVAILABLE"); transportProvenance.set(failure, endpoint); throw failure; }
       i1BootstrapRequestDiagnostic("RESPONSE_HEADERS", diagnosticContext, {http_status:response.status}, {response});
-      if (response.status === 401 || response.status === 403) {
-        // Status is already known even if the body never settles. Retain this
-        // HTTP fact for interruption and late-denial handling; it is not an
-        // audited 503 or a transport failure eligible for signed cache.
-        observedHttpDenial = error(`CONTROL_HTTP_${response.status}`);
-        observedHttpDenial.status = response.status;
-        httpErrorProvenance.set(observedHttpDenial, endpoint);
-        if (observe) void observe({ error: observedHttpDenial }, false);
+      if (!response.ok) {
+        // Preserve every known non-OK status across body interruption. Headers
+        // alone do not establish an audited BOOTSTRAP_UNAVAILABLE response.
+        observedHttpFailure = error(`CONTROL_HTTP_${response.status}`);
+        observedHttpFailure.status = response.status;
+        observedHttpFailure.retryAfterMs = parseRetryAfter(response);
+        httpErrorProvenance.set(observedHttpFailure, endpoint);
+        // Record the fact for a policy still checking cache after request()
+        // returned. Its observer applies auth side effects only to 401/403.
+        if (observe) void observe({ error: observedHttpFailure }, false);
+        if (response.status === 401 || response.status === 403) {
+          // Only these statuses carry the common auth-denial side effect.
+          observedHttpDenial = observedHttpFailure;
+        }
       }
       let body = null, bodyFailure = false, text;
       try {
         text = await readLimitedBody(response, undefined, diagnosticContext);
       } catch (cause) {
         bodyFailure = true;
-        if (cause?.code === "CONTROL_RESPONSE_TOO_LARGE") { cause.status = response.status; cause.responseOk = response.ok; cause.retryAfterMs = parseRetryAfter(response); cause.body = null; if (observedHttpDenial) httpErrorProvenance.set(cause, endpoint); throw cause; }
+        if (cause?.code === "CONTROL_RESPONSE_TOO_LARGE") { cause.status = response.status; cause.responseOk = response.ok; cause.retryAfterMs = parseRetryAfter(response); cause.body = null; if (observedHttpFailure) httpErrorProvenance.set(cause, endpoint); throw cause; }
         // A successful status does not make an interrupted body a received
         // envelope. Register only our own bounded transport error; never copy
         // status/code/detail from the reader's arbitrary exception. Actual
@@ -623,7 +629,7 @@
       // Completed empty or malformed JSON is not a transport failure. The
       // signed verifier still rejects it instead of falling back to cache.
       if (!bodyFailure) { try { body = text ? JSON.parse(text) : null; } catch (_) { bodyFailure = true; } }
-      if (!response.ok) { const failure = error(body?.error?.code || `CONTROL_HTTP_${response.status}`); failure.status = response.status; failure.retryAfterMs = parseRetryAfter(response); failure.body = body; if (!bodyFailure || observedHttpDenial) httpErrorProvenance.set(failure, endpoint); throw failure; }
+      if (!response.ok) { const failure = error(body?.error?.code || `CONTROL_HTTP_${response.status}`); failure.status = response.status; failure.retryAfterMs = parseRetryAfter(response); failure.body = body; httpErrorProvenance.set(failure, endpoint); throw failure; }
       return { body, response };
     })();
     if (observe) {
@@ -634,8 +640,8 @@
         i1BootstrapRequestDiagnostic("REQUEST_TIMER_ARM", diagnosticContext, {configured_timeout_ms:CONTROL_REQUEST_DEADLINE_MS,timer_kind:"REQUEST"});
         timer = setTimeout(() => {
           i1BootstrapRequestDiagnostic("REQUEST_TIMER_FIRE", diagnosticContext, {timer_kind:"REQUEST"});
-          const failure = observedHttpDenial || error("CONTROL_REQUEST_TIMEOUT");
-          if (!observedHttpDenial) transportProvenance.set(failure, endpoint);
+          const failure = observedHttpFailure || error("CONTROL_REQUEST_TIMEOUT");
+          if (!observedHttpFailure) transportProvenance.set(failure, endpoint);
           reject(failure);
           i1BootstrapRequestDiagnostic("WRAPPER_ABORT_TIMER", diagnosticContext, {wrapper_aborted:controller.signal.aborted}, {wrapperSignal:controller.signal});
           controller.abort();
@@ -643,11 +649,11 @@
       });
       return await Promise.race(interrupted ? [operation, deadline, interrupted] : [operation, deadline]);
     } catch (failure) {
-      // Fetch may deliver denial headers in the microtask between the timer's
+      // Fetch may deliver non-OK headers in the microtask between the timer's
       // rejection/abort and this continuation. Recheck the observed status
       // before returning a transport failure to an offline-cache consumer.
-      if (observedHttpDenial && (transportProvenance.get(failure) === endpoint ||
-          failure.code === "CONTROL_REQUEST_ABORTED")) throw observedHttpDenial;
+      if (observedHttpFailure && (transportProvenance.get(failure) === endpoint ||
+          failure.code === "CONTROL_REQUEST_ABORTED")) throw observedHttpFailure;
       throw failure;
     } finally {
       requestReturned = true;
@@ -1566,9 +1572,24 @@
       return { source: "ONLINE", freshness: "FRESH", payload: clone(payload) };
     } catch (onlineFailure) {
       const capture = typeof attempt.authorityIdentity === "string" || attempt.authorityIdentity === null ? attempt : null;
-      const eligible = capture && !attempt.observedBootstrap401 && (registeredTransport(onlineFailure, "/v1/bootstrap") || (attempt.preflightRefreshTransport === true && registeredTransport(onlineFailure, "/v1/auth/refresh")) || (httpErrorProvenance.get(onlineFailure) === endpointFor("/v1/bootstrap") && onlineFailure.status === 503 && onlineFailure.code === "BOOTSTRAP_UNAVAILABLE"));
-      if (eligible && capture.requestedAi && bootstrapAttemptCurrent(attempt)) {
+      const policyFailure = () => {
+        const observed = attempt.lastHttpOutcome?.error;
+        // A completed HTTP failure keeps its parsed code. Terminal late denials
+        // retain the existing revocation/lease path. Nonterminal HTTP only
+        // replaces transport eligibility; it does not race that auth commit.
+        return registeredTransport(onlineFailure, "/v1/bootstrap") &&
+          httpErrorProvenance.get(observed) === endpointFor("/v1/bootstrap") &&
+          observed.status !== 401 && observed.status !== 403 ? observed : onlineFailure;
+      };
+      const eligible = () => {
+        const failure = policyFailure();
+        return capture && !attempt.observedBootstrap401 && (registeredTransport(failure, "/v1/bootstrap") || (attempt.preflightRefreshTransport === true && registeredTransport(failure, "/v1/auth/refresh")) || (httpErrorProvenance.get(failure) === endpointFor("/v1/bootstrap") && failure.status === 503 && failure.code === "BOOTSTRAP_UNAVAILABLE"));
+      };
+      if (eligible() && capture.requestedAi && bootstrapAttemptCurrent(attempt)) {
         const cached = await scopedCacheCheckpoint(capture.requestedAi, attempt.lease);
+        // Known HTTP can arrive during asynchronous cache verification/write.
+        // It must still govern this acquisition before any cache allow returns.
+        if (!eligible()) throw policyFailure();
         // A confirmed expiry rejects the acquisition under its revocation receipt;
         // it must never acknowledge a newer fence as an allowed result.
         if (cached.changed) throw cacheFailure("CACHE_EXPIRED");
@@ -1579,13 +1600,13 @@
           const effective = effectiveTime(cached.grant.cacheClock, payload);
           const expiresAt = parsedMillis(payload.expiresAt), deadline = cacheAuthorityDeadline(payload);
           if (expiresAt === null || deadline === null || effective >= deadline) throw cacheFailure("CACHE_EXPIRED");
-          if (!cached.allowed) throw onlineFailure;
+          if (!cached.allowed) throw policyFailure();
           return { source: "CACHE", freshness: effective < expiresAt ? "FRESH" : "STALE_BUT_OFFLINE_GRACE_ELIGIBLE", payload: clone(payload) };
         }
         // An already expired legacy authority has no operational grant. Preserve
         // the existing verified legacy-cache diagnostics below, never invent a grant.
       }
-      if (!eligible || !policyCurrent(capture)) throw onlineFailure;
+      if (!eligible() || !policyCurrent(capture)) throw policyFailure();
       const authority = capture.authority, requestedAi = capture.requestedAi;
       if (!authority || authority.requestedAi !== requestedAi || !capture.clock || !validCacheBinding(authority.cacheBinding)) throw onlineFailure;
       let verified;
@@ -1605,10 +1626,11 @@
         if (!currentAuthority || cacheIdentity(currentAuthority, state.generation) !== capture.authorityIdentity) throw cacheFailure("CACHE_ACQUISITION_OBSOLETED");
         const result = await cachedBootstrapCheckpoint(capture, verifiedPayload);
         if (!policyCurrent(capture)) throw cacheFailure("CACHE_ACQUISITION_OBSOLETED");
+        if (!eligible()) throw policyFailure();
         return result;
       } catch (cacheError) {
         if (cacheError?.code === "AUTH_DENIAL_PERSISTENCE_FAILED" || cacheError?.code === "CACHE_ACQUISITION_OBSOLETED" || cacheError?.code === "CACHE_CLOCK_INVALID" || cacheError?.code === "CACHE_EFFECTIVE_TIME_INVALID" || cacheError?.code === "CACHE_CONTEXT_MISMATCH" || cacheError?.code === "CACHE_VERIFICATION_FAILED" || cacheError?.code === "CACHE_EXPIRY_INVALID" || cacheError?.code === "CACHE_EXPIRED") throw cacheError;
-        throw onlineFailure;
+        throw policyFailure();
       }
     }
   }

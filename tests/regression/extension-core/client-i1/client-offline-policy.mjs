@@ -253,6 +253,80 @@ for (const [label, factory] of [
   } finally { fixture.worker.close(); }
 }
 
+// Known non-OK responses cannot turn into transport-only cache eligibility.
+// These are request failures, not a common authentication revocation. Only a
+// completed, audited BOOTSTRAP_UNAVAILABLE body may allow the 503 fallback.
+for (const status of [429, 500, 502, 503, 504]) {
+  for (const mode of ["rejects-abort", "ignores-abort", "headers-at-abort"]) {
+    await namedCase(`HTTP${status}-non-ok-${mode}`, async () => {
+      let releaseRead;
+      const fixture = await prepared({ timerScale: 0.001, fetch: async (url, init) => {
+        assert.ok(url.endsWith("/v1/bootstrap"));
+        const response = { ok: false, status, headers: new Headers(), body: { getReader: () => ({
+          read: () => new Promise((resolve, reject) => {
+            releaseRead = () => resolve({ done: true });
+            if (mode === "rejects-abort") init.signal.addEventListener("abort", () =>
+              reject(Object.assign(new Error("PRIVATE_BODY_FAILURE"), { code: "BOOTSTRAP_UNAVAILABLE" })),
+              { once: true });
+          }), cancel: async () => {},
+        }) } };
+        if (mode !== "headers-at-abort") return response;
+        return new Promise(resolve => init.signal.addEventListener("abort", () => resolve(response), { once: true }));
+      } });
+      try {
+        const before = clone(fixture.backing.local[AUTH]);
+        const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }),
+          { status, code: `CONTROL_HTTP_${status}` }, `${status} ${mode} cannot acquire cache`);
+        assert.ok(!String(failure).includes("PRIVATE_BODY_FAILURE"));
+        assert.equal(canonical(fixture.backing.local[AUTH].authority), canonical(before.authority),
+          "nonterminal HTTP error does not revoke the existing signed authority");
+        assert.equal(fixture.backing.local[AUTH].generation, before.generation);
+        assert.equal(fixture.backing.local[AUTH].accessEpoch, before.accessEpoch);
+        assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1,
+          "body interruption never replays the bootstrap POST");
+      } finally { releaseRead?.(); fixture.worker.close(); }
+    });
+  }
+}
+
+for (const status of [429, 503]) {
+  await namedCase(`HTTP${status}-headers-during-cache-write`, async () => {
+    let reply, releaseWrite, releaseRead, held = false, reading = false, dispatched = false;
+    const clock = { wall: Date.now(), mono: 1000 };
+    const fixture = await prepared({ clock, timerScale: 0.001,
+      onStorageWrite: async (kind, values) => {
+        if (dispatched && !held && kind === "local" && values[AUTH]?.authority) {
+          held = true;
+          await new Promise(resolve => { releaseWrite = resolve; });
+        }
+      },
+      fetch: url => {
+        assert.ok(url.endsWith("/v1/bootstrap")); dispatched = true;
+        return new Promise(resolve => { reply = () => resolve({
+          ok: false, status, headers: new Headers(), body: { getReader: () => ({
+            read: () => new Promise(done => { reading = true; releaseRead = () => done({ done: true }); }),
+            cancel: async () => {},
+          }) },
+        }); });
+      },
+    });
+    try {
+      const before = clone(fixture.backing.local[AUTH]);
+      clock.wall += 100; clock.mono += 100;
+      const pending = policy(fixture.worker, { detectedAi: CHATGPT });
+      await until(() => held, "cache write after genuine no-headers timeout");
+      reply();
+      await until(() => reading, "late non-OK headers observed before cache write finishes");
+      releaseWrite();
+      await exactFailure(() => pending, { status, code: `CONTROL_HTTP_${status}` }, "late status prevents cache return");
+      assert.equal(canonical(fixture.backing.local[AUTH].authority.envelope), canonical(before.authority.envelope));
+      assert.equal(fixture.backing.local[AUTH].generation, before.generation);
+      assert.equal(fixture.backing.local[AUTH].accessEpoch, before.accessEpoch);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1);
+    } finally { releaseWrite?.(); releaseRead?.(); fixture.worker.close(); }
+  });
+}
+
 // Headers are already authoritative when a denial body stalls. A deadline
 // may bound the read; it must not turn the observed denial into offline allow.
 for (const status of [401, 403]) for (const settleOnAbort of [true, false]) {

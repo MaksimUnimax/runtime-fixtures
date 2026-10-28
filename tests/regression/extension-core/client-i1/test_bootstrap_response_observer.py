@@ -930,6 +930,25 @@ for (const status of [401,403]) for (const interrupt of ['timeout','caller']) {
   }
   assert.equal(race.fetches,1);assert.equal(race.timers.size,0);race.body();cases++;
 }
+// Nonterminal status still prevents transport fallback on either interruption,
+// but must not manufacture a 401/403 status. Policy tests separately verify
+// that these observations do not revoke existing authentication.
+for (const status of [429,500,502,503,504]) for (const interrupt of ['timeout','caller']) {
+  for (const rejects of [true,false]) {
+    const f=fixture(status,false,rejects); await f.reading;
+    assert.equal(f.observations.length,1,'known HTTP is observable before body settlement');
+    assert.equal(f.observations[0].error.status,status);
+    assert.equal(f.observations[0].late,false);
+    if(interrupt==='timeout') [...f.timers.values()].find(t=>t.ms===30000).fn();
+    else f.caller.abort();
+    const {error}=await f.outcome;
+    assert.equal(error.status,status);assert.equal(error.code,'CONTROL_HTTP_'+status);
+    assert.equal(f.realm.httpErrorProvenance.get(error),'http://127.0.0.1:43100/v1/bootstrap');
+    assert.equal(f.realm.transportProvenance.has(error),false);
+    assert.equal(f.fetches,1);assert.equal(f.timers.size,0);
+    f.body(); cases++;
+  }
+}
 console.log(JSON.stringify({status:'PASS',actualRequestCases:cases}));
 """
         completed = subprocess.run(
