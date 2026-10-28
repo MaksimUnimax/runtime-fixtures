@@ -281,6 +281,15 @@ def current_prepare_recovery_fence(plan: dict) -> None:
     current_install_reboot_fence(plan,allow_existing=True)
 
 def current_remove_reboot_fence(plan: dict) -> None:
+    expected='[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n'
+    # Validate the complete set before removing any part. A retry may find
+    # already removed files, but must never remove an unrelated replacement.
+    for role,path in current_fence_paths(plan).items():
+        _assert_no_symlink_ancestors(path.parent)
+        if os.path.lexists(path) and (
+            path.is_symlink() or not path.is_file() or path.read_text()!=expected
+        ):
+            raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
     for role,path in current_fence_paths(plan).items():
         _assert_no_symlink_ancestors(path.parent)
         if os.path.lexists(path):
@@ -958,7 +967,8 @@ def current_require_migration_settled(state: dict, receipt: dict) -> dict:
         proofs.append(proof)
     if proofs[0]!=proofs[1]:
         raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
-    for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix','candidateTarget'):
+    for field in ('candidateSourceSha','candidateSourceTree','trustedInventorySha256',
+                  'predeployPrefix','candidateTarget'):
         if state.get(field)!=receipt.get(field):
             raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
     if state['predeployPrefix']<state['candidateTarget']:
@@ -989,6 +999,114 @@ def current_operation_lock(evidence_root: Path):
 # Version 1 persists baseline start intent in both original records before
 # admitting writers. Unversioned old attempts cannot prove safe dump replay.
 CURRENT_BASELINE_RECOVERY_PROTOCOL = 1
+
+CURRENT_TERMINAL_PHASES = {
+    'CANDIDATE_PASS':('APPLY_PASS','CANDIDATE_VERIFIED'),
+    'ROLLBACK_PASS':('FAILED','PREDEPLOY_VERIFIED'),
+    'CURRENT_FORWARD_RECOVERY_PASS':('CURRENT_FORWARD_RECOVERY_PASS','CANDIDATE_VERIFIED'),
+    'CURRENT_RECOVERY_PASS':('CURRENT_RECOVERY_PASS','PREDEPLOY_VERIFIED'),
+}
+
+def current_complete_terminal_cleanup(*, plan: dict, state: dict, journal: Path,
+                                      evidence_root: Path) -> dict:
+    """Only finish fence cleanup for an exact, immutable terminal receipt.
+
+    No database, service startup, rollback or migration is reachable here.
+    A missing/torn receipt after terminal intent requires reconciliation.
+    """
+    intent=state.get('terminalIntent')
+    if (not isinstance(intent,dict) or type(intent.get('protocol')) is not int
+            or intent['protocol']!=1 or not isinstance(intent.get('id'),str)
+            or not re.fullmatch(r'[0-9a-f]{32}',intent['id'])
+            or state.get('phase') not in ('TERMINAL_FINALIZING','TERMINAL_COMMITTED')
+            or state.get('fenceCleanupRequired') is not True
+            or state.get('applicationMayHaveWritten') is not True):
+        raise RuntimeError('CURRENT_TERMINAL_INTENT_INVALID')
+    for field,value in (
+        ('candidateSourceSha',plan['sourceSha']),
+        ('candidateSourceTree',plan['sourceTree']),
+        ('trustedInventorySha256',plan['trustedInventorySha256']),
+    ):
+        if intent.get(field)!=value or state.get(field)!=value:
+            raise RuntimeError('CURRENT_TERMINAL_IDENTITY_MISMATCH')
+    raw_path=intent.get('receipt')
+    digest=intent.get('sha256')
+    if (not isinstance(raw_path,str) or not isinstance(digest,str)
+            or not re.fullmatch(r'[0-9a-f]{64}',digest)):
+        raise RuntimeError('CURRENT_TERMINAL_INTENT_INVALID')
+    path=Path(raw_path)
+    current_validate_evidence_paths(evidence_root,journal,path.parent)
+    names={
+        'CANDIDATE_PASS':r'receipt\.json',
+        'ROLLBACK_PASS':r'receipt\.json',
+        'CURRENT_FORWARD_RECOVERY_PASS':r'forward-recovery-[0-9]{8}T[0-9]{12}Z\.json',
+        'CURRENT_RECOVERY_PASS':r'baseline-recovery-[0-9]{8}T[0-9]{12}Z\.json',
+    }
+    if (not re.fullmatch(names.get(intent.get('phase'),r'(?!)'),path.name) or path.is_symlink()
+            or not path.is_file()):
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_UNCONFIRMED')
+    try:
+        raw=path.read_bytes()
+        if hashlib.sha256(raw).hexdigest()!=digest:
+            raise ValueError('digest')
+        result=json.loads(raw)
+    except (OSError,ValueError):
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_UNCONFIRMED') from None
+    phase=intent.get('phase')
+    expected=CURRENT_TERMINAL_PHASES.get(phase)
+    if (not isinstance(result,dict) or expected is None
+            or result.get('terminalId')!=intent['id']
+            or result.get('phase')!=phase
+            or (result.get('status'),result.get('schemaState'))!=expected
+            or result.get('recoveryRequired') is not False
+            or result.get('applicationMayHaveWritten') is not True):
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_UNCONFIRMED')
+    for field in ('candidateSourceSha','candidateSourceTree','trustedInventorySha256',
+                  'predeployPrefix','candidateTarget','schemaState'):
+        if result.get(field)!=intent.get(field) or result.get(field)!=state.get(field):
+            raise RuntimeError('CURRENT_TERMINAL_IDENTITY_MISMATCH')
+    predeploy=result.get('predeployPrefix');target=result.get('candidateTarget')
+    if (type(predeploy) is not int or type(target) is not int
+            or predeploy<0 or target<predeploy
+            or target!=plan.get('migrationTarget',{}).get('count')):
+        raise RuntimeError('CURRENT_TERMINAL_IDENTITY_MISMATCH')
+    committed={**state,'phase':'TERMINAL_COMMITTED','receipt':str(path),
+               'recoveryRequired':True,'fenceCleanupRequired':True}
+    # Both receipt and journal are durable before removing any persistent fence.
+    write_json_durable(journal,committed)
+    current_remove_reboot_fence(plan)
+    write_json_durable(journal,{**committed,'phase':phase,'recoveryRequired':False,
+                                'fenceCleanupRequired':False})
+    return result
+
+def current_finalize_terminal(*, plan: dict, result: dict, state: dict,
+                              evidence_dir: Path, journal: Path, phase: str,
+                              receipt_path: Path | None = None) -> dict:
+    """Persist success outside all operational exception/rollback handlers."""
+    terminal_id=os.urandom(16).hex()
+    path=receipt_path if receipt_path is not None else evidence_dir/'receipt.json'
+    if path.parent!=evidence_dir or path.is_symlink():
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_INVALID')
+    if path.is_file() and 'terminalId' in json.loads(path.read_text()):
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_EXISTS')
+    result={**result,'phase':phase,'terminalId':terminal_id,'recoveryRequired':False}
+    raw=(json.dumps(result,indent=2,sort_keys=True)+'\n').encode()
+    fields={field:result[field] for field in (
+        'candidateSourceSha','candidateSourceTree','trustedInventorySha256',
+        'predeployPrefix','candidateTarget','schemaState',
+    )}
+    intent={**fields,'protocol':1,'id':terminal_id,'phase':phase,
+            'receipt':str(path),'sha256':hashlib.sha256(raw).hexdigest()}
+    finalizing={**state,**fields,'phase':'TERMINAL_FINALIZING',
+                'recoveryRequired':True,'fenceCleanupRequired':True,
+                'applicationMayHaveWritten':True,'terminalIntent':intent}
+    # This distinguishes a crash before the terminal file from an ordinary
+    # unfinished operation. Neither case may be silently reclassified as FAIL.
+    write_json_durable(journal,finalizing)
+    write_json_durable(path,result)
+    return current_complete_terminal_cleanup(
+        plan=plan,state=finalizing,journal=journal,evidence_root=journal.parent,
+    )
 
 def current_assert_apply_journal_clear(journal: Path) -> None:
     if not journal.exists():
@@ -1105,6 +1223,7 @@ def _current_apply_engine_locked(
             'applicationMayHaveWritten':result['applicationMayHaveWritten'],
             'candidateSourceSha':result.get('candidateSourceSha'),
             'candidateSourceTree':result.get('candidateSourceTree'),
+            'trustedInventorySha256':result.get('trustedInventorySha256'),
             'predeployPrefix':predeploy,
             'candidateTarget':target,
         })
@@ -1152,12 +1271,8 @@ def _current_apply_engine_locked(
         current_start_product_units(plan)
         result['applicationHealth']=current_wait_runtime(plan,started)
         result['loadedIdentity']=current_verify_loaded_plan(plan)
-        current_remove_reboot_fence(plan)
         result['status']='APPLY_PASS'
-        result['recoveryRequired']=False
         phase='CANDIDATE_PASS'
-        record()
-        return result
     except BaseException as error:
         result['status']='FAILED'
         result['error']=error_code(error)
@@ -1186,9 +1301,7 @@ def _current_apply_engine_locked(
             phase='BASELINE_START_REQUESTED'; record()
             current_enable_fenced_start()
             current_restore_unit_states(plan,baseline_units)
-            current_remove_reboot_fence(plan)
             result['baselineRestored']=True
-            result['recoveryRequired']=False
             phase='ROLLBACK_PASS'
         except BaseException as rollback_error:
             result['rollbackError']=error_code(rollback_error)
@@ -1197,8 +1310,20 @@ def _current_apply_engine_locked(
                 result['productQuiesced']=True
             except BaseException as stop_error:
                 result['quiesceError']=error_code(stop_error)
-        record()
+        if phase=='ROLLBACK_PASS':
+            result['schemaState']=schema_state
+            current_finalize_terminal(
+                plan=plan,result=result,state=json.loads(journal.read_text()),
+                evidence_dir=evidence_dir,journal=journal,phase=phase,
+            )
+        else:
+            record()
         raise
+    result['schemaState']=schema_state
+    return current_finalize_terminal(
+        plan=plan,result=result,state=json.loads(journal.read_text()),
+        evidence_dir=evidence_dir,journal=journal,phase=phase,
+    )
 
 def current_recover_engine(
     *,
@@ -1250,7 +1375,8 @@ def current_forward_recover(
         raise RuntimeError('CURRENT_FORWARD_SCHEMA_UNCONFIRMED')
     if plan.get('migrationTarget',{}).get('count')!=target:
         raise RuntimeError('CURRENT_FORWARD_SCHEMA_TARGET_MISMATCH')
-    for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix','candidateTarget'):
+    for field in ('candidateSourceSha','candidateSourceTree','trustedInventorySha256',
+                  'predeployPrefix','candidateTarget'):
         if state.get(field)!=receipt.get(field):
             raise RuntimeError('CURRENT_FORWARD_ORIGIN_UNCONFIRMED')
     current_require_migration_settled(state,receipt)
@@ -1290,19 +1416,7 @@ def current_forward_recover(
         current_start_product_units(plan)
         result['applicationHealth']=current_wait_runtime(plan,started)
         result['loadedIdentity']=current_verify_loaded_plan(plan)
-        current_remove_reboot_fence(plan)
         result.update(status='CURRENT_FORWARD_RECOVERY_PASS',recoveryRequired=False)
-        write_json_durable(output,result)
-        write_json_durable(journal,{
-            'phase':'CURRENT_FORWARD_RECOVERY_PASS',
-            'schemaState':'CANDIDATE_VERIFIED','recoveryRequired':False,
-            'applicationMayHaveWritten':True,'receipt':str(output),
-            'originSourceSha':receipt['candidateSourceSha'],
-            'candidateSourceSha':plan['sourceSha'],
-            'candidateSourceTree':plan['sourceTree'],
-            'predeployPrefix':receipt['predeployPrefix'],'candidateTarget':target,
-        })
-        return result
     except BaseException as error:
         result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
         try:
@@ -1320,6 +1434,11 @@ def current_forward_recover(
             'lastRecoveryReceipt':str(output),
         })
         raise
+    return current_finalize_terminal(
+        plan=plan,result=result,state=recovering_state,
+        evidence_dir=evidence_dir,journal=journal,phase='CURRENT_FORWARD_RECOVERY_PASS',
+        receipt_path=output,
+    )
 
 
 def _current_recover_engine_locked(
@@ -1344,6 +1463,10 @@ def _current_recover_engine_locked(
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID') from None
     if not isinstance(state,dict) or state.get('recoveryRequired') is not True:
         raise RuntimeError('CURRENT_RECOVERY_NOT_REQUIRED')
+    if 'terminalIntent' in state:
+        return current_complete_terminal_cleanup(
+            plan=plan,state=state,journal=journal,evidence_root=evidence_root,
+        )
     raw_receipt=state.get('receipt')
     if not isinstance(raw_receipt,str):
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
@@ -1360,6 +1483,10 @@ def _current_recover_engine_locked(
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
     if not isinstance(receipt,dict):
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
+    if (not isinstance(state.get('trustedInventorySha256'),str)
+            or not re.fullmatch(r'[0-9a-f]{64}',state['trustedInventorySha256'])
+            or state['trustedInventorySha256']!=receipt.get('trustedInventorySha256')):
+        raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
     same_source=(
         receipt.get('candidateSourceSha')==expected_source_sha
         and receipt.get('candidateSourceTree')==expected_source_tree
@@ -1436,6 +1563,7 @@ def _current_recover_engine_locked(
         'recoveryRequired':True,
         'candidateSourceSha':expected_source_sha,
         'candidateSourceTree':expected_source_tree,
+        'trustedInventorySha256':expected_inventory_sha256,
         'predeployPrefix':predeploy,
         'candidateTarget':target,
         'schemaState':schema_state,
@@ -1466,6 +1594,7 @@ def _current_recover_engine_locked(
             'applicationMayHaveWritten':True,'recoveryRequired':True,
             'candidateSourceSha':receipt['candidateSourceSha'],
             'candidateSourceTree':receipt['candidateSourceTree'],
+            'trustedInventorySha256':receipt['trustedInventorySha256'],
             'predeployPrefix':predeploy,'candidateTarget':target,
             'lastRecoveryReceipt':str(output),
         }
@@ -1473,27 +1602,12 @@ def _current_recover_engine_locked(
         write_json_durable(output,result)
         current_enable_fenced_start()
         current_restore_unit_states(plan,baseline)
-        current_remove_reboot_fence(plan)
         result.update(
             status='CURRENT_RECOVERY_PASS',
             recoveryRequired=False,
             schemaState=schema_state,
             baselineRestored=True,
         )
-        write_json_durable(output,result)
-        write_json_durable(evidence_dir/'recovery.json',result)
-        write_json_durable(journal,{
-            'phase':'CURRENT_RECOVERY_PASS',
-            'applicationMayHaveWritten':True,
-            'schemaState':schema_state,
-            'recoveryRequired':False,
-            'receipt':str(evidence_dir/'recovery.json'),
-            'candidateSourceSha':expected_source_sha,
-            'candidateSourceTree':expected_source_tree,
-            'predeployPrefix':predeploy,
-            'candidateTarget':target,
-        })
-        return result
     except BaseException as error:
         result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
         try:
@@ -1505,6 +1619,11 @@ def _current_recover_engine_locked(
         write_json_durable(output,result)
         write_json_durable(evidence_dir/'recovery.json',result)
         raise
+    return current_finalize_terminal(
+        plan=plan,result=result,state=starting_state,
+        evidence_dir=evidence_dir,journal=journal,phase='CURRENT_RECOVERY_PASS',
+        receipt_path=output,
+    )
 
 @contextmanager
 def deployment_guard():
