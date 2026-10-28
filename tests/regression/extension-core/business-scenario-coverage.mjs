@@ -25,6 +25,7 @@ import "./wb-advertising-stats-grain-field-schema-slice.mjs";
 import "./wb-advertised-stock-reuse.mjs";
 import "./wb-paid-storage-contribution-field-schema-slice.mjs";
 import "./wb-cap24-sku-source-provenance.mjs";
+import "./wb-original-file-artifact-ref-scope.mjs";
 import "./wb-sales-geography-field-schema-slice.mjs";
 import "./wb-sales-decline-evidence-reuse.mjs";
 import "./wb-cross-source-join-field-schema-slice.mjs";
