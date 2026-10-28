@@ -557,3 +557,62 @@ describe("four-P2 API-watch transport regressions", () => {
     ).toBe(true);
   });
 });
+
+describe("C03 official-source semantic authority must match inventory consumers", () => {
+  const official = (pathItem: unknown) =>
+    JSON.stringify({
+      openapi: "3.2.0",
+      info: { title: "Official synthetic contract", version: "1" },
+      paths: { "/items": pathItem },
+    });
+  it.each([
+    ["missing required responses", { get: {} }],
+    ["null responses", { get: { responses: null } }],
+    ["invalid QUERY object", { query: {} }],
+    ["invalid custom operation", { additionalOperations: { "m-COPY": {} } }],
+  ] as const)(
+    "rejects a root-valid but semantically invalid official document: %s",
+    async (_label, pathItem) => {
+      const result = await acquireOfficialSource({
+        entry,
+        fetcher: async () =>
+          new Response(official(pathItem), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+      });
+      expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+      if (result.kind === "INVALID_OFFICIAL_SOURCE_RESPONSE") {
+        expect(result.blockerReason).toBe(
+          "Official source document validation failed.",
+        );
+        expect(result.httpStatus).toBe(200);
+        expect(result).not.toHaveProperty("bytes");
+        expect(result).not.toHaveProperty("sha256");
+      }
+    },
+  );
+  it("preserves acquisition of valid GET, QUERY and custom operations", async () => {
+    const responses = { "200": { description: "ok" } };
+    const result = await acquireOfficialSource({
+      entry,
+      fetcher: async () =>
+        new Response(
+          official({
+            get: { operationId: "getItems", responses },
+            query: { operationId: "queryItems", responses },
+            additionalOperations: {
+              "m-COPY": { operationId: "copyItems", responses },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    });
+    expect(result.kind).toBe("ACQUIRED_OFFICIAL_SOURCE_CANDIDATE");
+    if (result.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE") {
+      expect(result.sha256).toMatch(/^[a-f0-9]{64}$/u);
+      expect(result.bytes.byteLength).toBeGreaterThan(0);
+      expect(result.specVersion).toBe("3.2.0");
+    }
+  });
+});
