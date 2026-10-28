@@ -267,6 +267,36 @@ describe("TG4 binary size enforcement at HTTP and handoff boundaries", () => {
     ).toEqual([1, 2, 3]);
   });
 
+  it("copies reused one-byte stream chunks instead of retaining their mutable references", async () => {
+    const length = 120_000;
+    let produced = 0;
+    const reusable = new Uint8Array(1);
+    const stream = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          if (produced === length) {
+            controller.close();
+            return;
+          }
+          reusable[0] = produced % 251;
+          controller.enqueue(reusable);
+          produced += 1;
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const fetcher = (async (url) =>
+      String(url).endsWith("/getFile")
+        ? new Response(metadata)
+        : new Response(stream)) as typeof fetch;
+    const transport = createTelegramTransport("synthetic-no-network", fetcher);
+    const bytes = await transport.downloadFile?.("synthetic-id", length);
+    expect(bytes?.byteLength).toBe(length);
+    expect(produced).toBe(length);
+    for (let i = 0; i < length; i += 997) expect(bytes?.[i]).toBe(i % 251);
+    expect(bytes?.[length - 1]).toBe((length - 1) % 251);
+  });
+
   it("rejects oversized remote downloads without storing a WB upload", async () => {
     const sent: string[] = [];
     let uploads = 0;

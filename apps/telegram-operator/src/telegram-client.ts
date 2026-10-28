@@ -155,7 +155,9 @@ export function createTelegramTransport(
       }
       if (!response.body) throw new Error("TELEGRAM_FILE_BODY_UNAVAILABLE");
       const reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
+      // Retain at most a bounded contiguous buffer, not one object per HTTP
+      // chunk. Some valid streaming sources reuse the same Uint8Array.
+      let bytes = new Uint8Array(0);
       let total = 0;
       try {
         for (;;) {
@@ -166,8 +168,18 @@ export function createTelegramTransport(
           if (value.byteLength === 0) continue;
           if (value.byteLength > maxBytes - total)
             throw new Error("TELEGRAM_FILE_TOO_LARGE");
-          total += value.byteLength;
-          chunks.push(value);
+          const required = total + value.byteLength;
+          if (required > bytes.byteLength) {
+            const capacity = Math.min(
+              maxBytes,
+              Math.max(required, bytes.byteLength * 2, 64 * 1024),
+            );
+            const grown = new Uint8Array(capacity);
+            grown.set(bytes.subarray(0, total));
+            bytes = grown;
+          }
+          bytes.set(value, total);
+          total = required;
         }
       } catch (error) {
         void reader.cancel().catch(() => {});
@@ -175,13 +187,7 @@ export function createTelegramTransport(
       } finally {
         reader.releaseLock();
       }
-      const bytes = new Uint8Array(total);
-      let offset = 0;
-      for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.byteLength;
-      }
-      return bytes;
+      return bytes.slice(0, total);
     },
     async sendMessage(
       chatId: string,
