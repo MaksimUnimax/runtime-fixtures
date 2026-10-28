@@ -8,6 +8,10 @@ import { runMigrations } from "../../../packages/server/db/src/migrations.js";
 import { requireI1DisposableDatabase } from "../../regression/extension-core/client-i1/transfer-fixture-lifecycle.js";
 import { createCredentialTransferTestAuthority } from "./helpers/credential-transfer-test-authority.js";
 import {
+  waitForPgBackendExit,
+  type PgBackendIdentity,
+} from "./helpers/wait-for-pg-backend-exit.js";
+import {
   prepareRecipientRelayRuntime,
   proveRecipientRelayRecovery,
   type RecipientRelayStage,
@@ -54,7 +58,7 @@ it("preserves imported P1 through a pre-ACK PG-pool replacement and authenticate
   let stoppedRow: { state: string; revision: number } | undefined;
   let epochBefore = "";
   let repositoryCount = 0;
-  let originalBackend = 0;
+  let originalBackend: PgBackendIdentity | undefined;
   async function closePool(pool: ReturnType<typeof createDatabaseRuntime>) {
     if (closed.has(pool)) return;
     await pool.close();
@@ -109,11 +113,20 @@ it("preserves imported P1 through a pre-ACK PG-pool replacement and authenticate
           // the old authority and close its actual pool before replacement.
           await current.dispose();
           await closePool(firstPool);
-          const old = await observer.query<{ n: string }>(
-            "SELECT count(*)::text AS n FROM pg_stat_activity WHERE pid=$1",
-            [originalBackend],
+          await waitForPgBackendExit(
+            async (backend) =>
+              observer.transaction(async (tx) => {
+                await tx.query("SET LOCAL statement_timeout='500ms'");
+                const old = await tx.query<{ n: string }>(
+                  "SELECT count(*)::text AS n FROM pg_stat_activity WHERE pid=$1 AND backend_start::text=$2",
+                  [backend.pid, backend.startedAt],
+                );
+                expect(old.rows).toHaveLength(1);
+                expect(["0", "1"]).toContain(old.rows[0]!.n);
+                return old.rows[0]!.n === "1";
+              }),
+            originalBackend!,
           );
-          expect(old.rows[0]?.n).toBe("0");
         }
         const authority = await createCredentialTransferTestAuthority(
           pool,
@@ -121,17 +134,21 @@ it("preserves imported P1 through a pre-ACK PG-pool replacement and authenticate
         );
         authorities.push(authority);
         current = authority;
-        const backend = await pool.query<{ pid: number }>(
-          "SELECT pg_backend_pid() AS pid",
+        const backend = await pool.query<{ pid: number; started_at: string }>(
+          "SELECT pid,backend_start::text AS started_at FROM pg_stat_activity WHERE pid=pg_backend_pid()",
         );
+        expect(backend.rows).toHaveLength(1);
         const epoch = await observer.query<{ epoch: string }>(
           "SELECT epoch::text FROM octoport_transfer_fence.writer_epoch WHERE singleton_id=1",
         );
         if (repositoryCount === 1) {
-          originalBackend = backend.rows[0]!.pid;
+          originalBackend = {
+            pid: backend.rows[0]!.pid,
+            startedAt: backend.rows[0]!.started_at,
+          };
           epochBefore = epoch.rows[0]!.epoch;
         } else {
-          expect(backend.rows[0]!.pid).not.toBe(originalBackend);
+          expect(backend.rows[0]!.pid).not.toBe(originalBackend!.pid);
           expect(BigInt(epoch.rows[0]!.epoch)).toBeGreaterThan(
             BigInt(epochBefore),
           );
