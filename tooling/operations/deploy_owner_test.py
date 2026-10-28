@@ -232,66 +232,267 @@ def current_fence_paths(plan: dict) -> dict[str,Path]:
         for role,item in plan['services'].items()
     }
 
-def current_install_reboot_fence(plan: dict, *, allow_existing: bool=False) -> None:
+@contextmanager
+def current_fence_writer_lock():
+    """All supported writers of the persistent fence and /run allowance agree
+    on this lock, independently of the caller's deployment evidence directory.
+    Root-private claim directories below make removal identity-bound as well:
+    an uncoordinated atomic replacement is retained, never unlinked as ours.
+    This is not a security boundary against a hostile root modifying the lock
+    or the private claim namespace itself.
+    """
+    root=CURRENT_DROPIN_ROOT
+    _assert_no_symlink_ancestors(root)
+    root.mkdir(parents=True,exist_ok=True)
+    root_info=root.stat()
+    if root_info.st_uid!=os.geteuid() or stat.S_IMODE(root_info.st_mode)&0o022:
+        raise RuntimeError('CURRENT_FENCE_LOCK_ROOT_INVALID')
+    lock=root/'.octoport-current-fence.lock'
+    fd=os.open(lock,os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+    try:
+        info=os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid()
+                or stat.S_IMODE(info.st_mode)!=0o600 or info.st_nlink!=1):
+            raise RuntimeError('CURRENT_FENCE_LOCK_INVALID')
+        try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('CURRENT_FENCE_WRITER_BUSY') from None
+        named=lock.lstat()
+        if (named.st_dev,named.st_ino)!=(info.st_dev,info.st_ino):
+            raise RuntimeError('CURRENT_FENCE_LOCK_INVALID')
+        yield
+    finally:os.close(fd)
+
+
+def _current_fence_sync(path: Path) -> None:
+    fd=os.open(path,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:os.fsync(fd)
+    finally:os.close(fd)
+
+
+def _current_fence_identity(path: Path, expected: bytes, mode: int,
+                            pins: ExitStack | None = None) -> list[int]:
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        info=os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid()
+                or stat.S_IMODE(info.st_mode)!=mode or info.st_size!=len(expected)
+                or os.read(fd,len(expected)+1)!=expected):
+            raise ValueError('foreign fence')
+        after=os.fstat(fd)
+        if (info.st_size,info.st_mtime_ns,info.st_ctime_ns)!=(
+                after.st_size,after.st_mtime_ns,after.st_ctime_ns):
+            raise ValueError('changed fence')
+        identity=[info.st_dev,info.st_ino,info.st_mtime_ns]
+        if pins is not None:
+            # Keep the inspected inode alive through the claim; replacing the
+            # public entry must not make its inode number available for reuse.
+            pins.callback(os.close,fd);fd=-1
+        return identity
+    finally:
+        if fd>=0:os.close(fd)
+
+
+def _current_fence_claim(path: Path) -> Path:
+    return path.parent/('.'+path.name+'.octoport-removal')
+
+
+def _current_fence_restore_claims(items: list[dict]) -> None:
+    # link is exclusive: never overwrite a newer directory entry. Even on a
+    # collision/error retain the captured object in its private directory.
+    # Do not delete it here, including after a successful restoration link.
+    for item in items:
+        if not item.get('trustedClaim'):continue
+        captured=item['claim']/'entry'
+        if os.path.lexists(captured) and not os.path.lexists(item['path']):
+            try:
+                os.link(captured,item['path'],follow_symlinks=False)
+                _current_fence_sync(item['path'].parent)
+            except OSError:
+                pass  # the original object remains captured; caller fails closed
+
+
+def _current_remove_owned_fence_files(entries: list[tuple[str,Path,bytes,int]]) -> None:
+    with ExitStack() as pins:
+        _current_remove_owned_fence_files_pinned(entries,pins)
+
+
+def _current_remove_owned_fence_files_pinned(entries: list[tuple[str,Path,bytes,int]],
+                                            pins: ExitStack) -> None:
+    """Called under current_fence_writer_lock; deletion only in private claims.
+
+    Persist inode intent before rename. Verify the object actually moved before
+    any deletion; comparing at the old pathname then unlinking it is not safe.
+    Interrupted owned claims resume without repeating service/DB operations.
+    A foreign claim is restored exclusively when possible and always retained
+    for explicit reconciliation. It must never be adopted on the next call.
+    """
+    items=[]
+    try:
+        for role,path,expected,mode in entries:
+            _assert_no_symlink_ancestors(path.parent)
+            claim=_current_fence_claim(path)
+            item={'role':role,'path':path,'claim':claim,'expected':expected,'mode':mode}
+            items.append(item)
+            if os.path.lexists(claim):
+                meta=claim.lstat()
+                if (not stat.S_ISDIR(meta.st_mode) or meta.st_uid!=os.geteuid()
+                        or stat.S_IMODE(meta.st_mode)!=0o700):
+                    raise ValueError('untrusted claim directory')
+                names={p.name for p in claim.iterdir()}
+                # mkdir-before-intent / unlink-intent-before-rmdir crash. No
+                # captured bytes exist, so removing an empty directory is safe.
+                if not names:
+                    claim.rmdir();_current_fence_sync(path.parent)
+                else:
+                    if not names <= {'intent.json','entry'} or 'intent.json' not in names:
+                        raise ValueError('unconfirmed claim')
+                    manifest=claim/'intent.json'
+                    m=manifest.lstat()
+                    if (not stat.S_ISREG(m.st_mode) or m.st_uid!=os.geteuid()
+                            or stat.S_IMODE(m.st_mode)!=0o600 or m.st_size>2048):
+                        raise ValueError('untrusted claim intent')
+                    intent=json.loads(manifest.read_text())
+                    identity=intent.get('identity') if isinstance(intent,dict) else None
+                    if (not isinstance(intent,dict) or set(intent)!={'protocol','name','identity','sha256','mode'}
+                            or intent['protocol']!=1 or intent['name']!=path.name
+                            or intent['sha256']!=hashlib.sha256(expected).hexdigest()
+                            or intent['mode']!=mode or not isinstance(identity,list) or len(identity)!=3
+                            or any(type(v) is not int or v<0 for v in identity)):
+                        raise ValueError('claim identity invalid')
+                    item['identity']=identity
+                    item['trustedClaim']=True
+                    captured=claim/'entry'
+                    if os.path.lexists(captured):
+                        if _current_fence_identity(captured,expected,mode,pins)!=identity:
+                            raise ValueError('foreign captured replacement')
+                        if os.path.lexists(path):
+                            if _current_fence_identity(path,expected,mode,pins)!=identity:
+                                raise ValueError('new pathname owner')
+                            # A prior conflict restored this exact owned inode
+                            # through an exclusive link. Remove only our private
+                            # link; the live pathname continues to hold the file.
+                            captured.unlink();_current_fence_sync(claim)
+                    elif os.path.lexists(path):
+                        if _current_fence_identity(path,expected,mode,pins)!=identity:
+                            raise ValueError('replacement before resumed claim')
+            if 'identity' not in item and os.path.lexists(path):
+                item['identity']=_current_fence_identity(path,expected,mode,pins)
+
+        # All entries are validated before moving any of this invocation's
+        # public paths. Publish intent durably before each atomic claim.
+        for item in items:
+            if 'identity' not in item:continue
+            path=item['path'];claim=item['claim'];captured=claim/'entry'
+            if not claim.exists():
+                claim.mkdir(mode=0o700)
+                intent={'protocol':1,'name':path.name,'identity':item['identity'],
+                        'sha256':hashlib.sha256(item['expected']).hexdigest(),'mode':item['mode']}
+                write_json_durable(claim/'intent.json',intent)
+                item['trustedClaim']=True
+                _current_fence_sync(path.parent)
+            if not os.path.lexists(captured) and os.path.lexists(path):
+                os.rename(path,captured)
+                _current_fence_sync(claim);_current_fence_sync(path.parent)
+
+        for item in items:
+            captured=item['claim']/'entry'
+            if os.path.lexists(item['path']):
+                raise ValueError('replacement after claim')
+            if os.path.lexists(captured) and (
+                    _current_fence_identity(captured,item['expected'],item['mode'])!=item.get('identity')):
+                raise ValueError('foreign captured replacement')
+    except (OSError,ValueError,UnicodeError) as error:
+        _current_fence_restore_claims(items)
+        raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+item['role']) from error
+
+    # No unlink of a shared/public fence pathname exists. Only the verified
+    # objects in owner-private namespaces are deleted, with all supported
+    # writers serialized for the full validation/claim/cleanup sequence.
+    for item in items:
+        claim=item['claim'];captured=claim/'entry'
+        if os.path.lexists(captured):captured.unlink();_current_fence_sync(claim)
+        if claim.exists():
+            (claim/'intent.json').unlink(missing_ok=True)
+            claim.rmdir();_current_fence_sync(item['path'].parent)
+    if any(os.path.lexists(item['path']) for item in items):
+        raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:replacement-after-cleanup')
+
+
+def _current_publish_fence(path: Path, text: bytes, mode: int) -> None:
+    if os.path.lexists(_current_fence_claim(path)):
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_PENDING')
+    fd,tmp=tempfile.mkstemp(prefix='.'+path.name+'.',dir=path.parent)
+    try:
+        with os.fdopen(fd,'wb') as output:
+            os.fchmod(output.fileno(),mode)
+            output.write(text);output.flush();os.fsync(output.fileno())
+        # Exclusive publication, unlike replace: a concurrent new owner wins
+        # and remains intact while this invocation fails closed.
+        os.link(tmp,path,follow_symlinks=False)
+        _current_fence_sync(path.parent)
+    finally:os.unlink(tmp)
+
+
+def _current_install_reboot_fence(plan: dict, *, allow_existing: bool=False) -> None:
     if os.path.lexists(CURRENT_FENCE_ALLOW):
         raise RuntimeError('CURRENT_FENCE_ALLOW_UNEXPECTED')
-    text='[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n'
+    text=('[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n').encode()
+    pending=[]
     for role,path in current_fence_paths(plan).items():
         _assert_no_symlink_ancestors(path.parent)
         path.parent.mkdir(parents=True,exist_ok=True)
         _assert_no_symlink_ancestors(path.parent)
         if os.path.lexists(path):
-            if (
-                allow_existing and path.is_file() and not path.is_symlink()
-                and path.read_text()==text
-            ):
-                continue
+            if allow_existing and not os.path.lexists(_current_fence_claim(path)):
+                try:
+                    _current_fence_identity(path,text,0o644)
+                    continue
+                except (OSError,ValueError):pass
             raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
-        fd,tmp=tempfile.mkstemp(prefix='.'+CURRENT_FENCE_NAME+'.',dir=path.parent)
-        try:
-            with os.fdopen(fd,'w') as output:
-                output.write(text);output.flush();os.fsync(output.fileno())
-            os.chmod(tmp,0o644);os.replace(tmp,path)
-            directory=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
-            try:os.fsync(directory)
-            finally:os.close(directory)
-        finally:
-            if os.path.exists(tmp):os.unlink(tmp)
+        if os.path.lexists(_current_fence_claim(path)):
+            raise RuntimeError('CURRENT_FENCE_CLEANUP_PENDING')
+        pending.append((role,path))
+    for role,path in pending:
+        try:_current_publish_fence(path,text,0o644)
+        except FileExistsError:
+            raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role) from None
     run(['systemctl','daemon-reload'])
 
-def current_enable_fenced_start() -> None:
-    _assert_no_symlink_ancestors(CURRENT_FENCE_ALLOW.parent)
-    if os.path.lexists(CURRENT_FENCE_ALLOW):
-        raise RuntimeError('CURRENT_FENCE_ALLOW_UNEXPECTED')
-    fd=os.open(CURRENT_FENCE_ALLOW,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
-    try:
-        os.write(fd,b'current-boot-only\n');os.fsync(fd)
-    finally:os.close(fd)
+def current_install_reboot_fence(plan: dict, *, allow_existing: bool=False) -> None:
+    with current_fence_writer_lock():
+        _current_install_reboot_fence(plan,allow_existing=allow_existing)
 
-def current_disable_fenced_start() -> None:
+def current_enable_fenced_start() -> None:
+    with current_fence_writer_lock():
+        _assert_no_symlink_ancestors(CURRENT_FENCE_ALLOW.parent)
+        if os.path.lexists(CURRENT_FENCE_ALLOW):
+            raise RuntimeError('CURRENT_FENCE_ALLOW_UNEXPECTED')
+        _current_publish_fence(CURRENT_FENCE_ALLOW,b'current-boot-only\n',0o600)
+
+def _current_disable_fenced_start() -> None:
     if os.path.lexists(CURRENT_FENCE_ALLOW) and CURRENT_FENCE_ALLOW.is_symlink():
         raise RuntimeError('CURRENT_FENCE_ALLOW_SYMLINK')
-    CURRENT_FENCE_ALLOW.unlink(missing_ok=True)
+    _current_remove_owned_fence_files([('allow',CURRENT_FENCE_ALLOW,b'current-boot-only\n',0o600)])
+
+def current_disable_fenced_start() -> None:
+    with current_fence_writer_lock():_current_disable_fenced_start()
 
 def current_prepare_recovery_fence(plan: dict) -> None:
     # A process may die after creating the ephemeral allow file. Recovery must
     # remove that boot-local allowance first, then accept/reinstall the durable
     # persistent fence in the same invocation.
-    current_disable_fenced_start()
-    current_install_reboot_fence(plan,allow_existing=True)
+    with current_fence_writer_lock():
+        _current_disable_fenced_start()
+        _current_install_reboot_fence(plan,allow_existing=True)
 
 def current_remove_reboot_fence(plan: dict) -> None:
-    for role,path in current_fence_paths(plan).items():
-        _assert_no_symlink_ancestors(path.parent)
-        if os.path.lexists(path):
-            if path.is_symlink() or not path.is_file():
-                raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
-            path.unlink()
-            directory=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
-            try:os.fsync(directory)
-            finally:os.close(directory)
-    run(['systemctl','daemon-reload'])
-    current_disable_fenced_start()
+    expected=('[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n').encode()
+    with current_fence_writer_lock():
+        entries=[(role,path,expected,0o644) for role,path in current_fence_paths(plan).items()]
+        entries.append(('allow',CURRENT_FENCE_ALLOW,b'current-boot-only\n',0o600))
+        _current_remove_owned_fence_files(entries)
+        run(['systemctl','daemon-reload'])
 
 def current_units(plan: dict) -> tuple[str, ...]:
     services=plan.get('services')
@@ -400,6 +601,60 @@ def current_capture_unit_states(plan: dict) -> dict:
     return states
 
 
+def current_systemd_logical_lines(content: str):
+    # systemd v249 conf-parser.c: comments are skipped before continuation;
+    # only an odd trailing backslash joins lines, with a space replacing it.
+    # Preserve blank lines and trailing whitespace. Reject NUL instead of
+    # treating an ambiguous byte stream as a safe runtime override.
+    if '\x00' in content:
+        raise ValueError('NUL in drop-in')
+    continued=''
+    bom_seen=False
+    for line in content.split('\n'):
+        if line.lstrip(' \t\r').startswith(('#',';')):
+            continue
+        if not bom_seen and line.startswith('\ufeff'):
+            line=line[1:]
+            bom_seen=True
+        logical=continued+line
+        trailing=len(logical)-len(logical.rstrip('\\'))
+        if trailing % 2:
+            continued=logical[:-1]+' '
+            continue
+        yield logical
+        continued=''
+    if continued:
+        yield continued
+
+
+def current_validate_runtime_overrides(plan: dict, role: str) -> None:
+    unit=str(plan['services'][role]['unit'])
+    if unit_prop(unit,'NeedDaemonReload')!='no':
+        raise RuntimeError('CURRENT_BASE_UNIT_RELOAD_REQUIRED:'+role)
+    managed=current_dropin_paths(plan)[role]
+    try:
+        paths=[Path(value) for value in shlex.split(unit_prop(unit,'DropInPaths'))]
+    except ValueError:
+        raise RuntimeError('CURRENT_BASE_DROPIN_INVALID:'+role) from None
+    for path in paths:
+        if not path.is_absolute():
+            raise RuntimeError('CURRENT_BASE_DROPIN_INVALID:'+role)
+        if path==managed or path.name<managed.name:
+            continue
+        # A later entrypoint wins after our 10-* file is installed. Detect it
+        # before backup/migration; removing an operator's override is a separate
+        # target action and never an automatic deployment repair.
+        try:
+            if path.is_symlink() or not path.is_file():
+                raise ValueError('not regular')
+            content=path.read_text(encoding='utf-8')
+            overridden=any(re.match(r'^\s*(?:ExecStart|WorkingDirectory)\s*=',line)
+                           for line in current_systemd_logical_lines(content))
+        except (OSError,UnicodeError,ValueError):
+            raise RuntimeError('CURRENT_BASE_DROPIN_INVALID:'+role) from None
+        if overridden:
+            raise RuntimeError('CURRENT_BASE_ENTRYPOINT_OVERRIDDEN:'+role)
+
 def current_validate_base_units(plan: dict) -> dict:
     checked={}
     for role,item in plan['services'].items():
@@ -427,6 +682,7 @@ def current_validate_base_units(plan: dict) -> dict:
                 raise RuntimeError('CURRENT_BASE_IDENTITY_INVALID:'+role)
         else:
             raise RuntimeError('CURRENT_BASE_IDENTITY_INVALID:'+role)
+        current_validate_runtime_overrides(plan,role)
         checked[role]={'unit':unit,'environmentFiles':[str(x) for x in observed_env],
                        'identityMode':identity['mode']}
     return checked
@@ -474,6 +730,24 @@ def current_start_product_units(plan: dict) -> None:
         raise RuntimeError('CURRENT_UNIT_RUNTIME_UNMASK_FAILED')
     for unit in units:
         run(['systemctl','start',unit],timeout=30)
+
+def current_quiesce_failed_operation(plan: dict, result: dict) -> bool:
+    """Cleanup ownership and service quiescence are independent boundaries."""
+    result['productQuiesced']=False
+    allowance_disabled=True
+    try:
+        current_disable_fenced_start()
+    except BaseException as error:
+        # Never remove a foreign allowance or bypass its ownership lock. That
+        # refusal must not prevent stopping the units this operation started.
+        allowance_disabled=False
+        result['allowanceCleanupError']=error_code(error)
+    try:
+        result['quiescenceAfterFailure']=current_stop_product_units(plan)
+        result['productQuiesced']=True
+    except BaseException as error:
+        result['quiesceError']=error_code(error)
+    return allowance_disabled and result['productQuiesced']
 
 def _admin_login_path(base_path: object) -> str:
     if base_path not in ('','/admin'):
@@ -931,19 +1205,46 @@ def current_restore_live_backup(
     *,
     expected_prefix: int,
 ) -> int:
-    docker_pg(['dropdb','--if-exists','--force','-U',user,db],timeout=60)
-    docker_pg([
-        'createdb','-U',user,'-O',user,'-T','template0','-E',meta['encoding'],
-        '--lc-collate',meta['collate'],'--lc-ctype',meta['ctype'],db
-    ],timeout=60)
-    docker_pg(
-        ['pg_restore','--exit-on-error','--no-owner','--no-privileges','-U',user,'-d',db],
-        stdin_file=backup,timeout=180,
-    )
-    restored=check_migration_prefix_for_release(
-        release,base_url,expected_count=expected_prefix
-    )['applied']
-    return restored
+    # Kept as an explicit refusal for stale callers: the custom dump omits
+    # privileges and the old restore changed owners/database settings.
+    # Current apply/recover preserve the existing database instead.
+    raise RuntimeError('CURRENT_DESTRUCTIVE_RESTORE_DISABLED')
+
+
+def current_require_migration_settled(state: dict, receipt: dict) -> dict:
+    """A visible committed prefix cannot settle a timed-out migration process.
+
+    Only this version's durable NOT_STARTED intent, or a successful awaited
+    migration + pool close + exact target readback, admits an application.
+    Missing/old/torn evidence and failed/lost invocations remain fenced.
+    This helper performs no process, database or evidence mutation.
+    """
+    proofs=[]
+    for item in (state,receipt):
+        proof=item.get('migrationSettlement')
+        if (not isinstance(proof,dict)
+                or set(proof)!={'protocol','intentId','outcome'}
+                or type(proof.get('protocol')) is not int or proof['protocol']!=1
+                or not isinstance(proof.get('intentId'),str)
+                or not re.fullmatch(r'[0-9a-f]{32}',proof['intentId'])
+                or proof.get('outcome') not in ('NOT_STARTED','COMPLETED')):
+            raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+        proofs.append(proof)
+    if proofs[0]!=proofs[1]:
+        raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+    for field in ('candidateSourceSha','candidateSourceTree','trustedInventorySha256',
+                  'predeployPrefix','candidateTarget'):
+        if state.get(field)!=receipt.get(field):
+            raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+    if state['predeployPrefix']<state['candidateTarget']:
+        expected='PREDEPLOY_VERIFIED' if proofs[0]['outcome']=='NOT_STARTED' else 'CANDIDATE_VERIFIED'
+        if any(item.get('schemaState')!=expected for item in (state,receipt)):
+            raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+    elif (proofs[0]['outcome']!='NOT_STARTED'
+            or any(item.get('schemaState') not in ('PREDEPLOY_VERIFIED','CANDIDATE_VERIFIED')
+                   for item in (state,receipt))):
+        raise RuntimeError('CURRENT_MIGRATION_SETTLEMENT_UNCONFIRMED')
+    return proofs[0]
 
 @contextmanager
 def current_operation_lock(evidence_root: Path):
@@ -959,6 +1260,118 @@ def current_operation_lock(evidence_root: Path):
         yield
     finally:
         os.close(fd)
+
+# Version 1 persists baseline start intent in both original records before
+# admitting writers. Unversioned old attempts cannot prove safe dump replay.
+CURRENT_BASELINE_RECOVERY_PROTOCOL = 1
+
+CURRENT_TERMINAL_PHASES = {
+    'CANDIDATE_PASS':('APPLY_PASS','CANDIDATE_VERIFIED'),
+    'ROLLBACK_PASS':('FAILED','PREDEPLOY_VERIFIED'),
+    'CURRENT_FORWARD_RECOVERY_PASS':('CURRENT_FORWARD_RECOVERY_PASS','CANDIDATE_VERIFIED'),
+    'CURRENT_RECOVERY_PASS':('CURRENT_RECOVERY_PASS','PREDEPLOY_VERIFIED'),
+}
+
+def current_complete_terminal_cleanup(*, plan: dict, state: dict, journal: Path,
+                                      evidence_root: Path) -> dict:
+    """Only finish fence cleanup for an exact, immutable terminal receipt.
+
+    No database, service startup, rollback or migration is reachable here.
+    A missing/torn receipt after terminal intent requires reconciliation.
+    """
+    intent=state.get('terminalIntent')
+    if (not isinstance(intent,dict) or type(intent.get('protocol')) is not int
+            or intent['protocol']!=1 or not isinstance(intent.get('id'),str)
+            or not re.fullmatch(r'[0-9a-f]{32}',intent['id'])
+            or state.get('phase') not in ('TERMINAL_FINALIZING','TERMINAL_COMMITTED')
+            or state.get('fenceCleanupRequired') is not True
+            or state.get('applicationMayHaveWritten') is not True):
+        raise RuntimeError('CURRENT_TERMINAL_INTENT_INVALID')
+    for field,value in (
+        ('candidateSourceSha',plan['sourceSha']),
+        ('candidateSourceTree',plan['sourceTree']),
+        ('trustedInventorySha256',plan['trustedInventorySha256']),
+    ):
+        if intent.get(field)!=value or state.get(field)!=value:
+            raise RuntimeError('CURRENT_TERMINAL_IDENTITY_MISMATCH')
+    raw_path=intent.get('receipt')
+    digest=intent.get('sha256')
+    if (not isinstance(raw_path,str) or not isinstance(digest,str)
+            or not re.fullmatch(r'[0-9a-f]{64}',digest)):
+        raise RuntimeError('CURRENT_TERMINAL_INTENT_INVALID')
+    path=Path(raw_path)
+    current_validate_evidence_paths(evidence_root,journal,path.parent)
+    names={
+        'CANDIDATE_PASS':r'receipt\.json',
+        'ROLLBACK_PASS':r'receipt\.json',
+        'CURRENT_FORWARD_RECOVERY_PASS':r'forward-recovery-[0-9]{8}T[0-9]{12}Z\.json',
+        'CURRENT_RECOVERY_PASS':r'baseline-recovery-[0-9]{8}T[0-9]{12}Z\.json',
+    }
+    if (not re.fullmatch(names.get(intent.get('phase'),r'(?!)'),path.name) or path.is_symlink()
+            or not path.is_file()):
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_UNCONFIRMED')
+    try:
+        raw=path.read_bytes()
+        if hashlib.sha256(raw).hexdigest()!=digest:
+            raise ValueError('digest')
+        result=json.loads(raw)
+    except (OSError,ValueError):
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_UNCONFIRMED') from None
+    phase=intent.get('phase')
+    expected=CURRENT_TERMINAL_PHASES.get(phase)
+    if (not isinstance(result,dict) or expected is None
+            or result.get('terminalId')!=intent['id']
+            or result.get('phase')!=phase
+            or (result.get('status'),result.get('schemaState'))!=expected
+            or result.get('recoveryRequired') is not False
+            or result.get('applicationMayHaveWritten') is not True):
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_UNCONFIRMED')
+    for field in ('candidateSourceSha','candidateSourceTree','trustedInventorySha256',
+                  'predeployPrefix','candidateTarget','schemaState'):
+        if result.get(field)!=intent.get(field) or result.get(field)!=state.get(field):
+            raise RuntimeError('CURRENT_TERMINAL_IDENTITY_MISMATCH')
+    predeploy=result.get('predeployPrefix');target=result.get('candidateTarget')
+    if (type(predeploy) is not int or type(target) is not int
+            or predeploy<0 or target<predeploy
+            or target!=plan.get('migrationTarget',{}).get('count')):
+        raise RuntimeError('CURRENT_TERMINAL_IDENTITY_MISMATCH')
+    committed={**state,'phase':'TERMINAL_COMMITTED','receipt':str(path),
+               'recoveryRequired':True,'fenceCleanupRequired':True}
+    # Both receipt and journal are durable before removing any persistent fence.
+    write_json_durable(journal,committed)
+    current_remove_reboot_fence(plan)
+    write_json_durable(journal,{**committed,'phase':phase,'recoveryRequired':False,
+                                'fenceCleanupRequired':False})
+    return result
+
+def current_finalize_terminal(*, plan: dict, result: dict, state: dict,
+                              evidence_dir: Path, journal: Path, phase: str,
+                              receipt_path: Path | None = None) -> dict:
+    """Persist success outside all operational exception/rollback handlers."""
+    terminal_id=os.urandom(16).hex()
+    path=receipt_path if receipt_path is not None else evidence_dir/'receipt.json'
+    if path.parent!=evidence_dir or path.is_symlink():
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_INVALID')
+    if path.is_file() and 'terminalId' in json.loads(path.read_text()):
+        raise RuntimeError('CURRENT_TERMINAL_RECEIPT_EXISTS')
+    result={**result,'phase':phase,'terminalId':terminal_id,'recoveryRequired':False}
+    raw=(json.dumps(result,indent=2,sort_keys=True)+'\n').encode()
+    fields={field:result[field] for field in (
+        'candidateSourceSha','candidateSourceTree','trustedInventorySha256',
+        'predeployPrefix','candidateTarget','schemaState',
+    )}
+    intent={**fields,'protocol':1,'id':terminal_id,'phase':phase,
+            'receipt':str(path),'sha256':hashlib.sha256(raw).hexdigest()}
+    finalizing={**state,**fields,'phase':'TERMINAL_FINALIZING',
+                'recoveryRequired':True,'fenceCleanupRequired':True,
+                'applicationMayHaveWritten':True,'terminalIntent':intent}
+    # This distinguishes a crash before the terminal file from an ordinary
+    # unfinished operation. Neither case may be silently reclassified as FAIL.
+    write_json_durable(journal,finalizing)
+    write_json_durable(path,result)
+    return current_complete_terminal_cleanup(
+        plan=plan,state=finalizing,journal=journal,evidence_root=journal.parent,
+    )
 
 def current_assert_apply_journal_clear(journal: Path) -> None:
     if not journal.exists():
@@ -981,7 +1394,10 @@ def current_apply_engine(
     evidence_root: Path,
     journal: Path,
     evidence_dir: Path,
+    pause_after_migration: bool = False,
 ) -> dict:
+    if type(pause_after_migration) is not bool:
+        raise RuntimeError('CURRENT_PAUSE_OPTION_INVALID')
     current_validate_evidence_paths(evidence_root,journal,evidence_dir)
     with current_operation_lock(evidence_root):
         current_assert_apply_journal_clear(journal)
@@ -993,6 +1409,7 @@ def current_apply_engine(
             evidence_root=evidence_root,
             journal=journal,
             evidence_dir=evidence_dir,
+            pause_after_migration=pause_after_migration,
         )
 
 def _current_apply_engine_locked(
@@ -1004,6 +1421,7 @@ def _current_apply_engine_locked(
     evidence_root: Path,
     journal: Path,
     evidence_dir: Path,
+    pause_after_migration: bool = False,
 ) -> dict:
     """Current four-service mutation engine. No CLI/live authority is wired here."""
     if not journal.is_absolute() or journal.parent!=evidence_root:
@@ -1027,6 +1445,8 @@ def _current_apply_engine_locked(
     predeploy=live['applied']
     if predeploy>target:
         raise RuntimeError('CURRENT_PREDEPLOY_PREFIX_AHEAD_OF_CANDIDATE')
+    if pause_after_migration and predeploy==target:
+        raise RuntimeError('CURRENT_SCHEMA_PAUSE_REQUIRES_PENDING_MIGRATIONS')
     result_base_units=current_validate_base_units(plan)
     baseline_units=current_capture_unit_states(plan)
     dropin_backup=evidence_dir/'dropins-before'
@@ -1037,6 +1457,9 @@ def _current_apply_engine_locked(
     backup=None
     result={
         'status':'STARTED',
+        'pauseAfterMigration':pause_after_migration,
+        'baselineRecoveryProtocol':CURRENT_BASELINE_RECOVERY_PROTOCOL,
+        'migrationSettlement':{'protocol':1,'intentId':os.urandom(16).hex(),'outcome':'NOT_STARTED'},
         'phase':phase,
         'recoveryRequired':True,
         'candidateSourceSha':plan.get('sourceSha'),
@@ -1048,18 +1471,24 @@ def _current_apply_engine_locked(
         'baselineUnits':baseline_units,
         'baseUnitContract':result_base_units,
         'databaseMeta':db_meta,
+        'applicationMayHaveWritten':False,
     }
     def record():
         result['phase']=phase
         result['schemaState']=schema_state
         write_json_durable(evidence_dir/'receipt.json',result)
         write_json_durable(journal,{
+            'baselineRecoveryProtocol':result['baselineRecoveryProtocol'],
+            'migrationSettlement':dict(result['migrationSettlement']),
+            'pauseAfterMigration':pause_after_migration,
             'phase':phase,
             'schemaState':schema_state,
             'recoveryRequired':result['recoveryRequired'],
             'receipt':str(evidence_dir/'receipt.json'),
+            'applicationMayHaveWritten':result['applicationMayHaveWritten'],
             'candidateSourceSha':result.get('candidateSourceSha'),
             'candidateSourceTree':result.get('candidateSourceTree'),
+            'trustedInventorySha256':result.get('trustedInventorySha256'),
             'predeployPrefix':predeploy,
             'candidateTarget':target,
         })
@@ -1068,6 +1497,7 @@ def _current_apply_engine_locked(
         current_install_reboot_fence(plan)
         phase='REBOOT_FENCED'; record()
         result['quiescence']=current_stop_product_units(plan)
+        result['productQuiesced']=True
         phase='QUIESCED'; record()
         stamp=evidence_dir.name.replace('apply-','')
         backup=backup_live(user,db,stamp)
@@ -1078,60 +1508,92 @@ def _current_apply_engine_locked(
         )
         phase='ISOLATED_TARGET_VERIFIED'; record()
         if predeploy<target:
+            result['migrationSettlement']['outcome']='UNCONFIRMED'
             phase='LIVE_MIGRATION'; schema_state='UNKNOWN'; record()
             migrate(candidate_release,base_url)
             result['liveMigration']=check_migration_prefix_for_release(
                 candidate_release,base_url,expected_count=target
             )
+            # migrate.ts awaits the transaction AND runtime.close(); only a
+            # successful command and exact target readback settle this intent.
+            result['migrationSettlement']['outcome']='COMPLETED'
             schema_state='CANDIDATE_VERIFIED'
         else:
             result['liveMigration']={'status':'NOOP_ALREADY_TARGET','applied':predeploy}
             schema_state='CANDIDATE_VERIFIED'
+        if pause_after_migration:
+            # Required target grants/config can now be provisioned separately
+            # under their own authority. No permission or secret is issued here.
+            # Leave the persistent fence and original apply recovery binding.
+            result['status']='CURRENT_SCHEMA_PREPARED'
+            phase='SCHEMA_PREPARED'; record()
+            return result
         phase='SWITCHING_APPLICATION'; record()
         current_write_dropins(plan)
+        result['applicationMayHaveWritten']=True
+        result['productQuiesced']=False
+        phase='APPLICATION_START_REQUESTED'; record()
         current_enable_fenced_start()
         started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
         current_start_product_units(plan)
         result['applicationHealth']=current_wait_runtime(plan,started)
         result['loadedIdentity']=current_verify_loaded_plan(plan)
-        current_remove_reboot_fence(plan)
         result['status']='APPLY_PASS'
-        result['recoveryRequired']=False
         phase='CANDIDATE_PASS'
-        record()
-        return result
     except BaseException as error:
         result['status']='FAILED'
         result['error']=error_code(error)
         phase='ROLLBACK'
         result['recoveryRequired']=True
+        can_restore=current_quiesce_failed_operation(plan,result)
+        result['rollbackQuiesced']=result['productQuiesced']
         try:
-            current_disable_fenced_start()
-            current_stop_product_units(plan)
-            result['rollbackQuiesced']=True
-            if backup is not None and schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
-                current_verify_backup_receipt(result.get('backup'))
-                result['restoredMigrationCount']=current_restore_live_backup(
-                    user,db,base_url,backup,db_meta,candidate_release,
-                    expected_prefix=predeploy,
-                )
-                schema_state='PREDEPLOY_VERIFIED'
+            if not can_restore:
+                raise RuntimeError('CURRENT_ROLLBACK_QUIESCENCE_UNCONFIRMED')
+            if result['applicationMayHaveWritten'] and predeploy<target:
+                # Starting even one service can admit durable writes before health
+                # acceptance. Restoring a predeploy dump would discard them.
+                raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
+            settled={**result,'schemaState':schema_state}
+            current_require_migration_settled(settled,settled)
+            if schema_state=='CANDIDATE_VERIFIED' and predeploy<target:
+                raise RuntimeError('CURRENT_FORWARD_RECOVERY_REQUIRED')
             current_restore_dropins(plan,dropin_backup)
+            check_migration_prefix_for_release(
+                candidate_release,base_url,expected_count=predeploy,
+            )
+            # Baseline services may write before a later service fails.
+            # Both durable records must precede admission of the first writer.
+            schema_state='PREDEPLOY_VERIFIED'
+            result['applicationMayHaveWritten']=True
+            result['productQuiesced']=False
+            result['rollbackQuiesced']=False
+            phase='BASELINE_START_REQUESTED'; record()
             current_enable_fenced_start()
             current_restore_unit_states(plan,baseline_units)
-            current_remove_reboot_fence(plan)
             result['baselineRestored']=True
-            result['recoveryRequired']=False
             phase='ROLLBACK_PASS'
         except BaseException as rollback_error:
             result['rollbackError']=error_code(rollback_error)
-            try:
-                current_stop_product_units(plan)
-                result['productQuiesced']=True
-            except BaseException as stop_error:
-                result['quiesceError']=error_code(stop_error)
-        record()
+            # The first quiescence attempt already covers a failed cleanup.
+            # A new attempt is required only if baseline startup was admitted.
+            if can_restore and result['productQuiesced'] is not True:
+                current_quiesce_failed_operation(plan,result)
+                result['rollbackQuiesced']=result['productQuiesced']
+        if phase=='ROLLBACK_PASS':
+            result['schemaState']=schema_state
+            current_finalize_terminal(
+                plan=plan,result=result,state=json.loads(journal.read_text()),
+                evidence_dir=evidence_dir,journal=journal,phase=phase,
+            )
+        else:
+            record()
         raise
+    result['schemaState']=schema_state
+    return current_finalize_terminal(
+        plan=plan,result=result,state=json.loads(journal.read_text()),
+        evidence_dir=evidence_dir,journal=journal,phase=phase,
+    )
 
 def current_recover_engine(
     *,
@@ -1156,6 +1618,95 @@ def current_recover_engine(
             journal=journal,
         )
 
+
+def current_application_may_have_written(state: dict, receipt: dict) -> bool:
+    """A persisted start intent is conservative across crashes and older receipts."""
+    possible=False
+    for item in (state, receipt):
+        marker=item.get('applicationMayHaveWritten')
+        if marker is not None and type(marker) is not bool:
+            raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
+        if marker is True or item.get('phase') in (
+            'APPLICATION_START_REQUESTED','BASELINE_START_REQUESTED',
+            'SWITCHING_APPLICATION','CANDIDATE_PASS',
+        ):
+            possible=True
+    # Older receipts did not persist the start boundary. A verified migrated
+    # schema cannot prove that the candidate has never accepted a write.
+    return possible or state.get('schemaState')=='CANDIDATE_VERIFIED'
+
+
+def current_forward_recover(
+    *, plan: dict, candidate_release: Path, state: dict, receipt: dict,
+    evidence_dir: Path, journal: Path, target: int,
+) -> dict:
+    """Use the separately authorized exact target on the retained forward DB."""
+    if state.get('schemaState')!='CANDIDATE_VERIFIED':
+        raise RuntimeError('CURRENT_FORWARD_SCHEMA_UNCONFIRMED')
+    if plan.get('migrationTarget',{}).get('count')!=target:
+        raise RuntimeError('CURRENT_FORWARD_SCHEMA_TARGET_MISMATCH')
+    for field in ('candidateSourceSha','candidateSourceTree','trustedInventorySha256',
+                  'predeployPrefix','candidateTarget'):
+        if state.get(field)!=receipt.get(field):
+            raise RuntimeError('CURRENT_FORWARD_ORIGIN_UNCONFIRMED')
+    current_require_migration_settled(state,receipt)
+    current_validate_base_units(plan)
+    result={
+        'status':'CURRENT_FORWARD_RECOVERY_STARTED','recoveryRequired':True,
+        'originSourceSha':receipt['candidateSourceSha'],
+        'originSourceTree':receipt['candidateSourceTree'],
+        'candidateSourceSha':plan['sourceSha'],
+        'candidateSourceTree':plan['sourceTree'],
+        'trustedInventorySha256':plan['trustedInventorySha256'],
+        'predeployPrefix':receipt['predeployPrefix'],'candidateTarget':target,
+        'schemaState':'CANDIDATE_VERIFIED','applicationMayHaveWritten':True,
+        'databaseRestored':False,'productQuiesced':False,
+    }
+    stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    output=evidence_dir/f'forward-recovery-{stamp}.json'
+    write_json_durable(output,result)
+    recovering_state={
+        **state,'phase':'CURRENT_FORWARD_RECOVERY_STARTED',
+        'applicationMayHaveWritten':True,'lastRecoveryReceipt':str(output),
+        'requestedRecoverySourceSha':plan['sourceSha'],
+    }
+    write_json_durable(journal,recovering_state)
+    try:
+        current_prepare_recovery_fence(plan)
+        current_stop_product_units(plan)
+        result['productQuiesced']=True
+        # The native prefix check compares migration hashes, not just a count.
+        # No migrate/restore/dropdb path is reachable from forward recovery.
+        result['forwardSchema']=check_migration_prefix_for_release(
+            candidate_release,database_url(),expected_count=target,
+        )
+        current_write_dropins(plan)
+        result['productQuiesced']=False
+        current_enable_fenced_start()
+        started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+        current_start_product_units(plan)
+        result['applicationHealth']=current_wait_runtime(plan,started)
+        result['loadedIdentity']=current_verify_loaded_plan(plan)
+        result.update(status='CURRENT_FORWARD_RECOVERY_PASS',recoveryRequired=False)
+    except BaseException as error:
+        result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
+        current_quiesce_failed_operation(plan,result)
+        write_json_durable(output,result)
+        # Preserve the original apply receipt and source binding for a later
+        # explicit recovery, and retain each failed recovery outcome separately.
+        write_json_durable(journal,{
+            **recovering_state,'phase':'CURRENT_FORWARD_RECOVERY_FAILED',
+            'recoveryRequired':True,'applicationMayHaveWritten':True,
+            'lastRecoveryReceipt':str(output),
+        })
+        raise
+    return current_finalize_terminal(
+        plan=plan,result=result,state=recovering_state,
+        evidence_dir=evidence_dir,journal=journal,phase='CURRENT_FORWARD_RECOVERY_PASS',
+        receipt_path=output,
+    )
+
+
 def _current_recover_engine_locked(
     *,
     candidate_release: Path,
@@ -1165,7 +1716,7 @@ def _current_recover_engine_locked(
     evidence_root: Path,
     journal: Path,
 ) -> dict:
-    """Recover an interrupted current apply back to its exact predeploy baseline."""
+    """Recover before startup, or retain the forward DB after possible writes."""
     plan=verified_current_source_plan(
         candidate_release,
         expected_source_sha=expected_source_sha,
@@ -1178,6 +1729,10 @@ def _current_recover_engine_locked(
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID') from None
     if not isinstance(state,dict) or state.get('recoveryRequired') is not True:
         raise RuntimeError('CURRENT_RECOVERY_NOT_REQUIRED')
+    if 'terminalIntent' in state:
+        return current_complete_terminal_cleanup(
+            plan=plan,state=state,journal=journal,evidence_root=evidence_root,
+        )
     raw_receipt=state.get('receipt')
     if not isinstance(raw_receipt,str):
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
@@ -1192,11 +1747,26 @@ def _current_recover_engine_locked(
     current_validate_evidence_paths(evidence_root,journal,evidence_dir)
     if receipt_path!=evidence_dir/'receipt.json':
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
-    if (
-        receipt.get('candidateSourceSha')!=expected_source_sha
-        or receipt.get('candidateSourceTree')!=expected_source_tree
-        or receipt.get('trustedInventorySha256')!=expected_inventory_sha256
-    ):
+    if not isinstance(receipt,dict):
+        raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
+    if (not isinstance(state.get('trustedInventorySha256'),str)
+            or not re.fullmatch(r'[0-9a-f]{64}',state['trustedInventorySha256'])
+            or state['trustedInventorySha256']!=receipt.get('trustedInventorySha256')):
+        raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
+    same_source=(
+        receipt.get('candidateSourceSha')==expected_source_sha
+        and receipt.get('candidateSourceTree')==expected_source_tree
+        and receipt.get('trustedInventorySha256')==expected_inventory_sha256
+    )
+    may_have_written=current_application_may_have_written(state,receipt)
+    if not same_source and not may_have_written:
+        raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
+    if any(not isinstance(receipt.get(field),str) or not re.fullmatch(pattern,receipt[field])
+           for field,pattern in (
+               ('candidateSourceSha',r'[0-9a-f]{40}'),
+               ('candidateSourceTree',r'[0-9a-f]{40}'),
+               ('trustedInventorySha256',r'[0-9a-f]{64}'),
+           )):
         raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
     predeploy=receipt.get('predeployPrefix')
     target=receipt.get('candidateTarget')
@@ -1210,68 +1780,113 @@ def _current_recover_engine_locked(
     schema_state=state.get('schemaState')
     if schema_state not in ('PREDEPLOY_VERIFIED','UNKNOWN','CANDIDATE_VERIFIED'):
         raise RuntimeError('CURRENT_RECOVERY_STATE_INVALID')
+    if may_have_written and schema_state=='PREDEPLOY_VERIFIED':
+        # Torn or conflicting records never justify a destructive dump replay.
+        if receipt.get('schemaState')!='PREDEPLOY_VERIFIED':
+            raise RuntimeError('CURRENT_BASELINE_SCHEMA_UNCONFIRMED')
+        for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix','candidateTarget'):
+            if state.get(field)!=receipt.get(field):
+                raise RuntimeError('CURRENT_BASELINE_ORIGIN_UNCONFIRMED')
+    elif may_have_written and predeploy<target:
+        return current_forward_recover(
+            plan=plan,candidate_release=candidate_release,state=state,receipt=receipt,
+            evidence_dir=evidence_dir,journal=journal,target=target,
+        )
+    if not same_source:
+        raise RuntimeError('CURRENT_RECOVERY_IDENTITY_MISMATCH')
+    if plan.get('migrationTarget',{}).get('count')!=target:
+        raise RuntimeError('CURRENT_BASELINE_SCHEMA_TARGET_MISMATCH')
+    # Missing recovery.json can mean an old process died AFTER admitting a
+    # writer. Require matching durable-start evidence before resuming an old
+    # baseline; never upgrade legacy UNKNOWN evidence or infer safety from
+    # absence of a final result file. This path never replays a database dump.
+    if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
+        for item in (state,receipt):
+            if (type(item.get('baselineRecoveryProtocol')) is not int
+                    or item['baselineRecoveryProtocol']!=CURRENT_BASELINE_RECOVERY_PROTOCOL
+                    or item.get('applicationMayHaveWritten') is not False):
+                raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+        for field in ('candidateSourceSha','candidateSourceTree','predeployPrefix',
+                      'candidateTarget','schemaState','phase'):
+            if state.get(field)!=receipt.get(field):
+                raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+    # Pre-fix failed recovery did not record whether baseline writers started.
+    previous=evidence_dir/'recovery.json'
+    if not may_have_written and schema_state!='PREDEPLOY_VERIFIED' and os.path.lexists(previous):
+        if previous.is_symlink() or not previous.is_file():
+            raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+        try:
+            prior=json.loads(previous.read_text())
+        except (OSError,ValueError):
+            raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED') from None
+        if not isinstance(prior,dict) or type(prior.get('applicationMayHaveWritten')) is not bool:
+            raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+        if prior['applicationMayHaveWritten']:
+            raise RuntimeError('CURRENT_BASELINE_REPLAY_UNCONFIRMED')
+    current_require_migration_settled(state,receipt)
     result={
         'status':'CURRENT_RECOVERY_STARTED',
         'recoveryRequired':True,
         'candidateSourceSha':expected_source_sha,
         'candidateSourceTree':expected_source_tree,
+        'trustedInventorySha256':expected_inventory_sha256,
         'predeployPrefix':predeploy,
         'candidateTarget':target,
         'schemaState':schema_state,
+        'applicationMayHaveWritten':may_have_written,
+        'productQuiesced':False,
     }
+    stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    output=evidence_dir/f'baseline-recovery-{stamp}.json'
+    write_json_durable(output,result)
     try:
         current_prepare_recovery_fence(plan)
         current_stop_product_units(plan)
         result['productQuiesced']=True
-        if schema_state in ('UNKNOWN','CANDIDATE_VERIFIED') and predeploy<target:
-            backup_info=receipt.get('backup')
-            if not isinstance(backup_info,dict) or not isinstance(backup_info.get('path'),str):
-                raise RuntimeError('CURRENT_RECOVERY_BACKUP_MISSING')
-            backup=current_verify_backup_receipt(backup_info)
-            base_url=database_url()
-            user,_password,db,_parsed=db_identity(base_url)
-            meta=receipt.get('databaseMeta')
-            if not isinstance(meta,dict):
-                # Older interrupted receipt may not expose this field; do not
-                # infer database creation metadata after destructive failure.
-                raise RuntimeError('CURRENT_RECOVERY_DATABASE_META_MISSING')
-            result['restoredMigrationCount']=current_restore_live_backup(
-                user,db,base_url,backup,meta,candidate_release,
-                expected_prefix=predeploy,
-            )
-            schema_state='PREDEPLOY_VERIFIED'
+        # Verify the ordered migration hashes and count; a mismatch is a stop,
+        # never a reason to restore a dump over possible post-start writes.
+        result['baselineSchema']=check_migration_prefix_for_release(
+            candidate_release,database_url(),expected_count=predeploy,
+        )
+        schema_state='PREDEPLOY_VERIFIED'
         current_restore_dropins(plan,evidence_dir/'dropins-before')
+        result.update(schemaState=schema_state,applicationMayHaveWritten=True,
+                      productQuiesced=False)
+        starting_receipt={
+            **receipt,'phase':'BASELINE_START_REQUESTED','schemaState':schema_state,
+            'applicationMayHaveWritten':True,'recoveryRequired':True,
+        }
+        write_json_durable(receipt_path,starting_receipt)
+        starting_state={
+            **state,'phase':'BASELINE_START_REQUESTED','schemaState':schema_state,
+            'applicationMayHaveWritten':True,'recoveryRequired':True,
+            'candidateSourceSha':receipt['candidateSourceSha'],
+            'candidateSourceTree':receipt['candidateSourceTree'],
+            'trustedInventorySha256':receipt['trustedInventorySha256'],
+            'predeployPrefix':predeploy,'candidateTarget':target,
+            'lastRecoveryReceipt':str(output),
+        }
+        write_json_durable(journal,starting_state)
+        write_json_durable(output,result)
         current_enable_fenced_start()
         current_restore_unit_states(plan,baseline)
-        current_remove_reboot_fence(plan)
         result.update(
             status='CURRENT_RECOVERY_PASS',
             recoveryRequired=False,
             schemaState=schema_state,
             baselineRestored=True,
         )
-        write_json_durable(evidence_dir/'recovery.json',result)
-        write_json_durable(journal,{
-            'phase':'CURRENT_RECOVERY_PASS',
-            'schemaState':schema_state,
-            'recoveryRequired':False,
-            'receipt':str(evidence_dir/'recovery.json'),
-            'candidateSourceSha':expected_source_sha,
-            'candidateSourceTree':expected_source_tree,
-            'predeployPrefix':predeploy,
-            'candidateTarget':target,
-        })
-        return result
     except BaseException as error:
         result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
-        try:
-            current_disable_fenced_start()
-            current_stop_product_units(plan)
-            result['productQuiesced']=True
-        except BaseException as stop_error:
-            result['quiesceError']=error_code(stop_error)
+        current_quiesce_failed_operation(plan,result)
+        write_json_durable(output,result)
         write_json_durable(evidence_dir/'recovery.json',result)
         raise
+    return current_finalize_terminal(
+        plan=plan,result=result,state=starting_state,
+        evidence_dir=evidence_dir,journal=journal,phase='CURRENT_RECOVERY_PASS',
+        receipt_path=output,
+    )
 
 @contextmanager
 def deployment_guard():
@@ -1588,7 +2203,11 @@ def current_cli(argv: list[str]) -> dict:
     parser.add_argument('--source-sha',required=True)
     parser.add_argument('--source-tree',required=True)
     parser.add_argument('--inventory-sha256',required=True)
+    parser.add_argument('--pause-after-migration',action='store_true',
+                        help='Apply only: keep services fenced after confirmed pending migrations; resume via separately authorized current-recover.')
     args=parser.parse_args(argv)
+    if args.pause_after_migration and args.mode!='current-apply':
+        parser.error('--pause-after-migration is only valid for current-apply')
     identity={
         'expected_source_sha':args.source_sha,
         'expected_source_tree':args.source_tree,
@@ -1609,6 +2228,7 @@ def current_cli(argv: list[str]) -> dict:
             evidence_root=root,
             journal=root/'deployment-state.json',
             evidence_dir=evidence_dir,
+            pause_after_migration=args.pause_after_migration,
             **identity,
         )
     else:
@@ -1630,7 +2250,7 @@ def main():
     if mode.startswith('current-'):
         result=current_cli(sys.argv[1:])
         print(json.dumps(result,sort_keys=True))
-        if mode=='current-apply' and result.get('status')!='APPLY_PASS':
+        if mode=='current-apply' and result.get('status') not in ('APPLY_PASS','CURRENT_SCHEMA_PREPARED'):
             raise SystemExit(2)
         return
     EVID.mkdir(parents=True,exist_ok=True); BACKUPS.mkdir(parents=True,exist_ok=True); os.chmod(EVID,0o700); os.chmod(BACKUPS,0o700)

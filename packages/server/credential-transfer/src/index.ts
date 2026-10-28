@@ -19,6 +19,7 @@ export type TransferFailure =
   | "TRANSFER_PACKET_TOO_LARGE"
   | "TRANSFER_DEVICE_REVOKED"
   | "TRANSFER_ACCOUNT_MISMATCH"
+  | "CONNECTION_TRANSFER_APPROVAL_REQUIRED"
   | "SOURCE_OFFLINE";
 
 export class TransferError extends Error {
@@ -134,6 +135,21 @@ export class EphemeralTransferRelay {
 
   public constructor(options: Partial<EphemeralTransferRelayOptions> = {}) {
     this.limits = { ...DEFAULT_RELAY_LIMITS, ...options };
+    // A NaN, Infinity or undefined override silently disables numerical
+    // comparisons and defeats the bounded memory quotas. Zero is a valid
+    // fail-closed limit for deliberately disabled capacity.
+    const configuredLimits = [
+      this.limits.maxPackets,
+      this.limits.maxPacketsPerAccount,
+      this.limits.maxEnvelopeBytes,
+      this.limits.maxEnvelopeBytesPerAccount,
+    ];
+    if (
+      configuredLimits.some(
+        (limit) => !Number.isSafeInteger(limit) || limit < 0,
+      )
+    )
+      throw new TransferError("TRANSFER_INVALID");
   }
 
   reserve(
@@ -486,8 +502,8 @@ export class CredentialTransferService {
     )
       throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
     return this.forRequest(requestId, async () => {
-      // Source retries after process loss remain allowed. While the original
-      // delivery is still resident, resetting durable state would strand ACK.
+      // Source retries after process loss remain allowed before delivery.
+      // The repository also fences delivered state across independent relays.
       if (this.relay.isDelivered(requestId, this.now()))
         throw new TransferError("TRANSFER_CONFLICT");
       // A source discovery retry may repeat before the recipient receives
@@ -800,12 +816,7 @@ export function createMemoryTransferRepository(): TransferRepository {
       if (!row.sourceDeviceId) row.sourceDeviceId = principal.deviceId;
       transition(
         row,
-        [
-          "REQUESTED",
-          "SOURCE_SEEN",
-          "PACKET_AVAILABLE_EPHEMERAL",
-          "DELIVERED_TO_RECIPIENT",
-        ],
+        ["REQUESTED", "SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         "SOURCE_SEEN",
       );
       return clone(row);
@@ -817,7 +828,7 @@ export function createMemoryTransferRepository(): TransferRepository {
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
       transition(
         row,
-        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL", "DELIVERED_TO_RECIPIENT"],
+        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         "PACKET_AVAILABLE_EPHEMERAL",
       );
       return clone(row);

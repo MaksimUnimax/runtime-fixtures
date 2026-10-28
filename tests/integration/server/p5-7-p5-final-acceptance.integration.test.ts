@@ -253,11 +253,11 @@ describe.sequential(
     beforeEach(clean);
     afterAll(() => db.close());
 
-    it("DB-01 exposes the complete current migration journal through 0061", async () => {
+    it("DB-01 exposes the complete current migration journal through 0063", async () => {
       const rows = await q<{ count: string }>(
         "SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations",
       );
-      expect(rows.rows[0]?.count).toBe("50");
+      expect(rows.rows[0]?.count).toBe("52");
     });
     it("DB-02 enforces one current non-expired subscription", async () => {
       const f = await fixture();
@@ -1426,19 +1426,31 @@ describe.sequential(
         reconSource,
         subscriptionSource,
         deviceSource,
+        enrollmentSource,
+        connectionSource,
       ] = await Promise.all([
         text("packages/server/db/src/p5-checkout-repository.ts"),
         text("packages/server/db/src/p5-billing-event-repository.ts"),
         text("packages/server/db/src/p5-reconciliation-repository.ts"),
         text("packages/server/db/src/p5-subscription-repository.ts"),
         text("packages/server/db/src/device-management-repository.ts"),
+        text("packages/server/db/src/device-enrollment.ts"),
+        text("packages/server/db/src/connection-code-repository.ts"),
       ]);
+      // Both activation paths use the shared enrollment transaction and its lock.
+      for (const source of [deviceSource, connectionSource]) {
+        expect(source).toContain(
+          'import { enrollDeviceInTransaction } from "./device-enrollment.js"',
+        );
+        expect(source).toContain("await enrollDeviceInTransaction(tx, {");
+      }
       for (const source of [
         checkoutSource,
         eventSource,
         reconSource,
         subscriptionSource,
-        deviceSource,
+        enrollmentSource,
+        connectionSource,
       ])
         expect(source).toContain("p5-subscription-account:");
     });
@@ -1472,7 +1484,7 @@ describe.sequential(
       expect(source).not.toContain("/v1/billing/checkouts");
       expect(source).not.toContain("/v1/webhooks");
     });
-    it("STATIC-71 OpenAPI current repository artifact has 154 operations and exact hash", async () => {
+    it("STATIC-71 OpenAPI current repository artifact has 159 operations and exact hash", async () => {
       const artifact = JSON.parse(
         await text("packages/contracts/openapi/openapi.json"),
       ) as {
@@ -1486,7 +1498,7 @@ describe.sequential(
           ).length,
         0,
       );
-      expect(count).toBe(154);
+      expect(count).toBe(159);
       expect(
         createHash("sha256")
           .update(
@@ -1496,7 +1508,7 @@ describe.sequential(
           )
           .digest("hex"),
       ).toBe(
-        "7791431fdbde4156d8f4645f6110414f9687a27c6cf245b0ba6b5afc6cb42584",
+        "be18b7f13d76532bf92163a81e2d5726b246ef8ed1d7492df0fad69d301ec507",
       );
     });
     it("STATIC-72 OpenAPI has no checkout, webhook, or fake completion route", async () => {

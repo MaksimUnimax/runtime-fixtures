@@ -46,4 +46,25 @@ const expired = api.compact({ ...buffer, expires_at_ms: 999 }, 1000);
 assert.equal(expired.phase, api.RESULT_PHASES.EXPIRED);
 assert.equal(expired.payload, undefined);
 assert.equal(api.recoveryDecision({ providerAttempt: known, resultBuffer: expired, currentContext: input }).code, "RESULT_BUFFER_EXPIRED");
-console.log(JSON.stringify({ status: "PASS", scenarios: 9, provider_additional_calls: 0, scope: "pure result/recovery state model" }));
+// P2-R11: JSON objects can legally contain an own "__proto__" data key.
+// The technical result buffer may filter credentials but must not silently
+// mutate a safe result while still classifying recovery as reusable.
+const original = JSON.parse('{"ordinary":"SYNTHETIC_42","__proto__":{"fixture_field":"SYNTHETIC_KEEP"},"nested":{"ordinary":"NESTED_OK","__proto__":{"nested_fixture":"KEEP"},"authorization":"FILTER_THIS"}}');
+assert.equal(Object.prototype.hasOwnProperty.call(original, "__proto__"), true);
+const roundtrip = api.createBuffer({ ...input, result: original }, now);
+assert.equal(roundtrip.phase, api.RESULT_PHASES.BUFFERED);
+assert.equal(roundtrip.provider_replay_forbidden, true);
+assert.equal(Object.prototype.hasOwnProperty.call(roundtrip.payload.result, "__proto__"), true,
+  "a safe provider JSON own field may not silently disappear");
+assert.equal(roundtrip.payload.result["__proto__"].fixture_field, "SYNTHETIC_KEEP");
+assert.equal(Object.prototype.hasOwnProperty.call(roundtrip.payload.result.nested, "__proto__"), true,
+  "nested own JSON data keys must also survive");
+assert.equal(roundtrip.payload.result.nested["__proto__"].nested_fixture, "KEEP");
+assert.equal(roundtrip.payload.result.nested.authorization, undefined, "existing credential redaction stays active");
+assert.equal(Object.getPrototypeOf(roundtrip.payload.result).fixture_field, undefined,
+  "retaining the own key must not change the result object prototype");
+assert.equal(Object.getPrototypeOf(roundtrip.payload.result.nested).nested_fixture, undefined,
+  "retaining nested own key must not mutate prototype");
+assert.equal(api.recoveryDecision({ providerAttempt: known, resultBuffer: roundtrip, currentContext: input }).code,
+  "KNOWN_RESULT_RECOVERY_SAFE");
+console.log(JSON.stringify({ status: "PASS", scenarios: 10, provider_additional_calls: 0, scope: "pure result/recovery state model plus own JSON key integrity" }));

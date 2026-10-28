@@ -38,9 +38,12 @@ def expect_portal_post(page, portal_port, endpoint, action, expected, stage):
         raise SafeStageError(stage, response.status, response_code(response))
     return response
 
-def wait_for(url, timeout=60):
+def wait_for(url, timeout=60, *, process=None):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            # Report lifecycle only; child output may contain sensitive data.
+            raise RuntimeError(f"LOCAL_SERVICE_EXITED:{process.returncode}")
         try:
             with urllib.request.urlopen(url, timeout=2) as response:
                 if response.status < 500:
@@ -83,6 +86,371 @@ def safe_bootstrap_failure_class(request):
     if not isinstance(detail, str) or not detail:
         return "UNOBSERVABLE"
     return _SAFE_BOOTSTRAP_FAILURE_CLASSES.get(detail.strip().upper(), "OTHER")
+
+
+
+_BOOTSTRAP_ORDINAL_HEADER = "x-oct-i1-bootstrap-ordinal"
+
+
+def safe_bootstrap_failure_code_family(request):
+    try:
+        detail = request.failure
+    except Exception:
+        return "UNOBSERVABLE"
+    if detail is None:
+        return "NONE"
+    families = {
+        "NET::ERR_ABORTED": "NET_ERR_ABORTED",
+        "NS_BINDING_ABORTED": "NS_BINDING_ABORTED",
+        "NET::ERR_CONNECTION_RESET": "NET_ERR_CONNECTION_RESET",
+        "NET::ERR_CONNECTION_CLOSED": "NET_ERR_CONNECTION_CLOSED",
+        "NET::ERR_CONNECTION_REFUSED": "NET_ERR_CONNECTION_REFUSED",
+        "NET::ERR_TIMED_OUT": "NET_ERR_TIMED_OUT",
+        "NET::ERR_EMPTY_RESPONSE": "NET_ERR_EMPTY_RESPONSE",
+        "NET::ERR_HTTP2_PROTOCOL_ERROR": "NET_ERR_HTTP2_PROTOCOL_ERROR",
+        "NET::ERR_FAILED": "NET_ERR_FAILED",
+    }
+    return families.get(detail.strip().upper(), "OTHER") if isinstance(detail, str) else "UNOBSERVABLE"
+
+
+
+# The sink is installed only by this local fixture, after the first activation.
+# Its console events arrive through Playwright's existing service-worker CDP
+# subscription. No extra CDP session, interception, fetch wrapper or post-failure
+# evaluate is needed. Only the cached message text and worker handle are read.
+_BOOTSTRAP_TRACE_PREFIX = "OCTOPORT_I1_BOOTSTRAP_TRACE_V1 "
+_BOOTSTRAP_TRACE_EVENTS = frozenset([
+    "INSTALL", "GAP", "FETCH_CONTEXT", "FETCH_DISPATCH", "FETCH_REJECTED",
+    "RESPONSE_HEADERS", "BODY_DONE", "BODY_READ_REJECTED", "BODY_LIMIT_CANCEL",
+    "BODY_LIMIT_CANCEL_DONE", "BODY_LIMIT_EXCEEDED", "CALLER_SIGNAL_ABORT",
+    "WRAPPER_ABORT_CALLER", "WRAPPER_ABORT_TIMER", "REQUEST_TIMER_ARM",
+    "REQUEST_TIMER_FIRE", "REQUEST_TIMER_CLEAR", "REQUEST_FINALLY",
+    "OPERATION_SETTLED", "RETIRE_BEGIN", "LEASE_ABORT_BEGIN", "LEASE_ABORT_DONE",
+    "ACQUISITION_DISPATCH", "SCHEDULER_TIMER_ARM", "SCHEDULER_TIMER_FIRE", "LOCAL_RESET",
+])
+_BOOTSTRAP_TRACE_CODES = frozenset([
+    "OTHER", "BOOTSTRAP_SECURITY_QUARANTINE", "BOOTSTRAP_SECURITY_COMMIT_UNKNOWN",
+    "BOOTSTRAP_ACTIVE_EXPIRED", "BOOTSTRAP_CONTEXT_CHANGED", "BOOTSTRAP_QUEUE_WAIT_EXPIRED",
+    "BOOTSTRAP_WAITER_CANCELLED", "BOOTSTRAP_WORKER_RETIRED", "AUTH_GENERATION_CHANGED",
+])
+_BOOTSTRAP_TRACE_NUMBERS = frozenset([
+    "fetch_ordinal", "acquisition_ordinal", "caller_signal_ordinal", "wrapper_signal_ordinal",
+    "server_ordinal", "configured_timeout_ms", "waiter_count", "http_status", "total_bytes",
+    "limit_bytes", "total_utf16_code_units", "limit_utf16_code_units",
+])
+_BOOTSTRAP_TRACE_FLAGS = frozenset([
+    "caller_aborted", "wrapper_aborted", "stream_reader", "cancel_called", "cancel_succeeded",
+    "fulfilled", "dispatched", "commit_started",
+])
+_BOOTSTRAP_TRACE_JS = r"""({runId, prefix, events, codes, numberKeys, flagKeys}) => {
+  const key = "__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__";
+  if (SellerAgentsControlConfig?.environment !== "LOCAL DEVELOPMENT" ||
+      !/^[0-9a-f]{32}$/.test(runId) || globalThis[key]) return false;
+  const allowed = new Set(events), codeSet = new Set(codes);
+  const signals = new WeakMap(), acquisitions = new Map();
+  const emit = console.debug.bind(console), start = performance.now();
+  let sequence = 0, fetchCount = 0, signalCount = 0, stopped = false;
+  function gap() {
+    if (stopped) return;
+    stopped = true;
+    emit(prefix + JSON.stringify({seq:++sequence,event:"GAP",elapsed_ms:0}));
+  }
+  function signalId(value) {
+    if (!value || typeof value !== "object") return null;
+    if (!signals.has(value)) {
+      if (signalCount >= 64) { gap(); return null; }
+      signals.set(value, ++signalCount);
+    }
+    return signals.get(value);
+  }
+  function acquisitionId(value) {
+    if (typeof value !== "string" || !value) return null;
+    if (!acquisitions.has(value)) {
+      if (acquisitions.size >= 32) { gap(); return null; }
+      acquisitions.set(value, acquisitions.size + 1);
+    }
+    return acquisitions.get(value);
+  }
+  function record(event, fields = {}, links = {}) {
+    if (stopped) return;
+    const elapsed = performance.now() - start;
+    if (!allowed.has(event) || sequence >= 255 || !Number.isFinite(elapsed) ||
+        elapsed < 0 || elapsed > 180000) { gap(); return; }
+    const row = {seq:sequence+1,event,elapsed_ms:Math.round(elapsed)};
+    for (const key of numberKeys) {
+      const value = fields[key];
+      if (value == null) continue;
+      if (!Number.isSafeInteger(value) || value < 0 || value > 2147483647) { gap(); return; }
+      row[key] = value;
+    }
+    for (const key of flagKeys) {
+      const value = fields[key];
+      if (value == null) continue;
+      if (typeof value !== "boolean") { gap(); return; }
+      row[key] = value;
+    }
+    if (fields.retire_code !== undefined)
+      row.retire_code = codeSet.has(fields.retire_code) ? fields.retire_code : "OTHER";
+    if (fields.timer_kind !== undefined) {
+      if (!["REQUEST","ACTIVE","WAIT"].includes(fields.timer_kind)) { gap(); return; }
+      row.timer_kind = fields.timer_kind;
+    }
+    for (const [key, value] of [
+      ["acquisition_ordinal", acquisitionId(links.acquisitionId)],
+      ["caller_signal_ordinal", signalId(links.callerSignal)],
+      ["wrapper_signal_ordinal", signalId(links.wrapperSignal)],
+    ]) {
+      if (value === null) continue;
+      if (row[key] !== undefined && row[key] !== value) { gap(); return; }
+      row[key] = value;
+    }
+    if (event === "RESPONSE_HEADERS") {
+      // Exact in-memory Response of this fetch. This is a fixed test header,
+      // never raw headers, URLs, bodies, credentials, identities or exception text.
+      const value = links.response?.headers?.get("x-oct-i1-bootstrap-ordinal");
+      const match = typeof value === "string" && /^([0-9a-f]{32}):([1-9][0-9]?)$/.exec(value);
+      if (match && match[1] === runId && Number(match[2]) <= 64)
+        row.server_ordinal = Number(match[2]);
+    }
+    if (stopped) return;
+    sequence++;
+    emit(prefix + JSON.stringify(row));
+  }
+  const port = Object.freeze({
+    record, gap,
+    beginFetch(acquisition, signal) {
+      if (stopped || fetchCount >= 32) { gap(); return null; }
+      const value = Object.freeze({fetch_ordinal:++fetchCount,
+        acquisition_ordinal:acquisitionId(acquisition), caller_signal_ordinal:signalId(signal)});
+      record("FETCH_CONTEXT", value);
+      return value;
+    },
+  });
+  Object.defineProperty(globalThis, key, {value:port, configurable:false, writable:false});
+  record("INSTALL");
+  return true;
+}"""
+
+
+class BootstrapTraceObserver:
+    """Bounded pre-error event evidence. snapshot() performs no browser RPC."""
+
+    def __init__(self, context):
+        self.worker = None
+        self.run_id = None
+        self.rows = []
+        self.incomplete = False
+        self.installed = False
+        self.worker_closed = False
+        self.context_closed = False
+        context.on("console", self.observe_console)
+        context.on("close", lambda *_: self._close_context())
+
+    def _close_context(self):
+        self.context_closed = True
+
+    def _close_worker(self):
+        self.worker_closed = True
+
+    def install(self, worker, evidence_path):
+        # Initial activation already produced this local lifecycle record.
+        # A missing record or probe never changes product authority.
+        try:
+            with evidence_path.open("rb") as source:
+                raw = source.read(65537)
+            if len(raw) > 65536:
+                return
+            value = json.loads(raw)
+            run_id = value.get("run_id")
+            if not isinstance(run_id, str) or re.fullmatch(r"[0-9a-f]{32}", run_id) is None:
+                return
+            self.worker, self.run_id = worker, run_id
+            worker.on("close", lambda *_: self._close_worker())
+            self.installed = worker.evaluate(_BOOTSTRAP_TRACE_JS, {
+                "runId": run_id, "prefix": _BOOTSTRAP_TRACE_PREFIX,
+                "events": sorted(_BOOTSTRAP_TRACE_EVENTS), "codes": sorted(_BOOTSTRAP_TRACE_CODES),
+                "numberKeys": sorted(_BOOTSTRAP_TRACE_NUMBERS), "flagKeys": sorted(_BOOTSTRAP_TRACE_FLAGS),
+            }) is True
+        except Exception:
+            self.incomplete = True
+
+    def observe_console(self, message):
+        try:
+            # Both fields are cached properties. Never inspect args/json_value,
+            # location, raw error text or a different page/worker's console.
+            if self.worker is None or message.worker is not self.worker:
+                return
+            text = message.text
+            if not isinstance(text, str) or not text.startswith(_BOOTSTRAP_TRACE_PREFIX):
+                return
+            if len(text) > 2048 or len(self.rows) >= 256:
+                self.incomplete = True
+                return
+            row = json.loads(text[len(_BOOTSTRAP_TRACE_PREFIX):])
+            allowed = {"seq", "event", "elapsed_ms", "retire_code", "timer_kind"} | _BOOTSTRAP_TRACE_NUMBERS | _BOOTSTRAP_TRACE_FLAGS
+            if (type(row) is not dict or not set(row) <= allowed
+                    or type(row.get("seq")) is not int or row["seq"] != len(self.rows) + 1
+                    or row.get("event") not in _BOOTSTRAP_TRACE_EVENTS
+                    or type(row.get("elapsed_ms")) is not int or not 0 <= row["elapsed_ms"] <= 180000):
+                raise ValueError("invalid projection")
+            if row["event"] == "GAP":
+                self.incomplete = True
+            elif self.rows and row["elapsed_ms"] < self.rows[-1]["elapsed_ms"]:
+                raise ValueError("nonmonotonic projection")
+            for key in set(row) & _BOOTSTRAP_TRACE_NUMBERS:
+                if type(row[key]) is not int or not 0 <= row[key] <= 2147483647:
+                    raise ValueError("invalid number")
+            for key in set(row) & _BOOTSTRAP_TRACE_FLAGS:
+                if type(row[key]) is not bool:
+                    raise ValueError("invalid flag")
+            if "retire_code" in row and row["retire_code"] not in _BOOTSTRAP_TRACE_CODES:
+                raise ValueError("invalid code")
+            if "timer_kind" in row and row["timer_kind"] not in ("REQUEST", "ACTIVE", "WAIT"):
+                raise ValueError("invalid timer")
+            self.rows.append(row)
+        except Exception:
+            self.incomplete = True
+
+    def snapshot(self, selected, responses):
+        result = {
+            "schema_version": 1, "correlation": "UNCONFIRMED",
+            "coverage": "PRE_ERROR_CONSOLE_EVENTS_ONLY", "abort_initiator": "NOT_ESTABLISHED",
+            "probe_installed": self.installed, "incomplete": self.incomplete,
+            "worker_closed": self.worker_closed, "context_closed": self.context_closed,
+            "events": list(self.rows), "observed_local_paths": [],
+        }
+        if (not self.installed or self.incomplete or not self.rows or self.rows[0]["event"] != "INSTALL"
+                or selected is None or sum(item is selected for item in responses) != 1):
+            return result
+        try:
+            identities = []
+            for response in responses:
+                value = response.headers.get(_BOOTSTRAP_ORDINAL_HEADER)
+                match = re.fullmatch(r"([0-9a-f]{32}):([1-9][0-9]?)", value or "")
+                if not match or match[1] != self.run_id or int(match[2]) > 64:
+                    return result
+                identities.append(int(match[2]))
+            if len(set(identities)) != len(identities) or selected.request.service_worker is not self.worker:
+                return result
+            ordinal = identities[next(i for i, row in enumerate(responses) if row is selected)]
+            matches = [row for row in self.rows if row["event"] == "RESPONSE_HEADERS" and row.get("server_ordinal") == ordinal]
+            if len(matches) != 1 or not matches[0].get("fetch_ordinal"):
+                return result
+            fetch = matches[0]["fetch_ordinal"]
+            dispatched = [row for row in self.rows if row["event"] == "FETCH_DISPATCH" and row.get("fetch_ordinal") == fetch]
+            if len(dispatched) != 1:
+                return result
+            caller = dispatched[0].get("caller_signal_ordinal")
+            acquisition = dispatched[0].get("acquisition_ordinal")
+            # Identities must originate in this exact fetch dispatch; do not join
+            # an unrelated lease by ordinal, timing, request count or URL.
+            related = [row for row in self.rows if row.get("fetch_ordinal") == fetch or
+                       (caller is not None and acquisition is not None and
+                        row.get("caller_signal_ordinal") == caller and row.get("acquisition_ordinal") == acquisition)]
+            result.update(correlation="EXACT_RESPONSE_HEADER_AND_WORKER", selected_server_ordinal=ordinal,
+                          selected_fetch_ordinal=fetch, selected_acquisition_ordinal=acquisition,
+                          selected_events=related, browser_code_family=safe_bootstrap_failure_class(selected.request))
+            fetch_names = [row["event"] for row in related if row.get("fetch_ordinal") == fetch]
+            for event, label in [
+                ("WRAPPER_ABORT_CALLER", "CALLER_ABORT_PATH"),
+                ("WRAPPER_ABORT_TIMER", "REQUEST_TIMEOUT_PATH"),
+                ("BODY_LIMIT_CANCEL", "BODY_LIMIT_CANCEL_PATH"),
+                ("BODY_DONE", "BODY_EOF_OBSERVED"),
+                ("BODY_READ_REJECTED", "BODY_READ_REJECTED"),
+            ]:
+                if event in fetch_names:
+                    result["observed_local_paths"].append(label)
+            retire = [row for row in related if row["event"] == "RETIRE_BEGIN"]
+            if retire:
+                result["lease_retire_codes"] = [row["retire_code"] for row in retire if "retire_code" in row]
+            # A received prefix of console events never proves absence of an abort
+            # or the browser's cause. Preserve UNKNOWN even when a local path is seen.
+        except Exception:
+            result["correlation"] = "UNCONFIRMED"
+        return result
+
+
+
+def safe_bootstrap_response_lifecycle(selected, responses, evidence_path):
+    # The fixed response header maps the exact selected Playwright Response to
+    # a server-assigned ordinal. Never infer identity by timing or list order.
+    unknown = {"schema_version": 1, "correlation": "UNCONFIRMED"}
+    if selected is None or sum(item is selected for item in responses) != 1:
+        return unknown
+    try:
+        def ordinal(response):
+            # Response.headers is the already received provisional snapshot.
+            # header_value/all_headers perform a raw-header RPC with no deadline;
+            # missing CDP ExtraInfo must never stall FAIL evidence and cleanup.
+            headers = response.headers
+            value = headers.get(_BOOTSTRAP_ORDINAL_HEADER) if isinstance(headers, dict) else None
+            if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{32}:[1-9][0-9]?", value) is None:
+                raise ValueError("invalid ordinal")
+            run_id, raw_number = value.split(":")
+            number = int(raw_number)
+            if number > 64:
+                raise ValueError("invalid ordinal")
+            return (run_id, number)
+        ids = [ordinal(response) for response in responses]
+        if len(set(ids)) != len(ids):
+            return unknown
+        selected_identity = ids[next(i for i, response in enumerate(responses) if response is selected)]
+        with evidence_path.open("rb") as source:
+            raw = source.read(65537)
+        if len(raw) > 65536:
+            return unknown
+        data = json.loads(raw)
+        if (not isinstance(data, dict) or set(data) != {"schema_version", "run_id", "complete", "records"}
+                or type(data["schema_version"]) is not int or data["schema_version"] != 1
+                or not isinstance(data["run_id"], str) or re.fullmatch(r"[0-9a-f]{32}", data["run_id"]) is None
+                or data["complete"] is not True or not isinstance(data["records"], list)
+                or not 1 <= len(data["records"]) <= 64):
+            return unknown
+        by_id = {}
+        for row in data["records"]:
+            if (not isinstance(row, dict) or set(row) != {"ordinal", "events"}
+                    or type(row["ordinal"]) is not int or not 1 <= row["ordinal"] <= 64
+                    or row["ordinal"] in by_id or not isinstance(row["events"], list)
+                    or not 1 <= len(row["events"]) <= 3):
+                return unknown
+            seen = []
+            for event in row["events"]:
+                if (not isinstance(event, dict) or set(event) != {"phase", "elapsed_ms", "status", "writable_finished"}
+                        or event["phase"] not in ("RECEIVED", "FINISH", "CLOSE")
+                        or event["phase"] in seen):
+                    return unknown
+                seen.append(event["phase"])
+                elapsed = event["elapsed_ms"]
+                status = event["status"]
+                finished = event["writable_finished"]
+                if (elapsed is not None and (type(elapsed) is not int or not 0 <= elapsed <= 180000)
+                        or status is not None and (type(status) is not int or not 100 <= status <= 599)
+                        or finished is not None and type(finished) is not bool):
+                    return unknown
+                if event["phase"] == "RECEIVED" and (status is not None or finished is not None):
+                    return unknown
+                if event["phase"] != "RECEIVED" and type(finished) is not bool:
+                    return unknown
+            if seen[0] != "RECEIVED" or ("CLOSE" in seen and seen[-1] != "CLOSE"):
+                return unknown
+            by_id[row["ordinal"]] = row["events"]
+        if any(run_id != data["run_id"] or number not in by_id for run_id, number in ids):
+            return unknown
+        selected_id = selected_identity[1]
+        events = by_id[selected_id]
+        closed = next((event for event in events if event["phase"] == "CLOSE"), None)
+        return {
+            "schema_version": 1, "correlation": "EXACT_RESPONSE_HEADER",
+            "selected_server_ordinal": selected_id,
+            "browser_code_family": safe_bootstrap_failure_code_family(selected.request),
+            "server_finished": any(event["phase"] == "FINISH" for event in events),
+            "server_closed": closed is not None,
+            "server_close_writable_finished": closed["writable_finished"] if closed else None,
+            "events": [{key: event[key] for key in ("phase", "elapsed_ms", "status", "writable_finished")} for event in events],
+        }
+    except Exception:
+        # Fixed result only, including malformed files, header errors and races.
+        return unknown
 
 
 def safe_bootstrap_event_counts(responses, finished, failed, started, second_activation_at=None, work_start_at=None, selected_response=None, failed_at=None, work_started_at=None):
@@ -268,6 +636,19 @@ def read_completed_unique_work_start_bootstrap_response(
     return envelope
 
 
+def safe_cached_profile_diagnostic(profile):
+    # This is a completed observation from before the failure, not a fresh
+    # worker read or proof of the current identity. Export only fixed checks.
+    if type(profile) is not dict:
+        return {"source": "UNCONFIRMED"}
+    fields = ("verified", "accountMatches", "materialShapeValid", "materialValid")
+    return {
+        "source": "PRE_FAILURE_EVALUATION",
+        "checks": {name: profile.get(name) if type(profile.get(name)) is bool else None
+                   for name in fields},
+    }
+
+
 def file_sha256(path):
     digest = hashlib.sha256()
     with Path(path).open("rb") as stream:
@@ -370,12 +751,12 @@ def run(runtime, output):
             except subprocess.CalledProcessError as error:
                 result.update(status="FAIL", stage="database_migrate", error=type(error).__name__, safe_failure={"stage": "database_migrate", "status": None, "error_code": "DATABASE_MIGRATION_FAILED"}, safe_counts={"control_responses": 0}, migration_exit_code=error.returncode)
                 raise
-            api_env = {**env, "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust_path), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture_evidence_path)}
+            api_env = {**env, "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust_path), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture_evidence_path), "SA_I1_BOOTSTRAP_LIFECYCLE_EVIDENCE_PATH": str(output / "bootstrap-response-lifecycle.json")}
             # Output is not consumed; a PIPE can stall the child and must not retain raw data.
             api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=api_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(api)
             stage = _mark_stage(output, "api_ready_wait", started)
-            wait_for(f"http://127.0.0.1:{api_port}/health/ready")
+            wait_for(f"http://127.0.0.1:{api_port}/health/ready", process=api)
             if not trust_path.exists():
                 raise RuntimeError("API did not export public trust bundle")
             if not fixture_evidence_path.exists() or json.loads(fixture_evidence_path.read_text())["existing_fixture_accounts"] != 2 or json.loads(fixture_evidence_path.read_text())["beta_unchanged"] is not True:
@@ -416,7 +797,7 @@ def run(runtime, output):
             portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", portal_port], cwd=ROOT, env=portal_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(portal)
             stage = _mark_stage(output, "portal_ready_wait", started)
-            wait_for(f"http://127.0.0.1:{portal_port}/login")
+            wait_for(f"http://127.0.0.1:{portal_port}/login", process=portal)
             fixture = (ROOT / "tests/regression/extension-core/fixtures/application-chat.html").read_text()
             # This account/restart fixture exposes a provider conversation ID.
             # Its URL is deliberately unrelated; an address alone is not proof.
@@ -481,31 +862,8 @@ def run(runtime, output):
                             control_responses.append(("portal_bff", parsed.path.removeprefix("/api/control-plane"), response.status))
                     context.on("response", observe_control)
                     worker = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
+                    bootstrap_trace = BootstrapTraceObserver(context)
                     worker_sentinel = worker.evaluate("""() => { if (!globalThis.__saI1WorkerSentinel) globalThis.__saI1WorkerSentinel = crypto.randomUUID(); return globalThis.__saI1WorkerSentinel; }""")
-
-                    def inspect_signed_profile(envelope):
-                        return worker.evaluate("""async ({envelope, trust, extensionVersion}) => {
-                          const observed = SellerAgentsBrowserIdentity.current();
-                          const verified = await SellerAgentsBootstrapVerifier.verifyV2(envelope, trust);
-                          if (!verified.ok) return {verified:false, error:verified.error || null, browser:observed, extensionVersion};
-                          const profile = verified.payload?.ai?.profile || null;
-                          return {
-                            verified:true,
-                            browser:observed,
-                            extensionVersion,
-                            aiStatus: verified.payload?.ai?.status || null,
-                            detected: verified.payload?.ai?.detected || null,
-                            profileContractVersion: profile?.compatibility?.contractVersion || null,
-                            profileBrowserFamilies: Array.isArray(profile?.compatibility?.browserFamilies) ? profile.compatibility.browserFamilies : null,
-                            minimumExtensionVersion: profile?.compatibility?.minimumExtensionVersion ?? null,
-                            materialShapeValid: profile ? SellerAgentsSignedAiProfileConsumer.validMaterialShape(profile) : false,
-                            materialValid: profile ? await SellerAgentsSignedAiProfileConsumer.validMaterial(profile) : false,
-                          };
-                        }""", {
-                            "envelope": envelope,
-                            "trust": packaged_config["trustBundle"],
-                            "extensionVersion": packaged_config["extensionVersion"],
-                        })
 
                     chat = context.new_page()
                     chat.goto(chat_url)
@@ -575,6 +933,7 @@ def run(runtime, output):
 
                     first_identity = activate(fixture_email("one", namespace))
                     assert first_identity["authenticated"] is True and first_identity["workAllowed"] is False and first_identity["accessBasis"] == "BETA"
+                    bootstrap_trace.install(worker, output / "bootstrap-response-lifecycle.json")
                     assert popup.locator("#catalog").is_visible()
                     first_account = popup.locator("#account").inner_text()
                     popup.click("#wildberries")
@@ -654,6 +1013,7 @@ def run(runtime, output):
                         "unique Work Start bootstrap HTTP 200 observation",
                     )
                     stage = _mark_stage(output, "work_start_bootstrap_wait_done", started)
+                    result["bootstrap_client_trace"] = bootstrap_trace.snapshot(bootstrap_response, bootstrap_http_responses)
                     stage = _mark_stage(output, "work_start_bootstrap_body_begin", started)
                     bootstrap_envelope = read_completed_unique_work_start_bootstrap_response(
                         bootstrap_response, bootstrap_http_responses,
@@ -909,6 +1269,12 @@ def run(runtime, output):
                         bootstrap_response, failed_bootstrap_times, work_start_started_at,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
+                    response_lifecycle = safe_bootstrap_response_lifecycle(
+                        locals().get("bootstrap_response"), bootstrap_http_responses,
+                        output / "bootstrap-response-lifecycle.json",
+                    )
+                    result["bootstrap_response_lifecycle"] = response_lifecycle
+                    print("I1_SAFE_BOOTSTRAP_RESPONSE_LIFECYCLE " + json.dumps(response_lifecycle, sort_keys=True), flush=True)
                     result.update(
                         status="PASS",
                         bootstrap_observer_counts=counts,
@@ -974,30 +1340,30 @@ def run(runtime, output):
                         failed_bootstrap_times, work_start_started_at,
                     )
                     print("I1_SAFE_BOOTSTRAP_EVENTS " + json.dumps(counts, sort_keys=True), flush=True)
+                    response_lifecycle = safe_bootstrap_response_lifecycle(
+                        locals().get("bootstrap_response"), bootstrap_http_responses,
+                        output / "bootstrap-response-lifecycle.json",
+                    )
+                    result["bootstrap_response_lifecycle"] = response_lifecycle
+                    print("I1_SAFE_BOOTSTRAP_RESPONSE_LIFECYCLE " + json.dumps(response_lifecycle, sort_keys=True), flush=True)
                     result["failure_observation"] = {
                         "bootstrap_http_200_events": len(bootstrap_http_responses),
                         "bootstrap_body_parsed": bootstrap_envelope is not None,
                         "bootstrap_observer_counts": counts,
                     }
-                    try:
-                        diagnostic = worker.evaluate("""async tabId => {
-                          const status = await SellerAgentsControlClient.status();
-                          const code = String(status?.lastError?.code || "");
-                          return {
-                            pending: Boolean(status?.pending),
-                            authenticated: status?.authenticated === true,
-                            workAllowed: status?.workAllowed === true,
-                            codePresent: Boolean(code),
-                            errorCode: /^[A-Z0-9_]{1,80}$/.test(code) ? code : null,
-                            lastStart: Number.isInteger(tabId) && typeof saLastStartDiagnostic === "function"
-                              ? await saLastStartDiagnostic(tabId) : null
-                          };
-                        }""", locals().get("chat_tab_id"))
-                        result["failure_diagnostic"] = {"stage": stage, **diagnostic}
-                        if bootstrap_envelope is not None:
-                            result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelope)
-                    except Exception:
-                        result["failure_diagnostic"] = {"stage": stage, "read_failed": True, "error_code": "DIAGNOSTIC_READ_FAILED"}
+                    if locals().get("bootstrap_trace") is not None:
+                        result["bootstrap_client_trace"] = bootstrap_trace.snapshot(locals().get("bootstrap_response"), bootstrap_http_responses)
+                        print("I1_SAFE_BOOTSTRAP_CLIENT_TRACE " + json.dumps(result["bootstrap_client_trace"], sort_keys=True), flush=True)
+                    # Worker.evaluate has no RPC deadline. A dead/stalled worker
+                    # must not prevent cleanup and the original FAIL receipt.
+                    # Keep prior local observations; do not probe after failure.
+                    result["failure_diagnostic"] = {
+                        "stage": stage, "worker_state": "UNCONFIRMED",
+                        "error_code": "POST_FAILURE_RPC_SKIPPED",
+                    }
+                    result["failure_profile_diagnostic"] = safe_cached_profile_diagnostic(
+                        locals().get("signed_profile"),
+                    )
                     raise
                 finally:
                     _mark_stage(output, "browser_context_close", started)

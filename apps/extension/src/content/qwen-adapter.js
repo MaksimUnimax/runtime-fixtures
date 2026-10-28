@@ -90,6 +90,31 @@
       },
       isGenerating() { return classify(composerContext()).kind === "stop"; },
       messageComplete(message) { return Boolean(message?.isConnected && !this.isGenerating() && this.messageText(message)); },
+      // Accepted S08 has sent-file cards and user text as separate siblings.
+      sentAttachmentMessage(node, descriptors) {
+        if (location.origin !== "https://chat.qwen.ai" || !(node instanceof Element) ||
+            !node.matches(USER) || node.closest('[contenteditable="true"]') ||
+            node.querySelector('[contenteditable="true"]') || !visible(node) ||
+            !Array.isArray(descriptors) || descriptors.length !== 1) return null;
+        const id = messageId(node), d = descriptors[0];
+        if (!id || [...document.querySelectorAll(USER)].filter(n => messageId(n) === id).length !== 1 ||
+            typeof d?.filename !== "string" || !/\.txt$/i.test(d.filename) ||
+            !Number.isSafeInteger(d.byte_length) || d.byte_length < 0) return null;
+        const bodies = [...node.querySelectorAll(".chat-user-message-container[data-msg-id]")]
+          .filter(n => n.closest(MESSAGE) === node && visible(n));
+        if (bodies.length !== 1 || bodies[0].getAttribute("data-msg-id") !== id) return null;
+        const body = bodies[0], sentCards = [...body.querySelectorAll(".fileitem-btn")]
+          .filter(n => n.closest(MESSAGE) === node && visible(n));
+        if (sentCards.length !== 1) return null;
+        const names = [...sentCards[0].querySelectorAll(".fileitem-file-name-text")],
+          extensions = [...sentCards[0].querySelectorAll(".fileitem-file-name-ext")];
+        if (names.length !== 1 || extensions.length !== 1 ||
+            names[0].textContent + extensions[0].textContent !== d.filename) return null;
+        const parts = [...body.querySelectorAll(".user-message-content")]
+          .filter(n => n.closest(MESSAGE) === node && visible(n));
+        if (!parts.length) return null;
+        return Object.freeze({ text: parts.map(n => n.innerText || n.textContent || "").join("\n") });
+      },
       deliveryCapabilities() { return globalThis.OzonAIDeliveryCapabilities?.profile?.("qwen") || null; },
       attachmentSurface,
       attachFiles(surface, files) {
@@ -104,8 +129,10 @@
       attachmentPreview,
       attachmentReady(descriptors) {
         if (!Array.isArray(descriptors) || descriptors.length !== 1 || !/\.txt$/i.test(String(descriptors[0]?.filename || ""))) return false;
-        const preview = attachmentPreview(descriptors[0].filename);
-        if (!preview || preview.matches('[aria-busy="true"]') || preview.querySelector('[aria-busy="true"]')) return false;
+        const context = composerContext(), preview = attachmentPreview(descriptors[0].filename);
+        if (!context || !preview || preview.matches('[aria-busy="true"]') ||
+            preview.querySelector('[aria-busy="true"]') || context.root.querySelector("svg.anticon-spin") ||
+            !["ready", "send_active", "send_disabled"].includes(classify(context).kind)) return false;
         // The observed finished TXT icon replaces the upload spinner. A card/name alone is not readiness.
         const icons = [...preview.querySelectorAll(".fileitem-icon-wrapper .fileitem-icon use")];
         return icons.length === 1 && (icons[0].getAttribute("href") || icons[0].getAttribute("xlink:href")) === "#qwenFileicon-txt1";

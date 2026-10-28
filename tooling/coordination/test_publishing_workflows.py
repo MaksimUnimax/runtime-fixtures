@@ -14,7 +14,10 @@ class PublishingWorkflowTests(unittest.TestCase):
                 match = re.search(r"(?ms)^  push:\s*\n    branches:\s*\[(.*?)\]", contents)
                 self.assertIsNotNone(match, "explicit push branches are required")
                 branches = {value.strip().strip('"').strip("'") for value in match[1].split(",") if value.strip()}
-                self.assertEqual(branches, expected)
+                # This exact tester branch also needs the push-only native
+                # server package. The other four workflows retain PR coverage.
+                workflow_expected = expected | {"tester/account-connection-code-20261027"} if name == "server-ci.yml" else expected
+                self.assertEqual(branches, workflow_expected)
 
 
 if __name__ == "__main__":

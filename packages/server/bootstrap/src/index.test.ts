@@ -17,6 +17,20 @@ import {
 import type { CommercialAccessResolution } from "@product/commercial-access";
 import { getSellerAgentsFreeBetaCapabilityPermissions } from "@product/entitlements/seller-agents-beta-capability-policy";
 
+// Explicit test contract: keep the expected vocabulary independent of policy output.
+const expectedBetaEntitlements = Object.freeze({
+  "source.ozon": true,
+  "source.wildberries": true,
+  "ai.chatgpt": true,
+  "ai.alice": true,
+  "ai.qwen": true,
+  "ai.deepseek": true,
+  "ai.grok": true,
+  "ai.claude": true,
+  "ai.gemini": true,
+  "ai.kimi": true,
+});
+
 const subject = {
   accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   deviceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -857,13 +871,7 @@ describe("BootstrapService", () => {
       expect(verified.payload.offlineGraceUntil).toBe(
         "2026-01-02T00:15:00.000Z",
       );
-      expect(verified.payload.entitlements).toEqual({
-        "source.ozon": true,
-        "source.wildberries": true,
-        "ai.chatgpt": true,
-        "ai.alice": true,
-        "ai.qwen": true,
-      });
+      expect(verified.payload.entitlements).toEqual(expectedBetaEntitlements);
     }
   });
   it("emits the exact beta permissions in both signed V1 and V2 snapshots", async () => {
@@ -887,13 +895,7 @@ describe("BootstrapService", () => {
     expect(v1).toMatchObject({ ok: true });
     expect(v2).toMatchObject({ ok: true });
     if (v1.ok && v2.ok) {
-      const expected = {
-        "source.ozon": true,
-        "source.wildberries": true,
-        "ai.chatgpt": true,
-        "ai.alice": true,
-        "ai.qwen": true,
-      };
+      const expected = expectedBetaEntitlements;
       expect(v1.payload.accessBasis).toBe("BETA");
       expect(v1.payload.entitlements).toEqual(expected);
       expect(v2.payload.accessBasis).toBe("BETA");
@@ -937,7 +939,7 @@ describe("BootstrapService", () => {
       });
     }
   });
-  it("overlays only the four beta permissions over commercial access", async () => {
+  it("overlays only the ten reviewed beta permissions over commercial access", async () => {
     const commercial = eligibleCommercial();
     if (commercial.kind === "OK") {
       commercial.value.entitlements = {
@@ -959,11 +961,7 @@ describe("BootstrapService", () => {
     if (verified.ok) {
       expect(verified.payload.accessBasis).toBe("BETA");
       expect(verified.payload.entitlements).toEqual({
-        "source.ozon": true,
-        "source.wildberries": true,
-        "ai.chatgpt": true,
-        "ai.alice": true,
-        "ai.qwen": true,
+        ...expectedBetaEntitlements,
         "device.max_active": 0,
         "provider.analytics": false,
       });
@@ -1084,11 +1082,7 @@ describe("BootstrapService", () => {
           planRevision: commercialSubscription.currentPlanRevisionId,
         });
         expect(verified.payload.entitlements).toEqual({
-          "source.ozon": true,
-          "source.wildberries": true,
-          "ai.chatgpt": true,
-          "ai.alice": true,
-          "ai.qwen": true,
+          ...expectedBetaEntitlements,
           "device.max_active": 0,
         });
         expect(verified.payload.ai).toEqual(

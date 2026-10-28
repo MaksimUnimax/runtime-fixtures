@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   pgEnum,
   pgTable,
@@ -12,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { BrowserFamilies } from "@product/shared";
 import { accounts, users } from "./identity";
+import { accountConnectionCredentials } from "./connection-codes";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType() {
@@ -120,6 +122,17 @@ export const devices = pgTable(
       }),
     status: deviceStatus("status").notNull().default("ACTIVE"),
     label: varchar("label", { length: 256 }),
+    connectionCredentialId: uuid("connection_credential_id"),
+    credentialTransferApprovedAt: timestamp("credential_transfer_approved_at", {
+      withTimezone: true,
+    }),
+    credentialTransferApprovedByUserId: uuid(
+      "credential_transfer_approved_by_user_id",
+    ).references(() => users.id, {
+      onDelete: "restrict",
+      onUpdate: "restrict",
+    }),
+
     browserFamily: browserFamily("browser_family"),
     browserVersionLastSeen: varchar("browser_version_last_seen", {
       length: 64,
@@ -137,6 +150,26 @@ export const devices = pgTable(
   },
   (table) => [
     index("devices_account_id_index").on(table.accountId),
+    foreignKey({
+      name: "devices_connection_credential_account_fk",
+      columns: [table.connectionCredentialId, table.accountId],
+      foreignColumns: [
+        accountConnectionCredentials.id,
+        accountConnectionCredentials.accountId,
+      ],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    index("devices_connection_credential_index").on(
+      table.connectionCredentialId,
+    ),
+    check(
+      "devices_credential_transfer_approval_shape",
+      sql.raw(
+        "(credential_transfer_approved_at IS NULL AND credential_transfer_approved_by_user_id IS NULL) OR (credential_transfer_approved_at IS NOT NULL AND credential_transfer_approved_by_user_id IS NOT NULL)",
+      ),
+    ),
+
     index("devices_account_id_status_index").on(table.accountId, table.status),
     check(
       "devices_client_metadata_shape",

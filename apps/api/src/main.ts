@@ -1,3 +1,4 @@
+import { loadRateLimitIpSource } from "./rate-limit-client-ip.js";
 import { randomUUID } from "node:crypto";
 import { createApiCleanup } from "./api-cleanup.js";
 import { createUnavailableHealthReadDependencies } from "./health-unavailable-read.js";
@@ -10,6 +11,7 @@ import {
   createDeviceAuthorizationRepository,
   createExtensionAuthRepository,
   createDeviceManagementRepository,
+  createConnectionCodeRepository,
   createP3BootstrapPolicyCatalogRepository,
   createP4CommercialCatalogRepository,
   createP4EntitlementRepository,
@@ -62,7 +64,11 @@ import {
   deriveExtensionAuthKeys,
   loadAccessTokenSigningKey,
 } from "@product/extension-auth";
-import { DeviceManagementService } from "@product/device-management";
+import {
+  ConnectionCodeService,
+  DeviceManagementService,
+  type DeviceLimitResolver,
+} from "@product/device-management";
 import {
   BootstrapAiResolutionService,
   BootstrapService,
@@ -87,6 +93,9 @@ import { FeedbackSupportService } from "@product/feedback-support";
 import { sellerAgentsCommercialModeFromEnvironment } from "@product/entitlements/seller-agents-commercial-policy";
 
 const config = loadConfig(process.env);
+const rateLimitIpSource = loadRateLimitIpSource(
+  process.env.API_RATE_LIMIT_IP_SOURCE,
+);
 const commercialModeEnabled =
   sellerAgentsCommercialModeFromEnvironment(process.env) === "ENABLED";
 const { database, transferDatabase, healthReadDatabase, closeDatabases } =
@@ -158,8 +167,25 @@ try {
   const unavailableHealth = !healthReadDatabase
     ? createUnavailableHealthReadDependencies()
     : undefined;
+  const deviceAdmissionLimits: DeviceLimitResolver = {
+    resolve: async (accountId, at) => {
+      const beta = await betaAdmission.resolve(accountId);
+      if (beta.kind === "BETA")
+        return { kind: "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT" as const };
+      if (!commercialModeEnabled)
+        return {
+          kind: "INELIGIBLE" as const,
+          reason: "NO_CURRENT_SUBSCRIPTION" as const,
+        };
+      return commercialAccess.resolveDeviceAdmission(
+        accountId,
+        at ?? new Date(),
+      );
+    },
+  };
   const app = createApiApp({
     config,
+    rateLimitIpSource,
     isInfrastructureReady: async () =>
       transferAdmission.isReady() && (await infrastructureReady()),
     authService: new AuthService(
@@ -176,26 +202,17 @@ try {
       undefined,
       loadAccessTokenSigningKey(process.env),
     ),
+    connectionCodeService: new ConnectionCodeService(
+      createConnectionCodeRepository(database),
+      rootSecret,
+      loadAccessTokenSigningKey(process.env),
+      deviceAdmissionLimits,
+    ),
     deviceManagementService: new DeviceManagementService(
       createDeviceManagementRepository(database),
       rootSecret,
       loadAccessTokenSigningKey(process.env),
-      {
-        resolve: async (accountId, at) => {
-          const beta = await betaAdmission.resolve(accountId);
-          if (beta.kind === "BETA")
-            return { kind: "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT" as const };
-          if (!commercialModeEnabled)
-            return {
-              kind: "INELIGIBLE" as const,
-              reason: "NO_CURRENT_SUBSCRIPTION" as const,
-            };
-          return commercialAccess.resolveDeviceAdmission(
-            accountId,
-            at ?? new Date(),
-          );
-        },
-      },
+      deviceAdmissionLimits,
     ),
     bootstrapService: new BootstrapService(
       { resolve: (input) => resolveP3BootstrapPolicy(input, p3Catalog) },

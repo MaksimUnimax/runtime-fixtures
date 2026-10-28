@@ -149,18 +149,44 @@ def seed_authority(worker, private_key):
       await chrome.storage.local.set({seller_agents_control_auth_v2: {generation: 1, credentials, pending: null, rotation: null, authority: {verified: true, workAllowed: true, payload, envelope, deviceId, sessionId, generation: 1, requestedAi: 'chatgpt', cacheBinding}, cacheClock, lastError: null}});
     }""", {"pkcs8": encoded, "fixtureKeyId": os.environ.get('SA_TEST_TRUST_KEY_ID', 'browser-fixture-key')})
 
+def verify_own_sandbox_arguments(profile):
+    # Read only processes in this fixture's own cgroup. The CDP command-line
+    # endpoint requires an unrelated automation flag, so do not depend on it.
+    group=Path('/proc/self/cgroup').read_text()
+    candidates=[]
+    for process in Path('/proc').iterdir():
+        if not process.name.isdigit():continue
+        try:
+            if (process/'cgroup').read_text()!=group:continue
+            arguments=(process/'cmdline').read_bytes().decode().split('\0')
+        except (OSError,UnicodeError):
+            continue
+        if f'--user-data-dir={profile}' in arguments and not any(a.startswith('--type=') for a in arguments):
+            candidates.append(arguments)
+    assert len(candidates)==1, 'One owned browser process must be observable'
+    forbidden={'--no-sandbox','--disable-setuid-sandbox','--disable-namespace-sandbox','--disable-seccomp-filter-sandbox','--disable-web-security'}
+    assert not any(arg.split('=',1)[0] in forbidden for arg in candidates[0])
+    return True
+
 def run(runtime,output,private_key):
     output.mkdir(parents=True,exist_ok=True)
     fixture=(ROOT/'tests/regression/extension-core/fixtures/application-chat.html').read_text()
     result={'status':'RUNNING','live_provider_calls':0,'installed_acceptance':False,'scope':'native Chromium fixture; popup active-tab port controlled; synthetic AI/fetch'}
     with sync_playwright() as p,tempfile.TemporaryDirectory() as profile:
-        opts={'headless':True,'channel':'chromium','args':['--no-sandbox',f'--disable-extensions-except={runtime}',f'--load-extension={runtime}']}
+        # A constrained non-root fixture can require the browser sandbox without
+        # changing existing runner defaults or any installed browser/profile.
+        require_sandbox=os.environ.get('SA_TEST_REQUIRE_SANDBOX')=='1'
+        opts={'headless':True,'channel':'chromium','chromium_sandbox':require_sandbox,'args':[f'--disable-extensions-except={runtime}',f'--load-extension={runtime}']}
+        if not require_sandbox:opts['args'].insert(0,'--no-sandbox')
+        result['chromium_sandbox_required']=require_sandbox
         if os.getenv('SA_TEST_CHROMIUM'):opts['executable_path']=os.environ['SA_TEST_CHROMIUM'];opts.pop('channel')
         context=p.chromium.launch_persistent_context(profile,**opts)
         page=popup=worker=None
         worker_stage="initial_launch"
         errors=[]
         try:
+            if require_sandbox:
+                result['sandbox_disabling_flags_absent']=verify_own_sandbox_arguments(profile)
             worker=discover_service_worker(context)
             worker_stage="active"
             empty_status=worker.evaluate("async()=>SellerAgentsControlClient.status()")
@@ -172,6 +198,8 @@ def run(runtime,output,private_key):
             context=None
             worker_stage="relaunch"
             context=p.chromium.launch_persistent_context(profile,**opts)
+            if require_sandbox:
+                result['sandbox_disabling_flags_absent']=verify_own_sandbox_arguments(profile)
             worker=discover_service_worker(context)
             worker_stage="active"
             assert worker.url == extension_url
