@@ -2855,3 +2855,166 @@ describe("B06 fullwidth colon after recognizable credential keys", () => {
     });
   });
 });
+
+describe("B06 bare multiword credentials must not leak suffixes", () => {
+  const cases = [
+    [
+      "password",
+      "diagnostic password: SYNTH_PASS_PART_A SYNTH_PASS_PART_B",
+      "SYNTH_PASS_PART_B",
+    ],
+    [
+      "token",
+      "diagnostic token: SYNTH_TOKEN_PART_A SYNTH_TOKEN_PART_B",
+      "SYNTH_TOKEN_PART_B",
+    ],
+    [
+      "apiKey",
+      "diagnostic apiKey: SYNTH_API_PART_A SYNTH_API_PART_B",
+      "SYNTH_API_PART_B",
+    ],
+    [
+      "api_key",
+      "diagnostic api_key: SYNTH_APIUND_PART_A SYNTH_APIUND_PART_B",
+      "SYNTH_APIUND_PART_B",
+    ],
+    [
+      "clientSecret",
+      "diagnostic clientSecret= SYNTH_CLIENT_PART_A SYNTH_CLIENT_PART_B",
+      "SYNTH_CLIENT_PART_B",
+    ],
+    [
+      "tabs",
+      "diagnostic password: SYNTH_TAB_PART_A\tSYNTH_TAB_PART_B",
+      "SYNTH_TAB_PART_B",
+    ],
+    [
+      "nonbreaking-space",
+      "diagnostic token: SYNTH_NBSP_PART_A\u00a0SYNTH_NBSP_PART_B",
+      "SYNTH_NBSP_PART_B",
+    ],
+    [
+      "three-words",
+      "diagnostic password: SYNTH_TRIPLE_A SYNTH_TRIPLE_B SYNTH_TRIPLE_C",
+      "SYNTH_TRIPLE_C",
+    ],
+    [
+      "semicolon-tail",
+      "diagnostic password: SYNTH_DELIM_A SYNTH_DELIM_B; requestId: safe-1",
+      "SYNTH_DELIM_B",
+    ],
+    [
+      "structured-suffix",
+      'diagnostic password: SYNTH_BRACE_PART_A {"value":"SYNTH_BRACE_PART_B"}',
+      "SYNTH_BRACE_PART_B",
+    ],
+    [
+      "array-suffix",
+      'diagnostic token: SYNTH_ARRAY_PART_A ["SYNTH_ARRAY_PART_B"]',
+      "SYNTH_ARRAY_PART_B",
+    ],
+    [
+      "comma-passphrase",
+      "diagnostic password: SYNTH_COMMA_PART_A, SYNTH_COMMA_PART_B",
+      "SYNTH_COMMA_PART_B",
+    ],
+    [
+      "semicolon-passphrase",
+      "diagnostic token: SYNTH_SEMI_PART_A; SYNTH_SEMI_PART_B",
+      "SYNTH_SEMI_PART_B",
+    ],
+  ] as const;
+  it.each(cases)(
+    "fully rejects %s ambiguous bare credential text",
+    (_kind, raw, suffix) => {
+      const cleaned = sanitizeFeedbackText(raw);
+      expect(cleaned).toBe("[REDACTED_SECRET]");
+      expect(cleaned).not.toContain(suffix);
+    },
+  );
+
+  it.each(cases)(
+    "never forwards %s multiword suffix to any repository field",
+    async (_kind, raw, suffix) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("MULTIWORD_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("MULTIWORD_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const svc = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        svc.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("MULTIWORD_CASE_CAPTURE");
+      await expect(
+        svc.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("MULTIWORD_FOLLOWUP_CAPTURE");
+      await expect(
+        svc.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+      ).rejects.toThrow("MULTIWORD_FOLLOWUP_CAPTURE");
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(suffix);
+    },
+  );
+
+  it("retains safe sibling data in valid JSON with a nested bare passphrase", () => {
+    const raw = JSON.stringify({
+      message: "diagnostic password: SYNTH_JSON_PART_A SYNTH_JSON_PART_B",
+      requestId: "safe-request-1",
+      notes: ["safe-label", "safe-counter"],
+    });
+    const cleaned = JSON.parse(sanitizeFeedbackText(raw));
+    expect(cleaned.requestId).toBe("safe-request-1");
+    expect(cleaned.notes).toEqual(["safe-label", "safe-counter"]);
+    expect(cleaned.message).toBe("[REDACTED_SECRET]");
+    expect(JSON.stringify(cleaned)).not.toContain("SYNTH_JSON_PART_B");
+  });
+
+  it("retains safe sibling data when the JSON has a diagnostic prefix", () => {
+    const raw =
+      "ERROR " +
+      JSON.stringify({
+        message: "diagnostic token: SYNTH_PREFIX_PART_A SYNTH_PREFIX_PART_B",
+        requestId: "safe-request-2",
+      });
+    const cleaned = sanitizeFeedbackText(raw);
+    expect(cleaned.startsWith("ERROR ")).toBe(true);
+    const parsed = JSON.parse(cleaned.slice(6));
+    expect(parsed.requestId).toBe("safe-request-2");
+    expect(parsed.message).toBe("[REDACTED_SECRET]");
+    expect(cleaned).not.toContain("SYNTH_PREFIX_PART_B");
+  });
+
+  it.each([
+    "ordinary note: two safe words",
+    "diagnostic note: first second third",
+    "password manager reports login failure",
+    "Сообщение: полезный текст без пароля",
+  ])("preserves unrelated benign prose: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("preserves previously known safe metadata after a separate single-token secret", () => {
+    const raw = "diagnostic password=synthetic-only\nX-Trace: safe-trace-1";
+    const cleaned = sanitizeFeedbackText(raw);
+    expect(cleaned).not.toContain("synthetic-only");
+    expect(cleaned).toContain("X-Trace: safe-trace-1");
+  });
+});

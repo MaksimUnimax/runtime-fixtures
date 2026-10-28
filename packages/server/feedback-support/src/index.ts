@@ -560,12 +560,68 @@ function hasUnredactedQuotedCredentialField(input: string): boolean {
   return false;
 }
 
+// Bare diagnostic values have no reliable word boundary: a password or
+// passphrase may include spaces. The legacy scalar scrubber masks only its
+// first token. Reject a remaining same-line suffix rather than persisting it.
+// This check runs after we have tried to parse an outer valid JSON envelope,
+// so a nested diagnostic can be discarded without losing safe JSON siblings.
+function hasAmbiguousBareCredentialTail(input: string): boolean {
+  const bareKey = /\b([A-Za-z_][A-Za-z0-9_-]*)[ \t]*[:=][ \t]*/gu;
+  for (const match of input.matchAll(bareKey)) {
+    if (!isSensitiveDiagnosticKey(match[1]!)) continue;
+    const preceding = input[match.index - 1];
+    if (preceding === '"' || preceding === "'") continue;
+    const tail = input.slice(match.index + match[0].length);
+    // A mask may already have replaced the first word. Inspect its suffix
+    // too, since the original token cannot be reconstructed from basic.
+    const first = tail.startsWith("[REDACTED_SECRET]")
+      ? "[REDACTED_SECRET]"
+      : /^[^\s]+/u.exec(tail)?.[0];
+    if (!first) continue;
+    // Commas and semicolons can occur inside passphrases too; they do not
+    // establish a trusted end of an unquoted credential on the same line.
+    if (/^(?:[^\S\r\n]+|[,;][^\S\r\n]*)[^\s]/u.test(tail.slice(first.length)))
+      return true;
+  }
+  return false;
+}
+
 function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
   const basic = redactAccidentalSecretsBasic(input);
   if (depth >= MAX_EMBEDDED_JSON_DEPTH) return "[REDACTED_SECRET]";
   try {
     JSON.parse(basic);
   } catch {
+    // Inspect a complete prefixed JSON envelope before the basic scrubber's
+    // partial replacement can turn a bare scalar into a pseudo-array marker
+    // ([REDACTED_SECRET]) and hide the actual envelope. Scrub the prefix and
+    // the independently validated JSON as separate values.
+    const rawStarts = [input.indexOf("{"), input.indexOf("[")]
+      .filter((position) => position > 0)
+      .sort((left, right) => left - right);
+    for (const rawStart of rawStarts) {
+      const prefix = input.slice(0, rawStart);
+      // A bracket after a bare sensitive assignment might be part of a
+      // passphrase or the credential's object/array value. Neither has a
+      // proven boundary, even when another scalar precedes the bracket.
+      const barePrefixKeys = /\b([A-Za-z_][A-Za-z0-9_-]*)[ \t]*[:=：]/gu;
+      if (
+        [...prefix.matchAll(barePrefixKeys)].some((match) =>
+          isSensitiveDiagnosticKey(match[1]!),
+        )
+      )
+        continue;
+      const rawCandidate = input.slice(rawStart);
+      try {
+        JSON.parse(rawCandidate);
+        return (
+          redactEmbeddedDiagnosticJson(input.slice(0, rawStart), depth + 1) +
+          redactEmbeddedDiagnosticJson(rawCandidate, depth + 1)
+        );
+      } catch {
+        // A bracket in an untrusted prefix is not a JSON envelope.
+      }
+    }
     // A complete JSON envelope preceded by diagnostic prose is still safe
     // to parse independently. The prefix is retained; nested string values
     // are processed by the same bounded redactor as ordinary JSON.
@@ -588,6 +644,9 @@ function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
         // JSON credentials whose keys are hidden behind backslash quotes.
       }
     }
+    // The first bare credential token may already be masked, but a
+    // multiword secret tail remains untrusted through end-of-line.
+    if (hasAmbiguousBareCredentialTail(basic)) return "[REDACTED_SECRET]";
     // A malformed outer single-quoted field must not shield an ordinary
     // inner credential field from the redactor. Without a validated
     // envelope, retaining a guessed text suffix is unsafe.
