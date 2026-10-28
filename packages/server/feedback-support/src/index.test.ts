@@ -2431,3 +2431,111 @@ describe("B06 quoted inline default-ignorable diagnostic delimiters", () => {
     expect(sanitizeFeedbackText(raw)).toBe(raw);
   });
 });
+
+describe("B06 quoted credential Unicode delimiter after colon P1", () => {
+  const risky = [
+    [
+      "bare password with word joiner after colon",
+      'diagnostic password:\u2060"SYNTH_B06_POSTCOLON_BARE_PASSWORD"',
+      "SYNTH_B06_POSTCOLON_BARE_PASSWORD",
+    ],
+    [
+      "bare apiKey with ZWSP after equals",
+      "diagnostic apiKey=\u200B'SYNTH_B06_POSTCOLON_BARE_APIKEY'",
+      "SYNTH_B06_POSTCOLON_BARE_APIKEY",
+    ],
+    [
+      "bare token scalar with ZWJ after colon",
+      "diagnostic token:\u200D SYNTH_B06_POSTCOLON_BARE_SCALAR",
+      "SYNTH_B06_POSTCOLON_BARE_SCALAR",
+    ],
+    [
+      "bare secret key with invisible embedded and post-colon joiner",
+      'diagnostic cli\u200BentSecret:\u2060"SYNTH_B06_POSTCOLON_BARE_JOINED"',
+      "SYNTH_B06_POSTCOLON_BARE_JOINED",
+    ],
+    [
+      "word joiner after colon before double-quoted api key",
+      'diagnostic {"apiKey":\u2060"SYNTH_B06_POSTCOLON_JOINER"}',
+      "SYNTH_B06_POSTCOLON_JOINER",
+    ],
+    [
+      "zero-width space after whitespace following token colon",
+      'diagnostic {"token" : \u200B "SYNTH_B06_POSTCOLON_ZWSP"}',
+      "SYNTH_B06_POSTCOLON_ZWSP",
+    ],
+    [
+      "ZWNJ after equal sign on single quoted key",
+      "diagnostic {'password'=\u200C'SYNTH_B06_POSTCOLON_ZWNJ'}",
+      "SYNTH_B06_POSTCOLON_ZWNJ",
+    ],
+    [
+      "apostrophe in ordinary prose with ZWJ after colon",
+      "can't parse {'clientSecret':\u200D\"SYNTH_B06_POSTCOLON_ZWJ\"}",
+      "SYNTH_B06_POSTCOLON_ZWJ",
+    ],
+    [
+      "combining grapheme joiner after colon",
+      'diagnostic {"access_token":\u034F"SYNTH_B06_POSTCOLON_CGJ"}',
+      "SYNTH_B06_POSTCOLON_CGJ",
+    ],
+    [
+      "variation selector after colon",
+      'diagnostic {"password":\uFE0F"SYNTH_B06_POSTCOLON_VS"}',
+      "SYNTH_B06_POSTCOLON_VS",
+    ],
+  ] as const;
+  it.each(risky)("blocks %s at sanitizer", (_kind, raw, marker) => {
+    const result = sanitizeFeedbackText(raw);
+    expect(result).toBe("[REDACTED_SECRET]");
+    expect(result).not.toContain(marker);
+  });
+  it.each(risky)(
+    "blocks %s at all four repository fields",
+    async (_kind, raw, marker) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("P1_POSTCOLON_CAPTURE_CASE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("P1_POSTCOLON_CAPTURE_FOLLOWUP");
+        },
+      } as unknown as FeedbackRepository;
+      const svc = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        svc.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("P1_POSTCOLON_CAPTURE_CASE");
+      await expect(
+        svc.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("P1_POSTCOLON_CAPTURE_FOLLOWUP");
+      await expect(
+        svc.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+      ).rejects.toThrow("P1_POSTCOLON_CAPTURE_FOLLOWUP");
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(marker);
+    },
+  );
+  it.each([
+    'diagnostic {"requestId":\u2060"safe"}',
+    "diagnostic {'note':\u200B'normal'}",
+    "benign unicode \u2060 line one\nline two",
+    '{"note":"safe","requestId":"safe-keep"}',
+  ])("preserves harmless diagnostic metadata: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+});

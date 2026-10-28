@@ -404,9 +404,9 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
   // A match of one quote style may encompass a nested credential in the
   // other style. Never allow a broader match to consume the inner candidate.
   const doubleQuotedKey =
-    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
+    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu;
   const singleQuotedKey =
-    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
+    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu;
   const candidates = [
     ...input.matchAll(doubleQuotedKey),
     ...input.matchAll(singleQuotedKey),
@@ -416,7 +416,7 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
     // The parser also cannot trust invisible characters inserted between
     // a closing quoted credential key and its colon/equal delimiter. This
     // is malformed embedded JSON even without a physical line break.
-    const separator = match[0].slice(match[1]!.length, -1);
+    const separator = match[0].slice(match[1]!.length);
     if (
       !/[\r\n]/u.test(key) &&
       !/\p{Default_Ignorable_Code_Point}/u.test(separator)
@@ -462,10 +462,11 @@ function redactAccidentalSecretsBasic(input: string): string {
     /\ba\p{Default_Ignorable_Code_Point}*p\p{Default_Ignorable_Code_Point}*i\p{Default_Ignorable_Code_Point}*[\s\p{Default_Ignorable_Code_Point}]+k\p{Default_Ignorable_Code_Point}*e\p{Default_Ignorable_Code_Point}*y[\s\p{Default_Ignorable_Code_Point}]*[:=：]/iu;
   if (spacedBareApiKey.test(input)) return "[REDACTED_SECRET]";
 
-  // Detect Unicode default-ignorable controls in bare diagnostic keys even
-  // when their values are scalars. Preserve the rest of a user's text.
+  // Detect Unicode default-ignorable controls around bare diagnostic
+  // delimiters, including after a colon/equal before any scalar or quote.
+  // Preserve the rest of a user's text.
   const ignoredBareKey =
-    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
+    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu;
   for (const match of input.matchAll(ignoredBareKey)) {
     if (
       /\p{Default_Ignorable_Code_Point}/u.test(match[0]) &&
