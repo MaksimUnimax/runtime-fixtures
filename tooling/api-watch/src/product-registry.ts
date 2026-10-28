@@ -109,6 +109,24 @@ function findVariableInitializer(
   return result;
 }
 
+// Fixed OpenAPI method fields use canonical upper case in historical inventory
+// and registry data. Additional HTTP methods are case-sensitive wire tokens.
+const FIXED_OPERATION_METHODS = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+  "HEAD",
+  "TRACE",
+  "QUERY",
+]);
+function canonicalOperationMethod(method: string): string {
+  const upper = method.toUpperCase();
+  return FIXED_OPERATION_METHODS.has(upper) ? upper : method;
+}
+
 function normalizePath(value: string): string {
   // Match inventory.ts: empty segments and the final slash are part of the
   // literal API path. Collapsing either can overwrite a distinct operation
@@ -121,7 +139,9 @@ function entryFromObject(
   object: Record<string, unknown>,
 ): ProductRegistryEntry | undefined {
   const method =
-    typeof object.method === "string" ? object.method.toUpperCase() : undefined;
+    typeof object.method === "string"
+      ? canonicalOperationMethod(object.method)
+      : undefined;
   const pathValue = typeof object.path === "string" ? object.path : undefined;
   if (!method || !pathValue) return undefined;
   const runtimeAlias =
@@ -255,7 +275,7 @@ function parseWildberriesRetirements(source: string) {
       throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
     return {
       alias: properties.alias,
-      method: properties.method.toUpperCase(),
+      method: canonicalOperationMethod(properties.method),
       normalizedPath: normalizePath(properties.path),
     };
   });
@@ -506,7 +526,7 @@ export function productIdentity(
     "sourceFamily" | "method" | "normalizedPath"
   >,
 ): string {
-  return `${entry.sourceFamily}:${entry.method.toUpperCase()}:${normalizePath(entry.normalizedPath)}`;
+  return `${entry.sourceFamily}:${canonicalOperationMethod(entry.method)}:${normalizePath(entry.normalizedPath)}`;
 }
 
 // Registry paths describe runtime arguments; WB source_path retains the vendor's
@@ -559,7 +579,7 @@ export function inventoryIdentity(item: {
   method: string;
   path: string;
 }): string {
-  return `${item.sourceFamily}:${item.method.toUpperCase()}:${normalizePath(item.path)}`;
+  return `${item.sourceFamily}:${canonicalOperationMethod(item.method)}:${normalizePath(item.path)}`;
 }
 
 export type ProductCrosswalkResult = {
