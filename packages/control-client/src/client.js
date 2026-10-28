@@ -565,11 +565,11 @@
     }
     if (requestOptions.body !== undefined) { headers.set("Content-Type", "application/json"); requestOptions.body = JSON.stringify(requestOptions.body); }
     const callerSignal = requestOptions.signal, controller = new AbortController();
-    let timer = null, rejectInterrupted, resolveInterrupted;
+    let timer = null, rejectInterrupted, resolveInterrupted, observedHttpDenial = null;
     const interrupted = callerSignal ? new Promise((resolve, reject) => { resolveInterrupted = resolve; rejectInterrupted = reject; }) : null;
     const abortFromCaller = () => {
       i1BootstrapRequestDiagnostic("CALLER_SIGNAL_ABORT", diagnosticContext, {caller_aborted:callerSignal.aborted}, {callerSignal});
-      rejectInterrupted(error("CONTROL_REQUEST_ABORTED"));
+      rejectInterrupted(observedHttpDenial || error("CONTROL_REQUEST_ABORTED"));
       i1BootstrapRequestDiagnostic("WRAPPER_ABORT_CALLER", diagnosticContext, {wrapper_aborted:controller.signal.aborted}, {wrapperSignal:controller.signal});
       controller.abort();
     };
@@ -580,18 +580,35 @@
     requestOptions.signal = controller.signal;
     requestOptions.headers = headers;
     let requestReturned = false;
+    const observe = typeof observeSettlement === "function" ? (outcome, settled = true) => {
+      if (settled) i1BootstrapRequestDiagnostic("OPERATION_SETTLED", diagnosticContext, {fulfilled:Object.hasOwn(outcome,"value")});
+      // The denial was already forwarded at headers, including its lease's
+      // late-outcome record. Do not start a second denial commit when abort
+      // later rejects the body while the normal consumer handles that status.
+      if (settled && observedHttpDenial) return Promise.resolve();
+      return Promise.resolve(observeSettlement({ ...outcome, late: requestReturned })).catch(quarantineBootstrap);
+    } : null;
     const operation = (async () => {
       let response;
       i1BootstrapRequestDiagnostic("FETCH_DISPATCH", diagnosticContext, {caller_aborted:callerSignal?.aborted===true,wrapper_aborted:controller.signal.aborted}, {callerSignal,wrapperSignal:controller.signal});
       try { response = await fetch(endpoint, requestOptions); }
       catch (_) { i1BootstrapRequestDiagnostic("FETCH_REJECTED", diagnosticContext); const failure = error("CONTROL_TRANSPORT_UNAVAILABLE"); transportProvenance.set(failure, endpoint); throw failure; }
       i1BootstrapRequestDiagnostic("RESPONSE_HEADERS", diagnosticContext, {http_status:response.status}, {response});
+      if (response.status === 401 || response.status === 403) {
+        // Status is already known even if the body never settles. Retain this
+        // HTTP fact for interruption and late-denial handling; it is not an
+        // audited 503 or a transport failure eligible for signed cache.
+        observedHttpDenial = error(`CONTROL_HTTP_${response.status}`);
+        observedHttpDenial.status = response.status;
+        httpErrorProvenance.set(observedHttpDenial, endpoint);
+        if (observe) void observe({ error: observedHttpDenial }, false);
+      }
       let body = null, bodyFailure = false, text;
       try {
         text = await readLimitedBody(response, undefined, diagnosticContext);
       } catch (cause) {
         bodyFailure = true;
-        if (cause?.code === "CONTROL_RESPONSE_TOO_LARGE") { cause.status = response.status; cause.responseOk = response.ok; cause.retryAfterMs = parseRetryAfter(response); cause.body = null; throw cause; }
+        if (cause?.code === "CONTROL_RESPONSE_TOO_LARGE") { cause.status = response.status; cause.responseOk = response.ok; cause.retryAfterMs = parseRetryAfter(response); cause.body = null; if (observedHttpDenial) httpErrorProvenance.set(cause, endpoint); throw cause; }
         // A successful status does not make an interrupted body a received
         // envelope. Register only our own bounded transport error; never copy
         // status/code/detail from the reader's arbitrary exception. Actual
@@ -606,14 +623,10 @@
       // Completed empty or malformed JSON is not a transport failure. The
       // signed verifier still rejects it instead of falling back to cache.
       if (!bodyFailure) { try { body = text ? JSON.parse(text) : null; } catch (_) { bodyFailure = true; } }
-      if (!response.ok) { const failure = error(body?.error?.code || `CONTROL_HTTP_${response.status}`); failure.status = response.status; failure.retryAfterMs = parseRetryAfter(response); failure.body = body; if (!bodyFailure) httpErrorProvenance.set(failure, endpoint); throw failure; }
+      if (!response.ok) { const failure = error(body?.error?.code || `CONTROL_HTTP_${response.status}`); failure.status = response.status; failure.retryAfterMs = parseRetryAfter(response); failure.body = body; if (!bodyFailure || observedHttpDenial) httpErrorProvenance.set(failure, endpoint); throw failure; }
       return { body, response };
     })();
-    if (typeof observeSettlement === "function") {
-      const observe = outcome => {
-        i1BootstrapRequestDiagnostic("OPERATION_SETTLED", diagnosticContext, {fulfilled:Object.hasOwn(outcome,"value")});
-        return Promise.resolve(observeSettlement({ ...outcome, late: requestReturned })).catch(quarantineBootstrap);
-      };
+    if (observe) {
       void operation.then(value => observe({ value }), error => observe({ error }));
     }
     try {
@@ -621,14 +634,21 @@
         i1BootstrapRequestDiagnostic("REQUEST_TIMER_ARM", diagnosticContext, {configured_timeout_ms:CONTROL_REQUEST_DEADLINE_MS,timer_kind:"REQUEST"});
         timer = setTimeout(() => {
           i1BootstrapRequestDiagnostic("REQUEST_TIMER_FIRE", diagnosticContext, {timer_kind:"REQUEST"});
-          const failure = error("CONTROL_REQUEST_TIMEOUT");
-          transportProvenance.set(failure, endpoint);
+          const failure = observedHttpDenial || error("CONTROL_REQUEST_TIMEOUT");
+          if (!observedHttpDenial) transportProvenance.set(failure, endpoint);
           reject(failure);
           i1BootstrapRequestDiagnostic("WRAPPER_ABORT_TIMER", diagnosticContext, {wrapper_aborted:controller.signal.aborted}, {wrapperSignal:controller.signal});
           controller.abort();
         }, CONTROL_REQUEST_DEADLINE_MS);
       });
       return await Promise.race(interrupted ? [operation, deadline, interrupted] : [operation, deadline]);
+    } catch (failure) {
+      // Fetch may deliver denial headers in the microtask between the timer's
+      // rejection/abort and this continuation. Recheck the observed status
+      // before returning a transport failure to an offline-cache consumer.
+      if (observedHttpDenial && (transportProvenance.get(failure) === endpoint ||
+          failure.code === "CONTROL_REQUEST_ABORTED")) throw observedHttpDenial;
+      throw failure;
     } finally {
       requestReturned = true;
       if (timer !== null) {

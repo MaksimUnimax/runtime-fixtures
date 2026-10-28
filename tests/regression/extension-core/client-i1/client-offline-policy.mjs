@@ -120,6 +120,7 @@ async function prepared(options = {}) {
     sessionId: options.sessionId,
     userAgent: options.userAgent,
     packagedConfig,
+    timerScale: options.timerScale,
     fetch: options.fetch || (async url => { throw new Error("unexpected control request " + url); }),
     onStorageWrite: options.onStorageWrite,
     onStorageRemove: options.onStorageRemove,
@@ -250,6 +251,74 @@ for (const [label, factory] of [
     assert.equal(fixture.backing.local[AUTH]?.authority ?? null, null, `${label} cannot reuse cache`);
     assert.ok((fixture.backing.local[AUTH]?.generation ?? before + 1) > before);
   } finally { fixture.worker.close(); }
+}
+
+// Headers are already authoritative when a denial body stalls. A deadline
+// may bound the read; it must not turn the observed denial into offline allow.
+for (const status of [401, 403]) for (const settleOnAbort of [true, false]) {
+  await namedCase(`HTTP${status}-body-timeout-${settleOnAbort ? "rejects" : "ignores"}-abort`, async () => {
+    let releaseRead;
+    const fixture = await prepared({ timerScale: 0.001, fetch: async (url, init) => {
+      if (url.endsWith("/v1/auth/refresh")) throw new TypeError("fixture refresh unavailable");
+      assert.ok(url.endsWith("/v1/bootstrap"));
+      return { ok: false, status, headers: new Headers(), body: { getReader: () => ({
+        read: () => new Promise((resolve, reject) => {
+          releaseRead = () => resolve({ done: true });
+          if (settleOnAbort) init.signal.addEventListener("abort", () => reject(new Error("fixture aborted body")), { once: true });
+        }), cancel: async () => {},
+      }) } };
+    } });
+    try {
+      const before = fixture.backing.local[AUTH].generation;
+      await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), { status });
+      assert.equal(fixture.backing.local[AUTH]?.authority ?? null, null, "known denial cannot use cache");
+      assert.ok((fixture.backing.local[AUTH]?.generation ?? before + 1) > before);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1, "denial body never replays bootstrap POST");
+    } finally { releaseRead?.(); fixture.worker.close(); }
+  });
+}
+for (const status of [401, 403]) {
+  await namedCase(`HTTP${status}-headers-delivered-by-timeout-abort`, async () => {
+    let releaseRead;
+    const fixture = await prepared({ timerScale: 0.001, fetch: async (url, init) => {
+      if (url.endsWith("/v1/auth/refresh")) throw new TypeError("fixture refresh unavailable");
+      assert.ok(url.endsWith("/v1/bootstrap"));
+      return await new Promise(resolve => init.signal.addEventListener("abort", () => resolve({
+        ok: false, status, headers: new Headers(), body: { getReader: () => ({
+          read: () => new Promise(done => { releaseRead = () => done({ done: true }); }),
+          cancel: async () => {},
+        }) },
+      }), { once: true }));
+    } });
+    try {
+      await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }));
+      assert.equal(fixture.backing.local[AUTH]?.authority ?? null, null);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1);
+    } finally { releaseRead?.(); fixture.worker.close(); }
+  });
+  await namedCase(`HTTP${status}-late-headers-with-unsettled-body`, async () => {
+    let reply, releaseRead;
+    const fixture = await prepared({ timerScale: 0.001, fetch: url => {
+      assert.ok(url.endsWith("/v1/bootstrap"));
+      return new Promise(resolve => { reply = () => resolve({
+        ok: false, status, headers: new Headers(), body: { getReader: () => ({
+          read: () => new Promise(done => { releaseRead = () => done({ done: true }); }),
+          cancel: async () => {},
+        }) },
+      }); });
+    } });
+    try {
+      const cached = await policy(fixture.worker, { detectedAi: CHATGPT });
+      assert.equal(cached.source, "CACHE", "before headers the genuine transport deadline may use signed cache");
+      reply();
+      await until(() => (fixture.backing.local[AUTH]?.authority ?? null) === null,
+                  "late denial headers invalidate authority without awaiting body");
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1);
+    } finally { releaseRead?.(); fixture.worker.close(); }
+  });
 }
 
 // Exact expiry boundaries use the real signed envelope and the production

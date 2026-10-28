@@ -850,6 +850,94 @@ class BootstrapTraceObserverTest(unittest.TestCase):
         self.assertTrue(result["context_closed"])
         self.assertEqual(len(result["events"]), 3)
 
+    def test_terminal_headers_survive_timeout_caller_abort_and_late_body(self):
+        import subprocess
+        program = r"""
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source = fs.readFileSync(process.argv[1]+'/packages/control-client/src/client.js','utf8');
+const requestSource = source.slice(source.indexOf('  function parseRetryAfter('), source.indexOf('  async function scheduleMetadataForget('));
+function fixture(status, late, rejectBody) {
+  const timers = new Map(), observations = [];
+  let releaseHeaders, releaseBody, entered, fetches = 0, serial = 0;
+  const reading = new Promise(r => entered = r);
+  const realm = { AbortController, Headers, URL, TextDecoder, Uint8Array,
+    consentApi:null, state:{}, now:()=>0, url:p=>'http://127.0.0.1:43100'+p,
+    error:code=>Object.assign(new Error(code),{code}),
+    transportProvenance:new WeakMap(), httpErrorProvenance:new WeakMap(),
+    CONTROL_REQUEST_DEADLINE_MS:30000, i1BootstrapRequestDiagnostic:()=>{},
+    quarantineBootstrap:e=>{throw e;},
+    setTimeout:(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;},
+    clearTimeout:id=>timers.delete(id),
+    fetch:(_url, {signal})=>{
+      fetches++;
+      const response = {ok:false,status,headers:new Headers(),body:{getReader:()=>({
+        read:()=>new Promise((resolve,reject)=>{
+          releaseBody=()=>resolve({done:true}); entered();
+          if(rejectBody) signal.addEventListener('abort',()=>reject(new Error('PRIVATE_BODY_FAILURE')),{once:true});
+        }), cancel:async()=>{},
+      })}};
+      return late ? new Promise(resolve=>{
+        releaseHeaders=()=>resolve(response);
+        if(late==='abort') signal.addEventListener('abort',releaseHeaders,{once:true});
+      }) : Promise.resolve(response);
+    },
+  };
+  vm.createContext(realm); vm.runInContext(requestSource,realm);
+  const caller = new AbortController();
+  const outcome = realm.request('/v1/bootstrap', {signal:caller.signal,
+    observeSettlement:value=>observations.push(value)}).then(value=>({value}),error=>({error}));
+  return {realm,timers,observations,caller,outcome,reading,
+    headers:()=>releaseHeaders(),body:()=>releaseBody(),get fetches(){return fetches;}};
+}
+let cases=0;
+for (const status of [401,403]) for (const interrupt of ['timeout','caller']) {
+  for (const rejects of [true,false]) {
+    const f=fixture(status,false,rejects); await f.reading;
+    if(interrupt==='timeout') [...f.timers.values()].find(t=>t.ms===30000).fn();
+    else f.caller.abort();
+    const {error}=await f.outcome;
+    assert.equal(error.status,status);assert.equal(error.code,'CONTROL_HTTP_'+status);
+    assert.equal(f.realm.httpErrorProvenance.get(error),'http://127.0.0.1:43100/v1/bootstrap');
+    assert.equal(f.realm.transportProvenance.has(error),false);
+    assert.equal(f.fetches,1);assert.equal(f.timers.size,0);
+    f.body(); cases++;
+  }
+  const f=fixture(status,true,false);
+  if(interrupt==='timeout') [...f.timers.values()].find(t=>t.ms===30000).fn();
+  else f.caller.abort();
+  const {error}=await f.outcome;
+  assert.equal(error.code,interrupt==='timeout'?'CONTROL_REQUEST_TIMEOUT':'CONTROL_REQUEST_ABORTED');
+  assert.equal(f.observations.length,0);
+  f.headers(); await f.reading;
+  const denial=f.observations.find(v=>v.error?.status===status);
+  assert(denial,'late headers must reach observer before body settles');
+  assert.equal(denial.late,true);
+  assert.equal(f.realm.httpErrorProvenance.get(denial.error),'http://127.0.0.1:43100/v1/bootstrap');
+  assert.equal(f.realm.transportProvenance.has(denial.error),false);
+  assert.equal(f.fetches,1);assert.equal(f.timers.size,0);f.body();cases++;
+  const race=fixture(status,'abort',false);
+  if(interrupt==='timeout') [...race.timers.values()].find(t=>t.ms===30000).fn();
+  else race.caller.abort();
+  const raced=await race.outcome;
+  // Cross-realm promise delivery may precede or follow request's return. The
+  // former returns HTTP; the latter must publish the late denial immediately.
+  if(raced.error.status===status) assert.equal(race.realm.transportProvenance.has(raced.error),false);
+  else {
+    assert.equal(raced.error.code,interrupt==='timeout'?'CONTROL_REQUEST_TIMEOUT':'CONTROL_REQUEST_ABORTED');
+    assert(race.observations.some(v=>v.late===true && v.error?.status===status));
+  }
+  assert.equal(race.fetches,1);assert.equal(race.timers.size,0);race.body();cases++;
+}
+console.log(JSON.stringify({status:'PASS',actualRequestCases:cases}));
+"""
+        completed = subprocess.run(
+            [module.NODE, "--input-type=module", "-e", program, str(module.ROOT)],
+            text=True, capture_output=True, timeout=20,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+
     def test_real_request_and_scheduler_hooks_with_bounded_sink(self):
         import json, subprocess
         program = r"""
