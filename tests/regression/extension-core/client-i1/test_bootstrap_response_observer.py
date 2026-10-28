@@ -916,8 +916,13 @@ for (const mode of ["on","off","throw","production"]) {
   assert.equal(f.cancels,1);assert(f.rows().some(x=>x.event==="BODY_LIMIT_CANCEL"&&x.total_bytes>1048576));
 }
 {
-  const f=fixture("read_failure"), value=await f.realm.call();
-  assert.equal(value.body,null);assert.equal(f.cancels,0);
+  const f=fixture("read_failure");
+  await assert.rejects(f.realm.call(),e=>e.code==="CONTROL_TRANSPORT_UNAVAILABLE" &&
+    e.status===200 && e.responseOk===true &&
+    f.realm.transportProvenance.get(e)==="http://127.0.0.1:43100/v1/bootstrap" &&
+    !String(e).includes("PRIVATE_READ_DETAIL"));
+  assert.equal(f.cancels,0);
+  assert.equal(f.timers.size,0);assert.equal(f.signal.aborted,false);
   assert(f.rows().some(x=>x.event==="BODY_READ_REJECTED"));
 }
 {

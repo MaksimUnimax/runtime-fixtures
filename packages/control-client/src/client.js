@@ -586,14 +586,26 @@
       try { response = await fetch(endpoint, requestOptions); }
       catch (_) { i1BootstrapRequestDiagnostic("FETCH_REJECTED", diagnosticContext); const failure = error("CONTROL_TRANSPORT_UNAVAILABLE"); transportProvenance.set(failure, endpoint); throw failure; }
       i1BootstrapRequestDiagnostic("RESPONSE_HEADERS", diagnosticContext, {http_status:response.status}, {response});
-      let body = null, bodyFailure = false;
+      let body = null, bodyFailure = false, text;
       try {
-        const text = await readLimitedBody(response, undefined, diagnosticContext); body = text ? JSON.parse(text) : null;
-      } catch (failure) {
+        text = await readLimitedBody(response, undefined, diagnosticContext);
+      } catch (cause) {
         bodyFailure = true;
-        if (failure?.code === "CONTROL_RESPONSE_TOO_LARGE") { failure.status = response.status; failure.responseOk = response.ok; failure.retryAfterMs = parseRetryAfter(response); failure.body = null; }
-        if (failure?.code === "CONTROL_RESPONSE_TOO_LARGE") throw failure;
+        if (cause?.code === "CONTROL_RESPONSE_TOO_LARGE") { cause.status = response.status; cause.responseOk = response.ok; cause.retryAfterMs = parseRetryAfter(response); cause.body = null; throw cause; }
+        // A successful status does not make an interrupted body a received
+        // envelope. Register only our own bounded transport error; never copy
+        // status/code/detail from the reader's arbitrary exception. Actual
+        // HTTP denials below retain their status and cannot acquire cache.
+        if (response.ok) {
+          const failure = error("CONTROL_TRANSPORT_UNAVAILABLE");
+          failure.status = response.status; failure.responseOk = true;
+          transportProvenance.set(failure, endpoint);
+          throw failure;
+        }
       }
+      // Completed empty or malformed JSON is not a transport failure. The
+      // signed verifier still rejects it instead of falling back to cache.
+      if (!bodyFailure) { try { body = text ? JSON.parse(text) : null; } catch (_) { bodyFailure = true; } }
       if (!response.ok) { const failure = error(body?.error?.code || `CONTROL_HTTP_${response.status}`); failure.status = response.status; failure.retryAfterMs = parseRetryAfter(response); failure.body = body; if (!bodyFailure) httpErrorProvenance.set(failure, endpoint); throw failure; }
       return { body, response };
     })();

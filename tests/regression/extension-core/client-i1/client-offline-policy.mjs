@@ -149,12 +149,16 @@ async function assertTransportCase(kind, responseFactory, expectedFreshness = "S
   } });
   try {
     const before = structuredClone(fixture.backing.local[AUTH].authority);
+    const generation = fixture.backing.local[AUTH].generation;
+    const accessEpoch = fixture.backing.local[AUTH].accessEpoch;
     const result = await policy(fixture.worker, { detectedAi: CHATGPT });
     assert.equal(result.source, "CACHE", kind);
     assert.equal(result.freshness, expectedFreshness, kind);
     assert.equal(canonical(result.payload), canonical(before.payload), `${kind} preserves payload`);
     assert.equal(canonical(fixture.backing.local[AUTH].authority.envelope), canonical(before.envelope), `${kind} preserves signed envelope`);
     assert.equal(fixture.worker.controlNetwork.filter(row => row.url.endsWith("/v1/bootstrap")).length, 1, `${kind} observed online failure`);
+    assert.equal(fixture.backing.local[AUTH].generation, generation, `${kind} retains generation`);
+    assert.equal(fixture.backing.local[AUTH].accessEpoch, accessEpoch, `${kind} retains access epoch`);
   } finally { fixture.worker.close(); }
 }
 
@@ -195,15 +199,57 @@ for (const [label, responseFactory] of [
   finally { fixture.worker.close(); }
 }
 
-// A body-read failure after Response is not transport and therefore cannot
-// acquire cache. The verifier sees a missing body and rejects the bootstrap.
-{
-  const fixture = await prepared({ fetch: async url => {
-    assert.ok(url.endsWith("/v1/bootstrap"));
-    return new Response(new ReadableStream({ start(controller) { controller.error(new Error("body read failure")); } }), { status: 200 });
-  } });
-  try { await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /BOOTSTRAP_/); }
-  finally { fixture.worker.close(); }
+// An incomplete successful HTTP response is transport uncertainty, never a
+// successfully received null envelope. No arbitrary fields from its cause may
+// become an HTTP/auth error or audited 503 provenance.
+function failedBody(kind, status = 200) {
+  const failure = Object.assign(new Error("PRIVATE_BODY_READ_DETAIL"), {
+    code: "BOOTSTRAP_UNAVAILABLE", status: 401,
+  });
+  if (kind === "text") return {
+    ok: status >= 200 && status < 300, status, headers: new Headers(),
+    text: async () => { throw failure; },
+  };
+  let reads = 0;
+  return new Response(new ReadableStream({ pull(controller) {
+    if (kind === "partial" && reads++ === 0)
+      controller.enqueue(new TextEncoder().encode('{"incomplete":'));
+    else controller.error(failure);
+  } }), { status });
+}
+for (const kind of ["stream", "partial", "text"]) {
+  await assertTransportCase(`HTTP200 ${kind} read failure`, () => failedBody(kind));
+  await assertTransportCase(`fresh HTTP200 ${kind} read failure`, () => failedBody(kind), "FRESH", {
+    expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    offlineGraceUntil: new Date(Date.now() + 7200000).toISOString(),
+  });
+  const fixture = await prepared({ fetch: async () => failedBody(kind) });
+  try {
+    const before = clone(fixture.backing.local[AUTH]);
+    const failure = await exactFailure(() => fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }),
+      { code: "CONTROL_TRANSPORT_UNAVAILABLE", status: 200, responseOk: true }, `${kind} raw bootstrap`);
+    assert.ok(!String(failure).includes("PRIVATE_BODY_READ_DETAIL"));
+    assert.equal(fixture.backing.local[AUTH].generation, before.generation);
+    assert.equal(fixture.backing.local[AUTH].accessEpoch, before.accessEpoch);
+    assert.equal(canonical(fixture.backing.local[AUTH].authority.envelope), canonical(before.authority.envelope));
+    assert.equal(paths(fixture.worker).filter(p => p === "/v1/bootstrap").length, 1, "read failure does not retry the POST");
+  } finally { fixture.worker.close(); }
+}
+// Completed empty/invalid JSON and actual HTTP denials remain ineligible.
+for (const [label, factory] of [
+  ["empty 200", () => new Response("", { status: 200 })],
+  ["invalid JSON 200", () => new Response("{broken", { status: 200 })],
+  ["401 read failure", () => failedBody("stream", 401)],
+  ["403 read failure", () => failedBody("text", 403)],
+]) {
+  const fixture = await prepared({ fetch: async () => factory() });
+  try {
+    const before = fixture.backing.local[AUTH].generation;
+    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }),
+      e => /^(BOOTSTRAP_|CONTROL_HTTP_401|CONTROL_HTTP_403)/.test(e.code), label);
+    assert.equal(fixture.backing.local[AUTH]?.authority ?? null, null, `${label} cannot reuse cache`);
+    assert.ok((fixture.backing.local[AUTH]?.generation ?? before + 1) > before);
+  } finally { fixture.worker.close(); }
 }
 
 // Exact expiry boundaries use the real signed envelope and the production
