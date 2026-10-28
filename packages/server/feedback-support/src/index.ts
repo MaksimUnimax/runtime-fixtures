@@ -386,6 +386,15 @@ function redactMultilineQuotedSecrets(input: string): string {
 }
 
 function redactAccidentalSecretsBasic(input: string): string {
+  // A bare credential key followed by an object/array has no trustworthy
+  // token boundary. The fallback regex would mask only the opening bracket
+  // and persist the nested secret. Discard that diagnostic in full.
+  const bareStructuredCredential =
+    /\b([A-Za-z_][A-Za-z0-9_-]*)\s*[:=]\s*[\[{]/gu;
+  for (const match of input.matchAll(bareStructuredCredential)) {
+    if (sensitiveJsonKey.test(match[1]!)) return "[REDACTED_SECRET]";
+  }
+
   const stringsRedacted = redactMultilineQuotedSecrets(input).replace(
     quotedStringField,
     (field, encodedKey: string, _keyQuote: string, delimiter: string) =>

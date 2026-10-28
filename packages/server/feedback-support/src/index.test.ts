@@ -35,6 +35,52 @@ describe("B2 feedback/support safety foundation", () => {
   });
 
   it.each([
+    [
+      "bare object",
+      'diagnostic password: { credential: "SYNTHETIC_B06_PRIVATE_OBJECT_01", note: "visible" }',
+      "SYNTHETIC_B06_PRIVATE_OBJECT_01",
+    ],
+    [
+      "bare array",
+      'diagnostic token = [ "SYNTHETIC_B06_PRIVATE_ARRAY_02", "visible" ]',
+      "SYNTHETIC_B06_PRIVATE_ARRAY_02",
+    ],
+    [
+      "nested object",
+      'diagnostic password: { nested: { value: "SYNTHETIC_B06_PRIVATE_NESTED_03" } }',
+      "SYNTHETIC_B06_PRIVATE_NESTED_03",
+    ],
+    [
+      "multiline object",
+      'diagnostic clientSecret: {\n  credential: "SYNTHETIC_B06_PRIVATE_MULTILINE_04"\n}',
+      "SYNTHETIC_B06_PRIVATE_MULTILINE_04",
+    ],
+    [
+      "embedded JSON string",
+      '{"message":"diagnostic password: { credential: \\"SYNTHETIC_B06_PRIVATE_EMBEDDED_05\\" }","requestId":"safe-id-05"}',
+      "SYNTHETIC_B06_PRIVATE_EMBEDDED_05",
+    ],
+  ])(
+    "fails closed on bare object/array credential diagnostics: %s",
+    (_kind, input, canary) => {
+      const redacted = sanitizeFeedbackText(input);
+      expect(redacted).toBe("[REDACTED_SECRET]");
+      expect(redacted).not.toContain(canary);
+    },
+  );
+
+  it("does not discard nonsensitive bare structures or valid quoted JSON siblings", () => {
+    const safe = 'diagnostic labels: { mode: "normal", values: ["one"] }';
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+    const valid =
+      '{"password":{"credential":"SYNTHETIC_B06_QUOTED_PRIVATE_06"},"requestId":"safe-06"}';
+    expect(JSON.parse(sanitizeFeedbackText(valid))).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-06",
+    });
+  });
+
+  it.each([
     "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature-value",
     "cookie: session=secret-value",
     "-----BEGIN PRIVATE KEY-----secret-----END PRIVATE KEY-----",
