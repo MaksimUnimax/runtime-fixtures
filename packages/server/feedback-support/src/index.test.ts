@@ -3074,3 +3074,97 @@ describe("B06 private/secret key credential aliases", () => {
     expect(out.public_key).toBe("synthetic-nonsecret-public-key");
   });
 });
+
+describe("B06 U+FF1D fullwidth equals credential delimiter", () => {
+  const fake = "B06_FAKE_FULLWIDTH_EQUALS_ONLY_" + "Q".repeat(24);
+  const cases = [
+    ["quoted private_key", '"private_key"＝"' + fake + '"'],
+    ["quoted access_token", '"access_token"＝"' + fake + '"'],
+    ["bare private_key", "private_key＝" + fake],
+    ["bare secret_key", "secret_key＝" + fake],
+    ["bare password", "password＝" + fake],
+    ["bare api_key", "api_key＝" + fake],
+    ["spaced private key", "private key＝" + fake],
+    ["spaced api key", "api key＝" + fake],
+    ["invisible joiner", "pri\u200Dvate_key＝" + fake],
+    ["pseudo-JSON nested", 'diagnostic {"private_key"＝"' + fake + '"}'],
+    [
+      "embedded JSON string",
+      JSON.stringify({ message: "private_key＝" + fake, trace: "safe" }),
+    ],
+    ["single quoted secret key", "'secret_key'＝'" + fake + "'"],
+  ] as const;
+
+  it.each(cases)("redacts %s before persistence", (_name, raw) => {
+    expect(sanitizeFeedbackText(raw)).not.toContain(fake);
+    expect(redactAccidentalSecrets(raw)).not.toContain(fake);
+  });
+
+  it.each(cases)(
+    "never forwards %s into any of the four feedback repository fields",
+    async (_name, raw) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("FULLWIDTH_EQUALS_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("FULLWIDTH_EQUALS_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("FULLWIDTH_EQUALS_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("FULLWIDTH_EQUALS_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("FULLWIDTH_EQUALS_FOLLOWUP_CAPTURE");
+      expect(forwarded).toHaveLength(4);
+      expect(forwarded.every((value) => !value.includes(fake))).toBe(true);
+    },
+  );
+
+  it("retains ordinary Unicode text and public-key metadata", () => {
+    const benign = JSON.stringify({
+      public_key: fake,
+      private_key_id: fake,
+      trace: "synthetic-safe-trace",
+    });
+    expect(sanitizeFeedbackText(benign)).toBe(benign);
+    expect(sanitizeFeedbackText("ordinary note: a＝b")).toBe(
+      "ordinary note: a＝b",
+    );
+    expect(sanitizeFeedbackText("X-Trace: safe")).toBe("X-Trace: safe");
+  });
+
+  it("preserves the 4000-character contract and existing delimiter protection", () => {
+    const prefix = "private_key＝" + fake;
+    const raw = prefix + "x".repeat(4000 - prefix.length);
+    expect(raw).toHaveLength(4000);
+    expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+    for (const separator of ["=", "："] as const)
+      expect(
+        sanitizeFeedbackText("private_key" + separator + fake),
+      ).not.toContain(fake);
+  });
+});

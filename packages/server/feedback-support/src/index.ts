@@ -404,9 +404,9 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
   // A match of one quote style may encompass a nested credential in the
   // other style. Never allow a broader match to consume the inner candidate.
   const doubleQuotedKey =
-    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=：][\s\p{Default_Ignorable_Code_Point}]*/gu;
+    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=：＝][\s\p{Default_Ignorable_Code_Point}]*/gu;
   const singleQuotedKey =
-    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=：][\s\p{Default_Ignorable_Code_Point}]*/gu;
+    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=：＝][\s\p{Default_Ignorable_Code_Point}]*/gu;
   const candidates = [
     ...input.matchAll(doubleQuotedKey),
     ...input.matchAll(singleQuotedKey),
@@ -424,7 +424,8 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
       !/[\r\n]/u.test(key) &&
       !/\p{Default_Ignorable_Code_Point}/u.test(separator) &&
       !separator.includes("=") &&
-      !separator.includes("：")
+      !separator.includes("：") &&
+      !separator.includes("＝")
     )
       continue;
     // Decode spelling escapes only for classification of a malformed key.
@@ -464,23 +465,24 @@ function redactAccidentalSecretsBasic(input: string): string {
   // A free-text "api key:" may precede a structured or multiline secret.
   // Its value boundary is not trustworthy: discard the diagnostic in full.
   const spacedBareApiKey =
-    /\ba\p{Default_Ignorable_Code_Point}*p\p{Default_Ignorable_Code_Point}*i\p{Default_Ignorable_Code_Point}*[\s\p{Default_Ignorable_Code_Point}]+k\p{Default_Ignorable_Code_Point}*e\p{Default_Ignorable_Code_Point}*y[\s\p{Default_Ignorable_Code_Point}]*[:=：]/iu;
+    /\ba\p{Default_Ignorable_Code_Point}*p\p{Default_Ignorable_Code_Point}*i\p{Default_Ignorable_Code_Point}*[\s\p{Default_Ignorable_Code_Point}]+k\p{Default_Ignorable_Code_Point}*e\p{Default_Ignorable_Code_Point}*y[\s\p{Default_Ignorable_Code_Point}]*[:=：＝]/iu;
   if (spacedBareApiKey.test(input)) return "[REDACTED_SECRET]";
   // A bare private/secret key assignment lacks a trustworthy value boundary.
   // It may carry raw or encoded key material without PEM framing; fail closed.
   const barePrivateOrSecretKey =
-    /\b(?:private|secret)[_\s\p{Default_Ignorable_Code_Point}-]*key[\s\p{Default_Ignorable_Code_Point}]*[:=：]/iu;
+    /\b(?:private|secret)[_\s\p{Default_Ignorable_Code_Point}-]*key[\s\p{Default_Ignorable_Code_Point}]*[:=：＝]/iu;
   if (barePrivateOrSecretKey.test(input)) return "[REDACTED_SECRET]";
 
   // Detect fullwidth colon and Unicode default-ignorable controls around
   // sensitive bare keys. Neither delimiter has a provable secret boundary;
   // leave benign keys and unrelated Unicode text unchanged.
   const ignoredBareKey =
-    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=：][\s\p{Default_Ignorable_Code_Point}]*/gu;
+    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=：＝][\s\p{Default_Ignorable_Code_Point}]*/gu;
   for (const match of input.matchAll(ignoredBareKey)) {
     if (
       (/\p{Default_Ignorable_Code_Point}/u.test(match[0]) ||
-        match[0].includes("：")) &&
+        match[0].includes("：") ||
+        match[0].includes("＝")) &&
       isSensitiveDiagnosticKey(match[1]!)
     )
       return "[REDACTED_SECRET]";
@@ -609,7 +611,7 @@ function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
       // A bracket after a bare sensitive assignment might be part of a
       // passphrase or the credential's object/array value. Neither has a
       // proven boundary, even when another scalar precedes the bracket.
-      const barePrefixKeys = /\b([A-Za-z_][A-Za-z0-9_-]*)[ \t]*[:=：]/gu;
+      const barePrefixKeys = /\b([A-Za-z_][A-Za-z0-9_-]*)[ \t]*[:=：＝]/gu;
       if (
         [...prefix.matchAll(barePrefixKeys)].some((match) =>
           isSensitiveDiagnosticKey(match[1]!),
