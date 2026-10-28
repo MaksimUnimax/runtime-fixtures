@@ -1100,6 +1100,35 @@ try {
     );
     assert.equal(result.delivery_status, "BYTES_RECEIVED_NOT_DELIVERED");
   });
+  await test("WB-14a-bidi-controlled-original-name-falls-back-without-changing-bytes", async () => {
+    const originalBytes = new Uint8Array([0, 255, 17]);
+    const cases = [
+      ["bidi-rlo", 'attachment; filename="report-\u202Egnp.exe"', null],
+      ["bidi-lri", "attachment; filename*=UTF-8''report-%E2%81%A6pdf.exe", null],
+      ["bidi-alm", 'attachment; filename="contract-\u061Creport.txt"', null],
+      ["bidi-rlm", 'attachment; filename="contract-\u200Freport.txt"', null],
+      ["utf8-cyrillic", "attachment; filename*=UTF-8''%D0%9E%D1%82%D1%87%D0%B5%D1%82.zip", "Отчет.zip"],
+    ];
+    for (const [label, disposition, expectedName] of cases) {
+      const s = await setup(
+        command("analytics_report_download", { path: { downloadId: "fixture-report-id" } }),
+        { fetch: async () => new Response(originalBytes, {
+          headers: {
+            "content-type": "application/zip",
+            "content-disposition": disposition,
+          },
+        }) },
+      );
+      assert.equal((await s.run()).ok, true, label);
+      assert.equal(s.network.length, 1, label + " no extra provider request");
+      const payload = JSON.parse(
+        (await s.state()).batch.entries[0].report_text.split("\n").slice(1).join("\n"),
+      ).result;
+      assert.equal(payload.original_filename, expectedName, label + " filename");
+      assert.deepEqual([...Buffer.from(payload.content_base64, "base64")], [...originalBytes], label + " exact bytes");
+      assert.equal(payload.delivery_status, "BYTES_RECEIVED_NOT_DELIVERED", label);
+    }
+  });
   await test("WB-15-complete-large-json-and-explicit-size-error", async () => {
     const payload = JSON.stringify({
       values: Array.from({ length: 20000 }, (_, i) => ({ id: i })),
