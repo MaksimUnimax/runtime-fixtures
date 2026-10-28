@@ -149,6 +149,26 @@ await check("same_result_is_idempotent_after_restart", async () => {
   assert.equal(repeated.provider_file_ref, first.provider_file_ref);
   assert.equal(inserts, before);
 });
+await check("same_artifact_corrupted_after_storage_must_not_be_reused", async () => {
+  const row = records.get(original.artifact_key);
+  const before = inserts, saved = row.bytes, expectedDigest = row.sha256;
+  try {
+    const corrupt = Uint8Array.from(Buffer.from("corrupted"));
+    assert.equal(corrupt.byteLength, original.byte_length);
+    assert.notEqual(crypto.createHash("sha256").update(corrupt).digest("hex"), expectedDigest);
+    row.bytes = corrupt.buffer;
+    await assert.rejects(context.testPrepare([result("SYNTH/a")],
+      owner("account-A","store-A")), /INTEGRITY_UNKNOWN_NO_RETRY/);
+    assert.equal(inserts,before,"corrupt reused artifact must not insert or overwrite");
+  } finally { row.bytes = saved; }
+});
+await check("same_artifact_valid_after_corrupt_recovery_is_idempotent", async () => {
+  const before=inserts;
+  const retry=(await context.testPrepare([result("SYNTH/a")],
+    owner("account-A","store-A")))[0];
+  assert.equal(retry.provider_file_ref,first.provider_file_ref);
+  assert.equal(inserts,before);
+});
 await check("normalized_attempt_ids_have_distinct_artifact_keys", async () => {
   const alternative = (await context.testPrepare([result("SYNTH-a")], owner("account-A", "store-A")))[0];
   assert.notEqual(alternative.provider_file_ref, first.provider_file_ref);

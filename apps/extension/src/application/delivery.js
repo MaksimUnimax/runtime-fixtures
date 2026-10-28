@@ -165,23 +165,31 @@ async function saWbFileHash(bytes) {
       byte_length: bytes.byteLength, sha256: await saWbFileHash(bytes),
       bytes: bytes.buffer, created_at_ms: now,
       expires_at_ms: Math.min(expires, now + MAX_TTL_MS) };
-    const row = await transaction("readwrite", (store, done, fail) => {
+    const persisted = await transaction("readwrite", (store, done, fail) => {
       const get = store.get(key);
       get.onsuccess = () => {
         try {
           if (get.result) {
             if (!equalRecord(get.result, fresh))
               return fail(saWbFileError("APPLICATION_FILE_IDENTITY_CONFLICT_NO_OVERWRITE"));
-            return done(get.result);
+            return done({ row: get.result, reused: true });
           }
           const add = store.add(fresh); // atomic add: no overwriting existing artifacts.
-          add.onsuccess = () => done(fresh);
+          add.onsuccess = () => done({ row: fresh, reused: false });
           add.onerror = () => fail(add.error || saWbFileError("APPLICATION_FILE_INSERT_FAILED"));
         } catch (e) { fail(e); }
       };
       get.onerror = () => fail(get.error || saWbFileError("APPLICATION_FILE_READ_FAILED"));
     });
-    return descriptor(row); // IndexedDB transaction has committed.
+    // IndexedDB committed first. For a reused identity, verify the old bytes
+    // against the newly supplied digest OUTSIDE the readwrite transaction:
+    // awaiting WebCrypto in a transaction callback could auto-close IndexedDB.
+    // Do not return a descriptor for corrupted/expired retained bytes.
+    if (persisted.reused &&
+        (await saWbFileHash(saWbFileBytes(persisted.row.bytes)) !== fresh.sha256 ||
+         persisted.row.expires_at_ms <= Date.now()))
+      throw saWbFileError("APPLICATION_FILE_INTEGRITY_UNKNOWN_NO_RETRY");
+    return descriptor(persisted.row); // IndexedDB transaction has committed.
   }
   async function copyManifest(delivery) {
     if (delivery?.mode !== "attachment_watch_v1" ||
