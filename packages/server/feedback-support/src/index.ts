@@ -434,15 +434,28 @@ function hasMultilineQuotedCredentialKey(input: string): boolean {
         // Never alter user-visible text or trust an ambiguous persisted value.
         const canonicalKey = key
           .replace(/[\r\n]/gu, "")
+          .replace(/\\u\{([0-9a-f]{1,6})\}/giu, (_escape, hex: string) => {
+            const codePoint = Number.parseInt(hex, 16);
+            return codePoint <= 0x10ffff
+              ? String.fromCodePoint(codePoint)
+              : _escape;
+          })
           .replace(
             /\\u([0-9a-f]{4})|\\x([0-9a-f]{2})/giu,
             (_escape, unicode: string | undefined, hex: string | undefined) =>
               String.fromCharCode(Number.parseInt((unicode ?? hex)!, 16)),
           )
+          .replace(/\\[nrtfbv0]/giu, " ")
           .replace(/\\/gu, "");
+        // With an untrusted raw newline, an unrecognized escape after a
+        // credential-like prefix has no trustworthy value boundary.
         if (
           isSensitiveDiagnosticKey(key) ||
-          isSensitiveDiagnosticKey(canonicalKey)
+          isSensitiveDiagnosticKey(canonicalKey) ||
+          (key.includes("\\") &&
+            /^(?:api|pass|secret|token|auth|cookie|setcookie|clientsecret)/iu.test(
+              canonicalKey,
+            ))
         )
           return true;
       }

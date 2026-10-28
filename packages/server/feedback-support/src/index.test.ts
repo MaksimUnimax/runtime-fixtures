@@ -643,6 +643,107 @@ describe("B2 feedback/support safety foundation", () => {
     }
   });
 
+  it.each([
+    [
+      "literal LF and escaped tab",
+      'diagnostic {"api\n\\tkey":"SYNTH_EXTRA_ML_PRIVATE_01"}',
+      "SYNTH_EXTRA_ML_PRIVATE_01",
+    ],
+    [
+      "literal LF and escaped newline",
+      'diagnostic {"api\n\\nkey":"SYNTH_EXTRA_ML_PRIVATE_02"}',
+      "SYNTH_EXTRA_ML_PRIVATE_02",
+    ],
+    [
+      "literal LF and braced Unicode key letter",
+      'diagnostic {"api\n\\u{006b}ey":"SYNTH_EXTRA_ML_PRIVATE_03"}',
+      "SYNTH_EXTRA_ML_PRIVATE_03",
+    ],
+    [
+      "literal LF and braced Unicode separator",
+      'diagnostic {"api\n\\u{2009}key":"SYNTH_EXTRA_ML_PRIVATE_04"}',
+      "SYNTH_EXTRA_ML_PRIVATE_04",
+    ],
+    [
+      "literal CR and escaped backspace",
+      'diagnostic {"api\r\\bkey":"SYNTH_EXTRA_ML_PRIVATE_05"}',
+      "SYNTH_EXTRA_ML_PRIVATE_05",
+    ],
+    [
+      "literal LF and invalid Unicode codepoint",
+      'diagnostic {"api\n\\u{110000}key":"SYNTH_EXTRA_ML_PRIVATE_06"}',
+      "SYNTH_EXTRA_ML_PRIVATE_06",
+    ],
+    [
+      "literal LF and unknown escape after credential prefix",
+      'diagnostic {"api\n\\what":"SYNTH_EXTRA_ML_PRIVATE_07"}',
+      "SYNTH_EXTRA_ML_PRIVATE_07",
+    ],
+  ])(
+    "fails closed on ambiguous multiline credential key escapes: %s",
+    (_kind, raw, secret) => {
+      const sanitized = sanitizeFeedbackText(raw);
+      expect(sanitized).toBe("[REDACTED_SECRET]");
+      expect(sanitized).not.toContain(secret);
+    },
+  );
+
+  it("preserves benign multiline quoted notes containing escape syntax", () => {
+    const benign = [
+      'diagnostic {"note\n\\nlabel":"SYNTH_EXTRA_ML_SAFE_01"}',
+      'diagnostic {"note\n\\u006cevel":"SYNTH_EXTRA_ML_SAFE_02"}',
+      'diagnostic {"note\n\\u{006c}abel":"SYNTH_EXTRA_ML_SAFE_03"}',
+    ];
+    for (const raw of benign) expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("keeps ambiguous multiline escaped credentials out of four repository sinks", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_EXTRA_ML_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_EXTRA_ML_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const inputs = [
+      'diagnostic {"api\n\\tkey":"SYNTH_EXTRA_ML_SINK_01"}',
+      'diagnostic {"api\n\\u{006b}ey":"SYNTH_EXTRA_ML_SINK_02"}',
+      'diagnostic {"api\n\\u{2009}key":"SYNTH_EXTRA_ML_SINK_03"}',
+      'diagnostic {"api\n\\what":"SYNTH_EXTRA_ML_SINK_04"}',
+    ];
+    for (const raw of inputs) {
+      const before = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_EXTRA_ML_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_EXTRA_ML_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_EXTRA_ML_FOLLOWUP_CAPTURE");
+      const values = captured.slice(before);
+      expect(values).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    }
+  });
+
   it("retains valid JSON sibling fields and masks escaped multiline API keys", () => {
     const raw = '{"api\\nkey":"SYNTH_VALID_ESCAPED_LF","requestId":"safe"}';
     const clean = sanitizeFeedbackText(raw);
