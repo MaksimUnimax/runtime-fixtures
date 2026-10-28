@@ -2539,3 +2539,92 @@ describe("B06 quoted credential Unicode delimiter after colon P1", () => {
     expect(sanitizeFeedbackText(raw)).toBe(raw);
   });
 });
+
+describe("B06 quoted credential keys followed by pseudo-JSON equals", () => {
+  const secrets = [
+    [
+      "double-quoted password",
+      'diagnostic {"password"="SYNTH_B06_EQ_PRIV_A"}',
+      "SYNTH_B06_EQ_PRIV_A",
+    ],
+    [
+      "single-quoted client secret",
+      "diagnostic {'clientSecret' = 'SYNTH_B06_EQ_PRIV_B'}",
+      "SYNTH_B06_EQ_PRIV_B",
+    ],
+    [
+      "double-quoted access token numeric",
+      'diagnostic {"access_token" = 97463218177}',
+      "97463218177",
+    ],
+    [
+      "double-quoted apiKey structured",
+      'diagnostic {"apiKey"={ "value":"SYNTH_B06_EQ_PRIV_D"}}',
+      "SYNTH_B06_EQ_PRIV_D",
+    ],
+    [
+      "single-quoted token array",
+      "diagnostic {'token'=['SYNTH_B06_EQ_PRIV_E']}",
+      "SYNTH_B06_EQ_PRIV_E",
+    ],
+  ] as const;
+  it.each(secrets)(
+    "rejects %s in support description sanitizer",
+    (_kind, raw, marker) => {
+      const cleaned = sanitizeFeedbackText(raw);
+      expect(cleaned).not.toContain(marker);
+      expect(cleaned).toContain("[REDACTED");
+    },
+  );
+  it.each(secrets)(
+    "does not forward %s to any of four repository fields",
+    async (_kind, raw, marker) => {
+      const captured: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          captured.push(input.description, input.body.description);
+          throw new Error("QUOTED_EQUALS_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          captured.push(input.body);
+          throw new Error("QUOTED_EQUALS_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const svc = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        svc.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("QUOTED_EQUALS_CASE_CAPTURE");
+      await expect(
+        svc.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("QUOTED_EQUALS_FOLLOWUP_CAPTURE");
+      await expect(
+        svc.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+      ).rejects.toThrow("QUOTED_EQUALS_FOLLOWUP_CAPTURE");
+      expect(captured).toHaveLength(4);
+      for (const sanitized of captured) {
+        expect(sanitized).not.toContain(marker);
+        expect(sanitized).toContain("[REDACTED");
+      }
+    },
+  );
+  it.each([
+    'diagnostic {"requestId"="safe-req-1"}',
+    "diagnostic {'note' = 'ordinary'}",
+    'diagnostic {"safe\nnote"="visible text"}',
+    "Support description about login failure, no credentials",
+  ])("preserves safe pseudo-JSON/noncredentials: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+});

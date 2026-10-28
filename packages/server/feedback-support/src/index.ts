@@ -417,9 +417,13 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
     // a closing quoted credential key and its colon/equal delimiter. This
     // is malformed embedded JSON even without a physical line break.
     const separator = match[0].slice(match[1]!.length);
+    // A quoted diagnostic key followed by '=' is pseudo-JSON, not valid
+    // JSON. No trusted value boundary follows it, even without invisible
+    // Unicode or a raw line break: fail closed for recognized credentials.
     if (
       !/[\r\n]/u.test(key) &&
-      !/\p{Default_Ignorable_Code_Point}/u.test(separator)
+      !/\p{Default_Ignorable_Code_Point}/u.test(separator) &&
+      !separator.includes("=")
     )
       continue;
     // Decode spelling escapes only for classification of a malformed key.
