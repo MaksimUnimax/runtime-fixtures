@@ -292,7 +292,7 @@ function pickerFixture() {
   }
   const ctx = { File, BroadcastChannel: Channel, Date: { now: () => now },
     crypto: { randomUUID: () => "picker-" + ++uuid },
-    setTimeout: (fn, ms) => { timers.set(++timerId, {fn, ms}); return timerId; },
+    setTimeout: (fn, ms) => { timers.set(++timerId, {fn, deadline: now + ms}); return timerId; },
     clearTimeout: id => timers.delete(id),
     SellerAgentsControlClient: {
       captureBackupContext: async () => ({ epoch }),
@@ -324,8 +324,18 @@ function pickerFixture() {
   return { popup, opens, flush,
     invalidate() {epoch++; storage.forEach(fn => fn({seller_agents_control_auth_v2: {}}, "local"));},
     active(value) {active = value;}, focused(value) {focused = value;},
-    advance(ms) {now += ms;},
-    expire(ms) {for (const [id, timer] of [...timers]) if (timer.ms === ms) {timers.delete(id); timer.fn();}},
+    advance(ms) {
+      assert.ok(Number.isSafeInteger(ms) && ms >= 0);
+      const target = now + ms;
+      while (true) {
+        const due = [...timers].filter(([, timer]) => timer.deadline <= target)
+          .sort((a, b) => a[1].deadline - b[1].deadline || a[0] - b[0])[0];
+        if (!due) break;
+        const [id, timer] = due;
+        now = timer.deadline; timers.delete(id); timer.fn();
+      }
+      now = target;
+    },
     result(p, id, file = new File(["synthetic"], "keys.json")) {
       p.channel.onmessage({data: {type: "result", pickId: id, file, password: "synthetic-password"}});
     }
@@ -352,18 +362,29 @@ await run("POPUP-FILE-RAM-RESTORE", "native File survives ordinary popup reopeni
 await run("POPUP-FILE-RAM-RESTORE-TTL", "acknowledging restored File never renews its original retention deadline", async () => {
   const f = pickerFixture(), first = await f.popup(), pick = await first.send("prepare");
   f.result(first, pick.pickId); await first.close();
+  f.advance(20000);
   const restored = await f.popup(); await restored.send("ready");
+  assert.equal(restored.channel.sent.length, 1, "the first delayed restoration retains the draft");
+  assert.equal(await restored.channel.sent[0].file.text(), "synthetic");
+  assert.equal(restored.channel.sent[0].password, "synthetic-password");
   await restored.send("restored", {pickId: pick.pickId}); await restored.close();
-  f.expire(60000);
+  f.advance(39999);
+  const beforeDeadline = await f.popup(); await beforeDeadline.send("ready");
+  assert.equal(beforeDeadline.channel.sent.length, 1, "the draft must not expire before the original deadline");
+  assert.equal(await beforeDeadline.channel.sent[0].file.text(), "synthetic", "File remains available until the original deadline");
+  assert.equal(beforeDeadline.channel.sent[0].password, "synthetic-password");
+  await beforeDeadline.send("restored", {pickId: pick.pickId}); await beforeDeadline.close();
+  f.advance(1);
   const expired = await f.popup(); await expired.send("ready");
-  assert.equal(expired.channel.sent.length, 0); assert.equal(f.opens.length, 1);
+  assert.equal(expired.channel.sent.length, 0, "neither File nor password may be restored at the original deadline");
+  assert.equal(f.opens.length, 1);
 });
 await run("POPUP-FILE-RAM-LATE-RESULT", "queued File received after disconnect is retained without replay", async () => {
   const f = pickerFixture(), p = await f.popup(), pick = await p.send("prepare");
   await p.close(); f.result(p, pick.pickId); await f.flush();
   f.result(p, pick.pickId); await f.flush(); assert.equal(f.opens.length, 1);
   const late = pickerFixture(), q = await late.popup(), old = await q.send("prepare");
-  await q.close(); late.advance(5001); late.expire(5000); late.result(q, old.pickId); await late.flush();
+  await q.close(); late.advance(5001); late.result(q, old.pickId); await late.flush();
   assert.equal(late.opens.length, 0);
 });
 await run("POPUP-FILE-RAM-FENCES", "account, tab, focus, nonce and sender fences reject stale recovery", async () => {
@@ -381,7 +402,7 @@ await run("POPUP-FILE-RAM-FENCES", "account, tab, focus, nonce and sender fences
   assert.equal(delayed.opens.length, 0, "later deliberate close must not reopen");
   const recovered = await delayed.popup(); await recovered.send("ready");
   assert.equal(recovered.channel.sent[0].file.name, "keys.json", "slow teardown retains the selected File");
-  delayed.expire(60000);
+  delayed.advance(60000);
   const expired = await delayed.popup(); await expired.send("ready");
   assert.equal(expired.channel.sent.length, 0, "bounded RAM retention expires");
   const f = pickerFixture();
@@ -390,7 +411,7 @@ await run("POPUP-FILE-RAM-FENCES", "account, tab, focus, nonce and sender fences
 });
 await run("POPUP-FILE-RAM-CANCEL-CLEAR", "cancel, size bound, explicit clear and replaced selections keep import explicit", async () => {
   const bounded = pickerFixture(), stillOpen = await bounded.popup(), retained = await stillOpen.send("prepare");
-  bounded.result(stillOpen, retained.pickId); bounded.expire(60000);
+  bounded.result(stillOpen, retained.pickId); bounded.advance(60000);
   await stillOpen.close(); assert.equal(bounded.opens.length, 0, "RAM expires even while original popup remains open");
   const afterExpiry = await bounded.popup(); await afterExpiry.send("ready");
   assert.equal(afterExpiry.channel.sent.length, 0);
