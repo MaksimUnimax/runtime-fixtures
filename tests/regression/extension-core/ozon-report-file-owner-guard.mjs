@@ -14,6 +14,23 @@ assert.equal(appSource.split(guardEnd).length, 2);
 const i=appSource.indexOf(guardBegin), j=appSource.indexOf(guardEnd, i);
 assert.ok(i>=0 && j>i && j-i<2400);
 const guardCode=appSource.slice(i,j);
+const providerArgument = process.argv[2] ? path.resolve(process.argv[2]) : "";
+const packageMode = providerArgument.endsWith("/shared/ozon_provider.js");
+let selectedGuardCode = guardCode;
+let selectedCoreSource = coreSource;
+if (packageMode) {
+  const runtime = path.dirname(path.dirname(providerArgument));
+  const entry = readFileSync(path.join(runtime, "service_worker_entry.js"), "utf8");
+  const packagedApplication = readFileSync(path.join(runtime, "shared/application.js"), "utf8");
+  const packagedWorker = readFileSync(path.join(runtime, "service_worker.js"), "utf8");
+  assert.ok(entry.includes('importScripts("shared/application.js")'), "packaged application must be loaded");
+  assert.equal(packagedApplication.split(guardCode).length, 2, "package must retain exactly one matching guard");
+  assert.equal(packagedWorker.split(coreSource).length, 2, "package must retain exactly one matching Ozon executor");
+  const start = packagedApplication.indexOf(guardBegin), end = packagedApplication.indexOf(guardEnd, start);
+  assert.ok(start >= 0 && end > start);
+  selectedGuardCode = packagedApplication.slice(start, end);
+  selectedCoreSource = packagedWorker.slice(packagedWorker.indexOf(coreSource), packagedWorker.indexOf(coreSource) + coreSource.length);
+}
 assert.match(coreSource, /await saCheckOzonFileRef\(command, executionContext\);/);
 assert.ok(coreSource.indexOf("await saCheckOzonFileRef(command, executionContext);") <
   coreSource.indexOf("OzonProvider.executeCommandObject("),
@@ -26,9 +43,9 @@ const OWN={accountId:"ACCOUNT_A", storeId:"STORE_A", credentialRevision:"REV_A",
 function harness(owned, variant=null) {
   let providerCalls=0, guardChecks=0, recordReads=0;
   const localSource = variant==="remove_account_check"
-    ? guardCode.replace('["accountId", "storeId", "credentialRevision"]','["storeId", "credentialRevision"]')
-    : guardCode;
-  if(variant==="remove_account_check") assert.notEqual(localSource,guardCode);
+    ? selectedGuardCode.replace('["accountId", "storeId", "credentialRevision"]','["storeId", "credentialRevision"]')
+    : selectedGuardCode;
+  if(variant==="remove_account_check") assert.notEqual(localSource,selectedGuardCode);
   const context={
     OzonContract:{
       parseCommand:()=>({operation:"report_file_get",params:{file_ref:REF}}),
@@ -54,7 +71,7 @@ function harness(owned, variant=null) {
     extendAnalyticsQuotaFromRetryAfter:()=>null,
   };
   vm.createContext(context);
-  vm.runInContext(localSource+"\n"+coreSource+"\nglobalThis.executeTest=executeOzonCore",context);
+  vm.runInContext(localSource+"\n"+selectedCoreSource+"\nglobalThis.executeTest=executeOzonCore",context);
   return {
     call:current=>context.executeTest(REF,{executionContext:current}),
     calls:()=>({providerCalls,guardChecks,recordReads}),
@@ -96,7 +113,7 @@ assert.equal(bad.ok,true);
 assert.equal(weakened.calls().providerCalls,1,"mutation must expose provider call");
 checks.push({name:"mutation-removed-account-check-detected",pass:true,mutant_provider_calls:1});
 export const guardResult = Object.freeze({
- status:"PASS",boundary:"actual executeOzonCore and app guard source, in-memory product VM",
+ status:"PASS",boundary:packageMode ? "COMPOSED_PACKAGE_GUARD_AND_EXECUTOR_VM" : "SOURCE_GUARD_AND_EXECUTOR_VM",
  cases:checks.length,checks,real_Ozon_calls:0,installed_acceptance:false,
- original_guard_source_loaded:true, mutation_sensitivity:true,
+ original_guard_source_loaded:true, package_files_verified:packageMode, mutation_sensitivity:true,
 });
