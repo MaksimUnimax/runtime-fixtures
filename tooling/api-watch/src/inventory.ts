@@ -383,12 +383,14 @@ function effectiveParameters(
       // An OpenAPI 3 Parameter Object has either a schema OR one media-type
       // content definition. Treat an ambiguous declaration as untrusted,
       // including resolved local references and shadowed Path Item entries.
-      if (
-        root.swagger !== "2.0" &&
-        Object.hasOwn(parameter, "schema") &&
-        Object.hasOwn(parameter, "content")
-      )
-        throw new Error("APIWATCH_PARAMETER_SCHEMA_CONTENT_CONFLICT");
+      if (root.swagger !== "2.0") {
+        const hasSchema = Object.hasOwn(parameter, "schema");
+        const hasContent = Object.hasOwn(parameter, "content");
+        if (hasSchema && hasContent)
+          throw new Error("APIWATCH_PARAMETER_SCHEMA_CONTENT_CONFLICT");
+        if (!hasSchema && !hasContent)
+          throw new Error("APIWATCH_PARAMETER_SCHEMA_CONTENT_MISSING");
+      }
       // OAS 3 permits one and only one media type in Parameter.content.
       // An empty or multi-media declaration has no unique wire contract.
       if (root.swagger !== "2.0" && Object.hasOwn(parameter, "content")) {

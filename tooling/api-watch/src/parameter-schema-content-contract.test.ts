@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildCompleteOperationInventory } from "./inventory.js";
 
-type ParameterShape = "schema" | "content" | "both";
+type ParameterShape = "schema" | "content" | "both" | "neither";
 type Location = "path" | "operation" | "local-ref";
 
 function inventory(version: string, shape: ParameterShape, location: Location) {
@@ -72,6 +72,18 @@ describe("C03 OpenAPI parameter schema/content trust boundary", () => {
           inventory(version, "content", "local-ref").operations[0]
             ?.parameterCount,
         ).toBe(1);
+      },
+    );
+  }
+
+  // OpenAPI 3 Parameter Objects require at least one wire definition.
+  for (const version of ["3.0.3", "3.1.2", "3.2.0"]) {
+    it.each(["path", "operation", "local-ref"] as const)(
+      "rejects missing schema and content in %s for OpenAPI " + version,
+      (location) => {
+        expect(() => inventory(version, "neither", location)).toThrow(
+          "APIWATCH_PARAMETER_SCHEMA_CONTENT_MISSING",
+        );
       },
     );
   }
