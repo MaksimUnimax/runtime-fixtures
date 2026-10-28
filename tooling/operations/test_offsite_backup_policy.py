@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import errno
+import io
 import json
 import os
 import subprocess
@@ -21,6 +23,7 @@ from offsite_backup_policy import (
     RUNTIME_ACCESS,
     PolicyError,
     load_policy,
+    main,
     validate_policy,
 )
 
@@ -440,29 +443,84 @@ class OffsiteBackupPolicyTest(unittest.TestCase):
             with self.assertRaisesRegex(PolicyError, "POLICY_JSON_DUPLICATE_KEY"):
                 load_policy(path)
 
-    def test_symlink_swap_after_type_check_is_rejected(self) -> None:
+    def test_symlink_swap_after_identity_snapshot_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             selected = root / "selected.json"
             alternate = root / "alternate.json"
             selected.write_text(json.dumps(pending_policy()))
             alternate.write_text(json.dumps(recorded_policy()))
-            actual_is_file = Path.is_file
+            actual_lstat = Path.lstat
             swapped: list[bool] = []
 
-            def swap_after_is_file(path):
-                valid = actual_is_file(path)
-                if path == selected and valid and not swapped:
+            def swap_after_lstat(path, *args, **kwargs):
+                checked = actual_lstat(path, *args, **kwargs)
+                if path == selected and not swapped:
                     selected.unlink()
                     selected.symlink_to(alternate)
                     swapped.append(True)
-                return valid
+                return checked
 
-            with patch.object(Path, "is_file", autospec=True, side_effect=swap_after_is_file):
+            with patch.object(Path, "lstat", autospec=True, side_effect=swap_after_lstat):
                 with self.assertRaisesRegex(PolicyError, "POLICY_FILE_INVALID"):
                     load_policy(selected)
             self.assertTrue(swapped)
             self.assertTrue(selected.is_symlink())
+
+    def test_regular_replacement_after_first_snapshot_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            selected = Path(folder) / "selected.json"
+            replacement = Path(folder) / "replacement.json"
+            selected.write_text(json.dumps(pending_policy()))
+            replacement.write_text(json.dumps(recorded_policy()))
+            actual_lstat = Path.lstat
+            swapped: list[bool] = []
+
+            def replace_after_first_snapshot(path, *args, **kwargs):
+                checked = actual_lstat(path, *args, **kwargs)
+                if path == selected and not swapped:
+                    os.replace(replacement, selected)
+                    swapped.append(True)
+                return checked
+
+            with patch.object(
+                Path, "lstat", autospec=True, side_effect=replace_after_first_snapshot
+            ):
+                with self.assertRaisesRegex(PolicyError, "POLICY_FILE_INVALID"):
+                    load_policy(selected)
+            self.assertTrue(swapped)
+
+    def test_fdopen_and_cleanup_failure_keep_cli_error_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            selected = Path(folder) / "selected.json"
+            selected.write_text(json.dumps(pending_policy()))
+            actual_close = os.close
+            closed: list[int] = []
+            errors = io.StringIO()
+
+            def close_then_report_error(descriptor):
+                actual_close(descriptor)
+                closed.append(descriptor)
+                raise OSError(errno.EIO, "synthetic close outcome error")
+
+            with (
+                patch.object(
+                    os, "fdopen", side_effect=OSError(errno.EIO, "synthetic fdopen error")
+                ),
+                patch.object(os, "close", side_effect=close_then_report_error) as closer,
+                patch.object(sys, "stderr", errors),
+            ):
+                result = main([str(selected)])
+            self.assertEqual(result, 1)
+            self.assertEqual(
+                json.loads(errors.getvalue()),
+                {"status": "FAIL", "code": "POLICY_FILE_UNREADABLE"},
+            )
+            closer.assert_called_once()
+            self.assertEqual(len(closed), 1)
+            with self.assertRaises(OSError) as missing:
+                os.fstat(closed[0])
+            self.assertEqual(missing.exception.errno, errno.EBADF)
 
     def test_regular_file_replacement_during_open_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
