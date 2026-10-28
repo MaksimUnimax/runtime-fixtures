@@ -370,6 +370,100 @@ describe("TG4 binary size enforcement at HTTP and handoff boundaries", () => {
 });
 
 describe("review P2 Telegram polling progress", () => {
+  it.each([
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["unsafe next offset", Number.MAX_SAFE_INTEGER],
+    ["string", "7"],
+    ["missing", undefined],
+  ])(
+    "refuses %s update IDs before exposing any mapped commands",
+    async (_name, invalidId) => {
+      const valid = {
+        update_id: 1,
+        message: { chat: { id: 42 }, from: { id: 7 }, text: "/llm_run" },
+      };
+      const invalid = { ...valid, update_id: invalidId };
+      const fetcher = (async () =>
+        new Response(
+          JSON.stringify({ ok: true, result: [valid, invalid] }),
+        )) as typeof fetch;
+      await expect(
+        createTelegramTransport("synthetic-no-network", fetcher).getUpdates(
+          undefined,
+        ),
+      ).rejects.toThrow("TELEGRAM_UPDATE_ID_INVALID");
+    },
+  );
+
+  it.each([
+    ["duplicate", [2, 2]],
+    ["out of order", [3, 2]],
+  ])(
+    "refuses %s update IDs in one raw page before dispatch",
+    async (_name, ids) => {
+      const raw = ids.map((id) => ({
+        update_id: id,
+        message: { chat: { id: 42 }, from: { id: 7 }, text: "/llm_run" },
+      }));
+      const fetcher = (async () =>
+        new Response(
+          JSON.stringify({ ok: true, result: raw }),
+        )) as typeof fetch;
+      await expect(
+        createTelegramTransport("synthetic-no-network", fetcher).getUpdates(
+          undefined,
+        ),
+      ).rejects.toThrow("TELEGRAM_UPDATE_ID_ORDER_INVALID");
+    },
+  );
+
+  it("ignores a previously handled update replayed by a faulty transport in the same process", async () => {
+    const offsets: Array<number | undefined> = [];
+    const sent: string[] = [];
+    const done = deferred(),
+      release = deferred();
+    const transport: TelegramTransport = {
+      async getUpdates(offset) {
+        offsets.push(offset);
+        if (offsets.length === 3) {
+          done.resolve();
+          await release.promise;
+          return { updates: [] };
+        }
+        return {
+          updates: [
+            {
+              updateId: 23,
+              message: { chatId: "42", userId: "7", text: "/llm_status" },
+            },
+          ],
+        };
+      },
+      async sendMessage(_chatId, message) {
+        sent.push(message);
+      },
+      async answerCallback() {},
+    };
+    const service = new TelegramOperatorService({
+      scheduler: scheduler(),
+      transport,
+      operatorIds: new Set(["7"]),
+    });
+    try {
+      await service.start();
+      await done.promise;
+    } finally {
+      const stopped = service.stop();
+      release.resolve();
+      await stopped;
+    }
+    expect(offsets).toEqual([undefined, 24, 24]);
+    expect(
+      sent.filter((message) => message.includes("LLM status")),
+    ).toHaveLength(1);
+  });
+
   it("acknowledges a complete raw page of 100 unsupported updates and reaches the operator command", async () => {
     const offsets: Array<number | undefined> = [];
     const messages: string[] = [];

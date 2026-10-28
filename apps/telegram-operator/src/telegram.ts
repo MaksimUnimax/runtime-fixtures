@@ -685,6 +685,16 @@ export class TelegramOperatorService {
       try {
         const response = await this.options.transport.getUpdates(this.offset);
         for (const update of response.updates) {
+          if (
+            !Number.isSafeInteger(update.updateId) ||
+            update.updateId < 0 ||
+            update.updateId >= Number.MAX_SAFE_INTEGER
+          )
+            throw new Error("TELEGRAM_UPDATE_ID_INVALID");
+          // A broken/duplicated upstream poll page cannot dispatch an update
+          // already fenced by this process's confirmed cursor.
+          if (this.offset !== undefined && update.updateId < this.offset)
+            continue;
           this.offset = Math.max(this.offset ?? -1, update.updateId + 1);
           await this.handleUpdate(update);
         }

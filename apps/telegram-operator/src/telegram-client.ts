@@ -60,6 +60,23 @@ export function createTelegramTransport(
         timeout: 20,
         allowed_updates: ["message", "callback_query"],
       });
+      if (!Array.isArray(updates)) throw new Error("TELEGRAM_UPDATES_INVALID");
+      // Validate the complete raw page before any command can be dispatched.
+      // A malformed or repeated update_id must not advance the poll cursor.
+      let previousId = -1;
+      for (const update of updates) {
+        if (
+          !update ||
+          typeof update !== "object" ||
+          !Number.isSafeInteger(update.update_id) ||
+          update.update_id < 0 ||
+          update.update_id >= Number.MAX_SAFE_INTEGER
+        )
+          throw new Error("TELEGRAM_UPDATE_ID_INVALID");
+        if (update.update_id <= previousId)
+          throw new Error("TELEGRAM_UPDATE_ID_ORDER_INVALID");
+        previousId = update.update_id;
+      }
       const mapped: TelegramUpdate[] = [];
       for (const update of updates) {
         if (
