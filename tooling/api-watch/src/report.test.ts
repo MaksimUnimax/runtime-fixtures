@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { InMemorySwaggerSourceStore } from "@product/monitoring-control";
 import {
   createInMemoryApiWatchState,
@@ -212,6 +212,95 @@ describe("A6 API-watch report lifecycle", () => {
         at: new Date(),
       }),
     ).rejects.toThrow("REPORT_TERMINAL_OR_INVALID_TRANSITION");
+  });
+
+  it.each(["COMPLETED", "PARTIAL", "BLOCKED"] as const)(
+    "distinguishes committed %s reports from unknown post-commit action results",
+    async (state) => {
+      const root = await mkdtemp(join(tmpdir(), "s2-c03-postcommit-"));
+      const server =
+        state === "BLOCKED" ? undefined : await fixtureServer(DOCUMENT_A);
+      const registry =
+        state === "COMPLETED"
+          ? allFamilyRegistry(server!.url)
+          : state === "PARTIAL"
+            ? createSourceRegistry({
+                OZON_SELLER: {
+                  officialUrl: server!.url,
+                  requiredServerIdentity: undefined,
+                  titlePattern: undefined,
+                },
+                OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+                WILDBERRIES: { officialUrl: null, documents: [] },
+              })
+            : missingAuthorityRegistry();
+      try {
+        const setup = reportDependencies(registry, root);
+        const crosswalk = new InMemoryProductCrosswalkStore();
+        crosswalk.listRows = async () => {
+          throw new Error("SYNTHETIC_POSTCOMMIT_CROSSWALK_READ_FAILED");
+        };
+        const runId = `postcommit-${state.toLowerCase()}`;
+        const result = await runApiWatchReport({
+          dependencies: { ...setup.dependencies, crosswalkStore: crosswalk },
+          runId,
+          source: "FORCED",
+        });
+        const durable = await setup.reportStore.getReport(
+          `api-watch:${runId}`,
+        );
+        expect(durable?.state).toBe(state);
+        expect(durable?.completedAt).toEqual(
+          new Date("2026-09-22T00:00:00Z"),
+        );
+        expect(durable?.sources).toHaveLength(3);
+        expect(result.status).toBe("FAILED");
+        expect(result.code).toBe("API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN");
+        expect(result.summary).toContain("report was saved");
+        expect(result.coverage?.checkDepth).toBe("API_DOCUMENT_COMPARISON");
+        expect(result.coverage?.observedAt).toBe(
+          "2026-09-22T00:00:00.000Z",
+        );
+        expect(result.summary).not.toContain(
+          "SYNTHETIC_POSTCOMMIT_CROSSWALK_READ_FAILED",
+        );
+      } finally {
+        if (server) await server.close();
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("reports an unacknowledged incident notification without losing committed BLOCKED state", async () => {
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-notify-unknown-"));
+    try {
+      const setup = reportDependencies(missingAuthorityRegistry(), root);
+      const incidentStore = new InMemoryApiWatchIncidentStore();
+      const notifier = vi.fn(async () => {
+        throw new Error("SYNTHETIC_NOTIFY_WITHOUT_ACK");
+      });
+      const result = await runApiWatchReport({
+        dependencies: {
+          ...setup.dependencies,
+          incidentStore,
+          incidentNotifier: notifier,
+        },
+        runId: "notify-unknown",
+        source: "FORCED",
+      });
+      expect(notifier).toHaveBeenCalled();
+      expect(result).toMatchObject({
+        status: "FAILED",
+        code: "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN",
+      });
+      expect(result.summary).not.toContain("SYNTHETIC_NOTIFY_WITHOUT_ACK");
+      expect(
+        (await setup.reportStore.getReport("api-watch:notify-unknown"))?.state,
+      ).toBe("BLOCKED");
+      expect((await incidentStore.listOpen()).length).toBeGreaterThan(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("A6-07 all source URL authority missing is BLOCKED, not FAILED", async () => {

@@ -666,6 +666,29 @@ export async function runApiWatchReport(input: {
         at: currentTime(dependencies),
         counts: { overallImpactSeverity: null },
       });
+    // Report state is terminal and durable, but a later notification, retry,
+    // crosswalk read or operator receipt failed. Do not misreport the report
+    // itself as FAILED, imply a delivered alert, or automatically replay side
+    // effects whose result is unknown. Keep the monitoring lane in FAILED.
+    if (
+      persisted?.state === "COMPLETED" ||
+      persisted?.state === "PARTIAL" ||
+      persisted?.state === "BLOCKED"
+    )
+      return {
+        status: "FAILED",
+        code: "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN",
+        summary:
+          "API-watch report was saved, but a later monitoring step failed; its outcome is unknown.",
+        ...(persisted.completedAt
+          ? {
+              coverage: coverageFromReportSources(
+                persisted.sources,
+                persisted.completedAt,
+              ),
+            }
+          : {}),
+      };
     return reportResult("FAILED");
   }
 }
