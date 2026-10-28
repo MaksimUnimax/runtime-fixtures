@@ -34,26 +34,8 @@ assert.equal(hash(standardComposerPatch.new), "dfa900cbbe80eab472d738c2125bac806
 // The separate CAP-24 composition overlay must not silently become a Kimi patch.
 const kimiPatches = patches.slice(179, 192);
 assert.equal(kimiPatches.length, 13);
-// PR330 changes exactly four existing artifact recipes. Pin their identities
-// separately; all other pre-Kimi recipes, including B02 quota-copy, are unchanged.
-const artifactPatchIndexes = [25, 29, 32, 135];
-const unchangedPreKimi = patches.slice(0, 179).filter((_, index) => !artifactPatchIndexes.includes(index));
-assert.equal(unchangedPreKimi.length, 175);
-assert.equal(hash(JSON.stringify(unchangedPreKimi)), "b3596f97daaff2005068fabf005e9bb0596348bf4d987d9a2abe5921f6d1375f",
-  "exact 175 preserved pre-Kimi recipes including B02 quota-copy");
-assert.deepEqual(artifactPatchIndexes.map(index => {
-  const row = patches[index];
-  assert.equal(row.target, "shared/file_delivery_port_worker.js");
-  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
-  return [index, hash(row.old), hash(row.new)];
-}), [
-  [25, "797019b84c1379d6a4b7b7da44fe87941ff78be6e1eda97f27e93ab58d795ccd", "5ae0ef7a133383721abd5061fa422d0c196a4ff582bf5e5812b5af5ed0e7b144"],
-  [29, "870ef4a10b216b69eaf52e00a7fda81d9fe4f630dcbc4206a2818d6725033eab", "de32b7461d288342df4eefd068970eb76f2561a135af7a81c62190aaffeca4b9"],
-  [32, "4026de0552e555d8a3e2e56346578e0aec633af22b26b45138f5e74eb5cd6390", "0e3e8b8ae8e492649071321afbe98c135f62ba04602593d9184960eecbb5aa03"],
-  [135, "0e72b71ab29e2664ee359c0c912c911a595e3bedccf37c6e8e3090c8147f766c", "49c35375526cac09ac76919cc06b9a550326afbadc857131015c5f93bc40a0cd"],
-]);
-assert.equal(hash(JSON.stringify(patches.slice(0, 179))), "b191b8c0b9ae412610ca584aa76831003af01b59006f5679b438680e57fc0dca",
-  "exact pre-Kimi composition with four PR330 artifact corrections");
+assert.equal(hash(JSON.stringify(patches.slice(0, 179))), "8dd63a7aa84cd49bd8aaee561b915c4006e799919cca0f8291efaff273b387d5",
+  "exact pre-Kimi inventory includes the preserved B02 quota-copy correction");
 assert.equal(hash(JSON.stringify(kimiPatches)), "32e8792ab10e0217287c9f766cf217d6e597184202b27926583851fe846f9935",
   "exact Kimi slice includes the preserved delivery-profile selection guard");
 // Pin the one additional independently-reviewed CAP-24 composition patch.
@@ -68,7 +50,7 @@ assert.equal(cap24ReportPatch.target, "shared/llm_output_report_workflow_patch.j
 assert.deepEqual(Object.keys(cap24ReportPatch).sort(), ["new", "old", "target"]);
 assert.equal(hash(cap24ReportPatch.old), "a6ad130dd40809bdf56ead39d31a097ec1bdb7b211592e3d81e789922f0208d2");
 assert.equal(hash(cap24ReportPatch.new), "47f3d67550b8fb0968f42a5b362ed63f2186eb95c10c8e4c285ecbdff723018c");
-const groupedResultPatches = patches.slice(360);
+const groupedResultPatches = patches.slice(360, 363);
 assert.equal(groupedResultPatches.length, 3, "exactly three retained PR205 Ozon JSON-copy overlays");
 assert.deepEqual(groupedResultPatches.map(row => {
   assert.equal(row.target, "shared/ozon_contract.js");
@@ -88,7 +70,46 @@ assert.deepEqual(groupedResultPatches.map(row => {
     "4e258bf72d73bf39d0180c5dd4084534ba5ecbd12cb107a7161ae37616052878"
   ]
 ]);
-assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length);
+// Preserve all 363 historical recipes and pin the five later artifact overlays.
+const artifactIntegrityPatches = patches.slice(363);
+assert.equal(artifactIntegrityPatches.length, 5, "exact five appended artifact integrity overlays");
+assert.deepEqual(artifactIntegrityPatches.map(row => {
+  assert.equal(row.target, "shared/file_delivery_port_worker.js");
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+  return [hash(row.old), hash(row.new)];
+}), [
+  [
+    "4ac74a7a57ba57912bd4b02b350001abbad2f7858ece46fa7b38854614749daa",
+    "61a2496050eb0f9bbdb59e7cbac4c4be0740aec055827c99a373b833602a1160"
+  ],
+  [
+    "e3dba4ae16209f283a60e64211c52b2d197e683d0213de1567d8f50d8d61a22b",
+    "8abde982f04e65dabc1e1de7e29f24404ee87952959d1e11045cfd3b1a691c04"
+  ],
+  [
+    "0f100a2512cca46ae9ae0db625a8a7c7598687b9c420aaf651ac8070aadcbdfc",
+    "6164f4ab0f922d5fafb435adc9f536d69ba34d1a04c2c10dbd60bddff0272045"
+  ],
+  [
+    "0defad5c53ea38a15822669a3e4bee17beb0adf5149a07eaac974c1f7ab46b5c",
+    "24a3f5883ed0639d39ef352fb88464a607b66fdb508c0959c9dff4ec2b1a73b4"
+  ],
+  [
+    "7e7fe00d0e6c79b00672beeb38d0b41950f210169bd33920c1b7b75d6dfee938",
+    "dbe8be59edc03dfa8adc688986c29825051958a1da5b9eacb49ad4835529044c"
+  ]
+]);
+let artifactWorker = read("apps/extension/src/imported/ozon-v0.1.22/shared/file_delivery_port_worker.js");
+assert.equal(hash(artifactWorker), "c9b5fdbc8661828c17145519395bde1a2eab1af9b434b99ae13c1d8ccda0c6dd");
+let artifactPreimages = 0;
+for (const row of patches.filter(row => row.target === "shared/file_delivery_port_worker.js")) {
+  assert.equal(artifactWorker.split(row.old).length - 1, 1, "one artifact preimage in ordered composition");
+  artifactWorker = artifactWorker.replace(row.old, row.new);
+  artifactPreimages++;
+}
+assert.equal(artifactPreimages, 23);
+assert.equal(hash(artifactWorker), "c316aa9a9c511eea89dab1c094029bdc3e036353ece6240ca440af12ca8144fe", "exact compiled artifact worker including final owner deadline fence");
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];

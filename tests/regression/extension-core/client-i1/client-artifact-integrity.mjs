@@ -1,6 +1,7 @@
 // Exercise the composed worker's private port handler, not an exported facade.
 import assert from "node:assert/strict";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { makeWorker, until } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
@@ -101,7 +102,7 @@ try {
   assert.ok(descriptor);
   const pristine = structuredClone(records.get(descriptor.artifact_key));
   assert.ok(pristine);
-  const delivery = { mode: "attachment_watch_v1", phase: "attachment_committed", artifact_descriptors: [descriptor] };
+  const delivery = { mode: "attachment_watch_v1", phase: await worker.call("(() => BridgeAutorunModel.ATTACHMENT_PHASES.ATTACH_COMMITTED)"), artifact_descriptors: [descriptor] };
   const chunk = () => worker.portRequest({ type: "OZ_ATTACHMENT_ARTIFACT_CHUNK", ...fields,
     artifact_key: descriptor.artifact_key, offset: 0, length: 32 });
   const copy = () => worker.call("OzonFileDeliveryWorker.copyManifest", delivery);
@@ -130,6 +131,16 @@ try {
     const input = storeInput(); input.bytes[0] ^= 1;
     await assert.rejects(() => store(input), /CONFLICT_NO_OVERWRITE/);
     assert.deepEqual(new Uint8Array(records.get(descriptor.artifact_key).bytes), originalBytes);
+  });
+  await check("corrupted_prior_storage_cannot_be_repaired_or_extended", async () => {
+    reset();
+    const damaged = records.get(descriptor.artifact_key);
+    new Uint8Array(damaged.bytes)[0] ^= 1;
+    const before = structuredClone(damaged), writes = inserts;
+    now += 2000;
+    await assert.rejects(() => store({ ...storeInput(), expires_at_ms: pristine.expires_at_ms + 2000 }), /CONFLICT_NO_OVERWRITE/);
+    assert.equal(inserts, writes, "corrupt prior row must never be overwritten");
+    assert.deepEqual(records.get(descriptor.artifact_key), before, "original bytes and deadline retained for denial");
   });
   await check("same_identity_metadata_cannot_overwrite", async () => {
     reset();
@@ -232,5 +243,81 @@ try {
   });
   await check("no_provider_replay", async () => { assert.equal(providerCalls, 1); assert.ok(inserts > 0); });
 } finally { worker.close(); }
+// Ozon original-file capture starts its own TTL after the operation starts.
+// Seed that already-captured IDB record and committed attachment on a real Ozon
+// operation; all ownership/context guards still execute in the actual worker.
+for (const crossDeadline of [false, true]) {
+  await check("ozon_owner_deadline_after_final_guard_" + (crossDeadline ? "denied" : "positive"), async () => {
+    records.clear();
+    let providerRequests = 0, deadline;
+    const ozon = await makeWorker(runtime, { indexedDB, wallClock: () => now,
+      onStorageWrite: (kind, values) => {
+        if (kind === "session" && values.__fixture_final_owner_guard_delay)
+          now = deadline - (crossDeadline ? 0 : 1);
+      },
+      fetch: async url => {
+        if (url.startsWith("https://")) providerRequests++;
+        return new Response(JSON.stringify({ result: [] }), { headers: { "content-type": "application/json" } });
+      },
+    });
+    try {
+      ozon.setDialogue("22222222-2222-4222-8222-222222222222");
+      await ozon.settings();
+      const key = await ozon.start();
+      const session = await ozon.call("workSessionFor", key);
+      const sender = { tab: { id: ozon.tabId }, url: ozon.identity.origin + "/c/" + ozon.identity.conversation_id };
+      const result = await ozon.request({ type: "OZ_EXECUTE_COMMAND", conversation_key: key,
+        command_text: 'OZON_API_V1 {"operation":"seller_info","params":{}}',
+        manual_request_id: "ozon-original-expiry", work_session_id: session.start_intent_id }, sender);
+      assert.equal(result.accepted, true, JSON.stringify(result));
+      const owner = await until(async () => {
+        const row = await ozon.call("getManualOperation", key);
+        if (row?.status === "failed") throw new Error(JSON.stringify(row.last_error));
+        return row?.status === "delivering" && row;
+      }, "Ozon original-file fixture owner");
+      assert.equal(owner.execution_context.marketplace, "ozon");
+      deadline = owner.payload_expires_at_ms;
+      const artifactKey = "provider:ozon-original-fixture";
+      const capturedAt = now + 1000;
+      now = capturedAt;
+      const digest = createHash("sha256").update(originalBytes).digest("hex");
+      const descriptor = { artifact_key: artifactKey, source_kind: "original_provider_file",
+        filename: "ozon-original.pdf", mime_type: "application/pdf", extension: "pdf",
+        byte_length: originalBytes.length, sha256: digest };
+      records.set(artifactKey, { ...descriptor, bytes: originalBytes.slice().buffer,
+        created_at_ms: capturedAt, expires_at_ms: capturedAt + 3600000 });
+      assert.ok(records.get(artifactKey).expires_at_ms > deadline);
+      const mapKey = Object.keys(ozon.backing.local).find(name => ozon.backing.local[name]?.[key]?.operation_id === owner.operation_id);
+      assert.ok(mapKey);
+      ozon.backing.local[mapKey][key].delivery = { ...owner.delivery, mode: "attachment_watch_v1",
+        phase: await ozon.call("(() => BridgeAutorunModel.ATTACHMENT_PHASES.ATTACH_COMMITTED)"), artifact_descriptors: [descriptor] };
+      // Delay only completion of the final real guard. The preceding guard and
+      // every underlying authority/context/storage check are still awaited.
+      await ozon.call(`(() => {
+        const original = saAssertDeliveryOwner;
+        globalThis.__fixture_owner_guard_calls = 0;
+        saAssertDeliveryOwner = async owner => {
+          const ordinal = ++globalThis.__fixture_owner_guard_calls;
+          await original(owner);
+          if (ordinal === 5) await chrome.storage.session.set({ __fixture_final_owner_guard_delay: true });
+        };
+      })`);
+      const chunk = await ozon.portRequest({ type: "OZ_ATTACHMENT_ARTIFACT_CHUNK", owner_kind: "manual",
+        owner_id: owner.operation_id, conversation_key: key, delivery_id: owner.delivery.delivery_id,
+        artifact_key: artifactKey, offset: 0, length: 32 });
+      assert.equal(await ozon.call("(() => globalThis.__fixture_owner_guard_calls)"), 5, "last guard delay exercised: " + JSON.stringify(chunk));
+      assert.ok(records.get(artifactKey).expires_at_ms > now, "artifact remains valid beyond owner deadline");
+      if (crossDeadline) {
+        assert.equal(chunk.ok, false, JSON.stringify(chunk));
+        assert.equal(chunk.code, "RESULT_EXPIRED");
+        assert.equal(chunk.chunk_base64, undefined);
+      } else {
+        assert.equal(chunk.ok, true, JSON.stringify(chunk));
+        assert.deepEqual(Buffer.from(chunk.chunk_base64, "base64"), Buffer.from(originalBytes));
+      }
+      assert.equal(providerRequests, 1, "no provider replay");
+    } finally { ozon.close(); }
+  });
+}
 console.log(JSON.stringify({ status: outcomes.every(row => row.pass) ? "PASS" : "FAIL", checks: outcomes }, null, 2));
 assert.ok(outcomes.every(row => row.pass), `${outcomes.filter(row => !row.pass).length}/${outcomes.length} artifact checks failed`);
