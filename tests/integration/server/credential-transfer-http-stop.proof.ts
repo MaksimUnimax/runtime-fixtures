@@ -199,7 +199,7 @@ export async function proveCredentialTransferHttpStop(
     const journal = await db.query<{ n: string }>(
       "SELECT count(*)::text AS n FROM drizzle.__drizzle_migrations",
     );
-    check("migrated50_required", journal.rows[0]?.n === "50");
+    check("migrated51_required", journal.rows[0]?.n === "51");
     authority = await createCredentialTransferTestAuthority(
       db,
       expectedDatabase,
@@ -631,11 +631,11 @@ export async function proveCredentialTransferHttpStop(
       );
       return rows.rows[0]?.n === "0";
     });
-    await cleanupStep("context_empty_and_journal50_preserved", async () => {
+    await cleanupStep("context_empty_and_journal51_preserved", async () => {
       const rows = await observer.query<{ n: string; m: string }>(
         "SELECT (SELECT count(*)::text FROM octoport_transfer_fence.authorized_transactions) AS n,(SELECT count(*)::text FROM drizzle.__drizzle_migrations) AS m",
       );
-      return rows.rows[0]?.n === "0" && rows.rows[0]?.m === "50";
+      return rows.rows[0]?.n === "0" && rows.rows[0]?.m === "51";
     });
     await cleanupStep("application_pool_closed", async () => {
       await db.close();

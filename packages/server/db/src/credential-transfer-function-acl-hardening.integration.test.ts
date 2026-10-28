@@ -66,8 +66,13 @@ describe.sequential("credential-transfer function ACL hardening", () => {
     await runMigrations({ connectionString: url });
 
     const tail = (await journalTail()).rows[0];
-    expect(tail?.count).toBe("50");
-    expect(tail?.created_at).toBe("1791907801000");
+    expect(tail?.count).toBe("51");
+    expect(tail?.created_at).toBe("1793029560000");
+    // Adding 0062 must never erase the previously accepted 0061 ACL hardening.
+    const aclMigration = await db.query<{ present: boolean }>(
+      "SELECT EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations WHERE created_at=1791907801000) AS present",
+    );
+    expect(aclMigration.rows[0]?.present).toBe(true);
 
     const acl = await functionAcl();
     expect(acl.rows).toHaveLength(4);
