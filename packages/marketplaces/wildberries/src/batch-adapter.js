@@ -20,7 +20,12 @@
       return records.mutate(snapshot.conversationKey, async (old) => {
         await context.assertCurrent();
         if (old?.operation_id === snapshot.requestId) {
-          if (old.execution_context?.commandHash !== snapshot.commandHash) changed();
+          // A request ID alone does not authorize replay under a different
+          // store/account/binding or credential. Match the same pinned fields
+          // used by process.ownerMatches before exposing an existing owner.
+          if (!globalThis.SellerAgentsExecutionContext.fields.every(
+            (field) => old.execution_context?.[field] === snapshot[field]
+          )) changed();
           return old; // Completed, dispatched and unknown requests are never readmitted.
         }
         if (old?.status === "collecting") throw Object.assign(new Error("Another batch owns this dialogue"), { code: "BATCH_BUSY" });

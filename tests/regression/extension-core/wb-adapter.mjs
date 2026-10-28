@@ -441,6 +441,38 @@ try {
     assert.equal(s.network.length, 2);
     assert.equal(s.delivered.length, 1);
   });
+  await test("WB-05a-same-request-id-cannot-replay-foreign-store-owner", async () => {
+    const backing = {};
+    const first = await setup(basic, { backing });
+    const saved = await first.queue.admit({ source: first.source, context: first.context });
+    assert.equal(saved.execution_context.storeId, first.snapshot.storeId);
+    const changedStore = await setup(basic, { backing, storeId: "fixture-foreign-WB-store" });
+    assert.equal(changedStore.snapshot.requestId, first.snapshot.requestId);
+    assert.equal(changedStore.snapshot.commandHash, first.snapshot.commandHash);
+    await assert.rejects(
+      () => changedStore.queue.admit({ source: changedStore.source, context: changedStore.context }),
+      { code: "EXECUTION_CONTEXT_CHANGED" },
+    );
+    const retained = await changedStore.state();
+    assert.equal(retained.execution_context.storeId, first.snapshot.storeId);
+    assert.equal(changedStore.network.length, 0);
+  });
+  await test("WB-05b-same-request-id-cannot-replay-rotated-credential-owner", async () => {
+    const backing = {};
+    const first = await setup(basic, { backing });
+    await first.queue.admit({ source: first.source, context: first.context });
+    const rotated = await setup(basic, { backing, token: "FIXTURE_WB_DIFFERENT_NONSECRET_TOKEN" });
+    assert.equal(rotated.snapshot.requestId, first.snapshot.requestId);
+    assert.equal(rotated.snapshot.commandHash, first.snapshot.commandHash);
+    assert.notEqual(rotated.snapshot.credentialRevision, first.snapshot.credentialRevision);
+    await assert.rejects(
+      () => rotated.queue.admit({ source: rotated.source, context: rotated.context }),
+      { code: "EXECUTION_CONTEXT_CHANGED" },
+    );
+    const retained = await rotated.state();
+    assert.equal(retained.execution_context.credentialRevision, first.snapshot.credentialRevision);
+    assert.equal(rotated.network.length, 0);
+  });
   await test("WB-06-credential-binding-work-account-and-policy-fences", async () => {
     for (const field of [
       "credentialRevision",
