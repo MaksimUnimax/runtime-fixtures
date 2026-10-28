@@ -33,7 +33,7 @@ function createFixtureIndexedDB() {
                       kind === "get"
                         ? structuredClone(records.get(value))
                         : kind === "all"
-                          ? [...records.values()].map(structuredClone)
+                          ? [...records.values()].map(value => structuredClone(value))
                           : undefined;
                     result.onsuccess?.();
                     queueMicrotask(() => tx.oncomplete?.());
