@@ -3,6 +3,9 @@ import {createHash} from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { spawnSync } from "node:child_process";
+import os from "node:os";
+import { fileURLToPath } from "node:url";
 
 // Bounded, FD-pinned reads: read and digest the SAME bytes, check for
 // concurrent metadata/path changes and never load a full archive in memory.
@@ -235,6 +238,254 @@ assert.equal(receipt.package.sha256, archive.sha256, "FIREFOX_ARCHIVE_BINDING_MI
 pinStable(manifestFile, manifestSnapshot);
 pinStable(commonManifestFile, commonSnapshot);
 pinStable(receiptPath, receiptSnapshot);
+// Verify the executable static import boundary with TypeScript's JS AST,
+// not a regex scanner that mistakes comments, templates or regex literals
+// for executable calls. Store/package CI invokes this file twice.
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const builder = path.join(repoRoot, "tooling/build/extension_firefox.py");
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "octoport-firefox-ast-"));
+try {
+  const input = path.join(fixtureRoot, "runtime");
+  fs.mkdirSync(input);
+  fs.writeFileSync(
+    path.join(input, "manifest.json"),
+    JSON.stringify({
+      manifest_version: 3,
+      version: "0.2.37",
+      name: "Synthetic Firefox AST contract",
+      background: { service_worker: "service_worker_entry.js" },
+      action: { default_title: "Synthetic Firefox" },
+      permissions: [],
+      host_permissions: [],
+    }),
+  );
+  fs.writeFileSync(path.join(input, "child.js"), "globalThis.Child1 = true;\n");
+  fs.writeFileSync(path.join(input, "child2.js"), "globalThis.Child2 = true;\n");
+  const entry = path.join(input, "service_worker_entry.js");
+  function attempt(label, source, shouldSucceed, requiredError) {
+    fs.writeFileSync(entry, source);
+    const syntax = spawnSync("node", ["--check"], {
+      input: source,
+      encoding: "utf8",
+      timeout: 12000,
+    });
+    assert.equal(syntax.status, 0, "fixture is not valid JavaScript: " + label + " " + syntax.stderr);
+    const out = path.join(fixtureRoot, label);
+    const result = spawnSync(
+      "python3",
+      [builder, "--input-runtime", input, "--output", out],
+      { encoding: "utf8", timeout: 25000 },
+    );
+    if (shouldSucceed) {
+      assert.equal(result.status, 0, label + ": " + (result.stderr || result.error?.message));
+      return fs.readFileSync(path.join(out, "firefox_background.js"), "utf8");
+    }
+    assert.notEqual(result.status, 0, label + " must fail closed");
+    if (requiredError) assert.ok(result.stderr.includes(requiredError), result.stderr);
+    return null;
+  }
+  const tick = String.fromCharCode(96);
+  const real = [
+    '"use strict"',
+    "const value = 'importScripts(\"ghost.js\");';",
+    "// importScripts(\"ghost.js\");",
+    "/* importScripts(\"ghost.js\"); */",
+    "const template = " + tick + 'importScripts("ghost.js");' + tick + ";",
+    "if (enabled) {} /;importScripts(\"ghost.js\");/.test(source);",
+    "const regex = +/;importScripts(\"ghost.js\");/;",
+    "if /* comment */ (enabled) /importScripts(\"ghost.js\");/.test(source);",
+    'importScripts /* comment */ ("child.js");',
+    'importScripts("child2.js");',
+  ].join("\n") + "\n";
+  const compiled = attempt("valid-static", real, true);
+  for (const untouched of real.split("\n").slice(0, 8)) {
+    assert.ok(compiled.includes(untouched), "non-executable literal was changed");
+  }
+  for (const name of ["Child1", "Child2"]) {
+    assert.ok(compiled.includes("globalThis." + name + " = true;"), name + " not inlined");
+  }
+  assert.ok(!compiled.includes('importScripts /* comment */ ("child.js");'));
+  assert.ok(!compiled.includes('importScripts("child2.js");'));
+
+  // JavaScript Unicode escapes can spell executable identifiers without
+  // containing the literal ASCII string "importScripts" in the source.
+  // The Firefox background must never silently retain those worker-only calls.
+  const unicodeEscape = String.fromCharCode(92) + "u0053";
+  const escapedIdent = 'import' + unicodeEscape + 'cripts("child.js");\n';
+  const escapedBackground = attempt("escaped-ident-unicode", escapedIdent, true);
+  assert.ok(escapedBackground.includes("globalThis.Child1 = true;"), "escaped static import not inlined");
+  assert.ok(!escapedBackground.includes(escapedIdent.trim()), "escaped worker import leaked into Firefox");
+  const escapedNested = 'if (enabled) import' + unicodeEscape + 'cripts("child.js");\n';
+  attempt("escaped-ident-nested", escapedNested, false, "NOT_TOP_LEVEL_STATEMENT");
+  const escapedAlias = 'const loader = import' + unicodeEscape + 'cripts;\n';
+  attempt("escaped-ident-alias", escapedAlias, false, "UNSUPPORTED_REFERENCE");
+  const escapedBracket = 'self["import' + unicodeEscape + 'cripts"]("child.js");\n';
+  attempt("escaped-ident-bracket", escapedBracket, false, "UNSUPPORTED_REFERENCE");
+  // Identifiers used as labels, or break/continue targets, are inert
+  // control-flow names even when their spelling decodes to "importScripts".
+  const plainLabel = 'importScripts: ;\n';
+  assert.equal(attempt("plain-inert-label", plainLabel, true), plainLabel);
+  const escapedLabel = 'import' + unicodeEscape + 'cripts: ;\n';
+  assert.equal(attempt("escaped-inert-label", escapedLabel, true), escapedLabel);
+  const escapedBreak = 'import' + unicodeEscape + 'cripts: { break import' + unicodeEscape + 'cripts; }\n';
+  assert.equal(attempt("escaped-inert-break-label", escapedBreak, true), escapedBreak);
+  const escapedContinue = 'import' + unicodeEscape + 'cripts: for (let i = 0; i < 1; i++) { continue import' + unicodeEscape + 'cripts; }\n';
+  assert.equal(attempt("escaped-inert-continue-label", escapedContinue, true), escapedContinue);
+
+  const escapedInert = 'const label = "import' + unicodeEscape + 'cripts";\n';
+  assert.equal(attempt("escaped-ident-inert-string", escapedInert, true), escapedInert);
+
+  const interpolation =
+    "const output = " + tick + "${(() => { importScripts(\"child.js\"); return 1; })()}" + tick + ";\n";
+  attempt("template-expression", interpolation, false, "NOT_TOP_LEVEL_STATEMENT");
+  attempt("unbraced-if", 'if (enabled) importScripts("child.js");\n', false, "NOT_TOP_LEVEL_STATEMENT");
+  attempt("braced-if", 'if (enabled) { importScripts("child.js"); }\n', false, "NOT_TOP_LEVEL_STATEMENT");
+  attempt("arithmetic", 'const x = 1 / importScripts("child.js");\n', false, "NOT_TOP_LEVEL_STATEMENT");
+  attempt("dynamic-arg", 'importScripts(window.file);\n', false, "NON_STATIC_ARGUMENT");
+  // Never silently preserve runnable non-bare importScripts references. The
+  // Firefox event-page carrier only supports direct top-level static calls.
+  attempt("self-property", 'self.importScripts("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("global-property", 'globalThis.importScripts("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("self-bracket", 'self["importScripts"]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("global-template-key", 'globalThis[\x60importScripts\x60]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("global-concat-key", 'globalThis["import" + "Scripts"]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("self-interpolated-key", 'self[`import${"Scripts"}`]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("parenthesized-computed-key", 'globalThis[(("im" + "port") + "Scripts")]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("multi-span-computed-key", 'self[`im${"port"}${"Scripts"}`]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("computed-key-depth-bound", 'globalThis[' + "(".repeat(66) + '"importScripts"' + ")".repeat(66) + ']("child.js");\n', false, "COMPUTED_REFERENCE_TOO_COMPLEX");
+  const unrelatedComputedNames = [
+    'globalThis["visible" + "Flag"] = true;',
+    'self[`prefix${"Label"}`];',
+    'const runtimeKey = "productFixture"; globalThis[runtimeKey] = true;',
+    "const inertComputedText = 'globalThis[\"import\" + \"Scripts\"](\"child.js\");';",
+  ].join("\n") + "\n";
+  assert.equal(
+    attempt("unrelated-computed-names", unrelatedComputedNames, true),
+    unrelatedComputedNames,
+    "non-import computed keys and inert strings must remain byte-identical",
+  );
+  // Lexically resolved constant keys must not hide the worker-only API.
+  // Unknown explicit worker-global reads fail closed; unrelated objects and
+  // pure dynamic writes keep their original behavior.
+  attempt("binding-const-key", "const key = \"importScripts\"; self[key](\"child.js\");\n", false, "UNSUPPORTED_REFERENCE");
+  attempt("binding-const-alias-key", "const first = \"import\"; const key = first + \"Scripts\"; globalThis[key](\"child.js\");\n", false, "UNSUPPORTED_REFERENCE");
+  attempt("binding-inner-constant-key", "const key = \"safe\"; { const key = \"importScripts\"; self[key](\"child.js\"); }\n", false, "UNSUPPORTED_REFERENCE");
+  attempt("binding-inner-parameter-key", "const key = \"safe\"; function invoke(key) { self[key](\"child.js\"); }\n", false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("binding-mutable-key", "let key = \"safe\"; key = \"importScripts\"; globalThis[key](\"child.js\");\n", false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("binding-dynamic-global-read", "function invoke(key) { const loader = self[key]; loader(\"child.js\"); }\n", false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("binding-dynamic-global-parenthesized", "function invoke(key) { ((globalThis))[key]?.(\"child.js\"); }\n", false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("binding-global-receiver-alias", "const scope = self; function invoke(key) { scope[key](\"child.js\"); }\n", false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("binding-global-receiver-self", "function invoke(key) { globalThis.self[key](\"child.js\"); }\n", false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("binding-global-call-indirect", "function invoke(key) { self[key].call(null, \"child.js\"); }\n", false, "UNRESOLVED_GLOBAL_REFERENCE");
+  {
+    const source = "const key = \"setTimeout\"; self[key](() => {}, 1);\n";
+    assert.equal(attempt("binding-safe-const-method", source, true), source);
+  }
+  {
+    const source = "const key = \"importScripts\"; { const key = \"safe\"; self[key](); }\n";
+    assert.equal(attempt("binding-safe-inner-shadow", source, true), source);
+  }
+  {
+    const source = "function invoke(object, key) { return object[key](); }\n";
+    assert.equal(attempt("binding-ordinary-object-dynamic", source, true), source);
+  }
+  {
+    const source = "function inspect(self, key) { return self[key]; }\n";
+    assert.equal(attempt("binding-shadowed-global-object", source, true), source);
+  }
+  {
+    const source = "function put(key, value) { globalThis[key] = value; }\n";
+    assert.equal(attempt("binding-dynamic-global-write", source, true), source);
+  }
+  {
+    const source = "const RUNTIME_KEY = \"octoportRuntime\"; const prior = globalThis[RUNTIME_KEY]; globalThis[RUNTIME_KEY] = prior;\n";
+    assert.equal(attempt("binding-safe-const-runtime", source, true), source);
+  }
+  // Independent R24 review: destructured worker-global aliases must be
+  // recognized without confusing ordinary objects or lexical shadowing.
+  attempt("destructured-global-self", 'const { self: scope } = globalThis; function invoke(key) { scope[key]("child.js"); }\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("destructured-global-computed", 'const key = "self"; const { [key]: scope } = globalThis; function invoke(key) { scope[key]("child.js"); }\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("destructured-global-nested", 'const { globalThis: { self: scope } } = globalThis; function invoke(key) { scope[key]("child.js"); }\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("destructured-known-import", 'const { ["import" + "Scripts"]: loader } = self; loader("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("destructured-dynamic-import", 'const { [runtimeKey]: loader } = self; loader("child.js");\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("destructured-global-rest", 'const { ...scope } = globalThis; scope[runtimeKey]("child.js");\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("ordinary-global-prototype", 'const object = { __proto__: self }; object["importScripts"]("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  for (const [label, source] of [
+    ["ordinary-computed-import-method", 'const object = { ["importScripts"]() { return 1; } }; object["importScripts"]();\n'],
+    ["ordinary-dot-import-method", 'const object = { importScripts() { return 1; } }; object.importScripts();\n'],
+    ["ordinary-aliased-import-method", 'const object = { importScripts() { return 1; } }; const alias = object; alias.importScripts();\n'],
+    ["ordinary-shadowed-global-method", 'const self = { importScripts() { return 1; } }; self["importScripts"]();\n'],
+    ["ordinary-destructured-object", 'const object = { self: {} }; const { self: scope } = object; function inspect(key) { return scope[key]; }\n'],
+    ["ordinary-destructured-import-key", 'const object = { importScripts() { return 1; } }; const { importScripts: local } = object; local();\n'],
+    ["destructured-global-safe-name", 'const { setTimeout: later } = globalThis; later(() => {}, 1);\n'],
+    ["destructured-shadowed-global", 'function inspect(globalThis, key) { const { self: scope } = globalThis; return scope[key]; }\n'],
+  ]) {
+    assert.equal(attempt(label, source, true), source, label + " must remain byte-identical");
+  }
+  const emptyImportSource = 'importScripts();\n"use strict";\nglobalThis.marker = true;\n';
+  assert.equal(
+    attempt("empty-static-noop-statement", emptyImportSource, true),
+    ';\n"use strict";\nglobalThis.marker = true;\n',
+    "empty import must remain a statement barrier, not create a directive prologue",
+  );
+  // R25 independent review: assignment-form aliases and inherited methods
+  // must not evade the declaration checks or the ordinary-object exception.
+  attempt("assigned-destructured-global", 'let scope; ({ self: scope } = globalThis); function invoke(key) { scope[key]("child.js"); } invoke("importScripts");\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("assigned-mutable-global", 'let scope; scope = self; function invoke(key) { scope[key]("child.js"); }\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("initialized-mutable-global", 'let scope = self; function invoke(key) { scope[key]("child.js"); }\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("assigned-nested-global", 'let scope; ({ self: { globalThis: scope } } = globalThis); scope[runtimeKey]("child.js");\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("assigned-logical-global", 'let scope; scope ||= self; scope[runtimeKey]("child.js");\n', false, "UNRESOLVED_GLOBAL_REFERENCE");
+  attempt("ordinary-inherited-global-method", 'const object = {}; Object.setPrototypeOf(object, self); object.importScripts.call(self, "child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("ordinary-deleted-own-method", 'const object = { importScripts() { return 1; } }; delete object.importScripts; Object.setPrototypeOf(object, self); object.importScripts("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("ordinary-destructured-inherited-method", 'const object = {}; Object.setPrototypeOf(object, self); const { importScripts: loader } = object; loader.call(self, "child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  for (const [label, source] of [
+    ["assigned-ordinary-object", 'let scope; const object = { self: {} }; ({ self: scope } = object); function read(key) { return scope[key]; }\n'],
+    ["assigned-shadowed-global", 'function inspect(globalThis, key) { let scope; ({ self: scope } = globalThis); return scope[key]; }\n'],
+    ["ordinary-own-method-unrelated-mutation", 'const object = { count: 1, importScripts() { return this.count; } }; object.count++; object.importScripts();\n'],
+    ["assigned-ordinary-own-method", 'const object = { importScripts() { return 1; } }; let loader; ({ importScripts: loader } = object); loader();\n'],
+  ]) assert.equal(attempt(label, source, true), source, label + " must remain byte-identical");
+  attempt("property-alias", 'const loader = self.importScripts;\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("bare-alias", 'const loader = importScripts;\n', false, "UNSUPPORTED_REFERENCE");
+  attempt("parenthesized-call", '(importScripts)("child.js");\n', false, "UNSUPPORTED_REFERENCE");
+  // Class/object property definition keys are inert, not import calls.
+  const inertDefinitionKeys = [
+    'class Metadata { importScripts = "label"; static importScripts = "static label"; }',
+    'const descriptor = { importScripts: "label" };',
+  ].join("\n") + "\n";
+  assert.equal(
+    attempt("inert-definition-keys", inertDefinitionKeys, true),
+    inertDefinitionKeys,
+    "non-call class/object definition keys must survive unchanged",
+  );
+  attempt("missing-static", 'importScripts("missing.js");\n', false, "invalid Firefox background input");
+
+  // TypeScript spans use UTF-16 offsets, whereas the Python composer slices
+  // Unicode code points. Two separate imports follow astral characters.
+  const nonBmpSource = [
+    'const before = "😀🚀";',
+    'importScripts("child.js");',
+    'const between = "🦊🛍️";',
+    'importScripts("child2.js");',
+    "globalThis.after = true;",
+  ].join("\n") + "\n";
+  const nonBmpResult = attempt("non-bmp-offsets", nonBmpSource, true);
+  const expectedNonBmp = [
+    'const before = "😀🚀";',
+    "globalThis.Child1 = true;",
+    "",
+    'const between = "🦊🛍️";',
+    "globalThis.Child2 = true;",
+    "",
+    "globalThis.after = true;",
+  ].join("\n") + "\n";
+  assert.equal(
+    nonBmpResult, expectedNonBmp,
+    "AST import spans must preserve exact Unicode code-point boundaries",
+  );
+} finally {
+  fs.rmSync(fixtureRoot, { recursive: true, force: true });
+}
+
 console.log(JSON.stringify({
   status: "PASS",
   requiredDataCollection: manifest.browser_specific_settings.gecko.data_collection_permissions.required,
