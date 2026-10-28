@@ -121,6 +121,16 @@ describe("B2 feedback/support safety foundation", () => {
       "diagnostic to\u2060ken: [ 'SYNTH_B06_UNICODE_PRIVATE_08' ]",
       "SYNTH_B06_UNICODE_PRIVATE_08",
     ],
+    [
+      "hyphenated api-key",
+      "diagnostic api-key: { credential: 'SYNTH_B06_DASH_PRIVATE_01' }",
+      "SYNTH_B06_DASH_PRIVATE_01",
+    ],
+    [
+      "hyphenated api-key with zero-width joiner",
+      "diagnostic api-\u200Bkey: { credential: 'SYNTH_B06_DASH_PRIVATE_02' }",
+      "SYNTH_B06_DASH_PRIVATE_02",
+    ],
   ])(
     "fails closed on zero-width credential structure %s",
     (_kind, text, canary) => {
@@ -895,6 +905,16 @@ describe("B2 feedback/support safety foundation", () => {
       "harmless noncredential joiner",
       "diagnostic note: \u200B{ value: 'safe-text' }",
       "diagnostic note: \u200B{ value: 'safe-text' }",
+    ],
+    [
+      "hyphenated api-key before case and followup writes",
+      "diagnostic api-key: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_04' }",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "zero-width within hyphenated api-key before case and followup writes",
+      "diagnostic api-\u200Bkey: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_05' }",
+      "[REDACTED_SECRET]",
     ],
   ])(
     "masks %s before all support repository writes",
