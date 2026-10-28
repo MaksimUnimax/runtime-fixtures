@@ -555,6 +555,90 @@ describe("TG4 Telegram operator integration hardening", () => {
     await f.scheduler.stop();
   });
 
+  it("TG4-31 retries only failed monitoring recipients, not earlier successful chats", async () => {
+    const sends: string[] = [];
+    const stored = new InMemoryMonitoringScheduleStore();
+    await stored.ensureDefaults(new Date("2026-09-22T00:00:00Z"));
+    let service!: TelegramOperatorService;
+    let failSecondOnce = true;
+    const scheduler = new IndependentMonitoringScheduler({
+      store: stored,
+      notificationRetryDelaysMs: [0, 0],
+      runners: {
+        LLM: async () => ({
+          status: "SUCCEEDED",
+          code: null,
+          summary: "Synthetic success.",
+        }),
+        SWAGGER_API: async () => ({
+          status: "SUCCEEDED",
+          code: null,
+          summary: "Synthetic success.",
+        }),
+      },
+      notifier: async (notification) => service.notify(notification),
+    });
+    const transport: TelegramTransport = {
+      getUpdates: async () => ({ updates: [] }),
+      answerCallback: async () => {},
+      sendMessage: async (chatId) => {
+        sends.push(chatId);
+        if (chatId === "fixture-B" && failSecondOnce) {
+          failSecondOnce = false;
+          throw new Error("SYNTHETIC_SECOND_CHAT_PRE_DELIVERY_FAILURE");
+        }
+      },
+    };
+    service = new TelegramOperatorService({
+      scheduler,
+      transport,
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["fixture-A", "fixture-B"],
+    });
+    try {
+      expect((await scheduler.runNowAndWait("LLM")).status).toBe("SUCCEEDED");
+      expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-B"]);
+      expect((await scheduler.runNowAndWait("LLM")).status).toBe("SUCCEEDED");
+      expect(sends).toEqual([
+        "fixture-A",
+        "fixture-B",
+        "fixture-B",
+        "fixture-A",
+        "fixture-B",
+      ]);
+    } finally {
+      await scheduler.stop();
+    }
+  });
+
+  it("TG4-32 sends once to a duplicated configured chat ID", async () => {
+    const sends: string[] = [];
+    const f = await fixture();
+    const service = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        answerCallback: async () => {},
+        sendMessage: async (chatId) => {
+          sends.push(chatId);
+        },
+      },
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["fixture-A", "fixture-A"],
+    });
+    await service.notify({
+      lane: "LLM",
+      runId: "fixture-notification",
+      source: "FORCED",
+      result: {
+        status: "SUCCEEDED",
+        code: null,
+        summary: "Synthetic success.",
+      },
+    });
+    expect(sends).toEqual(["fixture-A"]);
+  });
+
   it("TG4-30 LLM and Swagger UI/control state remain separate", async () => {
     const f = await fixture();
     await f.service.handleUpdate({

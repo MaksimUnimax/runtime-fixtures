@@ -149,6 +149,8 @@ export class TelegramOperatorService {
   private offset: number | undefined;
   private polling = false;
   private pollingTask: Promise<void> | undefined;
+  // Bounded per-run successes; a later recipient's failure must not resend them.
+  private readonly notificationDelivered = new Map<string, Set<string>>();
 
   public constructor(private readonly options: TelegramOperatorOptions) {}
 
@@ -549,13 +551,28 @@ export class TelegramOperatorService {
   }
 
   async notify(notification: MonitoringNotification): Promise<void> {
+    const key = `${notification.lane}:${notification.runId}:${notification.source}`;
+    const sent = this.notificationDelivered.get(key) ?? new Set<string>();
+    const recipients = [...new Set(this.options.notificationChatIds ?? [])];
     const text = explainMonitoringResult(notification);
-    for (const chatId of this.options.notificationChatIds ?? [])
+    for (const chatId of recipients) {
+      if (sent.has(chatId)) continue;
       await this.options.transport.sendMessage(
         chatId,
         text,
         keyboard(notification.lane),
       );
+      // Only an acknowledged success is safely skipped on this run's retries.
+      sent.add(chatId);
+      if (!this.notificationDelivered.has(key)) {
+        if (this.notificationDelivered.size >= 64) {
+          const oldest = this.notificationDelivered.keys().next().value;
+          if (oldest !== undefined) this.notificationDelivered.delete(oldest);
+        }
+        this.notificationDelivered.set(key, sent);
+      }
+    }
+    this.notificationDelivered.delete(key);
   }
 
   async notifyIncident(event: {
