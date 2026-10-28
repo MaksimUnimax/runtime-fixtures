@@ -151,6 +151,11 @@ export class TelegramOperatorService {
   private pollingTask: Promise<void> | undefined;
   // Bounded per-run successes; a later recipient's failure must not resend them.
   private readonly notificationDelivered = new Map<string, Set<string>>();
+  // Serialize only simultaneous callbacks for the same incident event.
+  private readonly incidentNotificationFlights = new Map<
+    string,
+    Promise<void>
+  >();
 
   public constructor(private readonly options: TelegramOperatorOptions) {}
 
@@ -578,6 +583,8 @@ export class TelegramOperatorService {
   async notifyIncident(event: {
     kind: "OPENED" | "RESOLVED";
     incident: {
+      incidentKey?: string;
+      occurrenceCount?: number;
       sourceFamily: string | null;
       incidentType: string;
       severity: string;
@@ -586,13 +593,53 @@ export class TelegramOperatorService {
     };
   }): Promise<void> {
     const incident = event.incident;
-    const text = `API-watch incident ${event.kind.toLowerCase()}: ${incident.sourceFamily ?? "GLOBAL"} ${incident.incidentType} ${incident.severity} ${incident.safeSummaryCode} report=${incident.latestReportId}`;
-    for (const chatId of this.options.notificationChatIds ?? [])
-      await this.options.transport.sendMessage(
-        chatId,
-        text,
-        keyboard("SWAGGER_API"),
-      );
+    // Bounded memory suppresses only a confirmed event/recipient delivery.
+    // Incident OPENED, RESOLVED and new report generations have distinct keys.
+    const key =
+      "incident:" +
+      JSON.stringify([
+        event.kind,
+        incident.incidentKey ?? null,
+        incident.occurrenceCount ?? null,
+        incident.sourceFamily,
+        incident.incidentType,
+        incident.severity,
+        incident.safeSummaryCode,
+        incident.latestReportId,
+      ]);
+    const pending = this.incidentNotificationFlights.get(key);
+    if (pending) return pending;
+    // Publish the flight before its first sendMessage starts.
+    const work = Promise.resolve().then(async () => {
+      const sent = this.notificationDelivered.get(key) ?? new Set<string>();
+      const recipients = [...new Set(this.options.notificationChatIds ?? [])];
+      const text = `API-watch incident ${event.kind.toLowerCase()}: ${incident.sourceFamily ?? "GLOBAL"} ${incident.incidentType} ${incident.severity} ${incident.safeSummaryCode} report=${incident.latestReportId}`;
+      for (const chatId of recipients) {
+        if (sent.has(chatId)) continue;
+        await this.options.transport.sendMessage(
+          chatId,
+          text,
+          keyboard("SWAGGER_API"),
+        );
+        // Never mark a rejected or ambiguous transport outcome as delivered.
+        sent.add(chatId);
+        if (!this.notificationDelivered.has(key)) {
+          if (this.notificationDelivered.size >= 64) {
+            const oldest = this.notificationDelivered.keys().next().value;
+            if (oldest !== undefined) this.notificationDelivered.delete(oldest);
+          }
+          this.notificationDelivered.set(key, sent);
+        }
+      }
+    });
+    this.incidentNotificationFlights.set(key, work);
+    try {
+      await work;
+    } finally {
+      if (this.incidentNotificationFlights.get(key) === work) {
+        this.incidentNotificationFlights.delete(key);
+      }
+    }
   }
 
   private async poll(): Promise<void> {

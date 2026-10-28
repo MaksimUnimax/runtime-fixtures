@@ -641,6 +641,139 @@ describe("TG4 Telegram operator integration hardening", () => {
     expect(sends).toEqual(["fixture-A"]);
   });
 
+  it("TG4-33 sends an incident once per distinct configured chat", async () => {
+    const f = await fixture();
+    const sends: string[] = [];
+    const service = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        answerCallback: async () => {},
+        sendMessage: async (chatId) => {
+          sends.push(chatId);
+        },
+      },
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["fixture-A", "fixture-A", "fixture-B"],
+    });
+    await service.notifyIncident({
+      kind: "OPENED",
+      incident: {
+        incidentKey: "fixture-incident-1",
+        occurrenceCount: 1,
+        sourceFamily: "WILDBERRIES",
+        incidentType: "API_CHANGE_REVIEW_REQUIRED",
+        severity: "WARNING",
+        safeSummaryCode: "SAFE_FIXTURE_ONLY",
+        latestReportId: "fixture-report-1",
+      },
+    });
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
+  });
+
+  it("TG4-34 repeated incident callback skips acknowledged chats but preserves distinct transitions", async () => {
+    const f = await fixture();
+    const sends: string[] = [];
+    let failSecondBeforeDelivery = true;
+    const service = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        answerCallback: async () => {},
+        sendMessage: async (chatId) => {
+          sends.push(chatId);
+          if (chatId === "fixture-B" && failSecondBeforeDelivery) {
+            failSecondBeforeDelivery = false;
+            throw new Error("SYNTHETIC_SECOND_CHAT_BEFORE_DELIVERY");
+          }
+        },
+      },
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["fixture-A", "fixture-B"],
+    });
+    const incident = {
+      incidentKey: "fixture-incident-retry",
+      occurrenceCount: 1,
+      sourceFamily: "WILDBERRIES",
+      incidentType: "API_CHANGE_REVIEW_REQUIRED",
+      severity: "WARNING",
+      safeSummaryCode: "SAFE_FIXTURE_ONLY",
+      latestReportId: "fixture-report-retry",
+    };
+    await expect(
+      service.notifyIncident({ kind: "OPENED", incident }),
+    ).rejects.toThrow("SYNTHETIC_SECOND_CHAT_BEFORE_DELIVERY");
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
+    await service.notifyIncident({ kind: "OPENED", incident });
+    expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-B"]);
+    await service.notifyIncident({ kind: "OPENED", incident });
+    expect(sends).toEqual(["fixture-A", "fixture-B", "fixture-B"]);
+    await service.notifyIncident({ kind: "RESOLVED", incident });
+    expect(sends).toEqual([
+      "fixture-A",
+      "fixture-B",
+      "fixture-B",
+      "fixture-A",
+      "fixture-B",
+    ]);
+    await service.notifyIncident({
+      kind: "OPENED",
+      incident: {
+        ...incident,
+        occurrenceCount: 2,
+        latestReportId: "fixture-report-new",
+      },
+    });
+    expect(sends.slice(-2)).toEqual(["fixture-A", "fixture-B"]);
+  });
+
+  it("TG4-35 joins concurrent callbacks for one incident before any chat reply", async () => {
+    const f = await fixture();
+    const sends: string[] = [];
+    let releaseFirst!: () => void;
+    let firstEntered!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const entered = new Promise<void>((resolve) => {
+      firstEntered = resolve;
+    });
+    const service = new TelegramOperatorService({
+      scheduler: f.scheduler,
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        answerCallback: async () => {},
+        sendMessage: async (chatId) => {
+          sends.push(chatId);
+          if (chatId === "fixture-A") {
+            firstEntered();
+            await gate;
+          }
+        },
+      },
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["fixture-A", "fixture-B"],
+    });
+    const event = {
+      kind: "OPENED" as const,
+      incident: {
+        incidentKey: "fixture-incident-sameflight",
+        occurrenceCount: 1,
+        sourceFamily: "WILDBERRIES",
+        incidentType: "API_CHANGE_REVIEW_REQUIRED",
+        severity: "WARNING",
+        safeSummaryCode: "SAFE_FIXTURE_ONLY",
+        latestReportId: "fixture-report-sameflight",
+      },
+    };
+    const first = service.notifyIncident(event);
+    const second = service.notifyIncident(event);
+    await entered;
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(sends).toEqual(["fixture-A", "fixture-B"]);
+  });
+
   it("TG4-30 LLM and Swagger UI/control state remain separate", async () => {
     const f = await fixture();
     await f.service.handleUpdate({
