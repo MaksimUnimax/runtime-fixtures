@@ -320,6 +320,65 @@ await check("frozen_port_denies_artifact_outside_bound_owner", async () => {
   assert.equal(response.code, "ATTACHMENT_ARTIFACT_NOT_OWNED");
 });
 
+await check("copy_manifest_rejects_missing_expiry_metadata", async () => {
+  const row = records.get(original.artifact_key);
+  const prev = row.expires_at_ms;
+  try {
+    delete row.expires_at_ms;
+    await assert.rejects(bridge.copyManifest({mode:"attachment_watch_v1",
+      phase:"attachment_ready",artifact_descriptors:[descriptor()]}), /INTEGRITY_UNKNOWN_NO_RETRY/);
+  } finally { row.expires_at_ms = prev; }
+});
+await check("copy_manifest_rejects_nonfinite_expiry_metadata", async () => {
+  const row = records.get(original.artifact_key);
+  const prev = row.expires_at_ms;
+  try {
+    row.expires_at_ms = Infinity;
+    await assert.rejects(bridge.copyManifest({mode:"attachment_watch_v1",
+      phase:"attachment_ready",artifact_descriptors:[descriptor()]}), /INTEGRITY_UNKNOWN_NO_RETRY/);
+  } finally { row.expires_at_ms = prev; }
+});
+await check("copy_manifest_rejects_missing_creation_timestamp", async () => {
+  const row = records.get(original.artifact_key);
+  const prev = row.created_at_ms;
+  try {
+    delete row.created_at_ms;
+    await assert.rejects(bridge.copyManifest({mode:"attachment_watch_v1",
+      phase:"attachment_ready",artifact_descriptors:[descriptor()]}), /INTEGRITY_UNKNOWN_NO_RETRY/);
+  } finally { row.created_at_ms = prev; }
+});
+await check("copy_manifest_rejects_more_than_one_hour_lifetime", async () => {
+  const row = records.get(original.artifact_key);
+  const prev = row.expires_at_ms;
+  try {
+    row.expires_at_ms = row.created_at_ms + 60*60*1000 + 1;
+    await assert.rejects(bridge.copyManifest({mode:"attachment_watch_v1",
+      phase:"attachment_ready",artifact_descriptors:[descriptor()]}), /INTEGRITY_UNKNOWN_NO_RETRY/);
+  } finally { row.expires_at_ms = prev; }
+});
+await check("copy_manifest_rejects_expiry_while_digest_is_pending", async () => {
+  const row = records.get(original.artifact_key);
+  const realDate = context.Date;
+  const expiry = row.expires_at_ms;
+  let nowReads = 0;
+  try {
+    // Same unmodified valid record: emulate wall-clock moving from just
+    // before expiry to just after expiry across the asynchronous SHA-256.
+    context.Date = class SimulatedDate extends realDate {
+      static now() { return (++nowReads === 1) ? expiry - 1 : expiry + 1; }
+    };
+    await assert.rejects(bridge.copyManifest({ mode:"attachment_watch_v1",
+      phase:"attachment_ready",artifact_descriptors:[descriptor()] }),
+      /INTEGRITY_UNKNOWN_NO_RETRY/);
+    assert.ok(nowReads >= 2, "expiry must be checked again after digest");
+  } finally { context.Date = realDate; }
+});
+await check("copy_manifest_existing_valid_record_still_accepted_after_restore", async () => {
+  const result = await bridge.copyManifest({mode:"attachment_watch_v1",
+      phase:"attachment_ready",artifact_descriptors:[descriptor()]});
+  assert.equal(result.length,1);
+  assert.equal(result[0].sha256,original.sha256);
+});
 const failed = checks.filter((entry) => !entry.pass);
 console.log("WB_ORIGINAL_APPLICATION_FILE_REGRESSION " + JSON.stringify({
   total: checks.length, pass: checks.length - failed.length,

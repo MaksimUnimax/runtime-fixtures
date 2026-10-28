@@ -195,12 +195,20 @@ async function saWbFileHash(bytes) {
         get.onsuccess = () => done(get.result);
         get.onerror = () => fail(get.error || saWbFileError("ATTACHMENT_MANIFEST_READ_FAILED"));
       });
-      if (!record || Number(record.expires_at_ms) <= Date.now() ||
+      const checkedAtMs = Date.now();
+      if (!record ||
+          !Number.isSafeInteger(record.created_at_ms) || record.created_at_ms <= 0 ||
+          !Number.isSafeInteger(record.expires_at_ms) ||
+          record.created_at_ms > checkedAtMs ||
+          record.expires_at_ms <= checkedAtMs ||
+          record.expires_at_ms <= record.created_at_ms ||
+          record.expires_at_ms - record.created_at_ms > MAX_TTL_MS ||
           record.artifact_key !== expected.artifact_key ||
           record.byte_length !== expected.byte_length || record.sha256 !== expected.sha256 ||
           record.filename !== expected.filename || record.source_kind !== expected.source_kind ||
           record.mime_type !== expected.mime_type || record.extension !== expected.extension ||
-          await saWbFileHash(saWbFileBytes(record.bytes)) !== record.sha256)
+          await saWbFileHash(saWbFileBytes(record.bytes)) !== record.sha256 ||
+          record.expires_at_ms <= Date.now())
         throw saWbFileError("ATTACHMENT_MANIFEST_INTEGRITY_UNKNOWN_NO_RETRY");
       manifests.push(descriptor(record));
     }
