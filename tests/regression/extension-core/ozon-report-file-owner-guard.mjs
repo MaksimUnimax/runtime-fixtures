@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
 import path from "node:path";
 import vm from "node:vm";
 import {fileURLToPath} from "node:url";
@@ -15,11 +16,40 @@ const i=appSource.indexOf(guardBegin), j=appSource.indexOf(guardEnd, i);
 assert.ok(i>=0 && j>i && j-i<2400);
 const guardCode=appSource.slice(i,j);
 const providerArgument = process.argv[2] ? path.resolve(process.argv[2]) : "";
-const packageMode = providerArgument.endsWith("/shared/ozon_provider.js");
+// The first-party Extension Core runner passes either the exact source module
+// or a named runtime/extracted copy from its deterministic composer.
+const packageMode = path.basename(providerArgument) === "ozon_provider.js" &&
+  path.basename(path.dirname(providerArgument)) === "shared";
 let selectedGuardCode = guardCode;
 let selectedCoreSource = coreSource;
 if (packageMode) {
   const runtime = path.dirname(path.dirname(providerArgument));
+  assert.ok(["runtime", "extracted"].includes(path.basename(runtime)),
+    "only composer runtime/extracted file layout may claim package provenance");
+  const packageRoot = path.dirname(runtime);
+  const receipt = JSON.parse(readFileSync(path.join(packageRoot, "composition-receipt.json"), "utf8"));
+  assert.ok(["development", "store"].includes(receipt?.build_mode), "recognized composer mode");
+  assert.equal(receipt?.package?.repeat_archive_match, true);
+  assert.equal(receipt?.package?.source_extracted_bytes_match, true);
+  assert.match(receipt?.package?.name || "", /^[A-Za-z0-9_.-]+\.zip$/);
+  const archive = readFileSync(path.join(packageRoot, receipt.package.name));
+  assert.equal(archive.byteLength, receipt.package.bytes, "full composed ZIP size bound to receipt");
+  assert.equal(createHash("sha256").update(archive).digest("hex"),
+    receipt.package.sha256, "full composed ZIP digest bound to receipt");
+  assert.ok(Array.isArray(receipt.files) && receipt.files.length > 0);
+  const filesByPath = new Map(receipt.files.map(row => [row.path, row]));
+  assert.equal(filesByPath.size, receipt.files.length, "unique receipt members");
+  for (const relative of [
+    "manifest.json", "shared/ozon_provider.js", "service_worker_entry.js",
+    "shared/application.js", "service_worker.js",
+  ]) {
+    const file = readFileSync(path.join(runtime, ...relative.split("/")));
+    const expected = filesByPath.get(relative);
+    assert.ok(expected, "missing receipt member " + relative);
+    assert.equal(file.length, expected.bytes, "receipt member length " + relative);
+    assert.equal(createHash("sha256").update(file).digest("hex"),
+      expected.sha256, "receipt member digest " + relative);
+  }
   const entry = readFileSync(path.join(runtime, "service_worker_entry.js"), "utf8");
   const packagedApplication = readFileSync(path.join(runtime, "shared/application.js"), "utf8");
   const packagedWorker = readFileSync(path.join(runtime, "service_worker.js"), "utf8");
@@ -106,6 +136,10 @@ await negative("missing-expiry",{...OWN,expires_at_ms:undefined});
 await negative("nan-expiry",{...OWN,expires_at_ms:NaN});
 await negative("infinite-expiry",{...OWN,expires_at_ms:Infinity});
 await negative("nonnumeric-expiry",{...OWN,expires_at_ms:"nonsense"});
+await negative("null-expiry",{...OWN,expires_at_ms:null});
+await negative("numeric-string-future-expiry",{...OWN,expires_at_ms:String(Date.now()+60000)});
+await negative("fractional-future-expiry",{...OWN,expires_at_ms:Date.now()+60000.5});
+await negative("unsafe-integer-future-expiry",{...OWN,expires_at_ms:Number.MAX_SAFE_INTEGER+1});
 await negative("revoked-current-authority",OWN,{},true,false,"EXECUTION_CONTEXT_CHANGED");
 const weakened=harness(OWN,"remove_account_check");
 const bad=await weakened.call(weakened.makeContext({accountId:"ACCOUNT_B"}));
