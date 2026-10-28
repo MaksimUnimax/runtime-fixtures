@@ -158,12 +158,13 @@ it("preserves imported P1 across two API OS processes before ACK and retires it 
           imported: "DELIVERED_TO_RECIPIENT",
           stopped: "DELIVERED_TO_RECIPIENT",
           restarted: "DELIVERED_TO_RECIPIENT",
-          replacement: "PACKET_AVAILABLE_EPHEMERAL",
+          replacementRejected: "DELIVERED_TO_RECIPIENT",
           terminal: "EXPIRED",
         } as const;
         expect(row.state).toBe(expected[stage]);
         if (stage === "stopped") stoppedRow = row;
-        if (stage === "restarted") expect(row).toEqual(stoppedRow);
+        if (stage === "restarted" || stage === "replacementRejected")
+          expect(row).toEqual(stoppedRow);
         stages.push(stage);
       },
     });
@@ -173,7 +174,7 @@ it("preserves imported P1 across two API OS processes before ACK and retires it 
       "imported",
       "stopped",
       "restarted",
-      "replacement",
+      "replacementRejected",
       "terminal",
     ]);
     expect(processCount).toBe(2);

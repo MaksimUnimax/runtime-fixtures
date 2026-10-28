@@ -502,8 +502,8 @@ export class CredentialTransferService {
     )
       throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
     return this.forRequest(requestId, async () => {
-      // Source retries after process loss remain allowed. While the original
-      // delivery is still resident, resetting durable state would strand ACK.
+      // Source retries after process loss remain allowed before delivery.
+      // The repository also fences delivered state across independent relays.
       if (this.relay.isDelivered(requestId, this.now()))
         throw new TransferError("TRANSFER_CONFLICT");
       // A source discovery retry may repeat before the recipient receives
@@ -816,12 +816,7 @@ export function createMemoryTransferRepository(): TransferRepository {
       if (!row.sourceDeviceId) row.sourceDeviceId = principal.deviceId;
       transition(
         row,
-        [
-          "REQUESTED",
-          "SOURCE_SEEN",
-          "PACKET_AVAILABLE_EPHEMERAL",
-          "DELIVERED_TO_RECIPIENT",
-        ],
+        ["REQUESTED", "SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         "SOURCE_SEEN",
       );
       return clone(row);
@@ -833,7 +828,7 @@ export function createMemoryTransferRepository(): TransferRepository {
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
       transition(
         row,
-        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL", "DELIVERED_TO_RECIPIENT"],
+        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         "PACKET_AVAILABLE_EPHEMERAL",
       );
       return clone(row);

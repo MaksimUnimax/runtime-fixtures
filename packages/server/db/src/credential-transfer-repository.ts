@@ -217,12 +217,7 @@ export function createCredentialTransferRepository(
         principal,
         now,
         "source",
-        [
-          "REQUESTED",
-          "SOURCE_SEEN",
-          "PACKET_AVAILABLE_EPHEMERAL",
-          "DELIVERED_TO_RECIPIENT",
-        ],
+        ["REQUESTED", "SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         async (tx, row) => {
           if (!row.source_device_id)
             await tx.query(
@@ -244,7 +239,7 @@ export function createCredentialTransferRepository(
         principal,
         now,
         "source",
-        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL", "DELIVERED_TO_RECIPIENT"],
+        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         async (tx) => {
           await tx.query(
             `UPDATE credential_transfer_requests SET state='PACKET_AVAILABLE_EPHEMERAL',revision=revision+1 WHERE request_id=$1`,

@@ -24,7 +24,7 @@ if (!connectionString) throw new Error("Disposable DATABASE_URL is required");
 // Actual migrated PostgreSQL, limited-role fenced repositories and independent
 // pools. Browser persistence is synthetic; API instances share this process.
 // The existing test authority uses SESSION AUTHORIZATION, not a network login.
-it("preserves imported P1 through a pre-ACK PG-pool replacement and authenticated expiry despite P2", async () => {
+it("preserves imported P1 through a pre-ACK PG-pool replacement, rejected P2 and authenticated expiry", async () => {
   await runMigrations({ connectionString });
   const observer = createDatabaseRuntime(connectionString);
   const firstPool = createDatabaseRuntime(connectionString);
@@ -170,12 +170,13 @@ it("preserves imported P1 through a pre-ACK PG-pool replacement and authenticate
           imported: "DELIVERED_TO_RECIPIENT",
           stopped: "DELIVERED_TO_RECIPIENT",
           restarted: "DELIVERED_TO_RECIPIENT",
-          replacement: "PACKET_AVAILABLE_EPHEMERAL",
+          replacementRejected: "DELIVERED_TO_RECIPIENT",
           terminal: "EXPIRED",
         } as const;
         expect(row.state).toBe(expected[stage]);
         if (stage === "stopped") stoppedRow = row;
-        if (stage === "restarted") expect(row).toEqual(stoppedRow);
+        if (stage === "restarted" || stage === "replacementRejected")
+          expect(row).toEqual(stoppedRow);
         stages.push(stage);
       },
     });
@@ -185,7 +186,7 @@ it("preserves imported P1 through a pre-ACK PG-pool replacement and authenticate
       "imported",
       "stopped",
       "restarted",
-      "replacement",
+      "replacementRejected",
       "terminal",
     ]);
     expect(repositoryCount).toBe(2);

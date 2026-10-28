@@ -14,7 +14,7 @@ beforeAll(async () => {
   fixture = await prepareRecipientRelayRuntime();
 }, 20_000);
 afterAll(() => fixture?.dispose());
-it("preserves imported P1 across relay loss and P2, then retires only an authenticated terminal request", async () => {
+it("preserves imported P1 across relay loss and rejected P2, then retires only an authenticated terminal request", async () => {
   const uuid = (n: number) =>
     `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
   const recipient = {

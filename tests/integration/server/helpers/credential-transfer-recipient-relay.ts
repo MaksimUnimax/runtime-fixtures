@@ -74,7 +74,7 @@ export type RecipientRelayStage =
   | "imported"
   | "stopped"
   | "restarted"
-  | "replacement"
+  | "replacementRejected"
   | "terminal";
 export type RecipientRelayApi = {
   inject(input: {
@@ -247,14 +247,18 @@ export async function proveRecipientRelayRecovery(
       seedAuthority,
       fetch,
     });
-  const send = async (path: string, payload: Record<string, unknown>) => {
+  const send = async (
+    path: string,
+    payload: Record<string, unknown>,
+    expectedStatus = 200,
+  ) => {
     const reply = await app.inject({
       method: "POST",
       url: path,
       headers: { authorization: `Bearer ${sourceToken}` },
       payload,
     });
-    expect(reply.statusCode, reply.body).toBe(200);
+    expect(reply.statusCode, reply.body).toBe(expectedStatus);
     return reply.json();
   };
   const errors: unknown[] = [];
@@ -351,13 +355,26 @@ export async function proveRecipientRelayRecovery(
     app = await nextApp();
     await options.observe?.("restarted", request.requestId);
     worker = await makeRecipient(false);
-    await send(endpoint + "/source-seen", {});
-    await send(endpoint + "/packet", {
-      requestId: request.requestId,
-      packetId: secondPacket,
-      envelope: await envelope(secondPacket, "P2"),
+    // A delivered request cannot reopen on a new authority with an empty
+    // relay. Preserve P1 metadata even though that authority cannot verify ACK.
+    expect(await send(endpoint + "/source-seen", {}, 409)).toMatchObject({
+      error: { code: "TRANSFER_CONFLICT" },
     });
-    await options.observe?.("replacement", request.requestId);
+    expect(
+      await send(
+        endpoint + "/packet",
+        {
+          requestId: request.requestId,
+          packetId: secondPacket,
+          envelope: await envelope(secondPacket, "P2"),
+        },
+        409,
+      ),
+    ).toMatchObject({ error: { code: "TRANSFER_CONFLICT" } });
+    expect(await app.readState(request.requestId, recipient, serverTime)).toBe(
+      "DELIVERED_TO_RECIPIENT",
+    );
+    await options.observe?.("replacementRejected", request.requestId);
     const retry = await worker.popup<{
       importState: string;
       ackConfirmed: boolean;
