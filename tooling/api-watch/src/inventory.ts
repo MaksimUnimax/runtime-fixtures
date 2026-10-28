@@ -857,7 +857,12 @@ function resolvePathItem(
   root: Record<string, unknown>,
   seen = new Set<string>(),
 ): Record<string, unknown> {
-  const item = asObject(raw);
+  // Inline Path Items must be objects, just like referenced Path Items.
+  // Converting null, arrays or primitives to {} fabricates a legal empty
+  // Path Item and can report false operation removals from invalid input.
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw))
+    throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+  const item = raw as Record<string, unknown>;
   if (!Object.hasOwn(item, "$ref")) return item;
   const ref = item.$ref;
   if (typeof ref !== "string" || !ref.startsWith("#"))

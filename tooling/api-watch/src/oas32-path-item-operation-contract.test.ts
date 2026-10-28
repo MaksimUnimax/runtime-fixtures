@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildCompleteOperationInventory } from "./inventory.js";
+import { diffInventories } from "./diff.js";
 
 const operation = (id: string) => ({
   operationId: id,
@@ -13,7 +14,7 @@ const pathParameter = {
 
 type Source = "inline" | "components" | "paths";
 function inventory(
-  item: Record<string, unknown>,
+  item: unknown,
   version = "3.2.0",
   source: Source = "inline",
 ) {
@@ -74,6 +75,74 @@ describe("C03 OAS 3.2 Path Item QUERY/additionalOperations inventory parity", ()
       expect(new Set(ops.map((op) => op.identity)).size).toBe(4);
     },
   );
+
+  it.each([
+    ["null", null],
+    ["array", []],
+    ["string", "invalid"],
+    ["number", 123],
+    ["boolean", true],
+  ] as const)(
+    "rejects non-object inline Path Item (%s) instead of treating it as empty",
+    (_label, invalid) => {
+      for (const version of ["3.0.3", "3.1.2", "3.2.0"]) {
+        expect(() => inventory(invalid, version)).toThrow(
+          "APIWATCH_PATH_ITEM_REF_INVALID_TARGET",
+        );
+      }
+    },
+  );
+
+  it.each(["components", "paths"] as const)(
+    "rejects a non-object referenced Path Item via %s",
+    (source) => {
+      for (const invalid of [null, [], "invalid", 123, true]) {
+        expect(() => inventory(invalid, "3.2.0", source)).toThrow(
+          "APIWATCH_PATH_ITEM_REF_NOT_OBJECT",
+        );
+      }
+    },
+  );
+
+  it("preserves legal empty Path Items and real GET, QUERY and custom operations in diff", () => {
+    const complete = (item: unknown, hash: string) =>
+      buildCompleteOperationInventory({
+        sourceFamily: "OZON_SELLER",
+        snapshotSha256: hash.repeat(64),
+        filename: "oas32-path-item.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.2.0",
+            info: { title: "Path Item validity", version: "1" },
+            paths: { "/items": item },
+          }),
+        ),
+      });
+    const empty = complete({}, "a");
+    expect(empty.pathCount).toBe(1);
+    expect(empty.operationCount).toBe(0);
+
+    const populated = complete(
+      {
+        get: operation("getItems"),
+        query: operation("queryItems"),
+        additionalOperations: { "m-SEARCH": operation("searchItems") },
+      },
+      "b",
+    );
+    expect(populated.operations.map((value) => value.method)).toEqual([
+      "GET",
+      "QUERY",
+      "m-SEARCH",
+    ]);
+    const report = diffInventories({
+      base: empty,
+      target: populated,
+      createdAt: new Date("2026-10-28T00:00:00Z"),
+    });
+    expect(report.addedCount).toBe(3);
+    expect(report.removedCount).toBe(0);
+  });
 
   it("preserves case-sensitive custom HTTP method identity", () => {
     const ops = inventory({
