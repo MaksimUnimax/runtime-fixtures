@@ -146,6 +146,13 @@ export function diffInventories(input: {
 }): SemanticDiff {
   if (input.base.sourceFamily !== input.target.sourceFamily)
     throw new Error("DIFF_SOURCE_FAMILY_MISMATCH");
+  // A persisted inventory with a stale count must not produce a misleading
+  // hashed diff summary. Both sides must agree with their actual operations.
+  if (
+    input.base.operationCount !== input.base.operations.length ||
+    input.target.operationCount !== input.target.operations.length
+  )
+    throw new Error("DIFF_INVENTORY_COUNT_MISMATCH");
 
   const family: SwaggerSourceFamily = input.base.sourceFamily;
   const base = new Map(
