@@ -144,6 +144,40 @@ describe("C03 OAS 3.2 Path Item QUERY/additionalOperations inventory parity", ()
     expect(report.removedCount).toBe(0);
   });
 
+  it.each(["3.0.3", "3.1.2"] as const)(
+    "rejects malformed inline fixed operations in OpenAPI %s without hiding them",
+    (version) => {
+      for (const invalid of [
+        null,
+        [],
+        "invalid",
+        123,
+        true,
+        {},
+        { responses: null },
+        { responses: [] },
+      ]) {
+        expect(() => inventory({ get: invalid }, version)).toThrow(
+          "APIWATCH_PATH_ITEM_REF_INVALID_TARGET",
+        );
+      }
+      // The old parser validates only the root paths object, so the inventory
+      // must validate every inline Path Item before reporting removals.
+      for (const invalid of [{ servers: {} }, { summary: 123 }]) {
+        expect(() => inventory(invalid, version)).toThrow(
+          "APIWATCH_PATH_ITEM_REF_INVALID_TARGET",
+        );
+      }
+      expect(inventory({}, version)).toHaveLength(0);
+      expect(
+        inventory(
+          { get: operation("getItems"), "x-provider-field": { note: "ok" } },
+          version,
+        ).map((op) => op.operationId),
+      ).toEqual(["getItems"]);
+    },
+  );
+
   it("preserves case-sensitive custom HTTP method identity", () => {
     const ops = inventory({
       get: operation("getItems"),
