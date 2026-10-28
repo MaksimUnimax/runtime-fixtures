@@ -7,6 +7,68 @@ import { MAX_SWAGGER_UPLOAD_BYTES } from "@product/monitoring-control";
 
 type TelegramApiResponse<T> = { ok: boolean; result?: T };
 
+// A long-poll page is untrusted network input, not a local file. Bound raw
+// JSON bytes before allocating the decoded string and parsed objects.
+const MAX_TELEGRAM_API_RESPONSE_BYTES = 8 * 1024 * 1024;
+
+async function readBoundedTelegramApiResponse<T>(
+  response: Response,
+): Promise<TelegramApiResponse<T>> {
+  const declared = response.headers.get("content-length");
+  if (declared !== null) {
+    const size = Number(declared);
+    if (
+      !Number.isSafeInteger(size) ||
+      size < 0 ||
+      size > MAX_TELEGRAM_API_RESPONSE_BYTES
+    ) {
+      void response.body?.cancel().catch(() => {});
+      throw new Error("TELEGRAM_API_RESPONSE_TOO_LARGE");
+    }
+  }
+  if (!response.body) throw new Error("TELEGRAM_API_RESPONSE_BODY_MISSING");
+
+  const reader = response.body.getReader();
+  let bytes = new Uint8Array(0);
+  let total = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array))
+        throw new Error("TELEGRAM_API_RESPONSE_BODY_INVALID");
+      if (value.byteLength > MAX_TELEGRAM_API_RESPONSE_BYTES - total)
+        throw new Error("TELEGRAM_API_RESPONSE_TOO_LARGE");
+      const required = total + value.byteLength;
+      if (required > bytes.byteLength) {
+        const capacity = Math.min(
+          MAX_TELEGRAM_API_RESPONSE_BYTES,
+          Math.max(required, bytes.byteLength * 2, 64 * 1024),
+        );
+        const grown = new Uint8Array(capacity);
+        grown.set(bytes.subarray(0, total));
+        bytes = grown;
+      }
+      // The stream is permitted to reuse or mutate its previous value.
+      bytes.set(value, total);
+      total = required;
+    }
+  } catch (error) {
+    void reader.cancel().catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+
+  try {
+    return JSON.parse(
+      new TextDecoder().decode(bytes.subarray(0, total)),
+    ) as TelegramApiResponse<T>;
+  } catch {
+    throw new Error("TELEGRAM_API_RESPONSE_INVALID");
+  }
+}
+
 export function createTelegramTransport(
   token: string,
   fetcher: typeof fetch = fetch,
@@ -26,8 +88,12 @@ export function createTelegramTransport(
       body: JSON.stringify(body),
       signal,
     });
-    const payload = (await response.json()) as TelegramApiResponse<T>;
-    if (!response.ok || !payload.ok || payload.result === undefined)
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => {});
+      throw new Error("TELEGRAM_" + method.toUpperCase() + "_FAILED");
+    }
+    const payload = await readBoundedTelegramApiResponse<T>(response);
+    if (!payload.ok || payload.result === undefined)
       throw new Error(`TELEGRAM_${method.toUpperCase()}_FAILED`);
     return payload.result;
   }

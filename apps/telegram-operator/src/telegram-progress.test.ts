@@ -31,6 +31,38 @@ function deferred() {
   return { promise, resolve };
 }
 
+describe("Telegram Bot API response memory boundary", () => {
+  it.each(["declared", "actual"] as const)(
+    "rejects an oversized %s control response before any update can be dispatched",
+    async (kind) => {
+      const maxBytes = 8 * 1024 * 1024;
+      const body =
+        kind === "declared"
+          ? JSON.stringify({ ok: true, result: [] })
+          : JSON.stringify({
+              ok: true,
+              result: [],
+              ignored: "x".repeat(maxBytes),
+            });
+      let requests = 0;
+      const fetcher = (async () => {
+        requests++;
+        return new Response(body, {
+          headers: {
+            "content-length": kind === "declared" ? String(maxBytes + 1) : "17",
+          },
+        });
+      }) as typeof fetch;
+      await expect(
+        createTelegramTransport("synthetic-no-network", fetcher).getUpdates(
+          undefined,
+        ),
+      ).rejects.toThrow("TELEGRAM_API_RESPONSE_TOO_LARGE");
+      expect(requests).toBe(1);
+    },
+  );
+});
+
 describe("Telegram Bot API read and mutating deadlines", () => {
   it("bounds polling and attaches an abort signal to the mutating transport", async () => {
     const deadline = new AbortController();
