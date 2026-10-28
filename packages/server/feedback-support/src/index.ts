@@ -413,16 +413,14 @@ function hasMultilineQuotedCredentialKey(input: string): boolean {
       }
       continue;
     }
+    // Observe raw line breaks even when the previous byte was a backslash.
+    if (char === "\r" || char === "\n") hadRawLineBreak = true;
     if (escaped) {
       escaped = false;
       continue;
     }
     if (char === "\\") {
       escaped = true;
-      continue;
-    }
-    if (char === "\r" || char === "\n") {
-      hadRawLineBreak = true;
       continue;
     }
     if (char !== quote) continue;
@@ -434,8 +432,9 @@ function hasMultilineQuotedCredentialKey(input: string): boolean {
         const key = input.slice(start, index);
         if (
           isSensitiveDiagnosticKey(key) ||
-          isSensitiveDiagnosticKey(key.replace(/[\r\n]/gu, "")) ||
-          key.includes("\\")
+          isSensitiveDiagnosticKey(
+            key.replace(/(?:\\+[\r\n]+|[\r\n]+\\+|[\r\n]+)/gu, ""),
+          )
         )
           return true;
       }

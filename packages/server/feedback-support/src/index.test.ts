@@ -449,6 +449,88 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitizeFeedbackText(raw)).toBe(raw);
   });
 
+  it.each([
+    [
+      "backslash immediately before literal LF",
+      'diagnostic {"api\\\nkey":"SYNTH_MALFORMED_ESCAPE_01"}',
+    ],
+    [
+      "backslash immediately before literal CR",
+      'diagnostic {"api\\\rkey":"SYNTH_MALFORMED_ESCAPE_02"}',
+    ],
+    [
+      "two backslashes before literal LF",
+      'diagnostic {"api\\\\\nkey":"SYNTH_MALFORMED_ESCAPE_03"}',
+    ],
+    [
+      "backslash immediately after literal LF",
+      'diagnostic {"api\n\\key":"SYNTH_MALFORMED_ESCAPE_04"}',
+    ],
+    [
+      "pseudo-JSON escaped literal CR",
+      "diagnostic 'api\\\rkey': 'SYNTH_MALFORMED_ESCAPE_05'",
+    ],
+  ])(
+    "rejects quoted credential key with backslash-adjacent raw line break: %s",
+    (_label, raw) => {
+      const clean = sanitizeFeedbackText(raw);
+      expect(clean).toBe("[REDACTED_SECRET]");
+    },
+  );
+
+  it("preserves harmless quoted raw CR/LF and backslashes in nonsecret names", () => {
+    const safe = [
+      'diagnostic {"note\\\nlabel":"SYNTH_ESC_SAFE_01"}',
+      "diagnostic 'note\\\rlabel': 'SYNTH_ESC_SAFE_02'",
+    ];
+    for (const value of safe) expect(sanitizeFeedbackText(value)).toBe(value);
+  });
+
+  it("never stores backslash-adjacent raw line-break secrets in any feedback sink", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_ESC_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_ESC_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    for (const raw of [
+      'diagnostic {"api\\\nkey":"SYNTH_ESC_SINK_PRIVATE_01"}',
+      'diagnostic {"api\\\rkey":"SYNTH_ESC_SINK_PRIVATE_02"}',
+      "diagnostic 'api\\\rkey': 'SYNTH_ESC_SINK_PRIVATE_03'",
+    ]) {
+      const before = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_ESC_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_ESC_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_ESC_FOLLOWUP_CAPTURE");
+      const values = captured.slice(before);
+      expect(values).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    }
+  });
+
   it("retains valid JSON sibling fields and masks escaped multiline API keys", () => {
     const raw = '{"api\\nkey":"SYNTH_VALID_ESCAPED_LF","requestId":"safe"}';
     const clean = sanitizeFeedbackText(raw);
