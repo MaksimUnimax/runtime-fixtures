@@ -976,6 +976,14 @@ export function buildCompleteOperationInventory(input: {
   for (const path of Object.keys(paths).sort()) {
     const pathItem = resolvePathItem(paths[path], document.root);
     const openApi32 = isOpenApi32(document.root);
+    // Existing OAS 3.0/3.1 callers rely on the precise parameter-container
+    // error. Check it before the broader Path Item validator, which uses
+    // APIWATCH_PATH_ITEM_REF_INVALID_TARGET for malformed Path Item fields.
+    if (
+      typeof document.root.openapi === "string" &&
+      /^3\.[01](?:\.|$)/u.test(document.root.openapi)
+    )
+      optionalParameterArray(pathItem.parameters);
     // Validate inline OAS 3.0/3.1 fixed operations just like referenced
     // Path Items: otherwise invalid GET/POST objects can vanish from an
     // inventory and falsely appear as removed API endpoints.

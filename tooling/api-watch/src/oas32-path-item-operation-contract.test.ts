@@ -178,6 +178,21 @@ describe("C03 OAS 3.2 Path Item QUERY/additionalOperations inventory parity", ()
     },
   );
 
+  it.each(["3.0.3", "3.1.2"] as const)(
+    "preserves the precise malformed parameter-container error in OpenAPI %s",
+    (version) => {
+      expect(() =>
+        inventory({ parameters: "invalid", get: operation("get") }, version),
+      ).toThrow("APIWATCH_PARAMETERS_INVALID_CONTAINER");
+      expect(() =>
+        inventory(
+          { get: { ...operation("get"), parameters: "invalid" } },
+          version,
+        ),
+      ).toThrow("APIWATCH_PARAMETERS_INVALID_CONTAINER");
+    },
+  );
+
   it("preserves case-sensitive custom HTTP method identity", () => {
     const ops = inventory({
       get: operation("getItems"),
