@@ -15,11 +15,10 @@ export function createTelegramTransport(
     method: string,
     body: Record<string, unknown>,
   ): Promise<T> {
-    // Telegram getUpdates long-polls for 20 seconds; bound the whole read
-    // exchange so it cannot stall poll recovery or shutdown indefinitely.
-    // Mutating Telegram calls retain their current unknown-outcome behavior.
-    const signal =
-      method === "getUpdates" ? AbortSignal.timeout(30_000) : undefined;
+    // Bound every API exchange so a pending command cannot block shutdown.
+    // A timed-out mutating request is UNKNOWN. This transport does not retry;
+    // caller-side durability across restart remains a separate requirement.
+    const signal = AbortSignal.timeout(30_000);
     const response = await fetcher(`${endpoint}/${method}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -118,6 +117,7 @@ export function createTelegramTransport(
       if (!file.file_path) throw new Error("TELEGRAM_FILE_PATH_MISSING");
       const response = await fetcher(
         `https://api.telegram.org/file/bot${token}/${file.file_path}`,
+        { signal: AbortSignal.timeout(60_000) },
       );
       if (!response.ok) throw new Error("TELEGRAM_FILE_DOWNLOAD_FAILED");
       return new Uint8Array(await response.arrayBuffer());
