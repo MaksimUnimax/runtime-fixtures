@@ -209,6 +209,27 @@ export async function applyRetryPassDecisions(input: {
       }
       continue;
     }
+    // An automatic retry wakes the whole source family, not just one
+    // document. A missing/invalid official source must therefore hold this
+    // pass even when a sibling has a transient failure: otherwise the next
+    // scheduled wake would reacquire the known non-retryable document.
+    // Explicit operator-required authority remains the highest priority.
+    const terminal =
+      outcomes.find(
+        (outcome) => outcome.kind === "SOURCE_URL_AUTHORITY_MISSING",
+      ) ??
+      outcomes.find(
+        (outcome) => outcome.kind === "INVALID_OFFICIAL_SOURCE_RESPONSE",
+      );
+    if (terminal) {
+      await applyRetryDecision({
+        sourceFamily,
+        outcome: terminal,
+        store: input.store,
+        now: input.now,
+      });
+      continue;
+    }
     const temporary = outcomes.filter(
       (outcome) => retryFailureClass(outcome) !== null,
     );

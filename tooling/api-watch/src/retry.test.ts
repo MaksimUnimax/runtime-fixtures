@@ -133,6 +133,96 @@ describe("A9 bounded retry", () => {
     },
   );
 
+  it.each([
+    "SOURCE_URL_AUTHORITY_MISSING",
+    "INVALID_OFFICIAL_SOURCE_RESPONSE",
+  ] as const)(
+    "holds an entire family when %s accompanies another document's transient failure",
+    async (kind) => {
+      for (const terminalFirst of [true, false]) {
+        const store = new InMemoryApiWatchRetryStore();
+        const now = new Date("2026-10-28T00:00:00Z");
+        await applyRetryDecision({
+          sourceFamily: "OZON_SELLER",
+          outcome: outcome(503),
+          store,
+          now,
+        });
+        const before = await store.get("OZON_SELLER");
+        const terminal: AcquisitionOutcome = {
+          kind,
+          sourceFamily: "OZON_SELLER",
+          documentKey: "invalid-document",
+          officialUrl: null,
+          blockerReason: "synthetic non-retryable document",
+        };
+        const temporary: AcquisitionOutcome = {
+          ...outcome(503),
+          documentKey: "transient-document",
+        };
+        const scheduled: Date[] = [];
+        const later = new Date(now.valueOf() + 1000);
+        await applyRetryPassDecisions({
+          outcomes: terminalFirst
+            ? [terminal, temporary]
+            : [temporary, terminal],
+          store,
+          now: later,
+          scheduleEarlier: async (at) => {
+            scheduled.push(at);
+          },
+        });
+        const after = await store.get("OZON_SELLER");
+        expect(after?.nextRetryAt).toBeNull();
+        expect(after?.lastResult).toBe(kind);
+        expect(after?.failureEpisodeId).toBe(before?.failureEpisodeId);
+        expect(after?.retryCount).toBe(1);
+        expect(after?.lastAttemptAt).toEqual(later);
+        expect(scheduled).toHaveLength(0);
+      }
+    },
+  );
+
+  it("terminal authority is higher than a sibling 429; a standalone 429 keeps its cap", async () => {
+    const now = new Date("2026-10-28T00:00:00Z");
+    const terminal: AcquisitionOutcome = {
+      kind: "INVALID_OFFICIAL_SOURCE_RESPONSE",
+      sourceFamily: "OZON_SELLER",
+      documentKey: "invalid-document",
+      officialUrl: null,
+      blockerReason: "synthetic invalid",
+    };
+    const rateLimited: AcquisitionOutcome = {
+      ...outcome(429, "rate limited", 7200),
+      documentKey: "rate-limited-document",
+    };
+    const store = new InMemoryApiWatchRetryStore();
+    const scheduled: Date[] = [];
+    await applyRetryPassDecisions({
+      outcomes: [rateLimited, terminal],
+      store,
+      now,
+      scheduleEarlier: async (at) => {
+        scheduled.push(at);
+      },
+    });
+    expect(await store.get("OZON_SELLER")).toBeUndefined();
+    expect(scheduled).toHaveLength(0);
+
+    await applyRetryPassDecisions({
+      outcomes: [rateLimited],
+      store,
+      now,
+      scheduleEarlier: async (at) => {
+        scheduled.push(at);
+      },
+    });
+    expect((await store.get("OZON_SELLER"))?.failureClass).toBe("HTTP_429");
+    expect(scheduled.map((at) => at.valueOf() - now.valueOf())).toEqual([
+      7200000,
+    ]);
+  });
+
   it("does not create a retry state from a terminal outcome alone", async () => {
     const store = new InMemoryApiWatchRetryStore();
     await applyRetryDecision({
