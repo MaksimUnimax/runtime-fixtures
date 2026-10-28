@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 import { makeWorker, until } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
+assert.ok(process.argv[3] === undefined || process.argv[3] === "--store");
+const fixtureEnvironment = process.argv[3] === "--store" ? "PREPRODUCTION" : "LOCAL DEVELOPMENT";
 const records = new Map();
 let inserts = 0;
 // Requests return snapshots like IndexedDB. A transaction completes only after
@@ -46,7 +48,7 @@ const indexedDB = { open() {
 const originalBytes = new Uint8Array([37, 80, 68, 70, 45, 49, 10, 0, 255]);
 const startTime = Date.now();
 let now = startTime, duringDigest = null, providerCalls = 0;
-const worker = await makeWorker(runtime, { indexedDB, wallClock: () => now,
+const worker = await makeWorker(runtime, { fixtureEnvironment, indexedDB, wallClock: () => now,
   beforeCryptoDigest: async () => { const action = duringDigest; duringDigest = null; await action?.(); },
   fetch: async url => {
     if (url.startsWith("https://")) {
@@ -250,7 +252,7 @@ for (const crossDeadline of [false, true]) {
   await check("ozon_owner_deadline_after_final_guard_" + (crossDeadline ? "denied" : "positive"), async () => {
     records.clear();
     let providerRequests = 0, deadline;
-    const ozon = await makeWorker(runtime, { indexedDB, wallClock: () => now,
+    const ozon = await makeWorker(runtime, { fixtureEnvironment, indexedDB, wallClock: () => now,
       onStorageWrite: (kind, values) => {
         if (kind === "session" && values.__fixture_final_owner_guard_delay)
           now = deadline - (crossDeadline ? 0 : 1);

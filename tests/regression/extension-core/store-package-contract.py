@@ -211,6 +211,16 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert receipt["package"]["repeat_archive_match"] is True
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
 
+    # Exercise the extracted store runtime with its compiled production origin
+    # guards intact. The in-process harness supplies only synthetic HTTPS
+    # authority/signatures; this is not installed or real-server acceptance.
+    subprocess.run(
+        ["node", "--max-old-space-size=512",
+         str(ROOT / "tests/regression/extension-core/client-i1/client-artifact-integrity.mjs"),
+         str(extracted), "--store"],
+        cwd=ROOT, check=True, timeout=45,
+    )
+
     firefox_receipt = firefox.build(runtime, root / "firefox-runtime")
     verify_firefox_contract(root / "firefox-runtime")
     firefox_manifest = json.loads(

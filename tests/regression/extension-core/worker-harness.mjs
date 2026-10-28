@@ -250,10 +250,15 @@ export async function makeWorker(directory, options = {}) {
     await webcrypto.subtle.digest("SHA-256", spki),
   ).toString("hex");
   const defaultKeyId = "fixture-key";
+  const fixtureEnvironment = options.fixtureEnvironment || "LOCAL DEVELOPMENT";
+  assert.ok(["LOCAL DEVELOPMENT", "PREPRODUCTION"].includes(fixtureEnvironment));
+  // Store runtime keeps its compiled origin guards. Only the in-process
+  // fixture authority uses synthetic HTTPS endpoints and its own signer.
+  const httpsFixture = fixtureEnvironment === "PREPRODUCTION";
   const fixtureConfig = options.packagedConfig || {
-    environment: "LOCAL DEVELOPMENT",
-    controlApiOrigin: "http://127.0.0.1:43100",
-    portalOrigin: "http://127.0.0.1:43101",
+    environment: fixtureEnvironment,
+    controlApiOrigin: httpsFixture ? "https://api.fixture.invalid" : "http://127.0.0.1:43100",
+    portalOrigin: httpsFixture ? "https://portal.fixture.invalid" : "http://127.0.0.1:43101",
     extensionVersion: "0.2.4",
     contractVersion: "control_plane_v2",
     trustBundle: {
@@ -736,14 +741,14 @@ export async function makeWorker(directory, options = {}) {
         method: init.method || "GET",
         body: init.body,
       };
-      (record.url.includes("127.0.0.1:43100") ||
-      record.url.includes("127.0.0.1:43101")
+      const target = new URL(record.url);
+      (target.origin === fixtureConfig.controlApiOrigin ||
+      target.origin === fixtureConfig.portalOrigin
         ? controlNetwork
         : network
       ).push(record);
       const healthEndpoint = record.url.endsWith("/v1/health-authority");
       const syncEndpoint = record.url.endsWith("/v1/sync");
-      const target = new URL(record.url);
       if (target.origin === fixtureConfig.controlApiOrigin &&
           target.pathname === "/v1/ai-prompt-tree") {
         if (options.treeFetch)
