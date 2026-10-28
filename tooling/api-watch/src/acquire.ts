@@ -16,6 +16,7 @@ import {
   type SourceDocument,
   type SourceRegistryEntry,
 } from "./types.js";
+import { buildCompleteOperationInventory } from "./inventory.js";
 
 type FetchLike = typeof fetch;
 
@@ -924,12 +925,25 @@ export async function acquireOfficialSource(input: {
         if (!entry.titlePattern.test(typeof title === "string" ? title : ""))
           throw new Error("SOURCE_TITLE_IDENTITY_MISMATCH");
       }
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      // Root validation alone can admit malformed Path Item and operation
+      // contracts. Match the later report/activation inventory consumer before
+      // declaring official authority accepted or exposing an accepted snapshot.
+      // The inventory is pure; no filesystem or database writes occur here.
+      buildCompleteOperationInventory({
+        sourceFamily: entry.sourceFamily,
+        documentKey: document?.documentKey ?? null,
+        snapshotSha256: sha256,
+        bytes,
+        filename: `official${extension}`,
+      });
+      assertNotRevoked();
       return {
         kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
         sourceFamily: entry.sourceFamily,
         officialUrl,
         bytes,
-        sha256: createHash("sha256").update(bytes).digest("hex"),
+        sha256,
         sizeBytes: bytes.byteLength,
         specVersion: validation.detectedSpecVersion,
         artifactType,
