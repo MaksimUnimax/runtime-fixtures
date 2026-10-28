@@ -87,6 +87,7 @@ def main():
                 ("i1-ledger-capacity", ROOT / "tests/regression/extension-core/client-i1/client-ledger-capacity.mjs"),
                 ("i1-r4", ROOT / "tests/regression/extension-core/client-i1/client-r4.mjs"),
                 ("i1-r5", ROOT / "tests/regression/extension-core/client-i1/client-r5.mjs"),
+                ("i1-artifact-integrity", ROOT / "tests/regression/extension-core/client-i1/client-artifact-integrity.mjs"),
                 ("i1-cache-time", ROOT / "tests/regression/extension-core/client-i1/client-cache-time.mjs"),
                 ("i1-v3-passive-cache", ROOT / "tests/regression/extension-core/client-i1/client-v3-passive-cache.mjs"),
                 ("i1-offline-policy", ROOT / "tests/regression/extension-core/client-i1/client-offline-policy.mjs"),
