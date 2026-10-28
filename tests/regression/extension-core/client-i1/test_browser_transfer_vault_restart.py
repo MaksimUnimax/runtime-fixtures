@@ -34,7 +34,7 @@ class BrowserVaultProofTest(unittest.TestCase):
                         "packetId": proof.PACKET,
                         "result": {"importState": "IMPORTED", "results": [{"storeId": "fixture", "kind": "IMPORTED"}]}}
 
-    def exercise(self, *, first_change=None, pending_change=None, close_failure=None):
+    def exercise(self, *, first_change=None, pending_change=None, close_failure=None, run=None):
         opened, closed, profiles = [], [], []
 
         @contextmanager
@@ -51,6 +51,8 @@ class BrowserVaultProofTest(unittest.TestCase):
                     raise RuntimeError("owned context close failed")
 
         def evaluate(number, source, values):
+            self.assertIn(number, opened, "evaluate requires its opened context")
+            self.assertNotIn(number, closed, "evaluate cannot use a closed context")
             if number == 0:
                 return {"envelope": "inert", "expiresAt": self.active["expiresAt"],
                         "publicKeySpki": self.active["publicKeySpki"],
@@ -69,7 +71,7 @@ class BrowserVaultProofTest(unittest.TestCase):
              patch.object(proof, "opened_worker", fixture_worker), \
              patch.object(proof, "evaluate", evaluate):
             try:
-                result = proof.run(self.args)
+                result = (run or proof.run)(self.args)
             finally:
                 self.assertEqual(closed, opened, "failed proof closes every opened owned context")
                 self.assertEqual(len(set(profiles)), 1, "restarts use one owned persistent profile")
@@ -82,6 +84,31 @@ class BrowserVaultProofTest(unittest.TestCase):
 
     def test_healthy_control_keeps_claims_scoped(self):
         self.exercise()
+
+    def test_close_before_pending_write_mutation_is_rejected(self):
+        tree = ast.parse(Path(proof.__file__).read_text())
+        run = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "run")
+        outer = next(node for node in ast.walk(run) if isinstance(node, ast.With)
+                     and any(isinstance(item.context_expr, ast.Call)
+                             and isinstance(item.context_expr.func, ast.Name)
+                             and item.context_expr.func.id == "opened_worker" for item in node.items))
+        write = next(node for node in outer.body if isinstance(node, ast.Assign)
+                     and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
+                     and node.value.func.id == "evaluate")
+        parent = next(node for node in ast.walk(run) if hasattr(node, "body")
+                      and isinstance(node.body, list) and outer in node.body)
+        outer.body.remove(write)
+        if not outer.body:
+            outer.body.append(ast.Pass())
+        parent.body.insert(parent.body.index(outer) + 1, write)
+        module = ast.fix_missing_locations(ast.Module(body=[run], type_ignores=[]))
+        namespace = dict(vars(proof))
+        exec(compile(module, proof.__file__, "exec"), namespace)
+        # Use the live patched globals, not a detached copy of the real browser
+        # entrypoints. Only run's close/write order is mutated.
+        mutated = type(proof.run)(namespace["run"].__code__, vars(proof))
+        with self.assertRaisesRegex(AssertionError, "closed context"):
+            self.exercise(run=mutated)
 
     def test_changed_pending_identity_after_first_restart_is_not_accepted(self):
         for field in ("accountId", "recipientDeviceId", "sessionId", "sourceDeviceId"):

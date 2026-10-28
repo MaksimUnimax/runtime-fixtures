@@ -106,17 +106,19 @@ for (const oldOutcome of ["success", "failure"]) {
 {
   const backing = { local: {}, session: {} };
   const refreshKeys = [];
-  let refreshAttempts = 0;
+  let refreshAttempts = 0, serverPayload;
   const worker = await makeWorker(runtime, { backing, fetch: async (url, init) => {
     if (url.endsWith("/v1/bootstrap")) {
       if (!worker.bootstrapSeen) { worker.bootstrapSeen = true; return json({ error: { code: "UNAUTHORIZED" } }, 401); }
       assert.equal(init.headers.get("Authorization"), "Bearer rotated_access_token");
-      return signed(backing, backing.local[AUTH_KEY].authority.payload);
+      return signed(backing, serverPayload);
     }
     if (url.endsWith("/v1/auth/refresh")) { refreshAttempts++; refreshKeys.push(init.headers.get("Idempotency-Key")); if (refreshAttempts === 1) throw new Error("lost refresh response"); return json({ tokenType: "Bearer", accessToken: "rotated_access_token", accessTokenExpiresAt: future(3600000), refreshToken: "R".repeat(43), refreshTokenExpiresAt: future(7200000) }); }
     throw new Error("unexpected control request " + url);
   } });
   try {
+    // The issuer's response is independent of the client's revoked cache.
+    serverPayload = structuredClone(backing.local[AUTH_KEY].authority.payload);
     const before = backing.local[AUTH_KEY].credentials.accessToken;
     await worker.call("SellerAgentsControlClient.bootstrap");
     const after = backing.local[AUTH_KEY].credentials;

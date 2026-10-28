@@ -62,6 +62,7 @@
   let bootstrapScheduler = null;
   const bootstrapAcquisitionScopes = new Map();
   const bootstrapAttempts = new Map();
+  const bootstrapHeaderDenials = new Set();
   let authStorageUnconfirmed = false;
   const verifiedGrantIdentities = new Set();
   const transferVault = globalThis.SellerAgentsCredentialTransferVault;
@@ -408,10 +409,11 @@
   }
   function isCurrentScopedDecision(decision) {
     const current = decision?.scopeKey ? state.grants?.[decision.scopeKey] : null;
-    return Boolean(!authStorageUnconfirmed && state.credentials && current && decision.allowed === true
+    return Boolean(!authStorageUnconfirmed && !bootstrapWorkBlocked() && state.credentials && current && decision.allowed === true
       && decision.grantIdentity === grantIdentity(current));
   }
   async function workDecisionFor(identity = null) {
+    if (bootstrapWorkBlocked()) return { allowed: false };
     if (authStorageUnconfirmed) return { allowed: false, persistenceFailure: true };
     const family = requestedFamily(identity);
     if (identity !== null && !family) return { allowed: false, unsupported: true };
@@ -426,10 +428,10 @@
   }
   async function authorityFor(identity = null) {
     await init();
-    if (authStorageUnconfirmed) return null;
+    if (authStorageUnconfirmed || bootstrapWorkBlocked()) return null;
     if (identity === null) {
       const decision = await cacheAuthorizationCheckpoint(), authority = clone(state.authority);
-      if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false;
+      if (authority && (bootstrapWorkBlocked() || !(decision.identity === authorityDecisionIdentity() && decision.allowed === true))) authority.workAllowed = false;
       return authority;
     }
     const decision = await workDecisionFor(identity), record = grantFor(identity);
@@ -1096,10 +1098,15 @@
   }
   async function requestBootstrap(credentials, authority, detectedAi, attempt) {
     const diagnosticContext = i1BootstrapDiagnosticContext(attempt.lease);
-    return request("/v1/bootstrap", { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` },
+    try { return await request("/v1/bootstrap", { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` },
       body: bootstrapRequest(detectedAi, credentials, authority), signal: attempt.lease?.signal,
       captureProjection: projection => { attempt.privacyNeutral = projection.consent.applicable && !projection.consent.granted; },
       observeSettlement: async outcome => { attempt.lastHttpOutcome = outcome; await observeBootstrapLate(attempt, outcome); } }, diagnosticContext);
+    } finally {
+      // A completed body must not race the header denial's durable commit or
+      // start a 401 refresh using the generation that the denial just retired.
+      if (attempt.headerDenialPromise) await attempt.headerDenialPromise;
+    }
   }
   function decodeBase64Url(value) { if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) return null; try { const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4); const bytes = Uint8Array.from(atob(padded), c => c.charCodeAt(0)); return verifier.base64urlEncode(bytes) === value ? bytes : null; } catch (_) { return null; } }
   async function snapshotDigest(envelope) { const bytes = decodeBase64Url(envelope?.payload); if (!bytes) return null; return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(value => value.toString(16).padStart(2, "0")).join(""); }
@@ -1119,7 +1126,7 @@
     if (verified.payload.status === "PASS") { const expected = await healthContextFromBootstrap(authority?.payload, authority, state.credentials); if (!expected || verifier.canonicalJson(expected) !== verifier.canonicalJson(verified.payload.context)) throw error("HEALTH_CONTEXT_MISMATCH"); }
     return { payload: clone(verified.payload), envelope: clone(verified.envelope) };
   }
-  async function getHealthAuthorityContext() { await init(); if (!state.credentials || !state.authority) throw error("HEALTH_CONTEXT_INVALID"); await getVerifiedAuthorityTime(); return clone(state.authority); }
+  async function getHealthAuthorityContext() { await init(); if (bootstrapWorkBlocked() || !state.credentials || !state.authority) throw error("HEALTH_CONTEXT_INVALID"); await getVerifiedAuthorityTime(); if (bootstrapWorkBlocked() || !state.credentials || !state.authority) throw error("HEALTH_CONTEXT_INVALID"); return clone(state.authority); }
   async function getVerifiedAuthorityTime(identity = null) {
     await init();
     if (authStorageUnconfirmed) throw error("AUTH_STATE_COMMIT_UNCONFIRMED");
@@ -1132,7 +1139,7 @@
   /* C3A reads this cache snapshot only. It deliberately does not checkpoint,
    * persist a denial, refresh Bootstrap, or acquire Health. */
   function canContinueCached(identity) {
-    if (!initialized || authStorageUnconfirmed) return false;
+    if (!initialized || authStorageUnconfirmed || bootstrapWorkBlocked()) return false;
     try {
       const record = grantFor(identity);
       return Boolean(record && verifiedGrantIdentities.has(grantIdentity(record)) && record.authority.workAllowed === true &&
@@ -1142,7 +1149,7 @@
   async function getCachedContinuationState(identity = null) {
     await init();
     const record = identity === null ? null : grantFor(identity);
-    const trusted = !authStorageUnconfirmed && (identity === null || record && verifiedGrantIdentities.has(grantIdentity(record)));
+    const trusted = !authStorageUnconfirmed && !bootstrapWorkBlocked() && (identity === null || record && verifiedGrantIdentities.has(grantIdentity(record)));
     const authority = trusted ? (identity === null ? state.authority : record?.authority) : null;
     return clone({
       generation: state.generation,
@@ -1216,9 +1223,62 @@
       authority: null, grants: {}, lastError: safeError(failure) };
     queueMicrotask(() => { void notifyAuthorityChange(null, "BOOTSTRAP_SECURITY_QUARANTINE", state.generation); });
   }
+  function bootstrapWorkBlocked() {
+    return [...bootstrapHeaderDenials].some(attempt => state.credentials &&
+      attempt.principal.principalEpoch === epoch("principalEpoch") &&
+      attempt.principal.deviceId === state.credentials.deviceId &&
+      attempt.principal.sessionId === state.credentials.sessionId);
+  }
+  function denyCurrentBootstrapHeaders(attempt, failure) {
+    // Fence Work synchronously, including while an earlier storage mutation
+    // holds the writer. Only this current acquisition may retain the 401
+    // refresh path; no existing Work ticket keeps the retired access epoch.
+    bootstrapHeaderDenials.add(attempt);
+    attempt.headerDenialFailure = failure;
+    if (failure.status === 401) attempt.observedBootstrap401 = true;
+    const pending = queueMutation(async () => {
+      if (!bootstrapAttemptCurrent(attempt)) return false;
+      attempt.lease?.beginSecurityCommit();
+      const previous = state.authority;
+      const next = { ...state, generation: state.generation + 1, accessEpoch: epoch("accessEpoch") + 1,
+        grants: {}, authority: null, pending: null, rotation: null, lastError: safeError(failure) };
+      state = next;
+      try { await persist(next); }
+      catch (persistenceFailure) {
+        // The same restart fence as ordinary invalidation: a failed denial
+        // write cannot leave the previous permissive record on disk.
+        try {
+          await chrome.storage.local.remove(STORAGE_KEY);
+          if ((await chrome.storage.local.get(STORAGE_KEY))?.[STORAGE_KEY] !== undefined)
+            throw error("AUTH_DENIAL_REMOVE_READBACK_FAILED");
+          state = { ...state, credentials: null, enrollment: null, cacheClock: null };
+        } catch (_) { state = { ...state, lastError: { code: "AUTH_DENIAL_PERSISTENCE_FAILED" } }; }
+        throw persistenceFailure;
+      }
+      attempt.lease?.finishSecurityCommit(bootstrapFence(attempt.lease.fence.scopeKey));
+      attempt.context = { ...attempt.context, generation: next.generation };
+      attempt.headerDenialGeneration = next.generation;
+      detachObsoleteOwners();
+      if (previous) await notifyAuthorityChange(null, "bootstrap_unauthorized", next.generation);
+      return true;
+    }).catch(failure => { quarantineBootstrap(failure); throw failure; })
+      .finally(() => bootstrapHeaderDenials.delete(attempt));
+    attempt.headerDenialPromise = pending;
+    // The body can remain pending after the observer completes. Retain the
+    // rejection for requestBootstrap without creating an unhandled promise.
+    void pending.catch(() => {});
+    return pending;
+  }
   async function observeBootstrapLate(attempt, outcome) {
     // A late allow never enters the state writer. A denial retains its common scope.
-    if (!attempt?.principal || outcome.late !== true && bootstrapAttemptCurrent(attempt)) return;
+    if (!attempt?.principal) return;
+    if (attempt.headerDenialFailure && outcome.error === attempt.headerDenialFailure) return attempt.headerDenialPromise;
+    if (outcome.late !== true && bootstrapAttemptCurrent(attempt)) {
+      const failed = outcome.error;
+      if ((failed?.status === 401 || failed?.status === 403) && httpErrorProvenance.get(failed) === endpointFor("/v1/bootstrap"))
+        return denyCurrentBootstrapHeaders(attempt, failed);
+      return;
+    }
     const principalCurrent = () => !authStorageUnconfirmed && state.credentials &&
       epoch("principalEpoch") === attempt.principal.principalEpoch &&
       state.credentials.deviceId === attempt.principal.deviceId && state.credentials.sessionId === attempt.principal.sessionId;
@@ -1291,6 +1351,12 @@
   function registeredTransport(failure, path) { return transportProvenance.get(failure) === endpointFor(path); }
   async function invalidateBootstrapFailure(attempt, failure, terminal = false) {
     if (!bootstrapAttemptCurrent(attempt)) return false;
+    if (!terminal && (failure?.status === 401 || failure?.status === 403) &&
+        attempt.headerDenialGeneration === state.generation) {
+      // Preserve the final bounded body/oversize diagnosis without repeating
+      // the header denial's generation/access-epoch change.
+      return commitIfCurrent(attempt.context, current => ({ ...current, lastError: safeError(failure) }), "bootstrap_denial_detail");
+    }
     return invalidateKnown(attempt.context, failure, terminal);
   }
   async function bootstrapOnline(options, attempt) {
@@ -1691,10 +1757,12 @@
   }
   async function ensureForIdentity(identity) {
     await init(); if (authStorageUnconfirmed) throw error("AUTH_STATE_COMMIT_UNCONFIRMED");
+    if (bootstrapWorkBlocked()) throw error("WORK_NOT_ALLOWED");
     if (!state.credentials) throw error("AUTH_REQUIRED");
     const requested = requestedFamily(identity); if (!requested) throw error("WORK_UNSUPPORTED_AI");
     const decision = await scopedCacheCheckpoint(requested), current = grantFor(requested)?.authority;
-    if (decision.allowed && decision.identity === authorityDecisionIdentity(current) && current?.generation === state.generation)
+    if (bootstrapWorkBlocked()) throw error("WORK_NOT_ALLOWED");
+    if (isCurrentScopedDecision(decision) && decision.identity === authorityDecisionIdentity(current) && current?.generation === state.generation)
       return clone(current.payload);
     return bootstrap({ detectedAi: { family: requested, surface: LOCAL_AI[requested].surface, variant: null } });
   }

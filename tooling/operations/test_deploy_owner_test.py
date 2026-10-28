@@ -1594,6 +1594,7 @@ class CurrentBaseUnitContractTests(unittest.TestCase):
             identity=item["identity"]
             values[item["unit"]]={
                 "LoadState":"loaded",
+                "NeedDaemonReload":"no","DropInPaths":"",
                 "EnvironmentFiles":env,
                 "DynamicUser":"yes" if identity["mode"]=="DYNAMIC_USER" else "no",
                 "User":"" if identity["mode"]=="DYNAMIC_USER" else identity["user"],
@@ -1611,6 +1612,45 @@ class CurrentBaseUnitContractTests(unittest.TestCase):
         with patch.object(deploy,"unit_prop",side_effect=lambda unit,name:values[unit][name]):
             with self.assertRaisesRegex(RuntimeError,"CURRENT_BASE_ENVIRONMENT_SCOPE_MISMATCH:worker"):
                 deploy.current_validate_base_units(plan)
+
+
+    def test_later_entrypoint_overrides_rejected_before_target_mutation(self):
+        plan=self.plan()
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            for role in plan['services']:
+                for directive in ('ExecStart=', 'WorkingDirectory=/old-release'):
+                    with self.subTest(role=role,directive=directive):
+                        override=root/'50-r3-0216.conf'
+                        override.write_text('[Service]\n'+directive+'\n')
+                        props={'NeedDaemonReload':'no','DropInPaths':str(override)}
+                        with patch.object(deploy,'unit_prop',side_effect=lambda u,n:props[n]), \
+                             patch.object(deploy,'run') as action:
+                            with self.assertRaisesRegex(RuntimeError,'CURRENT_BASE_ENTRYPOINT_OVERRIDDEN:'+role):
+                                deploy.current_validate_runtime_overrides(plan,role)
+                            action.assert_not_called()
+                        self.assertEqual(override.read_text(),'[Service]\n'+directive+'\n')
+
+    def test_unrelated_late_hardening_and_earlier_entrypoint_are_preserved(self):
+        plan=self.plan()
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            early=root/'05-old.conf'; early.write_text('[Service]\nExecStart=/old\n')
+            late=root/'60-hardening.conf'; late.write_text('[Service]\nUser=fixture\nReadWritePaths=/owned\n')
+            props={'NeedDaemonReload':'no','DropInPaths':str(early)+' '+str(late)}
+            with patch.object(deploy,'unit_prop',side_effect=lambda u,n:props[n]):
+                deploy.current_validate_runtime_overrides(plan,'api')
+            self.assertIn('User=fixture',late.read_text())
+
+    def test_unloaded_or_unreadable_dropin_state_is_not_accepted(self):
+        plan=self.plan()
+        cases=[({'NeedDaemonReload':'yes'},'CURRENT_BASE_UNIT_RELOAD_REQUIRED'),
+               ({'NeedDaemonReload':'no','DropInPaths':'/missing/50-override.conf'},'CURRENT_BASE_DROPIN_INVALID'),
+               ({'NeedDaemonReload':'no','DropInPaths':'relative.conf'},'CURRENT_BASE_DROPIN_INVALID')]
+        for props,expected in cases:
+            with self.subTest(props=props),patch.object(deploy,'unit_prop',side_effect=lambda u,n:props[n]):
+                with self.assertRaisesRegex(RuntimeError,expected+':api'):
+                    deploy.current_validate_runtime_overrides(plan,'api')
 
 
 class CurrentMigrationRollbackTests(unittest.TestCase):

@@ -327,8 +327,92 @@ for (const status of [429, 503]) {
   });
 }
 
+// Observe the interval BEFORE body settlement, not only the eventual failure.
+for (const status of [401, 403]) {
+  await namedCase(`HTTP${status}-current-headers-immediately-fence-Work`, async () => {
+    let releaseRead, fixture;
+    let bootstrapCalls = 0;
+    fixture = await prepared({ fetch: async url => {
+      if (url.endsWith("/v1/auth/refresh")) return json({ ...fixture.original.credentials,
+        accessToken: "replacement_access_token_fixture", refreshToken: "r".repeat(43) });
+      assert.ok(url.endsWith("/v1/bootstrap"));
+      if (++bootstrapCalls > 1) return signed(fixture.backing, fixture.original.authority.payload);
+      return { ok: false, status, headers: new Headers(), body: { getReader: () => ({
+        read: () => new Promise(resolve => { releaseRead = () => resolve({ done: true }); }), cancel: async () => {},
+      }) } };
+    } });
+    let pending;
+    try {
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), true);
+      const before = fixture.backing.local[AUTH].generation;
+      pending = policy(fixture.worker, { detectedAi: CHATGPT });
+      const settled = pending.then(value => ({ value }), error => ({ error }));
+      await until(() => releaseRead, "current denial headers with an unsettled body");
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canContinueCached", "chatgpt"), false);
+      assert.equal((await fixture.worker.call("SellerAgentsControlClient.status", "chatgpt")).workAllowed, false);
+      assert.equal((await fixture.worker.call("SellerAgentsControlClient.getAuthority", "chatgpt"))?.workAllowed ?? false, false);
+      assert.equal((await fixture.worker.call("SellerAgentsControlClient.getCachedContinuationState", "chatgpt")).localInvalidation.revoked, true);
+      await until(() => fixture.backing.local[AUTH].generation > before, "durable current header denial");
+      assert.equal(fixture.backing.local[AUTH].generation, before + 1);
+      assert.equal(fixture.backing.local[AUTH].authority, null);
+      assert.equal(paths(fixture.worker).filter(p => p === "/v1/auth/refresh").length, 0, "headers do not replay or refresh a pending request");
+      releaseRead();
+      const result = await settled;
+      if (status === 401) {
+        assert.equal(result.error, undefined, result.error?.code);
+        assert.equal(result.value.source, "ONLINE");
+        assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), true);
+        assert.equal(paths(fixture.worker).filter(p => p === "/v1/auth/refresh").length, 1);
+        assert.equal(bootstrapCalls, 2, "only the existing one-time 401 refresh retry is retained");
+      } else {
+        assert.equal(result.error?.status, 403);
+        assert.equal(fixture.backing.local[AUTH].generation, before + 1, "settled body must not commit the same denial twice");
+        assert.equal(bootstrapCalls, 1);
+      }
+    } finally { releaseRead?.(); await pending?.catch(() => {}); fixture.worker.close(); }
+  });
+}
+
 // Headers are already authoritative when a denial body stalls. A deadline
 // may bound the read; it must not turn the observed denial into offline allow.
+for (const status of [401, 403]) {
+  await namedCase(`HTTP${status}-headers-fence-Work-behind-held-writer`, async () => {
+    let armed = false, releaseWrite, releaseRead, pending, oldRead;
+    const fixture = await prepared({
+      onStorageWrite: async (kind, values) => {
+        if (armed && !releaseWrite && kind === "local" && values[AUTH])
+          await new Promise(resolve => { releaseWrite = resolve; });
+      },
+      fetch: async url => {
+        if (url.endsWith("/v1/auth/refresh")) throw new TypeError("fixture refresh unavailable");
+        return { ok: false, status, headers: new Headers(), body: { getReader: () => ({
+          read: () => new Promise(resolve => { releaseRead = () => resolve({ done: true }); }), cancel: async () => {},
+        }) } };
+      },
+    });
+    try {
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), true);
+      armed = true;
+      oldRead = fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
+      await until(() => releaseWrite, "prior allow checkpoint holds storage writer");
+      pending = policy(fixture.worker, { detectedAi: CHATGPT });
+      const settled = pending.catch(error => error);
+      await until(() => releaseRead, "denial headers precede writer release");
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canContinueCached", "chatgpt"), false);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.getAuthority", "chatgpt"), null);
+      await assert.rejects(fixture.worker.call("SellerAgentsControlClient.ensureForIdentity", "chatgpt"), { code: "WORK_NOT_ALLOWED" });
+      await assert.rejects(fixture.worker.call("SellerAgentsControlClient.getHealthAuthorityContext"), { code: "HEALTH_CONTEXT_INVALID" });
+      releaseWrite();
+      assert.equal(await oldRead, false, "a previously captured allow cannot escape after denial headers");
+      releaseRead();
+      assert.equal((await settled).status, status);
+      assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    } finally { releaseWrite?.(); releaseRead?.(); await oldRead?.catch(() => {}); await pending?.catch(() => {}); fixture.worker.close(); }
+  });
+}
+
 for (const status of [401, 403]) for (const settleOnAbort of [true, false]) {
   await namedCase(`HTTP${status}-body-timeout-${settleOnAbort ? "rejects" : "ignores"}-abort`, async () => {
     let releaseRead;

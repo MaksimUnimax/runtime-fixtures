@@ -409,6 +409,32 @@ def current_capture_unit_states(plan: dict) -> dict:
     return states
 
 
+def current_validate_runtime_overrides(plan: dict, role: str) -> None:
+    unit=str(plan['services'][role]['unit'])
+    if unit_prop(unit,'NeedDaemonReload')!='no':
+        raise RuntimeError('CURRENT_BASE_UNIT_RELOAD_REQUIRED:'+role)
+    managed=current_dropin_paths(plan)[role]
+    try:
+        paths=[Path(value) for value in shlex.split(unit_prop(unit,'DropInPaths'))]
+    except ValueError:
+        raise RuntimeError('CURRENT_BASE_DROPIN_INVALID:'+role) from None
+    for path in paths:
+        if not path.is_absolute():
+            raise RuntimeError('CURRENT_BASE_DROPIN_INVALID:'+role)
+        if path==managed or path.name<managed.name:
+            continue
+        # A later entrypoint wins after our 10-* file is installed. Detect it
+        # before backup/migration; removing an operator's override is a separate
+        # target action and never an automatic deployment repair.
+        try:
+            if path.is_symlink() or not path.is_file():
+                raise ValueError('not regular')
+            content=path.read_text(encoding='utf-8')
+        except (OSError,UnicodeError,ValueError):
+            raise RuntimeError('CURRENT_BASE_DROPIN_INVALID:'+role) from None
+        if re.search(r'^\s*(?:ExecStart|WorkingDirectory)\s*=',content,re.MULTILINE):
+            raise RuntimeError('CURRENT_BASE_ENTRYPOINT_OVERRIDDEN:'+role)
+
 def current_validate_base_units(plan: dict) -> dict:
     checked={}
     for role,item in plan['services'].items():
@@ -436,6 +462,7 @@ def current_validate_base_units(plan: dict) -> dict:
                 raise RuntimeError('CURRENT_BASE_IDENTITY_INVALID:'+role)
         else:
             raise RuntimeError('CURRENT_BASE_IDENTITY_INVALID:'+role)
+        current_validate_runtime_overrides(plan,role)
         checked[role]={'unit':unit,'environmentFiles':[str(x) for x in observed_env],
                        'identityMode':identity['mode']}
     return checked
