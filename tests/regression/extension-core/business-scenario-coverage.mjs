@@ -698,6 +698,17 @@ const calculators = {
     if (input.leftComplete !== true || input.rightComplete !== true)
       return { status: "INCOMPLETE", reason: "SOURCE_READ_INCOMPLETE" };
 
+    // A generic unscoped source fixture remains a legacy calculation, not
+    // proof of a specific marketplace cabinet. Once ANY source declares a
+    // store, require an explicit top-level store and exact matching on both
+    // sides. Never treat two different seller cabinets as one product set.
+    const scoped = Object.hasOwn(input, "storeId") ||
+      [...input.left, ...input.right].some(
+        (row) => row && Object.hasOwn(row, "storeId"),
+      );
+    if (scoped && (typeof input.storeId !== "string" || !input.storeId.trim()))
+      return { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" };
+
     const project = (rows, side) => {
       const ids = new Set();
       const products = new Map();
@@ -713,6 +724,13 @@ const calculators = {
           return {
             status: "INCOMPLETE",
             reason: side === "left" ? "LEFT_ROW_INVALID" : "RIGHT_ROW_INVALID",
+          };
+        if (scoped && row.storeId !== input.storeId)
+          return {
+            status: "INCOMPLETE",
+            reason: side === "left"
+              ? "LEFT_STORE_ID_MISMATCH"
+              : "RIGHT_STORE_ID_MISMATCH",
           };
         if (ids.has(row.rowId))
           return {
@@ -1292,6 +1310,65 @@ assert.deepEqual(
   { status: "COMPLETE", rows: [] },
   "proven complete zero-row period is distinct from unknown data",
 );
+
+// CAP24_CROSS_SOURCE_DECLARED_STORE_SCOPE_REGRESSIONS: an asserted matching
+// product population cannot authenticate a different cabinet. These examples
+// are synthetic only; real CAP24 callers still need verified store bindings
+// and complete, period-matched source observations.
+const scopeBase = {
+  period: joinProofPeriod,
+  leftComplete: true,
+  rightComplete: true,
+  storeId: "store-A",
+  left: [{ ...joinProofRows.left[0], storeId: "store-A" }],
+  right: [{ ...joinProofRows.right[0], storeId: "store-A" }],
+};
+const fullJoin = {
+  status: "COMPLETE",
+  rows: [{ product: "1001", leftRows: 1, rightRows: 1 }],
+};
+const scopeCases = [
+  ["matching_store", scopeBase, fullJoin],
+  ["right_foreign_store",
+    { ...scopeBase, right: [{ ...scopeBase.right[0], storeId: "store-B" }] },
+    { status: "INCOMPLETE", reason: "RIGHT_STORE_ID_MISMATCH" }],
+  ["left_foreign_store",
+    { ...scopeBase, left: [{ ...scopeBase.left[0], storeId: "store-B" }] },
+    { status: "INCOMPLETE", reason: "LEFT_STORE_ID_MISMATCH" }],
+  ["right_missing_store",
+    { ...scopeBase, right: [{ rowId: "R-PROOF", product: "1001", period: joinProofPeriod }] },
+    { status: "INCOMPLETE", reason: "RIGHT_STORE_ID_MISMATCH" }],
+  ["top_level_store_missing",
+    { ...scopeBase, storeId: undefined },
+    { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" }],
+  ["top_level_store_blank",
+    { ...scopeBase, storeId: " " },
+    { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" }],
+  ["source_read_incomplete",
+    { ...scopeBase, rightComplete: false },
+    { status: "INCOMPLETE", reason: "SOURCE_READ_INCOMPLETE" }],
+  ["product_set_mismatch",
+    { ...scopeBase, right: [{ ...scopeBase.right[0], product: "1002" }] },
+    { status: "INCOMPLETE", reason: "PRODUCT_SET_MISMATCH" }],
+  ["legacy_unscoped_is_not_store_proof",
+    { period: joinProofPeriod, leftComplete: true, rightComplete: true, ...joinProofRows },
+    fullJoin],
+];
+const scopeResults = scopeCases.map(([caseId, input, expected]) => {
+  const actual = calculators.cross_source_join(input);
+  return { caseId, pass: JSON.stringify(actual) === JSON.stringify(expected),
+    actual, expected };
+});
+const scopeFailures = scopeResults.filter((item) => !item.pass);
+console.log("CAP24_CROSS_SOURCE_STORE_SCOPE_GUARD " + JSON.stringify({
+  total: scopeResults.length,
+  pass: scopeResults.length - scopeFailures.length,
+  failed: scopeFailures,
+  level: "SOURCE_ONLY_SYNTHETIC",
+  realMarketplaceBinding: "NOT_VERIFIED",
+}));
+assert.equal(scopeFailures.length, 0,
+  "cross_source_join must not label different declared stores COMPLETE");
 
 for (const row of numeric.cases) {
   assert.ok(
