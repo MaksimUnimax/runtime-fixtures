@@ -3168,3 +3168,113 @@ describe("B06 U+FF1D fullwidth equals credential delimiter", () => {
       ).not.toContain(fake);
   });
 });
+
+describe("B06 Unicode compatibility-equivalent credential keys and separators", () => {
+  const fake = "B06_FAKE_NFKC_SECRET_ONLY_" + "W".repeat(24);
+  const cases = [
+    ["small colon password", "diagnostic password﹕" + fake],
+    ["small equals password", "diagnostic password﹦" + fake],
+    ["vertical colon password", "diagnostic password︓" + fake],
+    ["fullwidth letters password", "diagnostic ｐａｓｓｗｏｒｄ:" + fake],
+    ["fullwidth letters plus fullwidth equals", "ｐａｓｓｗｏｒｄ＝" + fake],
+    ["quoted fullwidth password", '{"ｐａｓｓｗｏｒｄ":"' + fake + '"}'],
+    [
+      "quoted fullwidth private key",
+      '{"ｐｒｉｖａｔｅ_ｋｅｙ":"' + fake + '"}',
+    ],
+    ["secret key with small colon", "diagnostic secret_key﹕" + fake],
+    ["private key with small equals", "diagnostic private_key﹦" + fake],
+    ["spaced api key with small colon", "diagnostic api key﹕" + fake],
+    ["spaced private key with small colon", "diagnostic private key﹕" + fake],
+    ["embedded compatibility token", '{"note":"ｔｏｋｅｎ﹕' + fake + '"}'],
+    [
+      "escaped fullwidth password",
+      '{"\\uff50\\uff41\\uff53\\uff53\\uff57\\uff4f\\uff52\\uff44":"' +
+        fake +
+        '"}',
+    ],
+    [
+      "escaped fullwidth private key",
+      '{"\\uff50\\uff52\\uff49\\uff56\\uff41\\uff54\\uff45_\\uff4b\\uff45\\uff59":"' +
+        fake +
+        '"}',
+    ],
+  ] as const;
+
+  it.each(cases)(
+    "does not persist a synthetic secret through %s",
+    (_name, input) => {
+      expect(sanitizeFeedbackText(input)).not.toContain(fake);
+      expect(redactAccidentalSecrets(input)).not.toContain(fake);
+    },
+  );
+
+  it.each(cases)(
+    "does not forward %s through any of the four feedback repository fields",
+    async (_name, input) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          value: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(value.description, value.body.description);
+          throw new Error("NFKC_REPOSITORY_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          value: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(value.body);
+          throw new Error("NFKC_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: input,
+        }),
+      ).rejects.toThrow("NFKC_REPOSITORY_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: input }),
+      ).rejects.toThrow("NFKC_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: input,
+        }),
+      ).rejects.toThrow("NFKC_FOLLOWUP_CAPTURE");
+      expect(forwarded).toHaveLength(4);
+      expect(forwarded.every((value) => !value.includes(fake))).toBe(true);
+    },
+  );
+
+  it("preserves unrelated compatibility Unicode and public-key identifiers", () => {
+    for (const safe of [
+      "public_key﹕" + fake,
+      "private_key_id﹕" + fake,
+      '{"ｐｕｂｌｉｃ_ｋｅｙ":"' + fake + '"}',
+      "Примечание﹕ Unicode " + fake,
+    ]) {
+      expect(sanitizeFeedbackText(safe)).toBe(safe);
+      expect(redactAccidentalSecrets(safe)).toBe(safe);
+    }
+  });
+
+  it("preserves bounded safe text and existing ASCII/fullwidth-equivalent guards", () => {
+    expect(sanitizeFeedbackText("a".repeat(4000))).toBe("a".repeat(4000));
+    for (const separator of [":", "=", "：", "＝"] as const) {
+      expect(sanitizeFeedbackText("password" + separator + fake)).not.toContain(
+        fake,
+      );
+    }
+    const padded = "ｐａｓｓｗｏｒｄ﹕" + fake;
+    const bounded = padded + "x".repeat(4000 - padded.length);
+    expect(bounded).toHaveLength(4000);
+    expect(sanitizeFeedbackText(bounded)).toBe("[REDACTED_SECRET]");
+  });
+});

@@ -188,8 +188,12 @@ const sensitiveJsonKey =
 // Ignore invisible joiners only when classifying a diagnostic KEY; do not
 // rewrite harmless Unicode text or the original JSON key spelling.
 function isSensitiveDiagnosticKey(key: string): boolean {
-  return sensitiveJsonKey.test(
-    key.replace(/\p{Default_Ignorable_Code_Point}/gu, ""),
+  const canonicalKey = key
+    .replace(/\p{Default_Ignorable_Code_Point}/gu, "")
+    .normalize("NFKC");
+  return (
+    sensitiveJsonKey.test(canonicalKey) ||
+    /^(?:private|secret)[\s_-]*key$/iu.test(canonicalKey)
   );
 }
 
@@ -460,7 +464,25 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
   return false;
 }
 
+// Detect compatibility-equivalent credential keys and delimiters without
+// rewriting any benign Unicode text. The value boundary of the folded
+// assignment is not trustworthy, so discard the entire diagnostic.
+function hasCompatibilityCredentialAssignment(input: string): boolean {
+  const folded = input.normalize("NFKC");
+  if (folded === input) return false;
+
+  const assignment =
+    /(?<![\p{L}\p{N}_])["']?([\p{L}_][\p{L}\p{N}_\p{Default_Ignorable_Code_Point}-]*)["']?[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
+  for (const match of folded.matchAll(assignment)) {
+    if (isSensitiveDiagnosticKey(match[1]!)) return true;
+  }
+  return /(?<![\p{L}\p{N}_])(?:api|private|secret)[\s_-]+key[\s\p{Default_Ignorable_Code_Point}]*[:=]/iu.test(
+    folded,
+  );
+}
+
 function redactAccidentalSecretsBasic(input: string): string {
+  if (hasCompatibilityCredentialAssignment(input)) return "[REDACTED_SECRET]";
   if (hasUnsafeQuotedCredentialKey(input)) return "[REDACTED_SECRET]";
   // A free-text "api key:" may precede a structured or multiline secret.
   // Its value boundary is not trustworthy: discard the diagnostic in full.
