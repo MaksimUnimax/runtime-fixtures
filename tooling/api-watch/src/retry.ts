@@ -108,8 +108,22 @@ export async function applyRetryDecision(input: {
   const now = input.now ?? new Date();
   const failureClass = retryFailureClass(input.outcome);
   if (!failureClass) {
-    if (input.outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE")
+    if (input.outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE") {
       await input.store.clear(input.sourceFamily);
+    } else {
+      // A non-retryable result must withdraw a stale transient deadline.
+      // Preserve the spent failure budget/episode for the operator.
+      const previous = await input.store.get(input.sourceFamily);
+      if (previous) {
+        await input.store.save({
+          ...previous,
+          nextRetryAt: null,
+          lastAttemptAt: now,
+          lastResult: input.outcome.kind,
+          updatedAt: now,
+        });
+      }
+    }
     return undefined;
   }
   const previous = await input.store.get(input.sourceFamily);

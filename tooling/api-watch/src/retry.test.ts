@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { applyRetryDecision, InMemoryApiWatchRetryStore } from "./retry.js";
+import {
+  applyRetryDecision,
+  applyRetryPassDecisions,
+  InMemoryApiWatchRetryStore,
+} from "./retry.js";
 import type { AcquisitionOutcome } from "./types.js";
 
 const now = new Date("2026-09-22T00:00:00.000Z");
@@ -71,6 +75,80 @@ describe("A9 bounded retry", () => {
     });
     expect(high?.nextRetryAt).toBeNull();
   });
+  it.each([
+    "SOURCE_URL_AUTHORITY_MISSING",
+    "INVALID_OFFICIAL_SOURCE_RESPONSE",
+    "OPERATOR_SOURCE_REQUIRED",
+  ] as const)(
+    "withdraws a stale transient retry after %s without refunding its budget",
+    async (kind) => {
+      for (const route of ["direct", "family-pass"] as const) {
+        const store = new InMemoryApiWatchRetryStore();
+        const now = new Date("2026-10-28T00:00:00Z");
+        await applyRetryDecision({
+          sourceFamily: "OZON_SELLER",
+          outcome: outcome(503),
+          store,
+          now,
+        });
+        const before = await store.get("OZON_SELLER");
+        expect(before?.nextRetryAt).toBeInstanceOf(Date);
+
+        const later = new Date(now.valueOf() + 1000);
+        const terminal: AcquisitionOutcome = {
+          kind,
+          sourceFamily: "OZON_SELLER",
+          officialUrl: null,
+          blockerReason: "synthetic terminal classification",
+        };
+        const scheduled: Date[] = [];
+        const scheduleEarlier = async (at: Date) => {
+          scheduled.push(at);
+        };
+        if (route === "direct") {
+          await applyRetryDecision({
+            sourceFamily: "OZON_SELLER",
+            outcome: terminal,
+            store,
+            scheduleEarlier,
+            now: later,
+          });
+        } else {
+          await applyRetryPassDecisions({
+            outcomes: [terminal],
+            store,
+            scheduleEarlier,
+            now: later,
+          });
+        }
+        const after = await store.get("OZON_SELLER");
+        expect(after?.nextRetryAt).toBeNull();
+        expect(after?.lastAttemptAt).toEqual(later);
+        expect(after?.updatedAt).toEqual(later);
+        expect(after?.lastResult).toBe(kind);
+        expect(after?.retryCount).toBe(1);
+        expect(after?.failureEpisodeId).toBe(before?.failureEpisodeId);
+        expect(scheduled).toHaveLength(0);
+      }
+    },
+  );
+
+  it("does not create a retry state from a terminal outcome alone", async () => {
+    const store = new InMemoryApiWatchRetryStore();
+    await applyRetryDecision({
+      sourceFamily: "OZON_SELLER",
+      outcome: {
+        kind: "INVALID_OFFICIAL_SOURCE_RESPONSE",
+        sourceFamily: "OZON_SELLER",
+        officialUrl: null,
+        blockerReason: "synthetic",
+      },
+      store,
+      now,
+    });
+    expect(await store.get("OZON_SELLER")).toBeUndefined();
+  });
+
   it("does not retry authority blockers and clears on success", async () => {
     const store = new InMemoryApiWatchRetryStore();
     await applyRetryDecision({
