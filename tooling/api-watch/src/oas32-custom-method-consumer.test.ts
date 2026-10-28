@@ -74,4 +74,37 @@ describe("C03 OAS3.2 custom HTTP methods remain case-sensitive in consumers", ()
       }),
     ).toBe("OZON_SELLER:QUERY:/items");
   });
+  it("counts inherited-name custom methods as own numeric keys through diff and JSON", () => {
+    // Object literals special-case __proto__; parse these keys as real JSON
+    // properties, as a provider's OpenAPI document would do.
+    const methods = ["__proto__", "constructor", "toString"];
+    const additionalOperations = Object.fromEntries(
+      methods.map((method) => [
+        method,
+        { ...methodOperation, operationId: `custom-${method}` },
+      ]),
+    );
+    const target = snapshot({ additionalOperations }, "c");
+    const report = diffInventories({
+      base: snapshot({}, "a"),
+      target,
+      createdAt: new Date("2026-10-28T00:00:00Z"),
+    });
+    expect(target.operations.map((item) => item.method).sort()).toEqual(
+      [...methods].sort(),
+    );
+    for (const method of methods) {
+      expect(Object.hasOwn(target.operationsByMethod, method)).toBe(true);
+      expect(target.operationsByMethod[method]).toBe(1);
+      expect(Object.hasOwn(report.methodCountsAfter, method)).toBe(true);
+      expect(report.methodCountsAfter[method]).toBe(1);
+    }
+    expect(Object.keys(report.methodCountsAfter).sort()).toEqual(
+      [...methods].sort(),
+    );
+    expect(
+      Object.keys(JSON.parse(JSON.stringify(target.operationsByMethod))).sort(),
+    ).toEqual([...methods].sort());
+  });
+
 });

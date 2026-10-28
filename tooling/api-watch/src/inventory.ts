@@ -1036,10 +1036,13 @@ export function buildCompleteOperationInventory(input: {
       });
     }
   }
-  const operationsByMethod: Record<string, number> = {};
+  // An OAS 3.2 custom HTTP method may be named "__proto__", "constructor",
+  // or "toString". Count with a Map so inherited Object keys cannot discard
+  // or corrupt a method before producing a JSON-safe, own-key dictionary.
+  const counts = new Map<string, number>();
   for (const operation of operations)
-    operationsByMethod[operation.method] =
-      (operationsByMethod[operation.method] ?? 0) + 1;
+    counts.set(operation.method, (counts.get(operation.method) ?? 0) + 1);
+  const operationsByMethod: Record<string, number> = Object.fromEntries(counts);
   return {
     sourceFamily: input.sourceFamily,
     snapshotSha256: input.snapshotSha256,
