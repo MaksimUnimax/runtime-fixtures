@@ -281,13 +281,13 @@ const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
 // Also recognize log-escaped quote openers. Fail closed on line breaks,
 // including those between the key and value, before redaction can leak a tail.
 const bareQuotedCredentialValueStart =
-  /\b([A-Za-z_][A-Za-z0-9_-]*)\s*[:=]\s*(?:\\*)(["'])/gu;
+  /\b([A-Za-z_][A-Za-z0-9_\u200B-\u200D\u2060-]*)[\s\u200B-\u200D\u2060]*[:=][\s\u200B-\u200D\u2060]*(?:\\*)(["'])/gu;
 
 function hasBareQuotedMultilineCredential(input: string): boolean {
   bareQuotedCredentialValueStart.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = bareQuotedCredentialValueStart.exec(input)) !== null) {
-    if (!sensitiveJsonKey.test(match[1]!)) continue;
+    if (!isSensitiveDiagnosticKey(match[1]!)) continue;
     // A CR/LF before the opening quote is just as ambiguous as one inside it.
     if (/[\r\n]/u.test(match[0])) return true;
     const quote = match[2]!;

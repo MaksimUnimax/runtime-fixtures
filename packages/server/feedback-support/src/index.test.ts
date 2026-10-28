@@ -942,6 +942,36 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitized).not.toContain("SYNTHETIC_PREFIX_TAIL_");
   });
 
+  it.each([
+    [
+      "ZWSP before delimiter",
+      'diagnostic password\u200B: "SYNTH_B06_JOINER_LF_HEAD_A\nSYNTH_B06_JOINER_LF_TAIL_A" requestId=safe',
+    ],
+    [
+      "word joiner within key",
+      'diagnostic pass\u2060word: "SYNTH_B06_JOINER_LF_HEAD_B\nSYNTH_B06_JOINER_LF_TAIL_B" requestId=safe',
+    ],
+    [
+      "ZWNJ within hyphenated key",
+      'diagnostic api\u200C-key: "SYNTH_B06_JOINER_LF_HEAD_C\rSYNTH_B06_JOINER_LF_TAIL_C" requestId=safe',
+    ],
+    [
+      "ZWJ before equals",
+      'diagnostic clientSecret\u200D= "SYNTH_B06_JOINER_LF_HEAD_D\nSYNTH_B06_JOINER_LF_TAIL_D" requestId=safe',
+    ],
+  ])("fails closed on invisible bare %s multiline credential", (_kind, raw) => {
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).toBe("[REDACTED_SECRET]");
+    expect(sanitized).not.toContain("SYNTH_B06_JOINER_LF_HEAD_");
+    expect(sanitized).not.toContain("SYNTH_B06_JOINER_LF_TAIL_");
+  });
+
+  it("preserves noncredential joiner text with a multiline quoted value", () => {
+    const safe =
+      'diagnostic note\u200D: "ordinary first\nordinary second" requestId=safe';
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+  });
+
   it("preserves harmless bare-key multiline text and masks single-line credentials", () => {
     const safe = 'message: "safe first line\nsafe second line"';
     expect(sanitizeFeedbackText(safe)).toBe(safe);
@@ -1000,6 +1030,11 @@ describe("B2 feedback/support safety foundation", () => {
     [
       "zero-width within the credential key",
       "diagnostic pass\u200Bword: { credential: 'SYNTHETIC_B06_SINK_PRIVATE_03' }",
+      "[REDACTED_SECRET]",
+    ],
+    [
+      "word joiner inside multiline bare password before all writes",
+      'diagnostic pass\u2060word: "SYNTHETIC_B06_SINK_PRIVATE_06\nSYNTHETIC_B06_SINK_PRIVATE_07" requestId=safe',
       "[REDACTED_SECRET]",
     ],
     [
