@@ -228,6 +228,11 @@ await test("PROFILE-02A-Alice-current-authority-origin-refresh-and-receipt", asy
       "https://chat.openai.com/*",
       "https://alice.yandex.ru/*",
       "https://chat.qwen.ai/*",
+      "https://www.kimi.ai/*",
+      "https://grok.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://chat.deepseek.com/*",
     ]);
     const refreshes = worker.messages
       .slice(before)
