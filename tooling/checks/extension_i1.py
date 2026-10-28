@@ -36,6 +36,11 @@ def main():
             "-s", str(ROOT / "tests/regression/extension-core/client-i1"),
             "-p", "test_browser_worker_activation.py", "-v",
         ])
+        runner.run("i1-vault-restart-proof-fault-controls", [
+            os.environ.get("WB_TEST_PYTHON", "python3"), "-m", "unittest", "discover",
+            "-s", str(ROOT / "tests/regression/extension-core/client-i1"),
+            "-p", "test_browser_transfer_vault_restart.py", "-v",
+        ])
         runner.run("start-entry-lifecycle", [node, ROOT / "tests/regression/extension-core/client-i1/client-start-entry-lifecycle.mjs", ROOT])
         runner.run("i1-release-preflight-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-release-preflight.mjs", ROOT])
         runner.run("i1-r3-ledger-writer-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-r3-command-ledger.mjs"])
@@ -58,6 +63,12 @@ def main():
             runner.run(label + "-native-browser-proof", [os.environ.get("WB_TEST_PYTHON", "python3"), ROOT / "tests/regression/extension-core/client-i1/browser_verifier.py", "--runtime", runtime, "--output", browser_output])
             runner.env["C3H_BROWSER_PROOF_FILE"] = str(browser_output / "result.json")
             runner.env.pop("C3H_BROWSER_PROOF", None)
+            runner.run(label + "-native-vault-pending-restart", [
+                os.environ.get("WB_TEST_PYTHON", "python3"),
+                ROOT / "tests/regression/extension-core/client-i1/browser_transfer_vault_restart.py",
+                "--runtime", runtime, "--label", label,
+                "--output", output / (label + "-vault-pending-restart.json"),
+            ])
             manifest = composed.baseline.read_json(runtime / "manifest.json")
             assert manifest["version"] == expected_version
             assert "http://127.0.0.1:43100/*" in manifest["host_permissions"]
