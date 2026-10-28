@@ -16,10 +16,15 @@ const i=appSource.indexOf(guardBegin), j=appSource.indexOf(guardEnd, i);
 assert.ok(i>=0 && j>i && j-i<2400);
 const guardCode=appSource.slice(i,j);
 const providerArgument = process.argv[2] ? path.resolve(process.argv[2]) : "";
+const providerSource = readFileSync(providerArgument || path.join(ROOT,
+  "packages/marketplaces/ozon/src/provider-runtime.js"), "utf8");
 // The first-party Extension Core runner passes either the exact source module
 // or a named runtime/extracted copy from its deterministic composer.
 const packageMode = path.basename(providerArgument) === "ozon_provider.js" &&
   path.basename(path.dirname(providerArgument)) === "shared";
+const transportSource = readFileSync(packageMode
+  ? path.join(path.dirname(providerArgument),"provider_transport_core.js")
+  : path.join(ROOT,"apps/extension/src/imported/ozon-v0.1.22/shared/provider_transport_core.js"),"utf8");
 let selectedGuardCode = guardCode;
 let selectedCoreSource = coreSource;
 if (packageMode) {
@@ -41,7 +46,7 @@ if (packageMode) {
   assert.equal(filesByPath.size, receipt.files.length, "unique receipt members");
   for (const relative of [
     "manifest.json", "shared/ozon_provider.js", "service_worker_entry.js",
-    "shared/application.js", "service_worker.js",
+    "shared/application.js", "service_worker.js", "shared/provider_transport_core.js",
   ]) {
     const file = readFileSync(path.join(runtime, ...relative.split("/")));
     const expected = filesByPath.get(relative);
@@ -71,18 +76,22 @@ const OWN={accountId:"ACCOUNT_A", storeId:"STORE_A", credentialRevision:"REV_A",
   expires_at_ms:Date.now()+3600000};
 
 function harness(owned, variant=null, timing={}) {
-  let providerCalls=0, guardChecks=0, recordReads=0;
+  let providerCalls=0, guardChecks=0, recordReads=0, fetchCalls=0, stateWrites=0;
   const localSource = variant==="remove_account_check"
     ? selectedGuardCode.replace('["accountId", "storeId", "credentialRevision"]','["storeId", "credentialRevision"]')
     : selectedGuardCode;
   if(variant==="remove_account_check") assert.notEqual(localSource,selectedGuardCode);
   const context={
+    URL,Response,TextDecoder,Uint8Array,ArrayBuffer,
     Date: class extends Date { static now() { return timing.now ? timing.now() : Date.now(); } },
     OzonContract:{
       parseCommand:()=>({operation:"report_file_get",params:{file_ref:REF}}),
       normalizeCommand:x=>x,
       commandFingerprint:()=>"INERT_FINGERPRINT",
       preflightExecution:()=>({meta:{provider:"report_file"}}),
+      verifyProviderResponse:()=>{},
+      sanitizeResult:(_command,value)=>value,
+      formatResultReport:()=>"OZON_RESULT_V1\n{}",
       safeBridgeErrorPayload:e=>({code:e?.code||"UNKNOWN",message:"SOURCE_ONLY",http_status:0}),
     },
     OzonProvider:{
@@ -102,18 +111,36 @@ function harness(owned, variant=null, timing={}) {
     extendAnalyticsQuotaFromRetryAfter:()=>null,
   };
   vm.createContext(context);
+  if(timing.realProvider) {
+    const state={schema_version:1,report_code_policies:{},report_file_refs:{
+      [REF]:{url:"https://fixture.ozon.ru/report.csv",personal_data_required:true,
+        created_at_ms:timing.createdAt},
+    }};
+    vm.runInContext(transportSource,context);
+    vm.runInContext(providerSource,context);
+    context.OzonProvider=context.OzonProviderFactory.createOzonProvider({
+      contract:context.OzonContract,now:timing.now,uuid:()=>"INERT_PROVIDER_ID",
+      reportStateStore:{get:async()=>structuredClone(state),set:async()=>{stateWrites++;}},
+      fetchImpl:async()=>{
+        fetchCalls++;
+        if(timing.fetchError)throw new Error("INERT_FETCH_FAILED");
+        return new Response("name\ninert\n",{status:200,headers:{"content-type":"text/csv"}});
+      },
+    });
+  }
   vm.runInContext(localSource+"\n"+selectedCoreSource+"\nglobalThis.executeTest=executeOzonCore",context);
   return {
     call:current=>context.executeTest(REF,{executionContext:current}),
-    calls:()=>({providerCalls,guardChecks,recordReads}),
+    calls:()=>({providerCalls,guardChecks,recordReads,fetchCalls,stateWrites}),
     makeContext:(fields={},failCurrent=false)=>({
       snapshot:{accountId:"ACCOUNT_A",storeId:"STORE_A",credentialRevision:"REV_A",...fields},
       async settings(){return {sellerCredentials:{},performanceCredentials:{},autoSend:false};},
       async assertCurrent(){
         guardChecks++;
         if(failCurrent)throw Object.assign(new Error("REVOKED"),{code:"EXECUTION_CONTEXT_CHANGED"});
-        if(timing.onAssert) timing.onAssert(guardChecks);
+        if(timing.onAssert) await timing.onAssert(guardChecks);
       },
+      async assertDispatchAuthority(){if(timing.onDispatch)await timing.onDispatch();},
     }),
   };
 }
@@ -183,6 +210,49 @@ for (const boundary of ["one-ms-before","during-authority-check","during-request
     return {provider_calls:h.calls().providerCalls};
   });
 }
+// Run the real provider and report transport. Only physical fetch is an inert
+// injected function; no network or provider credentials are available here.
+for(const expired of ["provider","owner"]) {
+  for(const boundary of ["dispatch","current"]) {
+    for(const advance of [0,1]) {
+      await collect(`real-provider-${expired}-${boundary}-${advance ? "expired" : "before"}`,async()=>{
+        let now=10_000_000, release, entered;
+        const gate=new Promise(resolve=>{release=resolve;});
+        const observed=new Promise(resolve=>{entered=resolve;});
+        const wait=async()=>{entered();await gate;};
+        const h=harness({...OWN,expires_at_ms:now+(expired==="owner" ? 1 : 60_000)},null,{
+          realProvider:true,now:()=>now,
+          createdAt:now-30*60*1000+(expired==="provider" ? 1 : 60_000),
+          onDispatch:boundary==="dispatch" ? wait : null,
+          onAssert:count=>boundary==="current" && count===2 ? wait() : undefined,
+        });
+        const pending=h.call(h.makeContext());
+        try {
+          await observed;
+          assert.equal(h.calls().fetchCalls,0,"physical fetch waits for authority");
+          now+=advance;release();
+          if(advance) await assert.rejects(()=>pending,error=>error?.code===
+            (expired==="provider" ? "REPORT_FILE_REF_NOT_FOUND" : "REPORT_FILE_STORE_MISMATCH") &&
+            error.external_request_executed!==true);
+          else assert.equal((await pending).ok,true);
+          assert.equal(h.calls().fetchCalls,advance ? 0 : 1);
+          assert.equal(h.calls().stateWrites,0,"no renewal of original report TTL");
+          return {mock_fetch_calls:h.calls().fetchCalls,real_provider_factory:true};
+        } finally {release();await pending.catch(()=>{});}
+      });
+    }
+  }
+}
+await collect("real-provider-physical-fetch-failure-retains-attempt-provenance",async()=>{
+  const now=10_000_000;
+  const h=harness({...OWN,expires_at_ms:now+60_000},null,{
+    realProvider:true,now:()=>now,createdAt:now-1000,fetchError:true,
+  });
+  await assert.rejects(()=>h.call(h.makeContext()),error=>
+    error?.code==="REPORT_FILE_FETCH_FAILED" && error.external_request_executed===true);
+  assert.equal(h.calls().fetchCalls,1);
+  return {mock_fetch_calls:1};
+});
 if(failures.length) {
   console.error(JSON.stringify({status:"FAIL",cases:checks.length,failed:failures.length,checks,real_Ozon_calls:0}));
   throw new AggregateError(failures,"Ozon report ownership/expiry boundary failed");

@@ -1541,6 +1541,35 @@ class CurrentApplyEngineTests(unittest.TestCase):
         self.assertTrue(state["applicationMayHaveWritten"])
         self.assertEqual(state["schemaState"],"CANDIDATE_VERIFIED")
 
+    def test_apply_cleanup_failure_still_stops_and_records_each_error(self):
+        for fault in ("CURRENT_RECOVERY_FENCE_CONFLICT","CURRENT_FENCE_WRITER_BUSY","CLAIM_WRITE_FAILED"):
+            for stop_fails in (False,True):
+                with self.subTest(fault=fault,stop_fails=stop_fails):
+                    self.prefix=17;self.events=[];stops=[]
+                    case_root=self.root/("case-"+fault+str(stop_fails));case_root.mkdir()
+                    evidence=case_root/"apply-cleanup";evidence.mkdir()
+                    journal=case_root/"deployment-state.json"
+                    def stop(plan):
+                        stops.append(plan)
+                        if len(stops)>1 and stop_fails:raise RuntimeError("STOP_UNCONFIRMED")
+                        return {}
+                    with self.patches(health_error="HEALTH_FAILED"), \
+                         patch.object(deploy,"current_disable_fenced_start",side_effect=RuntimeError(fault)), \
+                         patch.object(deploy,"current_stop_product_units",side_effect=stop):
+                        with self.assertRaisesRegex(RuntimeError,"HEALTH_FAILED"):
+                            deploy.current_apply_engine(
+                                candidate_release=self.release,expected_source_sha="a"*40,
+                                expected_source_tree="b"*40,expected_inventory_sha256="c"*64,
+                                evidence_root=case_root,journal=journal,evidence_dir=evidence,
+                            )
+                    saved=json.loads((evidence/"receipt.json").read_text())
+                    self.assertGreaterEqual(len(stops),2)
+                    self.assertEqual(saved["allowanceCleanupError"],fault)
+                    self.assertEqual(saved["productQuiesced"],not stop_fails)
+                    self.assertEqual(saved.get("quiesceError"),"STOP_UNCONFIRMED" if stop_fails else None)
+                    self.assertTrue(saved["recoveryRequired"])
+                    self.assertNotIn("fence-remove",[event[0] for event in self.events])
+
     def test_prefix_ahead_fails_before_mutation(self):
         self.prefix=51
         evidence=self.root/"apply-ahead";evidence.mkdir()
@@ -2344,6 +2373,73 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
                 self.assertTrue(json.loads(self.journal.read_text())["recoveryRequired"])
                 self.assertGreaterEqual(events.count("stop"),2)
         self.assertEqual(len(list(self.evidence.glob("forward-recovery-*.json"))),2)
+
+    def test_forward_cleanup_errors_never_skip_stop_or_keep_stale_quiescence(self):
+        for stage in ("health","start","loaded"):
+            for fault in ("CURRENT_RECOVERY_FENCE_CONFLICT","CURRENT_FENCE_WRITER_BUSY","CLAIM_WRITE_FAILED"):
+                for stop_fails in (False,True):
+                    with self.subTest(stage=stage,fault=fault,stop_fails=stop_fails):
+                        self.forward_state();events=[];stops=[]
+                        def stop(plan):
+                            stops.append(plan);events.append("stop")
+                            if len(stops)>1 and stop_fails:raise RuntimeError("STOP_UNCONFIRMED")
+                            return {}
+                        opts={"health_error":"RECOVERY_FAILED"} if stage=="health" else {"start_error":"RECOVERY_FAILED"} if stage=="start" else {}
+                        with self.forward_patches(events,**opts) as stack:
+                            stack.enter_context(patch.object(deploy,"current_disable_fenced_start",side_effect=RuntimeError(fault)))
+                            stack.enter_context(patch.object(deploy,"current_stop_product_units",side_effect=stop))
+                            if stage=="loaded":stack.enter_context(patch.object(deploy,"current_verify_loaded_plan",side_effect=RuntimeError("RECOVERY_FAILED")))
+                            with self.assertRaisesRegex(RuntimeError,"RECOVERY_FAILED"):
+                                self.recover_forward_target()
+                        state=json.loads(self.journal.read_text())
+                        saved=json.loads(Path(state["lastRecoveryReceipt"]).read_text())
+                        self.assertEqual(len(stops),2)
+                        self.assertEqual(saved["error"],"RECOVERY_FAILED")
+                        self.assertEqual(saved["allowanceCleanupError"],fault)
+                        self.assertEqual(saved["productQuiesced"],not stop_fails)
+                        self.assertEqual(saved.get("quiesceError"),"STOP_UNCONFIRMED" if stop_fails else None)
+                        self.assertTrue(state["recoveryRequired"])
+                        self.assertNotIn("fence-remove",events)
+
+    def test_baseline_partial_start_cleanup_errors_still_stop(self):
+        for fault in ("CURRENT_RECOVERY_FENCE_CONFLICT","CURRENT_FENCE_WRITER_BUSY","CLAIM_WRITE_FAILED"):
+            for stop_fails in (False,True):
+                with self.subTest(fault=fault,stop_fails=stop_fails):
+                    self.write_state("PREDEPLOY_VERIFIED",backup=False);events=[];stops=[]
+                    def stop(plan):
+                        stops.append(plan);events.append("stop")
+                        if len(stops)>1 and stop_fails:raise RuntimeError("STOP_UNCONFIRMED")
+                        return {}
+                    def partial_start(*args):
+                        events.append("partial-start")
+                        raise RuntimeError("BASELINE_PARTIAL_START_FAILED")
+                    with self.patch_common(events), \
+                         patch.object(deploy,"check_migration_prefix_for_release",return_value={"applied":17}), \
+                         patch.object(deploy,"current_restore_unit_states",side_effect=partial_start), \
+                         patch.object(deploy,"current_disable_fenced_start",side_effect=RuntimeError(fault)), \
+                         patch.object(deploy,"current_stop_product_units",side_effect=stop):
+                        with self.assertRaisesRegex(RuntimeError,"BASELINE_PARTIAL_START_FAILED"):
+                            self.recover_forward_target()
+                    saved=json.loads((self.evidence/"recovery.json").read_text())
+                    self.assertEqual(len(stops),2)
+                    self.assertEqual(saved["allowanceCleanupError"],fault)
+                    self.assertEqual(saved["productQuiesced"],not stop_fails)
+                    self.assertEqual(saved.get("quiesceError"),"STOP_UNCONFIRMED" if stop_fails else None)
+                    self.assertTrue(saved["recoveryRequired"])
+                    self.assertNotIn("fence-remove",events)
+
+    def test_successful_recovery_does_not_claim_running_units_are_quiesced(self):
+        for mode in ("forward","baseline"):
+            with self.subTest(mode=mode):
+                events=[]
+                if mode=="forward":
+                    self.forward_state()
+                    with self.forward_patches(events):result=self.recover_forward_target()
+                else:
+                    self.write_state("PREDEPLOY_VERIFIED",backup=False)
+                    with self.patch_common(events),patch.object(deploy,"check_migration_prefix_for_release",return_value={"applied":17}):
+                        result=self.recover_forward_target()
+                self.assertFalse(result["productQuiesced"])
 
     def test_legacy_switching_receipt_is_conservatively_forward_only(self):
         self.forward_state(legacy=True);events=[]

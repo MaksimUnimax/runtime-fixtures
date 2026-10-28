@@ -41,6 +41,7 @@ async function executeOzonCore(
             {
               reportCommand: command,
               executionGuard: executionContext,
+              assertReportFileCurrent: assertFileOwner,
               planning,
               quota: safeQuotaMetadata(quotaPermit),
               onProviderResponse: async (providerResponse) => {

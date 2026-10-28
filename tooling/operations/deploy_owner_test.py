@@ -731,6 +731,24 @@ def current_start_product_units(plan: dict) -> None:
     for unit in units:
         run(['systemctl','start',unit],timeout=30)
 
+def current_quiesce_failed_operation(plan: dict, result: dict) -> bool:
+    """Cleanup ownership and service quiescence are independent boundaries."""
+    result['productQuiesced']=False
+    allowance_disabled=True
+    try:
+        current_disable_fenced_start()
+    except BaseException as error:
+        # Never remove a foreign allowance or bypass its ownership lock. That
+        # refusal must not prevent stopping the units this operation started.
+        allowance_disabled=False
+        result['allowanceCleanupError']=error_code(error)
+    try:
+        result['quiescenceAfterFailure']=current_stop_product_units(plan)
+        result['productQuiesced']=True
+    except BaseException as error:
+        result['quiesceError']=error_code(error)
+    return allowance_disabled and result['productQuiesced']
+
 def _admin_login_path(base_path: object) -> str:
     if base_path not in ('','/admin'):
         raise RuntimeError('CURRENT_ADMIN_BASE_PATH_INVALID')
@@ -1479,6 +1497,7 @@ def _current_apply_engine_locked(
         current_install_reboot_fence(plan)
         phase='REBOOT_FENCED'; record()
         result['quiescence']=current_stop_product_units(plan)
+        result['productQuiesced']=True
         phase='QUIESCED'; record()
         stamp=evidence_dir.name.replace('apply-','')
         backup=backup_live(user,db,stamp)
@@ -1512,6 +1531,7 @@ def _current_apply_engine_locked(
         phase='SWITCHING_APPLICATION'; record()
         current_write_dropins(plan)
         result['applicationMayHaveWritten']=True
+        result['productQuiesced']=False
         phase='APPLICATION_START_REQUESTED'; record()
         current_enable_fenced_start()
         started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
@@ -1525,10 +1545,11 @@ def _current_apply_engine_locked(
         result['error']=error_code(error)
         phase='ROLLBACK'
         result['recoveryRequired']=True
+        can_restore=current_quiesce_failed_operation(plan,result)
+        result['rollbackQuiesced']=result['productQuiesced']
         try:
-            current_disable_fenced_start()
-            current_stop_product_units(plan)
-            result['rollbackQuiesced']=True
+            if not can_restore:
+                raise RuntimeError('CURRENT_ROLLBACK_QUIESCENCE_UNCONFIRMED')
             if result['applicationMayHaveWritten'] and predeploy<target:
                 # Starting even one service can admit durable writes before health
                 # acceptance. Restoring a predeploy dump would discard them.
@@ -1545,6 +1566,8 @@ def _current_apply_engine_locked(
             # Both durable records must precede admission of the first writer.
             schema_state='PREDEPLOY_VERIFIED'
             result['applicationMayHaveWritten']=True
+            result['productQuiesced']=False
+            result['rollbackQuiesced']=False
             phase='BASELINE_START_REQUESTED'; record()
             current_enable_fenced_start()
             current_restore_unit_states(plan,baseline_units)
@@ -1552,11 +1575,11 @@ def _current_apply_engine_locked(
             phase='ROLLBACK_PASS'
         except BaseException as rollback_error:
             result['rollbackError']=error_code(rollback_error)
-            try:
-                current_stop_product_units(plan)
-                result['productQuiesced']=True
-            except BaseException as stop_error:
-                result['quiesceError']=error_code(stop_error)
+            # The first quiescence attempt already covers a failed cleanup.
+            # A new attempt is required only if baseline startup was admitted.
+            if can_restore and result['productQuiesced'] is not True:
+                current_quiesce_failed_operation(plan,result)
+                result['rollbackQuiesced']=result['productQuiesced']
         if phase=='ROLLBACK_PASS':
             result['schemaState']=schema_state
             current_finalize_terminal(
@@ -1637,7 +1660,7 @@ def current_forward_recover(
         'trustedInventorySha256':plan['trustedInventorySha256'],
         'predeployPrefix':receipt['predeployPrefix'],'candidateTarget':target,
         'schemaState':'CANDIDATE_VERIFIED','applicationMayHaveWritten':True,
-        'databaseRestored':False,
+        'databaseRestored':False,'productQuiesced':False,
     }
     stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     output=evidence_dir/f'forward-recovery-{stamp}.json'
@@ -1658,6 +1681,7 @@ def current_forward_recover(
             candidate_release,database_url(),expected_count=target,
         )
         current_write_dropins(plan)
+        result['productQuiesced']=False
         current_enable_fenced_start()
         started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
         current_start_product_units(plan)
@@ -1666,12 +1690,7 @@ def current_forward_recover(
         result.update(status='CURRENT_FORWARD_RECOVERY_PASS',recoveryRequired=False)
     except BaseException as error:
         result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
-        try:
-            current_disable_fenced_start()
-            current_stop_product_units(plan)
-            result['productQuiesced']=True
-        except BaseException as stop_error:
-            result['quiesceError']=error_code(stop_error)
+        current_quiesce_failed_operation(plan,result)
         write_json_durable(output,result)
         # Preserve the original apply receipt and source binding for a later
         # explicit recovery, and retain each failed recovery outcome separately.
@@ -1815,6 +1834,7 @@ def _current_recover_engine_locked(
         'candidateTarget':target,
         'schemaState':schema_state,
         'applicationMayHaveWritten':may_have_written,
+        'productQuiesced':False,
     }
     stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     output=evidence_dir/f'baseline-recovery-{stamp}.json'
@@ -1830,7 +1850,8 @@ def _current_recover_engine_locked(
         )
         schema_state='PREDEPLOY_VERIFIED'
         current_restore_dropins(plan,evidence_dir/'dropins-before')
-        result.update(schemaState=schema_state,applicationMayHaveWritten=True)
+        result.update(schemaState=schema_state,applicationMayHaveWritten=True,
+                      productQuiesced=False)
         starting_receipt={
             **receipt,'phase':'BASELINE_START_REQUESTED','schemaState':schema_state,
             'applicationMayHaveWritten':True,'recoveryRequired':True,
@@ -1857,12 +1878,7 @@ def _current_recover_engine_locked(
         )
     except BaseException as error:
         result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
-        try:
-            current_disable_fenced_start()
-            current_stop_product_units(plan)
-            result['productQuiesced']=True
-        except BaseException as stop_error:
-            result['quiesceError']=error_code(stop_error)
+        current_quiesce_failed_operation(plan,result)
         write_json_durable(output,result)
         write_json_durable(evidence_dir/'recovery.json',result)
         raise
