@@ -199,6 +199,7 @@ async function saWbFileHash(bytes) {
           record.artifact_key !== expected.artifact_key ||
           record.byte_length !== expected.byte_length || record.sha256 !== expected.sha256 ||
           record.filename !== expected.filename || record.source_kind !== expected.source_kind ||
+          record.mime_type !== expected.mime_type || record.extension !== expected.extension ||
           await saWbFileHash(saWbFileBytes(record.bytes)) !== record.sha256)
         throw saWbFileError("ATTACHMENT_MANIFEST_INTEGRITY_UNKNOWN_NO_RETRY");
       manifests.push(descriptor(record));

@@ -177,7 +177,8 @@ await check("different_bytes_with_existing_identity_do_not_overwrite", async () 
 const descriptor = () => {
   const saved = records.get(original.artifact_key);
   return { artifact_key: saved.artifact_key, source_kind: saved.source_kind,
-    filename: saved.filename, byte_length: saved.byte_length, sha256: saved.sha256 };
+    filename: saved.filename, mime_type: saved.mime_type, extension: saved.extension,
+    byte_length: saved.byte_length, sha256: saved.sha256 };
 };
 await check("copy_manifest_reads_and_verifies_record", async () => {
   const manifest = await bridge.copyManifest({ mode: "attachment_watch_v1",
@@ -201,6 +202,24 @@ await check("copy_manifest_rejects_expired_file", async () => {
   await assert.rejects(bridge.copyManifest({ mode: "attachment_watch_v1",
     phase: "attachment_ready", artifact_descriptors: [descriptor()] }), /INTEGRITY_UNKNOWN_NO_RETRY/);
   saved.expires_at_ms = previous;
+});
+await check("copy_manifest_rejects_mime_metadata_drift", async () => {
+  const row = records.get(original.artifact_key);
+  const expected = descriptor(), previous = row.mime_type;
+  try {
+    row.mime_type = "application/octet-stream";
+    await assert.rejects(bridge.copyManifest({ mode: "attachment_watch_v1",
+      phase: "attachment_ready", artifact_descriptors: [expected] }), /INTEGRITY_UNKNOWN_NO_RETRY/);
+  } finally { row.mime_type = previous; }
+});
+await check("copy_manifest_rejects_extension_metadata_drift", async () => {
+  const row = records.get(original.artifact_key);
+  const expected = descriptor(), previous = row.extension;
+  try {
+    row.extension = "exe";
+    await assert.rejects(bridge.copyManifest({ mode: "attachment_watch_v1",
+      phase: "attachment_ready", artifact_descriptors: [expected] }), /INTEGRITY_UNKNOWN_NO_RETRY/);
+  } finally { row.extension = previous; }
 });
 await check("store_identity_must_be_known_before_persistence", async () => {
   const before = inserts;
