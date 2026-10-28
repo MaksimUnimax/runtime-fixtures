@@ -2090,10 +2090,17 @@ const saFileOwners = SellerAgentsLocalOperations.createRecordStore({ read: keys 
 async function saCheckOzonFileRef(command, context) {
   if (command.operation !== "report_file_get") return;
   const owner = await saFileOwners.get(command.params.file_ref), pinned = context?.snapshot;
-  if (!pinned || !owner || owner.expires_at_ms <= Date.now() ||
-    ["accountId", "storeId", "credentialRevision"].some(field => owner[field] !== pinned[field]))
-    throw saError("REPORT_FILE_STORE_MISMATCH");
+  const assertFileOwner = () => {
+    if (!pinned || !owner || !Number.isSafeInteger(owner.expires_at_ms) ||
+      owner.expires_at_ms <= Date.now() ||
+      ["accountId", "storeId", "credentialRevision"].some(field => owner[field] !== pinned[field]))
+      throw saError("REPORT_FILE_STORE_MISMATCH");
+  };
+  assertFileOwner();
   await context.assertCurrent();
+  // The caller checks synchronously after its final pre-provider await. A
+  // previously valid ref must not outlive its owner deadline during preparation.
+  return assertFileOwner;
 }
 async function saRememberOzonFileRefs(response, context) {
   if (!context) return;
