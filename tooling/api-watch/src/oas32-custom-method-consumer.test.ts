@@ -106,5 +106,4 @@ describe("C03 OAS3.2 custom HTTP methods remain case-sensitive in consumers", ()
       Object.keys(JSON.parse(JSON.stringify(target.operationsByMethod))).sort(),
     ).toEqual([...methods].sort());
   });
-
 });
