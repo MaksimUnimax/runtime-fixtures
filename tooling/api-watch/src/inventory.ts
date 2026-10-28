@@ -849,7 +849,7 @@ function resolvePathItem(
     tokens[1]?.startsWith("/") === true;
   const inPathItems =
     typeof root.openapi === "string" &&
-    /^3\.1(?:\.|$)/u.test(root.openapi) &&
+    /^3\.[12](?:\.|$)/u.test(root.openapi) &&
     tokens.length === 3 &&
     tokens[0] === "components" &&
     tokens[1] === "pathItems";
