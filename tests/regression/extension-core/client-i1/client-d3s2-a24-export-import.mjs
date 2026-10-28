@@ -331,7 +331,7 @@ function pickerFixture() {
     }
   };
 }
-await run("POPUP-FILE-RAM-RESTORE", "native File survives popup destruction and is restored once only to its original surface", async () => {
+await run("POPUP-FILE-RAM-RESTORE", "native File survives ordinary popup reopening until explicit clear without another automatic open", async () => {
   const f = pickerFixture(), first = await f.popup(), pick = await first.send("prepare");
   f.result(first, pick.pickId); await first.close();
   assert.equal(f.opens.length, 1); assert.equal(f.opens[0].windowId, 4);
@@ -341,7 +341,22 @@ await run("POPUP-FILE-RAM-RESTORE", "native File survives popup destruction and 
   assert.equal(await data.file.text(), "synthetic");
   await restored.send("restored", {pickId: data.pickId}); await restored.close();
   const next = await f.popup(); await next.send("ready");
-  assert.equal(next.channel.sent.length, 0); assert.equal(f.opens.length, 1);
+  assert.equal(next.channel.sent.length, 1); assert.equal(f.opens.length, 1);
+  assert.equal(next.channel.sent[0].pickId, data.pickId);
+  assert.equal(await next.channel.sent[0].file.text(), "synthetic");
+  await next.send("restored", {pickId: data.pickId});
+  await next.send("clear", {pickId: data.pickId}); await next.close();
+  const cleared = await f.popup(); await cleared.send("ready");
+  assert.equal(cleared.channel.sent.length, 0); assert.equal(f.opens.length, 1);
+});
+await run("POPUP-FILE-RAM-RESTORE-TTL", "acknowledging restored File never renews its original retention deadline", async () => {
+  const f = pickerFixture(), first = await f.popup(), pick = await first.send("prepare");
+  f.result(first, pick.pickId); await first.close();
+  const restored = await f.popup(); await restored.send("ready");
+  await restored.send("restored", {pickId: pick.pickId}); await restored.close();
+  f.expire(60000);
+  const expired = await f.popup(); await expired.send("ready");
+  assert.equal(expired.channel.sent.length, 0); assert.equal(f.opens.length, 1);
 });
 await run("POPUP-FILE-RAM-LATE-RESULT", "queued File received after disconnect is retained without replay", async () => {
   const f = pickerFixture(), p = await f.popup(), pick = await p.send("prepare");
