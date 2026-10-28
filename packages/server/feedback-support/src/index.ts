@@ -398,69 +398,42 @@ function redactMultilineQuotedSecrets(input: string): string {
 // Recognizable or ambiguously escaped credential keys must fail closed before
 // a support description or followup reaches any repository sink.
 function hasMultilineQuotedCredentialKey(input: string): boolean {
-  let quote: '"' | "'" | null = null;
-  let start = 0;
-  let escaped = false;
-  let hadRawLineBreak = false;
-  for (let index = 0; index < input.length; index++) {
-    const char = input[index]!;
-    if (quote === null) {
-      if (char === '"' || char === "'") {
-        quote = char;
-        start = index + 1;
-        escaped = false;
-        hadRawLineBreak = false;
-      }
-      continue;
-    }
-    // Observe raw line breaks even when the previous byte was a backslash.
-    if (char === "\r" || char === "\n") hadRawLineBreak = true;
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (char === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (char !== quote) continue;
-    if (hadRawLineBreak) {
-      let delimiter = index + 1;
-      while (delimiter < input.length && /\s/u.test(input[delimiter]!))
-        delimiter++;
-      if (input[delimiter] === ":" || input[delimiter] === "=") {
-        const key = input.slice(start, index);
-        // Decode spelling escapes only for classification of a malformed key.
-        // Never alter user-visible text or trust an ambiguous persisted value.
-        const canonicalKey = key
-          .replace(/[\r\n]/gu, "")
-          .replace(/\\u\{([0-9a-f]{1,6})\}/giu, (_escape, hex: string) => {
-            const codePoint = Number.parseInt(hex, 16);
-            return codePoint <= 0x10ffff
-              ? String.fromCodePoint(codePoint)
-              : _escape;
-          })
-          .replace(
-            /\\u([0-9a-f]{4})|\\x([0-9a-f]{2})/giu,
-            (_escape, unicode: string | undefined, hex: string | undefined) =>
-              String.fromCharCode(Number.parseInt((unicode ?? hex)!, 16)),
-          )
-          .replace(/\\[nrtfbv0]/giu, " ")
-          .replace(/\\/gu, "");
-        // With an untrusted raw newline, an unrecognized escape after a
-        // credential-like prefix has no trustworthy value boundary.
-        if (
-          isSensitiveDiagnosticKey(key) ||
-          isSensitiveDiagnosticKey(canonicalKey) ||
-          (key.includes("\\") &&
-            /^(?:api|pass|secret|token|auth|cookie|setcookie|clientsecret)/iu.test(
-              canonicalKey,
-            ))
-        )
-          return true;
-      }
-    }
-    quote = null;
+  // Match each potential key independently: an unmatched apostrophe in
+  // ordinary prose must not hide a later double- or single-quoted key.
+  // A slash may escape a literal line break; the guard must inspect it.
+  const quotedKeyBeforeValue =
+    /("(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
+  for (const match of input.matchAll(quotedKeyBeforeValue)) {
+    const key = match[1]!.slice(1, -1);
+    if (!/[\r\n]/u.test(key)) continue;
+    // Decode spelling escapes only for classification of a malformed key.
+    // Never alter user-visible text or trust an ambiguous persisted value.
+    const canonicalKey = key
+      .replace(/[\r\n]/gu, "")
+      .replace(/\\u\{([0-9a-f]{1,6})\}/giu, (_escape, hex: string) => {
+        const codePoint = Number.parseInt(hex, 16);
+        return codePoint <= 0x10ffff
+          ? String.fromCodePoint(codePoint)
+          : _escape;
+      })
+      .replace(
+        /\\u([0-9a-f]{4})|\\x([0-9a-f]{2})/giu,
+        (_escape, unicode: string | undefined, hex: string | undefined) =>
+          String.fromCharCode(Number.parseInt((unicode ?? hex)!, 16)),
+      )
+      .replace(/\\[nrtfbv0]/giu, " ")
+      .replace(/\\/gu, "");
+    // With an untrusted raw newline, an unrecognized escape after a
+    // credential-like prefix has no trustworthy value boundary.
+    if (
+      isSensitiveDiagnosticKey(key) ||
+      isSensitiveDiagnosticKey(canonicalKey) ||
+      (key.includes("\\") &&
+        /^(?:api|pass|secret|token|auth|cookie|setcookie|clientsecret)/iu.test(
+          canonicalKey,
+        ))
+    )
+      return true;
   }
   return false;
 }

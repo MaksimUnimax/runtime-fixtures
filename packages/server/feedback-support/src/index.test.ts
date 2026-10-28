@@ -2172,3 +2172,94 @@ describe("B2 feedback/support safety foundation", () => {
     expect(event).toBe("first_start");
   });
 });
+
+describe("B06 full cumulative review P1 — quoted malformed credential keys", () => {
+  const examples = [
+    [
+      "ordinary prose apostrophe before a double-quoted LF key",
+      'can\'t parse {"api\nkey":"SYNTH_B06_P1_PROSE_DOUBLE"}',
+      "SYNTH_B06_P1_PROSE_DOUBLE",
+    ],
+    [
+      "ordinary prose apostrophe before a single-quoted LF key",
+      "can't parse {'api\nkey':'SYNTH_B06_P1_PROSE_SINGLE'}",
+      "SYNTH_B06_P1_PROSE_SINGLE",
+    ],
+    [
+      "word joiner after a double-quoted LF credential key",
+      'diagnostic {"api\nkey"\u2060:"SYNTH_B06_P1_DELIMITER_JOINER"}',
+      "SYNTH_B06_P1_DELIMITER_JOINER",
+    ],
+    [
+      "zero-width space after a single-quoted CR credential key",
+      "diagnostic {'api\rkey'\u200B:'SYNTH_B06_P1_DELIMITER_ZWSP'}",
+      "SYNTH_B06_P1_DELIMITER_ZWSP",
+    ],
+    [
+      "apostrophe and a word joiner both surround one credential key",
+      'can\'t parse {"api\r\nkey"\u2060:"SYNTH_B06_P1_COMBINED"}',
+      "SYNTH_B06_P1_COMBINED",
+    ],
+  ] as const;
+  it.each(examples)(
+    "fails closed on %s before sanitizer output",
+    (_kind, raw, secret) => {
+      const masked = sanitizeFeedbackText(raw);
+      expect(masked).toBe("[REDACTED_SECRET]");
+      expect(masked).not.toContain(secret);
+    },
+  );
+  it.each(examples)(
+    "masks %s in all four actual service-to-repository fields",
+    async (_kind, raw, secret) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("SYNTH_P1_CASE_CAPTURED");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("SYNTH_P1_FOLLOWUP_CAPTURED");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_P1_CASE_CAPTURED");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_P1_FOLLOWUP_CAPTURED");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_P1_FOLLOWUP_CAPTURED");
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(secret);
+    },
+  );
+  it.each([
+    'can\'t parse {"safe\nnote":"normal text"}',
+    'diagnostic {"safe\nnote"\u2060:"normal text"}',
+    "diagnostic {'safe\rnote'\u200B:'normal text'}",
+    "support message with don't and normal\nnew line",
+  ])(
+    "preserves benign multiline text without treating it as a credential: %s",
+    (raw) => {
+      expect(sanitizeFeedbackText(raw)).toBe(raw);
+    },
+  );
+});
