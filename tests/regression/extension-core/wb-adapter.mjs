@@ -1103,10 +1103,10 @@ try {
   await test("WB-14a-bidi-controlled-original-name-falls-back-without-changing-bytes", async () => {
     const originalBytes = new Uint8Array([0, 255, 17]);
     const cases = [
-      ["bidi-rlo", 'attachment; filename="report-\u202Egnp.exe"', null],
+      ["bidi-rlo", "attachment; filename*=UTF-8''report-%E2%80%AEgnp.exe", null],
       ["bidi-lri", "attachment; filename*=UTF-8''report-%E2%81%A6pdf.exe", null],
-      ["bidi-alm", 'attachment; filename="contract-\u061Creport.txt"', null],
-      ["bidi-rlm", 'attachment; filename="contract-\u200Freport.txt"', null],
+      ["bidi-alm", "attachment; filename*=UTF-8''contract-%D8%9Creport.txt", null],
+      ["bidi-rlm", "attachment; filename*=UTF-8''contract-%E2%80%8Freport.txt", null],
       ["utf8-cyrillic", "attachment; filename*=UTF-8''%D0%9E%D1%82%D1%87%D0%B5%D1%82.zip", "Отчет.zip"],
     ];
     for (const [label, disposition, expectedName] of cases) {
