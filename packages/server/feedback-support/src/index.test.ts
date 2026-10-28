@@ -81,6 +81,69 @@ describe("B2 feedback/support safety foundation", () => {
   });
 
   it.each([
+    [
+      "ZWSP after colon",
+      "diagnostic password: \u200B{ credential: 'SYNTH_B06_UNICODE_PRIVATE_01' }",
+      "SYNTH_B06_UNICODE_PRIVATE_01",
+    ],
+    [
+      "word joiner after colon",
+      "diagnostic token: \u2060[ 'SYNTH_B06_UNICODE_PRIVATE_02' ]",
+      "SYNTH_B06_UNICODE_PRIVATE_02",
+    ],
+    [
+      "ZWSP before colon",
+      "diagnostic password\u200B: { credential: 'SYNTH_B06_UNICODE_PRIVATE_03' }",
+      "SYNTH_B06_UNICODE_PRIVATE_03",
+    ],
+    [
+      "word joiner before equals",
+      "diagnostic apiKey\u2060= { credential: 'SYNTH_B06_UNICODE_PRIVATE_04' }",
+      "SYNTH_B06_UNICODE_PRIVATE_04",
+    ],
+    [
+      "ZWNJ after colon",
+      "diagnostic clientSecret: \u200C{ credential: 'SYNTH_B06_UNICODE_PRIVATE_05' }",
+      "SYNTH_B06_UNICODE_PRIVATE_05",
+    ],
+    [
+      "ZWJ before colon",
+      "diagnostic accessToken\u200D: [ 'SYNTH_B06_UNICODE_PRIVATE_06' ]",
+      "SYNTH_B06_UNICODE_PRIVATE_06",
+    ],
+    [
+      "ZWSP inside key",
+      "diagnostic pass\u200Bword: { credential: 'SYNTH_B06_UNICODE_PRIVATE_07' }",
+      "SYNTH_B06_UNICODE_PRIVATE_07",
+    ],
+    [
+      "word joiner inside key",
+      "diagnostic to\u2060ken: [ 'SYNTH_B06_UNICODE_PRIVATE_08' ]",
+      "SYNTH_B06_UNICODE_PRIVATE_08",
+    ],
+  ])(
+    "fails closed on zero-width credential structure %s",
+    (_kind, text, canary) => {
+      const redacted = sanitizeFeedbackText(text);
+      expect(redacted).toBe("[REDACTED_SECRET]");
+      expect(redacted).not.toContain(canary);
+    },
+  );
+
+  it("preserves Unicode joiners in ordinary noncredential text and valid JSON", () => {
+    const ordinary = "Описание: обычный\u200Cтекст";
+    const noncredential = "diagnostic note: \u200B{ value: 'safe-text' }";
+    expect(sanitizeFeedbackText(ordinary)).toBe(ordinary);
+    expect(sanitizeFeedbackText(noncredential)).toBe(noncredential);
+    const valid =
+      '{"password":{"credential":"SYNTH_B06_UNICODE_PRIVATE_09"},"requestId":"safe-09"}';
+    expect(JSON.parse(sanitizeFeedbackText(valid))).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-09",
+    });
+  });
+
+  it.each([
     "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature-value",
     "cookie: session=secret-value",
     "-----BEGIN PRIVATE KEY-----secret-----END PRIVATE KEY-----",

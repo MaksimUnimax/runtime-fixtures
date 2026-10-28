@@ -390,9 +390,12 @@ function redactAccidentalSecretsBasic(input: string): string {
   // token boundary. The fallback regex would mask only the opening bracket
   // and persist the nested secret. Discard that diagnostic in full.
   const bareStructuredCredential =
-    /\b([A-Za-z_][A-Za-z0-9_-]*)\s*[:=]\s*[\[{]/gu;
+    /\b([A-Za-z_][A-Za-z0-9_\u200B-\u200D\u2060]*)[\s\u200B-\u200D\u2060]*[:=][\s\u200B-\u200D\u2060]*[\[{]/gu;
   for (const match of input.matchAll(bareStructuredCredential)) {
-    if (sensitiveJsonKey.test(match[1]!)) return "[REDACTED_SECRET]";
+    // Only the diagnostic key is normalized for matching. Do not strip
+    // legitimate joiners from the user's other text or saved audit context.
+    const key = match[1]!.replace(/[\u200B-\u200D\u2060]/gu, "");
+    if (sensitiveJsonKey.test(key)) return "[REDACTED_SECRET]";
   }
 
   const stringsRedacted = redactMultilineQuotedSecrets(input).replace(
