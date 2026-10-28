@@ -400,6 +400,132 @@ describe("B2 feedback/support safety foundation", () => {
     }
   });
 
+  it.each([
+    [
+      "quoted JSON literal LF inside api key",
+      'diagnostic {"api\nkey":"SYNTH_MALFORMED_QUOTED_01"}',
+      "SYNTH_MALFORMED_QUOTED_01",
+    ],
+    [
+      "quoted JSON literal CR inside api key",
+      'diagnostic {"api\rkey":"SYNTH_MALFORMED_QUOTED_02"}',
+      "SYNTH_MALFORMED_QUOTED_02",
+    ],
+    [
+      "single-quoted pseudo-JSON literal LF",
+      "diagnostic 'api\nkey': 'SYNTH_MALFORMED_QUOTED_03'",
+      "SYNTH_MALFORMED_QUOTED_03",
+    ],
+    [
+      "quoted JSON CRLF and nested value",
+      'diagnostic {"api\r\nkey":{"value":"SYNTH_MALFORMED_QUOTED_04"}}',
+      "SYNTH_MALFORMED_QUOTED_04",
+    ],
+    [
+      "quoted password split by LF",
+      'diagnostic {"pass\nword":"SYNTH_MALFORMED_QUOTED_05"}',
+      "SYNTH_MALFORMED_QUOTED_05",
+    ],
+  ])(
+    "fails closed on malformed multiline quoted credential key: %s",
+    (_kind, raw, marker) => {
+      const clean = sanitizeFeedbackText(raw);
+      expect(clean).toBe("[REDACTED_SECRET]");
+      expect(clean).not.toContain(marker);
+    },
+  );
+
+  it.each([
+    [
+      "harmless quoted JSON key",
+      'diagnostic {"note\nlabel":"SYNTH_SAFE_MALFORMED_01"}',
+    ],
+    [
+      "harmless pseudo-JSON key",
+      "diagnostic 'note\rlabel': 'SYNTH_SAFE_MALFORMED_02'",
+    ],
+    ["harmless quoted value", 'diagnostic {"note":"SYNTH_SAFE\nTEXT"}'],
+  ])("preserves benign raw multiline diagnostics: %s", (_kind, raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("retains valid JSON sibling fields and masks escaped multiline API keys", () => {
+    const raw = '{"api\\nkey":"SYNTH_VALID_ESCAPED_LF","requestId":"safe"}';
+    const clean = sanitizeFeedbackText(raw);
+    expect(clean).not.toContain("SYNTH_VALID_ESCAPED_LF");
+    expect(JSON.parse(clean)).toEqual({
+      ["api\nkey"]: "[REDACTED_SECRET]",
+      requestId: "safe",
+    });
+  });
+
+  it("never stores malformed quoted-key secrets through the four feedback repository inputs", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_MALFORMED_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_MALFORMED_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const inputs = [
+      [
+        'diagnostic {"api\nkey":"SYNTH_MALFORMED_SINK_01"}',
+        "SYNTH_MALFORMED_SINK_01",
+      ],
+      [
+        'diagnostic {"api\rkey":"SYNTH_MALFORMED_SINK_02"}',
+        "SYNTH_MALFORMED_SINK_02",
+      ],
+      [
+        "diagnostic 'api\nkey': 'SYNTH_MALFORMED_SINK_03'",
+        "SYNTH_MALFORMED_SINK_03",
+      ],
+      [
+        'diagnostic {"api\r\nkey":{"v":"SYNTH_MALFORMED_SINK_04"}}',
+        "SYNTH_MALFORMED_SINK_04",
+      ],
+      [
+        'diagnostic {"pass\nword":"SYNTH_MALFORMED_SINK_05"}',
+        "SYNTH_MALFORMED_SINK_05",
+      ],
+    ] as const;
+    for (const [raw, marker] of inputs) {
+      const prior = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_MALFORMED_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_MALFORMED_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_MALFORMED_FOLLOWUP_CAPTURE");
+      const stored = captured.slice(prior);
+      expect(stored).toHaveLength(4);
+      for (const value of stored) {
+        expect(value).toBe("[REDACTED_SECRET]");
+        expect(value).not.toContain(marker);
+      }
+    }
+  });
+
   it("preserves ordinary API labels and masks pseudo-JSON spaced keys", () => {
     const safe = "diagnostic api label: { value: 'SYNTH_SAFE_07' }";
     expect(sanitizeFeedbackText(safe)).toBe(safe);

@@ -393,7 +393,60 @@ function redactMultilineQuotedSecrets(input: string): string {
   }
 }
 
+// A literal CR/LF inside a quoted diagnostic KEY makes JSON invalid, and
+// the ordinary quoted-field matchers intentionally do not cross key lines.
+// Recognizable or ambiguously escaped credential keys must fail closed before
+// a support description or followup reaches any repository sink.
+function hasMultilineQuotedCredentialKey(input: string): boolean {
+  let quote: '"' | "'" | null = null;
+  let start = 0;
+  let escaped = false;
+  let hadRawLineBreak = false;
+  for (let index = 0; index < input.length; index++) {
+    const char = input[index]!;
+    if (quote === null) {
+      if (char === '"' || char === "'") {
+        quote = char;
+        start = index + 1;
+        escaped = false;
+        hadRawLineBreak = false;
+      }
+      continue;
+    }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === "\r" || char === "\n") {
+      hadRawLineBreak = true;
+      continue;
+    }
+    if (char !== quote) continue;
+    if (hadRawLineBreak) {
+      let delimiter = index + 1;
+      while (delimiter < input.length && /\s/u.test(input[delimiter]!))
+        delimiter++;
+      if (input[delimiter] === ":" || input[delimiter] === "=") {
+        const key = input.slice(start, index);
+        if (
+          isSensitiveDiagnosticKey(key) ||
+          isSensitiveDiagnosticKey(key.replace(/[\r\n]/gu, "")) ||
+          key.includes("\\")
+        )
+          return true;
+      }
+    }
+    quote = null;
+  }
+  return false;
+}
+
 function redactAccidentalSecretsBasic(input: string): string {
+  if (hasMultilineQuotedCredentialKey(input)) return "[REDACTED_SECRET]";
   // A free-text "api key:" may precede a structured or multiline secret.
   // Its value boundary is not trustworthy: discard the diagnostic in full.
   const spacedBareApiKey =
