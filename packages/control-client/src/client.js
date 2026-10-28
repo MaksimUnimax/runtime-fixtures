@@ -1,6 +1,36 @@
 /* Privileged browser control-plane client. Tokens and deviceCode never leave this scope. */
 (() => {
   "use strict";
+
+  // Optional in-memory I1 observation. It has no authority or transport effects.
+  function i1BootstrapDiagnostic(event, fields = {}, links = {}) {
+    let port;
+    try {
+      if (globalThis.SellerAgentsControlConfig?.environment !== "LOCAL DEVELOPMENT") return null;
+      port = globalThis.__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__;
+      if (port && typeof port.record === "function") port.record(event, fields, links);
+    } catch (_) {
+      try { if (port && typeof port.gap === "function") port.gap(); } catch (_) {}
+    }
+  }
+
+  function i1BootstrapDiagnosticContext(lease) {
+    let port;
+    try {
+      if (globalThis.SellerAgentsControlConfig?.environment !== "LOCAL DEVELOPMENT") return null;
+      port = globalThis.__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__;
+      return port && typeof port.beginFetch === "function"
+        ? port.beginFetch(lease?.acquisitionId, lease?.signal) : null;
+    } catch (_) {
+      try { if (port && typeof port.gap === "function") port.gap(); } catch (_) {}
+      return null;
+    }
+  }
+
+  function i1BootstrapRequestDiagnostic(event, context, fields = {}, links = {}) {
+    try { if (context) i1BootstrapDiagnostic(event, { ...context, ...fields }, links); } catch (_) {}
+  }
+
   const config = globalThis.SellerAgentsControlConfig;
   const verifier = globalThis.SellerAgentsBootstrapVerifier;
   const browserIdentity = globalThis.SellerAgentsBrowserIdentity;
@@ -467,26 +497,38 @@
     return outcome || { allowed: false };
   }
   function parseRetryAfter(response) { const value = response.headers?.get("Retry-After"); if (!value) return 1000; const seconds = Number(value); if (Number.isFinite(seconds)) return Math.max(250, Math.min(60000, seconds * 1000)); const date = Date.parse(value); return Number.isFinite(date) ? Math.max(250, Math.min(60000, date - now())) : 1000; }
-  async function readLimitedBody(response, limit = 1024 * 1024) {
+  async function readLimitedBody(response, limit = 1024 * 1024, diagnosticContext = null) {
     if (!response.body?.getReader) {
       const text = await response.text();
-      if (text.length > limit) throw error("CONTROL_RESPONSE_TOO_LARGE");
+      if (text.length > limit) {
+        i1BootstrapRequestDiagnostic("BODY_LIMIT_EXCEEDED", diagnosticContext, {total_utf16_code_units:text.length,limit_utf16_code_units:limit,cancel_called:false,stream_reader:false});
+        throw error("CONTROL_RESPONSE_TOO_LARGE");
+      }
+      i1BootstrapRequestDiagnostic("BODY_DONE", diagnosticContext, {total_utf16_code_units:text.length,limit_utf16_code_units:limit,stream_reader:false});
       return text;
     }
     const reader = response.body.getReader(), chunks = [], decoder = new TextDecoder();
     let total = 0;
     while (true) {
-      const part = await reader.read();
+      let part;
+      try { part = await reader.read(); }
+      catch (failure) { i1BootstrapRequestDiagnostic("BODY_READ_REJECTED", diagnosticContext, {total_bytes:total,stream_reader:true}); throw failure; }
       if (part.done) break;
       total += part.value.byteLength;
-      if (total > limit) { try { await reader.cancel(); } catch (_) {} throw error("CONTROL_RESPONSE_TOO_LARGE"); }
+      if (total > limit) {
+        i1BootstrapRequestDiagnostic("BODY_LIMIT_CANCEL", diagnosticContext, {total_bytes:total,limit_bytes:limit,cancel_called:true,stream_reader:true});
+        try { await reader.cancel(); i1BootstrapRequestDiagnostic("BODY_LIMIT_CANCEL_DONE", diagnosticContext, {cancel_succeeded:true}); }
+        catch (_) { i1BootstrapRequestDiagnostic("BODY_LIMIT_CANCEL_DONE", diagnosticContext, {cancel_succeeded:false}); }
+        throw error("CONTROL_RESPONSE_TOO_LARGE");
+      }
       chunks.push(part.value);
     }
     const bytes = new Uint8Array(total); let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    i1BootstrapRequestDiagnostic("BODY_DONE", diagnosticContext, {total_bytes:total,limit_bytes:limit,stream_reader:true});
     return decoder.decode(bytes);
   }
-  async function request(path, options = {}) {
+  async function request(path, options = {}, diagnosticContext = null) {
     const endpoint = url(path), headers = new Headers(options.headers || {}), requestOptions = { ...options };
     headers.set("Accept", "application/json");
     const captureProjection = requestOptions.captureProjection, observeSettlement = requestOptions.observeSettlement;
@@ -524,7 +566,9 @@
     let timer = null, rejectInterrupted, resolveInterrupted;
     const interrupted = callerSignal ? new Promise((resolve, reject) => { resolveInterrupted = resolve; rejectInterrupted = reject; }) : null;
     const abortFromCaller = () => {
+      i1BootstrapRequestDiagnostic("CALLER_SIGNAL_ABORT", diagnosticContext, {caller_aborted:callerSignal.aborted}, {callerSignal});
       rejectInterrupted(error("CONTROL_REQUEST_ABORTED"));
+      i1BootstrapRequestDiagnostic("WRAPPER_ABORT_CALLER", diagnosticContext, {wrapper_aborted:controller.signal.aborted}, {wrapperSignal:controller.signal});
       controller.abort();
     };
     if (callerSignal) {
@@ -536,11 +580,13 @@
     let requestReturned = false;
     const operation = (async () => {
       let response;
+      i1BootstrapRequestDiagnostic("FETCH_DISPATCH", diagnosticContext, {caller_aborted:callerSignal?.aborted===true,wrapper_aborted:controller.signal.aborted}, {callerSignal,wrapperSignal:controller.signal});
       try { response = await fetch(endpoint, requestOptions); }
-      catch (_) { const failure = error("CONTROL_TRANSPORT_UNAVAILABLE"); transportProvenance.set(failure, endpoint); throw failure; }
+      catch (_) { i1BootstrapRequestDiagnostic("FETCH_REJECTED", diagnosticContext); const failure = error("CONTROL_TRANSPORT_UNAVAILABLE"); transportProvenance.set(failure, endpoint); throw failure; }
+      i1BootstrapRequestDiagnostic("RESPONSE_HEADERS", diagnosticContext, {http_status:response.status}, {response});
       let body = null, bodyFailure = false;
       try {
-        const text = await readLimitedBody(response); body = text ? JSON.parse(text) : null;
+        const text = await readLimitedBody(response, undefined, diagnosticContext); body = text ? JSON.parse(text) : null;
       } catch (failure) {
         bodyFailure = true;
         if (failure?.code === "CONTROL_RESPONSE_TOO_LARGE") { failure.status = response.status; failure.responseOk = response.ok; failure.retryAfterMs = parseRetryAfter(response); failure.body = null; }
@@ -550,22 +596,32 @@
       return { body, response };
     })();
     if (typeof observeSettlement === "function") {
-      const observe = outcome => Promise.resolve(observeSettlement({ ...outcome, late: requestReturned })).catch(quarantineBootstrap);
+      const observe = outcome => {
+        i1BootstrapRequestDiagnostic("OPERATION_SETTLED", diagnosticContext, {fulfilled:Object.hasOwn(outcome,"value")});
+        return Promise.resolve(observeSettlement({ ...outcome, late: requestReturned })).catch(quarantineBootstrap);
+      };
       void operation.then(value => observe({ value }), error => observe({ error }));
     }
     try {
       const deadline = new Promise((_, reject) => {
+        i1BootstrapRequestDiagnostic("REQUEST_TIMER_ARM", diagnosticContext, {configured_timeout_ms:CONTROL_REQUEST_DEADLINE_MS,timer_kind:"REQUEST"});
         timer = setTimeout(() => {
+          i1BootstrapRequestDiagnostic("REQUEST_TIMER_FIRE", diagnosticContext, {timer_kind:"REQUEST"});
           const failure = error("CONTROL_REQUEST_TIMEOUT");
           transportProvenance.set(failure, endpoint);
           reject(failure);
+          i1BootstrapRequestDiagnostic("WRAPPER_ABORT_TIMER", diagnosticContext, {wrapper_aborted:controller.signal.aborted}, {wrapperSignal:controller.signal});
           controller.abort();
         }, CONTROL_REQUEST_DEADLINE_MS);
       });
       return await Promise.race(interrupted ? [operation, deadline, interrupted] : [operation, deadline]);
     } finally {
       requestReturned = true;
-      if (timer !== null) clearTimeout(timer);
+      if (timer !== null) {
+        clearTimeout(timer);
+        i1BootstrapRequestDiagnostic("REQUEST_TIMER_CLEAR", diagnosticContext, {timer_kind:"REQUEST"});
+      }
+      i1BootstrapRequestDiagnostic("REQUEST_FINALLY", diagnosticContext);
       if (callerSignal) callerSignal.removeEventListener("abort", abortFromCaller);
       resolveInterrupted?.();
     }
@@ -999,10 +1055,11 @@
     return validateAccountProfile(payload, requestedAi, true, checks);
   }
   async function requestBootstrap(credentials, authority, detectedAi, attempt) {
+    const diagnosticContext = i1BootstrapDiagnosticContext(attempt.lease);
     return request("/v1/bootstrap", { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` },
       body: bootstrapRequest(detectedAi, credentials, authority), signal: attempt.lease?.signal,
       captureProjection: projection => { attempt.privacyNeutral = projection.consent.applicable && !projection.consent.granted; },
-      observeSettlement: async outcome => { attempt.lastHttpOutcome = outcome; await observeBootstrapLate(attempt, outcome); } });
+      observeSettlement: async outcome => { attempt.lastHttpOutcome = outcome; await observeBootstrapLate(attempt, outcome); } }, diagnosticContext);
   }
   function decodeBase64Url(value) { if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) return null; try { const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4); const bytes = Uint8Array.from(atob(padded), c => c.charCodeAt(0)); return verifier.base64urlEncode(bytes) === value ? bytes : null; } catch (_) { return null; } }
   async function snapshotDigest(envelope) { const bytes = decodeBase64Url(envelope?.payload); if (!bytes) return null; return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(value => value.toString(16).padStart(2, "0")).join(""); }
@@ -1703,6 +1760,7 @@
     state = next; resetRuntimeClock();
     // Retire every old-principal waiter before another principal can acquire.
     // Disposing preserves quarantine if a security write was not confirmed.
+    i1BootstrapDiagnostic("LOCAL_RESET");
     bootstrapScheduler?.dispose("AUTH_GENERATION_CHANGED");
     bootstrapScheduler = null;
     let cleanupFailure = null;

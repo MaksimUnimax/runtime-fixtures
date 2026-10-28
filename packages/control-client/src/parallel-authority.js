@@ -1,6 +1,19 @@
 /* Per-principal bootstrap scheduling. This queue never executes business commands. */
 (() => {
   "use strict";
+
+  // Optional in-memory I1 observation. It has no authority or transport effects.
+  function i1BootstrapDiagnostic(event, fields = {}, links = {}) {
+    let port;
+    try {
+      if (globalThis.SellerAgentsControlConfig?.environment !== "LOCAL DEVELOPMENT") return null;
+      port = globalThis.__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__;
+      if (port && typeof port.record === "function") port.record(event, fields, links);
+    } catch (_) {
+      try { if (port && typeof port.gap === "function") port.gap(); } catch (_) {}
+    }
+  }
+
   const WAIT_MS = 65000, ACTIVE_MS = 60000;
   const fenceFields = ["principalEpoch", "accessEpoch", "grantEpoch", "environmentKey", "scopeKey"];
   const failure = (code, details = {}) => Object.assign(new Error(code), { code, ...details });
@@ -113,6 +126,7 @@
         quarantineAll(failure("BOOTSTRAP_SECURITY_COMMIT_UNKNOWN"));
         return;
       }
+      i1BootstrapDiagnostic("RETIRE_BEGIN", {retire_code:code,dispatched:job.dispatched,commit_started:job.commitStarted,waiter_count:job.waiters.size}, {acquisitionId:job.ticket.acquisitionId,callerSignal:job.controller.signal});
       const acquisition = job.dispatched ? "OUTCOME_UNKNOWN" : "NOT_STARTED";
       job.state = "retired";
       if (sequence.get(job.key) === job.ticket.scopeSeq) nextSeq(job.key);
@@ -120,7 +134,9 @@
       const error = failure(code, { acquisition, retryRequiresExplicitAction: true, ...details });
       for (const waiter of [...job.waiters]) releaseWaiter(job, waiter, "reject", error);
       // Logical slot release is bounded; abort does not promise physical cancellation.
+      i1BootstrapDiagnostic("LEASE_ABORT_BEGIN", {caller_aborted:job.controller.signal.aborted}, {acquisitionId:job.ticket.acquisitionId,callerSignal:job.controller.signal});
       job.controller.abort(error);
+      i1BootstrapDiagnostic("LEASE_ABORT_DONE", {caller_aborted:job.controller.signal.aborted}, {acquisitionId:job.ticket.acquisitionId,callerSignal:job.controller.signal});
       pump();
     }
     function late(job, outcome) {
@@ -186,7 +202,11 @@
           job.activeDeadline = now() + activeTimeoutMs;
           deadlines.set(job.ticket, job.activeDeadline);
           for (const waiter of job.waiters) clearTimer(waiter.timer);
-          job.activeTimer = setTimer(() => retire(job, "BOOTSTRAP_ACTIVE_EXPIRED"), activeTimeoutMs);
+          i1BootstrapDiagnostic("SCHEDULER_TIMER_ARM", {timer_kind:"ACTIVE",configured_timeout_ms:activeTimeoutMs}, {acquisitionId:job.ticket.acquisitionId});
+          job.activeTimer = setTimer(() => {
+            i1BootstrapDiagnostic("SCHEDULER_TIMER_FIRE", {timer_kind:"ACTIVE"}, {acquisitionId:job.ticket.acquisitionId});
+            retire(job, "BOOTSTRAP_ACTIVE_EXPIRED");
+          }, activeTimeoutMs);
           const request = Object.freeze({
             ...job.ticket, signal: job.controller.signal,
             deadline: job.activeDeadline,
@@ -228,6 +248,7 @@
           Promise.resolve().then(() => {
             request.assertCurrent();
             job.dispatched = true;
+            i1BootstrapDiagnostic("ACQUISITION_DISPATCH", {dispatched:true}, {acquisitionId:job.ticket.acquisitionId,callerSignal:job.controller.signal});
             return job.run(request);
           }).then(value => settle(job, true, value), error => settle(job, false, error));
         }

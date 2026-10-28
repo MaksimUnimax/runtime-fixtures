@@ -738,5 +738,234 @@ class FailureCleanupDiagnosticTest(unittest.TestCase):
                     self.assertEqual(diagnostic, {"source": "UNCONFIRMED"})
 
 
+
+class BootstrapTraceObserverTest(unittest.TestCase):
+    @staticmethod
+    def parameters():
+        return {
+            "runId": "a" * 32, "prefix": module._BOOTSTRAP_TRACE_PREFIX,
+            "events": sorted(module._BOOTSTRAP_TRACE_EVENTS),
+            "codes": sorted(module._BOOTSTRAP_TRACE_CODES),
+            "numberKeys": sorted(module._BOOTSTRAP_TRACE_NUMBERS),
+            "flagKeys": sorted(module._BOOTSTRAP_TRACE_FLAGS),
+        }
+
+    def observer(self):
+        from types import SimpleNamespace
+        callbacks = {}
+        observer = module.BootstrapTraceObserver(
+            SimpleNamespace(on=lambda event, fn: callbacks.__setitem__(event, fn)))
+        worker = SimpleNamespace(evaluate=lambda *_: self.fail("snapshot must not call RPC"))
+        observer.worker, observer.run_id, observer.installed = worker, "a" * 32, True
+        return observer, worker, callbacks
+
+    def emit(self, observer, row, worker=None):
+        import json
+        from types import SimpleNamespace
+        observer.observe_console(SimpleNamespace(
+            worker=worker or observer.worker,
+            text=module._BOOTSTRAP_TRACE_PREFIX + json.dumps(row)))
+
+    def response(self, worker, ordinal=3, run_id=None):
+        response = FakeResponse()
+        response.request.service_worker = worker
+        response.headers = {module._BOOTSTRAP_ORDINAL_HEADER: (run_id or "a" * 32) + ":" + str(ordinal)}
+        response.header_value = lambda *_: self.fail("raw-header RPC forbidden")
+        return response
+
+    def sequence(self, observer, extra=None):
+        rows = [
+            {"seq": 1, "elapsed_ms": 0, "event": "INSTALL"},
+            {"seq": 2, "elapsed_ms": 1, "event": "FETCH_DISPATCH", "fetch_ordinal": 2,
+             "acquisition_ordinal": 1, "caller_signal_ordinal": 1, "wrapper_signal_ordinal": 2},
+            {"seq": 3, "elapsed_ms": 2, "event": "RESPONSE_HEADERS", "fetch_ordinal": 2, "server_ordinal": 3},
+        ]
+        rows.extend(extra or [])
+        for row in rows:
+            self.emit(observer, row)
+
+    def test_exact_response_join_is_not_list_order_or_nearest_time(self):
+        observer, worker, _ = self.observer()
+        self.sequence(observer, [
+            {"seq": 4, "elapsed_ms": 3, "event": "RETIRE_BEGIN", "acquisition_ordinal": 1,
+             "caller_signal_ordinal": 1, "retire_code": "BOOTSTRAP_CONTEXT_CHANGED"},
+            {"seq": 5, "elapsed_ms": 4, "event": "WRAPPER_ABORT_CALLER", "fetch_ordinal": 2},
+        ])
+        selected, other = self.response(worker), self.response(worker, 1)
+        result = observer.snapshot(selected, [selected, other])
+        self.assertEqual(result["correlation"], "EXACT_RESPONSE_HEADER_AND_WORKER")
+        self.assertEqual(result["selected_fetch_ordinal"], 2)
+        self.assertEqual(result["lease_retire_codes"], ["BOOTSTRAP_CONTEXT_CHANGED"])
+        self.assertEqual(result["observed_local_paths"], ["CALLER_ABORT_PATH"])
+        self.assertEqual(result["abort_initiator"], "NOT_ESTABLISHED")
+
+    def test_missing_duplicate_foreign_or_other_worker_is_unconfirmed(self):
+        observer, worker, _ = self.observer()
+        self.sequence(observer)
+        selected = self.response(worker)
+        for response, rows in [
+            (selected, [selected, self.response(worker)]),
+            (self.response(worker, 4), []),
+            (selected, [selected, self.response(worker, 1, "b" * 32)]),
+        ]:
+            self.assertEqual(observer.snapshot(response, rows)["correlation"], "UNCONFIRMED")
+        selected.request.service_worker = object()
+        self.assertEqual(observer.snapshot(selected, [selected])["correlation"], "UNCONFIRMED")
+        selected.request.service_worker = worker
+        self.emit(observer, {"seq": 4, "elapsed_ms": 3, "event": "RESPONSE_HEADERS",
+                             "fetch_ordinal": 9, "server_ordinal": 3})
+        self.assertEqual(observer.snapshot(selected, [selected])["correlation"], "UNCONFIRMED")
+
+    def test_lost_event_overflow_and_private_fields_never_create_positive_evidence(self):
+        import json
+        for bad in [
+            {"seq": 9, "elapsed_ms": 4, "event": "BODY_DONE"},
+            {"seq": 4, "elapsed_ms": 4, "event": "BODY_DONE", "token": "PRIVATE"},
+            {"seq": 4, "elapsed_ms": 4, "event": "BODY_DONE", "total_bytes": True},
+            {"seq": 4, "elapsed_ms": 4, "event": "GAP"},
+        ]:
+            observer, worker, _ = self.observer()
+            self.sequence(observer)
+            self.emit(observer, bad)
+            selected = self.response(worker)
+            result = observer.snapshot(selected, [selected])
+            self.assertEqual(result["correlation"], "UNCONFIRMED")
+            self.assertNotIn("PRIVATE", json.dumps(result))
+
+    def test_cached_console_and_close_events_survive_dead_worker(self):
+        observer, worker, callbacks = self.observer()
+        self.sequence(observer)
+        class CachedMessage:
+            worker = observer.worker
+            text = "unrelated private console must not be retained"
+            @property
+            def args(self):
+                raise AssertionError("args RPC forbidden")
+        observer.observe_console(CachedMessage())
+        observer._close_worker()
+        callbacks["close"]()
+        selected = self.response(worker)
+        result = observer.snapshot(selected, [selected])
+        self.assertTrue(result["worker_closed"])
+        self.assertTrue(result["context_closed"])
+        self.assertEqual(len(result["events"]), 3)
+
+    def test_real_request_and_scheduler_hooks_with_bounded_sink(self):
+        import json, subprocess
+        program = r"""
+import fs from "node:fs";
+import vm from "node:vm";
+import assert from "node:assert/strict";
+const input = JSON.parse(fs.readFileSync(0, "utf8")), root = process.argv[1];
+const client = fs.readFileSync(root+"/packages/control-client/src/client.js","utf8");
+const schedulerSource = fs.readFileSync(root+"/packages/control-client/src/parallel-authority.js","utf8");
+const hooks = client.slice(client.indexOf("  function i1BootstrapDiagnostic("),client.indexOf("  const config ="));
+const requestSource = client.slice(client.indexOf("  function parseRetryAfter("),client.indexOf("  async function scheduleMetadataForget("));
+function fixture(kind, diagnostic = "on") {
+  const lines = [], timers = new Map();
+  let serial = 0, cancelCount = 0, readerCount = 0, physicalSignal, readEntered;
+  const reading = new Promise(r => readEntered=r);
+  const realm = {
+    AbortController, Headers, TextDecoder, Uint8Array, URL,
+    SellerAgentsControlConfig:{environment:diagnostic==="production"?"PRODUCTION":"LOCAL DEVELOPMENT"},
+    console:{debug:line=>lines.push(line)}, performance:{now:()=>10},
+    crypto:{randomUUID:()=>String(++serial)}, queueMicrotask,
+    url:p=>"http://127.0.0.1:43100"+p,
+    consentApi:null, state:{}, now:()=>0,
+    error:code=>Object.assign(new Error(code),{code}),
+    transportProvenance:new WeakMap(), httpErrorProvenance:new WeakMap(),
+    CONTROL_REQUEST_DEADLINE_MS:30000,
+    setTimeout:(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;},
+    clearTimeout:id=>timers.delete(id),
+    fetch:async (_endpoint, options)=>{
+      physicalSignal=options.signal;
+      const reader = {
+        async read() {
+          readerCount++; readEntered();
+          if(kind==="pending") return new Promise((_, reject)=>{
+            options.signal.addEventListener("abort",()=>reject(new Error("PRIVATE_ABORT_DETAIL")),{once:true});
+          });
+          if(kind==="read_failure") throw new Error("PRIVATE_READ_DETAIL");
+          if(readerCount>1) return {done:true};
+          return {done:false,value:kind==="limit"?new Uint8Array(1024*1024+1):new TextEncoder().encode('{"ok":true}')};
+        },
+        async cancel(){cancelCount++;},
+      };
+      return {ok:true,status:200,body:{getReader:()=>reader},
+        headers:new Headers({"x-oct-i1-bootstrap-ordinal":"a".repeat(32)+":3"})};
+    },
+  };
+  vm.createContext(realm);
+  if(diagnostic==="on") assert.equal(vm.runInContext("("+input.probe+")",realm)(input.parameters),true);
+  if(diagnostic==="throw" || diagnostic==="production")
+    realm.__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__={record(){throw Error("PRIVATE");},beginFetch(){throw Error("PRIVATE");},gap(){throw Error("PRIVATE");}};
+  vm.runInContext(hooks+requestSource+";globalThis.call=(signal)=>request('/v1/bootstrap',{signal},i1BootstrapDiagnosticContext({acquisitionId:'PRIVATE_ACQUISITION',signal}));",realm);
+  vm.runInContext(schedulerSource,realm);
+  return {realm,lines,timers,reading,get signal(){return physicalSignal;},get cancels(){return cancelCount;},
+    rows:()=>lines.map(x=>JSON.parse(x.slice(input.parameters.prefix.length)))};
+}
+for (const mode of ["on","off","throw","production"]) {
+  const f=fixture("ok",mode), value=await f.realm.call(new AbortController().signal);
+  assert.equal(value.body.ok,true);assert.equal(f.cancels,0);assert.equal(f.signal.aborted,false);
+  if(mode==="on") {assert(f.rows().some(x=>x.event==="BODY_DONE"&&x.total_bytes===11));assert(f.rows().some(x=>x.server_ordinal===3));}
+  else assert.equal(f.lines.length,0);
+}
+{
+  const f=fixture("limit");
+  await assert.rejects(f.realm.call(),e=>e.code==="CONTROL_RESPONSE_TOO_LARGE");
+  assert.equal(f.cancels,1);assert(f.rows().some(x=>x.event==="BODY_LIMIT_CANCEL"&&x.total_bytes>1048576));
+}
+{
+  const f=fixture("read_failure"), value=await f.realm.call();
+  assert.equal(value.body,null);assert.equal(f.cancels,0);
+  assert(f.rows().some(x=>x.event==="BODY_READ_REJECTED"));
+}
+{
+  const f=fixture("pending"), outcome=f.realm.call().then(v=>({v}),e=>({e}));
+  await f.reading;
+  const timer=[...f.timers.values()].find(x=>x.ms===30000);assert(timer);timer.fn();
+  assert.equal((await outcome).e.code,"CONTROL_REQUEST_TIMEOUT");
+  assert.equal(f.signal.aborted,true);assert(f.rows().some(x=>x.event==="WRAPPER_ABORT_TIMER"));
+}
+{
+  const f=fixture("pending"), scheduler=f.realm.SellerAgentsParallelAuthority.createBootstrapScheduler({
+    isFenceCurrent:()=>true,observeLateOutcome:()=>{},quarantine:()=>{},now:()=>0,
+    setTimer:f.realm.setTimeout,clearTimer:f.realm.clearTimeout,makeId:()=>"PRIVATE_LEASE",
+  });
+  const fence={principalEpoch:1,accessEpoch:1,grantEpoch:1,environmentKey:"env",scopeKey:"scope"};
+  const done=scheduler.request({fence,requestKey:"request",run:lease=>{
+    return f.realm.request("/v1/bootstrap",{signal:lease.signal},
+      f.realm.i1BootstrapDiagnosticContext(lease));
+  }}).then(v=>({v}),e=>({e}));
+  await f.reading;scheduler.invalidate("scope");
+  assert.equal((await done).e.code,"BOOTSTRAP_CONTEXT_CHANGED");
+  await Promise.resolve();
+  const rows=f.rows(), retire=rows.find(x=>x.event==="RETIRE_BEGIN"),
+    dispatch=rows.find(x=>x.event==="FETCH_DISPATCH"),
+    caller=rows.find(x=>x.event==="CALLER_SIGNAL_ABORT"),
+    abort=rows.find(x=>x.event==="WRAPPER_ABORT_CALLER");
+  assert(retire&&dispatch&&caller&&abort);
+  assert.equal(retire.caller_signal_ordinal,dispatch.caller_signal_ordinal);
+  assert.equal(retire.acquisition_ordinal,dispatch.acquisition_ordinal);
+  assert(retire.seq<caller.seq&&caller.seq<abort.seq);
+  assert.equal(f.signal.aborted,true);
+}
+{
+  const f=fixture("ok"), port=f.realm.__OCTOPORT_I1_BOOTSTRAP_DIAGNOSTIC_V1__;
+  for(let i=0;i<400;i++)port.record("LOCAL_RESET",{url:"PRIVATE_URL",headers:"PRIVATE_HEADERS"});
+  assert(f.lines.length<=256);assert.equal(f.rows().at(-1).event,"GAP");
+  assert(!f.lines.join("").includes("PRIVATE"));
+}
+console.log("PASS real request/scheduler: EOF, reader reject, limit cancel, caller lease abort, timeout, disabled/throwing sink, production, bounded projection");
+"""
+        completed = subprocess.run([module.NODE, "--input-type=module", "-e", program, str(module.ROOT)],
+                                   input=json.dumps({"probe": module._BOOTSTRAP_TRACE_JS, "parameters": self.parameters()}),
+                                   text=True, capture_output=True, timeout=15)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("PASS real request/scheduler", completed.stdout)
+
+
+
+
 if __name__ == "__main__":
     unittest.main()
