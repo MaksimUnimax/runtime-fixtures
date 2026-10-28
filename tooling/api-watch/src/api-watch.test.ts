@@ -1381,7 +1381,7 @@ const INVENTORY_DOC = Buffer.from(
     security: [{ bearerAuth: [] }],
     paths: {
       "/items": {
-        parameters: [{ name: "tenant", in: "query" }],
+        parameters: [{ name: "tenant", in: "query", schema: { type: "string" } }],
         get: {
           tags: ["items"],
           summary: "List",
