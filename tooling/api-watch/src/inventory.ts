@@ -380,6 +380,33 @@ function effectiveParameters(
         throw new Error("APIWATCH_PARAMETER_IDENTITY_UNRESOLVED");
       if (parameter.name.length === 0 || !allowedLocations.has(parameter.in))
         throw new Error("APIWATCH_PARAMETER_IDENTITY_INVALID");
+      // An OpenAPI 3 Parameter Object has either a schema OR one media-type
+      // content definition. Treat an ambiguous declaration as untrusted,
+      // including resolved local references and shadowed Path Item entries.
+      if (root.swagger !== "2.0") {
+        const hasSchema = Object.hasOwn(parameter, "schema");
+        const hasContent = Object.hasOwn(parameter, "content");
+        if (hasSchema && hasContent)
+          throw new Error("APIWATCH_PARAMETER_SCHEMA_CONTENT_CONFLICT");
+        if (!hasSchema && !hasContent)
+          throw new Error("APIWATCH_PARAMETER_SCHEMA_CONTENT_MISSING");
+        // OAS 3.2 querystring encodes the entire query as a Media Type
+        // Object. A schema-only declaration has no permitted wire format.
+        if (parameter.in === "querystring" && !hasContent)
+          throw new Error("APIWATCH_QUERYSTRING_CONTENT_REQUIRED");
+      }
+      // OAS 3 permits one and only one media type in Parameter.content.
+      // An empty or multi-media declaration has no unique wire contract.
+      if (root.swagger !== "2.0" && Object.hasOwn(parameter, "content")) {
+        const content = parameter.content;
+        if (
+          !content ||
+          typeof content !== "object" ||
+          Array.isArray(content) ||
+          Object.keys(content).length !== 1
+        )
+          throw new Error("APIWATCH_PARAMETER_CONTENT_CARDINALITY_INVALID");
+      }
       const identity = JSON.stringify([
         parameter.in === "header"
           ? parameter.name.toLowerCase()
@@ -761,9 +788,36 @@ const PATH_ITEM_METHOD_NAMES = new Set(
   HTTP_METHODS.map((method) => method.toLowerCase()),
 );
 
+function isOpenApi32(root: Record<string, unknown>): boolean {
+  return (
+    typeof root.openapi === "string" && /^3\.2(?:\.|$)/u.test(root.openapi)
+  );
+}
+
+// HTTP method names are case-sensitive tokens on the wire. Custom operations
+// cannot shadow the fixed Method fields, even with different capitalization.
+const HTTP_METHOD_TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
+
+function validPathItemOperation(field: unknown): boolean {
+  const operation = asObject(field);
+  return (
+    field !== null &&
+    typeof field === "object" &&
+    !Array.isArray(field) &&
+    Object.hasOwn(operation, "responses") &&
+    operation.responses !== null &&
+    typeof operation.responses === "object" &&
+    !Array.isArray(operation.responses)
+  );
+}
+
 // A JSON Pointer can resolve to any JSON object, including non-Path Item
-// components. Never turn an unrelated object into a synthetic API operation.
-function assertReferencedPathItem(value: Record<string, unknown>): void {
+// components. Use the same validation for OAS3.2 inline and referenced
+// paths, so no declared QUERY or custom operation silently disappears.
+function assertReferencedPathItem(
+  value: Record<string, unknown>,
+  openApi32: boolean,
+): void {
   for (const [name, field] of Object.entries(value)) {
     if (name === "summary" || name === "description") {
       if (typeof field !== "string")
@@ -771,15 +825,24 @@ function assertReferencedPathItem(value: Record<string, unknown>): void {
     } else if (name === "parameters" || name === "servers") {
       if (!Array.isArray(field))
         throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
-    } else if (PATH_ITEM_METHOD_NAMES.has(name)) {
-      const operation = asObject(field);
-      if (
-        !Object.hasOwn(operation, "responses") ||
-        !operation.responses ||
-        typeof operation.responses !== "object" ||
-        Array.isArray(operation.responses)
-      )
+    } else if (
+      PATH_ITEM_METHOD_NAMES.has(name) ||
+      (openApi32 && name === "query")
+    ) {
+      if (!validPathItemOperation(field))
         throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    } else if (openApi32 && name === "additionalOperations") {
+      if (field === null || typeof field !== "object" || Array.isArray(field))
+        throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+      for (const [method, operation] of Object.entries(field)) {
+        if (
+          !HTTP_METHOD_TOKEN.test(method) ||
+          PATH_ITEM_METHOD_NAMES.has(method.toLowerCase()) ||
+          method.toLowerCase() === "query" ||
+          !validPathItemOperation(operation)
+        )
+          throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+      }
     } else if (!name.startsWith("x-")) {
       throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
     }
@@ -826,7 +889,7 @@ function resolvePathItem(
     tokens[1]?.startsWith("/") === true;
   const inPathItems =
     typeof root.openapi === "string" &&
-    /^3\.1(?:\.|$)/u.test(root.openapi) &&
+    /^3\.[12](?:\.|$)/u.test(root.openapi) &&
     tokens.length === 3 &&
     tokens[0] === "components" &&
     tokens[1] === "pathItems";
@@ -849,7 +912,7 @@ function resolvePathItem(
     if (Object.hasOwn(referenced, key))
       throw new Error("APIWATCH_PATH_ITEM_REF_CONFLICT");
   const resolved = { ...referenced, ...Object.fromEntries(siblings) };
-  assertReferencedPathItem(resolved);
+  assertReferencedPathItem(resolved, isOpenApi32(root));
   return resolved;
 }
 
@@ -907,9 +970,31 @@ export function buildCompleteOperationInventory(input: {
   const operations: OperationInventoryItem[] = [];
   for (const path of Object.keys(paths).sort()) {
     const pathItem = resolvePathItem(paths[path], document.root);
+    const openApi32 = isOpenApi32(document.root);
+    if (openApi32) {
+      assertReferencedPathItem(pathItem, true);
+    } else if (
+      Object.hasOwn(pathItem, "query") ||
+      Object.hasOwn(pathItem, "additionalOperations")
+    ) {
+      // 3.2-only operations must not be ignored when their document declares
+      // an older version that has no such fixed or patterned Path Item fields.
+      throw new Error("APIWATCH_PATH_ITEM_REF_INVALID_TARGET");
+    }
     const pathParameterValues = optionalParameterArray(pathItem.parameters);
-    for (const method of HTTP_METHODS) {
-      const operation = pathItem[method.toLowerCase()];
+    const methods: [string, unknown][] = HTTP_METHODS.map((method) => [
+      method,
+      pathItem[method.toLowerCase()],
+    ]);
+    if (openApi32) {
+      methods.push(["QUERY", pathItem.query]);
+      for (const [method, operation] of Object.entries(
+        asObject(pathItem.additionalOperations),
+      ).sort(([a], [b]) => compareCodeUnits(a, b))) {
+        methods.push([method, operation]);
+      }
+    }
+    for (const [method, operation] of methods) {
       if (
         !operation ||
         typeof operation !== "object" ||
