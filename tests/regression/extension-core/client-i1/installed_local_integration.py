@@ -378,6 +378,19 @@ def read_completed_unique_work_start_bootstrap_response(
     return envelope
 
 
+def safe_cached_profile_diagnostic(profile):
+    # This is a completed observation from before the failure, not a fresh
+    # worker read or proof of the current identity. Export only fixed checks.
+    if type(profile) is not dict:
+        return {"source": "UNCONFIRMED"}
+    fields = ("verified", "accountMatches", "materialShapeValid", "materialValid")
+    return {
+        "source": "PRE_FAILURE_EVALUATION",
+        "checks": {name: profile.get(name) if type(profile.get(name)) is bool else None
+                   for name in fields},
+    }
+
+
 def file_sha256(path):
     digest = hashlib.sha256()
     with Path(path).open("rb") as stream:
@@ -592,30 +605,6 @@ def run(runtime, output):
                     context.on("response", observe_control)
                     worker = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
                     worker_sentinel = worker.evaluate("""() => { if (!globalThis.__saI1WorkerSentinel) globalThis.__saI1WorkerSentinel = crypto.randomUUID(); return globalThis.__saI1WorkerSentinel; }""")
-
-                    def inspect_signed_profile(envelope):
-                        return worker.evaluate("""async ({envelope, trust, extensionVersion}) => {
-                          const observed = SellerAgentsBrowserIdentity.current();
-                          const verified = await SellerAgentsBootstrapVerifier.verifyV2(envelope, trust);
-                          if (!verified.ok) return {verified:false, error:verified.error || null, browser:observed, extensionVersion};
-                          const profile = verified.payload?.ai?.profile || null;
-                          return {
-                            verified:true,
-                            browser:observed,
-                            extensionVersion,
-                            aiStatus: verified.payload?.ai?.status || null,
-                            detected: verified.payload?.ai?.detected || null,
-                            profileContractVersion: profile?.compatibility?.contractVersion || null,
-                            profileBrowserFamilies: Array.isArray(profile?.compatibility?.browserFamilies) ? profile.compatibility.browserFamilies : null,
-                            minimumExtensionVersion: profile?.compatibility?.minimumExtensionVersion ?? null,
-                            materialShapeValid: profile ? SellerAgentsSignedAiProfileConsumer.validMaterialShape(profile) : false,
-                            materialValid: profile ? await SellerAgentsSignedAiProfileConsumer.validMaterial(profile) : false,
-                          };
-                        }""", {
-                            "envelope": envelope,
-                            "trust": packaged_config["trustBundle"],
-                            "extensionVersion": packaged_config["extensionVersion"],
-                        })
 
                     chat = context.new_page()
                     chat.goto(chat_url)
@@ -1101,25 +1090,16 @@ def run(runtime, output):
                         "bootstrap_body_parsed": bootstrap_envelope is not None,
                         "bootstrap_observer_counts": counts,
                     }
-                    try:
-                        diagnostic = worker.evaluate("""async tabId => {
-                          const status = await SellerAgentsControlClient.status();
-                          const code = String(status?.lastError?.code || "");
-                          return {
-                            pending: Boolean(status?.pending),
-                            authenticated: status?.authenticated === true,
-                            workAllowed: status?.workAllowed === true,
-                            codePresent: Boolean(code),
-                            errorCode: /^[A-Z0-9_]{1,80}$/.test(code) ? code : null,
-                            lastStart: Number.isInteger(tabId) && typeof saLastStartDiagnostic === "function"
-                              ? await saLastStartDiagnostic(tabId) : null
-                          };
-                        }""", locals().get("chat_tab_id"))
-                        result["failure_diagnostic"] = {"stage": stage, **diagnostic}
-                        if bootstrap_envelope is not None:
-                            result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelope)
-                    except Exception:
-                        result["failure_diagnostic"] = {"stage": stage, "read_failed": True, "error_code": "DIAGNOSTIC_READ_FAILED"}
+                    # Worker.evaluate has no RPC deadline. A dead/stalled worker
+                    # must not prevent cleanup and the original FAIL receipt.
+                    # Keep prior local observations; do not probe after failure.
+                    result["failure_diagnostic"] = {
+                        "stage": stage, "worker_state": "UNCONFIRMED",
+                        "error_code": "POST_FAILURE_RPC_SKIPPED",
+                    }
+                    result["failure_profile_diagnostic"] = safe_cached_profile_diagnostic(
+                        locals().get("signed_profile"),
+                    )
                     raise
                 finally:
                     _mark_stage(output, "browser_context_close", started)

@@ -641,5 +641,102 @@ class BootstrapResponseLifecycleTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
+class FailureCleanupDiagnosticTest(unittest.TestCase):
+    def exercise_failure_handler(self, *, envelope=None, profile=None, worker_error=False):
+        import ast
+        import contextlib
+        import copy
+        import io
+        import json
+        import tempfile
+        from types import SimpleNamespace
+
+        # Execute the real run() exception handler and its cleanup, without
+        # starting a browser or replacing them with a mirrored implementation.
+        tree = ast.parse(Path(module.__file__).read_text())
+        matches = [node for node in ast.walk(tree) if isinstance(node, ast.Try)
+                   and any(isinstance(item, ast.Constant)
+                           and item.value == "I1_SAFE_BOOTSTRAP_EVENTS "
+                           for handler in node.handlers for item in ast.walk(handler))]
+        self.assertEqual(len(matches), 1)
+        observed = copy.deepcopy(matches[0])
+        observed.body = [ast.Raise(exc=ast.Name(id="original_failure", ctx=ast.Load()))]
+        observed.orelse = []
+        executable = ast.fix_missing_locations(ast.Module(body=[observed], type_ignores=[]))
+        original = RuntimeError("ORIGINAL_INSTALLED_FAILURE")
+        calls, closed, stages = [], [], []
+
+        def evaluate(*args):
+            calls.append("worker_evaluate")
+            if worker_error:
+                raise RuntimeError("PRIVATE_WORKER_FAILURE")
+            return {}
+
+        def inspect_profile(*args):
+            calls.append("profile_evaluate")
+            raise RuntimeError("PRIVATE_PROFILE_FAILURE")
+
+        namespace = dict(vars(module))
+        with tempfile.TemporaryDirectory() as directory:
+            namespace.update(
+                original_failure=original, result={}, stage="work_start_bootstrap_body_begin",
+                started=0, bootstrap_http_responses=[], completed_bootstrap_requests=[],
+                failed_bootstrap_requests=[], observed_bootstrap_request_windows=[],
+                second_activation_header_count=None, work_start_header_count=None,
+                failed_bootstrap_times=[], work_start_started_at=None,
+                bootstrap_envelope=envelope, output=Path(directory),
+                worker=SimpleNamespace(evaluate=evaluate),
+                inspect_signed_profile=inspect_profile,
+                context=SimpleNamespace(close=lambda: closed.append(True)),
+                _mark_stage=lambda output, name, started: stages.append(name),
+            )
+            if profile is not None:
+                namespace["signed_profile"] = profile
+            with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                with self.assertRaises(RuntimeError) as raised:
+                    exec(compile(executable, module.__file__, "exec"), namespace)
+            self.assertIs(raised.exception, original)
+        self.assertEqual(closed, [True])
+        self.assertEqual(stages, ["browser_context_close"])
+        self.assertEqual(calls, [], "failure diagnostics must not start worker RPCs")
+        result = namespace["result"]
+        self.assertEqual(result["bootstrap_response_lifecycle"]["correlation"], "UNCONFIRMED")
+        self.assertNotIn("PRIVATE", json.dumps(result) + stdout.getvalue())
+        self.assertNotIn("status", result)  # The outer handler retains FAIL authority.
+        return result
+
+    def test_unavailable_worker_does_not_delay_failure_cleanup(self):
+        result = self.exercise_failure_handler(worker_error=True)
+        self.assertEqual(result["failure_diagnostic"]["worker_state"], "UNCONFIRMED")
+        self.assertEqual(result["failure_profile_diagnostic"], {"source": "UNCONFIRMED"})
+
+    def test_parsed_envelope_does_not_trigger_another_profile_rpc(self):
+        result = self.exercise_failure_handler(envelope={"payload": "PRIVATE_ENVELOPE"})
+        self.assertTrue(result["failure_observation"]["bootstrap_body_parsed"])
+        self.assertEqual(result["failure_profile_diagnostic"], {"source": "UNCONFIRMED"})
+
+    def test_completed_profile_checks_are_cached_and_explicitly_pre_failure(self):
+        result = self.exercise_failure_handler(
+            envelope={"payload": "PRIVATE_ENVELOPE"},
+            profile={"verified": True, "accountMatches": False, "materialShapeValid": True,
+                     "materialValid": False, "raw": "PRIVATE_PROFILE"},
+        )
+        self.assertEqual(result["failure_profile_diagnostic"], {
+            "source": "PRE_FAILURE_EVALUATION",
+            "checks": {"verified": True, "accountMatches": False,
+                       "materialShapeValid": True, "materialValid": False},
+        })
+
+    def test_unreadable_cached_checks_cannot_become_positive_evidence(self):
+        for profile in ("PRIVATE_VALUE", {"verified": "PRIVATE_VALUE", "accountMatches": 1}):
+            with self.subTest(kind=type(profile).__name__):
+                result = self.exercise_failure_handler(profile=profile)
+                diagnostic = result["failure_profile_diagnostic"]
+                if type(profile) is dict:
+                    self.assertTrue(all(value is None for value in diagnostic["checks"].values()))
+                else:
+                    self.assertEqual(diagnostic, {"source": "UNCONFIRMED"})
+
+
 if __name__ == "__main__":
     unittest.main()
