@@ -2727,3 +2727,131 @@ describe("B06 nested credential inside single-quoted pseudo-JSON", () => {
     );
   });
 });
+
+describe("B06 fullwidth colon after recognizable credential keys", () => {
+  const samples = [
+    [
+      "bare password",
+      "diagnostic password： SYNTH_B06_FWC_PASSWORD_PRIVATE",
+      "SYNTH_B06_FWC_PASSWORD_PRIVATE",
+    ],
+    [
+      "bare token",
+      "diagnostic token： SYNTH_B06_FWC_TOKEN_PRIVATE",
+      "SYNTH_B06_FWC_TOKEN_PRIVATE",
+    ],
+    [
+      "bare api_key",
+      "diagnostic api_key： SYNTH_B06_FWC_API_PRIVATE",
+      "SYNTH_B06_FWC_API_PRIVATE",
+    ],
+    [
+      "bare clientSecret",
+      "diagnostic clientSecret： SYNTH_B06_FWC_CLIENT_PRIVATE",
+      "SYNTH_B06_FWC_CLIENT_PRIVATE",
+    ],
+    [
+      "bare access_token",
+      "diagnostic access_token： SYNTH_B06_FWC_ACCESS_PRIVATE",
+      "SYNTH_B06_FWC_ACCESS_PRIVATE",
+    ],
+    [
+      "quoted JSON-like password",
+      'diagnostic {"password"： "SYNTH_B06_FWC_QUOTED_PRIVATE"}',
+      "SYNTH_B06_FWC_QUOTED_PRIVATE",
+    ],
+    [
+      "single quoted token",
+      "diagnostic {'token'： 'SYNTH_B06_FWC_SINGLE_PRIVATE'}",
+      "SYNTH_B06_FWC_SINGLE_PRIVATE",
+    ],
+    [
+      "bare structured password",
+      'diagnostic password： {"value":"SYNTH_B06_FWC_STRUCT_PRIVATE"}',
+      "SYNTH_B06_FWC_STRUCT_PRIVATE",
+    ],
+    [
+      "invisible joiner",
+      "diagnostic apiKey\u200B： SYNTH_B06_FWC_JOINER_PRIVATE",
+      "SYNTH_B06_FWC_JOINER_PRIVATE",
+    ],
+  ] as const;
+
+  it.each(samples)(
+    "never leaves %s fullwidth credential in sanitizer output",
+    (_kind, raw, marker) => {
+      const cleaned = sanitizeFeedbackText(raw);
+      expect(cleaned).toBe("[REDACTED_SECRET]");
+      expect(cleaned).not.toContain(marker);
+    },
+  );
+
+  it.each(samples)(
+    "blocks %s in all four repository-bound fields",
+    async (_kind, raw, marker) => {
+      const forwarded: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("FWC_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("FWC_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("FWC_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("FWC_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("FWC_FOLLOWUP_CAPTURE");
+
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(marker);
+    },
+  );
+
+  it.each([
+    "Сообщение： ошибка проверки магазина",
+    "trace： harmless metadata",
+    "diagnostic {'note'： 'safe text'}",
+    'diagnostic {"requestId"： "safe-request"}',
+    '{"requestId":"safe-1","description":"проверка： прошла"}',
+    '{"labels":["safe：1","safe：2"],"requestId":"safe-2"}',
+  ])("keeps harmless fullwidth-colon text byte-identical: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+
+  it("preserves valid JSON safe siblings while redacting normal credentials", () => {
+    const raw =
+      '{"password":"SYNTH_B06_FWC_JSON_PRIVATE","note":"проверка： ок","requestId":"safe-request"}';
+    const output = JSON.parse(sanitizeFeedbackText(raw));
+    expect(output).toEqual({
+      password: "[REDACTED_SECRET]",
+      note: "проверка： ок",
+      requestId: "safe-request",
+    });
+  });
+});

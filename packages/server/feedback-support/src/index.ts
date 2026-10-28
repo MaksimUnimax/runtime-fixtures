@@ -393,8 +393,8 @@ function redactMultilineQuotedSecrets(input: string): string {
   }
 }
 
-// A literal CR/LF inside a quoted diagnostic KEY or an invisible Unicode
-// separator after the closing key quote makes embedded JSON untrustworthy.
+// A literal CR/LF inside a quoted diagnostic KEY, an invisible Unicode
+// separator, or a fullwidth colon after the key makes JSON untrustworthy.
 // Recognizable or ambiguously escaped credential keys must fail closed before
 // a support description or followup reaches any repository sink.
 function hasUnsafeQuotedCredentialKey(input: string): boolean {
@@ -404,9 +404,9 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
   // A match of one quote style may encompass a nested credential in the
   // other style. Never allow a broader match to consume the inner candidate.
   const doubleQuotedKey =
-    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu;
+    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=：][\s\p{Default_Ignorable_Code_Point}]*/gu;
   const singleQuotedKey =
-    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu;
+    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=：][\s\p{Default_Ignorable_Code_Point}]*/gu;
   const candidates = [
     ...input.matchAll(doubleQuotedKey),
     ...input.matchAll(singleQuotedKey),
@@ -417,13 +417,14 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
     // a closing quoted credential key and its colon/equal delimiter. This
     // is malformed embedded JSON even without a physical line break.
     const separator = match[0].slice(match[1]!.length);
-    // A quoted diagnostic key followed by '=' is pseudo-JSON, not valid
-    // JSON. No trusted value boundary follows it, even without invisible
-    // Unicode or a raw line break: fail closed for recognized credentials.
+    // A credential key followed by '=' or a fullwidth colon is malformed
+    // pseudo-JSON, not trusted JSON. Even without invisible Unicode or a
+    // raw line break, fail closed for recognized credentials.
     if (
       !/[\r\n]/u.test(key) &&
       !/\p{Default_Ignorable_Code_Point}/u.test(separator) &&
-      !separator.includes("=")
+      !separator.includes("=") &&
+      !separator.includes("：")
     )
       continue;
     // Decode spelling escapes only for classification of a malformed key.
@@ -466,14 +467,15 @@ function redactAccidentalSecretsBasic(input: string): string {
     /\ba\p{Default_Ignorable_Code_Point}*p\p{Default_Ignorable_Code_Point}*i\p{Default_Ignorable_Code_Point}*[\s\p{Default_Ignorable_Code_Point}]+k\p{Default_Ignorable_Code_Point}*e\p{Default_Ignorable_Code_Point}*y[\s\p{Default_Ignorable_Code_Point}]*[:=：]/iu;
   if (spacedBareApiKey.test(input)) return "[REDACTED_SECRET]";
 
-  // Detect Unicode default-ignorable controls around bare diagnostic
-  // delimiters, including after a colon/equal before any scalar or quote.
-  // Preserve the rest of a user's text.
+  // Detect fullwidth colon and Unicode default-ignorable controls around
+  // sensitive bare keys. Neither delimiter has a provable secret boundary;
+  // leave benign keys and unrelated Unicode text unchanged.
   const ignoredBareKey =
-    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu;
+    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=：][\s\p{Default_Ignorable_Code_Point}]*/gu;
   for (const match of input.matchAll(ignoredBareKey)) {
     if (
-      /\p{Default_Ignorable_Code_Point}/u.test(match[0]) &&
+      (/\p{Default_Ignorable_Code_Point}/u.test(match[0]) ||
+        match[0].includes("：")) &&
       isSensitiveDiagnosticKey(match[1]!)
     )
       return "[REDACTED_SECRET]";
