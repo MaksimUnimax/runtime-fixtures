@@ -39,6 +39,7 @@ async function setup(source = basic, options = {}) {
     policyRevision: "personal-enabled",
     commandHash: await api.hash(source),
     requestId: "fixture-request",
+    ...(options.authority || {}),
   };
   const live = { ...snapshot, active: true };
   const context = await api.createContext({
@@ -440,6 +441,91 @@ try {
     await s.run();
     assert.equal(s.network.length, 2);
     assert.equal(s.delivered.length, 1);
+  });
+  await test("WB-05a-same-request-id-cannot-replay-foreign-store-owner", async () => {
+    const backing = {};
+    const first = await setup(basic, { backing });
+    const saved = await first.queue.admit({ source: first.source, context: first.context });
+    assert.equal(saved.execution_context.storeId, first.snapshot.storeId);
+    const changedStore = await setup(basic, { backing, storeId: "fixture-foreign-WB-store" });
+    assert.equal(changedStore.snapshot.requestId, first.snapshot.requestId);
+    assert.equal(changedStore.snapshot.commandHash, first.snapshot.commandHash);
+    await assert.rejects(
+      () => changedStore.queue.admit({ source: changedStore.source, context: changedStore.context }),
+      { code: "EXECUTION_CONTEXT_CHANGED" },
+    );
+    const retained = await changedStore.state();
+    assert.equal(retained.execution_context.storeId, first.snapshot.storeId);
+    assert.equal(changedStore.network.length, 0);
+  });
+  await test("WB-05b-same-request-id-cannot-replay-rotated-credential-owner", async () => {
+    const backing = {};
+    const first = await setup(basic, { backing });
+    await first.queue.admit({ source: first.source, context: first.context });
+    const rotated = await setup(basic, { backing, token: "FIXTURE_WB_DIFFERENT_NONSECRET_TOKEN" });
+    assert.equal(rotated.snapshot.requestId, first.snapshot.requestId);
+    assert.equal(rotated.snapshot.commandHash, first.snapshot.commandHash);
+    assert.notEqual(rotated.snapshot.credentialRevision, first.snapshot.credentialRevision);
+    await assert.rejects(
+      () => rotated.queue.admit({ source: rotated.source, context: rotated.context }),
+      { code: "EXECUTION_CONTEXT_CHANGED" },
+    );
+    const retained = await rotated.state();
+    assert.equal(retained.execution_context.credentialRevision, first.snapshot.credentialRevision);
+    assert.equal(rotated.network.length, 0);
+  });
+  await test("WB-05c-authority-fields-epoch-replay-fenced-at-admit-and-process", async () => {
+    const authority = {
+      scopeKey: "scope-fixture", principalEpoch: 1, accessEpoch: 2,
+      grantEpoch: 3, workGeneration: 4, aiFamily: "chatgpt",
+    };
+    for (const field of ["scopeKey", "principalEpoch", "accessEpoch",
+      "grantEpoch", "workGeneration", "aiFamily"]) {
+      const backing = {};
+      const first = await setup(basic, { backing, authority });
+      await first.queue.admit({ source: first.source, context: first.context });
+      const replacement = typeof authority[field] === "number"
+        ? authority[field] + 1 : authority[field] + "-rotated";
+      const changedAuthority = { ...authority, [field]: replacement };
+      const newSession = await setup(basic, { backing, authority: changedAuthority });
+      assert.equal(newSession.snapshot.requestId, first.snapshot.requestId);
+      assert.equal(newSession.snapshot.commandHash, first.snapshot.commandHash);
+      await assert.rejects(
+        () => newSession.queue.admit({ source: newSession.source, context: newSession.context }),
+        { code: "EXECUTION_CONTEXT_CHANGED" },
+        field,
+      );
+      const result = await newSession.queue.process({ context: newSession.context });
+      assert.equal(result.code, "BATCH_OWNER_NOT_ACTIVE", field);
+      assert.equal(newSession.network.length, 0, field);
+      assert.equal((await newSession.state()).execution_context[field], authority[field], field);
+    }
+  });
+  await test("WB-05d-auth-generation-replay-fenced-at-admit-and-process", async () => {
+    const backing = {};
+    const first = await setup(basic, { backing, authority: { authGeneration: 11 } });
+    await first.queue.admit({ source: first.source, context: first.context });
+    const next = await setup(basic, { backing, authority: { authGeneration: 12 } });
+    assert.equal(next.snapshot.requestId, first.snapshot.requestId);
+    assert.equal(next.snapshot.commandHash, first.snapshot.commandHash);
+    await assert.rejects(() => next.queue.admit({ source: next.source, context: next.context }),
+      { code: "EXECUTION_CONTEXT_CHANGED" });
+    assert.equal((await next.queue.process({ context: next.context })).code, "BATCH_OWNER_NOT_ACTIVE");
+    assert.equal(next.network.length, 0);
+    assert.equal((await next.state()).execution_context.authGeneration, 11);
+  });
+  await test("WB-05e-new-authority-cannot-reuse-legacy-unscoped-owner", async () => {
+    const backing = {};
+    const first = await setup(basic, { backing });
+    await first.queue.admit({ source: first.source, context: first.context });
+    const newAuthority = { scopeKey: "scope-now", principalEpoch: 1,
+      accessEpoch: 1, grantEpoch: 1, workGeneration: 1, aiFamily: "chatgpt" };
+    const next = await setup(basic, { backing, authority: newAuthority });
+    assert.equal(next.snapshot.requestId, first.snapshot.requestId);
+    await assert.rejects(() => next.queue.admit({ source: next.source, context: next.context }),
+      { code: "EXECUTION_CONTEXT_CHANGED" });
+    assert.equal((await next.queue.process({ context: next.context })).code, "BATCH_OWNER_NOT_ACTIVE");
+    assert.equal(next.network.length, 0);
   });
   await test("WB-06-credential-binding-work-account-and-policy-fences", async () => {
     for (const field of [
