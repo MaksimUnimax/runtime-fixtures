@@ -187,3 +187,19 @@ The recommendation is `Q1C_OWNER_LIVE_PREPARATION_READY`; this is not Q1-C
 acceptance. The first test after SMTP readiness is `Q1C-OTP-01`. Real mailbox,
 owner marketplace/AI sessions, browser-family, macOS, and Stream-2 Health
 gates retain their exact separate classifications.
+
+## New AI hint-tree and next-build checks — 2026-10-09
+
+These are additions to the target acceptance matrix, not a rewrite of historical A01–A32, D2.4, D3/S2, or Q1 results. Every new check below is `NOT_RUN`. Detailed cases are in [TEST_PLAN](../product/readiness/TEST_PLAN.md); the canonical behavior is [Per-AI hint and answer trees](../architecture/SYNC.md#per-ai-hint-and-answer-trees).
+
+| Test ID | Requirements | Scenario and required result | Status |
+|---|---|---|---|
+| A33 | SA-AI-01 | Add another registry AI through the common mechanism; its own tree is created atomically/idempotently from the shared starter; GPT/Alice are not the only hard-coded cases; tree creation does not declare adapter readiness | NOT_RUN |
+| A34 | SA-AI-01, SA-ADMIN-01 | Admin selects an AI, edits/saves a draft, and publishes separately after validation; draft is not delivered to clients; existing RBAC/CSRF/transactional authorization is preserved | NOT_RUN |
+| A35 | SA-AI-01, SA-ADMIN-01 | Concurrent edits surface conflict; published versions remain immutable with author/time; restoring earlier contents creates a new monotonic publication distinguishable from stale-data replay | NOT_RUN |
+| A36 | SA-AI-01, SA-SYNC-02 | Signed config descriptor and separate tree data match AI ID/version/format/hash and pass authenticity/integrity checks before atomic local save; an unchanged version is not fetched again; interrupted update preserves a usable copy | NOT_RUN |
+| A37 | SA-AI-01, SA-WORK-01, SA-CMD-01 | Running exchange stays pinned to its tree revision; after completion the next operation uses the new verified revision; tree change does not reset login/authorization, input, store, queue, or current work; refresh sends no AI message, marketplace request, or repeated delivery | NOT_RUN |
+| A38 | SA-AI-01, SA-AUTH-01, SA-SYNC-02 | Offline use respects current access and signed grace; known revoke is not ignored; absent/corrupt tree reports scoped unavailability without another AI's tree; one AI failure leaves others available | NOT_RUN |
+| A39 | SA-AI-01, SA-SYNC-01 | Tabs/browsers can work in parallel with their own AI trees and isolated work states; this does not reset login/authorization or another AI's work; duplicate loads coalesce within an installation, browsers catch up independently, and there is no per-tab polling or per-marketplace-request sync | NOT_RUN |
+| A40 | SA-AI-01, SA-CMD-02 | Common real-operation catalog, command validation, permissions and marketplace limits remain enforced; tree data cannot execute code or expand capabilities | NOT_RUN |
+| A41 | SA-UX-01, SA-SHOP-01 | Next test build provides shop addition and import inside popup and identifies the product to users as Octoport/«Октопорт», not Ozon Bridge | NOT_RUN |
