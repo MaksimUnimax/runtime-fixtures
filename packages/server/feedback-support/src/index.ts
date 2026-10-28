@@ -397,7 +397,7 @@ function redactAccidentalSecretsBasic(input: string): string {
   // A free-text "api key:" may precede a structured or multiline secret.
   // Its value boundary is not trustworthy: discard the diagnostic in full.
   const spacedBareApiKey =
-    /\bapi[ \t]+key[\s\p{Default_Ignorable_Code_Point}]*[:=]/iu;
+    /\ba\p{Default_Ignorable_Code_Point}*p\p{Default_Ignorable_Code_Point}*i\p{Default_Ignorable_Code_Point}*[\s\p{Default_Ignorable_Code_Point}]+k\p{Default_Ignorable_Code_Point}*e\p{Default_Ignorable_Code_Point}*y[\s\p{Default_Ignorable_Code_Point}]*[:=：]/iu;
   if (spacedBareApiKey.test(input)) return "[REDACTED_SECRET]";
 
   // Detect Unicode default-ignorable controls in bare diagnostic keys even

@@ -221,6 +221,62 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
   });
 
+  it.each([
+    ["ZWSP between words", "diagnostic api \u200Bkey: SYNTH_SPACED_DI_01"],
+    ["ZWSP after API", "diagnostic api\u200B key: SYNTH_SPACED_DI_02"],
+    ["word joiner", "diagnostic api\u2060 key: SYNTH_SPACED_DI_03"],
+    ["soft hyphen inside key", "diagnostic api k\u00ADey: SYNTH_SPACED_DI_04"],
+    ["no-break space", "diagnostic api\u00A0key: SYNTH_SPACED_DI_05"],
+    ["thin space", "diagnostic api\u2009key: SYNTH_SPACED_DI_06"],
+    ["raw CR", "diagnostic api\rkey: SYNTH_SPACED_DI_07"],
+    ["raw LF", "diagnostic api\nkey: SYNTH_SPACED_DI_08"],
+    ["fullwidth colon", "diagnostic api key： SYNTH_SPACED_DI_09"],
+  ])(
+    "fails closed on Unicode or multiline bare spaced API key: %s",
+    (_case, raw) => {
+      expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+    },
+  );
+
+  it("redacts Unicode-spaced API keys at all feedback persistence boundaries", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_DI_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_DI_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const raw = "api \u200Bkey: { value: 'SYNTH_DI_REPOSITORY_PRIVATE' }";
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description: raw,
+      }),
+    ).rejects.toThrow("SYNTH_DI_CASE_CAPTURE");
+    await expect(
+      service.addUserFollowup(userId, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_DI_FOLLOWUP_CAPTURE");
+    await expect(
+      service.addAdminFollowup("SUPPORT", userId, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_DI_FOLLOWUP_CAPTURE");
+    expect(captured).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    for (const field of captured) {
+      expect(field).not.toContain("SYNTH_DI_REPOSITORY_PRIVATE");
+    }
+  });
+
   it("preserves ordinary API labels and masks pseudo-JSON spaced keys", () => {
     const safe = "diagnostic api label: { value: 'SYNTH_SAFE_07' }";
     expect(sanitizeFeedbackText(safe)).toBe(safe);
