@@ -202,6 +202,113 @@ describe("B2 feedback/support safety foundation", () => {
     expect(cleaned).toContain("[REDACTED_SECRET]");
   });
 
+  it.each([
+    [
+      "CGJ bare object",
+      "diagnostic pass\u034Fword: { value: 'SYNTH_DICP_PRIVATE_01' }",
+      "SYNTH_DICP_PRIVATE_01",
+      null,
+    ],
+    [
+      "soft hyphen quoted JSON",
+      '{"pass\u00ADword":{"value":"SYNTH_DICP_PRIVATE_02"},"requestId":"safe"}',
+      "SYNTH_DICP_PRIVATE_02",
+      "pass\u00ADword",
+    ],
+    [
+      "VS16 bare array",
+      "diagnostic to\uFE0Fken: ['SYNTH_DICP_PRIVATE_03']",
+      "SYNTH_DICP_PRIVATE_03",
+      null,
+    ],
+    [
+      "RLO quoted JSON",
+      '{"api\u202EKey":{"value":"SYNTH_DICP_PRIVATE_04"},"requestId":"safe"}',
+      "SYNTH_DICP_PRIVATE_04",
+      "api\u202EKey",
+    ],
+    [
+      "BOM bare object",
+      "diagnostic pass\uFEFFword: { value: 'SYNTH_DICP_PRIVATE_05' }",
+      "SYNTH_DICP_PRIVATE_05",
+      null,
+    ],
+    [
+      "CGJ bare scalar",
+      "diagnostic pass\u034Fword: SYNTH_DICP_PRIVATE_06",
+      "SYNTH_DICP_PRIVATE_06",
+      null,
+    ],
+    [
+      "RLO bare quoted multiline",
+      "diagnostic pass\u202Eword: 'SYNTH_DICP_PRIVATE_HEAD_07\nSYNTH_DICP_PRIVATE_TAIL_07'",
+      "SYNTH_DICP_PRIVATE_TAIL_07",
+      null,
+    ],
+  ])(
+    "redacts default-ignorable secret key %s",
+    (_kind, raw, marker, jsonKey) => {
+      const redacted = sanitizeFeedbackText(raw);
+      expect(redacted).not.toContain(marker);
+      if (jsonKey === null) {
+        expect(redacted).toBe("[REDACTED_SECRET]");
+      } else {
+        expect(JSON.parse(redacted)).toEqual({
+          [jsonKey]: "[REDACTED_SECRET]",
+          requestId: "safe",
+        });
+      }
+    },
+  );
+
+  it("preserves default-ignorable characters in harmless text and JSON", () => {
+    const ordinary =
+      "diagnostic note\u034FKey: { value: 'SYNTH_DICP_SAFE_08' }";
+    const valid =
+      '{"note\u00ADLabel":{"value":"SYNTH_DICP_SAFE_09"},"requestId":"safe"}';
+    expect(sanitizeFeedbackText(ordinary)).toBe(ordinary);
+    expect(sanitizeFeedbackText(valid)).toBe(valid);
+  });
+
+  it("keeps default-ignorable secret values out of all feedback repository sinks", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_DICP_CASE_CAPTURED");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_DICP_FOLLOWUP_CAPTURED");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const user = "00000000-0000-4000-8000-000000000001";
+    const account = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const raw =
+      "diagnostic pass\u034Fword: { value: 'SYNTH_DICP_PERSIST_PRIVATE_10' }";
+    await expect(
+      service.createCase(user, {
+        accountId: account,
+        category: "OTHER",
+        description: raw,
+      }),
+    ).rejects.toThrow("SYNTH_DICP_CASE_CAPTURED");
+    await expect(
+      service.addUserFollowup(user, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_DICP_FOLLOWUP_CAPTURED");
+    await expect(
+      service.addAdminFollowup("SUPPORT", user, caseId, { description: raw }),
+    ).rejects.toThrow("SYNTH_DICP_FOLLOWUP_CAPTURED");
+    expect(captured).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+    for (const value of captured)
+      expect(value).not.toContain("SYNTH_DICP_PERSIST_PRIVATE_10");
+  });
+
   it("preserves ordinary quoted keys with invisible Unicode joiners", () => {
     const safeJson =
       '{"note\u200BLabel":{"value":"SYNTH_B06_PUBLIC_SAFE_06"},"requestId":"safe-06"}';

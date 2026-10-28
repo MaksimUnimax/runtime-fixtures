@@ -188,7 +188,9 @@ const sensitiveJsonKey =
 // Ignore invisible joiners only when classifying a diagnostic KEY; do not
 // rewrite harmless Unicode text or the original JSON key spelling.
 function isSensitiveDiagnosticKey(key: string): boolean {
-  return sensitiveJsonKey.test(key.replace(/[\u200B-\u200D\u2060]/gu, ""));
+  return sensitiveJsonKey.test(
+    key.replace(/\p{Default_Ignorable_Code_Point}/gu, ""),
+  );
 }
 
 function isSensitiveQuotedKey(encodedKey: string): boolean {
@@ -281,7 +283,7 @@ const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
 // Also recognize log-escaped quote openers. Fail closed on line breaks,
 // including those between the key and value, before redaction can leak a tail.
 const bareQuotedCredentialValueStart =
-  /\b([A-Za-z_][A-Za-z0-9_\u200B-\u200D\u2060-]*)[\s\u200B-\u200D\u2060]*[:=][\s\u200B-\u200D\u2060]*(?:\\*)(["'])/gu;
+  /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*(?:\\*)(["'])/gu;
 
 function hasBareQuotedMultilineCredential(input: string): boolean {
   bareQuotedCredentialValueStart.lastIndex = 0;
@@ -392,11 +394,23 @@ function redactMultilineQuotedSecrets(input: string): string {
 }
 
 function redactAccidentalSecretsBasic(input: string): string {
+  // Detect Unicode default-ignorable controls in bare diagnostic keys even
+  // when their values are scalars. Preserve the rest of a user's text.
+  const ignoredBareKey =
+    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
+  for (const match of input.matchAll(ignoredBareKey)) {
+    if (
+      /\p{Default_Ignorable_Code_Point}/u.test(match[0]) &&
+      isSensitiveDiagnosticKey(match[1]!)
+    )
+      return "[REDACTED_SECRET]";
+  }
+
   // A bare credential key followed by an object/array has no trustworthy
   // token boundary. The fallback regex would mask only the opening bracket
   // and persist the nested secret. Discard that diagnostic in full.
   const bareStructuredCredential =
-    /\b([A-Za-z_][A-Za-z0-9_\u200B-\u200D\u2060-]*)[\s\u200B-\u200D\u2060]*[:=][\s\u200B-\u200D\u2060]*[[{]/gu;
+    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*[[{]/gu;
   for (const match of input.matchAll(bareStructuredCredential)) {
     // Only the diagnostic key is normalized for matching. Preserve all
     // legitimate joiners elsewhere in the user's text.
