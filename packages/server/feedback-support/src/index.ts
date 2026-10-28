@@ -183,7 +183,7 @@ const quotedJsonScalarField =
 const singleQuotedScalarField =
   /('(?:\\.|[^'\\\r\n])*')(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
-  /(?:password|passwd|secret|token|api(?:[_-]|\s)*key|authorization|cookies?|set[-_]?cookie)$/iu;
+  /(?:password|passwd|secret|token|api(?:[_-]|\s)*key|(?:private|secret)(?:[_-]|\s)*key|authorization|cookies?|set[-_]?cookie)$/iu;
 
 // Ignore invisible joiners only when classifying a diagnostic KEY; do not
 // rewrite harmless Unicode text or the original JSON key spelling.
@@ -466,6 +466,11 @@ function redactAccidentalSecretsBasic(input: string): string {
   const spacedBareApiKey =
     /\ba\p{Default_Ignorable_Code_Point}*p\p{Default_Ignorable_Code_Point}*i\p{Default_Ignorable_Code_Point}*[\s\p{Default_Ignorable_Code_Point}]+k\p{Default_Ignorable_Code_Point}*e\p{Default_Ignorable_Code_Point}*y[\s\p{Default_Ignorable_Code_Point}]*[:=：]/iu;
   if (spacedBareApiKey.test(input)) return "[REDACTED_SECRET]";
+  // A bare private/secret key assignment lacks a trustworthy value boundary.
+  // It may carry raw or encoded key material without PEM framing; fail closed.
+  const barePrivateOrSecretKey =
+    /\b(?:private|secret)[_\s\p{Default_Ignorable_Code_Point}-]*key[\s\p{Default_Ignorable_Code_Point}]*[:=：]/iu;
+  if (barePrivateOrSecretKey.test(input)) return "[REDACTED_SECRET]";
 
   // Detect fullwidth colon and Unicode default-ignorable controls around
   // sensitive bare keys. Neither delimiter has a provable secret boundary;

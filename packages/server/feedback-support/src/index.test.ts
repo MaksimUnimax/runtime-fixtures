@@ -3018,3 +3018,59 @@ describe("B06 bare multiword credentials must not leak suffixes", () => {
     expect(cleaned).toContain("X-Trace: safe-trace-1");
   });
 });
+
+describe("B06 private/secret key credential aliases", () => {
+  const fake = "B06_FAKE_KEY_MATERIAL_ONLY_" + "Q".repeat(24);
+
+  it.each([
+    ["private_key JSON", JSON.stringify({ private_key: fake, trace: "safe" })],
+    ["privateKey JSON", JSON.stringify({ privateKey: fake, trace: "safe" })],
+    ["secret_key JSON", JSON.stringify({ secret_key: fake, trace: "safe" })],
+    ["secretKey JSON", JSON.stringify({ secretKey: fake, trace: "safe" })],
+    [
+      "private-key JSON",
+      JSON.stringify({ "private-key": fake, trace: "safe" }),
+    ],
+    [
+      "escaped private_key JSON",
+      '{"private\\u005fkey":' + JSON.stringify(fake) + "}",
+    ],
+    [
+      "nested private_key JSON",
+      JSON.stringify({ nested: { private_key: fake } }),
+    ],
+    ["private_key array JSON", JSON.stringify({ private_key: [fake] })],
+    ["bare private_key", "diagnostic private_key=" + fake + " context"],
+    ["bare privateKey", "diagnostic privateKey=" + fake + " context"],
+    ["bare secret_key", "diagnostic secret_key=" + fake + " context"],
+    ["bare secret-key", "diagnostic secret-key=" + fake + " context"],
+    ["single-quoted key", "prefix 'private_key': '" + fake + "'"],
+    ["ignored Unicode in bare key", "pri\u200Dvate_key=" + fake],
+    ["fullwidth colon", "private_key：" + fake],
+  ])("removes confidential %s even without PEM framing", (_label, raw) => {
+    expect(sanitizeFeedbackText(raw)).not.toContain(fake);
+    expect(redactAccidentalSecrets(raw)).not.toContain(fake);
+  });
+
+  it("keeps public keys, identifiers and ordinary safe text", () => {
+    const benign = JSON.stringify({
+      public_key: fake,
+      private_key_id: fake,
+      trace: "safe",
+    });
+    expect(sanitizeFeedbackText(benign)).toBe(benign);
+    expect(sanitizeFeedbackText("a".repeat(4000))).toBe("a".repeat(4000));
+  });
+
+  it("masks a private key but retains safe JSON siblings", () => {
+    const input = JSON.stringify({
+      private_key: fake,
+      requestId: "synthetic-safe-request-id",
+      public_key: "synthetic-nonsecret-public-key",
+    });
+    const out = JSON.parse(sanitizeFeedbackText(input));
+    expect(out.private_key).toBe("[REDACTED_SECRET]");
+    expect(out.requestId).toBe("synthetic-safe-request-id");
+    expect(out.public_key).toBe("synthetic-nonsecret-public-key");
+  });
+});
