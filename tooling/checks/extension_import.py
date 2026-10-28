@@ -253,6 +253,10 @@ def ozon_route(runner, work, runtime, label, source_route, expected_version="0.1
                 "behavior_assertions_changed": False,
             })
         steps.append((kind + "-green", green_args))
+    if source_route:
+        steps.append(("cap24-report-status-source-only", [
+            ROOT / "tests/regression/extension-core/ozon-cap24-report-status-failclosed.mjs",
+        ]))
     for name, args in steps:
         runner.run(label + "-" + name, ["node", *args], cwd=repo)
     baseline.write_json(runner.output / (label + "-authority.json"),
