@@ -401,9 +401,17 @@ function hasMultilineQuotedCredentialKey(input: string): boolean {
   // Match each potential key independently: an unmatched apostrophe in
   // ordinary prose must not hide a later double- or single-quoted key.
   // A slash may escape a literal line break; the guard must inspect it.
-  const quotedKeyBeforeValue =
-    /("(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
-  for (const match of input.matchAll(quotedKeyBeforeValue)) {
+  // A match of one quote style may encompass a nested credential in the
+  // other style. Never allow a broader match to consume the inner candidate.
+  const doubleQuotedKey =
+    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
+  const singleQuotedKey =
+    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
+  const candidates = [
+    ...input.matchAll(doubleQuotedKey),
+    ...input.matchAll(singleQuotedKey),
+  ];
+  for (const match of candidates) {
     const key = match[1]!.slice(1, -1);
     if (!/[\r\n]/u.test(key)) continue;
     // Decode spelling escapes only for classification of a malformed key.

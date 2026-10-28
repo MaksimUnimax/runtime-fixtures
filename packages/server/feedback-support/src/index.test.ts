@@ -2263,3 +2263,86 @@ describe("B06 full cumulative review P1 — quoted malformed credential keys", (
     },
   );
 });
+
+describe("B06 mixed-quote nesting guard", () => {
+  it.each([
+    [
+      "single-quote envelope hides a double-quoted LF key",
+      'trace \'outer {"api\nkey":"SYNTH_B06_P1_MIXED_DOUBLE"}\' : next',
+      "SYNTH_B06_P1_MIXED_DOUBLE",
+    ],
+    [
+      "double-quote envelope hides a single-quoted LF key",
+      "trace \"outer {'api\nkey':'SYNTH_B06_P1_MIXED_SINGLE'}\" : next",
+      "SYNTH_B06_P1_MIXED_SINGLE",
+    ],
+  ])("blocks %s", (_label, raw, marker) => {
+    expect(sanitizeFeedbackText(raw)).not.toContain(marker);
+  });
+  it.each([
+    'trace \'outer {"safe\nnote":"normal"}\' : next',
+    "trace \"outer {'safe\nnote':'normal'}\" : next",
+  ])("preserves safe nested quote diagnostic: %s", (raw) => {
+    expect(sanitizeFeedbackText(raw)).toBe(raw);
+  });
+});
+
+describe("B06 nested quote and invisible delimiter defense in all persistence fields", () => {
+  const examples = [
+    [
+      "single quoted prose hides inner double key with U+2060",
+      'trace \'outer {"api\nkey"\u2060:"SYNTH_B06_P1_NESTED_JOINER"}\' : next',
+      "SYNTH_B06_P1_NESTED_JOINER",
+    ],
+    [
+      "double quoted prose hides inner single key with U+200B",
+      "trace \"outer {'api\rkey'\u200B:'SYNTH_B06_P1_NESTED_ZWSP'}\" : next",
+      "SYNTH_B06_P1_NESTED_ZWSP",
+    ],
+  ] as const;
+  it.each(examples)("masks %s at the sanitizer", (_kind, raw, secret) => {
+    expect(sanitizeFeedbackText(raw)).not.toContain(secret);
+  });
+  it.each(examples)(
+    "masks %s at all four repository fields",
+    async (_kind, raw, secret) => {
+      const forwarded: string[] = [];
+      const repo = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          forwarded.push(input.description, input.body.description);
+          throw new Error("SYNTH_NESTED_CASE_CAPTURED");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          forwarded.push(input.body);
+          throw new Error("SYNTH_NESTED_FOLLOWUP_CAPTURED");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repo);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_NESTED_CASE_CAPTURED");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_NESTED_FOLLOWUP_CAPTURED");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_NESTED_FOLLOWUP_CAPTURED");
+      expect(forwarded).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(forwarded)).not.toContain(secret);
+    },
+  );
+});
