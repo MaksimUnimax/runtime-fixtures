@@ -531,6 +531,118 @@ describe("B2 feedback/support safety foundation", () => {
     }
   });
 
+  it.each([
+    [
+      "literal LF then escaped key letter",
+      'diagnostic {"api\nk\\ey":"SYNTH_MALFORMED_KEY_C_01"}',
+      "SYNTH_MALFORMED_KEY_C_01",
+    ],
+    [
+      "literal LF then Unicode escaped k",
+      'diagnostic {"api\n\\u006bey":"SYNTH_MALFORMED_KEY_C_02"}',
+      "SYNTH_MALFORMED_KEY_C_02",
+    ],
+    [
+      "literal CR then Unicode escaped e",
+      'diagnostic {"api\rk\\u0065y":"SYNTH_MALFORMED_KEY_C_03"}',
+      "SYNTH_MALFORMED_KEY_C_03",
+    ],
+    [
+      "literal LF then Unicode escaped thin space",
+      'diagnostic {"api\n\\u2009key":"SYNTH_MALFORMED_KEY_C_04"}',
+      "SYNTH_MALFORMED_KEY_C_04",
+    ],
+    [
+      "literal CR then hexadecimal escaped k",
+      'diagnostic {"api\r\\x6bey":"SYNTH_MALFORMED_KEY_C_05"}',
+      "SYNTH_MALFORMED_KEY_C_05",
+    ],
+    [
+      "literal LF with doubled slash before Unicode escape",
+      'diagnostic {"api\n\\\\u006bey":"SYNTH_MALFORMED_KEY_C_06"}',
+      "SYNTH_MALFORMED_KEY_C_06",
+    ],
+    [
+      "pseudo-JSON split password with escape",
+      "diagnostic 'pass\nw\\ord': 'SYNTH_MALFORMED_KEY_C_07'",
+      "SYNTH_MALFORMED_KEY_C_07",
+    ],
+  ])(
+    "fails closed on encoded secret spellings in raw multiline quoted keys: %s",
+    (_kind, raw, secret) => {
+      const redacted = sanitizeFeedbackText(raw);
+      expect(redacted).toBe("[REDACTED_SECRET]");
+      expect(redacted).not.toContain(secret);
+    },
+  );
+
+  it("preserves benign escaped multiline quoted key text and safe metadata", () => {
+    const controls = [
+      'diagnostic {"note\nla\\bel":"SYNTH_B06_BENIGN_ML_01"}',
+      'diagnostic {"note\n\\u006cevel":"SYNTH_B06_BENIGN_ML_02"}',
+      "diagnostic 'note\nlabel': 'SYNTH_B06_BENIGN_ML_03'",
+    ];
+    for (const raw of controls) expect(sanitizeFeedbackText(raw)).toBe(raw);
+    const valid =
+      '{"api\\u2009key":"SYNTH_B06_VALID_ML_04","requestId":"safe"}';
+    expect(JSON.parse(sanitizeFeedbackText(valid))).toEqual({
+      ["api\u2009key"]: "[REDACTED_SECRET]",
+      requestId: "safe",
+    });
+  });
+
+  it("keeps encoded malformed multiline secrets out of every repository sink", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_ML_KEY_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_ML_KEY_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const cases = [
+      ['diagnostic {"api\nk\\ey":"SYNTH_ML_SINK_01"}', "SYNTH_ML_SINK_01"],
+      ['diagnostic {"api\n\\u006bey":"SYNTH_ML_SINK_02"}', "SYNTH_ML_SINK_02"],
+      ['diagnostic {"api\rk\\u0065y":"SYNTH_ML_SINK_03"}', "SYNTH_ML_SINK_03"],
+      ['diagnostic {"api\n\\u2009key":"SYNTH_ML_SINK_04"}', "SYNTH_ML_SINK_04"],
+      ['diagnostic {"api\r\\x6bey":"SYNTH_ML_SINK_05"}', "SYNTH_ML_SINK_05"],
+    ] as const;
+    for (const [raw, secret] of cases) {
+      const before = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_ML_KEY_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_ML_KEY_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_ML_KEY_FOLLOWUP_CAPTURE");
+      const persisted = captured.slice(before);
+      expect(persisted).toHaveLength(4);
+      for (const value of persisted) {
+        expect(value).toBe("[REDACTED_SECRET]");
+        expect(value).not.toContain(secret);
+      }
+    }
+  });
+
   it("retains valid JSON sibling fields and masks escaped multiline API keys", () => {
     const raw = '{"api\\nkey":"SYNTH_VALID_ESCAPED_LF","requestId":"safe"}';
     const clean = sanitizeFeedbackText(raw);

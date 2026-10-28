@@ -430,11 +430,19 @@ function hasMultilineQuotedCredentialKey(input: string): boolean {
         delimiter++;
       if (input[delimiter] === ":" || input[delimiter] === "=") {
         const key = input.slice(start, index);
+        // Decode spelling escapes only for classification of a malformed key.
+        // Never alter user-visible text or trust an ambiguous persisted value.
+        const canonicalKey = key
+          .replace(/[\r\n]/gu, "")
+          .replace(
+            /\\u([0-9a-f]{4})|\\x([0-9a-f]{2})/giu,
+            (_escape, unicode: string | undefined, hex: string | undefined) =>
+              String.fromCharCode(Number.parseInt((unicode ?? hex)!, 16)),
+          )
+          .replace(/\\/gu, "");
         if (
           isSensitiveDiagnosticKey(key) ||
-          isSensitiveDiagnosticKey(
-            key.replace(/(?:\\+[\r\n]+|[\r\n]+\\+|[\r\n]+)/gu, ""),
-          )
+          isSensitiveDiagnosticKey(canonicalKey)
         )
           return true;
       }
