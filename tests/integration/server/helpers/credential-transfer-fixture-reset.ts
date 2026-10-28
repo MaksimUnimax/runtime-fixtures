@@ -63,10 +63,12 @@ const APPROVED_TRUNCATE_TARGETS = new Set([
 ]);
 
 // Full transitive public-table closure observed for the approved targets on
-// canonical journal 50. The catalog is re-evaluated before every reset: a new
+// canonical journal 52, including both 0062 connection-code tables. The catalog
+// is re-evaluated before every reset: a new
 // referencing table, or any cross-schema dependency, fails closed until this
 // list is explicitly reviewed and updated.
 const APPROVED_CASCADE_TABLES = new Set([
+  "account_connection_credentials",
   "account_entitlement_overrides",
   "account_memberships",
   "accounts",
@@ -98,6 +100,7 @@ const APPROVED_CASCADE_TABLES = new Set([
   "config_release_feature_rules",
   "config_release_rollout_revisions",
   "config_releases",
+  "connection_exchange_receipts",
   "credential_transfer_requests",
   "device_authorizations",
   "devices",

@@ -1079,6 +1079,8 @@ for (const s of deliveryWitnessCases) await test('R3-chatgpt-delivery-' + s.name
  class Button{constructor(){this.isConnected=true;}click(){clicks++;if(s.newText)users.push({id:"new",text:s.newText});}}
  const button=new Button(),adapter={id:"chatgpt",userMessages:()=>users,messageId:n=>n.id,messageText:n=>n.text};
  const ctx={HTMLElement:Button,activeDeliveryWatch:null,DELIVERY_WATCH_INTERVAL_MS:1,manualEnabled:true,manualConversationKey:"chat",runtimeId:"synthetic-runtime",saContentContext:{},
+ // These fixtures isolate delivery witnesses; the real target validator is exercised in delivery-send-target.mjs.
+  BB2ComposerSend:{validateTarget:()=>({ok:true})},composerSendDeps:()=>({}),
  current:()=>running,sameConversation:()=>!s.changeConversation||wakes===0,conversationKeyFromLocation:()=>"chat",currentAIAdapter:()=>adapter,userTurnIds:()=>users.map(n=>n.id),canonicalText:x=>String(x??"").trim(),
  classifyComposerControl:()=>({kind:s.recoveredKind??(s.soleMic?"microphone":clicks===0?"work_send_active":s.ready??"work_send_disabled"),button}),
  recordContentDiagnostic:()=>{},diagnosticForControlKind:x=>x,toast:()=>{},setManualBridgeReady:()=>{},visible:()=>true,controlDisabled:()=>false,saCheckDelivery:async()=>{},

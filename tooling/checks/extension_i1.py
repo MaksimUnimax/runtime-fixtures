@@ -76,6 +76,7 @@ def main():
                 ("i1-p3-technical-scheduler", ROOT / "tests/regression/extension-core/client-i1/client-p3-technical-scheduler.mjs"),
                 ("i1-a04-network-correctness", ROOT / "tests/regression/extension-core/client-i1/client-a04-network-correctness.mjs"),
                 ("application", ROOT / "tests/regression/extension-core/application.mjs"),
+                ("delivery-send-target", ROOT / "tests/regression/extension-core/delivery-send-target.mjs"),
                 ("owner-opera-start-keys", ROOT / "tests/regression/extension-core/owner-opera-start-keys.mjs"),
                 ("i1-lifecycle", ROOT / "tests/regression/extension-core/client-i1/client-lifecycle.mjs"),
                 ("i1-request-deadline", ROOT / "tests/regression/extension-core/client-i1/client-request-deadline.mjs"),

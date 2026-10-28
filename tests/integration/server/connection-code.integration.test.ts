@@ -768,8 +768,16 @@ describe.sequential(
       },
       160_000,
     );
-    it("HTTP cabinet OTP -> connection exchange -> independent sessions uses the real repositories", async () => {
+    it("existing account OTP -> connection exchange -> independent sessions uses the real repositories", async () => {
       clock = new Date();
+      // Enrollment belongs to an existing account. Seed only this test's
+      // verified identity, without changing the shared beta admission policy.
+      const existing = await owner();
+      const email = "connection-" + randomUUID() + "@example.test";
+      await query(
+        "INSERT INTO user_identities(user_id,provider,normalized_identifier,verified_at) VALUES($1,'EMAIL',$2,$3)",
+        [existing.principal.userId, email, clock],
+      );
       const auth = new AuthService(
         createAuthRepository(db),
         deriveAuthKeys(root),
@@ -797,7 +805,7 @@ describe.sequential(
         const challenge = await app.inject({
           method: "POST",
           url: "/v1/auth/otp/request",
-          payload: { email: "connection-" + randomUUID() + "@example.test" },
+          payload: { email },
         });
         expect(challenge.statusCode).toBe(202);
         const login = await app.inject({
@@ -827,6 +835,7 @@ describe.sequential(
         });
         expect(accounts.statusCode).toBe(200);
         const accountId = accounts.json().accounts[0].id;
+        expect(accountId).toBe(existing.accountId);
         clock = new Date();
         const issued = await app.inject({
           method: "POST",

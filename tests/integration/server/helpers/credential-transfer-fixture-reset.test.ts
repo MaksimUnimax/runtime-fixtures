@@ -126,6 +126,25 @@ describe("fenced integration-only fixture reset", () => {
     expect(f.calls).toHaveLength(1);
   });
   it.each([
+    "account_connection_credentials",
+    "connection_exchange_receipts",
+  ])("permits the reviewed 0062 CASCADE descendant %s", async (table_name) => {
+    const f = fixture({ cascadeExtra: { schema_name: "public", table_name } });
+    await resetTransferProtectedTestFixture(f.database, RESET);
+    expect(f.calls).toHaveLength(7);
+    expect(f.calls[6]).toBe(RESET);
+  });
+  it.each([
+    "TRUNCATE account_connection_credentials CASCADE",
+    "TRUNCATE connection_exchange_receipts CASCADE",
+  ])("does not add a new direct reset target: %s", async (sql) => {
+    const f = fixture();
+    await expect(resetTransferProtectedTestFixture(f.database, sql)).rejects.toThrow(
+      "TRANSFER_FIXTURE_RESET_SQL_NOT_ALLOWED",
+    );
+    expect(f.calls).toEqual([]);
+  });
+  it.each([
     [
       "new public referencing table",
       { schema_name: "public", table_name: "unexpected_future_table" },

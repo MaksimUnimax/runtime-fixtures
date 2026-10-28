@@ -75,6 +75,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     await runMigrations({ connectionString });
     await runMigrations({ connectionString });
     expect(await tables()).toEqual([
+      "account_connection_credentials",
       "account_entitlement_overrides",
       "account_memberships",
       "accounts",
@@ -119,6 +120,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "config_release_feature_rules",
       "config_release_rollout_revisions",
       "config_releases",
+      "connection_exchange_receipts",
       "credential_transfer_requests",
       "device_authorizations",
       "devices",
@@ -180,7 +182,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("50");
+    expect(count.rows[0]?.count).toBe("52");
     const fenceTables = await runtime.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema='octoport_transfer_fence' ORDER BY table_name",
     );

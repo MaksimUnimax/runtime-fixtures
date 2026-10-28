@@ -94,6 +94,7 @@ def main():
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])
             runner.run(label + "-wb-token-field-name-privacy", ["node", ROOT / "tests/regression/extension-core/wb-token-field-name-privacy.mjs", runtime])
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
+            runner.run(label + "-delivery-send-target", ["node", ROOT / "tests/regression/extension-core/delivery-send-target.mjs", runtime])
             runner.run(label + "-backup-runtime-context", ["node", ROOT / "tests/regression/extension-core/client-i1/client-backup-runtime-context-wiring.mjs", runtime])
             runner.run(label + "-owner-opera-start-keys", ["node", ROOT / "tests/regression/extension-core/owner-opera-start-keys.mjs", runtime])
             runner.run(label + "-transfer-recipient-recovery", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-recipient-recovery.mjs", runtime])
