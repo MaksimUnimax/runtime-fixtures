@@ -34,8 +34,26 @@ assert.equal(hash(standardComposerPatch.new), "dfa900cbbe80eab472d738c2125bac806
 // The separate CAP-24 composition overlay must not silently become a Kimi patch.
 const kimiPatches = patches.slice(179, 192);
 assert.equal(kimiPatches.length, 13);
-assert.equal(hash(JSON.stringify(patches.slice(0, 179))), "8dd63a7aa84cd49bd8aaee561b915c4006e799919cca0f8291efaff273b387d5",
-  "exact pre-Kimi inventory includes the preserved B02 quota-copy correction");
+// PR330 changes exactly four existing artifact recipes. Pin their identities
+// separately; all other pre-Kimi recipes, including B02 quota-copy, are unchanged.
+const artifactPatchIndexes = [25, 29, 32, 135];
+const unchangedPreKimi = patches.slice(0, 179).filter((_, index) => !artifactPatchIndexes.includes(index));
+assert.equal(unchangedPreKimi.length, 175);
+assert.equal(hash(JSON.stringify(unchangedPreKimi)), "b3596f97daaff2005068fabf005e9bb0596348bf4d987d9a2abe5921f6d1375f",
+  "exact 175 preserved pre-Kimi recipes including B02 quota-copy");
+assert.deepEqual(artifactPatchIndexes.map(index => {
+  const row = patches[index];
+  assert.equal(row.target, "shared/file_delivery_port_worker.js");
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+  return [index, hash(row.old), hash(row.new)];
+}), [
+  [25, "797019b84c1379d6a4b7b7da44fe87941ff78be6e1eda97f27e93ab58d795ccd", "5ae0ef7a133383721abd5061fa422d0c196a4ff582bf5e5812b5af5ed0e7b144"],
+  [29, "870ef4a10b216b69eaf52e00a7fda81d9fe4f630dcbc4206a2818d6725033eab", "de32b7461d288342df4eefd068970eb76f2561a135af7a81c62190aaffeca4b9"],
+  [32, "4026de0552e555d8a3e2e56346578e0aec633af22b26b45138f5e74eb5cd6390", "0e3e8b8ae8e492649071321afbe98c135f62ba04602593d9184960eecbb5aa03"],
+  [135, "0e72b71ab29e2664ee359c0c912c911a595e3bedccf37c6e8e3090c8147f766c", "49c35375526cac09ac76919cc06b9a550326afbadc857131015c5f93bc40a0cd"],
+]);
+assert.equal(hash(JSON.stringify(patches.slice(0, 179))), "b191b8c0b9ae412610ca584aa76831003af01b59006f5679b438680e57fc0dca",
+  "exact pre-Kimi composition with four PR330 artifact corrections");
 assert.equal(hash(JSON.stringify(kimiPatches)), "32e8792ab10e0217287c9f766cf217d6e597184202b27926583851fe846f9935",
   "exact Kimi slice includes the preserved delivery-profile selection guard");
 // Pin the one additional independently-reviewed CAP-24 composition patch.
