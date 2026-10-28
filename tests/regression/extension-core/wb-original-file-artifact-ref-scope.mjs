@@ -77,9 +77,51 @@ const checksum=stored.get("provider:"+stableRef);
 await assert.rejects(()=>scope.__prepare([entry("same","DIFFERENT_BYTES")],owner()),e=>e.code==="SIMULATED_MISMATCH");
 assert.equal(stored.get("provider:"+stableRef),checksum);
 assert.ok(stored.size<fakeWrites);
+// R10: the same real attempt/request retains identity even if a preceding
+// non-eligible batch entry is inserted during re-finalization/restart.
+const batchSource = entry("stable-ordinal-attempt");
+const batchOwner = owner();
+const beforeOrd = stored.size, beforeWrites = fakeWrites;
+const direct = await scope.__prepare([batchSource], batchOwner);
+const shifted = await scope.__prepare([
+  { status: "skipped", http_status: 500, report_text: "IGNORED" },
+  batchSource,
+], batchOwner);
+sourceCalls += 2;
+assert.equal(direct[0].provider_file_ref, shifted[1].provider_file_ref,
+  "logical provider attempt must keep the same artifact ref despite unrelated entry reordering");
+assert.equal(fakeWrites, beforeWrites+2);
+assert.equal(stored.size, beforeOrd+1);
+assert.match(direct[0].provider_file_ref, /^sa_file_[a-f0-9]{64}$/);
+
+// R11: if there is no provider-attempt ID, a stable request ID still
+// survives unrelated entry insertion, while the genuine no-ID fallback remains ordinal-scoped.
+const requestOnly = { ...entry("request-only"), provider_attempt: undefined };
+const reqBefore = await scope.__prepare([requestOnly], batchOwner);
+const reqShifted = await scope.__prepare([{http_status:500,report_text:"UNQUALIFIED"}, requestOnly], batchOwner);
+assert.equal(reqBefore[0].provider_file_ref, reqShifted[1].provider_file_ref,
+  "stable request-only identity must survive unrelated batch insertion");
+const noIds = { ...entry("no-ids"), provider_attempt: undefined, request_id: undefined };
+const fallback0 = await scope.__prepare([noIds], batchOwner);
+const fallback1 = await scope.__prepare([{http_status:500,report_text:"UNQUALIFIED"}, noIds], batchOwner);
+assert.notEqual(fallback0[0].provider_file_ref, fallback1[1].provider_file_ref,
+  "no stable request/attempt ID must use ordinal as fallback");
+const changedRequest = { ...batchSource, request_id:"different-request-same-provider-attempt" };
+const originalAttempt = await scope.__prepare([batchSource],batchOwner);
+const shiftedRequest = await scope.__prepare([changedRequest],batchOwner);
+assert.equal(originalAttempt[0].provider_file_ref,shiftedRequest[0].provider_file_ref,
+  "provider-attempt authority must outrank incidental request ID");
+const attemptNamespace = { ...entry("same-value"), request_id:"request-elsewhere" };
+const requestNamespace = { ...entry("other-value"), provider_attempt:undefined, request_id:"same-value" };
+const attemptRef = await scope.__prepare([attemptNamespace],batchOwner);
+const requestRef = await scope.__prepare([requestNamespace],batchOwner);
+assert.notEqual(attemptRef[0].provider_file_ref,requestRef[0].provider_file_ref,
+  "attempt and request identity namespaces must not collide");
+sourceCalls += 8;
+
 console.log(JSON.stringify({status:"PASS",scenario:"A04_WB_ORIGINAL_FILE_REF_SCOPED_INJECTIVITY",level:"SOURCE_VM_SYNTHETIC_ONLY",
- sourceGitBlob,checks:10,
+ sourceGitBlob,checks:15,
  assertions:{different_attempts:true,punctuation_distinct:true,account_and_store_separated:true,truncated_raw_ids_distinct:true,
- operation_separated:true,same_logical_key_stable:true,invalid_scope_rejected:true,changed_bytes_mock_rejected:true,non_WB_unchanged:true},
+ operation_separated:true,same_logical_key_stable:true,invalid_scope_rejected:true,changed_bytes_mock_rejected:true,non_WB_unchanged:true,stable_identity_across_ordinal_shift:true,request_fallback_stable:true,missing_ids_use_ordinal:true,attempt_id_priority:true,identity_type_domain_separated:true},
  calls:{source:sourceCalls,mock_persistence:fakeWrites,owner_guard:guards,provider_http:0},
  limitations:"Real IndexedDB artifact storage, copyManifest, installed attachment, owner/providers and production NOT VERIFIED"}));

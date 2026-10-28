@@ -46,13 +46,19 @@ async function saPrepareDelivery(entries, owner) {
     if (typeof scope.accountId !== "string" || !scope.accountId ||
         typeof scope.storeId !== "string" || !scope.storeId)
       throw saError("EXECUTION_CONTEXT_MISSING");
+    // The same logical provider attempt must retain its ref even if an
+    // unrelated batch entry moves its ordinal during restart reconciliation.
+    const attemptId = typeof entry.provider_attempt?.provider_attempt_id === "string" &&
+      entry.provider_attempt.provider_attempt_id.length > 0
+      ? entry.provider_attempt.provider_attempt_id : null;
+    const requestId = typeof entry.request_id === "string" &&
+      entry.request_id.length > 0 ? entry.request_id : null;
+    const logicalId = attemptId ? ["provider_attempt", attemptId]
+      : requestId ? ["request", requestId] : ["ordinal", entryIndex];
     const ref = `sa_file_${await sha256Hex(JSON.stringify([
-      scope.marketplace, scope.accountId, scope.storeId,
+      "wb_file_ref_v1", scope.marketplace, scope.accountId, scope.storeId,
       scope.bindingId ?? null, scope.bindingRevision ?? null, scope.workSessionId ?? null,
-      owner.operation_id ?? null, entryIndex,
-      typeof entry.provider_attempt?.provider_attempt_id === "string"
-        ? entry.provider_attempt.provider_attempt_id : null,
-      typeof entry.request_id === "string" ? entry.request_id : null,
+      owner.operation_id ?? null, logicalId,
     ]))}`;
     const filename = data.original_filename || `wb-report-${entry.operation || "result"}.${/pdf/i.test(data.content_type) ? "pdf" : /csv/i.test(data.content_type) ? "csv" : /spreadsheetml/i.test(data.content_type) ? "xlsx" : "bin"}`;
     await guard.assertCurrent();
