@@ -576,7 +576,8 @@ describe("TG4 Telegram operator integration hardening", () => {
           summary: "Synthetic success.",
         }),
       },
-      notifier: async (notification) => serviceRef.current?.notify(notification),
+      notifier: async (notification) =>
+        serviceRef.current?.notify(notification),
     });
     const transport: TelegramTransport = {
       getUpdates: async () => ({ updates: [] }),
