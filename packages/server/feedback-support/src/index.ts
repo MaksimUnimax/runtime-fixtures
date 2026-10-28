@@ -522,6 +522,42 @@ function redactAccidentalSecretsBasic(input: string): string {
 // string values; retain the original formatting when nothing needs masking.
 const MAX_EMBEDDED_JSON_DEPTH = 24;
 
+// In malformed pseudo-JSON, a nonsensitive quoted field can swallow an
+// ordinary nested credential field of the opposite quote style. Inspect
+// quoted keys of both styles independently after the basic scrubbers: an
+// inner key left with any value other than a complete redaction marker is
+// not safe to persist. Valid JSON is handled by the token scanner below.
+function hasUnredactedQuotedCredentialField(input: string): boolean {
+  const quotedKeys = [
+    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu,
+    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu,
+  ];
+  const completeMask =
+    /^(?:"\[REDACTED_SECRET\]"|'\[REDACTED_SECRET\]'|\[REDACTED_SECRET\])(?=\s*(?:[,}\]]|$)|[\r\n])/u;
+  for (const pattern of quotedKeys) {
+    for (const match of input.matchAll(pattern)) {
+      // This is a second-pass detector of recognizable inner credentials,
+      // not the primary malformed-key fail-closed classifier. A harmless
+      // quoted key with a raw newline is invalid JSON but is not a secret.
+      const keyLiteral = match[1]!;
+      let sensitive = isSensitiveDiagnosticKey(keyLiteral.slice(1, -1));
+      if (!sensitive && keyLiteral.startsWith('"')) {
+        try {
+          const decoded: unknown = JSON.parse(keyLiteral);
+          sensitive =
+            typeof decoded === "string" && isSensitiveDiagnosticKey(decoded);
+        } catch {
+          // Existing malformed-key and escaped-value guards remain in force.
+        }
+      }
+      if (!sensitive) continue;
+      const remaining = input.slice(match.index + match[0].length);
+      if (!completeMask.test(remaining)) return true;
+    }
+  }
+  return false;
+}
+
 function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
   const basic = redactAccidentalSecretsBasic(input);
   if (depth >= MAX_EMBEDDED_JSON_DEPTH) return "[REDACTED_SECRET]";
@@ -550,6 +586,10 @@ function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
         // JSON credentials whose keys are hidden behind backslash quotes.
       }
     }
+    // A malformed outer single-quoted field must not shield an ordinary
+    // inner credential field from the redactor. Without a validated
+    // envelope, retaining a guessed text suffix is unsafe.
+    if (hasUnredactedQuotedCredentialField(basic)) return "[REDACTED_SECRET]";
     const hasNestedEscapes =
       basic.includes('\\"') ||
       basic.includes("\\'") ||

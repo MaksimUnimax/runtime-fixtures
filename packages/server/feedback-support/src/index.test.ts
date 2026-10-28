@@ -2628,3 +2628,102 @@ describe("B06 quoted credential keys followed by pseudo-JSON equals", () => {
     expect(sanitizeFeedbackText(raw)).toBe(raw);
   });
 });
+
+describe("B06 nested credential inside single-quoted pseudo-JSON", () => {
+  const examples = [
+    [
+      "password",
+      "{'note':'{\"password\":\"SYNTH_B06_NESTED_PASSWORD_PRIVATE\"}'}",
+      "SYNTH_B06_NESTED_PASSWORD_PRIVATE",
+    ],
+    [
+      "clientSecret",
+      "{'note':'{\"clientSecret\":\"SYNTH_B06_NESTED_CLIENT_PRIVATE\"}'}",
+      "SYNTH_B06_NESTED_CLIENT_PRIVATE",
+    ],
+    [
+      "apiKey",
+      "{'note':'{\"apiKey\":\"SYNTH_B06_NESTED_API_PRIVATE\"}'}",
+      "SYNTH_B06_NESTED_API_PRIVATE",
+    ],
+  ] as const;
+
+  it.each(examples)(
+    "fails closed on a masked-by-parent %s in the sanitizer",
+    (_kind, raw, marker) => {
+      expect(sanitizeFeedbackText(raw)).toBe("[REDACTED_SECRET]");
+      expect(sanitizeFeedbackText(raw)).not.toContain(marker);
+    },
+  );
+
+  it.each(examples)(
+    "does not forward the nested %s through any of four repository fields",
+    async (_kind, raw, marker) => {
+      const received: string[] = [];
+      const repository = {
+        createCase: async (
+          input: Parameters<FeedbackRepository["createCase"]>[0],
+        ) => {
+          received.push(input.description, input.body.description);
+          throw new Error("NESTED_CASE_CAPTURE");
+        },
+        getOwnCase: async () => ({}),
+        addFollowup: async (
+          input: Parameters<FeedbackRepository["addFollowup"]>[0],
+        ) => {
+          received.push(input.body);
+          throw new Error("NESTED_FOLLOWUP_CAPTURE");
+        },
+      } as unknown as FeedbackRepository;
+      const service = new FeedbackSupportService(repository);
+      const userId = "00000000-0000-4000-8000-000000000001";
+      const accountId = "00000000-0000-4000-8000-000000000002";
+      const caseId = "00000000-0000-4000-8000-000000000003";
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("NESTED_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("NESTED_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("NESTED_FOLLOWUP_CAPTURE");
+      expect(received).toEqual(Array(4).fill("[REDACTED_SECRET]"));
+      expect(JSON.stringify(received)).not.toContain(marker);
+    },
+  );
+
+  it("keeps noncredential pseudo-JSON byte-identical", () => {
+    const safe =
+      "{'note':'{\"requestId\":\"safe-inner\"}','requestId':'safe-outer'}";
+    expect(sanitizeFeedbackText(safe)).toBe(safe);
+  });
+
+  it("preserves valid nested JSON and masks only its credential", () => {
+    const valid = JSON.stringify({
+      note: JSON.stringify({
+        password: "SYNTH_B06_VALID_NESTED_PRIVATE",
+        requestId: "safe-inner",
+      }),
+      requestId: "safe-outer",
+    });
+    const after = JSON.parse(sanitizeFeedbackText(valid)) as {
+      note: string;
+      requestId: string;
+    };
+    expect(after.requestId).toBe("safe-outer");
+    expect(JSON.parse(after.note)).toEqual({
+      password: "[REDACTED_SECRET]",
+      requestId: "safe-inner",
+    });
+    expect(JSON.stringify(after)).not.toContain(
+      "SYNTH_B06_VALID_NESTED_PRIVATE",
+    );
+  });
+});
