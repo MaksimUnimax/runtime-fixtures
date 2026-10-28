@@ -9,6 +9,11 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const EXPECTED_BINDINGS = [
   ["ai.alice.web.adapter", "ai.alice"],
   ["ai.chatgpt.web.adapter", "ai.chatgpt"],
+  ["ai.claude.web.adapter", "ai.claude"],
+  ["ai.deepseek.web.adapter", "ai.deepseek"],
+  ["ai.gemini.web.adapter", "ai.gemini"],
+  ["ai.grok.web.adapter", "ai.grok"],
+  ["ai.kimi.web.adapter", "ai.kimi"],
   ["ai.qwen.web.adapter", "ai.qwen"],
   ["marketplace.ozon.adapter", "source.ozon"],
   ["marketplace.wildberries.adapter", "source.wildberries"],
@@ -36,7 +41,7 @@ async function makeCachedWorker(entitlements, features = {}) {
   });
 }
 
-// 1. Only the five explicitly reviewed D1 server permission bindings exist.
+// 1. Only the ten explicitly reviewed server permission bindings exist.
 {
   const worker = await makeWorker(runtime);
   try {
@@ -85,6 +90,11 @@ async function makeCachedWorker(entitlements, features = {}) {
     "ai.chatgpt": true,
     "ai.alice": true,
     "ai.qwen": true,
+    "ai.kimi": true,
+    "ai.grok": true,
+    "ai.gemini": true,
+    "ai.claude": true,
+    "ai.deepseek": true,
   });
   try {
     const result = clone(
@@ -96,7 +106,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     assert.equal(result.source, "CACHE");
     assert.equal(result.executionAuthority, false);
     assert.equal(Object.hasOwn(result, "workAllowed"), false);
-    assert.equal(result.capabilities.length, 5);
+    assert.equal(result.capabilities.length, 10);
     assert.ok(
       result.capabilities.every(
         row =>
@@ -129,7 +139,7 @@ async function makeCachedWorker(entitlements, features = {}) {
       capabilities: true,
       rows: true,
       arrayMutationRejected: true,
-      count: 5,
+      count: 10,
       executionAuthority: false,
     });
   } finally {
@@ -149,7 +159,12 @@ async function makeCachedWorker(entitlements, features = {}) {
       "source.ozon": true,
       "source.wildberries": true,
       "ai.alice": true,
-    "ai.qwen": true,
+      "ai.qwen": true,
+      "ai.kimi": true,
+      "ai.grok": true,
+      "ai.gemini": true,
+      "ai.claude": true,
+      "ai.deepseek": true,
     },
   );
   try {
@@ -171,6 +186,10 @@ async function makeCachedWorker(entitlements, features = {}) {
     assert.equal(byCapability["ai.alice.web.adapter"].permissionSatisfied, false);
     assert.equal(byCapability["ai.qwen.web.adapter"].signedPermissionPresent, false);
     assert.equal(byCapability["ai.qwen.web.adapter"].permissionSatisfied, false);
+    for (const family of ["kimi", "grok", "gemini", "claude", "deepseek"]) {
+      assert.equal(byCapability[`ai.${family}.web.adapter`].signedPermissionPresent, false);
+      assert.equal(byCapability[`ai.${family}.web.adapter`].permissionSatisfied, false);
+    }
     assert.equal(result.executionAuthority, false);
   } finally {
     worker.close();
