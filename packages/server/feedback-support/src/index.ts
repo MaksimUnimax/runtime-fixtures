@@ -183,7 +183,7 @@ const quotedJsonScalarField =
 const singleQuotedScalarField =
   /('(?:\\.|[^'\\\r\n])*')(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
-  /(?:password|passwd|secret|token|api(?:[_-]|[ \t]+)?key|authorization|cookies?|set[-_]?cookie)$/iu;
+  /(?:password|passwd|secret|token|api(?:[_-]|\s)*key|authorization|cookies?|set[-_]?cookie)$/iu;
 
 // Ignore invisible joiners only when classifying a diagnostic KEY; do not
 // rewrite harmless Unicode text or the original JSON key spelling.

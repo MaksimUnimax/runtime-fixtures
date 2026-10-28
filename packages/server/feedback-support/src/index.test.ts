@@ -277,6 +277,129 @@ describe("B2 feedback/support safety foundation", () => {
     }
   });
 
+  it.each([
+    [
+      "quoted JSON NBSP",
+      '{"api\u00A0key":"SYNTH_B06_QUOTED_UW_01","requestId":"safe"}',
+      "api\u00A0key",
+      "SYNTH_B06_QUOTED_UW_01",
+    ],
+    [
+      "quoted JSON THIN",
+      '{"api\u2009key":"SYNTH_B06_QUOTED_UW_02","requestId":"safe"}',
+      "api\u2009key",
+      "SYNTH_B06_QUOTED_UW_02",
+    ],
+    [
+      "JSON escaped NBSP",
+      '{"api\\u00a0key":"SYNTH_B06_QUOTED_UW_03","requestId":"safe"}',
+      "api\u00A0key",
+      "SYNTH_B06_QUOTED_UW_03",
+    ],
+    [
+      "nested JSON NBSP",
+      '{"api\u00A0key":{"value":"SYNTH_B06_QUOTED_UW_04"},"requestId":"safe"}',
+      "api\u00A0key",
+      "SYNTH_B06_QUOTED_UW_04",
+    ],
+    [
+      "mixed Unicode/DICP/dash",
+      '{"api \u200B-\u2009key":"SYNTH_B06_QUOTED_UW_05","requestId":"safe"}',
+      "api \u200B-\u2009key",
+      "SYNTH_B06_QUOTED_UW_05",
+    ],
+  ])(
+    "redacts quoted spaced API credentials and preserves safe siblings: %s",
+    (_label, input, key, secret) => {
+      const result = sanitizeFeedbackText(input);
+      expect(result).not.toContain(secret);
+      expect(JSON.parse(result)).toEqual({
+        [key]: "[REDACTED_SECRET]",
+        requestId: "safe",
+      });
+    },
+  );
+
+  it("redacts pseudo-JSON spaced NBSP credentials and preserves benign labels", () => {
+    const sensitive = "diagnostic 'api\u00A0key': 'SYNTH_B06_PSEUDO_UW_06'";
+    const output = sanitizeFeedbackText(sensitive);
+    expect(output).toContain("[REDACTED_SECRET]");
+    expect(output).not.toContain("SYNTH_B06_PSEUDO_UW_06");
+    const harmlessJson =
+      '{"api\u2009label":"SYNTH_B06_SAFE_UW_07","requestId":"safe"}';
+    const harmlessPseudo =
+      "diagnostic 'api\u00A0label': 'SYNTH_B06_SAFE_UW_08'";
+    expect(sanitizeFeedbackText(harmlessJson)).toBe(harmlessJson);
+    expect(sanitizeFeedbackText(harmlessPseudo)).toBe(harmlessPseudo);
+  });
+
+  it("never persists Unicode-spaced quoted or pseudo-JSON secrets through the four feedback sinks", async () => {
+    const captured: string[] = [];
+    const repository = {
+      createCase: async (
+        input: Parameters<FeedbackRepository["createCase"]>[0],
+      ) => {
+        captured.push(input.description, input.body.description);
+        throw new Error("SYNTH_UW_CASE_CAPTURE");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        captured.push(input.body);
+        throw new Error("SYNTH_UW_FOLLOWUP_CAPTURE");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    const inputs = [
+      [
+        '{"api\u00A0key":"SYNTH_UW_SINK_01","requestId":"safe"}',
+        "SYNTH_UW_SINK_01",
+      ],
+      [
+        '{"api\u2009key":{"value":"SYNTH_UW_SINK_02"},"requestId":"safe"}',
+        "SYNTH_UW_SINK_02",
+      ],
+      [
+        '{"api\\u00a0key":["SYNTH_UW_SINK_03"],"requestId":"safe"}',
+        "SYNTH_UW_SINK_03",
+      ],
+      ["diagnostic 'api\u00A0key': 'SYNTH_UW_SINK_04'", "SYNTH_UW_SINK_04"],
+      [
+        '{"api \u200B-\u2009key":"SYNTH_UW_SINK_05","requestId":"safe"}',
+        "SYNTH_UW_SINK_05",
+      ],
+    ] as const;
+    for (const [raw, secret] of inputs) {
+      const prior = captured.length;
+      await expect(
+        service.createCase(userId, {
+          accountId,
+          category: "OTHER",
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_UW_CASE_CAPTURE");
+      await expect(
+        service.addUserFollowup(userId, caseId, { description: raw }),
+      ).rejects.toThrow("SYNTH_UW_FOLLOWUP_CAPTURE");
+      await expect(
+        service.addAdminFollowup("SUPPORT", userId, caseId, {
+          description: raw,
+        }),
+      ).rejects.toThrow("SYNTH_UW_FOLLOWUP_CAPTURE");
+      const stored = captured.slice(prior);
+      expect(stored).toHaveLength(4);
+      for (const value of stored) {
+        expect(value).not.toContain(secret);
+        expect(value).toContain("[REDACTED_SECRET]");
+        if (raw.startsWith("{")) {
+          expect(JSON.parse(value).requestId).toBe("safe");
+        }
+      }
+    }
+  });
+
   it("preserves ordinary API labels and masks pseudo-JSON spaced keys", () => {
     const safe = "diagnostic api label: { value: 'SYNTH_SAFE_07' }";
     expect(sanitizeFeedbackText(safe)).toBe(safe);
