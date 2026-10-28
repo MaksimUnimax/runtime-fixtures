@@ -185,11 +185,17 @@ const singleQuotedScalarField =
 const sensitiveJsonKey =
   /(?:password|passwd|secret|token|api[_-]?key|authorization|cookies?|set[-_]?cookie)$/iu;
 
+// Ignore invisible joiners only when classifying a diagnostic KEY; do not
+// rewrite harmless Unicode text or the original JSON key spelling.
+function isSensitiveDiagnosticKey(key: string): boolean {
+  return sensitiveJsonKey.test(key.replace(/[\u200B-\u200D\u2060]/gu, ""));
+}
+
 function isSensitiveQuotedKey(encodedKey: string): boolean {
   if (encodedKey.startsWith('"')) {
     try {
       const key: unknown = JSON.parse(encodedKey);
-      return typeof key !== "string" || sensitiveJsonKey.test(key);
+      return typeof key !== "string" || isSensitiveDiagnosticKey(key);
     } catch {
       // Invalid JSON escaping obscures the key identity: fail closed.
       return true;
@@ -197,7 +203,7 @@ function isSensitiveQuotedKey(encodedKey: string): boolean {
   }
   const key = encodedKey.slice(1, -1);
   // Single-quoted pseudo-JSON cannot reliably decode arbitrary escapes.
-  return key.includes("\\") || sensitiveJsonKey.test(key);
+  return key.includes("\\") || isSensitiveDiagnosticKey(key);
 }
 
 // A sensitive quoted JSON or pseudo-JSON field may hold an array/object,
@@ -392,10 +398,9 @@ function redactAccidentalSecretsBasic(input: string): string {
   const bareStructuredCredential =
     /\b([A-Za-z_][A-Za-z0-9_\u200B-\u200D\u2060-]*)[\s\u200B-\u200D\u2060]*[:=][\s\u200B-\u200D\u2060]*[[{]/gu;
   for (const match of input.matchAll(bareStructuredCredential)) {
-    // Only the diagnostic key is normalized for matching. Do not strip
-    // legitimate joiners from the user's other text or saved audit context.
-    const key = match[1]!.replace(/[\u200B-\u200D\u2060]/gu, "");
-    if (sensitiveJsonKey.test(key)) return "[REDACTED_SECRET]";
+    // Only the diagnostic key is normalized for matching. Preserve all
+    // legitimate joiners elsewhere in the user's text.
+    if (isSensitiveDiagnosticKey(match[1]!)) return "[REDACTED_SECRET]";
   }
 
   const stringsRedacted = redactMultilineQuotedSecrets(input).replace(

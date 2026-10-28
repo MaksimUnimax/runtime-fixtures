@@ -154,6 +154,107 @@ describe("B2 feedback/support safety foundation", () => {
   });
 
   it.each([
+    [
+      "quoted JSON password with zero-width space",
+      '{"pass\u200Bword":{"credential":"SYNTH_B06_QUOTED_PRIVATE_01"},"requestId":"safe-01"}',
+      "pass\u200Bword",
+      "SYNTH_B06_QUOTED_PRIVATE_01",
+      "safe-01",
+    ],
+    [
+      "quoted JSON API key with word joiner",
+      '{"api\u2060Key":["SYNTH_B06_QUOTED_PRIVATE_02"],"requestId":"safe-02"}',
+      "api\u2060Key",
+      "SYNTH_B06_QUOTED_PRIVATE_02",
+      "safe-02",
+    ],
+    [
+      "quoted JSON token with zero-width non-joiner",
+      '{"to\u200Cken":{"nested":"SYNTH_B06_QUOTED_PRIVATE_03"},"requestId":"safe-03"}',
+      "to\u200Cken",
+      "SYNTH_B06_QUOTED_PRIVATE_03",
+      "safe-03",
+    ],
+    [
+      "JSON-escaped invisible character in API key",
+      '{"api\\u200BKey":{"value":"SYNTH_B06_QUOTED_PRIVATE_04"},"requestId":"safe-04"}',
+      "api\u200BKey",
+      "SYNTH_B06_QUOTED_PRIVATE_04",
+      "safe-04",
+    ],
+  ])(
+    "redacts invisible characters inside quoted secret keys: %s",
+    (_kind, original, key, canary, requestId) => {
+      const cleaned = sanitizeFeedbackText(original);
+      expect(cleaned).not.toContain(canary);
+      expect(JSON.parse(cleaned)).toEqual({
+        [key]: "[REDACTED_SECRET]",
+        requestId,
+      });
+    },
+  );
+
+  it("redacts a zero-width secret key inside single-quoted pseudo-JSON", () => {
+    const raw =
+      "diagnostic 'pass\u200Bword': { credential: 'SYNTH_B06_QUOTED_PRIVATE_05' }";
+    const cleaned = sanitizeFeedbackText(raw);
+    expect(cleaned).not.toContain("SYNTH_B06_QUOTED_PRIVATE_05");
+    expect(cleaned).toContain("[REDACTED_SECRET]");
+  });
+
+  it("preserves ordinary quoted keys with invisible Unicode joiners", () => {
+    const safeJson =
+      '{"note\u200BLabel":{"value":"SYNTH_B06_PUBLIC_SAFE_06"},"requestId":"safe-06"}';
+    const safePseudo =
+      "diagnostic 'note\u200BLabel': { value: 'SYNTH_B06_PUBLIC_SAFE_07' }";
+    expect(sanitizeFeedbackText(safeJson)).toBe(safeJson);
+    expect(sanitizeFeedbackText(safePseudo)).toBe(safePseudo);
+  });
+
+  it("never sends quoted invisible-key secrets through the case or followup repository", async () => {
+    const forwarded: string[] = [];
+    const repository = {
+      createCase: async (input: {
+        description: string;
+        body: { description: string };
+      }) => {
+        forwarded.push(input.description, input.body.description);
+        throw new Error("SYNTH_B06_CASE_CAPTURED");
+      },
+      getOwnCase: async () => ({}),
+      addFollowup: async (input: { body: string }) => {
+        forwarded.push(input.body);
+        throw new Error("SYNTH_B06_FOLLOWUP_CAPTURED");
+      },
+    } as unknown as FeedbackRepository;
+    const service = new FeedbackSupportService(repository);
+    const description =
+      "diagnostic 'pass\u200Bword': { credential: 'SYNTH_B06_BOUNDARY_PRIVATE_08' }";
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const accountId = "00000000-0000-4000-8000-000000000002";
+    const caseId = "00000000-0000-4000-8000-000000000003";
+    await expect(
+      service.createCase(userId, {
+        accountId,
+        category: "OTHER",
+        description,
+      }),
+    ).rejects.toThrow("SYNTH_B06_CASE_CAPTURED");
+    await expect(
+      service.addUserFollowup(userId, caseId, { description }),
+    ).rejects.toThrow("SYNTH_B06_FOLLOWUP_CAPTURED");
+    await expect(
+      service.addAdminFollowup("SUPPORT", userId, caseId, { description }),
+    ).rejects.toThrow("SYNTH_B06_FOLLOWUP_CAPTURED");
+    expect(forwarded).toEqual(
+      Array(4).fill("diagnostic 'pass\u200Bword': '[REDACTED_SECRET]'"),
+    );
+    expect(JSON.stringify(forwarded)).not.toContain(
+      "SYNTH_B06_BOUNDARY_PRIVATE_08",
+    );
+  });
+
+  it.each([
     "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature-value",
     "cookie: session=secret-value",
     "-----BEGIN PRIVATE KEY-----secret-----END PRIVATE KEY-----",
