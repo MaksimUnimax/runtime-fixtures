@@ -3,6 +3,7 @@ import type {
   TelegramTransport,
   TelegramUpdate,
 } from "./telegram.js";
+import { MAX_SWAGGER_UPLOAD_BYTES } from "@product/monitoring-control";
 
 type TelegramApiResponse<T> = { ok: boolean; result?: T };
 
@@ -110,17 +111,60 @@ export function createTelegramTransport(
         ),
       };
     },
-    async downloadFile(fileId: string) {
+    async downloadFile(fileId: string, maxBytes = MAX_SWAGGER_UPLOAD_BYTES) {
+      if (
+        !Number.isSafeInteger(maxBytes) ||
+        maxBytes < 1 ||
+        maxBytes > MAX_SWAGGER_UPLOAD_BYTES
+      ) {
+        throw new Error("TELEGRAM_FILE_LIMIT_INVALID");
+      }
       const file = await call<{ file_path?: string }>("getFile", {
         file_id: fileId,
       });
       if (!file.file_path) throw new Error("TELEGRAM_FILE_PATH_MISSING");
       const response = await fetcher(
-        `https://api.telegram.org/file/bot${token}/${file.file_path}`,
+        "https://api.telegram.org/file/bot" + token + "/" + file.file_path,
         { signal: AbortSignal.timeout(60_000) },
       );
       if (!response.ok) throw new Error("TELEGRAM_FILE_DOWNLOAD_FAILED");
-      return new Uint8Array(await response.arrayBuffer());
+      const declared = response.headers.get("content-length");
+      if (declared !== null) {
+        const length = Number(declared);
+        if (!Number.isSafeInteger(length) || length < 0 || length > maxBytes) {
+          void response.body?.cancel().catch(() => {});
+          throw new Error("TELEGRAM_FILE_TOO_LARGE");
+        }
+      }
+      if (!response.body) throw new Error("TELEGRAM_FILE_BODY_UNAVAILABLE");
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (!(value instanceof Uint8Array))
+            throw new Error("TELEGRAM_FILE_BODY_INVALID");
+          if (value.byteLength === 0) continue;
+          if (value.byteLength > maxBytes - total)
+            throw new Error("TELEGRAM_FILE_TOO_LARGE");
+          total += value.byteLength;
+          chunks.push(value);
+        }
+      } catch (error) {
+        void reader.cancel().catch(() => {});
+        throw error;
+      } finally {
+        reader.releaseLock();
+      }
+      const bytes = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return bytes;
     },
     async sendMessage(
       chatId: string,

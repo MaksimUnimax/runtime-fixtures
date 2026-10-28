@@ -52,7 +52,7 @@ export interface TelegramTransport {
     keyboard?: TelegramKeyboard,
   ): Promise<void>;
   answerCallback(callbackQueryId: string, text: string): Promise<void>;
-  downloadFile?(fileId: string): Promise<Uint8Array>;
+  downloadFile?(fileId: string, maxBytes?: number): Promise<Uint8Array>;
 }
 
 export type TelegramOperatorOptions = {
@@ -306,11 +306,26 @@ export class TelegramOperatorService {
         requestId = pending[0]!.requestId;
         documentKey = WB_BUNDLE_DOCUMENT_KEY;
       }
-      const bytes =
-        document.bytes ??
-        (document.fileId && this.options.transport.downloadFile
-          ? await this.options.transport.downloadFile(document.fileId)
-          : undefined);
+      let bytes: Uint8Array | undefined;
+      try {
+        bytes =
+          document.bytes ??
+          (document.fileId && this.options.transport.downloadFile
+            ? await this.options.transport.downloadFile(
+                document.fileId,
+                this.options.swaggerHandoff.maxUploadBytes,
+              )
+            : undefined);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "TELEGRAM_FILE_TOO_LARGE"
+        ) {
+          await this.options.transport.sendMessage(chatId, "UPLOAD_TOO_LARGE");
+          return;
+        }
+        throw error;
+      }
       if (!bytes) {
         await this.options.transport.sendMessage(chatId, "UPLOAD_UNAVAILABLE");
         return;

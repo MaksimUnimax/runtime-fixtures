@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  WB_BUNDLE_DOCUMENT_KEY,
+  WB_BUNDLE_OFFICIAL_URL,
+  WB_BUNDLE_VERSION,
+} from "@product/api-watch";
+import {
   IndependentMonitoringScheduler,
   InMemoryMonitoringScheduleStore,
+  type SwaggerHandoffService,
 } from "@product/monitoring-control";
 import { createTelegramTransport } from "./telegram-client.js";
 import { TelegramOperatorService, type TelegramTransport } from "./telegram.js";
@@ -212,6 +218,154 @@ describe("Telegram mutating and binary HTTP deadlines", () => {
       controller.abort();
       timeout.mockRestore();
     }
+  });
+});
+
+describe("TG4 binary size enforcement at HTTP and handoff boundaries", () => {
+  const metadata = JSON.stringify({
+    ok: true,
+    result: { file_path: "synthetic-file-path" },
+  });
+
+  it("rejects oversized binary content even if no length header is present", async () => {
+    const calls: string[] = [];
+    const fetcher = (async (url) => {
+      const method = String(url).split("/").at(-1) ?? "";
+      calls.push(method);
+      return method === "getFile"
+        ? new Response(metadata)
+        : new Response(new Uint8Array([1, 2, 3, 4]));
+    }) as typeof fetch;
+    const transport = createTelegramTransport("synthetic-no-network", fetcher);
+    await expect(transport.downloadFile?.("synthetic-id", 3)).rejects.toThrow(
+      "TELEGRAM_FILE_TOO_LARGE",
+    );
+    expect(calls).toEqual(["getFile", "synthetic-file-path"]);
+  });
+
+  it("rejects declared length over the cap without reading the body", async () => {
+    const fetcher = (async (url) =>
+      String(url).endsWith("/getFile")
+        ? new Response(metadata)
+        : new Response(new Uint8Array([1, 2]), {
+            headers: { "content-length": "100" },
+          })) as typeof fetch;
+    const transport = createTelegramTransport("synthetic-no-network", fetcher);
+    await expect(transport.downloadFile?.("synthetic-id", 3)).rejects.toThrow(
+      "TELEGRAM_FILE_TOO_LARGE",
+    );
+  });
+
+  it("accepts the exact permitted byte count without truncation", async () => {
+    const fetcher = (async (url) =>
+      String(url).endsWith("/getFile")
+        ? new Response(metadata)
+        : new Response(new Uint8Array([1, 2, 3]))) as typeof fetch;
+    const transport = createTelegramTransport("synthetic-no-network", fetcher);
+    expect(
+      Array.from((await transport.downloadFile?.("synthetic-id", 3)) ?? []),
+    ).toEqual([1, 2, 3]);
+  });
+
+  it("rejects oversized remote downloads without storing a WB upload", async () => {
+    const sent: string[] = [];
+    let uploads = 0;
+    const service = new TelegramOperatorService({
+      scheduler: scheduler(),
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["42"],
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        sendMessage: async (_id, text) => {
+          sent.push(text);
+        },
+        answerCallback: async () => {},
+        downloadFile: async (_id, maxBytes) => {
+          expect(maxBytes).toBe(3);
+          throw new Error("TELEGRAM_FILE_TOO_LARGE");
+        },
+      },
+      swaggerHandoff: {
+        maxUploadBytes: 3,
+        listPending: async () => [
+          {
+            requestId: "synthetic-request",
+            status: "PENDING_OPERATOR_UPLOAD",
+            sourceFamily: "WILDBERRIES",
+            officialUrl: WB_BUNDLE_OFFICIAL_URL,
+            documentKey: WB_BUNDLE_DOCUMENT_KEY,
+            bundleVersion: WB_BUNDLE_VERSION,
+            expectedArtifactType: "JSON",
+          },
+        ],
+        upload: async () => {
+          uploads++;
+          return { kind: "REJECTED", code: "SHOULD_NOT_REACH_UPLOAD" };
+        },
+      } as unknown as SwaggerHandoffService,
+    });
+    await service.handleUpdate({
+      updateId: 7,
+      message: {
+        chatId: "42",
+        userId: "7",
+        document: {
+          fileId: "synthetic-id",
+          fileName: "WB_OPENAPI_BUNDLE_V1.json",
+        },
+      },
+    });
+    expect(uploads).toBe(0);
+    expect(sent).toEqual(["UPLOAD_TOO_LARGE"]);
+  });
+
+  it("passes the configured upload limit to the Telegram transport", async () => {
+    const limits: Array<number | undefined> = [];
+    const sent: string[] = [];
+    const service = new TelegramOperatorService({
+      scheduler: scheduler(),
+      operatorIds: new Set(["7"]),
+      notificationChatIds: ["42"],
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        sendMessage: async (_id, text) => {
+          sent.push(text);
+        },
+        answerCallback: async () => {},
+        downloadFile: async (_id, maxBytes) => {
+          limits.push(maxBytes);
+          return new Uint8Array([1, 2, 3]);
+        },
+      },
+      swaggerHandoff: {
+        maxUploadBytes: 3,
+        listPending: async () => [
+          {
+            requestId: "synthetic-request",
+            status: "PENDING_OPERATOR_UPLOAD",
+            sourceFamily: "WILDBERRIES",
+            officialUrl: WB_BUNDLE_OFFICIAL_URL,
+            documentKey: WB_BUNDLE_DOCUMENT_KEY,
+            bundleVersion: WB_BUNDLE_VERSION,
+            expectedArtifactType: "JSON",
+          },
+        ],
+        upload: async () => ({ kind: "REJECTED", code: "INVALID_DOCUMENT" }),
+      } as unknown as SwaggerHandoffService,
+    });
+    await service.handleUpdate({
+      updateId: 5,
+      message: {
+        chatId: "42",
+        userId: "7",
+        document: {
+          fileId: "synthetic-file-id",
+          fileName: "WB_OPENAPI_BUNDLE_V1.json",
+        },
+      },
+    });
+    expect(limits).toEqual([3]);
+    expect(sent).toEqual(["INVALID_DOCUMENT"]);
   });
 });
 
