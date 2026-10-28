@@ -1348,6 +1348,7 @@ class CurrentApplyEngineTests(unittest.TestCase):
             "verified_current_source_plan":lambda *a,**k:self.plan,
             "current_validate_base_units":lambda plan:{"validated":True},
             "current_install_reboot_fence":lambda plan,**kwargs:self.events.append(("fence-install",self.prefix)),
+            "current_prepare_recovery_fence":lambda plan:self.events.extend((("fence-block",self.prefix),("fence-install",self.prefix))),
             "current_enable_fenced_start":lambda:self.events.append(("fence-allow",self.prefix)),
             "current_disable_fenced_start":lambda:self.events.append(("fence-block",self.prefix)),
             "current_remove_reboot_fence":lambda plan:self.events.append(("fence-remove",self.prefix)),
@@ -1777,6 +1778,11 @@ class CurrentCrashRecoveryTests(unittest.TestCase):
         stack.enter_context(patch.object(deploy,"check_migration_prefix_for_release",
                                          return_value={"status":"PASS_PREFIX","applied":17}))
         stack.enter_context(patch.object(deploy,"current_install_reboot_fence",side_effect=lambda plan,**kwargs:events.append("fence-install")))
+        # Engine tests replace the complete filesystem boundary. The real
+        # prepare helper now owns one lock across allowance cleanup + install;
+        # its actual filesystem ordering is covered by CurrentRebootFenceSafetyTests.
+        stack.enter_context(patch.object(deploy,"current_prepare_recovery_fence",
+                                        side_effect=lambda plan:events.extend(("fence-block","fence-install"))))
         stack.enter_context(patch.object(deploy,"current_enable_fenced_start",side_effect=lambda:events.append("fence-allow")))
         stack.enter_context(patch.object(deploy,"current_disable_fenced_start",side_effect=lambda:events.append("fence-block")))
         stack.enter_context(patch.object(deploy,"current_remove_reboot_fence",side_effect=lambda plan:events.append("fence-remove")))
@@ -2861,6 +2867,191 @@ class CurrentTerminalDurabilityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
                 deploy.current_remove_reboot_fence(case.plan)
             self.assertTrue(all(p.exists() for p in paths));run.assert_not_called()
+
+
+class CurrentFenceOwnershipTests(unittest.TestCase):
+    def setUp(self):
+        self.case=CurrentRebootFenceSafetyTests()
+        self.case.setUp();self.addCleanup(self.case.doCleanups)
+        self.plan=self.case.plan
+        self.run=patch.object(deploy,'run').start()
+        self.addCleanup(patch.stopall)
+        deploy.current_install_reboot_fence(self.plan)
+        self.paths=list(deploy.current_fence_paths(self.plan).values())
+        self.run.reset_mock()
+
+    def replacement(self,path,content=b'foreign-owner\n'):
+        source=path.with_name('foreign-publication')
+        source.write_bytes(content);os.chmod(source,0o644)
+        os.replace(source,path)
+
+    def test_atomic_replacement_after_validation_never_deletes_foreign_bytes(self):
+        real_sync=os.fsync
+        target=self.paths[-1];injected=[]
+        def sync(fd):
+            if not injected:
+                injected.append(True);self.replacement(target)
+            return real_sync(fd)
+        with patch.object(deploy.os,'fsync',side_effect=sync):
+            with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+                deploy.current_remove_reboot_fence(self.plan)
+        self.assertEqual(injected,[True])
+        self.assertEqual(target.read_bytes(),b'foreign-owner\n')
+        self.assertTrue(all(p.exists() for p in self.paths))
+        self.run.assert_not_called()
+        # The captured foreign identity is not silently adopted on a retry.
+        with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+            deploy.current_remove_reboot_fence(self.plan)
+        self.assertEqual(target.read_bytes(),b'foreign-owner\n')
+
+    def test_same_bytes_different_inode_after_validation_are_also_a_conflict(self):
+        real_sync=os.fsync;target=self.paths[-1]
+        before=target.stat().st_ino;data=target.read_bytes();injected=[]
+        def sync(fd):
+            if not injected:
+                injected.append(True);self.replacement(target,data)
+            return real_sync(fd)
+        with patch.object(deploy.os,'fsync',side_effect=sync):
+            with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+                deploy.current_remove_reboot_fence(self.plan)
+        self.assertEqual(target.read_bytes(),data)
+        self.assertNotEqual(target.stat().st_ino,before)
+        self.run.assert_not_called()
+
+    def test_replacement_at_atomic_claim_is_restored_without_deletion(self):
+        target=self.paths[0];real_rename=os.rename;injected=[]
+        def rename(source,destination,*args,**kwargs):
+            if Path(source)==target and not injected:
+                injected.append(True);self.replacement(target)
+            return real_rename(source,destination,*args,**kwargs)
+        with patch.object(deploy.os,'rename',side_effect=rename):
+            with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+                deploy.current_remove_reboot_fence(self.plan)
+        self.assertEqual(injected,[True]);self.assertEqual(target.read_bytes(),b'foreign-owner\n')
+        self.run.assert_not_called()
+
+    def test_new_public_path_during_private_unlink_is_never_unlinked(self):
+        target=self.paths[0];real_unlink=Path.unlink;injected=[]
+        def unlink(path,*args,**kwargs):
+            if path.name=='entry' and not injected:
+                injected.append(True);self.replacement(target)
+            return real_unlink(path,*args,**kwargs)
+        with patch.object(Path,'unlink',unlink):
+            with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+                deploy.current_remove_reboot_fence(self.plan)
+        self.assertEqual(injected,[True]);self.assertEqual(target.read_bytes(),b'foreign-owner\n')
+        self.run.assert_not_called()
+
+    def test_conflicting_capture_and_new_path_preserve_both_objects(self):
+        target=self.paths[0];real_rename=os.rename;captured=[]
+        def rename(source,destination,*args,**kwargs):
+            if Path(source)==target and not captured:
+                self.replacement(target,b'foreign-before-claim\n')
+                result=real_rename(source,destination,*args,**kwargs)
+                captured.append(Path(destination))
+                self.replacement(target,b'foreign-after-claim\n')
+                return result
+            return real_rename(source,destination,*args,**kwargs)
+        with patch.object(deploy.os,'rename',side_effect=rename):
+            with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+                deploy.current_remove_reboot_fence(self.plan)
+        self.assertEqual(captured[0].read_bytes(),b'foreign-before-claim\n')
+        self.assertEqual(target.read_bytes(),b'foreign-after-claim\n')
+        self.run.assert_not_called()
+
+    def test_foreign_allow_is_not_removed_by_disable_recovery_or_terminal_cleanup(self):
+        path=deploy.CURRENT_FENCE_ALLOW;path.write_bytes(b'other operation\n');os.chmod(path,0o600)
+        for action in (deploy.current_disable_fenced_start,
+                       lambda:deploy.current_prepare_recovery_fence(self.plan),
+                       lambda:deploy.current_remove_reboot_fence(self.plan)):
+            with self.subTest(action=action),self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+                action()
+            self.assertEqual(path.read_bytes(),b'other operation\n')
+            self.assertTrue(all(p.exists() for p in self.paths))
+        self.run.assert_not_called()
+
+    def test_allow_replacement_between_validation_and_claim_is_preserved(self):
+        deploy.current_enable_fenced_start();target=deploy.CURRENT_FENCE_ALLOW
+        real_rename=os.rename;injected=[]
+        def rename(source,destination,*args,**kwargs):
+            if Path(source)==target and not injected:
+                injected.append(True);self.replacement(target);os.chmod(target,0o600)
+            return real_rename(source,destination,*args,**kwargs)
+        with patch.object(deploy.os,'rename',side_effect=rename):
+            with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+                deploy.current_disable_fenced_start()
+        self.assertEqual(injected,[True]);self.assertEqual(target.read_bytes(),b'foreign-owner\n')
+
+    def test_installation_cannot_overwrite_concurrent_publisher(self):
+        deploy.current_remove_reboot_fence(self.plan);self.run.reset_mock()
+        target=self.paths[0];real_link=os.link;injected=[]
+        def link(source,destination,*args,**kwargs):
+            if Path(destination)==target and not injected:
+                injected.append(True);self.replacement(target)
+            return real_link(source,destination,*args,**kwargs)
+        with patch.object(deploy.os,'link',side_effect=link):
+            with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+                deploy.current_install_reboot_fence(self.plan)
+        self.assertEqual(injected,[True]);self.assertEqual(target.read_bytes(),b'foreign-owner\n')
+        self.run.assert_not_called()
+
+    def test_all_supported_writers_share_one_nonblocking_kernel_lock(self):
+        lock=deploy.CURRENT_DROPIN_ROOT/'.octoport-current-fence.lock'
+        fd=os.open(lock,os.O_RDWR)
+        try:
+            deploy.fcntl.flock(fd,deploy.fcntl.LOCK_EX|deploy.fcntl.LOCK_NB)
+            for action in (lambda:deploy.current_install_reboot_fence(self.plan),
+                           deploy.current_enable_fenced_start,deploy.current_disable_fenced_start,
+                           lambda:deploy.current_prepare_recovery_fence(self.plan),
+                           lambda:deploy.current_remove_reboot_fence(self.plan)):
+                with self.subTest(action=action),self.assertRaisesRegex(RuntimeError,'CURRENT_FENCE_WRITER_BUSY'):
+                    action()
+        finally:os.close(fd)
+        self.assertTrue(all(p.exists() for p in self.paths));self.run.assert_not_called()
+
+    def test_owned_cleanup_resumes_after_interruptions_without_operational_replay(self):
+        class PowerLoss(BaseException):pass
+        for phase in ('before-claim','after-claim','after-private-delete'):
+            with self.subTest(phase=phase):
+                real_rename=os.rename;real_unlink=Path.unlink;injected=[]
+                def rename(source,destination,*args,**kwargs):
+                    if Path(source)==self.paths[0] and not injected:
+                        injected.append(True)
+                        if phase=='before-claim':raise PowerLoss()
+                        result=real_rename(source,destination,*args,**kwargs)
+                        raise PowerLoss()
+                    return real_rename(source,destination,*args,**kwargs)
+                def unlink(path,*args,**kwargs):
+                    result=real_unlink(path,*args,**kwargs)
+                    if path.name=='entry' and not injected:
+                        injected.append(True);raise PowerLoss()
+                    return result
+                mutation=patch.object(Path,'unlink',unlink) if phase=='after-private-delete' else patch.object(deploy.os,'rename',side_effect=rename)
+                with mutation,self.assertRaises(PowerLoss):deploy.current_remove_reboot_fence(self.plan)
+                self.assertEqual(injected,[True]);self.run.assert_not_called()
+                deploy.current_remove_reboot_fence(self.plan)
+                self.assertTrue(all(not p.exists() for p in self.paths))
+                self.run.assert_called_once_with(['systemctl','daemon-reload'])
+                deploy.current_install_reboot_fence(self.plan);self.run.reset_mock()
+
+    def test_symlinked_private_claim_is_not_followed_or_restored(self):
+        target=self.paths[0];outside=self.case.root/'outside';outside.mkdir()
+        (outside/'entry').write_bytes(b'outside bytes\n')
+        deploy._current_fence_claim(target).symlink_to(outside,target_is_directory=True)
+        before=target.read_bytes()
+        with self.assertRaisesRegex(RuntimeError,'CURRENT_RECOVERY_FENCE_CONFLICT'):
+            deploy.current_remove_reboot_fence(self.plan)
+        self.assertEqual(target.read_bytes(),before)
+        self.assertEqual((outside/'entry').read_bytes(),b'outside bytes\n')
+        self.run.assert_not_called()
+
+    def test_repeated_cleanup_is_idempotent_and_does_not_recreate_allow(self):
+        deploy.current_enable_fenced_start()
+        deploy.current_remove_reboot_fence(self.plan)
+        deploy.current_remove_reboot_fence(self.plan)
+        self.assertFalse(deploy.CURRENT_FENCE_ALLOW.exists())
+        self.assertTrue(all(not p.exists() for p in self.paths))
+        self.assertEqual(self.run.call_count,2)
 
 
 if __name__ == "__main__":

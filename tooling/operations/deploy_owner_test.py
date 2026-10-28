@@ -232,75 +232,267 @@ def current_fence_paths(plan: dict) -> dict[str,Path]:
         for role,item in plan['services'].items()
     }
 
-def current_install_reboot_fence(plan: dict, *, allow_existing: bool=False) -> None:
+@contextmanager
+def current_fence_writer_lock():
+    """All supported writers of the persistent fence and /run allowance agree
+    on this lock, independently of the caller's deployment evidence directory.
+    Root-private claim directories below make removal identity-bound as well:
+    an uncoordinated atomic replacement is retained, never unlinked as ours.
+    This is not a security boundary against a hostile root modifying the lock
+    or the private claim namespace itself.
+    """
+    root=CURRENT_DROPIN_ROOT
+    _assert_no_symlink_ancestors(root)
+    root.mkdir(parents=True,exist_ok=True)
+    root_info=root.stat()
+    if root_info.st_uid!=os.geteuid() or stat.S_IMODE(root_info.st_mode)&0o022:
+        raise RuntimeError('CURRENT_FENCE_LOCK_ROOT_INVALID')
+    lock=root/'.octoport-current-fence.lock'
+    fd=os.open(lock,os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+    try:
+        info=os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid()
+                or stat.S_IMODE(info.st_mode)!=0o600 or info.st_nlink!=1):
+            raise RuntimeError('CURRENT_FENCE_LOCK_INVALID')
+        try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('CURRENT_FENCE_WRITER_BUSY') from None
+        named=lock.lstat()
+        if (named.st_dev,named.st_ino)!=(info.st_dev,info.st_ino):
+            raise RuntimeError('CURRENT_FENCE_LOCK_INVALID')
+        yield
+    finally:os.close(fd)
+
+
+def _current_fence_sync(path: Path) -> None:
+    fd=os.open(path,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:os.fsync(fd)
+    finally:os.close(fd)
+
+
+def _current_fence_identity(path: Path, expected: bytes, mode: int,
+                            pins: ExitStack | None = None) -> list[int]:
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        info=os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid()
+                or stat.S_IMODE(info.st_mode)!=mode or info.st_size!=len(expected)
+                or os.read(fd,len(expected)+1)!=expected):
+            raise ValueError('foreign fence')
+        after=os.fstat(fd)
+        if (info.st_size,info.st_mtime_ns,info.st_ctime_ns)!=(
+                after.st_size,after.st_mtime_ns,after.st_ctime_ns):
+            raise ValueError('changed fence')
+        identity=[info.st_dev,info.st_ino,info.st_mtime_ns]
+        if pins is not None:
+            # Keep the inspected inode alive through the claim; replacing the
+            # public entry must not make its inode number available for reuse.
+            pins.callback(os.close,fd);fd=-1
+        return identity
+    finally:
+        if fd>=0:os.close(fd)
+
+
+def _current_fence_claim(path: Path) -> Path:
+    return path.parent/('.'+path.name+'.octoport-removal')
+
+
+def _current_fence_restore_claims(items: list[dict]) -> None:
+    # link is exclusive: never overwrite a newer directory entry. Even on a
+    # collision/error retain the captured object in its private directory.
+    # Do not delete it here, including after a successful restoration link.
+    for item in items:
+        if not item.get('trustedClaim'):continue
+        captured=item['claim']/'entry'
+        if os.path.lexists(captured) and not os.path.lexists(item['path']):
+            try:
+                os.link(captured,item['path'],follow_symlinks=False)
+                _current_fence_sync(item['path'].parent)
+            except OSError:
+                pass  # the original object remains captured; caller fails closed
+
+
+def _current_remove_owned_fence_files(entries: list[tuple[str,Path,bytes,int]]) -> None:
+    with ExitStack() as pins:
+        _current_remove_owned_fence_files_pinned(entries,pins)
+
+
+def _current_remove_owned_fence_files_pinned(entries: list[tuple[str,Path,bytes,int]],
+                                            pins: ExitStack) -> None:
+    """Called under current_fence_writer_lock; deletion only in private claims.
+
+    Persist inode intent before rename. Verify the object actually moved before
+    any deletion; comparing at the old pathname then unlinking it is not safe.
+    Interrupted owned claims resume without repeating service/DB operations.
+    A foreign claim is restored exclusively when possible and always retained
+    for explicit reconciliation. It must never be adopted on the next call.
+    """
+    items=[]
+    try:
+        for role,path,expected,mode in entries:
+            _assert_no_symlink_ancestors(path.parent)
+            claim=_current_fence_claim(path)
+            item={'role':role,'path':path,'claim':claim,'expected':expected,'mode':mode}
+            items.append(item)
+            if os.path.lexists(claim):
+                meta=claim.lstat()
+                if (not stat.S_ISDIR(meta.st_mode) or meta.st_uid!=os.geteuid()
+                        or stat.S_IMODE(meta.st_mode)!=0o700):
+                    raise ValueError('untrusted claim directory')
+                names={p.name for p in claim.iterdir()}
+                # mkdir-before-intent / unlink-intent-before-rmdir crash. No
+                # captured bytes exist, so removing an empty directory is safe.
+                if not names:
+                    claim.rmdir();_current_fence_sync(path.parent)
+                else:
+                    if not names <= {'intent.json','entry'} or 'intent.json' not in names:
+                        raise ValueError('unconfirmed claim')
+                    manifest=claim/'intent.json'
+                    m=manifest.lstat()
+                    if (not stat.S_ISREG(m.st_mode) or m.st_uid!=os.geteuid()
+                            or stat.S_IMODE(m.st_mode)!=0o600 or m.st_size>2048):
+                        raise ValueError('untrusted claim intent')
+                    intent=json.loads(manifest.read_text())
+                    identity=intent.get('identity') if isinstance(intent,dict) else None
+                    if (not isinstance(intent,dict) or set(intent)!={'protocol','name','identity','sha256','mode'}
+                            or intent['protocol']!=1 or intent['name']!=path.name
+                            or intent['sha256']!=hashlib.sha256(expected).hexdigest()
+                            or intent['mode']!=mode or not isinstance(identity,list) or len(identity)!=3
+                            or any(type(v) is not int or v<0 for v in identity)):
+                        raise ValueError('claim identity invalid')
+                    item['identity']=identity
+                    item['trustedClaim']=True
+                    captured=claim/'entry'
+                    if os.path.lexists(captured):
+                        if _current_fence_identity(captured,expected,mode,pins)!=identity:
+                            raise ValueError('foreign captured replacement')
+                        if os.path.lexists(path):
+                            if _current_fence_identity(path,expected,mode,pins)!=identity:
+                                raise ValueError('new pathname owner')
+                            # A prior conflict restored this exact owned inode
+                            # through an exclusive link. Remove only our private
+                            # link; the live pathname continues to hold the file.
+                            captured.unlink();_current_fence_sync(claim)
+                    elif os.path.lexists(path):
+                        if _current_fence_identity(path,expected,mode,pins)!=identity:
+                            raise ValueError('replacement before resumed claim')
+            if 'identity' not in item and os.path.lexists(path):
+                item['identity']=_current_fence_identity(path,expected,mode,pins)
+
+        # All entries are validated before moving any of this invocation's
+        # public paths. Publish intent durably before each atomic claim.
+        for item in items:
+            if 'identity' not in item:continue
+            path=item['path'];claim=item['claim'];captured=claim/'entry'
+            if not claim.exists():
+                claim.mkdir(mode=0o700)
+                intent={'protocol':1,'name':path.name,'identity':item['identity'],
+                        'sha256':hashlib.sha256(item['expected']).hexdigest(),'mode':item['mode']}
+                write_json_durable(claim/'intent.json',intent)
+                item['trustedClaim']=True
+                _current_fence_sync(path.parent)
+            if not os.path.lexists(captured) and os.path.lexists(path):
+                os.rename(path,captured)
+                _current_fence_sync(claim);_current_fence_sync(path.parent)
+
+        for item in items:
+            captured=item['claim']/'entry'
+            if os.path.lexists(item['path']):
+                raise ValueError('replacement after claim')
+            if os.path.lexists(captured) and (
+                    _current_fence_identity(captured,item['expected'],item['mode'])!=item.get('identity')):
+                raise ValueError('foreign captured replacement')
+    except (OSError,ValueError,UnicodeError) as error:
+        _current_fence_restore_claims(items)
+        raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+item['role']) from error
+
+    # No unlink of a shared/public fence pathname exists. Only the verified
+    # objects in owner-private namespaces are deleted, with all supported
+    # writers serialized for the full validation/claim/cleanup sequence.
+    for item in items:
+        claim=item['claim'];captured=claim/'entry'
+        if os.path.lexists(captured):captured.unlink();_current_fence_sync(claim)
+        if claim.exists():
+            (claim/'intent.json').unlink(missing_ok=True)
+            claim.rmdir();_current_fence_sync(item['path'].parent)
+    if any(os.path.lexists(item['path']) for item in items):
+        raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:replacement-after-cleanup')
+
+
+def _current_publish_fence(path: Path, text: bytes, mode: int) -> None:
+    if os.path.lexists(_current_fence_claim(path)):
+        raise RuntimeError('CURRENT_FENCE_CLEANUP_PENDING')
+    fd,tmp=tempfile.mkstemp(prefix='.'+path.name+'.',dir=path.parent)
+    try:
+        with os.fdopen(fd,'wb') as output:
+            os.fchmod(output.fileno(),mode)
+            output.write(text);output.flush();os.fsync(output.fileno())
+        # Exclusive publication, unlike replace: a concurrent new owner wins
+        # and remains intact while this invocation fails closed.
+        os.link(tmp,path,follow_symlinks=False)
+        _current_fence_sync(path.parent)
+    finally:os.unlink(tmp)
+
+
+def _current_install_reboot_fence(plan: dict, *, allow_existing: bool=False) -> None:
     if os.path.lexists(CURRENT_FENCE_ALLOW):
         raise RuntimeError('CURRENT_FENCE_ALLOW_UNEXPECTED')
-    text='[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n'
+    text=('[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n').encode()
+    pending=[]
     for role,path in current_fence_paths(plan).items():
         _assert_no_symlink_ancestors(path.parent)
         path.parent.mkdir(parents=True,exist_ok=True)
         _assert_no_symlink_ancestors(path.parent)
         if os.path.lexists(path):
-            if (
-                allow_existing and path.is_file() and not path.is_symlink()
-                and path.read_text()==text
-            ):
-                continue
+            if allow_existing and not os.path.lexists(_current_fence_claim(path)):
+                try:
+                    _current_fence_identity(path,text,0o644)
+                    continue
+                except (OSError,ValueError):pass
             raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
-        fd,tmp=tempfile.mkstemp(prefix='.'+CURRENT_FENCE_NAME+'.',dir=path.parent)
-        try:
-            with os.fdopen(fd,'w') as output:
-                output.write(text);output.flush();os.fsync(output.fileno())
-            os.chmod(tmp,0o644);os.replace(tmp,path)
-            directory=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
-            try:os.fsync(directory)
-            finally:os.close(directory)
-        finally:
-            if os.path.exists(tmp):os.unlink(tmp)
+        if os.path.lexists(_current_fence_claim(path)):
+            raise RuntimeError('CURRENT_FENCE_CLEANUP_PENDING')
+        pending.append((role,path))
+    for role,path in pending:
+        try:_current_publish_fence(path,text,0o644)
+        except FileExistsError:
+            raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role) from None
     run(['systemctl','daemon-reload'])
 
-def current_enable_fenced_start() -> None:
-    _assert_no_symlink_ancestors(CURRENT_FENCE_ALLOW.parent)
-    if os.path.lexists(CURRENT_FENCE_ALLOW):
-        raise RuntimeError('CURRENT_FENCE_ALLOW_UNEXPECTED')
-    fd=os.open(CURRENT_FENCE_ALLOW,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
-    try:
-        os.write(fd,b'current-boot-only\n');os.fsync(fd)
-    finally:os.close(fd)
+def current_install_reboot_fence(plan: dict, *, allow_existing: bool=False) -> None:
+    with current_fence_writer_lock():
+        _current_install_reboot_fence(plan,allow_existing=allow_existing)
 
-def current_disable_fenced_start() -> None:
+def current_enable_fenced_start() -> None:
+    with current_fence_writer_lock():
+        _assert_no_symlink_ancestors(CURRENT_FENCE_ALLOW.parent)
+        if os.path.lexists(CURRENT_FENCE_ALLOW):
+            raise RuntimeError('CURRENT_FENCE_ALLOW_UNEXPECTED')
+        _current_publish_fence(CURRENT_FENCE_ALLOW,b'current-boot-only\n',0o600)
+
+def _current_disable_fenced_start() -> None:
     if os.path.lexists(CURRENT_FENCE_ALLOW) and CURRENT_FENCE_ALLOW.is_symlink():
         raise RuntimeError('CURRENT_FENCE_ALLOW_SYMLINK')
-    CURRENT_FENCE_ALLOW.unlink(missing_ok=True)
+    _current_remove_owned_fence_files([('allow',CURRENT_FENCE_ALLOW,b'current-boot-only\n',0o600)])
+
+def current_disable_fenced_start() -> None:
+    with current_fence_writer_lock():_current_disable_fenced_start()
 
 def current_prepare_recovery_fence(plan: dict) -> None:
     # A process may die after creating the ephemeral allow file. Recovery must
     # remove that boot-local allowance first, then accept/reinstall the durable
     # persistent fence in the same invocation.
-    current_disable_fenced_start()
-    current_install_reboot_fence(plan,allow_existing=True)
+    with current_fence_writer_lock():
+        _current_disable_fenced_start()
+        _current_install_reboot_fence(plan,allow_existing=True)
 
 def current_remove_reboot_fence(plan: dict) -> None:
-    expected='[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n'
-    # Validate the complete set before removing any part. A retry may find
-    # already removed files, but must never remove an unrelated replacement.
-    for role,path in current_fence_paths(plan).items():
-        _assert_no_symlink_ancestors(path.parent)
-        if os.path.lexists(path) and (
-            path.is_symlink() or not path.is_file() or path.read_text()!=expected
-        ):
-            raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
-    for role,path in current_fence_paths(plan).items():
-        _assert_no_symlink_ancestors(path.parent)
-        if os.path.lexists(path):
-            if path.is_symlink() or not path.is_file():
-                raise RuntimeError('CURRENT_RECOVERY_FENCE_CONFLICT:'+role)
-            path.unlink()
-            directory=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
-            try:os.fsync(directory)
-            finally:os.close(directory)
-    run(['systemctl','daemon-reload'])
-    current_disable_fenced_start()
+    expected=('[Unit]\nConditionPathExists='+str(CURRENT_FENCE_ALLOW)+'\n').encode()
+    with current_fence_writer_lock():
+        entries=[(role,path,expected,0o644) for role,path in current_fence_paths(plan).items()]
+        entries.append(('allow',CURRENT_FENCE_ALLOW,b'current-boot-only\n',0o600))
+        _current_remove_owned_fence_files(entries)
+        run(['systemctl','daemon-reload'])
 
 def current_units(plan: dict) -> tuple[str, ...]:
     services=plan.get('services')
