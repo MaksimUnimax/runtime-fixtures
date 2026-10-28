@@ -703,9 +703,8 @@ const calculators = {
     // store, require an explicit top-level store and exact matching on both
     // sides. Never treat two different seller cabinets as one product set.
     const scoped = Object.hasOwn(input, "storeId") ||
-      [...input.left, ...input.right].some(
-        (row) => row && Object.hasOwn(row, "storeId"),
-      );
+      input.left.some((row) => row && Object.hasOwn(row, "storeId")) ||
+      input.right.some((row) => row && Object.hasOwn(row, "storeId"));
     if (scoped && (typeof input.storeId !== "string" || !input.storeId.trim()))
       return { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" };
 
@@ -1340,6 +1339,10 @@ const scopeCases = [
     { status: "INCOMPLETE", reason: "RIGHT_STORE_ID_MISMATCH" }],
   ["top_level_store_missing",
     { ...scopeBase, storeId: undefined },
+    { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" }],
+  ["top_level_property_absent_but_rows_declare_store",
+    { period: joinProofPeriod, leftComplete: true, rightComplete: true,
+      left: scopeBase.left, right: scopeBase.right },
     { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" }],
   ["top_level_store_blank",
     { ...scopeBase, storeId: " " },
