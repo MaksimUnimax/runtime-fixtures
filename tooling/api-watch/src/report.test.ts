@@ -297,6 +297,87 @@ describe("A6 API-watch report lifecycle", () => {
     }
   });
 
+  it.each(["undefined", "throws"] as const)(
+    "fails closed when committed report readback returns %s",
+    async (readMode) => {
+      const root = await mkdtemp(join(tmpdir(), "s2-c03-readback-"));
+      try {
+        const setup = reportDependencies(missingAuthorityRegistry(), root);
+        const realGetReport = setup.reportStore.getReport.bind(
+          setup.reportStore,
+        );
+        setup.reportStore.getReport = async (reportId) => {
+          const saved = await realGetReport(reportId);
+          if (saved?.state === "BLOCKED") {
+            if (readMode === "throws")
+              throw new Error("SYNTHETIC_REPORT_GET_PRIVATE_CAUSE");
+            return undefined;
+          }
+          return saved;
+        };
+        const notifier = vi.fn(async () => {});
+        const result = await runApiWatchReport({
+          dependencies: {
+            ...setup.dependencies,
+            incidentStore: new InMemoryApiWatchIncidentStore(),
+            incidentNotifier: notifier,
+          },
+          runId: "terminal-readback-" + readMode,
+          source: "FORCED",
+        });
+        const durable = await realGetReport(
+          "api-watch:terminal-readback-" + readMode,
+        );
+        expect(durable?.state).toBe("BLOCKED");
+        expect(notifier).not.toHaveBeenCalled();
+        expect(result.status).toBe("FAILED");
+        expect(result.code).toBe("API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN");
+        expect(result.summary).toContain("could not be confirmed");
+        expect(result.summary).not.toContain(
+          "SYNTHETIC_REPORT_GET_PRIVATE_CAUSE",
+        );
+        expect(result).not.toHaveProperty("coverage");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("does not claim a durable report when terminal transition fails before its commit", async () => {
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-transition-unknown-"));
+    try {
+      const setup = reportDependencies(missingAuthorityRegistry(), root);
+      const realTransition = setup.reportStore.transitionReport.bind(
+        setup.reportStore,
+      );
+      const realGetReport = setup.reportStore.getReport.bind(setup.reportStore);
+      setup.reportStore.transitionReport = async (change) => {
+        if (change.state === "BLOCKED")
+          throw new Error("SYNTHETIC_TERMINAL_TRANSITION_UNCONFIRMED");
+        return realTransition(change);
+      };
+      const result = await runApiWatchReport({
+        dependencies: setup.dependencies,
+        runId: "transition-unconfirmed",
+        source: "FORCED",
+      });
+      expect(
+        (await realGetReport("api-watch:transition-unconfirmed"))?.state,
+      ).toBe("RUNNING");
+      expect(result).toMatchObject({
+        status: "FAILED",
+        code: "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN",
+      });
+      expect(result.summary).toContain("could not be confirmed");
+      expect(result.summary).not.toContain(
+        "SYNTHETIC_TERMINAL_TRANSITION_UNCONFIRMED",
+      );
+      expect(result).not.toHaveProperty("coverage");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("A6-07 all source URL authority missing is BLOCKED, not FAILED", async () => {
     const reportStore = new InMemoryApiWatchReportStore();
     const apiState = createInMemoryApiWatchState();

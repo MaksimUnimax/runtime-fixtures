@@ -296,6 +296,22 @@ function reportResult(
   };
 }
 
+function postcommitUnknownResult(
+  options: {
+    confirmedReport?: boolean;
+    coverage?: MonitoringCoverage;
+  } = {},
+): MonitoringRunResult {
+  return {
+    status: "FAILED",
+    code: "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN",
+    summary: options.confirmedReport
+      ? "API-watch report was saved, but a later monitoring step failed; its outcome is unknown."
+      : "API-watch report completion or later monitoring actions could not be confirmed; their outcome is unknown.",
+    ...(options.coverage ? { coverage: options.coverage } : {}),
+  };
+}
+
 async function analyzeAcceptedOutcome(input: {
   dependencies: ApiWatchDependencies;
   reportId: string;
@@ -572,6 +588,7 @@ export async function runApiWatchReport(input: {
     state: "RUNNING",
     at: now,
   });
+  let terminalTransitionAttempted = false;
   try {
     const previousSnapshots = await dependencies.store.listSnapshots();
     const pass = await runAuthorityPass({
@@ -616,6 +633,7 @@ export async function runApiWatchReport(input: {
           ? "PARTIAL"
           : "BLOCKED";
     const completedAt = currentTime(dependencies);
+    terminalTransitionAttempted = true;
     await reportStore.transitionReport({
       reportId: report.reportId,
       state,
@@ -624,6 +642,7 @@ export async function runApiWatchReport(input: {
       counts: reportCounts(sources),
     });
     const completedReport = await reportStore.getReport(report.reportId);
+    if (!completedReport) return postcommitUnknownResult();
     const crosswalkRows = dependencies.crosswalkStore
       ? await dependencies.crosswalkStore.listRows(report.reportId)
       : undefined;
@@ -656,30 +675,31 @@ export async function runApiWatchReport(input: {
       });
     return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
-    // A terminal transition may commit before its ACK or a later pipeline step
-    // fails. Without a completion receipt the exact artifact remains resumable.
-    const persisted = await reportStore.getReport(report.reportId);
-    if (persisted?.state === "RUNNING")
+    // The terminal transition can commit before its ACK, and subsequent
+    // getReport can return no record or throw. Never infer success from an
+    // unverified read or let an internal read error escape to consumers.
+    let persisted;
+    try {
+      persisted = await reportStore.getReport(report.reportId);
+    } catch {
+      return terminalTransitionAttempted
+        ? postcommitUnknownResult()
+        : reportResult("FAILED");
+    }
+    if (persisted?.state === "RUNNING" && !terminalTransitionAttempted)
       await reportStore.transitionReport({
         reportId: report.reportId,
         state: "FAILED",
         at: currentTime(dependencies),
         counts: { overallImpactSeverity: null },
       });
-    // Report state is terminal and durable, but a later notification, retry,
-    // crosswalk read or operator receipt failed. Do not misreport the report
-    // itself as FAILED, imply a delivered alert, or automatically replay side
-    // effects whose result is unknown. Keep the monitoring lane in FAILED.
     if (
       persisted?.state === "COMPLETED" ||
       persisted?.state === "PARTIAL" ||
       persisted?.state === "BLOCKED"
     )
-      return {
-        status: "FAILED",
-        code: "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN",
-        summary:
-          "API-watch report was saved, but a later monitoring step failed; its outcome is unknown.",
+      return postcommitUnknownResult({
+        confirmedReport: true,
         ...(persisted.completedAt
           ? {
               coverage: coverageFromReportSources(
@@ -688,7 +708,8 @@ export async function runApiWatchReport(input: {
               ),
             }
           : {}),
-      };
+      });
+    if (terminalTransitionAttempted) return postcommitUnknownResult();
     return reportResult("FAILED");
   }
 }
