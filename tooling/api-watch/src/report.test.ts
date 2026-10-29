@@ -427,6 +427,142 @@ describe("A6 API-watch report lifecycle", () => {
     },
   );
 
+  it.each([
+    "foreign-id",
+    "wrong-terminal-state",
+    "missing-completion",
+    "invalid-completion",
+  ] as const)(
+    "rejects unverified %s catch recovery after terminal ACK failure",
+    async (readMode) => {
+      const root = await mkdtemp(join(tmpdir(), "s2-c03-catch-readback-"));
+      try {
+        const setup = reportDependencies(missingAuthorityRegistry(), root);
+        const originalGet = setup.reportStore.getReport.bind(setup.reportStore);
+        const originalTransition = setup.reportStore.transitionReport.bind(
+          setup.reportStore,
+        );
+        // Simulate failure before the terminal write, not a replayable ACK.
+        setup.reportStore.transitionReport = async (change) => {
+          if (change.state === "BLOCKED")
+            throw new Error("SYNTHETIC_TERMINAL_COMMIT_UNKNOWN");
+          return originalTransition(change);
+        };
+        setup.reportStore.getReport = async (id) => {
+          const actual = await originalGet(id);
+          if (actual?.state !== "RUNNING") return actual;
+          return {
+            ...actual,
+            reportId:
+              readMode === "foreign-id" ? "api-watch:foreign" : actual.reportId,
+            state:
+              readMode === "wrong-terminal-state" ? "COMPLETED" : "BLOCKED",
+            completedAt:
+              readMode === "missing-completion"
+                ? null
+                : readMode === "invalid-completion"
+                  ? new Date(Number.NaN)
+                  : new Date("2026-09-22T00:00:00Z"),
+          };
+        };
+        const runId = "catch-invalid-" + readMode;
+        const result = await runApiWatchReport({
+          dependencies: setup.dependencies,
+          runId,
+          source: "FORCED",
+        });
+        expect((await originalGet("api-watch:" + runId))?.state).toBe(
+          "RUNNING",
+        );
+        expect(result).toMatchObject({
+          status: "FAILED",
+          code: "API_WATCH_REPORT_COMMIT_UNKNOWN",
+        });
+        expect(result.summary).toContain("could not be confirmed");
+        expect(result.summary).not.toContain(
+          "SYNTHETIC_TERMINAL_COMMIT_UNKNOWN",
+        );
+        expect(result).not.toHaveProperty("coverage");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("recognizes a verified completed report even when the terminal ACK is lost", async () => {
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-terminal-ack-"));
+    try {
+      const setup = reportDependencies(missingAuthorityRegistry(), root);
+      const originalTransition = setup.reportStore.transitionReport.bind(
+        setup.reportStore,
+      );
+      setup.reportStore.transitionReport = async (change) => {
+        const committed = await originalTransition(change);
+        if (change.state === "BLOCKED")
+          throw new Error("SYNTHETIC_TERMINAL_ACK_LOST_AFTER_COMMIT");
+        return committed;
+      };
+      const result = await runApiWatchReport({
+        dependencies: setup.dependencies,
+        runId: "terminal-ack-lost-after-commit",
+        source: "FORCED",
+      });
+      expect(
+        (
+          await setup.reportStore.getReport(
+            "api-watch:terminal-ack-lost-after-commit",
+          )
+        )?.state,
+      ).toBe("BLOCKED");
+      expect(result).toMatchObject({
+        status: "FAILED",
+        code: "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN",
+      });
+      expect(result.summary).toContain("report was saved");
+      expect(result.summary).not.toContain("SYNTHETIC_TERMINAL_ACK_LOST");
+      expect(result.coverage?.checkDepth).toBe("API_DOCUMENT_COMPARISON");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not turn a foreign terminal row into a saved report on preterminal failure", async () => {
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-preterminal-readback-"));
+    try {
+      const setup = reportDependencies(missingAuthorityRegistry(), root);
+      const realGet = setup.reportStore.getReport.bind(setup.reportStore);
+      setup.dependencies.store.listSnapshots = async () => {
+        throw new Error("SYNTHETIC_PRETERMINAL_FAILURE");
+      };
+      setup.reportStore.getReport = async (id) => {
+        const actual = await realGet(id);
+        return actual?.state === "RUNNING"
+          ? {
+              ...actual,
+              reportId: "api-watch:other",
+              state: "BLOCKED",
+              completedAt: new Date("2026-09-22T00:00:00Z"),
+            }
+          : actual;
+      };
+      const result = await runApiWatchReport({
+        dependencies: setup.dependencies,
+        runId: "preterminal-foreign-readback",
+        source: "FORCED",
+      });
+      expect(
+        (await realGet("api-watch:preterminal-foreign-readback"))?.state,
+      ).toBe("RUNNING");
+      expect(result).toMatchObject({
+        status: "FAILED",
+        code: "API_WATCH_REPORT_COMMIT_UNKNOWN",
+      });
+      expect(result).not.toHaveProperty("coverage");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("does not claim a durable report when terminal transition fails before its commit", async () => {
     const root = await mkdtemp(join(tmpdir(), "s2-c03-transition-unknown-"));
     try {
