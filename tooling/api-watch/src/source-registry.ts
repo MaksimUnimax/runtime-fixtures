@@ -145,6 +145,44 @@ export function createSourceRegistry(
   };
 }
 
+/**
+ * Freeze an exact non-empty set of authorized acquisition families. A retry
+ * lease must never turn into a full-registry provider scan through get().
+ * This wrapper changes neither provider URLs nor authority definitions.
+ */
+export function scopeSourceRegistry(
+  registry: SourceRegistry,
+  families: readonly SwaggerSourceFamily[],
+): SourceRegistry {
+  const requested = new Set(
+    families.map((family) => SwaggerSourceFamilySchema.parse(family)),
+  );
+  if (!requested.size || requested.size !== families.length)
+    throw new Error("SOURCE_FAMILY_SCOPE_INVALID");
+  const entries = registry
+    .list()
+    .filter((entry) => requested.has(entry.sourceFamily));
+  if (
+    entries.length !== requested.size ||
+    new Set(entries.map((entry) => entry.sourceFamily)).size !== requested.size
+  )
+    throw new Error("SOURCE_FAMILY_SCOPE_UNAVAILABLE");
+  const byFamily = new Map(
+    entries.map((entry) => [entry.sourceFamily, cloneEntry(entry)]),
+  );
+  return {
+    get(sourceFamily) {
+      const family = SwaggerSourceFamilySchema.parse(sourceFamily);
+      const entry = byFamily.get(family);
+      if (!entry) throw new Error("SOURCE_FAMILY_OUT_OF_SCOPE");
+      return cloneEntry(entry);
+    },
+    list() {
+      return [...byFamily.values()].map(cloneEntry);
+    },
+  };
+}
+
 export const productionSourceRegistry = createSourceRegistry();
 export const productionSourceUrls = {
   OZON_SELLER_URL,
