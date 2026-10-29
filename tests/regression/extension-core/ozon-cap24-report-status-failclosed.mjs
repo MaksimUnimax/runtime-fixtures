@@ -300,6 +300,76 @@ check(
   "file_downloaded",
   null,
 );
+// CAP-24 bridge to financial readiness: a ready/downloaded Ozon report is
+// provenance for an explicit file, NOT verified SKU, currency, or money rows.
+// Test-only fixtures deliberately use unknown pseudo-columns; no provider XLSX
+// schema is claimed, no COGS/taxes/real net profit are inferred.
+const businessCoverage = JSON.parse(
+  fs.readFileSync(
+    path.join(ROOT, "tests/regression/extension-core/fixtures/business-scenario-coverage-v1.json"),
+    "utf8",
+  ),
+);
+const cap24 = businessCoverage.scenarios.find((row) => row.id === "CAP-24");
+assert.ok(cap24, "CAP-24 approved scenario must exist");
+assert.equal(cap24.ozonCoverage, "CONTRIBUTION_ONLY");
+assert.equal(cap24.omissionPolicy, "MISSING_NOT_ZERO");
+assert.deepEqual(cap24.identifiers, ["sku/nmID", "period"]);
+assert.deepEqual(cap24.metrics, [
+  "revenue:provider_currency",
+  "platform_fees:provider_currency",
+  "storage:provider_currency",
+  "ads:provider_currency",
+  "platform_contribution:provider_currency",
+]);
+assert.equal(
+  cap24.externalDependency,
+  "COGS_TAX_EXTERNAL_COSTS_DEFERRED_FOR_FULL_PROFIT",
+);
+// Positive source fixture: provider explicitly confirms report success with a
+// trusted opaque ref, then a separate report_file_get is shown as downloaded.
+const positiveReady = workflow.continuationFromEnvelope(
+  envelope("report_info", {
+    status: "success", code: reportCode, report_file_ref: staleRef,
+  }), 0,
+);
+assert.equal(positiveReady?.state, "file_ready");
+assert.equal(positiveReady?.next_command?.operation, "report_file_get");
+const unverifiedWorkbook = {
+  format: "xlsx",
+  rows: [{ NOT_AN_APPROVED_OZON_COLUMN: "INERT_FAKE_SKU",
+           NOT_AN_APPROVED_AMOUNT: "100.00" }],
+};
+const positiveDownloaded = workflow.continuationFromEnvelope(
+  envelope("report_file_get", unverifiedWorkbook), 0,
+);
+assert.equal(positiveDownloaded?.state, "file_downloaded");
+assert.equal(positiveDownloaded?.next_command, null);
+assert.equal(positiveDownloaded?.automatic_continuation, false);
+// Workflow metadata must not silently convert an opaque file into an
+// asserted per-SKU financial result or leak unverified workbook text.
+const sourceOnlyReportMetadata = JSON.stringify(positiveDownloaded);
+for (const key of [
+  "skuContribution", "platformContribution", "netProfit", "isNetProfit",
+  "providerCurrency", "skuRows", "financialRows", "INERT_FAKE_SKU",
+  "NOT_AN_APPROVED_AMOUNT",
+]) assert.equal(sourceOnlyReportMetadata.includes(key), false, key);
+// Negative fixture: failed report status must be terminal even when a stale
+// file reference exists. No money can be promoted from this state.
+const negativeFailed = workflow.continuationFromEnvelope(
+  envelope("report_info", {
+    status: "failed", code: reportCode, report_file_ref: staleRef,
+  }), 0,
+);
+assert.equal(negativeFailed?.state, "failed");
+assert.equal(negativeFailed?.next_command, null);
+// A success-looking metadata envelope without an authenticated file ref is
+// not source-ready, much less a confirmed unit economics calculation.
+const negativeNoRef = workflow.continuationFromEnvelope(
+  envelope("report_info", { status: "success", code: reportCode }), 0,
+);
+assert.equal(negativeNoRef?.state, "blocked_missing_fresh_file_ref");
+assert.equal(negativeNoRef?.next_command, null);
 assert.equal(providerRequests, 0);
 
 const readme = fs.readFileSync(
