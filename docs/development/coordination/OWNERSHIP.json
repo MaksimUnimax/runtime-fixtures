@@ -42,6 +42,7 @@
     "Before editing, verify the approved scope and one current author from role checkpoints, Git changes and explicit instructions; no queue claim or task registration is required.",
     "Any role may author approved DB changes using its own isolated test DB; live migration/deployment authority is unchanged.",
     "Any role may publish main with exact candidate/current-base/required CI evidence and non-force history preservation.",
-    "No background executor, scheduler or OPERATOR development gate is introduced."
+    "No background executor, scheduler or OPERATOR development gate is introduced.",
+    "TESTER_2 is a permanent additional Astra-level tester role for a separately assigned block; its current scope and worktree must be verified from its own checkpoint. This is not a component-wide ownership grant or new live/DB/security authority."
   ]
 }

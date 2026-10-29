@@ -21,3 +21,15 @@ A/B/C — три обычных диалога через MCP, каждый ве
 Одноразовые старты: START_A.md, START_B.md, START_C.md, START_OPERATOR.md, START_CONTROLLER.md. Они восстанавливают факты и не сбрасывают roadmap/STOP.
 Старые описания «2+1», C-only-main, B-only-DB, обязательной передачи через C и видимой иерархии контроллеров отозваны этим согласованным методом. Сохранённые датированные evidence остаются историей, не командами.
 Технические quality/live/privacy/STOP ограничения не отменены. Source/package/installed/live приёмка различается.
+
+## Дополнительная роль TESTER_2 — решение владельца 29.10.2026
+
+TESTER_2 — постоянная дополнительная роль уровня Astra с временной работой над отдельным назначенным блоком. OPERATOR остаётся Тестером-1; модели остальных ролей не меняются. Первый самостоятельный участок — B14. Тестер-2 не получает постоянной component ownership.
+
+Источники роли, входа, передачи и B14 закреплены на открытом, не слитом PR380, точный candidate b893fee7943634ad1152ed4be93df32025129a76:
+- [Договор](https://github.com/MaksimUnimax/runtime-fixtures/blob/b893fee7943634ad1152ed4be93df32025129a76/docs/development/coordination/PROMPT_TESTER_2.md)
+- [Вход и продолжение](https://github.com/MaksimUnimax/runtime-fixtures/blob/b893fee7943634ad1152ed4be93df32025129a76/docs/development/coordination/START_TESTER_2.md)
+- [Интеграция и handoff](https://github.com/MaksimUnimax/runtime-fixtures/blob/b893fee7943634ad1152ed4be93df32025129a76/docs/development/coordination/TESTER_2_INTEGRATION_20261029.md)
+- [B14](https://github.com/MaksimUnimax/runtime-fixtures/blob/b893fee7943634ad1152ed4be93df32025129a76/docs/development/coordination/TESTER_2_B14_20261029.md)
+
+Checkpoint роли отделён от OPERATOR; конкретный блок, ветку и текущего автора сверять по его актуальному содержимому. Эти ссылки не означают включения PR380 в main.
