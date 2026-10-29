@@ -3,6 +3,7 @@ import type {
   MonitoringCoverage,
   MonitoringLaneRunner,
   MonitoringRunResult,
+  SwaggerSourceFamily,
 } from "@product/monitoring-control";
 import { evaluateOperatorCandidate, runAuthorityPass } from "./authority.js";
 import { diffInventories } from "./diff.js";
@@ -345,6 +346,8 @@ async function analyzeAcceptedOutcome(input: {
   previousSnapshots: Awaited<
     ReturnType<ApiWatchDependencies["store"]["listSnapshots"]>
   >;
+  /** Fired only after snapshot+inventory persistence returns an ACK. */
+  onSnapshotAccepted?: (sha256: string, operationCount: number) => void;
 }): Promise<ApiWatchReportSourceOutcome> {
   const { dependencies, outcome, record, previousSnapshots } = input;
   const now = currentTime(dependencies);
@@ -369,6 +372,9 @@ async function analyzeAcceptedOutcome(input: {
     documentKey,
     now: () => now,
   });
+  // An ACK here is the first reliable evidence that this exact snapshot and
+  // inventory are accepted. Keep it even if later baseline/diff work fails.
+  input.onSnapshotAccepted?.(snapshot.sha256, inventory.operationCount);
   const baseline = dependencies.productBaselineRepository
     ? await dependencies.productBaselineRepository.read({
         sourceFamily: outcome.sourceFamily,
@@ -595,6 +601,8 @@ export async function runApiWatchReport(input: {
   };
   runId: string;
   source: "SCHEDULED" | "FORCED";
+  /** Only a validated run-bound retry owner may provide selected families. */
+  sourceFamilies?: readonly SwaggerSourceFamily[];
 }): Promise<MonitoringRunResult> {
   const { dependencies, runId, source } = input;
   const reportStore = dependencies.reportStore;
@@ -610,30 +618,47 @@ export async function runApiWatchReport(input: {
     at: now,
   });
   let terminalStateAttempted: "COMPLETED" | "PARTIAL" | "BLOCKED" | null = null;
+  // An irreversible acquisition can ACK a snapshot before later semantic
+  // analysis throws. Preserve the observed identities for a durable FAILED.
+  let observedPass: AuthorityPassResult | undefined;
+  const observedSources: ApiWatchReportSourceOutcome[] = [];
   try {
     const previousSnapshots = await dependencies.store.listSnapshots();
     const pass = await runAuthorityPass({
       ...dependencies,
       now: dependencies.clock,
       skipOperatorBlocked: input.source === "SCHEDULED",
+      sourceFamilies: input.sourceFamilies,
     });
-    const sources: ApiWatchReportSourceOutcome[] = [];
+    observedPass = pass;
+    const sources = observedSources;
     const crosswalkDocuments: CrosswalkDocument[] = [];
     for (const [index, outcome] of pass.outcomes.entries()) {
       const record = pass.records[index];
       if (outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" && record) {
-        sources.push(
-          await analyzeAcceptedOutcome({
-            dependencies,
-            reportId: report.reportId,
-            crosswalkDocuments,
-            outcome,
-            record,
-            previousSnapshots,
-          }),
-        );
+        sources[index] = await analyzeAcceptedOutcome({
+          dependencies,
+          reportId: report.reportId,
+          crosswalkDocuments,
+          outcome,
+          record,
+          previousSnapshots,
+          onSnapshotAccepted: (sha256, operationCount) => {
+            // Do not label an accepted snapshot as absent if a later semantic
+            // comparison throws. Comparison evidence is UNKNOWN, not success.
+            sources[index] = {
+              ...blockedOutcome(outcome, record),
+              snapshotSha256: sha256,
+              inventoryOperationCount: operationCount,
+              blockerCode: null,
+              errorCode: "SOURCE_ANALYSIS_INCOMPLETE",
+              impactSeverity: "UNKNOWN",
+              unknownCount: 1,
+            };
+          },
+        });
       } else {
-        sources.push(blockedOutcome(outcome, record));
+        sources[index] = blockedOutcome(outcome, record);
       }
     }
     const verifiedFamilyAbsenceRowIds = await persistProductCrosswalks({
@@ -648,7 +673,7 @@ export async function runApiWatchReport(input: {
         sourceOutcome.errorCode !== "PRODUCT_BASELINE_REFERENCE_INVALID",
     ).length;
     const state =
-      usable === pass.outcomes.length
+      pass.outcomes.length > 0 && usable === pass.outcomes.length
         ? "COMPLETED"
         : usable > 0
           ? "PARTIAL"
@@ -699,9 +724,9 @@ export async function runApiWatchReport(input: {
       });
     return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
-    // The terminal transition can commit before its ACK, and subsequent
-    // getReport can return no record or throw. Never infer success from an
-    // unverified read or let an internal read error escape to consumers.
+    // An awaited terminal transition might have committed before its ACK.
+    // Recovery must validate the same durable terminal receipt as the
+    // successful path, without replaying uncertain side effects.
     let persisted;
     try {
       persisted = await reportStore.getReport(report.reportId);
@@ -710,16 +735,62 @@ export async function runApiWatchReport(input: {
         ? postcommitUnknownResult()
         : reportResult("FAILED");
     }
-    if (persisted?.state === "RUNNING" && terminalStateAttempted === null)
-      await reportStore.transitionReport({
-        reportId: report.reportId,
-        state: "FAILED",
-        at: currentTime(dependencies),
-        counts: { overallImpactSeverity: null },
-      });
-    // A recovery read after an ACK/error is not more trustworthy than the
-    // first read. Only the exact requested durable terminal receipt can make
-    // the "report was saved" claim and expose persisted coverage.
+    if (persisted?.state === "RUNNING" && terminalStateAttempted === null) {
+      const recordedPass = observedPass;
+      const failedSources = recordedPass
+        ? recordedPass.outcomes.map(
+            (outcome, index) =>
+              observedSources[index] ??
+              blockedOutcome(outcome, recordedPass.records[index]),
+          )
+        : [];
+      // Preserve the actual source observations, even when a completed
+      // analysis could not be produced. Never fabricate accepted comparison.
+      try {
+        await reportStore.transitionReport({
+          reportId: report.reportId,
+          state: "FAILED",
+          at: currentTime(dependencies),
+          sources: failedSources,
+          counts: reportCounts(failedSources),
+        });
+      } catch {
+        // A FAILED transition may also commit before its ACK; no blind retry.
+        return postcommitUnknownResult();
+      }
+      let failed;
+      try {
+        failed = await reportStore.getReport(report.reportId);
+      } catch {
+        return postcommitUnknownResult();
+      }
+      if (
+        !failed ||
+        failed.reportId !== report.reportId ||
+        failed.state !== "FAILED" ||
+        !(failed.completedAt instanceof Date) ||
+        !Number.isFinite(failed.completedAt.valueOf())
+      )
+        return postcommitUnknownResult();
+      if (dependencies.incidentStore) {
+        try {
+          await evaluateApiWatchIncidents({
+            report: failed,
+            store: dependencies.incidentStore,
+            notifier: dependencies.incidentNotifier,
+            now: currentTime(dependencies),
+          });
+        } catch {
+          // The FAILED report is durable, but any incident transport result
+          // is unknown. Do not downgrade the recorded source observations.
+          return {
+            ...reportResult("FAILED"),
+            summary: "API-watch report failed; incident delivery is unknown.",
+          };
+        }
+      }
+      return reportResult("FAILED");
+    }
     if (
       terminalStateAttempted !== null &&
       isConfirmedTerminalReceipt(
@@ -735,8 +806,6 @@ export async function runApiWatchReport(input: {
           persisted.completedAt,
         ),
       });
-    // A terminal row from another report/run or a state transition whose ACK
-    // is unknown must not become ordinary success or a saved-report claim.
     if (
       terminalStateAttempted !== null ||
       persisted?.state === "COMPLETED" ||
