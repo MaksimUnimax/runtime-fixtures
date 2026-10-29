@@ -388,6 +388,45 @@ describe("A6 API-watch report lifecycle", () => {
     },
   );
 
+  it.each([
+    "wrong-report-id",
+    "missing-completion",
+    "invalid-completion",
+  ] as const)(
+    "does not trust terminal readback with %s",
+    async (invalidReadback) => {
+      const root = await mkdtemp(join(tmpdir(), "s2-c03-invalid-receipt-"));
+      try {
+        const setup = reportDependencies(missingAuthorityRegistry(), root);
+        const realGet = setup.reportStore.getReport.bind(setup.reportStore);
+        setup.reportStore.getReport = async (reportId) => {
+          const actual = await realGet(reportId);
+          if (actual?.state !== "BLOCKED") return actual;
+          if (invalidReadback === "wrong-report-id")
+            return { ...actual, reportId: "api-watch:foreign-report" };
+          if (invalidReadback === "missing-completion")
+            return { ...actual, completedAt: null };
+          return { ...actual, completedAt: new Date(Number.NaN) };
+        };
+        const runId = "bad-terminal-receipt-" + invalidReadback;
+        const result = await runApiWatchReport({
+          dependencies: setup.dependencies,
+          runId,
+          source: "FORCED",
+        });
+        expect((await realGet("api-watch:" + runId))?.state).toBe("BLOCKED");
+        expect(result).toMatchObject({
+          status: "FAILED",
+          code: "API_WATCH_REPORT_COMMIT_UNKNOWN",
+        });
+        expect(result.summary).toContain("could not be confirmed");
+        expect(result).not.toHaveProperty("coverage");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("does not claim a durable report when terminal transition fails before its commit", async () => {
     const root = await mkdtemp(join(tmpdir(), "s2-c03-transition-unknown-"));
     try {

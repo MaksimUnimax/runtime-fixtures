@@ -646,10 +646,16 @@ export async function runApiWatchReport(input: {
       counts: reportCounts(sources),
     });
     const completedReport = await reportStore.getReport(report.reportId);
-    // A present but stale or inconsistent readback cannot confirm the
-    // terminal transition either. Do not send notifications or report success
-    // from a state that is not the state just committed.
-    if (!completedReport || completedReport.state !== state)
+    // A present but stale, wrong-identity, or incomplete readback cannot
+    // confirm the terminal transition. Do not emit notification side effects
+    // or report success without the exact persisted terminal receipt.
+    if (
+      !completedReport ||
+      completedReport.reportId !== report.reportId ||
+      completedReport.state !== state ||
+      !(completedReport.completedAt instanceof Date) ||
+      !Number.isFinite(completedReport.completedAt.valueOf())
+    )
       return postcommitUnknownResult();
     const crosswalkRows = dependencies.crosswalkStore
       ? await dependencies.crosswalkStore.listRows(report.reportId)
