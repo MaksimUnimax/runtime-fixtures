@@ -6,7 +6,18 @@ import vm from "node:vm";
 
 // Source-only synthetic regression; no real provider, credentials or browser.
 const here = path.dirname(fileURLToPath(import.meta.url));
-const sourceFile = path.resolve(here, "../../../packages/marketplaces/wildberries/src/adapter.js");
+const root = path.resolve(process.argv[3] || path.resolve(here, "../../.."));
+const sourceFile = path.join(root, "packages/marketplaces/wildberries/src/adapter.js");
+const bundledFile = process.argv[2] && process.argv[2] !== "-"
+  ? path.resolve(process.argv[2]) : null;
+const exactOwnedSource = readFileSync(sourceFile, "utf8");
+// The actual source and extracted ZIP must contain precisely the same owned
+// WB adapter bytes that are exercised below (not an unrelated fixture).
+if (bundledFile) {
+  const bundled = readFileSync(bundledFile, "utf8");
+  assert.ok(bundled.includes(exactOwnedSource),
+    "composed/ZIP WB adapter must retain exact reviewed owned source");
+}
 const command = "WB_API_V1\n" + JSON.stringify({ operation: "seller_info", params: {} });
 const fakeToken = "SYNTHETIC_ONLY_WB_CREDENTIAL";
 const payload = '{"result":{"id":42}}';
@@ -43,7 +54,7 @@ function fixture() {
   const sandbox = {
     SellerAgentsWBReference: { contract, credentials, transport, guidance: {} },
   };
-  vm.runInNewContext(readFileSync(sourceFile, "utf8"), sandbox, { filename: "wb-adapter-under-test.js" });
+  vm.runInNewContext(exactOwnedSource, sandbox, { filename: "wb-adapter-under-test.js" });
   const provider = sandbox.SellerAgentsWBAdapter.createProvider({
     uuid: () => "SYNTHETIC_REQUEST_ID",
     fetchImpl: async (_url, init) => {
