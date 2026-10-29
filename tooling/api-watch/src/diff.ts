@@ -30,11 +30,29 @@ function sortedUnique(values: readonly string[]): string[] {
   return [...new Set(values)].sort();
 }
 
+// Fixed OpenAPI method fields use canonical upper case in historical inventory
+// and registry data. Additional HTTP methods are case-sensitive wire tokens.
+const FIXED_OPERATION_METHODS = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+  "HEAD",
+  "TRACE",
+  "QUERY",
+]);
+function canonicalOperationMethod(method: string): string {
+  const upper = method.toUpperCase();
+  return FIXED_OPERATION_METHODS.has(upper) ? upper : method;
+}
+
 function semanticOperation(item: OperationInventoryItem): SemanticOperation {
   return {
     identity: item.identity,
     sourceFamily: item.sourceFamily,
-    method: item.method.toUpperCase(),
+    method: canonicalOperationMethod(item.method),
     path: item.path,
     operationId: item.operationId,
     deprecated: item.deprecated,
