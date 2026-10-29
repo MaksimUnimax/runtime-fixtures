@@ -69,6 +69,7 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
   private poisoned = false;
   private writing = false;
   private opening = false;
+  private closing = false;
   private directory: FileHandle | undefined;
   private lockIdentity: { dev: number; ino: number } | undefined;
   private readonly parent: string;
@@ -198,6 +199,7 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
   }
 
   async open(): Promise<number> {
+    if (this.closing) throw new Error("TELEGRAM_INBOUND_JOURNAL_CLOSING");
     if (this.opening || this.lockToken || this.record) {
       throw new Error("TELEGRAM_INBOUND_JOURNAL_ALREADY_OPEN");
     }
@@ -271,6 +273,7 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
   }
 
   private async persist(next: TelegramInboundJournalRecord): Promise<void> {
+    if (this.closing) throw new Error("TELEGRAM_INBOUND_JOURNAL_CLOSING");
     if (this.writing)
       throw new Error("TELEGRAM_INBOUND_JOURNAL_CONCURRENT_MUTATION");
     if (
@@ -331,6 +334,7 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
   }
 
   async begin(updateId: number): Promise<void> {
+    if (this.closing) throw new Error("TELEGRAM_INBOUND_JOURNAL_CLOSING");
     if (!validOffset(updateId) || updateId > MAX_UPDATE_ID) {
       throw new Error("TELEGRAM_UPDATE_ID_INVALID");
     }
@@ -358,6 +362,7 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
   }
 
   async complete(updateId: number): Promise<void> {
+    if (this.closing) throw new Error("TELEGRAM_INBOUND_JOURNAL_CLOSING");
     if (
       !this.record ||
       this.poisoned ||
@@ -426,17 +431,27 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
   }
 
   async close(): Promise<void> {
+    if (this.closing) throw new Error("TELEGRAM_INBOUND_JOURNAL_CLOSING");
     if (this.opening)
       throw new Error("TELEGRAM_INBOUND_JOURNAL_OPEN_IN_PROGRESS");
     if (this.writing)
       throw new Error("TELEGRAM_INBOUND_JOURNAL_CONCURRENT_MUTATION");
-    await this.releaseOwnLock();
-    this.record = undefined;
-    this.recordDigest = undefined;
-    this.poisoned = false;
-    if (this.directory) {
-      await this.directory.close();
-      this.directory = undefined;
+    // Exclude any new dispatch BEFORE the first await in releaseOwnLock().
+    // A failed close stays fenced: lock ownership may be UNKNOWN.
+    this.closing = true;
+    try {
+      await this.releaseOwnLock();
+      this.record = undefined;
+      this.recordDigest = undefined;
+      this.poisoned = false;
+      if (this.directory) {
+        await this.directory.close();
+        this.directory = undefined;
+      }
+      this.closing = false;
+    } catch (error) {
+      this.poisoned = true;
+      throw error;
     }
   }
 }

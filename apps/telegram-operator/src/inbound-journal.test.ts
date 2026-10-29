@@ -114,6 +114,46 @@ describe("durable inbound Telegram dispatch fence (no network)", () => {
     await journal.close();
   });
 
+  it("does not permit begin while close is releasing the process lock", async () => {
+    const { filename } = await fixture(31);
+    const journal = new FileTelegramInboundJournal(filename);
+    await journal.open();
+    const internal = journal as unknown as {
+      releaseOwnLock: () => Promise<void>;
+    };
+    const originalRelease = internal.releaseOwnLock.bind(journal);
+    let entered!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    internal.releaseOwnLock = async () => {
+      entered();
+      await gate;
+      await originalRelease();
+    };
+    const closing = journal.close();
+    try {
+      await started;
+      await expect(journal.begin(31)).rejects.toThrow(
+        "TELEGRAM_INBOUND_JOURNAL_CLOSING",
+      );
+      expect(JSON.parse(await fs.readFile(filename, "utf8"))).toMatchObject({
+        nextOffset: 31,
+        inFlightUpdateId: null,
+      });
+    } finally {
+      release();
+      await closing;
+    }
+    const restarted = new FileTelegramInboundJournal(filename);
+    expect(await restarted.open()).toBe(31);
+    await restarted.close();
+  });
+
   it("does not release an opening journal lock while its initial record is pending", async () => {
     const { filename } = await fixture(12);
     const journal = new FileTelegramInboundJournal(filename);
