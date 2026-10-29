@@ -145,6 +145,67 @@ describe("bounded Russian monitoring explanations", () => {
     },
   );
 
+  it.each(["SCHEDULED", "FORCED"] as const)(
+    "does not invent a persisted report or delivery for an unverified commit in %s",
+    (source) => {
+      const input = notification(
+        "API_WATCH_REPORT_COMMIT_UNKNOWN",
+        "FAILED",
+        "SWAGGER_API",
+      );
+      input.source = source;
+      input.result.summary =
+        "PRIVATE_UPSTREAM_REPORT_MAY_BE_SAVED_PRIVATE_TELEGRAM_PAYLOAD";
+      const text = explainMonitoringResult(input);
+      expect(text).toContain("Не удалось подтвердить");
+      expect(text).toContain("отчёт");
+      expect(text).toContain("могли");
+      expect(text).toContain("повтор");
+      expect(text).toContain("доставка уведомления");
+      expect(text).not.toContain("Отчёт проверки документов API сохранён");
+      expect(text).not.toContain("PRIVATE_UPSTREAM");
+      expect(text).not.toContain("Проверка завершилась");
+    },
+  );
+
+  it("does not trust contradictory coverage on an unverified report commit", () => {
+    const input = notification(
+      "API_WATCH_REPORT_COMMIT_UNKNOWN",
+      "FAILED",
+      "SWAGGER_API",
+    );
+    input.result.coverage = {
+      observedAt: "2026-10-29T02:10:00.000Z",
+      checkDepth: "API_DOCUMENT_COMPARISON",
+      testedTargets: ["OZON_SELLER", "WILDBERRIES"],
+      unverifiedTargets: [],
+      comparisonState: "COMPLETED",
+      changeSeverity: "NO_POLICY_IMPACT",
+    };
+    const text = explainMonitoringResult(input);
+    expect(text).not.toContain("Время наблюдения:");
+    expect(text).not.toContain("Проверено:");
+    expect(text).not.toContain("Сравнение документов API выполнено");
+    expect(text).not.toContain("изменений, влияющих");
+    expect(text).not.toContain("Отчёт проверки документов API сохранён");
+    expect(text).toContain("не подтверждены");
+  });
+
+  it.each([
+    ["LLM", "FAILED"],
+    ["SWAGGER_API", "SUCCEEDED"],
+  ] as const)(
+    "does not classify unverified report commit as known under %s/%s",
+    (lane, status) => {
+      const text = explainMonitoringResult(
+        notification("API_WATCH_REPORT_COMMIT_UNKNOWN", status, lane),
+      );
+      expect(text).toContain("недостаточно сведений");
+      expect(text).not.toContain("Отчёт проверки документов API сохранён");
+      expect(text).not.toContain("Сравнение документов API выполнено");
+    },
+  );
+
   it.each([
     ["LLM", "FAILED"],
     ["SWAGGER_API", "SUCCEEDED"],
