@@ -304,7 +304,11 @@ function postcommitUnknownResult(
 ): MonitoringRunResult {
   return {
     status: "FAILED",
-    code: "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN",
+    // Telegram maps the older postcommit code to "report was saved".
+    // Use a different code when the terminal commit itself is unverified.
+    code: options.confirmedReport
+      ? "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN"
+      : "API_WATCH_REPORT_COMMIT_UNKNOWN",
     summary: options.confirmedReport
       ? "API-watch report was saved, but a later monitoring step failed; its outcome is unknown."
       : "API-watch report completion or later monitoring actions could not be confirmed; their outcome is unknown.",

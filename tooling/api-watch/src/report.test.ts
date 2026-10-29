@@ -3,7 +3,10 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { InMemorySwaggerSourceStore } from "@product/monitoring-control";
+import {
+  InMemorySwaggerSourceStore,
+  safeMonitoringResult,
+} from "@product/monitoring-control";
 import {
   createInMemoryApiWatchState,
   InMemoryApiWatchStore,
@@ -331,7 +334,10 @@ describe("A6 API-watch report lifecycle", () => {
         expect(durable?.state).toBe("BLOCKED");
         expect(notifier).not.toHaveBeenCalled();
         expect(result.status).toBe("FAILED");
-        expect(result.code).toBe("API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN");
+        expect(result.code).toBe("API_WATCH_REPORT_COMMIT_UNKNOWN");
+        expect(safeMonitoringResult(result).code).toBe(
+          "API_WATCH_REPORT_COMMIT_UNKNOWN",
+        );
         expect(result.summary).toContain("could not be confirmed");
         expect(result.summary).not.toContain(
           "SYNTHETIC_REPORT_GET_PRIVATE_CAUSE",
@@ -366,8 +372,11 @@ describe("A6 API-watch report lifecycle", () => {
       ).toBe("RUNNING");
       expect(result).toMatchObject({
         status: "FAILED",
-        code: "API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN",
+        code: "API_WATCH_REPORT_COMMIT_UNKNOWN",
       });
+      expect(safeMonitoringResult(result).code).toBe(
+        "API_WATCH_REPORT_COMMIT_UNKNOWN",
+      );
       expect(result.summary).toContain("could not be confirmed");
       expect(result.summary).not.toContain(
         "SYNTHETIC_TERMINAL_TRANSITION_UNCONFIRMED",
