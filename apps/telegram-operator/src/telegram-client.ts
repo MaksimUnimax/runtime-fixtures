@@ -210,7 +210,10 @@ export function createTelegramTransport(
         "https://api.telegram.org/file/bot" + token + "/" + file.file_path,
         { signal: AbortSignal.timeout(60_000) },
       );
-      if (!response.ok) throw new Error("TELEGRAM_FILE_DOWNLOAD_FAILED");
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
+        throw new Error("TELEGRAM_FILE_DOWNLOAD_FAILED");
+      }
       const declared = response.headers.get("content-length");
       if (declared !== null) {
         const length = Number(declared);

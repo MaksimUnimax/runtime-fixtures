@@ -259,6 +259,37 @@ describe("TG4 binary size enforcement at HTTP and handoff boundaries", () => {
     result: { file_path: "synthetic-file-path" },
   });
 
+  it("cancels the unsuccessful binary HTTP response instead of leaving a stream open", async () => {
+    const calls: string[] = [];
+    let pulls = 0;
+    let cancels = 0;
+    const rejectedBody = new ReadableStream<Uint8Array>(
+      {
+        pull() {
+          pulls++;
+        },
+        cancel() {
+          cancels++;
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const fetcher = (async (url) => {
+      const method = String(url).split("/").at(-1) ?? "";
+      calls.push(method);
+      return method === "getFile"
+        ? new Response(metadata)
+        : new Response(rejectedBody, { status: 404 });
+    }) as typeof fetch;
+    const transport = createTelegramTransport("synthetic-no-network", fetcher);
+    await expect(
+      transport.downloadFile?.("synthetic-file-id", 3),
+    ).rejects.toThrow("TELEGRAM_FILE_DOWNLOAD_FAILED");
+    await vi.waitFor(() => expect(cancels).toBe(1));
+    expect(pulls).toBe(0);
+    expect(calls).toEqual(["getFile", "synthetic-file-path"]);
+  });
+
   it("rejects oversized binary content even if no length header is present", async () => {
     const calls: string[] = [];
     const fetcher = (async (url) => {
