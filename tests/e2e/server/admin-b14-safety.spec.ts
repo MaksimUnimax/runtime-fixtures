@@ -1707,6 +1707,7 @@ async function syntheticAccountPaginationApi(
   const base = await syntheticApi(page);
   const writes: Write[] = [];
   const reads: { path: string; cursor: string | null }[] = [];
+  const authorityReads: { path: string; kind: "definition" | "history" }[] = [];
   const write = responseGate();
   const reload = responseGate();
   const listPath = accountPath(
@@ -1757,8 +1758,57 @@ async function syntheticAccountPaginationApi(
       });
       return;
     }
+    if (
+      kind === "overrides" &&
+      method === "GET" &&
+      path === "/v1/admin/commercial/entitlements/definitions"
+    ) {
+      const query = new URL(request.url()).searchParams;
+      expect(query.get("entitlementKey")).toBe(paginationEntitlementKey);
+      expect(query.get("limit")).toBe("100");
+      authorityReads.push({ path, kind: "definition" });
+      const result: AdminCommercialPage<EntitlementDefinition> = {
+        items: [
+          {
+            entitlementKey: paginationEntitlementKey,
+            valueType: "BOOLEAN",
+            securityClassification: "CAPABILITY",
+            description: "Synthetic pagination capability definition",
+            deprecatedAt: null,
+            createdAt: new Date(createdAt),
+          },
+        ],
+      };
+      await route.fulfill({ json: result });
+      return;
+    }
     if (method === "GET" && path === listPath) {
-      const cursor = new URL(request.url()).searchParams.get("cursor");
+      const query = new URL(request.url()).searchParams;
+      const cursor = query.get("cursor");
+      if (kind === "overrides" && query.get("limit") === "100") {
+        expect(query.get("entitlementKey")).toBe(paginationEntitlementKey);
+        expect(cursor).toBeNull();
+        authorityReads.push({ path, kind: "history" });
+        const row = currentOverride();
+        const result: AdminCommercialPage<
+          Omit<AccountEntitlementOverride, "reason">
+        > = {
+          items: [
+            row,
+            {
+              ...row,
+              id: paginationOlderOverrideId,
+              revision: 6,
+              operation: "SET",
+              value: { kind: "BOOLEAN", value: false },
+            },
+          ],
+        };
+        // The separate authority query sees the complete accepted history;
+        // visible limit=50 pagination keeps its original independent probes.
+        await route.fulfill({ json: result });
+        return;
+      }
       reads.push({ path, cursor });
       const held = committed && !reloadHeld;
       if (held) {
@@ -1792,7 +1842,7 @@ async function syntheticAccountPaginationApi(
                   },
                 ],
               }
-            : { items: [row], nextCursor: paginationOlderOverrideId };
+            : { items: [row], nextCursor: paginationOverrideId };
           await route.fulfill({ json: result });
         }
       } finally {
@@ -1902,7 +1952,16 @@ async function syntheticAccountPaginationApi(
     }
     await route.fallback();
   });
-  return { base, writes, reads, write, reload, listPath, effectivePath };
+  return {
+    base,
+    writes,
+    reads,
+    authorityReads,
+    write,
+    reload,
+    listPath,
+    effectivePath,
+  };
 }
 
 test("B14 shared synthetic pending device Revoke locks device Next through its authoritative reload", async ({
@@ -2000,6 +2059,13 @@ for (const operation of ["SET", "CLEAR"] as const) {
           row.getByRole("cell", { name: "7", exact: true }),
         ).toBeVisible();
         await expect(effective).toContainText('"overrideRevision":7');
+        await expect(
+          section.getByRole("combobox", {
+            name: "Override value",
+            exact: true,
+          }),
+        ).toBeVisible();
+        const authorityReadsBefore = api.authorityReads.length;
         const readsBefore = api.reads.filter(
           (read) => read.path === api.listPath,
         ).length;
@@ -2066,6 +2132,13 @@ for (const operation of ["SET", "CLEAR"] as const) {
             '"',
         );
         await expect(next).toBeEnabled();
+        expect(api.authorityReads).toHaveLength(authorityReadsBefore + 2);
+        expect(
+          api.authorityReads
+            .slice(authorityReadsBefore)
+            .map((read) => read.kind)
+            .sort(),
+        ).toEqual(["definition", "history"]);
         expect(
           api.reads.filter((read) => read.path === api.listPath),
         ).toHaveLength(readsBefore + 1);
@@ -2078,7 +2151,7 @@ for (const operation of ["SET", "CLEAR"] as const) {
         ).toBeVisible();
         expect(api.reads.at(-1)).toEqual({
           path: api.listPath,
-          cursor: paginationOlderOverrideId,
+          cursor: paginationOverrideId,
         });
         expect(api.writes).toHaveLength(1);
         expect(api.base.unexpected).toEqual([]);

@@ -8,7 +8,12 @@ process.env.E2E_ADMIN_PORT = adminPort;
 
 export default defineConfig({
   testDir: ".",
-  testMatch: ["admin-principal-roles.spec.ts", "admin-b14-safety.spec.ts"],
+  testMatch: [
+    "admin-principal-roles.spec.ts",
+    "admin-b14-safety.spec.ts",
+    "admin-b14-operations.spec.ts",
+    "admin-b14-login.spec.ts",
+  ],
   workers: 1,
   retries: 0,
   timeout: 30_000,

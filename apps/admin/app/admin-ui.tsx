@@ -18,6 +18,11 @@ import {
   AdminPrincipalRole,
   isAdminPrincipalRole,
 } from "../lib/admin-principal-roles";
+import {
+  loadOverrideAuthority,
+  overrideValue,
+  type OverrideAuthority,
+} from "../lib/b14-override-authority";
 
 type Me = {
   status: "authenticated";
@@ -464,6 +469,42 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setLocalNotice] = useState<Notice>(null);
   const [canContinue, setCanContinue] = useState(false);
+  const [sessionUnconfirmed, setSessionUnconfirmed] = useState(false);
+  const active = useRef(false);
+  const pending = useRef<{ authority: string } | null>(null);
+  const authority = JSON.stringify([
+    me?.principalId,
+    me?.expiresAt,
+    me?.permissions,
+    otpRequired,
+  ]);
+  const currentAuthority = useRef(authority);
+  currentAuthority.current = authority;
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+      pending.current = null;
+    };
+  }, []);
+  const begin = () => {
+    if (!active.current || pending.current || loading || me) return null;
+    const operation = { authority };
+    pending.current = operation;
+    setBusy(true);
+    setLocalNotice(null);
+    setNotice(null);
+    return operation;
+  };
+  const isCurrent = (operation: { authority: string }) =>
+    active.current &&
+    pending.current === operation &&
+    currentAuthority.current === operation.authority;
+  const finish = (operation: { authority: string }) => {
+    if (!active.current || pending.current !== operation) return;
+    pending.current = null;
+    setBusy(false);
+  };
   useEffect(() => {
     if (!loading && me) router.replace("/");
   }, [loading, me, router]);
@@ -475,30 +516,36 @@ export function LoginPage() {
           .some((part) => part.trim().startsWith("pcp_csrf=")),
     );
   }, [otpRequired]);
-  const fail = (error: unknown) => {
+  const fail = (error: unknown, operation: { authority: string }) => {
+    if (!isCurrent(operation)) return;
     const value = safeError(error);
     setLocalNotice({ kind: "error", text: value });
     setNotice({ kind: "error", text: value });
   };
   const currentSession = async () => {
-    setBusy(true);
+    const operation = begin();
+    if (!operation) return;
     try {
       await controlPlane("/v1/admin/session", { method: "POST" });
-      if (await refresh()) router.replace("/");
+      if (!isCurrent(operation)) return;
+      setSessionUnconfirmed(true);
+      if ((await refresh()) && isCurrent(operation)) router.replace("/");
     } catch (error) {
+      if (!isCurrent(operation)) return;
       if (
         error instanceof ControlPlaneError &&
         error.code === "ADMIN_REAUTH_REQUIRED"
       )
         setCanContinue(false);
-      fail(error);
+      fail(error, operation);
     } finally {
-      setBusy(false);
+      finish(operation);
     }
   };
   const requestOtp = async (event: FormEvent) => {
     event.preventDefault();
-    setBusy(true);
+    const operation = begin();
+    if (!operation) return;
     try {
       const value = await controlPlane<{ challengeId: string }>(
         "/v1/auth/otp/request",
@@ -508,33 +555,38 @@ export function LoginPage() {
           body: JSON.stringify({ email }),
         },
       );
+      if (!isCurrent(operation)) return;
       setChallengeId(value.challengeId);
       setLocalNotice({
         kind: "info",
         text: "Enter the one-time code sent to your email.",
       });
     } catch (error) {
-      fail(error);
+      fail(error, operation);
     } finally {
-      setBusy(false);
+      finish(operation);
     }
   };
   const verifyOtp = async (event: FormEvent) => {
     event.preventDefault();
     if (!challengeId) return;
-    setBusy(true);
+    const operation = begin();
+    if (!operation) return;
     try {
       await controlPlane("/v1/auth/otp/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ challengeId, code }),
       });
+      if (!isCurrent(operation)) return;
       await controlPlane("/v1/admin/session", { method: "POST" });
-      if (await refresh()) router.replace("/");
+      if (!isCurrent(operation)) return;
+      setSessionUnconfirmed(true);
+      if ((await refresh()) && isCurrent(operation)) router.replace("/");
     } catch (error) {
-      fail(error);
+      fail(error, operation);
     } finally {
-      setBusy(false);
+      finish(operation);
     }
   };
   if (loading || me)
@@ -555,7 +607,18 @@ export function LoginPage() {
           automatically.
         </p>
         <PageMessage notice={notice} />
-        {!challengeId ? (
+        {sessionUnconfirmed ? (
+          <div>
+            <p role="status">
+              {busy
+                ? "Checking the elevated admin session…"
+                : "The elevation request succeeded, but the admin session could not be confirmed. Check the session again before continuing."}
+            </p>
+            <button disabled={busy} onClick={() => window.location.reload()}>
+              Check admin session
+            </button>
+          </div>
+        ) : !challengeId ? (
           <form onSubmit={requestOtp}>
             <label>
               Email
@@ -563,6 +626,7 @@ export function LoginPage() {
                 required
                 type="email"
                 value={email}
+                disabled={busy}
                 onChange={(event) => setEmail(event.target.value)}
                 autoComplete="email"
               />
@@ -591,6 +655,7 @@ export function LoginPage() {
                 required
                 inputMode="numeric"
                 value={code}
+                disabled={busy}
                 onChange={(event) => setCode(event.target.value)}
                 autoComplete="one-time-code"
               />
@@ -602,7 +667,9 @@ export function LoginPage() {
               <button
                 type="button"
                 className="secondary"
+                disabled={busy}
                 onClick={() => {
+                  if (pending.current) return;
                   setChallengeId(null);
                   setCode("");
                 }}
@@ -617,7 +684,13 @@ export function LoginPage() {
   );
 }
 
-export function useData<T>(path: string | null) {
+export function useData<T>(
+  path: string | null,
+  read: (
+    path: string,
+    init: { signal: AbortSignal },
+  ) => Promise<T> = controlPlane,
+) {
   const { me, refresh, setNotice } = useAdmin();
   const authority = JSON.stringify([
     me?.principalId,
@@ -632,7 +705,7 @@ export function useData<T>(path: string | null) {
       generation: 0,
       controller: null as AbortController | null,
     }),
-    [path, authority],
+    [path, authority, read],
   );
   const [state, setState] = useState<{
     scope: typeof scope | null;
@@ -657,7 +730,7 @@ export function useData<T>(path: string | null) {
       !controller.signal.aborted;
     setState({ scope, data: null, busy: true, error: null });
     try {
-      const data = await controlPlane<T>(path, { signal: controller.signal });
+      const data = await read(path, { signal: controller.signal });
       if (isCurrent()) setState({ scope, data, busy: true, error: null });
     } catch (value) {
       if (!isCurrent()) return;
@@ -1429,6 +1502,7 @@ function AccountWorkspace() {
   const [planRevisionId, setPlanRevisionId] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [entitlementKey, setEntitlementKey] = useState("");
+  const [overrideDraft, setOverrideDraft] = useState({ key: "", value: "" });
   const [mutationBusy, setMutationBusy] = useState(false);
   const [overrideEffectiveFrom, setOverrideEffectiveFrom] = useState(() =>
     new Date().toISOString(),
@@ -1438,17 +1512,29 @@ function AccountWorkspace() {
       ? `/v1/admin/accounts/${accountId}/entitlements/${entitlementKey}`
       : null,
   );
-  const latestOverrideRevision = useMemo(() => {
-    const items = overrides.data?.items;
-    if (!items?.length || !entitlementKey) return undefined;
-    const revisions = items
-      .filter((item) => String(item.entitlementKey) === entitlementKey)
-      .map((item) => Number(item.revision))
-      .filter((value) => Number.isSafeInteger(value) && value > 0);
-    return revisions.length ? Math.max(...revisions) : undefined;
-  }, [entitlementKey, overrides.data]);
+  const overrideAuthority = useData<OverrideAuthority>(
+    has(me, "entitlement.read") && entitlementKey
+      ? `/v1/admin/accounts/${accountId}/entitlement-overrides?limit=100&entitlementKey=${encodeURIComponent(entitlementKey)}`
+      : null,
+    loadOverrideAuthority,
+  );
+  const latestOverrideRevision = overrideAuthority.data?.latestRevision;
+  const overrideInput =
+    overrideDraft.key === entitlementKey
+      ? overrideDraft.value
+      : overrideAuthority.data?.valueType === "BOOLEAN"
+        ? "true"
+        : "";
+  const selectedOverrideValue = overrideValue(
+    overrideAuthority.data?.valueType,
+    overrideInput,
+  );
   const reloadOverrides = async () => {
-    await Promise.all([overrides.load(), effective.load()]);
+    await Promise.all([
+      overrides.load(),
+      effective.load(),
+      overrideAuthority.load(),
+    ]);
     setOverrideEffectiveFrom(new Date().toISOString());
   };
   const reloadAll = async () => {
@@ -1458,6 +1544,8 @@ function AccountWorkspace() {
       payments.load(),
       events.load(),
       overrides.load(),
+      overrideAuthority.load(),
+      effective.load(),
     ]);
   };
   return (
@@ -1584,9 +1672,9 @@ function AccountWorkspace() {
                 />
               </div>
             </>
-          ) : (
+          ) : subscription.data?.subscription === null ? (
             <p>No current subscription.</p>
-          )}
+          ) : null}
         </section>
       )}
       {has(me, "device.read") && (
@@ -1739,6 +1827,49 @@ function AccountWorkspace() {
           )}
           {entitlementKey && (
             <>
+              <LoadState
+                busy={overrideAuthority.busy}
+                error={overrideAuthority.error}
+              />
+              {overrideAuthority.data && (
+                <label>
+                  Override value
+                  {overrideAuthority.data.valueType === "BOOLEAN" ? (
+                    <select
+                      value={overrideInput}
+                      disabled={mutationBusy || overrideAuthority.busy}
+                      onChange={(event) =>
+                        setOverrideDraft({
+                          key: entitlementKey,
+                          value: event.target.value,
+                        })
+                      }
+                    >
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="number"
+                      step="1"
+                      value={overrideInput}
+                      disabled={mutationBusy || overrideAuthority.busy}
+                      onChange={(event) =>
+                        setOverrideDraft({
+                          key: entitlementKey,
+                          value: event.target.value,
+                        })
+                      }
+                    />
+                  )}
+                </label>
+              )}
+              {overrideAuthority.data?.deprecated && (
+                <p role="status">
+                  This entitlement is deprecated. An existing override can be
+                  cleared, but a new value cannot be set.
+                </p>
+              )}
               <LoadState busy={effective.busy} error={effective.error} />
               {effective.data && (
                 <p role="status">
@@ -1754,12 +1885,18 @@ function AccountWorkspace() {
               path={`/v1/admin/accounts/${accountId}/entitlement-overrides/${entitlementKey}/set`}
               body={{
                 expectedLatestRevision: latestOverrideRevision,
-                value: { kind: "BOOLEAN", value: true },
+                value: selectedOverrideValue,
                 effectiveFrom: overrideEffectiveFrom,
                 expiresAt: null,
               }}
-              confirm={`Set override ${entitlementKey || "(required)"} for account ${accountId}? The server will recalculate effective access.`}
-              disabled={mutationBusy}
+              confirm={`Set override ${entitlementKey || "(required)"} to ${selectedOverrideValue ? `${selectedOverrideValue.kind} ${String(selectedOverrideValue.value)}` : "(value required)"} for account ${accountId}? The server will recalculate effective access.`}
+              disabled={
+                mutationBusy ||
+                overrideAuthority.busy ||
+                latestOverrideRevision === undefined ||
+                !selectedOverrideValue ||
+                overrideAuthority.data?.deprecated
+              }
               onBusyChange={setMutationBusy}
               reviewScope={accountId}
               onDone={reloadOverrides}
@@ -1776,7 +1913,11 @@ function AccountWorkspace() {
                 expiresAt: null,
               }}
               confirm={`Clear override ${entitlementKey} for account ${accountId}? The server will recalculate effective access.`}
-              disabled={mutationBusy}
+              disabled={
+                mutationBusy ||
+                overrideAuthority.busy ||
+                latestOverrideRevision === undefined
+              }
               onBusyChange={setMutationBusy}
               reviewScope={accountId}
               onDone={reloadOverrides}
@@ -2792,6 +2933,38 @@ function Dashboard() {
 }
 
 function BetaAdmissionPage() {
+  const { me } = useAdmin();
+  const authority = JSON.stringify([
+    me?.principalId,
+    me?.expiresAt,
+    me?.permissions,
+  ]);
+  const currentAuthority = useRef(authority);
+  currentAuthority.current = authority;
+  if (!has(me, "beta.admission.read"))
+    return (
+      <Shell title="Beta admission">
+        <p role="status">You do not have access to beta admission.</p>
+      </Shell>
+    );
+  // Drop private drafts and reviews when the actual admin authority changes.
+  // The shared ref also fences a completed old request before effect cleanup.
+  return (
+    <BetaAdmissionWorkspace
+      key={authority}
+      authority={authority}
+      currentAuthority={currentAuthority}
+    />
+  );
+}
+
+function BetaAdmissionWorkspace({
+  authority,
+  currentAuthority,
+}: {
+  authority: string;
+  currentAuthority: { current: string };
+}) {
   const { me, setNotice, refresh } = useAdmin();
   const state = useData<BetaState>(
     has(me, "beta.admission.read") ? "/v1/admin/beta/admission" : null,
@@ -2801,9 +2974,29 @@ function BetaAdmissionPage() {
   >("OPEN");
   const [amount, setAmount] = useState("100");
   const [reason, setReason] = useState("");
-  const [review, setReview] = useState(false);
+  const [review, setReview] = useState<{
+    fingerprint: string;
+    body: {
+      requestId: string;
+      expectedRevision: number;
+      action: typeof action;
+      amount?: number;
+      capacity?: number;
+      reason: string;
+    };
+  } | null>(null);
   const [busy, setBusy] = useState(false);
-  const requestId = useRef<string | undefined>(undefined);
+  const quotaRequest = useRef<ReviewedRequest | undefined>(undefined);
+  const pending = useRef(false);
+  const active = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  const isCurrent = () =>
+    active.current && currentAuthority.current === authority;
 
   const [lookupId, setLookupId] = useState("");
   const [invitation, setInvitation] = useState<BetaInvitation | null>(null);
@@ -2825,6 +3018,8 @@ function BetaAdmissionPage() {
   const revokeRequest = useRef<ReviewedRequest | undefined>(undefined);
 
   const current = state.data;
+  const mutationBusy = busy || inviteBusy || revokeBusy;
+  const editingDisabled = mutationBusy || state.busy;
   if (!has(me, "beta.admission.read")) return null;
 
   const staleOrConflict = (error: unknown) =>
@@ -2839,42 +3034,75 @@ function BetaAdmissionPage() {
         "ADMIN_CSRF_INVALID",
         "ADMIN_FORBIDDEN",
       ].includes(error.code)
-    )
+    ) {
+      if (!isCurrent()) return true;
+      setReview(null);
+      setInviteReviewBody(null);
+      setRevokeReviewBody(null);
+      quotaRequest.current = undefined;
+      inviteRequest.current = undefined;
+      revokeRequest.current = undefined;
+      setNotice({ kind: "error", text: safeError(error) });
       await refresh();
+      return true;
+    }
+    return false;
   };
 
   const loadInvitation = async (value = lookupId) => {
     const invitationId = value.trim();
-    if (!invitationId) return null;
+    if (!isCurrent() || !invitationId) return null;
     const generation = ++lookupGeneration.current;
     setLookupBusy(true);
     try {
       const next = await controlPlane<BetaInvitation>(
         `/v1/admin/beta/invitations/${encodeURIComponent(invitationId)}`,
       );
-      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+      if (
+        !isCurrent() ||
+        !lookupResultIsCurrent(generation, lookupGeneration.current)
+      )
         return null;
       setInvitation(next);
       setLookupId(next.invitationId);
       return next;
     } catch (error) {
-      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+      if (
+        !isCurrent() ||
+        !lookupResultIsCurrent(generation, lookupGeneration.current)
+      )
         return null;
       setInvitation(null);
-      await refreshAdminOnAuthorityError(error);
-      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+      if (await refreshAdminOnAuthorityError(error)) return null;
+      if (
+        !isCurrent() ||
+        !lookupResultIsCurrent(generation, lookupGeneration.current)
+      )
         return null;
       setNotice({ kind: "error", text: safeError(error) });
       return null;
     } finally {
-      if (lookupResultIsCurrent(generation, lookupGeneration.current))
+      if (
+        isCurrent() &&
+        lookupResultIsCurrent(generation, lookupGeneration.current)
+      )
         setLookupBusy(false);
     }
   };
 
   const beginInviteReview = () => {
     const normalizedEmail = normalizeBetaInvitationEmail(inviteEmail);
-    if (!current || !normalizedEmail || !inviteReason.trim()) return;
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      !current ||
+      state.busy ||
+      lookupBusy ||
+      !normalizedEmail ||
+      !inviteReason.trim()
+    )
+      return;
     const fingerprint = JSON.stringify([
       current.revision,
       normalizedEmail,
@@ -2895,7 +3123,20 @@ function BetaAdmissionPage() {
   };
 
   const submitInvitation = async () => {
-    if (!inviteReviewBody) return;
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      !inviteReviewBody ||
+      !current ||
+      state.busy ||
+      lookupBusy ||
+      inviteReviewBody.expectedRevision !== current.revision ||
+      inviteReviewBody.email !== normalizeBetaInvitationEmail(inviteEmail) ||
+      inviteReviewBody.reason !== inviteReason.trim()
+    )
+      return;
+    pending.current = true;
     const selectionGeneration = lookupGeneration.current;
     setInviteBusy(true);
     try {
@@ -2907,6 +3148,7 @@ function BetaAdmissionPage() {
           body: JSON.stringify(inviteReviewBody),
         },
       );
+      if (!isCurrent()) return;
       inviteRequest.current = undefined;
       setInviteReviewBody(null);
       setInviteEmail("");
@@ -2927,25 +3169,36 @@ function BetaAdmissionPage() {
       });
       await state.load();
     } catch (error) {
+      if (!isCurrent()) return;
       if (staleOrConflict(error)) {
         inviteRequest.current = undefined;
         setInviteReviewBody(null);
-        await state.load();
         setNotice({
           kind: "info",
-          text: "The invitation was not automatically retried. Current beta state was refreshed; review a new invitation before submitting.",
+          text: "The invitation was not automatically retried. Review current server data before submitting a new invitation.",
         });
+        await state.load();
       } else {
-        await refreshAdminOnAuthorityError(error);
-        setNotice({ kind: "error", text: safeError(error) });
+        if (await refreshAdminOnAuthorityError(error)) return;
+        if (isCurrent()) setNotice({ kind: "error", text: safeError(error) });
       }
     } finally {
-      setInviteBusy(false);
+      pending.current = false;
+      if (isCurrent()) setInviteBusy(false);
     }
   };
 
   const beginRevokeReview = () => {
-    if (!invitation || invitation.status !== "PENDING" || !revokeReason.trim())
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      state.busy ||
+      lookupBusy ||
+      !invitation ||
+      invitation.status !== "PENDING" ||
+      !revokeReason.trim()
+    )
       return;
     const fingerprint = JSON.stringify([
       invitation.invitationId,
@@ -2965,7 +3218,19 @@ function BetaAdmissionPage() {
   };
 
   const submitRevoke = async () => {
-    if (!revokeReviewBody) return;
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      state.busy ||
+      lookupBusy ||
+      !revokeReviewBody ||
+      revokeReviewBody.invitationId !== invitation?.invitationId ||
+      invitation.status !== "PENDING" ||
+      revokeReviewBody.body.reason !== revokeReason.trim()
+    )
+      return;
+    pending.current = true;
     const selectionGeneration = lookupGeneration.current;
     setRevokeBusy(true);
     try {
@@ -2977,6 +3242,7 @@ function BetaAdmissionPage() {
           body: JSON.stringify(revokeReviewBody.body),
         },
       );
+      if (!isCurrent()) return;
       revokeRequest.current = undefined;
       setRevokeReviewBody(null);
       setRevokeReason("");
@@ -2995,27 +3261,29 @@ function BetaAdmissionPage() {
       });
       await state.load();
     } catch (error) {
+      if (!isCurrent()) return;
       if (staleOrConflict(error)) {
         const invitationId = revokeReviewBody.invitationId;
         revokeRequest.current = undefined;
         setRevokeReviewBody(null);
+        setNotice({
+          kind: "info",
+          text: "The revoke was not automatically retried. Review current server data before submitting a new revoke.",
+        });
         await state.load();
         if (
+          !isCurrent() ||
           !lookupResultIsCurrent(selectionGeneration, lookupGeneration.current)
         )
           return;
-        const refreshed = await loadInvitation(invitationId);
-        if (refreshed)
-          setNotice({
-            kind: "info",
-            text: "The revoke was not automatically retried. Current invitation state was refreshed; review a new revoke if it is still applicable.",
-          });
+        await loadInvitation(invitationId);
       } else {
-        await refreshAdminOnAuthorityError(error);
-        setNotice({ kind: "error", text: safeError(error) });
+        if (await refreshAdminOnAuthorityError(error)) return;
+        if (isCurrent()) setNotice({ kind: "error", text: safeError(error) });
       }
     } finally {
-      setRevokeBusy(false);
+      pending.current = false;
+      if (isCurrent()) setRevokeBusy(false);
     }
   };
 
@@ -3032,53 +3300,97 @@ function BetaAdmissionPage() {
       ? `capacity ${capacity} → ${nextCapacity} (+${parsedAmount})`
       : action === "SET_CAPACITY"
         ? `capacity ${capacity} → ${nextCapacity}`
-        : `mode ${current?.mode ?? "—"} → ${action}`;
+        : `mode ${current?.mode ?? "—"} → ${action === "PAUSE" ? "PAUSED" : action === "CLOSE" ? "CLOSED" : "OPEN"}`;
+  const validQuota =
+    Boolean(current && reason.trim()) &&
+    (action !== "ADD_CAPACITY" ||
+      (amount.trim() !== "" &&
+        Number.isSafeInteger(parsedAmount) &&
+        parsedAmount >= 1 &&
+        Number.isSafeInteger(nextCapacity))) &&
+    (action !== "SET_CAPACITY" ||
+      (amount.trim() !== "" &&
+        Number.isSafeInteger(parsedAmount) &&
+        parsedAmount >= 0));
+  const quotaFingerprint = JSON.stringify([
+    current?.revision,
+    action,
+    action === "ADD_CAPACITY" || action === "SET_CAPACITY"
+      ? parsedAmount
+      : null,
+    reason.trim(),
+  ]);
+  const currentReview =
+    review?.fingerprint === quotaFingerprint && validQuota ? review : null;
+  const beginQuotaReview = () => {
+    if (
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      !current ||
+      state.busy ||
+      lookupBusy ||
+      !validQuota
+    )
+      return;
+    quotaRequest.current = ensureReviewedRequest(
+      quotaRequest.current,
+      quotaFingerprint,
+    );
+    setReview({
+      fingerprint: quotaFingerprint,
+      body: {
+        requestId: quotaRequest.current.requestId,
+        expectedRevision: current.revision,
+        action,
+        ...(action === "ADD_CAPACITY" ? { amount: parsedAmount } : {}),
+        ...(action === "SET_CAPACITY" ? { capacity: parsedAmount } : {}),
+        reason: reason.trim(),
+      },
+    });
+  };
 
   const submit = async () => {
     if (
-      !current ||
-      !reason.trim() ||
-      (action === "ADD_CAPACITY" &&
-        (!Number.isSafeInteger(parsedAmount) || parsedAmount < 1)) ||
-      (action === "SET_CAPACITY" &&
-        (!Number.isSafeInteger(parsedAmount) || parsedAmount < 0))
+      pending.current ||
+      !isCurrent() ||
+      !has(me, "beta.admission.manage") ||
+      state.busy ||
+      lookupBusy ||
+      !currentReview
     )
       return;
+    pending.current = true;
     setBusy(true);
-    requestId.current ??= crypto.randomUUID();
     try {
       await controlPlane("/v1/admin/beta/admission", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          requestId: requestId.current,
-          expectedRevision: current.revision,
-          action,
-          ...(action === "ADD_CAPACITY" ? { amount: parsedAmount } : {}),
-          ...(action === "SET_CAPACITY" ? { capacity: parsedAmount } : {}),
-          reason: reason.trim(),
-        }),
+        body: JSON.stringify(currentReview.body),
       });
-      requestId.current = undefined;
-      setReview(false);
+      if (!isCurrent()) return;
+      quotaRequest.current = undefined;
+      setReview(null);
       setReason("");
       setNotice({ kind: "success", text: "Beta admission updated." });
       await state.load();
     } catch (error) {
-      if (
-        error instanceof ControlPlaneError &&
-        error.code === "ADMIN_STATE_STALE"
-      ) {
-        requestId.current = undefined;
-        setReview(false);
-        await state.load();
+      if (!isCurrent()) return;
+      if (staleOrConflict(error)) {
+        quotaRequest.current = undefined;
+        setReview(null);
         setNotice({
           kind: "info",
-          text: "The beta state changed. Review the refreshed state before submitting again.",
+          text: "The beta change was not automatically repeated. Review current server data before submitting a new operation.",
         });
-      } else setNotice({ kind: "error", text: safeError(error) });
+        await state.load();
+      } else {
+        if (await refreshAdminOnAuthorityError(error)) return;
+        if (isCurrent()) setNotice({ kind: "error", text: safeError(error) });
+      }
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (isCurrent()) setBusy(false);
     }
   };
 
@@ -3115,7 +3427,11 @@ function BetaAdmissionPage() {
                   Action
                   <select
                     value={action}
-                    onChange={(e) => setAction(e.target.value as typeof action)}
+                    disabled={editingDisabled}
+                    onChange={(e) => {
+                      setAction(e.target.value as typeof action);
+                      setReview(null);
+                    }}
                   >
                     <option>OPEN</option>
                     <option>PAUSE</option>
@@ -3131,7 +3447,11 @@ function BetaAdmissionPage() {
                       type="number"
                       min={action === "ADD_CAPACITY" ? 1 : 0}
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      disabled={editingDisabled}
+                      onChange={(e) => {
+                        setAmount(e.target.value);
+                        setReview(null);
+                      }}
                     />
                   </label>
                 )}
@@ -3141,18 +3461,22 @@ function BetaAdmissionPage() {
                 <textarea
                   value={reason}
                   maxLength={256}
-                  onChange={(e) => setReason(e.target.value)}
+                  disabled={editingDisabled}
+                  onChange={(e) => {
+                    setReason(e.target.value);
+                    setReview(null);
+                  }}
                   required
                 />
               </label>
               <button
                 type="button"
-                disabled={!reason.trim() || busy}
-                onClick={() => setReview(true)}
+                disabled={editingDisabled || lookupBusy || !validQuota}
+                onClick={beginQuotaReview}
               >
                 Review change
               </button>
-              {review && (
+              {currentReview && (
                 <div
                   className="confirm"
                   role="dialog"
@@ -3162,11 +3486,11 @@ function BetaAdmissionPage() {
                     <strong>Exact change</strong>
                   </p>
                   <p>{change}</p>
-                  <p>Reason: {reason || "(required)"}</p>
+                  <p>Reason: {currentReview.body.reason}</p>
                   <div className="actions">
                     <button
                       type="button"
-                      disabled={busy || !reason.trim()}
+                      disabled={editingDisabled || lookupBusy || !validQuota}
                       onClick={() => void submit()}
                     >
                       Confirm
@@ -3174,7 +3498,8 @@ function BetaAdmissionPage() {
                     <button
                       type="button"
                       className="secondary"
-                      onClick={() => setReview(false)}
+                      disabled={editingDisabled}
+                      onClick={() => setReview(null)}
                     >
                       Cancel
                     </button>
@@ -3195,6 +3520,7 @@ function BetaAdmissionPage() {
               Invitation ID
               <input
                 value={lookupId}
+                disabled={editingDisabled}
                 onChange={(event) => {
                   lookupGeneration.current += 1;
                   setLookupBusy(false);
@@ -3209,7 +3535,7 @@ function BetaAdmissionPage() {
               <button
                 type="button"
                 className="secondary"
-                disabled={lookupBusy || !lookupId.trim()}
+                disabled={editingDisabled || lookupBusy || !lookupId.trim()}
                 onClick={() => void loadInvitation()}
               >
                 {lookupBusy ? "Loading…" : "Inspect invitation"}
@@ -3251,6 +3577,7 @@ function BetaAdmissionPage() {
                 <input
                   type="email"
                   value={inviteEmail}
+                  disabled={editingDisabled}
                   onChange={(event) => {
                     setInviteEmail(event.target.value);
                     setInviteReviewBody(null);
@@ -3262,6 +3589,7 @@ function BetaAdmissionPage() {
                 Reason
                 <textarea
                   value={inviteReason}
+                  disabled={editingDisabled}
                   maxLength={512}
                   onChange={(event) => {
                     setInviteReason(event.target.value);
@@ -3272,7 +3600,8 @@ function BetaAdmissionPage() {
               <button
                 type="button"
                 disabled={
-                  inviteBusy ||
+                  editingDisabled ||
+                  lookupBusy ||
                   !inviteEmail.trim() ||
                   !inviteReason.trim() ||
                   !current
@@ -3281,37 +3610,38 @@ function BetaAdmissionPage() {
               >
                 Review invitation
               </button>
-              {inviteReviewBody && (
-                <div
-                  className="confirm"
-                  role="dialog"
-                  aria-label="Confirm targeted invitation"
-                >
-                  <p>
-                    <strong>Exact invitation</strong>
-                  </p>
-                  <p>Target: {inviteReviewBody.email}</p>
-                  <p>Beta revision: {inviteReviewBody.expectedRevision}</p>
-                  <p>Reason: {inviteReviewBody.reason}</p>
-                  <div className="actions">
-                    <button
-                      type="button"
-                      disabled={inviteBusy}
-                      onClick={() => void submitInvitation()}
-                    >
-                      {inviteBusy ? "Working…" : "Confirm invitation"}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={inviteBusy}
-                      onClick={() => setInviteReviewBody(null)}
-                    >
-                      Cancel
-                    </button>
+              {inviteReviewBody &&
+                inviteReviewBody.expectedRevision === current.revision && (
+                  <div
+                    className="confirm"
+                    role="dialog"
+                    aria-label="Confirm targeted invitation"
+                  >
+                    <p>
+                      <strong>Exact invitation</strong>
+                    </p>
+                    <p>Target: {inviteReviewBody.email}</p>
+                    <p>Beta revision: {inviteReviewBody.expectedRevision}</p>
+                    <p>Reason: {inviteReviewBody.reason}</p>
+                    <div className="actions">
+                      <button
+                        type="button"
+                        disabled={editingDisabled || lookupBusy}
+                        onClick={() => void submitInvitation()}
+                      >
+                        {inviteBusy ? "Working…" : "Confirm invitation"}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={editingDisabled}
+                        onClick={() => setInviteReviewBody(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </section>
           )}
 
@@ -3326,6 +3656,7 @@ function BetaAdmissionPage() {
                   Reason
                   <textarea
                     value={revokeReason}
+                    disabled={editingDisabled}
                     maxLength={512}
                     onChange={(event) => {
                       setRevokeReason(event.target.value);
@@ -3335,7 +3666,9 @@ function BetaAdmissionPage() {
                 </label>
                 <button
                   type="button"
-                  disabled={revokeBusy || !revokeReason.trim()}
+                  disabled={
+                    editingDisabled || lookupBusy || !revokeReason.trim()
+                  }
                   onClick={beginRevokeReview}
                 >
                   Review revoke
@@ -3354,7 +3687,7 @@ function BetaAdmissionPage() {
                     <div className="actions">
                       <button
                         type="button"
-                        disabled={revokeBusy}
+                        disabled={editingDisabled || lookupBusy}
                         onClick={() => void submitRevoke()}
                       >
                         {revokeBusy ? "Working…" : "Confirm revoke"}
@@ -3362,7 +3695,7 @@ function BetaAdmissionPage() {
                       <button
                         type="button"
                         className="secondary"
-                        disabled={revokeBusy}
+                        disabled={editingDisabled}
                         onClick={() => setRevokeReviewBody(null)}
                       >
                         Cancel
