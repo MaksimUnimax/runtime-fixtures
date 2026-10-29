@@ -55,7 +55,9 @@ describe("durable inbound Telegram dispatch fence (no network)", () => {
       inFlightUpdateId: 5,
     });
     await journal.complete(5);
-    await journal.advance(9);
+    // Only an actually begun and completed update may advance the cursor.
+    await journal.begin(8);
+    await journal.complete(8);
     expect(JSON.parse(await fs.readFile(filename, "utf8"))).toEqual({
       schemaVersion: 1,
       nextOffset: 9,
@@ -110,6 +112,148 @@ describe("durable inbound Telegram dispatch fence (no network)", () => {
     });
     await journal.complete(6);
     await journal.close();
+  });
+
+  it("does not release an opening journal lock while its initial record is pending", async () => {
+    const { filename } = await fixture(12);
+    const journal = new FileTelegramInboundJournal(filename);
+    const loader = journal as unknown as { readPinned: () => Promise<Buffer> };
+    const original = loader.readPinned.bind(journal);
+    let release!: () => void;
+    let entered!: () => void;
+    const reached = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    loader.readPinned = async () => {
+      entered();
+      await gate;
+      return original();
+    };
+    const opening = journal.open();
+    try {
+      await reached;
+      await expect(journal.close()).rejects.toThrow(
+        "TELEGRAM_INBOUND_JOURNAL_OPEN_IN_PROGRESS",
+      );
+    } finally {
+      release();
+    }
+    expect(await opening).toBe(12);
+    const second = new FileTelegramInboundJournal(filename);
+    await expect(second.open()).rejects.toThrow(
+      "TELEGRAM_INBOUND_JOURNAL_LOCKED",
+    );
+    await journal.close();
+  });
+
+  it("never exposes an arbitrary public cursor-advance operation", async () => {
+    const { filename } = await fixture(14);
+    const journal = new FileTelegramInboundJournal(filename);
+    expect(await journal.open()).toBe(14);
+    expect("advance" in journal).toBe(false);
+    await journal.close();
+  });
+
+  it("rejects a path whose intermediate component is a symlink", async () => {
+    const { dir } = await fixture(-1);
+    const real = path.join(dir, "real");
+    const nested = path.join(real, "inner");
+    await fs.mkdir(nested, { recursive: true });
+    await fs.symlink(real, path.join(dir, "alias"));
+    const recordPath = path.join(
+      dir,
+      "alias",
+      "inner",
+      "telegram-inbound-journal.json",
+    );
+    await fs.writeFile(
+      recordPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        nextOffset: 16,
+        inFlightUpdateId: null,
+      }) + "\n",
+      { mode: 0o600 },
+    );
+    const journal = new FileTelegramInboundJournal(recordPath);
+    await expect(journal.open()).rejects.toThrow(
+      "TELEGRAM_INBOUND_JOURNAL_DIRECTORY_UNSAFE",
+    );
+  });
+
+  it("treats a failed directory fsync after rename as UNKNOWN, never a successful dispatch", async () => {
+    const { filename } = await fixture(21);
+    const journal = new FileTelegramInboundJournal(filename);
+    await journal.open();
+    const internal = journal as unknown as {
+      directory: { sync: () => Promise<void> };
+    };
+    const sync = internal.directory.sync.bind(internal.directory);
+    internal.directory.sync = async () => {
+      throw new Error("SYNTHETIC_DIRECTORY_FSYNC_UNCERTAIN");
+    };
+    try {
+      await expect(journal.begin(21)).rejects.toThrow(
+        "TELEGRAM_INBOUND_JOURNAL_WRITE_UNKNOWN",
+      );
+    } finally {
+      internal.directory.sync = sync;
+    }
+    expect(JSON.parse(await fs.readFile(filename, "utf8"))).toMatchObject({
+      nextOffset: 22,
+      inFlightUpdateId: 21,
+    });
+    await expect(journal.complete(21)).rejects.toThrow(
+      "TELEGRAM_INBOUND_JOURNAL_NOT_READY",
+    );
+    await journal.close();
+    await expect(
+      new FileTelegramInboundJournal(filename).open(),
+    ).rejects.toThrow("TELEGRAM_INBOUND_OUTCOME_UNKNOWN");
+  });
+
+  it("refuses writes when the pinned parent pathname was moved", async () => {
+    const { dir, filename } = await fixture(23);
+    const journal = new FileTelegramInboundJournal(filename);
+    await journal.open();
+    const renamed = dir + "-moved";
+    dirs.push(renamed);
+    await fs.rename(dir, renamed);
+    await expect(journal.begin(23)).rejects.toThrow(
+      "TELEGRAM_INBOUND_JOURNAL_WRITE_UNKNOWN",
+    );
+    expect(
+      JSON.parse(
+        await fs.readFile(
+          path.join(renamed, "telegram-inbound-journal.json"),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({
+      nextOffset: 23,
+      inFlightUpdateId: null,
+    });
+  });
+
+  it("never unlinks a substituted lock entry on close", async () => {
+    const { filename } = await fixture(25);
+    const journal = new FileTelegramInboundJournal(filename);
+    await journal.open();
+    await fs.rename(filename + ".lock", filename + ".oldlock");
+    await fs.writeFile(
+      filename + ".lock",
+      JSON.stringify({ pid: process.pid, token: "foreign-token" }) + "\n",
+      { mode: 0o600 },
+    );
+    await expect(journal.close()).rejects.toThrow(
+      "TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED",
+    );
+    expect(await fs.readFile(filename + ".lock", "utf8")).toContain(
+      "foreign-token",
+    );
   });
 
   it("rejects a second process/session while the first owns the lock", async () => {

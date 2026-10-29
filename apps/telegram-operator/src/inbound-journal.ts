@@ -1,13 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { open, lstat, rename, unlink } from "node:fs/promises";
+import { open, lstat, rename, unlink, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 
 export type TelegramInboundJournal = {
   open(): Promise<number>;
   begin(updateId: number): Promise<void>;
   complete(updateId: number): Promise<void>;
-  advance(nextOffset: number): Promise<void>;
   close(): Promise<void>;
 };
 
@@ -69,6 +68,9 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
   private lockToken: string | undefined;
   private poisoned = false;
   private writing = false;
+  private opening = false;
+  private directory: FileHandle | undefined;
+  private lockIdentity: { dev: number; ino: number } | undefined;
   private readonly parent: string;
   private readonly lockPath: string;
   private readonly filename: string;
@@ -83,6 +85,52 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
     }
     this.parent = path.dirname(filename);
     this.lockPath = filename + ".lock";
+  }
+
+  // Node.js does not offer an openat-style relative rename. We therefore
+  // require trusted same-uid ownership and reject any symlink component,
+  // unsafe writable intermediate directory, or changed pinned directory.
+  // Another hostile process running as the SAME uid is outside this threat
+  // model. This code is not a substitute for a separately authorized cutover.
+  private async assertSafeParent(): Promise<void> {
+    const root = path.parse(this.parent).root;
+    let component = root;
+    for (const name of this.parent
+      .slice(root.length)
+      .split(path.sep)
+      .filter(Boolean)) {
+      component = path.join(component, name);
+      let info;
+      try {
+        info = await lstat(component);
+      } catch {
+        throw new Error("TELEGRAM_INBOUND_JOURNAL_DIRECTORY_UNAVAILABLE");
+      }
+      const final = component === this.parent;
+      const uid = process.getuid?.();
+      const trustedOwner =
+        info.uid === 0 || (uid !== undefined && info.uid === uid);
+      const stickyRoot = !final && info.uid === 0 && (info.mode & 0o1000) !== 0;
+      if (
+        !info.isDirectory() ||
+        !trustedOwner ||
+        ((info.mode & 0o022) !== 0 && !stickyRoot) ||
+        (final && uid !== undefined && info.uid !== uid)
+      ) {
+        throw new Error("TELEGRAM_INBOUND_JOURNAL_DIRECTORY_UNSAFE");
+      }
+    }
+    if (this.directory) {
+      const pinned = await this.directory.stat();
+      const present = await lstat(this.parent);
+      if (
+        !present.isDirectory() ||
+        pinned.ino !== present.ino ||
+        pinned.dev !== present.dev
+      ) {
+        throw new Error("TELEGRAM_INBOUND_JOURNAL_DIRECTORY_CHANGED");
+      }
+    }
   }
 
   private async readPinned(): Promise<Buffer> {
@@ -102,18 +150,38 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
       ) {
         throw new Error("TELEGRAM_INBOUND_JOURNAL_UNSAFE");
       }
-      const bytes = await handle.readFile();
-      if (bytes.length !== stat.size)
-        throw new Error("TELEGRAM_INBOUND_JOURNAL_CHANGED");
+      // readFile() is not bounded if another writer grows the inode after
+      // fstat. Read at most the configured cap + one byte, then recheck.
+      const bounded = Buffer.alloc(MAX_RECORD_BYTES + 1);
+      let used = 0;
+      while (used < bounded.length) {
+        const { bytesRead } = await handle.read(
+          bounded,
+          used,
+          bounded.length - used,
+          used,
+        );
+        if (bytesRead === 0) break;
+        used += bytesRead;
+      }
+      const after = await handle.stat();
       const current = await lstat(this.filename);
       if (
+        used > MAX_RECORD_BYTES ||
+        used !== stat.size ||
+        !after.isFile() ||
+        after.size !== stat.size ||
+        after.mtimeMs !== stat.mtimeMs ||
+        after.ctimeMs !== stat.ctimeMs ||
         !current.isFile() ||
         current.ino !== stat.ino ||
-        current.dev !== stat.dev
+        current.dev !== stat.dev ||
+        after.ino !== stat.ino ||
+        after.dev !== stat.dev
       ) {
         throw new Error("TELEGRAM_INBOUND_JOURNAL_CHANGED");
       }
-      return bytes;
+      return bounded.subarray(0, used);
     } catch (error) {
       if (
         error instanceof Error &&
@@ -128,37 +196,38 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
   }
 
   async open(): Promise<number> {
-    if (this.lockToken || this.record) {
+    if (this.opening || this.lockToken || this.record) {
       throw new Error("TELEGRAM_INBOUND_JOURNAL_ALREADY_OPEN");
     }
-    const parent = await lstat(this.parent).catch(() => {
-      throw new Error("TELEGRAM_INBOUND_JOURNAL_DIRECTORY_UNAVAILABLE");
-    });
-    if (
-      !parent.isDirectory() ||
-      (parent.mode & 0o022) !== 0 ||
-      (process.getuid && parent.uid !== process.getuid())
-    ) {
-      throw new Error("TELEGRAM_INBOUND_JOURNAL_DIRECTORY_UNSAFE");
-    }
-    let lock;
-    const token = randomUUID();
+    // Synchronous fence before the first await: close() cannot unlink this
+    // lock while initial state/ownership is still being established.
+    this.opening = true;
+    let lock: FileHandle | undefined;
     try {
-      lock = await open(
-        this.lockPath,
-        constants.O_WRONLY |
-          constants.O_CREAT |
-          constants.O_EXCL |
-          constants.O_NOFOLLOW,
-        0o600,
+      await this.assertSafeParent();
+      this.directory = await open(
+        this.parent,
+        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
       );
-    } catch {
-      // A crash leaves this lock deliberately sticky: no PID-based stale-lock
-      // takeover, no second process and no accidental replay after restart.
-      throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCKED");
-    }
-    this.lockToken = token;
-    try {
+      await this.assertSafeParent();
+      const token = randomUUID();
+      try {
+        lock = await open(
+          this.lockPath,
+          constants.O_WRONLY |
+            constants.O_CREAT |
+            constants.O_EXCL |
+            constants.O_NOFOLLOW,
+          0o600,
+        );
+      } catch {
+        // A crash leaves this lock deliberately sticky. An operator, not a
+        // reused PID, determines when recovery is safe.
+        throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCKED");
+      }
+      const lockInfo = await lock.stat();
+      this.lockIdentity = { dev: lockInfo.dev, ino: lockInfo.ino };
+      this.lockToken = token;
       await lock.writeFile(JSON.stringify({ pid: process.pid, token }) + "\n");
       await lock.sync();
       const bytes = await this.readPinned();
@@ -166,22 +235,48 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
       if (record.inFlightUpdateId !== null) {
         throw new Error("TELEGRAM_INBOUND_OUTCOME_UNKNOWN");
       }
+      await this.assertSafeParent();
       this.record = record;
       this.recordDigest = digest(bytes);
       this.poisoned = false;
       return record.nextOffset;
     } catch (error) {
-      await this.close();
+      // Release only a fully verified *own* lock. If creation was disrupted,
+      // leave it sticky instead of deleting an unknown person's lock.
+      if (lock) {
+        await lock.close();
+        lock = undefined;
+      }
+      if (this.lockToken) {
+        try {
+          await this.releaseOwnLock();
+        } catch {
+          this.poisoned = true;
+          throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
+        }
+      }
+      this.record = undefined;
+      this.recordDigest = undefined;
       throw error;
     } finally {
-      await lock.close();
+      await lock?.close();
+      if (!this.record && this.directory) {
+        await this.directory.close();
+        this.directory = undefined;
+      }
+      this.opening = false;
     }
   }
 
   private async persist(next: TelegramInboundJournalRecord): Promise<void> {
     if (this.writing)
       throw new Error("TELEGRAM_INBOUND_JOURNAL_CONCURRENT_MUTATION");
-    if (!this.record || !this.recordDigest || this.poisoned) {
+    if (
+      !this.record ||
+      !this.recordDigest ||
+      this.poisoned ||
+      !this.directory
+    ) {
       throw new Error("TELEGRAM_INBOUND_JOURNAL_NOT_READY");
     }
     this.writing = true;
@@ -189,6 +284,7 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
     const temp = this.filename + ".tmp-" + randomUUID();
     let handle;
     try {
+      await this.assertSafeParent();
       const current = await this.readPinned();
       if (digest(current) !== this.recordDigest) {
         throw new Error("TELEGRAM_INBOUND_JOURNAL_CHANGED");
@@ -205,18 +301,12 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
       await handle.sync();
       await handle.close();
       handle = undefined;
+      await this.assertSafeParent();
       await rename(temp, this.filename);
-      // fsync the containing directory: rename durability is part of the
-      // pre-dispatch write barrier. An uncertain sync must stop the dispatcher.
-      const directory = await open(
-        this.parent,
-        constants.O_RDONLY | constants.O_DIRECTORY,
-      );
-      try {
-        await directory.sync();
-      } finally {
-        await directory.close();
-      }
+      // fsync the already pinned directory, not a newly resolved pathname.
+      // If its pathname was replaced, fail closed rather than dispatch.
+      await this.directory.sync();
+      await this.assertSafeParent();
       this.record = next;
       this.recordDigest = digest(bytes);
     } catch {
@@ -225,7 +315,13 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
     } finally {
       try {
         await handle?.close();
-        await unlink(temp).catch(() => {});
+        // Do not clean a temp path in a substituted directory.
+        try {
+          await this.assertSafeParent();
+          await unlink(temp).catch(() => {});
+        } catch {
+          // Preserve uncertain files for authorized manual recovery.
+        }
       } finally {
         this.writing = false;
       }
@@ -267,55 +363,71 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
     });
   }
 
-  async advance(nextOffset: number): Promise<void> {
-    if (!validOffset(nextOffset)) {
-      throw new Error("TELEGRAM_UPDATE_ID_INVALID");
-    }
-    if (
-      !this.record ||
-      this.poisoned ||
-      this.record.inFlightUpdateId !== null
-    ) {
-      throw new Error("TELEGRAM_INBOUND_JOURNAL_NOT_READY");
-    }
-    if (nextOffset > this.record.nextOffset) {
-      await this.persist({
-        schemaVersion: 1,
-        nextOffset,
-        inFlightUpdateId: null,
-      });
+  // An inbound update can move progress only through begin()+complete().
+  // There is deliberately no raw-page cursor advance API: a future migration
+  // or unsupported-update policy needs separate source/owner acceptance.
+  private async releaseOwnLock(): Promise<void> {
+    const token = this.lockToken;
+    if (!token) return;
+    if (!this.lockIdentity || !this.directory)
+      throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
+    let handle: FileHandle | undefined;
+    try {
+      await this.assertSafeParent();
+      handle = await open(
+        this.lockPath,
+        constants.O_RDONLY | constants.O_NOFOLLOW,
+      );
+      const info = await handle.stat();
+      const current = await lstat(this.lockPath);
+      if (
+        !info.isFile() ||
+        !current.isFile() ||
+        (info.mode & 0o077) !== 0 ||
+        (process.getuid && info.uid !== process.getuid()) ||
+        info.ino !== current.ino ||
+        info.dev !== current.dev ||
+        info.ino !== this.lockIdentity.ino ||
+        info.dev !== this.lockIdentity.dev ||
+        info.size > 512
+      ) {
+        throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
+      }
+      const bounded = Buffer.alloc(513);
+      const { bytesRead } = await handle.read(bounded, 0, bounded.length, 0);
+      if (bytesRead > 512)
+        throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
+      const actual = JSON.parse(
+        bounded.subarray(0, bytesRead).toString("utf8"),
+      ) as {
+        token?: unknown;
+      };
+      if (actual.token !== token)
+        throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
+      await this.assertSafeParent();
+      await unlink(this.lockPath);
+      await this.directory.sync();
+      this.lockToken = undefined;
+      this.lockIdentity = undefined;
+    } catch {
+      throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
+    } finally {
+      await handle?.close();
     }
   }
 
   async close(): Promise<void> {
+    if (this.opening)
+      throw new Error("TELEGRAM_INBOUND_JOURNAL_OPEN_IN_PROGRESS");
     if (this.writing)
       throw new Error("TELEGRAM_INBOUND_JOURNAL_CONCURRENT_MUTATION");
-    const token = this.lockToken;
-    this.lockToken = undefined;
+    await this.releaseOwnLock();
     this.record = undefined;
     this.recordDigest = undefined;
-    if (!token) return;
-    let actual: unknown;
-    try {
-      const info = await lstat(this.lockPath);
-      if (!info.isFile() || (info.mode & 0o077) !== 0) {
-        throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
-      }
-      const handle = await open(
-        this.lockPath,
-        constants.O_RDONLY | constants.O_NOFOLLOW,
-      );
-      try {
-        actual = JSON.parse(await handle.readFile("utf8"));
-      } finally {
-        await handle.close();
-      }
-    } catch {
-      throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
+    this.poisoned = false;
+    if (this.directory) {
+      await this.directory.close();
+      this.directory = undefined;
     }
-    if ((actual as { token?: unknown })?.token !== token) {
-      throw new Error("TELEGRAM_INBOUND_JOURNAL_LOCK_CHANGED");
-    }
-    await unlink(this.lockPath);
   }
 }
