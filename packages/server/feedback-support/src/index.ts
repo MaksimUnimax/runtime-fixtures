@@ -183,13 +183,25 @@ const quotedJsonScalarField =
 const singleQuotedScalarField =
   /('(?:\\.|[^'\\\r\n])*')(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
-  /(?:password|passwd|secret|token|api[_-]?key|authorization|cookies?|set[-_]?cookie)$/iu;
+  /(?:password|passwd|secret|token|api(?:[_-]|\s)*key|(?:private|secret)(?:[_-]|\s)*key|authorization|cookies?|set[-_]?cookie)$/iu;
+
+// Ignore invisible joiners only when classifying a diagnostic KEY; do not
+// rewrite harmless Unicode text or the original JSON key spelling.
+function isSensitiveDiagnosticKey(key: string): boolean {
+  const canonicalKey = key
+    .replace(/\p{Default_Ignorable_Code_Point}/gu, "")
+    .normalize("NFKC");
+  return (
+    sensitiveJsonKey.test(canonicalKey) ||
+    /^(?:private|secret)[\s_-]*key$/iu.test(canonicalKey)
+  );
+}
 
 function isSensitiveQuotedKey(encodedKey: string): boolean {
   if (encodedKey.startsWith('"')) {
     try {
       const key: unknown = JSON.parse(encodedKey);
-      return typeof key !== "string" || sensitiveJsonKey.test(key);
+      return typeof key !== "string" || isSensitiveDiagnosticKey(key);
     } catch {
       // Invalid JSON escaping obscures the key identity: fail closed.
       return true;
@@ -197,7 +209,7 @@ function isSensitiveQuotedKey(encodedKey: string): boolean {
   }
   const key = encodedKey.slice(1, -1);
   // Single-quoted pseudo-JSON cannot reliably decode arbitrary escapes.
-  return key.includes("\\") || sensitiveJsonKey.test(key);
+  return key.includes("\\") || isSensitiveDiagnosticKey(key);
 }
 
 // A sensitive quoted JSON or pseudo-JSON field may hold an array/object,
@@ -275,13 +287,13 @@ const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
 // Also recognize log-escaped quote openers. Fail closed on line breaks,
 // including those between the key and value, before redaction can leak a tail.
 const bareQuotedCredentialValueStart =
-  /\b([A-Za-z_][A-Za-z0-9_-]*)\s*[:=]\s*(?:\\*)(["'])/gu;
+  /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*(?:\\*)(["'])/gu;
 
 function hasBareQuotedMultilineCredential(input: string): boolean {
   bareQuotedCredentialValueStart.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = bareQuotedCredentialValueStart.exec(input)) !== null) {
-    if (!sensitiveJsonKey.test(match[1]!)) continue;
+    if (!isSensitiveDiagnosticKey(match[1]!)) continue;
     // A CR/LF before the opening quote is just as ambiguous as one inside it.
     if (/[\r\n]/u.test(match[0])) return true;
     const quote = match[2]!;
@@ -385,7 +397,143 @@ function redactMultilineQuotedSecrets(input: string): string {
   }
 }
 
+// A literal CR/LF inside a quoted diagnostic KEY, an invisible Unicode
+// separator, or a fullwidth colon after the key makes JSON untrustworthy.
+// Recognizable or ambiguously escaped credential keys must fail closed before
+// a support description or followup reaches any repository sink.
+function hasUnsafeQuotedCredentialKey(input: string): boolean {
+  // Match each potential key independently: an unmatched apostrophe in
+  // ordinary prose must not hide a later double- or single-quoted key.
+  // A slash may escape a literal line break; the guard must inspect it.
+  // A match of one quote style may encompass a nested credential in the
+  // other style. Never allow a broader match to consume the inner candidate.
+  const doubleQuotedKey =
+    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=：＝][\s\p{Default_Ignorable_Code_Point}]*/gu;
+  const singleQuotedKey =
+    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=：＝][\s\p{Default_Ignorable_Code_Point}]*/gu;
+  const candidates = [
+    ...input.matchAll(doubleQuotedKey),
+    ...input.matchAll(singleQuotedKey),
+  ];
+  for (const match of candidates) {
+    const key = match[1]!.slice(1, -1);
+    // The parser also cannot trust invisible characters inserted between
+    // a closing quoted credential key and its colon/equal delimiter. This
+    // is malformed embedded JSON even without a physical line break.
+    const separator = match[0].slice(match[1]!.length);
+    // A credential key followed by '=' or a fullwidth colon is malformed
+    // pseudo-JSON, not trusted JSON. Even without invisible Unicode or a
+    // raw line break, fail closed for recognized credentials.
+    if (
+      !/[\r\n]/u.test(key) &&
+      !/\p{Default_Ignorable_Code_Point}/u.test(separator) &&
+      !separator.includes("=") &&
+      !separator.includes("：") &&
+      !separator.includes("＝")
+    )
+      continue;
+    // Decode spelling escapes only for classification of a malformed key.
+    // Never alter user-visible text or trust an ambiguous persisted value.
+    const canonicalKey = key
+      .replace(/[\r\n]/gu, "")
+      .replace(/\\u\{([0-9a-f]{1,6})\}/giu, (_escape, hex: string) => {
+        const codePoint = Number.parseInt(hex, 16);
+        return codePoint <= 0x10ffff
+          ? String.fromCodePoint(codePoint)
+          : _escape;
+      })
+      .replace(
+        /\\u([0-9a-f]{4})|\\x([0-9a-f]{2})/giu,
+        (_escape, unicode: string | undefined, hex: string | undefined) =>
+          String.fromCharCode(Number.parseInt((unicode ?? hex)!, 16)),
+      )
+      .replace(/\\[nrtfbv0]/giu, " ")
+      .replace(/\\/gu, "");
+    // With an untrusted raw newline, an unrecognized escape after a
+    // credential-like prefix has no trustworthy value boundary.
+    if (
+      isSensitiveDiagnosticKey(key) ||
+      isSensitiveDiagnosticKey(canonicalKey) ||
+      (key.includes("\\") &&
+        /^(?:api|pass|secret|token|auth|cookie|setcookie|clientsecret)/iu.test(
+          canonicalKey,
+        ))
+    )
+      return true;
+  }
+  return false;
+}
+
+// Examine only a credential assignment when checking NFKC compatibility.
+// Folding unrelated safe JSON siblings must not erase a valid JSON envelope.
+// Noncanonical key/assignment separators remain fail-closed since the value
+// boundary cannot safely be inferred from such a diagnostic.
+function hasCompatibilityCredentialAssignment(input: string): boolean {
+  const assignment =
+    /(?<![\p{L}\p{N}_])["']?([\p{L}_][\p{L}\p{N}_\p{Default_Ignorable_Code_Point}-]*)["']?[\s\p{Default_Ignorable_Code_Point}]*[:=：＝﹕﹦︓]/gu;
+  for (const match of input.matchAll(assignment)) {
+    if (
+      match[0].normalize("NFKC") !== match[0] &&
+      isSensitiveDiagnosticKey(match[1]!)
+    )
+      return true;
+  }
+  // A quoted, valid JSON key may contain Unicode spaces or compatibility
+  // letters: the structured scrubber can safely preserve its siblings.
+  // Unquoted assignments and non-JSON delimiters cannot prove that boundary.
+  const spacedCompatibility =
+    /(?<![\p{L}\p{N}_])(["']?)([\p{L}_][\p{L}\p{N}_\p{Default_Ignorable_Code_Point}-]*(?:[\s\p{Default_Ignorable_Code_Point}-]+[\p{L}\p{N}_\p{Default_Ignorable_Code_Point}-]+))\1[\s\p{Default_Ignorable_Code_Point}]*([:=：＝﹕﹦︓])/gu;
+  for (const match of input.matchAll(spacedCompatibility)) {
+    if (
+      isSensitiveDiagnosticKey(match[2]!) &&
+      match[0].normalize("NFKC") !== match[0] &&
+      (!match[1] || match[3] !== ":")
+    )
+      return true;
+  }
+  return false;
+}
+
 function redactAccidentalSecretsBasic(input: string): string {
+  if (hasCompatibilityCredentialAssignment(input)) return "[REDACTED_SECRET]";
+  if (hasUnsafeQuotedCredentialKey(input)) return "[REDACTED_SECRET]";
+  // A free-text "api key:" may precede a structured or multiline secret.
+  // Its value boundary is not trustworthy: discard the diagnostic in full.
+  const spacedBareApiKey =
+    /\ba\p{Default_Ignorable_Code_Point}*p\p{Default_Ignorable_Code_Point}*i\p{Default_Ignorable_Code_Point}*[\s\p{Default_Ignorable_Code_Point}]+k\p{Default_Ignorable_Code_Point}*e\p{Default_Ignorable_Code_Point}*y[\s\p{Default_Ignorable_Code_Point}]*[:=：＝]/iu;
+  if (spacedBareApiKey.test(input)) return "[REDACTED_SECRET]";
+  // A bare private/secret key assignment lacks a trustworthy value boundary.
+  // It may carry raw or encoded key material without PEM framing; fail closed.
+  const barePrivateOrSecretKey =
+    /\b(?:private|secret)[_\s\p{Default_Ignorable_Code_Point}-]*key[\s\p{Default_Ignorable_Code_Point}]*[:=：＝]/iu;
+  if (barePrivateOrSecretKey.test(input)) return "[REDACTED_SECRET]";
+
+  // Detect fullwidth colon and Unicode default-ignorable controls around
+  // sensitive bare keys. Neither delimiter has a provable secret boundary;
+  // leave benign keys and unrelated Unicode text unchanged.
+  const ignoredBareKey =
+    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=：＝][\s\p{Default_Ignorable_Code_Point}]*/gu;
+  for (const match of input.matchAll(ignoredBareKey)) {
+    if (
+      (/\p{Default_Ignorable_Code_Point}/u.test(match[0]) ||
+        match[0].includes("：") ||
+        match[0].includes("＝")) &&
+      isSensitiveDiagnosticKey(match[1]!)
+    )
+      return "[REDACTED_SECRET]";
+  }
+
+  // A bare credential key followed by an object/array has no trustworthy
+  // token boundary. The fallback regex would mask only the opening bracket
+  // and persist the nested secret. Discard that diagnostic in full.
+  const bareStructuredCredential =
+    /\b([A-Za-z_][A-Za-z0-9_\p{Default_Ignorable_Code_Point}-]*)[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*[[{]/gu;
+  for (const match of input.matchAll(bareStructuredCredential)) {
+    // Only the diagnostic key is normalized for matching. Preserve all
+    // legitimate joiners elsewhere in the user's text.
+    if (isSensitiveDiagnosticKey(match[1]!)) return "[REDACTED_SECRET]";
+  }
+
   const stringsRedacted = redactMultilineQuotedSecrets(input).replace(
     quotedStringField,
     (field, encodedKey: string, _keyQuote: string, delimiter: string) =>
@@ -418,12 +566,104 @@ function redactAccidentalSecretsBasic(input: string): string {
 // string values; retain the original formatting when nothing needs masking.
 const MAX_EMBEDDED_JSON_DEPTH = 24;
 
+// In malformed pseudo-JSON, a nonsensitive quoted field can swallow an
+// ordinary nested credential field of the opposite quote style. Inspect
+// quoted keys of both styles independently after the basic scrubbers: an
+// inner key left with any value other than a complete redaction marker is
+// not safe to persist. Valid JSON is handled by the token scanner below.
+function hasUnredactedQuotedCredentialField(input: string): boolean {
+  const quotedKeys = [
+    /("(?:\\[\s\S]|[^"\\])*")[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu,
+    /('(?:\\[\s\S]|[^'\\])*')[\s\p{Default_Ignorable_Code_Point}]*[:=][\s\p{Default_Ignorable_Code_Point}]*/gu,
+  ];
+  const completeMask =
+    /^(?:"\[REDACTED_SECRET\]"|'\[REDACTED_SECRET\]'|\[REDACTED_SECRET\])(?=\s*(?:[,}\]]|$)|[\r\n])/u;
+  for (const pattern of quotedKeys) {
+    for (const match of input.matchAll(pattern)) {
+      // This is a second-pass detector of recognizable inner credentials,
+      // not the primary malformed-key fail-closed classifier. A harmless
+      // quoted key with a raw newline is invalid JSON but is not a secret.
+      const keyLiteral = match[1]!;
+      let sensitive = isSensitiveDiagnosticKey(keyLiteral.slice(1, -1));
+      if (!sensitive && keyLiteral.startsWith('"')) {
+        try {
+          const decoded: unknown = JSON.parse(keyLiteral);
+          sensitive =
+            typeof decoded === "string" && isSensitiveDiagnosticKey(decoded);
+        } catch {
+          // Existing malformed-key and escaped-value guards remain in force.
+        }
+      }
+      if (!sensitive) continue;
+      const remaining = input.slice(match.index + match[0].length);
+      if (!completeMask.test(remaining)) return true;
+    }
+  }
+  return false;
+}
+
+// Bare diagnostic values have no reliable word boundary: a password or
+// passphrase may include spaces. The legacy scalar scrubber masks only its
+// first token. Reject a remaining same-line suffix rather than persisting it.
+// This check runs after we have tried to parse an outer valid JSON envelope,
+// so a nested diagnostic can be discarded without losing safe JSON siblings.
+function hasAmbiguousBareCredentialTail(input: string): boolean {
+  const bareKey = /\b([A-Za-z_][A-Za-z0-9_-]*)[ \t]*[:=][ \t]*/gu;
+  for (const match of input.matchAll(bareKey)) {
+    if (!isSensitiveDiagnosticKey(match[1]!)) continue;
+    const preceding = input[match.index - 1];
+    if (preceding === '"' || preceding === "'") continue;
+    const tail = input.slice(match.index + match[0].length);
+    // A mask may already have replaced the first word. Inspect its suffix
+    // too, since the original token cannot be reconstructed from basic.
+    const first = tail.startsWith("[REDACTED_SECRET]")
+      ? "[REDACTED_SECRET]"
+      : /^[^\s]+/u.exec(tail)?.[0];
+    if (!first) continue;
+    // Commas and semicolons can occur inside passphrases too; they do not
+    // establish a trusted end of an unquoted credential on the same line.
+    if (/^(?:[^\S\r\n]+|[,;][^\S\r\n]*)[^\s]/u.test(tail.slice(first.length)))
+      return true;
+  }
+  return false;
+}
+
 function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
   const basic = redactAccidentalSecretsBasic(input);
   if (depth >= MAX_EMBEDDED_JSON_DEPTH) return "[REDACTED_SECRET]";
   try {
     JSON.parse(basic);
   } catch {
+    // Inspect a complete prefixed JSON envelope before the basic scrubber's
+    // partial replacement can turn a bare scalar into a pseudo-array marker
+    // ([REDACTED_SECRET]) and hide the actual envelope. Scrub the prefix and
+    // the independently validated JSON as separate values.
+    const rawStarts = [input.indexOf("{"), input.indexOf("[")]
+      .filter((position) => position > 0)
+      .sort((left, right) => left - right);
+    for (const rawStart of rawStarts) {
+      const prefix = input.slice(0, rawStart);
+      // A bracket after a bare sensitive assignment might be part of a
+      // passphrase or the credential's object/array value. Neither has a
+      // proven boundary, even when another scalar precedes the bracket.
+      const barePrefixKeys = /\b([A-Za-z_][A-Za-z0-9_-]*)[ \t]*[:=：＝]/gu;
+      if (
+        [...prefix.matchAll(barePrefixKeys)].some((match) =>
+          isSensitiveDiagnosticKey(match[1]!),
+        )
+      )
+        continue;
+      const rawCandidate = input.slice(rawStart);
+      try {
+        JSON.parse(rawCandidate);
+        return (
+          redactEmbeddedDiagnosticJson(input.slice(0, rawStart), depth + 1) +
+          redactEmbeddedDiagnosticJson(rawCandidate, depth + 1)
+        );
+      } catch {
+        // A bracket in an untrusted prefix is not a JSON envelope.
+      }
+    }
     // A complete JSON envelope preceded by diagnostic prose is still safe
     // to parse independently. The prefix is retained; nested string values
     // are processed by the same bounded redactor as ordinary JSON.
@@ -446,6 +686,13 @@ function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
         // JSON credentials whose keys are hidden behind backslash quotes.
       }
     }
+    // The first bare credential token may already be masked, but a
+    // multiword secret tail remains untrusted through end-of-line.
+    if (hasAmbiguousBareCredentialTail(basic)) return "[REDACTED_SECRET]";
+    // A malformed outer single-quoted field must not shield an ordinary
+    // inner credential field from the redactor. Without a validated
+    // envelope, retaining a guessed text suffix is unsafe.
+    if (hasUnredactedQuotedCredentialField(basic)) return "[REDACTED_SECRET]";
     const hasNestedEscapes =
       basic.includes('\\"') ||
       basic.includes("\\'") ||
