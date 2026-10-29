@@ -30,6 +30,7 @@ class FakeTransactionalReportRows {
   });
   private tail: Promise<void> = Promise.resolve();
   sawLockingSelect = 0;
+  sawSharedSelect = 0;
   sawNonLockingSelect = 0;
   updateCount = 0;
 
@@ -57,6 +58,12 @@ class FakeTransactionalReportRows {
             sql.startsWith("SELECT") &&
             sql.includes("FROM api_watch_reports")
           ) {
+            if (sql.includes("FOR SHARE")) {
+              // Shared reader locks conflict with terminal FOR UPDATE writers,
+              // but readers need not take an exclusive terminal-write lock.
+              this.sawSharedSelect++;
+              return { rows: [{ ...this.row } as unknown as U] };
+            }
             if (sql.includes("FOR UPDATE")) {
               this.sawLockingSelect++;
               const previous = this.tail;
@@ -104,13 +111,14 @@ class FakeTransactionalReportRows {
 }
 
 describe("C04 PostgreSQL report terminal row serialization", () => {
-  it("preserves ordinary unlocked report reads", async () => {
+  it("uses a shared, not exclusive, report lock for coherent reads", async () => {
     const fake = new FakeTransactionalReportRows();
     const store = createPostgresApiWatchReportStore(fake.runtime);
     expect((await store.getReport("c04-rowlock-fixture"))?.state).toBe(
       "RUNNING",
     );
-    expect(fake.sawNonLockingSelect).toBe(1);
+    expect(fake.sawSharedSelect).toBe(1);
+    expect(fake.sawNonLockingSelect).toBe(0);
     expect(fake.sawLockingSelect).toBe(0);
   });
 
