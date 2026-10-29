@@ -2,6 +2,10 @@ const UUID =
   "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const API_UUID =
   "(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[1-8][0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}|00000000-0000-0000-0000-000000000000|[Ff]{8}-[Ff]{4}-[Ff]{4}-[Ff]{4}-[Ff]{12})";
+// Existing account/device/subscription/principal schemas accept ordinary UUIDs
+// in either case, but their MAX UUID exception is a lowercase literal.
+const ADMIN_ID_UUID =
+  "(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[1-8][0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)";
 const LOWER_HEX_64 = "[0-9a-f]{64}";
 const KEY = "[A-Za-z0-9._:-]+";
 
@@ -124,16 +128,19 @@ export const OTP_ALLOWED_TUPLES = [
 const templates = new Map<string, RegExp>();
 const segmentPattern = (segment: string): string => {
   if (
-    segment === "{account_id}" ||
-    segment === "{device_id}" ||
-    segment === "{subscription_id}" ||
     segment === "{plan_id}" ||
     segment === "{plan_revision_id}" ||
     segment === "{price_id}" ||
-    segment === "{price_revision_id}" ||
-    segment === "{principal_id}"
+    segment === "{price_revision_id}"
   )
     return UUID;
+  if (
+    segment === "{account_id}" ||
+    segment === "{device_id}" ||
+    segment === "{subscription_id}" ||
+    segment === "{principal_id}"
+  )
+    return ADMIN_ID_UUID;
   if (
     segment === "{notification_id}" ||
     segment === "{health_incident_id}" ||
