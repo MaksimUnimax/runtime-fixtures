@@ -113,7 +113,7 @@ const incomplete = (reason) => ({
   skuContribution: null,
   isNetProfit: false,
 });
-assert.equal(fixture.schemaVersion, "wb_cap24_sku_source_provenance_v2");
+assert.equal(fixture.schemaVersion, "wb_cap24_sku_source_provenance_v3");
 assert.equal(storage.paidStorage.create.maxPeriodDays, 8);
 assert.equal(
   finance.sources.salesDetailPeriod.requestTimezone,
@@ -148,6 +148,31 @@ function inspect(input) {
     input.timezone !== "Europe/Moscow"
   )
     return incomplete("PERIOD_OR_TIMEZONE_MISSING");
+
+  // Offline caller-declared store identity is not provider/auth proof.
+  // Mixing reads from different stores cannot be reported as consistent.
+  const bindings = input.sourceStoreBindings;
+  const requiredStoreIds = [
+    "selectedStoreId",
+    "financeStoreId",
+    "storageStoreId",
+    "actualAdsStoreId",
+  ];
+  if (
+    !bindings ||
+    typeof bindings !== "object" ||
+    Array.isArray(bindings) ||
+    requiredStoreIds.some(
+      (key) =>
+        !Object.hasOwn(bindings, key) ||
+        typeof bindings[key] !== "string" ||
+        bindings[key].trim() === "" ||
+        bindings[key].trim() !== bindings[key],
+    )
+  )
+    return incomplete("SOURCE_STORE_BINDING_MISSING");
+  if (new Set(requiredStoreIds.map((key) => bindings[key])).size !== 1)
+    return incomplete("SOURCE_STORE_BINDING_MISMATCH");
 
   const r = input.financeRead,
     request = r?.request,
@@ -403,6 +428,48 @@ function accept(mutate, validate = () => {}) {
   validate(result);
   cases++;
 }
+// Synthetic source binding only: no provider credentials or owner-installed proof.
+reject("SOURCE_STORE_BINDING_MISSING", (x) => {
+  delete x.sourceStoreBindings;
+});
+reject("SOURCE_STORE_BINDING_MISSING", (x) => {
+  delete x.sourceStoreBindings.financeStoreId;
+});
+reject("SOURCE_STORE_BINDING_MISSING", (x) => {
+  x.sourceStoreBindings.selectedStoreId = "  ";
+});
+reject("SOURCE_STORE_BINDING_MISSING", (x) => {
+  x.sourceStoreBindings.storageStoreId = 123;
+});
+reject("SOURCE_STORE_BINDING_MISSING", (x) => {
+  const prototype = { financeStoreId: "wb-store-1" };
+  delete x.sourceStoreBindings.financeStoreId;
+  Object.setPrototypeOf(x.sourceStoreBindings, prototype);
+});
+reject("SOURCE_STORE_BINDING_MISMATCH", (x) => {
+  x.sourceStoreBindings.storageStoreId = "wb-store-2";
+});
+reject("SOURCE_STORE_BINDING_MISMATCH", (x) => {
+  x.sourceStoreBindings.financeStoreId = "wb-store-2";
+});
+reject("SOURCE_STORE_BINDING_MISMATCH", (x) => {
+  x.sourceStoreBindings.actualAdsStoreId = "wb-store-2";
+});
+reject("SOURCE_STORE_BINDING_MISMATCH", (x) => {
+  x.sourceStoreBindings.storageStoreId = "WB-STORE-1";
+});
+accept(
+  (x) => {
+    for (const key of Object.keys(x.sourceStoreBindings))
+      x.sourceStoreBindings[key] = "wb-second-store";
+  },
+  (result) => {
+    assert.equal(result.skuContribution, null);
+    assert.equal(result.isNetProfit, false);
+    assert.equal(result.contributionStatus, "INCOMPLETE");
+  },
+);
+
 reject("PERIOD_OR_TIMEZONE_MISSING", (x) => {
   delete x.period;
 });
