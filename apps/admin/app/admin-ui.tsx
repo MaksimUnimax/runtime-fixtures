@@ -13,6 +13,11 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { controlPlane, ControlPlaneError, query } from "../lib/control-plane";
+import {
+  ADMIN_PRINCIPAL_ROLES,
+  AdminPrincipalRole,
+  isAdminPrincipalRole,
+} from "../lib/admin-principal-roles";
 
 type Me = {
   status: "authenticated";
@@ -637,6 +642,7 @@ export function Mutation({
   confirm,
   onDone,
   onSuccess,
+  onBusyChange,
   disabled = false,
   children,
 }: {
@@ -647,6 +653,7 @@ export function Mutation({
   confirm?: string;
   onDone?: () => Promise<void> | void;
   onSuccess?: (value: unknown) => void;
+  onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
   children?: ReactNode;
 }) {
@@ -656,7 +663,7 @@ export function Mutation({
   const [reason, setReason] = useState("");
   const [review, setReview] = useState(false);
   const submit = async () => {
-    if (busyRef.current) return;
+    if (busyRef.current || disabled) return;
     if (!has(me, permission) || !reason.trim()) {
       setNotice({
         kind: "error",
@@ -683,6 +690,7 @@ export function Mutation({
     }
     busyRef.current = true;
     setBusy(true);
+    onBusyChange?.(true);
     try {
       const value = await controlPlane(path, {
         method: "POST",
@@ -725,6 +733,7 @@ export function Mutation({
     } finally {
       busyRef.current = false;
       setBusy(false);
+      onBusyChange?.(false);
     }
   };
   if (!has(me, permission)) return null;
@@ -759,7 +768,7 @@ export function Mutation({
           <div className="actions">
             <button
               type="button"
-              disabled={busy || !reason.trim()}
+              disabled={busy || disabled || !reason.trim()}
               onClick={() => void submit()}
             >
               Confirm {action}
@@ -1598,6 +1607,90 @@ function AccountWorkspace() {
   );
 }
 
+function PrincipalActions({
+  id,
+  revision,
+  roles,
+  onDone,
+}: {
+  id: string;
+  revision: number;
+  roles: string[];
+  onDone: () => Promise<void>;
+}) {
+  const { me } = useAdmin();
+  const [role, setRole] = useState<AdminPrincipalRole | "">("");
+  const [busy, setBusy] = useState(false);
+  if (!has(me, "admin.principal.manage")) return null;
+  return (
+    <div className="actions">
+      <label>
+        Role for {id}
+        <select
+          value={role}
+          disabled={busy}
+          onChange={(event) =>
+            setRole(
+              isAdminPrincipalRole(event.target.value)
+                ? event.target.value
+                : "",
+            )
+          }
+        >
+          <option value="">Choose role</option>
+          {ADMIN_PRINCIPAL_ROLES.map((value) => (
+            <option key={value}>{value}</option>
+          ))}
+        </select>
+      </label>
+      {role && (
+        // Changing the target role discards its old reason and confirmation.
+        // The parent is also keyed by principal and authoritative revision.
+        <div className="actions" key={role}>
+          <Mutation
+            permission="admin.principal.manage"
+            action={`Grant ${role}`}
+            path={`/v1/admin/principals/${id}/roles/${role}/grant`}
+            body={{ expectedRevision: revision }}
+            confirm={`Grant ${role} to ${id}? This changes this principal's administrative access.`}
+            disabled={busy || roles.includes(role)}
+            onBusyChange={setBusy}
+            onDone={onDone}
+          />
+          <Mutation
+            permission="admin.principal.manage"
+            action={`Revoke ${role}`}
+            path={`/v1/admin/principals/${id}/roles/${role}/revoke`}
+            body={{ expectedRevision: revision }}
+            confirm={`Revoke ${role} from ${id}? This removes the role's administrative access. Last-owner protection remains server-authoritative.`}
+            disabled={busy || !roles.includes(role)}
+            onBusyChange={setBusy}
+            onDone={onDone}
+          />
+        </div>
+      )}
+      <Mutation
+        permission="admin.principal.manage"
+        action="Suspend"
+        path={`/v1/admin/principals/${id}/suspend`}
+        body={{ expectedRevision: revision }}
+        disabled={busy}
+        onBusyChange={setBusy}
+        onDone={onDone}
+      />
+      <Mutation
+        permission="admin.principal.manage"
+        action="Restore"
+        path={`/v1/admin/principals/${id}/restore`}
+        body={{ expectedRevision: revision }}
+        disabled={busy}
+        onBusyChange={setBusy}
+        onDone={onDone}
+      />
+    </div>
+  );
+}
+
 function Principals() {
   const { me } = useAdmin();
   const [path, setPath] = useState("/v1/admin/principals?limit=50");
@@ -1606,6 +1699,7 @@ function Principals() {
   );
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState("ADMIN_SUPPORT");
+  const [creating, setCreating] = useState(false);
   return (
     <Shell title="Admin principals">
       <section className="card">
@@ -1614,36 +1708,41 @@ function Principals() {
           remains server-authoritative.
         </p>
         {has(me, "admin.principal.manage") && (
-          <Mutation
-            permission="admin.principal.manage"
-            action="Create principal"
-            path="/v1/admin/principals"
-            body={{ userId, initialRole: role }}
-            onDone={result.load}
-          >
+          <>
             <div className="form-grid">
               <label>
                 User ID
                 <input
                   value={userId}
+                  disabled={creating}
                   onChange={(e) => setUserId(e.target.value)}
                 />
               </label>
               <label>
                 Initial role
-                <select value={role} onChange={(e) => setRole(e.target.value)}>
-                  {[
-                    "ADMIN_OWNER",
-                    "ADMIN_OPS",
-                    "ADMIN_SUPPORT",
-                    "ADMIN_BILLING_READONLY",
-                  ].map((value) => (
+                <select
+                  value={role}
+                  disabled={creating}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  {ADMIN_PRINCIPAL_ROLES.map((value) => (
                     <option key={value}>{value}</option>
                   ))}
                 </select>
               </label>
             </div>
-          </Mutation>
+            <Mutation
+              key={JSON.stringify([userId, role])}
+              permission="admin.principal.manage"
+              action="Create principal"
+              path="/v1/admin/principals"
+              body={{ userId, initialRole: role }}
+              confirm={`Create an admin principal for user ${userId} with ${role}? This grants administrative access to that user.`}
+              disabled={creating || !userId.trim()}
+              onBusyChange={setCreating}
+              onDone={result.load}
+            />
+          </>
         )}
       </section>
       <section className="card">
@@ -1663,10 +1762,6 @@ function Principals() {
                 const principal = item as Record<string, unknown>;
                 const id = String(principal.principalId);
                 const revision = Number(principal.revision);
-                const selectedRole =
-                  Array.isArray(principal.roles) && principal.roles.length
-                    ? String(principal.roles[0])
-                    : "ADMIN_SUPPORT";
                 return [
                   id,
                   String(principal.userId),
@@ -1675,45 +1770,17 @@ function Principals() {
                   Array.isArray(principal.roles)
                     ? principal.roles.join(", ")
                     : "—",
-                  <div className="actions" key="a">
-                    <Mutation
-                      permission="admin.principal.manage"
-                      action={`Grant ${selectedRole}`}
-                      path={`/v1/admin/principals/${id}/roles/${selectedRole}/grant`}
-                      body={{ expectedRevision: revision }}
-                      onDone={result.load}
-                    >
-                      <span />
-                    </Mutation>
-                    <Mutation
-                      permission="admin.principal.manage"
-                      action={`Revoke ${selectedRole}`}
-                      path={`/v1/admin/principals/${id}/roles/${selectedRole}/revoke`}
-                      body={{ expectedRevision: revision }}
-                      confirm={`Revoke ${selectedRole} from ${id}? Last-owner protection remains server-authoritative.`}
-                      onDone={result.load}
-                    >
-                      <span />
-                    </Mutation>
-                    <Mutation
-                      permission="admin.principal.manage"
-                      action="Suspend"
-                      path={`/v1/admin/principals/${id}/suspend`}
-                      body={{ expectedRevision: revision }}
-                      onDone={result.load}
-                    >
-                      <span />
-                    </Mutation>
-                    <Mutation
-                      permission="admin.principal.manage"
-                      action="Restore"
-                      path={`/v1/admin/principals/${id}/restore`}
-                      body={{ expectedRevision: revision }}
-                      onDone={result.load}
-                    >
-                      <span />
-                    </Mutation>
-                  </div>,
+                  <PrincipalActions
+                    key={`${id}:${revision}`}
+                    id={id}
+                    revision={revision}
+                    roles={
+                      Array.isArray(principal.roles)
+                        ? principal.roles.map(String)
+                        : []
+                    }
+                    onDone={result.load}
+                  />,
                 ];
               })}
             />
