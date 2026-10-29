@@ -464,21 +464,34 @@ function hasUnsafeQuotedCredentialKey(input: string): boolean {
   return false;
 }
 
-// Detect compatibility-equivalent credential keys and delimiters without
-// rewriting any benign Unicode text. The value boundary of the folded
-// assignment is not trustworthy, so discard the entire diagnostic.
+// Examine only a credential assignment when checking NFKC compatibility.
+// Folding unrelated safe JSON siblings must not erase a valid JSON envelope.
+// Noncanonical key/assignment separators remain fail-closed since the value
+// boundary cannot safely be inferred from such a diagnostic.
 function hasCompatibilityCredentialAssignment(input: string): boolean {
-  const folded = input.normalize("NFKC");
-  if (folded === input) return false;
-
   const assignment =
-    /(?<![\p{L}\p{N}_])["']?([\p{L}_][\p{L}\p{N}_\p{Default_Ignorable_Code_Point}-]*)["']?[\s\p{Default_Ignorable_Code_Point}]*[:=]/gu;
-  for (const match of folded.matchAll(assignment)) {
-    if (isSensitiveDiagnosticKey(match[1]!)) return true;
+    /(?<![\p{L}\p{N}_])["']?([\p{L}_][\p{L}\p{N}_\p{Default_Ignorable_Code_Point}-]*)["']?[\s\p{Default_Ignorable_Code_Point}]*[:=：＝﹕﹦︓]/gu;
+  for (const match of input.matchAll(assignment)) {
+    if (
+      match[0].normalize("NFKC") !== match[0] &&
+      isSensitiveDiagnosticKey(match[1]!)
+    )
+      return true;
   }
-  return /(?<![\p{L}\p{N}_])(?:api|private|secret)[\s_-]+key[\s\p{Default_Ignorable_Code_Point}]*[:=]/iu.test(
-    folded,
-  );
+  // A quoted, valid JSON key may contain Unicode spaces or compatibility
+  // letters: the structured scrubber can safely preserve its siblings.
+  // Unquoted assignments and non-JSON delimiters cannot prove that boundary.
+  const spacedCompatibility =
+    /(?<![\p{L}\p{N}_])(["']?)([\p{L}_][\p{L}\p{N}_\p{Default_Ignorable_Code_Point}-]*(?:[\s\p{Default_Ignorable_Code_Point}-]+[\p{L}\p{N}_\p{Default_Ignorable_Code_Point}-]+))\1[\s\p{Default_Ignorable_Code_Point}]*([:=：＝﹕﹦︓])/gu;
+  for (const match of input.matchAll(spacedCompatibility)) {
+    if (
+      isSensitiveDiagnosticKey(match[2]!) &&
+      match[0].normalize("NFKC") !== match[0] &&
+      (!match[1] || match[3] !== ":")
+    )
+      return true;
+  }
+  return false;
 }
 
 function redactAccidentalSecretsBasic(input: string): string {

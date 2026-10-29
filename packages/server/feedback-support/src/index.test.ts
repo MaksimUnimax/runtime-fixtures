@@ -2854,6 +2854,19 @@ describe("B06 fullwidth colon after recognizable credential keys", () => {
       requestId: "safe-request",
     });
   });
+
+  it("keeps unrelated NFKC-compatible text in a valid credential JSON sibling", () => {
+    const raw = JSON.stringify({
+      password: "SYNTH_B06_NFKC_JSON_PASSWORD",
+      note: "ｋ unit： harmless",
+      requestId: "safe-request",
+    });
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      password: "[REDACTED_SECRET]",
+      note: "ｋ unit： harmless",
+      requestId: "safe-request",
+    });
+  });
 });
 
 describe("B06 bare multiword credentials must not leak suffixes", () => {
@@ -3199,6 +3212,18 @@ describe("B06 Unicode compatibility-equivalent credential keys and separators", 
         fake +
         '"}',
     ],
+    [
+      "fullwidth spaced bare api key with small colon",
+      "diagnostic ａｐｉ　ｋｅｙ﹕" + fake,
+    ],
+    [
+      "fullwidth spaced bare private key with small equals",
+      "diagnostic ｐｒｉｖａｔｅ　ｋｅｙ﹦" + fake,
+    ],
+    [
+      "fullwidth spaced quoted malformed api key",
+      '"ａｐｉ　ｋｅｙ"﹕"' + fake + '"',
+    ],
   ] as const;
 
   it.each(cases)(
@@ -3252,6 +3277,19 @@ describe("B06 Unicode compatibility-equivalent credential keys and separators", 
       expect(forwarded.every((value) => !value.includes(fake))).toBe(true);
     },
   );
+
+  it("preserves safe JSON siblings beside a quoted compatibility-spaced credential key", () => {
+    const raw = JSON.stringify({
+      "ａｐｉ　ｋｅｙ": fake,
+      requestId: "safe",
+      note: "ｋ unit： harmless",
+    });
+    expect(JSON.parse(sanitizeFeedbackText(raw))).toEqual({
+      "ａｐｉ　ｋｅｙ": "[REDACTED_SECRET]",
+      requestId: "safe",
+      note: "ｋ unit： harmless",
+    });
+  });
 
   it("preserves unrelated compatibility Unicode and public-key identifiers", () => {
     for (const safe of [
