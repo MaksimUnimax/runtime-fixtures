@@ -349,6 +349,45 @@ describe("A6 API-watch report lifecycle", () => {
     },
   );
 
+  it.each(["RUNNING", "COMPLETED"] as const)(
+    "refuses ordinary success when post-terminal readback has stale %s state",
+    async (observedState) => {
+      const root = await mkdtemp(join(tmpdir(), "s2-c03-stale-report-"));
+      try {
+        const setup = reportDependencies(missingAuthorityRegistry(), root);
+        const originalGet = setup.reportStore.getReport.bind(setup.reportStore);
+        setup.reportStore.getReport = async (id) => {
+          const actual = await originalGet(id);
+          return actual?.state === "BLOCKED"
+            ? {
+                ...actual,
+                state: observedState,
+                completedAt:
+                  observedState === "RUNNING" ? null : actual.completedAt,
+              }
+            : actual;
+        };
+        const result = await runApiWatchReport({
+          dependencies: setup.dependencies,
+          runId: "stale-post-terminal-" + observedState,
+          source: "FORCED",
+        });
+        expect(
+          (await originalGet("api-watch:stale-post-terminal-" + observedState))
+            ?.state,
+        ).toBe("BLOCKED");
+        expect(result).toMatchObject({
+          status: "FAILED",
+          code: "API_WATCH_REPORT_COMMIT_UNKNOWN",
+        });
+        expect(result.summary).toContain("could not be confirmed");
+        expect(result).not.toHaveProperty("coverage");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("does not claim a durable report when terminal transition fails before its commit", async () => {
     const root = await mkdtemp(join(tmpdir(), "s2-c03-transition-unknown-"));
     try {
