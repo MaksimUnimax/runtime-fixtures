@@ -61,9 +61,9 @@ type Device = {
   id: string;
   status: string;
   label: string | null;
-  browserFamily: string;
-  browserVersionLastSeen: string | null;
-  extensionVersionLastSeen: string | null;
+  browserFamily?: string;
+  browserVersionLastSeen?: string | null;
+  extensionVersionLastSeen?: string;
   createdAt: string;
   activatedAt: string | null;
   lastSeenAt: string | null;
@@ -73,7 +73,19 @@ type Subscription = {
   accountId: string;
   accessBasis?: "BETA" | "COMMERCIAL" | "NONE";
   access: { status: string; reason: string | null };
-  subscription: Record<string, unknown> | null;
+  subscription: {
+    id: string;
+    state: string;
+    stateRevision: number;
+    plan: {
+      planRevisionId: string;
+      planCode: string;
+      planRevision: number;
+      displayName: string;
+    };
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+  } | null;
   deviceAllowance: unknown;
 };
 type BetaState = {
@@ -121,6 +133,8 @@ export function safeError(error: unknown): string {
       return "The previous operation was not repeated because current server state changed. Review the refreshed data and submit a new operation.";
     if (error.code === "ADMIN_RESOURCE_NOT_FOUND")
       return "This resource is no longer available.";
+    if (error.code === "ADMIN_LAST_OWNER_REQUIRED")
+      return "Keep at least one active owner with an active user account. No change was made.";
     if (error.code === "SERVICE_UNAVAILABLE")
       return "The control plane is temporarily unavailable.";
     if (error.code === "ADMIN_FORBIDDEN")
@@ -142,13 +156,24 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<Notice>(null);
   const [otpRequired, setOtpRequired] = useState(false);
+  const authorityGeneration = useRef(0);
+  const active = useRef(false);
+  const pendingSignOut = useRef<Promise<void> | null>(null);
   const refresh = async (): Promise<Me | null> => {
+    if (!active.current || pendingSignOut.current) return null;
+    const generation = ++authorityGeneration.current;
+    const isCurrent = () =>
+      active.current &&
+      authorityGeneration.current === generation &&
+      !pendingSignOut.current;
     try {
       const value = await controlPlane<Me>("/v1/admin/me");
+      if (!isCurrent()) return null;
       setMe(value);
       setOtpRequired(false);
       return value;
     } catch (error) {
+      if (!isCurrent()) return null;
       if (
         error instanceof ControlPlaneError &&
         error.code === "ADMIN_REAUTH_REQUIRED"
@@ -158,21 +183,52 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       }
       setMe(null);
       return null;
+    } finally {
+      if (isCurrent()) setLoading(false);
     }
   };
   useEffect(() => {
-    void refresh().finally(() => setLoading(false));
+    active.current = true;
+    void refresh();
+    return () => {
+      active.current = false;
+      authorityGeneration.current++;
+    };
   }, []);
-  const signOut = async () => {
-    try {
-      await controlPlane("/v1/admin/session", { method: "DELETE" });
-    } catch (error) {
-      setNotice({ kind: "error", text: safeError(error) });
-      throw error;
-    }
-    setMe(null);
-    setOtpRequired(false);
-    setNotice(null);
+  const signOut = (): Promise<void> => {
+    if (pendingSignOut.current) return pendingSignOut.current;
+    // Invalidate every read started before the logout. No refresh started
+    // while DELETE is pending may restore the context being ended.
+    authorityGeneration.current++;
+    const operation = (async () => {
+      try {
+        await controlPlane("/v1/admin/session", { method: "DELETE" });
+      } catch (error) {
+        if (!active.current) return;
+        if (
+          error instanceof ControlPlaneError &&
+          (error.code === "ADMIN_UNAUTHORIZED" ||
+            error.code === "ADMIN_REAUTH_REQUIRED")
+        ) {
+          // An expired session cannot authorize its own revocation. Its stale
+          // context still has to end; a transport/CSRF failure is distinct.
+          setMe(null);
+          setOtpRequired(error.code === "ADMIN_REAUTH_REQUIRED");
+          setNotice({ kind: "info", text: safeError(error) });
+          return;
+        }
+        setNotice({ kind: "error", text: safeError(error) });
+        throw error;
+      }
+      if (!active.current) return;
+      setMe(null);
+      setOtpRequired(false);
+      setNotice(null);
+    })().finally(() => {
+      if (pendingSignOut.current === operation) pendingSignOut.current = null;
+    });
+    pendingSignOut.current = operation;
+    return operation;
   };
   return (
     <AdminContext.Provider
@@ -562,15 +618,21 @@ export function LoginPage() {
 }
 
 export function useData<T>(path: string | null) {
-  // A new selection has a distinct scope, so previous data is hidden in the
-  // selection render itself, before the effect starts the next request.
+  const { me, refresh, setNotice } = useAdmin();
+  const authority = JSON.stringify([
+    me?.principalId,
+    me?.expiresAt,
+    me?.permissions,
+  ]);
+  // A new selection or admin authority has a distinct scope. Previous data is
+  // hidden in that render, before the effect starts the new authorized read.
   const scope = useMemo(
     () => ({
       active: false,
       generation: 0,
       controller: null as AbortController | null,
     }),
-    [path],
+    [path, authority],
   );
   const [state, setState] = useState<{
     scope: typeof scope | null;
@@ -578,7 +640,6 @@ export function useData<T>(path: string | null) {
     busy: boolean;
     error: unknown;
   }>({ scope: null, data: null, busy: Boolean(path), error: null });
-  const { refresh, setNotice } = useAdmin();
   const load = async () => {
     // An onDone callback retained by an old selection cannot reload it.
     if (!scope.active) return;
@@ -603,13 +664,18 @@ export function useData<T>(path: string | null) {
       setState({ scope, data: null, busy: true, error: value });
       if (
         value instanceof ControlPlaneError &&
-        value.code === "ADMIN_FORBIDDEN"
+        (value.code === "ADMIN_FORBIDDEN" ||
+          value.code === "ADMIN_UNAUTHORIZED" ||
+          value.code === "ADMIN_REAUTH_REQUIRED")
       ) {
         await refresh();
         if (isCurrent())
           setNotice({
             kind: "error",
-            text: "Your permission changed. Available controls were refreshed.",
+            text:
+              value.code === "ADMIN_FORBIDDEN"
+                ? "Your permission changed. Available controls were refreshed."
+                : safeError(value),
           });
       }
     } finally {
@@ -643,6 +709,7 @@ export function Mutation({
   onDone,
   onSuccess,
   onBusyChange,
+  reviewScope,
   disabled = false,
   children,
 }: {
@@ -654,6 +721,9 @@ export function Mutation({
   onDone?: () => Promise<void> | void;
   onSuccess?: (value: unknown) => void;
   onBusyChange?: (busy: boolean) => void;
+  // Opt in when the parent owns the target inputs and locks them while pending.
+  // Other workspaces retain their existing draft/selection coordinators.
+  reviewScope?: string;
   disabled?: boolean;
   children?: ReactNode;
 }) {
@@ -661,9 +731,54 @@ export function Mutation({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [reason, setReason] = useState("");
-  const [review, setReview] = useState(false);
+  const [review, setReview] = useState<{
+    fingerprint: string;
+    scope: string;
+    path: string;
+    body: Record<string, unknown>;
+  } | null>(null);
+  const fingerprint = JSON.stringify([
+    permission,
+    action,
+    path,
+    reviewScope === undefined ? undefined : body,
+    confirm,
+    reviewScope,
+    me?.principalId,
+    me?.expiresAt,
+  ]);
+  const outcomeScope = JSON.stringify([
+    permission,
+    path,
+    reviewScope,
+    me?.principalId,
+    me?.expiresAt,
+  ]);
+  const currentOutcomeScope = useRef(outcomeScope);
+  currentOutcomeScope.current = outcomeScope;
+  const active = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    setReview((current) =>
+      current?.fingerprint === fingerprint ? current : null,
+    );
+  }, [fingerprint]);
+  const currentReview = review?.fingerprint === fingerprint ? review : null;
   const submit = async () => {
     if (busyRef.current || disabled) return;
+    if (!currentReview) {
+      setReview(null);
+      setNotice({
+        kind: "info",
+        text: "The operation changed. Review it again before submitting.",
+      });
+      return;
+    }
     if (!has(me, permission) || !reason.trim()) {
       setNotice({
         kind: "error",
@@ -675,49 +790,68 @@ export function Mutation({
       Object.prototype.hasOwnProperty.call(body, "expectedLatestRevision") &&
       body.expectedLatestRevision === undefined
     ) {
-      setReview(false);
+      setReview(null);
       setReason("");
+      setNotice({
+        kind: "info",
+        text: "The current authoritative revision was unavailable. No mutation was submitted; review again after the data reloads.",
+      });
       try {
         await onDone?.();
       } catch {
         /* keep the mutation fail-closed if the authority read fails */
       }
-      setNotice({
-        kind: "info",
-        text: "The current authoritative revision was unavailable. No mutation was submitted; review again after the data reloads.",
-      });
       return;
     }
     busyRef.current = true;
     setBusy(true);
     onBusyChange?.(true);
+    const submitted = currentReview;
+    const isCurrent = () =>
+      reviewScope === undefined ||
+      (active.current && currentOutcomeScope.current === submitted.scope);
     try {
-      const value = await controlPlane(path, {
+      const value = await controlPlane(submitted.path, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...body, reason: reason.trim() }),
+        body: JSON.stringify({
+          ...(reviewScope === undefined ? body : submitted.body),
+          reason: reason.trim(),
+        }),
       });
+      // B14 opt-in parents own the whole target lifetime. Legacy workspaces
+      // retain their existing outcome callbacks across shared list reloads.
+      // An already sent POST is never treated as canceled by UI navigation.
+      if (!isCurrent()) return;
       onSuccess?.(value);
       setReason("");
-      setReview(false);
+      setReview(null);
       setNotice({ kind: "success", text: `${action} completed.` });
-      await onDone?.();
+      try {
+        await onDone?.();
+      } catch {
+        // The mutation succeeded. The read surface owns its error state; do not
+        // turn a failed reload into a failed write or overwrite a newer notice.
+      }
     } catch (error) {
+      if (!isCurrent()) return;
       const stale =
         error instanceof ControlPlaneError &&
         (error.code === "ADMIN_STATE_STALE" || error.code === "ADMIN_CONFLICT");
       if (stale) {
-        setReview(false);
+        setReview(null);
         setReason("");
+        setNotice({
+          kind: "info",
+          text: "The previous operation was not automatically repeated. Review current server data before submitting a new operation.",
+        });
         try {
           await onDone?.();
         } catch {
-          /* retain the safe stale state if the authoritative read also fails */
+          // The read failed; retain the safe instruction without asserting a
+          // successful refresh or replaying the original change.
+          return;
         }
-        setNotice({
-          kind: "info",
-          text: "The previous operation was not automatically repeated. Current server state was refreshed; review a new operation before submitting.",
-        });
         return;
       }
       if (
@@ -727,9 +861,11 @@ export function Mutation({
           error.code === "ADMIN_CSRF_INVALID" ||
           error.code === "ADMIN_FORBIDDEN")
       ) {
+        setNotice({ kind: "error", text: safeError(error) });
         await refresh();
+        return;
       }
-      setNotice({ kind: "error", text: safeError(error) });
+      if (isCurrent()) setNotice({ kind: "error", text: safeError(error) });
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -744,7 +880,14 @@ export function Mutation({
         <button
           type="button"
           disabled={busy || disabled}
-          onClick={() => setReview(true)}
+          onClick={() => {
+            setReview({
+              fingerprint,
+              scope: outcomeScope,
+              path,
+              body: JSON.parse(JSON.stringify(body)) as Record<string, unknown>,
+            });
+          }}
         >
           {busy ? "Working…" : action}
         </button>
@@ -754,11 +897,12 @@ export function Mutation({
         <textarea
           value={reason}
           onChange={(event) => setReason(event.target.value)}
+          disabled={busy}
           maxLength={256}
           required
         />
       </label>
-      {review && (
+      {currentReview && (
         <div className="confirm" role="dialog" aria-label={`Confirm ${action}`}>
           <p>
             <strong>Review before submitting</strong>
@@ -776,7 +920,8 @@ export function Mutation({
             <button
               type="button"
               className="secondary"
-              onClick={() => setReview(false)}
+              disabled={busy}
+              onClick={() => setReview(null)}
             >
               Cancel
             </button>
@@ -830,13 +975,15 @@ export function LoadState({ busy, error }: { busy: boolean; error: unknown }) {
 export function Cursor({
   cursor,
   onNext,
+  disabled = false,
 }: {
   cursor: string | null;
   onNext: () => void;
+  disabled?: boolean;
 }) {
   return cursor ? (
     <div className="actions">
-      <button className="secondary" onClick={onNext}>
+      <button className="secondary" disabled={disabled} onClick={onNext}>
         Next page
       </button>
     </div>
@@ -1282,6 +1429,10 @@ function AccountWorkspace() {
   const [planRevisionId, setPlanRevisionId] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [entitlementKey, setEntitlementKey] = useState("");
+  const [mutationBusy, setMutationBusy] = useState(false);
+  const [overrideEffectiveFrom, setOverrideEffectiveFrom] = useState(() =>
+    new Date().toISOString(),
+  );
   const effective = useData<Record<string, unknown>>(
     has(me, "entitlement.read") && entitlementKey
       ? `/v1/admin/accounts/${accountId}/entitlements/${entitlementKey}`
@@ -1298,6 +1449,7 @@ function AccountWorkspace() {
   }, [entitlementKey, overrides.data]);
   const reloadOverrides = async () => {
     await Promise.all([overrides.load(), effective.load()]);
+    setOverrideEffectiveFrom(new Date().toISOString());
   };
   const reloadAll = async () => {
     await Promise.all([
@@ -1323,11 +1475,20 @@ function AccountWorkspace() {
             </p>
           )}
           <LoadState busy={subscription.busy} error={subscription.error} />
+          {subscription.data && (
+            <p role="status">
+              Access: {subscription.data.access.status}
+              {subscription.data.access.reason
+                ? ` · ${subscription.data.access.reason}`
+                : ""}
+            </p>
+          )}
           <div className="form-grid">
             <label>
               Published plan revision ID
               <input
                 value={planRevisionId}
+                disabled={mutationBusy}
                 onChange={(e) => setPlanRevisionId(e.target.value)}
               />
             </label>
@@ -1336,6 +1497,7 @@ function AccountWorkspace() {
               <input
                 type="datetime-local"
                 value={periodEnd}
+                disabled={mutationBusy}
                 onChange={(e) => setPeriodEnd(e.target.value)}
               />
             </label>
@@ -1350,6 +1512,10 @@ function AccountWorkspace() {
                 ? new Date(periodEnd).toISOString()
                 : "",
             }}
+            confirm={`Grant plan revision ${planRevisionId || "(required)"} to account ${accountId} until ${periodEnd || "(required)"}? This changes the account's commercial access.`}
+            disabled={mutationBusy}
+            onBusyChange={setMutationBusy}
+            reviewScope={accountId}
             onDone={subscription.load}
           />
           {sub ? (
@@ -1368,7 +1534,10 @@ function AccountWorkspace() {
                     String(sub.id),
                     String(sub.state),
                     String(sub.stateRevision),
-                    String(sub.planRevisionId ?? sub.plan ?? "—"),
+                    sub.plan?.displayName ??
+                      sub.plan?.planCode ??
+                      sub.plan?.planRevisionId ??
+                      "Not provided",
                     `${String(sub.currentPeriodStart)} → ${String(sub.currentPeriodEnd)}`,
                     subscription.data?.access.status ?? "—",
                   ],
@@ -1384,6 +1553,10 @@ function AccountWorkspace() {
                     ? new Date(periodEnd).toISOString()
                     : "",
                 }}
+                confirm={`Extend subscription ${subId} for account ${accountId} until ${periodEnd || "(required)"}?`}
+                disabled={mutationBusy}
+                onBusyChange={setMutationBusy}
+                reviewScope={accountId}
                 onDone={subscription.load}
               />
               <div className="actions">
@@ -1392,7 +1565,10 @@ function AccountWorkspace() {
                   action="Suspend subscription"
                   path={`/v1/admin/accounts/${accountId}/subscription/${subId}/suspend`}
                   body={{ expectedStateRevision: revision }}
-                  confirm="Suspend the current subscription?"
+                  confirm={`Suspend subscription ${subId} for account ${accountId}? This changes the account's commercial access.`}
+                  disabled={mutationBusy}
+                  onBusyChange={setMutationBusy}
+                  reviewScope={accountId}
                   onDone={subscription.load}
                 />
                 <Mutation
@@ -1400,6 +1576,10 @@ function AccountWorkspace() {
                   action="Restore subscription"
                   path={`/v1/admin/accounts/${accountId}/subscription/${subId}/restore`}
                   body={{ expectedStateRevision: revision }}
+                  confirm={`Restore subscription ${subId} for account ${accountId}? Access will be recalculated by the server.`}
+                  disabled={mutationBusy}
+                  onBusyChange={setMutationBusy}
+                  reviewScope={accountId}
                   onDone={subscription.load}
                 />
               </div>
@@ -1427,7 +1607,9 @@ function AccountWorkspace() {
                 rows={devices.data.items.map((device) => [
                   <code key="id">{device.id}</code>,
                   device.label ?? "—",
-                  `${device.browserFamily} ${device.browserVersionLastSeen ?? ""}`,
+                  device.browserFamily
+                    ? `${device.browserFamily} ${device.browserVersionLastSeen ?? ""}`.trim()
+                    : "Not provided",
                   device.status,
                   device.lastSeenAt ?? "—",
                   <Mutation
@@ -1436,7 +1618,10 @@ function AccountWorkspace() {
                     action="Revoke"
                     path={`/v1/admin/accounts/${accountId}/devices/${device.id}/revoke`}
                     body={{}}
-                    confirm={`Revoke device ${device.id}?`}
+                    confirm={`Revoke device ${device.id} in account ${accountId}? Its active extension sessions will end.`}
+                    disabled={mutationBusy}
+                    onBusyChange={setMutationBusy}
+                    reviewScope={accountId}
                     onDone={devices.load}
                   >
                     <span />
@@ -1445,6 +1630,7 @@ function AccountWorkspace() {
               />
               <Cursor
                 cursor={devices.data.nextCursor}
+                disabled={mutationBusy}
                 onNext={() =>
                   setDevicePath(
                     withCursor(devicePath, devices.data?.nextCursor ?? ""),
@@ -1519,9 +1705,11 @@ function AccountWorkspace() {
             Entitlement key
             <input
               value={entitlementKey}
+              disabled={mutationBusy}
               onChange={(e) => {
                 const value = e.target.value;
                 setEntitlementKey(value);
+                setOverrideEffectiveFrom(new Date().toISOString());
                 setOverridesPath(
                   `/v1/admin/accounts/${accountId}/entitlement-overrides?limit=50${value ? `&entitlementKey=${encodeURIComponent(value)}` : ""}`,
                 );
@@ -1541,6 +1729,7 @@ function AccountWorkspace() {
           {overrides.data && (
             <Cursor
               cursor={overrides.data.nextCursor}
+              disabled={mutationBusy}
               onNext={() =>
                 setOverridesPath(
                   withCursor(overridesPath, overrides.data?.nextCursor ?? ""),
@@ -1566,9 +1755,13 @@ function AccountWorkspace() {
               body={{
                 expectedLatestRevision: latestOverrideRevision,
                 value: { kind: "BOOLEAN", value: true },
-                effectiveFrom: new Date().toISOString(),
+                effectiveFrom: overrideEffectiveFrom,
                 expiresAt: null,
               }}
+              confirm={`Set override ${entitlementKey || "(required)"} for account ${accountId}? The server will recalculate effective access.`}
+              disabled={mutationBusy}
+              onBusyChange={setMutationBusy}
+              reviewScope={accountId}
               onDone={reloadOverrides}
             >
               <span />
@@ -1579,10 +1772,13 @@ function AccountWorkspace() {
               path={`/v1/admin/accounts/${accountId}/entitlement-overrides/${entitlementKey}/clear`}
               body={{
                 expectedLatestRevision: latestOverrideRevision,
-                effectiveFrom: new Date().toISOString(),
+                effectiveFrom: overrideEffectiveFrom,
                 expiresAt: null,
               }}
-              confirm={`Clear override ${entitlementKey}?`}
+              confirm={`Clear override ${entitlementKey} for account ${accountId}? The server will recalculate effective access.`}
+              disabled={mutationBusy}
+              onBusyChange={setMutationBusy}
+              reviewScope={accountId}
               onDone={reloadOverrides}
             >
               <span />
@@ -1600,7 +1796,11 @@ function AccountWorkspace() {
           </p>
         </section>
       )}
-      <button className="secondary" onClick={() => void reloadAll()}>
+      <button
+        className="secondary"
+        disabled={mutationBusy}
+        onClick={() => void reloadAll()}
+      >
         Reload workspace
       </button>
     </Shell>
@@ -1611,16 +1811,19 @@ function PrincipalActions({
   id,
   revision,
   roles,
+  busy,
+  onBusyChange,
   onDone,
 }: {
   id: string;
   revision: number;
   roles: string[];
+  busy: boolean;
+  onBusyChange: (busy: boolean) => void;
   onDone: () => Promise<void>;
 }) {
   const { me } = useAdmin();
   const [role, setRole] = useState<AdminPrincipalRole | "">("");
-  const [busy, setBusy] = useState(false);
   if (!has(me, "admin.principal.manage")) return null;
   return (
     <div className="actions">
@@ -1654,7 +1857,8 @@ function PrincipalActions({
             body={{ expectedRevision: revision }}
             confirm={`Grant ${role} to ${id}? This changes this principal's administrative access.`}
             disabled={busy || roles.includes(role)}
-            onBusyChange={setBusy}
+            onBusyChange={onBusyChange}
+            reviewScope={id}
             onDone={onDone}
           />
           <Mutation
@@ -1664,7 +1868,8 @@ function PrincipalActions({
             body={{ expectedRevision: revision }}
             confirm={`Revoke ${role} from ${id}? This removes the role's administrative access. Last-owner protection remains server-authoritative.`}
             disabled={busy || !roles.includes(role)}
-            onBusyChange={setBusy}
+            onBusyChange={onBusyChange}
+            reviewScope={id}
             onDone={onDone}
           />
         </div>
@@ -1674,8 +1879,10 @@ function PrincipalActions({
         action="Suspend"
         path={`/v1/admin/principals/${id}/suspend`}
         body={{ expectedRevision: revision }}
+        confirm={`Suspend principal ${id}? All active admin sessions for this principal will be revoked.`}
         disabled={busy}
-        onBusyChange={setBusy}
+        onBusyChange={onBusyChange}
+        reviewScope={id}
         onDone={onDone}
       />
       <Mutation
@@ -1683,8 +1890,10 @@ function PrincipalActions({
         action="Restore"
         path={`/v1/admin/principals/${id}/restore`}
         body={{ expectedRevision: revision }}
+        confirm={`Restore principal ${id}? Previously revoked admin sessions stay revoked; a new sign-in and elevation are required.`}
         disabled={busy}
-        onBusyChange={setBusy}
+        onBusyChange={onBusyChange}
+        reviewScope={id}
         onDone={onDone}
       />
     </div>
@@ -1699,7 +1908,9 @@ function Principals() {
   );
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState("ADMIN_SUPPORT");
-  const [creating, setCreating] = useState(false);
+  // Every row shares one authoritative list. Its reload unmounts the rows,
+  // so serialize writes across rows, creation and pagination until reload ends.
+  const [mutationBusy, setMutationBusy] = useState(false);
   return (
     <Shell title="Admin principals">
       <section className="card">
@@ -1714,7 +1925,7 @@ function Principals() {
                 User ID
                 <input
                   value={userId}
-                  disabled={creating}
+                  disabled={mutationBusy}
                   onChange={(e) => setUserId(e.target.value)}
                 />
               </label>
@@ -1722,7 +1933,7 @@ function Principals() {
                 Initial role
                 <select
                   value={role}
-                  disabled={creating}
+                  disabled={mutationBusy}
                   onChange={(e) => setRole(e.target.value)}
                 >
                   {ADMIN_PRINCIPAL_ROLES.map((value) => (
@@ -1738,8 +1949,9 @@ function Principals() {
               path="/v1/admin/principals"
               body={{ userId, initialRole: role }}
               confirm={`Create an admin principal for user ${userId} with ${role}? This grants administrative access to that user.`}
-              disabled={creating || !userId.trim()}
-              onBusyChange={setCreating}
+              disabled={mutationBusy || !userId.trim()}
+              onBusyChange={setMutationBusy}
+              reviewScope={userId}
               onDone={result.load}
             />
           </>
@@ -1774,6 +1986,8 @@ function Principals() {
                     key={`${id}:${revision}`}
                     id={id}
                     revision={revision}
+                    busy={mutationBusy}
+                    onBusyChange={setMutationBusy}
                     roles={
                       Array.isArray(principal.roles)
                         ? principal.roles.map(String)
@@ -1786,6 +2000,7 @@ function Principals() {
             />
             <Cursor
               cursor={result.data.nextCursor}
+              disabled={mutationBusy}
               onNext={() =>
                 setPath(withCursor(path, result.data?.nextCursor ?? ""))
               }
