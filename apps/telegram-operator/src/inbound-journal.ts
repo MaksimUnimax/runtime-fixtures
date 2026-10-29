@@ -79,6 +79,8 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
     this.filename = filename;
     if (
       !path.isAbsolute(filename) ||
+      path.normalize(filename) !== filename ||
+      path.dirname(filename) === path.parse(filename).root ||
       path.basename(filename) !== "telegram-inbound-journal.json"
     ) {
       throw new Error("TELEGRAM_INBOUND_JOURNAL_PATH_INVALID");
@@ -340,6 +342,13 @@ export class FileTelegramInboundJournal implements TelegramInboundJournal {
     }
     if (updateId < this.record.nextOffset) {
       throw new Error("TELEGRAM_INBOUND_REPLAY");
+    }
+    // This source-only journal cannot prove that skipped IDs were observed by
+    // Telegram getUpdates. Only the exact next expected ID may dispatch.
+    // Any legitimate raw-page gap needs a separately reviewed source proof;
+    // accepting an arbitrary larger ID here would silently skip commands.
+    if (updateId !== this.record.nextOffset) {
+      throw new Error("TELEGRAM_INBOUND_UPDATE_GAP_UNVERIFIED");
     }
     await this.persist({
       schemaVersion: 1,

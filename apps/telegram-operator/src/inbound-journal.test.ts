@@ -47,29 +47,29 @@ describe("durable inbound Telegram dispatch fence (no network)", () => {
     const { filename } = await fixture(4);
     const journal = new FileTelegramInboundJournal(filename);
     expect(await journal.open()).toBe(4);
-    await journal.begin(5);
+    await journal.begin(4);
     const inFlight = JSON.parse(await fs.readFile(filename, "utf8"));
     expect(inFlight).toEqual({
       schemaVersion: 1,
-      nextOffset: 6,
-      inFlightUpdateId: 5,
+      nextOffset: 5,
+      inFlightUpdateId: 4,
     });
+    await journal.complete(4);
+    // The only accepted cursor movement is a confirmed contiguous update.
+    await journal.begin(5);
     await journal.complete(5);
-    // Only an actually begun and completed update may advance the cursor.
-    await journal.begin(8);
-    await journal.complete(8);
     expect(JSON.parse(await fs.readFile(filename, "utf8"))).toEqual({
       schemaVersion: 1,
-      nextOffset: 9,
+      nextOffset: 6,
       inFlightUpdateId: null,
     });
     await journal.close();
 
     const restarted = new FileTelegramInboundJournal(filename);
-    expect(await restarted.open()).toBe(9);
+    expect(await restarted.open()).toBe(6);
     await expect(restarted.begin(5)).rejects.toThrow("TELEGRAM_INBOUND_REPLAY");
-    await restarted.begin(9);
-    await restarted.complete(9);
+    await restarted.begin(6);
+    await restarted.complete(6);
     await restarted.close();
   });
 
@@ -97,7 +97,7 @@ describe("durable inbound Telegram dispatch fence (no network)", () => {
     await journal.open();
     const [first, second] = await Promise.allSettled([
       journal.begin(6),
-      journal.begin(7),
+      journal.begin(6),
     ]);
     expect(first.status).toBe("fulfilled");
     expect(second.status).toBe("rejected");
@@ -147,6 +147,32 @@ describe("durable inbound Telegram dispatch fence (no network)", () => {
       "TELEGRAM_INBOUND_JOURNAL_LOCKED",
     );
     await journal.close();
+  });
+
+  it("refuses a noncontiguous ID rather than silently skipping unseen updates", async () => {
+    const { filename } = await fixture(6);
+    const journal = new FileTelegramInboundJournal(filename);
+    await journal.open();
+    await expect(journal.begin(999)).rejects.toThrow(
+      "TELEGRAM_INBOUND_UPDATE_GAP_UNVERIFIED",
+    );
+    expect(JSON.parse(await fs.readFile(filename, "utf8"))).toEqual({
+      schemaVersion: 1,
+      nextOffset: 6,
+      inFlightUpdateId: null,
+    });
+    await journal.begin(6);
+    await journal.complete(6);
+    await journal.close();
+  });
+
+  it("rejects a noncanonical journal pathname before inspecting it", async () => {
+    const { dir } = await fixture(7);
+    const unusual =
+      dir + "/../" + path.basename(dir) + "/telegram-inbound-journal.json";
+    expect(() => new FileTelegramInboundJournal(unusual)).toThrow(
+      "TELEGRAM_INBOUND_JOURNAL_PATH_INVALID",
+    );
   });
 
   it("never exposes an arbitrary public cursor-advance operation", async () => {
