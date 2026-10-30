@@ -170,4 +170,45 @@ describe("bounded and nonblocking operator consumption receipt reads", () => {
       await rm(fixture.quarantineDir, { recursive: true, force: true });
     }
   });
+  it.each([
+    { label: "missing", value: undefined },
+    { label: "string", value: "1" },
+    { label: "NaN", value: Number.NaN },
+    { label: "negative", value: -1 },
+    { label: "fractional", value: 0.5 },
+    { label: "infinite", value: Number.POSITIVE_INFINITY },
+    {
+      label: "unsafe integer",
+      value: Number.MAX_SAFE_INTEGER + 1,
+    },
+  ])(
+    "rejects a terminal report source with an invalid inventory operation count ($label)",
+    async ({ value }) => {
+      const fixture = await syntheticReceipt();
+      const originalGetReport = fixture.reportStore.getReport.bind(
+        fixture.reportStore,
+      );
+      vi.spyOn(fixture.reportStore, "getReport").mockImplementation(
+        async (reportId) => {
+          const report = await originalGetReport(reportId);
+          if (report?.sources[0]) {
+            const source = report.sources[0] as unknown as Record<
+              string,
+              unknown
+            >;
+            if (value === undefined) delete source.inventoryOperationCount;
+            else source.inventoryOperationCount = value;
+          }
+          return report;
+        },
+      );
+      try {
+        await expect(operatorPipelineConsumed(fixture)).rejects.toThrow(
+          "OPERATOR_RECEIPT_INVALID",
+        );
+      } finally {
+        await rm(fixture.quarantineDir, { recursive: true, force: true });
+      }
+    },
+  );
 });
