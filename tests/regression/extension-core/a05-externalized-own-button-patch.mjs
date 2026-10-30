@@ -71,7 +71,7 @@ assert.deepEqual(groupedResultPatches.map(row => {
   ]
 ]);
 // Preserve all 363 historical recipes and pin the five later artifact overlays.
-const artifactIntegrityPatches = patches.slice(363);
+const artifactIntegrityPatches = patches.slice(363, 368);
 assert.equal(artifactIntegrityPatches.length, 5, "exact five appended artifact integrity overlays");
 assert.deepEqual(artifactIntegrityPatches.map(row => {
   assert.equal(row.target, "shared/file_delivery_port_worker.js");
@@ -99,6 +99,68 @@ assert.deepEqual(artifactIntegrityPatches.map(row => {
     "dbe8be59edc03dfa8adc688986c29825051958a1da5b9eacb49ad4835529044c"
   ]
 ]);
+// B02 settlement is a separate tail, not an artifact-worker count relaxation.
+// Preserve every prior pin and compare each newly introduced ordered recipe.
+const settlementPatches = patches.slice(368);
+assert.equal(settlementPatches.length, 10, "exact ten B02 settlement overlays");
+assert.deepEqual(settlementPatches.map(row => {
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+  return [row.target, hash(row.old), hash(row.new)];
+}), [
+  [
+    "content_script.js",
+    "fbbcd633bbcaaaaa9d08e4ef3049a95daf7fc98e93119a8aad9a67d460f758b1",
+    "568e83f439618b8cdc1943fd272dd934f487429dba5943d514cf3cc99c200dcf"
+  ],
+  [
+    "content_script.js",
+    "effa2cc8c73930c3a37fa7cea790c484f64ff5e3547fdaa1cf990fea4bf9e8a7",
+    "7f639200cb722ab22814b17a288ddd81a34a528e00cc9380e0bdd73016388c87"
+  ],
+  [
+    "content_script.js",
+    "2aef94b0dda043b0e1eb2056fb9467b818d1577555560b1212bc604f64ca3d35",
+    "ebb2a56781329d650302e9df763ea31b8446ad89fdc5d776e4a2e584495863d4"
+  ],
+  [
+    "content_script.js",
+    "7ab113b7179ce2e4a397b4282e524ba84aa365f2d4552b83c02ae555bf1140ef",
+    "00a01b17d141bbd4590ad4ac555cb0509cd3d888089899ea39afcf18844a0c08"
+  ],
+  [
+    "content_script.js",
+    "f8c090d67f275264437c27b3ccfad2b83b891865e4b51daaae477f2afd672375",
+    "555df57b2009e9e82339def8cf74a0008a7490f4e2994b67666c256c15e3524e"
+  ],
+  [
+    "attachment_delivery_port_content.js",
+    "4a45af64a62a28f58686ca26ea05c386e6528454b72edf96cd26e2a79c72c962",
+    "1e83e0797909f0e055a4a10fc69e3c73e2c6946f41e584b89a3080d864f4ab63"
+  ],
+  [
+    "attachment_delivery_port_content.js",
+    "a63fd85d3432ae63c6d302516256f2f4d3de2820b5d53c08de0235b8e80fb08d",
+    "088469662c61eed14076998bcd53f22edc796b622e9e42e0576970fbfc065e5c"
+  ],
+  [
+    "attachment_delivery_port_content.js",
+    "eba49e854b81f0bc0d80e26eac860d5970296a9b9567fb55cd6be1f1a4867f73",
+    "ee17113d035eb3d51df2f3c781ccf95aeba856a19f777458c45ace6152a40cda"
+  ],
+  [
+    "attachment_delivery_port_content.js",
+    "a69ed1ce4ccf0a7868e0c2a95beb5e2b9faa1d34193503e4f36085010778dbc9",
+    "219cb343cea824c84dd74a0d8b789ca6fb62185e592e500230aef64461df207f"
+  ],
+  [
+    "attachment_delivery_port_content.js",
+    "518cb59f1a79bdf494b1c35072ddfc025263f51e1c387a9cdac5c81b5a771793",
+    "ddeda52fc20b84d582a469d70af5279ed71901b42051607b6d09a915166e7d32"
+  ]
+]);
+const settlementContentPatches = settlementPatches.filter(row => row.target === "content_script.js");
+assert.equal(settlementContentPatches.length, 5);
+assert.equal(settlementPatches.filter(row => row.target === "attachment_delivery_port_content.js").length, 5);
 let artifactWorker = read("apps/extension/src/imported/ozon-v0.1.22/shared/file_delivery_port_worker.js");
 assert.equal(hash(artifactWorker), "c9b5fdbc8661828c17145519395bde1a2eab1af9b434b99ae13c1d8ccda0c6dd");
 let artifactPreimages = 0;
@@ -109,7 +171,7 @@ for (const row of patches.filter(row => row.target === "shared/file_delivery_por
 }
 assert.equal(artifactPreimages, 23);
 assert.equal(hash(artifactWorker), "c316aa9a9c511eea89dab1c094029bdc3e036353ece6240ca440af12ca8144fe", "exact compiled artifact worker including final owner deadline fence");
-assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length);
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length + settlementPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];
@@ -132,7 +194,7 @@ const kimiContentPatches = kimiPatches.filter(row => row.target === "content_scr
 assert.equal(kimiContentPatches.length, 8);
 const laterContentPatches = laterB02Patches.filter(row => row.target === "content_script.js");
 assert.equal(laterContentPatches.length, 72);
-assert.equal(contentPatches.length, 69 + kimiContentPatches.length + laterContentPatches.length);
+assert.equal(contentPatches.length, 69 + kimiContentPatches.length + laterContentPatches.length + settlementContentPatches.length);
 const baselineContentPatches = patches.slice(0, 179).filter(row => row.target === "content_script.js" && row !== standardComposerPatch);
 assert.equal(baselineContentPatches.length, 68);
 for (const row of baselineContentPatches) {
@@ -159,6 +221,11 @@ for (const row of laterContentPatches) {
   content = content.replace(row.old, row.new);
 }
 assert.equal(hash(content), "f5c5c9611b5d1b8ff477037c5997f16ef5a8cbe9eed87ce38477805e21647e49", "exact current content composition before bundle assembly");
+for (const row of settlementContentPatches) {
+  assert.equal(content.split(row.old).length - 1, 1, "one exact settlement preimage in ordered composition");
+  content = content.replace(row.old, row.new);
+}
+assert.equal(hash(content), "46427e7b29db5d65bb7ec1919041f5f81f87867cc8e4e58a75a18b49f0a653bd", "exact content after all five B02 settlement overlays");
 console.log(JSON.stringify({level:"SOURCE",status:"PASS",externalized:1,
   patchCount:patches.length,contentPatches:contentPatches.length,
   emittedSHA256:hash(content),runtimeOrStoreInstall:"NOT_RUN"}));
