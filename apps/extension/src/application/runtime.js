@@ -158,20 +158,25 @@ async function saInitializeOnce() {
 async function saTransferSourceSend(message) {
   const request = message.request;
   if (!request?.requestId || !request.recipientPublicKeySpki) throw saError("TRANSFER_INVALID");
-  const accountId = await SellerAgentsControlClient.currentAccount(), authority = await SellerAgentsControlClient.getAuthority();
-  const sourceDeviceId = authority?.deviceId;
+  // Pin the existing account/session generation across catalog and crypto awaits.
+  const sourceContext = await SellerAgentsControlClient.captureBackupContext();
+  const { accountId, deviceId: sourceDeviceId } = sourceContext;
   if (!accountId || !sourceDeviceId || request.accountId !== accountId) throw saError("TRANSFER_ACCOUNT_MISMATCH");
-  await SellerAgentsControlClient.markCredentialTransferSourceSeen(request.requestId);
+  if (!["REQUESTED", "SOURCE_SEEN"].includes(request.state) || request.sourceDeviceId && request.sourceDeviceId !== sourceDeviceId) throw saError("TRANSFER_CONFLICT");
+  if (!Array.isArray(request.selectedStores) || request.selectedStores.some(item => typeof item?.storeId !== "string" || !item.storeId)) throw saError("TRANSFER_INVALID");
   // Empty selection is the recipient's explicit request for all locally
   // available stores (including on a fresh installation with no catalog).
-  const selected = new Set((request.selectedStores || []).map(item => item.storeId));
+  const selected = new Set(request.selectedStores.map(item => item.storeId));
   const stores = [];
   for (const store of await saCatalog.list()) {
+    SellerAgentsControlClient.assertCredentialTransferContext(sourceContext);
     if (selected.size && !selected.has(store.id)) continue;
     const full = await saCatalog.get(store.id);
+    SellerAgentsControlClient.assertCredentialTransferContext(sourceContext);
     if (full.accountId !== accountId) throw saError("TRANSFER_ACCOUNT_MISMATCH");
-    const hasKeys = full.marketplace === "wildberries" ? Boolean(full.credentials?.token) : Boolean(full.credentials?.seller?.clientId && full.credentials?.seller?.apiKey);
-    if (full.credentialsStale || !hasKeys) {
+    const present = value => typeof value === "string" && value.trim().length > 0;
+    const hasKeys = full.marketplace === "wildberries" ? present(full.credentials?.token) : full.marketplace === "ozon" && present(full.credentials?.seller?.clientId) && present(full.credentials?.seller?.apiKey);
+    if (full.credentialsStale || !hasKeys || (full.lifecycleState || "ACTIVE") !== "ACTIVE" || !present(full.credentialRevision)) {
       if (selected.size) throw saError("TRANSFER_CREDENTIALS_MISSING");
       continue;
     }
@@ -180,7 +185,12 @@ async function saTransferSourceSend(message) {
   if (!stores.length || selected.size && stores.length !== selected.size) throw saError("TRANSFER_CREDENTIALS_MISSING");
   const packetId = crypto.randomUUID();
   const envelope = await SellerAgentsCredentialTransferCrypto.encrypt({ accountId, requestId: request.requestId, sourceDeviceId, recipientDeviceId: request.recipientDeviceId, packetId, recipientPublicKeySpki: request.recipientPublicKeySpki, payload: { transferPayloadVersion: "seller_agents_credential_payload_v1", stores } });
-  await SellerAgentsControlClient.submitCredentialTransferPacket({ requestId: request.requestId, packetId, envelope });
+  SellerAgentsControlClient.assertCredentialTransferContext(sourceContext);
+  // All local validation and encryption precede the server's atomic source claim.
+  // An empty or partially eligible installation must leave another source free.
+  await SellerAgentsControlClient.markCredentialTransferSourceSeen(request.requestId, sourceContext);
+  SellerAgentsControlClient.assertCredentialTransferContext(sourceContext);
+  await SellerAgentsControlClient.submitCredentialTransferPacket({ requestId: request.requestId, packetId, envelope }, sourceContext);
   return { ok: true, requestId: request.requestId, packetId };
 }
 async function saTransferReceive(message) {

@@ -1,3 +1,13 @@
+function isKnownLegacyMaterializedProviderResult(entry) {
+  return entry?.kind === "command" && entry.status === "complete" &&
+    entry.result_phase === SellerAgentsResultRecovery.RESULT_PHASES.MATERIALIZED &&
+    [SellerAgentsProviderOutcome.STATES.RESPONSE_RECEIVED,
+      SellerAgentsProviderOutcome.STATES.COMPLETED_KNOWN,
+      SellerAgentsProviderOutcome.STATES.FAILED_KNOWN,
+      SellerAgentsProviderOutcome.STATES.RETRY_WAIT_KNOWN].includes(entry.provider_attempt?.state) &&
+    SellerAgentsResultRecovery.isLegacyBufferedResult(entry.result_buffer) === true;
+}
+
 async function commitManualBatchDeliveryInsert(message, sender) {
   const key = normalizeConversationKey(message.conversation_key);
   const operationId = String(message.owner_id || message.operation_id || "");
@@ -83,6 +93,15 @@ async function commitManualBatchDeliveryInsert(message, sender) {
       insert_allowed: false,
       outcome_unknown: true,
       code: "DELIVERY_INSERT_OUTCOME_UNKNOWN_NO_RETRY",
+    };
+  if (operation.delivery.phase === BridgeAutorunModel.DELIVERY_PHASES.CLAIMED &&
+      (operation.batch?.entries || []).some(isKnownLegacyMaterializedProviderResult))
+    return {
+      ok: false,
+      committed: false,
+      insert_allowed: false,
+      code: "RESULT_BUFFER_INTEGRITY_UNVERIFIABLE",
+      error: "Сохранённый legacy report нельзя признать полным; новая вставка в чат запрещена.",
     };
   if (operation.delivery.phase !== BridgeAutorunModel.DELIVERY_PHASES.CLAIMED)
     return {

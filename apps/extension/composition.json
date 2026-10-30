@@ -63,7 +63,8 @@
     "apps/extension/src/background/context/runtime-context.js",
     "apps/extension/src/application/technical-scheduler.js",
     "apps/extension/src/background/backup-file-selection.js",
-    "apps/extension/src/background/compat/qwen-code-reader.js"
+    "apps/extension/src/background/compat/qwen-code-reader.js",
+    "apps/extension/src/application/attachment-result-integrity.js"
   ],
   "worker_initializer": {
     "old": "let manualOperationsWriteLock = Promise.resolve();",
@@ -164,6 +165,11 @@
       "function": "mutateWorkSession",
       "source_sha256": "138bf46e82f3ed2ec467935113f2e3d65850780a7dd588f8b1c399bffc2c736d",
       "replacement": "apps/extension/src/background/compat/mutateWorkSession.js"
+    },
+    {
+      "function": "formatCombinedBatchReport",
+      "source_sha256": "6a53b1e407af1ac17facfb40bd18a2bec020fd665a6e54643cacdf92cef4bee0",
+      "replacement": "apps/extension/src/background/context/formatCombinedBatchReport.js"
     }
   ],
   "preserved_boundaries": [
@@ -193,7 +199,8 @@
   },
   "worker_postload": [
     "shared/wb_adapter.js",
-    "shared/application.js"
+    "shared/application.js",
+    "shared/attachment_result_integrity.js"
   ],
   "application_patches": "apps/extension/application-patches.json",
   "static_files": {
@@ -218,6 +225,9 @@
       "apps/extension/src/application/sync-journal.js",
       "apps/extension/src/application/runtime.js",
       "apps/extension/src/application/delivery.js"
+    ],
+    "shared/attachment_result_integrity.js": [
+      "apps/extension/src/application/attachment-result-integrity.js"
     ],
     "popup.html": [
       "apps/extension/src/application/popup.html"

@@ -175,6 +175,16 @@ function refreshStartFeedback() {
   feedback.text = actionSuccessText(result);
   $("status").textContent = feedback.text;
 }
+function transferSourcePresentation(result) {
+  if (!Array.isArray(result?.requests) || !Array.isArray(result?.sent)) return "Результат отправки не подтверждён. Проверьте состояние передачи перед повтором.";
+  if (!result.requests.length) return "Активных запросов передачи нет.";
+  const confirmed = new Set(result.sent.filter(item => item?.ok === true && item.packetId && result.requests.some(request => request.requestId === item.requestId)).map(item => item.requestId)).size;
+  const messages = [`Передач подтверждено сервером: ${confirmed} из ${result.requests.length}. Получатель подтверждает импорт отдельно.`];
+  if (result.sent.some(item => item?.ok === false && item.code === "TRANSFER_CREDENTIALS_MISSING")) messages.push("На этой установке нет полного набора выбранных ключей. Используйте установку с нужными ключами.");
+  if (result.sent.some(item => item?.ok === false && item.code === "TRANSFER_CONFLICT")) messages.push("Часть запросов недоступна для отправки с этой установки.");
+  if (result.sent.length !== result.requests.length || result.sent.some(item => item?.ok !== true && !["TRANSFER_CREDENTIALS_MISSING", "TRANSFER_CONFLICT"].includes(item?.code))) messages.push("Для части запросов результат отправки не подтверждён. Проверьте состояние передачи перед повтором.");
+  return messages.join(" ");
+}
 function transferReceivePresentation(result) {
   if (result?.ok === false && result?.ackConfirmed === false) {
     if (result.importState === "IMPORTED_PENDING_ACK" && result.code === "TRANSFER_ACK_UNCONFIRMED") return { text: "Результат импорта сохранён локально, но сервер ещё не подтвердил завершение передачи. Повторный импорт не выполнен.", consume: false };
@@ -435,7 +445,7 @@ $("transfer-create").onclick = () => action(async () => {
 });
 $("transfer-discover").onclick = () => action(async () => {
   const result = await request("SA_TRANSFER_SOURCE_DISCOVER");
-  $("transfer-status").textContent = result.requests.length ? `Найдено запросов: ${result.requests.length}. Передача выполняется только после явного действия источника.` : "Активных запросов нет. Если источник спит, он не будет обещанно найден немедленно.";
+  $("transfer-status").textContent = transferSourcePresentation(result);
 });
 $("transfer-receive").onclick = () => action(async () => {
   const { response: result, presentation } = await requestTransferReceivePending();

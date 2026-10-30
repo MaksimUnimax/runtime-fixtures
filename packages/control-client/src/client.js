@@ -2018,8 +2018,8 @@
   }
   async function listCredentialTransfers() { const auth = await transferAuth(); return clone((await authenticatedRequest("/v1/credential-transfers/pending/source", {}, auth.context)).body); }
   async function readCredentialTransfer(requestId) { const auth = await transferAuth(); return clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(requestId)}`, {}, auth.context)).body); }
-  async function markCredentialTransferSourceSeen(requestId) { const auth = await transferAuth(); return clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(requestId)}/source-seen`, { method: "POST" }, auth.context)).body); }
-  async function submitCredentialTransferPacket(input) { const auth = await transferAuth(); return clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/packet`, { method: "POST", body: { requestId: input.requestId, packetId: input.packetId, envelope: input.envelope } }, auth.context)).body); }
+  async function markCredentialTransferSourceSeen(requestId, sourceContext = null) { const auth = await transferAuth(); if (sourceContext) assertCredentialTransferContext(sourceContext); return clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(requestId)}/source-seen`, { method: "POST" }, sourceContext || auth.context)).body); }
+  async function submitCredentialTransferPacket(input, sourceContext = null) { const auth = await transferAuth(); if (sourceContext) assertCredentialTransferContext(sourceContext); return clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/packet`, { method: "POST", body: { requestId: input.requestId, packetId: input.packetId, envelope: input.envelope } }, sourceContext || auth.context)).body); }
   async function receiveCredentialTransfer(requestId, sourceDeviceId) {
     return transferSingleFlight(requestId, async () => {
       const { auth, record } = await requireTransferRecord(requestId);
