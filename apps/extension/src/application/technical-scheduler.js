@@ -32,6 +32,10 @@
   const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
   const clone = (value) => value === undefined ? undefined : structuredClone(value);
   const workerId = () => text(globalThis.WORKER_SESSION_ID, 160) || "worker-unknown";
+  // Ordinary object maps inherit built-in keys. None is a valid durable
+  // technical task ID, since assignment could claim success without an entry.
+  const forbiddenTaskId = id => id === "prototype" ||
+    Object.prototype.hasOwnProperty.call(Object.prototype, id);
 
   function empty() {
     return { version: VERSION, entries: {}, updatedAt: 0 };
@@ -56,6 +60,10 @@
     const source = raw && typeof raw === "object" ? raw : empty();
     const result = { version: VERSION, entries: {}, updatedAt: finite(source.updatedAt) };
     if (source.version !== VERSION || !source.entries || typeof source.entries !== "object") return result;
+    // Fail closed before truncation or a write: own __proto__ could otherwise
+    // become result.entries' prototype and silently discard a durable wake.
+    if (Object.keys(source.entries).some(forbiddenTaskId))
+      throw Object.assign(new Error("TECHNICAL_TASK_CORRUPT"), { code: "TECHNICAL_TASK_CORRUPT" });
     for (const [taskId, entry] of Object.entries(source.entries).slice(0, MAX_TASKS)) {
       if (!entry || !allowedKinds.has(entry.kind) || text(taskId, 320) !== taskId) continue;
       const normalized = {
@@ -106,7 +114,9 @@
   }
 
   async function schedule(kind, { taskId, dueAt = Date.now(), identity: taskIdentity = {}, replace = true } = {}) {
-    if (!allowedKinds.has(kind) || !text(taskId, 320)) return { ok: false, code: "TECHNICAL_TASK_INVALID" };
+    const normalizedId = text(taskId, 320);
+    if (!allowedKinds.has(kind) || !normalizedId || forbiddenTaskId(normalizedId))
+      return { ok: false, code: "TECHNICAL_TASK_INVALID" };
     const result = await mutate(async () => {
       const state = clone(await read());
       const current = state.entries[taskId];
