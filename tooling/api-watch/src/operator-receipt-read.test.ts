@@ -172,10 +172,15 @@ describe("bounded and nonblocking operator consumption receipt reads", () => {
   });
   it.each([
     { label: "missing", value: undefined },
+    { label: "string", value: "1" },
     { label: "NaN", value: Number.NaN },
     { label: "negative", value: -1 },
     { label: "fractional", value: 0.5 },
     { label: "infinite", value: Number.POSITIVE_INFINITY },
+    {
+      label: "unsafe integer",
+      value: Number.MAX_SAFE_INTEGER + 1,
+    },
   ])(
     "rejects a terminal report source with an invalid inventory operation count ($label)",
     async ({ value }) => {
