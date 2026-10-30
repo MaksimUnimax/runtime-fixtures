@@ -5,7 +5,15 @@ import type {
 } from "./telegram.js";
 import { MAX_SWAGGER_UPLOAD_BYTES } from "@product/monitoring-control";
 
-type TelegramApiResponse<T> = { ok: boolean; result?: T };
+type TelegramApiResponse<T> = { ok: unknown; result?: T | null };
+
+// Bot API sendMessage resolves to a Message, not to a Boolean or a
+// truthy object. No positive message identifier means no delivery ACK.
+function hasConfirmedMessageId(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const id = (value as { message_id?: unknown }).message_id;
+  return typeof id === "number" && Number.isSafeInteger(id) && id > 0;
+}
 
 // A long-poll page is untrusted network input, not a local file. Bound raw
 // JSON bytes before allocating the decoded string and parsed objects.
@@ -93,8 +101,16 @@ export function createTelegramTransport(
       throw new Error("TELEGRAM_" + method.toUpperCase() + "_FAILED");
     }
     const payload = await readBoundedTelegramApiResponse<T>(response);
-    if (!payload.ok || payload.result === undefined)
+    // JSON is untrusted, regardless of the TypeScript assertion in the
+    // bounded decoder. A malformed success must never mark a send as ACKed.
+    if (
+      payload?.ok !== true ||
+      payload.result == null ||
+      (method === "sendMessage" && !hasConfirmedMessageId(payload.result)) ||
+      (method === "answerCallbackQuery" && payload.result !== true)
+    ) {
       throw new Error(`TELEGRAM_${method.toUpperCase()}_FAILED`);
+    }
     return payload.result;
   }
   return {
@@ -205,7 +221,12 @@ export function createTelegramTransport(
       const file = await call<{ file_path?: string }>("getFile", {
         file_id: fileId,
       });
-      if (!file.file_path) throw new Error("TELEGRAM_FILE_PATH_MISSING");
+      if (
+        typeof file.file_path !== "string" ||
+        file.file_path.trim().length === 0
+      ) {
+        throw new Error("TELEGRAM_FILE_PATH_MISSING");
+      }
       const response = await fetcher(
         "https://api.telegram.org/file/bot" + token + "/" + file.file_path,
         { signal: AbortSignal.timeout(60_000) },
