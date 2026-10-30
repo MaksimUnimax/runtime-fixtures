@@ -79,6 +79,16 @@ const explanations: Readonly<Record<string, KnownExplanation>> = {
     status: "FAILED",
     text: "Не удалось завершить проверку документов API маркетплейсов. Точная причина в этом отчёте не указана; исправность расширения не подтверждена.",
   },
+  API_WATCH_POSTCOMMIT_OUTCOME_UNKNOWN: {
+    lane: "SWAGGER_API",
+    status: "FAILED",
+    text: "Отчёт проверки документов API сохранён, но последующий шаг мониторинга завершился с ошибкой. Его исход неизвестен: уведомление, назначение повторной проверки или другое действие могли выполниться либо не выполниться. Автоматический повтор без выяснения исхода может привести к дублированию; доставка уведомления этим статусом не подтверждена.",
+  },
+  API_WATCH_REPORT_COMMIT_UNKNOWN: {
+    lane: "SWAGGER_API",
+    status: "FAILED",
+    text: "Не удалось подтвердить, был ли сохранён итоговый отчёт проверки документов API и выполнились ли последующие действия. Сохранение отчёта и эти действия могли произойти либо не произойти; доставка уведомления не подтверждена. Автоматический повтор без выяснения исхода может привести к дублированию.",
+  },
 };
 
 const extensionBoundary =
@@ -201,9 +211,15 @@ export function explainMonitoringResult(
       "В отчёте недостаточно сведений, чтобы объяснить результат проверки. Неизвестные или противоречивые данные требуют разбора; считать всё исправным нельзя.";
   }
   const label = lane === "LLM" ? "Сайты ИИ" : "API маркетплейсов";
+  // The producer may have attempted a terminal write, but cannot verify it.
+  // Even a contradictory coverage payload must not claim a completed report.
+  const coverageText =
+    result.code === "API_WATCH_REPORT_COMMIT_UNKNOWN"
+      ? "Сведения о сохранённом результате и полноте сравнения не подтверждены."
+      : explainCoverage(notification);
   return [
     `${label}: ${text}`,
-    explainCoverage(notification),
+    coverageText,
     lane === "LLM" ? extensionBoundary : "",
   ]
     .filter(Boolean)

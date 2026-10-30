@@ -52,7 +52,7 @@ export interface TelegramTransport {
     keyboard?: TelegramKeyboard,
   ): Promise<void>;
   answerCallback(callbackQueryId: string, text: string): Promise<void>;
-  downloadFile?(fileId: string): Promise<Uint8Array>;
+  downloadFile?(fileId: string, maxBytes?: number): Promise<Uint8Array>;
 }
 
 export type TelegramOperatorOptions = {
@@ -149,6 +149,17 @@ export class TelegramOperatorService {
   private offset: number | undefined;
   private polling = false;
   private pollingTask: Promise<void> | undefined;
+  // ACK or UNKNOWN per recipient in this process; persistent restart fencing
+  // belongs to the separately authorized incident notification outbox.
+  private readonly notificationOutcomes = new Map<
+    string,
+    Map<string, "ACKNOWLEDGED" | "UNKNOWN">
+  >();
+  // Serialize only simultaneous callbacks for the same incident event.
+  private readonly incidentNotificationFlights = new Map<
+    string,
+    Promise<void>
+  >();
 
   public constructor(private readonly options: TelegramOperatorOptions) {}
 
@@ -295,11 +306,26 @@ export class TelegramOperatorService {
         requestId = pending[0]!.requestId;
         documentKey = WB_BUNDLE_DOCUMENT_KEY;
       }
-      const bytes =
-        document.bytes ??
-        (document.fileId && this.options.transport.downloadFile
-          ? await this.options.transport.downloadFile(document.fileId)
-          : undefined);
+      let bytes: Uint8Array | undefined;
+      try {
+        bytes =
+          document.bytes ??
+          (document.fileId && this.options.transport.downloadFile
+            ? await this.options.transport.downloadFile(
+                document.fileId,
+                this.options.swaggerHandoff.maxUploadBytes,
+              )
+            : undefined);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "TELEGRAM_FILE_TOO_LARGE"
+        ) {
+          await this.options.transport.sendMessage(chatId, "UPLOAD_TOO_LARGE");
+          return;
+        }
+        throw error;
+      }
       if (!bytes) {
         await this.options.transport.sendMessage(chatId, "UPLOAD_UNAVAILABLE");
         return;
@@ -530,37 +556,91 @@ export class TelegramOperatorService {
       );
       return;
     }
+    let seconds: number;
     try {
-      const seconds = parseLaneInterval(lane, raw);
-      const state = await this.options.scheduler.setInterval(lane, seconds);
-      await this.options.transport.sendMessage(
-        chatId,
-        `${laneLabel(lane)} interval set to ${formatMonitoringDuration(state.intervalSeconds)}; no run was started.`,
-        keyboard(lane),
-      );
+      seconds = parseLaneInterval(lane, raw);
     } catch (error) {
+      // Only pure validation errors get a reply. Store mutations may commit
+      // before an acknowledgement is lost; never claim they failed.
       const code =
-        error instanceof Error ? error.message : "INVALID_MONITORING_DURATION";
+        error instanceof Error &&
+        [
+          "INVALID_MONITORING_DURATION",
+          "MONITORING_DURATION_OUT_OF_RANGE",
+          "HEALTH_SCHEDULE_INTERVAL_OUT_OF_RANGE",
+        ].includes(error.message)
+          ? error.message
+          : "INVALID_MONITORING_DURATION";
       await this.options.transport.sendMessage(
         chatId,
         `${code}: use ${intervalRangeLabel(lane)}.`,
       );
+      return;
     }
+    // Neither database ACK loss nor Telegram send ACK loss is safely
+    // retryable by sending a second message within this handler.
+    const state = await this.options.scheduler.setInterval(lane, seconds);
+    await this.options.transport.sendMessage(
+      chatId,
+      `${laneLabel(lane)} interval set to ${formatMonitoringDuration(state.intervalSeconds)}; no run was started.`,
+      keyboard(lane),
+    );
+  }
+
+  private async notifyRecipients(
+    key: string,
+    lane: MonitoringLane,
+    text: string,
+    clearAcknowledgedOnSuccess: boolean,
+  ): Promise<void> {
+    let outcomes = this.notificationOutcomes.get(key);
+    if (!outcomes) {
+      if (this.notificationOutcomes.size >= 64) {
+        const oldest = this.notificationOutcomes.keys().next().value;
+        if (oldest !== undefined) this.notificationOutcomes.delete(oldest);
+      }
+      outcomes = new Map<string, "ACKNOWLEDGED" | "UNKNOWN">();
+      this.notificationOutcomes.set(key, outcomes);
+    }
+    let unknown = false;
+    for (const chatId of new Set(this.options.notificationChatIds ?? [])) {
+      const previous = outcomes.get(chatId);
+      if (previous === "ACKNOWLEDGED") continue;
+      if (previous === "UNKNOWN") {
+        unknown = true;
+        continue;
+      }
+      // A rejected mutating HTTP request can have reached Telegram. Record
+      // UNKNOWN before dispatch so automatic retries cannot send it twice.
+      outcomes.set(chatId, "UNKNOWN");
+      try {
+        await this.options.transport.sendMessage(chatId, text, keyboard(lane));
+        outcomes.set(chatId, "ACKNOWLEDGED");
+      } catch {
+        unknown = true;
+      }
+      // Other, independently addressed chats can still be attempted once.
+    }
+    if (unknown)
+      throw new Error("TELEGRAM_NOTIFICATION_OUTCOME_UNKNOWN_NO_RETRY");
+    if (clearAcknowledgedOnSuccess) this.notificationOutcomes.delete(key);
   }
 
   async notify(notification: MonitoringNotification): Promise<void> {
-    const text = explainMonitoringResult(notification);
-    for (const chatId of this.options.notificationChatIds ?? [])
-      await this.options.transport.sendMessage(
-        chatId,
-        text,
-        keyboard(notification.lane),
-      );
+    const key = `${notification.lane}:${notification.runId}:${notification.source}`;
+    await this.notifyRecipients(
+      key,
+      notification.lane,
+      explainMonitoringResult(notification),
+      true,
+    );
   }
 
   async notifyIncident(event: {
     kind: "OPENED" | "RESOLVED";
     incident: {
+      incidentKey?: string;
+      occurrenceCount?: number;
       sourceFamily: string | null;
       incidentType: string;
       severity: string;
@@ -569,13 +649,35 @@ export class TelegramOperatorService {
     };
   }): Promise<void> {
     const incident = event.incident;
+    // Bounded memory suppresses only a confirmed event/recipient delivery.
+    // Incident OPENED, RESOLVED and new report generations have distinct keys.
+    const key =
+      "incident:" +
+      JSON.stringify([
+        event.kind,
+        incident.incidentKey ?? null,
+        incident.occurrenceCount ?? null,
+        incident.sourceFamily,
+        incident.incidentType,
+        incident.severity,
+        incident.safeSummaryCode,
+        incident.latestReportId,
+      ]);
+    const pending = this.incidentNotificationFlights.get(key);
+    if (pending) return pending;
+    // Publish the flight before its first sendMessage starts.
     const text = `API-watch incident ${event.kind.toLowerCase()}: ${incident.sourceFamily ?? "GLOBAL"} ${incident.incidentType} ${incident.severity} ${incident.safeSummaryCode} report=${incident.latestReportId}`;
-    for (const chatId of this.options.notificationChatIds ?? [])
-      await this.options.transport.sendMessage(
-        chatId,
-        text,
-        keyboard("SWAGGER_API"),
-      );
+    const work = Promise.resolve().then(() =>
+      this.notifyRecipients(key, "SWAGGER_API", text, false),
+    );
+    this.incidentNotificationFlights.set(key, work);
+    try {
+      await work;
+    } finally {
+      if (this.incidentNotificationFlights.get(key) === work) {
+        this.incidentNotificationFlights.delete(key);
+      }
+    }
   }
 
   private async poll(): Promise<void> {
@@ -583,6 +685,16 @@ export class TelegramOperatorService {
       try {
         const response = await this.options.transport.getUpdates(this.offset);
         for (const update of response.updates) {
+          if (
+            !Number.isSafeInteger(update.updateId) ||
+            update.updateId < 0 ||
+            update.updateId >= Number.MAX_SAFE_INTEGER
+          )
+            throw new Error("TELEGRAM_UPDATE_ID_INVALID");
+          // A broken/duplicated upstream poll page cannot dispatch an update
+          // already fenced by this process's confirmed cursor.
+          if (this.offset !== undefined && update.updateId < this.offset)
+            continue;
           this.offset = Math.max(this.offset ?? -1, update.updateId + 1);
           await this.handleUpdate(update);
         }
@@ -595,10 +707,10 @@ export class TelegramOperatorService {
           response.nextOffset >= 0
         )
           this.offset = Math.max(this.offset ?? -1, response.nextOffset);
-      } catch (error) {
+      } catch {
+        // Transport errors may contain a URL with a bot token.
         this.options.logger?.("telegram_poll_failed", {
-          error:
-            error instanceof Error ? error.message : "TELEGRAM_UNAVAILABLE",
+          error: "TELEGRAM_OPERATOR_POLL_FAILED",
         });
         await (
           this.options.sleep ??

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseTelegramOperatorConfig } from "./config.js";
+import { TelegramOperatorService } from "./telegram.js";
 
 const valid = {
   DATABASE_URL: "postgresql://fixture:fixture@127.0.0.1:5432/fixture",
@@ -17,6 +18,43 @@ describe("Telegram operator runtime config", () => {
     });
     expect([...parsed.operatorIds]).toEqual(["7", "8"]);
     expect(parsed.notificationChatIds).toEqual(["42", "43"]);
+  });
+
+  it("sends one API-watch incident per distinct destination even with repeated configuration IDs", async () => {
+    const parsed = parseTelegramOperatorConfig({
+      ...valid,
+      TELEGRAM_OPERATOR_IDS: "7, 7, 8,7",
+      TELEGRAM_NOTIFICATION_CHAT_IDS: " 42, 43,42, , 44, 43,42 ",
+    });
+    expect([...parsed.operatorIds]).toEqual(["7", "8"]);
+    expect(parsed.notificationChatIds).toEqual(["42", "43", "44"]);
+
+    const deliveries: string[] = [];
+    const service = new TelegramOperatorService({
+      scheduler: {} as ConstructorParameters<
+        typeof TelegramOperatorService
+      >[0]["scheduler"],
+      transport: {
+        getUpdates: async () => ({ updates: [] }),
+        sendMessage: async (chatId) => {
+          deliveries.push(chatId);
+        },
+        answerCallback: async () => {},
+      },
+      operatorIds: parsed.operatorIds,
+      notificationChatIds: parsed.notificationChatIds,
+    });
+    await service.notifyIncident({
+      kind: "OPENED",
+      incident: {
+        sourceFamily: "WILDBERRIES",
+        incidentType: "API_CHANGE_REVIEW_REQUIRED",
+        severity: "WARNING",
+        safeSummaryCode: "SAFE_FIXTURE_ONLY",
+        latestReportId: "synthetic-report",
+      },
+    });
+    expect(deliveries).toEqual(["42", "43", "44"]);
   });
 
   it("keeps dedicated Health session config optional and trims only its path", () => {
