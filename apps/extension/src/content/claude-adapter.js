@@ -46,7 +46,9 @@
     }
     function conversationRoot() {
       const c=composerContext();
-      if (!c) return null;
+      // A private upload can temporarily mask the editor. Observation may retain
+      // a fully revalidated conversation; this never returns a Send composer.
+      if (!c) return attachmentConversationObservation()?.root || null;
       const roots=[...document.querySelectorAll(CHAT_ROOT)].filter(rendered);
       return roots.length===1 && roots[0].contains(c.root) && c.composer.closest(CHAT_ROOT)===roots[0] ? roots[0] : null;
     }
@@ -230,10 +232,252 @@
       return names.length === 1 && badges.length === 1 && names[0].getAttribute("title") === filename &&
         badges[0].textContent.trim() === "TXT" ? list[0] : null;
     }
+    const UPLOAD_MENU = '[role="menu"][data-perf-overlay="composer_add_menu"]';
+    const UPLOAD_DIALOG = '[role="dialog"][data-cds="Dialog"][data-perf-overlay="composer_radiant_pine_dialog"]';
+    let uploadPreparation = null, preparedUpload = null;
+    function panelVisible(node, dialog = null) {
+      if (!(node instanceof HTMLElement) || !node.isConnected ||
+          node.closest('[hidden],[aria-hidden="true"],[inert]') ||
+          (dialog ? node.closest('[role="dialog"]') !== dialog : node.closest('[role="dialog"]'))) return false;
+      const rect = node.getBoundingClientRect();
+      if (!node.getClientRects().length || rect.width <= 0 || rect.height <= 0) return false;
+      for (let p = node; p instanceof Element; p = p.parentElement) {
+        const style = getComputedStyle(p);
+        if (style.display === "none" || ["hidden","collapse"].includes(style.visibility) ||
+            style.contentVisibility === "hidden" || Number(style.opacity) === 0) return false;
+      }
+      return true;
+    }
+    // A native upload dialog marks ONLY the previously observed editor
+    // aria-hidden. This private attachment guard never makes that editor a
+    // general composer/Send target and never accepts a pre-existing modal.
+    function uploadButtonOwned(owner) {
+      const button = owner?.button, actions = owner?.actions;
+      if (rendered(button)) return true;
+      if (!owner?.modalRequested || !(actions instanceof HTMLElement) ||
+          !actions.isConnected || !owner.context.root.contains(actions) ||
+          button?.closest('[data-cds="ChatComposerActions"]') !== actions ||
+          actions.getAttribute('aria-hidden') !== 'true' ||
+          !(button instanceof HTMLElement) || !button.isConnected) return false;
+      const rect=button.getBoundingClientRect();
+      if (rect.width<=0 || rect.height<=0) return false;
+      for (let node=button; node instanceof Element; node=node.parentElement) {
+        if (node.matches('[hidden],[inert],[role="dialog"]') ||
+            (node.getAttribute('aria-hidden')==='true' && node!==actions)) return false;
+        const css=getComputedStyle(node);
+        if (css.display==='none' || ['hidden','collapse'].includes(css.visibility) ||
+            css.contentVisibility==='hidden' || Number(css.opacity)===0) return false;
+      }
+      return true;
+    }
+    function uploadOwnerNodesCurrent(owner) {
+      const c = owner?.context, button = owner?.button;
+      // Structural observation is deliberately separate from isCurrent: that
+      // callback invokes the real conversation tracker and must not recurse.
+      if (!owner?.modalRequested || owner.retired ||
+          !matchesLocation() || location.href !== c?.locationHref ||
+          !(c.composer instanceof HTMLElement) || !c.composer.isConnected ||
+          !c.composer.matches(EDITOR) || !c.composer.isContentEditable ||
+          !(c.root instanceof HTMLElement) || !c.root.isConnected || !rendered(c.root) ||
+          c.composer.parentElement !== owner.editorParent || c.root.parentElement !== owner.rootParent ||
+          !c.root.contains(c.composer) || c.root.querySelectorAll(EDITOR).length !== 1 ||
+          c.root.querySelector(EDITOR) !== c.composer ||
+          document.querySelectorAll(EDITOR).length !== 1 ||
+          c.composer.matches('[hidden],[inert],[aria-disabled="true"]') ||
+          c.composer.parentElement?.closest(EXCLUDED+',fieldset:disabled,[aria-disabled="true"]') ||
+          readComposerText(c.composer).trim() || c.root.querySelector(CARD) ||
+          c.root.querySelectorAll('button[data-testid="chat-input-attach"]').length !== 1 ||
+          c.root.querySelector('button[data-testid="chat-input-attach"]') !== button ||
+          !uploadButtonOwned(owner) || button.disabled || button.matches(':disabled') ||
+          button.getAttribute('aria-disabled') === 'true') return false;
+      const rect = c.composer.getBoundingClientRect(), style = getComputedStyle(c.composer);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' &&
+        !['hidden','collapse'].includes(style.visibility) && style.contentVisibility !== 'hidden' &&
+        Number(style.opacity) !== 0;
+    }
+    function uploadOwnerCurrent(owner) {
+      if (!uploadOwnerNodesCurrent(owner) || typeof owner?.isCurrent !== "function") return false;
+      const accepted = owner.isCurrent();
+      if (!accepted) owner.retired = true;
+      return accepted && uploadOwnerNodesCurrent(owner);
+    }
+    function conversationWitness(root) {
+      if (!(root instanceof HTMLElement) || !rendered(root)) return null;
+      return {
+        root, parent:root.parentElement,
+        explicit:["data-conversation-id","data-chat-id","data-thread-id"].map(k=>root.getAttribute(k)),
+        rows:[...root.querySelectorAll(MESSAGE)].map(node=>{
+          const role=roleOf(node,root);
+          return {node,role,native:nativeWitness(node,role),text:role==="user"?bodyText(node,role):null};
+        }).filter(row=>row.role)
+      };
+    }
+    function attachmentConversationObservation() {
+      const owner=preparedUpload || (uploadPreparation?.pending ? uploadPreparation : null);
+      if (!owner || !uploadOwnerNodesCurrent(owner)) return null;
+      const saved=owner.conversation, roots=[...document.querySelectorAll(CHAT_ROOT)].filter(rendered);
+      const root=saved?.root, now=conversationWitness(root);
+      // A URL or a previously captured ID is not proof. Re-read the same live
+      // root, native messages, user text, ancestor and explicit identity fields.
+      if (!now || roots.length!==1 || roots[0]!==root || now.parent!==saved.parent ||
+          !root.contains(owner.context.root) || owner.context.composer.closest(CHAT_ROOT)!==root ||
+          now.explicit.some((id,i)=>id!==saved.explicit[i]) || now.rows.length!==saved.rows.length ||
+          now.rows.some((row,i)=>row.node!==saved.rows[i].node || row.role!==saved.rows[i].role ||
+            row.native!==saved.rows[i].native || row.text!==saved.rows[i].text)) {
+        owner.retired=true;
+        return null;
+      }
+      const dialogs=[...document.querySelectorAll('[role="dialog"]')].filter(n=>panelVisible(n,n));
+      if (dialogs.length!==1 || !dialogs[0].matches(UPLOAD_DIALOG) ||
+          dialogs[0].querySelector('[role="dialog"],[contenteditable="true"],textarea')) return null;
+      const dialog=dialogs[0];
+      if (owner.observedDialog && owner.observedDialog!==dialog) { owner.retired=true; return null; }
+      owner.observedDialog=dialog;
+      // The known modal shell may precede the native file widget. The observer
+      // authorizes no upload; exact widget/input validation remains mandatory
+      // in prepareAttachmentSurface/attachFiles before physical dispatch.
+      if (preparedUpload===owner && (owner.dialog!==dialog || ownedDialogInput(dialog)!==owner.input)) return null;
+      return Object.freeze({root,locationHref:owner.context.locationHref});
+    }
+    function ownedUploadContext() {
+      const owner = preparedUpload;
+      if (!uploadOwnerCurrent(owner)) return null;
+      const dialogs = [...document.querySelectorAll('[role="dialog"]')].filter(n => panelVisible(n,n));
+      return dialogs.length === 1 && dialogs[0] === owner.dialog &&
+        ownedDialogInput(owner.dialog) === owner.input ? owner.context : null;
+    }
+    function emptyUploadContext(context) {
+      return Boolean(currentContext(context) && !readComposerText(context.composer).trim() &&
+        !context.root.querySelector(CARD) && ["ready","send_disabled"].includes(classify(context).kind));
+    }
+    function attachMenuButton(context) {
+      const buttons = controls(context).filter(n => n.matches('button[data-testid="chat-input-attach"]'));
+      const button = buttons.length === 1 ? buttons[0] : null;
+      return button && button.id && !button.disabled && !button.matches(":disabled") &&
+        button.getAttribute("aria-disabled") !== "true" ? button : null;
+    }
+    function ownedDialogInput(dialog) {
+      if (!dialog?.matches(UPLOAD_DIALOG) || !panelVisible(dialog, dialog) ||
+          dialog.querySelector('[role="dialog"],[contenteditable="true"],textarea')) return null;
+      const groups = [...dialog.querySelectorAll('[role="group"][data-cds="FileUpload"]')];
+      if (groups.length !== 1 || !panelVisible(groups[0], dialog)) return null;
+      const group = groups[0], inputs = [...group.querySelectorAll('input[type="file"]')];
+      const buttons = [...group.querySelectorAll('button[type="button"][data-cds="Button"]')]
+        .filter(n => panelVisible(n, dialog));
+      if (inputs.length !== 1 || buttons.length !== 1 ||
+          !["Выбрать файлы","Choose files"].includes(buttons[0].textContent.trim())) return null;
+      const input = inputs[0], choose = buttons[0];
+      // The native chooser input is intentionally visually hidden. Only its
+      // exact observed owner-bound widget is allowed, not arbitrary hidden inputs.
+      if (!(input instanceof HTMLInputElement) || input.parentElement !== group ||
+          !input.isConnected || !input.multiple || input.disabled || input.matches(":disabled") ||
+          input.files?.length || input.getAttribute("aria-disabled") === "true" ||
+          input.getAttribute("aria-hidden") !== "true" ||
+          input.parentElement.closest('[hidden],[aria-hidden="true"],[inert]') ||
+          ![null,""].includes(input.getAttribute("accept")) ||
+          choose.disabled || choose.matches(":disabled") || choose.getAttribute("aria-disabled") === "true") return null;
+      return input;
+    }
+    function preparedUploadSurface(context) {
+      const bound = preparedUpload;
+      if (!bound || !uploadOwnerCurrent(bound) ||
+          context.root !== bound.context.root || context.composer !== bound.context.composer) return null;
+      const dialogs = [...document.querySelectorAll('[role="dialog"]')].filter(n => panelVisible(n, n));
+      if (dialogs.length !== 1 || dialogs[0] !== bound.dialog || ownedDialogInput(bound.dialog) !== bound.input) return null;
+      return {kind:"file_input_v1",input:bound.input,root:context.root,inputRoot:bound.dialog,
+        composer:context.composer,locationHref:context.locationHref};
+    }
+    async function prepareAttachmentSurface(context, options = {}) {
+      const {deliveryId, isCurrent} = options;
+      if (typeof deliveryId !== "string" || !deliveryId || typeof isCurrent !== "function") return null;
+      if (uploadPreparation?.deliveryId === deliveryId) {
+        await uploadPreparation.promise;
+        return isCurrent() ? attachmentSurface() : null;
+      }
+      if (uploadPreparation?.pending || !isCurrent() || !emptyUploadContext(context)) return null;
+      // A modal opened for one delivery never authorizes a different delivery,
+      // even if it still looks usable and the old owner's callback remains true.
+      if (preparedUpload && preparedUpload.deliveryId !== deliveryId &&
+          panelVisible(preparedUpload.dialog, preparedUpload.dialog)) return null;
+      const existing = attachmentSurface();
+      if (existing) return existing;
+      const button = attachMenuButton(context);
+      // Never attribute an already open menu/dialog to a new delivery intent.
+      if (!button || [...document.querySelectorAll('[role="dialog"],'+UPLOAD_MENU)]
+          .some(n => panelVisible(n, n.matches('[role="dialog"]') ? n : null))) return null;
+      const attempt = {deliveryId,pending:true,promise:null,context,button,isCurrent,
+        editorParent:context.composer.parentElement,rootParent:context.root.parentElement,
+        actions:button.closest('[data-cds="ChatComposerActions"]'),modalRequested:false,
+        conversation:conversationWitness(conversationRoot()),observedDialog:null,retired:false};
+      uploadPreparation = attempt; preparedUpload = null;
+      const valid = () => attempt.modalRequested ? uploadOwnerCurrent(attempt) :
+        isCurrent() && emptyUploadContext(context) && attachMenuButton(context) === button;
+      attempt.promise = (async () => {
+        if (!valid()) return null;
+        button.click(); // Native menu; no file data, file chooser or Send.
+        const deadline = Date.now()+1500;
+        let menu = null, uploadItem = null;
+        do {
+          if (!valid()) return null;
+          const menus = [...document.querySelectorAll(UPLOAD_MENU)].filter(n => panelVisible(n));
+          if (menus.length > 1) return null;
+          if (menus.length === 1) {
+            menu = menus[0];
+            if (menu.getAttribute("aria-labelledby") !== button.id) return null;
+            const items = [...menu.querySelectorAll('[role="menuitem"][data-testid="add-menu-upload-file"]')]
+              .filter(n => panelVisible(n));
+            if (items.length > 1) return null;
+            if (items.length === 1) {
+              const item = items[0];
+              if (item.getAttribute("aria-disabled") === "true" || item.hasAttribute("data-disabled")) return null;
+              uploadItem = item;
+              break;
+            }
+          }
+          // The menu shell mounts before its upload item. Observe the same
+          // owned menu without clicking the trigger again or guessing a target.
+          await new Promise(resolve => setTimeout(resolve,50));
+        } while (Date.now()<deadline);
+        if (!menu || !uploadItem || !valid() || !panelVisible(menu) ||
+            menu.getAttribute("aria-labelledby") !== button.id || !menu.contains(uploadItem) ||
+            !panelVisible(uploadItem)) return null;
+        attempt.modalRequested = true;
+        uploadItem.click(); // Native panel only; never Choose files or Send.
+        const panelDeadline = Date.now()+1500;
+        do {
+          if (!valid()) return null;
+          const dialogs = [...document.querySelectorAll('[role="dialog"]')].filter(n => panelVisible(n,n));
+          if (dialogs.length > 1) return null;
+          if (dialogs.length === 1) {
+            const dialog = dialogs[0], input = ownedDialogInput(dialog);
+            if (!dialog.matches(UPLOAD_DIALOG)) return null;
+            // The panel and its file widget can mount on different frames.
+            // Accept nothing until every ownership and exclusion check holds.
+            if (input) {
+              preparedUpload = {...attempt,dialog,input};
+              return attachmentSurface();
+            }
+          }
+          await new Promise(resolve => setTimeout(resolve,50));
+        } while (Date.now()<panelDeadline);
+        return null;
+      })();
+      try { return await attempt.promise; }
+      finally {
+        attempt.pending=false;
+        if (preparedUpload?.deliveryId!==attempt.deliveryId) attempt.retired=true;
+      }
+    }
     function attachmentSurface() {
-      const c = composerContext();
-      if (!c || !["ready","send_disabled"].includes(classify(c).kind) ||
+      const c = composerContext() || ownedUploadContext();
+      if (!c) return null;
+      const prepared = preparedUploadSurface(c);
+      if (prepared) return prepared;
+      if (!["ready","send_disabled"].includes(classify(c).kind) ||
           readComposerText(c.composer).trim() || cards(c.root).length) return null;
+      // Do not fall back to an old input behind another native dialog. The
+      // only dialog path is the exact modal bound by prepareAttachmentSurface.
+      if ([...document.querySelectorAll('[role="dialog"]')].some(n => panelVisible(n,n))) return null;
       const selected=inputContext(c), input=selected?.input;
       if (!(input instanceof HTMLInputElement) || !input.isConnected || !input.multiple ||
           input.disabled || input.matches(":disabled") || input.files?.length ||
@@ -263,7 +507,7 @@
           [button.tagName,button.getAttribute("data-testid") || "",button.getAttribute("aria-label") || "",button.type].join("|") : "";
       },
       isGenerating() { return ["stop","busy","unknown"].includes(classify(composerContext()).kind); },
-      conversationRoot, userMessages, assistantMessages, messageId, messageText, messageObservationEpoch,
+      conversationRoot, attachmentConversationObservation, userMessages, assistantMessages, messageId, messageText, messageObservationEpoch,
       findCodeBlocks:reader.findCodeBlocks, readCodeText:reader.readCodeText, geometryAnchor:reader.geometryAnchor,
       messageComplete(node) {
         return assistantMessages().includes(node) && Boolean(messageId(node)) &&
@@ -272,7 +516,7 @@
           Boolean(messageText(node).trim());
       },
       deliveryCapabilities() { return globalThis.OzonAIDeliveryCapabilities?.profile?.("claude") || null; },
-      attachmentSurface, attachmentPreview,
+      attachmentSurface, prepareAttachmentSurface, attachmentPreview,
       attachFiles(surface,files) {
         const c = attachmentSurface();
         if (!c || c.input !== surface?.input || c.root !== surface?.root || c.inputRoot !== surface?.inputRoot ||

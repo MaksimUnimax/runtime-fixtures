@@ -32,6 +32,11 @@
       pending = null;
     }
     const composer = adapter.composerContext?.() || null;
+    // Claude's own native upload masks its editor, not its live conversation.
+    // This observation-only witness revalidates nodes/history/URL and the exact
+    // owned modal. It never supplies a composer or a Send/permission override.
+    const attachmentObservation = provider === "claude" && !composer
+      ? adapter.attachmentConversationObservation?.() || null : null;
     const observedMessages = [...(adapter.userMessages?.() || []), ...(adapter.assistantMessages?.() || [])];
     const messages = observedMessages.filter((node) => node?.isConnected && (!node.getClientRects || node.getClientRects().length > 0) && !node.closest?.('[aria-hidden="true"], [hidden]'));
     const roots = new Set(messages.map((node) => node.closest?.("main, [role='main']") || document.body).filter(Boolean));
@@ -97,8 +102,11 @@
       messages.every(node => standardMain.contains(node)) && roots.size <= 1 ? standardShell : null;
     const hasObservedRoot = ["claude", "deepseek"].includes(provider);
     const observedRoot = hasObservedRoot ? adapter.conversationRoot?.() || null : null;
-    const observedRootValid = Boolean(observedRoot?.isConnected && composer?.composer?.isConnected &&
-      observedRoot.contains(composer.composer) && messages.every(node => observedRoot.contains(node)));
+    const ownedAttachmentRoot = Boolean(attachmentObservation &&
+      attachmentObservation.locationHref === location.href && attachmentObservation.root === observedRoot);
+    const observedRootValid = Boolean(observedRoot?.isConnected &&
+      ((composer?.composer?.isConnected && observedRoot.contains(composer.composer)) || ownedAttachmentRoot) &&
+      messages.every(node => observedRoot.contains(node)));
     const root = standardShellMode ? standardRoot : hasObservedRoot ? (observedRootValid ? observedRoot : null) :
       aliceNoMainRoot ? document.body : qwenRoot || qwenGapRoot || (
       roots.size === 1 ? [...roots][0] :
@@ -150,7 +158,7 @@
     const canonicalHref = document.querySelector('link[rel="canonical"][href]')?.href || "";
     if (provider === "qwen" && pending?.witnessNode && !startWitness) pending.renameUnavailable = true;
     const surfaceConfirmed = Boolean(!qwenGapRoot && root && roots.size <= 1 &&
-      (composer?.composer?.isConnected || inSurface.length));
+      (composer?.composer?.isConnected || (ownedAttachmentRoot && root===observedRoot) || inSurface.length));
     lastInput = { origin, provider, pathname, canonicalHref,
       explicitIds, requiresExplicitId: provider === "alice", root,
       qwenInitialMain: qwenRoot ? mainRoots[0] : null, qwenInitialComposer: qwenRoot ? composer.composer : null,

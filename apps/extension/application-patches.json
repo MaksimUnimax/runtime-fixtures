@@ -1840,5 +1840,55 @@
     "target": "shared/file_delivery_port_worker.js",
     "old": "  globalThis.OzonFileDeliveryWorker = Object.freeze({\n    DB_NAME,\n    STORE_NAME,\n    ATTACHMENT_MODE,\n    PORT_NAME,\n    copyManifest,\n    MAX_CHUNK_BYTES,\n    cleanupExpiredArtifacts,\n    async storeApplicationArtifact(record) {\n      if (!/^provider:sa_file_[A-Za-z0-9-]+$/.test(record.artifact_key) || !record.bytes || record.expires_at_ms <= nowMs()) throw new Error(\"Invalid application artifact\");\n      const bytes = asBytes(record.bytes);\n      const next = { ...record, bytes: bufferCopy(bytes), filename: sanitizeFilename(record.filename, \"wb-report.bin\"), sha256: await sha256Hex(bytes), byte_length: bytes.byteLength };\n      await putArtifact(next);\n      return descriptorFromRecord(next);\n    }\n  });\n})();\n",
     "new": "  globalThis.OzonFileDeliveryWorker = Object.freeze({\n    DB_NAME,\n    STORE_NAME,\n    ATTACHMENT_MODE,\n    PORT_NAME,\n    copyManifest,\n    MAX_CHUNK_BYTES,\n    cleanupExpiredArtifacts,\n    storeApplicationArtifact\n  });\n})();\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function setComposerText(composer, text) {",
+    "new": "  async function stageOwnedComposerText(composer, text) {\n    const active = currentAIAdapter();\n    if (active?.id !== \"kimi\") { setComposerText(composer, text); return; }\n    const context = primaryComposerContext(), href = location.href;\n    const valid = () => {\n      const fresh = primaryComposerContext();\n      return current() && location.href === href && currentAIAdapter() === active &&\n        fresh?.composer === composer && fresh.root === context?.root;\n    };\n    if (!context || context.composer !== composer || !valid())\n      throw Object.assign(new Error(\"Composer context changed before one-time insertion.\"), {code:\"COMPOSER_CONTEXT_CHANGED\"});\n    // The Kimi adapter waits for one Lexical insertion; this is not a Send\n    // retry or a second write. Durable commit remains with the caller.\n    await active.setComposerText(composer, String(text || \"\"), {isCurrent:valid});\n    if (!valid() || normalizedDeliveryText(composerText(composer)) !== normalizedDeliveryText(text))\n      throw Object.assign(new Error(\"Composer context/text changed during insertion.\"), {code:\"COMPOSER_TEXT_CHANGED\"});\n  }\n\n  function setComposerText(composer, text) {"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    setComposerText(insertContext.composer, String(recovery.outgoing_text || \"\"));",
+    "new": "    await stageOwnedComposerText(insertContext.composer, String(recovery.outgoing_text || \"\"));"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if (!existing || !ownsStage) setComposerText(context.composer, reportText);",
+    "new": "    if (!existing || !ownsStage) await stageOwnedComposerText(context.composer, reportText);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if (!existing) setComposerText(initialContext.composer, messageText);",
+    "new": "    if (!existing) await stageOwnedComposerText(initialContext.composer, messageText);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      if (!liveText) setComposerText(liveContext.composer, messageText);",
+    "new": "      if (!liveText) await stageOwnedComposerText(liveContext.composer, messageText);"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  function setComposerText(context, value) {\n    const active = adapter();\n    if (!context?.composer || typeof active?.setComposerText !== \"function\") throw Object.assign(new Error(\"Target AI composer cannot be written by its adapter.\"), { code: \"TARGET_AI_COMPOSER_UNAVAILABLE\" });\n    active.setComposerText(context.composer, String(value || \"\"));\n  }",
+    "new": "  function setComposerText(context, value, options = {}) {\n    const active = adapter();\n    if (!context?.composer || typeof active?.setComposerText !== \"function\") throw Object.assign(new Error(\"Target AI composer cannot be written by its adapter.\"), { code: \"TARGET_AI_COMPOSER_UNAVAILABLE\" });\n    return active.setComposerText(context.composer, String(value || \"\"), options);\n  }"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  function stageMarker(recovery) {\n    const context = composerContext();\n    if (!context) throw Object.assign(new Error(\"Target AI composer disappeared before marker staging.\"), { code: \"COMPOSER_NOT_FOUND\" });\n    const existing = normalizeText(composerText(context));\n    const expected = normalizeText(recovery.outgoing_text || \"\");\n    if (existing && existing !== expected) throw Object.assign(new Error(\"Composer contains unrelated user text; Bridge will not overwrite it.\"), { code: \"COMPOSER_CONTAINS_OTHER_TEXT\" });\n    if (!existing) setComposerText(context, recovery.outgoing_text || \"\");\n    return context;\n  }",
+    "new": "  async function stageMarker(recovery) {\n    const context = composerContext(), active = adapter(), href = location.href;\n    if (!context) throw Object.assign(new Error(\"Target AI composer disappeared before marker staging.\"), { code: \"COMPOSER_NOT_FOUND\" });\n    const isCurrent = () => {\n      const fresh = composerContext();\n      return current() && sameConversation(recovery) && adapter() === active && location.href === href &&\n        fresh?.composer === context.composer && fresh.root === context.root;\n    };\n    if (!isCurrent()) throw Object.assign(new Error(\"Attachment owner changed before marker staging.\"), {code:\"EXECUTION_CONTEXT_CHANGED\"});\n    const existing = normalizeText(composerText(context)), expected = normalizeText(recovery.outgoing_text || \"\");\n    if (existing && existing !== expected) throw Object.assign(new Error(\"Composer contains unrelated user text; Bridge will not overwrite it.\"), { code: \"COMPOSER_CONTAINS_OTHER_TEXT\" });\n    if (!existing) await setComposerText(context, recovery.outgoing_text || \"\", {isCurrent});\n    if (!isCurrent() || normalizeText(composerText(context)) !== expected)\n      throw Object.assign(new Error(\"Attachment marker context/text changed.\"), {code:\"COMPOSER_TEXT_CHANGED\"});\n    return context;\n  }"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    stageMarker(recovery);\n    const ack =",
+    "new": "    await stageMarker(recovery);\n    const ack ="
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    stageMarker(recovery);\n    let lastError =",
+    "new": "    await stageMarker(recovery);\n    let lastError ="
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    stageMarker(committed);",
+    "new": "    await stageMarker(committed);"
   }
 ]

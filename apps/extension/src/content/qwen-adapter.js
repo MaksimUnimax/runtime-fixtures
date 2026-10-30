@@ -22,7 +22,7 @@
       const composers = [...document.querySelectorAll("textarea.message-input-textarea")].filter(visible);
       if (composers.length !== 1) return null;
       const composer = composers[0], root = composer.closest(".message-input-container");
-      return root && visible(root) ? { composer, root } : null;
+      return root && visible(root) ? { composer, root, locationHref: location.href } : null;
     };
     const classify = context => {
       if (!context?.root?.isConnected || !context.composer?.isConnected) return { kind: "unknown", button: null };
@@ -45,9 +45,24 @@
       if (!(input instanceof HTMLInputElement) || !input.isConnected || input.disabled || input.files?.length) return null;
       // Qwen's hidden input installs its upload callback only after the native
       // file-dialog action. Its visible chat drop surface is independently ready.
-      const target = context.root.closest(".chat-content");
+      let target = context.root.closest(".chat-content");
+      if (!target) {
+        // The authorised welcome screen uses this observed visible drop zone.
+        // An unrelated/duplicate page editor must never receive the file.
+        const targets = [...document.querySelectorAll("#dropzone-container.placeholder-container")];
+        if (location.origin !== "https://chat.qwen.ai" || targets.length !== 1) return null;
+        target = targets[0];
+        const editors = [...target.querySelectorAll("textarea.message-input-textarea")];
+        if (!target.contains(context.root) || editors.length !== 1 || editors[0] !== context.composer ||
+            target.closest('[hidden],[aria-hidden="true"],[inert],[role="dialog"]') ||
+            input.id !== "filesUpload" || !input.multiple || input.matches(":disabled") ||
+            input.getAttribute("aria-disabled") === "true" ||
+            input.parentElement?.closest('[hidden],[aria-hidden="true"],[inert],[role="dialog"]') ||
+            [...document.querySelectorAll("#filesUpload")].length !== 1 ||
+            context.root.querySelector('button.stop-button,button[aria-label="Stop"]')) return null;
+      }
       if (!target?.isConnected || !visible(target)) return null;
-      return { kind: "drag_drop_v1", input, root: context.root, target };
+      return { kind: "drag_drop_v1", input, root: context.root, target, locationHref: context.locationHref };
     };
     const attachmentPreview = filename => {
       const context = composerContext();
@@ -120,7 +135,8 @@
       attachFiles(surface, files) {
         const current = attachmentSurface();
         if (!current || surface?.kind !== current.kind || surface.root !== current.root ||
-            surface.input !== current.input || surface.target !== current.target)
+            surface.input !== current.input || surface.target !== current.target ||
+            surface.locationHref !== current.locationHref)
           fail("TARGET_AI_ATTACHMENT_SURFACE_UNAVAILABLE");
         if (!Array.isArray(files) || files.length !== 1 || !/\.txt$/i.test(String(files[0]?.name || "")))
           fail("TARGET_AI_FILE_TYPE_UNSUPPORTED");

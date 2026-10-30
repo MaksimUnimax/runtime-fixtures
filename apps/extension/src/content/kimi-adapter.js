@@ -39,6 +39,7 @@
   }
   function create({ readComposerText, setComposerText }) {
     const reader = globalThis.SellerAgentsKimiCodeReader;
+    let pendingInsertion = null;
     const composerContext = () => {
       if (!matchesLocation()) return null;
       const editors = [...document.querySelectorAll(EDITOR)]
@@ -132,12 +133,61 @@
         const current = composerContext();
         return current?.composer === composer ? readComposerText(composer) : "";
       },
-      setComposerText(composer, value) {
-        const current = composerContext();
-        if (current?.composer !== composer || !["ready", "send_active", "send_disabled"].includes(classify(current).kind)) fail("COMPOSER_NOT_AVAILABLE");
-        setComposerText(composer, value);
-        if (!currentContext(current) || readComposerText(composer) !== String(value || ""))
-          fail("COMPOSER_CONTEXT_CHANGED");
+      async setComposerText(composer, value, options = {}) {
+        const context = composerContext(), expected = String(value || "");
+        const isCurrent = typeof options.isCurrent === "function" ? options.isCurrent : () => true;
+        if (context?.composer !== composer || !isCurrent() ||
+            !["ready", "send_active", "send_disabled"].includes(classify(context).kind))
+          fail("COMPOSER_NOT_AVAILABLE");
+        if (pendingInsertion) {
+          if (pendingInsertion.composer !== composer || pendingInsertion.expected !== expected)
+            fail("COMPOSER_INSERTION_IN_PROGRESS");
+          await pendingInsertion.promise;
+          if (!isCurrent() || !currentContext(context) || readComposerText(composer) !== expected)
+            fail("COMPOSER_CONTEXT_CHANGED");
+          return;
+        }
+        const previous = readComposerText(composer);
+        if (previous === expected) return;
+        // This method stages a new owned message; it never replaces a user draft.
+        if (previous.trim()) fail("COMPOSER_CONTAINS_OTHER_TEXT");
+        let userEdited = false;
+        const observeInput = event => { if (event.isTrusted) userEdited = true; };
+        const events = ["beforeinput", "input", "compositionstart", "paste", "drop"];
+        for (const event of events) composer.addEventListener(event, observeInput, true);
+        const attempt = { composer, expected, promise: null };
+        pendingInsertion = attempt;
+        // Publish the promise before any synchronous input handler can re-enter
+        // this adapter. Recheck the draft and owner immediately before one write.
+        attempt.promise = Promise.resolve().then(async () => {
+          if (!isCurrent() || !currentContext(context)) fail("COMPOSER_CONTEXT_CHANGED");
+          if (userEdited) fail("COMPOSER_TEXT_CHANGED");
+          if (readComposerText(composer) !== previous) fail("COMPOSER_TEXT_CHANGED");
+          // Lexical can restore its empty DOM synchronously and commit the same
+          // insertion on a later frame. Wait for this write; never insert twice.
+          setComposerText(composer, expected);
+          const deadline = Date.now() + 1500;
+          let matched = false;
+          do {
+            if (!isCurrent() || !currentContext(context)) fail("COMPOSER_CONTEXT_CHANGED");
+            if (userEdited) fail("COMPOSER_TEXT_CHANGED");
+            const actual = readComposerText(composer);
+            if (actual === expected) {
+              if (matched) return;
+              matched = true;
+            } else {
+              if (matched || actual.trim()) fail("COMPOSER_TEXT_CHANGED");
+            }
+            if (Date.now() >= deadline) break;
+            await new Promise(resolve => setTimeout(resolve, 50));
+          } while (true);
+          fail("COMPOSER_TEXT_SETTLEMENT_TIMEOUT");
+        });
+        try { await attempt.promise; }
+        finally {
+          for (const event of events) composer.removeEventListener(event, observeInput, true);
+          if (pendingInsertion === attempt) pendingInsertion = null;
+        }
       },
       classifyComposerControl: classify,
       allComposerControls(context) {
