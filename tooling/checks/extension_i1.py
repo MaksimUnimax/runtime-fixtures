@@ -64,6 +64,10 @@ def main():
             runner.run(label + "-native-browser-proof", [os.environ.get("WB_TEST_PYTHON", "python3"), ROOT / "tests/regression/extension-core/client-i1/browser_verifier.py", "--runtime", runtime, "--output", browser_output])
             runner.env["C3H_BROWSER_PROOF_FILE"] = str(browser_output / "result.json")
             runner.env.pop("C3H_BROWSER_PROOF", None)
+            runner.run(label + "-f05-identity-matrix", [
+                node, ROOT / "tests/regression/extension-core/client-i1/client-f05-identity-matrix.mjs",
+                "--runtime", runtime, "--output", output / (label + "-f05-identity-matrix.json"),
+            ])
             runner.run(label + "-native-vault-pending-restart", [
                 os.environ.get("WB_TEST_PYTHON", "python3"),
                 ROOT / "tests/regression/extension-core/client-i1/browser_transfer_vault_restart.py",

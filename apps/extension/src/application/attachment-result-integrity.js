@@ -78,8 +78,14 @@
     const identity = globalThis.BB2ConversationIdentity;
     const provider = identity?.providerForOrigin?.(liveOrigin);
     if (!provider) return false;
-    const path = provider === "alice" ? `/chat/${conversationId}` : `/c/${conversationId}`;
-    if (identity.conversationIdFromPath?.(path, provider) !== conversationId) return false;
+    // Match the actual composed consumer, not a synthetic UUID-only URL.
+    // local:/ref: are already confirmed document/conversation identities.
+    // Unknown/conflicting/wrong-AI input keeps the original authority denial.
+    try {
+      const normalized = normalizeIdentity(liveOwner);
+      if (normalized.status !== "confirmed" || normalized.origin !== expectedOrigin ||
+          normalized.conversation_id !== conversationId) return false;
+    } catch (_) { return false; }
 
     const messageKey = String(message?.conversation_key || "").trim().toLowerCase();
     const ownerKey = String(owner?.conversation_key || "").trim().toLowerCase();
@@ -112,7 +118,14 @@
       if (!senderContextMatchesOwner(port, message, owner)) return null;
       if (message?.delivery_id && String(delivery.delivery_id || "") !== String(message.delivery_id)) return null;
       if (!allowedPhases.includes(String(delivery.phase || ""))) return null;
-      return hasKnownLegacyProviderResult(owner) ? LEGACY_CODE : null;
+      if (!hasKnownLegacyProviderResult(owner)) return null;
+      // Never reveal legacy-result state to an expired/foreign account or
+      // store. The unchanged consumer remains responsible for its denial code.
+      if (typeof saAssertDeliveryOwner === "function") {
+        try { await saAssertDeliveryOwner(owner); }
+        catch (_) { return null; }
+      }
+      return LEGACY_CODE;
     }
     return null;
   }
