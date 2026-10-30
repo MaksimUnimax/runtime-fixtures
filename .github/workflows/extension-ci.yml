@@ -182,6 +182,8 @@ jobs:
           python tooling/build/extension_composed.py --output build/application-browser/package
           python tests/regression/extension-core/claude-modal-owner-chain.py --runtime build/application-browser/package/runtime --output build/application-browser/claude-owner-source.json
           python tests/regression/extension-core/claude-modal-owner-chain.py --runtime build/application-browser/package/extracted --output build/application-browser/claude-owner-extracted.json
+          python tests/regression/extension-core/native-result-storage.py --runtime build/application-browser/package/runtime --output build/application-browser/native-storage-source.json
+          python tests/regression/extension-core/native-result-storage.py --runtime build/application-browser/package/extracted --output build/application-browser/native-storage-extracted.json
           xvfb-run -a python tests/regression/extension-core/browser_popup_sizing.py --runtime build/application-browser/package/runtime --output build/application-browser/native-popup-source
           xvfb-run -a python tests/regression/extension-core/browser_popup_sizing.py --runtime build/application-browser/package/extracted --output build/application-browser/native-popup-extracted
           python tests/regression/extension-core/popup-auth-dom.py --runtime build/application-browser/package/runtime --output build/application-browser/popup-auth-source

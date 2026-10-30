@@ -5,7 +5,8 @@
   // provider-attempt record.  It may contain a bounded business result, but it
   // never changes provider authority and it never creates a provider retry.
   const SCHEMA_VERSION = 2;
-  const BUFFER_INTEGRITY_VERSION = 2;
+  const BUFFER_INTEGRITY_VERSION = 3;
+  const STRUCTURAL_SERIALIZATION = "json-object-keys-v1";
   // Old schema-2/integrity-1 writers could remove a structured credential
   // while retaining its value in report_text. Their hashes prove bytes, not
   // that this writer's structured-key/report-reflection policy ran.
@@ -45,8 +46,25 @@
     }
   };
   const encoder = () => new TextEncoder();
-  const serializedBytes = (value) => {
+  function structuralSnapshot(value) {
+    // Chrome storage may reorder object properties without changing their data.
+    // First apply normal JSON semantics (toJSON, aliases, null array slots,
+    // omitted undefined properties, and cycle/BigInt rejection). Then order only
+    // object keys. Arrays and every string code unit, including report bytes,
+    // remain significant. Build strings, not objects: __proto__ stays JSON data.
     const serialized = JSON.stringify(value);
+    if (typeof serialized !== "string") throw new TypeError("RESULT_BUFFER_PAYLOAD_INVALID");
+    const normalized = JSON.parse(serialized);
+    function encode(node) {
+      if (node === null || typeof node !== "object") return JSON.stringify(node);
+      if (Array.isArray(node)) return "[" + node.map(encode).join(",") + "]";
+      return "{" + Object.keys(node).sort().map(key =>
+        JSON.stringify(key) + ":" + encode(node[key])).join(",") + "}";
+    }
+    return encode(normalized);
+  }
+  const serializedBytes = (value, legacyOrder = false) => {
+    const serialized = legacyOrder ? JSON.stringify(value) : structuralSnapshot(value);
     if (typeof serialized !== "string") throw new TypeError("RESULT_BUFFER_PAYLOAD_INVALID");
     return { serialized, byteLength: encoder().encode(serialized).byteLength };
   };
@@ -138,9 +156,14 @@
   }
 
   function hasCurrentSanitizationPolicy(buffer) {
-    return buffer?.schema_version === SCHEMA_VERSION &&
-      buffer.integrity?.version === BUFFER_INTEGRITY_VERSION &&
-      buffer.integrity?.sanitization_policy === SANITIZATION_POLICY;
+    if (buffer?.schema_version !== SCHEMA_VERSION ||
+        buffer.integrity?.sanitization_policy !== SANITIZATION_POLICY) return false;
+    const integrity = buffer.integrity;
+    if (integrity.version === BUFFER_INTEGRITY_VERSION)
+      return integrity.serialization_policy === STRUCTURAL_SERIALIZATION;
+    // Existing privacy-safe v2 data is accepted only against its ORIGINAL
+    // insertion-order digest. Never silently reinterpret an old digest as v3.
+    return integrity.version === 2 && !Object.hasOwn(integrity, "serialization_policy");
   }
 
   function collectDeniedScalars(value, output, visited = new WeakSet()) {
@@ -256,6 +279,7 @@
       base.integrity = {
         version: BUFFER_INTEGRITY_VERSION,
         sanitization_policy: SANITIZATION_POLICY,
+        serialization_policy: STRUCTURAL_SERIALIZATION,
         report_text_bytes: encoder().encode(reportText).byteLength,
         report_text_sha256: await sha256Hex(reportText),
         payload_bytes: payloadByteLength,
@@ -289,7 +313,7 @@
     if (hasSensitiveResult(buffer.payload.result)) return { valid: false, code: "RESULT_BUFFER_SENSITIVE_RESULT" };
 
     try {
-      const payload = serializedBytes(buffer.payload);
+      const payload = serializedBytes(buffer.payload, buffer.integrity.version === 2);
       const reportByteLength = encoder().encode(buffer.payload.report_text).byteLength;
       const snapshot = serializedBytes(buffer);
       if (payload.byteLength > MAX_BUFFER_BYTES || snapshot.byteLength > MAX_BUFFER_BYTES) {
@@ -322,7 +346,9 @@
   function matchesValidatedSnapshot(buffer, snapshot) {
     if (!buffer || typeof snapshot !== "string") return false;
     try {
-      return JSON.stringify(buffer) === snapshot;
+      // Snapshot text is an internal verified JSON capture. Comparing its
+      // structural value also preserves callers using an older JSON snapshot.
+      return structuralSnapshot(buffer) === structuralSnapshot(JSON.parse(snapshot));
     } catch (_) {
       return false;
     }
@@ -405,6 +431,7 @@
     contextOf,
     sameContext,
     sameProviderAttempt,
+    structuralSnapshot,
     createBuffer,
     validateBuffer,
     matchesValidatedSnapshot,

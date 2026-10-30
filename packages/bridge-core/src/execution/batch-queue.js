@@ -35,6 +35,13 @@
     } = ports;
     const outcome = globalThis.SellerAgentsProviderOutcome;
     const resultRecovery = globalThis.SellerAgentsResultRecovery;
+    const structuralSnapshot = (value) => {
+      if (typeof resultRecovery?.structuralSnapshot !== "function")
+        throw Object.assign(new Error("Result recovery snapshot validator is unavailable"), {
+          code: "RESULT_RECOVERY_SNAPSHOT_UNAVAILABLE",
+        });
+      return resultRecovery.structuralSnapshot(value);
+    };
     const attemptId = () => `provider-attempt-${crypto.randomUUID()}`;
     const logicalId = (owner, index) => `${String(owner?.operation_id || owner?.run_id || ownerId)}:${index}`;
     function attemptInput(owner, entry, index, id, number = 1) {
@@ -126,7 +133,7 @@
       const expectedNextIndex = Number(owner.batch.next_index || 0);
       const expectedRequestState = owner.batch.request_state;
       const expectedPayloadExpiry = owner.payload_expires_at_ms;
-      const expectedExecutionContext = JSON.stringify(owner.execution_context || null);
+      const expectedExecutionContext = structuralSnapshot(owner.execution_context || null);
       // Provider attempt.work_generation is the Work-session identifier.
       // The execution context also has a distinct authority workGeneration;
       // reconstructing one from the other rejects genuine received results.
@@ -136,8 +143,8 @@
         const entry = owner.batch.entries[index];
         if (!entry || entry.status !== "requesting" || entry.provider_attempt_id !== providerAttemptId || !entry.provider_attempt)
           throw Object.assign(new Error("Known provider result has no matching attempt for local result buffering."), { code: "RESULT_BUFFER_STORE_FAILED" });
-        const sourceAttemptSnapshot = JSON.stringify(entry.provider_attempt);
-        const sourceBufferSnapshot = JSON.stringify(entry.result_buffer || null);
+        const sourceAttemptSnapshot = structuralSnapshot(entry.provider_attempt);
+        const sourceBufferSnapshot = structuralSnapshot(entry.result_buffer || null);
         let attempt = entry.provider_attempt;
         if (attempt.state === outcome.STATES.DISPATCH_INTENT_COMMITTED) {
           attempt = outcome.markResponseReceived(attempt, {
@@ -167,7 +174,7 @@
           sourceCommandIndex: entry.command_index,
           sourceQueryGroupId: entry.query_group_id || null,
           buffer,
-          snapshot: JSON.stringify(buffer),
+          snapshot: structuralSnapshot(buffer),
         });
       }
       let stored = false;
@@ -177,15 +184,15 @@
             current.batch.request_state !== expectedRequestState ||
             current.batch.request_worker_session_id !== owner.batch.request_worker_session_id ||
             current.payload_expires_at_ms !== expectedPayloadExpiry ||
-            JSON.stringify(current.execution_context || null) !== expectedExecutionContext ||
+            structuralSnapshot(current.execution_context || null) !== expectedExecutionContext ||
             !resultRecovery.sameContext(owner.execution_context, current.execution_context)) return current;
         const entries = [...(current.batch.entries || [])];
         for (const prepared of preparedBuffers) {
           const { index, attempt, sourceAttemptSnapshot, sourceBufferSnapshot, sourceCommandIndex, sourceQueryGroupId, buffer, snapshot } = prepared;
           const entry = entries[index];
           if (!entry || entry.provider_attempt_id !== providerAttemptId || !entry.provider_attempt ||
-              entry.status !== "requesting" || JSON.stringify(entry.provider_attempt) !== sourceAttemptSnapshot ||
-              JSON.stringify(entry.result_buffer || null) !== sourceBufferSnapshot ||
+              entry.status !== "requesting" || structuralSnapshot(entry.provider_attempt) !== sourceAttemptSnapshot ||
+              structuralSnapshot(entry.result_buffer || null) !== sourceBufferSnapshot ||
               entry.command_index !== sourceCommandIndex || (entry.query_group_id || null) !== sourceQueryGroupId ||
               !resultRecovery.sameContext(buffer.context, current.execution_context) ||
               Number(buffer.expires_at_ms || 0) <= Date.now() ||
@@ -212,8 +219,8 @@
     }
     async function recoverBufferedSingle({ index, owner, entry, mutateOwner, ownerMatches, isCollecting }) {
       const buffer = entry?.result_buffer;
-      const providerAttemptSnapshot = JSON.stringify(entry?.provider_attempt || null);
-      const executionContextSnapshot = JSON.stringify(owner.execution_context || null);
+      const providerAttemptSnapshot = structuralSnapshot(entry?.provider_attempt || null);
+      const executionContextSnapshot = structuralSnapshot(owner.execution_context || null);
       if (!resultRecovery || typeof resultRecovery.recoveryDecision !== "function")
         return { type: "blocked", code: "RESULT_RECOVERY_VALIDATOR_UNAVAILABLE" };
       const decision = await resultRecovery.recoveryDecision({ providerAttempt: entry.provider_attempt, resultBuffer: buffer, currentContext: owner.execution_context, now: Date.now() });
@@ -247,7 +254,7 @@
           commitFailureCode = "PROVIDER_OUTCOME_UNKNOWN_NO_RETRY";
           return current;
         }
-        if (JSON.stringify(live.provider_attempt || null) !== providerAttemptSnapshot) {
+        if (structuralSnapshot(live.provider_attempt || null) !== providerAttemptSnapshot) {
           commitFailureCode = "PROVIDER_ATTEMPT_CHANGED_DURING_RECOVERY";
           return current;
         }
@@ -256,7 +263,7 @@
           return current;
         }
         if (!resultRecovery.sameContext(live.result_buffer?.context, current.execution_context) ||
-            JSON.stringify(current.execution_context || null) !== executionContextSnapshot ||
+            structuralSnapshot(current.execution_context || null) !== executionContextSnapshot ||
             !resultRecovery.sameContext(owner.execution_context, current.execution_context)) {
           commitFailureCode = "STALE_DELIVERY_CONTEXT";
           return current;
@@ -295,8 +302,8 @@
       const members = expectedIndexes.map((index) => owner.batch.entries?.[index]);
       if (members.some((entry) => !entry || entry.status !== "requesting" || entry.result_buffer?.projection_kind !== "physical"))
         return { type: "blocked", code: "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY" };
-      const providerAttemptSnapshots = members.map((entry) => JSON.stringify(entry.provider_attempt || null));
-      const executionContextSnapshot = JSON.stringify(owner.execution_context || null);
+      const providerAttemptSnapshots = members.map((entry) => structuralSnapshot(entry.provider_attempt || null));
+      const executionContextSnapshot = structuralSnapshot(owner.execution_context || null);
       if (!resultRecovery || typeof resultRecovery.recoveryDecision !== "function")
         return { type: "blocked", code: "RESULT_RECOVERY_VALIDATOR_UNAVAILABLE" };
       const decisions = [];
@@ -332,7 +339,7 @@
       await mutateOwner((current) => {
         if (!current || !ownerMatches(current) || !isCollecting(current) || !current.batch) return current;
         if (Number(current.batch.next_index || 0) !== nextIndex || current.batch.request_state !== "requesting") return current;
-        if (JSON.stringify(current.execution_context || null) !== executionContextSnapshot) {
+        if (structuralSnapshot(current.execution_context || null) !== executionContextSnapshot) {
           commitFailureCode = "STALE_DELIVERY_CONTEXT";
           return current;
         }
@@ -360,7 +367,7 @@
             commitFailureCode = "PROVIDER_OUTCOME_UNKNOWN_NO_RETRY";
             return current;
           }
-          if (JSON.stringify(entry.provider_attempt || null) !== providerAttemptSnapshots[offset]) {
+          if (structuralSnapshot(entry.provider_attempt || null) !== providerAttemptSnapshots[offset]) {
             commitFailureCode = "PROVIDER_ATTEMPT_CHANGED_DURING_RECOVERY";
             return current;
           }

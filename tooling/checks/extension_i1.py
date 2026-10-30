@@ -54,6 +54,7 @@ def main():
         runner.run("i1-r3-parallel-bootstrap-source", [
             node, ROOT / "tests/regression/extension-core/client-i1/client-r3-parallel-authority.mjs"
         ])
+        runner.run("i1-f05-full-report-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-f05-full-report-recovery.mjs", ROOT])
         source, extracted, receipt = composed.build(output / "package")
         assert receipt["stage"] == "I1-C1" and receipt["version"] == expected_version
         result["composition"] = receipt
@@ -84,6 +85,7 @@ def main():
                 ("wb", ROOT / "tests/regression/extension-core/wb-adapter.mjs"),
                 ("provider-outcome", ROOT / "tests/regression/extension-core/provider-outcome.mjs"),
                 ("i1-p2-result-recovery", ROOT / "tests/regression/extension-core/client-i1/client-p2-result-recovery.mjs"),
+                ("i1-f05-attachment-integrity", ROOT / "tests/regression/extension-core/client-i1/client-f05-attachment-consumer.mjs"),
                 ("i1-p3-technical-scheduler", ROOT / "tests/regression/extension-core/client-i1/client-p3-technical-scheduler.mjs"),
                 ("i1-a04-network-correctness", ROOT / "tests/regression/extension-core/client-i1/client-a04-network-correctness.mjs"),
                 ("application", ROOT / "tests/regression/extension-core/application.mjs"),
