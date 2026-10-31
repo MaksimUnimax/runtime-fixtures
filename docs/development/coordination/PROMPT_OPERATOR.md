@@ -11,3 +11,7 @@
 ## Продуктовая приёмка по блокам — 15.10.2026
 
 По прямому поручению владельца применять [OWNER_BLOCK_TESTER_WORKFLOW.md](OWNER_BLOCK_TESTER_WORKFLOW.md) и [приёмщик продукта](../../product/readiness/OWNER_BLOCK_ACCEPTANCE.md). Рабочая копия: `/root/octoport-control/testing/OWNER_BLOCK_ACCEPTANCE.md`. Выдавать один готовый блок вместе с ручными сценариями; устранять замечания в нём; следующий блок — после явного принятия владельцем. Порядок не создаёт программный gate и не останавливает разрешённую независимую разработку. Исходный активный блок B01 — PREPARING, не PASS.
+
+## Экономия контекста
+
+Продолжай в том же существующем диалоге, не переписывая историю и не экспортируя её в отдельную копию ради кэширования. Следуй общим правилам контекста и полного scope в [OWNER_BLOCK_TESTER_WORKFLOW.md](OWNER_BLOCK_TESTER_WORKFLOW.md) и [OPERATOR_TESTING_POLICY.md](OPERATOR_TESTING_POLICY.md).
