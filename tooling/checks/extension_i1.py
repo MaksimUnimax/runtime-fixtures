@@ -90,6 +90,7 @@ def main():
                 ("provider-outcome", ROOT / "tests/regression/extension-core/provider-outcome.mjs"),
                 ("i1-p2-result-recovery", ROOT / "tests/regression/extension-core/client-i1/client-p2-result-recovery.mjs"),
                 ("i1-f05-attachment-integrity", ROOT / "tests/regression/extension-core/client-i1/client-f05-attachment-consumer.mjs"),
+                ("i1-b02-four-map-migration-race", ROOT / "tests/regression/extension-core/client-i1/client-b02-four-map-migration-race.mjs"),
                 ("i1-p3-technical-scheduler", ROOT / "tests/regression/extension-core/client-i1/client-p3-technical-scheduler.mjs"),
                 ("i1-a04-network-correctness", ROOT / "tests/regression/extension-core/client-i1/client-a04-network-correctness.mjs"),
                 ("application", ROOT / "tests/regression/extension-core/application.mjs"),

@@ -1890,5 +1890,45 @@
     "target": "attachment_delivery_port_content.js",
     "old": "    stageMarker(committed);",
     "new": "    await stageMarker(committed);"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "let bindingWriteLock = Promise.resolve();\nlet autoRunsWriteLock = Promise.resolve();\n",
+    "new": "let bindingWriteLock = Promise.resolve();\nlet conversationMapsWriteLock = Promise.resolve();\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "let prefixWriteLock = Promise.resolve();\nlet startPromptWriteLock = Promise.resolve();\nlet migrationWriteLock = Promise.resolve();\n",
+    "new": ""
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    const bindingUpdates = { [KEYS.CONVERSATION_BINDINGS]: bindings };\n\n    if (!previous) {\n      const manualData = await storageGet(KEYS.MANUAL_MODES);\n      const modes = { ...(manualData[KEYS.MANUAL_MODES] || {}) };\n      delete modes[key];\n      bindingUpdates[KEYS.MANUAL_MODES] = modes;\n    }\n\n    if (workStartIntentId) {\n      const sessions = await getWorkSessions();\n      const currentSession = OzonWorkSessionModel.normalize(sessions[key], key);\n      if (![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(currentSession.state)) {\n        throw Object.assign(new Error(\"Work-session уже существует; повторный Start не должен перепривязывать диалог.\"), { code: \"WORK_SESSION_ALREADY_EXISTS\" });\n      }\n      transitionWorkSessionRecord(sessions, key, currentSession.revision, OzonWorkSessionModel.STATES.BINDING, {\n        tab_id: tab,\n        origin: live.origin,\n        ai_id: live.ai_id,\n        conversation_id: live.conversation_id,\n        start_intent_id: workStartIntentId,\n        error: null\n      });\n      bindingUpdates[KEYS.WORK_SESSIONS] = sessions;\n    }\n\n    await storageSet(bindingUpdates);\n\n",
+    "new": "    // Bindings are already serialized by withBindingWrite. When a new\n    // binding also clears MANUAL_MODES, serialize that multi-key write with\n    // migration and every other owner of the four conversation maps.\n    await withConversationMapsWrite(async () => {\n      const bindingUpdates = { [KEYS.CONVERSATION_BINDINGS]: bindings };\n      if (!previous) {\n        const manualData = await storageGet(KEYS.MANUAL_MODES);\n        const modes = { ...(manualData[KEYS.MANUAL_MODES] || {}) };\n        delete modes[key];\n        bindingUpdates[KEYS.MANUAL_MODES] = modes;\n      }\n\n      if (workStartIntentId) {\n        const sessions = await getWorkSessions();\n        const currentSession = OzonWorkSessionModel.normalize(sessions[key], key);\n        if (![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(currentSession.state)) {\n          throw Object.assign(new Error(\"Work-session уже существует; повторный Start не должен перепривязывать диалог.\"), { code: \"WORK_SESSION_ALREADY_EXISTS\" });\n        }\n        transitionWorkSessionRecord(sessions, key, currentSession.revision, OzonWorkSessionModel.STATES.BINDING, {\n          tab_id: tab,\n          origin: live.origin,\n          ai_id: live.ai_id,\n          conversation_id: live.conversation_id,\n          start_intent_id: workStartIntentId,\n          error: null\n        });\n        bindingUpdates[KEYS.WORK_SESSIONS] = sessions;\n      }\n      await storageSet(bindingUpdates);\n    });\n\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "function withMigrationWrite(fn) {\n  const next = migrationWriteLock.then(fn, fn);\n  migrationWriteLock = next.catch(() => null);\n  return next;\n}\n\n",
+    "new": "// All four per-conversation maps share a single read-modify-write queue.\n// A migration must never overwrite a newer transition in another dialogue.\nfunction withConversationMapsWrite(fn) {\n  const next = conversationMapsWriteLock.then(fn, fn);\n  conversationMapsWriteLock = next.catch(() => null);\n  return next;\n}\nfunction withMigrationWrite(fn) {\n  return withConversationMapsWrite(fn);\n}\n\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "function withAutoRunsWrite(fn) {\n  const next = autoRunsWriteLock.then(fn, fn);\n  autoRunsWriteLock = next.catch(() => null);\n  return next;\n}\n\n",
+    "new": "function withAutoRunsWrite(fn) {\n  return withConversationMapsWrite(fn);\n}\n\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "async function writeManualModeState(conversationKey, enabled) {\n  const key = normalizeConversationKey(conversationKey);\n  if (enabled === true) {\n    const run = await getAutoRun(key);\n    if (run && !BridgeAutorunModel.canEnableManualMode(run.status)) {\n      throw Object.assign(new Error(\"Авторежим активен. Сначала нажмите «Пауза», затем включайте работу через кнопку Ozon.\"), { code: \"AUTO_MODE_ACTIVE\" });\n    }\n  }\n  const data = await storageGet(KEYS.MANUAL_MODES);\n  const modes = { ...(data[KEYS.MANUAL_MODES] || {}) };\n  if (enabled === true) modes[key] = true;\n  else delete modes[key];\n  await storageSet({ [KEYS.MANUAL_MODES]: modes });\n  return enabled === true;\n}\n",
+    "new": "async function writeManualModeState(conversationKey, enabled) {\n  const key = normalizeConversationKey(conversationKey);\n  return withConversationMapsWrite(async () => {\n    if (enabled === true) {\n      const run = await getAutoRun(key);\n      if (run && !BridgeAutorunModel.canEnableManualMode(run.status)) {\n        throw Object.assign(new Error(\"Авторежим активен. Сначала нажмите «Пауза», затем включайте работу через кнопку Ozon.\"), { code: \"AUTO_MODE_ACTIVE\" });\n      }\n    }\n    const data = await storageGet(KEYS.MANUAL_MODES);\n    const modes = { ...(data[KEYS.MANUAL_MODES] || {}) };\n    if (enabled === true) modes[key] = true;\n    else delete modes[key];\n    await storageSet({ [KEYS.MANUAL_MODES]: modes });\n    return enabled === true;\n  });\n}\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "function withPrefixWrite(fn) {\n  const next = prefixWriteLock.then(fn, fn);\n  prefixWriteLock = next.catch(() => null);\n  return next;\n}\n\n",
+    "new": "function withPrefixWrite(fn) {\n  return withConversationMapsWrite(fn);\n}\n\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "function withStartPromptWrite(fn) {\n  const next = startPromptWriteLock.then(fn, fn);\n  startPromptWriteLock = next.catch(() => null);\n  return next;\n}\n\n",
+    "new": "function withStartPromptWrite(fn) {\n  return withConversationMapsWrite(fn);\n}\n\n"
   }
 ]
