@@ -1930,5 +1930,15 @@
     "target": "service_worker.js",
     "old": "function withStartPromptWrite(fn) {\n  const next = startPromptWriteLock.then(fn, fn);\n  startPromptWriteLock = next.catch(() => null);\n  return next;\n}\n\n",
     "new": "function withStartPromptWrite(fn) {\n  return withConversationMapsWrite(fn);\n}\n\n"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const storageKey = ownerMapKey(kind);\n    return withStateWrite(async () => {",
+    "new": "    const storageKey = ownerMapKey(kind);\n    const write = kind === \"autorun\" ? withConversationMapsWrite : withStateWrite;\n    return write(async () => {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  async function noteConfirmedPrefix(conversationKey, applied, deliveryId) {\n    const key = normalizeKey(conversationKey);\n    await withStateWrite(async () => {",
+    "new": "  async function noteConfirmedPrefix(conversationKey, applied, deliveryId) {\n    const key = normalizeKey(conversationKey);\n    await withConversationMapsWrite(async () => {"
   }
 ]
