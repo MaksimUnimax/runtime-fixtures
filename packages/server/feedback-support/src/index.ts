@@ -181,52 +181,222 @@ function normalizedCredentialKey(key: string): string {
   return key.normalize("NFKC").replace(/[\p{White_Space}\p{Cc}\p{Cf}]/gu, "");
 }
 
-// Validate framing without rewriting diagnostic bytes or rounding numeric
-// metadata. Pseudo-JSON quotes and formatting separators are accepted only
-// when the entire envelope is structurally complete. A line break alone is
-// never evidence that an unquoted credential value has ended.
-function isCompleteDiagnosticEnvelope(input: string): boolean {
-  let validation = "";
-  for (let index = 0; index < input.length; index++) {
-    const char = input[index]!;
-    if (char !== '"' && char !== "'") {
-      validation += /[\p{White_Space}\p{Cc}\p{Cf}]/u.test(char) ? " " : char;
-      continue;
+// Framing and recursive cleanup share this source-preserving grammar. It
+// accepts JSON tokens, single-quoted diagnostic strings and formatting
+// separators outside strings. A well-formed truncated prefix can be cleaned,
+// but only a complete document with decoded strings may bypass bare scanning.
+type DiagnosticString = {
+  start: number;
+  end: number;
+  quote: '"' | "'";
+  value: string | null;
+  closed: boolean;
+  key: boolean;
+};
+type DiagnosticField = {
+  key: DiagnosticString;
+  start: number;
+  end: number;
+};
+type DiagnosticDocument = {
+  start: number;
+  strings: DiagnosticString[];
+  fields: DiagnosticField[];
+  complete: boolean;
+};
+const diagnosticWhitespace = /[\p{White_Space}\p{Cc}\p{Cf}]/u;
+
+function readDiagnosticString(input: string, start: number): DiagnosticString {
+  const quote = input[start] as '"' | "'";
+  let index = start + 1;
+  let closed = false;
+  while (index < input.length) {
+    const char = input[index++]!;
+    if (char === "\\") {
+      if (index < input.length) index++;
+    } else if (char === quote) {
+      closed = true;
+      break;
     }
-    const quote = char;
-    let token = '"';
-    let closed = false;
-    while (++index < input.length) {
-      const next = input[index]!;
-      if (next === quote) {
-        closed = true;
+  }
+  const contentEnd = closed ? index - 1 : index;
+  let validation = '"';
+  let valid = true;
+  for (let cursor = start + 1; cursor < contentEnd; cursor++) {
+    const char = input[cursor]!;
+    if (char === "\\") {
+      const escaped = input[++cursor];
+      if (escaped === undefined || cursor >= contentEnd) {
+        valid = false;
         break;
       }
-      if (next === "\\") {
-        const escaped = input[++index];
-        if (escaped === undefined) return false;
-        token += quote === "'" && escaped === "'" ? "'" : "\\" + escaped;
-      } else {
-        token += next === '"' ? '\\"' : next;
-      }
+      validation += quote === "'" && escaped === "'" ? "'" : "\\" + escaped;
+    } else {
+      // Diagnostic strings may contain physical line breaks. Decode them
+      // without treating a line break as the end of a value; the same token
+      // and recursive scrubber cover its whole, proven quoted/EOF range.
+      validation +=
+        char.charCodeAt(0) < 0x20
+          ? JSON.stringify(char).slice(1, -1)
+          : char === '"'
+            ? '\\"'
+            : char;
     }
-    if (!closed) return false;
-    token += '"';
-    // Reject invalid escapes and raw control characters inside either quote
-    // style rather than manufacturing a trustworthy string boundary.
+  }
+  let value: string | null = null;
+  if (valid) {
     try {
-      JSON.parse(token);
+      value = JSON.parse(validation + '"') as string;
     } catch {
-      return false;
+      // Undecodable strings are opaque: cleanup masks the whole value.
     }
-    validation += token;
   }
-  try {
-    JSON.parse(validation);
-    return true;
-  } catch {
-    return false;
+  return { start, end: index, quote, value, closed, key: false };
+}
+
+function readDiagnosticDocument(
+  input: string,
+  start: number,
+): DiagnosticDocument | undefined {
+  type Frame = {
+    kind: "root" | "object" | "array";
+    state:
+      | "value"
+      | "end"
+      | "keyOrEnd"
+      | "key"
+      | "colon"
+      | "commaOrEnd"
+      | "valueOrEnd";
+    key?: DiagnosticString;
+    field?: DiagnosticField;
+  };
+  const frames: Frame[] = [{ kind: "root", state: "value" }];
+  const strings: DiagnosticString[] = [];
+  const fields: DiagnosticField[] = [];
+  const number = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+  let index = start;
+  let started = false;
+  while (index < input.length) {
+    if (diagnosticWhitespace.test(input[index]!)) {
+      index++;
+      continue;
+    }
+    const frame = frames[frames.length - 1]!;
+    const char = input[index]!;
+    if (frame.state === "end") return undefined;
+    if (
+      (frame.state === "keyOrEnd" && char === "}") ||
+      (frame.state === "valueOrEnd" && char === "]") ||
+      (frame.state === "commaOrEnd" &&
+        char === (frame.kind === "object" ? "}" : "]"))
+    ) {
+      index++;
+      const ended = frames.pop()!;
+      if (ended.field) ended.field.end = index;
+      continue;
+    }
+    if (frame.state === "commaOrEnd") {
+      if (char !== ",") return undefined;
+      frame.state = frame.kind === "object" ? "key" : "value";
+      frame.key = undefined;
+      index++;
+      continue;
+    }
+    if (frame.state === "key" || frame.state === "keyOrEnd") {
+      if (char !== '"' && char !== "'") return undefined;
+      const token = readDiagnosticString(input, index);
+      token.key = true;
+      strings.push(token);
+      frame.key = token;
+      frame.state = "colon";
+      index = token.end;
+      continue;
+    }
+    if (frame.state === "colon") {
+      if (char !== ":") return undefined;
+      frame.state = "value";
+      index++;
+      continue;
+    }
+
+    started = true;
+    const field =
+      frame.kind === "object" && frame.key
+        ? { key: frame.key, start: index, end: input.length }
+        : undefined;
+    if (field) fields.push(field);
+    frame.state = frame.kind === "root" ? "end" : "commaOrEnd";
+    if (char === "{" || char === "[") {
+      frames.push({
+        kind: char === "{" ? "object" : "array",
+        state: char === "{" ? "keyOrEnd" : "valueOrEnd",
+        field,
+      });
+      index++;
+    } else if (char === '"' || char === "'") {
+      const token = readDiagnosticString(input, index);
+      strings.push(token);
+      index = token.end;
+      if (field) field.end = index;
+    } else {
+      number.lastIndex = index;
+      const numeric = number.exec(input);
+      const literal = ["true", "false", "null"].find((value) =>
+        input.startsWith(value, index),
+      );
+      if (!numeric && !literal) return undefined;
+      index = numeric ? number.lastIndex : index + literal!.length;
+      if (field) field.end = index;
+    }
   }
+  if (!started) return undefined;
+  return {
+    start,
+    strings,
+    fields,
+    complete:
+      frames.length === 1 &&
+      frames[0]!.state === "end" &&
+      strings.every((token) => token.closed),
+  };
+}
+
+function diagnosticContainerStarts(input: string): number[] {
+  const starts = [input.indexOf("{")];
+  let index = input.indexOf("[");
+  while (index >= 0) {
+    // Generated redaction markers and log labels are not array framing.
+    const label = input
+      .slice(index)
+      .match(
+        /^\[(?:REDACTED_[A-Z_]+|TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL)\]/u,
+      );
+    if (!label) break;
+    index = input.indexOf("[", index + label[0].length);
+  }
+  starts.push(index);
+  return starts.filter((value) => value >= 0);
+}
+
+function findDiagnosticDocument(
+  input: string,
+  framingOnly = false,
+): DiagnosticDocument | undefined {
+  const starts = [...new Set([0, ...diagnosticContainerStarts(input)])].sort(
+    (left, right) => left - right,
+  );
+  for (const start of starts) {
+    const document = readDiagnosticDocument(input, start);
+    if (
+      document &&
+      (!framingOnly ||
+        (document.complete &&
+          document.strings.every((token) => token.value !== null)))
+    )
+      return document;
+  }
+  return undefined;
 }
 
 // A bare credential's whitespace/comma/semicolon suffix has no proven end.
@@ -234,13 +404,8 @@ function isCompleteDiagnosticEnvelope(input: string): boolean {
 // Valid JSON envelopes are handled recursively at decoded string boundaries,
 // retaining their siblings and exact numeric lexemes instead of cutting JSON.
 function redactUnquotedCredentialValues(input: string): string {
-  let envelopeStart = input.length;
-  for (const start of [0, input.indexOf("{"), input.indexOf("[")]) {
-    if (start < 0) continue;
-    if (isCompleteDiagnosticEnvelope(input.slice(start))) {
-      envelopeStart = Math.min(envelopeStart, start);
-    }
-  }
+  const envelopeStart =
+    findDiagnosticDocument(input, true)?.start ?? input.length;
   const assignment =
     /(?:("(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')|(?<![\p{L}\p{N}_])([\p{L}_][\p{L}\p{N}_\-\p{White_Space}\p{Cc}\p{Cf}]*))[\p{White_Space}\p{Cc}\p{Cf}]*[:=\uFF1A\uFF1D][\p{White_Space}\p{Cc}\p{Cf}]*/gu;
   let rewritten = "",
@@ -281,22 +446,12 @@ function redactUnquotedCredentialValues(input: string): string {
 }
 
 function isSensitiveQuotedKey(encodedKey: string): boolean {
-  if (encodedKey.startsWith('"')) {
-    try {
-      const key: unknown = JSON.parse(encodedKey);
-      return (
-        typeof key !== "string" ||
-        sensitiveJsonKey.test(normalizedCredentialKey(key))
-      );
-    } catch {
-      // Invalid JSON escaping obscures the key identity: fail closed.
-      return true;
-    }
-  }
-  const key = encodedKey.slice(1, -1);
-  // Single-quoted pseudo-JSON cannot reliably decode arbitrary escapes.
+  const token = readDiagnosticString(encodedKey, 0);
   return (
-    key.includes("\\") || sensitiveJsonKey.test(normalizedCredentialKey(key))
+    !token.closed ||
+    token.end !== encodedKey.length ||
+    token.value === null ||
+    sensitiveJsonKey.test(normalizedCredentialKey(token.value))
   );
 }
 
@@ -521,67 +676,99 @@ function redactAccidentalSecretsBasic(input: string): string {
 // string values; retain the original formatting when nothing needs masking.
 const MAX_EMBEDDED_JSON_DEPTH = 24;
 
+function encodeDiagnosticString(
+  value: string,
+  quote: '"' | "'",
+  closed = true,
+): string {
+  const json = JSON.stringify(value);
+  const encoded =
+    quote === '"' ? json : "'" + json.slice(1, -1).replace(/'/gu, "\\'") + "'";
+  return closed ? encoded : encoded.slice(0, -1);
+}
+
 function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
   const basic = redactAccidentalSecretsBasic(input);
   if (depth >= MAX_EMBEDDED_JSON_DEPTH) return "[REDACTED_SECRET]";
-  try {
-    JSON.parse(basic);
-  } catch {
-    // A complete JSON envelope preceded by diagnostic prose is still safe
-    // to parse independently. The prefix is retained; nested string values
-    // are processed by the same bounded redactor as ordinary JSON.
-    const objectStart = basic.indexOf("{");
-    const arrayStart = basic.indexOf("[");
-    const candidateStart = Math.min(
-      objectStart < 0 ? basic.length : objectStart,
-      arrayStart < 0 ? basic.length : arrayStart,
-    );
-    if (candidateStart > 0 && candidateStart < basic.length) {
-      const candidate = basic.slice(candidateStart);
-      try {
-        JSON.parse(candidate);
-        return (
-          basic.slice(0, candidateStart) +
-          redactEmbeddedDiagnosticJson(candidate, depth + 1)
-        );
-      } catch {
-        // Damaged or truncated envelopes must not expose escaped embedded
-        // JSON credentials whose keys are hidden behind backslash quotes.
-      }
-    }
-    const hasNestedEscapes =
-      basic.includes('\\"') ||
-      basic.includes("\\'") ||
-      /\\u002[27]/iu.test(basic);
-    if (hasNestedEscapes && (basic.includes("{") || basic.includes("[")))
+  const document = findDiagnosticDocument(basic);
+  if (!document) {
+    // Unsupported structured forms cannot promise decoded-string coverage.
+    // Ordinary prose still uses the unframed, private-through-EOF scrubber.
+    if (
+      diagnosticContainerStarts(basic).some((start) =>
+        /["'=:：＝\\]/u.test(basic.slice(start)),
+      )
+    )
       return "[REDACTED_SECRET]";
-    // Ordinary text and pseudo-JSON remain covered by the existing scrubbers.
     return basic;
   }
 
-  // Never parse-and-reserialize the entire document after masking an
-  // embedded string: JSON.parse loses integer precision above 2^53. Scan
-  // validated JSON string tokens instead, replacing only changed string
-  // values and leaving numeric fields and untouched lexemes byte-identical.
-  // The depth limit counts encoded JSON within strings, not ordinary object
-  // nesting, so a deeply nested *safe* document is never erased by the guard.
-  let rewritten = "";
-  let cursor = 0;
-  for (const match of basic.matchAll(/"(?:\\.|[^"\\])*"/gu)) {
-    const start = match.index;
-    const encoded = match[0];
-    let following = start + encoded.length;
-    while (following < basic.length && /\s/u.test(basic[following]!))
-      following++;
-    if (basic[following] === ":") continue; // JSON object key, not value
-
-    const literal = JSON.parse(encoded) as string;
-    const sanitized = redactEmbeddedDiagnosticJson(literal, depth + 1);
-    if (literal === sanitized) continue;
-    rewritten += basic.slice(cursor, start) + JSON.stringify(sanitized);
-    cursor = start + encoded.length;
+  const privateFields = document.fields
+    .filter(
+      (field) =>
+        field.key.value === null ||
+        sensitiveJsonKey.test(normalizedCredentialKey(field.key.value)),
+    )
+    .sort((left, right) => left.start - right.start || right.end - left.end);
+  const edits: Array<{ start: number; end: number; replacement: string }> = [];
+  for (const field of privateFields) {
+    if (
+      edits.some((edit) => edit.start <= field.start && edit.end >= field.end)
+    )
+      continue;
+    const first = basic[field.start];
+    const quote = first === "'" || first === '"' ? first : field.key.quote;
+    edits.push({
+      start: field.start,
+      end: field.end,
+      replacement: encodeDiagnosticString("[REDACTED_SECRET]", quote),
+    });
   }
-  return cursor === 0 ? basic : rewritten + basic.slice(cursor);
+  for (const token of document.strings) {
+    if (
+      edits.some((edit) => edit.start <= token.start && edit.end >= token.end)
+    )
+      continue;
+    // An undecodable identifier-shaped label may retain its spelling while
+    // its entire value is private. Opaque free text or Unicode-escaped labels
+    // cannot prove that they contain no assignment/value, so mask them too.
+    if (
+      token.value === null &&
+      token.key &&
+      privateFields.some((field) => field.key === token) &&
+      /^(?:[\p{L}\p{N}_-]|\\(?!u)[A-Za-z])+$/u.test(
+        basic.slice(token.start + 1, token.end - (token.closed ? 1 : 0)),
+      )
+    )
+      continue;
+    const sanitized =
+      token.value === null
+        ? "[REDACTED_SECRET]"
+        : redactEmbeddedDiagnosticJson(token.value, depth + 1);
+    if (sanitized === token.value) continue;
+    edits.push({
+      start: token.start,
+      end: token.end,
+      replacement: encodeDiagnosticString(sanitized, token.quote, token.closed),
+    });
+  }
+
+  // A strictly shorter prefix is cleaned too; log labels remain ordinary
+  // prose. Only string substitutions touch the document: numeric lexemes,
+  // original quote styles, separators and untouched metadata are retained.
+  let rewritten =
+    document.start === 0
+      ? ""
+      : redactEmbeddedDiagnosticJson(basic.slice(0, document.start), depth);
+  let cursor = document.start;
+  for (const edit of edits.sort(
+    (left, right) => left.start - right.start || right.end - left.end,
+  )) {
+    if (edit.start < cursor) continue;
+    rewritten += basic.slice(cursor, edit.start) + edit.replacement;
+    cursor = edit.end;
+  }
+  return rewritten + basic.slice(cursor);
 }
 
 export function redactAccidentalSecrets(input: string): string {
