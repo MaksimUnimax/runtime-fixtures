@@ -622,6 +622,8 @@ function makeZip(path, browser, options = {}) {
     worker += 'globalThis["importScripts"]("dev.js");\n';
   }
 
+  if (options.transformWorker) worker = options.transformWorker(worker);
+
   const result = spawnSync(
     "python3",
     [
@@ -763,7 +765,6 @@ test("Firefox AMO data consent accepts the existing Firefox build categories", (
   }
 });
 
-
 test("Firefox AMO minimum version rejects missing 140 floor in built-in consent", () => {
   const value = fixture({ firefox: { firefoxMinVersion: null } });
   try {
@@ -777,7 +778,14 @@ test("Firefox AMO minimum version rejects missing 140 floor in built-in consent"
 });
 
 test("Firefox AMO minimum version rejects old or malformed Firefox versions", () => {
-  for (const version of ["139.0", "139.9", "139.9.9", "140", "140.0a1", "invalid"]) {
+  for (const version of [
+    "139.0",
+    "139.9",
+    "139.9.9",
+    "140",
+    "140.0a1",
+    "invalid",
+  ]) {
     const value = fixture({ firefox: { firefoxMinVersion: version } });
     try {
       assert.throws(
@@ -1678,3 +1686,62 @@ test("dual-browser preflight rejects extra child directory after preparation", (
     cleanup(value);
   }
 });
+
+test("flattened Firefox background keeps an executable top-level packaged config after bootstrap code", () => {
+  const value = fixture({
+    firefox: {
+      transformWorker: (worker) =>
+        '(() => { "use strict"; globalThis.SYNTHETIC_BOOTSTRAP = Object.freeze({value:1}); })();\n' +
+        worker,
+    },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
+for (const [name, transformWorker] of [
+  ["line comment", (worker) => "// " + worker],
+  ["block comment", (worker) => "/*" + worker + "*/"],
+  ["string", (worker) => JSON.stringify(worker) + ";"],
+  ["template", (worker) => "const note = `" + worker + "`;"],
+  ["function body", (worker) => "function notCalled(){" + worker + "}"],
+  ["IIFE body", (worker) => "(() => {" + worker + "})();"],
+  ["conditional block", (worker) => "if(false){" + worker + "}"],
+  ["conditional statement", (worker) => "if(false) " + worker],
+  [
+    "short circuit",
+    (worker) => "false && (" + worker.trim().slice(0, -1) + ");",
+  ],
+  ["block", (worker) => "{" + worker + "}"],
+  ["shadowed globalThis", (worker) => "const globalThis={};\n" + worker],
+  ["destructured globalThis", (worker) => "var { globalThis }={};\n" + worker],
+  ["reassigned globalThis", (worker) => "globalThis={};\n" + worker],
+  ["malformed syntax", (worker) => "function broken( {\n" + worker],
+  ["duplicate", (worker) => worker + worker],
+])
+  test(`flattened Firefox config rejects ${name}`, () => {
+    const value = fixture({
+      firefox: {
+        transformWorker: (worker) => "void 0;\n" + transformWorker(worker),
+      },
+    });
+    try {
+      assert.throws(() => prepare(value), /config|syntax|globalThis/i);
+    } finally {
+      cleanup(value);
+    }
+  });
+for (const mode of ["attacker_key", "wrong_contract", "wrong_environment"])
+  test(`flattened Firefox config retains authority validation for ${mode}`, () => {
+    const value = fixture({
+      firefox: { mode, transformWorker: (worker) => "void 0;\n" + worker },
+    });
+    try {
+      assert.throws(() => prepare(value), /config|trust/i);
+    } finally {
+      cleanup(value);
+    }
+  });

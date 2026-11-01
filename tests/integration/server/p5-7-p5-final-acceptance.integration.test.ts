@@ -1484,6 +1484,8 @@ describe.sequential(
       expect(source).not.toContain("/v1/billing/checkouts");
       expect(source).not.toContain("/v1/webhooks");
     });
+    // D39 rejects Bidi_Control in all three device-label schema positions.
+    // The accepted operation surface stays at159; bind its exact new artifact.
     it("STATIC-71 OpenAPI current repository artifact has 159 operations and exact hash", async () => {
       const artifact = JSON.parse(
         await text("packages/contracts/openapi/openapi.json"),
@@ -1508,7 +1510,7 @@ describe.sequential(
           )
           .digest("hex"),
       ).toBe(
-        "be18b7f13d76532bf92163a81e2d5726b246ef8ed1d7492df0fad69d301ec507",
+        "a360cab21c5f591204b48ced4a407c24b8b78e15dd39e79d33d8f1f86c4c82d1",
       );
     });
     it("STATIC-72 OpenAPI has no checkout, webhook, or fake completion route", async () => {

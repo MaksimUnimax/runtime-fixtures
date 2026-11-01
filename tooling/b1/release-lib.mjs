@@ -19,6 +19,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync, inflateSync } from "node:zlib";
@@ -1185,17 +1186,78 @@ function backgroundScripts(entries, manifest, browser) {
   return visited;
 }
 
-function parsePackagedConfigFromScript(source) {
-  // The supported packager writes the config assignment as the first bytes
-  // of the script. Never accept an identical-looking marker inside a comment,
-  // string or template literal: it would not initialize the browser runtime.
-  if (!source.startsWith(PACKAGED_CONFIG_MARKER)) return [];
+function parsePackagedConfigFromScript(source, browser) {
+  // Chromium's supported packager puts the assignment at byte zero. A
+  // Firefox flattened classic script may execute bootstrap statements first.
+  // Recognize only a direct top-level assignment, never text in a literal,
+  // comment, function or conditional. Do not execute package JavaScript.
+  const marker = source.indexOf(PACKAGED_CONFIG_MARKER);
+  if (marker < 0) return [];
   if (
-    source.indexOf(PACKAGED_CONFIG_MARKER, PACKAGED_CONFIG_MARKER.length) >= 0
-  ) {
+    source.indexOf(
+      PACKAGED_CONFIG_MARKER,
+      marker + PACKAGED_CONFIG_MARKER.length,
+    ) >= 0
+  )
     fail("Release package contains duplicate config markers");
+  if (marker !== 0) {
+    if (browser !== "firefox") return [];
+    const ts = createRequire(import.meta.url)("typescript");
+    const file = ts.createSourceFile(
+      "firefox-background.js",
+      source,
+      ts.ScriptTarget.Latest,
+      false,
+      ts.ScriptKind.JS,
+    );
+    if (file.parseDiagnostics.length)
+      fail("Firefox background syntax is invalid");
+    const bindsGlobal = (name) =>
+      ts.isIdentifier(name)
+        ? name.text === "globalThis"
+        : ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)
+          ? name.elements.some(
+              (element) =>
+                ts.isBindingElement(element) && bindsGlobal(element.name),
+            )
+          : false;
+    const inspect = (node) => {
+      if (
+        ((ts.isVariableDeclaration(node) ||
+          ts.isParameter(node) ||
+          ts.isFunctionDeclaration(node) ||
+          ts.isClassDeclaration(node)) &&
+          node.name &&
+          bindsGlobal(node.name)) ||
+        (ts.isBinaryExpression(node) &&
+          ts.isIdentifier(node.left) &&
+          node.left.text === "globalThis" &&
+          node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+          node.operatorToken.kind <= ts.SyntaxKind.LastAssignment)
+      )
+        fail("Firefox packaged config shadows or reassigns globalThis");
+      ts.forEachChild(node, inspect);
+    };
+    inspect(file);
+    const assignments = file.statements.filter((statement) => {
+      if (!ts.isExpressionStatement(statement)) return false;
+      const expression = statement.expression;
+      return (
+        ts.isBinaryExpression(expression) &&
+        expression.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isPropertyAccessExpression(expression.left) &&
+        ts.isIdentifier(expression.left.expression) &&
+        expression.left.expression.text === "globalThis" &&
+        expression.left.name.text === "__SELLER_AGENTS_PACKAGED_CONFIG__" &&
+        ts.isStringLiteral(expression.right) &&
+        statement.getText(file).startsWith(PACKAGED_CONFIG_MARKER)
+      );
+    });
+    if (!assignments.length) return [];
+    if (assignments.length !== 1)
+      fail("Release package contains duplicate config assignments");
+    source = assignments[0].getText(file);
   }
-
   const tail = source.slice(PACKAGED_CONFIG_MARKER.length);
   const match = tail.match(/^(?:"(?:\\.|[^"\\])*")\s*;/);
   if (!match) fail("Packaged config marker is malformed");
@@ -1412,7 +1474,10 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   const configs = [];
   for (const path of reachable) {
     configs.push(
-      ...parsePackagedConfigFromScript(entries.get(path).toString("utf8")),
+      ...parsePackagedConfigFromScript(
+        entries.get(path).toString("utf8"),
+        browser,
+      ),
     );
   }
   if (!configs.length) {
