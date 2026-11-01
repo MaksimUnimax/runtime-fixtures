@@ -1,3 +1,4 @@
+import { DeviceLabelV1Schema } from "@product/contracts";
 import { randomUUID } from "node:crypto";
 import type { DeviceClientMetadata } from "@product/device-auth";
 import type { DeviceLimitResolver } from "@product/device-management";
@@ -25,6 +26,11 @@ export async function enrollDeviceInTransaction(
   tx: DatabaseQuery,
   input: DeviceEnrollmentInput,
 ) {
+  if (
+    input.deviceLabel !== null &&
+    !DeviceLabelV1Schema.safeParse(input.deviceLabel).success
+  )
+    throw new Error("DEVICE_LABEL_INVALID");
   // Same account lock as existing device admission and subscription mutations.
   await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
     "p5-subscription-account:" + input.accountId,

@@ -411,3 +411,46 @@ describe("connection code: secret lifecycle and enrollment service", () => {
     expect(f.exchange).not.toHaveBeenCalled();
   });
 });
+
+describe("whole D39 device label direction controls", () => {
+  const controls = [
+    0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066,
+    0x2067, 0x2068, 0x2069,
+  ];
+  for (const value of controls) {
+    it(`rejects bidi U+${value.toString(16)} before rate or enrollment effects`, async () => {
+      const f = fixture();
+      expect(
+        await f.service.exchange(
+          {
+            code,
+            idempotencyKey,
+            deviceLabel: `Устройство${String.fromCodePoint(value)}ACTIVE`,
+          },
+          peerIp,
+          "synthetic-bidi-label",
+        ),
+      ).toEqual({ kind: "INVALID" });
+      expect(f.consumeRate).not.toHaveBeenCalled();
+      expect(f.exchange).not.toHaveBeenCalled();
+    });
+  }
+  it.each([
+    "Рабочий ноутбук №2",
+    "جهاز محمد",
+    "מחשב",
+    "端末🙂",
+    "De\u0301vice",
+    "Family 👩‍👩‍👧‍👦",
+  ])("preserves ordinary Unicode label %s", async (deviceLabel) => {
+    const f = fixture();
+    await f.service.exchange(
+      { code, idempotencyKey, deviceLabel },
+      peerIp,
+      "synthetic-unicode-label",
+    );
+    expect(f.exchange).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceLabel }),
+    );
+  });
+});

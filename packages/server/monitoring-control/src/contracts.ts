@@ -1,4 +1,8 @@
 import { z } from "zod";
+import type {
+  MonitoringEffectAdmission,
+  MonitoringRunAuthority,
+} from "./run-authority.js";
 
 export const MonitoringLaneSchema = z.enum(["LLM", "SWAGGER_API"]);
 export type MonitoringLane = z.infer<typeof MonitoringLaneSchema>;
@@ -113,7 +117,12 @@ export type MonitoringRun = {
 };
 
 export type MonitoringStartResult =
-  | { kind: "STARTED"; run: MonitoringRun }
+  | {
+      kind: "STARTED";
+      run: MonitoringRun;
+      /** Process-local hint only; never persisted or compared to a wall clock. */
+      cancellationDeadlineMonotonicMs?: number;
+    }
   | { kind: "ALREADY_RUNNING"; runId: string }
   | { kind: "NOT_DUE" };
 
@@ -123,6 +132,9 @@ export type MonitoringLaneRunner = (input: {
   lane: MonitoringLane;
   runId: string;
   source: MonitoringRunSource;
+  /** Present for every scheduler-owned execution; absent for standalone tools. */
+  signal?: AbortSignal;
+  authority?: MonitoringRunAuthority;
 }) => Promise<MonitoringRunResult>;
 
 export type MonitoringNotification = {
@@ -130,6 +142,8 @@ export type MonitoringNotification = {
   runId: string;
   source: MonitoringRunSource;
   result: MonitoringRunResult;
+  /** Matching accepted result, rechecked at each physical send. */
+  admission?: MonitoringEffectAdmission;
 };
 
 export type MonitoringNotifier = (

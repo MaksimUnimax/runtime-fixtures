@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(
@@ -37,9 +38,17 @@ const appPatches = JSON.parse(
 const reportPatches = appPatches.filter(
   (row) => row.target === "shared/llm_output_report_workflow_patch.js",
 );
-assert.equal(reportPatches.length, 1);
-const reportPatch = reportPatches[0];
-assert.deepEqual(Object.keys(reportPatch).sort(), ["new", "old", "target"]);
+// Retain the reviewed report_info patch, then the whole generated-resolver
+// status correction. Pin both ordered postimages rather than ignoring a tail.
+assert.equal(reportPatches.length, 2);
+const hash = text => createHash("sha256").update(text).digest("hex");
+assert.deepEqual(reportPatches.map(reportPatch => {
+  assert.deepEqual(Object.keys(reportPatch).sort(), ["new", "old", "target"]);
+  return [hash(reportPatch.old), hash(reportPatch.new)];
+}), [
+  ["a6ad130dd40809bdf56ead39d31a097ec1bdb7b211592e3d81e789922f0208d2", "47f3d67550b8fb0968f42a5b362ed63f2186eb95c10c8e4c285ecbdff723018c"],
+  ["f1b2548ab937ef6bbfd7a981c57010f31584a6165f5090f43ad27aca46e5464b", "27e2b015bbf24e7ab1bbb8cf11d7ede96093d2f18367cc19b8f711ab5d620cd3"],
+]);
 for (const file of [
   "ozon_operation_registry.js",
   "llm_output_report_workflow_patch.js",
@@ -47,13 +56,15 @@ for (const file of [
   const relative = path.join(SOURCE, file);
   let source = fs.readFileSync(path.join(ROOT, relative), "utf8");
   if (file === "llm_output_report_workflow_patch.js") {
-    assert.equal(
-      source.split(reportPatch.old).length,
-      2,
-      "exact frozen anchor",
-    );
-    assert.notEqual(reportPatch.old, reportPatch.new);
-    source = source.replace(reportPatch.old, reportPatch.new);
+    for (const reportPatch of reportPatches) {
+      assert.equal(
+        source.split(reportPatch.old).length,
+        2,
+        "one exact ordered anchor",
+      );
+      assert.notEqual(reportPatch.old, reportPatch.new);
+      source = source.replace(reportPatch.old, reportPatch.new);
+    }
   }
   vm.runInContext(source, context, { filename: relative });
 }
@@ -262,12 +273,19 @@ const bothRefs = check(
 assert.equal(bothRefs.next_command.params.file_ref, staleRef);
 const generatedDocument = check(
   "cargoes_label_get",
-  { generated_file_ref: generatedOnly },
+  { status: "success", operation_id: "INERT_OPERATION", generated_file_ref: generatedOnly },
   "file_ready",
   "report_file_get",
 );
 assert.equal(generatedDocument.kind, "generated_document");
 assert.equal(generatedDocument.next_command.params.file_ref, generatedOnly);
+// An opaque retained ref alone is not authoritative readiness.
+check("cargoes_label_get", { generated_file_ref: generatedOnly },
+  "blocked_missing_fresh_dependencies", null);
+const unconfirmedGenerated = check("cargoes_label_get",
+  { operation_id: "INERT_OPERATION", generated_file_ref: generatedOnly },
+  "pending", "cargoes_label_get");
+assert.equal(unconfirmedGenerated.next_command.params.operation_id, "INERT_OPERATION");
 check(
   "report_info",
   { status: "success", code: reportCode, generated_file_inline: true },
@@ -387,7 +405,7 @@ console.log(
     scenario: "CAP-24",
     covered:
       "Ozon placement report terminal status outranks stale file reference",
-    cases: 23,
+    cases: 25,
     providerRequests,
     autoPolling: false,
     xlsxSkuCurrencyAmounts: "NOT_VERIFIED",

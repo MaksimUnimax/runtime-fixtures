@@ -617,6 +617,9 @@ importers:
       '@product/commercial-access':
         specifier: workspace:*
         version: link:../commercial-access
+      '@product/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
       '@product/device-auth':
         specifier: workspace:*
         version: link:../device-auth

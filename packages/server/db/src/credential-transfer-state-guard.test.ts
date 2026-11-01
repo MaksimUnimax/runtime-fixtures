@@ -79,15 +79,23 @@ describe("authoritative SQL repository transfer state guards", () => {
         principal: source,
         requestId,
         now,
+        expectedRevision: before.revision,
       });
       if (allowed.includes(state)) {
         await expect(action).resolves.toMatchObject({
           state:
-            method === "markSourceSeen"
+            method === "markSourceSeen" &&
+            state !== "PACKET_AVAILABLE_EPHEMERAL"
               ? "SOURCE_SEEN"
               : "PACKET_AVAILABLE_EPHEMERAL",
         });
-        expect(f.row.revision).toBe(before.revision + 1);
+        const unchangedPrepared =
+          method === "markSourceSeen" && state === "PACKET_AVAILABLE_EPHEMERAL";
+        expect(f.row.revision).toBe(
+          before.revision + (unchangedPrepared ? 0 : 1),
+        );
+        if (unchangedPrepared)
+          expect(f.queries.some((q) => q.startsWith("UPDATE "))).toBe(false);
       } else {
         const code =
           state === "EXPIRED"
@@ -108,7 +116,12 @@ describe("authoritative SQL repository transfer state guards", () => {
       before = { ...f.row };
     for (const method of ["markSourceSeen", "markPacketAvailable"] as const) {
       await expect(
-        f.repository[method]({ principal: source, requestId, now }),
+        f.repository[method]({
+          principal: source,
+          requestId,
+          now,
+          expectedRevision: before.revision,
+        }),
       ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
       expect(f.row).toEqual(before);
     }
@@ -124,3 +137,21 @@ describe("authoritative SQL repository transfer state guards", () => {
     });
   });
 });
+
+it.each(["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"] as const)(
+  "refuses stale revision preparation in %s without any write",
+  async (state) => {
+    const f = fixture(state),
+      before = { ...f.row };
+    await expect(
+      f.repository.markPacketAvailable({
+        principal: source,
+        requestId,
+        now,
+        expectedRevision: before.revision - 1,
+      }),
+    ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+    expect(f.row).toEqual(before);
+    expect(f.queries.some((q) => q.startsWith("UPDATE "))).toBe(false);
+  },
+);

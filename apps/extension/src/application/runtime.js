@@ -336,6 +336,61 @@ async function saPendingGuard(pending) {
       provenance.aiProfileContentSha256 !== profile.contentSha256)
     throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
 }
+// Diagnostic-only projection. Never persist evaluator input, envelopes, identifiers,
+// free-form error text, or values from a producer response.
+const saWorkAdmissionDiagnostics = new WeakMap();
+const saWorkAdmissionBranches = new Set([
+  "SIGNED_HEALTH_DENY", "HEALTH_ACQUISITION", "LOCAL_EVALUATOR",
+  "LOCAL_EVALUATOR_ERROR", "LOCAL_CONTEXT", "START_PREPARATION", "UNKNOWN",
+]);
+const saWorkAdmissionReasons = new Set([
+  "DENY_AUTH_INVALIDATED", "DENY_CACHE_EXPIRED", "DENY_ACCOUNT_MISMATCH",
+  "DENY_DEVICE_SESSION_MISMATCH", "DENY_AI_PROFILE_MISMATCH",
+  "DENY_BINDING_CONTEXT", "DENY_STORE_CONTEXT", "DENY_CREDENTIAL_REVISION",
+  "DENY_CAPABILITY", "DENY_HEALTH_OBSERVATION", "healthObservation",
+]);
+const saWorkAdmissionGates = new Set([
+  "signedBootstrap", "freshness", "cacheOwnership", "bootstrapCompatibility",
+  "accessBasis", "cacheBinding", "account", "device", "session", "generation",
+  "pageIdentity", "aiProfile", "dialogue", "store", "binding", "bindingStore",
+  "credentialRevision", "bindingRevision", "workIntent", "aiProfileContent",
+  "sourceCapability", "aiCapability",
+]);
+const saWorkAdmissionHealthCodes = new Set([
+  "WORK_AUTHORITY_DENIED", "CONTROL_TRANSPORT_UNAVAILABLE",
+  "BOOTSTRAP_UNAVAILABLE", "PRODUCER_UNAVAILABLE", "AUTH_REQUIRED",
+  "AUTH_CONTEXT_INVALID", "AUTH_GENERATION_CHANGED", "HEALTH_CONTEXT_INVALID",
+  "HEALTH_CONTEXT_MISMATCH", "HEALTH_INVALID_SIGNATURE",
+  "HEALTH_INVALID_PAYLOAD_SCHEMA", "HEALTH_TECHNICAL_PERMISSION_REQUIRED",
+  "HEALTH_INVALID_ENVELOPE", "HEALTH_UNKNOWN_SIGNING_KEY",
+  "HEALTH_INVALID_PAYLOAD_ENCODING", "HEALTH_INVALID_PAYLOAD_JSON",
+  "HEALTH_NON_CANONICAL_PAYLOAD",
+]);
+function saProjectWorkAdmissionDiagnostic(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const reasons = Array.isArray(value.deniedGates) ? value.deniedGates : [];
+  const failed = Array.isArray(value.failedGates) ? value.failedGates : [];
+  const health = value.health && typeof value.health === "object" ? value.health : {};
+  return Object.freeze({
+    schemaVersion: "work_admission_diagnostic_v1",
+    branch: saWorkAdmissionBranches.has(value.branch) ? value.branch : "UNKNOWN",
+    deniedGates: Object.freeze([...new Set(reasons.filter(code => saWorkAdmissionReasons.has(code)))]),
+    failedGates: Object.freeze([...new Set(failed.filter(gate => saWorkAdmissionGates.has(gate)))]),
+    executionAuthorityRejected: value.executionAuthorityRejected === true,
+    health: Object.freeze({
+      observation: ["PASS", "DENY", "UNAVAILABLE", "ERROR"].includes(health.observation) ? health.observation : "NOT_OBSERVED",
+      code: saWorkAdmissionHealthCodes.has(health.code) ? health.code : health.code == null ? null : "UNRECOGNIZED",
+      httpStatus: Number.isInteger(health.httpStatus) && health.httpStatus >= 100 && health.httpStatus <= 599 ? health.httpStatus : null,
+    }),
+  });
+}
+function saRememberWorkAdmissionDiagnostic(error, value) {
+  if (error && (typeof error === "object" || typeof error === "function") &&
+      !saWorkAdmissionDiagnostics.has(error)) {
+    saWorkAdmissionDiagnostics.set(error, saProjectWorkAdmissionDiagnostic(value));
+  }
+  return error;
+}
 function saAdmissionError(code, deniedGates = []) {
   const error = saError(code);
   error.deniedGates = [...deniedGates];
@@ -724,17 +779,24 @@ function saIsHealthTransportUnavailable(error) {
   return error?.code === "CONTROL_TRANSPORT_UNAVAILABLE" ||
     error?.status === 503 && ["PRODUCER_UNAVAILABLE", "BOOTSTRAP_UNAVAILABLE"].includes(error?.code);
 }
-async function saObserveHealth(initial) {
+async function saObserveHealth(initial, observation = null) {
   try {
     const health = await SellerAgentsControlClient.acquireSignedHealthAuthority({
       detectedAi: { family: initial.identity.ai_id, surface: initial.authority.payload.ai.detected.surface, variant: initial.authority.payload.ai.detected.variant },
       context: { generation: initial.fence.generation, deviceId: initial.fence.deviceId, sessionId: initial.fence.sessionId }
     });
-    if (health?.payload?.status === "DENY") throw saAdmissionError("WORK_AUTHORITY_DENIED", ["healthObservation"]);
+    if (observation) observation.health = { observation: health?.payload?.status };
+    if (health?.payload?.status === "DENY") throw saRememberWorkAdmissionDiagnostic(
+      saAdmissionError("WORK_AUTHORITY_DENIED", ["healthObservation"]),
+      { branch: "SIGNED_HEALTH_DENY", deniedGates: ["healthObservation"], health: observation?.health },
+    );
     return health;
   } catch (error) {
+    const health = { observation: saIsHealthTransportUnavailable(error) ? "UNAVAILABLE" : "ERROR", code: error?.code, httpStatus: error?.status };
+    if (observation && !observation.health) observation.health = health;
     if (saIsHealthTransportUnavailable(error)) return null;
-    throw error;
+    throw saRememberWorkAdmissionDiagnostic(error, { branch: "HEALTH_ACQUISITION", health });
+
   }
 }
 async function saAdmitWork({ operation, tabId, store, intentId, conversationKey = null, rebindPlan = null, entryToken = null }) {
@@ -755,7 +817,8 @@ async function saAdmitWork({ operation, tabId, store, intentId, conversationKey 
   try {
     /* Health is an optional online observation. It can report a verified denial,
      * but its successful acquisition is never the lifecycle authority. */
-    await saObserveHealth(initial);
+    const observation = {};
+    await saObserveHealth(initial, observation);
     if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
     const afterHealth = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey, admissionEpoch: token.id });
     if (!saSameFence(initial.fence, afterHealth.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
@@ -763,14 +826,28 @@ async function saAdmitWork({ operation, tabId, store, intentId, conversationKey 
     if (!saSameFence(afterHealth.fence, inputSnapshot.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
     const projection = validatedPlan ? saRebindProjection(validatedPlan) : null;
     const input = await saAdmissionInput({ operation, tabId, identity: inputSnapshot.identity, key: inputSnapshot.key, binding: projection ? projection.binding : inputSnapshot.binding, work: projection ? projection.work : inputSnapshot.work, store: inputSnapshot.store });
-    const decision = await SellerAgentsAutonomousWorkAuthority.evaluate(input);
+    let decision;
+    try { decision = await SellerAgentsAutonomousWorkAuthority.evaluate(input); }
+    catch (error) {
+      throw saRememberWorkAdmissionDiagnostic(error, { branch: "LOCAL_EVALUATOR_ERROR", health: observation.health });
+    }
     if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
     const beforeMutation = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey, admissionEpoch: token.id });
     if (!saSameFence(inputSnapshot.fence, beforeMutation.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
-    if (decision.executionAuthority !== false || decision.allowed !== true) throw saAdmissionError("WORK_AUTHORITY_DENIED", decision.deniedGates);
+    if (decision.executionAuthority !== false || decision.allowed !== true) throw saRememberWorkAdmissionDiagnostic(
+      saAdmissionError("WORK_AUTHORITY_DENIED", decision.deniedGates),
+      {
+        branch: "LOCAL_EVALUATOR", deniedGates: decision.deniedGates,
+        failedGates: Object.keys(decision.gates || {}).filter(gate => decision.gates[gate] === false),
+        executionAuthorityRejected: decision.executionAuthority !== false,
+        health: observation.health,
+      },
+    );
     token.fence = beforeMutation.fence;
     token.admitted = true;
     return { token, snapshot: beforeMutation, decision };
+  } catch (error) {
+    throw saRememberWorkAdmissionDiagnostic(error, { branch: "LOCAL_CONTEXT" });
   } finally {
     if (!token.admitted && saAdmissionEpochs.get(admissionKey) === token) saAdmissionEpochs.delete(admissionKey);
   }
@@ -1361,6 +1438,8 @@ async function saLastStartDiagnostic(tabId = null) {
         stage: saSupportToken(row.stage) || "request",
         code: saSupportCode(row.code),
         outcome: saSupportToken(row.outcome) || "unknown",
+        ...(row.admission?.schemaVersion === "work_admission_diagnostic_v1"
+          ? { admission: saProjectWorkAdmissionDiagnostic(row.admission) } : {}),
       };
     }
     if (event === "WORK_START_ASYNC_DISPATCH_FAILED" || event === "WORK_START_SEND_FAILED") {
@@ -1692,6 +1771,8 @@ async function saWorkStart(message, sender) {
       stage: "rejected",
       code: saSupportCode(error?.code) || "WORK_START_FAILED",
       outcome: "failed",
+      admission: saWorkAdmissionDiagnostics.get(error) ||
+        saProjectWorkAdmissionDiagnostic({ branch: "START_PREPARATION" }),
       external_request_executed: false,
     });
     throw error;

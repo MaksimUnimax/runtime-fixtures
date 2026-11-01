@@ -390,3 +390,35 @@ test("same-task account switch prevents a stale visible revoke action", async ({
   expect(mutations).toBe(0);
   await expect(page.getByText(/Beta device/)).toBeVisible();
 });
+
+test("historical directional labels cannot obscure stable device identities or change revoke target", async ({
+  page,
+}) => {
+  const first = device(A, "Рабочий \u202eACTIVE\u202c"),
+    second = device(B, "جهاز محمد");
+  const targets: string[] = [];
+  await install(page, {
+    devices: (route) => route.fulfill({ json: { devices: [first, second] } }),
+    revoke: (route) => {
+      targets.push(new URL(route.request().url()).pathname);
+      return route.fulfill({ json: { status: "REVOKED" } });
+    },
+  });
+  await page.goto("/devices");
+  const row = page.getByRole("listitem").filter({ hasText: second.id });
+  await expect(row.locator('bdi[dir="ltr"]')).toHaveText(second.id);
+  await expect(row.locator("bdi").first()).toHaveText("جهاز محمد");
+  await expect(
+    page
+      .getByRole("listitem")
+      .filter({ hasText: first.id })
+      .locator("bdi")
+      .first(),
+  ).toHaveText("Рабочий ACTIVE");
+  const button = row.getByRole("button", { name: "Revoke", exact: true });
+  await expect(button).toHaveAccessibleDescription("Device ID " + second.id);
+  await button.click();
+  await expect
+    .poll(() => targets)
+    .toEqual([`/api/control-plane/v1/devices/${second.id}/revoke`]);
+});

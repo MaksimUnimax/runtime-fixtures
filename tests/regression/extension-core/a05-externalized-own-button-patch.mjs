@@ -101,7 +101,7 @@ assert.deepEqual(artifactIntegrityPatches.map(row => {
 ]);
 // B02 settlement is a separate tail, not an artifact-worker count relaxation.
 // Preserve every prior pin and compare each newly introduced ordered recipe.
-const settlementPatches = patches.slice(368);
+const settlementPatches = patches.slice(368, 378);
 assert.equal(settlementPatches.length, 10, "exact ten B02 settlement overlays");
 assert.deepEqual(settlementPatches.map(row => {
   assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
@@ -161,17 +161,95 @@ assert.deepEqual(settlementPatches.map(row => {
 const settlementContentPatches = settlementPatches.filter(row => row.target === "content_script.js");
 assert.equal(settlementContentPatches.length, 5);
 assert.equal(settlementPatches.filter(row => row.target === "attachment_delivery_port_content.js").length, 5);
+// Exact later d8/1d B02 writer-queue and F05 artifact corrections are a
+// separate composition tail. Every historical A05/content/settlement pin stays.
+const donorCorrectionPatches = patches.slice(378, 388);
+assert.equal(donorCorrectionPatches.length, 10);
+assert.deepEqual(donorCorrectionPatches.map(row => {
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+  return [row.target, hash(row.old), hash(row.new)];
+}), [
+  [
+    "service_worker.js",
+    "e668e08ad860d0b1a439acaf71f19efe8fa8e931b70a5a1fb176d1fa8c8fa450",
+    "4ea8fdb02124b1fe8d85133c03b9fa4aeb479bcfe46f403cf944eec6bf227ed6"
+  ],
+  [
+    "service_worker.js",
+    "3b9eed08b9b734d626948ed06dba5b474067c542c28f6fd0f0f1c590b643c8b6",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  ],
+  [
+    "service_worker.js",
+    "7748247e3958b80d710095a639f650bd8526d43f90858c22e7ac4a774eb2f3e2",
+    "3011cee52103e7a5ea628881798324bd0e042ad4c24d579deaa7a9c220d731f4"
+  ],
+  [
+    "service_worker.js",
+    "76bf7e282aab9a4896d6f1487dcee56516ee6afded05094975b44fe9bd502ddd",
+    "0ac9ba8b3939dddbaa8917b9ed7c56c9002b258354f63a187462d6e06e9c5e77"
+  ],
+  [
+    "service_worker.js",
+    "4f8b8f101a3b5c1becac291b5fc830c0707ec41682f91633156635420db55c50",
+    "f05755bfdc49d2984e92394a14906b56e7e40092bbdcebbd7b9ea053dfbaf3a8"
+  ],
+  [
+    "service_worker.js",
+    "75a1e1ed6a939c206f5929717b9a65e5719d934dd3f7c18040596b86a74e95c5",
+    "653fecdddc511fa734b81ddcd3353216280b6901db6e6c8ca39e9ead8d2fbca1"
+  ],
+  [
+    "service_worker.js",
+    "e4a040977458be4360dad1e804ec17aa25e56f5474088bb5061911f2cfff2d6a",
+    "0310c82ad9696851dcac7c2423af97f7de801b4845e94983dd2f69bfa5614d81"
+  ],
+  [
+    "service_worker.js",
+    "f9c50aa7a510675ab9ed890e6b0c86680888ee2d56972977855ba3ad354c8e7b",
+    "2434dfc6a34db06c9fc6a98e641d0822c367fe2e422e3d735991dfacc708e499"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "c1a75ee7837cdaefc5d52db4c0908024fe4dc7e5f6a94d5d51929aecb77990ee",
+    "63703aba6c4d6615124ef9500fd3af2963c6b69fd60246d9ce14b30b05f8f379"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "79b40356575b283cd8d78f20b4a657f3c2e96492ee4d3b94dc4ef7067810f6ed",
+    "5f8d0840ae0602f291135fc6ce6e6aa1b97b4403813817c7b8648ff79142f81b"
+  ]
+]);
+assert.equal(donorCorrectionPatches.some(row => row.target === "content_script.js"), false);
+const reportStatusPatches = patches.slice(388);
+assert.equal(reportStatusPatches.length, 1, "one whole generated-resolver status correction");
+assert.deepEqual(reportStatusPatches.map(row => {
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+  return [row.target, hash(row.old), hash(row.new)];
+}), [["shared/llm_output_report_workflow_patch.js",
+  "f1b2548ab937ef6bbfd7a981c57010f31584a6165f5090f43ad27aca46e5464b",
+  "27e2b015bbf24e7ab1bbb8cf11d7ede96093d2f18367cc19b8f711ab5d620cd3"]]);
 let artifactWorker = read("apps/extension/src/imported/ozon-v0.1.22/shared/file_delivery_port_worker.js");
 assert.equal(hash(artifactWorker), "c9b5fdbc8661828c17145519395bde1a2eab1af9b434b99ae13c1d8ccda0c6dd");
 let artifactPreimages = 0;
-for (const row of patches.filter(row => row.target === "shared/file_delivery_port_worker.js")) {
+for (const row of patches.slice(0, 378).filter(row => row.target === "shared/file_delivery_port_worker.js")) {
   assert.equal(artifactWorker.split(row.old).length - 1, 1, "one artifact preimage in ordered composition");
   artifactWorker = artifactWorker.replace(row.old, row.new);
   artifactPreimages++;
 }
 assert.equal(artifactPreimages, 23);
 assert.equal(hash(artifactWorker), "c316aa9a9c511eea89dab1c094029bdc3e036353ece6240ca440af12ca8144fe", "exact compiled artifact worker including final owner deadline fence");
-assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length + settlementPatches.length);
+// Preserve the original23-overlay postimage above, then require both later
+// owner-context corrections and the exact extracted d8 artifact postimage.
+for (const row of donorCorrectionPatches.filter(row => row.target === "shared/file_delivery_port_worker.js")) {
+  assert.equal(artifactWorker.split(row.old).length - 1, 1);
+  artifactWorker = artifactWorker.replace(row.old, row.new);
+  artifactPreimages++;
+}
+assert.equal(artifactPreimages, 25);
+assert.equal(hash(artifactWorker), "7e5369886d7321337dc1c4af9fce13464bbaa727bf197ff8b49df9cef80f156b",
+  "exact accepted d8/1d writer-context artifact worker; no A05 code change");
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length + settlementPatches.length + donorCorrectionPatches.length + reportStatusPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];

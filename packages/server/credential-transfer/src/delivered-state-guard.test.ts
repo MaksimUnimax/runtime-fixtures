@@ -102,8 +102,7 @@ describe("durable delivered state across independent relay instances", () => {
       const repository = createMemoryTransferRepository();
       const entered = deferred(),
         release = deferred();
-      const methodName =
-        method === "sourceSeen" ? "markSourceSeen" : "markPacketAvailable";
+      const methodName = method === "sourceSeen" ? "markSourceSeen" : "read";
       const delayed: TransferRepository = {
         ...repository,
         [methodName]: async (
@@ -157,6 +156,8 @@ describe("durable delivered state across independent relay instances", () => {
         second = service(repository);
       await prepare(first);
       first.stop();
+      // Recovery requires the new writer election, not an empty relay alone.
+      repository.startNewRelayEpoch(now());
       if (method === "sourceSeen") await second.sourceSeen(source, requestId);
       await second.submit(source, secondPacket);
       await expect(second.receive(recipient, requestId)).resolves.toEqual(

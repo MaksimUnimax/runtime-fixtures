@@ -91543,7 +91543,7 @@
                   "deviceLabel": {
                     "maxLength": 80,
                     "minLength": 1,
-                    "pattern": "^[^\\p{Cc}]+$",
+                    "pattern": "^[^\\p{Cc}\\p{Bidi_Control}]+$",
                     "type": "string"
                   }
                 },
@@ -95949,9 +95949,16 @@
                         "type": "string"
                       },
                       "deviceLabel": {
+                        "allOf": [
+                          {
+                            "pattern": "^[^\\p{Cc}\\p{Bidi_Control}]+$"
+                          },
+                          {
+                            "pattern": "^[^<>]*$"
+                          }
+                        ],
                         "maxLength": 128,
                         "minLength": 1,
-                        "pattern": "^[^<>]*$",
                         "type": "string"
                       },
                       "extensionVersion": {
@@ -95978,9 +95985,16 @@
                         "type": "string"
                       },
                       "deviceLabel": {
+                        "allOf": [
+                          {
+                            "pattern": "^[^\\p{Cc}\\p{Bidi_Control}]+$"
+                          },
+                          {
+                            "pattern": "^[^<>]*$"
+                          }
+                        ],
                         "maxLength": 128,
                         "minLength": 1,
-                        "pattern": "^[^<>]*$",
                         "type": "string"
                       }
                     },

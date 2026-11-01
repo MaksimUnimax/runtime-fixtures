@@ -229,6 +229,8 @@ describe("D3S2-2A control-plane foundation", () => {
     await expect(second.receive(recipient, id)).rejects.toThrow(
       "SOURCE_OFFLINE",
     );
+    first.stop();
+    repository.startNewRelayEpoch(clock());
     await second.sourceSeen(source, id);
     await second.submit(source, {
       requestId: id,

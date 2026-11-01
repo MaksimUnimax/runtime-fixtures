@@ -83,6 +83,8 @@ def main():
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
             runner.run(label + "-ozon-grouped-json-projection",
                        ["node", ROOT / "tests/regression/extension-core/ozon-grouped-json-projection.mjs", runtime])
+            runner.run(label + "-report-guidance-consumer",
+                       ["node", ROOT / "tests/regression/extension-core/report-guidance-consumer.mjs", runtime])
             runner.run(label + "-ozon-guidance-entitlement", ["node", ROOT / "tests/regression/extension-core/ozon-guidance-entitlement.mjs", runtime])
             runner.run(label + "-ozon-advertising-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-advertising-guidance-readiness.mjs", runtime])
             runner.run(label + "-ozon-search-guidance-readiness", ["node", ROOT / "tests/regression/extension-core/ozon-search-guidance-readiness.mjs", runtime])

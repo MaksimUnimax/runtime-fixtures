@@ -1,3 +1,5 @@
+import { DeviceLabelV1Schema } from "./device-label.js";
+export { DeviceLabelV1Schema } from "./device-label.js";
 import { z } from "zod";
 import {
   BrowserFamilies,
@@ -676,11 +678,7 @@ const SafeVersion = z
   .min(1)
   .max(64)
   .regex(/^[A-Za-z0-9._+-]+$/);
-const DeviceLabelV1Schema = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[^<>]*$/u);
+
 const DeviceClientMetadataWithheldV1Schema = z
   .object({ state: z.literal("WITHHELD") })
   .strict();
@@ -703,13 +701,13 @@ export const DeviceAuthorizationStartBodyV1Schema = z.union([
       browserFamily: z.enum(BrowserFamilies),
       browserVersion: SafeVersion.optional(),
       extensionVersion: SafeVersion,
-      deviceLabel: DeviceLabelV1Schema.optional(),
+      deviceLabel: DeviceLabelV1Schema.regex(/^[^<>]*$/u).optional(),
     })
     .strict(),
   z
     .object({
       clientType: z.literal("browser_extension"),
-      deviceLabel: DeviceLabelV1Schema.optional(),
+      deviceLabel: DeviceLabelV1Schema.regex(/^[^<>]*$/u).optional(),
     })
     .strict(),
 ]);

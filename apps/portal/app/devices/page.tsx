@@ -190,11 +190,23 @@ export default function Devices() {
           const metadata = deviceClientMetadataDisplay(d.clientMetadata);
           return (
             <li key={d.id}>
-              {d.label ?? "Unnamed device"} — {d.status}, {metadata.browser},
-              extension {metadata.extension}; activated {d.activatedAt ?? "—"},
-              last seen {d.lastSeenAt ?? "—"}{" "}
+              <bdi>
+                {(d.label ?? "Unnamed device").replace(
+                  /\p{Bidi_Control}/gu,
+                  "",
+                )}
+              </bdi>{" "}
+              — {d.status}, {metadata.browser}, extension {metadata.extension};
+              activated {d.activatedAt ?? "—"}, last seen {d.lastSeenAt ?? "—"}{" "}
+              <span id={`device-${d.id}-identity`}>
+                Device ID <bdi dir="ltr">{d.id}</bdi>
+              </span>{" "}
               {d.status === "ACTIVE" && (
-                <button disabled={revoking} onClick={() => void revoke(d.id)}>
+                <button
+                  disabled={revoking}
+                  aria-describedby={`device-${d.id}-identity`}
+                  onClick={() => void revoke(d.id)}
+                >
                   Revoke
                 </button>
               )}

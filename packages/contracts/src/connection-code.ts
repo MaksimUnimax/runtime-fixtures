@@ -1,3 +1,4 @@
+import { DeviceLabelV1Schema } from "./device-label.js";
 import { z } from "zod";
 
 // A public account UUID is not a connection credential.
@@ -46,12 +47,7 @@ export const ConnectionCodeIssueResponseV1Schema = z.discriminatedUnion(
 export const ConnectionCodeExchangeBodyV1Schema = z
   .object({
     code: z.string().regex(/^octo1_[A-Za-z0-9_-]{43}$/),
-    deviceLabel: z
-      .string()
-      .min(1)
-      .max(80)
-      .regex(/^[^\p{Cc}]+$/u)
-      .optional(),
+    deviceLabel: DeviceLabelV1Schema.max(80).optional(),
   })
   .strict();
 export const ConnectionCodeExchangeResponseV1Schema = z

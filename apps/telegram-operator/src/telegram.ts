@@ -8,12 +8,14 @@ import {
   HealthScheduleCadenceSchema,
 } from "@product/health";
 import {
+  admitMonitoringEffect,
   formatMonitoringDuration,
   parseMonitoringDuration,
   type IndependentMonitoringScheduler,
   type MonitoringLane,
   type MonitoringLaneState,
   type MonitoringNotification,
+  type MonitoringEffectAdmission,
   type SwaggerHandoffService,
   type SwaggerSourceFamily,
 } from "@product/monitoring-control";
@@ -551,15 +553,18 @@ export class TelegramOperatorService {
   async notify(notification: MonitoringNotification): Promise<void> {
     const text = explainMonitoringResult(notification);
     for (const chatId of this.options.notificationChatIds ?? [])
-      await this.options.transport.sendMessage(
-        chatId,
-        text,
-        keyboard(notification.lane),
+      await admitMonitoringEffect(notification.admission, () =>
+        this.options.transport.sendMessage(
+          chatId,
+          text,
+          keyboard(notification.lane),
+        ),
       );
   }
 
   async notifyIncident(event: {
     kind: "OPENED" | "RESOLVED";
+    admission?: MonitoringEffectAdmission;
     incident: {
       sourceFamily: string | null;
       incidentType: string;
@@ -571,10 +576,12 @@ export class TelegramOperatorService {
     const incident = event.incident;
     const text = `API-watch incident ${event.kind.toLowerCase()}: ${incident.sourceFamily ?? "GLOBAL"} ${incident.incidentType} ${incident.severity} ${incident.safeSummaryCode} report=${incident.latestReportId}`;
     for (const chatId of this.options.notificationChatIds ?? [])
-      await this.options.transport.sendMessage(
-        chatId,
-        text,
-        keyboard("SWAGGER_API"),
+      await admitMonitoringEffect(event.admission, () =>
+        this.options.transport.sendMessage(
+          chatId,
+          text,
+          keyboard("SWAGGER_API"),
+        ),
       );
   }
 

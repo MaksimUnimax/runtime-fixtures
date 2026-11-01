@@ -209,6 +209,11 @@ export async function proveCredentialTransferTestAuthority(
           principal: source,
           requestId: ids[0]!,
           now,
+          expectedRevision: (await current.repository.read({
+            principal: source,
+            requestId: ids[0]!,
+            now,
+          }))!.revision,
         })
       ).state === "PACKET_AVAILABLE_EPHEMERAL",
     );

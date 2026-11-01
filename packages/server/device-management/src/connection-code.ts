@@ -1,3 +1,4 @@
+import { DeviceLabelV1Schema } from "@product/contracts";
 import { createHmac, hkdfSync, randomBytes } from "node:crypto";
 import {
   ACCESS_TOKEN_TTL_SECONDS,
@@ -85,11 +86,7 @@ const uuid =
 export const validConnectionOperationKey = (key: unknown): key is string =>
   typeof key === "string" && /^[A-Za-z0-9._:-]{16,128}$/.test(key);
 const validDeviceLabel = (label: unknown): label is string | undefined =>
-  label === undefined ||
-  (typeof label === "string" &&
-    label.length >= 1 &&
-    label.length <= 80 &&
-    !/\p{Cc}/u.test(label));
+  label === undefined || DeviceLabelV1Schema.max(80).safeParse(label).success;
 
 /** Only constructed from an authenticated portal session, never a request body. */
 export interface ConnectionPortalPrincipal {

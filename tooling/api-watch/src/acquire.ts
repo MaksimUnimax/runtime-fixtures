@@ -3,6 +3,8 @@ import { lookup } from "node:dns/promises";
 import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
 import { BlockList, isIP } from "node:net";
 import { Readable } from "node:stream";
+import { performance } from "node:perf_hooks";
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import {
   validateSwaggerBytes,
   type SwaggerSourceFamily,
@@ -503,18 +505,12 @@ async function readBoundedBody(
   response: Response,
   maximumBytes: number,
   signal: AbortSignal,
+  assertDeadline: () => void,
 ): Promise<Uint8Array> {
-  if (signal.aborted)
-    throw new DOMException(
-      "Official source acquisition timed out",
-      "AbortError",
-    );
+  assertDeadline();
   const advertised = response.headers.get("content-length");
   if (advertised && Number(advertised) > maximumBytes)
     throw new Error("SOURCE_TOO_LARGE");
-  // An adapter can also expose no body but still return a never-settling
-  // arrayBuffer(). The same deadline must bound both response representations.
-  // Stream cancel() itself is untrusted and must never delay the error path.
   let removeAbortListener: () => void = () => undefined;
   const aborted = new Promise<never>((_resolve, reject) => {
     const onAbort = () =>
@@ -527,26 +523,36 @@ async function readBoundedBody(
   });
   try {
     if (!response.body) {
-      const bytes = new Uint8Array(
+      const source = new Uint8Array(
         await Promise.race([response.arrayBuffer(), aborted]),
       );
-      if (bytes.byteLength > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
-      return bytes;
+      assertDeadline();
+      if (source.byteLength > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
+      return new Uint8Array(source);
     }
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
-    let total = 0;
+    let total = 0,
+      reads = 0;
     try {
       while (true) {
+        assertDeadline();
         const next = await Promise.race([reader.read(), aborted]);
+        assertDeadline();
         if (next.done) break;
         total += next.value.byteLength;
         if (total > maximumBytes) throw new Error("SOURCE_TOO_LARGE");
-        chunks.push(next.value);
+        // Own the bytes before another read can reuse the producer's storage.
+        // Buffer.slice and virtual slice methods are not snapshot primitives.
+        if (next.value.byteLength > 0) chunks.push(new Uint8Array(next.value));
+        // Ready and empty chunks must still yield to owner cancellation/timers.
+        // Empty chunks consume no stored slots; elapsed time bounds no progress.
+        if (++reads % 32 === 0) {
+          await Promise.race([yieldToEventLoop(), aborted]);
+          assertDeadline();
+        }
       }
     } catch (error) {
-      // Do not await untrusted stream cancellation after a failed/aborted read.
-      // The acquisition owner aborts the transport in its outer finally block.
       void reader.cancel(error).catch(() => undefined);
       throw error;
     } finally {
@@ -558,6 +564,7 @@ async function readBoundedBody(
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
+    assertDeadline();
     return bytes;
   } finally {
     removeAbortListener();
@@ -677,6 +684,18 @@ export async function acquireOfficialSource(input: {
   const revoke = () => controller.abort();
   input.signal?.addEventListener("abort", revoke, { once: true });
   if (input.signal?.aborted) controller.abort();
+  const deadlineAt =
+    performance.now() +
+    (Number.isFinite(timeoutMs) ? Math.max(0, timeoutMs) : 0);
+  const assertDeadline = () => {
+    assertNotRevoked();
+    if (performance.now() >= deadlineAt) controller.abort();
+    if (controller.signal.aborted)
+      throw new DOMException(
+        "Official source acquisition timed out",
+        "AbortError",
+      );
+  };
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // An injected transport can ignore AbortSignal even before headers arrive.
   // Bound the entire request promise, not just redirect cleanup and body read.
@@ -697,12 +716,7 @@ export async function acquireOfficialSource(input: {
         const pendingHeaders = Promise.resolve().then(() => {
           // The owner may revoke synchronously after this async function
           // scheduled fetch but before this microtask actually dispatches it.
-          assertNotRevoked();
-          if (controller.signal.aborted)
-            throw new DOMException(
-              "Official source acquisition timed out",
-              "AbortError",
-            );
+          assertDeadline();
           return fetcher(currentUrl, {
             method: "GET",
             redirect: "manual",
@@ -723,8 +737,8 @@ export async function acquireOfficialSource(input: {
           () => undefined,
         );
         response = await Promise.race([pendingHeaders, headersAborted]);
-        assertNotRevoked();
         responseToClose = response;
+        assertDeadline();
         if (![301, 302, 303, 307, 308].includes(response.status)) break;
         const location = response.headers.get("location");
         if (!location) {
@@ -782,11 +796,7 @@ export async function acquireOfficialSource(input: {
           response,
           controller.signal,
         );
-        if (controller.signal.aborted)
-          throw new DOMException(
-            "Redirect body cleanup exceeded deadline",
-            "AbortError",
-          );
+        assertDeadline();
         if (!cancelled)
           throw new Error("OFFICIAL_SOURCE_REDIRECT_BODY_CANCEL_FAILED");
         currentUrl = nextUrl.toString();
@@ -853,6 +863,7 @@ export async function acquireOfficialSource(input: {
         response,
         Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
         controller.signal,
+        assertDeadline,
       );
     } catch (error) {
       // A revoked lease must not be converted into a temporary source failure.
@@ -898,6 +909,7 @@ export async function acquireOfficialSource(input: {
           ? ".yaml"
           : ".yml";
     try {
+      assertDeadline();
       const validation = validateSwaggerBytes(
         bytes,
         `official${extension}`,
@@ -924,12 +936,14 @@ export async function acquireOfficialSource(input: {
         if (!entry.titlePattern.test(typeof title === "string" ? title : ""))
           throw new Error("SOURCE_TITLE_IDENTITY_MISMATCH");
       }
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      assertDeadline();
       return {
         kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
         sourceFamily: entry.sourceFamily,
         officialUrl,
         bytes,
-        sha256: createHash("sha256").update(bytes).digest("hex"),
+        sha256,
         sizeBytes: bytes.byteLength,
         specVersion: validation.detectedSpecVersion,
         artifactType,
@@ -940,6 +954,13 @@ export async function acquireOfficialSource(input: {
       };
     } catch (error) {
       assertNotRevoked();
+      if (controller.signal.aborted)
+        return failure(
+          entry,
+          "SOURCE_TEMPORARILY_UNAVAILABLE",
+          "Official source acquisition timed out.",
+          response.status,
+        );
       return failure(
         entry,
         "INVALID_OFFICIAL_SOURCE_RESPONSE",

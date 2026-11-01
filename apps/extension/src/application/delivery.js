@@ -22,8 +22,12 @@ function saCombinedReport(entries, owner) {
   const header = { source: p.marketplace, store_id: p.storeId, binding_id: p.bindingId,
     work_session_id: p.workSessionId, result_count: entries.length, created_at: owner.created_at,
     expires_at: new Date(owner.payload_expires_at_ms).toISOString() };
-  return `${p.marketplace === "wildberries" ? "WB" : "OZON"}_BATCH_RESULT_V1\n${JSON.stringify(header)}\n\n` +
+  const text = `${p.marketplace === "wildberries" ? "WB" : "OZON"}_BATCH_RESULT_V1\n${JSON.stringify(header)}\n\n` +
     entries.map((entry, i) => `===== RESULT ${i + 1}/${entries.length} =====\n${entry.report_text || ""}`).join("\n\n");
+  // Preserve the scoped batch and exact result envelopes. This is the shipped
+  // Ozon next-command contract, independent of the optional legacy prefix.
+  return p.marketplace === "ozon"
+    ? OzonLlmOutputReportWorkflowPatch.appendInstructionTail(text) : text;
 }
 async function saPrepareDelivery(entries, owner) {
   if (!await saEnabled() || owner?.execution_context?.marketplace !== "wildberries") return entries;

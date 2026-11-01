@@ -161,14 +161,6 @@ const secretPatterns: readonly [RegExp, string][] = [
     "[REDACTED_JWT]",
   ],
   [/(cookie\s*[:=]\s*)[^\s;]+(?:\s*;[^\n]*)?/giu, "$1[REDACTED_COOKIE]"],
-  [
-    /(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*[^\s,;]+/giu,
-    "$1=[REDACTED_SECRET]",
-  ],
-  [
-    /(?:ozon|wildberries|wb)[_-]?(?:token|api[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s,;]+/giu,
-    "[REDACTED_MARKETPLACE_SECRET]",
-  ],
 ];
 
 // Decode quoted JSON keys before classifying credential fields. Unicode
@@ -176,20 +168,71 @@ const secretPatterns: readonly [RegExp, string][] = [
 // Match quoted keys and values independently of quote style, including
 // truncated values at end of input or line. Preserve closing value quotes.
 const quotedStringField =
-  /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))(?:\\.|\\(?=[\r\n]|$)|(?!\4)[^\\\r\n])*(?=\4|[\r\n]|$)/gu;
+  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)(\s*[:=\uFF1A\uFF1D]\s*(["']))(?:\\.|\\(?=[\r\n]|$)|(?!\4)[^\\\r\n])*(?=\4|[\r\n]|$)/gu;
 // Numeric/boolean/null diagnostics can also be truncated or pseudo-JSON.
 const quotedJsonScalarField =
-  /("(?:\\.|[^"\\\r\n])*")(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
+  /("(?:\\[\s\S]|[^"\\])*")(\s*[:=\uFF1A\uFF1D]\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const singleQuotedScalarField =
-  /('(?:\\.|[^'\\\r\n])*')(\s*:\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
+  /('(?:\\[\s\S]|[^'\\])*')(\s*[:=\uFF1A\uFF1D]\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
-  /(?:password|passwd|secret|token|api[_-]?key|authorization|cookies?|set[-_]?cookie)$/iu;
+  /(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|authorization|cookies?|set[-_]?cookie)$/iu;
+
+function normalizedCredentialKey(key: string): string {
+  return key.normalize("NFKC").replace(/[\p{White_Space}\p{Cc}\p{Cf}]/gu, "");
+}
+
+// A bare credential's whitespace/comma/semicolon suffix has no proven end.
+// Preserve prose before the assignment and redact the complete private remainder.
+// Valid JSON envelopes are handled recursively at decoded string boundaries,
+// retaining their siblings and exact numeric lexemes instead of cutting JSON.
+function redactUnquotedCredentialValues(input: string): string {
+  let envelopeStart = input.length;
+  for (const start of [0, input.indexOf("{"), input.indexOf("[")]) {
+    if (start < 0) continue;
+    try {
+      JSON.parse(input.slice(start));
+      envelopeStart = Math.min(envelopeStart, start);
+    } catch {
+      /* not a complete envelope */
+    }
+  }
+  const assignment =
+    /(?<![\p{L}\p{N}_])([\p{L}_][\p{L}\p{N}_\-\p{White_Space}\p{Cc}\p{Cf}]*)[:=\uFF1A\uFF1D]\s*/gu;
+  let rewritten = "",
+    cursor = 0;
+  for (const match of input.matchAll(assignment)) {
+    if (match.index < cursor) continue;
+    if (match.index >= envelopeStart) break;
+    const key = normalizedCredentialKey(match[1]!);
+    if (!sensitiveJsonKey.test(key) || /authorization$/iu.test(key)) continue;
+    const start = match.index + match[0].length;
+    const quoted = input
+      .slice(start)
+      .match(/^(["'])(?:\\.|(?!\1)[^\\\r\n])*\1/u);
+    if (quoted) {
+      // A complete single-line quoted value has a verified delimiter. The
+      // earlier multiline guard rejects whitespace/ambiguous quoted tails.
+      rewritten +=
+        input.slice(cursor, start) +
+        quoted[1] +
+        "[REDACTED_SECRET]" +
+        quoted[1];
+      cursor = start + quoted[0].length;
+      continue;
+    }
+    return rewritten + input.slice(cursor, start) + "[REDACTED_SECRET]";
+  }
+  return rewritten + input.slice(cursor);
+}
 
 function isSensitiveQuotedKey(encodedKey: string): boolean {
   if (encodedKey.startsWith('"')) {
     try {
       const key: unknown = JSON.parse(encodedKey);
-      return typeof key !== "string" || sensitiveJsonKey.test(key);
+      return (
+        typeof key !== "string" ||
+        sensitiveJsonKey.test(normalizedCredentialKey(key))
+      );
     } catch {
       // Invalid JSON escaping obscures the key identity: fail closed.
       return true;
@@ -197,14 +240,16 @@ function isSensitiveQuotedKey(encodedKey: string): boolean {
   }
   const key = encodedKey.slice(1, -1);
   // Single-quoted pseudo-JSON cannot reliably decode arbitrary escapes.
-  return key.includes("\\") || sensitiveJsonKey.test(key);
+  return (
+    key.includes("\\") || sensitiveJsonKey.test(normalizedCredentialKey(key))
+  );
 }
 
 // A sensitive quoted JSON or pseudo-JSON field may hold an array/object,
 // not just a scalar. Consume that entire value without swallowing subsequent
 // sibling metadata, respecting quotes, escapes and nested delimiters.
 const quotedStructuredField =
-  /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*)(\{|\[)/gu;
+  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)(\s*[:=\uFF1A\uFF1D]\s*)(\{|\[)/gu;
 
 function redactStructuredCredentialValues(input: string): string {
   let output = "";
@@ -264,7 +309,8 @@ function redactStructuredCredentialValues(input: string): string {
 // exposing the remaining credential in the persisted support description.
 // Consume the *whole* value, or fail closed on the entire malformed diagnostic
 // when its end cannot be established without guessing a safe boundary.
-const quotedValueStart = /((["'])(?:\\.|(?!\2)[^\\\r\n])*\2)(\s*:\s*(["']))/gu;
+const quotedValueStart =
+  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)(\s*[:=\uFF1A\uFF1D]\s*(["']))/gu;
 
 // A bare log-style key such as password: "..." has no quoted JSON key.
 // The ordinary line-level regex would mask only the first physical line.
@@ -281,7 +327,7 @@ function hasBareQuotedMultilineCredential(input: string): boolean {
   bareQuotedCredentialValueStart.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = bareQuotedCredentialValueStart.exec(input)) !== null) {
-    if (!sensitiveJsonKey.test(match[1]!)) continue;
+    if (!sensitiveJsonKey.test(normalizedCredentialKey(match[1]!))) continue;
     // A CR/LF before the opening quote is just as ambiguous as one inside it.
     if (/[\r\n]/u.test(match[0])) return true;
     const quote = match[2]!;
@@ -386,7 +432,9 @@ function redactMultilineQuotedSecrets(input: string): string {
 }
 
 function redactAccidentalSecretsBasic(input: string): string {
-  const stringsRedacted = redactMultilineQuotedSecrets(input).replace(
+  const stringsRedacted = redactUnquotedCredentialValues(
+    redactMultilineQuotedSecrets(input),
+  ).replace(
     quotedStringField,
     (field, encodedKey: string, _keyQuote: string, delimiter: string) =>
       isSensitiveQuotedKey(encodedKey)

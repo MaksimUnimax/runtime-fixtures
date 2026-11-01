@@ -219,6 +219,8 @@ export function createCredentialTransferRepository(
         "source",
         ["REQUESTED", "SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         async (tx, row) => {
+          // Discovery cannot downgrade another process's live prepared packet.
+          if (row.state === "PACKET_AVAILABLE_EPHEMERAL") return;
           if (!row.source_device_id)
             await tx.query(
               `UPDATE credential_transfer_requests SET source_device_id=$2,revision=revision+1,state='SOURCE_SEEN' WHERE request_id=$1`,
@@ -232,7 +234,7 @@ export function createCredentialTransferRepository(
         },
       );
     },
-    async markPacketAvailable({ principal, requestId, now }) {
+    async markPacketAvailable({ principal, requestId, now, expectedRevision }) {
       return transition(
         runtime,
         requestId,
@@ -240,7 +242,10 @@ export function createCredentialTransferRepository(
         now,
         "source",
         ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
-        async (tx) => {
+        async (tx, row) => {
+          // Revision comparison and preparation share the same durable row lock.
+          if (Number(row.revision) !== expectedRevision)
+            fail("TRANSFER_CONFLICT");
           await tx.query(
             `UPDATE credential_transfer_requests SET state='PACKET_AVAILABLE_EPHEMERAL',revision=revision+1 WHERE request_id=$1`,
             [requestId],

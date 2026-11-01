@@ -397,6 +397,7 @@ export async function proveCredentialTransferEpochHandoff(
               principal: source,
               requestId,
               now: clock(),
+              expectedRevision: 0, // deliberately stale former writer; fence rejects before business state
             }),
         },
         {

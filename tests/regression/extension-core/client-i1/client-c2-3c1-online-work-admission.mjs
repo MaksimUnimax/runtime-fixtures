@@ -41,7 +41,7 @@ function fakeIDB() {
   } };
 }
 
-async function healthEnvelope(backing, overrides = {}) {
+async function healthEnvelope(backing, overrides = {}, denialOnly = false) {
   const authority = backing.local[AUTH].authority;
   const payload = authority.payload;
   const key = await webcrypto.subtle.importKey("pkcs8", Buffer.from(backing.local.__seller_agents_fixture_signing_key.privateKey, "base64"), { name: "Ed25519" }, false, ["sign"]);
@@ -52,6 +52,7 @@ async function healthEnvelope(backing, overrides = {}) {
   };
   const claim = { healthClaimVersion: "health_claim_v1", status: "PASS", target: "WORK", context, observedAt: new Date(Date.now() - 1000).toISOString(), expiresAt: new Date(Date.now() + 14 * 60_000).toISOString(), executionAuthority: false, ...overrides };
   if (overrides.context) claim.context = { ...context, ...overrides.context, ai: { ...context.ai, ...(overrides.context.ai || {}) } };
+  if (denialOnly) { delete claim.context; delete claim.expiresAt; }
   const bytes = new TextEncoder().encode(canonical(claim));
   const prefix = new TextEncoder().encode("product-control-plane/health-authority/v1\0fixture-key\0");
   const signed = new Uint8Array(prefix.length + bytes.length); signed.set(prefix); signed.set(bytes, prefix.length);
@@ -84,7 +85,7 @@ async function fixture(options = {}) {
     backing.local[AUTH].authority.workAllowed = false; // Legacy projection only; verified scoped grant is unchanged.
   }
   const mode = options.health || "pass";
-  const signedHealth = await healthEnvelope(backing, options.healthOverrides || {});
+  const signedHealth = await healthEnvelope(backing, options.healthOverrides || {}, mode === "signed-deny");
   if (mode === "tampered") signedHealth.signature = `${signedHealth.signature.slice(0, -1)}${signedHealth.signature.endsWith("A") ? "B" : "A"}`;
   let release;
   const gate = options.gated ? new Promise(resolve => { release = resolve; }) : null;
@@ -94,6 +95,7 @@ async function fixture(options = {}) {
     if (gate) await gate;
     if (mode === "network") throw new Error("network unavailable");
     if (mode === "unauthorized") return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "content-type": "application/json" } });
+    if (mode === "authority-denied") return new Response(JSON.stringify({ error: { code: "WORK_AUTHORITY_DENIED", detail: "PRIVATE_REMOTE_BODY" } }), { status: 503, headers: { "content-type": "application/json" } });
     if (mode === "bootstrap-unavailable") return new Response(JSON.stringify({ error: { code: "BOOTSTRAP_UNAVAILABLE", message: "Health authority unavailable" } }), { status: 503, headers: { "content-type": "application/json" } });
     if (mode === "unavailable") return new Response(JSON.stringify(await healthEnvelope(backing, { status: "UNAVAILABLE", reason: "PRODUCER_UNAVAILABLE" })), { status: 200, headers: { "content-type": "application/json" } });
     return new Response(JSON.stringify(signedHealth), { status: 200, headers: { "content-type": "application/json" } });
@@ -476,6 +478,105 @@ await runPR("PR-17", "stale plan makes no Health request", async () => { await p
 await runPR("PR-18", "stale plan makes no old Work/binding mutation", async () => { await preTokenMutationCase({ id: "PR-18", description: "", mutate: f => { f.backing.local[SESSIONS][f.key].revision += 1; } }); });
 await runPR("PR-19", "stale plan makes no target pending record or prompt", async () => { await preTokenMutationCase({ id: "PR-19", description: "", mutate: f => { f.backing.local[STORES].accounts[f.target.accountId].stores[f.target.id].credentialRevision = "target-pre-token-pending-check"; } }); });
 await runPR("PR-20", "unrelated dialogue remains parallel", async () => { const f = await rebindFixture(); try { const second = f.worker.addTab(88, "unrelated-pre-token-dialogue"); const [one, two] = await Promise.all([rebindStart(f), f.worker.popup({ type: "SA_WORK_START", store_id: f.store.id, tab_id: 88, confirm_change: false, start_intent_id: "pr-unrelated" })]); assert.equal(one.ok, true, JSON.stringify(one)); assert.equal(two.ok, true, JSON.stringify(two)); assert.equal(healthCalls(f).length, 2); } finally { await close(f); } });
+
+// Actual worker -> persisted event -> popup/support projection. Synthetic only.
+async function startAdmissionEvidence(f) {
+  const result = await deniedStart(f);
+  const row = [...(f.backing.local.ozmb_diagnostics || [])].reverse().find(item => item.event === "WORK_START_ACTION_RESULT");
+  assert.ok(row?.admission, "failed Start must retain safe admission evidence");
+  const last = await f.worker.call("saLastStartDiagnostic", f.worker.tabId);
+  const support = await f.worker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: f.worker.tabId });
+  assert.deepEqual(clone(last.admission), clone(row.admission));
+  assert.deepEqual(clone(support.snapshot.work.lastStart.admission), clone(row.admission));
+  assert.equal(result.ok, false);
+  assert.equal(row.external_request_executed, false);
+  return clone(row.admission);
+}
+await run("WD-01", "local AI capability denial survives persisted/popup/support projections", async () => {
+  const f = await fixture({ entitlements: { "source.ozon": true } });
+  try {
+    const d = await startAdmissionEvidence(f);
+    assert.equal(d.branch, "LOCAL_EVALUATOR");
+    assert.ok(d.deniedGates.includes("DENY_CAPABILITY"));
+    assert.ok(d.failedGates.includes("aiCapability"));
+    assert.equal(d.health.observation, "PASS");
+  } finally { await close(f); }
+});
+await run("WD-02", "independent failed source and AI gates are retained without values", async () => {
+  const f = await fixture({ entitlements: {} });
+  try {
+    const d = await startAdmissionEvidence(f);
+    assert.ok(d.failedGates.includes("sourceCapability"));
+    assert.ok(d.failedGates.includes("aiCapability"));
+    assert.equal(new Set(d.deniedGates).size, d.deniedGates.length);
+    assert.deepEqual(Object.keys(d).sort(), ["branch", "deniedGates", "executionAuthorityRejected", "failedGates", "health", "schemaVersion"].sort());
+  } finally { await close(f); }
+});
+await run("WD-03", "verified signed Health DENY is distinct from acquisition errors", async () => {
+  const f = await fixture({ health: "signed-deny", healthOverrides: { status: "DENY", reason: "PRODUCER_DENIED" } });
+  try {
+    const d = await startAdmissionEvidence(f);
+    assert.equal(d.branch, "SIGNED_HEALTH_DENY");
+    assert.deepEqual(d.deniedGates, ["healthObservation"]);
+    assert.equal(d.health.observation, "DENY");
+    assert.equal(d.health.httpStatus, null);
+  } finally { await close(f); }
+});
+await run("WD-04", "remote product error propagation is not claimed as signed Health DENY", async () => {
+  const f = await fixture({ health: "authority-denied" });
+  try {
+    const d = await startAdmissionEvidence(f);
+    assert.equal(d.branch, "HEALTH_ACQUISITION");
+    assert.deepEqual(d.deniedGates, []);
+    assert.equal(d.health.code, "WORK_AUTHORITY_DENIED");
+    assert.equal(d.health.httpStatus, 503);
+    assert.ok(!JSON.stringify(d).includes("PRIVATE_REMOTE_BODY"));
+  } finally { await close(f); }
+});
+await run("WD-05", "optional Health503 is recorded separately from actual local denial", async () => {
+  const f = await fixture({ health: "bootstrap-unavailable", entitlements: { "source.ozon": true } });
+  try {
+    const d = await startAdmissionEvidence(f);
+    assert.equal(d.branch, "LOCAL_EVALUATOR");
+    assert.ok(d.failedGates.includes("aiCapability"));
+    assert.deepEqual(d.health, { observation: "UNAVAILABLE", code: "BOOTSTRAP_UNAVAILABLE", httpStatus: 503 });
+  } finally { await close(f); }
+});
+await run("WD-06", "diagnostic projection excludes unknown names, identifiers, bodies and values", async () => {
+  const f = await fixture();
+  try {
+    const d = await f.worker.call("saProjectWorkAdmissionDiagnostic", {
+      branch: "PRIVATE_BRANCH", deniedGates: ["DENY_CAPABILITY", "PRIVATE_REASON", "DENY_CAPABILITY"],
+      failedGates: ["aiCapability", "PRIVATE_GATE"], accountId: "PRIVATE_ACCOUNT", envelope: "PRIVATE_ENVELOPE",
+      health: { code: "PRIVATE_CODE", observation: "PRIVATE_OBSERVATION", httpStatus: "503", body: "PRIVATE_BODY" },
+    });
+    assert.equal(d.branch, "UNKNOWN");
+    assert.deepEqual(clone(d.deniedGates), ["DENY_CAPABILITY"]);
+    assert.deepEqual(clone(d.failedGates), ["aiCapability"]);
+    assert.equal(d.health.code, "UNRECOGNIZED");
+    assert.equal(d.health.httpStatus, null);
+    assert.ok(!JSON.stringify(d).includes("PRIVATE_"));
+  } finally { await close(f); }
+});
+await run("WD-07", "stored diagnostic is projected again before leaving the worker", async () => {
+  const f = await fixture();
+  try {
+    f.backing.local.ozmb_diagnostics = [{ event: "WORK_START_ACTION_RESULT", tab_id: f.worker.tabId, stage: "rejected", outcome: "failed", code: "WORK_AUTHORITY_DENIED",
+      admission: { schemaVersion: "work_admission_diagnostic_v1", branch: "LOCAL_EVALUATOR", deniedGates: ["DENY_CAPABILITY", "PRIVATE_VALUE"], failedGates: ["aiCapability"], token: "PRIVATE_TOKEN",
+        health: { observation: "PASS", code: null, httpStatus: null, body: "PRIVATE_BODY" } } }];
+    const result = await f.worker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: f.worker.tabId });
+    assert.ok(result.snapshot.work.lastStart.admission);
+    assert.ok(!JSON.stringify(result.snapshot.work.lastStart).includes("PRIVATE_"));
+  } finally { await close(f); }
+});
+await run("WD-08", "failed admission evidence stays scoped to its tab", async () => {
+  const f = await fixture({ entitlements: {} });
+  try {
+    await startAdmissionEvidence(f);
+    assert.equal(await f.worker.call("saLastStartDiagnostic", 999), null);
+    assert.equal(healthCalls(f).length, 1);
+  } finally { await close(f); }
+});
 
 const failureBatch = cases.filter(item => item.status === "FAIL");
 const rbFailures = rb.filter(item => item.status === "FAIL");
