@@ -2,7 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, open, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import type { SwaggerArtifact } from "@product/monitoring-control";
+import {
+  withMonitoringEffect,
+  type SwaggerArtifact,
+} from "@product/monitoring-control";
 import type {
   ApiWatchReportStore,
   ApiWatchStore,
@@ -141,7 +144,9 @@ async function verifyReceipt(input: {
       source.authorityStatus !== "AUTHORITY_ACCEPTED" ||
       source.acquisitionOutcome !== "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" ||
       source.blockerCode !== null ||
-      source.inventoryOperationCount === null ||
+      typeof source.inventoryOperationCount !== "number" ||
+      !Number.isSafeInteger(source.inventoryOperationCount) ||
+      source.inventoryOperationCount < 0 ||
       !["FIRST_SNAPSHOT", "CHANGED", "NO_CHANGE"].includes(
         source.changeMode ?? "",
       ) ||
@@ -201,7 +206,9 @@ export async function completeOperatorPipeline(input: {
     }
     try {
       // Concurrent successful reports keep the first proven receipt.
-      await link(temporary, path);
+      // Admit the canonical filesystem effect after all temporary-file awaits.
+      // The callback starts link synchronously under the current run lease.
+      await withMonitoringEffect(() => link(temporary, path));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       const existing = await readReceipt(path);
