@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
+  foreignKey,
+  uniqueIndex,
   check,
   index,
   integer,
@@ -29,12 +31,7 @@ export const adminPrincipals = pgTable(
   "admin_principals",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    userId: uuid("user_id").notNull(),
     status: adminPrincipalStatus("status").notNull().default("ACTIVE"),
     revision: integer("revision").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -45,6 +42,17 @@ export const adminPrincipals = pgTable(
       .defaultNow(),
   },
   (table) => [
+    check(
+      "admin_principals_updated_after_created",
+      sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "admin_principals_user_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("admin_principals_user_id_unique").on(table.userId),
     check("admin_principals_revision_positive", sql`${table.revision} > 0`),
     index("admin_principals_status_index").on(table.status),
@@ -55,32 +63,45 @@ export const adminRoleGrants = pgTable(
   "admin_role_grants",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    adminPrincipalId: uuid("admin_principal_id")
-      .notNull()
-      .references(() => adminPrincipals.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    adminPrincipalId: uuid("admin_principal_id").notNull(),
     role: adminRole("role").notNull(),
     grantedAt: timestamp("granted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    grantedByAdminPrincipalId: uuid("granted_by_admin_principal_id").references(
-      () => adminPrincipals.id,
-      { onDelete: "restrict", onUpdate: "restrict" },
-    ),
+    grantedByAdminPrincipalId: uuid("granted_by_admin_principal_id"),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    revokedByAdminPrincipalId: uuid("revoked_by_admin_principal_id").references(
-      () => adminPrincipals.id,
-      { onDelete: "restrict", onUpdate: "restrict" },
-    ),
+    revokedByAdminPrincipalId: uuid("revoked_by_admin_principal_id"),
   },
   (table) => [
-    index("admin_role_grants_principal_index").on(table.adminPrincipalId),
-    unique("admin_role_grants_active_principal_role_unique").on(
-      table.adminPrincipalId,
-      table.role,
+    check(
+      "admin_role_grants_revocation_shape",
+      sql`(${table.revokedAt} IS NULL AND ${table.revokedByAdminPrincipalId} IS NULL) OR (${table.revokedAt} IS NOT NULL AND ${table.revokedByAdminPrincipalId} IS NOT NULL)`,
     ),
+    foreignKey({
+      columns: [table.adminPrincipalId],
+      foreignColumns: [adminPrincipals.id],
+      name: "admin_role_grants_principal_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.grantedByAdminPrincipalId],
+      foreignColumns: [adminPrincipals.id],
+      name: "admin_role_grants_granted_by_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.revokedByAdminPrincipalId],
+      foreignColumns: [adminPrincipals.id],
+      name: "admin_role_grants_revoked_by_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    index("admin_role_grants_principal_index").on(table.adminPrincipalId),
+    uniqueIndex("admin_role_grants_active_principal_role_unique")
+      .on(table.adminPrincipalId, table.role)
+      .where(sql`${table.revokedAt} IS NULL`),
   ],
 );
 
@@ -88,18 +109,8 @@ export const adminSessions = pgTable(
   "admin_sessions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    adminPrincipalId: uuid("admin_principal_id")
-      .notNull()
-      .references(() => adminPrincipals.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    sourcePortalSessionId: uuid("source_portal_session_id")
-      .notNull()
-      .references(() => portalSessions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    adminPrincipalId: uuid("admin_principal_id").notNull(),
+    sourcePortalSessionId: uuid("source_portal_session_id").notNull(),
     sessionTokenHash: varchar("session_token_hash", { length: 128 })
       .notNull()
       .unique(),
@@ -112,6 +123,20 @@ export const adminSessions = pgTable(
     revokeReason: varchar("revoke_reason", { length: 128 }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.adminPrincipalId],
+      foreignColumns: [adminPrincipals.id],
+      name: "admin_sessions_principal_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.sourcePortalSessionId],
+      foreignColumns: [portalSessions.id],
+      name: "admin_sessions_source_portal_session_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     index("admin_sessions_principal_index").on(table.adminPrincipalId),
     index("admin_sessions_source_portal_session_index").on(
       table.sourcePortalSessionId,

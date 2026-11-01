@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   integer,
   pgTable,
   timestamp,
@@ -15,18 +16,8 @@ export const accountConnectionCredentials = pgTable(
   "account_connection_credentials",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    issuedByUserId: uuid("issued_by_user_id")
-      .notNull()
-      .references(() => users.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    accountId: uuid("account_id").notNull(),
+    issuedByUserId: uuid("issued_by_user_id").notNull(),
     verifierHash: varchar("verifier_hash", { length: 128 }).notNull(),
     generation: integer("generation").notNull(),
     issueOperationHash: varchar("issue_operation_hash", {
@@ -42,6 +33,20 @@ export const accountConnectionCredentials = pgTable(
     revocationReason: varchar("revocation_reason", { length: 32 }),
   },
   (table) => [
+    foreignKey({
+      name: "account_connection_credentials_account_id_fkey",
+      columns: [table.accountId],
+      foreignColumns: [accounts.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "account_connection_credentials_issued_by_user_id_fkey",
+      columns: [table.issuedByUserId],
+      foreignColumns: [users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("account_connection_credentials_verifier_unique").on(
       table.verifierHash,
     ),

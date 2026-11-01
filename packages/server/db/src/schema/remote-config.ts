@@ -28,7 +28,9 @@ export const signingKeys = pgTable(
     keyId: varchar("key_id", { length: 64 }).primaryKey(),
     algorithm: varchar("algorithm", { length: 16 }).notNull(),
     publicKeySpkiDer: bytea("public_key_spki_der").notNull(),
-    publicKeySha256: varchar("public_key_sha256", { length: 64 }).notNull(),
+    publicKeySha256: varchar("public_key_sha256", { length: 64 })
+      .notNull()
+      .unique("signing_keys_public_key_sha256_unique"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

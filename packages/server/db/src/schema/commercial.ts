@@ -1,5 +1,6 @@
 import { sql, type SQLWrapper } from "drizzle-orm";
 import {
+  foreignKey,
   bigint,
   boolean,
   check,
@@ -80,12 +81,7 @@ export const planRevisions = pgTable(
   "plan_revisions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    planId: uuid("plan_id")
-      .notNull()
-      .references(() => plans.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    planId: uuid("plan_id").notNull(),
     revision: integer("revision").notNull(),
     state: planRevisionState("state").notNull().default("DRAFT"),
     displayName: varchar("display_name", { length: 256 }).notNull(),
@@ -96,6 +92,13 @@ export const planRevisions = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.planId],
+      foreignColumns: [plans.id],
+      name: "plan_revisions_plan_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("plan_revisions_plan_id_revision_unique").on(
       table.planId,
       table.revision,
@@ -141,23 +144,30 @@ export const entitlementDefinitions = pgTable(
 export const planEntitlements = pgTable(
   "plan_entitlements",
   {
-    planRevisionId: uuid("plan_revision_id")
-      .notNull()
-      .references(() => planRevisions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    entitlementKey: varchar("entitlement_key", { length: 128 })
-      .notNull()
-      .references(() => entitlementDefinitions.entitlementKey, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    planRevisionId: uuid("plan_revision_id").notNull(),
+    entitlementKey: varchar("entitlement_key", { length: 128 }).notNull(),
     booleanValue: boolean("boolean_value"),
     integerValue: bigint("integer_value", { mode: "number" }),
   },
   (table) => [
-    primaryKey({ columns: [table.planRevisionId, table.entitlementKey] }),
+    foreignKey({
+      columns: [table.planRevisionId],
+      foreignColumns: [planRevisions.id],
+      name: "plan_entitlements_plan_revision_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.entitlementKey],
+      foreignColumns: [entitlementDefinitions.entitlementKey],
+      name: "plan_entitlements_entitlement_key_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    primaryKey({
+      name: "plan_entitlements_pk",
+      columns: [table.planRevisionId, table.entitlementKey],
+    }),
     check(
       "plan_entitlements_exactly_one_value",
       sql`(${table.booleanValue} IS NOT NULL)::integer + (${table.integerValue} IS NOT NULL)::integer = 1`,
@@ -174,18 +184,8 @@ export const accountEntitlementOverrides = pgTable(
   "account_entitlement_overrides",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    entitlementKey: varchar("entitlement_key", { length: 128 })
-      .notNull()
-      .references(() => entitlementDefinitions.entitlementKey, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    accountId: uuid("account_id").notNull(),
+    entitlementKey: varchar("entitlement_key", { length: 128 }).notNull(),
     revision: integer("revision").notNull(),
     operation: entitlementOverrideOperation("operation").notNull(),
     booleanValue: boolean("boolean_value"),
@@ -200,6 +200,20 @@ export const accountEntitlementOverrides = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.accountId],
+      foreignColumns: [accounts.id],
+      name: "account_entitlement_overrides_account_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.entitlementKey],
+      foreignColumns: [entitlementDefinitions.entitlementKey],
+      name: "account_entitlement_overrides_entitlement_key_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("account_entitlement_overrides_account_key_revision_unique").on(
       table.accountId,
       table.entitlementKey,
@@ -242,12 +256,7 @@ export const prices = pgTable(
   "prices",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    planId: uuid("plan_id")
-      .notNull()
-      .references(() => plans.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    planId: uuid("plan_id").notNull(),
     code: varchar("code", { length: 64 }).notNull(),
     marketKey: varchar("market_key", { length: 64 }).notNull(),
     channelKey: varchar("channel_key", { length: 64 }).notNull(),
@@ -260,6 +269,13 @@ export const prices = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.planId],
+      foreignColumns: [plans.id],
+      name: "prices_plan_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("prices_code_unique").on(table.code),
     check("prices_code_format", stableMachineIdentifier(table.code)),
     check("prices_market_key_format", stableMachineIdentifier(table.marketKey)),
@@ -274,18 +290,8 @@ export const priceRevisions = pgTable(
   "price_revisions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    priceId: uuid("price_id")
-      .notNull()
-      .references(() => prices.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    planRevisionId: uuid("plan_revision_id")
-      .notNull()
-      .references(() => planRevisions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    priceId: uuid("price_id").notNull(),
+    planRevisionId: uuid("plan_revision_id").notNull(),
     revision: integer("revision").notNull(),
     state: priceRevisionState("state").notNull().default("DRAFT"),
     amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
@@ -302,6 +308,20 @@ export const priceRevisions = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.priceId],
+      foreignColumns: [prices.id],
+      name: "price_revisions_price_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.planRevisionId],
+      foreignColumns: [planRevisions.id],
+      name: "price_revisions_plan_revision_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("price_revisions_price_id_revision_unique").on(
       table.priceId,
       table.revision,
@@ -335,17 +355,9 @@ export const priceSaleAssignments = pgTable(
   "price_sale_assignments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    priceId: uuid("price_id")
-      .notNull()
-      .references(() => prices.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    priceId: uuid("price_id").notNull(),
     assignmentRevision: integer("assignment_revision").notNull(),
-    selectedPriceRevisionId: uuid("selected_price_revision_id").references(
-      () => priceRevisions.id,
-      { onDelete: "restrict", onUpdate: "restrict" },
-    ),
+    selectedPriceRevisionId: uuid("selected_price_revision_id"),
     effectiveFrom: timestamp("effective_from", {
       withTimezone: true,
     }).notNull(),
@@ -355,6 +367,20 @@ export const priceSaleAssignments = pgTable(
       .defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.priceId],
+      foreignColumns: [prices.id],
+      name: "price_sale_assignments_price_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.selectedPriceRevisionId],
+      foreignColumns: [priceRevisions.id],
+      name: "price_sale_assignments_selected_price_revision_id_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     unique("price_sale_assignments_price_id_revision_unique").on(
       table.priceId,
       table.assignmentRevision,

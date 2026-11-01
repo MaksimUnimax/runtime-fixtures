@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   pgTable,
   primaryKey,
@@ -16,34 +17,40 @@ import { devices, sessions } from "./devices";
 export const connectionExchangeReceipts = pgTable(
   "connection_exchange_receipts",
   {
-    credentialId: uuid("credential_id")
-      .notNull()
-      .references(() => accountConnectionCredentials.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    credentialId: uuid("credential_id").notNull(),
     operationHash: varchar("operation_hash", { length: 128 }).notNull(),
     requestFingerprint: varchar("request_fingerprint", {
       length: 128,
     }).notNull(),
-    deviceId: uuid("device_id")
-      .notNull()
-      .references(() => devices.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    sessionId: uuid("session_id")
-      .notNull()
-      .references(() => sessions.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
+    deviceId: uuid("device_id").notNull(),
+    sessionId: uuid("session_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
     replayUntil: timestamp("replay_until", { withTimezone: true }).notNull(),
   },
   (table) => [
+    foreignKey({
+      name: "connection_exchange_receipts_credential_id_fkey",
+      columns: [table.credentialId],
+      foreignColumns: [accountConnectionCredentials.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "connection_exchange_receipts_device_id_fkey",
+      columns: [table.deviceId],
+      foreignColumns: [devices.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "connection_exchange_receipts_session_id_fkey",
+      columns: [table.sessionId],
+      foreignColumns: [sessions.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     primaryKey({
       name: "connection_exchange_receipts_pkey",
       columns: [table.credentialId, table.operationHash],
