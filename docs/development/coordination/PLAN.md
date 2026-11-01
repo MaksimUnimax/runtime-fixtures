@@ -114,3 +114,267 @@ Production publication, irreversible data changes и получение/испо
 Прогноз полной разработки, порученный Astra, ещё не получен. После передачи полного проверенного итога он станет checkpoint существующего журнала docs/project-audits/AUDITS.md и серверного /root/octoport-control/project-audits/AUDITS.md, с исходной датой, предпосылками и ограничениями; число и завершение до получения итога не проставлены.
 
 Переход не перезапускает roadmap и не объявляет B02, B14 или другие блоки готовыми. Полный перечень фактически непроверенных сценариев и незавершённых зависимостей остаётся в существующих рабочих записях соответствующей функции.
+
+<a id="product-program-20261101"></a>
+
+## Полная сохранённая программа и зависимости — 1 ноября 2026
+
+Это согласованное описательное дополнение по полностью прочитанному Astra v2 и поздним решениям владельца/root. Оно заменяет противоречащие прежние организационные описания только в области распределения целых функций, ответственности автора за интеграцию и пакет исправлений, QA готовой сборки и перехода. Полный прежний PLAN выше, его таблицы и исторические результаты сохраняются. Правила ролей и защищённые полномочия остаются отдельным слоем.
+
+Сведения о коде и доказательствах в таблице — исходный аналитический срез 1 ноября, не новый runtime verdict. Фактические HEAD, авторство и исходы сверяются исполнителями перед потреблением.
+
+### 1. Что сохраняется полностью
+
+Сохраняются 33 продуктовых блока, 216 уникальных идентификаторов случаев, 104 нормативные связи, 464 исходные строки coverage; 21 технический ID PLAN; R0–R4/S0–S3; P0–P15; 45 основных и 8 резервных бизнес-вопросов; обе площадки; весь применимый AI/browser/OS/SITE/release/support scope и отдельно отложенная коммерция. Количество строк не доказывает исполнение или процент готовности.
+
+Канонические названия, steps/expected и ID сохранены в [OWNER_BLOCK_COVERAGE.json](../../product/readiness/OWNER_BLOCK_COVERAGE.json) и [OWNER_BLOCK_ACCEPTANCE.md](../../product/readiness/OWNER_BLOCK_ACCEPTANCE.md). Полная сверка аналитической матрицы дала 216 одинаковых ID, названий, steps и expected с c5, 33 блока, 104 нормативные связи и 464 исходные строки. Это документальная идентичность, а не новое выполнение. CurrentRun/runHistory и технические PASS не менялись. Полные 53 бизнес-обязательства и 59 кандидатов исходного анализа сохранены с происхождением; новый рабочий реестр из них не создаётся.
+
+**B01 принят владельцем** 28.10.2026 16:30:53.320385 UTC+5, с исключениями guest ChatGPT large files и guest Qwen limits как особенностей сервисов. В исходной аналитической матрице критерии c5 оставлены для прослеживаемости; отдельная колонка показывает позднюю поправку владельца. Исключённое не получает technical PASS, весь Qwen scope не удалён, новая SHA/ZIP/currentRun не придумана.
+
+### 2. Четыре разных порядка
+
+1. **Реализация механизмов:** зависимость готовится до её первого потребителя, даже если полная приёмка относится к позднему блоку. Минимальный store/vault нужен B02 раньше полной B07; опубликованный profile consumer — раньше полного редактора B17.
+2. **Производство законченных функций:** выбирается готовая по входам функция с реальным QA/review route. Независимые функции могут идти параллельно. Shared contracts и реальные общие среды координируются по конкретному изменению.
+3. **Полное тестирование и owner acceptance:** полный scope блока сохраняется. Разделение проверки между участниками не сокращает cases. Действующий порядок выдачи владельцу и поздние решения не отменяются новым описанием. По решению 28.10 ручная приёмка отражается отдельно и не задерживает переход Тестера-1 после полного технического блока; технические результаты и owner acceptance не подменяют друг друга.
+4. **Выпуск:** manual package, store install/update, один RC, бесплатная beta-волна и real-money launch — разные результаты с разными входами. Ранний квалифицированный собственный store slice не требует полного будущего продукта; full beta не выводится из ZIP.
+
+Порядок номеров B01→B33 не является доказательством пригодной последовательности реализации. Открытие capability и завершение полного блока различаются. Состав методов/прав/сервисов устанавливается по коду, а не только названию блока.
+
+### 3. Минимальные способности до первых потребителей
+
+| Способность | Первый потребитель | Где имеется / что открыто | Тип зависимости |
+|---|---|---|---|
+| Account/device authority и обычный popup/вход | D39/B02, затем B12/B13 | c5 normal-auth и d8/009code-flow разные составы; нужен новый полный installed route | Механизм до использования; full кабинет позже |
+| Store/vault/permissions/identity | B02, затем B07/B20 | Store/runtime код есть; один подготовленный магазин не вся матрица CRUD/Performance/WB | Механизм/данные; права фактические |
+| Published signed profile/catalog/pinning и runtime consumer | Start/B02, repair | c5/d8 consumer есть; полный editor B17 не нужен для первого Start | Механизм до использования; full management позже |
+| Command/batch/session/file consumer | B01/B02, B08–B10/B20 | d8 shared writer source/package не native concurrency verdict | Общий контракт и интеграция |
+| Relay/crypto/key approval/ACK | D39 transfer/B11 | ENG A02+B03 принимаются целым протоколом | Связанный сквозной протокол, не сумма половин |
+| Минимальные RBAC/privacy/retention | Первый admin/Health/support sink | части c5, F03 и B14/T2 доноры; полный admin B14 не единственный способ раннего read scope | Данные/права до действия |
+| Health producer/store/reader/API/UI/targets | B03 | Read подключён c5 main; current297 и full H-scope отдельно | Потребляемая полная read-функция |
+| WB official-source bot ingress | B04 | Минимальный upload нужен до полного B05 | Ранняя часть более позднего канала |
+| API-watch acquire/diff/baseline/retry | B04/B05/B06 | c7 и отдельный C03, retry0062/0063; два P2 в C03 не закрыты | Механизм/schema/authority |
+| Durable incident routing/notification journal | B05, затем эксплуатация/repair | TG safeguards и draft377 не полное service wiring | Сервисная зависимость; один реальный consumer |
+| Health-specific decision/apply/observe/rollback | B06 | GET repair API и generic P7 не доказывают write consumer | Продуктовый authority consumer; не название lifecycle |
+| Atomic admission/entitlements и shared lifecycle | B15/первая beta capability | SubscriptionLifecycleRunner уже подключён общим worker | Ранний технический consumer, real money отдельно |
+| Business data definitions/operations/completeness | B20 и первый вопрос | 45 сопоставленных основных вопросов; STD21–28 individual mapping нет | Данные/права/period/grain/units/IDs |
+| Независимый numeric gold и происхождение данных | B23–B30; STD01 только при отдельном решении | Fixtures имеются, но не current live PASS | Эталон до смысловой приёмки |
+| Restore/migration lineage/rollback | Первый затронутый deployment, полный B21 | aaec/ops inputs; реальный restore нового tuple открыт | Эксплуатационная способность до switch |
+| Реальный browser/OS/package/profile route | Первый выпуск канала, полные B18/B19 | Chrome/Opera/Yandex/Firefox собственные proofs; Windows route не доказывается Linux Chromium | Среда/канал, не all-browser global gate |
+| SITE install/privacy/support/OTP/reviewer pages | Onboarding/store/B12/B19; fullB31/B32 | Существующий отдельный holder; source exclusion не убирает продуктовую зависимость | Потребитель и организационная передача |
+| Release trust/source-package binding/update | Любая пригодная выдача; B19/B31/B32 | Четыре release-файла c7 первой основе; newcandidate qualification открыта | Общий выпускной контракт |
+
+Эти названия — объяснение связей существующих требований, не новые обязательные карточки, сервисы или технические ID.
+
+### 4. Циклы и ложные зависимости
+
+- **B02↔B07/B12/B17:** сначала минимальные auth/store/published-profile consumers, затем полный основной цикл B02; полные CRUD/кабинет/editor остаются отдельными результатами.
+- **B03↔B14/B17/B21:** Health read требует нужного RBAC/targets/privacy и совместимого storage, но не всей админки/editor/restore-программы. Минимальная безопасность эксплуатации появляется до первого изменяющего действия.
+- **B04↔B05:** раньше готовится минимальный WB upload/incident contract; полный API-watch и полная durable notification проверяются отдельно, без ожидания друг друга целыми блоками.
+- **B06↔B17/B21:** ранние publish/rollback capabilities и независимый authority consumer нужны repair раньше полной owner-приёмки поздних блоков. Generic profile apply не заменяет Health-specific связь.
+- **B27↔B28:** technical ad-cost/period/identity definitions готовятся до finance calculation, sales/stock inputs — до advertising joins. Полная finance и полная advertising не блокируют друг друга искусственно.
+- **B19↔B31:** ранний полезный безопасный slice проходит свой store/reviewer/update route до полного RC; итог B31 учитывает реально пройденный channel scope, а не задаёт круговую зависимость «сначала весь продукт для первой подачи».
+- **B15/B33:** общий access/lifecycle consumer квалифицируется раньше; платные provider/checkout/refund остаются поздней коммерцией.
+
+При совпадении названия DB/profile/сервиса проверяется actual shared state. Read-only сравнение может быть независимым; chaos/rotation/schema/apply на общей среде — нет. Поздний полный блок не является разрешением пропустить уже потребляемую неисправную раннюю часть.
+
+### 5. Вся очередь законченных результатов
+
+Исходная последовательность производства: переходная композиция и полный D39 → полный B02, с независимыми готовыми ветвями по входам; полный Health/API-watch/TG/repair; остальные технические функции с ранней подготовкой механизмов → B22; весь B23–B30 data/semantic корпус → один RC/день B31 → отдельно разрешённая бесплатная B32 → сопровождение. B33 только после отдельного коммерческого решения. Ранний STD01 — отдельный предлагаемый вариант, не встроенная действующая предпосылка этой последовательности.
+
+Начальные направления таблицы не доказывают фактической передачи WIP: весь открытый B02/B14 Тестера-2 сохраняется до адресного handoff и readback. Для Тестера-1 ownerAccepted не является ожиданием следующего блока после полного технического цикла по решению 28.10.2026. У B/C неотносящиеся restore/installed-проверки не предшествуют назначению любой независимой функции.
+
+В таблице R — независимая проверка кода, Q — полный функциональный scope, объединяемый ведущим функциональной проверки. Конкретный независимый участник определяется происхождением и actual доступом, а не буквой роли. Автор отвечает за целый результат с интеграцией/исправлениями, не только свой компонент.
+
+| Блок / cases | Законченный результат и минимум до первого потребителя | Имеется / конкретный открытый остаток | Автор; полная проверка; выход и следующая работа |
+|---|---|---|---|
+| **B01 01–10** | Guest install/bootstrap/adapters, магазин и delivery | Принят владельцем 28.10 16:30:53.320385 UTC+5. Guest ChatGPT large files и guest Qwen limits исключены как особенности сервисов; не technical PASS. Новая база требует только затронутой регрессии | Прежний результат сохранить; C — затронутая runtime регрессия, независимые R/Q. Выход: accepted history + совместимость; далее B02 |
+| **B02 01–12** | Account/device auth, signed profile/catalog, store binding, writer/session, полный файл и lifecycle на восьми AI | c5/d8/eebb частично на разных уровнях. Полного new tuple PASS нет: Start/Finish/reStart/draft/Copy/Hide/commands/session/large-file/negative scope | Автор новой композиции C после проверенной передачи; открытый B02 Тестера-2 сохраняется до неё. R полного scope; Q распределяет целые AI-группы и сквозные concurrency/identity tests. Выход: все применимые случаи из 12×8, exact package/config и независимый verdict; далее runtime B07–B13 и Health |
+| **B03 01–06** | Health producer/store/reader/API/UI, свежесть/severity/UNKNOWN, scoped maintenance, права/privacy | Reader c5 подключён. Current297 требует доступного точного источника перед использованием; H0–H3/13-контурный full scope не закрыт общим кодом | C; R consumers/privacy, Q весь Health/maintenance scope. Read-only наблюдение можно параллелить; mutation своего scope координируется. Выход: целый установленный Health; далее B04/B06 |
+| **B04 01–05** | Official acquisition/inventory/semantic diff/baseline/scheduler; минимальный WB bot upload раньше consumer | c5/c7 и C03 proposal различны. Два C03 P2, retry/schema lineage и действительный source→WB bundle/incident остаются | C с конечной B DB-помощью. R parser/authority/deadline/consumers; Q valid/invalid/unavailable/partial/retry cases. Source fixtures независимы, baseline/scheduler один writer. Далее B05 |
+| **B05 01–05** | Реальная тревога/восстановление разрешённому получателю, durable dedup/ACK/UNKNOWN | c7 TG, PR377 journal и service parts не весь installed route | A как автор полной поставки; C передаёт shared service contract. R/Q — receipt/restart/unknown/permission scope, не self-review A journal. Один poller; далее repair/эксплуатация |
+| **B06 01–05** | Health-specific case→candidate→evidence→review→approve/deny→ограниченный apply/наблюдение/pause/rollback | Read-only repair GET и generic P7 не полная функция. Нужны отдельные code-release и declarative-profile варианты | C. Независимые R/Q полного authority/negative/rollback scope, T1-origin части нейтрально. Изолированные случаи можно проверить отдельно, shared apply нет. Далее безопасная эксплуатация |
+| **B07 01–06** | Полный store/vault CRUD, права/отмена/удаление/смена, два кабинета Ozon/WB | Части credential/import есть; один магазин B02 не весь блок | A. R/Q всех identity/permission/negative cases. Независимые fixtures допускают parallel, shared vault mutation fenced. Выход: два различимых кабинета без смешения; далее B08/B20 |
+| **B08 01–06** | Изоляция разных AI/dialog/store/marketplace и оба порядка Start/Finish/rebind | d8 source writer не native concurrency proof | C. R/Q поздних callbacks/authority/generation и сквозной concurrency. Намеренная согласованная многоконтекстность — сам предмет теста; не запрещать её правилом одного оператора. Далее B09/B10 |
+| **B09 01–05** | Batch grammar/allowlist/confirm/cancel, ledger, delivery/TTL, частичные ошибки | Очередь/буфер частично есть; требуется полный batch и Copy без повторного business execution | A. R/Q всех batch/expiry/duplicate/cancel путей на реальном consumer. Разные frozen контексты допускают отдельные группы. Далее B10/бизнес-команды |
+| **B10 01–05** | Durable recovery/offline/access TTL/cancel/Finish при ожидании и истёкшем буфере | Исторические результаты не новый installed PASS; нужна точная policy потери истории | C. R/Q restart/fault/UNKNOWN весь scope. Chaos только на выделенной среде; другая source работа продолжается. Выход: восстановление без replay/чужих данных; далее resilience/RC |
+| **B11 01–06** | Две установки, local crypto/relay/отдельное key approval/ACK, полный import/export | D39 ранняя часть; пароль/повреждение/конфликт/отмена/TTL/restart/потеря ACK открыты | A с конечной B relay-помощью. R/Q реального двухустановочного сценария. Его половины не независимые PASS; далее B12/B13 |
+| **B12 01–07** | Обычные site/portal/OTP/mail/code/device маршруты, доступность/mobile/keyboard в исходном scope | D39 не весь кабинет и не все UI/legacy/errors/expiry | A с существующим SITE держателем. R/Q всех входов/сохраняемого code/второй установки без лишнего нового сайта. OTP ожидание блокирует только свой путь. Далее devices/бета onboarding |
+| **B13 01–07** | Device/session/refresh/logout/revoke/rotation/emergency и судьба ключей | c5/d8 части есть; полная межаккаунтность и negative paths не закрыты | B как полный автор с нужной A UI-помощью. R/Q всех authority/legacy/revoke/local-data границ. Отдельные accounts допускают parallel; mutation одного аккаунта serial. Далее B14/B15 |
+| **B14 01–05** | Полная Owner/Ops/Beta/Support матрица, DTO/schema/privacy/audit/last-owner/stale-edit | Сохранить PR380 0aed и T2 context; 9 API FAIL, 38 PG/23 E2E NOT_RUN; 425 units недостаточно | B после адресной custody T2; конечное T2 исправление допустимо при меньшей цене, не второй постоянный поток. R/Q нейтральны к соответствующему вкладу. Ролевые fixtures parallel после shared schema; далее B15/B16 |
+| **B15 01–05** | Atomic beta quota/entitlements/admission, последний слот/идемпотентность/пауза/старый user/новая установка | Бесплатная бета не real-money. Shared lifecycle уже имеет worker consumer | B. R/Q полного concurrent admission/negative scope. Намеренный last-slot race — согласованный тест, не нарушение изоляции. Выход не разрешает публичный набор; далее B32 |
+| **B16 01–05** | Feedback/support/consent→безопасные sinks→Support→агрегаты/удаление | F03/privacy перед первым sink, не только в конце блока | B с SITE/UX помощью. R/Q redaction/retention/foreign-account и отсутствия raw business/dialog/secret data. Независимые support fixtures parallel. Далее SUSTAIN/B31 |
+| **B17 01–06** | Полные profile draft/preview/version conflict/publish/pin/history/rollback и AI-TREE/A33–A40 | Published consumer нужен Start/repair раньше; полный editor не prerequisite раннего Start | A; C владеет согласованным shared runtime contract. R/Q полного editor+consumer rollback/negative scope. Source параллельно после pinning/isolation; далее B18/B30 |
+| **B18 01–04** | Реальные обязательные Chrome/Opera/Yandex/Firefox, ОС/AI/package profiles; Safari deferred | A05 сохранить/довести перед применением; два P2 открыты. Linux Chromium/CfT не Windows branded Chrome proof | A. R/Q всего обязательного browser/OS scope на настоящих устройствах. Разные реальные profiles могут проверяться параллельно; фактический Windows route ещё установить. Далее B19 |
+| **B19 01–05** | Store submission/moderation/install/update N→N+1/сохранность/rollback каждого обязательного канала | Ранний STORE-E по собственному квалифицированному slice допустим; manual ZIP не store install | A с existing release custodian. R/Q package/trust/privacy/reviewer-login/recovery. Moderation external wait перекрывается другой готовой работой. Далее выпускные B31/B32 |
+| **B20 01–08** | Methods/fields/permissions/period/units/IDs/pagination/continuation, gold всех 45+8 вопросов на Ozon/WB | Данные нужны семействами до первых consumers. 53 mapping-строки — 45 unique +8 повторов; STD21–28 индивидуально не привязаны | B — data contract; конечная A extraction/UI помощь. R/Q source/file completeness и независимые gold, missing≠zero. Семейства parallel после общих definitions. Далее B23–B29 |
+| **B21 01–05** | Реальный backup/restore→app read→update/rollback→продолжение, измеренные RPO/RTO | Ранняя обратимость до deployment; aaec/ops inputs сохранять. Симулятор не реальный restore нового tuple | B с release C. R/Q schema/applied-hash/config/services/контрольные данные на выделенной DB. Restore не параллелить с чужой QA на той же БД. Далее B31/B32 |
+| **B22 01–06** | Полная связная техника B01–B21 на согласованном составе без ручной сборки | Ранний STD-01 не заменяет эту границу; прошлые разноверсионные PASS не суммируются | C — RC integration; авторы чинят свои возвраты. R/Q полного применимого technical coverage, reuse только доказанно неизменного. Далее полный semantic этап |
+| **B23 01–08** | STD01/08/16/20 и CAP01/12/19/24 на обеих площадках | Восемь задач полностью; если ранний STD01 отдельно принят и выполнен, evidence учитывается только с теми же inputs. Исключение сейчас не принято. Иное «вчера» требует актуального reference | A с B data inputs. R/Q extraction+delivery+semantic отдельно и полный gold/negative scope. Независимые dataset lanes parallel. Далее семейства B24–B29 |
+| **B24 01–05** | Sales/order totals/dynamics/top/сопоставимость/нули/неполнота; STD01–04/CAP09, обе площадки | Нужны period/grain/status/currency и независимые totals, не только верный файл | A. R/Q полного вопроса→источник→файл→ответ; не считать повтор STD01 новым уникальным вопросом. Далее пригодные sales joins B25/B28/B29 |
+| **B25 01–13** | Inventory/warehouse/shipment/demand: STD07–13/15, CAP04–08 | История спроса/идентичности/FBW-FBS/pagination/source time; current stock не история движения | B — полный data/use case с A конечным UI участком. R/Q всех source/grain/history/partial/negative границ обеих площадок. Семейства parallel с sales при stable IDs. Далее спрос/остатки/joins |
+| **B26 01–13** | Catalog/price/quality/returns/logistics и STD24–27 резервные | B26-10…13 не имеют individual reserve mappings/gold; права/тариф/пустота/нет WB аналога объясняются честно | A. R/Q всех основных/резервных кейсов и отсутствующих inputs. Не добавлять business-write. Далее product decisions/B29 |
+| **B27 01–06** | Finance/returns/storage/decimal/ad-cost: CAP13/14/24, STD21–23 | B27-04…06 требуют mappings/gold; закрытый период/знаки/late corrections/joins без double count | B. R/Q независимых сумм/period/precision/negative cases обеих площадок. Ad-cost mechanism до расчёта, не full B28. Без COGS/налогов не net profit. Далее finance conclusions |
+| **B28 01–07** | Advertising: STD16–20/CAP17–18, расходы/ДРР/attribution и ограничения выводов | Seller/Performance/WB rights, sales/stock joins и period definitions нужны раньше; full B27 не gate | A с конечными B provider inputs. R/Q обеих площадок, прав/расходов/границ причинности. Отдельные frozen datasets parallel с finance. Далее B29/B30 |
+| **B29 01–09** | Cross-source decisions: STD05/06, CAP19–23/25, STD28 | B29-09 individual reserve mapping отсутствует; пригодные sales/ads/stock/returns, внешние источники/owner files/свежесть | B — data/result owner с A UI помощью. R/Q joins/источники/неполнота/факты против гипотез. Не выдумывать backend archive вместо owner file. Далее полный AI semantic scope |
+| **B30 01–05** | Весь применимый основной/резервный корпус на остальных AI/режимах | Нужны пригодные технические lanes и один принятый data/gold contract. Delivery и смысл раздельны | A как автор итоговой AI-поставки; Q — группы реально независимых AI/browser-профилей и общий ведущий функциональной проверки. R/Q всего согласованного scope; не урезать и не изобретать Cartesian matrix. Далее B31 |
+| **B31 01–05** | Один RC, полный пользовательский день: техника/смысл/Health/support/channels/recovery/SITE и PAR/AI-TREE/TR/Q1-C/A33–A40 | Совокупность зелёных разных версий не RC. Настоящее время наблюдения остаётся | C — release-result owner; все авторы отвечают за свои возвраты. R/Q всей связности и дня, внешних/negative границ. Во время observation — только востребованные independent work/fixes. Далее B32 |
+| **B32 01–06** | Разрешённая бесплатная beta-волна, admission/capacity/SMTP/ingress/privacy/SITE/support, stop/rollback | B31 и отдельное owner разрешение на реальный набор/расширение; 100→200/300 не автоматический таймер | C — выпуск/доведение, B capacity/data, A UX/support исправления; Q/R независимые затронутые границы. Реальная feedback/наблюдение; далее SUSTAIN и отдельное коммерческое решение |
+| **B33 01–05** | Отдельно разрешённая коммерция: checkout/webhook/reconcile/refund/expiry/grace/idempotency/notifications | Simulated P4/P5 и 303 сохранить; real-money scope отложен. Общий SubscriptionLifecycleRunner уже потребляется worker раньше | B как полный author после решения; R/Q providers/security/money/negative/lifecycle, release C по нужному контракту. Не начинать ради загрузки; далее коммерческая эксплуатация |
+
+
+### 6. Все технические обязательства — 21 пункт
+
+ID ниже — требования, а не три личных backlog. Продуктовый B02/Health B03 не равны техническим bootstrap/relay. Полный исходный текст задач и условий PLAN сохраняется без сокращения в проекте; таблица показывает потребителя каждого обязательства.
+
+| PLAN ID | Сохранённый результат / ближайший потребитель |
+|---|---|
+| A01 | B01/B02 ordinary Start/account и browser families; затем B18 |
+| A02 | Ранние key-import/transfer primitives D39; полный B11 с ENG B03 |
+| A03 | Реальные browser/OS B18 и каналы B19 |
+| A04 | B02/B07–B10/B20 команды/Ozon/WB/доставка/изоляция/recovery |
+| A05 | Надёжная modular build граница; сохранить A05v7 и довести перед реальным consumer, без массовой переписи |
+| A06 | Installation/UX/diagnostics/feedback B12/B16/B19/SUSTAIN |
+| B01 | Migration lineage/applied hashes/backup/restore до первого изменения схемы; полный B21 |
+| B02 | Signed bootstrap/config/catalog/profile до Start/D39; полный B17 |
+| B03 | Relay TTL/caps/revoke/ACK/delete/restart до key transfer; полный B11 |
+| B04 | OTP/SMTP/device/session/refresh/revoke/sync до D39/B02; полные B12/B13 |
+| B05 | Four-service package/user/limits/backup/rollback и настоящий PG restore; B21/B32 |
+| B06 | Минимальные admin/RBAC/beta/support/privacy до первого consumer; полные B14–B16 |
+| B07 | Post-beta реальные отзывы/исправления/регрессии в SUSTAIN, не subscription-наименование |
+| C00 | Общая основа/ресурсы/конечный переход |
+| C01 | Exact source/package/trust/release и negative ZIP; четыре c7 файла первой основе |
+| C02 | Совместимая композиция/контракты/non-force/readback каждой поставки, без обязательного лишнего handoff C |
+| C03 | B04 acquisition/semantic diff/WB bundle/deadline/retry/uncertainty |
+| C04 | B03–B06 Health/Telegram/wiring/permissions/lanes/privacy |
+| C05 | Реальный PG backup/restore/app-read/migration/rollback согласованного tuple |
+| C06 | Полная SPEC→implementation→checks→installed связность B22/B31 |
+| C07 | Разрешённый выпуск/smoke/наблюдение/stop/rollback/feedback B32/SUSTAIN |
+
+
+### 7. Исторические R/S/P и бесплатная эксплуатация
+
+R0–R3: identity/UI/server/выдача, R4: канал; S0: сохранность и достоверные исходы, S1: реальный сбой, S2: управляемый repair, S3: устойчивость/расширение. Эти шкалы сохраняют требования и происхождение, не образуют отдельные конкурирующие очереди.
+
+| P0–P15 server roadmap | Что уже является основанием и что остаётся в текущей программе |
+|---|---|
+| P0 | Архитектура/security/contracts приняты исторически; согласовать поздний D39 и ссылки в переходной документации, не проектировать заново |
+| P1 | Workspace/PG/CI существует, c5 имеет реальные gates; переходные квалификации подтверждают маршрут нового кандидата |
+| P2 | OTP/device/access-refresh/limits/audit/portal существуют; продуктовый B12/продуктовый B13 квалифицируют D39 и обычные два браузера |
+| P3 | Signed bootstrap/config/key rotation/offline есть; переходная основа и продуктовый B17 проверяют текущие revisions и конечных consumers |
+| P4 | Plans/prices/entitlements/revisions есть; бесплатный доступ продуктовый B15, реальная коммерция продуктовый B33 |
+| P5 | Billing FSM/webhook/reconciliation/jobs исторически приняты с simulated provider; 303/45 PG и production provider не приняты автоматически |
+| P6 | Admin RBAC/read/mutations/audit/UI база есть; продуктовый B14 устраняет Beta-role/DTO и реальные action gates |
+| P7 | Registry/profiles/assignment/rollout/pause/rollback база есть; продуктовый B17 весь AI-TREE, продуктовый B06 отдельный Health consumer |
+| P8 | H0–H5/driver/scheduler/incidents/repair частично приняты исторически; продуктовый B03–продуктовый B06, не общий DONE по старым P8.1–8.3 |
+| P9 | Diagnostics/alerts/retention частями; продуктовый B16 и продуктовый B03–продуктовый B05 |
+| P10 | Simulated client/integration fixtures существуют; используются в квалификации и каждой затронутой единице, не заменяют installed |
+| P11 | Общий marketplace bridge существует; продуктовый B07–продуктовый B11/продуктовый B20 текущая композиция и обе площадки |
+| P12 | Полный Chrome путь и store/update/recovery частично выполнен; продуктовый B02/продуктовый B19/продуктовый B22/продуктовый B31 |
+| P13 | Yandex/browser distribution подготовлены; продуктовый B18 собственные branded proofs |
+| P14 | Ingress/TLS/secrets/backup/session/SMTP/MFA/staged launch: службы есть, часть root/infinity; продуктовый B21/продуктовый B32 полный эксплуатационный результат |
+| P15 | Расширение источников/ИИ/браузеров идёт по позднему общему SPEC, включая WB в бесплатной программе; продуктовый B18/продуктовый B20–продуктовый B30. Старое коммерческое условие не возвращать |
+
+### 8. Бизнес-вопросы, AI, браузеры и ОС
+
+[BUSINESS_SCENARIOS.tsv](../../product/readiness/BUSINESS_SCENARIOS.tsv) сохраняет 45 основных вопросов, [RESERVE_SCENARIOS.tsv](../../product/readiness/RESERVE_SCENARIOS.tsv) — 8 резервных. Все 53 ID и обе формулировки Ozon/WB сверены с полной аналитической матрицей без расхождений. Исторические Ozon PASS в TSV не переносятся на новый продукт/дату/AI. Mapping — описание операции, не доказанный live result. Для всех вопросов нужны полный исходный файл, правильные period/timezone/grain/units/currency/identity, полнота pagination и независимый числовой эталон; missing/partial/403 не ноль.
+
+Основной корпус: STD01–20 и CAP01–25. Резерв: STD21–28. В блоках 53 строки с mappings включают 8 повторов ранних контрольных задач. Это 45 уникальных основных вопросов, а не 53 уникальных сопоставленных вопроса. Индивидуальные gaps: B26-10…13 ↔ STD24–27; B27-04…06 ↔ STD21–23; B29-09 ↔ STD28. Общие existing operations могут использоваться, но требуют собственной цепи/эталона до приёмки резерва.
+
+Минимальные технические data families готовятся до первых consumers, полный B20 остаётся обязательным. Рекламные расходы для finance и sales/stock для advertising не требуют закончить соответствующий поздний бизнес-блок целиком. Наличие owner file для CAP25 не означает создание нового backend архива. Без COGS/налогов не обещается чистая прибыль; current stock не история движения; корреляция не причинный бизнес-вывод.
+
+По переданным поздним owner-уточнениям текущий авторизованный scope B02 включает восемь поверхностей: ChatGPT Standard, Алиса, DeepSeek, Grok, Claude, Gemini, Qwen, Kimi. Историческая девятая ChatGPT Work сохраняется как отдельное обязательство/адресно отложенный scope, не молча удалённая строка и не полученный PASS. В исходном c5 MINIMUM_SPEC/TEST_PLAN ещё встречается минимальная тройка Standard/Work/Alice, а acceptance шире. Действующая применимость зафиксирована поздней описательной сводкой в OWNER_BLOCK_ACCEPTANCE.md и настоящим разделом; старые несовпадающие описания сохраняют происхождение и не создают второй текущий состав. Guest B01: ChatGPT/Алиса/Qwen с точными поздними исключениями. Scope Health и будущих режимов не становится автоматически поддержкой расширения.
+
+Для B07–B22 все применимые диалоговые/command/report пути учитывают принятые AI/guest режимы; независимые формы admin/кабинета не размножаются бессмысленно по моделям. B30 сохраняет полный принятый смысловой scope. Исторические 270 основных + 48 резервных запусков отражают старую матрицу 3 поверхностей; позднее расширение прослеживается, не урезается до этой тройки и не заменяется выдуманным полным декартовым произведением всех браузеров.
+
+Бета: Chrome, Opera, Yandex, Firefox; Windows проверяется реальным owner-подобным маршрутом. Linux Chromium/CfT не branded Chrome/Windows proof. Полные варианты ОС/каналов фиксируются реально проверенным release manifest, а не выдуманной минимальной версией. Safari/macOS — DEFERRED_POST_RELEASE_BY_OWNER по исходному решению, не PASS и не gate бесплатной беты. Его будущая отдельная приёмка сохраняется.
+
+### 9. SITE, выпуск и сопровождение
+
+SITE — отдельный действующий scope, но его нужные страницы/OTP/install/privacy/support/reviewer route являются зависимостями продукта до B12/B19/B31/B32. Существующий holder передаёт нужный законченный результат; C не присваивается исключённый apps/site. SEO не добавляется автоматически.
+
+Store имеет ранний собственный полезный slice и полный итоговый channel route. Сохранены submission/moderation/install/N→N+1/data preservation/rollback. Модерация может идти одновременно с независимой работой, не заменяет beta admission и не требует всех поздних блоков для первого безопасного slice.
+
+Бесплатная beta включает контролируемое admission/capacity, наблюдение, реальные feedback/support и остановку/возврат при проблеме. Рост 100→200/300 не автоматический таймер. SUSTAIN сохраняет реальные исправления/регрессии и работу с обратной связью как конечные результаты общей программы. Инциденту назначается автор, независимая проверка и выпускной outcome; отдельный бесконечный поток автора/аудитора не создаётся.
+
+Коммерция B33 остаётся отдельно: тариф/provider/checkout/webhook/reconcile/refund/expiry/grace/idempotency/уведомления. Simulated P4/P5 и source 303 сохраняются с происхождением; R2 review/45 PG открыты. Общая безопасность подписочного lifecycle проверяется раньше по нынешнему worker consumer, не ждёт real-money решения.
+
+
+### Точные начальные входы перехода и сохранение доноров
+
+Состав ниже — проверяемые входы принятого перехода. Он не разрешает перезаписать изменившийся main или чужой WIP. Т2 сохраняет весь открытый B02 и B14; запись C/B как потребителей не является квитанцией передачи.
+
+| Вход / provenance | Доказанность | Включение сейчас / позже / остаток |
+|---|---|---|
+| Main `c5d0ad95397c376928da7462d7606993e32fbbd4`, tree `1291367392ca9428249c0e3952050ba9880bbaa0` | Повторно подтверждён GitHub/local HEAD | Текущая основа и main-only fixes/требования. Не перезаписать старыми docs/coverage |
+| d8 `d8c47245bd2ef4b4a2704d72e45c883b6c92d0ec`, tree `c25e44968659597427880626c193cc35b6dc2c30` | Реальная clean копия `/root/octoport-control/operator/tester2-b02-published-integration`, branch `work/tester2-b02-r5-integration-20261030`; source/package checks с открытым новым independent/installed scope | Основной донор auth/runtime/recovery/delivery. C создаёт реальную новую композицию, Фактические держатели T1/T2 передают context/outcomes и авторское происхождение; весь открытый B02/B14 T2 сохраняется до подтверждённой передачи |
+| Общий предок `cd86d53c2bfdf12976d516419f58baf3d3e8d1dd`, tree `bad630c991dbfefdf499db874f93c1857015b94d` | Трёхстороннее сравнение выполнено в предыдущем анализе; HEAD/tree актуальность повторно сверена | Основа разрешения changed postimages, не blind cherry-pick |
+| c7 `c7fa63270c60f264e20c293ef97a15279072c37c`, tree `31aa7103939a1876e2aee3a64e240e4361b0c311` | 34 пути: 4 release, 21 API-watch, 9 TG; отдельные source verdict — не полная проверка кода всех 34 файлов | Сейчас только 4 нужных release-файла. API-watch/TG сохранить B04/B05 до своих consumers |
+| PR354/009 `0092751dc2c29c853d4b3ae6586c4f889f9fd82b` | Исторический CI/package D39; 147/161 старых postimages буквально в d8 по сохранённому сравнению | Происхождение и old evidence. Не заменять current d8 старым PR и не переносить его CI на новый состав |
+| eebb installed / manual d8 ZIP | Native действия и выданный пакет — разные факты. хеш ручного пакета d8 `b2b4a0e7b981dbae47fbb4897058ee18f69ac3231fb121dd189b9eccff3be06b` | Сохранить точные bytes/outcomes/UNKNOWN. Передача владельцу 31.10 10:54 UTC+5 не installed PASS; новый currentRun не создаётся аналитиком |
+| A05v7 | Source-only: 4 postimages, commit отсутствует, 2 P2: native-result5/inert-arguments6; поздний авторский RED | Сохранить source/patch/oracles и lineage PR248. Довести перед реальным build/browser consumer, не включать незакрытое ради полноты первой основы |
+| Отдельный C03 stream proposal | Base `e43c3c949a42486b31bd31034e723092171c42e3`; не c7 commit; 2 P2 Buffer.slice storage/deadline starvation | Сохранить до B04; исправить и независимо квалифицировать перед потреблением. 7 source + 7 built — те же 7 случаев |
+| Subscription303 `303ea47f489d466ff2421cbfab355eb0655b887f` | Parent 238, tree `2ab0aa520dbd7b2c2593cef471e5280eac3c2970`; R2 review/45 PG открыты; production bytes unchanged | Определить нужность shared worker safety до первого затронутого consumer. Real commerce остаётся B33. Не запускать 45 PG ради нынешнего анализа |
+| Migration `aaec20ef2d2bd09d222e0ea51eca66540911639a` | Сохранённый отдельный источник; общий current migration lineage не доказан им автоматически | Только нужные compatibility changes первой схеме, остальное B21; source custody/review и fresh/prefix/legacy/restore evidence |
+| Health `2973297ec0969652e1182662a34f1713674c491d` | Поздний operational receipt сообщает 435 авторских проверок/build; полных latest source/независимого verdict здесь нет | Первый consumer B03/B06. Не делать его gate B02 без actual зависимости. Старые a122 PG23/R411 не PASS current297 |
+| F03/f1c5, F06 privacy/Health | Имеются сохранённые ссылки/операционные ограничения, полный актуальный комплект не получен | Сохранить custody; privacy до первого затронутого sink, exact scope/manifest/доступ требуется от существующего держателя. Отказ передачи не кодовый FAIL |
+| B14 PR380 `0aed9c171a923dad0073dae4c78bfd62cdc6aa3a`, tree `2ab138ead063cb01e454fddf0451dcf83a13a9b7` | 33 файла, 425 unit; 9 API FAIL, 38 PG/23 E2E NOT_RUN | Сохранить T2 provenance и весь открытый B02/B14; передать конкретный B14 scope автору только с подтверждённым custody. Завершение прежним автором конечного уже начатого fix сравнивается с ценой передачи; не автоматический новый поток |
+| Прочие 59 PR | Полный head/ref/postimage/consumer/fate сохранён в исходной аналитической матрице 59 кандидатов, не полное новое source-review всех тел | Перед первым consumer сравнить current bytes и включить нужный непотреблённый остаток; историю/negative evidence сохранять. Не интегрировать все для старта |
+
+### 2.1. Почему c5+d8 и только часть c7
+
+Сохранённое трёхстороннее сравнение: 176 d8-only, 21 main-only, 1 both-different `tooling/checks/extension_import.py`, 1 converged изменённый `packages/marketplaces/wildberries/src/batch-adapter.js`. Собственный d8 diff от общего предка 178 путей, а 161 — старый PR354. Числа не мера сложности.
+
+Сохраняется main там, где d8 равен предку; потребляется нужный d8 там, где main равен предку; одинаковые postimages не переносятся дважды; реальный conflict разрешается по требованиям обоих consumers. Полная согласованная дельта d8 — исходная гипотеза для связанного auth/runtime, потому что случайное вырезание частей создаёт новую конфигурацию. Каждый реально лишний/obsolete/независимый путь может быть оставлен отдельно по доказанной причине с сохранёнными bytes. Ни «весь d8 обязательно», ни «выбрать только несколько удобных файлов» без dependency анализа не является приёмкой.
+
+Четыре c7 пути первой поставки: `tooling/b1/release-lib.mjs`, `tooling/b1/release-input-snapshot.test.mjs`, `tooling/b1/release-needed-version.test.mjs`, `.github/workflows/coordination.yml`. Остальные 30 имеют потребителей B04/B05. Если обнаружится нужная общая зависимость, состав расширяется предметно с новой квалификацией, не ради «слить всё».
+
+### Предметное завершение перехода
+
+Переход завершается известной совместимой общей source/tree/config/schema/profile/catalog/trust версией, независимым source verdict, обязательными exact-candidate проверками, воспроизводимым пакетом, полным согласованным D39 двух установок, пригодной выдачей, отдельным owner-статусом и сохранёнными донорами/ресурсами. Дальнейшие B02–B33 не объявляются выполненными; будущий SHA не придумывается. Владелец согласовал метод и запуск после аналитики и сопоставления; эта запись сама не является доказательством фактического старта T3–T6.
+
+| Этап | Исполнитель / вход | Предметный выход / окончание | Независимая работа |
+|---|---|---|---|
+| T3. Конечная передача и карта мощности | После возобновления: C/T1/A/B/T2/reviewer; точные версии и WIP из §2 | У каждого входа сохранённый источник/владелец/потребитель; названы независимые проверяющие, фактические инструменты и среды; общие ограниченные ресурсы/неизвестности показаны | Только потребляемая подготовка и независимые готовые функции в принятом scope; не новый аудит всех 59 PR |
+| T4. Новая композиция и исходный прогноз | C; c5+d8+четыре c7 пути, необходимые схемы; фактические входы T3 | Новый SHA/tree/manifest, разрешён extension_import конфликт, объяснены включённые/оставленные пути, пригодны CI/сборка/полный QA. Условный прогноз всей бесплатной программы готов до первого полного QA handoff | A/B выполняют конечные нужные входы либо другие готовые функции со своим маршрутом. T1 передаёт данные, не достраивает за C |
+| T5. Независимая квалификация и полный D39 | Независимые code/QA участники, автор, существующий держатель соответствующего действия | Полный source verdict, весь функциональный scope и общий баг-пакет, авторский общий patch/повторная квалификация; обязательные проверки exact SHA; полный согласованный D39 двух установок; пригодная выдача и отдельный owner-статус | Проверка зафиксированного состава и независимая работа параллельны там, где это реально возможно. Общие изменения состояния согласованы |
+| T6. Переход закрыт | dot и пригодный независимый проверяющий программы | Известная проверенная исходная версия, сохранённые доноры/история, реальные потребители оставшихся ресурсов и следующий законченный результат | Полный B02 и вся программа 02. Открытые поздние блоки не превращают переход в бесконечное слияние |
+
+### Условный прогноз всей программы
+
+Первый условный прогноз всей бесплатной программы — выход T3–T4, **до первого полного frozen QA handoff новой композиции**, не «после B02». Авторы/QA/reviewer дают в существующем PLAN по каждому результату полной программы:
+
+| Величина | Как получить конкретно | Граница |
+|---|---|---|
+| Остаток реализации/стыковки | Имеющиеся source/diff/consumers и остаток по каждому из 216 случаев в исходной аналитической матрице; ограниченная экспертная оценка автора | Не измеренное время, если аналога нет; фактический source-review всех 59 не заявлен |
+| Review/QA мощность | Именованные доступные участники и whole scope/groups; provenance/tool/env route; existing receipts start/end | Свободный чат не capacity; отсутствующий native доступ — открытый вход |
+| Возвраты/rework | Истории нескольких exact candidates, common-cause findings, исправления/повтор | Не сумма всего календарного возраста; интервалы не выдумываются |
+| Общие ресурсы | Existing env/DB/browser/profile/custodian/CI availability и фактический пик | Checkout не отдельная среда; CPU/wall/agent effort различаются |
+| Внешние окна | Actual AI/login/SMTP/store/moderation/cohort/owner необходимые действия | Если срок не ограничен, верхний календарный bound открыт, а не ноль |
+| Стоимость | Только доступные billing/token/CI/resource records | Меньше текста не cache hit; elapsed не денежный счёт |
+
+dot сводит optimistic/рабочий/неблагоприятный сценарии с условиями и всей сетью зависимостей. Календарь ограничивается и critical path, и суммарной нагрузкой каждого дефицитного ресурса. Первоначальный диапазон может быть экспертным, но его состав/источник видимы. Неоценённая существенная строка имеет named input и этап получения оценки в T3–T4; её нельзя спрятать общим «позже».
+
+Далее actual D39/полный B02 уточняют runtime/AI класс; Health/repair — свой; RBAC/DB/data/gold/browser/store/restore — свои. После каждого контрольного события пересчитывается весь остаток до beta/SUSTAIN, не только следующий номер. B31 день/внешняя модерация/beta-наблюдение не исчезают от дополнительных авторов. B33 оценивается после отдельного коммерческого решения, общая lifecycle safety — раньше.
+
+Известные обязательные цепочки для расчёта критического пути:
+
+| Цепочка | Связь, которую нельзя убрать параллельностью | Что может изменить критичность |
+|---|---|---|
+| Общая композиция → ordinary auth/profile/store → полный D39/B02 → техническая связность B22 | Без пригодной версии нельзя принять зависимый installed основной цикл | Реальное время source/QA/возвратов и neutral capacity; не суммировать независимые ветви автоматически |
+| Health producers/read/rights → API-watch/notification/repair необходимые consumers → B22 | Полные ранние Health обязательства остаются; минимальные RBAC/profile/rollback входы готовятся заранее | Если текущий 297/authority/privacy недоступны, именно их ветвь может стать критической; независимые store/data/browser исходники не обязаны ждать |
+| Data/period/units/IDs/gold → B23–B29 → B30 | Без пригодных inputs нет доказанного business answer; ad-cost нужен finance до расчёта | Отдельные data семьи можно параллелить; настоящий longest path определяется residual и проверочной мощностью, не номерами 27/28 |
+| Реальный browser route → store install/update/moderation → B31 | ZIP не заменяет channel proof и Windows/Linux не взаимозаменяемы | Ранний запуск собственного квалифицированного store slice перекрывает внешнее окно другой работой |
+| Migration/backup/real restore + admission/privacy/SITE/support → B31/B32 | Публичный выпуск требует эксплуатационной пригодности и нужных consumer pages | Изолированная restore DB, actual custody/SMTP/capacity и существующий holder могут ограничить календарь |
+| B22 + весь semantic/browser/ops scope → B31 день → разрешённая B32 волна → SUSTAIN | Один совместимый RC и реальное наблюдение/обратная связь обязательны | Календарный день/внешний cohort не сокращаются добавлением автора; реально возникший incident создаёт возврат |
+
+Это сеть известных обязательных связей, а не заранее вычисленный longest path. Без длительностей/доступности стадий объявить одну ветвь критической на весь продукт нельзя. T3–T4 дают первый ресурсно ограниченный расчёт, в котором перечисленные ветви сходятся; при смене assumptions пересчитывается весь прогноз. Owner acceptance и защищённые release решения отображаются отдельными ожиданиями, а не скрываются в active разработке.
+
+### Ресурсное завершение и проверка эффекта
+
+В существующей записи результата сохраняются создавший ресурс автор, точные входы, потребитель, исходное/пиковое/конечное место и условие завершения. Совместимые неизменные артефакты используются по применимости; fault/restore имеет реальную изоляцию. Сохраняются уникальные source/patch/oracles, отрицательные доказательства, пакеты и нужный rollback. После последнего потребителя завершение своих временных ресурсов подтверждается фактическим исходом в действующих границах. Уже материализованное и будущий резерв не вычитаются из доступного дважды.
+
+В существующих checkpoint/feedback/PLAN отражаются scope, source ready, review/CI/QA start/end/block, полный пакет замечаний, исправление, квалифицированный состав, выдача, отдельная ручная приёмка и завершение ресурсов. Источник, часовой пояс и точность времени сохраняются; неизвестные интервалы и перекрытия не превращаются в выдуманную сумму.
+
+Эффект оценивается по времени до сопоставимой пригодной функции и независимого installed verdict, возрасту очереди, причине возвратов, регрессиям/пропускам, пригодности QA-входа и ресурсному хвосту. Полнота — 21 техническое обязательство, 33 блока, 216 случаев и 45+8 вопросов. Фактическая денежная экономия требует доступных измерений. Смена текста, число коммитов и RUNNING не доказывают успех.
+
+Полный независимый аудит Контроллера требуется по уже согласованным событиям: переход, перед B22/B31/B32, сорванная контрольная точка, существенное старение/рост очереди, повтор системной ошибки или существенное расхождение. dot исключает дубль покрывающего аудит вопроса. Остальные продуктовые milestones служат контрольными событиями программы, а не создают постоянный второй диспетчерский цикл. Самоаудит dot каждый час включает своевременность запуска Контроллера за прошедший интервал.
