@@ -729,18 +729,9 @@ function redactEmbeddedDiagnosticJson(input: string, depth: number): string {
       edits.some((edit) => edit.start <= token.start && edit.end >= token.end)
     )
       continue;
-    // An undecodable identifier-shaped label may retain its spelling while
-    // its entire value is private. Opaque free text or Unicode-escaped labels
-    // cannot prove that they contain no assignment/value, so mask them too.
-    if (
-      token.value === null &&
-      token.key &&
-      privateFields.some((field) => field.key === token) &&
-      /^(?:[\p{L}\p{N}_-]|\\(?!u)[A-Za-z])+$/u.test(
-        basic.slice(token.start + 1, token.end - (token.closed ? 1 : 0)),
-      )
-    )
-      continue;
+    // Opaque spelling cannot prove string identity or exclude private text.
+    // Mask every undecodable token, including the entire key. Supported,
+    // decoded keys still follow the normal recursive scrubber below.
     const sanitized =
       token.value === null
         ? "[REDACTED_SECRET]"

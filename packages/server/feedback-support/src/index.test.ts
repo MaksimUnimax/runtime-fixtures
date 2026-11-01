@@ -521,7 +521,8 @@ describe("B2 feedback/support safety foundation", () => {
       '{"access_token\\q":"synthetic-malformed-key-private","requestId":"request-kept"}';
     const sanitized = sanitizeFeedbackText(raw);
     expect(sanitized).not.toContain("synthetic-malformed-key-private");
-    expect(sanitized).toContain('"access_token\\q":"[REDACTED_SECRET]"');
+    expect(sanitized).not.toContain("access_token\\q");
+    expect(sanitized).toContain('"[REDACTED_SECRET]":"[REDACTED_SECRET]"');
     expect(sanitized).toContain('"requestId":"request-kept"');
   });
 
