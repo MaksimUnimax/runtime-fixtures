@@ -52,6 +52,7 @@ on:
         "work/a-extension",
         "work/b-backend",
         "work/c-integration",
+        "tester/account-connection-code-20261027",
         "controller/**",
       ]
   workflow_dispatch:

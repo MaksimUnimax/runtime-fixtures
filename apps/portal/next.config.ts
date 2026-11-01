@@ -21,6 +21,18 @@ const productionHeaders = [
 
 const config: NextConfig = {
   poweredByHeader: false,
+  transpilePackages: ["@product/contracts", "@product/shared"],
+  webpack(config) {
+    // Shared packages use NodeNext .js specifiers for TypeScript sources.
+    // Resolve those sources consistently in the browser bundle as well.
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      ".js": [".ts", ".tsx", ".js"],
+      ".mjs": [".mts", ".mjs"],
+      ".cjs": [".cts", ".cjs"],
+    };
+    return config;
+  },
   async headers() {
     if (process.env.NODE_ENV === "production")
       return [{ source: "/:path*", headers: productionHeaders }];

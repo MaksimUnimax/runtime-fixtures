@@ -132,7 +132,11 @@ def ozon_route(runner, work, runtime, label, source_route, expected_version="0.1
         if version_profile["qwen_guest"] and key == "host_permissions":
             ai_hosts = baseline.read_json(ROOT / "apps/extension/composition.json")["ai_hosts"]
             # Exact owner-approved source hosts; this does not activate a provider.
-            assert ai_hosts == ["https://chat.qwen.ai/*", "https://www.kimi.ai/*"], "UNAPPROVED_AI_HOST_INVENTORY"
+            assert ai_hosts == [
+                "https://chat.qwen.ai/*", "https://www.kimi.ai/*",
+                "https://grok.com/*", "https://gemini.google.com/*",
+                "https://claude.ai/*", "https://chat.deepseek.com/*",
+            ], "UNAPPROVED_AI_HOST_INVENTORY"
             expected_permissions += ai_hosts
         if version_profile['marketplace_hosts'] and key == "host_permissions":
             expected_permissions += baseline.read_json(ROOT / "apps/extension/composition.json")["marketplace_hosts"]
@@ -253,6 +257,10 @@ def ozon_route(runner, work, runtime, label, source_route, expected_version="0.1
                 "behavior_assertions_changed": False,
             })
         steps.append((kind + "-green", green_args))
+    if source_route:
+        steps.append(("cap24-report-status-source-only", [
+            ROOT / "tests/regression/extension-core/ozon-cap24-report-status-failclosed.mjs",
+        ]))
     for name, args in steps:
         runner.run(label + "-" + name, ["node", *args], cwd=repo)
     baseline.write_json(runner.output / (label + "-authority.json"),

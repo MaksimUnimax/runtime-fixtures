@@ -36,6 +36,11 @@ def main():
             "-s", str(ROOT / "tests/regression/extension-core/client-i1"),
             "-p", "test_browser_worker_activation.py", "-v",
         ])
+        runner.run("i1-vault-restart-proof-fault-controls", [
+            os.environ.get("WB_TEST_PYTHON", "python3"), "-m", "unittest", "discover",
+            "-s", str(ROOT / "tests/regression/extension-core/client-i1"),
+            "-p", "test_browser_transfer_vault_restart.py", "-v",
+        ])
         runner.run("start-entry-lifecycle", [node, ROOT / "tests/regression/extension-core/client-i1/client-start-entry-lifecycle.mjs", ROOT])
         runner.run("i1-release-preflight-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-release-preflight.mjs", ROOT])
         runner.run("i1-r3-ledger-writer-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-r3-command-ledger.mjs"])
@@ -49,6 +54,7 @@ def main():
         runner.run("i1-r3-parallel-bootstrap-source", [
             node, ROOT / "tests/regression/extension-core/client-i1/client-r3-parallel-authority.mjs"
         ])
+        runner.run("i1-f05-full-report-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-f05-full-report-recovery.mjs", ROOT])
         source, extracted, receipt = composed.build(output / "package")
         assert receipt["stage"] == "I1-C1" and receipt["version"] == expected_version
         result["composition"] = receipt
@@ -58,6 +64,16 @@ def main():
             runner.run(label + "-native-browser-proof", [os.environ.get("WB_TEST_PYTHON", "python3"), ROOT / "tests/regression/extension-core/client-i1/browser_verifier.py", "--runtime", runtime, "--output", browser_output])
             runner.env["C3H_BROWSER_PROOF_FILE"] = str(browser_output / "result.json")
             runner.env.pop("C3H_BROWSER_PROOF", None)
+            runner.run(label + "-f05-identity-matrix", [
+                node, ROOT / "tests/regression/extension-core/client-i1/client-f05-identity-matrix.mjs",
+                "--runtime", runtime, "--output", output / (label + "-f05-identity-matrix.json"),
+            ])
+            runner.run(label + "-native-vault-pending-restart", [
+                os.environ.get("WB_TEST_PYTHON", "python3"),
+                ROOT / "tests/regression/extension-core/client-i1/browser_transfer_vault_restart.py",
+                "--runtime", runtime, "--label", label,
+                "--output", output / (label + "-vault-pending-restart.json"),
+            ])
             manifest = composed.baseline.read_json(runtime / "manifest.json")
             assert manifest["version"] == expected_version
             assert "http://127.0.0.1:43100/*" in manifest["host_permissions"]
@@ -73,9 +89,12 @@ def main():
                 ("wb", ROOT / "tests/regression/extension-core/wb-adapter.mjs"),
                 ("provider-outcome", ROOT / "tests/regression/extension-core/provider-outcome.mjs"),
                 ("i1-p2-result-recovery", ROOT / "tests/regression/extension-core/client-i1/client-p2-result-recovery.mjs"),
+                ("i1-f05-attachment-integrity", ROOT / "tests/regression/extension-core/client-i1/client-f05-attachment-consumer.mjs"),
+                ("i1-b02-four-map-migration-race", ROOT / "tests/regression/extension-core/client-i1/client-b02-four-map-migration-race.mjs"),
                 ("i1-p3-technical-scheduler", ROOT / "tests/regression/extension-core/client-i1/client-p3-technical-scheduler.mjs"),
                 ("i1-a04-network-correctness", ROOT / "tests/regression/extension-core/client-i1/client-a04-network-correctness.mjs"),
                 ("application", ROOT / "tests/regression/extension-core/application.mjs"),
+                ("delivery-send-target", ROOT / "tests/regression/extension-core/delivery-send-target.mjs"),
                 ("owner-opera-start-keys", ROOT / "tests/regression/extension-core/owner-opera-start-keys.mjs"),
                 ("i1-lifecycle", ROOT / "tests/regression/extension-core/client-i1/client-lifecycle.mjs"),
                 ("i1-request-deadline", ROOT / "tests/regression/extension-core/client-i1/client-request-deadline.mjs"),
@@ -86,6 +105,7 @@ def main():
                 ("i1-ledger-capacity", ROOT / "tests/regression/extension-core/client-i1/client-ledger-capacity.mjs"),
                 ("i1-r4", ROOT / "tests/regression/extension-core/client-i1/client-r4.mjs"),
                 ("i1-r5", ROOT / "tests/regression/extension-core/client-i1/client-r5.mjs"),
+                ("i1-artifact-integrity", ROOT / "tests/regression/extension-core/client-i1/client-artifact-integrity.mjs"),
                 ("i1-cache-time", ROOT / "tests/regression/extension-core/client-i1/client-cache-time.mjs"),
                 ("i1-v3-passive-cache", ROOT / "tests/regression/extension-core/client-i1/client-v3-passive-cache.mjs"),
                 ("i1-offline-policy", ROOT / "tests/regression/extension-core/client-i1/client-offline-policy.mjs"),

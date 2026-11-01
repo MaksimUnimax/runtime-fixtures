@@ -16,6 +16,7 @@ export function safeReturnTo(value: string | null): string {
     const parsed = new URL(value, "http://portal.local");
     if (parsed.origin !== "http://portal.local") return "/";
     if (parsed.pathname === "/" && !parsed.search) return "/";
+    if (parsed.pathname === "/connect" && !parsed.search) return "/connect";
     if (parsed.pathname === "/devices" && !parsed.search) return "/devices";
     if (parsed.pathname === "/billing" && !parsed.search) return "/billing";
     if (

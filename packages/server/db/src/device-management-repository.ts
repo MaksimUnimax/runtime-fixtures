@@ -1,10 +1,9 @@
-import { randomUUID } from "node:crypto";
 import type { BrowserFamily } from "@product/shared";
 import type { DeviceClientMetadata } from "@product/device-auth";
 import type { DeviceManagementRepository } from "@product/device-management";
-import { decideSellerAgentsDeviceAdmission } from "@product/entitlements";
 import type { DatabaseRuntime } from "./index.js";
 import { revokeDeviceInTransaction } from "./device-revocation.js";
+import { enrollDeviceInTransaction } from "./device-enrollment.js";
 
 function clientMetadata(
   browserFamily: BrowserFamily | null,
@@ -119,94 +118,26 @@ export function createDeviceManagementRepository(
           );
           return { kind: "closed" as const };
         }
-        await tx.query(
-          "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-          [`p5-subscription-account:${a.approved_account_id}`],
-        );
-        const eligible = await tx.query<{ id: string }>(
-          `SELECT a.id FROM accounts a
-             JOIN users u ON u.id=$2
-             JOIN account_memberships m ON m.account_id=a.id AND m.user_id=u.id AND m.role='OWNER'
-            WHERE a.id=$1 AND a.status='ACTIVE' AND u.status='ACTIVE'
-            FOR UPDATE OF a`,
-          [a.approved_account_id, a.approved_user_id],
-        );
-        if (!eligible.rows[0]) return { kind: "closed" as const };
-        let limit;
-        try {
-          limit = await input.resolveLimit(String(a.approved_account_id), now);
-        } catch {
-          return { kind: "invalid-limit" as const };
-        }
-        if ("kind" in limit) {
-          if (limit.kind === "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT") {
-            // Beta installations remain persisted and revocable, but are not
-            // subject to the commercial max_active entitlement.
-          } else {
-            if (limit.kind === "INELIGIBLE")
-              return { kind: "subscription-required" as const };
-            if (limit.kind === "ACCOUNT_NOT_FOUND")
-              return { kind: "closed" as const };
-            return { kind: "invalid-limit" as const };
-          }
-        }
-        if (!("kind" in limit)) {
-          const count = await tx.query<{ count: string }>(
-            `SELECT count(*) count FROM devices WHERE account_id=$1 AND status='ACTIVE'`,
-            [a.approved_account_id],
-          );
-          const activeDeviceCount = Number(count.rows[0]?.count);
-          // Zero is retained as the historical deny-all compatibility value.
-          // New commercial plans use the explicit UNLIMITED | positive FINITE
-          // provider-neutral model.
-          const decision =
-            limit.maxActive === 0
-              ? {
-                  kind: "DENY" as const,
-                  reason: "DEVICE_LIMIT_REACHED" as const,
-                }
-              : decideSellerAgentsDeviceAdmission({
-                  limit: { kind: "FINITE", value: limit.maxActive },
-                  activeDeviceCount,
-                  alreadyAdmitted: false,
-                });
-          if (decision.kind === "DENY") {
-            await tx.query(
-              `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id) VALUES('SYSTEM','DEVICE_ACTIVATION_LIMIT_REACHED','DEVICE_AUTHORIZATION',$1,$2)`,
-              [a.id, input.correlationId],
-            );
-            return { kind: "limit" as const };
-          }
-        }
-        const deviceId = randomUUID(),
-          sessionId = randomUUID();
-        await tx.query(
-          `INSERT INTO devices(id,account_id,created_by_user_id,status,label,browser_family,browser_version_last_seen,extension_version_last_seen,created_at,activated_at,last_seen_at) VALUES($1,$2,$3,'ACTIVE',$4,$5,$6,$7,$8,$8,$8)`,
-          [
-            deviceId,
-            a.approved_account_id,
-            a.approved_user_id,
-            a.device_label,
-            a.browser_family,
-            a.browser_version,
-            a.extension_version,
-            now,
-          ],
-        );
-        await tx.query(
-          `INSERT INTO sessions(id,device_id,account_id,status,token_family_id,created_at) VALUES($1,$2,$3,'ACTIVE',$4,$5)`,
-          [sessionId, deviceId, a.approved_account_id, randomUUID(), now],
-        );
-        await tx.query(
-          `INSERT INTO refresh_tokens(id,session_id,token_hash,generation,issued_at,expires_at) VALUES($1,$2,$3,0,$4,$5)`,
-          [
-            randomUUID(),
-            sessionId,
-            input.refreshTokenHash,
-            now,
-            new Date(now.getTime() + 30 * 24 * 60 * 60_000),
-          ],
-        );
+        const enrolled = await enrollDeviceInTransaction(tx, {
+          accountId: String(a.approved_account_id),
+          ownerUserId: String(a.approved_user_id),
+          clientMetadata: clientMetadata(
+            a.browser_family as BrowserFamily | null,
+            a.browser_version as string | null,
+            a.extension_version as string | null,
+          ),
+          deviceLabel: a.device_label as string | null,
+          refreshTokenHash: input.refreshTokenHash,
+          refreshTokenExpiresAt: new Date(
+            now.getTime() + 30 * 24 * 60 * 60_000,
+          ),
+          now,
+          correlationId: input.correlationId,
+          source: { kind: "DEVICE_AUTHORIZATION", id: String(a.id) },
+          resolveLimit: input.resolveLimit,
+        });
+        if (enrolled.kind !== "activated") return enrolled;
+        const { deviceId, sessionId } = enrolled;
         await tx.query(
           `UPDATE device_authorizations SET status='EXCHANGED',exchanged_at=$2,exchange_idempotency_key_hash=$3,exchange_replay_until=$4,exchanged_device_id=$5,exchanged_session_id=$6,start_secret_ciphertext=NULL,start_secret_nonce=NULL,start_secret_auth_tag=NULL WHERE id=$1`,
           [
@@ -218,24 +149,6 @@ export function createDeviceManagementRepository(
             sessionId,
           ],
         );
-        for (const action of [
-          "DEVICE_ACTIVATED",
-          "EXTENSION_SESSION_CREATED",
-          "EXTENSION_REFRESH_ISSUED",
-        ])
-          await tx.query(
-            `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id) VALUES('SYSTEM',$1,$2,$3,$4)`,
-            [
-              action,
-              action === "DEVICE_ACTIVATED"
-                ? "DEVICE"
-                : action === "EXTENSION_SESSION_CREATED"
-                  ? "SESSION"
-                  : "REFRESH_TOKEN",
-              action === "DEVICE_ACTIVATED" ? deviceId : sessionId,
-              input.correlationId,
-            ],
-          );
         return {
           kind: "activated" as const,
           deviceId,

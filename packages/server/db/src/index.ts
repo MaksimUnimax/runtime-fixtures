@@ -7,6 +7,7 @@ export { createMaintenanceRepository } from "./maintenance-access-repository.js"
 export { createDeviceAuthorizationRepository } from "./device-authorization-repository.js";
 export { createExtensionAuthRepository } from "./extension-auth-repository.js";
 export { createDeviceManagementRepository } from "./device-management-repository.js";
+export { createConnectionCodeRepository } from "./connection-code-repository.js";
 export { createAdminOpsRepository } from "./p6-admin-ops-repository.js";
 export { createP6AdminBillingRepository } from "./p6-admin-billing-repository.js";
 export { createP6AdminSubscriptionCommandAdapter } from "./p6-admin-subscription-command-adapter.js";

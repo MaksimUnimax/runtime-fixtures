@@ -492,6 +492,7 @@ export function readZip(bytes) {
     }
 
     const madeBy = bytes.readUInt16LE(pointer + 4);
+    const versionNeeded = bytes.readUInt16LE(pointer + 6);
     const flags = bytes.readUInt16LE(pointer + 8);
     const method = bytes.readUInt16LE(pointer + 10);
     const crc = bytes.readUInt32LE(pointer + 16);
@@ -500,12 +501,18 @@ export function readZip(bytes) {
     const nameLength = bytes.readUInt16LE(pointer + 28);
     const extraLength = bytes.readUInt16LE(pointer + 30);
     const commentEntryLength = bytes.readUInt16LE(pointer + 32);
+    const diskNumberStart = bytes.readUInt16LE(pointer + 34);
     const externalAttributes = bytes.readUInt32LE(pointer + 38);
     const localOffset = bytes.readUInt32LE(pointer + 42);
     const end = pointer + 46 + nameLength + extraLength + commentEntryLength;
 
     if (end > centralStart + centralSize) {
       fail("Invalid ZIP central entry bounds");
+    }
+    // Single-volume support applies to every entry, not just the end record.
+    // The 0xffff ZIP64 sentinel also needs unsupported ZIP64 disk metadata.
+    if (diskNumberStart !== 0) {
+      fail("Unsupported ZIP entry disk");
     }
     // Only release file payloads are inspected for private material. Do not
     // permit opaque per-entry comments or extras outside those inspected bytes.
@@ -622,6 +629,12 @@ export function readZip(bytes) {
     if ((flags & ~recognizedFlags) !== 0) {
       fail("Unsupported ZIP general-purpose flags");
     }
+    // This bounded STORE reader supports ordinary ZIP 1.0/2.0 only;
+    // a declared newer extraction feature must not be silently ignored.
+    const minimumVersion = method === 8 || isDirectory ? 20 : 10;
+    if (![10, 20].includes(versionNeeded) || versionNeeded < minimumVersion) {
+      fail("Unsupported ZIP extraction version");
+    }
     totalUncompressed += rawSize;
     if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES) {
       fail("ZIP uncompressed size exceeds limit");
@@ -634,6 +647,7 @@ export function readZip(bytes) {
       fail("Invalid ZIP local header");
     }
 
+    const localVersionNeeded = bytes.readUInt16LE(localOffset + 4);
     const localFlags = bytes.readUInt16LE(localOffset + 6);
     const localMethod = bytes.readUInt16LE(localOffset + 8);
     const localCrc = bytes.readUInt32LE(localOffset + 14);
@@ -651,6 +665,7 @@ export function readZip(bytes) {
     const dataStart = localOffset + 30 + localNameLength + localExtraLength;
 
     if (
+      localVersionNeeded !== versionNeeded ||
       localFlags !== flags ||
       localMethod !== method ||
       !localName.equals(nameBytes) ||

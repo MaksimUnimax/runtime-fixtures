@@ -1,0 +1,796 @@
+{
+  "schema": "tester2-b02-four-map-review-evidence-v1",
+  "created_at_utc": "2026-10-31T02:41:40.973343+00:00",
+  "candidate_type": "UNINSTALLED_LOCAL_SOURCE_COMPOSITION",
+  "base_sha": "eebb880d0a3a789710fc8b111e12ec849946972a",
+  "installed_unchanged_package_sha256": "5bf2f23bff0b72a344a274f9282b69f5d5cee1c4de871436471cdda783d04d8c",
+  "original_negative": {
+    "file": "/root/octoport-control/logs/B/B_B02_EEBB_XCONVERSATION_STORAGE_MIGRATION_RACE_20261030/result.json",
+    "file_sha256": "1d8393ee78ac89323ecbd82e7ad74722d44cebec2eaa637a0fd00e1f5c342518",
+    "repro": {
+      "schema": "b02-original-slices-offline-race-repro-v1",
+      "candidateSha": "eebb880d0a3a789710fc8b111e12ec849946972a",
+      "packageSha256": "5bf2f23bff0b72a344a274f9282b69f5d5cee1c4de871436471cdda783d04d8c",
+      "compiledWorkerSha256": "0dbc44bea683f5d31aa0e77c2fde540891563c8b1e76c0d71e09240921474ddd",
+      "sourcePackageSlices": [
+        {
+          "name": "migration",
+          "sha256": "7337091698db9825a8deb75cb14151b3dea3e581f1292fdc25780233f85deaec",
+          "byteIdentical": true
+        },
+        {
+          "name": "autorun_writer",
+          "sha256": "57ba7576c10988ce542e628e9e0545fa163dd868d1876b6fd610386e98e0a083",
+          "byteIdentical": true
+        }
+      ],
+      "method": "real Git blob and exact installed ZIP worker slices in vm, deterministic delayed storageGet before unrelated mutateAutoRun",
+      "scenarios": {
+        "noLegacySequential": {
+          "differentConversationState": "RESPONSE_RECEIVED",
+          "xLegacyPresentInitially": false,
+          "xNewKeyPresent": false,
+          "xOldKeyPresentAfter": false,
+          "currentKeys": [
+            "https://chatgpt.com|other-conversation"
+          ]
+        },
+        "noLegacyInterleaved": {
+          "differentConversationState": "DISPATCH_INTENT_COMMITTED",
+          "xLegacyPresentInitially": false,
+          "xNewKeyPresent": false,
+          "xOldKeyPresentAfter": false,
+          "currentKeys": [
+            "https://chatgpt.com|other-conversation"
+          ]
+        },
+        "legacySequential": {
+          "differentConversationState": "RESPONSE_RECEIVED",
+          "xLegacyPresentInitially": true,
+          "xNewKeyPresent": true,
+          "xOldKeyPresentAfter": false,
+          "currentKeys": [
+            "https://chatgpt.com|new-confirmed-chat",
+            "https://chatgpt.com|other-conversation"
+          ]
+        },
+        "legacyInterleaved": {
+          "differentConversationState": "DISPATCH_INTENT_COMMITTED",
+          "xLegacyPresentInitially": true,
+          "xNewKeyPresent": true,
+          "xOldKeyPresentAfter": false,
+          "currentKeys": [
+            "https://chatgpt.com|new-confirmed-chat",
+            "https://chatgpt.com|other-conversation"
+          ]
+        }
+      },
+      "scenarioCount": 4,
+      "productVerdict": "EXPECTED_DEFECT_REPRODUCED__NOT_PRODUCT_PASS",
+      "limitations": [
+        "controlled async storage substitute, not native Chrome scheduling",
+        "does not prove actual provider replay or installed browser behavior",
+        "no mutation of browser, provider, DB, source, Git refs or service",
+        "do not execute production side effects to reproduce this issue"
+      ]
+    }
+  },
+  "local_composition": {
+    "file": {
+      "source": "b02-four-map-composed-r3-20261031/composition-receipt.json",
+      "sha256": "6396083b67e8f1939a14a3225d040a72556ec524f4aec479c8e5133f3db2cd0a",
+      "bytes": 32045
+    },
+    "package": {
+      "name": "SELLER_AGENTS_I1_C1_v0.2.42_LOCAL_DEVELOPMENT.zip",
+      "bytes": 2885276,
+      "sha256": "d3cec34c3af68cc175af22de291a0e6894261674cb207dd7c6122766e3da822e",
+      "repeat_archive_match": true,
+      "source_extracted_bytes_match": true
+    },
+    "version": "0.2.42",
+    "build_mode": "development",
+    "original_donor_modified": false
+  },
+  "isolated_native_synthetic": {
+    "file": {
+      "source": "b02-four-map-package-native-browser-proof-20261031/result.json",
+      "sha256": "54ae9826f4dc502a58a035274d6e5b7f7790fbfa7a59ccff70e02acd263e3a86",
+      "bytes": 479
+    },
+    "status": "PASS",
+    "browser": "151.0.7922.34",
+    "tamper_rejected": true,
+    "owner_profile_used": false
+  },
+  "package_47_mjs": {
+    "file": {
+      "source": "b02-four-map-package-47-mjs-matrix-20261031.json",
+      "sha256": "4ff1eb43c01677e65caa045f9ba9d02dc7790b45704599ae18694a2edcc2c8a4",
+      "bytes": 18582
+    },
+    "status": "PASS",
+    "passed": 47,
+    "failed": 0,
+    "cases": [
+      {
+        "name": "contracts",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-browser-family-contract",
+        "status": "PASS"
+      },
+      {
+        "name": "conversation-binding-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "name": "worker",
+        "status": "PASS"
+      },
+      {
+        "name": "context",
+        "status": "PASS"
+      },
+      {
+        "name": "wb",
+        "status": "PASS"
+      },
+      {
+        "name": "provider-outcome",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-p2-result-recovery",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-f05-attachment-integrity",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-b02-four-map-migration-race",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-p3-technical-scheduler",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-a04-network-correctness",
+        "status": "PASS"
+      },
+      {
+        "name": "application",
+        "status": "PASS"
+      },
+      {
+        "name": "delivery-send-target",
+        "status": "PASS"
+      },
+      {
+        "name": "owner-opera-start-keys",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-request-deadline",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-races",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-r2",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-r3",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-profile-revocation",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-ledger-capacity",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-r4",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-r5",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-artifact-integrity",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-cache-time",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-v3-passive-cache",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-offline-policy",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-signed-metadata",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-packaged-capabilities",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-capability-intersection",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c2-3a-online-work-authority",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c3c-autonomous-authority",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-v3-passive-autonomous-authority",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c2-3c2-offline-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c2-3c2-offline-continuation",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c2-3b1-health-transport",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c2-3b1-canwork",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c2-3b2-verified-health-authority",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c2-3c1-online-work-admission",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c3d-autonomous-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c3e-sync-journal",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-a04-n2-local-snapshot",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c3f-reconciliation",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c3g-corrected-predispatch",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-c3h-corrected-autonomy-full-acceptance",
+        "status": "PASS"
+      },
+      {
+        "name": "i1-d3s2-a24-export-import",
+        "status": "PASS"
+      }
+    ]
+  },
+  "full_standard_i1": {
+    "file": {
+      "source": "b02-four-map-i1-r1-20261031/gates.json",
+      "sha256": "1b9bb63ea1f821352e7187393c1833c6e21fb64541e483e3bf824c3cf741fadf",
+      "bytes": 45947
+    },
+    "summary_file": {
+      "source": "b02-four-map-i1-r1-20261031/summary.json",
+      "sha256": "58eb9407bc1fcb04f1be1e13f2c5d0afd0ccbff697abd57ff9289270ddaceee7",
+      "bytes": 33849
+    },
+    "status": "INCOMPLETE_ENVIRONMENT_DEPENDENCY",
+    "pass_count": 98,
+    "fail_count": 1,
+    "gates": [
+      {
+        "id": "i1-cdp-worker-identity-source",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-vault-restart-proof-fault-controls",
+        "status": "PASS"
+      },
+      {
+        "id": "start-entry-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-release-preflight-source",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-r3-ledger-writer-source",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-r3-finish-terminal-source",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-r3-parallel-bootstrap-source",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-f05-full-report-source",
+        "status": "PASS"
+      },
+      {
+        "id": "native-start-entry",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-native-browser-proof",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-f05-identity-matrix",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-native-vault-pending-restart",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-attachment_delivery_port_content",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-attachment_delivery_wake_content",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-content_script",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-popup",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-service_worker",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-service_worker_entry",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-ai_adapters",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-ai_delivery_capabilities",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-application",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-attachment_result_integrity",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-bootstrap_verifier",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-bridge_autorun_model",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-composer_send",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-conversation_identity",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-direct_binary_file_delivery_patch",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-file_delivery_model_policy",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-file_delivery_port_worker",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-file_delivery_wake_worker",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-live_runtime_v0122_patch",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-llm_output_report_workflow_patch",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-manual_controls",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-mixed_batch_discovery",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-ozon_contract",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-ozon_credentials",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-ozon_entitlements",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-ozon_guidance",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-ozon_operation_registry",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-ozon_provider",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-performance_report_continuation_patch",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-proven_writing_block_capture",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-provider_transport_core",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-runtime_names",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-signed_ai_profile_consumer",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-signed_ai_profile_runtime",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-swagger_read_surface_patch",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-wb_adapter",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-web_file_attachment",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-work_session_model",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-syntax-xlsx_direct_binary_delivery_patch",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-contracts",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-browser-family-contract",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-conversation-binding-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-worker",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-context",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-wb",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-provider-outcome",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-p2-result-recovery",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-f05-attachment-integrity",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-b02-four-map-migration-race",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-p3-technical-scheduler",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-a04-network-correctness",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-application",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-delivery-send-target",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-owner-opera-start-keys",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-request-deadline",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-races",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-r2",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-r3",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-profile-revocation",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-ledger-capacity",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-r4",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-r5",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-artifact-integrity",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-cache-time",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-v3-passive-cache",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-offline-policy",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-signed-metadata",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-packaged-capabilities",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-capability-intersection",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c2-3a-online-work-authority",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c3c-autonomous-authority",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-v3-passive-autonomous-authority",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c2-3c2-offline-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c2-3c2-offline-continuation",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c2-3b1-health-transport",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c2-3b1-canwork",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c2-3b2-verified-health-authority",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c2-3c1-online-work-admission",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c3d-autonomous-lifecycle",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c3e-sync-journal",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-a04-n2-local-snapshot",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c3f-reconciliation",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c3g-corrected-predispatch",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-c3h-corrected-autonomy-full-acceptance",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-d3s2-a24-export-import",
+        "status": "PASS"
+      },
+      {
+        "id": "i1-source-i1-d3c-signed-readback",
+        "status": "FAIL"
+      }
+    ],
+    "cause": "tsx executable dependency unavailable in checkout; initial pnpm path incorrectly pointed to corepack CLI, proper pnpm shim confirmed but tsx missing; no full CI PASS"
+  },
+  "seven_other_ai_installed_read_only": {
+    "file": {
+      "source": "B02_ALL8_INSTALLED_SURFACE_READINESS_20261031.json",
+      "sha256": "50f178f996eadbb295fc0265c7122cc6bba1da5422d148e0a8b9f066b75c1bd0",
+      "bytes": 6614
+    },
+    "surfaces": [
+      {
+        "ai": "alice",
+        "http_status": 200,
+        "script_result": "RECEIVED",
+        "identity_status": "unknown",
+        "work_allowed_first_new_dialogue": false,
+        "owned_tab_closed": true
+      },
+      {
+        "ai": "deepseek",
+        "http_status": 200,
+        "script_result": "RECEIVED",
+        "identity_status": "unknown",
+        "work_allowed_first_new_dialogue": false,
+        "owned_tab_closed": true
+      },
+      {
+        "ai": "grok",
+        "http_status": 200,
+        "script_result": "RECEIVED",
+        "identity_status": "unknown",
+        "work_allowed_first_new_dialogue": false,
+        "owned_tab_closed": true
+      },
+      {
+        "ai": "claude",
+        "http_status": 200,
+        "script_result": "RECEIVED",
+        "identity_status": "unknown",
+        "work_allowed_first_new_dialogue": false,
+        "owned_tab_closed": true
+      },
+      {
+        "ai": "gemini",
+        "http_status": 200,
+        "script_result": "RECEIVED",
+        "identity_status": "unknown",
+        "work_allowed_first_new_dialogue": false,
+        "owned_tab_closed": true
+      },
+      {
+        "ai": "qwen",
+        "http_status": 200,
+        "script_result": "RECEIVED",
+        "identity_status": "unknown",
+        "work_allowed_first_new_dialogue": false,
+        "owned_tab_closed": true
+      },
+      {
+        "ai": "kimi",
+        "http_status": 200,
+        "script_result": "RECEIVED",
+        "identity_status": "unknown",
+        "work_allowed_first_new_dialogue": false,
+        "owned_tab_closed": true
+      }
+    ],
+    "start_count": 0,
+    "ai_send_count": 0,
+    "provider_call_count": 0
+  },
+  "limits": {
+    "full_live_eight_ai_cycles_verified": false,
+    "file_accepted_by_same_ai_verified": false,
+    "independent_review_complete": false,
+    "new_candidate_installed": false,
+    "new_candidate_server_release_published": false,
+    "blocked_read_only_previous_dialogue_probe_repeated": false
+  }
+}

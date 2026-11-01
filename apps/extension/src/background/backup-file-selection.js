@@ -121,7 +121,18 @@
             hasResult: false, resultAt: 0, openAttempted: false, claimed: null, cleanup: null };
           pending = entry; endpoint.prepared = entry;
           reply(requestId, { ok: true, type: "prepared", pickId: entry.id });
-        } else if (message?.type === "clear" || message?.type === "restored") {
+        } else if (message?.type === "restored") {
+          const entry = endpoint.restoring;
+          if (!entry || pending !== entry || entry.id !== message.pickId || entry.claimed !== endpoint) return;
+          current(entry);
+          endpoint.restoring = null;
+          if (!entry.file) { discard(entry); return; }
+          // ACK transfers the bounded RAM draft to the live toolbar popup; it
+          // does not consume the user's File. A later ordinary opening may
+          // restore it again, without another automatic open or a longer TTL.
+          if (entry.owner.disconnected) entry.owner.channel?.close();
+          entry.owner = endpoint; entry.claimed = null; entry.openAttempted = true;
+        } else if (message?.type === "clear") {
           if (pending && pending.id === message.pickId &&
               (pending.owner === endpoint || pending.claimed === endpoint)) discard(pending);
         } else throw new Error("PICKER_CONTEXT_CHANGED");
