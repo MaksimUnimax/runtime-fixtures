@@ -1745,3 +1745,19 @@ for (const mode of ["attacker_key", "wrong_contract", "wrong_environment"])
       cleanup(value);
     }
   });
+
+test("flattened Firefox config permits unrelated nested receiver bindings and local writes", () => {
+  const value = fixture({
+    firefox: {
+      transformWorker: (worker) =>
+        "(function(globalThis){ globalThis = {}; return globalThis; })(null);\n" +
+        worker,
+    },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});

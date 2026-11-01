@@ -1204,41 +1204,14 @@ function parsePackagedConfigFromScript(source, browser) {
     if (browser !== "firefox") return [];
     const ts = createRequire(import.meta.url)("typescript");
     const file = ts.createSourceFile(
-      "firefox-background.js",
+      "/octoport-firefox-background.js",
       source,
       ts.ScriptTarget.Latest,
-      false,
+      true,
       ts.ScriptKind.JS,
     );
     if (file.parseDiagnostics.length)
       fail("Firefox background syntax is invalid");
-    const bindsGlobal = (name) =>
-      ts.isIdentifier(name)
-        ? name.text === "globalThis"
-        : ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)
-          ? name.elements.some(
-              (element) =>
-                ts.isBindingElement(element) && bindsGlobal(element.name),
-            )
-          : false;
-    const inspect = (node) => {
-      if (
-        ((ts.isVariableDeclaration(node) ||
-          ts.isParameter(node) ||
-          ts.isFunctionDeclaration(node) ||
-          ts.isClassDeclaration(node)) &&
-          node.name &&
-          bindsGlobal(node.name)) ||
-        (ts.isBinaryExpression(node) &&
-          ts.isIdentifier(node.left) &&
-          node.left.text === "globalThis" &&
-          node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
-          node.operatorToken.kind <= ts.SyntaxKind.LastAssignment)
-      )
-        fail("Firefox packaged config shadows or reassigns globalThis");
-      ts.forEachChild(node, inspect);
-    };
-    inspect(file);
     const assignments = file.statements.filter((statement) => {
       if (!ts.isExpressionStatement(statement)) return false;
       const expression = statement.expression;
@@ -1256,6 +1229,63 @@ function parsePackagedConfigFromScript(source, browser) {
     if (!assignments.length) return [];
     if (assignments.length !== 1)
       fail("Release package contains duplicate config assignments");
+    // Resolve the actual assignment receiver. Unrelated nested parameters
+    // named globalThis do not shadow this top-level browser-global reference.
+    // The compiler host is memory-only: no package imports, libs or execution.
+    const name = file.fileName;
+    const boundFile = file;
+    const host = {
+      getSourceFile: (path) => (path === name ? boundFile : undefined),
+      getDefaultLibFileName: () => "",
+      writeFile: () => {},
+      getCurrentDirectory: () => "/",
+      getDirectories: () => [],
+      fileExists: (path) => path === name,
+      readFile: (path) => (path === name ? source : undefined),
+      useCaseSensitiveFileNames: () => true,
+      getCanonicalFileName: (path) => path,
+      getNewLine: () => "\n",
+    };
+    const program = ts.createProgram(
+      [name],
+      {
+        allowJs: true,
+        noLib: true,
+        noResolve: true,
+        noEmit: true,
+        types: [],
+        target: ts.ScriptTarget.Latest,
+      },
+      host,
+    );
+    const checker = program.getTypeChecker();
+    const receiver = assignments[0].expression.left.expression;
+    const globalSymbol = checker.getSymbolAtLocation(receiver);
+    // JavaScript namespace assignment adds a synthetic Identifier declaration
+    // even to the native global. Actual lexical bindings have declaration nodes.
+    if (globalSymbol?.declarations?.some((node) => !ts.isIdentifier(node)))
+      fail("Firefox packaged config shadows globalThis");
+    const isGlobal = (node) =>
+      ts.isIdentifier(node) &&
+      node.text === "globalThis" &&
+      checker.getSymbolAtLocation(node) === globalSymbol;
+    const inspectWrites = (node) => {
+      if (
+        (ts.isBinaryExpression(node) &&
+          isGlobal(node.left) &&
+          node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+          node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) ||
+        ((ts.isPrefixUnaryExpression(node) ||
+          ts.isPostfixUnaryExpression(node)) &&
+          [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(
+            node.operator,
+          ) &&
+          isGlobal(node.operand))
+      )
+        fail("Firefox packaged config reassigns globalThis");
+      ts.forEachChild(node, inspectWrites);
+    };
+    inspectWrites(boundFile);
     source = assignments[0].getText(file);
   }
   const tail = source.slice(PACKAGED_CONFIG_MARKER.length);
