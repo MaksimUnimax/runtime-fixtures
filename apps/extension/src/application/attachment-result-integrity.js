@@ -35,7 +35,9 @@
     const original = model.claimDelivery;
     function claimDelivery(run, payload = {}) {
       assertLegacyReportNotClaimed(run, payload);
-      return original.call(this, run, payload);
+      // The captured method belongs to this model, regardless of how the
+      // public guard is invoked (method, detached, or an unrelated receiver).
+      return original.call(model, run, payload);
     }
     Object.defineProperty(claimDelivery, "__f05LegacyDeliveryGuard", { value: true });
     globalThis.BridgeAutorunModel = Object.freeze({ ...model, claimDelivery });

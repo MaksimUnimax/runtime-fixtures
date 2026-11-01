@@ -274,6 +274,73 @@ async function main() {
       payload: { report_text: "truncated legacy report", result: { value: 1 } },
     },
   };
+  // Exercise the actual guard with an opaque receiver-sensitive original method.
+  // No production guard or downstream delivery consumer is stubbed or rewritten.
+  const claimReceiverChecks = [];
+  const invokeClaim = {
+    method: (fixture, run, payload) => fixture.realm.BridgeAutorunModel.claimDelivery(run, payload),
+    detached: (fixture, run, payload) => {
+      const claim = fixture.realm.BridgeAutorunModel.claimDelivery;
+      return claim(run, payload);
+    },
+    global: (fixture, run, payload) => fixture.realm.BridgeAutorunModel.claimDelivery.call(fixture.realm, run, payload),
+    foreign: (fixture, run, payload) => fixture.realm.BridgeAutorunModel.claimDelivery.call({ foreign: true }, run, payload),
+  };
+  function receiverFixture(strictOriginal, claimError = null) {
+    const records = [];
+    const claimResult = Object.freeze({ receiverFixture: true });
+    const realm = vm.createContext({
+      records, claimResult, claimError,
+      SellerAgentsProviderOutcome: outcome,
+      SellerAgentsResultRecovery: api,
+    });
+    vm.runInContext([
+      "globalThis.originalModel = Object.freeze({",
+      "  claimDelivery(run, payload) {",
+      strictOriginal ? '    "use strict";' : "",
+      "    records.push({ receiver: this, run, payload });",
+      "    if (claimError) throw claimError;",
+      "    return claimResult;",
+      "  }",
+      "});",
+      "globalThis.BridgeAutorunModel = originalModel;",
+    ].join("\n"), realm, { filename: "opaque-original-claim-fixture" });
+    vm.runInContext(moduleBytes.get("attachment-result-integrity.js").toString("utf8"), realm);
+    const firstGuardedModel = realm.BridgeAutorunModel;
+    vm.runInContext(moduleBytes.get("attachment-result-integrity.js").toString("utf8"), realm);
+    assert.equal(realm.BridgeAutorunModel, firstGuardedModel, "repeated composition installs only one legacy claim guard");
+    return { realm, records, claimResult };
+  }
+  for (const strictOriginal of [false, true]) {
+    for (const [invocation, invoke] of Object.entries(invokeClaim)) {
+      for (const behavior of ["return", "throw", "default-payload"]) {
+        const failure = behavior === "throw" ? new Error("OPAQUE_CLAIM_FAILURE") : null;
+        const fixture = receiverFixture(strictOriginal, failure);
+        const run = Object.freeze({ batch: { entries: [] } });
+        const payload = behavior === "default-payload" ? undefined : Object.freeze({ mode: "legacy", deliveryId: "receiver-fixture" });
+        if (failure) assert.throws(() => invoke(fixture, run, payload), (error) => error === failure);
+        else assert.equal(invoke(fixture, run, payload), fixture.claimResult, "the guard returns the original result without copying or awaiting it");
+        assert.equal(fixture.records.length, 1, "the opaque original is called exactly once, including failure");
+        assert.equal(fixture.records[0].receiver, fixture.realm.originalModel, "a caller cannot replace the captured method owner with a global, detached or foreign receiver");
+        assert.equal(fixture.records[0].run, run);
+        if (payload) assert.equal(fixture.records[0].payload, payload);
+        else assert.equal(Object.keys(fixture.records[0].payload).length, 0, "the existing default empty payload is preserved");
+        claimReceiverChecks.push({ strictOriginal, invocation, behavior, status: "PASS" });
+      }
+      for (const state of [outcome.STATES.RESPONSE_RECEIVED, outcome.STATES.COMPLETED_KNOWN, outcome.STATES.FAILED_KNOWN, outcome.STATES.RETRY_WAIT_KNOWN]) {
+        const fixture = receiverFixture(strictOriginal);
+        const run = { batch: { entries: [{ ...legacyEntry, provider_attempt: { ...legacyEntry.provider_attempt, state } }] } };
+        const payload = Object.freeze({ mode: "batch_watch_v1", deliveryId: "denied-receiver-fixture" });
+        const before = JSON.stringify(run);
+        assert.throws(() => invoke(fixture, run, payload), { code: "RESULT_BUFFER_INTEGRITY_UNVERIFIABLE" });
+        assert.equal(fixture.records.length, 0, "a legacy denial never executes or retries the opaque original");
+        assert.equal(JSON.stringify(run), before, "a denied claim preserves the recorded legacy result");
+        claimReceiverChecks.push({ strictOriginal, invocation, behavior: "deny-legacy", state, status: "PASS" });
+      }
+    }
+  }
+  assert.equal(claimReceiverChecks.length, 56);
+
   assert.throws(() => context.BridgeAutorunModel.claimDelivery({
     run_id: "legacy-new-claim",
     batch: { entries: [legacyEntry] },
@@ -941,6 +1008,7 @@ async function main() {
     source_transforms: 0,
     source_sha256: sourceHashes,
     consumer_artifact: sourceMode ? "SOURCE" : "BUILT_RUNTIME",
+    claim_receiver_checks: claimReceiverChecks,
     scope: "offline actual result-recovery/batch-queue, app-owned composed finalizer and fallback formatter, integrity guard, and attachment port consumer; synthetic storage/provider ports only; no browser, network, install, or live owner",
     checks: [
       "fresh-schema2-claim-creates-complete-text-document",
