@@ -132,6 +132,12 @@ function admissionFixture() {
     saReadAdmissionSnapshot:async()=>{entered.resolve();return snapshot.promise;},
     saValidateRebindPlan:()=>{observed.mutations++;throw new Error("unexpected admission");}
   });
+  // Start records an allowlisted admission diagnostic on rejection. Load its
+  // actual lexical dependencies along with the extracted production functions.
+  const diagnosticStart = source.indexOf("const saWorkAdmissionDiagnostics =");
+  const diagnosticEnd = source.indexOf("function saAdmissionError(", diagnosticStart);
+  assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart, "real diagnostic dependency block must exist");
+  vm.runInContext(source.slice(diagnosticStart, diagnosticEnd), ctx);
   vm.runInContext(fs.readFileSync(path.join(repo, "packages/bridge-core/src/work/session-model.js"), "utf8"), ctx);
   ctx.OzonWorkSessionModel = ctx.SellerAgentsWorkSessionModel;
   for (const name of ["saAdmissionKey","saBeginAdmission","saCancelAdmission","saAdmissionCurrent",
