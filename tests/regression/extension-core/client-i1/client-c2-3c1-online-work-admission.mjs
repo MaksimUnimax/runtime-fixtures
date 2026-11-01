@@ -578,6 +578,95 @@ await run("WD-08", "failed admission evidence stays scoped to its tab", async ()
   } finally { await close(f); }
 });
 
+// T1 checkpoint273: use only synthetic stores and the actual generated worker.
+for (const enabled of [true, false]) await run(`T1-META-${enabled ? "ON" : "OFF"}`, "metadata toggle finishes old work; a separate explicit Start gets a fresh admission", async () => {
+  const f = await fixture({ provider: "alice", health: "network" });
+  try {
+    if (!enabled) {
+      const initial = await f.worker.popup({ type: "SA_STORE_SAVE", store: { id: f.store.id, marketplace: "ozon", name: f.store.name, personalDataEnabled: true } });
+      assert.equal(initial.ok, true, JSON.stringify(initial));
+      f.store = initial.store;
+    }
+    await activeStart(f);
+    const original = clone(await f.worker.call("workSessionFor", f.key));
+    const oldBinding = clone(f.backing.local[BINDINGS][f.key]);
+    const credentials = clone(f.backing.local[STORES].accounts[f.store.accountId].stores[f.store.id].credentials);
+    const saved = await f.worker.popup({ type: "SA_STORE_SAVE", store: { id: f.store.id, marketplace: "ozon", name: f.store.name, personalDataEnabled: enabled } });
+    assert.equal(saved.ok, true, JSON.stringify(saved));
+    assert.equal(saved.store.personalDataEnabled, enabled);
+    assert.equal(saved.store.metadataRevision, f.store.metadataRevision + 1);
+    assert.equal(saved.store.credentialRevision, f.store.credentialRevision);
+    assert.deepEqual(f.backing.local[STORES].accounts[f.store.accountId].stores[f.store.id].credentials, credentials);
+    const finished = await f.worker.call("workSessionFor", f.key);
+    assert.equal(finished.state, "inactive");
+    assert.equal(finished.finished, true);
+    assert.equal(finished.start_intent_id, original.start_intent_id);
+    assert.equal(f.backing.local[BINDINGS][f.key].binding_id, oldBinding.binding_id);
+    const refusedResume = await resume(f);
+    assert.equal(refusedResume.ok, false);
+    assert.equal(refusedResume.code, "WORK_SESSION_FINISHED");
+    f.store = saved.store;
+    const restarted = await start(f, { start_intent_id: `synthetic-after-meta-${enabled}` });
+    assert.equal(restarted.ok, true, JSON.stringify(restarted));
+    const pending = await pendingStartAcknowledged(f);
+    assert.notEqual(pending.intent_id, original.start_intent_id);
+    assert.equal(pending.store_context.storeId, f.store.id);
+    assert.equal(pending.store_context.policyRevision, enabled ? "personal-enabled" : "personal-disabled");
+    assert.deepEqual(f.backing.local[BINDINGS][f.key], oldBinding, "Start preparation retains the historical binding");
+    const successor = await completePendingStart(f);
+    assert.equal(successor.ok, true, JSON.stringify(successor));
+    assert.equal(successor.binding.store_context.policyRevision, pending.store_context.policyRevision);
+    assert.equal(f.worker.network.length, 0, "no provider request in synthetic lifecycle");
+  } finally { await close(f); }
+});
+await run("T1-ORDINARY-RESTART", "ordinary acknowledged Finish permits a new explicit Start without weakening Resume", async () => {
+  const f = await fixture({ provider: "alice", health: "network" });
+  try {
+    await activeStart(f);
+    const finished = await f.worker.popup({ type: "OZ_WORK_FINISH", tab_id: f.worker.tabId, conversation_key: f.key });
+    assert.equal(finished.ok, true, JSON.stringify(finished));
+    assert.equal((await resume(f)).code, "WORK_SESSION_FINISHED");
+    const restarted = await start(f, { start_intent_id: "synthetic-ordinary-restart" });
+    assert.equal(restarted.ok, true, JSON.stringify(restarted));
+    await pendingStartAcknowledged(f);
+    assert.equal(f.worker.network.length, 0);
+  } finally { await close(f); }
+});
+
+for (const change of ["policy", "binding", "credential", "unproven-finish"]) await run(`T1-FENCE-${change}`, "new Start after metadata edit still rejects a stale or unproven context before sending", async () => {
+  let f, armed = false;
+  const hooks = { async afterRebindPlanCreated() {
+    if (!armed) return;
+    armed = false;
+    if (change === "policy") {
+      const saved = await f.worker.popup({ type: "SA_STORE_SAVE", store: { id: f.store.id, marketplace: "ozon", name: f.store.name, personalDataEnabled: false } });
+      assert.equal(saved.ok, true, JSON.stringify(saved));
+    } else if (change === "binding") f.backing.local[BINDINGS][f.key].revision += 1;
+  } };
+  f = await fixture({ provider: "alice", health: "network", testHooks: hooks });
+  try {
+    await activeStart(f);
+    const saved = await f.worker.popup({ type: "SA_STORE_SAVE", store: { id: f.store.id, marketplace: "ozon", name: f.store.name, personalDataEnabled: true } });
+    assert.equal(saved.ok, true, JSON.stringify(saved));
+    f.store = saved.store;
+    if (change === "credential") {
+      const rotated = await f.worker.popup({ type: "SA_STORE_SAVE", store: { id: f.store.id, marketplace: "ozon", name: f.store.name, credentials: { seller: { clientId: "FIXTURE_CLIENT", apiKey: "FIXTURE_ROTATED_KEY" } } } });
+      assert.equal(rotated.ok, true, JSON.stringify(rotated));
+      f.store = rotated.store;
+    }
+    if (change === "unproven-finish") f.backing.local[SESSIONS][f.key].finished = false;
+    const sentBefore = f.worker.messages.filter(m => m.type === "OZ_WORK_SEND_INITIAL_PROMPT").length;
+    const historyBefore = clone(f.backing.local[BINDINGS][f.key]);
+    armed = true;
+    const rejected = await start(f, { start_intent_id: `synthetic-denied-${change}` });
+    assert.equal(rejected.ok, false, JSON.stringify(rejected));
+    assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId] || null, null);
+    assert.equal(f.worker.messages.filter(m => m.type === "OZ_WORK_SEND_INITIAL_PROMPT").length, sentBefore);
+    assert.equal(f.backing.local[BINDINGS][f.key].binding_id, historyBefore.binding_id);
+    assert.equal(f.worker.network.length, 0);
+  } finally { await close(f); }
+});
+
 const failureBatch = cases.filter(item => item.status === "FAIL");
 const rbFailures = rb.filter(item => item.status === "FAIL");
 const preTokenFailures = preToken.filter(item => item.status === "FAIL");

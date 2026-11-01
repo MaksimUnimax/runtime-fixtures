@@ -12,11 +12,11 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 import zipfile
 from pathlib import Path
 
 
-IMPORT_SCRIPTS = re.compile(r"importScripts\((.*?)\);", re.DOTALL)
 FIREFOX_REQUIRED_DATA_COLLECTION = [
     "authenticationInfo",
     "personallyIdentifyingInfo",
@@ -43,27 +43,94 @@ def write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def flatten(path: Path, root: Path, stack: tuple[Path, ...] = ()) -> bytes:
-    path = path.resolve()
-    if path in stack:
-        raise ValueError("cyclic importScripts graph: " + " -> ".join(str(p) for p in stack + (path,)))
-    if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
-        raise ValueError(f"invalid Firefox background input: {path}")
-    source = path.read_text(encoding="utf-8")
-
-    def replace(match: re.Match[str]) -> str:
-        raw = "[" + match.group(1) + "]"
-        try:
-            imports = json.loads(raw)
-        except json.JSONDecodeError as error:
-            raise ValueError(f"non-static importScripts in {path}") from error
-        if not isinstance(imports, list) or not all(isinstance(item, str) for item in imports):
-            raise ValueError(f"invalid importScripts list in {path}")
-        return "\n;\n".join(
-            flatten(root / item, root, stack + (path,)).decode("utf-8") for item in imports
+def _locate_static_imports(source: str, mode: str = "validate") -> tuple[list[dict], bool]:
+    # Unicode escapes can spell executable JavaScript identifiers such as importScripts.
+    # Always parse syntax; an ASCII substring shortcut can silently skip a real call.
+    parser = Path(__file__).with_name("extension_importscripts_ast.cjs")
+    if not parser.is_file() or parser.is_symlink():
+        raise ValueError("Firefox static import AST parser unavailable")
+    try:
+        result = subprocess.run(
+            ["node", str(parser)] + ([] if mode == "validate" else ["--" + mode]),
+            input=source, capture_output=True, text=True, timeout=30,
         )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError("Firefox static import AST parser not executable") from error
+    if result.returncode != 0:
+        raise ValueError(
+            "Firefox static import AST rejected source: " + result.stderr.strip()[:320],
+        )
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise ValueError("Firefox static import AST returned invalid JSON") from error
+    validated = mode == "validate"
+    if mode == "scan-root":
+        if (not isinstance(payload, dict) or set(payload) != {"imports", "validated"} or
+                type(payload["validated"]) is not bool):
+            raise ValueError("Firefox static import AST returned invalid root scan")
+        imports, validated = payload["imports"], payload["validated"]
+        if validated != (imports == []):
+            raise ValueError("Firefox static import AST returned inconsistent root scan")
+    else:
+        imports = payload
+    if not isinstance(imports, list):
+        raise ValueError("Firefox static import AST returned invalid list")
+    last_end = 0
+    for item in imports:
+        if not isinstance(item, dict):
+            raise ValueError("Firefox static import AST returned invalid item")
+        start, end, paths = item.get("start"), item.get("end"), item.get("paths")
+        if not (
+            type(start) is int and type(end) is int and
+            last_end <= start < end <= len(source) and
+            isinstance(paths, list) and
+            all(isinstance(p, str) and p for p in paths)
+        ):
+            raise ValueError("Firefox static import AST returned invalid spans")
+        last_end = end
+    return imports, validated
 
-    return IMPORT_SCRIPTS.sub(replace, source).encode("utf-8")
+
+def flatten(path: Path, root: Path, stack: tuple[Path, ...] = ()) -> bytes:
+    # Scan static imports structurally first; aliases belong to the complete
+    # classic-script graph, not to each individual imported source file.
+    root_validated = False
+
+    def embed(path: Path, stack: tuple[Path, ...], first: bool = False) -> bytes:
+        nonlocal root_validated
+        path = path.resolve()
+        if path in stack:
+            raise ValueError("cyclic importScripts graph: " + " -> ".join(str(p) for p in stack + (path,)))
+        if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
+            raise ValueError(f"invalid Firefox background input: {path}")
+        source = path.read_text(encoding="utf-8")
+        locations, validated = _locate_static_imports(
+            source, "scan-root" if first else "imports-only",
+        )
+        if first:
+            root_validated = validated
+        pieces: list[bytes] = []
+        cursor = 0
+        for item in locations:
+            pieces.append(source[cursor:item["start"]].encode("utf-8"))
+            if item["paths"]:
+                pieces.append(b"\n;\n".join(
+                    embed(root / name, stack + (path,)) for name in item["paths"]
+                ))
+            else:
+                # Preserve the statement barrier, including before directives.
+                pieces.append(b";")
+            cursor = item["end"]
+        pieces.append(source[cursor:].encode("utf-8"))
+        return b"".join(pieces)
+
+    background = embed(path, stack, True)
+    if not root_validated:
+        remaining, validated = _locate_static_imports(background.decode("utf-8"))
+        if not validated or remaining:
+            raise ValueError("Firefox flattened graph retained static imports")
+    return background
 
 
 def build(input_runtime: Path, output: Path) -> dict:

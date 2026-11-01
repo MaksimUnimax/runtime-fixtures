@@ -336,6 +336,10 @@ export class IndependentMonitoringScheduler {
       return;
     const retryDelays = this.options.notificationRetryDelaysMs ?? [0, 100, 500];
     let lastError: unknown;
+    // A notifier may fan out to several recipients. Once any transport has
+    // begun, repeating the whole notifier could resend an acknowledged prefix.
+    // Keep this flag across attempts; pre-dispatch failures remain retryable.
+    let effectInitiated = false;
     for (const [attempt, delayMs] of retryDelays.entries()) {
       if (delayMs > 0)
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -351,7 +355,12 @@ export class IndependentMonitoringScheduler {
             admission: {
               signal: controller.signal,
               dispatch: (operation) =>
-                this.options.store.withCompletedRun(run, operation),
+                this.options.store.withCompletedRun(run, () => {
+                  if (controller.signal.aborted)
+                    throw new Error("MONITORING_RUN_CANCELLED");
+                  effectInitiated = true;
+                  return operation();
+                }),
             },
           });
         });
@@ -361,6 +370,7 @@ export class IndependentMonitoringScheduler {
         lastError = error;
         if (controller.signal.aborted) throw error;
         if (
+          effectInitiated ||
           isMonitoringEffectOutcomeUnknown(error) ||
           (error instanceof Error &&
             error.message === "MONITORING_RUN_STALE_OWNER")

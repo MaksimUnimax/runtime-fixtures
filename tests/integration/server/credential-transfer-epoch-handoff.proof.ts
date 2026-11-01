@@ -84,7 +84,11 @@ export async function proveCredentialTransferEpochHandoff(
   const source = { accountId, deviceId: sourceId, sessionId: randomUUID() };
   const requestIds: string[] = [];
   let latest: Authority | undefined;
-  const clock = () => new Date("2000-01-01T00:00:00.000Z");
+  let databaseClockOffsetMs: number | undefined;
+  const clock = () => {
+    assert.notEqual(databaseClockOffsetMs, undefined, "DB_CLOCK_NOT_SAMPLED");
+    return new Date(Date.now() + databaseClockOffsetMs!);
+  };
   function check(name: string, passed: boolean) {
     checks.push({ name, passed });
     assert.equal(passed, true, name);
@@ -128,6 +132,15 @@ export async function proveCredentialTransferEpochHandoff(
   });
   try {
     await observer.ready();
+    // Recovery compares expiry to PostgreSQL clock_timestamp(), so the fixture
+    // must share that time domain. Sample inside try/finally to retain cleanup.
+    const sampledClock = await observer.query<{ now: Date }>(
+      "SELECT clock_timestamp() AS now",
+    );
+    assert.equal(sampledClock.rows.length, 1);
+    databaseClockOffsetMs =
+      new Date(sampledClock.rows[0]!.now).valueOf() - Date.now();
+    assert.ok(Number.isFinite(databaseClockOffsetMs), "DB_CLOCK_INVALID");
     const initial = await observer.query<{ journal: string; contexts: string }>(
       "SELECT (SELECT count(*)::text FROM drizzle.__drizzle_migrations) AS journal,(SELECT count(*)::text FROM octoport_transfer_fence.authorized_transactions) AS contexts",
     );
@@ -333,8 +346,10 @@ export async function proveCredentialTransferEpochHandoff(
       check(
         prefix + "expected_commit_or_rollback_state",
         outcome === "commit"
-          ? after.state === "PACKET_AVAILABLE_EPHEMERAL" &&
-              after.revision === before.revision + 1
+          ? // The old commit increments once; the next fenced election discards
+            // its unavailable ephemeral packet and increments once more.
+            after.state === "SOURCE_SEEN" &&
+              after.revision === before.revision + 2
           : JSON.stringify(after) === JSON.stringify(before),
       );
       if (outcome === "rollback")
@@ -467,7 +482,16 @@ export async function proveCredentialTransferEpochHandoff(
         prefix + "new_owner_does_not_invent_old_packet",
         !unavailable.ok && errorCode(unavailable.error) === "SOURCE_OFFLINE",
       );
-      await serviceB.sourceSeen(source, requestId);
+      check(
+        prefix + "new_owner_recovers_nonexpired_source_without_old_packet",
+        after.state === "SOURCE_SEEN",
+      );
+      const recovered = await serviceB.sourceSeen(source, requestId);
+      check(
+        prefix + "source_seen_retains_recovered_state_and_advances_revision",
+        recovered.state === "SOURCE_SEEN" &&
+          recovered.revision === after.revision + 1,
+      );
       const packetId = randomUUID();
       await serviceB.submit(source, {
         requestId,

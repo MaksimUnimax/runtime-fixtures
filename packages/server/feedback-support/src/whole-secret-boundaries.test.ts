@@ -7,6 +7,17 @@ import {
 const head = "SYNTHETIC_PRIVATE_HEAD",
   tail = "SYNTHETIC_PRIVATE_TAIL";
 const raw = [
+  `prefix"password":${head} ${tail}`,
+  // R3 quoted boundaries: malformed bare suffixes and invisible separators.
+  ...['"password"', "'api key'", '"api\nkey"', '"access\\u005ftoken"'].flatMap(
+    (key) =>
+      ["", "\u2060", "\u200b"].flatMap((gap) => [
+        `diagnostic {${key}${gap}:${gap}${head} ${tail}}`,
+        `diagnostic {${key}${gap}:${gap}"${head} ${tail}","id":9007199254740993}`,
+      ]),
+  ),
+  `diagnostic {"api\nkey"\u2060:["${head}","${tail}"],"id":9007199254740993}`,
+  `diagnostic {'password'\u2060:{'part':'${head} ${tail}'},'count':1e+30}`,
   ...[
     "password＝",
     "ｐａｓｓｗｏｒｄ=",
@@ -93,10 +104,20 @@ describe("whole F03 ambiguous values and obscured keys", () => {
     expect(actual).toContain('"name":"Рабочий جهاز🙂"');
     expect(actual).not.toContain(tail);
   });
+  it("redacts typed secrets across invisible separators without changing safe numeric lexemes", () => {
+    const actual = sanitizeFeedbackText(
+      '{"password"\u2060:424242424242,"id":9007199254740993,"count":1e+30}',
+    );
+    expect(actual).not.toContain("424242424242");
+    expect(actual).toContain('"id":9007199254740993');
+    expect(actual).toContain('"count":1e+30');
+  });
   it("preserves Unicode prose, harmless multiword values and complete nonsecret JSON", () => {
     for (const text of [
       "Ошибка при чтении файла\nСледующая строка",
       "message=some useful ordinary text",
+      '{"label"\u2060:"Рабочий جهاز🙂","id":9007199254740993}',
+
       '{"api version":"safe metadata","count":9007199254740993}',
     ])
       expect(sanitizeFeedbackText(text)).toBe(text);

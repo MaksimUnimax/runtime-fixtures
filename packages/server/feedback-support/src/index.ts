@@ -168,12 +168,12 @@ const secretPatterns: readonly [RegExp, string][] = [
 // Match quoted keys and values independently of quote style, including
 // truncated values at end of input or line. Preserve closing value quotes.
 const quotedStringField =
-  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)(\s*[:=\uFF1A\uFF1D]\s*(["']))(?:\\.|\\(?=[\r\n]|$)|(?!\4)[^\\\r\n])*(?=\4|[\r\n]|$)/gu;
+  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)([\p{White_Space}\p{Cc}\p{Cf}]*[:=\uFF1A\uFF1D][\p{White_Space}\p{Cc}\p{Cf}]*(["']))(?:\\.|\\(?=[\r\n]|$)|(?!\4)[^\\\r\n])*(?=\4|[\r\n]|$)/gu;
 // Numeric/boolean/null diagnostics can also be truncated or pseudo-JSON.
 const quotedJsonScalarField =
-  /("(?:\\[\s\S]|[^"\\])*")(\s*[:=\uFF1A\uFF1D]\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
+  /("(?:\\[\s\S]|[^"\\])*")([\p{White_Space}\p{Cc}\p{Cf}]*[:=\uFF1A\uFF1D][\p{White_Space}\p{Cc}\p{Cf}]*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=[\p{White_Space}\p{Cc}\p{Cf}]*(?:[,}\]]|[\r\n]|$))/gu;
 const singleQuotedScalarField =
-  /('(?:\\[\s\S]|[^'\\])*')(\s*[:=\uFF1A\uFF1D]\s*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*(?:[,}\]]|[\r\n]|$))/gu;
+  /('(?:\\[\s\S]|[^'\\])*')([\p{White_Space}\p{Cc}\p{Cf}]*[:=\uFF1A\uFF1D][\p{White_Space}\p{Cc}\p{Cf}]*)(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=[\p{White_Space}\p{Cc}\p{Cf}]*(?:[,}\]]|[\r\n]|$))/gu;
 const sensitiveJsonKey =
   /(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|authorization|cookies?|set[-_]?cookie)$/iu;
 
@@ -197,15 +197,33 @@ function redactUnquotedCredentialValues(input: string): string {
     }
   }
   const assignment =
-    /(?<![\p{L}\p{N}_])([\p{L}_][\p{L}\p{N}_\-\p{White_Space}\p{Cc}\p{Cf}]*)[:=\uFF1A\uFF1D]\s*/gu;
+    /(?:("(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')|(?<![\p{L}\p{N}_])([\p{L}_][\p{L}\p{N}_\-\p{White_Space}\p{Cc}\p{Cf}]*))[\p{White_Space}\p{Cc}\p{Cf}]*[:=\uFF1A\uFF1D][\p{White_Space}\p{Cc}\p{Cf}]*/gu;
   let rewritten = "",
     cursor = 0;
   for (const match of input.matchAll(assignment)) {
     if (match.index < cursor) continue;
     if (match.index >= envelopeStart) break;
-    const key = normalizedCredentialKey(match[1]!);
-    if (!sensitiveJsonKey.test(key) || /authorization$/iu.test(key)) continue;
+    const quotedKey = match[1];
+    const key = quotedKey ? null : normalizedCredentialKey(match[2]!);
+    if (
+      quotedKey
+        ? !isSensitiveQuotedKey(quotedKey)
+        : !sensitiveJsonKey.test(key!) || /authorization$/iu.test(key!)
+    )
+      continue;
     const start = match.index + match[0].length;
+    // Quoted fields with a provable scalar/container end are handled by the
+    // typed redactors below. A malformed bare value has no such boundary:
+    // its private whitespace/comma/semicolon suffix is private through EOF.
+    if (
+      quotedKey &&
+      (input[start] === "{" ||
+        input[start] === "[" ||
+        /^(?:-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=[\p{White_Space}\p{Cc}\p{Cf}]*(?:[,}\]]|[\r\n]|$))/u.test(
+          input.slice(start),
+        ))
+    )
+      continue;
     const quoted = input
       .slice(start)
       .match(/^(["'])(?:\\.|(?!\1)[^\\\r\n])*\1/u);
@@ -249,7 +267,7 @@ function isSensitiveQuotedKey(encodedKey: string): boolean {
 // not just a scalar. Consume that entire value without swallowing subsequent
 // sibling metadata, respecting quotes, escapes and nested delimiters.
 const quotedStructuredField =
-  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)(\s*[:=\uFF1A\uFF1D]\s*)(\{|\[)/gu;
+  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)([\p{White_Space}\p{Cc}\p{Cf}]*[:=\uFF1A\uFF1D][\p{White_Space}\p{Cc}\p{Cf}]*)(\{|\[)/gu;
 
 function redactStructuredCredentialValues(input: string): string {
   let output = "";
@@ -310,7 +328,7 @@ function redactStructuredCredentialValues(input: string): string {
 // Consume the *whole* value, or fail closed on the entire malformed diagnostic
 // when its end cannot be established without guessing a safe boundary.
 const quotedValueStart =
-  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)(\s*[:=\uFF1A\uFF1D]\s*(["']))/gu;
+  /((["'])(?:\\[\s\S]|(?!\2)[^\\])*\2)([\p{White_Space}\p{Cc}\p{Cf}]*[:=\uFF1A\uFF1D][\p{White_Space}\p{Cc}\p{Cf}]*(["']))/gu;
 
 // A bare log-style key such as password: "..." has no quoted JSON key.
 // The ordinary line-level regex would mask only the first physical line.

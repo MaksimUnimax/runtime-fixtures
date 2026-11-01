@@ -727,9 +727,18 @@ async function saReadAdmissionSnapshot({ operation, tabId, store, intentId, conv
   const newInactiveStart = operation === "start" &&
     work?.state === OzonWorkSessionModel.STATES.INACTIVE &&
     binding?.store_context?.storeId === store?.id;
-  const bindingContext = newInactiveStart && binding.store_context.authGeneration !== undefined
-    ? { ...binding.store_context, authGeneration: await SellerAgentsControlClient.generation() }
-    : binding?.store_context;
+  // Store policy edits finish the old Work without rewriting its binding.
+  // Only a new explicit Start after that proven Finish may pin the current
+  // policy. Resume/commands and the account/store/credential fences stay strict.
+  const finishedRestart = newInactiveStart && work.finished === true &&
+    work.terminal_state_known === true && Boolean(work.start_intent_id) &&
+    work.work_session_id === work.start_intent_id;
+  const bindingContext = newInactiveStart ? {
+    ...binding.store_context,
+    ...(finishedRestart ? { policyRevision: saStoreContext(store).policyRevision } : {}),
+    ...(binding.store_context.authGeneration === undefined ? {} :
+      { authGeneration: await SellerAgentsControlClient.generation() }),
+  } : binding?.store_context;
   const bindingStore = bindingContext ? await saAssertStore(bindingContext) : null;
   const liveStore = store ? await saAssertStore(saStoreContext(store)) : (binding?.store_context ? await saAssertStore(binding.store_context) : null);
   if (!liveStore) throw saAdmissionError("STORE_NOT_FOUND");
