@@ -414,11 +414,18 @@ describe("B2 feedback/support safety foundation", () => {
     expect(sanitizeFeedbackText(raw)).toBe(raw);
   });
 
-  it("keeps a separate safe line after a truncated numeric secret", () => {
+  it("redacts an unframed line after a truncated numeric secret", () => {
     const raw = '{"password":123\nX-Trace: preserved';
     const sanitized = sanitizeFeedbackText(raw);
     expect(sanitized).not.toContain("123");
     expect(sanitized).toContain("[REDACTED_SECRET]");
+    expect(sanitized).not.toContain("X-Trace: preserved");
+  });
+
+  it("preserves a trace sibling inside a complete diagnostic envelope", () => {
+    const raw = '{"password":123,"trace":"X-Trace: preserved"}';
+    const sanitized = sanitizeFeedbackText(raw);
+    expect(sanitized).not.toContain("123");
     expect(sanitized).toContain("X-Trace: preserved");
   });
 

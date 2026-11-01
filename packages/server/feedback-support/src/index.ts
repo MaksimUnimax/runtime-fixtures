@@ -181,6 +181,54 @@ function normalizedCredentialKey(key: string): string {
   return key.normalize("NFKC").replace(/[\p{White_Space}\p{Cc}\p{Cf}]/gu, "");
 }
 
+// Validate framing without rewriting diagnostic bytes or rounding numeric
+// metadata. Pseudo-JSON quotes and formatting separators are accepted only
+// when the entire envelope is structurally complete. A line break alone is
+// never evidence that an unquoted credential value has ended.
+function isCompleteDiagnosticEnvelope(input: string): boolean {
+  let validation = "";
+  for (let index = 0; index < input.length; index++) {
+    const char = input[index]!;
+    if (char !== '"' && char !== "'") {
+      validation += /[\p{White_Space}\p{Cc}\p{Cf}]/u.test(char) ? " " : char;
+      continue;
+    }
+    const quote = char;
+    let token = '"';
+    let closed = false;
+    while (++index < input.length) {
+      const next = input[index]!;
+      if (next === quote) {
+        closed = true;
+        break;
+      }
+      if (next === "\\") {
+        const escaped = input[++index];
+        if (escaped === undefined) return false;
+        token += quote === "'" && escaped === "'" ? "'" : "\\" + escaped;
+      } else {
+        token += next === '"' ? '\\"' : next;
+      }
+    }
+    if (!closed) return false;
+    token += '"';
+    // Reject invalid escapes and raw control characters inside either quote
+    // style rather than manufacturing a trustworthy string boundary.
+    try {
+      JSON.parse(token);
+    } catch {
+      return false;
+    }
+    validation += token;
+  }
+  try {
+    JSON.parse(validation);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // A bare credential's whitespace/comma/semicolon suffix has no proven end.
 // Preserve prose before the assignment and redact the complete private remainder.
 // Valid JSON envelopes are handled recursively at decoded string boundaries,
@@ -189,11 +237,8 @@ function redactUnquotedCredentialValues(input: string): string {
   let envelopeStart = input.length;
   for (const start of [0, input.indexOf("{"), input.indexOf("[")]) {
     if (start < 0) continue;
-    try {
-      JSON.parse(input.slice(start));
+    if (isCompleteDiagnosticEnvelope(input.slice(start))) {
       envelopeStart = Math.min(envelopeStart, start);
-    } catch {
-      /* not a complete envelope */
     }
   }
   const assignment =
@@ -212,18 +257,10 @@ function redactUnquotedCredentialValues(input: string): string {
     )
       continue;
     const start = match.index + match[0].length;
-    // Quoted fields with a provable scalar/container end are handled by the
-    // typed redactors below. A malformed bare value has no such boundary:
-    // its private whitespace/comma/semicolon suffix is private through EOF.
-    if (
-      quotedKey &&
-      (input[start] === "{" ||
-        input[start] === "[" ||
-        /^(?:-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=[\p{White_Space}\p{Cc}\p{Cf}]*(?:[,}\]]|[\r\n]|$))/u.test(
-          input.slice(start),
-        ))
-    )
-      continue;
+    // Structured values have their own balanced-delimiter redactor. Typed
+    // scalars are safe only inside the complete envelope verified above;
+    // otherwise numeric/boolean/null prefixes do not delimit a private tail.
+    if (quotedKey && (input[start] === "{" || input[start] === "[")) continue;
     const quoted = input
       .slice(start)
       .match(/^(["'])(?:\\.|(?!\1)[^\\\r\n])*\1/u);

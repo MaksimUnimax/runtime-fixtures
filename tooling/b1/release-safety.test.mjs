@@ -1691,7 +1691,7 @@ test("flattened Firefox background keeps an executable top-level packaged config
   const value = fixture({
     firefox: {
       transformWorker: (worker) =>
-        '(() => { "use strict"; globalThis.SYNTHETIC_BOOTSTRAP = Object.freeze({value:1}); })();\n' +
+        '(() => { "use strict"; const bootstrap = Object.freeze({value:1}); return bootstrap; })();\n' +
         worker,
     },
   });
@@ -1719,6 +1719,82 @@ for (const [name, transformWorker] of [
   ["shadowed globalThis", (worker) => "const globalThis={};\n" + worker],
   ["destructured globalThis", (worker) => "var { globalThis }={};\n" + worker],
   ["reassigned globalThis", (worker) => "globalThis={};\n" + worker],
+  [
+    "Object.assign receiver write",
+    (worker) => "Object.assign(globalThis,{globalThis:{}});\n" + worker,
+  ],
+  [
+    "strict bootstrap early error",
+    (worker) => '(function(eval){"use strict";})(null);\n' + worker,
+  ],
+  [
+    "global member receiver write",
+    (worker) => "globalThis.globalThis={};\n" + worker,
+  ],
+  [
+    "global computed receiver write",
+    (worker) => 'globalThis["globalThis"]={};\n' + worker,
+  ],
+  [
+    "Reflect receiver write",
+    (worker) => 'Reflect.set(globalThis,"globalThis",{});\n' + worker,
+  ],
+  [
+    "Object receiver definition",
+    (worker) =>
+      'Object.defineProperty(globalThis,"globalThis",{value:{}});\n' + worker,
+  ],
+  [
+    "global receiver alias",
+    (worker) => "const target=globalThis;target.globalThis={};\n" + worker,
+  ],
+  [
+    "reflector alias",
+    (worker) =>
+      'const put=Reflect.set;put(globalThis,"globalThis",{});\n' + worker,
+  ],
+  ["classic this receiver write", (worker) => "this.globalThis={};\n" + worker],
+  [
+    "destructuring member target",
+    (worker) => "({value:globalThis.globalThis}={value:{}});\n" + worker,
+  ],
+  [
+    "array member target",
+    (worker) => "[globalThis.globalThis]=[{}];\n" + worker,
+  ],
+  [
+    "for-of member target",
+    (worker) => "for(globalThis.globalThis of [{}]){}\n" + worker,
+  ],
+  [
+    "for-in member target",
+    (worker) => "for(globalThis.globalThis in {value:1}){}\n" + worker,
+  ],
+  [
+    "property getter effect",
+    (worker) =>
+      "Object.freeze({get value(){globalThis.globalThis={};}});\n" + worker,
+  ],
+  [
+    "unknown global bootstrap effect",
+    (worker) => "globalThis.SYNTHETIC_BOOTSTRAP={};\n" + worker,
+  ],
+  [
+    "unbounded local bootstrap",
+    (worker) => "(function(){while(true){}})();\n" + worker,
+  ],
+  [
+    "throwing local const reassignment",
+    (worker) => "(function(){const value=1;value=2;})();\n" + worker,
+  ],
+  [
+    "uninitialized local read",
+    (worker) => "(function(){return value;let value=1;})();\n" + worker,
+  ],
+  [
+    "hoisted native intrinsic shadow",
+    (worker) => "Object.freeze({});\n" + worker + "\nfunction Object(){}",
+  ],
   ["malformed syntax", (worker) => "function broken( {\n" + worker],
   ["duplicate", (worker) => worker + worker],
 ])

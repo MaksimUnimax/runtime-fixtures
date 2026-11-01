@@ -23,6 +23,7 @@ import { createRequire } from "node:module";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync, inflateSync } from "node:zlib";
+import { Script } from "node:vm";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -1186,6 +1187,187 @@ function backgroundScripts(entries, manifest, browser) {
   return visited;
 }
 
+// Supported composed-worker prelude, before the config assignment. These
+// reviewed modules only publish frozen capabilities/discovery functions. A
+// changed module requires an explicit contract update; arbitrary executable
+// ZIP prefixes are not accepted by inferring native-global identity.
+const FIREFOX_CONFIG_PRELUDE = [
+  "866bd3ca172f27822f0ae00cfd99511e1407851a486995dcd5e5f91f7f042a0c",
+  "e1f86038a60aad980162d821a4124a9bb60cfb44f5e3630fb18f0469b18cd788",
+  "262e8e1a5f09bb17383f6bf05711c46a8ec2b72e053c334f8551bc5cee44ea33",
+];
+
+function assertFirefoxConfigPrelude(ts, file, checker, assignment) {
+  const prefix = file.statements.slice(0, file.statements.indexOf(assignment));
+  const digest = (node) =>
+    createHash("sha256").update(node.getText(file)).digest("hex");
+  const trusted = prefix.filter((node) =>
+    FIREFOX_CONFIG_PRELUDE.includes(digest(node)),
+  );
+  if (
+    trusted.length &&
+    (trusted.length !== FIREFOX_CONFIG_PRELUDE.length ||
+      trusted.some(
+        (node, index) => digest(node) !== FIREFOX_CONFIG_PRELUDE[index],
+      ))
+  )
+    fail("Firefox config has an unsupported composed prelude");
+  const insideTrusted = (node) =>
+    trusted.some(
+      (statement) => node.pos >= statement.pos && node.end <= statement.end,
+    );
+  // Hoisted declarations elsewhere in the script must not substitute a native
+  // intrinsic used by the byte-identified prelude (e.g. function Object()).
+  const checkTrustedBindings = (node) => {
+    const parent = node.parent;
+    if (
+      ts.isIdentifier(node) &&
+      !(ts.isPropertyAccessExpression(parent) && parent.name === node) &&
+      !(ts.isPropertyAssignment(parent) && parent.name === node)
+    ) {
+      const declarations =
+        checker.getSymbolAtLocation(node)?.declarations ?? [];
+      if (
+        declarations.some(
+          (item) => !ts.isIdentifier(item) && !insideTrusted(item),
+        )
+      )
+        fail("Firefox config prelude shadows a native binding");
+    }
+    ts.forEachChild(node, checkTrustedBindings);
+  };
+  for (const node of trusted) checkTrustedBindings(node);
+
+  const unwrap = (node) => {
+    while (ts.isParenthesizedExpression(node)) node = node.expression;
+    return node;
+  };
+  const symbol = (node) => checker.getSymbolAtLocation(node);
+  const safeValue = (raw, locals) => {
+    const node = unwrap(raw);
+    if (
+      ts.isStringLiteral(node) ||
+      ts.isNumericLiteral(node) ||
+      ts.isBigIntLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      [
+        ts.SyntaxKind.TrueKeyword,
+        ts.SyntaxKind.FalseKeyword,
+        ts.SyntaxKind.NullKeyword,
+      ].includes(node.kind)
+    )
+      return true;
+    if (ts.isIdentifier(node))
+      return !!symbol(node) && locals.has(symbol(node));
+    if (ts.isVoidExpression(node)) return safeValue(node.expression, locals);
+    if (ts.isPrefixUnaryExpression(node))
+      return (
+        [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken].includes(
+          node.operator,
+        ) && ts.isNumericLiteral(node.operand)
+      );
+    if (ts.isObjectLiteralExpression(node))
+      return node.properties.every(
+        (property) =>
+          ts.isPropertyAssignment(property) &&
+          !ts.isComputedPropertyName(property.name) &&
+          safeValue(property.initializer, locals),
+      );
+    if (ts.isArrayLiteralExpression(node))
+      return node.elements.every((element) => safeValue(element, locals));
+    if (ts.isFunctionExpression(node) || ts.isArrowFunction(node)) return true;
+    if (!ts.isCallExpression(node)) return false;
+    const callee = unwrap(node.expression);
+    if (
+      ts.isPropertyAccessExpression(callee) &&
+      ts.isIdentifier(callee.expression) &&
+      callee.expression.text === "Object" &&
+      callee.name.text === "freeze" &&
+      node.arguments.length === 1 &&
+      (ts.isObjectLiteralExpression(node.arguments[0]) ||
+        ts.isArrayLiteralExpression(node.arguments[0]))
+    ) {
+      const declarations = symbol(callee.expression)?.declarations ?? [];
+      return (
+        declarations.every((item) => ts.isIdentifier(item)) &&
+        safeValue(node.arguments[0], locals)
+      );
+    }
+    if (
+      !(ts.isFunctionExpression(callee) || ts.isArrowFunction(callee)) ||
+      callee.asteriskToken ||
+      callee.modifiers?.some(
+        (item) => item.kind === ts.SyntaxKind.AsyncKeyword,
+      ) ||
+      !node.arguments.every((argument) => safeValue(argument, locals)) ||
+      new Set(
+        callee.parameters.map((parameter) => parameter.name.getText(file)),
+      ).size !== callee.parameters.length ||
+      callee.parameters.some(
+        (parameter) =>
+          !ts.isIdentifier(parameter.name) ||
+          !symbol(parameter.name) ||
+          parameter.initializer ||
+          parameter.dotDotDotToken,
+      )
+    )
+      return false;
+    const nested = new Map(
+      callee.parameters.map((parameter) => [symbol(parameter.name), true]),
+    );
+    if (!ts.isBlock(callee.body)) return safeValue(callee.body, nested);
+    for (const statement of callee.body.statements) {
+      if (ts.isReturnStatement(statement))
+        return !statement.expression || safeValue(statement.expression, nested);
+      if (!safeStatement(statement, nested)) return false;
+    }
+    return true;
+  };
+  const safeStatement = (node, locals) => {
+    if (ts.isEmptyStatement(node) || ts.isFunctionDeclaration(node))
+      return true;
+    if (ts.isVariableStatement(node)) {
+      for (const declaration of node.declarationList.declarations) {
+        if (
+          !ts.isIdentifier(declaration.name) ||
+          !symbol(declaration.name) ||
+          (node.declarationList.flags & ts.NodeFlags.Const &&
+            !declaration.initializer) ||
+          (declaration.initializer &&
+            !safeValue(declaration.initializer, locals))
+        )
+          return false;
+        locals.set(
+          symbol(declaration.name),
+          !(node.declarationList.flags & ts.NodeFlags.Const),
+        );
+      }
+      return true;
+    }
+    if (!ts.isExpressionStatement(node)) return false;
+    const value = unwrap(node.expression);
+    if (
+      ts.isBinaryExpression(value) &&
+      value.operatorToken.kind === ts.SyntaxKind.EqualsToken
+    )
+      return (
+        ts.isIdentifier(value.left) &&
+        !!symbol(value.left) &&
+        locals.get(symbol(value.left)) === true &&
+        safeValue(value.right, locals)
+      );
+    return safeValue(value, locals);
+  };
+  for (const node of prefix) {
+    if (trusted.includes(node)) continue;
+    // Outside the supported prelude allow only provably inert definitions,
+    // literals and bounded local-only IIFEs. No global member/alias/reflection,
+    // getters, unknown calls, loops, destructuring or executable coercions.
+    if (ts.isVariableStatement(node) || !safeStatement(node, new Map()))
+      fail("Firefox config has an unsupported executable bootstrap");
+  }
+}
+
 function parsePackagedConfigFromScript(source, browser) {
   // Chromium's supported packager puts the assignment at byte zero. A
   // Firefox flattened classic script may execute bootstrap statements first.
@@ -1200,8 +1382,15 @@ function parsePackagedConfigFromScript(source, browser) {
     ) >= 0
   )
     fail("Release package contains duplicate config markers");
-  if (marker !== 0) {
-    if (browser !== "firefox") return [];
+  if (marker !== 0 && browser !== "firefox") return [];
+  if (browser === "firefox") {
+    try {
+      // Compile classic-script syntax only, including JS early errors that a
+      // TypeScript AST can represent. Never run the script or its functions.
+      new Script(source, { filename: "octoport-firefox-background.js" });
+    } catch {
+      fail("Firefox background syntax is invalid");
+    }
     const ts = createRequire(import.meta.url)("typescript");
     const file = ts.createSourceFile(
       "/octoport-firefox-background.js",
@@ -1259,6 +1448,8 @@ function parsePackagedConfigFromScript(source, browser) {
       host,
     );
     const checker = program.getTypeChecker();
+    if (program.getSyntacticDiagnostics(boundFile).length)
+      fail("Firefox background syntax is invalid");
     const receiver = assignments[0].expression.left.expression;
     const globalSymbol = checker.getSymbolAtLocation(receiver);
     // JavaScript namespace assignment adds a synthetic Identifier declaration
@@ -1286,6 +1477,7 @@ function parsePackagedConfigFromScript(source, browser) {
       ts.forEachChild(node, inspectWrites);
     };
     inspectWrites(boundFile);
+    assertFirefoxConfigPrelude(ts, boundFile, checker, assignments[0]);
     source = assignments[0].getText(file);
   }
   const tail = source.slice(PACKAGED_CONFIG_MARKER.length);
