@@ -72,9 +72,18 @@ async function readReceipt(
     }
     if (received !== stat.size) throw new Error("OPERATOR_RECEIPT_INVALID");
     try {
-      return JSON.parse(
+      const receipt: unknown = JSON.parse(
         bytes.subarray(0, received).toString("utf8"),
-      ) as ConsumptionReceipt;
+      );
+      // Only ENOENT produces the missing-file sentinel. Every parsed scalar
+      // or array is a present invalid marker, including all falsy JSON roots.
+      if (
+        receipt === null ||
+        typeof receipt !== "object" ||
+        Array.isArray(receipt)
+      )
+        throw new Error("OPERATOR_RECEIPT_INVALID");
+      return receipt as ConsumptionReceipt;
     } catch {
       throw new Error("OPERATOR_RECEIPT_INVALID");
     }
@@ -96,7 +105,9 @@ async function verifyReceipt(input: {
     throw new Error("OPERATOR_RECEIPT_INVALID");
   };
   if (
-    !receipt ||
+    receipt === null ||
+    typeof receipt !== "object" ||
+    Array.isArray(receipt) ||
     receipt.version !== 1 ||
     receipt.artifactId !== artifact.artifactId ||
     receipt.requestId !== artifact.requestId ||
@@ -168,7 +179,7 @@ export async function operatorPipelineConsumed(input: {
   const receipt = await readReceipt(
     receiptPath(input.quarantineDir, input.artifact.artifactId),
   );
-  if (!receipt) return false;
+  if (receipt === undefined) return false;
   await verifyReceipt({ ...input, reportStore: input.reportStore, receipt });
   return true;
 }
@@ -212,7 +223,7 @@ export async function completeOperatorPipeline(input: {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       const existing = await readReceipt(path);
-      if (!existing) throw new Error("OPERATOR_RECEIPT_MISSING");
+      if (existing === undefined) throw new Error("OPERATOR_RECEIPT_MISSING");
       await verifyReceipt({ ...input, artifact, receipt: existing });
     }
     const directory = await open(input.quarantineDir, constants.O_RDONLY);
