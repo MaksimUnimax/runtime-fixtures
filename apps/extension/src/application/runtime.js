@@ -470,6 +470,8 @@ function saCancelAdmission(tabId, conversationKey = null) {
   const tab = Number(tabId);
   const key = conversationKey ? normalizeConversationKey(conversationKey) : null;
   const waits = [];
+  try { globalThis.SellerAgentsWBSalesFinanceManual?.invalidateForTab(tab, key); }
+  catch (_) { globalThis.SellerAgentsWBCAP19CancellationFault = true; }
   for (const token of saAdmissionEpochs.values()) {
     if (token.tabId === tab || key && token.conversationKey === key) {
       token.cancelled = true;
@@ -480,6 +482,8 @@ function saCancelAdmission(tabId, conversationKey = null) {
 }
 function saCancelAdmissionsForStore(storeId) {
   const waits = [];
+  try { globalThis.SellerAgentsWBSalesFinanceManual?.invalidateForStore(storeId); }
+  catch (_) { globalThis.SellerAgentsWBCAP19CancellationFault = true; }
   for (const token of saAdmissionEpochs.values()) if (token.store?.id === storeId) {
     token.cancelled = true;
     if (token.mutationFlight) waits.push(token.mutationFlight);

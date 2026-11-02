@@ -158,7 +158,13 @@ async function runComposedBatchQueue(options) {
   try {
     if (options.ownerKind === "manual")
       context = await createBatchExecutionGuard(await options.getOwner());
-    if (context?.snapshot.marketplace === "wildberries") return SellerAgentsGuardedBatchQueue.run(options, { context, ports: SellerAgentsWBBatch.createPorts(context, { quota: saQuota, diagnostic, workerId: WORKER_SESSION_ID, flights: batchCollectionRequests }) });
+    if (context?.snapshot.marketplace === "wildberries") {
+      const owner = await options.getOwner();
+      const provider = SellerAgentsWBSalesFinanceManual.providerForApprovedOwner({owner, options, context, assertSafeValues:(currentOwner,value)=>saAssertCAP19ValueSafety(currentOwner,value)});
+      return SellerAgentsGuardedBatchQueue.run(options, { context, ports: SellerAgentsWBBatch.createPorts(context, {
+        quota: saQuota, diagnostic, workerId: WORKER_SESSION_ID, flights: batchCollectionRequests, provider,
+      }) });
+    }
     const ports = {
       normalizeKey: normalizeConversationKey,
       singleFlight,

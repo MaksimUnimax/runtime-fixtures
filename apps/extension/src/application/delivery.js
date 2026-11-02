@@ -11,23 +11,85 @@ async function saPrompt(pinned, tree = null) {
     'API envelope: WB_API_V1 {"operation":"seller_info","params":{}}. Для иных операций params содержит path, query, body только по локальной карточке.',
     "Справка основана на закреплённой версии API. Подтверждением доступа служит ответ конкретной операции, а не наличие alias в справке.",
     "Не строй скрытые пагинации, опросы, повторы или зависимые запросы до получения ответа. После промежуточного ответа формируй следующий явный блок.",
+    'Для явной сверки продаж с финансами локальный WB_CAP19_V1 JSON в начале того же одобряемого блока выбирает begin {action,businessPeriod:{fromInclusive,toExclusive,timezone},salesAcquisition:{updatedSince,flag:0},financePeriod:"daily"|"weekly",pages:[{entryOrdinal,stream:"sales"|"finance",ordinal}]} или continue {action,collectionId,pages}. За ним идут настоящие явные WB_API_V1 команды; metadata не делает запросов. Используй точные collectionId/cursors из WB_CAP19_COLLECTION_V1, срок не продлевается. Полный JSON-файл передаётся как явно обозначенный UTF-8 TXT derived business report, без FX/чистой выручки/полного бизнес-покрытия.',
+
     "Полученные WB_RESULT_V1 и WB_BATCH_RESULT_V1 относятся только к указанному магазину. Ошибки, UNKNOWN и отсутствие загруженного файла не являются успехом.",
     "Большие результаты и оригинальные файлы расширение прикрепляет к сообщению; читай их полностью. Локальный технический буфер живёт не более часа, архива нет.",
     `Передача персональных данных: ${store.personalDataEnabled ? "разрешена пользователем для этого магазина" : "выключена; соответствующие операции блокирует код"}. Только чтение; изменение цен, рекламы и карточек запрещено.`,
     "Ответь кратко, что подключён к указанному источнику и магазину; уточни задачу пользователя."
   ].join("\n") + hints;
 }
-function saCombinedReport(entries, owner) {
+function saCombinedReport(entries, owner, cap19Progress = null) {
   const p = owner.execution_context;
   const header = { source: p.marketplace, store_id: p.storeId, binding_id: p.bindingId,
     work_session_id: p.workSessionId, result_count: entries.length, created_at: owner.created_at,
     expires_at: new Date(owner.payload_expires_at_ms).toISOString() };
   const text = `${p.marketplace === "wildberries" ? "WB" : "OZON"}_BATCH_RESULT_V1\n${JSON.stringify(header)}\n\n` +
-    entries.map((entry, i) => `===== RESULT ${i + 1}/${entries.length} =====\n${entry.report_text || ""}`).join("\n\n");
+    entries.map((entry, i) => `===== RESULT ${i + 1}/${entries.length} =====\n${entry.report_text || ""}`).join("\n\n") +
+    (cap19Progress ? "\n\nWB_CAP19_COLLECTION_V1\n" + JSON.stringify(cap19Progress) : "");
   // Preserve the scoped batch and exact result envelopes. This is the shipped
   // Ozon next-command contract, independent of the optional legacy prefix.
   return p.marketplace === "ozon"
     ? OzonLlmOutputReportWorkflowPatch.appendInstructionTail(text) : text;
+}
+async function saAssertCAP19ValueSafety(owner, value) {
+  // The credential remains in the existing application guard. The collector and
+  // artifact ABI receive a veto capability, never a token or authenticated headers.
+  const guard = await saGuard(owner);
+  await guard.assertCurrent();
+  const credentials = await guard.credentials();
+  await guard.assertCurrent();
+  const token = credentials?.token;
+  if (typeof token !== "string" || !token) throw saError("CAP19_VALUE_SAFETY_UNAVAILABLE");
+  const check = text => { if (text.includes(token)) throw saError("CAP19_CREDENTIAL_ECHO"); };
+  const pending = [value], seen = new Set(); let nodes = 0;
+  while (pending.length) {
+    if (++nodes > 2000000) throw saError("CAP19_VALUE_SAFETY_LIMIT");
+    const item = pending.pop();
+    if (typeof item === "string") check(item);
+    else if (item !== null && typeof item === "object") {
+      if (seen.has(item)) throw saError("CAP19_VALUE_SAFETY_INVALID");
+      seen.add(item);
+      for (const [key, child] of Object.entries(item)) { check(key); pending.push(child); }
+    } else if (item !== undefined) check(String(item));
+  }
+  // Also exclude an exact byte sequence spanning serialized syntax/escapes.
+  const encoded = JSON.stringify(value);
+  if (typeof encoded === "string") check(encoded);
+  await guard.assertCurrent();
+}
+async function saPrepareCAP19Delivery(owner) {
+  if(!owner?.cap19_selection)return {refs:[],progress:null};
+  const guard=await saGuard(owner);
+  const api=SellerAgentsWBSalesFinanceManual;
+  const result=await api.completeForDelivery(owner,{
+    assertCurrent:()=>guard.assertCurrent(),
+    assertSafeValues:value=>saAssertCAP19ValueSafety(owner,value),
+    recordIntent:async descriptor=>{
+      await guard.assertCurrent();
+      await mutateManualOperation(owner.conversation_key,async current=>{
+        await guard.assertCurrent();
+        if(current?.operation_id!==owner.operation_id || current.status!==MANUAL_OPERATION_STATUSES.REQUESTING)
+          throw saError("CAP19_ARTIFACT_INTENT_OWNER");
+        if(current.cap19_artifact_intent && JSON.stringify(current.cap19_artifact_intent)!==JSON.stringify(descriptor))
+          throw saError("CAP19_ARTIFACT_INTENT_CONFLICT");
+        return {...current,cap19_artifact_intent:descriptor};
+      });
+    },
+    store:async(record,options)=>{
+      const current=await getManualOperation(owner.conversation_key);
+      await guard.assertCurrent();
+      return OzonFileDeliveryWorker.storeApplicationArtifact(record,{...options,owner:current});
+    },
+    read:async(descriptor,options)=>{
+      const current=await getManualOperation(owner.conversation_key);
+      await guard.assertCurrent();
+      return OzonFileDeliveryWorker.readApplicationArtifact(descriptor,{...options,owner:current});
+    },
+  });
+  try { await saAssertCAP19ValueSafety(owner,result); }
+  catch(error) { api.invalidateForOwner(owner.operation_id); throw error; }
+  await guard.assertCurrent();return result;
 }
 async function saPrepareDelivery(entries, owner) {
   if (!await saEnabled() || owner?.execution_context?.marketplace !== "wildberries") return entries;

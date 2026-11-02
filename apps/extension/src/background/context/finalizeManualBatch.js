@@ -6,11 +6,17 @@ async function finalizeManualBatch(
 ) {
   const key = normalizeConversationKey(conversationKey);
   await assertManualBatchContext(key, operationId);
-  const owner = await getManualOperation(key);
+  let owner = await getManualOperation(key);
   entries = await saPrepareDelivery(entries, owner);
-  const combinedReport = owner?.execution_context && await saEnabled() ? saCombinedReport(entries, owner) : formatCombinedBatchReport(entries, batchSnapshot);
+  const cap19 = owner?.cap19_selection
+    ? await saPrepareCAP19Delivery(owner)
+    : { refs: [], progress: null };
+  owner = await getManualOperation(key);
+  const combinedReport = owner?.execution_context && await saEnabled() ? saCombinedReport(entries, owner, cap19.progress) : formatCombinedBatchReport(entries, batchSnapshot);
   const prefixed = await saEnabled() ? { outgoing_text: combinedReport, report_prefix_applied: false } : await applyPrefixToReport(key, combinedReport);
   const deliveryId = `manual-delivery-${crypto.randomUUID()}`;
+  const cap19Effect=cap19.refs.length ? SellerAgentsWBSalesFinanceManual.beginEffect(owner,cap19.refs[0]) : null;
+  try {
   await assertManualBatchContext(key, operationId);
   let claimed = false;
   const operation = await mutateManualOperation(key, (current) => {
@@ -30,6 +36,11 @@ async function finalizeManualBatch(
       return current;
     if (currentEntries.some((entry) => entry?.status !== "complete"))
       return current;
+    if(cap19Effect){
+      SellerAgentsWBSalesFinanceManual.admitEffect(cap19Effect);
+      if(current.cap19_artifact_intent?.artifact_key!==cap19.refs[0].artifact_key ||
+         current.cap19_artifact_intent?.sha256!==cap19.refs[0].sha256)throw saError("CAP19_CLAIM_DESCRIPTOR_CHANGED");
+    }
     claimed = true;
     const next = BridgeAutorunModel.claimDelivery({ ...current, batch: { ...current.batch, entries } }, {
       deliveryId,
@@ -38,6 +49,7 @@ async function finalizeManualBatch(
       outgoingHash: "",
       reportPrefixApplied: prefixed.report_prefix_applied === true,
       mode: "batch_watch_v1",
+      ...(cap19.refs.length ? {derived_file_refs:cap19.refs} : {}),
     });
     next.delivery.payload_expires_at_ms = current.payload_expires_at_ms;
     next.delivery.marketplace = current.execution_context?.marketplace;
@@ -57,6 +69,7 @@ async function finalizeManualBatch(
     return next;
   });
   if (!claimed) return { ok: false, code: "BATCH_FINALIZE_RACE" };
+  if(cap19Effect){await assertManualBatchContext(key,operationId);SellerAgentsWBSalesFinanceManual.admitEffect(cap19Effect);}
   await diagnostic("BATCH_COLLECTION_COMPLETED", {
     owner_kind: "manual",
     owner_id: operationId,
@@ -72,4 +85,5 @@ async function finalizeManualBatch(
     delivery_id: deliveryId,
     operation,
   };
+  } finally {if(cap19Effect)SellerAgentsWBSalesFinanceManual.endEffect(cap19Effect);}
 }

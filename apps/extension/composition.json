@@ -193,6 +193,8 @@
       ],
       "sources": [
         "packages/marketplaces/wildberries/src/adapter.js",
+        "packages/marketplaces/wildberries/src/sales-finance-reconciliation.js",
+        "packages/marketplaces/wildberries/src/sales-finance-manual-collection.js",
         "packages/marketplaces/wildberries/src/batch-adapter.js"
       ]
     }

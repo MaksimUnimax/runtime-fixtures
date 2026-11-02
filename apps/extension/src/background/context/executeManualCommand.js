@@ -100,7 +100,11 @@ async function executeManualCommand(
     }
   }
 
+  const cap19Selection = binding.store_context?.marketplace === "wildberries"
+    ? SellerAgentsWBSalesFinanceManual.parseSelection(commandText, entries) : null;
   const r3Enabled = await saEnabled();
+  if (cap19Selection && (!r3Enabled || commandSource?.protocol !== 2))
+    throw saError("CAP19_APPROVED_SOURCE_OR_NEW_BLOCK_REQUIRED");
   const r3Prepared = r3Enabled ? await saR3PrepareCommandSource(commandSource, sender, liveIdentity, binding, workSession, key, commandText) : null;
   if (r3Prepared) requestToken = recovery?.context.requestId || r3Prepared.requestToken;
   if (r3Enabled && !await SellerAgentsControlClient.canWork(liveIdentity))
@@ -154,6 +158,7 @@ async function executeManualCommand(
       binding_snapshot: bindingSnapshot(binding),
       execution_context: executionContext,
       prompt_tree: promptTree.pin,
+      ...(cap19Selection ? { cap19_selection: cap19Selection } : {}),
       ...(r3Reservation ? { r3_execution_id: r3Reservation.executionId, r3_source: r3Prepared.source,
         r3_block_origin_key: r3Prepared.blockOriginKey, r3_block_version: r3Prepared.blockVersion } : {}),
       seen_request_ids: [...seen, ingressRequestToken],
@@ -207,6 +212,28 @@ async function executeManualCommand(
       new Error("Bridge уже выполняет или доставляет ручной Ozon batch."),
       { code: "MANUAL_OPERATION_ACTIVE" },
     );
+  }
+  if (cap19Selection) {
+    try {
+      const cap19Context = await createBatchExecutionGuard(operation);
+      const cap19Binding = await SellerAgentsWBSalesFinanceManual.bindApprovedOwner({
+        owner: operation, selection: cap19Selection, context: cap19Context,
+        prepared: { ...r3Prepared, executionId: r3Reservation?.executionId, recovery: Boolean(recovery) },
+      });
+      let bound = false;
+      await mutateManualOperation(key, async current => {
+        await cap19Context.assertCurrent();
+        if (current?.operation_id !== operationId || current.status !== MANUAL_OPERATION_STATUSES.REQUESTING)
+          throw saError("CAP19_ADMISSION_CHANGED");
+        bound = true;
+        return { ...current, cap19_collection: cap19Binding };
+      });
+      if (!bound) throw saError("CAP19_ADMISSION_CHANGED");
+    } catch (error) {
+      SellerAgentsWBSalesFinanceManual.invalidateForOwner(operationId);
+      await failManualBatch(key, operationId, error.code || "CAP19_ADMISSION_FAILED", "CAP19 collection was not admitted; no provider dispatch.");
+      throw error;
+    }
   }
   await diagnostic("MANUAL_BATCH_ACCEPTED", {
     operation_id: operationId,

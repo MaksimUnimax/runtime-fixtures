@@ -227,6 +227,10 @@
               : null,
             generated_text_document: attachmentPlan.generated_text_document,
             provider_file_refs: attachmentPlan.provider_file_refs,
+            ...(attachmentPlan.derived_file_refs?.length ? {
+              derived_file_refs: attachmentPlan.derived_file_refs.map(ref=>({...ref})),
+              derived_owner: {operation_id:run.operation_id,conversation_key:run.conversation_key},
+            } : {}),
             text_decision: attachmentPlan.text_decision,
             report_prefix_applied: payload.reportPrefixApplied === true,
             baseline_user_turn_ids: [],

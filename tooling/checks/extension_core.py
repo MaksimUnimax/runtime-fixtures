@@ -94,6 +94,9 @@ def main():
             runner.run(label + "-context", ["node", ROOT / "tests/regression/extension-core/batch-context.mjs", runtime])
             runner.run(label + "-attachment-port-idle", ["node", ROOT / "tests/regression/extension-core/attachment-port-idle.mjs", runtime])
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])
+            # CAP19 runs through the current producer, queue and real attachment port in both exact artifacts.
+            runner.run(label + "-wb-sales-finance-runtime-wiring", ["node", ROOT / "tests/regression/extension-core/wb-sales-finance-runtime-wiring.mjs", runtime])
+            runner.run(label + "-wb-sales-finance-derived-attachment", ["node", ROOT / "tests/regression/extension-core/wb-sales-finance-derived-attachment.mjs", runtime])
             runner.run(label + "-wb-token-field-name-privacy", ["node", ROOT / "tests/regression/extension-core/wb-token-field-name-privacy.mjs", runtime])
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
             runner.run(label + "-delivery-send-target", ["node", ROOT / "tests/regression/extension-core/delivery-send-target.mjs", runtime])

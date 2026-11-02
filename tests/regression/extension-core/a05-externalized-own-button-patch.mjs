@@ -221,7 +221,7 @@ assert.deepEqual(donorCorrectionPatches.map(row => {
   ]
 ]);
 assert.equal(donorCorrectionPatches.some(row => row.target === "content_script.js"), false);
-const reportStatusPatches = patches.slice(388);
+const reportStatusPatches = patches.slice(388, 389);
 assert.equal(reportStatusPatches.length, 1, "one whole generated-resolver status correction");
 assert.deepEqual(reportStatusPatches.map(row => {
   assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
@@ -249,7 +249,125 @@ for (const row of donorCorrectionPatches.filter(row => row.target === "shared/fi
 assert.equal(artifactPreimages, 25);
 assert.equal(hash(artifactWorker), "7e5369886d7321337dc1c4af9fce13464bbaa727bf197ff8b49df9cef80f156b",
   "exact accepted d8/1d writer-context artifact worker; no A05 code change");
-assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length + settlementPatches.length + donorCorrectionPatches.length + reportStatusPatches.length);
+// The accepted 389-entry prefix above remains byte-exact. CAP19 adds only
+// its agreed artifact-worker integration after that prefix in this successor.
+const cap19ArtifactPatches = patches.slice(389);
+assert.deepEqual(cap19ArtifactPatches.map(row => {
+  assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+  return [row.target, hash(row.old), hash(row.new)];
+}), [
+  [
+    "shared/file_delivery_port_worker.js",
+    "c13cef3f2d1043eeadb88a3e32e5fa0daf9b13dbce5051294fd0385480e2c57d",
+    "d0913811ff9b1e98cc3743f9ba9907d48b6d483d8f937e92bf7f022d3729b5c0"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "d0913811ff9b1e98cc3743f9ba9907d48b6d483d8f937e92bf7f022d3729b5c0",
+    "e4265a359cc3921ffc678989e90018fae146f041281c813643eadc78a2285be9"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "a23d71fb247af79f13e6f0a04359debe34f6ef950ba3c7212cf7bf4cdb5ab82a",
+    "50c7d7ea565c94e7dbcb044e2b54cfe2b8343b84a27b69c7c4d1de60e94eb8f5"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "4d451a43edc7edb2e33ea7302d1c89fbaf383161f847196e3577b0877759591c",
+    "5556fb71c95013b04f88ba85bba60e5cfee246d8d49186294b52e1eb153178f6"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "d0f555ee8a28fe3e9114cdb2e25ccc3c2eae01e00efbd1553e7d17eefcb5900d",
+    "938c9911fae1c1c2a7e37d0c318f404038622a1bdaae7dc74d56756505cf7105"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "a8e817bdab7832065b5aaa75cd2626f8d15c8c97cafe23a7ef068ad888b19448",
+    "198cc0bf3599c9542bb3ddfadb6f3b1d95b823b7e7b318ac294fc73deabe41a0"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "0dfc5df1a093f681b5f8c1de76447d59652c7e0bf83b1e4ea85d95eddfef3d06",
+    "72c029570fa78ed29569237459d3d9fb46e9f549e06e17f16f34e546ec544845"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "ea7a8b323884d34dd28e3eb1ff2f3605016f87fdfa2d52293dad01c34a02e543",
+    "f9e10d1eb33d4662883cd2b4528ddc429b6dd16b8d43411a34be1d73ec818144"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "384cfa27879e550d9b2a3f9606ea1123eef937df84ed88cd5d4f92dffb46bd21",
+    "2742378ec4443ceca8d1b78270be40958b97e7ea0b3dac6922234511273c32c7"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "e22c9eeaacc90422bd6a3805fd81715ae61163ab5c88480909fadbc969ece7f7",
+    "31aecd1c50beae79400700d32b79e56d22b4e55aff19abee851524e291167a36"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "237f8074348ea172c19eee4b5ecd60eabb00f6b31bb7a64b42bee7211fbf86f7",
+    "51923dc123e70153ad7dcb1a9ba5437a480098758a5564b561c4993d6649fc6c"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "be3287a0f4418e916491dc31deec8bc925bb9bb3f49eccf4b4b47f952850b4d9",
+    "bc7d523f5972858632df3cd74f9c2dd5ad35044ae8381994578efcc857b46701"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "8a6622d440065d35562b097af97634215adedcc4971cf8535985272dc616d3e3",
+    "0d0e4c55727b9dd714e6ab7aed880bdafa29440252803941af15a981c268409d"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "72cde6182bcbf7a46d51aa1f467bf6ab5c469e49b71e3022647838db38d0254a",
+    "071fd138a7ce2d8f3c70e292d159d7e64187990730af2b5b87c7a56705f7a35e"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "973d340a8ff588f8c1960cbadf32926eb651d28c0de88c42dc8f2da0e56b03dc",
+    "25baff2773489656c81d698674bc839e41e38cc19048455a956ae7c511284bf1"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "0f7458ca8a500a3375f48ab210c1eea26de65198f8391d905bc4f70bf5fe1fd3",
+    "a6783906ca2166cb5377483a4dd8b41a6d49d9191b32a8133b17f22fb12fa650"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "c1ed80b1a8efac5cf48d3e56e038e202bfc0c4cfe3e85ffc4fb47057d8e0eadd",
+    "a195d33cbb48201ec5ecca4a4841ec629f3a0ae6a949d77a87aa8441e0f0b75d"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "e1ba51a757917b1ac56d5c8c3f507fbaffa523cabb23fa9ba4abb413148225c9",
+    "90401a5c547a0364b081c1f62c7fd8af98fd9e84a6d3e1aefffdd12541290ed2"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "e1ac91a7bccb69164aef2c7e16a74c24889c3726c3dcb6393b158297f42932d5",
+    "c21ebec19ef2fb7ebf89451812a45ec0ab2f3babb8eb52d8fa470a3cc87ceff5"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "3c488b5c6f6a5dc7bc45898af639bb88e4b1dad170caad33808a1aedeedbe3d4",
+    "d0d2025fc8af3594393557a03c39525e6ee614e00d027cbfc459c9b1bcfbd950"
+  ],
+  [
+    "shared/file_delivery_port_worker.js",
+    "7819408687397ffe0e881f9471d43b36a8769c3e8a4c5164d28d48197bf800a3",
+    "129fdca7a8f2227e26010f91fb85f3e58a3964c3f83f89015188b8e33921c090"
+  ]
+]);
+for (const row of cap19ArtifactPatches) {
+  assert.equal(artifactWorker.split(row.old).length - 1, 1, "one CAP19 artifact preimage");
+  artifactWorker = artifactWorker.replace(row.old, row.new);
+}
+assert.equal(hash(artifactWorker), "b05c770e615e6f29e6c6ea2bf5231ee771112638cde0269a4f88096078b36724", "exact CAP19 integrated artifact worker");
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length + settlementPatches.length + donorCorrectionPatches.length + reportStatusPatches.length + cap19ArtifactPatches.length);
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];

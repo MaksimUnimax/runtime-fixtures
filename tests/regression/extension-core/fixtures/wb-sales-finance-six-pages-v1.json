@@ -1,0 +1,405 @@
+{
+  "record": "CAP19_SOURCE_SHAPED_PAIRED_SIX_RAW_PAGES_20261101",
+  "classification": "SYNTHETIC_INPUT_READY_FOR_EXISTING_A_OFFLINE_CONTRACT_CHECK_NOT_PRODUCT_OR_ACTIVE_CONTRACT",
+  "synthetic": true,
+  "real_customer_data": false,
+  "producer_source": {
+    "repository": "MaksimUnimax/runtime-fixtures",
+    "candidate": "ea8c157b6990fdee7eadd2734b376a4ae9ef0ebf",
+    "tree": "af08fe58cf089d1235977ab5c26d2edd78168869",
+    "all10_saved_A_sources_unchanged": true,
+    "source_identity": [
+      {
+        "path": "packages/marketplaces/wildberries/src/adapter.js",
+        "bytes": 17115,
+        "sha256": "1e1cdb5e8c0985b7537964f9782dfdaa121110a97d91db61f749246cb3a11751",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "packages/marketplaces/wildberries/src/batch-adapter.js",
+        "bytes": 8579,
+        "sha256": "9a18c733b6c7af11040636090981e410b932443d1ee29a47789e41bb9ba0ba0a",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "apps/extension/src/background/context/runtime-context.js",
+        "bytes": 8117,
+        "sha256": "79ca6d91af03084b4521b28e0a418a72d2b221b0bec7372ff289df872b86fff2",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "packages/bridge-core/src/execution/batch-queue.js",
+        "bytes": 79274,
+        "sha256": "0c1b66290aa7bdc5d60777209ae3f252759332956aef5afd8e4e831dffe755af",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "packages/bridge-core/src/execution/provider-outcome.js",
+        "bytes": 19076,
+        "sha256": "0dcfb5f46e2452843e1d2c939bec9659e5d541f5809a8311a16ecb1dc7ffa594",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "packages/bridge-core/src/execution/result-recovery.js",
+        "bytes": 20872,
+        "sha256": "c0088636e6b59d44739a5c9431c637abec08ffca5e685726e589b0c9a4dd1a8f",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "apps/extension/src/background/context/finalizeManualBatch.js",
+        "bytes": 2779,
+        "sha256": "b93f7ac414bf26502d634b2c6474cb1c5ea523d0175469d47c96d617fb567dea",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "apps/extension/src/application/delivery.js",
+        "bytes": 8406,
+        "sha256": "794b3dd60fcf9334cf2d8bb99b79a50f2e987f18a797dc89397d55f509844034",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "tests/regression/extension-core/fixtures/wb-operational-sales-field-schema-slice-v1.json",
+        "bytes": 7839,
+        "sha256": "9908db91b229b33a8a2f431aa328a12293462598256cfb2f6c0ebf09ea2aa4a4",
+        "matches_A_D47_input": true
+      },
+      {
+        "path": "tests/regression/extension-core/fixtures/wb-finance-sales-field-schema-slice-v1.json",
+        "bytes": 6397,
+        "sha256": "216163c926246bfff643c4a61f6603b09d1e220b0045efb1252ee53731bc2b77",
+        "matches_A_D47_input": true
+      }
+    ]
+  },
+  "pinned_sdk": {
+    "repository": "eslazarev/wildberries-sdk",
+    "commit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "sources": [
+      {
+        "kind": "finance_response",
+        "path": "clients/npm/finances/src/models/SalesReportsDetailedRes.ts",
+        "url": "https://github.com/eslazarev/wildberries-sdk/blob/5057bdb9bf16dea24000e3ca79e1934f7761d7fe/clients/npm/finances/src/models/SalesReportsDetailedRes.ts",
+        "git_blob": "e54e5c825f43ecdd7232639c0e57e943a963a192",
+        "bytes": 30099,
+        "sha256": "323389e1d463b3331add3944d748591bbbefb67276e40757bd83245d3ad146b3"
+      },
+      {
+        "kind": "finance_request",
+        "path": "clients/npm/finances/src/models/SalesReportsDetailedReq.ts",
+        "url": "https://github.com/eslazarev/wildberries-sdk/blob/5057bdb9bf16dea24000e3ca79e1934f7761d7fe/clients/npm/finances/src/models/SalesReportsDetailedReq.ts",
+        "git_blob": "9018a63c6371c91630e7e5c0af73b14b9b03115e",
+        "bytes": 5270,
+        "sha256": "c535174765d992eb67a1d66e8189c01bb522855bc26af8e51a099c0c63ca6096"
+      },
+      {
+        "kind": "sales_response",
+        "path": "clients/npm/reports/src/models/SalesItem.ts",
+        "url": "https://github.com/eslazarev/wildberries-sdk/blob/5057bdb9bf16dea24000e3ca79e1934f7761d7fe/clients/npm/reports/src/models/SalesItem.ts",
+        "git_blob": "8242b15ff30af6b45e827370f8be6ca5545e7bdf",
+        "bytes": 10135,
+        "sha256": "5476eeba0f074175b7318f2d6b636d54d2cf283cd188b979bb62260acdbe32b2"
+      },
+      {
+        "kind": "finance_api",
+        "path": "clients/npm/finances/src/apis/DefaultApi.ts",
+        "url": "https://github.com/eslazarev/wildberries-sdk/blob/5057bdb9bf16dea24000e3ca79e1934f7761d7fe/clients/npm/finances/src/apis/DefaultApi.ts",
+        "git_blob": "d7c850b100e4224ff82abc07ab1040a9003b70a2",
+        "bytes": 55777,
+        "sha256": "44513e0c56bb81c16f5a754943bf42344a90e1f1fadfd777dcaf137d9a31cd3e"
+      },
+      {
+        "kind": "sales_api",
+        "path": "clients/npm/reports/src/apis/DefaultApi.ts",
+        "url": "https://github.com/eslazarev/wildberries-sdk/blob/5057bdb9bf16dea24000e3ca79e1934f7761d7fe/clients/npm/reports/src/apis/DefaultApi.ts",
+        "git_blob": "81a89cbb4e8705ddb87464409583cb536f343fe1",
+        "bytes": 132485,
+        "sha256": "94e8d2a0e07154498245f05cbdaf697c1953c2083cdbd3b23f43e9a4b02120e2"
+      }
+    ],
+    "material_new_fact": "ExactperiodAPIreturnsArray<SalesReportsDetailedRes>; eachtypedrowdeclaresreportId/currency:string andretailAmount/forPay:string. SameprimarySDKcommit alreadycitedbyA forSalesItem. No finance_sales_reports fifthquery isneededfor thispinnedschemaidentity. CurrentofficialliveAPIbehaviornotclaimed."
+  },
+  "scope": {
+    "marketplace": "wildberries",
+    "accountId": "CAP19_SYNTHETIC_ACCOUNT",
+    "storeId": "CAP19_SYNTHETIC_STORE",
+    "bindingId": "CAP19_SYNTHETIC_BINDING",
+    "bindingRevision": 1,
+    "workSessionId": "CAP19_SYNTHETIC_WORK",
+    "businessPeriod": {
+      "fromInclusive": "2026-09-26T00:00:00+03:00",
+      "toExclusive": "2026-09-27T00:00:00+03:00",
+      "timezone": "Europe/Moscow"
+    },
+    "salesAcquisition": {
+      "updatedSince": "2026-09-26T00:00:00",
+      "flag": 0,
+      "serverUpperBoundParameter": null,
+      "capturedAt": "2026-09-27T10:00:00+03:00"
+    },
+    "financeAcquisition": {
+      "dateFrom": "2026-09-26T00:00:00+03:00",
+      "dateTo": "2026-09-27T00:00:00+03:00",
+      "period": "daily",
+      "dateToInclusivity": "NOT_FORMALLY_ESTABLISHED_BY_PINNED_SDK"
+    },
+    "sellerCurrency": null,
+    "sellerCurrencyProvenance": "NOT_SUPPLIED_DO_NOT_DEFAULT_OR_INFER_OPERATIONAL_CURRENCY_FROM_FINANCE",
+    "snapshotConsistency": "NO_ATOMIC_SNAPSHOT_TOKEN_PROVED"
+  },
+  "scopeSha256": "cd4b190ba1b2cb911d9126db3cc2f1b513ed890a25a15192fe0d38160b6dbc08",
+  "pages": [
+    {
+      "pageId": "sales-1",
+      "stream": "sales",
+      "ordinal": 1,
+      "scopeSha256": "cd4b190ba1b2cb911d9126db3cc2f1b513ed890a25a15192fe0d38160b6dbc08",
+      "previousPageId": null,
+      "previousResponseSha256": null,
+      "command": {
+        "operation": "statistics_sales",
+        "params": {
+          "query": {
+            "dateFrom": "2026-09-26T00:00:00",
+            "flag": 0
+          }
+        }
+      },
+      "expectedRequest": {
+        "method": "GET",
+        "hostname": "statistics-api.wildberries.ru",
+        "pathname": "/api/v1/supplier/sales"
+      },
+      "response": {
+        "httpStatus": 200,
+        "contentType": "application/json",
+        "rawText": "[{\"saleID\":\"S-CAP19-1001\",\"nmId\":1001,\"date\":\"2026-09-26T10:00:00\",\"lastChangeDate\":\"2026-09-26T10:00:01\",\"finishedPrice\":100.10,\"srid\":\"CAP19-ORDER-A\",\"forPay\":70.05},{\"saleID\":\"R-CAP19-1001\",\"nmId\":1001,\"date\":\"2026-09-26T11:00:00\",\"lastChangeDate\":\"2026-09-26T11:00:01\",\"finishedPrice\":100.10,\"srid\":\"CAP19-ORDER-A\",\"forPay\":70.05},{\"saleID\":\"S-CAP19-1002\",\"nmId\":1002,\"date\":\"2026-09-25T23:55:00\",\"lastChangeDate\":\"2026-09-26T12:00:00\",\"finishedPrice\":220.25,\"srid\":\"CAP19-ORDER-B\",\"forPay\":160.50}]",
+        "bytes": 503,
+        "sha256": "0d8604d3d492c02512ed2ed4603922dbe348d53b8ffe5b936d19f9d2a1223f30",
+        "localFile": "/workspace/octoport-d47-qualification/CAP19_PAIRED_SIX_PAGE_INPUT_20261101/sales-1.response.json"
+      }
+    },
+    {
+      "pageId": "sales-2",
+      "stream": "sales",
+      "ordinal": 2,
+      "scopeSha256": "cd4b190ba1b2cb911d9126db3cc2f1b513ed890a25a15192fe0d38160b6dbc08",
+      "previousPageId": "sales-1",
+      "previousResponseSha256": "0d8604d3d492c02512ed2ed4603922dbe348d53b8ffe5b936d19f9d2a1223f30",
+      "command": {
+        "operation": "statistics_sales",
+        "params": {
+          "query": {
+            "dateFrom": "2026-09-26T12:00:00",
+            "flag": 0
+          }
+        }
+      },
+      "expectedRequest": {
+        "method": "GET",
+        "hostname": "statistics-api.wildberries.ru",
+        "pathname": "/api/v1/supplier/sales"
+      },
+      "response": {
+        "httpStatus": 200,
+        "contentType": "application/json",
+        "rawText": "[{\"saleID\":\"S-CAP19-1002\",\"nmId\":1002,\"date\":\"2026-09-25T23:55:00\",\"lastChangeDate\":\"2026-09-26T12:00:00\",\"finishedPrice\":220.25,\"srid\":\"CAP19-ORDER-B\",\"forPay\":160.50},{\"saleID\":\"S-CAP19-1003\",\"nmId\":1003,\"date\":\"2026-09-26T13:00:00\",\"lastChangeDate\":\"2026-09-26T13:00:01\",\"finishedPrice\":0.00,\"srid\":\"CAP19-ORDER-C\",\"forPay\":0.00},{\"saleID\":\"S-CAP19-1004\",\"nmId\":1004,\"date\":\"2026-09-26T14:00:00\",\"lastChangeDate\":\"2026-09-26T14:00:01\",\"finishedPrice\":88.80}]",
+        "bytes": 461,
+        "sha256": "0c08abb6f0a55258bece0addcaa4423f56d8cbffe4f832ccc713c4365b769bdb",
+        "localFile": "/workspace/octoport-d47-qualification/CAP19_PAIRED_SIX_PAGE_INPUT_20261101/sales-2.response.json"
+      }
+    },
+    {
+      "pageId": "sales-3",
+      "stream": "sales",
+      "ordinal": 3,
+      "scopeSha256": "cd4b190ba1b2cb911d9126db3cc2f1b513ed890a25a15192fe0d38160b6dbc08",
+      "previousPageId": "sales-2",
+      "previousResponseSha256": "0c08abb6f0a55258bece0addcaa4423f56d8cbffe4f832ccc713c4365b769bdb",
+      "command": {
+        "operation": "statistics_sales",
+        "params": {
+          "query": {
+            "dateFrom": "2026-09-26T14:00:01",
+            "flag": 0
+          }
+        }
+      },
+      "expectedRequest": {
+        "method": "GET",
+        "hostname": "statistics-api.wildberries.ru",
+        "pathname": "/api/v1/supplier/sales"
+      },
+      "response": {
+        "httpStatus": 200,
+        "contentType": "application/json",
+        "rawText": "[]",
+        "bytes": 2,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "localFile": "/workspace/octoport-d47-qualification/CAP19_PAIRED_SIX_PAGE_INPUT_20261101/sales-3.response.json"
+      }
+    },
+    {
+      "pageId": "finance-1",
+      "stream": "finance",
+      "ordinal": 1,
+      "scopeSha256": "cd4b190ba1b2cb911d9126db3cc2f1b513ed890a25a15192fe0d38160b6dbc08",
+      "previousPageId": null,
+      "previousResponseSha256": null,
+      "command": {
+        "operation": "finance_sales_detail_period",
+        "params": {
+          "body": {
+            "dateFrom": "2026-09-26T00:00:00+03:00",
+            "dateTo": "2026-09-27T00:00:00+03:00",
+            "limit": 3,
+            "rrdId": 0,
+            "period": "daily",
+            "fields": [
+              "reportId",
+              "currency",
+              "rrdId",
+              "nmId",
+              "srid",
+              "dateFrom",
+              "dateTo",
+              "createDate",
+              "orderDt",
+              "saleDt",
+              "rrDate",
+              "sellerOperName",
+              "docTypeName",
+              "quantity",
+              "retailAmount",
+              "forPay"
+            ]
+          }
+        }
+      },
+      "expectedRequest": {
+        "method": "POST",
+        "hostname": "finance-api.wildberries.ru",
+        "pathname": "/api/finance/v1/sales-reports/detailed"
+      },
+      "response": {
+        "httpStatus": 200,
+        "contentType": "application/json",
+        "rawText": "[{\"reportId\":901,\"currency\":\"KZT\",\"rrdId\":101,\"nmId\":1001,\"srid\":\"CAP19-ORDER-A\",\"dateFrom\":\"2026-09-26T00:00:00+03:00\",\"dateTo\":\"2026-09-27T00:00:00+03:00\",\"createDate\":\"2026-09-27T09:00:00+03:00\",\"orderDt\":\"2026-09-25T20:00:00+03:00\",\"saleDt\":\"2026-09-26T10:00:00+03:00\",\"rrDate\":\"2026-09-26T00:00:00+03:00\",\"sellerOperName\":\"Продажа\",\"docTypeName\":\"Продажа\",\"quantity\":1,\"retailAmount\":\"100.10\",\"forPay\":\"70.05\"},{\"reportId\":901,\"currency\":\"KZT\",\"rrdId\":102,\"nmId\":1001,\"srid\":\"CAP19-ORDER-A\",\"dateFrom\":\"2026-09-26T00:00:00+03:00\",\"dateTo\":\"2026-09-27T00:00:00+03:00\",\"createDate\":\"2026-09-27T09:00:00+03:00\",\"orderDt\":\"2026-09-25T20:00:00+03:00\",\"saleDt\":\"2026-09-26T11:00:00+03:00\",\"rrDate\":\"2026-09-26T00:00:00+03:00\",\"sellerOperName\":\"Возврат\",\"docTypeName\":\"Возврат\",\"quantity\":1,\"retailAmount\":\"100.10\",\"forPay\":\"70.05\"},{\"reportId\":901,\"currency\":\"KZT\",\"rrdId\":103,\"nmId\":1002,\"srid\":\"CAP19-ORDER-B\",\"dateFrom\":\"2026-09-26T00:00:00+03:00\",\"dateTo\":\"2026-09-27T00:00:00+03:00\",\"createDate\":\"2026-09-27T09:00:00+03:00\",\"orderDt\":\"2026-09-25T20:00:00+03:00\",\"saleDt\":\"2026-09-25T23:55:00+03:00\",\"rrDate\":\"2026-09-26T00:00:00+03:00\",\"sellerOperName\":\"Продажа\",\"docTypeName\":\"Продажа\",\"quantity\":1,\"retailAmount\":\"220.25\",\"forPay\":\"160.50\"}]",
+        "bytes": 1289,
+        "sha256": "3b481951d955d97faf7a7fb4eba48b6bcad73c22fc225ee2fc1e6dbddf044f51",
+        "localFile": "/workspace/octoport-d47-qualification/CAP19_PAIRED_SIX_PAGE_INPUT_20261101/finance-1.response.json"
+      }
+    },
+    {
+      "pageId": "finance-2",
+      "stream": "finance",
+      "ordinal": 2,
+      "scopeSha256": "cd4b190ba1b2cb911d9126db3cc2f1b513ed890a25a15192fe0d38160b6dbc08",
+      "previousPageId": "finance-1",
+      "previousResponseSha256": "3b481951d955d97faf7a7fb4eba48b6bcad73c22fc225ee2fc1e6dbddf044f51",
+      "command": {
+        "operation": "finance_sales_detail_period",
+        "params": {
+          "body": {
+            "dateFrom": "2026-09-26T00:00:00+03:00",
+            "dateTo": "2026-09-27T00:00:00+03:00",
+            "limit": 3,
+            "rrdId": 103,
+            "period": "daily",
+            "fields": [
+              "reportId",
+              "currency",
+              "rrdId",
+              "nmId",
+              "srid",
+              "dateFrom",
+              "dateTo",
+              "createDate",
+              "orderDt",
+              "saleDt",
+              "rrDate",
+              "sellerOperName",
+              "docTypeName",
+              "quantity",
+              "retailAmount",
+              "forPay"
+            ]
+          }
+        }
+      },
+      "expectedRequest": {
+        "method": "POST",
+        "hostname": "finance-api.wildberries.ru",
+        "pathname": "/api/finance/v1/sales-reports/detailed"
+      },
+      "response": {
+        "httpStatus": 200,
+        "contentType": "application/json",
+        "rawText": "[{\"reportId\":901,\"currency\":\"KZT\",\"rrdId\":103,\"nmId\":1002,\"srid\":\"CAP19-ORDER-B\",\"dateFrom\":\"2026-09-26T00:00:00+03:00\",\"dateTo\":\"2026-09-27T00:00:00+03:00\",\"createDate\":\"2026-09-27T09:00:00+03:00\",\"orderDt\":\"2026-09-25T20:00:00+03:00\",\"saleDt\":\"2026-09-25T23:55:00+03:00\",\"rrDate\":\"2026-09-26T00:00:00+03:00\",\"sellerOperName\":\"Продажа\",\"docTypeName\":\"Продажа\",\"quantity\":1,\"retailAmount\":\"220.25\",\"forPay\":\"160.50\"},{\"reportId\":902,\"currency\":\"RUB\",\"rrdId\":104,\"nmId\":1003,\"srid\":\"CAP19-ORDER-C\",\"dateFrom\":\"2026-09-26T00:00:00+03:00\",\"dateTo\":\"2026-09-27T00:00:00+03:00\",\"createDate\":\"2026-09-27T09:00:00+03:00\",\"orderDt\":\"2026-09-25T20:00:00+03:00\",\"saleDt\":\"2026-09-26T13:00:00+03:00\",\"rrDate\":\"2026-09-26T00:00:00+03:00\",\"sellerOperName\":\"Продажа\",\"docTypeName\":\"Продажа\",\"quantity\":1,\"retailAmount\":\"0.00\",\"forPay\":\"0.00\"},{\"reportId\":902,\"currency\":\"RUB\",\"rrdId\":105,\"nmId\":1999,\"srid\":\"CAP19-ORDER-D\",\"dateFrom\":\"2026-09-26T00:00:00+03:00\",\"dateTo\":\"2026-09-27T00:00:00+03:00\",\"createDate\":\"2026-09-27T09:00:00+03:00\",\"orderDt\":\"2026-09-25T20:00:00+03:00\",\"saleDt\":\"2026-09-26T15:00:00+03:00\",\"rrDate\":\"2026-09-26T00:00:00+03:00\",\"sellerOperName\":\"Продажа\",\"docTypeName\":\"Продажа\",\"quantity\":1,\"retailAmount\":\"77.70\",\"forPay\":\"55.50\"}]",
+        "bytes": 1285,
+        "sha256": "f592ab782eefff112b6df010e25259573cda8f932399d1ad07b399c926b45552",
+        "localFile": "/workspace/octoport-d47-qualification/CAP19_PAIRED_SIX_PAGE_INPUT_20261101/finance-2.response.json"
+      }
+    },
+    {
+      "pageId": "finance-3",
+      "stream": "finance",
+      "ordinal": 3,
+      "scopeSha256": "cd4b190ba1b2cb911d9126db3cc2f1b513ed890a25a15192fe0d38160b6dbc08",
+      "previousPageId": "finance-2",
+      "previousResponseSha256": "f592ab782eefff112b6df010e25259573cda8f932399d1ad07b399c926b45552",
+      "command": {
+        "operation": "finance_sales_detail_period",
+        "params": {
+          "body": {
+            "dateFrom": "2026-09-26T00:00:00+03:00",
+            "dateTo": "2026-09-27T00:00:00+03:00",
+            "limit": 3,
+            "rrdId": 105,
+            "period": "daily",
+            "fields": [
+              "reportId",
+              "currency",
+              "rrdId",
+              "nmId",
+              "srid",
+              "dateFrom",
+              "dateTo",
+              "createDate",
+              "orderDt",
+              "saleDt",
+              "rrDate",
+              "sellerOperName",
+              "docTypeName",
+              "quantity",
+              "retailAmount",
+              "forPay"
+            ]
+          }
+        }
+      },
+      "expectedRequest": {
+        "method": "POST",
+        "hostname": "finance-api.wildberries.ru",
+        "pathname": "/api/finance/v1/sales-reports/detailed"
+      },
+      "response": {
+        "httpStatus": 204,
+        "contentType": "application/json",
+        "rawText": "",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "localFile": "/workspace/octoport-d47-qualification/CAP19_PAIRED_SIX_PAGE_INPUT_20261101/finance-3.response.empty"
+      }
+    }
+  ],
+  "interpretationLimits": [
+    "Six pages are a synthetic bounded sample, not current WB endpoint availability/allowed-currency certification.",
+    "Transport terminal [] and204 prove this supplied chain terminates; they do not establish stable historical snapshot or complete business joins.",
+    "flag0 uses lastChangeDate rather than sale date; supplied page includes prior-business-day sale updated in current acquisition window.",
+    "Finance row currency is observed separately per reportId. KZT and RUB are synthetic schema-string values; operational currency and FX are not supplied. No cross-currency aggregation or guessed exchange rate.",
+    "The identical boundary rows remain in raw input; source collector must not silently discard or overwrite conflicting duplicates.",
+    "Sales optional srid and forPay are absent on one row; zero on another row is explicitly present. There is an unmatched sale and unmatched finance order; they do not become zero by default.",
+    "One srid/nmId appears in sale and return rows; A owns event-type identity/join semantics, C has not implemented CAP19 normalization or totals.",
+    "No inputs include auth headers/tokens, personal data, a new persisted runtime envelope or fake completeness flags."
+  ]
+}
