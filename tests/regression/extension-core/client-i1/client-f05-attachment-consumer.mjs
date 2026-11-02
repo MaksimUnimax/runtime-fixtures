@@ -4,10 +4,72 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import { createHash, webcrypto } from "node:crypto";
+import ts from "typescript";
+
+// Read actual declarations without depending on their parameter spelling or
+// evaluating unrelated application initialization. Keep the selected bytes intact.
+function extractDeliveryProjection(source, filename) {
+  const parsed = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  assert.equal(parsed.parseDiagnostics.length, 0, "application delivery source must parse before extraction");
+  const functions = ["saCombinedReport", "saPrepareDelivery"].map((name) => {
+    const declarations = parsed.statements.filter((statement) =>
+      ts.isFunctionDeclaration(statement) && statement.name?.text === name);
+    assert.equal(declarations.length, 1, `application delivery requires one top-level ${name} declaration`);
+    const declaration = declarations[0];
+    assert.ok(declaration.body, `application delivery ${name} must have an executable body`);
+    const start = declaration.getStart(parsed);
+    const end = declaration.getEnd();
+    return { name, start, end, source: source.slice(start, end) };
+  });
+  return { functions, source: functions.map((declaration) => declaration.source).join("\n") };
+}
+
+function verifyDeliveryProjectionExtraction() {
+  const checks = [];
+  const prepare = "async function saPrepareDelivery(entries, owner) { return entries; }";
+  for (const [label, report] of [
+    ["legacy-two-parameters", "function saCombinedReport(entries, owner) { return entries.length + owner.value; }"],
+    ["defaulted-third-parameter", "function saCombinedReport(entries, owner, progress = null) { return entries.length + owner.value + (progress?.value || 0); }"],
+    ["comments-and-multiline-parameters", "function saCombinedReport (\nentries, /* } fake body */ owner, progress = { value: 0 }\n) { return entries.length + owner.value + progress.value; }"],
+  ]) {
+    const source = [
+      '// function saCombinedReport(entries, owner) { comment decoy }',
+      'const decoy = "function saCombinedReport(entries, owner) { string decoy }";',
+      'function unrelated() { function saCombinedReport() { return "nested decoy"; } }',
+      "globalThis.unrelatedInitializationExecuted = true;",
+      prepare, report,
+    ].join("\n");
+    const extracted = extractDeliveryProjection(source, label + ".js");
+    assert.deepEqual(extracted.functions.map(({ name }) => name), ["saCombinedReport", "saPrepareDelivery"]);
+    for (const declaration of extracted.functions)
+      assert.equal(declaration.source, source.slice(declaration.start, declaration.end), "declaration bytes are never rewritten");
+    const realm = vm.createContext({});
+    vm.runInContext(`${extracted.source}\nglobalThis.report = saCombinedReport;`, realm);
+    assert.equal(realm.unrelatedInitializationExecuted, undefined, "extracting functions cannot execute unrelated initialization");
+    assert.equal(realm.report([1, 2], { value: 3 }), 5, "the previous two-argument call remains compatible");
+    assert.equal(realm.report([1, 2], { value: 3 }, { value: 4 }), label === "legacy-two-parameters" ? 5 : 9);
+    checks.push({ label, status: "PASS" });
+  }
+  for (const [label, source] of [
+    ["comment-and-string-only", `${prepare}\n// function saCombinedReport() {}\nconst fake = "function saCombinedReport() {}";`],
+    ["nested-only", `${prepare}\nfunction wrapper() { function saCombinedReport() {} }`],
+    ["duplicate-report", `${prepare}\nfunction saCombinedReport() {}\nfunction saCombinedReport() {}`],
+    ["duplicate-prepare", `${prepare}\n${prepare}\nfunction saCombinedReport() {}`],
+    ["missing-prepare", "function saCombinedReport() {}"],
+    ["function-expression-only", `${prepare}\nconst saCombinedReport = function() {};`],
+    ["malformed-module", `${prepare}\nfunction saCombinedReport() {}\nfunction broken(`],
+  ]) {
+    assert.throws(() => extractDeliveryProjection(source, label + ".js"), assert.AssertionError, label + " must fail before evaluation");
+    checks.push({ label, status: "PASS" });
+  }
+  return checks;
+}
 
 async function main() {
   if (Number(process.versions.node.split(".")[0]) < 24)
     throw new Error("F-05 attachment-consumer regression requires Node.js 24 or newer; production bytes are never rewritten for older parsers.");
+
+  const deliveryProjectionExtractionChecks = verifyDeliveryProjectionExtraction();
 
   const root = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(".");
   const checkoutRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -223,10 +285,23 @@ async function main() {
   context.attemptManualBatchDelivery = () => {};
   vm.runInContext(`${capabilitySummarySource}\n${querySummarySource}\n${moduleBytes.get("formatCombinedBatchReport.js").toString("utf8")}\n${moduleBytes.get("finalizeManualBatch.js").toString("utf8")}\nglobalThis.__f05FinalizeManualBatch = finalizeManualBatch;\nglobalThis.__f05FormatCombinedReport = formatCombinedBatchReport;`, context, { filename: "composed service-worker finalization and app-owned report formatter" });
   const applicationDeliverySource = moduleBytes.get("application-delivery.js").toString("utf8");
-  const applicationDeliveryStart = applicationDeliverySource.indexOf("function saCombinedReport(entries, owner) {");
-  assert.notEqual(applicationDeliveryStart, -1, "actual application delivery projection functions are present");
-  vm.runInContext(`${applicationDeliverySource.slice(applicationDeliveryStart).trim()}\nglobalThis.saCombinedReport = saCombinedReport;\nglobalThis.saPrepareDelivery = saPrepareDelivery;`, context, { filename: "unchanged application delivery projection functions" });
+  const applicationDeliveryProjection = extractDeliveryProjection(applicationDeliverySource, applicationDeliveryPath);
+  assert.equal(applicationDeliveryProjection.functions.length, 2, "actual application delivery projection functions are present");
+  vm.runInContext(`${applicationDeliveryProjection.source}\nglobalThis.saCombinedReport = saCombinedReport;\nglobalThis.saPrepareDelivery = saPrepareDelivery;`, context, { filename: "unchanged application delivery projection functions" });
   context.saEnabled = async () => false;
+  const projectionEntries = [{ report_text: "  complete report 😀\r\n" }, { report_text: "\tsecond result\n" }];
+  const projectionOwner = {
+    execution_context: { marketplace: "wildberries", storeId: "projection-store", bindingId: "projection-binding", workSessionId: "projection-work" },
+    created_at: "2026-11-02T00:00:00.000Z", payload_expires_at_ms: Date.parse("2026-11-02T01:00:00.000Z"),
+  };
+  const projectionInputBefore = JSON.stringify({ projectionEntries, projectionOwner });
+  const legacyProjection = context.saCombinedReport(projectionEntries, projectionOwner);
+  assert.equal(context.saCombinedReport(projectionEntries, projectionOwner, undefined), legacyProjection);
+  assert.equal(context.saCombinedReport(projectionEntries, projectionOwner, null), legacyProjection, "real CAP19 default preserves the existing complete two-argument report");
+  const projectionProgress = { phase: "collecting", complete: false, pages: 1 };
+  assert.equal(context.saCombinedReport(projectionEntries, projectionOwner, projectionProgress), legacyProjection + "\n\nWB_CAP19_COLLECTION_V1\n" + JSON.stringify(projectionProgress), "the real optional third argument appends its metadata without losing report bytes");
+  for (const entry of projectionEntries) assert.ok(legacyProjection.includes(entry.report_text), "real report projection retains whitespace and Unicode");
+  assert.equal(JSON.stringify({ projectionEntries, projectionOwner }), projectionInputBefore, "the real projection preserves its input owners and entries");
   vm.runInContext("globalThis.__f05FormatOzonReport = (inputJson) => OzonContract.formatResultReport(JSON.parse(inputJson));", context, { filename: "same-realm Ozon formatter fixture" });
 
   const api = context.SellerAgentsResultRecovery;
@@ -1006,6 +1081,9 @@ async function main() {
     status: "PASS",
     runtime: process.version,
     source_transforms: 0,
+    delivery_projection_extraction_checks: deliveryProjectionExtractionChecks,
+    delivery_projection_declarations: applicationDeliveryProjection.functions.map(({ name, start, end, source }) => ({ name, start, end, sha256: createHash("sha256").update(source).digest("hex") })),
+    real_delivery_projection_legacy_and_CAP19_calls: "PASS",
     source_sha256: sourceHashes,
     consumer_artifact: sourceMode ? "SOURCE" : "BUILT_RUNTIME",
     claim_receiver_checks: claimReceiverChecks,
