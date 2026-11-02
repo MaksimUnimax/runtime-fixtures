@@ -1,5 +1,12 @@
 # Business scenario gold protocol
 
+Сохраняются **270 gold-карточек: 45 основных вопросов × Ozon/WB × три слоя `provider_fact`, `deterministic_arithmetic`, `owner_semantic_verdict`**. Это не три ИИ и не 270 одинаковых live-запусков. Сохраняются 90 persisted definition rows, их `periodRef`/`definitionsHash`, 52 source-автоматизируемые и 38 owner-only арифметические границы, все 58 численных fixtures. Восемь резервных вопросов STD-21…28 требуют отдельного lineage/gold по применимости; они не заменяют эти 270 карточек. Алиса проходит все применимые слои; каждый последующий ИИ — свой полный применимый смысловой scope. Число 53 описывает вопросы, а не число доказательств или слоёв.
+
+## Применимость первого релиза — 02.11.2026
+
+Первой квалифицируется веб-Алиса на полном корпусе 45 основных и 8 резервных вопросов, Ozon/WB по каждому доказанному соответствию. Исходные вопросы, поля, правила gold/period/timezone/units/late corrections не сокращаются. B23 — восемь ранних контрольных повторов основных вопросов, не восемь резервных. Для каждого STD-21…28 нужен собственный lineage и независимый эталон; общий mapping не доказательство. После каждого из семи патчей весь применимый смысловой scope нового ИИ проверяется заново на согласованных данных, а изменённые общие потребители получают необходимую регрессию. Архив/копия исходных данных не создаётся без действующего разрешения. [Полная приёмка](OWNER_BLOCK_ACCEPTANCE.md#alice-first-20261102).
+
+
 Status: **SOURCE-ONLY PROTOCOL / LIVE AND OWNER VERDICTS NOT RUN**.
 
 This protocol closes the automation-side ambiguity behind the readiness gap “единый численный gold set и смысловой протокол”. It does not invent real marketplace values and does not replace owner semantic acceptance.

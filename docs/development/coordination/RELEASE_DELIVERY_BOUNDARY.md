@@ -1,5 +1,14 @@
 # Стабильная граница выдачи и непрерываемая приёмка main
 
+## Первый production-релиз с Алисой — 02.11.2026
+
+Текущий полный release-scope — веб-Алиса и общий продукт Ozon/WB, 45+8 вопросов, Chrome/Opera/Yandex/Firefox и применимые ОС. Семь ИИ добавляются после отдельными квалифицированными патчами; ChatGPT Work, Safari и коммерция отдельно. Карточки магазинов, SITE/install/privacy/support/reviewer инструкции и release manifest обязаны одинаково называть реально поддержанную Алису и недоступность остальных; наличие адаптера в пакете не право рекламировать поддержку.
+
+Manifest содержит exact source/tree/package hash, runtime composition/application patches, browser/OS/min versions, backend/schema/contract/config/profile revision и trust source без секретов, supported AI = Alice, явно отложенные AI и отрицательные результаты их недоступности, канал установки/обновления, recovery/rollback и полный применимый verdict. Это требования к существующему manifest, не новая инфраструктура. Исторический imported blob и один CI не доказывают новые исполняемые байты.
+
+Data/profile-only patch допустим только в квалифицированном packaged контракте. Новый выполняемый код проходит обычное клиентское обновление, подписи/магазины и совместимость N→N+1; удалённый JS не заменяет выпуск. Для каждого нового ИИ — собственные source/package/installed/business результаты и затронутая регрессия действующих. Ранний безопасный store slice может идти параллельно; он не объявляется полным production Алисы. Действующие отдельные разрешения production/live/DB/security и resource floor не изменены. [Критерии](../../product/readiness/OWNER_BLOCK_ACCEPTANCE.md#alice-first-20261102).
+
+
 Основание: ORG-001/002/003 и аудит L2 2026-09-29. Контроллер вправе исправлять организацию в согласованном roadmap; C сохраняет единоличную интеграцию и разрешённые live операции.
 
 ## Две отдельные проверки
