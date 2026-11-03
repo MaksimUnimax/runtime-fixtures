@@ -2,15 +2,26 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { createHash } from "node:crypto";
 const repo = path.resolve(process.argv[2] || ".");
 const source = fs.readFileSync(path.join(repo, "apps/extension/src/application/runtime.js"), "utf8");
 const entry = source.slice(0, source.indexOf("/* End page entry. */"));
 assert.ok(entry.includes("function saStartPageIdentity"), "real entry lifecycle must exist");
 const results = [];
+const releaseDescriptor = JSON.parse(fs.readFileSync(path.join(repo, "packages/contracts/src/ai-release-scope.v1.json"), "utf8"));
+const canonical = value => Array.isArray(value) ? "[" + value.map(canonical).join(",") + "]" :
+  value && typeof value === "object" ? "{" + Object.keys(value).sort().map(key => JSON.stringify(key) + ":" + canonical(value[key])).join(",") + "}" : JSON.stringify(value);
+const releaseBundle = {descriptor: releaseDescriptor, sha256: createHash("sha256").update(canonical(releaseDescriptor)).digest("hex")};
+const releaseSource = fs.readFileSync(path.join(repo, "packages/control-client/src/ai-release-scope.js"), "utf8");
+function installReleaseScope(ctx, bundle = releaseBundle) {
+  vm.runInContext(`globalThis.SellerAgentsControlConfig = ${JSON.stringify({aiReleaseScope: bundle})};`, ctx);
+  vm.runInContext(releaseSource, ctx);
+}
+const providerOrigins = {alice:"https://alice.yandex.ru",chatgpt:"https://chatgpt.com",qwen:"https://chat.qwen.ai",kimi:"https://www.kimi.ai",grok:"https://grok.com",gemini:"https://gemini.google.com",claude:"https://claude.ai",deepseek:"https://chat.deepseek.com",provider_future:"https://another.example"};
 function fixture(options = {}) {
-  const state = { url: "https://chatgpt.com/", ready: false, calls: [], installs: 0, reads: 0, ...options };
+  const state = { url: "https://alice.yandex.ru/", ready: false, calls: [], installs: 0, reads: 0, ...options };
   const fail = (code, transport_class) => Object.assign(new Error(code), { code, transport_class });
-  const providers = new Map([["https://chatgpt.com", "chatgpt"], ["https://another.example", "provider_future"]]);
+  const providers = new Map(Object.entries(providerOrigins).map(([family, origin]) => [origin, family]));
   const chrome = {
     tabs: { async get(id) {
       state.reads += 1;
@@ -19,7 +30,7 @@ function fixture(options = {}) {
       return { id, url: state.url };
     }},
     runtime: { getManifest: () => ({ content_scripts: state.scripts || [{
-      matches: ["https://chatgpt.com/*", "https://another.example/*"],
+      matches: Object.values(providerOrigins).map(origin => origin + "/*"),
       js: ["shared/identity.js", "content.js"]
     }] }) },
     scripting: { async executeScript(value) {
@@ -47,6 +58,7 @@ function fixture(options = {}) {
       return { ai_id: providers.get(new URL(state.url).origin), conversation_id: null, status: "unknown" };
     }
   });
+  installReleaseScope(ctx, Object.hasOwn(options, "releaseBundle") ? options.releaseBundle : releaseBundle);
   vm.runInContext(entry, ctx);
   return { state, ctx };
 }
@@ -57,10 +69,26 @@ await check("empty-root-recovers-without-a-conversation-id-and-without-sending",
   assert.deepEqual(state.calls,["OZ_GET_IDENTITY"]);
   assert.equal(state.install.target.tabId,7);assert.equal(state.install.target.frameIds[0],0);
 });
-await check("same-entry-lifecycle-for-a-different-provider-and-arbitrary-path",async()=>{
-  const {state,ctx}=fixture({url:"https://another.example/new/workspace?mode=anonymous"});
-  assert.equal((await ctx.saStartPageIdentity(7)).ai_id,"provider_future");assert.equal(state.installs,1);
+await check("same-entry-lifecycle-for-an-arbitrary-alice-path",async()=>{
+  const {state,ctx}=fixture({url:"https://alice.yandex.ru/new/workspace?mode=anonymous"});
+  assert.equal((await ctx.saStartPageIdentity(7)).ai_id,"alice");assert.equal(state.installs,1);
 });
+for (const family of Object.keys(providerOrigins).filter(value => value !== "alice")) {
+  await check("retained-or-unknown-provider-no-receiver-is-not-installed/"+family, async()=>{
+    const {state,ctx}=fixture({url:providerOrigins[family]+"/arbitrary/path"});
+    await assert.rejects(ctx.saStartPageIdentity(7), error=>error.code==="WORK_UNSUPPORTED_AI");
+    assert.equal(state.installs,0);assert.deepEqual(state.calls,[]);
+    const page=await ctx.saUnavailablePage(7,{code:"TAB_MESSAGE_ERROR",transport_class:"NO_RECEIVER"});
+    assert.equal(page.supported,false);assert.equal(page.errorCode,"AI_NOT_IN_CURRENT_RELEASE");
+  });
+}
+for (const invalid of [null, {...releaseBundle,sha256:"0".repeat(64)}]) {
+  await check("missing-or-invalid-release-dependency-fails-closed/"+results.length, async()=>{
+    const {state,ctx}=fixture({releaseBundle:invalid});
+    await assert.rejects(ctx.saStartPageIdentity(7),error=>error.code==="WORK_UNSUPPORTED_AI");
+    assert.equal(state.installs,0);assert.deepEqual(state.calls,[]);
+  });
+}
 await check("healthy-receiver-is-not-reinstalled",async()=>{
   const {state,ctx}=fixture({ready:true});await ctx.saStartPageIdentity(7);assert.equal(state.installs,0);
 });
@@ -77,11 +105,11 @@ await check("unsupported-origin-never-receives-packaged-code",async()=>{
   const {state,ctx}=fixture({url:"https://unrelated.example/"});await assert.rejects(ctx.saStartPageIdentity(7),e=>e.code==="WORK_START_UNSUPPORTED_PAGE");assert.equal(state.installs,0);
 });
 await check("navigation-before-install-invalidates-old-start",async()=>{
-  const {state,ctx}=fixture({onRead:s=>{if(s.reads===2)s.url="https://chatgpt.com/different";}});
+  const {state,ctx}=fixture({onRead:s=>{if(s.reads===2)s.url="https://alice.yandex.ru/different";}});
   await assert.rejects(ctx.saStartPageIdentity(7),e=>e.code==="POPUP_CONTEXT_STALE");assert.equal(state.installs,0);
 });
 await check("navigation-during-install-invalidates-old-start",async()=>{
-  const {state,ctx}=fixture({onInstall:s=>{s.url="https://chatgpt.com/different";}});
+  const {state,ctx}=fixture({onInstall:s=>{s.url="https://alice.yandex.ru/different";}});
   await assert.rejects(ctx.saStartPageIdentity(7),e=>e.code==="POPUP_CONTEXT_STALE");assert.equal(state.installs,1);
 });
 await check("browser-permission-rejection-does-not-fall-back-or-send",async()=>{
@@ -89,12 +117,12 @@ await check("browser-permission-rejection-does-not-fall-back-or-send",async()=>{
   assert.deepEqual(state.calls,["OZ_GET_IDENTITY"]);
 });
 await check("manifest-excluded-page-is-not-injected",async()=>{
-  const {state,ctx}=fixture({scripts:[{matches:["https://chatgpt.com/*"],exclude_matches:["https://chatgpt.com/*"],js:["content.js"]}]});
+  const {state,ctx}=fixture({scripts:[{matches:["https://alice.yandex.ru/*"],exclude_matches:["https://alice.yandex.ru/*"],js:["content.js"]}]});
   await assert.rejects(ctx.saStartPageIdentity(7),e=>e.code==="PAGE_RUNTIME_NOT_PACKAGED");assert.equal(state.installs,0);
 });
 await check("availability-preserves-safe-transport-cause-without-raw-error",async()=>{
   const {ctx}=fixture();const value=await ctx.saUnavailablePage(7,{code:"TAB_MESSAGE_ERROR",transport_class:"NO_RECEIVER",message:"SECRET_URL"});
-  assert.equal(value.supported,true);assert.equal(value.aiFamily,"chatgpt");assert.equal(value.transportClass,"NO_RECEIVER");
+  assert.equal(value.supported,true);assert.equal(value.aiFamily,"alice");assert.equal(value.transportClass,"NO_RECEIVER");
   assert.equal(JSON.stringify(value).includes("SECRET_URL"),false);
 });
 
@@ -140,6 +168,7 @@ function admissionFixture() {
   vm.runInContext(source.slice(diagnosticStart, diagnosticEnd), ctx);
   vm.runInContext(fs.readFileSync(path.join(repo, "packages/bridge-core/src/work/session-model.js"), "utf8"), ctx);
   ctx.OzonWorkSessionModel = ctx.SellerAgentsWorkSessionModel;
+  installReleaseScope(ctx);
   for (const name of ["saAdmissionKey","saBeginAdmission","saCancelAdmission","saAdmissionCurrent",
                       "saAdmissionError","saReleaseAdmission","saAdmitWork","saAssertExplicitStartReconciliation","saWorkStart","saInvalidateAuthority"]) {
     vm.runInContext(realFunction(name),ctx);
@@ -161,7 +190,7 @@ for (const change of ["finish","account"]) {
     const rejected=assert.rejects(run,e=>e.code===(change==="finish"?"WORK_ADMISSION_CANCELLED":"WORK_ADMISSION_CONTEXT_CHANGED"));
     await f.entered.promise;
     if(change==="finish")f.ctx.saCancelAdmission(7);else f.observed.generation++;
-    f.page.resolve({ai_id:"provider_future",conversation_id:null});
+    f.page.resolve({ai_id:"alice",conversation_id:null});
     await rejected;
     assert.equal(f.observed.authorizations,0);assert.equal(f.observed.mutations,0);
     assert.equal(f.ctx.saAdmissionEpochs.size,0);
@@ -189,13 +218,13 @@ for (const transition of ["resolved-ai","denied","different-account","different-
     const outcome=run.then(()=>({code:"UNEXPECTED_SUCCESS"}),error=>({code:error.code}));
     await f.entered.promise;
     const active=f.ctx.saBeginAdmission("99:active",{operation:"start",tabId:99,store:{id:"store"}});
-    const next={...f.observed.authority,workAllowed:true,requestedAi:"provider_future"};
+    const next={...f.observed.authority,workAllowed:true,requestedAi:"alice"};
     if(transition==="denied")next.workAllowed=false;
     if(transition==="different-account")next.payload={account:{id:"account-B"}};
     if(transition==="different-session")next.sessionId="session-B";
     if(transition==="different-generation")next.generation=2;
     await f.observed.authorityChanged(next,"bootstrap_verified");
-    f.page.resolve({ai_id:"provider_future",conversation_id:null});
+    f.page.resolve({ai_id:"alice",conversation_id:null});
     assert.equal((await outcome).code,transition==="resolved-ai"?"ENTRY_PASSED":"WORK_ADMISSION_CANCELLED");
     assert.equal(active.cancelled,true,"previously admitted work still loses old authority");
     f.ctx.saReleaseAdmission(active);
@@ -211,7 +240,7 @@ for (const transition of ["own-resolution","finish","account","session","wrong-a
     let promptReads=0;
     f.ctx.SellerAgentsControlClient.ensureForIdentity=async()=>{
       f.observed.authorizations++;
-      const next={...f.observed.authority,workAllowed:true,requestedAi:"provider_future"};
+      const next={...f.observed.authority,workAllowed:true,requestedAi:"alice"};
       if(transition==="finish")f.ctx.saCancelAdmission(7);
       if(transition==="account")next.payload={account:{id:"account-B"}};
       if(transition==="session")next.sessionId="session-B";
@@ -227,12 +256,12 @@ for (const transition of ["own-resolution","finish","account","session","wrong-a
     f.ctx.SellerAgentsControlClient.canWork=async(identity)=>
       f.observed.authority.workAllowed && f.observed.authority.requestedAi===identity.ai_id;
     f.ctx.saCatalog={get:async()=>({id:"store"})};
-    f.ctx.tabIdentity=async()=>({ai_id:"provider_future",conversation_id:null});
+    f.ctx.tabIdentity=async()=>({ai_id:"alice",conversation_id:null});
     f.ctx.saAssertReconciliationAction=async()=>{
       if(transition==="reconciliation-denied")throw Object.assign(new Error("SYNC_RECONCILIATION_REQUIRED"),{code:"SYNC_RECONCILIATION_REQUIRED"});
     };
     f.ctx.saPromptTreeForExchange=async(identity)=>{
-      assert.equal(identity.ai_id,"provider_future");promptReads++;
+      assert.equal(identity.ai_id,"alice");promptReads++;
       return {id:"entry-fixture-tree"};
     };
     f.ctx.saAdmitWork=async({entryToken})=>{
@@ -243,7 +272,7 @@ for (const transition of ["own-resolution","finish","account","session","wrong-a
     const run=f.ctx.saWorkStart({tab_id:7,store_id:"store"},{});
     const outcome=run.then(()=>({code:"UNEXPECTED_SUCCESS"}),error=>({code:error.code}));
     await f.entered.promise;
-    f.page.resolve({ai_id:"provider_future",conversation_id:null});
+    f.page.resolve({ai_id:"alice",conversation_id:null});
     const expected=transition==="own-resolution"?"ENTRY_PASSED":
       transition==="reconciliation-denied"?"SYNC_RECONCILIATION_REQUIRED":
       ["wrong-ai","denied"].includes(transition)?"WORK_POLICY_BLOCKED":

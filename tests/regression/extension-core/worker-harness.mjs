@@ -4,7 +4,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { webcrypto } from "node:crypto";
 import aiReleaseDescriptor from "../../../packages/contracts/src/ai-release-scope.v1.json" with { type: "json" };
-const AI_RELEASE_SCOPE_FIXTURE = { descriptor: aiReleaseDescriptor, sha256: "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261" };
+export const AI_RELEASE_SCOPE_FIXTURE = { descriptor: aiReleaseDescriptor, sha256: "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261" };
 
 const AUTH_STORAGE_KEY = "seller_agents_control_auth_v2";
 const fixtureIndexedDBByBacking = new WeakMap();
@@ -1036,8 +1036,9 @@ export async function makeWorker(directory, options = {}) {
       return next;
     },
     setDialogue(id) {
-      identity.conversation_id = id;
-      tab.url = identity.origin + "/c/" + id;
+      const current = identities.get(tabId) || identity;
+      current.conversation_id = id;
+      tab.url = current.origin + (current.ai_id === "alice" ? "/chat/" : "/c/") + id;
     },
     async fireAlarm(name) {
       for (const listener of alarmListeners)

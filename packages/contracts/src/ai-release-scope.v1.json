@@ -3,6 +3,15 @@
   "releaseId": "alice_first_v1",
   "revision": 1,
   "enabledAi": [{ "family": "alice", "surface": "web", "variant": null }],
-  "retainedAiFamilies": ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"],
+  "retainedAiFamilies": [
+    "chatgpt",
+    "alice",
+    "qwen",
+    "kimi",
+    "grok",
+    "gemini",
+    "claude",
+    "deepseek"
+  ],
   "executionAuthority": false
 }

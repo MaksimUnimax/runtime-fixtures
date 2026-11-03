@@ -4,7 +4,7 @@ import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const AUTH = "seller_agents_control_auth_v2";
-const CHATGPT = { family: "chatgpt", surface: "web", variant: null };
+const ALICE = { family: "alice", surface: "web", variant: null };
 const HOUR = 60 * 60 * 1000;
 const clone = (value) => structuredClone(value);
 const json = (body, status = 200) =>
@@ -113,7 +113,7 @@ async function canWork(worker) {
 }
 async function policy(worker) {
   return worker.call("SellerAgentsControlClient.bootstrapWithPolicy", {
-    detectedAi: CHATGPT,
+    detectedAi: ALICE,
   });
 }
 // V3-CA-01: a verified paid v3 authority restores while stale short bootstrap
@@ -404,7 +404,7 @@ for (const [label, mutate] of [
         expectedDeviceId: auth.authority.deviceId,
         sessionId: auth.authority.sessionId,
         expectedSessionId: auth.authority.sessionId,
-        aiFamily: "chatgpt",
+        aiFamily: "alice",
         aiSurface: "web",
         aiVariant: null,
         aiProfile: {
@@ -424,7 +424,7 @@ for (const [label, mutate] of [
         origin,
         conversationId,
         key: origin + "|" + conversationId,
-        provider: "chatgpt",
+        provider: "alice",
       },
       store,
     };

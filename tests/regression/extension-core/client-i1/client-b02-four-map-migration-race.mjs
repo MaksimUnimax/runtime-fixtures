@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
 
 const runtimeArg = process.argv.slice(2).find(value => !value.startsWith('--'));
 assert.ok(runtimeArg, 'Pass the actual composed runtime directory; frozen donor fallback is not valid for this regression.');
@@ -66,6 +67,7 @@ const copy = value => structuredClone(value);
 
 function baseMaps({ withLegacy = false, collision = false, ownerKind = 'manual', applied = true } = {}) {
   const deliveryOwner = {
+    conversation_key: other,
     operation_id: 'operation-B',
     run_id: 'run-B',
     status: ownerKind === 'autorun' ? RUN_STATUSES.DELIVERING : 'delivering',
@@ -192,6 +194,7 @@ function createWorld(initial) {
   const store = createStore(initial);
   let bindingLock = Promise.resolve();
   let authorityCalls = 0;
+  const manualMutationGuards = [];
   let sellerAgentsEnabled = false;
   let uuid = 0;
   let queueCount = 0;
@@ -215,7 +218,8 @@ function createWorld(initial) {
     ProviderTransportCore: {},
     OzonAIDeliveryCapabilities: {},
     URL,
-    crypto: { randomUUID: () => 'synthetic-uuid-' + (++uuid) },
+    TextEncoder,
+    crypto: { subtle: webcrypto.subtle, randomUUID: () => 'synthetic-uuid-' + (++uuid) },
     chrome: {
       storage: { local: { get: keys => store.get(keys), set: values => store.set(values) } },
       runtime: { onConnect: { addListener() {} } },
@@ -227,7 +231,9 @@ function createWorld(initial) {
     },
     async mutateManualOperation(key, mutator) {
       const current = copy(store.maps[K.MANUAL_OPERATIONS]?.[key] || null);
+      const guardsBefore = authorityCalls;
       const next = await mutator(current);
+      manualMutationGuards.push(authorityCalls - guardsBefore);
       const operations = { ...(store.maps[K.MANUAL_OPERATIONS] || {}) };
       if (next) operations[key] = copy(next);
       else delete operations[key];
@@ -295,7 +301,7 @@ function createWorld(initial) {
   assert.equal(attachmentWorker.split(exposeAnchor).length - 1, 1, 'Actual attachment worker export anchor must be unique.');
   const instrumentedPort = attachmentWorker.replace(
     exposeAnchor,
-    '  globalThis.__B02_ATTACHMENT_TEST = Object.freeze({ confirmAttachmentDelivery, commitAttachment, commitAttachmentSend, rollbackAttachmentSend, ownerForMessage });\n' + exposeAnchor,
+    '  globalThis.__B02_ATTACHMENT_TEST = Object.freeze({ handleRequest, confirmAttachmentDelivery, commitAttachment, commitAttachmentSend, rollbackAttachmentSend, ownerForMessage });\n' + exposeAnchor,
   );
   vm.runInContext(instrumentedPort, context, { filename: 'actual-composed-shared-file_delivery_port_worker.js' });
   const portUsesSharedPrefixQueue = attachmentWorker.includes('await withConversationMapsWrite(async () => {');
@@ -305,6 +311,7 @@ function createWorld(initial) {
     context,
     store,
     authorityCalls: () => authorityCalls,
+    manualMutationGuards,
     enableSellerAgentsManualRecord: () => { sellerAgentsEnabled = true; },
     queueCount: () => queueCount,
     portUsesSharedQueue: portUsesSharedPrefixQueue && portUsesSharedAutoRunsQueue,
@@ -368,10 +375,13 @@ function prefixReadGate(store) {
 }
 
 async function confirmManual(world, ownerId = 'operation-B', deliveryId = appliedDeliveryId, sender = makeSender()) {
-  return world.attachment.confirmAttachmentDelivery(makeMessage('manual', ownerId, deliveryId), sender);
+  // The synthetic post-Send receipt must carry the final user-turn witness.
+  // Keep it stable on retries so the actual finalizer can prove no replay.
+  const message = { ...makeMessage('manual', ownerId, deliveryId), confirmed_user_turn_id: 'synthetic-confirmed:' + deliveryId };
+  return world.attachment.confirmAttachmentDelivery(message, sender);
 }
 async function confirmAutorun(world) {
-  return world.attachment.confirmAttachmentDelivery(makeMessage('autorun', 'run-B', appliedDeliveryId), makeSender());
+  return world.attachment.confirmAttachmentDelivery({ ...makeMessage('autorun', 'run-B', appliedDeliveryId), confirmed_user_turn_id: 'synthetic-confirmed:' + appliedDeliveryId }, makeSender());
 }
 
 async function migrationVsOtherWriters(withLegacy, result) {
@@ -691,11 +701,13 @@ await runCase('shared-queue-storage-rejection-recovers', async function (result)
   let failure;
   try { await confirmManual(world); }
   catch (error) { failure = error; }
-  check(result, failure?.code === 'FAKE_STORAGE_WRITE_REJECTED', 'actual attachment storage-set rejection did not propagate');
+  check(result, failure?.code === 'ATTACHMENT_FINALIZATION_PENDING', 'durable finalization storage failure was not reported as pending');
   check(result, world.store.maps[K.REPORT_PREFIXES][other]?.delivered_count === 7,
     'failed storage callback changed the prefix map');
-  check(result, world.store.maps[K.MANUAL_OPERATIONS][other]?.delivery?.phase === PHASES.SEND_COMMITTED,
-    'failed prefix callback advanced the manual operation record');
+  const pending = world.store.maps[K.MANUAL_OPERATIONS][other];
+  check(result, pending?.status === 'delivering' && pending?.delivery?.phase === 'attachment_finalizing' &&
+    pending.attachment_finalization?.state === 'PENDING' && pending.attachment_finalization.prefix_done === false,
+    'failed prefix callback lost the durable confirmed-turn pending record or completed early');
   const recovered = await capture(result, 'successful map write after rejected storage callback',
     world.context.prefix(other, {
       report_prefix_enabled: true,
@@ -706,6 +718,15 @@ await runCase('shared-queue-storage-rejection-recovers', async function (result)
   check(result, world.store.maps[K.REPORT_PREFIXES][other]?.last_confirmed_delivery_id === 'B-previous-delivery',
     'recovery write changed the unconfirmed delivery ID');
   check(result, world.portUsesSharedPrefixQueue, 'failed attachment storage callback was not inside the shared map queue');
+  const readback = { ...makeMessage(), type: 'OZ_ATTACHMENT_RECOVERY_GET' };
+  const completed = await world.attachment.handleRequest(readback, makeSender());
+  check(result, completed?.confirmed === true && completed?.bundle_complete === true,
+    'bounded recovery readback did not finish the pending local finalization');
+  check(result, world.store.maps[K.REPORT_PREFIXES][other]?.delivered_count === 8,
+    'recovery failed to account for the confirmed logical delivery exactly once');
+  await world.attachment.handleRequest(readback, makeSender());
+  check(result, world.store.maps[K.REPORT_PREFIXES][other]?.delivered_count === 8,
+    'repeated completed readback replayed prefix accounting');
 });
 
 await runCase('new-binding-reset-and-no-nested-map-queue-deadlock', async function (result) {
@@ -807,8 +828,9 @@ await runCase('manual-owner-confirmation-retains-operation-record-scope', async 
     'manual owner confirmation changed MANUAL_MODES');
   check(result, world.store.maps[K.REPORT_PREFIXES][other]?.last_confirmed_delivery_id === appliedDeliveryId,
     'manual owner confirmation did not update REPORT_PREFIXES');
-  check(result, world.authorityCalls() === 4,
-    'manual owner authority was not checked before and inside the operation-record mutation');
+  check(result, world.authorityCalls() >= 4 && world.manualMutationGuards.length > 0 &&
+    world.manualMutationGuards.every(count => count >= 2),
+    'manual owner authority was not checked before and after every operation-record mutation');
 });
 
 const failedCases = cases.filter(item => item.status === 'FAIL');

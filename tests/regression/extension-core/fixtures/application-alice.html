@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><title>Installed-local Alice fixture</title><style>
+body{font:16px system-ui;margin:24px}article{padding:10px}pre,.AliceTextBubble{white-space:pre-wrap}
+textarea{display:block;width:480px;min-height:80px}button{padding:8px}
+</style></head>
+<body>
+<aside><div class="ChatListItem" id="__CONVERSATION_ID__"><button data-testid="chatlist-item-active" aria-current="page">Текущий чат</button></div></aside>
+<main id="turns">
+<article data-message-role="user" id="alice-user-history"><div class="AliceTextBubble AliceTextBubble_from_user">Исходный вопрос</div></article>
+<article data-message-role="alice" id="alice-reply-history"><div class="CodeBlock"><button data-testid="codeblock-action-copy">Копировать код</button><pre class="CodeBlock-ContentPre"><code>WB_API_V1 {"operation":"seller_info","params":{}}</code></pre></div></article>
+</main>
+<div data-testid="standalone-input" class="Standalone-Input">
+<textarea data-testid="inputbase-textarea"></textarea>
+<div data-testid="input-controls-root"><button type="button" data-testid="InputControls-Plus-Button" aria-label="Добавить файл" aria-haspopup="dialog">Добавить файл</button></div>
+<div id="attachments" class="StandaloneInput-TopControls"></div>
+<button type="button" data-testid="oknyx" aria-label="Отправить" disabled>Отправить</button>
+</div>
+<script>
+window.sent = [];
+window.files = [];
+window.sentFiles = [];
+let fixtureSequence = 0;
+window.fixtureAliceMessage = (spec = {}) => {
+  const id = spec.id || "alice-fixture-" + (++fixtureSequence);
+  const message = document.createElement("article");
+  message.id = id;
+  if (spec.role !== null) message.dataset.messageRole = spec.role || "alice";
+  for (const block of spec.blocks || []) {
+    const holder = document.createElement("div");
+    holder.className = block.unrelated ? "unrelated" : "CodeBlock";
+    const pre = document.createElement("pre");
+    pre.className = "CodeBlock-ContentPre";
+    const code = document.createElement("code");
+    code.textContent = block.text;
+    pre.append(code);
+    holder.append(pre);
+    if (block.copy !== false) {
+      const copy = document.createElement("button");
+      copy.dataset.testid = "codeblock-action-copy";
+      copy.textContent = block.label || "Копировать код";
+      holder.append(copy);
+    }
+    message.append(holder);
+  }
+  document.querySelector("#turns").append(message);
+  return id;
+};
+window.fixtureCommand = (text, id) => fixtureAliceMessage({id, blocks:[{text}]});
+const composer = document.querySelector('[data-testid="inputbase-textarea"]');
+const send = document.querySelector('[data-testid="oknyx"]');
+composer.addEventListener("input", () => { send.disabled = !composer.value.trim(); });
+send.addEventListener("click", () => {
+  const text = composer.value;
+  if (!text.trim()) return;
+  window.sent.push(text);
+  window.sentFiles.push([...document.querySelectorAll("#attachments [data-filename]")].map(node => node.dataset.filename));
+  const user = document.createElement("article");
+  user.dataset.messageRole = "user";
+  user.id = "alice-user-sent-" + window.sent.length;
+  const bubble = document.createElement("div");
+  bubble.className = "AliceTextBubble AliceTextBubble_from_user";
+  bubble.textContent = text;
+  user.append(bubble);
+  document.querySelector("#turns").append(user);
+  composer.value = "";
+  composer.dispatchEvent(new InputEvent("input", {bubbles:true,inputType:"deleteContentBackward"}));
+  composer.dispatchEvent(new Event("change", {bubbles:true}));
+  document.querySelector("#attachments").replaceChildren();
+  setTimeout(() => {
+    const reply = document.createElement("article");
+    reply.dataset.messageRole = "alice";
+    reply.id = "alice-reply-sent-" + window.sent.length;
+    reply.textContent = "Инструкция или результат получены";
+    document.querySelector("#turns").append(reply);
+  }, 150);
+});
+document.body.addEventListener("dragover", event => event.preventDefault());
+document.body.addEventListener("drop", async event => {
+  event.preventDefault();
+  for (const file of event.dataTransfer.files) {
+    window.files.push({name:file.name, bytes:[...new Uint8Array(await file.arrayBuffer())]});
+    const preview = document.createElement("div");
+    preview.dataset.filename = file.name;
+    preview.textContent = file.name;
+    document.querySelector("#attachments").append(preview);
+  }
+});
+</script>
+</body>
+</html>

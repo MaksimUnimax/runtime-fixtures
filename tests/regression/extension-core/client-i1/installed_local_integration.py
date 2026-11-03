@@ -722,7 +722,7 @@ def run(runtime, output):
     required = [ROOT / "package.json", ROOT / "tooling/build/extension_composed.py",
                 ROOT / "tests/regression/extension-core/client-i1/api-harness.ts",
                 ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs",
-                ROOT / "tests/regression/extension-core/fixtures/application-chat.html"]
+                ROOT / "tests/regression/extension-core/fixtures/application-alice.html"]
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
         raise RuntimeError("required installed-local inputs missing: " + ", ".join(missing))
@@ -798,11 +798,13 @@ def run(runtime, output):
             processes.append(portal)
             stage = _mark_stage(output, "portal_ready_wait", started)
             wait_for(f"http://127.0.0.1:{portal_port}/login", process=portal)
-            fixture = (ROOT / "tests/regression/extension-core/fixtures/application-chat.html").read_text()
+            fixture = (ROOT / "tests/regression/extension-core/fixtures/application-alice.html").read_text()
             # This account/restart fixture exposes a provider conversation ID.
             # Its URL is deliberately unrelated; an address alone is not proof.
             fixture_conversation_id = "11111111-1111-4111-8111-111111111111"
-            chat_url = "https://chatgpt.com/workspaces/installed-integration-thread"
+            chat_url = "https://alice.yandex.ru/workspaces/installed-integration-thread"
+            assert fixture.count('__CONVERSATION_ID__') == 1
+            fixture = fixture.replace('__CONVERSATION_ID__', fixture_conversation_id)
             assert fixture.count('<main id="turns">') == 1
             fixture = fixture.replace('<main id="turns">', f'<main id="turns" data-conversation-id="{fixture_conversation_id}">')
             with sync_playwright() as playwright, tempfile.TemporaryDirectory(prefix="seller-agents-i1-browser-") as profile:
@@ -874,7 +876,7 @@ def run(runtime, output):
                           const matches = (await chrome.tabs.query({})).filter(tab => tab.url === url && tab.title === marker);
                           return matches.length === 1 ? matches[0].id : null;
                         }""", {"url": chat.url, "marker": chat_marker}),
-                        "installed ChatGPT tab id",
+                        "installed Alice tab id",
                     )
                     popup = context.new_page()
                     popup.add_init_script(f"""
@@ -968,6 +970,20 @@ def run(runtime, output):
                     popup.click("#save")
                     popup.wait_for_function("() => document.querySelector('#stores').innerText.includes('Аккаунт B WB')")
 
+                    # Observe current render blockers without changing the button,
+                    # authority, timeout, or the real admission path.
+                    readiness = popup.evaluate("""() => ({
+                      aiFamily: state?.page?.aiFamily || null,
+                      releaseSupported: state?.page?.supported === true,
+                      authenticated: state?.auth?.authenticated === true,
+                      busy: busy === true, pending: Boolean(state?.pending),
+                      selectedStore: Boolean(selected()),
+                      lifecycleBlocked: ['binding','recovering','finishing'].includes(state?.work?.state),
+                      buttonDisabled: document.getElementById('start').disabled
+                    })""")
+                    result["work_start_readiness"] = readiness
+                    if readiness["aiFamily"] != "alice" or not readiness["releaseSupported"]:
+                        raise RuntimeError("INSTALLED_FIXTURE_AI_NOT_IN_CURRENT_RELEASE")
                     stage = _mark_stage(output, "work_start", started)
                     stage = _mark_stage(output, "work_start_start_click_begin", started)
                     work_start_header_count = len(bootstrap_http_responses)
@@ -989,7 +1005,7 @@ def run(runtime, output):
                     stage = _mark_stage(output, "work_start_binding_wait_done", started)
                     assert active_surface["identity"]["conversation_id"] == fixture_conversation_id
                     conversation_key = active_surface["conversation_key"]
-                    assert conversation_key == f"https://chatgpt.com|{fixture_conversation_id}"
+                    assert conversation_key == f"https://alice.yandex.ru|{fixture_conversation_id}"
                     stage = _mark_stage(output, "work_start_state_wait_begin", started)
                     work_state = wait_until(
                         lambda: worker.evaluate("""async key => {
@@ -1051,7 +1067,7 @@ def run(runtime, output):
                         signed_profile.get("verified") is True
                         and signed_profile.get("accountMatches") is True
                         and signed_profile.get("aiStatus") == "RESOLVED"
-                        and signed_profile.get("detected") == {"family": "chatgpt", "surface": "web", "variant": None}
+                        and signed_profile.get("detected") == {"family": "alice", "surface": "web", "variant": None}
                         and signed_profile.get("materialShapeValid") is True
                         and signed_profile.get("materialValid") is True
                         and signed_profile.get("browser", {}).get("family") in signed_profile.get("profileBrowserFamilies", [])
@@ -1149,7 +1165,7 @@ def run(runtime, output):
                     assert before_restart["workState"] == "active_visible"
                     assert before_restart["workStartIntentId"]
                     assert before_restart["conversationId"] == fixture_conversation_id
-                    assert before_restart["origin"] == "https://chatgpt.com"
+                    assert before_restart["origin"] == "https://alice.yandex.ru"
 
                     stage = _mark_stage(output, "browser_restart", started)
                     context.close()
@@ -1179,7 +1195,7 @@ def run(runtime, output):
                           const matches = (await chrome.tabs.query({})).filter(tab => tab.url === url && tab.title === marker);
                           return matches.length === 1 ? matches[0].id : null;
                         }""", {"url": chat.url, "marker": chat_marker}),
-                        "restarted ChatGPT tab id",
+                        "restarted Alice tab id",
                     )
                     popup = context.new_page()
                     popup.add_init_script(f"""

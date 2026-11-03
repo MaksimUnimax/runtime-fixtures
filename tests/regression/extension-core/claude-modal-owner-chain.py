@@ -21,7 +21,7 @@ input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
 <div data-cds="ChatComposerActions"><button type="button" id="own-attach" data-testid="chat-input-attach">Attach</button><button type="button" data-cds="Button" aria-label="Включить голосовой режим">Voice</button><button type="button" data-testid="chat-input-send" aria-label="Отправить сообщение" disabled>Send</button></div></div></div></fieldset></div></main>'''
 
 FIXTURE=r'''(() => {
- globalThis.T={requests:[],uploads:0,commits:0,ready:0,sendClicks:0,nativeClicks:0,payload:'Complete harmless offline file\nEND\n',filename:'B02_OFFLINE_OWNER.txt',variant:globalThis.TEST_VARIANT,stage:globalThis.TEST_STAGE,done:false};
+ globalThis.T={requests:[],uploads:0,preflights:0,commits:0,ready:0,sendClicks:0,nativeClicks:0,payload:'Complete harmless offline file\nEND\n',filename:'B02_OFFLINE_OWNER.txt',variant:globalThis.TEST_VARIANT,stage:globalThis.TEST_STAGE,done:false};
  T.root=document.querySelector('[data-testid="chat-column"]');T.editor=document.querySelector('[data-testid="chat-input"]');T.actions=document.querySelector('[data-cds="ChatComposerActions"]');T.composer=T.editor.closest('[data-cds="ChatComposer"]');
  T.mutate=stage=>{
   if(T.done||T.stage!==stage)return;T.done=true;
@@ -73,17 +73,40 @@ FIXTURE=r'''(() => {
    if(T.variant==='delayed_item')setTimeout(addItem,80);else addItem();};
   if(T.variant==='delayed_menu')setTimeout(create,80);else create();
  });
- globalThis.chrome={runtime:{lastError:null,connect(){let callback;return {onMessage:{addListener(fn){callback=fn}},onDisconnect:{addListener(){}},disconnect(){},postMessage(message){
+ // BEGIN synthetic worker protocol: mirrored requests, never Work authority.
+ T.workerResponse = message => {
   const a=OzonAIAdapters.adapterForLocation(),here=SellerAgentsConversationSurface.read(a),masked=!!document.querySelector('[role="dialog"][data-perf-overlay="composer_radiant_pine_dialog"]');
   T.requests.push({type:message.type,liveOwner:message.live_owner,actor:message.actor_id||null,masked,identity:here.status,composer:!!a.composerContext(),sendAvailable:!!a.sendButton(a.composerContext())});
   let response;T.expectedActor ||= message.actor_id;
-  if(T.revoked||!T.initial||here.status!=='confirmed'||message.live_owner?.origin!==T.initial.origin||message.live_owner?.conversation_id!==T.initial.conversation_id||message.actor_id&&message.actor_id!==T.expectedActor)response={ok:false,code:'SYNTHETIC_OWNER_MISMATCH'};
-  else if(message.type==='OZ_ATTACHMENT_COMMIT'){T.commits++;T.mutate('commit');response=T.variant==='commit_denied'?{ok:false,code:'SYNTHETIC_COMMIT_DENIED'}:T.variant==='commit_unknown'?{ok:true,attach_allowed:false}:{ok:true,attach_allowed:true,recovery:{...T.recovery,delivery_phase:'attachment_committed'}}}
+  if(T.revoked||!T.initial||here.status!=='confirmed'||message.live_owner?.origin!==T.initial.origin||message.live_owner?.conversation_id!==T.initial.conversation_id||message.owner_kind!==T.recovery.owner_kind||message.owner_id!==T.recovery.owner_id||message.delivery_id!==T.recovery.delivery_id||message.bundle_part_id!==T.recovery.bundle_part_id||message.bundle_manifest_sha256!==T.recovery.bundle_manifest_sha256||message.bundle_part_ordinal!==T.recovery.bundle_part_ordinal||message.actor_id&&message.actor_id!==T.expectedActor)response={ok:false,code:'SYNTHETIC_OWNER_MISMATCH'};
+  else if(message.type==='OZ_ATTACHMENT_PREFLIGHT'){
+   T.preflights++;
+   if(T.variant==='preflight_denied')response={ok:false,code:'SYNTHETIC_PREFLIGHT_DENIED'};
+   else if(T.variant==='preflight_unknown')response={ok:true,prepared:false};
+   else{T.preflighted=true;T.recovery={...T.recovery,bundle_schema:'attachment_bundle_parts_v1',bundle_manifest_sha256:'a'.repeat(64),bundle_part_id:'OWN_DELIVERY:part:1',bundle_part_ordinal:1};response={ok:true,prepared:true,recovery:{...T.recovery}}}
+  }
+  else if(message.type==='OZ_ATTACHMENT_COMMIT'){
+   if(!T.preflighted)response={ok:false,code:'SYNTHETIC_PREFLIGHT_REQUIRED'};
+   else if(T.committed)response={ok:true,attach_allowed:false,code:'ATTACH_OUTCOME_UNKNOWN_NO_RETRY',recovery:{...T.recovery}};
+   else{T.commits++;T.mutate('commit');
+    if(T.variant==='commit_denied')response={ok:false,code:'SYNTHETIC_COMMIT_DENIED'};
+    else{T.committed=true;T.recovery={...T.recovery,delivery_phase:'attachment_committed'};response={ok:true,attach_allowed:T.variant!=='commit_unknown',recovery:{...T.recovery}}}
+   }
+  }
+  else if(['OZ_ATTACHMENT_ARTIFACT_META','OZ_ATTACHMENT_ARTIFACT_CHUNK'].includes(message.type)&&!T.committed)response={ok:false,code:'SYNTHETIC_COMMIT_REQUIRED'};
   else if(message.type==='OZ_ATTACHMENT_ARTIFACT_META'){T.mutate('meta');response={ok:true,descriptors:[T.descriptor]}}
   else if(message.type==='OZ_ATTACHMENT_ARTIFACT_CHUNK')response={ok:true,offset:0,total_byte_length:T.bytes.length,byte_length:T.bytes.length,chunk_base64:btoa(T.variant==='bad_hash'?T.payload.replace('C','X'):T.payload)};
-  else if(message.type==='OZ_ATTACHMENT_RECOVERY_GET'){T.mutate('recovery');response={ok:true,recovery:{...T.recovery,delivery_phase:'attachment_committed'}}}
-  else if(message.type==='OZ_ATTACHMENT_READY'){T.ready++;response={ok:true,ready:true,recovery:{...T.recovery,delivery_phase:'attachment_ready'}}}
+  else if(message.type==='OZ_ATTACHMENT_RECOVERY_GET'){T.mutate('recovery');response={ok:true,recovery:{...T.recovery}}}
+  else if(message.type==='OZ_ATTACHMENT_READY'){
+   if(!T.committed)response={ok:false,code:'SYNTHETIC_COMMIT_REQUIRED'};
+   else{if(T.recovery.delivery_phase!=='attachment_ready')T.ready++;T.recovery={...T.recovery,delivery_phase:'attachment_ready'};response={ok:true,ready:true,recovery:{...T.recovery}}}
+  }
   else response={ok:false,code:'SYNTHETIC_UNEXPECTED_REQUEST_NO_SEND'};
+  return response;
+ };
+ // END synthetic worker protocol.
+ globalThis.chrome={runtime:{lastError:null,connect(){let callback;return {onMessage:{addListener(fn){callback=fn}},onDisconnect:{addListener(){}},disconnect(){},postMessage(message){
+  const response=T.workerResponse(message);
   queueMicrotask(()=>callback({kind:'response',request_id:message.request_id,response}));
  }}}}};
 })()'''
@@ -97,14 +120,15 @@ SETUP=r'''(async()=>{
 RUN=r'''(async()=>{
  let error=null,phase=null;try{phase=(await T.consumer.attachClaimed(T.recovery))?.delivery_phase||null}catch(e){error=e.code||e.message}
  const a=OzonAIAdapters.adapterForLocation(),c=a.composerContext();
- return {error,phase,uploads:T.uploads,commits:T.commits,ready:T.ready,sendClicks:T.sendClicks,nativeClicks:T.nativeClicks,requests:T.requests,initial:T.initial,final:SellerAgentsConversationSurface.read(a),fileName:T.fileName||null,fileBytes:T.fileBytes||null,markerExact:c?OzonAIAdapters.readComposerText(c.composer)===T.recovery.outgoing_text:false};
+ return {error,phase,preflights:T.preflights,mutationApplied:T.done,uploads:T.uploads,commits:T.commits,ready:T.ready,sendClicks:T.sendClicks,nativeClicks:T.nativeClicks,requests:T.requests,initial:T.initial,final:SellerAgentsConversationSurface.read(a),fileName:T.fileName||null,fileBytes:T.fileBytes||null,markerExact:c?OzonAIAdapters.readComposerText(c.composer)===T.recovery.outgoing_text:false};
 })()'''
 CASES=[(x,'',True) for x in ['normal','delayed_menu','delayed_item','delayed_widget']]
 CASES += [(x,'modal',False) for x in ['route','root','editor','editor_parent','actions','user_native','user_text','assistant_native','assistant_node','extra_message','remove_message','hidden_history','explicit','draft','duplicate_editor','foreign_dialog','input_disabled','input_duplicate','widget_hidden']]
 CASES += [(x,'commit',False) for x in ['route','user_text','assistant_native','input_replace','dialog_replace','draft','actor']]
 CASES += [('runtime','meta',False),('route','after_upload',False)]
 CASES += [(x,'',False) for x in ['commit_denied','commit_unknown','bad_hash']]
-assert len(CASES)==35
+CASES += [(x,'',False) for x in ['preflight_denied','preflight_unknown']]
+assert len(CASES)==37
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 async def main(args):
@@ -137,10 +161,17 @@ async def main(args):
      if initial['status']!='confirmed':raise RuntimeError('Fixture did not establish a real confirmed conversation: '+json.dumps(initial))
      value=await asyncio.wait_for(page.evaluate(RUN),timeout=8);row['actual']=value
      masked=[x for x in value['requests'] if x['masked']]
-     common=value['sendClicks']==0 and value['uploads']<=1 and value['commits']<=1
+     common=value['sendClicks']==0 and value['uploads']<=1 and value['commits']<=1 and value['preflights']==1 and value['error']!='SYNTHETIC_UNEXPECTED_REQUEST_NO_SEND'
      if positive:
       good=common and value['phase']=='attachment_ready' and value['error'] is None and value['ready']==1 and value['uploads']==1 and value['markerExact'] and bool(masked) and all(x['identity']=='confirmed' and not x['composer'] and not x['sendAvailable'] for x in masked) and value['initial']['conversation_id']==value['final']['conversation_id']
-     else:good=common and value['phase']!='attachment_ready' and value['ready']==0 and value['uploads']<=(1 if stage=='after_upload' else 0)
+     else:
+      good=common and value['phase']!='attachment_ready' and value['ready']==0 and value['uploads']<=(1 if stage=='after_upload' else 0)
+      if stage:good=good and value['mutationApplied'] is True
+      if stage=='modal':good=good and value['commits']==0
+      if stage in ['commit','meta','after_upload']:good=good and value['commits']==1
+      if variant.startswith('preflight_'):good=good and value['commits']==0 and value['nativeClicks']==0
+      if variant=='commit_denied':good=good and value['error']=='SYNTHETIC_COMMIT_DENIED'
+      if variant=='commit_unknown':good=good and value['error']=='ATTACH_OUTCOME_UNKNOWN_NO_RETRY'
      row['status']='PASS' if good else 'FAIL'
     except Exception as error:row.update(status='HARNESS_ERROR',error=type(error).__name__+': '+str(error)[:1200])
     finally:await context.close()

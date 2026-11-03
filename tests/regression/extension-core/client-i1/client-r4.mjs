@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { makeWorker, signFixtureBootstrap, until } from "../worker-harness.mjs";
+import { makeWorker, signFixtureBootstrap, until, AI_RELEASE_SCOPE_FIXTURE } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const AUTH = "seller_agents_control_auth_v2";
@@ -28,7 +28,7 @@ async function signed(backing, payload) { return json(await signFixtureBootstrap
 async function packagedConfig(backing, extensionVersion) {
   const publicKey = Buffer.from(backing.local.__seller_agents_fixture_signing_key.publicKey, "base64");
   const fingerprint = createHash("sha256").update(publicKey).digest("hex");
-  return { environment: "LOCAL DEVELOPMENT", controlApiOrigin: "http://127.0.0.1:43100", portalOrigin: "http://127.0.0.1:43101", extensionVersion, contractVersion: "control_plane_v2", trustBundle: { trustBundleVersion: "bootstrap_trust_bundle_v1", algorithm: "Ed25519", publicKeyFormat: "spki_der", publicKeyEncoding: "base64", fingerprintAlgorithm: "sha256", fingerprintEncoding: "lowercase_hex", keys: [{ keyId: "fixture-key", publicKey: publicKey.toString("base64"), fingerprintSha256: fingerprint, lifecycle: "ACTIVE", trustEligibility: "SIGNING_AND_VERIFICATION" }] } };
+  return { environment: "LOCAL DEVELOPMENT", controlApiOrigin: "http://127.0.0.1:43100", portalOrigin: "http://127.0.0.1:43101", extensionVersion, contractVersion: "control_plane_v2", aiReleaseScope: structuredClone(AI_RELEASE_SCOPE_FIXTURE), trustBundle: { trustBundleVersion: "bootstrap_trust_bundle_v1", algorithm: "Ed25519", publicKeyFormat: "spki_der", publicKeyEncoding: "base64", fingerprintAlgorithm: "sha256", fingerprintEncoding: "lowercase_hex", keys: [{ keyId: "fixture-key", publicKey: publicKey.toString("base64"), fingerprintSha256: fingerprint, lifecycle: "ACTIVE", trustEligibility: "SIGNING_AND_VERIFICATION" }] } };
 }
 function activated(n, prefix = "b") { return { status: "activated", deviceId: uuid(100 + n), sessionId: uuid(200 + n), tokenType: "Bearer", accessToken: `${prefix}-access-${n}-token`, accessTokenExpiresAt: future(3600000), refreshToken: `${prefix.toUpperCase()}${String(n).repeat(42)}`, refreshTokenExpiresAt: future(7200000) }; }
 function startResponse(n) { return { status: "pending", authorizationId: uuid(300 + n), deviceCode: String.fromCharCode(65 + n).repeat(43), userCode: "ABCD-EFGH", expiresAt: future(60000) }; }
@@ -98,7 +98,7 @@ for (const [label, topMinimum, profileMinimum, expected, packagedVersion = "0.2.
     return signed(backing, payloadFor(base, base.account.id, { ...base.ai, profile }, { compatibility: { ...base.compatibility, extension: { ...base.compatibility.extension, minimumVersion: topMinimum } } }));
   } });
   try {
-    const call = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "chatgpt", surface: "web", variant: null } });
+    const call = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "alice", surface: "web", variant: null } });
     if (expected) { await call; assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true, label); }
     else { await assert.rejects(call, /BOOTSTRAP_(?:INVALID_PAYLOAD_SCHEMA|PROFILE_INCOMPATIBLE)/, label); assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false, label); }
   } finally { worker.close(); }
@@ -113,7 +113,7 @@ for (const [label, version, minimum, expected] of [["browser-minimum-one-higher"
     return signed(backing, payloadFor(base, base.account.id, { ...base.ai, profile }));
   } });
   try {
-    const call = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "chatgpt", surface: "web", variant: null } });
+    const call = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "alice", surface: "web", variant: null } });
     if (expected) await call; else await assert.rejects(call, /BOOTSTRAP_PROFILE_INCOMPATIBLE/);
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), expected, label);
   } finally { worker.close(); }

@@ -42,6 +42,7 @@ def main():
             "-p", "test_browser_transfer_vault_restart.py", "-v",
         ])
         runner.run("start-entry-lifecycle", [node, ROOT / "tests/regression/extension-core/client-i1/client-start-entry-lifecycle.mjs", ROOT])
+        runner.run("ci-consumer-fixture-contract", [node, ROOT / "tests/regression/extension-core/client-i1/ci-consumer-fixture-contract.mjs", ROOT])
         runner.run("i1-release-preflight-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-release-preflight.mjs", ROOT])
         runner.run("i1-r3-ledger-writer-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-r3-command-ledger.mjs"])
         # Existing source regressions for operator R3 feedback must run on
