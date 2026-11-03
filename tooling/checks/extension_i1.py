@@ -59,6 +59,13 @@ def main():
         source, extracted, receipt = composed.build(output / "package")
         assert receipt["stage"] == "I1-C1" and receipt["version"] == expected_version
         result["composition"] = receipt
+        # Validate the very seed expressions used by both native CI routes
+        # against the real cache verifier before starting a browser. This is
+        # additional source/package coverage, not a substitute for native gates.
+        for runtime, label in ((source, "source"), (extracted, "package")):
+            runner.run("native-cache-seed-contract-" + label, [
+                node, ROOT / "tests/regression/extension-core/client-i1/native-cache-seed-contract.mjs", runtime,
+            ])
         runner.run("native-start-entry", [os.environ.get("WB_TEST_PYTHON", "python3"), ROOT / "tests/regression/extension-core/browser_start_entry.py", "--runtime", extracted, "--output", output / "native-start-entry"])
         for runtime, label in ((source, "i1-source"), (extracted, "i1-package")):
             browser_output = output / (label + "-browser-proof")

@@ -211,7 +211,7 @@ function fixture() {
 }
 
 describe("connection code to signed bootstrap composition", () => {
-  it("keeps two independent sessions on the same account and all eight beta AI keys", async () => {
+  it("keeps two independent sessions on the same account with only Alice enabled among all eight retained AI keys", async () => {
     const f = fixture();
     try {
       const one = await f.connect(1),
@@ -228,7 +228,10 @@ describe("connection code to signed bootstrap composition", () => {
         expect(payload.account.id).toBe(accountId);
         expect(payload.accessBasis).toBe("BETA");
         expect(payload.devicePolicy.status).toBe("ACTIVE");
-        for (const key of aiKeys) expect(payload.entitlements[key]).toBe(true);
+        for (const key of aiKeys)
+          expect(payload.entitlements[key]).toBe(key === "ai.alice");
+        expect(payload.entitlements["source.ozon"]).toBe(true);
+        expect(payload.entitlements["source.wildberries"]).toBe(true);
       }
       expect(f.exchange).toHaveBeenCalledTimes(2);
       expect(f.beta.resolve.mock.calls.map(([id]) => id)).toEqual([
