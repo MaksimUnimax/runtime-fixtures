@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Октопорт маркет — голосовые отчёты">
+<defs><linearGradient id="bg" x2="0" y2="1"><stop stop-color="#0d1d2e"/><stop offset="1" stop-color="#132b3f"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<circle cx="512" cy="512" r="392" fill="none" stroke="#243d4c" stroke-width="3"/>
+<circle cx="512" cy="512" r="337" fill="none" stroke="#1c3141" stroke-width="2"/>
+<rect x="254" y="270" width="516" height="450" rx="112" fill="none" stroke="#ff7536" stroke-width="30"/>
+<path d="M640 713 L716 822 L713 717 Z" fill="#ff7536"/>
+<path d="M657 702 L704 775 L703 701 Z" fill="#132b3f"/>
+<rect x="358" y="465" width="45" height="94" rx="22" fill="#f4fbfd"/>
+<rect x="432" y="424" width="45" height="176" rx="22" fill="#f4fbfd"/>
+<rect x="506" y="390.5" width="45" height="243" rx="22" fill="#58d9cd"/>
+<rect x="580" y="424" width="45" height="176" rx="22" fill="#f4fbfd"/>
+<rect x="654" y="465" width="45" height="94" rx="22" fill="#f4fbfd"/>
+</svg>
