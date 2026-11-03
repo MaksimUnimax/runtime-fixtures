@@ -95,3 +95,20 @@ This is Yandex's **own skill/account-linking metadata request**, preceding any r
 **Server status:** Alisa web, synthetic job worker and DeepSeek Flash worker remain active. No successful external OAuth callback was seen during the failed popup attempts. Existing server probe with valid synthetic OAuth parameters returned HTTP200, but that is not real Yandex account linking. No user secrets collected in this audit.
 
 **Correction to earlier analysis:** The primary app-store popup error is not merely an ungrounded possibility concerning our `start_account_linking` JSON; there is a specific failing frontend fetch to Yandex's own `/account_linking` metadata API. The previous pattern of switching directives without this evidence wasted owner time.
+
+
+## 2026-11-03: owner screenshot confirms no publication event
+
+Owner supplied screenshot of the existing \`Октопорт маркет\` Dialogs skill under \`События\`. It displayed exactly **one event, «Создан», about 16 hours earlier**, and no moderation or publication events. The same page showed **Приватный** and a **Черновик** section. These are distinct status dimensions; selecting private does **not** publish the skill.
+
+Verified current official docs (2026-11-03): 
+- https://yandex.ru/dev/dialogs/alice/doc/ru/access — private skill instructions are (1) open skill, (2) choose "Приватный", (3) **publish** it. It remains hidden from public catalogue, and private publication is auto-moderated.
+- https://yandex.ru/dev/dialogs/alice/doc/ru/moderation — FAQ specifically says use **Опубликовать** for a private skill (with automoderation).
+- https://yandex.ru/dev/dialogs/alice/doc/ru/publication — draft vs published states differ, a moderated draft and published version can coexist.
+- https://yandex.ru/dev/dialogs/alice/doc/ru/auth/test-skill — docs also promise account-linking tests in developer console before publication, so **unpublished status is a concrete omission and strong hypothesis, not yet proven sole root cause of the OAuth popup failure**.
+
+Prior read-only independent GET without owner cookies to Yandex Store's \`/store/app-store-api/dialogs/{skill_id}/account_linking\` returned **404 Skill not found**; this cannot be treated as proof of authenticated owner-session response. JavaScript of the popup shows that a failed metadata fetch displays "Произошла ошибка" before contacting our OAuth endpoint. The pre-existing Alisa safe OAuth log likewise had no new outbound link attempt during the owner's errors. Changing our directive from nested to root did not resolve the user's observable error; live server most recently had \`LINK_MODE=root\`.
+
+**Specific next action:** Owner goes to existing skill \`e1efec78-63de-43b0-87b9-0fb6ee0ed5fe\`, open "Черновик" / "Основная информация" and look for **Опубликовать** or **На модерацию** in the management UI, while keeping **Приватный**. If any validator errors appear, capture visible error text and rectify exact field, never invent credentials or launch public release. Confirm outcome in \`События\` and do not retry publishing when the outcome is UNKNOWN. After published/approved status, repeat private OAuth popup once and correlate Store API and safe OAuth log. If still failing, capture only sanitized HTTP status of \`/store/app-store-api/dialogs/.../account_linking\` from owner-session Chrome DevTools; don't expose cookie, csrf-token, auth state/code or full URL.
+
+**No publication performed by this assistant**; remote Yandex developer console owner session is not accessible via currently connected Browser plugin. Existing server and DeepSeek remain unmodified in this documentation update.
