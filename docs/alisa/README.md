@@ -137,3 +137,21 @@ Owner rejected the previous suggestion to delegate OAuth troubleshooting, endpoi
 **Protocol:** The real Dialogs flow must start via the authorized Yandex account-linking broker, which creates a valid \`state\`; the authorized server echoes that exact state in the code response, returning to the broker's \`redirect_uri\`. The preview link lacked an originating broker session; an arbitrary \`state\` does not establish a real transaction. Primary docs: \`https://yandex.ru/dev/dialogs/alice/doc/ru/auth/how-it-works\` and \`https://yandex.ru/dev/dialogs/alice/doc/ru/auth/create-server\`.
 
 **Action:** Do not re-open or submit the direct preview URL. Close the Yandex ID error. Test account linking only by starting from the real Yandex Dialogs skill after verifying private publication and saved OAuth configuration. Treat the earlier \`Произошла ошибка\` dialog popup as a **separate still-open incident** (Yandex Store metadata read and owner-authenticated response need verification). The earlier user-facing assistant advice to use this preview link was wrong and is superseded. No source changes, service restart, or OAuth refactor were necessary to diagnose this event.
+
+
+## 2026-11-03: auth popup next action is PRIVATE publication, not backend patch
+
+Owner demands actions rather than another cycle of unverified server changes. This entry distinguishes established facts and the one external action that still needs an owner-authorized Yandex Console session.
+
+**Primary-source documentation (checked 2026-11-03):**
+- \`https://yandex.ru/dev/dialogs/alice/doc/ru/access\`: a private skill must be explicitly **published**; merely selecting «Приватный» is not equivalent.
+- \`https://yandex.ru/dev/dialogs/alice/doc/ru/moderation\`: for a private skill, clicking «Опубликовать» starts automoderation.
+- \`https://yandex.ru/dev/dialogs/alice/doc/ru/auth/test-skill\`: the developer draft test is documented pre-publication, hence publishing is **a strong targeted remedy** rather than proven sole cause.
+- The existing screenshot of «События» shows only «Создан» (no submitted/published entry). A subsequent screenshot of «Готово к модерации» shows the submission modal. **No owner screenshot or return value yet proves successful pressing of «Отправить на модерацию».**
+- The Yandex public client script \`.../pages/store/account_linking/%5Bid%5D-3b6ab197045ac18a.js\` displays «Произошла ошибка» when its internal GET \`/store/app-store-api/dialogs/{skill_id}/account_linking\` fails. Anonymous GET returned 404 «Skill not found», which is **not proof** of the logged-in owner's status for a private skill.
+
+**Latest server readback 2026-11-03 03:19 UTC:** \`alice-lab-web\`, \`alice-lab-worker\`, \`alice-lab-llm\` active; HTTPS /healthz 200/TLS0; \`LINK_MODE=root\`. No user OAuth authorisation requests arrived following earlier Dialogs broker popup failures. Log entries at 03:12 GET 200/POST 302 came from assistant-provided invalid manual preview URL, a separate known mistake, not a Yandex broker transaction.
+
+**Decisive next external action:** In the existing skill \`Октопорт маркет\`, from the already displayed «Готово к модерации» modal submit the private skill using the platform's **«Отправить на модерацию»** with the minimum required lab-only reviewer credentials; verify the new \`События\` entry and subsequent approved/published version. Submission is not done by this assistant because the owner's logged-in Yandex developer browser context is not available to the Chat-mode Browser connector. **Do not use any fabricated OAuth authorize link.** Once published, check a new owner-authenticated Store account-linking click once and inspect \`/store/app-store-api/dialogs/{skill_id}/account_linking\` HTTP code if still failing; then fix the precise reported error. No claim of success until actual owner test.
+
+**Do not:** alter server OAuth implementation, client secret, \`LINK_MODE\`, DeepSeek config or real marketplace data based only on the pre-Store failure. Also do not assign QA work to moderators; they perform Yandex platform compliance and may require an isolated lab test login, not our bug diagnosis.
