@@ -66,6 +66,9 @@ def main():
             runner.run("native-cache-seed-contract-" + label, [
                 node, ROOT / "tests/regression/extension-core/client-i1/native-cache-seed-contract.mjs", runtime,
             ])
+            runner.run("alice-native-manual-fixture-contract-" + label, [
+                node, ROOT / "tests/regression/extension-core/client-i1/alice-native-manual-fixture-contract.mjs", runtime,
+            ])
         runner.run("native-start-entry", [os.environ.get("WB_TEST_PYTHON", "python3"), ROOT / "tests/regression/extension-core/browser_start_entry.py", "--runtime", extracted, "--output", output / "native-start-entry"])
         for runtime, label in ((source, "i1-source"), (extracted, "i1-package")):
             browser_output = output / (label + "-browser-proof")

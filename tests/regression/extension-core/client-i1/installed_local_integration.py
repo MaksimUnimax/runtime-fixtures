@@ -243,14 +243,45 @@ class BootstrapTraceObserver:
         self.installed = False
         self.worker_closed = False
         self.context_closed = False
+        self.host_origin = time.monotonic()
+        self.host_events = []
+        self.request_handles = []
         context.on("console", self.observe_console)
         context.on("close", lambda *_: self._close_context())
 
     def _close_context(self):
         self.context_closed = True
+        self.record_host("CONTEXT_CLOSED")
 
     def _close_worker(self):
         self.worker_closed = True
+        self.record_host("WORKER_CLOSED")
+
+    def record_host(self, event, **fields):
+        # Common receipt clock for browser events and validated worker console
+        # events. Arrival order is not execution order across the two processes.
+        elapsed = round((time.monotonic() - self.host_origin) * 1000)
+        if len(self.host_events) >= 512 or not 0 <= elapsed <= 180000:
+            self.incomplete = True
+            return
+        self.host_events.append({"seq": len(self.host_events) + 1,
+                                 "event": event, "received_ms": elapsed, **fields})
+
+    def observe_network(self, request, event):
+        # Called only by the existing exact local-bootstrap observers. Keep
+        # opaque Request handles in memory; never export URL/headers/body/IDs.
+        if event not in {"REQUEST_STARTED", "RESPONSE_HEADERS", "REQUEST_FINISHED", "REQUEST_FAILED"}:
+            self.incomplete = True
+            return
+        ordinal = next((i + 1 for i, item in enumerate(self.request_handles)
+                        if item is request), None)
+        if ordinal is None:
+            if len(self.request_handles) >= 32:
+                self.incomplete = True
+                return
+            self.request_handles.append(request)
+            ordinal = len(self.request_handles)
+        self.record_host(event, request_ordinal=ordinal)
 
     def install(self, worker, evidence_path):
         # Initial activation already produced this local lifecycle record.
@@ -308,6 +339,7 @@ class BootstrapTraceObserver:
             if "timer_kind" in row and row["timer_kind"] not in ("REQUEST", "ACTIVE", "WAIT"):
                 raise ValueError("invalid timer")
             self.rows.append(row)
+            self.record_host("WORKER_TRACE_RECEIVED", trace_seq=row["seq"])
         except Exception:
             self.incomplete = True
 
@@ -318,6 +350,8 @@ class BootstrapTraceObserver:
             "probe_installed": self.installed, "incomplete": self.incomplete,
             "worker_closed": self.worker_closed, "context_closed": self.context_closed,
             "events": list(self.rows), "observed_local_paths": [],
+            "host_event_order": [],
+            "host_event_order_scope": "RECEIPT_ORDER_ONLY_NOT_ABORT_CAUSE",
         }
         if (not self.installed or self.incomplete or not self.rows or self.rows[0]["event"] != "INSTALL"
                 or selected is None or sum(item is selected for item in responses) != 1):
@@ -347,6 +381,13 @@ class BootstrapTraceObserver:
             related = [row for row in self.rows if row.get("fetch_ordinal") == fetch or
                        (caller is not None and acquisition is not None and
                         row.get("caller_signal_ordinal") == caller and row.get("acquisition_ordinal") == acquisition)]
+            request_ordinal = next((i + 1 for i, item in enumerate(self.request_handles)
+                                    if item is selected.request), None)
+            trace_sequences = {row["seq"] for row in related}
+            result["host_event_order"] = [dict(row) for row in self.host_events if
+                (request_ordinal is not None and row.get("request_ordinal") == request_ordinal) or
+                row.get("trace_seq") in trace_sequences or
+                row["event"] in {"CONTEXT_CLOSED", "WORKER_CLOSED"}]
             result.update(correlation="EXACT_RESPONSE_HEADER_AND_WORKER", selected_server_ordinal=ordinal,
                           selected_fetch_ordinal=fetch, selected_acquisition_ordinal=acquisition,
                           selected_events=related, browser_code_family=safe_bootstrap_failure_class(selected.request))
@@ -823,6 +864,7 @@ def run(runtime, output):
                     failed_bootstrap_requests = []
                     failed_bootstrap_times = []
                     observed_bootstrap_request_windows = []
+                    bootstrap_trace = None
                     bootstrap_window = "first_activation_window"
                     second_activation_header_count = None
                     work_start_header_count = None
@@ -835,6 +877,8 @@ def run(runtime, output):
                                 parsed.path == "/v1/bootstrap" and request.method == "POST"):
                             # Fixed window at Playwright request event, not at later HTTP 200.
                             observed_bootstrap_request_windows.append((request, bootstrap_window))
+                            if bootstrap_trace is not None:
+                                bootstrap_trace.observe_network(request, "REQUEST_STARTED")
                     context.on("request", observe_started_bootstrap)
 
                     def observe_completed_bootstrap(request):
@@ -843,6 +887,8 @@ def run(runtime, output):
                                 parsed.path == "/v1/bootstrap" and request.method == "POST"):
                             # Volatile request handles only, never a durable response body.
                             completed_bootstrap_requests.append(request)
+                            if bootstrap_trace is not None:
+                                bootstrap_trace.observe_network(request, "REQUEST_FINISHED")
                     context.on("requestfinished", observe_completed_bootstrap)
 
                     def observe_failed_bootstrap(request):
@@ -851,6 +897,8 @@ def run(runtime, output):
                                 parsed.path == "/v1/bootstrap" and request.method == "POST"):
                             failed_bootstrap_requests.append(request)
                             failed_bootstrap_times.append((request, time.monotonic()))
+                            if bootstrap_trace is not None:
+                                bootstrap_trace.observe_network(request, "REQUEST_FAILED")
                     context.on("requestfailed", observe_failed_bootstrap)
 
                     def observe_control(response):
@@ -860,6 +908,8 @@ def run(runtime, output):
                             if parsed.path == "/v1/bootstrap" and response.status == 200:
                                 # Keep the response handle, not an early JSON parse.
                                 bootstrap_http_responses.append(response)
+                                if bootstrap_trace is not None:
+                                    bootstrap_trace.observe_network(response.request, "RESPONSE_HEADERS")
                         elif parsed.netloc == f"127.0.0.1:{portal_port}" and parsed.path.startswith("/api/control-plane/"):
                             control_responses.append(("portal_bff", parsed.path.removeprefix("/api/control-plane"), response.status))
                     context.on("response", observe_control)

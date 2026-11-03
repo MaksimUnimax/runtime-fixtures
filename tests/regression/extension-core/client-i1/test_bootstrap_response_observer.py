@@ -740,6 +740,48 @@ class FailureCleanupDiagnosticTest(unittest.TestCase):
 
 
 class BootstrapTraceObserverTest(unittest.TestCase):
+    def test_common_receipt_order_keeps_exact_request_and_does_not_claim_abort_cause(self):
+        import json
+        observer, worker, _ = self.observer()
+        selected, foreign = self.response(worker), self.response(worker, 1)
+        selected.request.url = "PRIVATE_URL_TOKEN"
+        observer.observe_network(foreign.request, "REQUEST_STARTED")
+        observer.observe_network(selected.request, "REQUEST_STARTED")
+        self.sequence(observer, [
+            {"seq": 4, "elapsed_ms": 3, "event": "BODY_DONE", "fetch_ordinal": 2, "total_bytes": 3683},
+        ])
+        observer.observe_network(foreign.request, "REQUEST_FINISHED")
+        observer.observe_network(selected.request, "REQUEST_FAILED")
+        result = observer.snapshot(selected, [foreign, selected])
+        events = result["host_event_order"]
+        self.assertEqual([e["event"] for e in events], [
+            "REQUEST_STARTED", "WORKER_TRACE_RECEIVED", "WORKER_TRACE_RECEIVED",
+            "WORKER_TRACE_RECEIVED", "REQUEST_FAILED",
+        ])
+        self.assertTrue(all(e.get("request_ordinal", 2) == 2 for e in events))
+        self.assertEqual(result["abort_initiator"], "NOT_ESTABLISHED")
+        self.assertEqual(result["host_event_order_scope"], "RECEIPT_ORDER_ONLY_NOT_ABORT_CAUSE")
+        self.assertNotIn("PRIVATE", json.dumps(result))
+
+    def test_network_receipt_overflow_is_bounded_and_cannot_create_positive_evidence(self):
+        observer, worker, _ = self.observer()
+        self.sequence(observer)
+        for _ in range(40):
+            observer.observe_network(object(), "REQUEST_STARTED")
+        self.assertEqual(len(observer.request_handles), 32)
+        self.assertTrue(observer.incomplete)
+        selected = self.response(worker)
+        self.assertEqual(observer.snapshot(selected, [selected])["correlation"], "UNCONFIRMED")
+
+    def test_worker_and_context_close_have_receipt_markers_without_browser_rpc(self):
+        observer, worker, _ = self.observer()
+        self.sequence(observer)
+        observer._close_worker()
+        observer._close_context()
+        selected = self.response(worker)
+        result = observer.snapshot(selected, [selected])
+        self.assertEqual([e["event"] for e in result["host_event_order"][-2:]], ["WORKER_CLOSED", "CONTEXT_CLOSED"])
+
     @staticmethod
     def parameters():
         return {

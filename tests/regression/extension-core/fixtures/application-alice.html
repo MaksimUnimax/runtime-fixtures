@@ -49,7 +49,15 @@ window.fixtureAliceMessage = (spec = {}) => {
 window.fixtureCommand = (text, id) => fixtureAliceMessage({id, blocks:[{text}]});
 const composer = document.querySelector('[data-testid="inputbase-textarea"]');
 const send = document.querySelector('[data-testid="oknyx"]');
-composer.addEventListener("input", () => { send.disabled = !composer.value.trim(); });
+function fixtureUpdateSendControl() {
+  // Alice's empty composer exposes the voice-ready control, rather than a
+  // disabled Send. The real delivery watcher requires that native state AND
+  // this delivery's committed click and exact newly rendered user message.
+  send.disabled = false;
+  send.setAttribute("aria-label", composer.value.trim() ? "Отправить" : "Алиса, начни слушать");
+}
+composer.addEventListener("input", fixtureUpdateSendControl);
+fixtureUpdateSendControl();
 send.addEventListener("click", () => {
   const text = composer.value;
   if (!text.trim()) return;
