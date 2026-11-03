@@ -71,3 +71,27 @@
 **Controlled change:** On server Alisa only, backed up the private environment file to `/root/alice-lab-evidence/lab.env.before-root-link-test-20261103` without exposing its content, set `LINK_MODE=root`, restarted only `alice-lab-web.service`. An independent synthetic request through `https://alice-lab.octoport.ru/alice/webhook` confirmed HTTP 200 and exact JSON top-level keys `start_account_linking` and `version` with **no `response`**. A separate regular «проверка связи» round-trip passed. `alice-lab-web`, `alice-lab-worker`, `alice-lab-llm` remain active, no unexpected restarts. **Actual user-facing Yandex result after this change is pending.**
 
 **Next one-time observed case:** Start a new draft session, request a protected LLM lab action, click the Yandex card once. Correlate Nginx OAuth log. If no callback, inspect the actually saved client ID (expected `dialogs-lab`), authorize URL `https://alice-lab.octoport.ru/oauth/authorize`, token URL `https://alice-lab.octoport.ru/oauth/token`, refresh URL `https://alice-lab.octoport.ru/oauth/refresh`, scope `reports:read` and secret equality **without publishing the secret**. In Chrome DevTools Network with Preserve log, capture only request host/path, status and sanitized error category, never full query/state/code/token. Do not interpret a successful synthetic OAuth test as real Yandex OAuth success. If the root format breaks card rendering, restore previous mode from the saved private configuration before doing further tests.
+
+
+## 2026-11-03 — pinpointed error in Yandex Store OAuth popup
+
+**Grounded browser-side finding (public static Yandex assets, read only):** `https://dialogs.yandex.ru/store/account_linking/{skill_id}` loads Yandex Store frontend version **0.284.0**. JS page chunk `_next/static/chunks/pages/store/account_linking/%5Bid%5D-3b6ab197045ac18a.js` uses a React `useEffect` calling the store API helper `(0,C._$)(skillId, {"csrf-token":window.__sk})`. Its `.catch()` renders exactly **«Произошла ошибка»**. The corresponding helper from `_app-4aa3a66ea3abc261.js` requests:
+
+`GET /store/app-store-api/dialogs/e1efec78-63de-43b0-87b9-0fb6ee0ed5fe/account_linking`.
+
+This is Yandex's **own skill/account-linking metadata request**, preceding any redirect to our `https://alice-lab.octoport.ru/oauth/authorize`. Changing our OAuth implementation or toggling nested/root directive is not a grounded fix for the observed screen; both formats led to the same user-visible error.
+
+**Independent unauthenticated probe:** Requests from Alisa (without user's Yandex ID cookies or CSRF token) gave:
+
+- `GET /store/app-store-api/dialogs/{skill_id}` → **HTTP 200** with `{"result":null}`.
+- `GET /store/app-store-api/dialogs/{skill_id}/account_linking` → **HTTP 404**, JSON message **`Skill not found`**, underlying URL `/api/catalogue/v2/dialogs/{skill_id}/account_linking`.
+
+**Crucial scope:** anonymous 404 is NOT proof of the exact HTTP status seen in the logged-in user's browser; private/unpublished skills may be deliberately invisible anonymously. We need the status/response for this exact request in that user's authenticated popup to establish the precise failure.
+
+**Evidence and likely actionable root cause:** Owner's screenshot shows `Тестирование Черновик` and private skill. Earlier assistant repeatedly instructed to keep a private *draft* without publishing. Yet official Yandex documentation `https://yandex.ru/dev/dialogs/alice/doc/ru/access` says changing access to **Приватный** and actually clicking **Опубликовать** are separate steps; private publication triggers automoderation and does NOT put the skill in the public catalog. Because the popup looks up this skill via the Store catalogue API, an unpublished or not-yet-available private skill is a plausible cause. **Not proven** without checking the existing skill's real publication status and authenticated Store API response.
+
+**Proposed measured resolution:** In `События` verify whether a private published version actually exists. If not, on the existing skill while access type remains `Приватный`, use **Опубликовать**, observe outcome, then test the same account-linking popup only after published state is confirmed. Do NOT change to `Публичный`, create a second skill, expose real marketplace data, or assume publication guaranteed. If already privately published or the error persists, inspect Chrome DevTools Network for `/store/app-store-api/dialogs/.../account_linking`: record only **HTTP status, safe error message, request host and path** (NOT cookies, CSRF header, query strings, OAuth state or tokens). A real 404 for the owner session would strongly support catalogue unavailability; 401/403 suggests Yandex login/session/permissions; 5xx suggests provider failure. The next user action must be based on this result, not speculation.
+
+**Server status:** Alisa web, synthetic job worker and DeepSeek Flash worker remain active. No successful external OAuth callback was seen during the failed popup attempts. Existing server probe with valid synthetic OAuth parameters returned HTTP200, but that is not real Yandex account linking. No user secrets collected in this audit.
+
+**Correction to earlier analysis:** The primary app-store popup error is not merely an ungrounded possibility concerning our `start_account_linking` JSON; there is a specific failing frontend fetch to Yandex's own `/account_linking` metadata API. The previous pattern of switching directives without this evidence wasted owner time.
