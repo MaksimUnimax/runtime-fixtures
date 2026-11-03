@@ -1,0 +1,3 @@
+# Deployment checkpoint — 2026-11-03
+
+Alisa private Dialogs webhook: alice-lab-20261103-market-live-r2, read-only canary, four systemd services active. Individual WB and Ozon and combined two-provider jobs READY on real APIs. One DeepSeek P2 job HTTP 200, ALIASED to identical completed plan. Public HTTPS health, anonymous account linking and wrong skill ID passed. Genuine owner console acceptance after cutover is still pending. Temporary-token injection through remote tooling was rejected pre-execution and not repeated. Source has no credentials or customer data. Ozon currency and financial reconciliation remain unverified. See README.md and ARCHITECTURE.md.
