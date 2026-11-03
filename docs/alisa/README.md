@@ -49,3 +49,14 @@
 При каждом следующем фактическом этапе работы над Алисой: сверить live-state, обновить соответствующую страницу с \`UTC\`, источником, версией, отрицательными проверками и фактическим результатом, добавить запись в \`12_CHANGELOG.md\`; не переписывать старый FAIL и не объявлять пакет установленным без наблюдения. **Автоматическая работа между диалогами не запущена.** Владелец просит продолжать ведение этой ветки до его явной отмены при выполнении последующих поручений.
 
 **Граница выполнения при создании записи:** создана документальная ветка и документы; не выполнялись новый deploy, платные вызовы, миграции данных или исправления OAuth только ради записи контекста.
+
+
+## OAuth incident update — 2026-11-03
+
+**Issue:** On skill `e1efec78-63de-43b0-87b9-0fb6ee0ed5fe` (display name “Октопорт маркет”), Yandex Dialogs draft correctly displayed an “Авторизоваться” card from `response.directives.start_account_linking`; clicking it opened `dialogs.yandex.ru/store/account_linking/...` with “Произошла ошибка”, before any confirmed external login. **Root cause not yet proven.**
+
+**Independent server checks (Alisa):** TLS valid; `https://alice-lab.octoport.ru/healthz` returns HTTP 200; `GET /oauth/authorize` with safe synthetic OAuth parameters `response_type=code`, `client_id=dialogs-lab`, `redirect_uri=https://social.yandex.net/broker/redirect`, `scope=reports:read` returns HTTP **200** (~46 ms). Prior synthetic OAuth issuance and refresh tests passed; they are not a genuine Yandex account-linking PASS. `LINK_MODE=nested`; both official reference and the screenshot show a supported card, while the “make skill” tutorial documents a conflicting root form. Do not change response shape without a controlled diagnosis.
+
+**Diagnostic change deployed:** Nginx OAuth-only safe request log at `/var/log/nginx/alice-lab-oauth-safe.log` logs only date, method, path (no query), status, upstream status and duration; no client IP, cookies, auth headers, secrets, state or code. Verified synthetic GET log `GET /oauth/authorize 200 200`. Services remain active and the main `octoport.ru` points to its separate server.
+
+**Next action in Yandex console:** Validate the saved **Связка аккаунтов** for this exact skill: client ID `dialogs-lab`; client secret matches server (never publish); authorize `https://alice-lab.octoport.ru/oauth/authorize`; token `https://alice-lab.octoport.ru/oauth/token`; refresh `https://alice-lab.octoport.ru/oauth/refresh`; scope `reports:read`. Save and reload. On one controlled click of “Авторизоваться”, compare the contemporaneous safe OAuth log. If no `GET /oauth/authorize`, the break is upstream of our OAuth endpoint (Yandex configuration/session/browser); if 400/401, inspect server validation; if 200, trace the next OAuth step. Avoid blind replays of UNKNOWN outcomes. Request a settings screenshot with the secret masked if console state cannot be inspected from connected tools.
