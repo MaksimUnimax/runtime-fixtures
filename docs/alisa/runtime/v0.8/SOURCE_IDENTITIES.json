@@ -1,0 +1,45 @@
+{
+  "version": "0.8",
+  "scope": "private-owner-read-only-canary",
+  "release": "/opt/alice-market/releases/20261103-v08-finance-stock",
+  "registry_hash": "60d36ae41205ec39c993870de7aadef78f9610b66bfab1bdb713bc72a6f5e981",
+  "runtime_sha256": {
+    "registry.json": "aa2fc24d1d08c205472839b17ebcab6c08c58ff2a82531e8fd5548a95ae6b51f",
+    "registry.py": "b7226c4b72e7bce1d97f84addf9c878102724669ff57bf42a7bb5bf6640fa2ba",
+    "semantics.py": "d8e8ff653883f604ff64d12cdcfe99e28b89a71e318f916b8675cce887847369",
+    "providers.py": "a0e7799aaf234550ee9a78c4ead89e9153bb58a9bbe1da29b645f4fabf0da979",
+    "finance_stock.py": "cc3675575b23e40ad486cce29bf6ee5d1bd788ed837b4630ad74b9b1535e9030",
+    "engine.py": "29bf312a09c529b163bc0738480c9c725cde586b461404c67202d2dff8398e0f",
+    "http_transport.py": "735f0b30804cdbc3d8977e1bdbc8c11349653898f62d3c534fced5ed4f4ab403",
+    "runtime.py": "fc006f97ea670726e41f17add6defabf06a6453ead28657ec8a1c5035fe6b237",
+    "repository.py": "09ec99a882d2c4136b5578571204a21feecce7938151596b1e108b85ecf5d461",
+    "alice_bridge.py": "c8dfb5bbc7d4405bc03c85d04048ab22736600f53307c1cfacd2475279e0297b",
+    "local_gateway.py": "431f26757c8d86602bb3e838f8d8c022378d4bb3bc0b786c032c2a8e8bc1a6a0"
+  },
+  "server_source_snapshot": {
+    "path": "/root/alice-lab-evidence/finance-stock-v08-deploy-20261103/runtime-source-snapshot.zip",
+    "sha256": "02a8005adff0048d126d5521ac75c9a9e0d12acf1321552647d21f04bf5da03e",
+    "source_files": 11,
+    "manifest_hashes_checked": true,
+    "includes_secrets_or_private_reports": false
+  },
+  "full_source_and_tests_attachment": {
+    "filename": "ALISA_MATRIX_v0.8_READONLY_2026-11-03.zip",
+    "bytes": 119220,
+    "files": 32,
+    "sha256": "eba8504ad5d72cac22296f73ca2a391573a0e8de68e7d6a327fff41b551cdaca",
+    "clean_extraction_manifest_hashes": "PASS",
+    "clean_extraction_offline_tests": 370,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "external_api_calls_during_offline_tests": 0
+  },
+  "public_health_readback": {
+    "http": 200,
+    "build": "alice-lab-20261103-market-live-r3",
+    "mode": "read-only-marketplace-canary-queue",
+    "note": "The web facade was not restarted; runtime diagnostic returns Matrix 0.8 through the same Unix gateway."
+  },
+  "publication_boundary": "This JSON pins sources on Alisa and in the full attached ZIP. It is not a claim that every source and test file has also been uploaded as a loose file to this Git directory."
+}
