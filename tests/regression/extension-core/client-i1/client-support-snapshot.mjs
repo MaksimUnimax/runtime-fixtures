@@ -131,7 +131,7 @@ try {
     minimumExtensionVersion: null,
     browserStatus: "SUPPORTED",
   });
-  assert.equal(snapshot.page.aiFamily, "chatgpt");
+  assert.equal(snapshot.page.aiFamily, "alice");
   assert.equal(snapshot.page.identityStatus, "confirmed");
   assert.deepEqual(snapshot.stores, { total: 2, ozon: 1, wildberries: 1 });
   assert.equal(snapshot.work.pending, false);

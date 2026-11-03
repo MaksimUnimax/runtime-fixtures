@@ -1,6 +1,7 @@
 import { DeviceLabelV1Schema } from "./device-label.js";
 export { DeviceLabelV1Schema } from "./device-label.js";
 import { z } from "zod";
+export * from "./ai-release-scope.js";
 import {
   BrowserFamilies,
   SemVerV1Schema,

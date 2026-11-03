@@ -25,6 +25,14 @@ async function executeManualCommand(
   const ingressRequestToken = requestToken;
   const liveIdentity = await assertTabConversation(senderTabId, key);
   const binding = await strictBindingForIdentity(liveIdentity);
+  const previousDeliveryOwner=await getManualOperation(key);
+  if(previousDeliveryOwner?.attachment_finalization?.state==="PENDING"){
+    const finalize=globalThis.OzonFileDeliveryWorker?.finalizePendingForCommand;
+    if(typeof finalize!=="function")throw saError("ATTACHMENT_FINALIZATION_PENDING");
+    // Local confirmed-outcome bookkeeping precedes a new reservation, prefix
+    // decision or provider effect. It never replays the previous delivery.
+    await finalize(key);
+  }
   const manualAutoSend = (await getSettings()).autoSend !== false;
   const workSession = await workSessionFor(key);
 

@@ -101,9 +101,13 @@
     gates.accessBasis = payload.contractVersion !== "control_plane_v3" || payload.accessBasis !== "NONE";
     if (!gates.accessBasis) deny(denied, "DENY_AUTH_INVALIDATED");
     const trustBundleSha256 = await digest(config.trustBundle), expectedAi = payload.ai?.status === "RESOLVED" ? { family: payload.ai.detected.family, surface: payload.ai.detected.surface, variant: payload.ai.detected.variant } : null;
-    gates.cacheBinding = plain(authority.cacheBinding) && authority.cacheBinding.cacheVersion === "control_cache_binding_v1" && authority.cacheBinding.controlApiOrigin === config.controlApiOrigin && authority.cacheBinding.portalOrigin === config.portalOrigin && authority.cacheBinding.contractVersion === payload.contractVersion && authority.cacheBinding.extensionVersion === config.extensionVersion && authority.cacheBinding.browser?.family === browserFamily() && authority.cacheBinding.browser?.version === browserVersion() && authority.cacheBinding.trustBundleSha256 === trustBundleSha256 && verifier.canonicalJson(authority.cacheBinding.detectedAi) === verifier.canonicalJson(expectedAi);
+    gates.cacheBinding = plain(authority.cacheBinding) && authority.cacheBinding.cacheVersion === "control_cache_binding_v2" && authority.cacheBinding.aiReleaseScopeSha256 === globalThis.SellerAgentsAiReleaseScope?.snapshot?.()?.sha256 && authority.cacheBinding.controlApiOrigin === config.controlApiOrigin && authority.cacheBinding.portalOrigin === config.portalOrigin && authority.cacheBinding.contractVersion === payload.contractVersion && authority.cacheBinding.extensionVersion === config.extensionVersion && authority.cacheBinding.browser?.family === browserFamily() && authority.cacheBinding.browser?.version === browserVersion() && authority.cacheBinding.trustBundleSha256 === trustBundleSha256 && verifier.canonicalJson(authority.cacheBinding.detectedAi) === verifier.canonicalJson(expectedAi);
     if (!gates.cacheBinding) deny(denied, "DENY_AUTH_INVALIDATED");
     const details = context(value, current, authority, payload, operation); Object.assign(gates, details.gates);
+    gates.releaseScope = globalThis.SellerAgentsAiReleaseScope?.supportsAi?.({
+      family: details.family, surface: payload.ai?.detected?.surface, variant: payload.ai?.detected?.variant,
+    }) === true;
+    if (!gates.releaseScope) deny(denied, "DENY_AI_RELEASE_SCOPE");
     if (!details.gates.account) deny(denied, "DENY_ACCOUNT_MISMATCH");
     if (!details.gates.device || !details.gates.session || !details.gates.generation) deny(denied, "DENY_DEVICE_SESSION_MISMATCH");
     if (!details.gates.aiProfile) deny(denied, "DENY_AI_PROFILE_MISMATCH");

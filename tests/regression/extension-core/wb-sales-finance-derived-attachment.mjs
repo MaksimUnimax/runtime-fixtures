@@ -149,10 +149,61 @@ try{
   const owner=await h.getOwner();assert.equal(h.network.length,1);assert.equal(owner.delivery?.derived_file_refs?.length||0,0);
   assert.ok(owner.batch?.entries.some(e=>e.external_request_executed===true) || owner.status==="failed");
  });
- await test("one-file route rejects all-required bundle without dropping generated/original/derived",async()=>{
-  const h=await ready();await h.mutateOwner(o=>({...o,delivery:{...o.delivery,adapter_id:"qwen",artifact_text:"complete additional required source report",generated_text_document:{artifact_id:"fixture-generated",filename:"full-source.txt",unicode_char_length:42,byte_length:42,complete:true},provider_file_refs:[]}}));
+ await test("unqualified retained one-file route still rejects all-required bundle without dropping files",async()=>{
+  const h=await ready(),text="complete additional required source report";
+  await h.mutateOwner(o=>({...o,delivery:{...o.delivery,adapter_id:"qwen",artifact_text:text,
+   generated_text_document:{artifact_id:"fixture-generated",filename:"full-source.txt",unicode_char_length:text.length,byte_length:Buffer.byteLength(text),complete:true},provider_file_refs:[]}}));
   const r=await h.port("OZ_ATTACHMENT_COMMIT");assert.equal(r.ok,false);assert.equal(r.code,"TARGET_AI_FILE_COUNT_UNSUPPORTED");
   assert.equal((await h.getOwner()).delivery.phase,h.realm.BridgeAutorunModel.ATTACHMENT_PHASES.CLAIMED);
+  assert.ok((await h.getOwner()).delivery.derived_file_refs.length);
+ });
+ async function sequentialBundle(h,expectedKinds){
+  let result=await committed(h),received=[],first=true;
+  const inventory=(await h.getOwner()).delivery.attachment_bundle.inventory;
+  assert.deepEqual(plain(inventory.map(d=>d.source_kind)),expectedKinds);
+  for(let i=0;i<expectedKinds.length;i++){
+   const recovery=result.recovery;
+   const fields=Object.fromEntries(["bundle_schema","bundle_manifest_sha256","bundle_part_id","bundle_part_ordinal"].map(k=>[k,recovery[k]]));
+   assert.equal(recovery.bundle_part_ordinal,i+1);assert.equal(recovery.artifact_descriptors.length,1);
+   const descriptor=recovery.artifact_descriptors[0];
+   const chunk=await h.port("OZ_ATTACHMENT_ARTIFACT_CHUNK",{...fields,artifact_key:descriptor.artifact_key});
+   assert.equal(chunk.ok,true,JSON.stringify(chunk));const bytes=Buffer.from(chunk.chunk_base64,"base64");assert.equal(hash(bytes),descriptor.sha256);
+   received.push({descriptor,bytes});
+   assert.equal((await h.port("OZ_ATTACHMENT_READY",{...fields,attached_filenames:[descriptor.filename]})).ready,true);
+   assert.equal((await h.port("OZ_ATTACHMENT_SEND_COMMIT",{...fields,baseline_user_turn_ids:["old-user"]})).click_allowed,true);
+   const ack=await h.port("OZ_ATTACHMENT_CONFIRM",{...fields,confirmed_user_turn_id:"bundle-user-"+i});
+   assert.equal(ack.ok,true,JSON.stringify(ack));
+   if(i+1<expectedKinds.length){
+    assert.equal(ack.bundle_complete,false);const owner=await h.getOwner();assert.equal(owner.status,"delivering");
+    assert.ok(owner.batch);for(const d of inventory)assert.ok(h.db.records.has(d.artifact_key));
+    result=await h.port("OZ_ATTACHMENT_COMMIT",Object.fromEntries(["bundle_schema","bundle_manifest_sha256","bundle_part_id","bundle_part_ordinal"].map(k=>[k,ack.recovery[k]])));
+    assert.equal(result.attach_allowed,true,JSON.stringify(result));
+   }else{assert.equal(ack.bundle_complete,true);assert.equal((await h.getOwner()).status,"completed");}
+  }
+  assert.equal(h.network.length,6,'multipart delivery never repeats provider collection');
+  return received;
+ }
+ await test("Alice one-file turns deliver required generated and derived full TXT without dropping either",async()=>{
+  const h=await ready(),text="complete additional required source report";
+  await h.mutateOwner(o=>({...o,delivery:{...o.delivery,adapter_id:"alice",artifact_text:text,
+   generated_text_document:{artifact_id:"fixture-generated",filename:"full-source.txt",unicode_char_length:text.length,byte_length:Buffer.byteLength(text),complete:true},provider_file_refs:[]}}));
+  const received=await sequentialBundle(h,["generated_bridge_text","derived_business_report"]);
+  assert.equal(received[0].bytes.toString('utf8'),text);
+  const report=JSON.parse(received[1].bytes.toString('utf8'));
+  assert.deepEqual(report.financeTotals.map(({missingRetailAmount,missingForPay,...r})=>r),gold.financeTotals);
+  assert.deepEqual(report.links.map(r=>[r.saleID,r.rrdId]),gold.pairs);
+ });
+ await test("Alice sequential bundle preserves generated, original and derived exact bytes and gold",async()=>{
+  const h=await ready(),text="complete required source report",original=Buffer.from("synthetic complete original source");
+  const providerRef="sa_file_"+"f".repeat(64),providerKey="provider:"+providerRef;
+  h.db.records.set(providerKey,{artifact_key:providerKey,source_kind:"original_provider_file",filename:"original.txt",mime_type:"text/plain;charset=utf-8",extension:"txt",byte_length:original.length,sha256:hash(original),bytes:new Uint8Array(original).buffer,created_at_ms:h.clock,expires_at_ms:h.clock+60000});
+  await h.mutateOwner(o=>({...o,delivery:{...o.delivery,adapter_id:"alice",artifact_text:text,
+   generated_text_document:{artifact_id:"fixture-three-generated",filename:"complete-source.txt",unicode_char_length:text.length,byte_length:Buffer.byteLength(text),complete:true},provider_file_refs:[providerRef]}}));
+  const received=await sequentialBundle(h,["generated_bridge_text","original_provider_file","derived_business_report"]);
+  assert.equal(received[0].bytes.toString('utf8'),text);assert.deepEqual(received[1].bytes,original);
+  const report=JSON.parse(received[2].bytes.toString('utf8'));
+  assert.deepEqual(report.financeTotals.map(({missingRetailAmount,missingForPay,...r})=>r),gold.financeTotals);
+  assert.deepEqual(report.links.map(r=>[r.saleID,r.rrdId]),gold.pairs);
  });
  await test("eligible route preserves generated, original and derived files in one bundle",async()=>{
   const h=await ready(),content="complete required source report",original=new TextEncoder().encode("synthetic original complete source");

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
+import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -251,7 +252,8 @@ assert.equal(hash(artifactWorker), "7e5369886d7321337dc1c4af9fce13464bbaa727bf19
   "exact accepted d8/1d writer-context artifact worker; no A05 code change");
 // The accepted 389-entry prefix above remains byte-exact. CAP19 adds only
 // its agreed artifact-worker integration after that prefix in this successor.
-const cap19ArtifactPatches = patches.slice(389);
+const cap19ArtifactPatches = patches.slice(389, 410);
+const aliceBundlePatches = patches.slice(410);
 assert.deepEqual(cap19ArtifactPatches.map(row => {
   assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
   return [row.target, hash(row.old), hash(row.new)];
@@ -367,7 +369,22 @@ for (const row of cap19ArtifactPatches) {
   artifactWorker = artifactWorker.replace(row.old, row.new);
 }
 assert.equal(hash(artifactWorker), "b05c770e615e6f29e6c6ea2bf5231ee771112638cde0269a4f88096078b36724", "exact CAP19 integrated artifact worker");
-assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length + settlementPatches.length + donorCorrectionPatches.length + reportStatusPatches.length + cap19ArtifactPatches.length);
+assert.equal(patches.length, 176 + transportPatches.length + standardComposerPatches.length + kimiPatches.length + laterB02Patches.length + cap24ReportPatches.length + groupedResultPatches.length + artifactIntegrityPatches.length + settlementPatches.length + donorCorrectionPatches.length + reportStatusPatches.length + cap19ArtifactPatches.length + aliceBundlePatches.length);
+// Every original row and CAP19 postimage above remains pinned. New delivery
+// transformations use the same unique-anchor mechanism on the actual frozen
+// donor plus the accepted ordered prefix, never a replacement donor/framework.
+assert.ok(aliceBundlePatches.length > 0);
+for (const target of ["shared/file_delivery_model_policy.js", "shared/file_delivery_port_worker.js", "attachment_delivery_port_content.js"]) {
+  let generated = read("apps/extension/src/imported/ozon-v0.1.22/" + target);
+  for (const row of patches.filter(row => row.target === target)) {
+    assert.deepEqual(Object.keys(row).sort(), ["new", "old", "target"]);
+    assert.equal(generated.split(row.old).length - 1, 1, "unique ordered delivery anchor: " + target);
+    generated = generated.replace(row.old, row.new);
+  }
+  new vm.Script(generated, { filename: target });
+}
+for (const row of aliceBundlePatches)
+  assert.ok(["shared/file_delivery_model_policy.js", "shared/file_delivery_port_worker.js", "attachment_delivery_port_content.js"].includes(row.target));
 const extracted = patches.filter(patch => Object.hasOwn(patch, "new_source"));
 assert.equal(extracted.length, 1, "A05 limits this migration to one audited function");
 const patch = extracted[0];

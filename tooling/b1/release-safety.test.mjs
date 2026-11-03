@@ -15,6 +15,8 @@ import { pathToFileURL } from "node:url";
 import process from "node:process";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import aiReleaseDescriptor from "../../packages/contracts/src/ai-release-scope.v1.json" with { type: "json" };
+const AI_RELEASE_SCOPE = { descriptor: aiReleaseDescriptor, sha256: "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261" };
 
 import {
   preflight as validateCandidate,
@@ -60,7 +62,8 @@ const BASE_ORIGINS = {
 function releaseAuthority(overrides = {}) {
   const facts = productFacts();
   const base = {
-    schemaVersion: "octoport_release_authority_v1",
+    schemaVersion: "octoport_release_authority_v2",
+    aiReleaseScope: structuredClone(AI_RELEASE_SCOPE),
     source: sourceIdentity(),
     productVersion: facts.productVersion,
     contractVersion: facts.contractVersion,
@@ -86,6 +89,7 @@ function packagedConfig(authority, overrides = {}) {
     extensionVersion: authority.productVersion,
     contractVersion: authority.contractVersion,
     trustBundle: authority.trustBundle,
+    aiReleaseScope: authority.aiReleaseScope,
     ...overrides,
   };
 }
@@ -1836,4 +1840,47 @@ test("flattened Firefox config permits unrelated nested receiver bindings and lo
   } finally {
     cleanup(value);
   }
+});
+
+for (const [name, mutate] of [
+  ['legacy-v1', a => { a.schemaVersion = 'octoport_release_authority_v1'; delete a.aiReleaseScope; }],
+  ['missing-scope', a => { delete a.aiReleaseScope; }],
+  ['wrong-hash', a => { a.aiReleaseScope.sha256 = '0'.repeat(64); }],
+  ['unknown-revision', a => { a.aiReleaseScope.descriptor.revision = 2; }],
+  ['extra-ai', a => { a.aiReleaseScope.descriptor.enabledAi.push({family:'chatgpt',surface:'web',variant:null}); }],
+  ['unknown-field', a => { a.aiReleaseScope.descriptor.allowOfflineOthers = true; }],
+]) test('Alice release authority refuses '+name, () => {
+  const value = fixture();
+  try {
+    const authority = structuredClone(value.authorityValue); mutate(authority);
+    writeFileSync(value.authority, JSON.stringify(authority));
+    assert.throws(() => prepare(value), /[Aa]uthority|[Rr]elease|[Ss]cope/);
+  } finally { cleanup(value); }
+});
+for (const escaped of [false, true]) test('Alice release authority rejects duplicate '+(escaped?'escaped':'plain')+' descriptor keys', () => {
+  const value = fixture();
+  try {
+    const text = JSON.stringify(value.authorityValue).replace('"revision":1', '"revision":2,"'+(escaped?'\\u0072evision':'revision')+'":1');
+    writeFileSync(value.authority,text);
+    assert.throws(() => prepare(value), /Authority is invalid JSON/);
+  } finally { cleanup(value); }
+});
+for (const browser of ['chromium','firefox']) test('Alice release rejects mismatched '+browser+' packaged scope', () => {
+  const value = fixture();
+  try {
+    const authority=structuredClone(value.authorityValue);authority.aiReleaseScope.sha256='0'.repeat(64);
+    makeZip(join(value.candidate,browser+'.zip'),browser,{authority});
+    assert.throws(() => prepare(value), /[Rr]elease|[Ss]cope|[Cc]onfig/);
+  } finally {cleanup(value);}
+});
+test('Alice release candidate binds exact descriptor through both package consumers',()=>{
+  const value=fixture();
+  try {
+    const {output}=prepare(value);
+    const result=preflight(value,output);
+    assert.ok(result);
+    const manifest=JSON.parse(readFileSync(join(output,'B1_RC_MANIFEST.json'),'utf8'));
+    assert.deepEqual(manifest.aiReleaseScope,AI_RELEASE_SCOPE);
+    assert.equal(manifest.schemaVersion,'b1_release_candidate_v3');
+  }finally{cleanup(value);}
 });

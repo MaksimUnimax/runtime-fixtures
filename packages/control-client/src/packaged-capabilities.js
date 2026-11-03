@@ -98,6 +98,7 @@
     executionAuthority: false,
     signedPermissionBindings: [],
     capabilities: entries,
+    aiReleaseScope: globalThis.SellerAgentsAiReleaseScope?.snapshot?.() || null,
   });
   const byId = new Map(entries.map(entry => [entry.id, entry]));
 
@@ -117,11 +118,16 @@
     return manifest;
   }
 
+  function releaseSupported(id) {
+    return has(id) && globalThis.SellerAgentsAiReleaseScope?.supportsCapability?.(id) === true;
+  }
+
   const api = Object.freeze({
     schemaVersion: manifest.schemaVersion,
     has,
     describe,
     snapshot,
+    releaseSupported,
   });
   Object.defineProperty(globalThis, "SellerAgentsPackagedCapabilities", {
     value: api,

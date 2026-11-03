@@ -2050,5 +2050,345 @@
     "target": "shared/file_delivery_port_worker.js",
     "old": "      validateDerivedDescriptor(ref);\n      const lease = api.beginEffect(found.owner, ref);",
     "new": "      validateDerivedDescriptor(ref);\n      if (typeof saAssertCAP19ValueSafety !== \"function\") throw artifactError(\"CAP19_VALUE_SAFETY_REQUIRED\");\n      await saAssertCAP19ValueSafety(found.owner, ref);\n      const lease = api.beginEffect(found.owner, ref);"
+  },
+  {
+    "target": "shared/file_delivery_model_policy.js",
+    "old": "  function successfulReportFileRef(entry) {\n    if (!entry || entry.status !== \"complete\") return null;\n    const httpStatus = Number(entry.http_status || 0);\n    if (!(httpStatus >= 200 && httpStatus < 300)) return null;\n    const operation = String(entry?.command?.operation || entry?.operation || \"\");\n    const ref = operation === \"report_file_get\"\n      ? String(entry?.command?.params?.file_ref || \"\").trim()\n      : String(BASE.directInlineFileRefFromReportText?.(entry) || \"\").trim();\n    return /^rpf_[sp]_[A-Za-z0-9_-]+$/.test(ref) ? ref : null;\n  }\n\n",
+    "new": "  function successfulReportFileRef(entry, marketplace) {\n    return BASE.successfulProviderFileRef(entry, marketplace);\n  }\n\n"
+  },
+  {
+    "target": "shared/file_delivery_model_policy.js",
+    "old": "entries.some((entry) => successfulReportFileRef(entry) === null)",
+    "new": "entries.some((entry) => successfulReportFileRef(entry, run?.execution_context?.marketplace) === null)"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  async function commitAttachment(message, sender) {",
+    "new": "  const BUNDLE_SCHEMA = \"attachment_bundle_parts_v1\";\n  function bundleForOwner(owner) {\n    const delivery = owner?.delivery, bundle = delivery?.attachment_bundle;\n    if (!bundle) return null;\n    // An explicitly authorized R3 copy has a new delivery identity. It must\n    // preflight the retained whole inventory again, never inherit old commits.\n    if (bundle.delivery_id !== delivery.delivery_id && owner.r3_copy_delivery_id === delivery.delivery_id &&\n        delivery.phase === PHASES.CLAIMED) return null;\n    if (delivery.adapter_id !== \"alice\" || bundle.schema !== BUNDLE_SCHEMA || bundle.delivery_id !== delivery.delivery_id ||\n        !Array.isArray(bundle.parts) || bundle.parts.length < 2 ||\n        !Number.isSafeInteger(bundle.active_index) || bundle.active_index < 0 || bundle.active_index >= bundle.parts.length ||\n        !Array.isArray(bundle.confirmations) || bundle.confirmations.length !== bundle.active_index ||\n        !Array.isArray(bundle.inventory) || !/^[a-f0-9]{64}$/.test(bundle.manifest_sha256 || \"\") ||\n        bundle.owner_id !== ownerId(owner, bundle.owner_kind) || bundle.conversation_key !== owner.conversation_key ||\n        !Number.isSafeInteger(bundle.expires_at_ms) || bundle.expires_at_ms <= nowMs())\n      throw artifactError(\"ATTACHMENT_BUNDLE_IDENTITY_INVALID\");\n    if (!Number.isSafeInteger(bundle.files_per_part) || bundle.files_per_part < 1 ||\n        bundle.parts.length !== Math.ceil(bundle.inventory.length / bundle.files_per_part) ||\n        bundle.files_per_part !== OzonAIDeliveryCapabilities.profile(delivery.adapter_id)?.max_files_per_turn)\n      throw artifactError(\"ATTACHMENT_BUNDLE_LAYOUT_INVALID\");\n    const ids = new Set(), turns = new Set();\n    for (let i = 0; i < bundle.parts.length; i++) {\n      const part = bundle.parts[i];\n      if (part.ordinal !== i + 1 || part.part_id !== bundle.delivery_id + \":part:\" + (i + 1) + \":\" + bundle.manifest_sha256 ||\n          !Array.isArray(part.descriptors) || !part.descriptors.length || ids.has(part.part_id))\n        throw artifactError(\"ATTACHMENT_BUNDLE_IDENTITY_INVALID\");\n      if (JSON.stringify(part.descriptors) !== JSON.stringify(bundle.inventory.slice(i * bundle.files_per_part, (i + 1) * bundle.files_per_part)))\n        throw artifactError(\"ATTACHMENT_BUNDLE_LAYOUT_INVALID\");\n      ids.add(part.part_id);\n      if (i < bundle.active_index) {\n        const ack = bundle.confirmations[i];\n        if (ack.part_id !== part.part_id || typeof ack.user_turn_id !== \"string\" || !ack.user_turn_id || turns.has(ack.user_turn_id))\n          throw artifactError(\"ATTACHMENT_BUNDLE_CONFIRMATION_INVALID\");\n        turns.add(ack.user_turn_id);\n      }\n    }\n    if (JSON.stringify(bundle.parts.flatMap(part => part.descriptors)) !== JSON.stringify(bundle.inventory) ||\n        JSON.stringify(delivery.artifact_descriptors || []) !== JSON.stringify(bundle.parts[bundle.active_index].descriptors))\n      throw artifactError(\"ATTACHMENT_BUNDLE_INVENTORY_MISMATCH\");\n    return bundle;\n  }\n  function bundleManifest(bundle) {\n    return JSON.stringify([BUNDLE_SCHEMA, bundle.delivery_id, bundle.owner_kind, bundle.owner_id,\n      bundle.conversation_key, bundle.context, bundle.expires_at_ms, bundle.files_per_part, bundle.inventory]);\n  }\n  function bundleMessage(bundle) {\n    return { bundle_schema: BUNDLE_SCHEMA, bundle_manifest_sha256: bundle.manifest_sha256,\n      bundle_part_id: bundle.parts[bundle.active_index].part_id, bundle_part_ordinal: bundle.active_index + 1 };\n  }\n  function assertBundleMessage(owner, message) {\n    const bundle = bundleForOwner(owner);\n    if (!bundle) {\n      if (message.bundle_schema || message.bundle_manifest_sha256 || message.bundle_part_id || message.bundle_part_ordinal)\n        throw artifactError(\"ATTACHMENT_BUNDLE_PART_MISMATCH\");\n      return;\n    }\n    const expected = bundleMessage(bundle);\n    if (Object.keys(expected).some(key => message[key] !== expected[key])) throw artifactError(\"ATTACHMENT_BUNDLE_PART_MISMATCH\");\n  }\n  async function validateBundle(owner) {\n    const bundle = bundleForOwner(owner);\n    if (!bundle) return;\n    if (await sha256Hex(new TextEncoder().encode(bundleManifest(bundle))) !== bundle.manifest_sha256 ||\n        JSON.stringify(bundle.context) !== JSON.stringify(bundleContext(owner))) throw artifactError(\"ATTACHMENT_BUNDLE_MANIFEST_MISMATCH\");\n    for (const descriptor of bundle.inventory) {\n      const record = await getArtifact(descriptor.artifact_key);\n      if (!artifactLifetimeValid(record) || !artifactMetadataMatches(record, descriptor) ||\n          record.expires_at_ms < bundle.expires_at_ms) throw artifactError(\"ATTACHMENT_BUNDLE_ARTIFACT_UNAVAILABLE\");\n    }\n    if (bundle.expires_at_ms <= nowMs()) throw artifactError(\"RESULT_EXPIRED\");\n  }\n  function bundleContext(owner) {\n    return [owner.tab_id, owner.origin, owner.conversation_id, owner.execution_context || null,\n      owner.payload_expires_at_ms || null];\n  }\n  async function prepareBundle(kind, owner, records) {\n    const profile = OzonAIDeliveryCapabilities.profile(owner.delivery.adapter_id);\n    const limit = profile?.max_files_per_turn;\n    if (limit === null || limit === undefined || records.length <= limit) return null;\n    // This release qualifies sequential delivery only for Alice. Retained\n    // adapters keep their prior count refusal until separately qualified.\n    if (owner.delivery.adapter_id !== \"alice\" || !Number.isSafeInteger(limit) || limit < 1)\n      throw artifactError(\"TARGET_AI_FILE_COUNT_UNSUPPORTED\");\n    const inventory = records.map(descriptorFromRecord);\n    if (new Set(inventory.map(item => item.artifact_key)).size !== inventory.length) throw artifactError(\"ATTACHMENT_BUNDLE_DUPLICATE_ARTIFACT\");\n    const bundle = { schema: BUNDLE_SCHEMA, delivery_id: owner.delivery.delivery_id, owner_kind: kind,\n      owner_id: ownerId(owner, kind), conversation_key: owner.conversation_key, context: bundleContext(owner),\n      expires_at_ms: Math.min(owner.payload_expires_at_ms || Infinity, ...records.map(item => item.expires_at_ms)),\n      inventory, files_per_part: limit, active_index: 0, confirmations: [] };\n    if (!Number.isSafeInteger(bundle.expires_at_ms) || bundle.expires_at_ms <= nowMs()) throw artifactError(\"RESULT_EXPIRED\");\n    bundle.manifest_sha256 = await sha256Hex(new TextEncoder().encode(bundleManifest(bundle)));\n    bundle.parts = [];\n    for (let i = 0; i < inventory.length; i += limit) {\n      const ordinal = bundle.parts.length + 1;\n      bundle.parts.push({ ordinal, part_id: bundle.delivery_id + \":part:\" + ordinal + \":\" + bundle.manifest_sha256,\n        descriptors: inventory.slice(i, i + limit) });\n    }\n    return bundle;\n  }\n  async function preflightInventory(delivery, records) {\n    // All bytes, types, sizes and lifetimes are proven before the first UI\n    // commit. The adapter's count is enforced separately for every part.\n    for (const record of records) {\n      if (String(record.filename || \"\").split(\".\").pop().toLowerCase() !== String(record.extension || \"\").toLowerCase())\n        throw artifactError(\"ATTACHMENT_ARTIFACT_EXTENSION_MISMATCH\");\n      adapterCanAttach(delivery, [record]);\n      await verifiedArtifactBytes(record, descriptorFromRecord(record), \"ATTACHMENT_ARTIFACT_MISMATCH\");\n    }\n    if (records.some(record => !artifactLifetimeValid(record))) throw artifactError(\"ATTACHMENT_ARTIFACT_MISSING\");\n  }\n  function partMarker(delivery, bundle) {\n    if (!bundle) return markerForDelivery(delivery, delivery.artifact_descriptors);\n    const part = bundle.parts[bundle.active_index];\n    return `${delivery.marketplace === \"wildberries\" ? \"WB_BATCH_RESULT_V1\" : \"OZON_BATCH_RESULT_V1\"}\\n${JSON.stringify({\n      delivery_representation: \"ATTACHED_DOCUMENT_BUNDLE_PART\", delivery_id: delivery.delivery_id,\n      complete: false, part_complete: true, bundle_complete: false, ...bundleMessage(bundle),\n      bundle_part_count: bundle.parts.length, attachments: part.descriptors,\n      instruction: \"Часть единого результата. Дождитесь всех частей; обработка следующей команды начнётся после подтверждения всего комплекта.\" })}`;\n  }\n\n  async function commitAttachment(message, sender) {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      outgoing_text: String(delivery.outgoing_text || \"\"),",
+    "new": "      outgoing_text: String(delivery.outgoing_text || \"\"),\n      ...(bundleForOwner(owner) ? { ...bundleMessage(bundleForOwner(owner)),\n        bundle_part_count: bundleForOwner(owner).parts.length } : {}),"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    return { key, ...found };",
+    "new": "    assertBundleMessage(found.owner, message);\n    await validateBundle(found.owner);\n    return { key, ...found };"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const records = await ensureArtifactsForDelivery(found.owner.delivery);\n    adapterCanAttach(found.owner.delivery, records);\n    const descriptors = records.map(descriptorFromRecord);\n    const marker = markerForDelivery(found.owner.delivery, records);",
+    "new": "    const records = await ensureArtifactsForDelivery(found.owner.delivery);\n    await preflightInventory(found.owner.delivery, records);\n    const bundle = bundleForOwner(found.owner) || await prepareBundle(found.kind, found.owner, records);\n    if (bundle && JSON.stringify(records.map(descriptorFromRecord)) !== JSON.stringify(bundle.inventory))\n      throw artifactError(\"ATTACHMENT_BUNDLE_INVENTORY_MISMATCH\");\n    const descriptors = bundle ? bundle.parts[bundle.active_index].descriptors : records.map(descriptorFromRecord);\n    adapterCanAttach(found.owner.delivery, descriptors);\n    const marker = bundle ? partMarker(found.owner.delivery, bundle) : markerForDelivery(found.owner.delivery, records);"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      if (current?.delivery?.mode !== ATTACHMENT_MODE || current.delivery?.phase !== PHASES.CLAIMED) return current;\n      granted = true;",
+    "new": "      assertBundleMessage(current, message);\n      if (current?.delivery?.mode !== ATTACHMENT_MODE || current.delivery?.phase !== PHASES.CLAIMED) return current;\n      if (JSON.stringify(current.delivery) !== JSON.stringify(found.owner.delivery)) throw artifactError(\"ATTACHMENT_COMMIT_RACE\");\n      granted = true;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "          artifact_descriptors: descriptors,",
+    "new": "          artifact_descriptors: descriptors,\n          ...(bundle ? { attachment_bundle: bundle } : {}),"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      if (current?.delivery?.phase !== PHASES.ATTACH_COMMITTED) return current;",
+    "new": "      assertBundleMessage(current, message);\n      if (current?.delivery?.phase !== PHASES.ATTACH_COMMITTED) return current;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      if (current?.delivery?.phase !== PHASES.READY) return current;",
+    "new": "      assertBundleMessage(current, message);\n      if (current?.delivery?.phase !== PHASES.READY) return current;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      if (current?.delivery?.phase !== PHASES.SEND_COMMITTED) return current;",
+    "new": "      assertBundleMessage(current, message);\n      if (current?.delivery?.phase !== PHASES.SEND_COMMITTED) return current;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const names = Array.isArray(message.attached_filenames)",
+    "new": "    if (bundleForOwner(found.owner) && (!actorId || actorId !== found.owner.delivery.commit_actor_id)) throw artifactError(\"ATTACHMENT_ACTOR_MISMATCH\");\n    const names = Array.isArray(message.attached_filenames)"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    let ready = false;",
+    "new": "    if (bundleForOwner(found.owner) && JSON.stringify(names) !== JSON.stringify(found.owner.delivery.artifact_descriptors.map(item => item.filename)))\n      throw artifactError(\"ATTACHMENT_READY_FILES_MISMATCH\");\n    let ready = false;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    let granted = false;\n    const next = await mutateOwner(found.key, found.kind, ownerId(found.owner, found.kind), (current) => {\n      assertBundleMessage(current, message);\n      if (current?.delivery?.phase !== PHASES.READY) return current;",
+    "new": "    if (bundleForOwner(found.owner) && !actorId) throw artifactError(\"ATTACHMENT_ACTOR_MISMATCH\");\n    let granted = false;\n    const next = await mutateOwner(found.key, found.kind, ownerId(found.owner, found.kind), (current) => {\n      assertBundleMessage(current, message);\n      if (current?.delivery?.phase !== PHASES.READY) return current;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    for (const descriptor of Array.isArray(delivery?.artifact_descriptors) ? delivery.artifact_descriptors : []) {",
+    "new": "    for (const descriptor of delivery?.attachment_bundle?.inventory || (Array.isArray(delivery?.artifact_descriptors) ? delivery.artifact_descriptors : [])) {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    await noteConfirmedPrefix(found.key, prefixApplied, deliveryId);",
+    "new": "    const bundle = bundleForOwner(found.owner);\n    const finalPart = !bundle || bundle.active_index === bundle.parts.length - 1;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    let completed = false;\n    const next = await mutateOwner(found.key, found.kind, ownerId(found.owner, found.kind), (current) => {\n      if (current?.delivery?.phase !== PHASES.SEND_COMMITTED || current.delivery?.delivery_id !== deliveryId) return current;\n      completed = true;",
+    "new": "    if (bundle && (!message.actor_id || message.actor_id !== found.owner.delivery.attachment_send_actor_id))\n      throw artifactError(\"ATTACHMENT_SEND_ACTOR_MISMATCH\");\n    if (bundle && (!confirmedUserTurnId || (found.owner.delivery.baseline_user_turn_ids || []).includes(confirmedUserTurnId) ||\n        bundle.confirmations.some(ack => ack.user_turn_id === confirmedUserTurnId))) throw artifactError(\"ATTACHMENT_BUNDLE_CONFIRMATION_INVALID\");\n    let completed = false;\n    const next = await mutateOwner(found.key, found.kind, ownerId(found.owner, found.kind), (current) => {\n      assertBundleMessage(current, message);\n      if (current?.delivery?.phase !== PHASES.SEND_COMMITTED || current.delivery?.delivery_id !== deliveryId) return current;\n      completed = true;\n      const currentBundle = bundleForOwner(current);\n      if (currentBundle && !finalPart) {\n        const nextBundle = { ...currentBundle, active_index: currentBundle.active_index + 1,\n          confirmations: [...currentBundle.confirmations, { part_id: currentBundle.parts[currentBundle.active_index].part_id,\n            user_turn_id: confirmedUserTurnId, confirmed_at: nowIso() }] };\n        const delivery = { ...current.delivery, attachment_bundle: nextBundle, phase: PHASES.CLAIMED,\n          artifact_descriptors: nextBundle.parts[nextBundle.active_index].descriptors,\n          commit_actor_id: null, attachment_committed_at: null, attached_filenames: [],\n          attachment_send_actor_id: null, attachment_send_committed_at: null, attachment_ready_at: null,\n          baseline_user_turn_ids: [], baseline_assistant_turn_ids: [] };\n        delivery.outgoing_text = partMarker(delivery, nextBundle);\n        return { ...current, delivery };\n      }"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "        return { ...current, status: \"completed\", delivery_confirmed: true,",
+    "new": "        return { ...current, ...(currentBundle ? { attachment_bundle_receipt: {\n          schema: BUNDLE_SCHEMA, delivery_id: deliveryId, manifest_sha256: currentBundle.manifest_sha256,\n          part_count: currentBundle.parts.length,\n          confirmations: [...currentBundle.confirmations.map(ack => ({part_id:ack.part_id,confirmed_at:ack.confirmed_at})),\n            { part_id: currentBundle.parts[currentBundle.active_index].part_id, confirmed_at: nowIso() }], complete: true } } : {}), status: \"completed\", delivery_confirmed: true,"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      advanced.delivery = null;",
+    "new": "      if (currentBundle) advanced.attachment_bundle_receipt = { schema: BUNDLE_SCHEMA, delivery_id: deliveryId,\n        manifest_sha256: currentBundle.manifest_sha256, part_count: currentBundle.parts.length,\n        confirmations: [...currentBundle.confirmations.map(ack => ({part_id:ack.part_id,confirmed_at:ack.confirmed_at})),\n          { part_id: currentBundle.parts[currentBundle.active_index].part_id, confirmed_at: nowIso() }], complete: true };\n      advanced.delivery = null;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    if (!completed) throw Object.assign(new Error(\"Attachment delivery state changed before confirmation.\"), { code: \"ATTACHMENT_CONFIRM_RACE\" });",
+    "new": "    if (!completed) throw Object.assign(new Error(\"Attachment delivery state changed before confirmation.\"), { code: \"ATTACHMENT_CONFIRM_RACE\" });\n    if (!finalPart) return { ok: true, confirmed: true, bundle_complete: false, recovery: recoveryPayload(found.kind, next) };\n    await noteConfirmedPrefix(found.key, prefixApplied, deliveryId);"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    return { ok: true, confirmed: true, owner_kind: found.kind };",
+    "new": "    return { ok: true, confirmed: true, bundle_complete: true, owner_kind: found.kind };"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const preservedDelivery = found.owner.delivery;\n    const code = String(message.code",
+    "new": "    const preservedDelivery = found.owner.delivery;\n    // A multipart delivery must keep its durable commits and the complete\n    // retained inventory. A reported error cannot turn UNKNOWN into replay.\n    if (bundleForOwner(found.owner)) return { ok: true, failed: false, outcome_unknown: true,\n      code: \"ATTACHMENT_BUNDLE_RETAINED_NO_REPLAY\", recovery: recoveryPayload(found.kind, found.owner) };\n    const code = String(message.code"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const descriptors=delivery?.artifact_descriptors;",
+    "new": "    const descriptors=delivery?.attachment_bundle?.inventory || delivery?.artifact_descriptors;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "        assertSenderOwner(sender, found.owner, message.live_owner);\n        if (found.kind === \"manual\"",
+    "new": "        assertSenderOwner(sender, found.owner, message.live_owner);\n        if (typeof saAssertDeliveryOwner === \"function\") await saAssertDeliveryOwner(found.owner);\n        if (message.bundle_schema || message.bundle_part_id) assertBundleMessage(found.owner, message);\n        await validateBundle(found.owner);\n        if (found.kind === \"manual\""
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "delivery_id: recovery.delivery_id };",
+    "new": "delivery_id: recovery.delivery_id,\n\n      ...(recovery?.bundle_schema ? { bundle_schema: recovery.bundle_schema,\n        bundle_manifest_sha256: recovery.bundle_manifest_sha256, bundle_part_id: recovery.bundle_part_id,\n        bundle_part_ordinal: recovery.bundle_part_ordinal } : {}) };"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "      if (token && actual.includes(\"OZON_BATCH_RESULT_V1\") && actual.includes(token)) return id;",
+    "new": "      if (!recovery.bundle_schema && token && actual.includes(\"OZON_BATCH_RESULT_V1\") && actual.includes(token)) return id;"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    status(\"Ozon: полный файл доставлен автоматически и подтверждён.\", \"success\", 7000);\n    return { ok: true, confirmed: true, user_turn_id: userTurnId };",
+    "new": "    if (confirmation.bundle_complete === false && confirmation.recovery) {\n      status(`Октопорт: часть ${recovery.bundle_part_ordinal} из ${recovery.bundle_part_count} подтверждена; продолжаю тот же комплект.`, \"info\", 0);\n      return { ok: true, confirmed: true, recovery: confirmation.recovery };\n    }\n    status(\"Октопорт: весь комплект файлов доставлен и подтверждён.\", \"success\", 7000);\n    return { ok: true, confirmed: true, bundle_complete: true, user_turn_id: userTurnId };"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "            return await sendReadyAttachment(recovery);",
+    "new": "            { const result = await sendReadyAttachment(recovery);\n              if (result.recovery) { recovery = result.recovery; continue; }\n              return result; }"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "            return await reconcileSendCommitted(recovery);",
+    "new": "            { const result = await reconcileSendCommitted(recovery);\n              if (result.recovery) { recovery = result.recovery; continue; }\n              return result; }"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    if (!stillCurrent?.ok || !stillCurrent.recovery || stillCurrent.recovery.delivery_id !== committed.delivery_id)",
+    "new": "    if (!stillCurrent?.ok || !stillCurrent.recovery || stillCurrent.recovery.delivery_id !== committed.delivery_id ||\n        stillCurrent.recovery.bundle_part_id !== committed.bundle_part_id)"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    assertSenderOwner(sender, found.owner, message.live_owner);\n    if (message.delivery_id",
+    "new": "    assertSenderOwner(sender, found.owner, message.live_owner);\n    if (found.owner.delivery_confirmed === true && found.owner.last_confirmed_delivery_id === found.owner.delivery?.delivery_id)\n      throw artifactError(\"ATTACHMENT_ALREADY_CONFIRMED\");\n    if (message.delivery_id"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "        assertSenderOwner(sender, found.owner, message.live_owner);\n        if (typeof saAssertDeliveryOwner",
+    "new": "        assertSenderOwner(sender, found.owner, message.live_owner);\n        if (found.owner.delivery_confirmed === true && found.owner.last_confirmed_delivery_id === found.owner.delivery?.delivery_id)\n          return { ok: true, recovery: null, confirmed: true };\n        if (typeof saAssertDeliveryOwner"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "        BB2ComposerSend.clickSynchronously({ target, expectedText: recovery.outgoing_text || \"\", deps: composerSendDeps(active) });\n        return await reconcileSendCommitted(committedRecovery);\n      } catch (error) {",
+    "new": "        BB2ComposerSend.clickSynchronously({ target, expectedText: recovery.outgoing_text || \"\", deps: composerSendDeps(active) });\n      } catch (error) {"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "        return await reconcileSendCommitted(committedRecovery);\n      }\n    }\n    throw lastError",
+    "new": "      }\n      // Confirmation/transport errors must leave this click's catch boundary.\n      // A lost ACK may already have advanced the durable bundle; re-read it\n      // through the outer reconnect path, never repeat the previous confirm.\n      return await reconcileSendCommitted(committedRecovery);\n    }\n    throw lastError"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    let rolledBack = false;\n    const next = await mutateOwner",
+    "new": "    if (bundleForOwner(found.owner) && (!actorId || actorId !== found.owner.delivery.attachment_send_actor_id))\n      throw artifactError(\"ATTACHMENT_SEND_ACTOR_MISMATCH\");\n    let rolledBack = false;\n    const next = await mutateOwner"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "{ ...ownerPayload(recovery), confirmed_user_turn_id: userTurnId, assistant_baseline_ids: assistantTurnIds() }",
+    "new": "{ ...ownerPayload(recovery), actor_id: recovery.send_commit_actor_id || runtime.id,\n      confirmed_user_turn_id: userTurnId, assistant_baseline_ids: assistantTurnIds() }"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  async function commitAttachment(message, sender) {",
+    "new": "  async function preflightAttachment(message, sender) {\n    const found = await ownerForMessage(message, sender);\n    if (found.owner.delivery?.phase !== PHASES.CLAIMED)\n      return { ok: true, prepared: false, recovery: recoveryPayload(found.kind, found.owner) };\n    if (found.owner.r3_copy_delivery_id) await copyManifest(found.owner.delivery);\n    const records = await ensureArtifactsForDelivery(found.owner.delivery);\n    await preflightInventory(found.owner.delivery, records);\n    const bundle = bundleForOwner(found.owner) || await prepareBundle(found.kind, found.owner, records);\n    if (bundle && JSON.stringify(records.map(descriptorFromRecord)) !== JSON.stringify(bundle.inventory))\n      throw artifactError(\"ATTACHMENT_BUNDLE_INVENTORY_MISMATCH\");\n    const descriptors = bundle ? bundle.parts[bundle.active_index].descriptors : records.map(descriptorFromRecord);\n    adapterCanAttach(found.owner.delivery, descriptors);\n    const next = await mutateOwner(found.key, found.kind, ownerId(found.owner, found.kind), current => {\n      assertBundleMessage(current, message);\n      if (current.delivery?.phase !== PHASES.CLAIMED || JSON.stringify(current.delivery) !== JSON.stringify(found.owner.delivery))\n        throw artifactError(\"ATTACHMENT_PREFLIGHT_RACE\");\n      const delivery = { ...current.delivery, artifact_descriptors: descriptors,\n        ...(bundle ? {attachment_bundle:bundle} : {}) };\n      delivery.outgoing_text = partMarker(delivery, bundle);\n      return { ...current, delivery };\n    });\n    return { ok: true, prepared: true, recovery: recoveryPayload(found.kind, next) };\n  }\n\n  async function commitAttachment(message, sender) {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      case \"OZ_ATTACHMENT_COMMIT\": return await commitAttachment(message, sender);",
+    "new": "      case \"OZ_ATTACHMENT_PREFLIGHT\": return await preflightAttachment(message, sender);\n      case \"OZ_ATTACHMENT_COMMIT\": return await commitAttachment(message, sender);"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    if (typeof active.prepareAttachmentSurface === \"function\") {",
+    "new": "    // Freeze and validate the whole inventory before even preparing the UI\n    // surface. This grants no attach/Send; those retain their own durable fence.\n    const preflight = await request(\"OZ_ATTACHMENT_PREFLIGHT\", ownerPayload(recovery));\n    if (!preflight?.ok || preflight.prepared !== true || !preflight.recovery)\n      throw Object.assign(new Error(preflight?.error || \"Complete attachment inventory could not be prepared.\"), {code:preflight?.code || \"ATTACHMENT_PREFLIGHT_FAILED\"});\n    recovery = preflight.recovery;\n    if (typeof active.prepareAttachmentSurface === \"function\") {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  function bundleManifest(bundle) {",
+    "new": "  function withBundleReceipt(owner) {\n    if (!owner?.delivery?.attachment_bundle) return owner;\n    const bundle = bundleForOwner(owner);\n    if (!bundle) return owner;\n    return { ...owner, attachment_bundle_receipt: { schema: BUNDLE_SCHEMA,\n      delivery_id: bundle.delivery_id, manifest_sha256: bundle.manifest_sha256,\n      part_count: bundle.parts.length, complete: false, outcome: \"PARTIAL_OR_UNKNOWN\",\n      active_part_id: bundle.parts[bundle.active_index].part_id, active_part_phase: owner.delivery.phase,\n      confirmations: bundle.confirmations.map(ack => ({part_id:ack.part_id,confirmed_at:ack.confirmed_at})) } };\n  }\n\n  function bundleManifest(bundle) {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "          const result = await mutator(current); admit();",
+    "new": "          const result = withBundleReceipt(await mutator(current)); admit();"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "        const next = await mutator(current);\n        if (next)",
+    "new": "        const next = withBundleReceipt(await mutator(current));\n        if (next)"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  async function readOwner(conversationKey, kind, expectedId = \"\") {",
+    "new": "  const FINALIZING = \"attachment_finalizing\";\n  const FINALIZATION_SCHEMA = \"attachment_finalization_v1\";\n  function finalizationRecord(owner) {\n    const f = owner?.attachment_finalization;\n    if (!f) return null;\n    if (f.schema !== FINALIZATION_SCHEMA || ![\"PENDING\",\"DONE\"].includes(f.state) ||\n        ![\"manual\",\"autorun\"].includes(f.owner_kind) || f.owner_id !== ownerId(owner,f.owner_kind) ||\n        f.conversation_key !== owner.conversation_key || typeof f.delivery_id !== \"string\" || !f.delivery_id ||\n        f.all_parts_confirmed !== true || typeof f.confirmed_user_turn_id !== \"string\" || !f.confirmed_user_turn_id ||\n        !/^[a-f0-9]{64}$/.test(f.context_sha256 || \"\") || !Array.isArray(f.cleanup_keys) ||\n        f.cleanup_keys.length > 5000 || f.cleanup_keys.some(key=>typeof key!==\"string\" || !key || key.length>512) ||\n        !Array.isArray(f.assistant_baseline_ids) || f.assistant_baseline_ids.length>5000 ||\n        [\"prefix_done\",\"copy_ack_done\",\"cleanup_done\",\"retain_artifacts\",\"prefix_applied\"].some(key=>typeof f[key]!==\"boolean\") ||\n        f.state === \"PENDING\" && owner.delivery && owner.delivery.delivery_id !== f.delivery_id)\n      throw artifactError(\"ATTACHMENT_FINALIZATION_IDENTITY_INVALID\");\n    return f;\n  }\n  function pendingFinalizationOwner(owner) {\n    if(owner?.status===\"delivering\")return true;\n    const fence=owner?.recovery_fence,f=owner?.attachment_finalization;\n    return owner?.status===\"failed\" && owner.last_error?.code===\"RESULT_BUFFER_EXPIRED\" &&\n      fence?.kind===\"RESULT_BUFFER_EXPIRED\" && fence.delivery_id===f?.delivery_id &&\n      fence.provider_replay_forbidden===true && fence.delivery_replay_forbidden===true &&\n      Number.isFinite(owner.payload_expires_at_ms) && owner.payload_expires_at_ms<=nowMs() &&\n      owner.batch==null && owner.delivery==null && owner.outgoing_text==null;\n  }\n  function finalizationContext(owner) {\n    const context=owner.execution_context?SellerAgentsExecutionContext.snapshot(owner.execution_context):null;\n    return JSON.stringify([owner.operation_id || owner.run_id,owner.conversation_key,owner.origin,\n      owner.conversation_id,owner.tab_id,context]);\n  }\n  async function readManualFinalizationOwner(key) {\n    try { return await getManualOperation(key); }\n    catch(error) {\n      if(error?.code!==\"RECORD_STORE_COMMIT_UNCONFIRMED\")throw error;\n      const data=await chrome.storage.local.get(KEYS.MANUAL_OPERATIONS);\n      const owner=data?.[KEYS.MANUAL_OPERATIONS]?.[key],f=finalizationRecord(owner);\n      if(!owner || owner.status!==\"completed\" || owner.delivery_confirmed!==true ||\n          !f || f.state!==\"DONE\" || !f.prefix_done || !f.copy_ack_done || !f.cleanup_done ||\n          owner.last_confirmed_delivery_id!==f.delivery_id)throw error;\n      // Read only the persisted completed outcome. Keep the record-store write\n      // barrier intact; ordinary work/mutations still require its own recovery.\n      return owner;\n    }\n  }\n  async function assertFinalizationOwner(owner) {\n    const f = finalizationRecord(owner);\n    const actual=f?.owner_kind===\"manual\" && typeof getManualOperation===\"function\" ? await readManualFinalizationOwner(owner.conversation_key) :\n      (await chrome.storage.local.get(ownerMapKey(f?.owner_kind)))?.[ownerMapKey(f?.owner_kind)]?.[owner.conversation_key];\n    if(!actual || ownerId(actual,f?.owner_kind)!==f?.owner_id || actual.attachment_finalization?.delivery_id!==f?.delivery_id ||\n        actual.attachment_finalization?.context_sha256!==f?.context_sha256)throw artifactError(\"ATTACHMENT_FINALIZATION_IDENTITY_INVALID\");\n    if(f?.state===\"PENDING\" && (!pendingFinalizationOwner(owner) || !pendingFinalizationOwner(actual)))\n      throw artifactError(\"ATTACHMENT_FINALIZATION_CANCELLED\");\n    if (!f || await sha256Hex(new TextEncoder().encode(finalizationContext(owner))) !== f.context_sha256)\n      throw artifactError(\"ATTACHMENT_FINALIZATION_IDENTITY_INVALID\");\n    // Only local bookkeeping for durably confirmed user turns. No artifact\n    // bytes, attach, Send or provider dispatch uses this metadata-only guard.\n    // The existing account/store/binding/Work/authority tuple stays current;\n    // result TTL may erase payload without erasing its confirmed outcome.\n    if (typeof saAssertLocalAuthorityAdmission === \"function\" && typeof saReadContext === \"function\") {\n      await saAssertLocalAuthorityAdmission();\n      const p=owner.execution_context;\n      SellerAgentsExecutionContext.assertSame(p,await saReadContext(owner.conversation_key,{commandHash:p.commandHash,requestId:p.requestId}));\n    } else if (typeof saAssertDeliveryOwner === \"function\") await saAssertDeliveryOwner(owner);\n  }\n  async function assertOwnerForPhase(owner) {\n    if (finalizationRecord(owner)) return assertFinalizationOwner(owner);\n    if (typeof saAssertDeliveryOwner === \"function\") await saAssertDeliveryOwner(owner);\n  }\n  function completedRecovery(kind,owner) {\n    const f=finalizationRecord(owner);\n    return {ok:true,confirmed:true,bundle_complete:true,recovery:null,owner_kind:kind,\n      owner_id:ownerId(owner,kind),delivery_id:f.delivery_id,conversation_key:owner.conversation_key,\n      origin:owner.origin,conversation_id:owner.conversation_id};\n  }\n  async function updateFinalization(found,field) {\n    return mutateOwner(found.key,found.kind,ownerId(found.owner,found.kind),current=>{\n      const f=finalizationRecord(current);\n      if(!f || f.delivery_id!==found.owner.attachment_finalization.delivery_id)throw artifactError(\"ATTACHMENT_FINALIZATION_RACE\");\n      if(f.state===\"DONE\")return current;\n      return {...current,attachment_finalization:{...f,[field]:true}};\n    });\n  }\n  async function finishFinalization(found) {\n    let owner=found.owner,f=finalizationRecord(owner);\n    if(!f)throw artifactError(\"ATTACHMENT_FINALIZATION_MISSING\");\n    await assertFinalizationOwner(owner);\n    if(f.state===\"DONE\")return completedRecovery(found.kind,owner);\n    try {\n      if(!f.prefix_done){\n        await noteConfirmedPrefix(found.key,f.prefix_applied,f.delivery_id,()=>assertFinalizationOwner(owner));\n        owner=await updateFinalization({...found,owner},\"prefix_done\");f=finalizationRecord(owner);\n      }\n      if(!f.copy_ack_done){\n        await assertFinalizationOwner(owner);\n        if(found.kind===\"manual\" && owner.r3_copy_delivery_id){\n          if(typeof saR3RecordCopyConfirmation!==\"function\")throw artifactError(\"ATTACHMENT_FINALIZATION_ACK_REQUIRED\");\n          await saR3RecordCopyConfirmation(found.key,f.delivery_id);\n        }\n        owner=await updateFinalization({...found,owner},\"copy_ack_done\");f=finalizationRecord(owner);\n      }\n      if(!f.cleanup_done){\n        for(const key of f.cleanup_keys){await assertFinalizationOwner(owner);await deleteArtifact(key);}\n        owner=await updateFinalization({...found,owner},\"cleanup_done\");f=finalizationRecord(owner);\n      }\n      await assertFinalizationOwner(owner);\n      const next=await mutateOwner(found.key,found.kind,ownerId(owner,found.kind),current=>{\n        const currentF=finalizationRecord(current);\n        if(!currentF || currentF.delivery_id!==f.delivery_id)throw artifactError(\"ATTACHMENT_FINALIZATION_RACE\");\n        if(currentF.state===\"DONE\")return current;\n        if(!currentF.prefix_done || !currentF.copy_ack_done || !currentF.cleanup_done)throw artifactError(\"ATTACHMENT_FINALIZATION_PENDING\");\n        const done={...currentF,state:\"DONE\",cleanup_keys:[]};\n        const common={...current,attachment_finalization:done,\n          ...(currentF.bundle_receipt?{attachment_bundle_receipt:{...currentF.bundle_receipt,complete:true}}:{}),\n          last_confirmed_delivery_id:currentF.delivery_id,last_confirmed_report_prefix_applied:currentF.prefix_applied,\n          last_confirmed_user_turn_id:currentF.confirmed_user_turn_id};\n        if(found.kind===\"manual\")return {...common,status:\"completed\",delivery_confirmed:true,\n          batch:null,delivery:null,outgoing_text:null,request_worker_session_id:null,completed_at:nowIso(),last_error:null};\n        const confirmed={...common,delivery:{...current.delivery,phase:PHASES.CONFIRMED,confirmed_at:nowIso(),confirmed_user_turn_id:currentF.confirmed_user_turn_id}};\n        const advanced=BridgeAutorunModel.afterConfirmedDelivery(confirmed);advanced.delivery=null;\n        if(advanced.status===BridgeAutorunModel.RUN_STATUSES.WAITING_COMMAND){\n          advanced.assistant_baseline_ids=currentF.assistant_baseline_ids;advanced.watch_id=currentF.watch_id;\n        }\n        return advanced;\n      });\n      if(found.kind===\"manual\"){\n        if(typeof saR3RecordCopyConfirmation===\"function\")await saR3RecordCopyConfirmation(found.key,f.delivery_id);\n        const modes=await chrome.storage.local.get(KEYS.MANUAL_MODES);\n        try{await chrome.tabs.sendMessage(Number(next?.tab_id || owner.tab_id),{type:\"OZ_APPLY_MANUAL_MODE\",enabled:modes?.[KEYS.MANUAL_MODES]?.[found.key]===true,conversation_key:found.key});}catch(_){}\n      }else if(next?.status===BridgeAutorunModel.RUN_STATUSES.WAITING_COMMAND){\n        try{await chrome.tabs.sendMessage(Number(next.tab_id),{type:\"OZ_AUTO_BEGIN_WATCH\",run_id:next.run_id,conversation_key:next.conversation_key,origin:next.origin,conversation_id:next.conversation_id,watch_id:next.watch_id,assistant_baseline_ids:next.assistant_baseline_ids});}catch(_){}\n      }\n      return completedRecovery(found.kind,next);\n    }catch(error){\n      if(error?.execution_context_error || [\"RESULT_EXPIRED\",\"AUTH_REQUIRED\",\"WORK_POLICY_BLOCKED\",\"ATTACHMENT_FINALIZATION_IDENTITY_INVALID\"].includes(error?.code))throw error;\n      // The durable PENDING record remains actionable. Report the failure; do\n      // not report success or erase commits when local storage/ACK fails.\n      throw artifactError(\"ATTACHMENT_FINALIZATION_PENDING\");\n    }\n  }\n  async function finalizePendingForCommand(key) {\n    const owner=await getManualOperation(key);\n    if(owner?.attachment_finalization?.state!==\"PENDING\" || !pendingFinalizationOwner(owner))return;\n    await finishFinalization({key:normalizeKey(key),kind:\"manual\",owner});\n  }\n\n  async function readOwner(conversationKey, kind, expectedId = \"\") {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      await saAssertDeliveryOwner(owner);\n      return owner;",
+    "new": "      await assertOwnerForPhase(owner);\n      return owner;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    function acquire(current) {\n      const refs",
+    "new": "    function acquire(current) {\n      if(finalizationRecord(current))return;\n      const refs"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  async function mutateOwner(conversationKey, kind, expectedId, mutator) {\n    const key = normalizeKey(conversationKey), leases = [];\n    const api = globalThis.SellerAgentsWBSalesFinanceManual;\n    function acquire(current) {\n      if(finalizationRecord(current))return;\n      const refs = current?.delivery?.derived_file_refs;\n      if (!Array.isArray(refs) || !refs.length) return;\n      if (kind !== \"manual\" || !api) throw artifactError(\"DERIVED_FILE_OWNER_REQUIRED\");\n      for (const ref of refs) { validateDerivedDescriptor(ref); leases.push(api.beginEffect(current, ref)); }\n    }\n    const admit = () => { for (const lease of leases) api.admitEffect(lease); };\n    try {\n      if (kind === \"manual\" && typeof saEnabled === \"function\" && await saEnabled()) {\n        const next = await mutateManualOperation(key, async current => {\n          if (!current || ownerId(current, kind) !== expectedId) return current;\n          acquire(current);\n          await saAssertDeliveryOwner(current); admit();\n          const result = withBundleReceipt(await mutator(current)); admit();\n          await saAssertDeliveryOwner(current); admit();\n          return result;\n        });\n        // A stale/cancelled acknowledgement after a durable phase transition may\n        // never grant a new attach or Send. The stored phase prevents replay.\n        admit();\n        if (leases.length && next?.delivery) { await saAssertDeliveryOwner(next); admit(); }\n        return next;\n      }\n      const storageKey = ownerMapKey(kind);\n      const write = kind === \"autorun\" ? withConversationMapsWrite : withStateWrite;\n      return await write(async () => {\n        const data = await chrome.storage.local.get(storageKey);\n        const map = { ...(data?.[storageKey] || {}) }, current = map[key] || null;\n        if (!current || ownerId(current, kind) !== String(expectedId || \"\")) return current;\n        acquire(current);\n        if (leases.length) throw artifactError(\"DERIVED_FILE_GUARD_REQUIRED\");\n        const next = withBundleReceipt(await mutator(current));\n        if (next) map[key] = { ...next, updated_at: nowIso() }; else delete map[key];\n        await chrome.storage.local.set({ [storageKey]: map });\n        return next || null;\n      });\n    } finally { for (const lease of leases) api.endEffect(lease); }\n  }\n",
+    "new": "  async function mutateOwner(conversationKey, kind, expectedId, mutator) {\n    const key = normalizeKey(conversationKey), leases = [];\n    const api = globalThis.SellerAgentsWBSalesFinanceManual;\n    function acquire(current) {\n      if(finalizationRecord(current))return;\n      const refs = current?.delivery?.derived_file_refs;\n      if (!Array.isArray(refs) || !refs.length) return;\n      if (kind !== \"manual\" || !api) throw artifactError(\"DERIVED_FILE_OWNER_REQUIRED\");\n      for (const ref of refs) { validateDerivedDescriptor(ref); leases.push(api.beginEffect(current, ref)); }\n    }\n    const admit = () => { for (const lease of leases) api.admitEffect(lease); };\n    try {\n      if (kind === \"manual\" && typeof saEnabled === \"function\" && await saEnabled()) {\n        const next = await mutateManualOperation(key, async current => {\n          if (!current || ownerId(current, kind) !== expectedId) return current;\n          acquire(current);\n          await assertOwnerForPhase(current); admit();\n          const result = withBundleReceipt(await mutator(current)); admit();\n          await assertOwnerForPhase(current); admit();\n          return result;\n        });\n        // A stale/cancelled acknowledgement after a durable phase transition may\n        // never grant a new attach or Send. The stored phase prevents replay.\n        admit();\n        if (leases.length && next?.delivery) { await saAssertDeliveryOwner(next); admit(); }\n        return next;\n      }\n      const storageKey = ownerMapKey(kind);\n      const write = kind === \"autorun\" ? withConversationMapsWrite : withStateWrite;\n      return await write(async () => {\n        const data = await chrome.storage.local.get(storageKey);\n        const map = { ...(data?.[storageKey] || {}) }, current = map[key] || null;\n        if (!current || ownerId(current, kind) !== String(expectedId || \"\")) return current;\n        acquire(current);\n        if (leases.length) throw artifactError(\"DERIVED_FILE_GUARD_REQUIRED\");\n        const next = withBundleReceipt(await mutator(current));\n        if (next) map[key] = { ...next, updated_at: nowIso() }; else delete map[key];\n        await chrome.storage.local.set({ [storageKey]: map });\n        return next || null;\n      });\n    } finally { for (const lease of leases) api.endEffect(lease); }\n  }\n"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const bundle = bundleForOwner(owner);\n    if (!bundle) return;\n    if (await sha256Hex",
+    "new": "    if(finalizationRecord(owner)){await assertFinalizationOwner(owner);return;}\n    const bundle = bundleForOwner(owner);\n    if (!bundle) return;\n    if (await sha256Hex"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const delivery = owner?.delivery || {};\n    return {",
+    "new": "    const delivery = owner?.delivery || {};\n    const finalization=finalizationRecord(owner);\n    if(finalization)return {type:\"attachment_delivery\",owner_kind:kind,owner_id:ownerId(owner,kind),\n      conversation_key:owner.conversation_key,origin:owner.origin,conversation_id:owner.conversation_id,\n      delivery_id:finalization.delivery_id,delivery_mode:ATTACHMENT_MODE,delivery_phase:FINALIZING,\n      adapter_id:delivery.adapter_id || \"alice\",outgoing_text:\"\",artifact_descriptors:[]};\n    return {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    if (typeof saAssertDeliveryOwner === \"function\") await saAssertDeliveryOwner(found.owner);\n    const api = globalThis.SellerAgentsWBSalesFinanceManual;\n    for (const ref of found.owner.delivery?.derived_file_refs || []) {",
+    "new": "    await assertOwnerForPhase(found.owner);\n    const api = globalThis.SellerAgentsWBSalesFinanceManual;\n    for (const ref of finalizationRecord(found.owner) ? [] : found.owner.delivery?.derived_file_refs || []) {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const phase = String(found.owner.delivery?.phase || \"\");\n    if (phase === PHASES.ATTACH_COMMITTED)",
+    "new": "    const phase = String(found.owner.delivery?.phase || \"\");\n    if(finalizationRecord(found.owner))throw artifactError(\"ATTACHMENT_FINALIZATION_PENDING\");\n    if (phase === PHASES.ATTACH_COMMITTED)"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      if (found.kind === \"manual\") {\n        return { ...current, ...(currentBundle ? { attachment_bundle_receipt: {\n          schema: BUNDLE_SCHEMA, delivery_id: deliveryId, manifest_sha256: currentBundle.manifest_sha256,\n          part_count: currentBundle.parts.length,\n          confirmations: [...currentBundle.confirmations.map(ack => ({part_id:ack.part_id,confirmed_at:ack.confirmed_at})),\n            { part_id: currentBundle.parts[currentBundle.active_index].part_id, confirmed_at: nowIso() }], complete: true } } : {}), status: \"completed\", delivery_confirmed: true, last_confirmed_delivery_id: deliveryId, last_confirmed_report_prefix_applied: prefixApplied, last_confirmed_user_turn_id: confirmedUserTurnId, batch: null, delivery: null, outgoing_text: null, request_worker_session_id: null, completed_at: nowIso(), last_error: null };\n      }\n      const confirmed = { ...current, delivery: { ...current.delivery, phase: PHASES.CONFIRMED, confirmed_at: nowIso(), confirmed_user_turn_id: confirmedUserTurnId } };\n      const advanced = BridgeAutorunModel.afterConfirmedDelivery(confirmed);\n      advanced.last_confirmed_delivery_id = deliveryId;\n      advanced.last_confirmed_report_prefix_applied = prefixApplied;\n      advanced.last_confirmed_user_turn_id = confirmedUserTurnId;\n      if (currentBundle) advanced.attachment_bundle_receipt = { schema: BUNDLE_SCHEMA, delivery_id: deliveryId,\n        manifest_sha256: currentBundle.manifest_sha256, part_count: currentBundle.parts.length,\n        confirmations: [...currentBundle.confirmations.map(ack => ({part_id:ack.part_id,confirmed_at:ack.confirmed_at})),\n          { part_id: currentBundle.parts[currentBundle.active_index].part_id, confirmed_at: nowIso() }], complete: true };\n      advanced.delivery = null;\n      if (advanced.status === BridgeAutorunModel.RUN_STATUSES.WAITING_COMMAND) {\n        advanced.assistant_baseline_ids = assistantBaselineIds;\n        advanced.watch_id = `watch-${crypto.randomUUID()}`;\n      }\n      return advanced;",
+    "new": "      const receipt=currentBundle?{schema:BUNDLE_SCHEMA,delivery_id:deliveryId,\n        manifest_sha256:currentBundle.manifest_sha256,part_count:currentBundle.parts.length,\n        confirmations:[...currentBundle.confirmations.map(ack=>({part_id:ack.part_id,confirmed_at:ack.confirmed_at})),\n          {part_id:currentBundle.parts[currentBundle.active_index].part_id,confirmed_at:nowIso()}],complete:false}:null;\n      return {...current,delivery:{...current.delivery,phase:FINALIZING},\n        attachment_finalization:{schema:FINALIZATION_SCHEMA,state:\"PENDING\",owner_kind:found.kind,\n          owner_id:ownerId(current,found.kind),conversation_key:current.conversation_key,delivery_id:deliveryId,\n          context_sha256:finalizationContextSha,all_parts_confirmed:true,confirmed_user_turn_id:confirmedUserTurnId,\n          assistant_baseline_ids:assistantBaselineIds,prefix_applied:prefixApplied,\n          prefix_done:false,copy_ack_done:false,cleanup_done:false,\n          retain_artifacts:found.kind===\"manual\" && Boolean(current.r3_execution_id),\n          cleanup_keys:found.kind===\"manual\" && current.r3_execution_id?[]:\n            (currentBundle?.inventory || current.delivery.artifact_descriptors || []).map(item=>item.artifact_key),\n          bundle_receipt:receipt,watch_id:`watch-${crypto.randomUUID()}`,started_at:nowIso()}};"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    let completed = false;\n    const next = await mutateOwner",
+    "new": "    if(finalPart && !confirmedUserTurnId)throw artifactError(\"ATTACHMENT_CONFIRMATION_REQUIRED\");\n    const finalizationContextSha=finalPart?await sha256Hex(new TextEncoder().encode(finalizationContext(found.owner))):null;\n    let completed = false;\n    const next = await mutateOwner"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    await noteConfirmedPrefix(found.key, prefixApplied, deliveryId);\n    if (found.kind !== \"manual\" || !found.owner.r3_execution_id) await cleanupDeliveryArtifacts(preservedDelivery);\n    if (found.kind === \"manual\" && typeof saR3RecordCopyConfirmation === \"function\") await saR3RecordCopyConfirmation(found.key, deliveryId);\n    if (found.kind === \"autorun\" && next?.status === BridgeAutorunModel.RUN_STATUSES.WAITING_COMMAND) {\n      try { await chrome.tabs.sendMessage(Number(next.tab_id), { type: \"OZ_AUTO_BEGIN_WATCH\", run_id: next.run_id, conversation_key: next.conversation_key, origin: next.origin, conversation_id: next.conversation_id, watch_id: next.watch_id, assistant_baseline_ids: Array.isArray(next.assistant_baseline_ids) ? next.assistant_baseline_ids : [] }); } catch (_) {}\n    }\n    if (found.kind === \"manual\") {\n      const modes = await chrome.storage.local.get(KEYS.MANUAL_MODES);\n      const enabled = modes?.[KEYS.MANUAL_MODES]?.[found.key] === true;\n      try { await chrome.tabs.sendMessage(Number(next?.tab_id || found.owner.tab_id), { type: \"OZ_APPLY_MANUAL_MODE\", enabled, conversation_key: found.key }); } catch (_) {}\n    }\n    return { ok: true, confirmed: true, bundle_complete: true, owner_kind: found.kind };\n  }\n",
+    "new": "    return finishFinalization({key:found.key,kind:found.kind,owner:next});\n  }\n"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const preservedDelivery = found.owner.delivery;\n    // A multipart delivery",
+    "new": "    const preservedDelivery = found.owner.delivery;\n    if(finalizationRecord(found.owner))return {ok:true,failed:false,outcome_unknown:true,code:\"ATTACHMENT_FINALIZATION_PENDING\",recovery:recoveryPayload(found.kind,found.owner)};\n    // A multipart delivery"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  async function noteConfirmedPrefix(conversationKey, applied, deliveryId) {",
+    "new": "  async function noteConfirmedPrefix(conversationKey, applied, deliveryId, assertCurrent = async()=>{}) {"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      const data = await chrome.storage.local.get(KEYS.REPORT_PREFIXES);\n      const map",
+    "new": "      await assertCurrent();\n      const data = await chrome.storage.local.get(KEYS.REPORT_PREFIXES);\n      await assertCurrent();\n      const map"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      map[key] = BridgeAutorunModel.noteConfirmedPrefix(current, applied === true, deliveryId);\n      await chrome.storage.local.set",
+    "new": "      map[key] = BridgeAutorunModel.noteConfirmedPrefix(current, applied === true, deliveryId);\n      await assertCurrent();\n      await chrome.storage.local.set"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const key = String(message.artifact_key || \"\");\n    const descriptor",
+    "new": "    if(finalizationRecord(found.owner))throw artifactError(\"ATTACHMENT_ARTIFACT_CHUNK_PHASE_MISMATCH\");\n    const key = String(message.artifact_key || \"\");\n    const descriptor"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      case \"OZ_ATTACHMENT_RECOVERY_GET\": {\n        const found = await findAttachmentOwner(message.conversation_key, String(message.owner_kind || \"\"), String(message.owner_id || \"\"));\n        if (!found) return { ok: true, recovery: null };\n        assertSenderOwner(sender, found.owner, message.live_owner);\n        if (found.owner.delivery_confirmed === true && found.owner.last_confirmed_delivery_id === found.owner.delivery?.delivery_id)\n          return { ok: true, recovery: null, confirmed: true };\n        if (typeof saAssertDeliveryOwner === \"function\") await saAssertDeliveryOwner(found.owner);\n        if (message.bundle_schema || message.bundle_part_id) assertBundleMessage(found.owner, message);\n        await validateBundle(found.owner);\n        if (found.kind === \"manual\" && await cancelManualClaimedIfDisabled(message.conversation_key, found.owner)) return { ok: true, recovery: null, cancelled: true };\n        return { ok: true, recovery: recoveryPayload(found.kind, found.owner) };\n      }\n",
+    "new": "      case \"OZ_ATTACHMENT_RECOVERY_GET\": {\n        const key=normalizeKey(message.conversation_key),kind=String(message.owner_kind || \"\"),id=String(message.owner_id || \"\");\n        let found=await findAttachmentOwner(key,kind,id);\n        if(!found && [\"manual\",\"autorun\"].includes(kind) && id && message.delivery_id){\n          const owner=await readOwner(key,kind,id);\n          if(owner?.attachment_finalization?.delivery_id===message.delivery_id)found={kind,owner};\n        }\n        if(!found)return {ok:true,recovery:null};\n        assertSenderOwner(sender,found.owner,message.live_owner);\n        const f=finalizationRecord(found.owner);\n        if(f){\n          if(message.delivery_id && message.delivery_id!==f.delivery_id)throw artifactError(\"ATTACHMENT_DELIVERY_ID_MISMATCH\");\n          if(f.state===\"DONE\")return message.delivery_id?completedRecovery(found.kind,found.owner):{ok:true,recovery:null};\n          return finishFinalization({key,kind:found.kind,owner:found.owner});\n        }\n        if(found.owner.delivery_confirmed===true && found.owner.last_confirmed_delivery_id===found.owner.delivery?.delivery_id)return {ok:true,recovery:null,confirmed:true};\n        await assertOwnerForPhase(found.owner);\n        if(message.bundle_schema || message.bundle_part_id)assertBundleMessage(found.owner,message);\n        await validateBundle(found.owner);\n        if(found.kind===\"manual\" && await cancelManualClaimedIfDisabled(key,found.owner))return {ok:true,recovery:null,cancelled:true};\n        return {ok:true,recovery:recoveryPayload(found.kind,found.owner)};\n      }\n"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    copyManifest,\n    MAX_CHUNK_BYTES,",
+    "new": "    copyManifest,\n    finalizePendingForCommand,\n    MAX_CHUNK_BYTES,"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "if ([\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(error?.code)) throw error;",
+    "new": "if ([\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\", \"ATTACHMENT_PORT_TIMEOUT\", \"ATTACHMENT_FINALIZATION_PENDING\"].includes(error?.code)) throw error;"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "if (!failed?.ok && [\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(failed?.code))",
+    "new": "if (!failed?.ok && [\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\", \"ATTACHMENT_PORT_TIMEOUT\", \"ATTACHMENT_FINALIZATION_PENDING\"].includes(failed?.code))"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "const disconnected = [\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(error?.code);",
+    "new": "const disconnected = [\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\", \"ATTACHMENT_PORT_TIMEOUT\", \"ATTACHMENT_FINALIZATION_PENDING\"].includes(error?.code);"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    const recovery = response.recovery || null;",
+    "new": "    if(response.confirmed===true && response.bundle_complete===true && expected &&\n        response.owner_kind===expected.owner_kind && response.owner_id===expected.owner_id &&\n        response.delivery_id===expected.delivery_id && response.conversation_key===key && sameConversation(response))\n      return {...response,type:\"attachment_delivery_complete\"};\n    const recovery = response.recovery || null;"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "          if (!recovery) return { ok: true, recovery: null };\n          exactExpectation",
+    "new": "          if (!recovery) return { ok: true, recovery: null };\n          if(recovery.type===\"attachment_delivery_complete\"){\n            status(\"Октопорт: весь комплект файлов доставлен и локальная финализация подтверждена.\",\"success\",7000);\n            return {ok:true,confirmed:true,bundle_complete:true};\n          }\n          exactExpectation"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "          default:\n            return { ok: false, code: \"ATTACHMENT_PHASE_UNSUPPORTED\" };",
+    "new": "          case \"attachment_finalizing\":\n            throw Object.assign(new Error(\"Confirmed result awaits local finalization readback.\"),{code:\"ATTACHMENT_FINALIZATION_PENDING\"});\n          default:\n            return { ok: false, code: \"ATTACHMENT_PHASE_UNSUPPORTED\" };"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  function withBundleReceipt(owner) {\n    if (!owner?.delivery?.attachment_bundle) return owner;",
+    "new": "  function withBundleReceipt(owner) {\n    const f=finalizationRecord(owner);\n    if(f)return f.bundle_receipt?{...owner,attachment_bundle_receipt:{...f.bundle_receipt,\n      complete:f.state===\"DONE\",active_part_phase:f.state===\"DONE\"?PHASES.CONFIRMED:FINALIZING}}:owner;\n    if (!owner?.delivery?.attachment_bundle) return owner;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "      const owner = await getManualOperation(key);\n      if (!owner || expectedId && ownerId(owner, kind) !== expectedId) return null;",
+    "new": "      const owner = await readManualFinalizationOwner(key);\n      if (!owner || expectedId && ownerId(owner, kind) !== expectedId) return null;"
   }
 ]

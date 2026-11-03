@@ -92,7 +92,7 @@ await test("PIPELINE-real-Start-mixed-manual-block-ordered-network-delivery-Fini
       type: "OZ_BATCH_DELIVERY_COMPLETE",
       ...fields,
       delivery_confirmed: true,
-      confirmation_basis: "microphone",
+      confirmation_basis: "alice_ready",
       click_attempts: 1,
     });
     assert.equal(complete.ok, true, JSON.stringify(complete));

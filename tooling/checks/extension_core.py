@@ -55,6 +55,7 @@ def main():
         runner.run("core-store-package-contract", [sys.executable, ROOT / "tests/regression/extension-core/store-package-contract.py"])
         runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
         runner.run("core-work-start-pending-readback", ["node", "--test", ROOT / "tests/regression/extension-core/client-i1/client-a01-pending-readback.mjs"])
+        runner.run("core-alice-release-descriptor", ["node", ROOT / "tests/regression/extension-core/client-i1/alice-release-scope.mjs"])
         runner.run("core-source-ozon-grouped-json-projection",
                    ["node", ROOT / "tests/regression/extension-core/ozon-grouped-json-projection.mjs", ROOT])
         source, extracted, receipt = composed.build(output / "package")
@@ -63,6 +64,8 @@ def main():
         work = output / "work"
         work.mkdir()
         for runtime, label, source_route in [(source, "core-source", True), (extracted, "core-package", False)]:
+            runner.run(label + "-alice-release-runtime", ["node", ROOT / "tests/regression/extension-core/client-i1/alice-release-runtime.mjs", runtime])
+            runner.run(label + "-alice-release-lifecycle", ["node", ROOT / "tests/regression/extension-core/client-i1/alice-release-lifecycle.mjs", runtime])
             original.ozon_route(runner, work, runtime, label, source_route, expected_version=original.current_composed_version())
             # A04 safety regressions must exercise the composed runtime AND
             # the exact extracted ZIP, not merely the repository source.

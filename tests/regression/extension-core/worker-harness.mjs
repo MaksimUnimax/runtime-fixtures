@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { webcrypto } from "node:crypto";
+import aiReleaseDescriptor from "../../../packages/contracts/src/ai-release-scope.v1.json" with { type: "json" };
+const AI_RELEASE_SCOPE_FIXTURE = { descriptor: aiReleaseDescriptor, sha256: "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261" };
 
 const AUTH_STORAGE_KEY = "seller_agents_control_auth_v2";
 const fixtureIndexedDBByBacking = new WeakMap();
@@ -152,15 +154,16 @@ export async function until(fn, description) {
 export async function makeWorker(directory, options = {}) {
   const fixtureUserAgent = options.userAgent || DEFAULT_FIXTURE_USER_AGENT;
   const fixtureBrowser = fixtureBrowserIdentity(fixtureUserAgent);
-  const fixtureAiFamily = options.aiFamily || "chatgpt";
+  // Generic Work scenarios exercise the currently released AI. Retained adapter
+  // foundation/denial tests select another family explicitly.
+  const fixtureAiFamily = options.aiFamily || "alice";
   assert.ok(
-    ["chatgpt", "alice"].includes(fixtureAiFamily),
+    ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(fixtureAiFamily),
     "unsupported fixture AI family",
   );
-  const fixtureAiOrigin =
-    fixtureAiFamily === "alice"
-      ? "https://alice.yandex.ru"
-      : "https://chatgpt.com";
+  const fixtureAiOrigin = ({ chatgpt: "https://chatgpt.com", alice: "https://alice.yandex.ru",
+    qwen: "https://chat.qwen.ai", kimi: "https://www.kimi.ai", grok: "https://grok.com",
+    gemini: "https://gemini.google.com", claude: "https://claude.ai", deepseek: "https://chat.deepseek.com" })[fixtureAiFamily];
   const fixtureConversationId =
     fixtureAiFamily === "alice"
       ? "alice-fixture-dialogue"
@@ -261,6 +264,7 @@ export async function makeWorker(directory, options = {}) {
     portalOrigin: httpsFixture ? "https://portal.fixture.invalid" : "http://127.0.0.1:43101",
     extensionVersion: "0.2.4",
     contractVersion: "control_plane_v2",
+    aiReleaseScope: structuredClone(AI_RELEASE_SCOPE_FIXTURE),
     trustBundle: {
       trustBundleVersion: "bootstrap_trust_bundle_v1",
       algorithm: "Ed25519",
@@ -437,7 +441,8 @@ export async function makeWorker(directory, options = {}) {
       ),
     ).toString("hex");
     const cacheBinding = {
-      cacheVersion: "control_cache_binding_v1",
+      cacheVersion: "control_cache_binding_v2",
+      aiReleaseScopeSha256: AI_RELEASE_SCOPE_FIXTURE.sha256,
       controlApiOrigin: fixtureConfig.controlApiOrigin,
       portalOrigin: fixtureConfig.portalOrigin,
       contractVersion: fixtureConfig.contractVersion,

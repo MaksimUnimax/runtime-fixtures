@@ -208,6 +208,10 @@
 
     function claimDelivery(run, payload = {}) {
       if (!run) return run;
+      if(run.attachment_finalization && run.attachment_finalization.delivery_id!==String(payload.deliveryId || "")){
+        if(run.attachment_finalization.state!=="DONE")throw new Error("ATTACHMENT_FINALIZATION_PENDING");
+        run={...run};delete run.attachment_finalization;
+      }
       const attachmentPlan = attachmentDeliveryPlan(run, payload);
       if (attachmentPlan)
         return {
@@ -451,6 +455,7 @@
       afterConfirmedDelivery,
       reportFileRefsFromBatch,
       directInlineFileRefFromReportText,
+      successfulProviderFileRef: (entry, marketplace) => provider.successfulProviderFileRef(entry, marketplace),
     });
   }
   globalThis.SellerAgentsDeliveryModel = Object.freeze({ create });

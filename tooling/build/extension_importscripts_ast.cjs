@@ -57,7 +57,17 @@ function locate(source, mode = "validate") {
   // binder instead of a name-only map that could confuse shadowed variables.
   // The host is entirely in-memory: no library, module, or application I/O.
   let checker;
+  // A source file and its in-memory program never change during locate().
+  // Cache each exact TypeScript lookup, including unresolved nodes, only for
+  // this AST. Symbols retain their original identity and declaration objects.
+  const symbolProof = new Map();
   function symbolAt(node) {
+    if (symbolProof.has(node)) return symbolProof.get(node);
+    const symbol = resolveSymbolAt(node);
+    symbolProof.set(node, symbol);
+    return symbol;
+  }
+  function resolveSymbolAt(node) {
     if (!checker) {
       const isInput = name => name === file.fileName || name === "/" + file.fileName;
       const host = {

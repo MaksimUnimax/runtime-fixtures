@@ -32,27 +32,28 @@
       return /^rpf_[sp]_[A-Za-z0-9_-]+$/.test(ref) ? ref : null;
     }
 
+    function successfulProviderFileRef(entry, marketplace) {
+      if (!entry || entry.status !== "complete") return null;
+      const status = Number(entry.http_status || 0);
+      if (!(status >= 200 && status < 300)) return null;
+      if (marketplace === "wildberries")
+        return /^sa_file_[a-f0-9]{64}$/.test(entry.provider_file_ref || "")
+          ? entry.provider_file_ref : null;
+      const operation = String(entry?.command?.operation || entry?.operation || "");
+      const ref = operation === "report_file_get"
+        ? String(entry?.command?.params?.file_ref || "").trim()
+        : directInlineFileRefFromReportText(entry);
+      return /^rpf_[sp]_[A-Za-z0-9_-]+$/.test(ref || "") ? ref : null;
+    }
+
     function reportFileRefsFromBatch(run) {
       const refs = [];
       const seen = new Set();
       for (const entry of Array.isArray(run?.batch?.entries)
         ? run.batch.entries
         : []) {
-        if (!entry || entry.status !== "complete") continue;
-        const httpStatus = Number(entry.http_status || 0);
-        if (!(httpStatus >= 200 && httpStatus < 300)) continue;
-        const operation = String(
-          entry?.command?.operation || entry?.operation || "",
-        );
-        let ref = "";
-        if (run?.execution_context?.marketplace === "wildberries" && /^sa_file_[A-Za-z0-9-]+$/.test(entry.provider_file_ref || "")) {
-          if (!seen.has(entry.provider_file_ref)) { seen.add(entry.provider_file_ref); refs.push(entry.provider_file_ref); }
-          continue;
-        }
-        if (operation === "report_file_get")
-          ref = String(entry?.command?.params?.file_ref || "").trim();
-        else ref = directInlineFileRefFromReportText(entry) || "";
-        if (!/^rpf_[sp]_[A-Za-z0-9_-]+$/.test(ref) || seen.has(ref)) continue;
+        const ref = successfulProviderFileRef(entry, run?.execution_context?.marketplace);
+        if (!ref || seen.has(ref)) continue;
         seen.add(ref);
         refs.push(ref);
       }
@@ -149,6 +150,7 @@
     }
     return Object.freeze({
       directInlineFileRefFromReportText,
+      successfulProviderFileRef,
       reportFileRefsFromBatch,
       attachmentDeliveryPlan,
     });

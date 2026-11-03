@@ -4,7 +4,7 @@ import path from "node:path";
 import { makeWorker, signFixtureBootstrap, until } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
-const detectedAi = { family: "chatgpt", surface: "web", variant: null };
+const detectedAi = { family: "alice", surface: "web", variant: null };
 const receiptKey = "seller_agents_metadata_clear_receipt_v1";
 const pendingKey = "seller_agents_pending_metadata_clear_v1";
 const deviceId = "22222222-2222-4222-8222-222222222222";

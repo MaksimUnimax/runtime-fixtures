@@ -20,8 +20,9 @@ async function saBrowserPage(tabId) {
 async function saUnavailablePage(tabId, error) {
   let page = null;
   try { page = await saBrowserPage(tabId); } catch (_) {}
-  return { supported: Boolean(page), aiFamily: page?.aiFamily || null,
-    runtimeStatus: "unavailable", errorCode: saSupportCode(error?.code) || "IDENTITY_UNAVAILABLE",
+  const releaseSupported = Boolean(page && globalThis.SellerAgentsAiReleaseScope?.supportsFamily?.(page.aiFamily));
+  return { supported: releaseSupported, releaseSupported, aiFamily: page?.aiFamily || null,
+    runtimeStatus: "unavailable", errorCode: page && !releaseSupported ? "AI_NOT_IN_CURRENT_RELEASE" : saSupportCode(error?.code) || "IDENTITY_UNAVAILABLE",
     transportClass: safeTabMessageTransportClass(error?.transport_class) };
 }
 async function saPreparePageReceiver(tabId) {
@@ -29,6 +30,8 @@ async function saPreparePageReceiver(tabId) {
   if (saPageEntryFlights.has(tab)) return saPageEntryFlights.get(tab);
   const flight = (async () => {
     const before = await saBrowserPage(tab);
+    if (!globalThis.SellerAgentsAiReleaseScope?.supportsFamily?.(before.aiFamily))
+      throw saError("WORK_UNSUPPORTED_AI");
     // Another Start or document_idle may have installed the receiver meanwhile.
     const observed = await tabMessage(tab, { type: "OZ_GET_IDENTITY" });
     if (observed?.ok && observed.identity) return;
@@ -1203,6 +1206,9 @@ async function saSignedProfileRequest(message, sender) {
   if (identity?.ai_id !== message.ai.family || String(identity.origin || "").toLowerCase() !== trusted.origin)
     return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH");
 
+  if (consumer.releaseAvailable?.(message.ai) !== true)
+    return saSignedProfileUnavailable(message, "WORK_NOT_ALLOWED");
+
   const captured = await saSignedProfileSnapshot(identity).catch(() => null);
   if (!captured) return saSignedProfileUnavailable(message, "NO_VERIFIED_AUTHORITY");
   if (!await SellerAgentsControlClient.canWork(identity)) return saSignedProfileUnavailable(message, "WORK_NOT_ALLOWED");
@@ -1588,7 +1594,8 @@ async function saPopupState(tabId) {
   try {
     live = await tabIdentity(normalizeTabId(tabId));
     usableIdentity = true;
-    page = { supported: true, aiFamily: live.ai_id, runtimeStatus: "ready", errorCode: null, transportClass: null };
+    const releaseSupported = globalThis.SellerAgentsAiReleaseScope?.supportsFamily?.(live.ai_id) === true;
+    page = { supported: releaseSupported, releaseSupported, aiFamily: live.ai_id, runtimeStatus: "ready", errorCode: releaseSupported ? null : "AI_NOT_IN_CURRENT_RELEASE", transportClass: null };
   } catch (error) { page = await saUnavailablePage(tabId, error); }
   const key = usableIdentity && live.conversation_id ? conversationKeyFromIdentity(live) : null;
   const pending = usableIdentity ? (await getPendingWorkStarts())[String(tabId)] || null : null;
@@ -2454,7 +2461,7 @@ async function saR3RetryConfirm(message) {
 }
 
 function saR3CopyCandidate(owner) {
-  return Boolean(owner?.r3_execution_id && owner.outgoing_text && owner.payload_expires_at_ms > Date.now() &&
+  return Boolean(owner?.attachment_finalization?.state !== "PENDING" && owner?.r3_execution_id && owner.outgoing_text && owner.payload_expires_at_ms > Date.now() &&
     ["batch_watch_v1", "attachment_watch_v1"].includes(owner.delivery?.mode) &&
     (owner.status === MANUAL_OPERATION_STATUSES.COMPLETED || owner.delivery?.sa_send_actor || owner.delivery?.attachment_send_actor_id ||
       owner.delivery?.phase === BridgeAutorunModel.ATTACHMENT_PHASES.ATTACH_COMMITTED ||
@@ -2548,8 +2555,24 @@ async function saR3ReadBuffer(executionId, context) {
 }
 async function saR3RecordCopyConfirmation(key, deliveryId) {
   const owner = await getManualOperation(key);
-  if (owner?.r3_copy_delivery_id !== deliveryId || owner.status !== MANUAL_OPERATION_STATUSES.COMPLETED ||
-      !owner.delivery_confirmed || owner.last_confirmed_delivery_id !== deliveryId) return;
-  await saR3Ledger().recordCopyOutcome({ conversationKey: key, context: owner.execution_context, deliveryId, outcome: "CONFIRMED" });
-  saR3CopyPermits.delete(deliveryId);
+  if(owner?.r3_copy_delivery_id!==deliveryId)return;
+  const f=owner.attachment_finalization;
+  const confirmed=owner.status===MANUAL_OPERATION_STATUSES.COMPLETED && owner.delivery_confirmed===true && owner.last_confirmed_delivery_id===deliveryId;
+  const pending=f?.schema==="attachment_finalization_v1" && f.state==="PENDING" && f.all_parts_confirmed===true &&
+    f.owner_id===owner.operation_id && f.delivery_id===deliveryId && f.conversation_key===key;
+  if(!confirmed && !pending)return;
+  const sameConfirmed=current=>{
+    const row=current?.r3_commands?.deliveries?.[deliveryId];
+    return row?.state==="CONFIRMED" && row.deliveryId===deliveryId &&
+      SellerAgentsBootstrapVerifier.canonicalJson(row.context)===SellerAgentsBootstrapVerifier.canonicalJson(owner.execution_context);
+  };
+  if(!sameConfirmed(owner)){
+    try{await saR3Ledger().recordCopyOutcome({conversationKey:key,context:owner.execution_context,deliveryId,outcome:"CONFIRMED"});}
+    catch(error){
+      // An ACK write may have committed before its response failed. Only the
+      // exact same stored CONFIRMED outcome resolves that uncertainty.
+      if(!sameConfirmed(await getManualOperation(key)))throw error;
+    }
+  }
+  if(confirmed)saR3CopyPermits.delete(deliveryId);
 }

@@ -4,7 +4,7 @@ import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const AUTH = "seller_agents_control_auth_v2";
-const CHATGPT = { family: "chatgpt", surface: "web", variant: null };
+const RELEASE_AI = { family: "alice", surface: "web", variant: null };
 const clone = value => JSON.parse(JSON.stringify(value));
 const EXPECTED = [
   "marketplace.ozon.adapter",
@@ -106,7 +106,7 @@ const EXPECTED = [
     payload.entitlements = { "ai.chatgpt.web.adapter": true };
     return Response.json(await signFixtureBootstrap(backing, payload));
   } });
-  await seed.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+  await seed.call("SellerAgentsControlClient.bootstrap", { detectedAi: RELEASE_AI });
   seed.close();
 
   const worker = await makeWorker(runtime, {
@@ -115,7 +115,7 @@ const EXPECTED = [
     fetch: async () => { throw new TypeError("fixture transport unavailable"); },
   });
   try {
-    const metadata = clone(await worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: CHATGPT }));
+    const metadata = clone(await worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: RELEASE_AI }));
     assert.equal(metadata.signedFeatures["marketplace.ozon.adapter"], true);
     assert.equal(metadata.signedEntitlements["ai.chatgpt.web.adapter"], true);
     assert.equal(metadata.executionAuthority, false);

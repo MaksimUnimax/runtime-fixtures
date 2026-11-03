@@ -2,6 +2,8 @@
 from pathlib import Path
 import importlib.util
 import json
+import hashlib
+import os
 import subprocess
 import struct
 import zlib
@@ -24,12 +26,19 @@ firefox = load("store_firefox", "tooling/build/extension_firefox.py")
 def verify_firefox_contract(runtime: Path) -> None:
     # Run the existing Firefox-specific manifest test against an actual
     # Firefox package derivative, not the common Chromium manifest.
-    subprocess.run(
-        ["node", str(ROOT / "tests/regression/extension-core/firefox-package-contract.mjs"), str(runtime)],
-        cwd=ROOT,
-        check=True,
-        timeout=45,
-    )
+    # The corpus starts many real builder CLIs. Reuse Node's compilation of
+    # the pinned parser code within this one private, finite invocation. Each
+    # builder still parses its own input; all cases and the 45-second bound run.
+    with tempfile.TemporaryDirectory(prefix="octoport-firefox-compile-") as cache:
+        child_environment = os.environ.copy()
+        child_environment["NODE_COMPILE_CACHE"] = cache
+        subprocess.run(
+            ["node", str(ROOT / "tests/regression/extension-core/firefox-package-contract.mjs"), str(runtime)],
+            cwd=ROOT,
+            env=child_environment,
+            check=True,
+            timeout=45,
+        )
 
 
 PUBLIC_KEY = "MCowBQYDK2VwAyEAFG3DxyJOAU0cI1T50i6+tDUonQ74Qzw1Ra6USuEWYRg="
@@ -38,7 +47,11 @@ FINGERPRINT = "69e2ddf7c78d4221d06b65be0212063b923e4e827c2e271385fef0d04cce85dc"
 
 def authority(control="https://api.octoport.ru", portal="https://app.octoport.ru"):
     return {
-        "schemaVersion": "octoport_release_authority_v1",
+        "schemaVersion": "octoport_release_authority_v2",
+        "aiReleaseScope": {
+            "descriptor": json.loads((ROOT / "packages/contracts/src/ai-release-scope.v1.json").read_bytes()),
+            "sha256": "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261",
+        },
         "source": {"head": "0" * 40, "tree": "1" * 40},
         "productVersion": "0.2.42",
         "contractVersion": "control_plane_v2",

@@ -41,7 +41,7 @@ describe("Seller Agents free-beta capability permission policy", () => {
     ).toEqual(EXPECTED);
   });
 
-  it("grants every reviewed launch capability for an admitted free beta without execution authority", () => {
+  it("retains all ten keys but grants only marketplaces and Alice in this release", () => {
     expect(SELLER_AGENTS_FREE_BETA_CAPABILITY_POLICY).toMatchObject({
       schemaVersion: SELLER_AGENTS_BETA_CAPABILITY_POLICY_VERSION,
       accessBasis: "BETA",
@@ -49,12 +49,21 @@ describe("Seller Agents free-beta capability permission policy", () => {
       executionAuthority: false,
     });
     for (const row of SELLER_AGENTS_FREE_BETA_CAPABILITY_POLICY.permissions) {
-      expect(row.allowed).toBe(true);
+      expect(row.allowed).toBe(
+        ["source.ozon", "source.wildberries", "ai.alice"].includes(
+          row.entitlementKey,
+        ),
+      );
       expect(row.executionAuthority).toBe(false);
     }
-    expect(
-      Object.values(getSellerAgentsFreeBetaCapabilityPermissions()),
-    ).toEqual(EXPECTED.map(() => true));
+    expect(getSellerAgentsFreeBetaCapabilityPermissions()).toEqual(
+      Object.fromEntries(
+        EXPECTED.map((key) => [
+          key,
+          ["source.ozon", "source.wildberries", "ai.alice"].includes(key),
+        ]),
+      ),
+    );
   });
 
   it("is anchored only to BOOLEAN/CAPABILITY D1 definitions", () => {

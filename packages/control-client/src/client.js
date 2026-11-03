@@ -192,8 +192,9 @@
     const legacyGraceRequired = snapshot?.contractVersion !== "control_plane_v3" || snapshot?.accessBasis === "BETA";
     return Boolean(authorityStaticValid(snapshot) && validMillis(effectiveTimeMs) && expiresAt !== null && deadline !== null && (!legacyGraceRequired || deadline > expiresAt) && effectiveTimeMs < deadline);
   }
-  function staticCanWork(snapshot) { return Boolean(authorityStaticValid(snapshot) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(snapshot.ai.detected?.family)); }
-  function canWork(snapshot, effectiveTimeMs) { return Boolean(authorityBaseValid(snapshot, effectiveTimeMs) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(snapshot.ai.detected?.family)); }
+  function releaseSupportsAi(ai) { return globalThis.SellerAgentsAiReleaseScope?.supportsAi?.(ai) === true; }
+  function staticCanWork(snapshot) { return Boolean(authorityStaticValid(snapshot) && snapshot.ai?.status === "RESOLVED" && releaseSupportsAi(snapshot.ai.detected)); }
+  function canWork(snapshot, effectiveTimeMs) { return Boolean(authorityBaseValid(snapshot, effectiveTimeMs) && snapshot.ai?.status === "RESOLVED" && releaseSupportsAi(snapshot.ai.detected)); }
   function currentBrowserIdentity() { const detected = browserIdentity?.current?.(); if (!detected?.family || !detected?.version || !browserIdentity.families.includes(detected.family)) throw error("UNSUPPORTED_BROWSER"); return detected; }
   function browserFamily() { return currentBrowserIdentity().family; }
   function browserVersion() { return currentBrowserIdentity().version; }
@@ -202,7 +203,7 @@
   function authorityDecisionIdentity(authority = state.authority, generation = state.generation) { return authority ? verifier.canonicalJson({ generation, deviceId: authority.deviceId, sessionId: authority.sessionId, requestedAi: authority.requestedAi ?? null, accountId: authority.payload?.account?.id || null, envelope: authority.envelope, cacheBinding: authority.cacheBinding }) : null; }
   function sameAuthorityRuntimeIdentity(left, right) { return Boolean(left && right && verifier.canonicalJson(left) === verifier.canonicalJson(right)); }
   function validCacheBinding(value) {
-    if (!exactKeys(value, ["cacheVersion", "controlApiOrigin", "portalOrigin", "contractVersion", "extensionVersion", "browser", "detectedAi", "trustBundleSha256"]) || value.cacheVersion !== "control_cache_binding_v1" || !origin(value.controlApiOrigin) || !origin(value.portalOrigin) || typeof value.contractVersion !== "string" || typeof value.extensionVersion !== "string" || !exactKeys(value.browser, ["family", "version"]) || !browserIdentity?.families?.includes(value.browser.family) || !parseBrowser(value.browser.version) || !(value.detectedAi === null || exactKeys(value.detectedAi, ["family", "surface", "variant"]) && LOCAL_AI[value.detectedAi.family] && value.detectedAi.surface === LOCAL_AI[value.detectedAi.family].surface && value.detectedAi.variant === null) || !/^[0-9a-f]{64}$/.test(value.trustBundleSha256)) return false;
+    if (!exactKeys(value, ["cacheVersion", "controlApiOrigin", "portalOrigin", "contractVersion", "extensionVersion", "browser", "detectedAi", "trustBundleSha256", "aiReleaseScopeSha256"]) || value.cacheVersion !== "control_cache_binding_v2" || value.aiReleaseScopeSha256 !== globalThis.SellerAgentsAiReleaseScope?.snapshot?.()?.sha256 || !origin(value.controlApiOrigin) || !origin(value.portalOrigin) || typeof value.contractVersion !== "string" || typeof value.extensionVersion !== "string" || !exactKeys(value.browser, ["family", "version"]) || !browserIdentity?.families?.includes(value.browser.family) || !parseBrowser(value.browser.version) || !(value.detectedAi === null || exactKeys(value.detectedAi, ["family", "surface", "variant"]) && LOCAL_AI[value.detectedAi.family] && value.detectedAi.surface === LOCAL_AI[value.detectedAi.family].surface && value.detectedAi.variant === null) || !/^[0-9a-f]{64}$/.test(value.trustBundleSha256)) return false;
     return true;
   }
   function validCacheClockShape(value, payload = null) {
@@ -213,7 +214,7 @@
   function validCacheClock(value, credentials, payload = null) { if (!validCacheClockShape(value, payload) || !credentials) return false; const owner = value.owner; return owner.controlApiOrigin === config.controlApiOrigin && owner.portalOrigin === config.portalOrigin && owner.deviceId === credentials.deviceId && owner.sessionId === credentials.sessionId; }
   function expectedCacheContract(payload = null) { return payload?.contractVersion === "control_plane_v3" ? "control_plane_v3" : config.contractVersion; }
   async function trustBundleDigest() { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier.canonicalJson(config.trustBundle))))].map(value => value.toString(16).padStart(2, "0")).join(""); }
-  async function expectedCacheBinding(payload, requestedAi = null) { const detectedAi = payload?.ai?.status === "RESOLVED" ? { family: payload.ai.detected.family, surface: payload.ai.detected.surface, variant: payload.ai.detected.variant } : null; return { cacheVersion: "control_cache_binding_v1", controlApiOrigin: config.controlApiOrigin, portalOrigin: config.portalOrigin, contractVersion: expectedCacheContract(payload), extensionVersion: config.extensionVersion, browser: { family: browserFamily(), version: browserVersion() }, detectedAi, trustBundleSha256: await trustBundleDigest() }; }
+  async function expectedCacheBinding(payload, requestedAi = null) { const detectedAi = payload?.ai?.status === "RESOLVED" ? { family: payload.ai.detected.family, surface: payload.ai.detected.surface, variant: payload.ai.detected.variant } : null; return { cacheVersion: "control_cache_binding_v2", aiReleaseScopeSha256: globalThis.SellerAgentsAiReleaseScope?.snapshot?.()?.sha256 || null, controlApiOrigin: config.controlApiOrigin, portalOrigin: config.portalOrigin, contractVersion: expectedCacheContract(payload), extensionVersion: config.extensionVersion, browser: { family: browserFamily(), version: browserVersion() }, detectedAi, trustBundleSha256: await trustBundleDigest() }; }
   async function verifyCachedEnvelope(envelope) {
     if (envelope?.envelopeVersion === "bootstrap_envelope_v3" && typeof verifier.verifyV3 === "function") return verifier.verifyV3(envelope, config.trustBundle);
     if (envelope?.envelopeVersion === "bootstrap_envelope_v2") return verifier.verifyV2(envelope, config.trustBundle);
@@ -1083,6 +1084,7 @@
     const checksBeforeProfile = checks?.length || 0;
     if (!validProfileShape(payload.ai.profile, enforceEnvironment, profileContractVersion, checks)) { if (checks && checks.length === checksBeforeProfile) bootstrapCheck(checks, "PROFILE_SHAPE", false); return null; }
     const expected = requestedAi ? LOCAL_AI[requestedAi] : LOCAL_AI[payload.ai.detected?.family], detected = payload.ai.detected;
+    if (!releaseSupportsAi(detected)) return null;
     if (!bootstrapCheck(checks, "AI_PROFILE_SCOPE", expected && detected.family === (requestedAi || detected.family) && detected.surface === expected.surface && detected.variant === null && payload.ai.profile.scopeVariant === null)) return null;
     if (!bootstrapCheck(checks, "PROFILE_FINGERPRINT", (await profileFingerprint(payload.ai.profile)) === payload.ai.profile.contentSha256)) return null;
     return { workAllowed: true, requestedAi: requestedAi || payload.ai.detected.family };
@@ -1316,6 +1318,7 @@
     if (!parallelAuthority?.createBootstrapScheduler) throw error("BOOTSTRAP_SCHEDULER_UNAVAILABLE");
     const family = captured.detectedAi?.family || null;
     if (family !== null && !LOCAL_AI[family]) throw bootstrapProfileFailure("REQUEST_FAMILY", [{ check: "REQUESTED_AI_KNOWN", passed: false }]);
+    if (family !== null && !releaseSupportsAi(captured.detectedAi)) throw error("WORK_UNSUPPORTED_AI");
     // Capture the acquisition fence only after legacy cache materialization.
     // Offline fallback must not invalidate its own ticket by creating the first grant.
     await materializeLegacyScopedGrant(family);
@@ -1759,7 +1762,7 @@
     await init(); if (authStorageUnconfirmed) throw error("AUTH_STATE_COMMIT_UNCONFIRMED");
     if (bootstrapWorkBlocked()) throw error("WORK_NOT_ALLOWED");
     if (!state.credentials) throw error("AUTH_REQUIRED");
-    const requested = requestedFamily(identity); if (!requested) throw error("WORK_UNSUPPORTED_AI");
+    const requested = requestedFamily(identity); if (!requested || !releaseSupportsAi({ family: requested, surface: LOCAL_AI[requested]?.surface, variant: null })) throw error("WORK_UNSUPPORTED_AI");
     const decision = await scopedCacheCheckpoint(requested), current = grantFor(requested)?.authority;
     if (bootstrapWorkBlocked()) throw error("WORK_NOT_ALLOWED");
     if (isCurrentScopedDecision(decision) && decision.identity === authorityDecisionIdentity(current) && current?.generation === state.generation)
@@ -1843,9 +1846,11 @@
     if (state.credentials && state.authority) {
       const savedAuthority = state.authority, binding = savedAuthority.cacheBinding, clock = state.cacheClock;
       let authorityFailure = null;
-      if (!validCacheBinding(binding)) authorityFailure = error("STORED_CACHE_BINDING_INVALID");
-      else if (savedAuthority.deviceId !== state.credentials.deviceId || savedAuthority.sessionId !== state.credentials.sessionId) await invalidateKnown(contextForState(), error("AUTHORITY_CREDENTIAL_MISMATCH"), true);
+      // A package/cache migration cannot downgrade an existing principal or
+      // generation mismatch into a recoverable profile refresh.
+      if (savedAuthority.deviceId !== state.credentials.deviceId || savedAuthority.sessionId !== state.credentials.sessionId) await invalidateKnown(contextForState(), error("AUTHORITY_CREDENTIAL_MISMATCH"), true);
       else if (savedAuthority.generation !== state.generation) await invalidateKnown(contextForState(), error("STORED_AUTHORITY_GENERATION_MISMATCH"), true);
+      else if (!validCacheBinding(binding)) authorityFailure = error("STORED_CACHE_BINDING_INVALID");
       else if (binding.controlApiOrigin !== config.controlApiOrigin || binding.portalOrigin !== config.portalOrigin) authorityFailure = error("STORED_CACHE_CONTEXT_MISMATCH");
       else {
         try {

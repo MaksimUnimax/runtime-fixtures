@@ -27,16 +27,16 @@ function inputFor(authority, clock, effectiveTimeMs, source = "CACHE") {
     credentialRevision: "v3-cache-credential-r1",
   };
   const identity = {
-    origin: "https://chatgpt.com",
+    origin: "https://alice.yandex.ru",
     conversationId: "v3-cache-dialogue",
-    key: "https://chatgpt.com|v3-cache-dialogue",
-    provider: "chatgpt",
+    key: "https://alice.yandex.ru|v3-cache-dialogue",
+    provider: "alice",
   };
   const binding = {
     binding_id: "v3-cache-binding",
     revision: 1,
     origin: identity.origin,
-    ai_id: "chatgpt",
+    ai_id: "alice",
     conversation_id: identity.conversationId,
     conversation_key: identity.key,
     store_context: { ...store, authGeneration: authority.generation },
@@ -64,7 +64,7 @@ function inputFor(authority, clock, effectiveTimeMs, source = "CACHE") {
       expectedDeviceId: authority.deviceId,
       sessionId: authority.sessionId,
       expectedSessionId: authority.sessionId,
-      aiFamily: "chatgpt",
+      aiFamily: "alice",
       aiSurface: "web",
       aiVariant: null,
       aiProfile: {

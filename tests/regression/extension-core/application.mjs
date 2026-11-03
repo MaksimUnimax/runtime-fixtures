@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { makeWorker, until, signFixtureBootstrap } from './worker-harness.mjs';
+import { makeWorker as makeWorkerHarness, until, signFixtureBootstrap } from './worker-harness.mjs';
+const applicationFixtureEnvironment = process.env.APPLICATION_FIXTURE_ENVIRONMENT || null;
+if(applicationFixtureEnvironment && !['LOCAL DEVELOPMENT','PREPRODUCTION'].includes(applicationFixtureEnvironment))
+ throw new Error('Unsupported application fixture environment');
+const makeWorker = (runtime, options = {}) => makeWorkerHarness(runtime, {
+ ...(applicationFixtureEnvironment ? {fixtureEnvironment:applicationFixtureEnvironment} : {}), ...options,
+});
 const runtime = path.resolve(process.argv[2]);
 const results = [];
 const selectedScenario = process.argv[3] || null;
@@ -22,7 +28,10 @@ function fakeIDB() {
         const r = {};
         queueMicrotask(() => { if (kind === 'get' || kind === 'all') stats.reads++;
           if (kind === 'put') { stats.writes++; records.set(value.artifact_key, value); }
-          if (kind === 'delete') { stats.writes++; records.delete(value); }
+          if (kind === 'delete') {
+            if(stats.beforeDelete){try{stats.beforeDelete(value);}catch(error){r.error=error;tx.error=error;r.onerror?.();tx.onabort?.();return;}}
+            stats.writes++; records.delete(value);
+          }
           if (kind === 'clear') { stats.writes++; records.clear(); }
           r.result = kind === 'get' ? records.get(value) : kind === 'all' ? [...records.values()] : value?.artifact_key;
           r.onsuccess?.(); queueMicrotask(() => tx.oncomplete?.()); }); return r;
@@ -69,8 +78,8 @@ await test('APP-00-popup-state-is-available-without-AI-tab', async () => {
   const supported = await makeWorker(runtime);
   try {
     const state = await popupState(supported, supported.tabId);
-    assert.equal(state.ok, true, JSON.stringify(state)); assert.equal(state.identity.ai_id, 'chatgpt'); assert.equal(state.identity.conversation_id, supported.identity.conversation_id);
-    assert.match(state.conversation_key, /chatgpt\.com\|core-fixture-dialogue/);
+    assert.equal(state.ok, true, JSON.stringify(state)); assert.equal(state.identity.ai_id, 'alice'); assert.equal(state.identity.conversation_id, supported.identity.conversation_id);
+    assert.match(state.conversation_key, /alice\.yandex\.ru\|alice-fixture-dialogue/);
   } finally { supported.close(); }
 
   const noConversation = await makeWorker(runtime);
@@ -80,7 +89,7 @@ await test('APP-00-popup-state-is-available-without-AI-tab', async () => {
     const started = await noConversation.request({ type: 'SA_WORK_START', tab_id: noConversation.tabId, store_id: saved.store.id, confirm_change: true }, { url: 'chrome-extension://core-fixture/popup.html' });
     assert.equal(started.ok, true, JSON.stringify(started));
     const state = await popupState(noConversation, noConversation.tabId);
-    assert.equal(state.identity.ai_id, 'chatgpt'); assert.equal(state.identity.conversation_id, null); assert.equal(state.conversation_key, null); assert.ok(state.pending);
+    assert.equal(state.identity.ai_id, 'alice'); assert.equal(state.identity.conversation_id, null); assert.equal(state.conversation_key, null); assert.ok(state.pending);
   } finally { noConversation.close(); }
 });
 async function setup(options = {}) {
@@ -117,7 +126,7 @@ async function setup(options = {}) {
     assert.equal(send.click_allowed, true, JSON.stringify(send));
     const twice = await worker.request({ type: 'OZ_WORK_SEND_COMMIT', ...fields }, started.sender);
     assert.equal(twice.click_allowed, false);
-    const done = await worker.request({ type: 'OZ_BATCH_DELIVERY_COMPLETE', ...fields, delivery_confirmed: true, confirmation_basis: 'microphone' }, started.sender);
+    const done = await worker.request({ type: 'OZ_BATCH_DELIVERY_COMPLETE', ...fields, delivery_confirmed: true, confirmation_basis: 'alice_ready' }, started.sender);
     assert.equal(done.ok, true, JSON.stringify(done));
     assert.equal((await worker.call("getManualOperation", started.key)).status, "completed");
     return fields;
@@ -275,6 +284,466 @@ await test('APP-07-binary-original-file-common-attachment-port-and-expiry', asyn
     assert.equal(s.worker.network.length,1);
   } finally { s.worker.close(); }
 });
+// One real logical WB batch, two original files, Alice's unchanged one-file
+// capability. Provider/DOM are fixtures; reservation, capture, storage and port
+// handlers are the composed product code.
+async function binaryBundleFixture(companion = false, options = {}) {
+  const bytes = new Uint8Array([37,80,68,70,45,49,10,0,255]);
+  let providerCalls=0;
+  const s = await setup({ ...options, fetch: async () => companion && ++providerCalls===2
+    ? new Response('{"result":{"kept":"complete JSON companion result"}}',{headers:{'content-type':'application/json'}})
+    : new Response(bytes, { headers: {'content-type':'application/pdf', 'content-disposition':'attachment; filename="bundle-original.pdf"' } }) });
+  s.worker.setDialogue('11111111-1111-4111-8111-111111111111');
+  const start = await s.start(await s.save(wb(fixtureToken)));
+  const contract = await s.worker.call('(() => SellerAgentsWBReference.contract)');
+  const meta = Object.values(contract.OPERATIONS).find(m=>m.response_mode==='binary'&&m.execution_enabled&&m.privacy==='standard');
+  const params={path:Object.fromEntries([...meta.path.matchAll(/\{([^}]+)\}/g)].map(m=>[m[1],'fixture'])),
+    query:Object.fromEntries(meta.required_query_keys.map(k=>[k,'1'])),...(meta.body_required?{body:{}}:{})};
+  const command='WB_API_V1 '+JSON.stringify({operation:meta.alias,params});
+  await s.execute(start,command+'\n'+(companion?api:command));
+  const owner=await s.collected(start);
+  if(companion)assert.ok(owner.delivery.generated_text_document,'mixed result keeps its complete text companion');
+  else assert.equal(owner.delivery.generated_text_document,null,'two pure originals need no fabricated text companion');
+  assert.equal(owner.delivery.provider_file_refs.length,companion?1:2);
+  const fields={owner_kind:'manual',owner_id:owner.operation_id,conversation_key:start.key,
+    delivery_id:owner.delivery_id,actor_id:'bundle-content'};
+  const fieldsFor = recovery => ({...fields,...Object.fromEntries(['bundle_schema','bundle_manifest_sha256',
+    'bundle_part_id','bundle_part_ordinal'].filter(k=>recovery?.[k]!==undefined).map(k=>[k,recovery[k]]))});
+  return {...s,startAgain:s.start,start,owner,fields,fieldsFor,bytes,expectedFileBytes:companion?[Buffer.from(owner.delivery.artifact_text,'utf8'),Buffer.from(bytes)]:[Buffer.from(bytes),Buffer.from(bytes)]};
+}
+await test('APP-07b-Alice-complete-two-part-original-bundle-no-early-completion-or-replay',async()=>{
+ const s=await binaryBundleFixture();try{
+  const profile=await s.worker.call('OzonAIDeliveryCapabilities.profile','alice');assert.equal(profile.max_files_per_turn,1);
+  const keys=await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
+  s.worker.backing.local[keys.REPORT_PREFIXES]={[s.start.key]:{enabled:false,text:'',interval:1,delivered_count:0}};
+  const first=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...s.fields});
+  assert.equal(first.attach_allowed,true,JSON.stringify(first));
+  let recovery=first.recovery;assert.equal(recovery.bundle_part_count,2);
+  const originalBatch=plain(s.owner.batch), firstFields=s.fieldsFor(recovery), initialRecords=s.idb.records.size;
+  const manifest=(await s.worker.call('getManualOperation',s.start.key)).delivery.attachment_bundle;
+  assert.equal(manifest.inventory.length,2);assert.equal(manifest.confirmations.length,0);
+  assert.equal(recovery.artifact_descriptors.length,1);
+  const marker=JSON.parse(recovery.outgoing_text.split('\n').slice(1).join('\n'));
+  assert.equal(marker.complete,false);assert.equal(marker.bundle_complete,false);assert.equal(marker.bundle_part_count,2);
+  for(let part=1;part<=2;part++){
+   const fields=s.fieldsFor(recovery), descriptors=recovery.artifact_descriptors;
+   assert.equal(recovery.bundle_part_ordinal,part);assert.equal(descriptors.length,1);
+   for(const bad of [{bundle_part_id:'forged-part'},{bundle_manifest_sha256:'0'.repeat(64)},
+     {bundle_part_ordinal:part+1},{bundle_schema:'attachment_bundle_parts_v2'}]){
+    const denied=await s.worker.portRequest({type:'OZ_ATTACHMENT_ARTIFACT_META',...fields,...bad});
+    assert.equal(denied.ok,false);assert.equal(denied.descriptors,undefined);
+   }
+   const nonCurrent=manifest.inventory.find(d=>d.artifact_key!==descriptors[0].artifact_key);
+   assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_ARTIFACT_CHUNK',...fields,artifact_key:nonCurrent.artifact_key})).ok,false);
+   const chunk=await s.worker.portRequest({type:'OZ_ATTACHMENT_ARTIFACT_CHUNK',...fields,artifact_key:descriptors[0].artifact_key});
+   assert.deepEqual(Buffer.from(chunk.chunk_base64,'base64'),Buffer.from(s.bytes));
+   const duplicateAttach=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...fields});
+   assert.equal(duplicateAttach.attach_allowed,false,'committed attachment cannot replay');
+   const wrongNames=await s.worker.portRequest({type:'OZ_ATTACHMENT_READY',...fields,attached_filenames:['forged.pdf']});
+   assert.equal(wrongNames.ok,false);
+   const ready=await s.worker.portRequest({type:'OZ_ATTACHMENT_READY',...fields,attached_filenames:descriptors.map(d=>d.filename)});
+   assert.equal(ready.ok,true,JSON.stringify(ready));
+   const send=await s.worker.portRequest({type:'OZ_ATTACHMENT_SEND_COMMIT',...fields,baseline_user_turn_ids:['existing-user']});
+   assert.equal(send.click_allowed,true,JSON.stringify(send));
+   const duplicateSend=await s.worker.portRequest({type:'OZ_ATTACHMENT_SEND_COMMIT',...fields});assert.equal(duplicateSend.click_allowed,false);
+   assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,confirmed_user_turn_id:'existing-user'})).ok,false);
+   const unknown=await s.worker.portRequest({type:'OZ_ATTACHMENT_FAIL',...fields,code:'ATTACHMENT_SEND_OUTCOME_UNKNOWN_NO_RETRY'});
+   assert.equal(unknown.failed,false,'UNKNOWN retains the same committed part');
+   assert.equal(s.idb.records.size,initialRecords);
+   const confirmed=await s.worker.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,confirmed_user_turn_id:'bundle-user-'+part});
+   assert.equal(confirmed.ok,true,JSON.stringify(confirmed));
+   const owner=await s.worker.call('getManualOperation',s.start.key);
+   if(part===1){
+    assert.equal(confirmed.bundle_complete,false);assert.equal(owner.status,'delivering');assert.notEqual(owner.delivery_confirmed,true);
+    assert.deepEqual(plain(owner.batch),originalBatch);assert.equal(s.idb.records.size,initialRecords);
+    assert.equal(owner.delivery.attachment_bundle.confirmations.length,1);assert.equal(owner.delivery.phase,'attachment_claimed');
+    assert.equal(s.worker.backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,0,'no prefix count after partial Send');
+    for(const type of ['OZ_ATTACHMENT_COMMIT','OZ_ATTACHMENT_READY','OZ_ATTACHMENT_SEND_COMMIT','OZ_ATTACHMENT_CONFIRM','OZ_ATTACHMENT_FAIL'])
+      assert.equal((await s.worker.portRequest({type,...firstFields,confirmed_user_turn_id:'stale-ack'})).ok,false,'stale part denied: '+type);
+    const next=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...s.fieldsFor(confirmed.recovery)});
+    assert.equal(next.attach_allowed,true,JSON.stringify(next));recovery=next.recovery;
+   }else{
+    assert.equal(confirmed.bundle_complete,true);assert.equal(owner.status,'completed');assert.equal(owner.delivery_confirmed,true);
+    assert.equal(owner.attachment_bundle_receipt.confirmations.length,2);assert.equal(owner.attachment_bundle_receipt.complete,true);
+    assert.equal(s.worker.backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,1,'whole bundle counts once');
+    assert.equal(owner.attachment_bundle_receipt.inventory,undefined,'terminal receipt retains no file inventory beyond payload cleanup');
+   }
+  }
+  assert.equal(s.worker.network.length,2,'all delivery/recovery actions reuse captured original bytes');
+ }finally{s.worker.close();}
+});
+await test('APP-07c-Alice-all-files-preflight-before-first-commit-and-expiry-during-partial',async()=>{
+ for(const damage of ['bytes','extension','expiry']){
+  const s=await binaryBundleFixture();try{
+   const originals=[...s.idb.records.values()].filter(d=>d.source_kind==='original_provider_file');assert.equal(originals.length,2);
+   const last=originals[1];
+   if(damage==='bytes')new Uint8Array(last.bytes)[0]^=1;
+   if(damage==='extension')last.extension='exe';
+   if(damage==='expiry')last.expires_at_ms=Date.now()-1;
+   const denied=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...s.fields});assert.equal(denied.ok,false,damage);
+   assert.notEqual(denied.attach_allowed,true);assert.equal((await s.worker.call('getManualOperation',s.start.key)).delivery.phase,'attachment_claimed');
+   assert.equal(s.worker.network.length,2,'preflight never re-fetches missing/expired originals');
+  }finally{s.worker.close();}
+ }
+ const s=await binaryBundleFixture();try{
+  const commit=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...s.fields});assert.equal(commit.attach_allowed,true);
+  const fields=s.fieldsFor(commit.recovery);
+  const partial=await s.worker.call('getManualOperation',s.start.key);
+  const later=partial.delivery.attachment_bundle.inventory[1];s.idb.records.get(later.artifact_key).expires_at_ms=Date.now()-1;
+  const denied=await s.worker.portRequest({type:'OZ_ATTACHMENT_READY',...fields,attached_filenames:commit.recovery.artifact_descriptors.map(d=>d.filename)});
+  assert.equal(denied.ok,false);assert.equal((await s.worker.call('getManualOperation',s.start.key)).delivery.phase,'attachment_committed');
+  assert.equal(s.worker.network.length,2);
+ }finally{s.worker.close();}
+});
+async function deliverBundleThroughContent(s, loseFirstConfirmation = false, expectedInventoryError = null, fault = {}) {
+ const users=[],files=[],clicks=[],requests=[],timers=new Set(),timeoutCallbacks=new Map();let text='', staged=[],lost=false,preparations=0,timedOut=false,uiClockOffset=0;
+ class UIClockDate extends Date {static now(){return Date.now()+uiClockOffset;}}
+ const event=()=>{const listeners=[];return{addListener(fn){listeners.push(fn);},fire(value){for(const fn of listeners)fn(value);}};};
+ class Element {constructor(){this.style={};this.isConnected=true;}appendChild(){}remove(){this.isConnected=false;}}
+ const composer=new Element(),root=new Element(),surface={kind:(await s.worker.call('OzonAIDeliveryCapabilities.profile','alice')).attachment_strategy,root};
+ const adapter={id:'alice',composerContext:()=>({composer,root}),readComposerText:()=>text,
+  setComposerText:(_composer,value)=>{text=value;},deliveryCapabilities:()=>context.OzonAIDeliveryCapabilities.profile('alice'),
+  attachmentSurface:()=>surface,prepareAttachmentSurface:async()=>{preparations++;},
+  attachFiles:(_surface,partFiles)=>{assert.equal(partFiles.length,1);staged=partFiles;files.push(...partFiles);},
+  attachmentReady:descriptors=>staged.length===descriptors.length&&descriptors.every((d,i)=>d.filename===staged[i].name),
+  userMessages:()=>users,assistantMessages:()=>[],messageId:node=>node.id,messageText:node=>node.text,
+  sentAttachmentMessage:(node,descriptors)=>descriptors.every(d=>node.filenames.includes(d.filename))?{text:node.text}:null,
+  visible:()=>true};
+ const context=vm.createContext({console,Element,HTMLElement:Element,TextEncoder,TextDecoder,File,Uint8Array,ArrayBuffer,
+  Date:UIClockDate,crypto:globalThis.crypto,structuredClone,location:{...s.worker.identity,href:s.worker.identity.origin+'/c/'+s.worker.identity.conversation_id},
+  document:{querySelector:()=>null,getElementById:()=>null,createElement:()=>new Element(),documentElement:root},
+  SellerAgentsConversationSurface:{read:()=>s.worker.identity,ready:async()=>s.worker.identity},
+  OzonAIAdapters:{adapterForLocation:()=>adapter,visible:()=>true},
+  BB2ComposerSend:{waitForValidatedTarget:async()=>({fixture:true}),clickSynchronously:()=>{
+    assert.equal(staged.length,1);clicks.push(text);users.push({id:'content-bundle-user-'+clicks.length,text,filenames:staged.map(file=>file.name)});text='';staged=[];
+  }},
+  setTimeout:(fn,ms)=>{const fast=timedOut&&fault.expectUnknown&&ms<=500;
+    if(fast)uiClockOffset+=ms;
+    const timer=setTimeout(fn,fast?0:ms);timers.add(timer);if(ms===20000)timeoutCallbacks.set(timer,fn);return timer;},
+  clearTimeout:timer=>{clearTimeout(timer);timers.delete(timer);timeoutCallbacks.delete(timer);},
+  chrome:{runtime:{lastError:null,connect(){const port={onMessage:event(),onDisconnect:event(),disconnected:false,
+    postMessage(message){const receipt=plain(message);requests.push(receipt);s.worker.portRequest(message).then(response=>{
+      receipt.reply={ok:response?.ok,code:response?.code,part:response?.recovery?.bundle_part_ordinal,phase:response?.recovery?.delivery_phase};
+      if(!timedOut&&message.type===fault.timeoutType&&(fault.ordinal===undefined||message.bundle_part_ordinal===fault.ordinal)&&response?.ok){
+        timedOut=true;receipt.timeout_after_durable_reply=true;
+        // Exercise the actual20s request timer callback with a deterministic
+        // clock boundary. The port stays connected and the ACK arrives late.
+        const entry=[...timeoutCallbacks].at(-1);assert.ok(entry,'actual20-second pending timer exists');
+        clearTimeout(entry[0]);entry[1]();
+        queueMicrotask(()=>{if(!port.disconnected)port.onMessage.fire({kind:'response',request_id:message.request_id,response});});return;
+      }
+      if(loseFirstConfirmation&&!lost&&message.type==='OZ_ATTACHMENT_CONFIRM'&&response?.confirmed){lost=true;port.disconnect();return;}
+      if(!port.disconnected)port.onMessage.fire({kind:'response',request_id:message.request_id,response});
+    });},disconnect(){if(!port.disconnected){port.disconnected=true;port.onDisconnect.fire();}}};return port;}}}
+ });
+ for(const relative of ['shared/ai_delivery_capabilities.js','shared/web_file_attachment.js','attachment_delivery_port_content.js'])
+  vm.runInContext(fs.readFileSync(path.join(runtime,relative),'utf8'),context,{filename:relative});
+ try{
+  const result=await context.__OZON_ATTACHMENT_DELIVERY_PORT_RUNTIME__.recoverCurrent({owner_kind:'manual',owner_id:s.owner.operation_id,
+    delivery_id:s.owner.delivery_id,conversation_key:s.start.key});
+  if(fault.expectUnknown){
+    assert.equal(timedOut,true);assert.equal(result.ok,false);assert.equal(result.code,fault.expectUnknown,JSON.stringify({result,requests}));
+    assert.ok(requests.filter(row=>row.type==='OZ_ATTACHMENT_RECOVERY_GET').length>=2,'timeout performs durable readback on the live port');
+    assert.equal(requests.filter(row=>row.type==='OZ_ATTACHMENT_COMMIT').length,1);
+    assert.equal(files.length,fault.timeoutType==='OZ_ATTACHMENT_COMMIT'?0:1);assert.equal(clicks.length,0);
+    assert.equal(s.worker.network.length,2);
+    const pending=await s.worker.call('getManualOperation',s.start.key);assert.equal(pending.status,'delivering');
+    assert.equal(pending.delivery.phase,fault.timeoutType==='OZ_ATTACHMENT_COMMIT'?'attachment_committed':'attachment_send_committed');return;
+  }
+  if(expectedInventoryError){
+    assert.equal(result.ok,false);assert.equal(result.code,expectedInventoryError);
+    assert.equal(preparations,0,'whole inventory validation precedes any UI preparation');
+    assert.equal(files.length,0);assert.equal(clicks.length,0);
+    assert.equal(requests.some(row=>row.type==='OZ_ATTACHMENT_COMMIT'),false);
+    assert.equal(s.worker.network.length,2);return;
+  }
+  assert.equal(result.ok,true,JSON.stringify({result,requests}));
+  let completed;
+  if(fault.allowRecordBarrier){
+   await assert.rejects(()=>s.worker.call('getManualOperation',s.start.key),e=>e.code==='RECORD_STORE_COMMIT_UNCONFIRMED','completed-outcome readback must NOT clear the record-store barrier');
+   const keys=await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');completed=s.worker.backing.local[keys.MANUAL_OPERATIONS][s.start.key];
+  }else completed=await s.worker.call('getManualOperation',s.start.key);
+  assert.equal(completed.status,'completed');assert.equal(completed.attachment_bundle_receipt.complete,true);
+  assert.equal(files.length,2);assert.equal(clicks.length,2);
+  assert.equal(requests.filter(row=>row.type==='OZ_ATTACHMENT_COMMIT').length,2);
+  assert.equal(requests.filter(row=>row.type==='OZ_ATTACHMENT_SEND_COMMIT').length,2);
+  assert.equal(requests.filter(row=>row.type==='OZ_ATTACHMENT_CONFIRM').length,2,'lost ACK is recovered, never repeated');
+  for(const [index,file] of files.entries())assert.deepEqual(Buffer.from(await file.arrayBuffer()),s.expectedFileBytes[index]);
+  const markers=clicks.map(value=>JSON.parse(value.split('\n').slice(1).join('\n')));
+  assert.deepEqual(markers.map(row=>row.bundle_part_ordinal),[1,2]);
+  assert.equal(markers[0].bundle_manifest_sha256,markers[1].bundle_manifest_sha256);
+  assert.notEqual(markers[0].bundle_part_id,markers[1].bundle_part_id);
+  assert.equal(s.worker.network.length,2);
+  if(loseFirstConfirmation)assert.equal(lost,true);
+  if(fault.timeoutType)assert.equal(timedOut,true);
+ }finally{context.__OZON_ATTACHMENT_DELIVERY_PORT_RUNTIME__.dispose();for(const timer of timers)clearTimeout(timer);}
+}
+await test('APP-07d-Alice-real-content-delivers-complete-bundle-one-file-per-turn',async()=>{
+ const s=await binaryBundleFixture();try{await deliverBundleThroughContent(s);}finally{s.worker.close();}
+});
+await test('APP-07e-Alice-real-content-recovers-lost-part-confirmation-without-resend',async()=>{
+ const s=await binaryBundleFixture();try{await deliverBundleThroughContent(s,true);}finally{s.worker.close();}
+});
+await test('APP-07f-Alice-real-content-preserves-mixed-original-and-full-TXT',async()=>{
+ const s=await binaryBundleFixture(true);try{await deliverBundleThroughContent(s);}finally{s.worker.close();}
+});
+await test('APP-07g-Alice-committed-part-survives-worker-restart-without-replay',async()=>{
+ const s=await binaryBundleFixture();let restored;try{
+  const commit=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...s.fields});assert.equal(commit.attach_allowed,true);
+  const fields=s.fieldsFor(commit.recovery);
+  assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_READY',...fields,attached_filenames:commit.recovery.artifact_descriptors.map(d=>d.filename)})).ready,true);
+  assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_SEND_COMMIT',...fields,baseline_user_turn_ids:[]})).click_allowed,true);
+  const backing=s.worker.backing;s.worker.close();
+  restored=await makeWorker(runtime,{backing,seedAuthority:false,indexedDB:s.idb,fetch:async()=>{throw new Error('recovery must stay offline');}});
+  restored.setDialogue('11111111-1111-4111-8111-111111111111');
+  const recovery=await restored.portRequest({type:'OZ_ATTACHMENT_RECOVERY_GET',...s.fields});assert.equal(recovery.ok,true,JSON.stringify(recovery));
+  assert.equal(recovery.recovery.bundle_part_id,commit.recovery.bundle_part_id);assert.equal(recovery.recovery.delivery_phase,'attachment_send_committed');
+  assert.equal((await restored.portRequest({type:'OZ_ATTACHMENT_COMMIT',...fields})).attach_allowed,false);
+  assert.equal((await restored.portRequest({type:'OZ_ATTACHMENT_SEND_COMMIT',...fields})).click_allowed,false);
+  assert.equal((await restored.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,actor_id:'foreign',confirmed_user_turn_id:'recovered-first'})).ok,false);
+  const confirm=await restored.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,confirmed_user_turn_id:'recovered-first'});
+  assert.equal(confirm.ok,true,JSON.stringify(confirm));assert.equal(confirm.bundle_complete,false);assert.equal(confirm.recovery.bundle_part_ordinal,2);
+  assert.equal(restored.network.length,0);assert.equal((await restored.call('getManualOperation',s.start.key)).status,'delivering');
+ }finally{restored?.close();s.worker.close();}
+});
+await test('APP-07h-Alice-Finish-fences-each-part-phase-before-data-access',async()=>{
+ for(const phase of ['attachment_committed','attachment_ready','attachment_send_committed','next_part_claimed']){
+  const s=await binaryBundleFixture();try{
+   const commit=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...s.fields});assert.equal(commit.attach_allowed,true);
+   let fields=s.fieldsFor(commit.recovery);
+   if(phase!=='attachment_committed'){
+    assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_READY',...fields,attached_filenames:commit.recovery.artifact_descriptors.map(d=>d.filename)})).ready,true);
+    if(phase!=='attachment_ready')assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_SEND_COMMIT',...fields})).click_allowed,true);
+    if(phase==='next_part_claimed'){
+     const first=await s.worker.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,confirmed_user_turn_id:'finished-first'});assert.equal(first.ok,true);
+     fields=s.fieldsFor(first.recovery);
+    }
+   }
+   assert.equal((await s.popup('OZ_WORK_FINISH',{conversation_key:s.start.key})).ok,true);
+   const interrupted=await s.worker.call('getManualOperation',s.start.key);
+   assert.equal(interrupted.attachment_bundle_receipt.complete,false,'Finish retains honest incomplete outcome');
+   assert.equal(interrupted.attachment_bundle_receipt.inventory,undefined,'only hash/phase receipt survives');
+   const reads=s.idb.stats.reads;
+   for(const type of ['OZ_ATTACHMENT_RECOVERY_GET','OZ_ATTACHMENT_COMMIT','OZ_ATTACHMENT_ARTIFACT_META','OZ_ATTACHMENT_ARTIFACT_CHUNK','OZ_ATTACHMENT_READY','OZ_ATTACHMENT_SEND_COMMIT','OZ_ATTACHMENT_CONFIRM']){
+    const late=await s.worker.portRequest({type,...fields,artifact_key:commit.recovery.artifact_descriptors[0].artifact_key,confirmed_user_turn_id:'too-late'});
+    assert.notEqual(late.attach_allowed,true);assert.notEqual(late.click_allowed,true);assert.notEqual(late.confirmed,true);assert.equal(late.chunk_base64,undefined);
+   }
+   assert.equal(s.idb.stats.reads,reads);assert.equal(s.worker.network.length,2);
+  }finally{s.worker.close();}
+ }
+});
+await test('APP-07i-Alice-invalid-later-file-rejected-before-any-UI-preparation',async()=>{
+ const s=await binaryBundleFixture();try{
+  const files=[...s.idb.records.values()].filter(row=>row.source_kind==='original_provider_file');
+  new Uint8Array(files[1].bytes)[0]^=1;
+  await deliverBundleThroughContent(s,false,'ATTACHMENT_ARTIFACT_MISMATCH');
+ }finally{s.worker.close();}
+});
+await test('APP-07j-Alice-expiry-erases-bytes-but-retains-honest-partial-replay-fence',async()=>{
+ const s=await binaryBundleFixture();try{
+  const commit=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...s.fields});assert.equal(commit.attach_allowed,true);
+  const fields=s.fieldsFor(commit.recovery);
+  const keys=await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
+  s.worker.backing.local[keys.MANUAL_OPERATIONS][s.start.key].payload_expires_at_ms=Date.now()-1;
+  const expired=await s.worker.call('getManualOperation',s.start.key);
+  assert.equal(expired.batch,null);assert.equal(expired.delivery,null);assert.equal(expired.outgoing_text,null);
+  assert.equal(expired.recovery_fence.provider_replay_forbidden,true);assert.equal(expired.recovery_fence.delivery_replay_forbidden,true);
+  assert.equal(expired.attachment_bundle_receipt.complete,false);assert.equal(expired.attachment_bundle_receipt.active_part_phase,'attachment_committed');
+  assert.equal(expired.attachment_bundle_receipt.inventory,undefined);assert.equal(expired.attachment_bundle_receipt.context,undefined);
+  const denied=await s.worker.portRequest({type:'OZ_ATTACHMENT_SEND_COMMIT',...fields});assert.notEqual(denied.click_allowed,true);
+  assert.equal(s.worker.network.length,2);
+ }finally{s.worker.close();}
+});
+for(const ordinal of [1,2])await test('APP-07k'+ordinal+'-Alice-live-port-confirm-timeout-continues-without-replay',async()=>{
+ const s=await binaryBundleFixture();try{await deliverBundleThroughContent(s,false,null,{timeoutType:'OZ_ATTACHMENT_CONFIRM',ordinal});}finally{s.worker.close();}
+});
+await test('APP-07l-Alice-live-port-attach-timeout-keeps-UNKNOWN-without-reattach',async()=>{
+ const s=await binaryBundleFixture();try{await deliverBundleThroughContent(s,false,null,{timeoutType:'OZ_ATTACHMENT_COMMIT',expectUnknown:'ATTACH_OUTCOME_UNKNOWN_NO_RETRY'});}finally{s.worker.close();}
+});
+await test('APP-07m-Alice-live-port-Send-timeout-keeps-UNKNOWN-without-click',async()=>{
+ const s=await binaryBundleFixture();try{await deliverBundleThroughContent(s,false,null,{timeoutType:'OZ_ATTACHMENT_SEND_COMMIT',expectUnknown:'ATTACHMENT_SEND_OUTCOME_UNKNOWN_NO_RETRY'});}finally{s.worker.close();}
+});
+
+// Faults are injected at the actual storage/IDB boundaries of composed code.
+// No Send, CONFIRM, attach or provider invocation is repeated to repair them.
+async function prepareBundleFinalConfirmation(s) {
+ let recovery=null;
+ for(let ordinal=1;ordinal<=2;ordinal++){
+  const commit=await s.worker.portRequest({type:'OZ_ATTACHMENT_COMMIT',...s.fieldsFor(recovery)});
+  assert.equal(commit.attach_allowed,true,JSON.stringify(commit));recovery=commit.recovery;
+  const fields=s.fieldsFor(recovery);
+  assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_READY',...fields,attached_filenames:recovery.artifact_descriptors.map(d=>d.filename)})).ready,true);
+  assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_SEND_COMMIT',...fields,baseline_user_turn_ids:[]})).click_allowed,true);
+  if(ordinal===2)return fields;
+  const partial=await s.worker.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,confirmed_user_turn_id:'durable-first-turn'});
+  assert.equal(partial.bundle_complete,false);recovery=partial.recovery;
+ }
+}
+const finalizationFaults=[
+ ['proof',false],['proof',true],['prefix',false],['prefix',true],
+ ['prefix_checkpoint',false],['prefix_checkpoint',true],
+ ['cleanup',false],['cleanup',true],['terminal',false],['terminal',true],
+ ['copy_ack',false],['copy_ack',true]
+];
+for(const [stage,afterCommit] of finalizationFaults)await test('APP-07n-'+stage+'-'+(afterCommit?'after':'before')+'-commit-restart-finalizes-once',async()=>{
+ let armed=false,hits=0,backing,keys,copyId=null;
+ const s=await binaryBundleFixture(false,{onStorageWrite:async(kind,values)=>{
+  if(!armed||kind!=='local')return;
+  const owner=values[keys.MANUAL_OPERATIONS]?.[s.start.key],f=owner?.attachment_finalization;
+  const match=stage==='proof'?f?.state==='PENDING'&&!f.prefix_done:
+    stage==='prefix'?values[keys.REPORT_PREFIXES]?.[s.start.key]?.delivered_count===1:
+    stage==='prefix_checkpoint'?f?.state==='PENDING'&&f.prefix_done&&!f.copy_ack_done:
+    stage==='terminal'?owner?.status==='completed'&&owner?.delivery_confirmed===true:
+    stage==='copy_ack'?owner?.r3_commands?.deliveries?.[copyId]?.state==='CONFIRMED':false;
+  if(match){hits++;if(afterCommit)Object.assign(backing.local,structuredClone(values));throw new Error('SYNTHETIC_LOCAL_WRITE_ACK_LOST');}
+ }});let restored;
+ try{
+  backing=s.worker.backing;keys=await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
+  backing.local[keys.REPORT_PREFIXES]={[s.start.key]:{enabled:false,text:'',interval:1,delivered_count:0}};
+  if(stage==='copy_ack'){
+   const initialFields=await prepareBundleFinalConfirmation(s);
+   assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...initialFields,confirmed_user_turn_id:'initial-complete-turn'})).confirmed,true);
+   const preview=await s.popup('SA_R3_COPY_PREVIEW',{execution_id:s.owner.r3_execution_id});assert.equal(preview.ok,true,JSON.stringify(preview));
+   const copied=await s.popup('SA_R3_COPY_CONFIRM',{execution_id:s.owner.r3_execution_id,confirmation_id:preview.confirmationId,confirmed:true});
+   assert.equal(copied.ok,true,JSON.stringify(copied));
+   s.owner=await s.worker.call('getManualOperation',s.start.key);copyId=s.owner.delivery_id;s.fields.delivery_id=copyId;
+   // Count relative to the explicit Copy, a separate logical bundle.
+   backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count=0;
+  }
+  if(stage==='cleanup'){
+   // Same real delivery path without R3 retained-buffer semantics. This fixture
+   // projection tests destructive local cleanup; R3 originals stay retained.
+   delete backing.local[keys.MANUAL_OPERATIONS][s.start.key].r3_execution_id;
+   s.idb.stats.beforeDelete=key=>{if(armed){hits++;if(afterCommit)s.idb.records.delete(key);throw new Error('SYNTHETIC_IDB_DELETE_ACK_LOST');}};
+  }
+  const fields=await prepareBundleFinalConfirmation(s);armed=true;
+  const response=await s.worker.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,confirmed_user_turn_id:'durable-final-turn'});
+  assert.ok(hits>0,'actual fault boundary reached: '+stage);
+  assert.equal(response.ok,false,'storage uncertainty cannot be reported as success');
+  const persisted=backing.local[keys.MANUAL_OPERATIONS][s.start.key];
+  if(!(stage==='terminal'&&afterCommit)){
+   assert.notEqual(persisted.status,'completed','terminal state follows local bookkeeping');
+   assert.notEqual(persisted.attachment_bundle_receipt?.complete,true);
+  }
+  const providerCount=s.worker.network.length;assert.equal(providerCount,2);
+  armed=false;s.worker.close();
+  if(stage==='prefix'&&!afterCommit){
+   const owner=backing.local[keys.MANUAL_OPERATIONS][s.start.key];
+   owner.execution_context=Object.fromEntries(Object.entries(owner.execution_context).reverse());
+  }
+  restored=await makeWorker(runtime,{backing,seedAuthority:false,indexedDB:s.idb,fetch:async()=>{throw new Error('no refetch during confirmed finalization');}});
+  restored.setDialogue('11111111-1111-4111-8111-111111111111');
+  // A failed write BEFORE the initial durable proof is still UNKNOWN; its
+  // existing committed Send must be reconciled against the same user turn.
+  if(stage==='proof'&&!afterCommit){
+   const unknown=await restored.portRequest({type:'OZ_ATTACHMENT_RECOVERY_GET',...s.fields});
+   assert.equal(unknown.recovery.delivery_phase,'attachment_send_committed');
+   assert.notEqual(unknown.confirmed,true);
+   assert.equal((await restored.portRequest({type:'OZ_ATTACHMENT_SEND_COMMIT',...fields})).click_allowed,false);
+   assert.equal(backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,0);
+   assert.notEqual((await restored.call('getManualOperation',s.start.key)).status,'completed');
+   assert.equal(restored.network.length,0);
+   return; // No durable observed-turn proof: retain UNKNOWN, never repeat CONFIRM.
+
+  }
+  const readback=await restored.portRequest({type:'OZ_ATTACHMENT_RECOVERY_GET',...s.fields});
+  assert.equal(readback.ok,true,JSON.stringify(readback));assert.equal(readback.confirmed,true,JSON.stringify(readback));assert.equal(readback.bundle_complete,true);
+  const completed=await restored.call('getManualOperation',s.start.key);
+  assert.equal(completed.status,'completed');assert.equal(completed.attachment_finalization.state,'DONE');
+  assert.equal(completed.attachment_bundle_receipt.complete,true);assert.equal(completed.attachment_bundle_receipt.confirmations.length,2);
+  assert.equal(backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,1,'idempotent whole-bundle prefix');
+  if(stage==='cleanup')assert.equal(s.idb.records.size,0,'all originals removed before completion');
+  if(stage==='copy_ack')assert.equal(completed.r3_commands.deliveries[copyId].state,'CONFIRMED');
+  const writes=s.idb.stats.writes;
+  for(let i=0;i<2;i++)assert.equal((await restored.portRequest({type:'OZ_ATTACHMENT_RECOVERY_GET',...s.fields})).confirmed,true);
+  assert.equal(s.idb.stats.writes,writes);assert.equal(backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,1);
+  assert.equal(restored.network.length,0);
+ }finally{armed=false;restored?.close();s.worker.close();}
+});
+await test('APP-07o-pending-finalization-blocks-Copy-and-next-command-recovers-prefix-first',async()=>{
+ let armed=false,keys;
+ const s=await binaryBundleFixture(false,{onStorageWrite:async(kind,values)=>{
+  if(armed&&kind==='local'&&values[keys.REPORT_PREFIXES])throw new Error('SYNTHETIC_PREFIX_STORAGE_FAILURE');
+ }});try{
+  keys=await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
+  s.worker.backing.local[keys.REPORT_PREFIXES]={[s.start.key]:{enabled:false,text:'',interval:1,delivered_count:0}};
+  const fields=await prepareBundleFinalConfirmation(s);armed=true;
+  assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,confirmed_user_turn_id:'final-turn-pending'})).ok,false);
+  assert.equal((await s.popup('SA_R3_COPY_PREVIEW',{execution_id:s.owner.r3_execution_id})).ok,false);
+  const before=s.worker.network.length;
+  const blocked=await s.worker.request({type:'OZ_EXECUTE_COMMAND',conversation_key:s.start.key,command_text:api,manual_request_id:'next-command',work_session_id:s.start.session.start_intent_id});
+  assert.equal(blocked.ok,false);assert.equal(s.worker.network.length,before);
+  armed=false;
+  await s.execute(s.start,api,'next-command-after-storage-recovery');
+  await s.collected(s.start);
+  assert.equal(s.worker.backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,1);
+  assert.equal(s.worker.network.length,before+1);
+ }finally{armed=false;s.worker.close();}
+});
+
+
+for(const boundary of ['payload-expired','Finish','foreign-owner','foreign-dialogue','owner-cancelled'])await test('APP-07p-finalization-'+boundary+'-metadata-only-no-replay',async()=>{
+ let armed=false,keys;
+ const s=await binaryBundleFixture(false,{onStorageWrite:async(kind,values)=>{
+  if(armed&&kind==='local'&&values[keys.REPORT_PREFIXES])throw new Error('SYNTHETIC_PREFIX_STORAGE_FAILURE');
+ }});try{
+  keys=await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
+  s.worker.backing.local[keys.REPORT_PREFIXES]={[s.start.key]:{enabled:false,text:'',interval:1,delivered_count:0}};
+  const fields=await prepareBundleFinalConfirmation(s);armed=true;
+  assert.equal((await s.worker.portRequest({type:'OZ_ATTACHMENT_CONFIRM',...fields,confirmed_user_turn_id:'durable-final-turn'})).ok,false);
+  const pending=s.worker.backing.local[keys.MANUAL_OPERATIONS][s.start.key];assert.equal(pending.attachment_finalization.state,'PENDING');
+  armed=false;
+  if(boundary==='payload-expired')pending.payload_expires_at_ms=Date.now()-1;
+  if(boundary==='owner-cancelled')pending.status='failed'; // persisted cancellation before Work terminal write
+  if(boundary==='Finish')assert.equal((await s.popup('OZ_WORK_FINISH',{conversation_key:s.start.key})).ok,true);
+  const readbackFields=boundary==='foreign-owner'?{...s.fields,owner_id:'foreign-owner'}:s.fields;
+  if(boundary==='foreign-dialogue')s.worker.setDialogue('22222222-2222-4222-8222-222222222222');
+  const reads=s.idb.stats.reads;
+  const result=await s.worker.portRequest({type:'OZ_ATTACHMENT_RECOVERY_GET',...readbackFields});
+  if(boundary==='payload-expired'){
+   assert.equal(result.confirmed,true,JSON.stringify(result));assert.equal(result.recovery,null);
+   const done=await s.worker.call('getManualOperation',s.start.key);assert.equal(done.status,'completed');
+   assert.equal(done.delivery,null);assert.equal(done.batch,null);assert.equal(done.outgoing_text,null);
+   assert.equal(s.worker.backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,1);
+  }else{
+   assert.notEqual(result.confirmed,true);assert.equal(s.worker.backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,0);
+  }
+  for(const type of ['OZ_ATTACHMENT_ARTIFACT_META','OZ_ATTACHMENT_ARTIFACT_CHUNK','OZ_ATTACHMENT_COMMIT','OZ_ATTACHMENT_SEND_COMMIT']){
+   const denied=await s.worker.portRequest({type,...fields,artifact_key:s.owner.delivery.provider_file_refs[0].artifact_key});
+   assert.notEqual(denied.attach_allowed,true);assert.notEqual(denied.click_allowed,true);assert.equal(denied.chunk_base64,undefined);assert.equal(denied.descriptors,undefined);
+  }
+  assert.equal(s.idb.stats.reads,reads,'no payload read during local outcome recovery');assert.equal(s.worker.network.length,2);
+  if(boundary==='Finish'){
+   const store=(await s.popup('SA_POPUP_STATE')).stores[0];
+   await s.worker.call('SellerAgentsSyncJournal.syncNow','confirmed-bundle-finish');
+   const newStart=await s.startAgain(store);
+   await s.execute(newStart,api,'new-command-after-explicit-Finish');
+   const next=await s.collected(newStart);assert.notEqual(next.operation_id,s.owner.operation_id);
+   assert.equal(s.worker.backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,0,'cancelled old delivery is not revived');
+  }
+
+ }finally{armed=false;s.worker.close();}
+});
+
+for(const ordinal of [1,2])await test('APP-07q'+ordinal+'-Alice-live-port-ready-timeout-continues-without-replay',async()=>{
+ const s=await binaryBundleFixture();try{await deliverBundleThroughContent(s,false,null,{timeoutType:'OZ_ATTACHMENT_READY',ordinal});}finally{s.worker.close();}
+});
+
+for(const [stage,afterCommit] of [['prefix',false],['prefix',true],['terminal',true]])await test('APP-07r-'+stage+'-'+afterCommit+'-real-content-finalizes-with-readback-only',async()=>{
+ let armed=false,injected=false,keys;
+ const s=await binaryBundleFixture(false,{onStorageWrite:async(kind,values)=>{
+  if(!armed||injected||kind!=='local')return;
+  const match=stage==='prefix'?values[keys.REPORT_PREFIXES]?.[s.start.key]?.delivered_count===1:
+   values[keys.MANUAL_OPERATIONS]?.[s.start.key]?.attachment_finalization?.state==='DONE';
+  if(match){injected=true;if(afterCommit)Object.assign(s.worker.backing.local,structuredClone(values));throw new Error('SYNTHETIC_FINALIZATION_ACK_LOST');}
+ }});try{
+  keys=await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
+  s.worker.backing.local[keys.REPORT_PREFIXES]={[s.start.key]:{enabled:false,text:'',interval:1,delivered_count:0}};
+  armed=true;await deliverBundleThroughContent(s,false,null,{allowRecordBarrier:stage==='terminal'});assert.equal(injected,true);
+  assert.equal(s.worker.backing.local[keys.REPORT_PREFIXES][s.start.key].delivered_count,1);
+ }finally{armed=false;s.worker.close();}
+});
+
 await test('APP-08-account-catalog-isolation-and-await-account-change', async () => {
   const s = await setup(); try {
     const api = await s.worker.call('(() => SellerAgentsStoreCatalog)');
@@ -611,7 +1080,7 @@ await test('AI-TREE-04-08-package-subset-signed-Work-lifetime-pin-and-next-Start
   } finally {s.worker.close();}
 });
 
-await test('PAR-01-package-subset-pending-ChatGPT-Start-survives-Alice-grant', async () => {
+await test('PAR-01-package-subset-pending-Alice-Start-survives-deferred-scope-refusal', async () => {
   let s;
   s=await setup({fetch:async(url,init)=>{
     if(url.endsWith('/v1/bootstrap')) {
@@ -624,10 +1093,10 @@ await test('PAR-01-package-subset-pending-ChatGPT-Start-survives-Alice-grant', a
   try {
     const store=await s.save(wb(fixtureToken)),start=await s.popup('SA_WORK_START',{store_id:store.id});
     assert.equal(start.ok,true,JSON.stringify(start));
-    const pending=await until(async()=>{const p=(await s.worker.call('getPendingWorkStarts'))[s.worker.tabId];return p?.send_outcome==='sent_acknowledged'&&p;},'ChatGPT pending Start');
-    await s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'alice',surface:'web',variant:null}});
+    const pending=await until(async()=>{const p=(await s.worker.call('getPendingWorkStarts'))[s.worker.tabId];return p?.send_outcome==='sent_acknowledged'&&p;},'Alice pending Start');
+    await assert.rejects(s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'chatgpt',surface:'web',variant:null}}),e=>e.code==='WORK_UNSUPPORTED_AI');
     assert.equal(s.worker.backing.local.seller_agents_control_auth_v2.authority.requestedAi,'alice');
-    assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','chatgpt'),true);
+    assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','alice'),true);
     await s.worker.call('saPendingGuard',pending);
     const preserved=(await s.worker.call('getPendingWorkStarts'))[s.worker.tabId];
     assert.equal(preserved.intent_id,pending.intent_id);assert.equal(preserved.send_outcome,'sent_acknowledged');
@@ -659,9 +1128,9 @@ await test('AI-TREE-R3-package-data-failure-preserves-cache-authenticated-deny-i
  try {
    const first=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity);assert.equal(first.available,true,JSON.stringify(first));
    mode='network';const stale=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{refresh:true});
-   assert.equal(stale.available,true,JSON.stringify(stale));assert.equal(stale.pin.sha256,first.pin.sha256);assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','chatgpt'),true);
+   assert.equal(stale.available,true,JSON.stringify(stale));assert.equal(stale.pin.sha256,first.pin.sha256);assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','alice'),true);
    mode='deny';const denied=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{refresh:true});
-   assert.equal(denied.available,false,JSON.stringify(denied));assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','chatgpt'),false);
+   assert.equal(denied.available,false,JSON.stringify(denied));assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','alice'),false);
    const cached=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{cacheOnly:true});assert.equal(cached.available,false);assert.equal(count,3);
    assert.equal(s.worker.network.length,0);assert.equal(s.worker.messages.filter(x=>x.message?.type==='OZ_SEND_PROMPT').length,0);
  }finally{s.worker.close();}
@@ -677,7 +1146,7 @@ await test('AI-TREE-R3-package-late-deny-after-timeout-no-hidden-retry',async()=
    const timeout=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{refresh:true});
    assert.equal(timeout.available,true,JSON.stringify(timeout));assert.equal(timeout.warning.code,'CONTROL_REQUEST_TIMEOUT');assert.equal(requests,2);
    late(new Response('{"code":"BOOTSTRAP_UNAVAILABLE"}',{status:403,headers:{'content-type':'application/json'}}));
-   await until(async()=>!(await s.worker.call('SellerAgentsControlClient.canWork','chatgpt')),'late tree deny must invalidate authority');
+   await until(async()=>!(await s.worker.call('SellerAgentsControlClient.canWork','alice')),'late tree deny must invalidate authority');
    assert.equal(requests,2);assert.equal((await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{cacheOnly:true})).available,false);
  }finally{s.worker.close();}
 });
@@ -701,10 +1170,10 @@ await test('AI-TREE-R3-package-existing-config-sync-refreshes-tree-without-busin
  },treeFetch:async(url,init)=>{requests++;return r3TreeResponse(s,init);}});
  try {
    const beforeMessages=s.worker.messages.length;
-   await s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'chatgpt',surface:'web',variant:null}});
+   await s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'alice',surface:'web',variant:null}});
    const cached=await until(async()=>{const r=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{cacheOnly:true});return r.available&&r;},'existing config synchronization must populate the tree');
    assert.equal(cached.pin.aiId,'62000000-0000-4000-8000-000000000001');assert.equal(requests,1);
-   await s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'chatgpt',surface:'web',variant:null}});
+   await s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'alice',surface:'web',variant:null}});
    await new Promise(resolve=>setTimeout(resolve,30));assert.equal(requests,1);
    assert.equal(s.worker.messages.length,beforeMessages);assert.equal(s.worker.network.length,0);
  }finally{s.worker.close();}
@@ -712,23 +1181,23 @@ await test('AI-TREE-R3-package-existing-config-sync-refreshes-tree-without-busin
 
 await test('PAR-29-package-subset-auth-migration-repeat-original-TTL-one-scope',async()=>{
  const seed=await setup();let backing;
- try{await seed.worker.call('SellerAgentsControlClient.canWork','chatgpt');backing=plain(seed.worker.backing);}finally{seed.worker.close();}
+ try{await seed.worker.call('SellerAgentsControlClient.canWork','alice');backing=plain(seed.worker.backing);}finally{seed.worker.close();}
  const raw=backing.local.seller_agents_control_auth_v2;
  delete raw.authStateSchema;delete raw.authMigration;delete raw.grants;delete raw.principalEpoch;delete raw.accessEpoch;
  const envelope=plain(raw.authority.envelope),expires=raw.authority.payload.expiresAt,generation=raw.generation;
  const first=await setup({backing});let migrated;
  try{
-   assert.equal(await first.worker.call('SellerAgentsControlClient.canWork','chatgpt'),true);
-   assert.equal(await first.worker.call('SellerAgentsControlClient.canWork','alice'),false);
+   assert.equal(await first.worker.call('SellerAgentsControlClient.canWork','alice'),true);
+   assert.equal(await first.worker.call('SellerAgentsControlClient.canWork','chatgpt'),false);
    migrated=plain(first.worker.backing.local.seller_agents_control_auth_v2);
    assert.equal(migrated.authStateSchema,2);assert.equal(migrated.authMigration.phase,'COMMITTED');assert.match(migrated.authMigration.migrationId,/^auth-v2:[a-f0-9]{64}$/);
    assert.equal(migrated.generation,generation);assert.equal(migrated.authority.payload.expiresAt,expires);assert.deepEqual(migrated.authority.envelope,envelope);
-   assert.equal(Object.keys(migrated.grants).length,1);assert.equal(Object.values(migrated.grants)[0].authority.requestedAi,'chatgpt');
+   assert.equal(Object.keys(migrated.grants).length,1);assert.equal(Object.values(migrated.grants)[0].authority.requestedAi,'alice');
    assert.equal(first.worker.network.length,0);backing=plain(first.worker.backing);
  }finally{first.worker.close();}
  const second=await setup({backing});
  try{
-   assert.equal(await second.worker.call('SellerAgentsControlClient.canWork','chatgpt'),true);
+   assert.equal(await second.worker.call('SellerAgentsControlClient.canWork','alice'),true);
    const after=second.worker.backing.local.seller_agents_control_auth_v2;
    assert.deepEqual(plain(after.authMigration),migrated.authMigration);assert.equal(after.authority.payload.expiresAt,expires);
    assert.equal(Object.values(after.grants)[0].grantEpoch,Object.values(migrated.grants)[0].grantEpoch);assert.equal(Object.keys(after.grants).length,1);
@@ -737,7 +1206,7 @@ await test('PAR-29-package-subset-auth-migration-repeat-original-TTL-one-scope',
 });
 await test('PAR-29-30-package-subset-unsupported-partial-corrupt-auth-preserved-closed',async()=>{
  const seed=await setup();let original;
- try{await seed.worker.call('SellerAgentsControlClient.canWork','chatgpt');original=plain(seed.worker.backing);}finally{seed.worker.close();}
+ try{await seed.worker.call('SellerAgentsControlClient.canWork','alice');original=plain(seed.worker.backing);}finally{seed.worker.close();}
  const cases=[
    ['future',s=>{s.authStateSchema=3;}],
    ['staging',s=>{s.authMigration.phase='STAGING';}],
@@ -749,7 +1218,7 @@ await test('PAR-29-30-package-subset-unsupported-partial-corrupt-auth-preserved-
    const backing=plain(original);change(backing.local.seller_agents_control_auth_v2);const before=plain(backing.local.seller_agents_control_auth_v2);
    const worker=await makeWorker(runtime,{backing,indexedDB:fakeIDB()});
    try{
-     assert.equal(await worker.call('SellerAgentsControlClient.canWork','chatgpt'),false,name);
+     assert.equal(await worker.call('SellerAgentsControlClient.canWork','alice'),false,name);
      assert.equal(await worker.call('SellerAgentsControlClient.canWork','alice'),false,name);
      assert.deepEqual(plain(worker.backing.local.seller_agents_control_auth_v2),before,name);
      assert.equal(worker.network.length,0,name);assert.equal(worker.messages.length,0,name);
@@ -769,8 +1238,8 @@ await test('PAR-29-package-subset-auth-migration-write-failure-never-opens-worke
     if(failRemove && kind==='local' && [keys].flat().includes('seller_agents_control_auth_v2'))throw new Error('injected remove failure');
   }});
   try{
-    let allowed=false;try{allowed=await worker.call('SellerAgentsControlClient.canWork','chatgpt');}catch(error){assert.match(String(error),/AUTH_STATE_COMMIT_UNCONFIRMED/);}
-    assert.equal(allowed,false);assert.ok(failedWrites>0);assert.equal(await worker.call('SellerAgentsControlClient.canWork','chatgpt'),false);
+    let allowed=false;try{allowed=await worker.call('SellerAgentsControlClient.canWork','alice');}catch(error){assert.match(String(error),/AUTH_STATE_COMMIT_UNCONFIRMED/);}
+    assert.equal(allowed,false);assert.ok(failedWrites>0);assert.equal(await worker.call('SellerAgentsControlClient.canWork','alice'),false);
     const retained=worker.backing.local.seller_agents_control_auth_v2;
     if(failRemove)assert.deepEqual(plain(retained),before);else assert.equal(retained,undefined);
     assert.equal(worker.network.length,0);
@@ -793,17 +1262,17 @@ await test('PAR-29-package-subset-migration-readback-failure-no-effects',async()
  }});
  try{
    let allowed=false;
-   try{allowed=await worker.call('SellerAgentsControlClient.canWork','chatgpt');}
+   try{allowed=await worker.call('SellerAgentsControlClient.canWork','alice');}
    catch(error){assert.match(String(error),/AUTH_STATE_COMMIT_UNCONFIRMED|injected migration readback failure/);}
    assert.equal(allowed,false);assert.equal(migrationWritten,true);assert.ok(blockedReads>0);
-   assert.equal(await worker.call('SellerAgentsControlClient.canWork','chatgpt'),false);
+   assert.equal(await worker.call('SellerAgentsControlClient.canWork','alice'),false);
    assert.equal(worker.network.length,0);assert.equal(worker.messages.length,0);
  }finally{worker.close();}
 });
 
 await test('PAR-29-package-subset-legacy-denied-and-orphan-stay-closed-across-restarts',async()=>{
  const seed=await setup();let original;
- try{await seed.worker.call('SellerAgentsControlClient.canWork','chatgpt');original=plain(seed.worker.backing);}finally{seed.worker.close();}
+ try{await seed.worker.call('SellerAgentsControlClient.canWork','alice');original=plain(seed.worker.backing);}finally{seed.worker.close();}
  for(const scenario of ['explicit-deny','signed-out-orphan']){
   let backing=plain(original),raw=backing.local.seller_agents_control_auth_v2;
   delete raw.authStateSchema;delete raw.authMigration;delete raw.grants;delete raw.principalEpoch;delete raw.accessEpoch;
@@ -860,7 +1329,7 @@ await test('R3-bootstrap-safe-rejection-diagnostic-survives-restart', async () =
     payload=structuredClone(worker.backing.local[authKey].authority.payload);
     const secrets=[worker.backing.local[authKey].credentials.accessToken,worker.backing.local[authKey].credentials.refreshToken,payload.account.id,payload.ai.profile.profileKey];
     payload.compatibility.extension.status='UPDATE_REQUIRED';
-    await assert.rejects(worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'chatgpt',surface:'web',variant:null}}),e=>e.code==='BOOTSTRAP_PROFILE_INCOMPATIBLE');
+    await assert.rejects(worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'alice',surface:'web',variant:null}}),e=>e.code==='BOOTSTRAP_PROFILE_INCOMPATIBLE');
     const status=await worker.call('SellerAgentsControlClient.status');
     assert.equal(status.authenticated,false);assert.equal(status.workAllowed,false);assert.equal(status.authority,null);
     diagnostic=plain(status.lastError.bootstrapDiagnostic);

@@ -3,13 +3,14 @@ import {
   SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS,
   type SellerAgentsCapabilityPermissionKey,
 } from "./seller-agents-capability-permissions.js";
+import { isAiPermissionEnabledInReleaseV1 } from "@product/contracts";
 
 export const SELLER_AGENTS_BETA_CAPABILITY_POLICY_VERSION =
-  "seller_agents_beta_capability_policy_v1" as const;
+  "seller_agents_beta_capability_policy_v2" as const;
 
 export type SellerAgentsBetaCapabilityPolicyRow = Readonly<{
   entitlementKey: SellerAgentsCapabilityPermissionKey;
-  allowed: true;
+  allowed: boolean;
   executionAuthority: false;
 }>;
 
@@ -40,7 +41,9 @@ const permissions = SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS.map(
       throw new Error("SELLER_AGENTS_BETA_CAPABILITY_POLICY_INVALID");
     return Object.freeze({
       entitlementKey,
-      allowed: true as const,
+      allowed:
+        entitlementKey.startsWith("source.") ||
+        isAiPermissionEnabledInReleaseV1(entitlementKey),
       executionAuthority: false as const,
     });
   },
@@ -60,11 +63,11 @@ export const SELLER_AGENTS_FREE_BETA_CAPABILITY_POLICY: SellerAgentsBetaCapabili
 const permissionMap = Object.freeze(
   Object.fromEntries(
     permissions.map((row) => [row.entitlementKey, row.allowed] as const),
-  ) as Readonly<Record<SellerAgentsCapabilityPermissionKey, true>>,
+  ) as Readonly<Record<SellerAgentsCapabilityPermissionKey, boolean>>,
 );
 
 export function getSellerAgentsFreeBetaCapabilityPermissions(): Readonly<
-  Record<SellerAgentsCapabilityPermissionKey, true>
+  Record<SellerAgentsCapabilityPermissionKey, boolean>
 > {
   return permissionMap;
 }

@@ -86,6 +86,11 @@
       positiveSafeInt(value.authGeneration) && typeof value.bootstrapSnapshotSha256 === "string" &&
       DIGEST.test(value.bootstrapSnapshotSha256);
   }
+  // Structural scope validation retains the adapters planned for later releases.
+  // The privileged worker separately proves availability in this exact package.
+  function releaseAvailable(value) {
+    return validScope(value) && globalThis.SellerAgentsAiReleaseScope?.supportsAi?.(value) === true;
+  }
   function validIdentity(value) {
     return exact(value, ["profileKey", "revision", "scopeVariant", "contentSha256"]) &&
       machine(value.profileKey) && positiveSafeInt(value.revision) && value.scopeVariant === null &&
@@ -219,6 +224,7 @@
   globalThis.SellerAgentsSignedAiProfileConsumer = Object.freeze({
     PROTOCOL_VERSION,
     validRequest,
+    releaseAvailable,
     validResponse,
     validReceipt,
     validMaterial,

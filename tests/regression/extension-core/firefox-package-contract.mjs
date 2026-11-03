@@ -248,6 +248,14 @@ const builder = path.join(repoRoot, "tooling/build/extension_firefox.py");
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "octoport-firefox-ast-"));
 const staticResults = [];
 const pendingBuilders = [];
+const pendingAssertions = [];
+// Independent fixtures retain every equality oracle while using the same three
+// CLI permits. Observe failures immediately and await them before success.
+function queueEqual(actual, expected, message) {
+  pendingAssertions.push(Promise.resolve(actual)
+    .then(value => assert.equal(value, expected, message))
+    .then(() => null, error => error));
+}
 let activeBuilders = 0;
 const builderWaiters = [];
 try {
@@ -316,7 +324,7 @@ try {
     return shouldSucceed ? job : null;
   }
   async function finishNegativeBuilders() {
-    const errors = (await Promise.all(pendingBuilders)).filter(Boolean);
+    const errors = (await Promise.all([...pendingBuilders, ...pendingAssertions])).filter(Boolean);
     if (errors.length) throw new AggregateError(errors, "Firefox builder failures");
   }
   const tick = String.fromCharCode(96);
@@ -359,16 +367,16 @@ try {
   // Identifiers used as labels, or break/continue targets, are inert
   // control-flow names even when their spelling decodes to "importScripts".
   const plainLabel = 'importScripts: ;\n';
-  assert.equal(await attempt("plain-inert-label", plainLabel, true), plainLabel);
+  queueEqual(attempt("plain-inert-label", plainLabel, true), plainLabel);
   const escapedLabel = 'import' + unicodeEscape + 'cripts: ;\n';
-  assert.equal(await attempt("escaped-inert-label", escapedLabel, true), escapedLabel);
+  queueEqual(attempt("escaped-inert-label", escapedLabel, true), escapedLabel);
   const escapedBreak = 'import' + unicodeEscape + 'cripts: { break import' + unicodeEscape + 'cripts; }\n';
-  assert.equal(await attempt("escaped-inert-break-label", escapedBreak, true), escapedBreak);
+  queueEqual(attempt("escaped-inert-break-label", escapedBreak, true), escapedBreak);
   const escapedContinue = 'import' + unicodeEscape + 'cripts: for (let i = 0; i < 1; i++) { continue import' + unicodeEscape + 'cripts; }\n';
-  assert.equal(await attempt("escaped-inert-continue-label", escapedContinue, true), escapedContinue);
+  queueEqual(attempt("escaped-inert-continue-label", escapedContinue, true), escapedContinue);
 
   const escapedInert = 'const label = "import' + unicodeEscape + 'cripts";\n';
-  assert.equal(await attempt("escaped-ident-inert-string", escapedInert, true), escapedInert);
+  queueEqual(attempt("escaped-ident-inert-string", escapedInert, true), escapedInert);
 
   const interpolation =
     "const output = " + tick + "${(() => { importScripts(\"child.js\"); return 1; })()}" + tick + ";\n";
@@ -394,8 +402,8 @@ try {
     'const runtimeKey = "productFixture"; globalThis[runtimeKey] = true;',
     "const inertComputedText = 'globalThis[\"import\" + \"Scripts\"](\"child.js\");';",
   ].join("\n") + "\n";
-  assert.equal(
-    await attempt("unrelated-computed-names", unrelatedComputedNames, true),
+  queueEqual(
+    attempt("unrelated-computed-names", unrelatedComputedNames, true),
     unrelatedComputedNames,
     "non-import computed keys and inert strings must remain byte-identical",
   );
@@ -458,7 +466,7 @@ try {
     ["binding-confined-local-method", 'const target = { inspect(key){return this[key]} }; target.inspect("safe");\n'],
     ["binding-confined-aliased-method", 'const target = { inspect(key){return this[key]} }; const alias = target; alias.inspect("safe");\n'],
     ["binding-confined-function-method", 'const target = { inspect: function(key){return this[key]} }; target.inspect("safe");\n'],
-  ]) assert.equal(await attemptReference(label, source, true), source, label + " must remain byte-identical");
+  ]) queueEqual(attemptReference(label, source, true), source, label + " must remain byte-identical");
 
   // Normalize both reflective property acquisition APIs at the same global
   // receiver/key boundary, including immutable aliases and invocation helpers.
@@ -510,31 +518,31 @@ try {
     ["reflect-get-local-own-import-method", 'const target = {importScripts(){return 1}}; Reflect.get(target,"importScripts")();\n'],
     ["reflect-descriptor-function-safe-value", 'Object.getOwnPropertyDescriptor(Reflect,"get").value(self,"setTimeout");\n'],
     ["reflect-get-ordinary-object", 'const target = {safe: 1}; Reflect.get(target,"safe");\n'],
-  ]) assert.equal(await attemptReference(label, source, true), source, label + " must remain byte-identical");
+  ]) queueEqual(attemptReference(label, source, true), source, label + " must remain byte-identical");
   await attempt("binding-global-call-indirect", "function invoke(key) { self[key].call(null, \"child.js\"); }\n", false, "UNRESOLVED_GLOBAL_REFERENCE");
   {
     const source = "const key = \"setTimeout\"; self[key](() => {}, 1);\n";
-    assert.equal(await attempt("binding-safe-const-method", source, true), source);
+    queueEqual(attempt("binding-safe-const-method", source, true), source);
   }
   {
     const source = "const key = \"importScripts\"; { const key = \"safe\"; self[key](); }\n";
-    assert.equal(await attempt("binding-safe-inner-shadow", source, true), source);
+    queueEqual(attempt("binding-safe-inner-shadow", source, true), source);
   }
   {
     const source = "function invoke(object, key) { return object[key](); }\n";
-    assert.equal(await attempt("binding-ordinary-object-dynamic", source, true), source);
+    queueEqual(attempt("binding-ordinary-object-dynamic", source, true), source);
   }
   {
     const source = "function inspect(self, key) { return self[key]; }\n";
-    assert.equal(await attempt("binding-shadowed-global-object", source, true), source);
+    queueEqual(attempt("binding-shadowed-global-object", source, true), source);
   }
   {
     const source = "function put(key, value) { globalThis[key] = value; }\n";
-    assert.equal(await attempt("binding-dynamic-global-write", source, true), source);
+    queueEqual(attempt("binding-dynamic-global-write", source, true), source);
   }
   {
     const source = "const RUNTIME_KEY = \"octoportRuntime\"; const prior = globalThis[RUNTIME_KEY]; globalThis[RUNTIME_KEY] = prior;\n";
-    assert.equal(await attempt("binding-safe-const-runtime", source, true), source);
+    queueEqual(attempt("binding-safe-const-runtime", source, true), source);
   }
   // Independent R24 review: destructured worker-global aliases must be
   // recognized without confusing ordinary objects or lexical shadowing.
@@ -555,11 +563,11 @@ try {
     ["destructured-global-safe-name", 'const { setTimeout: later } = globalThis; later(() => {}, 1);\n'],
     ["destructured-shadowed-global", 'function inspect(globalThis, key) { const { self: scope } = globalThis; return scope[key]; }\n'],
   ]) {
-    assert.equal(await attempt(label, source, true), source, label + " must remain byte-identical");
+    queueEqual(attempt(label, source, true), source, label + " must remain byte-identical");
   }
   const emptyImportSource = 'importScripts();\n"use strict";\nglobalThis.marker = true;\n';
-  assert.equal(
-    await attempt("empty-static-noop-statement", emptyImportSource, true),
+  queueEqual(
+    attempt("empty-static-noop-statement", emptyImportSource, true),
     ';\n"use strict";\nglobalThis.marker = true;\n',
     "empty import must remain a statement barrier, not create a directive prologue",
   );
@@ -578,7 +586,7 @@ try {
     ["assigned-shadowed-global", 'function inspect(globalThis, key) { let scope; ({ self: scope } = globalThis); return scope[key]; }\n'],
     ["ordinary-own-method-unrelated-mutation", 'const object = { count: 1, importScripts() { return this.count; } }; object.count++; object.importScripts();\n'],
     ["assigned-ordinary-own-method", 'const object = { importScripts() { return 1; } }; let loader; ({ importScripts: loader } = object); loader();\n'],
-  ]) assert.equal(await attempt(label, source, true), source, label + " must remain byte-identical");
+  ]) queueEqual(attempt(label, source, true), source, label + " must remain byte-identical");
   await attempt("property-alias", 'const loader = self.importScripts;\n', false, "UNSUPPORTED_REFERENCE");
   await attempt("bare-alias", 'const loader = importScripts;\n', false, "UNSUPPORTED_REFERENCE");
   await attempt("parenthesized-call", '(importScripts)("child.js");\n', false, "UNSUPPORTED_REFERENCE");
@@ -587,8 +595,8 @@ try {
     'class Metadata { importScripts = "label"; static importScripts = "static label"; }',
     'const descriptor = { importScripts: "label" };',
   ].join("\n") + "\n";
-  assert.equal(
-    await attempt("inert-definition-keys", inertDefinitionKeys, true),
+  queueEqual(
+    attempt("inert-definition-keys", inertDefinitionKeys, true),
     inertDefinitionKeys,
     "non-call class/object definition keys must survive unchanged",
   );
@@ -936,14 +944,14 @@ try {
   for (const [label, source] of [
     ["review-parameter-benign-default", 'function read(scope,key="safe"){return scope.setTimeout;}read(self);'],
     ["review-parameter-nested-own-arguments", 'function read(scope){function local(){return arguments[0];}return scope.setTimeout;}read(self);'],
-  ]) assert.equal(await attemptReference(label, source, true), source);
+  ]) queueEqual(attemptReference(label, source, true), source);
   await attemptReference("review-confined-unknown-data-write",
     'const box={slot:1,read(key){return this[key];}};box.slot=unknownValue;box.read("slot");',
     false, "UNRESOLVED_GLOBAL_REFERENCE");
   for (const [label, source] of [
     ["review-confined-primitive-data-write", 'const box={slot:1,read(key){return this[key];}};box.slot=2;box.read("slot");'],
     ["review-confined-unrelated-data-write", 'const box={slot:1,other:0,read(key){return this[key];}};box.other=()=>1;box.read("slot");'],
-  ]) assert.equal(await attemptReference(label, source, true), source);
+  ]) queueEqual(attemptReference(label, source, true), source);
   for (const [label, source] of [
     ["review-native-self-expando", 'self.marker=1;self[runtimeKey]("child.js");'],
     ["review-native-globalThis-expando", 'globalThis.marker=1;globalThis[runtimeKey]("child.js");'],
@@ -954,7 +962,7 @@ try {
     ["review-native-Reflect-benign-expando", 'Reflect.extra=1;Reflect.get(self,"setTimeout");'],
     ["review-native-self-benign-expando", 'self.marker=1;const value=self.setTimeout;'],
     ["review-real-shadowed-Reflect-expando", 'const Reflect={get(){return "local";},extra:0};Reflect.extra=1;Reflect.get({},"safe");'],
-  ]) assert.equal(await attemptReference(label, source, true), source);
+  ]) queueEqual(attemptReference(label, source, true), source);
   // Full native-result/reference class, including receiver confinement and
   // actual graph boundaries. Same parser is used by CLI and in-process controls.
   const nativeResultCases = [
@@ -1702,10 +1710,11 @@ try {
       assert.ok(emitted.includes(text));  }));
 
   await finishNegativeBuilders();
+
   assert.equal(new Set(staticResults.map(row => row.label)).size, staticResults.length);
   assert.equal(staticResults.length, 319, "full unfiltered Firefox static contract");
 } finally {
-  await Promise.all(pendingBuilders);
+  await Promise.all([...pendingBuilders, ...pendingAssertions]);
   fs.rmSync(fixtureRoot, { recursive: true, force: true });
 }
 

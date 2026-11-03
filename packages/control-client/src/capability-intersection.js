@@ -122,6 +122,7 @@
       if (signedPermissionPresent && typeof signedValue !== "boolean")
         throw fail();
       const signedPermissionAllowed = signedValue === true;
+      const releaseSupported = packaged.releaseSupported?.(binding.capabilityId) === true;
 
       return {
         capabilityId: binding.capabilityId,
@@ -129,7 +130,8 @@
         packaged: packagedPresent,
         signedPermissionPresent,
         signedPermissionAllowed,
-        permissionSatisfied: packagedPresent && signedPermissionAllowed,
+        releaseSupported,
+        permissionSatisfied: packagedPresent && signedPermissionAllowed && releaseSupported,
         executionAuthority: false,
       };
     });

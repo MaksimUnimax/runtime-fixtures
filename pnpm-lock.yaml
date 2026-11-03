@@ -651,6 +651,9 @@ importers:
 
   packages/server/entitlements:
     dependencies:
+      '@product/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
       '@product/plans':
         specifier: workspace:*
         version: link:../plans

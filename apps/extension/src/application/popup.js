@@ -255,7 +255,7 @@ function onboardingModel(value) {
   return [
     { id: "onboarding-auth", done: authenticated, text: authenticated ? "1. Аккаунт подключён, подписанный доступ проверен." : "1. Подключите аккаунт кодом из кабинета." },
     { id: "onboarding-store", done: hasStore, text: hasStore ? "2. Магазин добавлен." : "2. Добавьте магазин Ozon или WB и сохраните его ключи локально." },
-    { id: "onboarding-ai", done: aiReady, text: aiReady ? "3. Поддерживаемый ИИ открыт." : "3. Откройте поддерживаемый ИИ в текущей вкладке." },
+    { id: "onboarding-ai", done: aiReady, text: aiReady ? "3. Веб-Алиса открыта." : "3. Откройте веб-Алису в текущей вкладке — она поддерживается этим выпуском." },
     { id: "onboarding-work", done: workReady, text: workReady ? "4. Work активен — расширение готово к командам." : "4. После первых трёх шагов выберите магазин и нажмите «Начать работу»." },
   ];
 }
@@ -316,6 +316,8 @@ function render() {
   const supportedPage = Boolean(state.page?.supported ?? state.identity.ai_id);
   $("connection").textContent = supportedPage ? connected ? `${labels[state.work?.state] || "Диалог подключён"}: ${connected.name} · ${connected.marketplace === "ozon" ? "Ozon" : "WB"}` : "Диалог не подключён" : "Откройте поддерживаемый ИИ в текущей вкладке";
   $("selection").textContent = connected && selectedId !== connected.id ? "Выбран следующий магазин. Текущее подключение изменится только после подтверждения и нового Start." : "";
+  if (state.page?.errorCode === "AI_NOT_IN_CURRENT_RELEASE")
+    $("connection").textContent = "Этот выпуск поддерживает веб-Алису. Остальные ИИ будут добавлены отдельными обновлениями.";
   if (supportedPage && state.page?.runtimeStatus === "unavailable" && !connected) {
     $("connection").textContent = state.page.transportClass === "NO_RECEIVER"
       ? "Страница ещё не подключена к расширению. Нажмите «Начать работу» — подключение будет восстановлено."
