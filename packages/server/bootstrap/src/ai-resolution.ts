@@ -2,6 +2,7 @@ import {
   AiPromptTreePublicationV1Schema,
   canonicalAiPromptTreeV1,
   type AiPromptTreePublicationV1,
+  isAiEnabledInReleaseV1,
 } from "@product/contracts";
 import { createHash } from "node:crypto";
 import {
@@ -298,6 +299,17 @@ export function resolveBootstrapAiSnapshot(
   });
 }
 
+// Structural registry resolution remains available for retained adapter/profile
+// foundation checks. Every production consumer applies the release ceiling.
+export function applyAiReleaseScopeV1(
+  resolution: BootstrapAiResolutionV1,
+): BootstrapAiResolutionV1 {
+  return resolution.status === "RESOLVED" &&
+    !isAiEnabledInReleaseV1(resolution.detected)
+    ? unavailable(resolution.detected, "AI_DISABLED")
+    : resolution;
+}
+
 export class BootstrapAiResolutionService {
   constructor(private readonly repository: BootstrapAiResolutionRepository) {}
 
@@ -310,7 +322,7 @@ export class BootstrapAiResolutionService {
       variant: input.detected.variant,
       browserFamily: input.browser.family,
     });
-    return resolveBootstrapAiSnapshot(input, snapshot);
+    return applyAiReleaseScopeV1(resolveBootstrapAiSnapshot(input, snapshot));
   }
 
   async resolvePromptTree(
@@ -324,7 +336,8 @@ export class BootstrapAiResolutionService {
       browserFamily: input.browser.family,
     });
     if (
-      resolveBootstrapAiSnapshot(input, snapshot).status !== "RESOLVED" ||
+      applyAiReleaseScopeV1(resolveBootstrapAiSnapshot(input, snapshot))
+        .status !== "RESOLVED" ||
       !snapshot.hierarchy
     )
       throw new BootstrapAiResolutionError();
@@ -360,10 +373,8 @@ export class BootstrapAiResolutionService {
           return null;
         return {
           browserFamily,
-          resolution: resolveBootstrapAiSnapshot(
-            input,
-            snapshot,
-            browserFamily,
+          resolution: applyAiReleaseScopeV1(
+            resolveBootstrapAiSnapshot(input, snapshot, browserFamily),
           ),
         };
       }),

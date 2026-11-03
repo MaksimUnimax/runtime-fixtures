@@ -19,14 +19,16 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync, inflateSync } from "node:zlib";
+import { Script } from "node:vm";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-const AUTHORITY_SCHEMA = "octoport_release_authority_v1";
-const CANDIDATE_SCHEMA = "b1_release_candidate_v2";
+const AUTHORITY_SCHEMA = "octoport_release_authority_v2";
+const CANDIDATE_SCHEMA = "b1_release_candidate_v3";
 const MAX_AUTHORITY_BYTES = 1024 * 1024;
 const MAX_CANDIDATE_MANIFEST_BYTES = 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
@@ -36,6 +38,7 @@ const MAX_ZIP_PATH_SEGMENTS = 128;
 const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 256 * 1024 * 1024;
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
+const AI_RELEASE_SCOPE_SOURCE = "packages/contracts/src/ai-release-scope.v1.json";
 const FIREFOX_STORE_ID = "octoport@octoport.ru";
 const FIREFOX_REQUIRED_DATA_TYPES = new Set([
   "authenticationInfo",
@@ -74,6 +77,26 @@ const fail = (message) => {
 export const sha256 = (bytes) =>
   createHash("sha256").update(bytes).digest("hex");
 
+function bundledAiReleaseScope() {
+  const raw = readBoundedRegularFile(join(ROOT, AI_RELEASE_SCOPE_SOURCE), 4096, "AI release descriptor");
+  let descriptor;
+  try { descriptor = parseUniqueJson(raw.toString("utf8")); } catch { fail("Invalid AI release descriptor"); }
+  const expected = {
+    schemaVersion: "ai_release_scope_v1", releaseId: "alice_first_v1", revision: 1,
+    enabledAi: [{ family: "alice", surface: "web", variant: null }],
+    retainedAiFamilies: ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"],
+    executionAuthority: false,
+  };
+  if (canonical(descriptor) !== canonical(expected)) fail("Unsupported AI release descriptor");
+  return { descriptor, sha256: sha256(Buffer.from(canonical(descriptor))) };
+}
+
+function validateAiReleaseScope(value) {
+  const expected = bundledAiReleaseScope();
+  if (!exactKeys(value, ["descriptor", "sha256"]) || canonical(value) !== canonical(expected))
+    fail("AI release scope does not match bundled descriptor");
+}
+
 function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -86,6 +109,46 @@ function exactKeys(value, keys) {
     actual.length === expected.length &&
     actual.every((key, index) => key === expected[index])
   );
+}
+
+// Syntax remains native JSON. This pass only proves that each object's decoded
+// keys are unique, including escaped spellings, before any authority is used.
+function parseUniqueJson(text) {
+  const parsed = JSON.parse(text);
+  let at = 0;
+  const ws = () => { while (/[\t\n\r ]/.test(text[at] || "x")) at += 1; };
+  function string() {
+    const start = at++;
+    while (at < text.length) {
+      const ch = text[at++];
+      if (ch === "\\") at += 1;
+      else if (ch === '"') return JSON.parse(text.slice(start, at));
+    }
+    fail("Invalid unique JSON string");
+  }
+  function value(depth) {
+    if (depth > 64) fail("JSON nesting limit");
+    ws();
+    if (text[at] === '"') { string(); return; }
+    if (text[at] === "{") {
+      at += 1; ws(); const keys = new Set();
+      if (text[at] === "}") { at += 1; return; }
+      for (;;) {
+        ws(); const key = string();
+        if (keys.has(key)) fail("Duplicate JSON member");
+        keys.add(key); ws(); at += 1; value(depth + 1); ws();
+        if (text[at++] === "}") return;
+      }
+    }
+    if (text[at] === "[") {
+      at += 1; ws(); if (text[at] === "]") { at += 1; return; }
+      for (;;) { value(depth + 1); ws(); if (text[at++] === "]") return; }
+    }
+    while (at < text.length && !/[\t\n\r ,}\]]/.test(text[at])) at += 1;
+  }
+  value(0); ws();
+  if (at !== text.length) fail("Invalid unique JSON extent");
+  return parsed;
 }
 
 function canonical(value) {
@@ -303,7 +366,7 @@ export function readAuthority(file, candidateDir) {
   );
   let authority;
   try {
-    authority = JSON.parse(bytes.toString("utf8"));
+    authority = parseUniqueJson(bytes.toString("utf8"));
   } catch {
     fail("Authority is invalid JSON");
   }
@@ -318,6 +381,7 @@ export function readAuthority(file, candidateDir) {
       "environment",
       "origins",
       "trustBundle",
+      "aiReleaseScope",
     ]) ||
     authority.schemaVersion !== AUTHORITY_SCHEMA ||
     !exactKeys(authority.source, ["head", "tree"]) ||
@@ -341,6 +405,7 @@ export function readAuthority(file, candidateDir) {
     fail("Control API and portal origins must be distinct");
   }
   validateTrustBundle(authority.trustBundle);
+  validateAiReleaseScope(authority.aiReleaseScope);
 
   const source = sourceIdentity();
   const facts = productFacts();
@@ -492,6 +557,7 @@ export function readZip(bytes) {
     }
 
     const madeBy = bytes.readUInt16LE(pointer + 4);
+    const versionNeeded = bytes.readUInt16LE(pointer + 6);
     const flags = bytes.readUInt16LE(pointer + 8);
     const method = bytes.readUInt16LE(pointer + 10);
     const crc = bytes.readUInt32LE(pointer + 16);
@@ -500,12 +566,18 @@ export function readZip(bytes) {
     const nameLength = bytes.readUInt16LE(pointer + 28);
     const extraLength = bytes.readUInt16LE(pointer + 30);
     const commentEntryLength = bytes.readUInt16LE(pointer + 32);
+    const diskNumberStart = bytes.readUInt16LE(pointer + 34);
     const externalAttributes = bytes.readUInt32LE(pointer + 38);
     const localOffset = bytes.readUInt32LE(pointer + 42);
     const end = pointer + 46 + nameLength + extraLength + commentEntryLength;
 
     if (end > centralStart + centralSize) {
       fail("Invalid ZIP central entry bounds");
+    }
+    // Single-volume support applies to every entry, not just the end record.
+    // The 0xffff ZIP64 sentinel also needs unsupported ZIP64 disk metadata.
+    if (diskNumberStart !== 0) {
+      fail("Unsupported ZIP entry disk");
     }
     // Only release file payloads are inspected for private material. Do not
     // permit opaque per-entry comments or extras outside those inspected bytes.
@@ -622,6 +694,12 @@ export function readZip(bytes) {
     if ((flags & ~recognizedFlags) !== 0) {
       fail("Unsupported ZIP general-purpose flags");
     }
+    // This bounded STORE reader supports ordinary ZIP 1.0/2.0 only;
+    // a declared newer extraction feature must not be silently ignored.
+    const minimumVersion = method === 8 || isDirectory ? 20 : 10;
+    if (![10, 20].includes(versionNeeded) || versionNeeded < minimumVersion) {
+      fail("Unsupported ZIP extraction version");
+    }
     totalUncompressed += rawSize;
     if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES) {
       fail("ZIP uncompressed size exceeds limit");
@@ -634,6 +712,7 @@ export function readZip(bytes) {
       fail("Invalid ZIP local header");
     }
 
+    const localVersionNeeded = bytes.readUInt16LE(localOffset + 4);
     const localFlags = bytes.readUInt16LE(localOffset + 6);
     const localMethod = bytes.readUInt16LE(localOffset + 8);
     const localCrc = bytes.readUInt32LE(localOffset + 14);
@@ -651,6 +730,7 @@ export function readZip(bytes) {
     const dataStart = localOffset + 30 + localNameLength + localExtraLength;
 
     if (
+      localVersionNeeded !== versionNeeded ||
       localFlags !== flags ||
       localMethod !== method ||
       !localName.equals(nameBytes) ||
@@ -1170,17 +1250,299 @@ function backgroundScripts(entries, manifest, browser) {
   return visited;
 }
 
-function parsePackagedConfigFromScript(source) {
-  // The supported packager writes the config assignment as the first bytes
-  // of the script. Never accept an identical-looking marker inside a comment,
-  // string or template literal: it would not initialize the browser runtime.
-  if (!source.startsWith(PACKAGED_CONFIG_MARKER)) return [];
-  if (
-    source.indexOf(PACKAGED_CONFIG_MARKER, PACKAGED_CONFIG_MARKER.length) >= 0
-  ) {
-    fail("Release package contains duplicate config markers");
-  }
+// Supported composed-worker prelude, before the config assignment. These
+// reviewed modules only publish frozen capabilities/discovery functions. A
+// changed module requires an explicit contract update; arbitrary executable
+// ZIP prefixes are not accepted by inferring native-global identity.
+const FIREFOX_CONFIG_PRELUDE = [
+  "866bd3ca172f27822f0ae00cfd99511e1407851a486995dcd5e5f91f7f042a0c",
+  "e1f86038a60aad980162d821a4124a9bb60cfb44f5e3630fb18f0469b18cd788",
+  "262e8e1a5f09bb17383f6bf05711c46a8ec2b72e053c334f8551bc5cee44ea33",
+];
 
+function assertFirefoxConfigPrelude(ts, file, checker, assignment) {
+  const prefix = file.statements.slice(0, file.statements.indexOf(assignment));
+  const digest = (node) =>
+    createHash("sha256").update(node.getText(file)).digest("hex");
+  const trusted = prefix.filter((node) =>
+    FIREFOX_CONFIG_PRELUDE.includes(digest(node)),
+  );
+  if (
+    trusted.length &&
+    (trusted.length !== FIREFOX_CONFIG_PRELUDE.length ||
+      trusted.some(
+        (node, index) => digest(node) !== FIREFOX_CONFIG_PRELUDE[index],
+      ))
+  )
+    fail("Firefox config has an unsupported composed prelude");
+  const insideTrusted = (node) =>
+    trusted.some(
+      (statement) => node.pos >= statement.pos && node.end <= statement.end,
+    );
+  // Hoisted declarations elsewhere in the script must not substitute a native
+  // intrinsic used by the byte-identified prelude (e.g. function Object()).
+  const checkTrustedBindings = (node) => {
+    const parent = node.parent;
+    if (
+      ts.isIdentifier(node) &&
+      !(ts.isPropertyAccessExpression(parent) && parent.name === node) &&
+      !(ts.isPropertyAssignment(parent) && parent.name === node)
+    ) {
+      const declarations =
+        checker.getSymbolAtLocation(node)?.declarations ?? [];
+      if (
+        declarations.some(
+          (item) => !ts.isIdentifier(item) && !insideTrusted(item),
+        )
+      )
+        fail("Firefox config prelude shadows a native binding");
+    }
+    ts.forEachChild(node, checkTrustedBindings);
+  };
+  for (const node of trusted) checkTrustedBindings(node);
+
+  const unwrap = (node) => {
+    while (ts.isParenthesizedExpression(node)) node = node.expression;
+    return node;
+  };
+  const symbol = (node) => checker.getSymbolAtLocation(node);
+  const safeValue = (raw, locals) => {
+    const node = unwrap(raw);
+    if (
+      ts.isStringLiteral(node) ||
+      ts.isNumericLiteral(node) ||
+      ts.isBigIntLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      [
+        ts.SyntaxKind.TrueKeyword,
+        ts.SyntaxKind.FalseKeyword,
+        ts.SyntaxKind.NullKeyword,
+      ].includes(node.kind)
+    )
+      return true;
+    if (ts.isIdentifier(node))
+      return !!symbol(node) && locals.has(symbol(node));
+    if (ts.isVoidExpression(node)) return safeValue(node.expression, locals);
+    if (ts.isPrefixUnaryExpression(node))
+      return (
+        [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken].includes(
+          node.operator,
+        ) && ts.isNumericLiteral(node.operand)
+      );
+    if (ts.isObjectLiteralExpression(node))
+      return node.properties.every(
+        (property) =>
+          ts.isPropertyAssignment(property) &&
+          !ts.isComputedPropertyName(property.name) &&
+          safeValue(property.initializer, locals),
+      );
+    if (ts.isArrayLiteralExpression(node))
+      return node.elements.every((element) => safeValue(element, locals));
+    if (ts.isFunctionExpression(node) || ts.isArrowFunction(node)) return true;
+    if (!ts.isCallExpression(node)) return false;
+    const callee = unwrap(node.expression);
+    if (
+      ts.isPropertyAccessExpression(callee) &&
+      ts.isIdentifier(callee.expression) &&
+      callee.expression.text === "Object" &&
+      callee.name.text === "freeze" &&
+      node.arguments.length === 1 &&
+      (ts.isObjectLiteralExpression(node.arguments[0]) ||
+        ts.isArrayLiteralExpression(node.arguments[0]))
+    ) {
+      const declarations = symbol(callee.expression)?.declarations ?? [];
+      return (
+        declarations.every((item) => ts.isIdentifier(item)) &&
+        safeValue(node.arguments[0], locals)
+      );
+    }
+    if (
+      !(ts.isFunctionExpression(callee) || ts.isArrowFunction(callee)) ||
+      callee.asteriskToken ||
+      callee.modifiers?.some(
+        (item) => item.kind === ts.SyntaxKind.AsyncKeyword,
+      ) ||
+      !node.arguments.every((argument) => safeValue(argument, locals)) ||
+      new Set(
+        callee.parameters.map((parameter) => parameter.name.getText(file)),
+      ).size !== callee.parameters.length ||
+      callee.parameters.some(
+        (parameter) =>
+          !ts.isIdentifier(parameter.name) ||
+          !symbol(parameter.name) ||
+          parameter.initializer ||
+          parameter.dotDotDotToken,
+      )
+    )
+      return false;
+    const nested = new Map(
+      callee.parameters.map((parameter) => [symbol(parameter.name), true]),
+    );
+    if (!ts.isBlock(callee.body)) return safeValue(callee.body, nested);
+    for (const statement of callee.body.statements) {
+      if (ts.isReturnStatement(statement))
+        return !statement.expression || safeValue(statement.expression, nested);
+      if (!safeStatement(statement, nested)) return false;
+    }
+    return true;
+  };
+  const safeStatement = (node, locals) => {
+    if (ts.isEmptyStatement(node) || ts.isFunctionDeclaration(node))
+      return true;
+    if (ts.isVariableStatement(node)) {
+      for (const declaration of node.declarationList.declarations) {
+        if (
+          !ts.isIdentifier(declaration.name) ||
+          !symbol(declaration.name) ||
+          (node.declarationList.flags & ts.NodeFlags.Const &&
+            !declaration.initializer) ||
+          (declaration.initializer &&
+            !safeValue(declaration.initializer, locals))
+        )
+          return false;
+        locals.set(
+          symbol(declaration.name),
+          !(node.declarationList.flags & ts.NodeFlags.Const),
+        );
+      }
+      return true;
+    }
+    if (!ts.isExpressionStatement(node)) return false;
+    const value = unwrap(node.expression);
+    if (
+      ts.isBinaryExpression(value) &&
+      value.operatorToken.kind === ts.SyntaxKind.EqualsToken
+    )
+      return (
+        ts.isIdentifier(value.left) &&
+        !!symbol(value.left) &&
+        locals.get(symbol(value.left)) === true &&
+        safeValue(value.right, locals)
+      );
+    return safeValue(value, locals);
+  };
+  for (const node of prefix) {
+    if (trusted.includes(node)) continue;
+    // Outside the supported prelude allow only provably inert definitions,
+    // literals and bounded local-only IIFEs. No global member/alias/reflection,
+    // getters, unknown calls, loops, destructuring or executable coercions.
+    if (ts.isVariableStatement(node) || !safeStatement(node, new Map()))
+      fail("Firefox config has an unsupported executable bootstrap");
+  }
+}
+
+function parsePackagedConfigFromScript(source, browser) {
+  // Chromium's supported packager puts the assignment at byte zero. A
+  // Firefox flattened classic script may execute bootstrap statements first.
+  // Recognize only a direct top-level assignment, never text in a literal,
+  // comment, function or conditional. Do not execute package JavaScript.
+  const marker = source.indexOf(PACKAGED_CONFIG_MARKER);
+  if (marker < 0) return [];
+  if (
+    source.indexOf(
+      PACKAGED_CONFIG_MARKER,
+      marker + PACKAGED_CONFIG_MARKER.length,
+    ) >= 0
+  )
+    fail("Release package contains duplicate config markers");
+  if (marker !== 0 && browser !== "firefox") return [];
+  if (browser === "firefox") {
+    try {
+      // Compile classic-script syntax only, including JS early errors that a
+      // TypeScript AST can represent. Never run the script or its functions.
+      new Script(source, { filename: "octoport-firefox-background.js" });
+    } catch {
+      fail("Firefox background syntax is invalid");
+    }
+    const ts = createRequire(import.meta.url)("typescript");
+    const file = ts.createSourceFile(
+      "/octoport-firefox-background.js",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
+    );
+    if (file.parseDiagnostics.length)
+      fail("Firefox background syntax is invalid");
+    const assignments = file.statements.filter((statement) => {
+      if (!ts.isExpressionStatement(statement)) return false;
+      const expression = statement.expression;
+      return (
+        ts.isBinaryExpression(expression) &&
+        expression.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isPropertyAccessExpression(expression.left) &&
+        ts.isIdentifier(expression.left.expression) &&
+        expression.left.expression.text === "globalThis" &&
+        expression.left.name.text === "__SELLER_AGENTS_PACKAGED_CONFIG__" &&
+        ts.isStringLiteral(expression.right) &&
+        statement.getText(file).startsWith(PACKAGED_CONFIG_MARKER)
+      );
+    });
+    if (!assignments.length) return [];
+    if (assignments.length !== 1)
+      fail("Release package contains duplicate config assignments");
+    // Resolve the actual assignment receiver. Unrelated nested parameters
+    // named globalThis do not shadow this top-level browser-global reference.
+    // The compiler host is memory-only: no package imports, libs or execution.
+    const name = file.fileName;
+    const boundFile = file;
+    const host = {
+      getSourceFile: (path) => (path === name ? boundFile : undefined),
+      getDefaultLibFileName: () => "",
+      writeFile: () => {},
+      getCurrentDirectory: () => "/",
+      getDirectories: () => [],
+      fileExists: (path) => path === name,
+      readFile: (path) => (path === name ? source : undefined),
+      useCaseSensitiveFileNames: () => true,
+      getCanonicalFileName: (path) => path,
+      getNewLine: () => "\n",
+    };
+    const program = ts.createProgram(
+      [name],
+      {
+        allowJs: true,
+        noLib: true,
+        noResolve: true,
+        noEmit: true,
+        types: [],
+        target: ts.ScriptTarget.Latest,
+      },
+      host,
+    );
+    const checker = program.getTypeChecker();
+    if (program.getSyntacticDiagnostics(boundFile).length)
+      fail("Firefox background syntax is invalid");
+    const receiver = assignments[0].expression.left.expression;
+    const globalSymbol = checker.getSymbolAtLocation(receiver);
+    // JavaScript namespace assignment adds a synthetic Identifier declaration
+    // even to the native global. Actual lexical bindings have declaration nodes.
+    if (globalSymbol?.declarations?.some((node) => !ts.isIdentifier(node)))
+      fail("Firefox packaged config shadows globalThis");
+    const isGlobal = (node) =>
+      ts.isIdentifier(node) &&
+      node.text === "globalThis" &&
+      checker.getSymbolAtLocation(node) === globalSymbol;
+    const inspectWrites = (node) => {
+      if (
+        (ts.isBinaryExpression(node) &&
+          isGlobal(node.left) &&
+          node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+          node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) ||
+        ((ts.isPrefixUnaryExpression(node) ||
+          ts.isPostfixUnaryExpression(node)) &&
+          [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(
+            node.operator,
+          ) &&
+          isGlobal(node.operand))
+      )
+        fail("Firefox packaged config reassigns globalThis");
+      ts.forEachChild(node, inspectWrites);
+    };
+    inspectWrites(boundFile);
+    assertFirefoxConfigPrelude(ts, boundFile, checker, assignments[0]);
+    source = assignments[0].getText(file);
+  }
   const tail = source.slice(PACKAGED_CONFIG_MARKER.length);
   const match = tail.match(/^(?:"(?:\\.|[^"\\])*")\s*;/);
   if (!match) fail("Packaged config marker is malformed");
@@ -1189,7 +1551,7 @@ function parsePackagedConfigFromScript(source) {
   let config;
   try {
     encoded = JSON.parse(match[0].replace(/;\s*$/, "").trim());
-    config = JSON.parse(encoded);
+    config = parseUniqueJson(encoded);
   } catch {
     fail("Packaged config is invalid JSON");
   }
@@ -1205,6 +1567,7 @@ function validatePackagedConfig(config, authority) {
       "extensionVersion",
       "contractVersion",
       "trustBundle",
+      "aiReleaseScope",
     ]) ||
     config.environment !== authority.environment ||
     config.controlApiOrigin !== authority.origins.controlApiOrigin ||
@@ -1216,6 +1579,9 @@ function validatePackagedConfig(config, authority) {
   }
 
   validateTrustBundle(config.trustBundle);
+  validateAiReleaseScope(config.aiReleaseScope);
+  if (canonical(config.aiReleaseScope) !== canonical(authority.aiReleaseScope))
+    fail("Packaged AI release scope does not match release authority");
   if (canonical(config.trustBundle) !== canonical(authority.trustBundle)) {
     fail("Packaged trust bundle does not match release authority");
   }
@@ -1397,7 +1763,10 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   const configs = [];
   for (const path of reachable) {
     configs.push(
-      ...parsePackagedConfigFromScript(entries.get(path).toString("utf8")),
+      ...parsePackagedConfigFromScript(
+        entries.get(path).toString("utf8"),
+        browser,
+      ),
     );
   }
   if (!configs.length) {
@@ -1578,6 +1947,7 @@ export function prepare({
       productVersion: authority.productVersion,
       contractVersion: authority.contractVersion,
       migrationLevel: authority.migrationLevel,
+      aiReleaseScope: authority.aiReleaseScope,
       ...(chromiumOnly
         ? { releaseScope: "CHROME_ONLY" }
         : firefoxOnly
@@ -1620,7 +1990,7 @@ export function preflight({
   );
   let manifest;
   try {
-    manifest = JSON.parse(manifestBytes.toString("utf8"));
+    manifest = parseUniqueJson(manifestBytes.toString("utf8"));
   } catch {
     fail("Candidate manifest is invalid JSON");
   }
@@ -1633,6 +2003,7 @@ export function preflight({
       "productVersion",
       "contractVersion",
       "migrationLevel",
+      "aiReleaseScope",
       "packages",
       ...(scopedBrowser ? ["releaseScope"] : []),
     ]) ||
@@ -1644,6 +2015,7 @@ export function preflight({
     manifest.productVersion !== authority.productVersion ||
     manifest.contractVersion !== authority.contractVersion ||
     manifest.migrationLevel !== authority.migrationLevel ||
+    canonical(manifest.aiReleaseScope) !== canonical(authority.aiReleaseScope) ||
     !exactKeys(manifest.packages, browsers)
   ) {
     fail("Candidate source, authority, or product facts are stale");

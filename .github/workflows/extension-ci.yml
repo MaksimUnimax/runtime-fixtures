@@ -23,8 +23,13 @@ on:
       - "tests/regression/imported/**"
       - "tests/regression/extension-core/**"
       - "tests/fixtures/imported/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "tooling/build/extension_baseline.py"
       - "tooling/build/extension_composed.py"
+      - "tooling/build/extension_firefox.py"
+      - "tooling/build/extension_importscripts_ast.cjs"
       - "tooling/checks/extension_core.py"
       - "tooling/checks/extension_import.py"
       - "tooling/checks/extension-test-requirements.txt"
@@ -79,6 +84,9 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12.14"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - name: Install lockfile-pinned Firefox AST parser in clean core job
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
       - name: Verify actual common-core composition and extracted ZIP
         run: python tooling/checks/extension_core.py --output build/extension-ci/core
       - name: Preserve common-core evidence and development archive
@@ -180,6 +188,10 @@ jobs:
           node tests/regression/extension-core/client-i1/make-browser-config.mjs "$RUNNER_TEMP/seller-agents-browser-fixture-private.der" > "$RUNNER_TEMP/seller-agents-browser-fixture-config.json"
           export SA_PACKAGED_CONFIG_JSON="$(cat "$RUNNER_TEMP/seller-agents-browser-fixture-config.json")"
           python tooling/build/extension_composed.py --output build/application-browser/package
+          python tests/regression/extension-core/claude-modal-owner-chain.py --runtime build/application-browser/package/runtime --output build/application-browser/claude-owner-source.json
+          python tests/regression/extension-core/claude-modal-owner-chain.py --runtime build/application-browser/package/extracted --output build/application-browser/claude-owner-extracted.json
+          python tests/regression/extension-core/native-result-storage.py --runtime build/application-browser/package/runtime --output build/application-browser/native-storage-source.json
+          python tests/regression/extension-core/native-result-storage.py --runtime build/application-browser/package/extracted --output build/application-browser/native-storage-extracted.json
           xvfb-run -a python tests/regression/extension-core/browser_popup_sizing.py --runtime build/application-browser/package/runtime --output build/application-browser/native-popup-source
           xvfb-run -a python tests/regression/extension-core/browser_popup_sizing.py --runtime build/application-browser/package/extracted --output build/application-browser/native-popup-extracted
           python tests/regression/extension-core/popup-auth-dom.py --runtime build/application-browser/package/runtime --output build/application-browser/popup-auth-source

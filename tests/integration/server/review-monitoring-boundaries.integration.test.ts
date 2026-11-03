@@ -17,7 +17,10 @@ import {
   createPostgresApiWatchStore,
   runAuthorityPass,
 } from "../../../tooling/api-watch/src/authority.js";
-import { InMemoryApiWatchReportStore } from "../../../tooling/api-watch/src/report.js";
+import {
+  InMemoryApiWatchReportStore,
+  createPostgresApiWatchReportStore,
+} from "../../../tooling/api-watch/src/report.js";
 import {
   createSourceRegistry,
   productionSourceRegistry,
@@ -161,6 +164,8 @@ describe.sequential(
       for (const table of [
         "swagger_source_requests",
         "swagger_source_artifacts",
+        "api_watch_reports",
+        "api_watch_report_sources",
       ]) {
         await admin.query(
           'CREATE TABLE "' +
@@ -708,7 +713,9 @@ describe.sequential(
             })),
         },
       });
-      const reportStore = new InMemoryApiWatchReportStore();
+      // A PG-owned scheduler requires fenced PG sinks, including reports and
+      // pending requests; memory-only fences intentionally fail closed here.
+      const reportStore = createPostgresApiWatchReportStore(scoped);
       const createScheduler = () => {
         const retryStore = createPostgresApiWatchRetryStore(scoped);
         const scheduleStore = createPostgresMonitoringScheduleStore(scoped);
@@ -732,7 +739,7 @@ describe.sequential(
                   store: authorityStore,
                   reportStore,
                   retryStore,
-                  pendingStore: new InMemorySwaggerSourceStore(),
+                  pendingStore: createPostgresSwaggerSourceStore(scoped),
                   clock: () => new Date(now),
                   scheduleEarlier: async (at) => {
                     await instance.scheduleEarlier("SWAGGER_API", at);
@@ -815,8 +822,8 @@ describe.sequential(
             })),
         },
       });
-      const apiStore = new InMemoryApiWatchStore(),
-        reportStore = new InMemoryApiWatchReportStore();
+      const apiStore = createPostgresApiWatchStore(scoped),
+        reportStore = createPostgresApiWatchReportStore(scoped);
       const scheduler = new IndependentMonitoringScheduler({
         store,
         clock: { now: () => new Date(now) },
@@ -835,7 +842,7 @@ describe.sequential(
                 registry,
                 store: apiStore,
                 reportStore,
-                pendingStore: new InMemorySwaggerSourceStore(),
+                pendingStore: createPostgresSwaggerSourceStore(scoped),
                 retryStore,
                 clock: () => new Date(now),
                 scheduleEarlier: async (at) => {
@@ -872,7 +879,7 @@ describe.sequential(
       "native stop %s claim prevents dispatch and restores due work",
       async (stage) => {
         await scoped.query("TRUNCATE monitoring_lane_schedules");
-        const now = new Date("2026-10-15T01:00:00Z"),
+        const now = await testDatabaseNow(),
           store = createPostgresMonitoringScheduleStore(scoped);
         const original = store.startRun.bind(store);
         const originalRelease = store.releaseUnstartedRun.bind(store);
@@ -941,7 +948,7 @@ describe.sequential(
           expect(stopped.activeRun).toBeNull();
           expect(stopped.lastResult).toBeNull();
           // A released reservation is due according to the PostgreSQL clock,
-          // not according to this synthetic scheduler's 2026-10-15 timestamp.
+          // the same authoritative clock used to initialize this fixture.
           expect(stopped.nextRunAt.valueOf()).toBeLessThanOrEqual(
             (await testDatabaseNow()).getTime(),
           );
@@ -1054,7 +1061,7 @@ describe.sequential(
       await scoped.query(`CREATE TRIGGER reject_unstarted_release BEFORE UPDATE ON ${schema}.monitoring_lane_schedules
         FOR EACH ROW WHEN (OLD.active_run_id IS NOT NULL AND NEW.active_run_id IS NULL
           AND NEW.last_result IS NOT DISTINCT FROM OLD.last_result) EXECUTE FUNCTION ${schema}.reject_unstarted_release()`);
-      const now = new Date("2026-10-15T01:00:00Z"),
+      const now = await testDatabaseNow(),
         store = createPostgresMonitoringScheduleStore(scoped);
       const original = store.startRun.bind(store);
       let release!: () => void, entered!: () => void;

@@ -67,13 +67,13 @@ function autonomousInput(worker) {
   const payload = authority.payload;
   const profile = payload.ai.profile;
   const store = { accountId: payload.account.id, id: "firefox-neutral-store", marketplace: "ozon", credentialRevision: "firefox-neutral-r1" };
-  const identity = { origin: "https://chatgpt.com", conversationId: "firefox-neutral-dialogue", key: "https://chatgpt.com|firefox-neutral-dialogue", provider: "chatgpt" };
+  const identity = { origin: "https://alice.yandex.ru", conversationId: "firefox-neutral-dialogue", key: "https://alice.yandex.ru|firefox-neutral-dialogue", provider: "alice" };
   const current = {
     accountId: payload.account.id, expectedAccountId: payload.account.id,
     generation: authority.generation, expectedGeneration: authority.generation,
     deviceId: authority.deviceId, expectedDeviceId: authority.deviceId,
     sessionId: authority.sessionId, expectedSessionId: authority.sessionId,
-    aiFamily: "chatgpt", aiSurface: "web", aiVariant: null,
+    aiFamily: "alice", aiSurface: "web", aiVariant: null,
     aiProfile: { profileKey: profile.profileKey, revision: profile.revision, scopeVariant: profile.scopeVariant, contentSha256: profile.contentSha256 },
     origin: identity.origin, conversationId: identity.conversationId, conversationKey: identity.key,
     storeId: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision,
@@ -147,7 +147,7 @@ try {
   });
   assert.equal(output.localClientAuthority.schemaVersion, "local_client_authority_v1");
   assert.equal(output.compatibility.extension.status, "SUPPORTED");
-  const health = await worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: { family: "chatgpt", surface: "web", variant: null } });
+  const health = await worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: { family: "alice", surface: "web", variant: null } });
   assert.equal(health, null);
   assert.equal(worker.controlNetwork.some(row => row.url.endsWith("/v1/health-authority")), false);
   await until(() => worker.controlNetwork.some(row => row.url.endsWith("/v1/devices/current/client-metadata/forget")), "metadata forget request");
@@ -165,7 +165,7 @@ try {
   } });
   try {
     resolvedEnvelope = await neutralResolvedEnvelope(resolvedWorker);
-    const output = await resolvedWorker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "chatgpt", surface: "web", variant: null } });
+    const output = await resolvedWorker.call("SellerAgentsControlClient.bootstrap", { detectedAi: { family: "alice", surface: "web", variant: null } });
     assert.equal(output.ai.status, "RESOLVED");
     assert.equal(output.ai.profile.compatibility.contractVersion, "control_plane_v2");
     const decision = await resolvedWorker.call("SellerAgentsAutonomousWorkAuthority.evaluate", autonomousInput(resolvedWorker));

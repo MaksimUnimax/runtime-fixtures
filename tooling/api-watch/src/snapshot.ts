@@ -1,4 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
+import {
+  assertMonitoringRunCurrent,
+  withMonitoringEffect,
+} from "@product/monitoring-control";
 import { constants } from "node:fs";
 import { link, lstat, mkdir, open, unlink } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
@@ -107,6 +111,7 @@ export async function promoteAcceptedSnapshot(input: {
   now?: () => Date;
 }): Promise<SnapshotMetadata> {
   const { record, bytes, store } = input;
+  await assertMonitoringRunCurrent();
   if (record.authorityStatus !== "AUTHORITY_ACCEPTED")
     throw new Error("SNAPSHOT_AUTHORITY_NOT_ACCEPTED");
   SwaggerSourceFamilySchema.parse(record.sourceFamily);
@@ -171,7 +176,7 @@ export async function promoteAcceptedSnapshot(input: {
       if (writingFailed) throw writeFailure;
       try {
         // Publishing must not replace an entry created by a competing writer.
-        await link(temporaryPath, artifactPath);
+        await withMonitoringEffect(() => link(temporaryPath, artifactPath));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
         await verifyExistingSnapshot(artifactPath, bytes.byteLength, sha256);

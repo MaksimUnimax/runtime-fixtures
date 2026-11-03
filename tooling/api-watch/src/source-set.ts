@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import {
+  assertMonitoringRunCurrent,
+  currentMonitoringRun,
+} from "@product/monitoring-control";
 import { acquireOfficialSource } from "./acquire.js";
 import { compareAuthorityRecordOrder } from "./authority-order.js";
 import type {
@@ -191,6 +195,7 @@ export async function runDocumentAuthorityPass(input: {
       );
     });
     for (const document of configuredDocuments) {
+      await assertMonitoringRunCurrent();
       const fetchedOutcome: Awaited<ReturnType<typeof acquireOfficialSource>> =
         operatorHeld
           ? {
@@ -204,6 +209,7 @@ export async function runDocumentAuthorityPass(input: {
               entry,
               document,
               fetcher: input.fetcher,
+              signal: currentMonitoringRun()?.signal,
             });
       const outcome = document
         ? { ...fetchedOutcome, documentKey: document.documentKey }

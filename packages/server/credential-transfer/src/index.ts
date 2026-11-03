@@ -19,6 +19,7 @@ export type TransferFailure =
   | "TRANSFER_PACKET_TOO_LARGE"
   | "TRANSFER_DEVICE_REVOKED"
   | "TRANSFER_ACCOUNT_MISMATCH"
+  | "CONNECTION_TRANSFER_APPROVAL_REQUIRED"
   | "SOURCE_OFFLINE";
 
 export class TransferError extends Error {
@@ -57,6 +58,7 @@ export interface TransferRepository {
     principal: ExtensionPrincipal;
     requestId: string;
     now: Date;
+    expectedRevision: number;
   }): Promise<TransferRequestV1>;
   markDelivered(input: {
     principal: ExtensionPrincipal;
@@ -134,6 +136,21 @@ export class EphemeralTransferRelay {
 
   public constructor(options: Partial<EphemeralTransferRelayOptions> = {}) {
     this.limits = { ...DEFAULT_RELAY_LIMITS, ...options };
+    // A NaN, Infinity or undefined override silently disables numerical
+    // comparisons and defeats the bounded memory quotas. Zero is a valid
+    // fail-closed limit for deliberately disabled capacity.
+    const configuredLimits = [
+      this.limits.maxPackets,
+      this.limits.maxPacketsPerAccount,
+      this.limits.maxEnvelopeBytes,
+      this.limits.maxEnvelopeBytesPerAccount,
+    ];
+    if (
+      configuredLimits.some(
+        (limit) => !Number.isSafeInteger(limit) || limit < 0,
+      )
+    )
+      throw new TransferError("TRANSFER_INVALID");
   }
 
   reserve(
@@ -486,8 +503,8 @@ export class CredentialTransferService {
     )
       throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
     return this.forRequest(requestId, async () => {
-      // Source retries after process loss remain allowed. While the original
-      // delivery is still resident, resetting durable state would strand ACK.
+      // Source retries after process loss remain allowed before delivery.
+      // The repository also fences delivered state across independent relays.
       if (this.relay.isDelivered(requestId, this.now()))
         throw new TransferError("TRANSFER_CONFLICT");
       // A source discovery retry may repeat before the recipient receives
@@ -541,6 +558,13 @@ export class CredentialTransferService {
       if (!current) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
       if (current.sourceDeviceId !== principal.deviceId)
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+      // An empty relay cannot replace another process's prepared packet.
+      // A confirmed new writer epoch explicitly reopens lost availability.
+      if (
+        current.state === "PACKET_AVAILABLE_EPHEMERAL" &&
+        !this.relay.has(packet.requestId, now)
+      )
+        throw new TransferError("TRANSFER_CONFLICT");
       const parsedPacket = TransferPacketV1Schema.parse(packet);
       const reservationId = this.relay.reserve(
         parsedPacket,
@@ -555,6 +579,7 @@ export class CredentialTransferService {
             principal,
             requestId: packet.requestId,
             now: this.now(),
+            expectedRevision: current.revision,
           }),
         );
       } catch (error) {
@@ -688,7 +713,10 @@ export function validTransition(
 }
 
 /** Deterministic test/OpenAPI repository; production uses the PostgreSQL implementation. */
-export function createMemoryTransferRepository(): TransferRepository {
+export function createMemoryTransferRepository(): TransferRepository & {
+  /** Test/OpenAPI model of a confirmed new fenced writer, never discovery. */
+  startNewRelayEpoch(now: Date): void;
+} {
   const rows = new Map<string, TransferRequestV1>();
   const clone = (row: TransferRequestV1): TransferRequestV1 =>
     structuredClone(row);
@@ -723,6 +751,17 @@ export function createMemoryTransferRepository(): TransferRepository {
     row.revision += 1;
   };
   return {
+    startNewRelayEpoch(now) {
+      for (const row of rows.values()) {
+        if (
+          row.state === "PACKET_AVAILABLE_EPHEMERAL" &&
+          new Date(row.expiresAt) > now
+        ) {
+          row.state = "SOURCE_SEEN";
+          row.revision += 1;
+        }
+      }
+    },
     async create({ principal, request, now }) {
       if (request.recipientDeviceId !== principal.deviceId)
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
@@ -797,27 +836,28 @@ export function createMemoryTransferRepository(): TransferRepository {
         (row.sourceDeviceId && row.sourceDeviceId !== principal.deviceId)
       )
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+      if (row.state === "PACKET_AVAILABLE_EPHEMERAL") return clone(row);
       if (!row.sourceDeviceId) row.sourceDeviceId = principal.deviceId;
       transition(
         row,
-        [
-          "REQUESTED",
-          "SOURCE_SEEN",
-          "PACKET_AVAILABLE_EPHEMERAL",
-          "DELIVERED_TO_RECIPIENT",
-        ],
+        ["REQUESTED", "SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         "SOURCE_SEEN",
       );
       return clone(row);
     },
-    async markPacketAvailable({ principal, requestId, now }) {
+    async markPacketAvailable({ principal, requestId, now, expectedRevision }) {
       const row = find(principal, requestId, now);
       if (!row) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
       if (row.sourceDeviceId !== principal.deviceId)
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+      if (row.state === "EXPIRED") throw new TransferError("TRANSFER_EXPIRED");
+      if (row.state === "COMPLETED" || row.state === "CANCELLED")
+        throw new TransferError("TRANSFER_REPLAY");
+      if (row.revision !== expectedRevision)
+        throw new TransferError("TRANSFER_CONFLICT");
       transition(
         row,
-        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL", "DELIVERED_TO_RECIPIENT"],
+        ["SOURCE_SEEN", "PACKET_AVAILABLE_EPHEMERAL"],
         "PACKET_AVAILABLE_EPHEMERAL",
       );
       return clone(row);

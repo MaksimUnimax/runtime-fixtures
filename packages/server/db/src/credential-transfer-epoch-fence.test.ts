@@ -72,6 +72,14 @@ function fixture() {
               ]) as U[],
             };
           }
+          if (
+            text.startsWith(
+              "UPDATE public.credential_transfer_requests SET state='SOURCE_SEEN'",
+            )
+          ) {
+            await pause("recover");
+            return { rows: [] };
+          }
           if (text === "SELECT synthetic_transfer_action") return { rows: [] };
           throw new Error("Unexpected test SQL");
         },
@@ -132,16 +140,23 @@ describe("C06 epoch function boundary and terminal local deactivation", () => {
       }),
     ).resolves.toBe("done");
     expect(calls).toBe(1);
-    expect(x.queries).toHaveLength(4);
+    expect(x.queries).toHaveLength(7);
     expect(x.queries[0]?.text).toContain("claim_writer");
     expect(x.queries[1]?.text).toBe(
       "SET LOCAL search_path=pg_catalog,public,pg_temp",
     );
     expect(x.queries[2]?.text).toContain("authorize_writer");
     expect(x.queries[2]?.args).toEqual(["42", INSTANCE]);
-    expect(x.queries[3]?.text).toBe("SELECT synthetic_transfer_action");
+    expect(x.queries[3]?.text).toContain(
+      "state='PACKET_AVAILABLE_EPHEMERAL' AND expires_at>clock_timestamp()",
+    );
+    expect(x.queries[4]?.text).toBe(
+      "SET LOCAL search_path=pg_catalog,public,pg_temp",
+    );
+    expect(x.queries[5]?.text).toContain("authorize_writer");
+    expect(x.queries[6]?.text).toBe("SELECT synthetic_transfer_action");
     await expect(f.claim()).rejects.toThrow("CLAIM_RETRY_FORBIDDEN");
-    expect(x.queries).toHaveLength(4);
+    expect(x.queries).toHaveLength(7);
   });
   it("rejects work before claim and after deactivation without SQL", async () => {
     const x = fixture();
@@ -155,7 +170,7 @@ describe("C06 epoch function boundary and terminal local deactivation", () => {
     await expect(f.fencedTransaction(async () => true)).rejects.toMatchObject({
       code: "TRANSFER_CONFLICT",
     });
-    expect(x.queries).toHaveLength(1);
+    expect(x.queries).toHaveLength(4);
   });
   it("never retries an ambiguous election COMMIT", async () => {
     const x = fixture();
@@ -166,9 +181,9 @@ describe("C06 epoch function boundary and terminal local deactivation", () => {
     await expect(f.fencedTransaction(async () => true)).rejects.toMatchObject({
       code: "TRANSFER_CONFLICT",
     });
-    expect(x.queries).toHaveLength(1);
+    expect(x.queries).toHaveLength(4);
   });
-  it.each(["begin", "claim", "commit"])(
+  it.each(["begin", "claim", "schema", "authorize", "recover", "commit"])(
     "claim waiting at %s cannot undo deactivation",
     async (stage) => {
       const x = fixture();
@@ -230,7 +245,7 @@ describe("C06 epoch function boundary and terminal local deactivation", () => {
       await expect(f.fencedTransaction(async () => true)).rejects.toMatchObject(
         { code: "TRANSFER_CONFLICT" },
       );
-      expect(x.queries).toHaveLength(3);
+      expect(x.queries).toHaveLength(6);
     },
   );
   it.each(["42501", "08006", "40P01"])(
@@ -242,7 +257,7 @@ describe("C06 epoch function boundary and terminal local deactivation", () => {
       const error = Object.assign(new Error("original"), { code });
       x.setGuardError(error);
       await expect(f.fencedTransaction(async () => true)).rejects.toBe(error);
-      expect(x.queries).toHaveLength(3);
+      expect(x.queries).toHaveLength(6);
     },
   );
   it.each([
@@ -286,8 +301,8 @@ it("cannot reach authorization or business SQL when schema pinning fails", async
   let calls = 0;
   await expect(f.fencedTransaction(async () => ++calls)).rejects.toBe(error);
   expect(calls).toBe(0);
-  expect(x.queries).toHaveLength(2);
+  expect(x.queries).toHaveLength(5);
   expect(
-    x.queries.some((query) => query.text.includes("authorize_writer")),
+    x.queries.slice(4).some((query) => query.text.includes("authorize_writer")),
   ).toBe(false);
 });

@@ -144,7 +144,7 @@
     const plain = /filename="([^"]+)"|filename=([^;]+)/i.exec(header);
     let name = encoded?.[1] || plain?.[1] || plain?.[2] || "";
     if (encoded) { try { name = decodeURIComponent(name); } catch { return null; } }
-    return name && name.length <= 240 && !/[\x00-\x1f\x7f/\\]/.test(name) && !/^\.+$/.test(name)
+    return name && name.length <= 240 && !/[\x00-\x1f\x7f\u061c\u200e-\u200f\u202a-\u202e\u2066-\u2069/\\]/u.test(name) && !/^\.+$/.test(name)
       ? name : null;
   }
   function preserveJsonNumberProperty(rawText, property) {

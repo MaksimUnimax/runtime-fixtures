@@ -74,6 +74,29 @@ export function createCredentialTransferEpochFence(
           row.owner_instance_id !== instanceId
         )
           throw new Error("TRANSFER_EPOCH_ELECTION_UNVERIFIED");
+        // Only a new, fenced election can recover lost prepared availability.
+        // The global writer lock excludes all old delivery transactions. Keep
+        // DELIVERED/ACK terminality and the original request expiry unchanged.
+        await tx.query("SET LOCAL search_path=pg_catalog,public,pg_temp");
+        assertActive();
+        const authorized = await tx.query<{
+          epoch: string;
+          owner_instance_id: string;
+        }>(
+          "SELECT epoch::text, owner_instance_id::text FROM octoport_transfer_fence.authorize_writer($1::bigint,$2::uuid)",
+          [row.epoch, instanceId],
+        );
+        assertActive();
+        if (
+          authorized.rows.length !== 1 ||
+          authorized.rows[0]?.epoch !== row.epoch ||
+          authorized.rows[0]?.owner_instance_id !== instanceId
+        )
+          throw new Error("TRANSFER_EPOCH_ELECTION_UNVERIFIED");
+        await tx.query(
+          "UPDATE public.credential_transfer_requests SET state='SOURCE_SEEN',revision=revision+1 WHERE state='PACKET_AVAILABLE_EPHEMERAL' AND expires_at>clock_timestamp()",
+        );
+        assertActive();
         return Object.freeze({ epoch: row.epoch, instanceId });
       });
       // Even a confirmed election must not reactivate a locally stopped API.

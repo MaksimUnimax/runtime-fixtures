@@ -314,6 +314,33 @@ function validDeclaredTimeZone(value) {
   }
 }
 
+// SOURCE-only finite aggregation: alternate positive and negative operands
+// to avoid intermediate Infinity before a valid cancellation is applied.
+// Do not convert an unrepresentable aggregate into observed zero.
+function balancedFiniteSum(values) {
+  const positives = [];
+  const negatives = [];
+  for (const value of values) {
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    if (value > 0) positives.push(value);
+    else if (value < 0) negatives.push(value);
+  }
+  positives.sort((a, b) => b - a);
+  negatives.sort((a, b) => a - b);
+  let total = 0;
+  let pos = 0;
+  let neg = 0;
+  while (pos < positives.length || neg < negatives.length) {
+    const next =
+      (total <= 0 && pos < positives.length) || neg >= negatives.length
+        ? positives[pos++]
+        : negatives[neg++];
+    total += next;
+    if (!Number.isFinite(total)) return null;
+  }
+  return total;
+}
+
 const calculators = {
   sales_totals(input) {
     if (input?.complete !== true || !Array.isArray(input.rows))
@@ -331,11 +358,11 @@ const calculators = {
         !Number.isFinite(row.units),
     );
     if (invalid) return { status: "INCOMPLETE", money: null, units: null };
-    return {
-      status: "COMPLETE",
-      money: rows.reduce((sum, row) => sum + row.money, 0),
-      units: rows.reduce((sum, row) => sum + row.units, 0),
-    };
+    const money = balancedFiniteSum(rows.map((row) => row.money));
+    const units = balancedFiniteSum(rows.map((row) => row.units));
+    if (money === null || units === null)
+      return { status: "INCOMPLETE", money: null, units: null };
+    return { status: "COMPLETE", money, units };
   },
   daily_rank(input) {
     if (!Array.isArray(input?.rows) || input.rows.length === 0) return null;
@@ -508,14 +535,35 @@ const calculators = {
       days <= 0
     )
       return null;
-    return stock / (demand / days);
+    if (stock === 0) return 0;
+    // Neither division order is universally safe at IEEE-754 limits.
+    // Try a total-period quotient first, then a daily-rate quotient.
+    // Underflow is UNKNOWN rather than fabricated zero stock coverage.
+    const periodRatio = (stock / demand) * days;
+    if (Number.isFinite(periodRatio) && periodRatio > 0) return periodRatio;
+    const dailyRatio = stock / (demand / days);
+    if (Number.isFinite(dailyRatio) && dailyRatio > 0) return dailyRatio;
+    // Either earlier quotient can overflow before its later cancellation.
+    // This final product-first order still rejects genuinely infinite output.
+    const productRatio = (stock * days) / demand;
+    return Number.isFinite(productRatio) && productRatio > 0
+      ? productRatio
+      : null;
   },
   drr(input) {
     if (input?.complete !== true) return null;
     const spend = finiteRecordedMetric(input.spend),
       revenue = finiteRecordedMetric(input.revenue);
     if (spend === null || revenue === null || revenue <= 0) return null;
-    return (spend / revenue) * 100;
+    if (spend === 0) return 0;
+    // An intermediate ratio can underflow although the scaled percentage
+    // is representable. Unknown subnormal values must never be called 0%.
+    const percentage = (spend / revenue) * 100;
+    if (Number.isFinite(percentage) && percentage !== 0) return percentage;
+    const scaledNumerator = (spend * 100) / revenue;
+    return Number.isFinite(scaledNumerator) && scaledNumerator !== 0
+      ? scaledNumerator
+      : null;
   },
   platform_contribution(input) {
     const incomplete = {
@@ -559,12 +607,18 @@ const calculators = {
     )
       return incomplete;
 
-    const values = raw;
+    const amount = balancedFiniteSum([
+      raw[0],
+      -raw[1],
+      -raw[2],
+      -raw[3],
+      -raw[4],
+    ]);
+    if (amount === null) return incomplete;
     return {
       status: "COMPLETE",
       label: "platform_contribution",
-      amount:
-        values[0] - values.slice(1).reduce((sum, value) => sum + value, 0),
+      amount,
       isNetProfit: false,
     };
   },
@@ -644,6 +698,16 @@ const calculators = {
     if (input.leftComplete !== true || input.rightComplete !== true)
       return { status: "INCOMPLETE", reason: "SOURCE_READ_INCOMPLETE" };
 
+    // A generic unscoped source fixture remains a legacy calculation, not
+    // proof of a specific marketplace cabinet. Once ANY source declares a
+    // store, require an explicit top-level store and exact matching on both
+    // sides. Never treat two different seller cabinets as one product set.
+    const scoped = Object.hasOwn(input, "storeId") ||
+      input.left.some((row) => row && Object.hasOwn(row, "storeId")) ||
+      input.right.some((row) => row && Object.hasOwn(row, "storeId"));
+    if (scoped && (typeof input.storeId !== "string" || !input.storeId.trim()))
+      return { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" };
+
     const project = (rows, side) => {
       const ids = new Set();
       const products = new Map();
@@ -659,6 +723,13 @@ const calculators = {
           return {
             status: "INCOMPLETE",
             reason: side === "left" ? "LEFT_ROW_INVALID" : "RIGHT_ROW_INVALID",
+          };
+        if (scoped && row.storeId !== input.storeId)
+          return {
+            status: "INCOMPLETE",
+            reason: side === "left"
+              ? "LEFT_STORE_ID_MISMATCH"
+              : "RIGHT_STORE_ID_MISMATCH",
           };
         if (ids.has(row.rowId))
           return {
@@ -1239,6 +1310,69 @@ assert.deepEqual(
   "proven complete zero-row period is distinct from unknown data",
 );
 
+// CAP24_CROSS_SOURCE_DECLARED_STORE_SCOPE_REGRESSIONS: an asserted matching
+// product population cannot authenticate a different cabinet. These examples
+// are synthetic only; real CAP24 callers still need verified store bindings
+// and complete, period-matched source observations.
+const scopeBase = {
+  period: joinProofPeriod,
+  leftComplete: true,
+  rightComplete: true,
+  storeId: "store-A",
+  left: [{ ...joinProofRows.left[0], storeId: "store-A" }],
+  right: [{ ...joinProofRows.right[0], storeId: "store-A" }],
+};
+const fullJoin = {
+  status: "COMPLETE",
+  rows: [{ product: "1001", leftRows: 1, rightRows: 1 }],
+};
+const scopeCases = [
+  ["matching_store", scopeBase, fullJoin],
+  ["right_foreign_store",
+    { ...scopeBase, right: [{ ...scopeBase.right[0], storeId: "store-B" }] },
+    { status: "INCOMPLETE", reason: "RIGHT_STORE_ID_MISMATCH" }],
+  ["left_foreign_store",
+    { ...scopeBase, left: [{ ...scopeBase.left[0], storeId: "store-B" }] },
+    { status: "INCOMPLETE", reason: "LEFT_STORE_ID_MISMATCH" }],
+  ["right_missing_store",
+    { ...scopeBase, right: [{ rowId: "R-PROOF", product: "1001", period: joinProofPeriod }] },
+    { status: "INCOMPLETE", reason: "RIGHT_STORE_ID_MISMATCH" }],
+  ["top_level_store_missing",
+    { ...scopeBase, storeId: undefined },
+    { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" }],
+  ["top_level_property_absent_but_rows_declare_store",
+    { period: joinProofPeriod, leftComplete: true, rightComplete: true,
+      left: scopeBase.left, right: scopeBase.right },
+    { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" }],
+  ["top_level_store_blank",
+    { ...scopeBase, storeId: " " },
+    { status: "INCOMPLETE", reason: "SOURCE_STORE_ID_MISSING" }],
+  ["source_read_incomplete",
+    { ...scopeBase, rightComplete: false },
+    { status: "INCOMPLETE", reason: "SOURCE_READ_INCOMPLETE" }],
+  ["product_set_mismatch",
+    { ...scopeBase, right: [{ ...scopeBase.right[0], product: "1002" }] },
+    { status: "INCOMPLETE", reason: "PRODUCT_SET_MISMATCH" }],
+  ["legacy_unscoped_is_not_store_proof",
+    { period: joinProofPeriod, leftComplete: true, rightComplete: true, ...joinProofRows },
+    fullJoin],
+];
+const scopeResults = scopeCases.map(([caseId, input, expected]) => {
+  const actual = calculators.cross_source_join(input);
+  return { caseId, pass: JSON.stringify(actual) === JSON.stringify(expected),
+    actual, expected };
+});
+const scopeFailures = scopeResults.filter((item) => !item.pass);
+console.log("CAP24_CROSS_SOURCE_STORE_SCOPE_GUARD " + JSON.stringify({
+  total: scopeResults.length,
+  pass: scopeResults.length - scopeFailures.length,
+  failed: scopeFailures,
+  level: "SOURCE_ONLY_SYNTHETIC",
+  realMarketplaceBinding: "NOT_VERIFIED",
+}));
+assert.equal(scopeFailures.length, 0,
+  "cross_source_join must not label different declared stores COMPLETE");
+
 for (const row of numeric.cases) {
   assert.ok(
     calculators[row.kind],
@@ -1799,6 +1933,312 @@ assert.equal(
   50,
   "STD-04 complete and matching unit-count comparison",
 );
+
+// A04 SOURCE arithmetic integrity: finite rows can overflow while summing,
+// dividing or scaling. Never label a non-finite aggregate as a complete
+// provider figure; 69 owner-curated numeric fixtures remain immutable.
+const finiteOverflowCurrencies = {
+  revenue: "RUB",
+  fees: "RUB",
+  storage: "RUB",
+  logistics: "RUB",
+  ads: "RUB",
+};
+const finiteOverflowCases = [
+  [
+    "STD-01 money_sum_overflow",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: Number.MAX_VALUE, units: 2 },
+      ],
+    },
+    { status: "INCOMPLETE", money: null, units: null },
+  ],
+  [
+    "STD-01 units_sum_overflow",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: 1, units: Number.MAX_VALUE },
+        { money: 2, units: Number.MAX_VALUE },
+      ],
+    },
+    { status: "INCOMPLETE", money: null, units: null },
+  ],
+  [
+    "STD-07 stock_over_tiny_demand",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MAX_VALUE,
+      demandUnits: Number.MIN_VALUE,
+      days: 1,
+    },
+    null,
+  ],
+  [
+    "STD-07 large_stock_and_period_true_overflow",
+    "days_cover",
+    {
+      complete: true,
+      stock: 2,
+      demandUnits: 1,
+      days: Number.MAX_VALUE,
+    },
+    null,
+  ],
+  [
+    "ad_percentage_tiny_revenue",
+    "drr",
+    {
+      complete: true,
+      spend: Number.MAX_VALUE,
+      revenue: Number.MIN_VALUE,
+    },
+    null,
+  ],
+  [
+    "ad_percentage_scale_overflow",
+    "drr",
+    {
+      complete: true,
+      spend: Number.MAX_VALUE,
+      revenue: 10,
+    },
+    null,
+  ],
+  [
+    "ad_percentage_tiny_nonzero_spend_not_observed_zero",
+    "drr",
+    {
+      complete: true,
+      spend: Number.MIN_VALUE,
+      revenue: Number.MAX_VALUE,
+    },
+    null,
+  ],
+  [
+    "ad_percentage_tiny_negative_spend_not_observed_zero",
+    "drr",
+    {
+      complete: true,
+      spend: -Number.MIN_VALUE,
+      revenue: Number.MAX_VALUE,
+    },
+    null,
+  ],
+  [
+    "CAP-24 finite_components_sum_overflow",
+    "platform_contribution",
+    {
+      complete: true,
+      revenue: 1,
+      fees: Number.MAX_VALUE,
+      storage: Number.MAX_VALUE,
+      logistics: 0,
+      ads: 0,
+      currencyByComponent: finiteOverflowCurrencies,
+    },
+    {
+      status: "INCOMPLETE",
+      label: "platform_contribution",
+      amount: null,
+      isNetProfit: false,
+    },
+  ],
+];
+for (const [name, kind, input, expected] of finiteOverflowCases) {
+  assert.deepEqual(
+    calculators[kind](input),
+    expected,
+    name + ": non-finite result",
+  );
+}
+for (const [name, kind, input, expected] of [
+  [
+    "STD-01 finite_after_signed_cancellation",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: -Number.MAX_VALUE, units: 0 },
+      ],
+    },
+    { status: "COMPLETE", money: Number.MAX_VALUE, units: 2 },
+  ],
+  [
+    "STD-01 tiny_remainder_after_large_cancellation",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: Number.MAX_VALUE, units: 1 },
+        { money: -Number.MAX_VALUE, units: 0 },
+        { money: -Number.MAX_VALUE, units: 0 },
+        { money: 1, units: 0 },
+      ],
+    },
+    { status: "COMPLETE", money: 1, units: 2 },
+  ],
+  [
+    "STD-01 large_finite_total",
+    "sales_totals",
+    {
+      complete: true,
+      rows: [
+        { money: Number.MAX_VALUE / 4, units: 1 },
+        { money: Number.MAX_VALUE / 4, units: 1 },
+      ],
+    },
+    { status: "COMPLETE", money: Number.MAX_VALUE / 2, units: 2 },
+  ],
+  [
+    "STD-07 tiny_demand_cancellation_is_finite",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MIN_VALUE,
+      demandUnits: Number.MIN_VALUE,
+      days: Number.MAX_VALUE,
+    },
+    Number.MAX_VALUE,
+  ],
+  [
+    "STD-07 large_period_is_finite",
+    "days_cover",
+    {
+      complete: true,
+      stock: 1,
+      demandUnits: 1,
+      days: Number.MAX_VALUE,
+    },
+    Number.MAX_VALUE,
+  ],
+  [
+    "STD-07 tiny_period_does_not_round_to_zero",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MAX_VALUE,
+      demandUnits: Number.MAX_VALUE,
+      days: Number.MIN_VALUE,
+    },
+    Number.MIN_VALUE,
+  ],
+  [
+    "STD-07 balanced_subnormal_demand_and_days",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MAX_VALUE,
+      demandUnits: Number.MIN_VALUE,
+      days: Number.MIN_VALUE,
+    },
+    Number.MAX_VALUE,
+  ],
+  [
+    "STD-07 severe_underflow_in_first_ratio",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MIN_VALUE,
+      demandUnits: Number.MAX_VALUE,
+      days: Number.MAX_VALUE,
+    },
+    Number.MIN_VALUE,
+  ],
+  [
+    "STD-07 tiny_vs_huge_source_range",
+    "days_cover",
+    {
+      complete: true,
+      stock: 1e-300,
+      demandUnits: 1e300,
+      days: 1e300,
+    },
+    1e-300,
+  ],
+  [
+    "STD-07 product_before_quotient_cancellation",
+    "days_cover",
+    {
+      complete: true,
+      stock: Number.MAX_VALUE,
+      demandUnits: 0.125,
+      days: Number.MIN_VALUE,
+    },
+    Number.MAX_VALUE * Number.MIN_VALUE * 8,
+  ],
+  [
+    "STD-07 zero_stock_observed",
+    "days_cover",
+    { complete: true, stock: 0, demandUnits: 2, days: 7 },
+    0,
+  ],
+  [
+    "ad_percentage_tiny_nonzero_is_representable",
+    "drr",
+    { complete: true, spend: Number.MIN_VALUE, revenue: 10 },
+    Number.MIN_VALUE * 10,
+  ],
+  [
+    "ad_percentage_zero_spend_observed",
+    "drr",
+    { complete: true, spend: 0, revenue: 10 },
+    0,
+  ],
+  [
+    "CAP-24 finite_component_cancellation_without_intermediate_overflow",
+    "platform_contribution",
+    {
+      complete: true,
+      revenue: Number.MAX_VALUE,
+      fees: Number.MAX_VALUE,
+      storage: Number.MAX_VALUE,
+      logistics: 0,
+      ads: 0,
+      currencyByComponent: finiteOverflowCurrencies,
+    },
+    {
+      status: "COMPLETE",
+      label: "platform_contribution",
+      amount: -Number.MAX_VALUE,
+      isNetProfit: false,
+    },
+  ],
+  [
+    "CAP-24 finite_negative_contribution",
+    "platform_contribution",
+    {
+      complete: true,
+      revenue: 1000,
+      fees: 1100,
+      storage: 0,
+      logistics: 0,
+      ads: 0,
+      currencyByComponent: finiteOverflowCurrencies,
+    },
+    {
+      status: "COMPLETE",
+      label: "platform_contribution",
+      amount: -100,
+      isNetProfit: false,
+    },
+  ],
+]) {
+  assert.deepEqual(
+    calculators[kind](input),
+    expected,
+    name + ": finite control",
+  );
+}
 
 // CAP-25 business identity guards supplement the immutable owner-curated
 // gold/numeric fixture case list rather than changing its accepted bindings.

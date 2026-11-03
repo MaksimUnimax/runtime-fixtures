@@ -10,7 +10,7 @@ const SESSIONS = "ozmb_work_sessions_v1";
 const PENDING = "ozmb_pending_work_starts_v1";
 const clone = value => JSON.parse(JSON.stringify(value));
 
-async function autonomousFixture({ marketplace = "ozon", provider = "chatgpt", conversationId = "c3d-dialogue", bound = false, state = "inactive", authorityState = "fresh", entitlements, promptOutcome = "sent", backing: suppliedBacking = null } = {}) {
+async function autonomousFixture({ marketplace = "ozon", provider = "alice", conversationId = "c3d-dialogue", bound = false, state = "inactive", authorityState = "fresh", entitlements, promptOutcome = "sent", backing: suppliedBacking = null } = {}) {
   const seed = await makeWorker(runtime, suppliedBacking ? { backing: suppliedBacking } : {});
   const backing = seed.backing;
   const auth = backing.local[AUTH];
@@ -201,7 +201,7 @@ await test("C3D-17", "independent dialogues have independent pending contexts an
   finally { await close(f); }
 });
 await test("C3D-18", "missing marketplace capability denies selected context", async () => {
-  const f = await autonomousFixture({ marketplace: "wildberries", entitlements: { "source.ozon": true, "ai.chatgpt": true } });
+  const f = await autonomousFixture({ marketplace: "wildberries", entitlements: { "source.ozon": true, "ai.alice": true } });
   try { const result = await start(f); assert.equal(result.ok, false, JSON.stringify(result)); }
   finally { await close(f); }
 });

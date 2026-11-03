@@ -79,12 +79,17 @@
   }
   function validScope(value) {
     return exact(value, ["family", "surface", "variant"]) &&
-      ["chatgpt", "alice", "qwen"].includes(value.family) && value.surface === "web" && value.variant === null;
+      ["chatgpt", "alice", "qwen", "kimi", "grok", "gemini", "claude", "deepseek"].includes(value.family) && value.surface === "web" && value.variant === null;
   }
   function validAuthority(value) {
     return exact(value, ["authGeneration", "bootstrapSnapshotSha256"]) &&
       positiveSafeInt(value.authGeneration) && typeof value.bootstrapSnapshotSha256 === "string" &&
       DIGEST.test(value.bootstrapSnapshotSha256);
+  }
+  // Structural scope validation retains the adapters planned for later releases.
+  // The privileged worker separately proves availability in this exact package.
+  function releaseAvailable(value) {
+    return validScope(value) && globalThis.SellerAgentsAiReleaseScope?.supportsAi?.(value) === true;
   }
   function validIdentity(value) {
     return exact(value, ["profileKey", "revision", "scopeVariant", "contentSha256"]) &&
@@ -219,6 +224,7 @@
   globalThis.SellerAgentsSignedAiProfileConsumer = Object.freeze({
     PROTOCOL_VERSION,
     validRequest,
+    releaseAvailable,
     validResponse,
     validReceipt,
     validMaterial,

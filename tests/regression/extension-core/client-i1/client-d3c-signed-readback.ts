@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { BootstrapService } from "@product/bootstrap";
 import { signBootstrapSnapshotV2, verifyBootstrapEnvelopeV2 } from "@product/remote-config";
-import { makeWorker } from "../worker-harness.mjs";
+import { AI_RELEASE_SCOPE_FIXTURE, makeWorker } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const ACCOUNT_A = "11111111-1111-4111-8111-111111111111";
@@ -15,7 +15,8 @@ const SESSION = "33333333-3333-4333-8333-333333333333";
 const CONTROL_ORIGIN = "http://127.0.0.1:43100";
 const PORTAL_ORIGIN = "http://127.0.0.1:43101";
 const AUTH = "seller_agents_control_auth_v2";
-const REVIEWED = ["source.ozon", "source.wildberries", "ai.chatgpt", "ai.alice", "ai.qwen"];
+const REVIEWED = ["source.ozon", "source.wildberries", "ai.chatgpt", "ai.alice", "ai.qwen", "ai.kimi", "ai.grok", "ai.gemini", "ai.claude", "ai.deepseek"];
+const RELEASED = Object.freeze(Object.fromEntries(REVIEWED.map(key => [key, key.startsWith("source.") || key === "ai.alice"])));
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 type CommercialMap = Record<string, boolean | number>;
@@ -185,7 +186,7 @@ async function issue(input: Parameters<typeof serviceFor>[0]) {
   return { ...fixture, envelope, serverPayload: serverVerification.ok ? serverVerification.payload : null };
 }
 
-async function readBack(runtimePath: string, fixture: Awaited<ReturnType<typeof issue>>, configTrust = fixture.trust) {
+async function readBack(runtimePath: string, fixture: Awaited<ReturnType<typeof issue>>, configTrust = fixture.trust, releaseScope: unknown = AI_RELEASE_SCOPE_FIXTURE) {
   assert.ok(fixture.serverPayload);
   const wireEnvelope = JSON.parse(JSON.stringify(fixture.envelope));
   assert.notStrictEqual(wireEnvelope, fixture.envelope, "JSON boundary must detach the envelope");
@@ -202,6 +203,7 @@ async function readBack(runtimePath: string, fixture: Awaited<ReturnType<typeof 
       extensionVersion: "0.2.4",
       contractVersion: "control_plane_v2",
       trustBundle: configTrust,
+      aiReleaseScope: releaseScope,
     },
     fetch: async url => {
       assert.equal(new URL(url).pathname, "/v1/bootstrap");
@@ -252,6 +254,7 @@ async function expectRejected(runtimePath: string, envelope: any, trust: any, ex
     packagedConfig: {
       environment: "LOCAL DEVELOPMENT", controlApiOrigin: CONTROL_ORIGIN, portalOrigin: PORTAL_ORIGIN,
       extensionVersion: "0.2.4", contractVersion: "control_plane_v2", trustBundle: trust,
+      aiReleaseScope: AI_RELEASE_SCOPE_FIXTURE,
     },
     fetch: async () => new Response(JSON.stringify(JSON.parse(JSON.stringify(fixture.envelope))), { status: 200 }),
   });
@@ -269,9 +272,9 @@ const cases: Record<string, unknown> = {};
   const fixture = await issue({ beta: true });
   const read = await readBack(runtime, fixture);
   try {
-    assert.deepEqual(fixture.serverPayload?.entitlements, { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true });
+    assert.deepEqual(fixture.serverPayload?.entitlements, RELEASED);
     assert.deepEqual(read.metadata.signedEntitlements, fixture.serverPayload?.entitlements);
-    assert.deepEqual(resultMap(read.intersection), Object.fromEntries(REVIEWED.map(key => [key, true])));
+    assert.deepEqual(resultMap(read.intersection), RELEASED);
     cases["D3C-01"] = { server: fixture.serverPayload?.entitlements, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
   } finally { read.worker.close(); }
 }
@@ -288,13 +291,13 @@ const cases: Record<string, unknown> = {};
 }
 
 {
-  const commercial = { "source.ozon": true, "source.wildberries": false, "ai.chatgpt": true, "device.max_active": 3, "provider.analytics": true, "provider.reports": false };
+  const commercial = { "source.ozon": true, "source.wildberries": false, "ai.chatgpt": true, "ai.alice": true, "device.max_active": 3, "provider.analytics": true, "provider.reports": false };
   const fixture = await issue({ commercial });
   const read = await readBack(runtime, fixture);
   try {
     assert.equal(fixture.serverPayload?.accessBasis, "COMMERCIAL");
-    assert.deepEqual(read.metadata.signedEntitlements, commercial);
-    assert.deepEqual(resultMap(read.intersection), { "source.ozon": true, "source.wildberries": false, "ai.chatgpt": true, "ai.alice": false, "ai.qwen": false });
+    assert.deepEqual(read.metadata.signedEntitlements, { ...commercial, "ai.chatgpt": false });
+    assert.deepEqual(resultMap(read.intersection), { ...Object.fromEntries(REVIEWED.map(key => [key, false])), "source.ozon": true, "ai.alice": true });
     cases["D3C-03"] = { accessBasis: read.metadata.accessBasis, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
   } finally { read.worker.close(); }
 }
@@ -305,8 +308,8 @@ const cases: Record<string, unknown> = {};
   const read = await readBack(runtime, fixture);
   try {
     assert.equal(read.metadata.accessBasis, "BETA");
-    assert.deepEqual(read.metadata.signedEntitlements, { ...commercial, "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true });
-    assert.deepEqual(resultMap(read.intersection), Object.fromEntries(REVIEWED.map(key => [key, true])));
+    assert.deepEqual(read.metadata.signedEntitlements, { ...commercial, ...RELEASED });
+    assert.deepEqual(resultMap(read.intersection), RELEASED);
     cases["D3C-04"] = { accessBasis: read.metadata.accessBasis, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
   } finally { read.worker.close(); }
 }
@@ -317,7 +320,7 @@ const cases: Record<string, unknown> = {};
   assert.ok(features);
   const payload = clone(features);
   payload.entitlements = {};
-  payload.features = { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true };
+  payload.features = Object.fromEntries(REVIEWED.map(key => [key, true]));
   const replacement = signBootstrapSnapshotV2(payload, "d3c-key", fixture.pair.privateKey);
   const read = await readBack(runtime, { ...fixture, envelope: replacement, serverPayload: payload });
   try {
@@ -345,7 +348,7 @@ const cases: Record<string, unknown> = {};
 {
   const mismatchBacking = backing(Date.now());
   mismatchBacking.local[AUTH].authority = { deviceId: "44444444-4444-4444-8444-444444444444", sessionId: SESSION, generation: 1, payload: {}, envelope: {}, cacheBinding: {} };
-  const worker = await makeWorker(runtime, { backing: mismatchBacking, seedAuthority: false, fixtureSigningKey: false, packagedConfig: { environment: "LOCAL DEVELOPMENT", controlApiOrigin: CONTROL_ORIGIN, portalOrigin: PORTAL_ORIGIN, extensionVersion: "0.2.4", contractVersion: "control_plane_v2", trustBundle: trustBundle(generateKeyPairSync("ed25519").publicKey) } });
+  const worker = await makeWorker(runtime, { backing: mismatchBacking, seedAuthority: false, fixtureSigningKey: false, packagedConfig: { environment: "LOCAL DEVELOPMENT", controlApiOrigin: CONTROL_ORIGIN, portalOrigin: PORTAL_ORIGIN, extensionVersion: "0.2.4", contractVersion: "control_plane_v2", aiReleaseScope: AI_RELEASE_SCOPE_FIXTURE, trustBundle: trustBundle(generateKeyPairSync("ed25519").publicKey) } });
   try {
     const status = await worker.call("SellerAgentsControlClient.status");
     assert.equal(status.authenticated, false);
@@ -374,7 +377,7 @@ const cases: Record<string, unknown> = {};
   const read = await readBack(runtime, { ...fixture, envelope, serverPayload: payload });
   try {
     assert.equal(read.metadata.signedEntitlements["unrelated.legitimate"], 99);
-    assert.equal(read.intersection.capabilities.length, 5);
+    assert.equal(read.intersection.capabilities.length, 10);
     cases["D3C-10"] = { unknownRetained: true, capabilityRows: read.intersection.capabilities.length };
   } finally { read.worker.close(); }
 }
@@ -393,9 +396,10 @@ const cases: Record<string, unknown> = {};
     const absent = resultMap(read.intersection);
     assert.equal(absent["source.ozon"], false);
     assert.equal(absent["source.wildberries"], true);
-    assert.equal(absent["ai.chatgpt"], true);
+    assert.deepEqual(absent, { ...RELEASED, "source.ozon": false });
+    assert.equal(absent["ai.chatgpt"], false);
     assert.equal(absent["ai.alice"], true);
-    assert.equal(absent["ai.qwen"], true);
+    assert.equal(absent["ai.qwen"], false);
     assert.equal(await read.worker.call("SellerAgentsPackagedCapabilities.has", "marketplace.ozon.adapter"), false);
     cases["D3C-11"] = { ozonPermissionTrue: true, ozonPackaged: false, d2: absent, productionManifestUntouched: true };
   } finally {
@@ -424,6 +428,29 @@ const cases: Record<string, unknown> = {};
   } finally { read.worker.close(); }
 }
 
+{
+  const commercial = Object.fromEntries(REVIEWED.map(key => [key, true]));
+  const fixture = await issue({ commercial });
+  const read = await readBack(runtime, fixture);
+  try {
+    assert.deepEqual(fixture.serverPayload?.entitlements, RELEASED);
+    assert.deepEqual(read.metadata.signedEntitlements, RELEASED);
+    assert.deepEqual(resultMap(read.intersection), RELEASED);
+    cases["D3C-15"] = "STALE_ALL_EIGHT_COMMERCIAL_GRANTS_CANNOT_OVERRIDE_RELEASE";
+  } finally { read.worker.close(); }
+}
+for (const [id, scope] of [
+  ["D3C-16", null],
+  ["D3C-17", { ...AI_RELEASE_SCOPE_FIXTURE, sha256: "0".repeat(64) }],
+] as const) {
+  const fixture = await issue({ beta: true });
+  const read = await readBack(runtime, fixture, fixture.trust, scope);
+  try {
+    assert.deepEqual(read.metadata.signedEntitlements, RELEASED);
+    assert.deepEqual(resultMap(read.intersection), Object.fromEntries(REVIEWED.map(key => [key, false])));
+    cases[id] = "MISSING_OR_CORRUPT_PACKAGED_RELEASE_SCOPE_FAILS_CLOSED";
+  } finally { read.worker.close(); }
+}
 console.log(JSON.stringify({ status: "PASS", cases, reviewedPermissionKeys: REVIEWED, executionAuthority: false, scope: "STACKED_D3C_SIGNED_BOOTSTRAP_READBACK" }));
 }
 

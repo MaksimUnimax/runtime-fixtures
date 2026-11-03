@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  assertMonitoringMemoryWrite,
+  fenceMonitoringSqlRuntime,
+} from "@product/monitoring-control";
 import type {
   ApiWatchSqlRuntime,
   ProductCrosswalkRow,
@@ -16,12 +20,14 @@ function compareCodeUnits(a: string, b: string): number {
 export class InMemoryProductCrosswalkStore implements ProductCrosswalkStore {
   private readonly rows = new Map<string, ProductCrosswalkRow>();
   async saveRows(rows: ProductCrosswalkRow[]) {
+    assertMonitoringMemoryWrite();
     const saved: ProductCrosswalkRow[] = [];
     for (const row of rows) {
       const stored = clone({
         ...row,
         crosswalkId: row.crosswalkId || randomUUID(),
       });
+      assertMonitoringMemoryWrite();
       this.rows.set(stored.crosswalkId, stored);
       saved.push(clone(stored));
     }
@@ -42,6 +48,7 @@ export class InMemoryProductCrosswalkStore implements ProductCrosswalkStore {
 export function createPostgresProductCrosswalkStore(
   runtime: ApiWatchSqlRuntime,
 ): ProductCrosswalkStore {
+  runtime = fenceMonitoringSqlRuntime(runtime);
   return {
     async saveRows(rows) {
       for (const row of rows)

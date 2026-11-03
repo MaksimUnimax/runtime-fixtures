@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  assertMonitoringMemoryWrite,
+  fenceMonitoringSqlRuntime,
+} from "@product/monitoring-control";
 import type {
   AcquisitionOutcome,
   ApiWatchRetryFailureClass,
@@ -23,10 +27,12 @@ export class InMemoryApiWatchRetryStore implements ApiWatchRetryStore {
     return value ? clone(value) : undefined;
   }
   async save(value: ApiWatchRetryState) {
+    assertMonitoringMemoryWrite();
     this.states.set(value.sourceFamily, clone(value));
     return clone(value);
   }
   async clear(family: SwaggerSourceFamily) {
+    assertMonitoringMemoryWrite();
     this.states.delete(family);
   }
   async list() {
@@ -39,6 +45,7 @@ export class InMemoryApiWatchRetryStore implements ApiWatchRetryStore {
 export function createPostgresApiWatchRetryStore(
   runtime: ApiWatchSqlRuntime,
 ): ApiWatchRetryStore {
+  runtime = fenceMonitoringSqlRuntime(runtime);
   const projection = `SELECT source_family AS "sourceFamily",failure_episode_id AS "failureEpisodeId",failure_class AS "failureClass",retry_count AS "retryCount",next_retry_at AS "nextRetryAt",last_attempt_at AS "lastAttemptAt",last_result AS "lastResult",updated_at AS "updatedAt" FROM api_watch_retry_state`;
   const map = (row: Record<string, unknown>) =>
     ({

@@ -86,6 +86,97 @@ describe("P2.5 device-management policy", () => {
     expect(calls).toEqual([{ ...principal, correlationId: "corr-1" }]);
   });
 
+  it.each([-1, 1.5, 10_001, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects an invalid commercial ELIGIBLE device limit before repository use: %s",
+    async (maxActive) => {
+      const pair = generateKeyPairSync("ed25519");
+      let check:
+        | ((accountId: string, at: Date) => Promise<unknown>)
+        | undefined;
+      const service = new DeviceManagementService(
+        {
+          consumeExchangeRate: async () => ({ allowed: true }),
+          exchange: async (input) => {
+            check = input.resolveLimit;
+            return { kind: "closed" as const };
+          },
+          list: async () => ({ kind: "ok" as const, devices: [] }),
+          forgetCurrentClientMetadata: async () => "cleared" as const,
+          revoke: async () => "not-found" as const,
+        },
+        Buffer.alloc(32, 8),
+        {
+          keyId: "test",
+          privateKey: pair.privateKey,
+          publicKey: pair.publicKey,
+        },
+        {
+          resolve: async () => ({
+            kind: "ELIGIBLE" as const,
+            maxActive,
+            source: "COMMERCIAL_PLAN_REVISION" as const,
+          }),
+        },
+      );
+      await service.exchange(
+        "A".repeat(43),
+        "device-limit-test-1234",
+        "198.51.100.1",
+        "synthetic-invalid-limit",
+      );
+      expect(check).toBeDefined();
+      await expect(check!("account-1", new Date())).rejects.toThrow(
+        "invalid device limit",
+      );
+    },
+  );
+
+  it.each([0, 1, 10_000])(
+    "retains valid commercial ELIGIBLE limits including historical zero: %s",
+    async (maxActive) => {
+      const pair = generateKeyPairSync("ed25519");
+      let check:
+        | ((accountId: string, at: Date) => Promise<unknown>)
+        | undefined;
+      const service = new DeviceManagementService(
+        {
+          consumeExchangeRate: async () => ({ allowed: true }),
+          exchange: async (input) => {
+            check = input.resolveLimit;
+            return { kind: "closed" as const };
+          },
+          list: async () => ({ kind: "ok" as const, devices: [] }),
+          forgetCurrentClientMetadata: async () => "cleared" as const,
+          revoke: async () => "not-found" as const,
+        },
+        Buffer.alloc(32, 8),
+        {
+          keyId: "test",
+          privateKey: pair.privateKey,
+          publicKey: pair.publicKey,
+        },
+        {
+          resolve: async () => ({
+            kind: "ELIGIBLE" as const,
+            maxActive,
+            source: "COMMERCIAL_PLAN_REVISION" as const,
+          }),
+        },
+      );
+      await service.exchange(
+        "A".repeat(43),
+        "device-limit-test-1234",
+        "198.51.100.1",
+        "synthetic-valid-limit",
+      );
+      expect(check).toBeDefined();
+      await expect(check!("account-1", new Date())).resolves.toEqual({
+        maxActive,
+        source: "COMMERCIAL_PLAN_REVISION",
+      });
+    },
+  );
+
   it("preserves the explicit beta unlimited policy without a numeric sentinel", async () => {
     let resolveLimit:
       | ((accountId: string, at: Date) => Promise<unknown>)

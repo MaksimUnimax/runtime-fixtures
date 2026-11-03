@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  foreignKey,
   check,
   index,
   pgEnum,
@@ -26,22 +27,9 @@ export const credentialTransferRequests = pgTable(
   "credential_transfer_requests",
   {
     requestId: uuid("request_id").primaryKey(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    recipientDeviceId: uuid("recipient_device_id")
-      .notNull()
-      .references(() => devices.id, {
-        onDelete: "restrict",
-        onUpdate: "restrict",
-      }),
-    sourceDeviceId: uuid("source_device_id").references(() => devices.id, {
-      onDelete: "restrict",
-      onUpdate: "restrict",
-    }),
+    accountId: uuid("account_id").notNull(),
+    recipientDeviceId: uuid("recipient_device_id").notNull(),
+    sourceDeviceId: uuid("source_device_id"),
     recipientPublicKeySpki: varchar("recipient_public_key_spki", {
       length: 2048,
     }).notNull(),
@@ -56,6 +44,27 @@ export const credentialTransferRequests = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.accountId],
+      foreignColumns: [accounts.id],
+      name: "credential_transfer_requests_account_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.recipientDeviceId],
+      foreignColumns: [devices.id],
+      name: "credential_transfer_requests_recipient_device_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      columns: [table.sourceDeviceId],
+      foreignColumns: [devices.id],
+      name: "credential_transfer_requests_source_device_fk",
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     index("credential_transfer_requests_account_state_expiry_index").on(
       table.accountId,
       table.state,

@@ -3,6 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 
+function popupFeedbackSource(source) {
+  const begin=source.indexOf("function startStatusText(");
+  const end=source.indexOf("function transferReceivePresentation(",begin);
+  assert.ok(begin>=0&&end>begin);
+  return source.slice(begin,end);
+}
+
 export async function verifyPopupInitialState(candidate) {
   const source = fs.readFileSync(path.join(candidate, "popup.js"), "utf8");
   const html = fs.readFileSync(path.join(candidate, "popup.html"), "utf8");
@@ -35,8 +42,8 @@ export async function verifyPopupInitialState(candidate) {
   const pickerStart = source.indexOf("function nativeBackupPickerAvailable()");
   const pickerEnd = source.indexOf("async function ensureNativeBackupBridge()", pickerStart);
   assert.ok(pickerStart >= 0 && pickerEnd > pickerStart);
-  vm.runInContext("const durableImportMode=false; let state, busy=false, actionGeneration=0, refreshGeneration=0, refreshRequested=false, r3Review=null, marketplace='ozon', selectedId='', editingId=null, confirmAction=null;\n" +
-    source.slice(pickerStart, pickerEnd) + source.slice(actionStart, actionEnd) + source.slice(renderStart, renderEnd) +
+  vm.runInContext("const durableImportMode=false; let state, busy=false, actionGeneration=0, refreshGeneration=0, refreshRequested=false, r3Review=null, marketplace='ozon', selectedId='', editingId=null, confirmAction=null, connectionSubmitPending=false, connectionCancelConfirmation=false, startFeedback=null, tabId=12;\n" +
+    popupFeedbackSource(source) + source.slice(pickerStart, pickerEnd) + source.slice(actionStart, actionEnd) + source.slice(renderStart, renderEnd) +
     source.slice(source.indexOf("function selected()"), source.indexOf("function onboardingModel")) +
     source.slice(source.indexOf("function closeCard()"), source.indexOf('for (const id of ["ozon", "wildberries"])', source.indexOf("function closeCard()"))) +
     source.slice(source.indexOf('$("add").onclick'), source.indexOf('$("start").onclick')), ctx);
@@ -106,6 +113,7 @@ export async function verifyPopupInitialState(candidate) {
   assert.equal(vm.runInContext("busy", ctx), false, "render failure cannot latch busy");
   assert.equal(requests, 1, "render failure happens before request dispatch");
   await verifyPopupRefreshNotifications(source);
+  await verifyPopupConnectionEntry(source);
 }
 
 async function verifyPopupRefreshNotifications(source) {
@@ -143,8 +151,8 @@ async function verifyPopupRefreshNotifications(source) {
     }
   };
   vm.createContext(ctx);
-  vm.runInContext("let state, refreshTimer, refreshRequested=false, refreshGeneration=0, busy=false, tabId=12, selectedId='', marketplace='ozon'; const durableImportMode=false;\n" +
-    source.slice(refreshStart, refreshEnd) + source.slice(listenerStart, listenerEnd), ctx);
+  vm.runInContext("let state, refreshTimer, refreshRequested=false, refreshGeneration=0, busy=false, tabId=12, selectedId='', marketplace='ozon', startFeedback=null, actionGeneration=0; const durableImportMode=false;\n" +
+    popupFeedbackSource(source) + source.slice(refreshStart, refreshEnd) + source.slice(listenerStart, listenerEnd), ctx);
   const runTimers = () => { const batch = [...timers.values()]; timers.clear(); for (const fn of batch) fn(); };
   const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
   const snapshot = { auth: { authenticated: true, workAllowed: true }, context: {}, stores: [], work: { state: "active_visible" } };
@@ -217,4 +225,37 @@ async function verifyPopupRefreshNotifications(source) {
   listener({ unrelated: { newValue: 1 } }, "local");
   listener({ seller_agents_control_auth_v2: authChanges[0] }, "sync"); runTimers();
   assert.equal(requests, before, "unrelated storage areas and keys do not read popup state");
+}
+
+async function verifyPopupConnectionEntry(source) {
+  const nodes=new Map();
+  const node=id=>{if(!nodes.has(id))nodes.set(id,{value:"",hidden:false,textContent:"",style:{},focus(){}});return nodes.get(id);};
+  const sent=[];let release;
+  const ctx={ $:node, texts:{}, state:{auth:{authenticated:false},account:{label:"fixture"}}, render(){}, scheduleRefresh(){},
+    actionSuccessText:()=>"done", refresh:async()=>{},
+    request:async(type,fields)=>{
+      sent.push({type,fields});
+      if(type==="SA_AUTH_CONNECT_CODE")return new Promise(resolve=>{release=()=>resolve({ok:true});});
+      return {ok:true};
+    } };
+  vm.createContext(ctx);
+  const a=source.indexOf("async function action("),b=source.indexOf("function selected()",a);
+  const h=source.indexOf('$("connection-form").onsubmit'),he=source.indexOf('$("auth-reset").onclick',h);
+  const c=source.indexOf('$("confirm").onclick'),ce=source.indexOf('\n',source.indexOf('$("reject").onclick',c));
+  assert.ok(a>=0&&b>a&&h>=0&&he>h&&c>=0&&ce>c);
+  vm.runInContext('let busy=false,actionGeneration=0,refreshGeneration=0,refreshRequested=false,connectionSubmitPending=false,connectionCancelConfirmation=false,confirmAction=null,startFeedback=null,tabId=12;\n'+popupFeedbackSource(source)+source.slice(a,b)+source.slice(c,ce)+source.slice(h,he),ctx);
+  node("connection-code").value="octo1_"+"A".repeat(43);
+  const submit=node("connection-form").onsubmit({preventDefault(){}});
+  assert.equal(node("connection-code").value,"","code leaves the visible field on submission");
+  assert.equal(sent.length,1);
+  node("connection-code").value="octo1_"+"B".repeat(42)+"A";
+  node("connection-form").onsubmit({preventDefault(){}});
+  assert.equal(sent.length,1,"busy prevents a second send");
+  node("auth-cancel").onclick();
+  assert.equal(node("confirmation").hidden,false);
+  node("confirm").onclick();
+  for(let i=0;i<8;i++)await Promise.resolve();
+  assert.equal(sent.filter(x=>x.type==="SA_AUTH_CANCEL").length,1,"cancel can interrupt a held code submission");
+  release();await submit;
+  assert.equal(node("status").textContent,"Готово","late submission cannot replace cancellation outcome");
 }

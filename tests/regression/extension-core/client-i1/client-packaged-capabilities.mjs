@@ -4,7 +4,7 @@ import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const AUTH = "seller_agents_control_auth_v2";
-const CHATGPT = { family: "chatgpt", surface: "web", variant: null };
+const RELEASE_AI = { family: "alice", surface: "web", variant: null };
 const clone = value => JSON.parse(JSON.stringify(value));
 const EXPECTED = [
   "marketplace.ozon.adapter",
@@ -12,9 +12,14 @@ const EXPECTED = [
   "ai.chatgpt.web.adapter",
   "ai.alice.web.adapter",
   "ai.qwen.web.adapter",
+  "ai.kimi.web.adapter",
+  "ai.grok.web.adapter",
+  "ai.gemini.web.adapter",
+  "ai.claude.web.adapter",
+  "ai.deepseek.web.adapter",
 ].sort();
 
-// 1. Exact packaged manifest: five reviewed adapter-presence facts only.
+// 1. Exact packaged manifest: two marketplaces and eight reviewed AI adapters.
 {
   const worker = await makeWorker(runtime);
   try {
@@ -26,7 +31,7 @@ const EXPECTED = [
     assert.deepEqual(manifest.capabilities.map(row => row.id).sort(), EXPECTED);
     assert.ok(manifest.capabilities.every(row => row.packaged === true && row.executionAuthority === false));
     assert.deepEqual(manifest.capabilities.filter(row => row.kind === "marketplace_adapter").map(row => row.marketplace).sort(), ["ozon", "wildberries"]);
-    assert.deepEqual(manifest.capabilities.filter(row => row.kind === "ai_adapter").map(row => `${row.family}:${row.surface}`).sort(), ["alice:web", "chatgpt:web", "qwen:web"]);
+    assert.deepEqual(manifest.capabilities.filter(row => row.kind === "ai_adapter").map(row => `${row.family}:${row.surface}`).sort(), ["alice:web", "chatgpt:web", "claude:web", "deepseek:web", "gemini:web", "grok:web", "kimi:web", "qwen:web"]);
   } finally {
     worker.close();
   }
@@ -82,7 +87,7 @@ const EXPECTED = [
       globalConfigurable: false,
       globalUnchanged: true,
       mutationRejected: true,
-      count: 5,
+      count: 10,
     });
   } finally {
     worker.close();
@@ -101,7 +106,7 @@ const EXPECTED = [
     payload.entitlements = { "ai.chatgpt.web.adapter": true };
     return Response.json(await signFixtureBootstrap(backing, payload));
   } });
-  await seed.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+  await seed.call("SellerAgentsControlClient.bootstrap", { detectedAi: RELEASE_AI });
   seed.close();
 
   const worker = await makeWorker(runtime, {
@@ -110,7 +115,7 @@ const EXPECTED = [
     fetch: async () => { throw new TypeError("fixture transport unavailable"); },
   });
   try {
-    const metadata = clone(await worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: CHATGPT }));
+    const metadata = clone(await worker.call("SellerAgentsControlClient.getVerifiedBootstrapMetadata", { detectedAi: RELEASE_AI }));
     assert.equal(metadata.signedFeatures["marketplace.ozon.adapter"], true);
     assert.equal(metadata.signedEntitlements["ai.chatgpt.web.adapter"], true);
     assert.equal(metadata.executionAuthority, false);

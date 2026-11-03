@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "ai_release_scope_v1",
+  "releaseId": "alice_first_v1",
+  "revision": 1,
+  "enabledAi": [{ "family": "alice", "surface": "web", "variant": null }],
+  "retainedAiFamilies": [
+    "chatgpt",
+    "alice",
+    "qwen",
+    "kimi",
+    "grok",
+    "gemini",
+    "claude",
+    "deepseek"
+  ],
+  "executionAuthority": false
+}

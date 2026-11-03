@@ -24,6 +24,8 @@ import {
 } from "@product/extension-auth";
 import {
   DeviceManagementService,
+  ConnectionCodeService,
+  type ConnectionCodeRepository,
   type DeviceManagementRepository,
 } from "@product/device-management";
 import { BootstrapService } from "@product/bootstrap";
@@ -251,6 +253,19 @@ export async function generateOpenApiRepresentation(): Promise<string> {
       deriveExtensionAuthKeys(Buffer.alloc(32, 2)),
       undefined,
       createEphemeralAccessTokenSigningKey(),
+    ),
+    connectionCodeService: new ConnectionCodeService(
+      {
+        consumeRate: async () => ({ allowed: false }),
+        status: async () => ({ kind: "forbidden" }),
+        issue: async () => ({ kind: "forbidden" }),
+        exchange: async () => ({ kind: "closed" }),
+        listTransferDevices: async () => ({ kind: "forbidden" }),
+        approveTransfer: async () => ({ kind: "forbidden" }),
+      } satisfies ConnectionCodeRepository,
+      Buffer.alloc(32, 3),
+      createEphemeralAccessTokenSigningKey(),
+      { resolve: async () => ({ maxActive: 0, source: "OPENAPI_ONLY" }) },
     ),
     deviceManagementService: new DeviceManagementService(
       {

@@ -15,6 +15,8 @@ import { pathToFileURL } from "node:url";
 import process from "node:process";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import aiReleaseDescriptor from "../../packages/contracts/src/ai-release-scope.v1.json" with { type: "json" };
+const AI_RELEASE_SCOPE = { descriptor: aiReleaseDescriptor, sha256: "10c20b39daec4d0a9733173222167ea7a56da2a128bbc182132591c8e5596261" };
 
 import {
   preflight as validateCandidate,
@@ -60,7 +62,8 @@ const BASE_ORIGINS = {
 function releaseAuthority(overrides = {}) {
   const facts = productFacts();
   const base = {
-    schemaVersion: "octoport_release_authority_v1",
+    schemaVersion: "octoport_release_authority_v2",
+    aiReleaseScope: structuredClone(AI_RELEASE_SCOPE),
     source: sourceIdentity(),
     productVersion: facts.productVersion,
     contractVersion: facts.contractVersion,
@@ -86,6 +89,7 @@ function packagedConfig(authority, overrides = {}) {
     extensionVersion: authority.productVersion,
     contractVersion: authority.contractVersion,
     trustBundle: authority.trustBundle,
+    aiReleaseScope: authority.aiReleaseScope,
     ...overrides,
   };
 }
@@ -622,6 +626,8 @@ function makeZip(path, browser, options = {}) {
     worker += 'globalThis["importScripts"]("dev.js");\n';
   }
 
+  if (options.transformWorker) worker = options.transformWorker(worker);
+
   const result = spawnSync(
     "python3",
     [
@@ -705,9 +711,9 @@ function expectPrepareFailure(name, browserMode, expectedFailure) {
 
 test("repository release facts use current contract/version/migration tag", () => {
   const facts = productFacts();
-  assert.equal(facts.productVersion, "0.2.37");
+  assert.equal(facts.productVersion, "0.2.42");
   assert.equal(facts.contractVersion, "control_plane_v2");
-  assert.equal(facts.migrationLevel, 61);
+  assert.equal(facts.migrationLevel, 63);
 });
 
 test("correct synthetic Chromium and Firefox candidate prepares and passes", () => {
@@ -763,7 +769,6 @@ test("Firefox AMO data consent accepts the existing Firefox build categories", (
   }
 });
 
-
 test("Firefox AMO minimum version rejects missing 140 floor in built-in consent", () => {
   const value = fixture({ firefox: { firefoxMinVersion: null } });
   try {
@@ -777,7 +782,14 @@ test("Firefox AMO minimum version rejects missing 140 floor in built-in consent"
 });
 
 test("Firefox AMO minimum version rejects old or malformed Firefox versions", () => {
-  for (const version of ["139.0", "139.9", "139.9.9", "140", "140.0a1", "invalid"]) {
+  for (const version of [
+    "139.0",
+    "139.9",
+    "139.9.9",
+    "140",
+    "140.0a1",
+    "invalid",
+  ]) {
     const value = fixture({ firefox: { firefoxMinVersion: version } });
     try {
       assert.throws(
@@ -1677,4 +1689,198 @@ test("dual-browser preflight rejects extra child directory after preparation", (
   } finally {
     cleanup(value);
   }
+});
+
+test("flattened Firefox background keeps an executable top-level packaged config after bootstrap code", () => {
+  const value = fixture({
+    firefox: {
+      transformWorker: (worker) =>
+        '(() => { "use strict"; const bootstrap = Object.freeze({value:1}); return bootstrap; })();\n' +
+        worker,
+    },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
+for (const [name, transformWorker] of [
+  ["line comment", (worker) => "// " + worker],
+  ["block comment", (worker) => "/*" + worker + "*/"],
+  ["string", (worker) => JSON.stringify(worker) + ";"],
+  ["template", (worker) => "const note = `" + worker + "`;"],
+  ["function body", (worker) => "function notCalled(){" + worker + "}"],
+  ["IIFE body", (worker) => "(() => {" + worker + "})();"],
+  ["conditional block", (worker) => "if(false){" + worker + "}"],
+  ["conditional statement", (worker) => "if(false) " + worker],
+  [
+    "short circuit",
+    (worker) => "false && (" + worker.trim().slice(0, -1) + ");",
+  ],
+  ["block", (worker) => "{" + worker + "}"],
+  ["shadowed globalThis", (worker) => "const globalThis={};\n" + worker],
+  ["destructured globalThis", (worker) => "var { globalThis }={};\n" + worker],
+  ["reassigned globalThis", (worker) => "globalThis={};\n" + worker],
+  [
+    "Object.assign receiver write",
+    (worker) => "Object.assign(globalThis,{globalThis:{}});\n" + worker,
+  ],
+  [
+    "strict bootstrap early error",
+    (worker) => '(function(eval){"use strict";})(null);\n' + worker,
+  ],
+  [
+    "global member receiver write",
+    (worker) => "globalThis.globalThis={};\n" + worker,
+  ],
+  [
+    "global computed receiver write",
+    (worker) => 'globalThis["globalThis"]={};\n' + worker,
+  ],
+  [
+    "Reflect receiver write",
+    (worker) => 'Reflect.set(globalThis,"globalThis",{});\n' + worker,
+  ],
+  [
+    "Object receiver definition",
+    (worker) =>
+      'Object.defineProperty(globalThis,"globalThis",{value:{}});\n' + worker,
+  ],
+  [
+    "global receiver alias",
+    (worker) => "const target=globalThis;target.globalThis={};\n" + worker,
+  ],
+  [
+    "reflector alias",
+    (worker) =>
+      'const put=Reflect.set;put(globalThis,"globalThis",{});\n' + worker,
+  ],
+  ["classic this receiver write", (worker) => "this.globalThis={};\n" + worker],
+  [
+    "destructuring member target",
+    (worker) => "({value:globalThis.globalThis}={value:{}});\n" + worker,
+  ],
+  [
+    "array member target",
+    (worker) => "[globalThis.globalThis]=[{}];\n" + worker,
+  ],
+  [
+    "for-of member target",
+    (worker) => "for(globalThis.globalThis of [{}]){}\n" + worker,
+  ],
+  [
+    "for-in member target",
+    (worker) => "for(globalThis.globalThis in {value:1}){}\n" + worker,
+  ],
+  [
+    "property getter effect",
+    (worker) =>
+      "Object.freeze({get value(){globalThis.globalThis={};}});\n" + worker,
+  ],
+  [
+    "unknown global bootstrap effect",
+    (worker) => "globalThis.SYNTHETIC_BOOTSTRAP={};\n" + worker,
+  ],
+  [
+    "unbounded local bootstrap",
+    (worker) => "(function(){while(true){}})();\n" + worker,
+  ],
+  [
+    "throwing local const reassignment",
+    (worker) => "(function(){const value=1;value=2;})();\n" + worker,
+  ],
+  [
+    "uninitialized local read",
+    (worker) => "(function(){return value;let value=1;})();\n" + worker,
+  ],
+  [
+    "hoisted native intrinsic shadow",
+    (worker) => "Object.freeze({});\n" + worker + "\nfunction Object(){}",
+  ],
+  ["malformed syntax", (worker) => "function broken( {\n" + worker],
+  ["duplicate", (worker) => worker + worker],
+])
+  test(`flattened Firefox config rejects ${name}`, () => {
+    const value = fixture({
+      firefox: {
+        transformWorker: (worker) => "void 0;\n" + transformWorker(worker),
+      },
+    });
+    try {
+      assert.throws(() => prepare(value), /config|syntax|globalThis/i);
+    } finally {
+      cleanup(value);
+    }
+  });
+for (const mode of ["attacker_key", "wrong_contract", "wrong_environment"])
+  test(`flattened Firefox config retains authority validation for ${mode}`, () => {
+    const value = fixture({
+      firefox: { mode, transformWorker: (worker) => "void 0;\n" + worker },
+    });
+    try {
+      assert.throws(() => prepare(value), /config|trust/i);
+    } finally {
+      cleanup(value);
+    }
+  });
+
+test("flattened Firefox config permits unrelated nested receiver bindings and local writes", () => {
+  const value = fixture({
+    firefox: {
+      transformWorker: (worker) =>
+        "(function(globalThis){ globalThis = {}; return globalThis; })(null);\n" +
+        worker,
+    },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
+
+for (const [name, mutate] of [
+  ['legacy-v1', a => { a.schemaVersion = 'octoport_release_authority_v1'; delete a.aiReleaseScope; }],
+  ['missing-scope', a => { delete a.aiReleaseScope; }],
+  ['wrong-hash', a => { a.aiReleaseScope.sha256 = '0'.repeat(64); }],
+  ['unknown-revision', a => { a.aiReleaseScope.descriptor.revision = 2; }],
+  ['extra-ai', a => { a.aiReleaseScope.descriptor.enabledAi.push({family:'chatgpt',surface:'web',variant:null}); }],
+  ['unknown-field', a => { a.aiReleaseScope.descriptor.allowOfflineOthers = true; }],
+]) test('Alice release authority refuses '+name, () => {
+  const value = fixture();
+  try {
+    const authority = structuredClone(value.authorityValue); mutate(authority);
+    writeFileSync(value.authority, JSON.stringify(authority));
+    assert.throws(() => prepare(value), /[Aa]uthority|[Rr]elease|[Ss]cope/);
+  } finally { cleanup(value); }
+});
+for (const escaped of [false, true]) test('Alice release authority rejects duplicate '+(escaped?'escaped':'plain')+' descriptor keys', () => {
+  const value = fixture();
+  try {
+    const text = JSON.stringify(value.authorityValue).replace('"revision":1', '"revision":2,"'+(escaped?'\\u0072evision':'revision')+'":1');
+    writeFileSync(value.authority,text);
+    assert.throws(() => prepare(value), /Authority is invalid JSON/);
+  } finally { cleanup(value); }
+});
+for (const browser of ['chromium','firefox']) test('Alice release rejects mismatched '+browser+' packaged scope', () => {
+  const value = fixture();
+  try {
+    const authority=structuredClone(value.authorityValue);authority.aiReleaseScope.sha256='0'.repeat(64);
+    makeZip(join(value.candidate,browser+'.zip'),browser,{authority});
+    assert.throws(() => prepare(value), /[Rr]elease|[Ss]cope|[Cc]onfig/);
+  } finally {cleanup(value);}
+});
+test('Alice release candidate binds exact descriptor through both package consumers',()=>{
+  const value=fixture();
+  try {
+    const {output}=prepare(value);
+    const result=preflight(value,output);
+    assert.ok(result);
+    const manifest=JSON.parse(readFileSync(join(output,'B1_RC_MANIFEST.json'),'utf8'));
+    assert.deepEqual(manifest.aiReleaseScope,AI_RELEASE_SCOPE);
+    assert.equal(manifest.schemaVersion,'b1_release_candidate_v3');
+  }finally{cleanup(value);}
 });

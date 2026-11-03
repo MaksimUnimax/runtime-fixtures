@@ -4,11 +4,16 @@ import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const AUTH = "seller_agents_control_auth_v2";
-const CHATGPT = { family: "chatgpt", surface: "web", variant: null };
+const RELEASE_AI = { family: "alice", surface: "web", variant: null };
 const clone = value => JSON.parse(JSON.stringify(value));
 const EXPECTED_BINDINGS = [
   ["ai.alice.web.adapter", "ai.alice"],
   ["ai.chatgpt.web.adapter", "ai.chatgpt"],
+  ["ai.claude.web.adapter", "ai.claude"],
+  ["ai.deepseek.web.adapter", "ai.deepseek"],
+  ["ai.gemini.web.adapter", "ai.gemini"],
+  ["ai.grok.web.adapter", "ai.grok"],
+  ["ai.kimi.web.adapter", "ai.kimi"],
   ["ai.qwen.web.adapter", "ai.qwen"],
   ["marketplace.ozon.adapter", "source.ozon"],
   ["marketplace.wildberries.adapter", "source.wildberries"],
@@ -24,7 +29,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     return Response.json(await signFixtureBootstrap(backing, payload));
   } });
   // Populate the current per-AI grant through the actual signed response path.
-  await seed.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+  await seed.call("SellerAgentsControlClient.bootstrap", { detectedAi: RELEASE_AI });
   seed.close();
 
   return makeWorker(runtime, {
@@ -36,7 +41,7 @@ async function makeCachedWorker(entitlements, features = {}) {
   });
 }
 
-// 1. Only the five explicitly reviewed D1 server permission bindings exist.
+// 1. Only the ten explicitly reviewed server permission bindings exist.
 {
   const worker = await makeWorker(runtime);
   try {
@@ -85,32 +90,38 @@ async function makeCachedWorker(entitlements, features = {}) {
     "ai.chatgpt": true,
     "ai.alice": true,
     "ai.qwen": true,
+    "ai.kimi": true,
+    "ai.grok": true,
+    "ai.gemini": true,
+    "ai.claude": true,
+    "ai.deepseek": true,
   });
   try {
     const result = clone(
       await worker.call("SellerAgentsCapabilityIntersection.getVerified", {
-        detectedAi: CHATGPT,
+        detectedAi: RELEASE_AI,
       }),
     );
     assert.equal(result.schemaVersion, "verified_capability_intersection_v1");
     assert.equal(result.source, "CACHE");
     assert.equal(result.executionAuthority, false);
     assert.equal(Object.hasOwn(result, "workAllowed"), false);
-    assert.equal(result.capabilities.length, 5);
+    assert.equal(result.capabilities.length, 10);
     assert.ok(
       result.capabilities.every(
         row =>
           row.packaged === true &&
           row.signedPermissionPresent === true &&
           row.signedPermissionAllowed === true &&
-          row.permissionSatisfied === true &&
+          row.permissionSatisfied === ["source.ozon", "source.wildberries", "ai.alice"].includes(row.entitlementKey) &&
+          row.releaseSupported === ["source.ozon", "source.wildberries", "ai.alice"].includes(row.entitlementKey) &&
           row.executionAuthority === false,
       ),
     );
 
     const immutability = clone(
       await worker.call(`(async function () {
-        const value = await SellerAgentsCapabilityIntersection.getVerified({ detectedAi: ${JSON.stringify(CHATGPT)} });
+        const value = await SellerAgentsCapabilityIntersection.getVerified({ detectedAi: ${JSON.stringify(RELEASE_AI)} });
         let arrayMutationRejected = false;
         try { value.capabilities.push({ capabilityId: "marketplace.amazon.adapter" }); }
         catch (_) { arrayMutationRejected = true; }
@@ -129,7 +140,7 @@ async function makeCachedWorker(entitlements, features = {}) {
       capabilities: true,
       rows: true,
       arrayMutationRejected: true,
-      count: 5,
+      count: 10,
       executionAuthority: false,
     });
   } finally {
@@ -149,13 +160,18 @@ async function makeCachedWorker(entitlements, features = {}) {
       "source.ozon": true,
       "source.wildberries": true,
       "ai.alice": true,
-    "ai.qwen": true,
+      "ai.qwen": true,
+      "ai.kimi": true,
+      "ai.grok": true,
+      "ai.gemini": true,
+      "ai.claude": true,
+      "ai.deepseek": true,
     },
   );
   try {
     const result = clone(
       await worker.call("SellerAgentsCapabilityIntersection.getVerified", {
-        detectedAi: CHATGPT,
+        detectedAi: RELEASE_AI,
       }),
     );
     const byCapability = Object.fromEntries(
@@ -166,11 +182,15 @@ async function makeCachedWorker(entitlements, features = {}) {
     assert.equal(byCapability["marketplace.ozon.adapter"].permissionSatisfied, false);
     assert.equal(byCapability["marketplace.wildberries.adapter"].signedPermissionPresent, false);
     assert.equal(byCapability["marketplace.wildberries.adapter"].permissionSatisfied, false);
-    assert.equal(byCapability["ai.chatgpt.web.adapter"].permissionSatisfied, true);
+    assert.equal(byCapability["ai.chatgpt.web.adapter"].permissionSatisfied, false);
     assert.equal(byCapability["ai.alice.web.adapter"].signedPermissionPresent, false);
     assert.equal(byCapability["ai.alice.web.adapter"].permissionSatisfied, false);
     assert.equal(byCapability["ai.qwen.web.adapter"].signedPermissionPresent, false);
     assert.equal(byCapability["ai.qwen.web.adapter"].permissionSatisfied, false);
+    for (const family of ["kimi", "grok", "gemini", "claude", "deepseek"]) {
+      assert.equal(byCapability[`ai.${family}.web.adapter`].signedPermissionPresent, false);
+      assert.equal(byCapability[`ai.${family}.web.adapter`].permissionSatisfied, false);
+    }
     assert.equal(result.executionAuthority, false);
   } finally {
     worker.close();
@@ -191,7 +211,7 @@ async function makeCachedWorker(entitlements, features = {}) {
   try {
     const result = clone(
       await worker.call("SellerAgentsCapabilityIntersection.getVerified", {
-        detectedAi: CHATGPT,
+        detectedAi: RELEASE_AI,
       }),
     );
     assert.ok(
@@ -229,7 +249,7 @@ async function makeCachedWorker(entitlements, features = {}) {
     const failure = clone(
       await worker.call(`(async function () {
         try {
-          await SellerAgentsCapabilityIntersection.getVerified({ detectedAi: ${JSON.stringify(CHATGPT)} });
+          await SellerAgentsCapabilityIntersection.getVerified({ detectedAi: ${JSON.stringify(RELEASE_AI)} });
           return { rejected: false };
         } catch (error) {
           return { rejected: true, code: error?.code, message: error?.message };

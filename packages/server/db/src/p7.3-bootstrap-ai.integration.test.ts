@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   BootstrapAiResolutionService,
+  resolveBootstrapAiSnapshot,
+  type BootstrapAiResolutionSnapshot,
   type BootstrapAiResolutionInput,
 } from "../../bootstrap/src/index.js";
 import type { ProfileCompatibilityConstraintsV1 } from "@product/adapter-registry";
@@ -139,6 +141,34 @@ function deferred() {
 let runtime: DatabaseRuntime;
 let resolver: BootstrapAiResolutionService;
 
+// Retained Standard/Work selection is a structural foundation, not a release
+// grant. Exercise the actual production service over that same DB snapshot,
+// then independently assert both its release denial and the exported resolver.
+async function resolveRetainedFoundation(request: BootstrapAiResolutionInput) {
+  expect(request.detected.family).toBe("chatgpt");
+  const repository = createBootstrapAiResolutionRepository(runtime);
+  let snapshot: BootstrapAiResolutionSnapshot | undefined;
+  const current = new BootstrapAiResolutionService({
+    resolve: async (query) => {
+      snapshot = await repository.resolve(query);
+      return snapshot;
+    },
+  });
+  const released = await current.resolve(request);
+  if (!snapshot) throw new Error("P73_SNAPSHOT_NOT_CAPTURED");
+  const foundation = resolveBootstrapAiSnapshot(request, snapshot);
+  expect(released).toEqual(
+    foundation.status === "RESOLVED"
+      ? {
+          status: "UNAVAILABLE",
+          detected: request.detected,
+          reason: "AI_DISABLED",
+        }
+      : foundation,
+  );
+  return foundation;
+}
+
 async function reset(): Promise<void> {
   await runtime.db.execute(
     sql`DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA public CASCADE`,
@@ -235,7 +265,112 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
   });
   afterAll(async () => runtime.close());
 
-  it("resolves Standard and Work independently, and uses exact then default precedence", async () => {
+  it("resolves released Alice web without variants through DIRECT, rollout, pause and browser candidates", async () => {
+    const alice = "30000000-0000-4000-8000-000000000020";
+    const web = "30000000-0000-4000-8000-000000000021";
+    const profile = "30000000-0000-4000-8000-000000000022";
+    const candidateProfile = "30000000-0000-4000-8000-000000000023";
+    await runtime.query(
+      "INSERT INTO ai_adapters(id,machine_key,display_name) VALUES($1,'alice','Alice')",
+      [alice],
+    );
+    await runtime.query(
+      "INSERT INTO ai_surfaces(id,adapter_id,machine_key,display_name) VALUES($1,$2,'web','Web')",
+      [web, alice],
+    );
+    await runtime.query(
+      "INSERT INTO adapter_profiles(id,adapter_id,surface_id,variant_id,machine_key,display_name) VALUES($1,$2,$3,NULL,'alice-web-profile','Alice Web'),($4,$2,$3,NULL,'alice-web-candidate','Alice Web candidate')",
+      [profile, alice, web, candidateProfile],
+    );
+    const repository = createProfileLifecycleRepository(runtime);
+    const chromeRevision = await publish(profile);
+    const candidateRevision = await publish(candidateProfile);
+    const firefoxRevision = await publishWithCompatibility(profile, {
+      ...compatibility,
+      browserFamilies: ["firefox"],
+      minimumExtensionVersion: "9.0.0",
+    });
+    const scopes = new Map<string, string>();
+    for (const [browserFamily, revision] of [
+      ["chrome", chromeRevision],
+      ["firefox", firefoxRevision],
+    ] as const) {
+      const scope = await repository.createAssignmentScope({
+        scope: {
+          adapterId: alice,
+          surfaceId: web,
+          variantId: null,
+          browserFamily,
+          subjectKind: "ACCOUNT",
+        },
+        context,
+      });
+      scopes.set(browserFamily, scope.id);
+      await repository.assignDirect({
+        assignmentId: scope.id,
+        baselineProfileRevisionId: revision,
+        expectedLatestAssignmentRevision: null,
+        context,
+      });
+    }
+    const request = input({ family: "alice", surface: "web", variant: null });
+    expect(await resolver.resolve(request)).toMatchObject({
+      status: "RESOLVED",
+      detected: request.detected,
+      profile: { profileKey: "alice-web-profile", scopeVariant: null },
+    });
+    // Local candidates intentionally omit client software metadata; the full
+    // request still enforces compatibility for Firefox's newer minimum.
+    expect(
+      await resolver.resolveLocalCandidates({
+        detected: request.detected,
+        contractVersion: "control_plane_v2",
+        accountId: ACCOUNT,
+        deviceId: DEVICE,
+      }),
+    ).toMatchObject(
+      ["chrome", "firefox"].map((browserFamily) => ({
+        browserFamily,
+        resolution: {
+          status: "RESOLVED",
+          profile: { profileKey: "alice-web-profile", scopeVariant: null },
+        },
+      })),
+    );
+    expect(
+      await resolver.resolve({
+        ...request,
+        browser: { family: "firefox", version: "123" },
+      }),
+    ).toMatchObject({
+      status: "UNAVAILABLE",
+      reason: "PROFILE_INCOMPATIBLE",
+    });
+    const assignmentId = scopes.get("chrome")!;
+    await repository.startRollout({
+      assignmentId,
+      baselineProfileRevisionId: chromeRevision,
+      candidateProfileRevisionId: candidateRevision,
+      percentageBps: 10000,
+      expectedLatestAssignmentRevision: 1,
+      context,
+    });
+    expect(await resolver.resolve(request)).toMatchObject({
+      status: "RESOLVED",
+      profile: { profileKey: "alice-web-candidate" },
+    });
+    await repository.pauseProfileRollout({
+      assignmentId,
+      expectedLatestAssignmentRevision: 2,
+      context,
+    });
+    expect(await resolver.resolve(request)).toMatchObject({
+      status: "RESOLVED",
+      profile: { profileKey: "alice-web-profile" },
+    });
+  });
+
+  it("retains structural Standard/Work selection while denying their production release", async () => {
     const standard = await createScope(V_STANDARD);
     await createProfileLifecycleRepository(runtime).assignDirect({
       assignmentId: standard.id,
@@ -263,7 +398,7 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
       context,
     });
     expect(
-      await resolver.resolve(
+      await resolveRetainedFoundation(
         input({
           family: "chatgpt",
           surface: "standard",
@@ -275,7 +410,7 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
       profile: { profileKey: "standard-profile" },
     });
     expect(
-      await resolver.resolve(
+      await resolveRetainedFoundation(
         input({
           family: "chatgpt",
           surface: "work",
@@ -288,7 +423,7 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
     });
   });
 
-  it("uses the surface default when exact scope is absent or has no revision", async () => {
+  it("retains structural exact/default precedence without a deferred release grant", async () => {
     const fallback = await createScope(null);
     const defaultRevision = await publish(P_DEFAULT);
     await createProfileLifecycleRepository(runtime).assignDirect({
@@ -299,7 +434,7 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
     });
     const exactWithoutRevision = await createScope(V_STANDARD);
     expect(
-      await resolver.resolve(
+      await resolveRetainedFoundation(
         input({
           family: "chatgpt",
           surface: "standard",
@@ -365,7 +500,7 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
       context,
     });
     expect(
-      await resolver.resolve(
+      await resolveRetainedFoundation(
         input({
           family: "chatgpt",
           surface: "standard",
@@ -382,7 +517,7 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
       context,
     });
     expect(
-      await resolver.resolve(
+      await resolveRetainedFoundation(
         input({
           family: "chatgpt",
           surface: "standard",
@@ -396,7 +531,7 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
       context,
     });
     expect(
-      await resolver.resolve(
+      await resolveRetainedFoundation(
         input({
           family: "chatgpt",
           surface: "standard",
@@ -487,22 +622,40 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
       deviceId: DEVICE,
     });
     expect(candidates).toHaveLength(2);
-    expect(candidates).toMatchObject([
-      {
-        browserFamily: "chrome",
-        resolution: {
-          status: "RESOLVED",
-          profile: { profileKey: "standard-profile" },
-        },
-      },
-      {
-        browserFamily: "firefox",
-        resolution: {
-          status: "RESOLVED",
-          profile: { profileKey: "standard-profile" },
-        },
-      },
-    ]);
+    expect(candidates).toMatchObject(
+      ["chrome", "firefox"].map((browserFamily) => ({
+        browserFamily,
+        resolution: { status: "UNAVAILABLE", reason: "AI_DISABLED" },
+      })),
+    );
+    const repositoryForFoundation =
+      createBootstrapAiResolutionRepository(runtime);
+    for (const browserFamily of ["chrome", "firefox"] as const) {
+      const detected = {
+        family: "chatgpt",
+        surface: "standard",
+        variant: "standard_composer_v1",
+      };
+      const snapshot = await repositoryForFoundation.resolve({
+        ...detected,
+        browserFamily,
+      });
+      expect(
+        resolveBootstrapAiSnapshot(
+          {
+            detected,
+            contractVersion: "control_plane_v2",
+            accountId: ACCOUNT,
+            deviceId: DEVICE,
+          },
+          snapshot,
+          browserFamily,
+        ),
+      ).toMatchObject({
+        status: "RESOLVED",
+        profile: { profileKey: "standard-profile" },
+      });
+    }
   });
 
   it("proves one-statement coherence during a competing PostgreSQL mutation", async () => {
@@ -638,10 +791,23 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
       raceActive = false;
 
       expect(beforeCommit).toMatchObject({
+        status: "UNAVAILABLE",
+        reason: "AI_DISABLED",
+      });
+      const firstSnapshot = capturedSnapshots[0];
+      expect(
+        resolveBootstrapAiSnapshot(
+          input({
+            family: "chatgpt",
+            surface: "standard",
+            variant: "standard_composer_v1",
+          }),
+          firstSnapshot!,
+        ),
+      ).toMatchObject({
         status: "RESOLVED",
         profile: { profileKey: oldTuple.profileKey },
       });
-      const firstSnapshot = capturedSnapshots[0];
       expect(firstSnapshot?.exactAssignment?.latest).toMatchObject({
         revision: oldTuple.assignmentRevision,
         mode: oldTuple.mode,
@@ -681,10 +847,23 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
         }),
       );
       expect(afterCommit).toMatchObject({
+        status: "UNAVAILABLE",
+        reason: "AI_DISABLED",
+      });
+      const secondSnapshot = capturedSnapshots[1];
+      expect(
+        resolveBootstrapAiSnapshot(
+          input({
+            family: "chatgpt",
+            surface: "standard",
+            variant: "standard_composer_v1",
+          }),
+          secondSnapshot!,
+        ),
+      ).toMatchObject({
         status: "RESOLVED",
         profile: { profileKey: newTuple.profileKey },
       });
-      const secondSnapshot = capturedSnapshots[1];
       expect(secondSnapshot?.exactAssignment?.latest).toMatchObject({
         revision: newTuple.assignmentRevision,
         mode: newTuple.mode,

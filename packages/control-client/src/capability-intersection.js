@@ -40,6 +40,26 @@
       capabilityId: "ai.qwen.web.adapter",
       entitlementKey: "ai.qwen",
     },
+    {
+      capabilityId: "ai.kimi.web.adapter",
+      entitlementKey: "ai.kimi",
+    },
+    {
+      capabilityId: "ai.grok.web.adapter",
+      entitlementKey: "ai.grok",
+    },
+    {
+      capabilityId: "ai.gemini.web.adapter",
+      entitlementKey: "ai.gemini",
+    },
+    {
+      capabilityId: "ai.claude.web.adapter",
+      entitlementKey: "ai.claude",
+    },
+    {
+      capabilityId: "ai.deepseek.web.adapter",
+      entitlementKey: "ai.deepseek",
+    },
   ];
 
   function deepFreeze(value) {
@@ -102,6 +122,7 @@
       if (signedPermissionPresent && typeof signedValue !== "boolean")
         throw fail();
       const signedPermissionAllowed = signedValue === true;
+      const releaseSupported = packaged.releaseSupported?.(binding.capabilityId) === true;
 
       return {
         capabilityId: binding.capabilityId,
@@ -109,7 +130,8 @@
         packaged: packagedPresent,
         signedPermissionPresent,
         signedPermissionAllowed,
-        permissionSatisfied: packagedPresent && signedPermissionAllowed,
+        releaseSupported,
+        permissionSatisfied: packagedPresent && signedPermissionAllowed && releaseSupported,
         executionAuthority: false,
       };
     });

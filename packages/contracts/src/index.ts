@@ -1,4 +1,7 @@
+import { DeviceLabelV1Schema } from "./device-label.js";
+export { DeviceLabelV1Schema } from "./device-label.js";
 import { z } from "zod";
+export * from "./ai-release-scope.js";
 import {
   BrowserFamilies,
   SemVerV1Schema,
@@ -25,6 +28,11 @@ export const ApiErrorCodeV1Schema = z.enum([
   "BETA_CLOSED",
   "BETA_CAPACITY_REACHED",
   "AUTH_REFRESH_INVALID",
+  "CONNECTION_CODE_CLOSED",
+  "CONNECTION_CODE_CONFLICT",
+  "CONNECTION_REAUTH_REQUIRED",
+  "CONNECTION_CODE_RATE_LIMITED",
+  "CONNECTION_TRANSFER_APPROVAL_REQUIRED",
   "DEVICE_AUTH_RATE_LIMITED",
   "DEVICE_AUTH_INVALID",
   "DEVICE_AUTH_FORBIDDEN",
@@ -671,11 +679,7 @@ const SafeVersion = z
   .min(1)
   .max(64)
   .regex(/^[A-Za-z0-9._+-]+$/);
-const DeviceLabelV1Schema = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[^<>]*$/u);
+
 const DeviceClientMetadataWithheldV1Schema = z
   .object({ state: z.literal("WITHHELD") })
   .strict();
@@ -698,13 +702,13 @@ export const DeviceAuthorizationStartBodyV1Schema = z.union([
       browserFamily: z.enum(BrowserFamilies),
       browserVersion: SafeVersion.optional(),
       extensionVersion: SafeVersion,
-      deviceLabel: DeviceLabelV1Schema.optional(),
+      deviceLabel: DeviceLabelV1Schema.regex(/^[^<>]*$/u).optional(),
     })
     .strict(),
   z
     .object({
       clientType: z.literal("browser_extension"),
-      deviceLabel: DeviceLabelV1Schema.optional(),
+      deviceLabel: DeviceLabelV1Schema.regex(/^[^<>]*$/u).optional(),
     })
     .strict(),
 ]);
@@ -2593,3 +2597,5 @@ export * from "./signed-ai-profile.js";
 export * from "./monitor-profile-repair.js";
 
 export * from "./ai-prompt-tree.js";
+
+export * from "./connection-code.js";

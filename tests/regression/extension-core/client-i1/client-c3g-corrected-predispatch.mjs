@@ -163,7 +163,24 @@ await test("C3G-FENCE-12", "Finish after command one prevents command two", asyn
 
 await test("PREF-G-02", "different preferred executor alone does not deny local valid Work", async () => {
   const f = await fixture();
-  try { await start(f); journalState(f, { classification: "IN_SYNC", preferred: { state: "VALID_CURRENT", installationId: "other-installation" } }); await execute(f, API, "c3g-other-preferred"); await until(async () => (await f.worker.call("getManualOperation", f.key))?.status === "delivering", "C3G preferred result"); assert.equal(f.worker.network.length, 1); }
+  try {
+    await start(f);
+    journalState(f, { classification: "IN_SYNC", preferred: { state: "VALID_CURRENT", installationId: "other-installation" } });
+    const dispatched = await execute(f, API, "c3g-other-preferred");
+    assert.equal(dispatched.ok, true, "preferred executor command must pass actual admission");
+    try {
+      await until(async () => (await f.worker.call("getManualOperation", f.key))?.status === "delivering", "C3G preferred result");
+    } catch (error) {
+      const owner = await f.worker.call("getManualOperation", f.key);
+      const work = await f.worker.call("workSessionFor", f.key);
+      throw new Error(error.message + "; synthetic state=" + JSON.stringify({
+        ownerStatus: owner?.status || null, errorCode: owner?.last_error?.code || null,
+        deliveryPhase: owner?.delivery?.phase || null, workState: work?.state || null,
+        providerCalls: f.worker.network.length,
+      }));
+    }
+    assert.equal(f.worker.network.length, 1);
+  }
   finally { f.worker.close(); }
 });
 

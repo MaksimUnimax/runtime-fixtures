@@ -270,12 +270,21 @@
   } = {}) {
     let performanceToken = null;
     let performanceTokenIdentity = null;
-    const guardedFetch = (guard) =>
-      guard
+    const guardedFetch = (guard, assertBeforeFetch = null, onGuardError = null) =>
+      guard || assertBeforeFetch
         ? async (url, init) => {
-            if (typeof guard.assertDispatchAuthority === "function")
-              await guard.assertDispatchAuthority();
-            await guard.assertCurrent();
+            try {
+              if (guard) {
+                if (typeof guard.assertDispatchAuthority === "function")
+                  await guard.assertDispatchAuthority();
+                await guard.assertCurrent();
+              }
+              // No await may separate this original-deadline check from fetch.
+              if (assertBeforeFetch) assertBeforeFetch();
+            } catch (error) {
+              if (onGuardError) onGuardError(error);
+              throw error;
+            }
             return fetchImpl(url, init);
           }
         : fetchImpl;
@@ -485,8 +494,21 @@
       return record;
     }
 
-    async function executeReportFileCommand(command, executionGuard = null, onProviderResponse = null) {
+    async function executeReportFileCommand(command, executionGuard = null, onProviderResponse = null, assertReportFileCurrent = null) {
       const record = await resolveReportFileRef(command.params.file_ref);
+      const assertCurrentFile = () => {
+        const current = Number(now());
+        if (!Number.isFinite(current) || current < record.created_at_ms ||
+            current >= record.created_at_ms + REPORT_FILE_REF_TTL_MS) {
+          throw reportStateError(
+            "REPORT_FILE_REF_NOT_FOUND",
+            "Report file ref неизвестен или истёк. Повторите report_info отдельной командой.",
+            { externalRequestExecuted: false },
+          );
+        }
+        if (assertReportFileCurrent) assertReportFileCurrent();
+      };
+      assertCurrentFile();
       if (record.inline_base64) {
         const started = Number(now());
         const bytes = globalThis.ProviderTransportCore.reportBase64ToBytes(
@@ -532,13 +554,20 @@
         });
         return { request, response, auth_request_performed: false };
       }
-      const response =
-        await globalThis.ProviderTransportCore.executeTrustedReportFileOnce({
-          fetchImpl: guardedFetch(executionGuard),
+      let response, guardError = null;
+      try {
+        response = await globalThis.ProviderTransportCore.executeTrustedReportFileOnce({
+          fetchImpl: guardedFetch(executionGuard, assertCurrentFile, error => { guardError = error; }),
           url: record.url,
           now,
           parseOptions: command.params,
         });
+      } catch (error) {
+        // The report transport wraps rejected fetch callbacks as attempted
+        // requests. Keep our own pre-dispatch refusal distinct from fetch errors.
+        if (guardError) throw guardError;
+        throw error;
+      }
       const request = Object.freeze({
         method: "GET",
         host_alias: "report_file",
@@ -871,6 +900,7 @@
         onProviderResponse = null,
         onProviderResult = null,
         executionGuard = null,
+        assertReportFileCurrent = null,
       } = {},
     ) {
       const command = contract.normalizeCommand(commandInput);
@@ -896,7 +926,7 @@
         : null;
       let execution;
       if (provider === "report_file")
-        execution = await executeReportFileCommand(command, executionGuard, responseReceiptHook);
+        execution = await executeReportFileCommand(command, executionGuard, responseReceiptHook, assertReportFileCurrent);
       else if (provider === "performance_api")
         execution = await executePerformanceCommand(
           command,

@@ -140,6 +140,8 @@ await checkUncommitted("stale_readback");
   assert.equal(s.calls.provider, 1);
 }
 
+const { guardResult } = await import("./ozon-report-file-owner-guard.mjs");
+
 console.log(JSON.stringify({
   status: "PASS",
   cases: 4,
@@ -151,4 +153,5 @@ console.log(JSON.stringify({
   real_Ozon_provider_calls: 0,
   user_credentials_used: false,
   installed_acceptance: false,
+  app_report_file_owner_guard: guardResult,
 }));

@@ -10,6 +10,7 @@
     portalOrigin: "http://127.0.0.1:43101",
     extensionVersion: "0.2.4",
     contractVersion: "control_plane_v2",
+    aiReleaseScope: globalThis.__SELLER_AGENTS_PACKAGED_AI_RELEASE_SCOPE__ || null,
     trustBundle: {
       trustBundleVersion: "bootstrap_trust_bundle_v1",
       algorithm: "Ed25519",

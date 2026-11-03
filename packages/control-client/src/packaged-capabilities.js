@@ -44,6 +44,46 @@
       packaged: true,
       executionAuthority: false,
     },
+    {
+      id: "ai.kimi.web.adapter",
+      kind: "ai_adapter",
+      family: "kimi",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
+    {
+      id: "ai.grok.web.adapter",
+      kind: "ai_adapter",
+      family: "grok",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
+    {
+      id: "ai.gemini.web.adapter",
+      kind: "ai_adapter",
+      family: "gemini",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
+    {
+      id: "ai.claude.web.adapter",
+      kind: "ai_adapter",
+      family: "claude",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
+    {
+      id: "ai.deepseek.web.adapter",
+      kind: "ai_adapter",
+      family: "deepseek",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
   ];
 
   function deepFreeze(value) {
@@ -58,6 +98,7 @@
     executionAuthority: false,
     signedPermissionBindings: [],
     capabilities: entries,
+    aiReleaseScope: globalThis.SellerAgentsAiReleaseScope?.snapshot?.() || null,
   });
   const byId = new Map(entries.map(entry => [entry.id, entry]));
 
@@ -77,11 +118,16 @@
     return manifest;
   }
 
+  function releaseSupported(id) {
+    return has(id) && globalThis.SellerAgentsAiReleaseScope?.supportsCapability?.(id) === true;
+  }
+
   const api = Object.freeze({
     schemaVersion: manifest.schemaVersion,
     has,
     describe,
     snapshot,
+    releaseSupported,
   });
   Object.defineProperty(globalThis, "SellerAgentsPackagedCapabilities", {
     value: api,

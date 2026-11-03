@@ -1,3 +1,13 @@
+function isKnownLegacyMaterializedProviderResult(entry) {
+  return entry?.kind === "command" && entry.status === "complete" &&
+    entry.result_phase === SellerAgentsResultRecovery.RESULT_PHASES.MATERIALIZED &&
+    [SellerAgentsProviderOutcome.STATES.RESPONSE_RECEIVED,
+      SellerAgentsProviderOutcome.STATES.COMPLETED_KNOWN,
+      SellerAgentsProviderOutcome.STATES.FAILED_KNOWN,
+      SellerAgentsProviderOutcome.STATES.RETRY_WAIT_KNOWN].includes(entry.provider_attempt?.state) &&
+    SellerAgentsResultRecovery.isLegacyBufferedResult(entry.result_buffer) === true;
+}
+
 async function manualRecoveryForContent(operation, candidateTabId) {
   if (!operation || !manualOperationActive(operation))
     return { owner: true, recovery: null, operation };
@@ -37,17 +47,21 @@ async function manualRecoveryForContent(operation, candidateTabId) {
         entry?.result_buffer?.phase !== SellerAgentsResultRecovery.RESULT_PHASES.BUFFERED,
       );
       if (knownWithoutBuffer) {
+        const unavailable = requesting.find((entry) =>
+          entry?.result_buffer?.phase === SellerAgentsResultRecovery.RESULT_PHASES.UNAVAILABLE,
+        );
+        const unavailableCode = unavailable?.result_buffer?.unavailable_code || "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY";
         current = await failManualBatch(
           current.conversation_key,
           current.operation_id,
-          "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY",
-          "Известный provider result не имеет локального projection buffer; повторный provider request запрещён.",
+          unavailableCode,
+          "Известный provider result нельзя безопасно восстановить из локального буфера; повторный provider request запрещён.",
         );
         return {
           owner: true,
           rebound: owner.rebound === true,
           operation: current,
-          recovery: { type: "blocked", code: "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY" },
+          recovery: { type: "blocked", code: unavailableCode },
         };
       }
       current = await mutateManualOperation(
@@ -111,6 +125,35 @@ async function manualRecoveryForContent(operation, candidateTabId) {
       recovery: null,
     };
   }
+  if (current.status === MANUAL_OPERATION_STATUSES.DELIVERING &&
+      current.delivery?.mode === "attachment_watch_v1" &&
+      current.delivery.phase === BridgeAutorunModel.ATTACHMENT_PHASES.CLAIMED &&
+      (current.batch?.entries || []).some(isKnownLegacyMaterializedProviderResult)) {
+    try {
+      await assertManualBatchContext(current.conversation_key, current.operation_id);
+    } catch (error) {
+      if (!error?.execution_context_error) throw error;
+      current = await failManualBatch(
+        current.conversation_key,
+        current.operation_id,
+        error.code,
+        error.message,
+      );
+      return { owner: true, operation: current, recovery: null };
+    }
+    current = await failManualBatch(
+      current.conversation_key,
+      current.operation_id,
+      "RESULT_BUFFER_INTEGRITY_UNVERIFIABLE",
+      "Сохранённый legacy report нельзя признать полным; новая вставка в чат запрещена.",
+    );
+    return {
+      owner: true,
+      rebound: owner.rebound === true,
+      operation: current,
+      recovery: { type: "blocked", code: "RESULT_BUFFER_INTEGRITY_UNVERIFIABLE", provider_calls: 0 },
+    };
+  }
   if (
     current.status !== MANUAL_OPERATION_STATUSES.DELIVERING ||
     current.delivery?.mode !== "batch_watch_v1"
@@ -135,6 +178,21 @@ async function manualRecoveryForContent(operation, candidateTabId) {
       error.message,
     );
     return { owner: true, operation: current, recovery: null };
+  }
+  if (current.delivery.phase === BridgeAutorunModel.DELIVERY_PHASES.CLAIMED &&
+      (current.batch?.entries || []).some(isKnownLegacyMaterializedProviderResult)) {
+    current = await failManualBatch(
+      current.conversation_key,
+      current.operation_id,
+      "RESULT_BUFFER_INTEGRITY_UNVERIFIABLE",
+      "Сохранённый legacy report нельзя признать полным; новая вставка в чат запрещена.",
+    );
+    return {
+      owner: true,
+      rebound: owner.rebound === true,
+      operation: current,
+      recovery: { type: "blocked", code: "RESULT_BUFFER_INTEGRITY_UNVERIFIABLE", provider_calls: 0 },
+    };
   }
   if (current.delivery.phase === BridgeAutorunModel.DELIVERY_PHASES.CLAIMED)
     return {

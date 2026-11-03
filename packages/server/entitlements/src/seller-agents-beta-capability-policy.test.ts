@@ -12,6 +12,11 @@ import {
 const EXPECTED = [
   "ai.alice",
   "ai.chatgpt",
+  "ai.claude",
+  "ai.deepseek",
+  "ai.gemini",
+  "ai.grok",
+  "ai.kimi",
   "ai.qwen",
   "source.ozon",
   "source.wildberries",
@@ -22,7 +27,7 @@ function sorted(values: readonly string[]) {
 }
 
 describe("Seller Agents free-beta capability permission policy", () => {
-  it("covers exactly the five reviewed D1 permission keys", () => {
+  it("covers exactly the ten reviewed D1 permission keys", () => {
     expect(
       sorted(
         SELLER_AGENTS_FREE_BETA_CAPABILITY_POLICY.permissions.map(
@@ -36,7 +41,7 @@ describe("Seller Agents free-beta capability permission policy", () => {
     ).toEqual(EXPECTED);
   });
 
-  it("grants every reviewed launch capability for an admitted free beta without execution authority", () => {
+  it("retains all ten keys but grants only marketplaces and Alice in this release", () => {
     expect(SELLER_AGENTS_FREE_BETA_CAPABILITY_POLICY).toMatchObject({
       schemaVersion: SELLER_AGENTS_BETA_CAPABILITY_POLICY_VERSION,
       accessBasis: "BETA",
@@ -44,12 +49,21 @@ describe("Seller Agents free-beta capability permission policy", () => {
       executionAuthority: false,
     });
     for (const row of SELLER_AGENTS_FREE_BETA_CAPABILITY_POLICY.permissions) {
-      expect(row.allowed).toBe(true);
+      expect(row.allowed).toBe(
+        ["source.ozon", "source.wildberries", "ai.alice"].includes(
+          row.entitlementKey,
+        ),
+      );
       expect(row.executionAuthority).toBe(false);
     }
-    expect(
-      Object.values(getSellerAgentsFreeBetaCapabilityPermissions()),
-    ).toEqual([true, true, true, true, true]);
+    expect(getSellerAgentsFreeBetaCapabilityPermissions()).toEqual(
+      Object.fromEntries(
+        EXPECTED.map((key) => [
+          key,
+          ["source.ozon", "source.wildberries", "ai.alice"].includes(key),
+        ]),
+      ),
+    );
   });
 
   it("is anchored only to BOOLEAN/CAPABILITY D1 definitions", () => {
@@ -80,11 +94,11 @@ describe("Seller Agents free-beta capability permission policy", () => {
       "ai.chatgpt.web.adapter",
       "ai.alice.web.adapter",
       "ai.qwen.web.adapter",
-      "ai.claude",
-      "ai.grok",
-      "ai.gemini",
-      "ai.deepseek",
-      "ai.kimi",
+      "ai.claude.web.adapter",
+      "ai.grok.web.adapter",
+      "ai.gemini.web.adapter",
+      "ai.deepseek.web.adapter",
+      "ai.kimi.web.adapter",
       "feature.guided_commands",
       "ozon.analytics",
       "ozon.performance",

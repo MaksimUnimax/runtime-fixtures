@@ -15,8 +15,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts'",
-    "db:generate": "drizzle-kit generate",
+    "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts' && node --test src/canonical-schema-generator-entry.node-test.mjs",
+    "db:generate": "node --import=tsx ./node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "tsx src/migrate.ts"
   },
   "dependencies": {
