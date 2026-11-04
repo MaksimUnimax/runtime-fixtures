@@ -143,6 +143,7 @@ def main():
         if not compileall.compile_dir(ROOT/'services',quiet=1):raise RuntimeError('Python compilation failed')
     elif args.command=='test':
         run([python(),'-m','unittest','discover','-s',ROOT/'tests','-p','test_*.py','-v'])
+        run(['node','--experimental-strip-types',ROOT/'tests/contracts/engineering-boundary.mjs'])
     elif args.command=='package':package(args.source)
     elif args.command=='migrate':
         if not re.fullmatch(r'alisa-[0-9a-f]{16}',args.release):raise RuntimeError('Invalid release ID')

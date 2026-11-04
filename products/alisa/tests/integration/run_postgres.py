@@ -63,12 +63,14 @@ def spawn(args, env, logs):
     PROCESSES.append(process)
     return process
 
-def request(url, method='GET', data=None, token=None, origin=None):
+def request(url, method='GET', data=None, token=None, origin=None, host=None):
     headers = {'Content-Type': 'application/json'}
     if token:
         headers['Authorization'] = token
     if origin:
         headers['Origin'] = origin
+    if host:
+        headers['Host'] = host
     body = None if data is None else json.dumps(data).encode()
     req = urllib.request.Request(url, method=method, data=body, headers=headers)
     try:
@@ -273,6 +275,15 @@ def main():
             wait_ready(origin + '/health/ready', web)
             check('bff_without_admission_denied', request(origin + '/api/engineering/probes', 'POST', payload, origin=origin)[0] == 401)
             check('bff_wrong_origin_denied', request(origin + '/api/engineering/probes', 'POST', payload, basic, 'https://foreign.invalid')[0] == 403)
+            check('bff_allowed_host_routes_to_real_database', request(origin + '/api/engineering/probes', 'POST', payload, basic, origin)[0] == 200)
+            denied_host = request(origin + '/api/engineering/probes', 'POST', payload, basic, origin, 'foreign.invalid')
+            check('bff_foreign_host_still_denied', denied_host[0] == 403 and denied_host[1]['code'] == 'INVALID_HOST')
+            admin_env = {**clean_environment(), 'HOSTNAME': '127.0.0.1', 'PORT': '18201', 'ALISA_ENV': 'stage',
+                         'ALISA_RELEASE': manifest['artifact_id'], 'ALISA_PLATFORM_URL': 'http://127.0.0.1:18202',
+                         'NEXT_TELEMETRY_DISABLED': '1'}
+            admin_ui = spawn(['node', release / 'ui/admin/apps/admin/server.js'], admin_env, logs)
+            wait_ready('http://127.0.0.1:18201/health/ready', admin_ui)
+            check('separate_packaged_admin_starts_without_database_credentials', request('http://127.0.0.1:18201/health/live')[1]['component'] == 'admin')
             worker = spawn([sys.executable, release / 'services/platform/manage.py', 'foundation_worker'], environment('platform'), logs)
             if args.browser:
                 from playwright.sync_api import sync_playwright, expect

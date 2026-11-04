@@ -13,7 +13,9 @@ export function boundary(request: Request, write = false): Response | null {
   if (!probeEnabled()) return Response.json({code: 'NOT_FOUND'}, {status: 404});
   if (!authorized(request.headers)) return Response.json({code: 'UNAUTHORIZED'}, {status: 401, headers: {'WWW-Authenticate': 'Basic realm="Alisa engineering"'}});
   const allowed = process.env.ALISA_WEB_ORIGIN;
-  if (!allowed || new URL(request.url).host !== new URL(allowed).host) return Response.json({code: 'INVALID_HOST'}, {status: 403});
+  // Next may normalize request.url to its internal localhost origin. Validate
+  // the actual Host passed by the exact-name ingress; never trust X-Forwarded-Host.
+  if (!allowed || request.headers.get('host')?.toLowerCase() !== new URL(allowed).host) return Response.json({code: 'INVALID_HOST'}, {status: 403});
   if (write && request.headers.get('origin') !== allowed) return Response.json({code: 'INVALID_ORIGIN'}, {status: 403});
   return null;
 }
