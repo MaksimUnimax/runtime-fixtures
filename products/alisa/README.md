@@ -44,10 +44,13 @@ Probe + job are created in one transaction, keyed by UUID. Worker locks a job an
 one effect in the same transaction. Retries are safe. Probe rows expire after 24h; the worker
 cleans expired rows. An independent hourly cleanup timer continues after write-probe shutdown. Safe release receipts belong outside probe tables.
 
-## Stage installation (not executed yet)
+## Stage installation and current qualification
 
-ENV-00 must first admit CPU/RAM/disk, own users/directories, PostgreSQL and a private engineer
-access path. The owner upgraded the target to 4 CPU/8 GB on 2026-11-04; verify current capacity
+ENV-00 requires CPU/RAM/disk admission, own users/directories, PostgreSQL and a private engineer
+access path. The target currently runs r2 `alisa-29c99f6d9d00f19e` from the qualified
+immutable package; installation, restart and r1-r2-r1 facts are recorded in
+[stage execution evidence](https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S00_STAGE_2026-11-04.json).
+Independent case acceptance is still pending. The owner upgraded the target to 4 CPU/8 GB on 2026-11-04; verify current capacity
 before installation. Build on the separate CI runner. Do not copy old secrets.
 
 1. Provision `/opt/alisa-platform/stage/releases`, `/etc/alisa-platform/stage`, own service
@@ -75,19 +78,42 @@ before installation. Build on the separate CI runner. Do not copy old secrets.
    foundation` supplies an additional HTTP roundtrip, not browser acceptance. Record restart,
    concurrent repeats, DB failures and r1→r2→r1 with a compatible expand-only migration.
 8. `evidence --env stage --step AL-S00` prints safe installed metadata, always NOT_ACCEPTED
-   until an independent reviewer executes all 18 cases. Disable the probe flag after acceptance, restart web/platform and explicitly stop
-   `alisa-worker@stage.service`. Keep the independent cleanup timer active. A code
-   switch does not restore or change the external configuration flags.
+   until an independent reviewer records all 18 cases. See probe shutdown below;
+   a code switch does not restore or change the external configuration flags.
 
 CI retains each qualified immutable tarball and its SHA256 as an Actions artifact for
 14 days; download those exact bytes for installation, then keep both admitted rollback
 releases on the target. Do not rebuild a published release on the target.
 
-Deployment/rollback and DB provisioning are candidate code pending actual stage qualification.
+Target author qualification has installed both immutable packages, applied and repeated
+the compatible pending-job index migration, and read the same one-effect probe through
+r1 → r2 → r1 → r2. This is not independent acceptance of all 18 cases.
 Do not advance to AL-S01 until FOUNDATION_READY. SMTP is a separate AL-S01 input.
 
 For disposable qualification only, see `tests/integration/run_postgres.py --help`.
 It refuses any target except the explicit alisa_ci_admin user/database on127.0.0.1:55480
 with ALISA_TEST_DB_ALLOW=1. Never point it at a shared or live PostgreSQL. CI creates
-a fresh job-local PostgreSQL18 service; credentials are synthetic, and no live secrets
+a fresh job-local PostgreSQL16.15 service; credentials are synthetic, and no live secrets
 are provided. The safe JSON receipt reports its own scope and FOUNDATION_READY=false.
+
+
+## Probe shutdown and acceptance receipt
+
+After the finite acceptance run, stop `alisa-web@stage.service` and
+`alisa-worker@stage.service` to close the ingress and drain this worker. In the private
+files `/etc/alisa-platform/stage/web.env` and `/etc/alisa-platform/stage/platform.env`,
+set the existing `FOUNDATION_PROBE_ENABLED` key to `0`, keeping mode 0600 and ownership.
+Restart only `alisa-platform@stage.service` and `alisa-web@stage.service`. Verify an
+authenticated POST to `/api/engineering/probes` and GET `/__engineering` return 404,
+and that the probe row count does not increase. Keep
+`alisa-probe-cleanup@stage.timer` enabled/active; identity/admin and existing lab/runtime
+services are unaffected. Reopening the engineering probe requires the reverse explicit
+stage maintenance operation; never enable it in production.
+
+`evidence` prints safe installed metadata with NOT_ACCEPTED; it is not the 18-case
+receipt. The independent reviewer records each AL-T00-01 through AL-T00-18 result,
+exact source/artifact/release, config fingerprints without values, migration heads,
+actual observations and remaining failures in a separate safe execution JSON under
+`docs/alisa/service-platform/execution/`. The original v0.5 TEST_PLAN remains an
+immutable specification, not a mutable test log. FOUNDATION_READY requires the complete
+reviewed receipt, not a count of source tests.

@@ -1,142 +1,60 @@
-# AL-S00 current checkpoint · 2026-11-04 12:03 UTC
-
-Status: IN_PROGRESS / NOT_ACCEPTED. Draft PR: https://github.com/MaksimUnimax/runtime-fixtures/pull/383.
-
-- Published source 71b7ab8163c12abd63c52d47e62828dd3edf602a passed both own CI runs:
-  https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41819211872 and
-  https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41819222949.
-  Actual results: 20 Python source tests, 6 Node boundary assertions, two production UI
-  builds, immutable package and 36 disposable PostgreSQL/browser checks. This is not
-  target-stage acceptance. General repository Documentation CI has separate unresolved
-  old navigation/checker errors; the PR remains Draft.
-- Full v0.5 package: 100 files byte-verified at 8af2de0818380979b5698e4ae6317b0b45e9a814.
-  Safe execution evidence is published under docs/alisa/service-platform/execution/
-  AL_S00_2026-11-04.json on the alisa branch (05af2b6f3780e1271b6d474bfad7e710e2ad602a).
-- Owner upgraded Alisa to 4 CPU / 8192 MB RAM / 15 GB NVMe. At 12:02:41 UTC the
-  actual OS reported 4 CPU, 7941 MiB total, 7179 MiB available, 8.6 GiB disk free.
-  Existing alice-lab and alice-market services plus nginx were active after reboot.
-  Prior 1 CPU/961 MiB observations below are historical.
-- New release tests reproduce configuration-before-pointer failure and cover automatic
-  previous-code restoration, foreign/dangling current pointers, manifest identity and
-  changed installed bytes. Current local result: 30 Python tests and 6 Node assertions.
-  CI will retain the exact qualified tarball and checksum for stage installation.
-  The next job uses PostgreSQL 16.15 to match the native Ubuntu target package.
-  Package manifests cover all regular files and symlink targets; migration/runtime
-  Python disables bytecode writes to keep the installed payload unchanged.
-- Target PostgreSQL, stage users/config, installed systemd services, actual r1-r2-r1,
-  resource smoke and independent handoff remain pending. No live marketplace/LLM/payment
-  request is authorized or performed by this platform work. Matrix/processor are excluded.
-- Current valid TLS certificate covers all six names through 2027-02-02. Renewal dry-run
-  is unproven (ACME staging DNS failures, then rateLimited/Service busy). Do not retry
-  immediately or call automatic renewal proven.
-
-Next: install the exact qualified package in its own stage namespace, apply only its
-new databases/migrations, check protected HTTPS probe, restart and compatible rollback.
-AL-S01 remains closed until FOUNDATION_READY.
-
-## Historical execution notes (superseded by the checkpoint above)
-
 # AL-S00 execution checkpoint · 2026-11-04
 
-Author: Codex execution dialogue. Independent read-only reviewer: assigned separate
-gpt-6-luna context. Reviewer found missing migration-config paths in the runbook/doctor.
-The paths and doctor checks were added; source review is not stage acceptance.
-Initial `alisa` base: `c52ee0937e3301c663d2dd7061c5e2043bf3dc65`.
-Before commit, fast-forwarded to the other executor’s disjoint runtime ownership notice
-`ee62a43a9c680f2276b8f6907dd2efe577bdcac9`; no runtime source changed here.
-Implementation branch: `feat/alisa-platform-foundation-v05`.
-Exclusive paths: `products/alisa/`, `.github/workflows/alisa-platform-ci.yml`,
-new `docs/alisa/service-platform/v0.5/` publication only.
-Runtime/matrix/processor, old applications, OAuth and Business Bridge are excluded.
+Status: IN_PROGRESS / NOT_ACCEPTED. Draft PR:
+https://github.com/MaksimUnimax/runtime-fixtures/pull/383.
 
-## ENV-00 facts
+Own paths: products/alisa, its CI workflow and service-platform execution documentation.
+Matrix, marketplace processor, existing applications/OAuth and Business Bridge are excluded.
+No marketplace, LLM, payment or real customer operation is performed by this work.
 
-- All six A records are 185.244.51.141 / TTL 300. Checked against ns1.adminvps.ru,
-  Cloudflare and Google; all four authoritative nameservers also answer stage A/NODATA AAAA.
-- New exact-name nginx config `alisa-platform-setup.conf`; old `alice-lab.conf` and
-  `default` hashes unchanged. nginx configuration test passed before graceful reload.
-- Let's Encrypt certificate `alisa-platform-bootstrap` covers all six names, expires
-  2027-02-02. TLS validation without insecure options passed from Alisa and the isolated
-  build environment for all six. Roots show host/environment/application_ready=false;
-  other HTTPS paths return 404.
-- Renewal timer and dedicated lineage-filtered nginx deploy hook are present.
-  Both ACME staging renewal simulations failed with remote A/AAAA lookup timeouts.
-  Do not count automatic renewal as proven until a successful dry-run is recorded.
-- Existing alice-lab.octoport.ru and octoport.ru still returned HTTP 200.
-- Host Alisa: 1 CPU, 961 MiB RAM; 408 MiB initially available; disk 8.5 GiB free.
-  Existing matrix/lab services are running. No platform application, DB or process was
-  installed there. Capacity is **NOT_ADMITTED** for the additional full stack.
+## Observed target results
 
-ENV-00 remains BLOCKED on an approved adequate stage capacity and private engineer admission.
-DNS_READY and current HTTPS_READY do not imply INFRA_READY.
+- Owner upgraded 185.244.51.141 to 4 CPU / 8192 MB / 15 GB NVMe. OS: 4 CPU,
+  7941 MiB RAM. Old 1 CPU/961 MiB observations are historical.
+- PostgreSQL16.15 installed; independent alisa_stage_platform/alisa_stage_identity DBs,
+  migration/runtime roles, private configs and five separate stage service users created.
+- r1 source3e763ad761fac377e391e2181f972d9795b7646a, package SHA256
+  9967d4f655632b36489148cfabb99de2235613c97391ba2925be6d3c7bbe601c.
+- r2 source29c99f6d9d00f19e14087a85d488a6cf5264ff1b, package SHA256
+  f8c042561abc0cfd00007a2f61deaadd7de285583b7fd83f812dc7adb3ee37fc.
+  Both exact immutable CI packages were installed offline; no target UI build.
+- r2 CI:32 Python,6 Node assertions,39 actual PostgreSQL/browser cases passed.
+  Push41828542002 and PR41828551580 are separate clean CI jobs. General repository
+  Documentation CI remains red for old navigation/checker errors; PR stays Draft.
+- Real TLS browser→BFF→API→PostgreSQL→worker completed. Same UUID/correlation/effect1
+  survived restart of all five new services and r1→r2→r1→r2. Compatible index migration
+  applied/repeated; no database restore. Target final version is r2.
+- Controlled UID-scoped egress test blocked old API/external destinations while the
+  browser roundtrip passed; deny counter unchanged during the probe; test table removed.
+- Stable 16.768s smoke:60 samples/20 synthetic posts; six app+PG cgroups peaked together
+  at319291392 bytes (~305MiB), no new OOM; ~6.5GiB MemAvailable/~6.7GiB disk free.
+  Excludes OS/nginx/existing services/browser observer; not a capacity benchmark.
+- Existing alice-lab and Octoport roots stayed200; protected old nginx hashes unchanged.
+  Production names still serve setup markers, not applications.
 
-## Implemented source
+Full author evidence (foundation_ready=false):
+https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S00_STAGE_2026-11-04.json
+Published at5200a658ae1460c69d66485e348692d74393d97d.
 
-Two independent Next applications; Django platform API/worker; separate identity shell
-with UUID primary key before first auth migration; two migration histories; strict probe
-payload and transactionally durable job; one-effect worker; fixed loopback BFF with
-separate service identity and exact Origin check; production probe denial; liveness and
-real schema/database readiness; disconnected RuntimePort; own locks and generated DTO;
-source checks, immutable artifact manifest/offline wheels, own install/activation commands,
-private config parsing, isolated DB/role provisioning and systemd/nginx candidates.
+## Corrections and remaining work
 
-Deployment code and PostgreSQL semantics are **not yet qualified on target stage**.
-There is no second analytics processor and no live Ozon/WB/LLM/payment call.
+Independent read-only source review found release preflight/rollback namespace/integrity
+problems; fixed and re-reviewed. r1 worker exited on transient DB timeouts; r2 retries
+with bounded backoff and safe down/recovered events. Disposable real NOLOGIN recovery
+proved the job survives and is processed once. No driver credentials are logged.
 
-## Verification level
+The initial resource sampler missed a frame during deliberate restart and remains
+FAIL_RESOURCE_MEASUREMENT; a separate stable measurement passed. Initial nft syntax
+failed in --check before any mutation; corrected isolated test passed. No failure was
+relabelled as success.
 
-Documentation: manifest PASS; validator PASS (25 steps, 70 requirements, 186 scenarios).
-SOURCE: 15 focused security/architecture/negative tests passed; both UI type checks and
-both production builds passed. UUID route `/__engineering` appears in the Next build.
-No success is inferred for unexecuted PostgreSQL, browser, restart or rollback cases.
+Independent target acceptance is running. Remaining trace/TTL/probe-shutdown/handoff
+facts belong to the actual 18-case receipt. Prepared BFF correlation logging emits
+only validated UUIDs; it requires its own review/CI before target installation.
 
-AL-T00-01: LOCAL_PARTIAL, one source build; second clean checkout pending.
-AL-T00-02: SOURCE_PARTIAL, negative import mutation detected; installed isolation pending.
-AL-T00-03: INFRA_ONLY, TLS setup markers verified; application routing not installed.
-AL-T00-04/05/06/08/09/11: NOT_RUN (real isolated PostgreSQL/restart/recovery required).
-AL-T00-07: SOURCE_PARTIAL, actual refused DB connection returns readiness 503/live 200.
-AL-T00-10: SOURCE_PARTIAL, missing secret fails; installed artifact/browser scan pending.
-AL-T00-12: SOURCE_PARTIAL, CI definition present; remote CI was not run.
-  GitHub publication was automatically rejected because explicit permission for external
-  architecture publication was judged insufficient. No alternate publishing route was attempted.
-AL-T00-13/14: SOURCE_PARTIAL, forged requests and disabled/prod probe rejected locally.
-AL-T00-15: SOURCE_PARTIAL, source boundaries checked; installed egress proof pending.
-AL-T00-16/17/18: NOT_RUN (retention, target resource measurements and independent handoff).
+Current six-name certificate is valid until2027-02-02. Renewal dry-run at12:23:54 UTC
+failed externally with ACME staging rateLimited/Service busy. No immediate retries.
+This does not invalidate the current certificate or prove future renewal.
 
-## Next allowed work
-
-Address independent SOURCE findings; publish exact candidate and safe evidence; complete
-temporary PostgreSQL integration and browser/recovery harness. Once sufficient isolated
-stage resources and private ingress are admitted, install and reproduce all 18 cases.
-AL-S01 stays closed until a real FOUNDATION_READY receipt. No automatic PASS is assigned.
-
-
-Independent re-review: migration-config defect resolved; no new proven defect found in
-those fixes. Limited doctor scope and cleanup timer activation were clarified in README.
-This review does not accept SOURCE or FOUNDATION; stage verification remains open.
-
-## Owner-authorized continuation
-
-Owner explicitly authorized GitHub publication. Documentation v0.5 is now published
-at 8af2de0818380979b5698e4ae6317b0b45e9a814; all100 files were compared byte-for-byte
-with the uploaded package (receipt in tests/acceptance). The earlier auto-review
-publication blocker is resolved by that permission. HTTPS Git CLI had no write credential;
-publication used the existing connected GitHub authorization without changing credentials.
-
-SOURCE checks now18 PASS (these are source checks, not the18 stage acceptance cases). Added a guarded disposable PostgreSQL qualification and real
-packaged browser path to CI. It requires a fresh dedicated alisa_ci_admin cluster,
-creates only its own two DBs/roles and a synthetic production-isolation sentinel,
-checks migrations/UUID identity/permissions/concurrency/API-worker restarts/DB failures,
-BFF/Chromium, TTL with writes disabled and additive schema compatibility. Provision,
-API, worker, Node and browser subprocesses receive an allowlisted environment.
-
-Independent reviewer found inherited env on the provision child and a preflight
-connection leak; both were fixed. CI execution has not yet been observed. This is
-a test harness, not evidence of a passed PostgreSQL or browser run. Real stage
-capacity, protected ingress, systemd deploy and actual r1-r2-r1 remain unaccepted.
-
-A second harness review found a DSN hostaddr override that could bypass the
-loopback guard. Unknown DSN keys are now rejected before connect, hostaddr is
-canonically fixed to127.0.0.1, libpq receives a clean environment, and a populated
-cluster is refused before cleanup ownership. Negative regression rejects hostaddr,
-service and options without opening a connection.
+Documentation v0.5 remains100 byte-verified files at8af2de0818380979b5698e4ae6317b0b45e9a814.
+AL-S01 remains closed until a complete independent FOUNDATION_READY receipt.

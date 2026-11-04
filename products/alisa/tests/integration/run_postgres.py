@@ -298,6 +298,14 @@ def main():
                         expect(page.get_by_test_id('result')).to_contain_text('PROCESSED', timeout=15000)
                         browser_result = json.loads(page.get_by_test_id('result').inner_text())
                         check('browser_bff_api_postgresql_worker_roundtrip', browser_result['probe_id'] == browser_probe and browser_result['effect_count'] == 1)
+                        bff_events=[]
+                        for line in (temp / 'private-process.log').read_text().splitlines():
+                            if 'foundation_bff_accepted' not in line: continue
+                            try: bff_events.append(json.loads(line))
+                            except json.JSONDecodeError: continue
+                        check('bff_emits_allowlisted_browser_correlation', any(
+                            event == {'event': 'foundation_bff_accepted', 'probe_id': browser_probe,
+                                      'correlation_id': browser_result['correlation_id']} for event in bff_events))
                         page.reload(); page.get_by_label('UUID пробы').fill(browser_probe)
                         page.get_by_role('button', name='Отправить пробу').click()
                         expect(page.get_by_test_id('result')).to_contain_text('PROCESSED', timeout=15000)

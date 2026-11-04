@@ -35,6 +35,13 @@ export async function platform(path: string, method = 'GET', payload?: unknown):
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(5000),
     });
     const data = await upstream.json();
+    // A technical UUID links ingress/BFF/API/worker without logging credentials,
+    // request bodies or arbitrary upstream fields. GET polling remains quiet.
+    const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+    if (method === 'POST' && upstream.ok && typeof data?.probe_id === 'string' && uuid.test(data.probe_id) &&
+        typeof data?.correlation_id === 'string' && uuid.test(data.correlation_id)) {
+      console.info(JSON.stringify({event: 'foundation_bff_accepted', probe_id: data.probe_id, correlation_id: data.correlation_id}));
+    }
     // Allowlist response; do not relay arbitrary upstream headers or secret-bearing errors.
     const keys = ['probe_id', 'kind', 'correlation_id', 'state', 'effect_count', 'accepted_release', 'processed_release', 'environment', 'release', 'code'];
     return Response.json(Object.fromEntries(Object.entries(data).filter(([k]) => keys.includes(k))), {status: upstream.status, headers: {'Cache-Control': 'no-store'}});
