@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['products/alisa/**', '.github/workflows/alisa-platform-ci.yml']
   push:
-    branches: ['feat/alisa-platform-foundation-v05']
+    branches: ['feat/alisa-platform-foundation-v05', 'feat/alisa-site-funnel-v05']
     paths: ['products/alisa/**', '.github/workflows/alisa-platform-ci.yml']
 permissions:
   contents: read

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["request_id", "email", "service_consent"],
+  "properties": {
+    "request_id": {"type": "string", "format": "uuid"},
+    "email": {"type": "string", "format": "email", "maxLength": 254},
+    "service_consent": {"const": true},
+    "marketing_consent": {"type": "boolean"},
+    "attribution": {"type": "object"}
+  }
+}

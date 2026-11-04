@@ -213,7 +213,8 @@ def main():
                         'ALISA_DB_USER': name + '_' + role,
                         'ALISA_DB_PASSWORD': credentials[component][role + '_password'],
                         'ALISA_DB_HOST': '127.0.0.1', 'ALISA_DB_PORT': '55480',
-                        'FOUNDATION_PROBE_ENABLED': '1', **override}
+                        'FOUNDATION_PROBE_ENABLED': '1', 'ALISA_LEAD_INTAKE_ENABLED': '1',
+                        'ALISA_PUBLIC_BASE_URL': origin, 'ALISA_SMTP_HOST': '127.0.0.1', 'ALISA_SMTP_PORT': '18225', **override}
                 if component == 'identity': result.pop('ALISA_SERVICE_TOKEN', None)
                 return result
 
@@ -349,6 +350,8 @@ def main():
                         check('browser_retry_keeps_one_effect', json.loads(page.get_by_test_id('result').inner_text())['effect_count'] == 1)
                     finally: browser.close()
             stop(worker)
+            from qualify_leads import qualify
+            qualify(origin, request, check, connect, manage, temp / 'private-process.log', args.browser)
             # A real connection failure must leave the durable job pending, keep
             # the long-running worker alive and recover without another effect.
             recovery_id = str(uuid.uuid4())
