@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -71,6 +72,10 @@ const ignored = new Set([".git", "node_modules", ".pnpm-store", ".venv", "__pyca
 export function collectDocumentation(root) {
   const files = {};
   const repositoryPaths = [];
+  function addFile(path) {
+    repositoryPaths.push(path);
+    if (/\.(md|mjs|json|tsv|ya?ml)$/.test(path) || [".gitignore", ".editorconfig"].includes(path)) files[path] = readFileSync(resolve(root, path), "utf8");
+  }
   function visit(dir) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (ignored.has(entry.name) || entry.isSymbolicLink()) continue;
@@ -78,12 +83,23 @@ export function collectDocumentation(root) {
       if (entry.isDirectory()) visit(absolute);
       else {
         const path = relative(root, absolute).replaceAll("\\", "/");
-        repositoryPaths.push(path);
-        if (/\.(md|mjs|json|tsv|ya?ml)$/.test(path) || [".gitignore", ".editorconfig"].includes(path)) files[path] = readFileSync(absolute, "utf8");
+        addFile(path);
       }
     }
   }
   visit(root);
+  // Generated Python trees are skipped, but deliberately tracked documents in
+  // them still receive the same checks. A failed Git index read must not pass.
+  if (existsSync(resolve(root, ".git"))) {
+    const tracked = execFileSync("git", ["-C", root, "ls-files", "-z", "--", ":(glob)**/.venv/**", ":(glob)**/__pycache__/**"], { encoding: "utf8" }).split("\0").filter(Boolean);
+    for (const path of tracked) {
+      const parts = path.split("/");
+      if (parts.some(part => part === ".." || part === "." || !part)) throw new Error("Unsafe tracked path: " + path);
+      // Never follow a symlink, even if its destination contains tracked paths.
+      if (parts.some((_, i) => !existsSync(resolve(root, ...parts.slice(0, i + 1))) || lstatSync(resolve(root, ...parts.slice(0, i + 1))).isSymbolicLink())) continue;
+      if (lstatSync(resolve(root, path)).isFile()) addFile(path);
+    }
+  }
   return { files, repositoryPaths };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

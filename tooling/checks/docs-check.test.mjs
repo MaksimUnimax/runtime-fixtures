@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
 import {mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -45,4 +46,17 @@ test('strict newline and required-document checks still fail',t=>{
   const root=fixture(t,'missing final newline');
   assert.ok(errors(root).includes('Missing final newline: README.md'));
   assert.ok(errors(root).includes('Missing required file: AGENTS.md'));
+});
+test('explicitly tracked documents inside generated Python trees remain checked',t=>{
+  const root=fixture(t,'[tracked](.venv/README.md) [cache](__pycache__/README.md) [untracked](.venv/private.py)\n');
+  execFileSync('git',['init','-q',root]);
+  writeFileSync(join(root,'.gitignore'),'.venv/\n__pycache__/\n');
+  for(const dir of ['.venv','__pycache__']) {
+    mkdirSync(join(root,dir));writeFileSync(join(root,dir,'README.md'),'missing final newline');
+    execFileSync('git',['-C',root,'add','-f','--',dir+'/README.md']);
+  }
+  writeFileSync(join(root,'.venv','private.py'),'fixture');
+  assert.equal(broken(root).length,1);
+  assert.ok(errors(root).includes('Missing final newline: .venv/README.md'));
+  assert.ok(errors(root).includes('Missing final newline: __pycache__/README.md'));
 });
