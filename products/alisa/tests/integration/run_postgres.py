@@ -88,7 +88,7 @@ def wait_ready(url, process):
         except (OSError, ValueError):
             pass
         time.sleep(.1)
-    raise RuntimeError('Test child readiness timeout')
+    raise RuntimeError('Test child readiness timeout: ' + url)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -265,6 +265,10 @@ def main():
                        'HOSTNAME': '127.0.0.1', 'PORT': '18200', 'NEXT_TELEMETRY_DISABLED': '1'}
             for name in list(web_env):
                 if name.startswith('ALISA_DB_') or name == 'ALISA_SECRET_KEY': del web_env[name]
+            missing_token = {k: v for k, v in web_env.items() if k != 'ALISA_SERVICE_TOKEN'}
+            refused = subprocess.run([sys.executable, str(release / 'infra/launch.py'), 'web'],
+                                     env=missing_token, capture_output=True, timeout=5)
+            check('packaged_web_entrypoint_refuses_missing_secret', refused.returncode != 0 and b'Missing ALISA_SERVICE_TOKEN' in refused.stderr)
             web = spawn(['node', release / 'ui/web/apps/web/server.js'], web_env, logs)
             wait_ready(origin + '/health/ready', web)
             check('bff_without_admission_denied', request(origin + '/api/engineering/probes', 'POST', payload, origin=origin)[0] == 401)

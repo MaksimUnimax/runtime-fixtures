@@ -3,8 +3,8 @@ from django.db import connection, DatabaseError
 from django.http import JsonResponse
 from django.urls import path
 
-def response(status, **data):
-    result = JsonResponse({"component": "identity", "environment": settings.ALISA_ENV, "release": settings.RELEASE, **data}, status=status)
+def response(http_status, **data):
+    result = JsonResponse({"component": "identity", "environment": settings.ALISA_ENV, "release": settings.RELEASE, **data}, status=http_status)
     result["Cache-Control"] = "no-store"
     return result
 

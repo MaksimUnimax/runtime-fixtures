@@ -72,6 +72,15 @@ class PlatformNegativeTests(unittest.TestCase):
         with override_settings(FOUNDATION_PROBE_ENABLED=False):
             self.assertEqual(self.client.post('/internal/foundation/probes',data='{}',content_type='application/json',HTTP_AUTHORIZATION='Bearer '+'t'*48).status_code,404)
     def test_invalid_host(self):self.assertEqual(self.client.get('/health/live',HTTP_HOST='foreign.invalid').status_code,400)
+    def test_identity_shell_liveness_with_unavailable_database(self):
+        from django.test import override_settings, Client
+        sys.path.insert(0,str(ROOT/'services/identity/src'))
+        with override_settings(ROOT_URLCONF='octoport_identity.config.urls'):
+            response=Client().get('/health/live')
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json()['component'],'identity')
+            self.assertEqual(Client().get('/health/ready').status_code,503)
+
     def test_production_urlconf_has_no_probe(self):
         from django.test import override_settings
         from alisa_platform.config import urls

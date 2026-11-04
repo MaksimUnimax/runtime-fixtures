@@ -11,6 +11,14 @@ release=json.loads((root/'manifest.json').read_text())['artifact_id']
 os.environ['ALISA_RELEASE']=release
 if component in {'web','admin'}:
     if os.environ.get('ALISA_ENV') not in {'stage','prod'}:raise SystemExit('Missing environment')
+    if not os.environ.get('ALISA_PLATFORM_URL'):raise SystemExit('Missing ALISA_PLATFORM_URL')
+    if component == 'web':
+        token=os.environ.get('ALISA_SERVICE_TOKEN','')
+        if len(token)<32 or token.startswith('REPLACE_'):raise SystemExit('Missing ALISA_SERVICE_TOKEN')
+        if os.environ.get('ALISA_ENV')=='stage' and os.environ.get('FOUNDATION_PROBE_ENABLED')=='1':
+            basic=os.environ.get('ALISA_ENGINEERING_AUTH','')
+            if len(basic)<24 or basic.startswith('REPLACE_'):raise SystemExit('Missing ALISA_ENGINEERING_AUTH')
+            if not os.environ.get('ALISA_WEB_ORIGIN'):raise SystemExit('Missing ALISA_WEB_ORIGIN')
     os.environ['HOSTNAME']='127.0.0.1'
     os.environ['PORT']='18100' if component=='web' else '18101'
     os.chdir(root/'ui'/component)
