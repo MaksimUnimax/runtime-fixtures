@@ -28,8 +28,8 @@
       "currency"
     ],
     "preserve_distinct_prices": true,
-    "quantity_mode": "Only quantity=1 live-qualified in this case. Multi-unit and return semantics must be qualified before enabling them.",
-    "money": "Decimal from source strings; no seller_price, sale_amount, payout or analytics revenue substitution",
+    "quantity_mode": "Live-qualified quantities 1 and 2. sale_price is a customer LINE amount; divide by quantity for the line-average price. Do not multiply this line amount by quantity again. Individual receipt prices within a multi-unit line are not separately observed.",
+    "money": "Decimal from source amount strings; sum customer sale_price line amounts and quantities. Keep seller_price per unit and sale_amount seller line amount separate.",
     "names": "Optional product metadata joined by exact SKU; never used for price computation"
   },
   "live_qualification": {
@@ -44,7 +44,22 @@
     "raw_sha256": "108233ae66dc71c0e8599102a2b91046b507f1fa85fc491540eb511916cca45e",
     "cabinet_reconciliation": false,
     "buyer_receipt_reconciliation": false,
-    "runtime_integration": false
+    "runtime_integration": false,
+    "monthly_extension": {
+      "candidate": "OZON_DAILY_PRICE_VOLUME_CASE.json",
+      "dates": 31,
+      "http_200": 31,
+      "records": 2154,
+      "sale_rows": 575,
+      "live_quantities": [
+        1,
+        2
+      ],
+      "price_reconciliations": 575,
+      "posting_reconciliations": 774,
+      "offline_regressions": 14,
+      "runtime_integration": false
+    }
   },
   "required_regressions": [
     "Ozon utterance never suggests entering a WB article as the solution",
@@ -54,7 +69,7 @@
     "Use sale_price and show seller_price separately; do not use sale_amount as buyer price",
     "Money, currencies, nullable commission, missing price and zero value are validated explicitly",
     "Full cursor pagination before final output; repeated cursor and duplicates fail closed",
-    "Qualify quantity>1 line-vs-unit semantics and returns before enabling them",
+    "Use line-amount semantics for multi-unit rows; return semantics still require separate qualification.",
     "Ignore malformed commission_ratio for price-only report; do not parse it as a money value",
     "Use existing tenant authorization, shared source quota ledger, exact cache, queue and retention",
     "Give a useful Russian explanation for unsupported price case instead of raw LLM_CLARIFY only",
@@ -64,5 +79,6 @@
     "https://dev.ozon.ru/news/699-Novye-metody-dlia-finansovykh-otchetov-v-Seller-API/",
     "https://dev.ozon.ru/community/2356-Poluchenie-tseny-summy-pokupatelia-zaprose-informatsii-po-otpravleniiam/",
     "https://seller.ozon.ru/media/news/obnovili-nazvaniya-dlya-cen-i-skidok-v-lichnom-kabinete/"
-  ]
+  ],
+  "revision": 2
 }
