@@ -24,7 +24,7 @@
     "AL-T00-17",
     "AL-T00-18"
   ],
-  "verdict": "BLOCKED",
+  "verdict": "ACCEPTED_FOR_DECLARED_SCOPE",
   "accepted_inputs": [
     "isolated source layout and component boundaries",
     "qualified immutable package and separate build runner",
@@ -35,12 +35,11 @@
     "probe expiry/cleanup and final disabled engineering endpoint",
     "AL-T00-08: 8 stage-role CONNECT denials to 2 real empty production databases, with valid own-DB controls and independent verification",
     "R4 activation/readback; unchanged runtime artifacts justify scoped R3 evidence reuse",
-    "32 Python, 11 Node, 54 real PostgreSQL/browser checks; candidate Documentation CI and 6 checker regressions pass"
+    "32 Python, 11 Node, 54 real PostgreSQL/browser checks; candidate Documentation CI and 6 checker regressions pass",
+    "Own six-name certificate renewal dry-run and explicit nginx deploy hook independently verified; renewal config, live certificate and protected hashes unchanged"
   ],
-  "remaining_external_scope": [
-    "ENV-00 certificate renewal remains unproven: own six-name dry run at 14:34 UTC returned CA rateLimited / Service busy after a 72-minute interval. Prior 13:22 attempt had CA DNS validation timeouts; authoritative/public DNS and external HTTP webroot checks passed. Official staging maintenance is an external factor, not a proven cause. Current certificate is valid through 2027-02-02. Repeat the own-lineage dry run once provider service is available; require successful renewal/deploy-hook evidence before FOUNDATION_READY or AL-S01."
-  ],
-  "reviewer": "Independent /root/release_review; parent consolidates validated evidence. FOUNDATION_READY remains false solely for unproven ENV-00 renewal.",
+  "remaining_external_scope": [],
+  "reviewer": "Independent /root/s00_final_review; exact installed source/package and declared technical stage scope accepted.",
   "evidence": [
     "https://github.com/MaksimUnimax/runtime-fixtures/pull/383",
     "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41843983646",
@@ -54,6 +53,8 @@
     "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/ALISA_S00_INDEPENDENT_STAGE_R3_20261104.json",
     "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/ASSESSMENT_R2_R3_EVIDENCE_REUSE.json",
     "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/ALISA_ENV00_RENEWAL_DIAGNOSIS_20261104.json",
-    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S00_STAGE_2026-11-04.json"
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S00_STAGE_2026-11-04.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/ALISA_ENV00_RENEWAL_SUCCESS_20261104_2158.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S00_FINAL_INDEPENDENT_ACCEPTANCE_20261104.json"
   ]
 }
