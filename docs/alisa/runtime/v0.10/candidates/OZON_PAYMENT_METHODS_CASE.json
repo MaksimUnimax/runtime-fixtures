@@ -1,0 +1,87 @@
+{
+  "case_id": "ozon_payment_methods_v1",
+  "status": "SOURCE_QUALIFIED_NOT_REGISTERED_NOT_DEPLOYED",
+  "architecture": "One catalog/matrix operation composed from shared sources, join, dimensions and aggregates. No phrase-specific handler and no standalone runtime path.",
+  "user_intent": "Split realized product quantity and realized buyer unit price by Ozon-reported payment method for any authorized period, day and SKU.",
+  "platform": "ozon",
+  "time_axis": "accrual_date",
+  "sources": [
+    {
+      "operation": "ozon_accrual_by_day",
+      "path": "/v1/finance/accrual/by-day",
+      "role": "positive realization rows, SKU, quantity, buyer line amount, unit_number"
+    },
+    {
+      "operation": "ozon_fbo_posting_metadata",
+      "path": "/v3/posting/fbo/list",
+      "role": "posting_number, order_id, product SKU/quantity, analytics_data.payment_type_group_name; cursor pagination"
+    },
+    {
+      "operation": "ozon_fbs_posting_metadata",
+      "path": "/v4/posting/fbs/list",
+      "role": "same metadata for FBS; cursor pagination; no result wrapper"
+    }
+  ],
+  "join": {
+    "posting_key": [
+      "accrual.unit_number",
+      "posting.posting_number"
+    ],
+    "item_key": [
+      "sku"
+    ],
+    "cardinality": "many accrual rows to one posting; validate product quantity and SKU; reject conflicting duplicates; preserve target cohort",
+    "metadata_period": "Cover creation dates of target realization postings, including prior months. Never silently substitute order-date cohort.",
+    "missing": "report explicit unknown/unmatched coverage; do not label unknown as non-card"
+  },
+  "dimensions": [
+    "accrual_date",
+    "sku",
+    "payment_type_group_name"
+  ],
+  "measures": {
+    "units": "SUM(quantity)",
+    "buyer_amount": "SUM(commission.sale_price.amount); already line amount",
+    "buyer_unit_price": "buyer_amount / units",
+    "orders": "COUNT(DISTINCT order_id) within target cohort",
+    "postings": "COUNT(DISTINCT posting_number)"
+  },
+  "payment_semantics": {
+    "exact_primary_label": "Ozon Банк",
+    "other_observed_labels": [
+      "Банковская карта",
+      "Система Быстрых Платежей",
+      "Кредитная карта",
+      "SberPay",
+      "Озон Счет Рассрочка МКК",
+      "Баланс средств"
+    ],
+    "unknown": "explicit separate group; preserve raw label",
+    "forbidden_inference": [
+      "bank_coinvestment positive => Ozon Card",
+      "all other labels => external bank card",
+      "difference of group means => counterfactual card discount"
+    ]
+  },
+  "acceptance": [
+    "reconcile complete source pages and target rows",
+    "no duplicate posting metadata or target row multiplication",
+    "validate SKU and quantities",
+    "weighted means and additive totals reconcile by day,SKU,payment",
+    "all missing/unknown labels visible",
+    "same cohort as requested time axis",
+    "no price/quantity filtering without user instruction"
+  ],
+  "speech_examples_proposed_not_installed": [
+    "Сколько товаров реализовано с оплатой Ozon Банком и другими способами за октябрь 2026?",
+    "Покажи по дням и всем товарам количество и среднюю цену реализации в разрезе способов оплаты за выбранный месяц."
+  ],
+  "llm_role": "bounded semantic plan only; no financial arithmetic or invented payment labels",
+  "limitations": [
+    "does not expose alternative no-card price for an identical past order",
+    "no causal effect, discount rate or optimal price inferred from payment mix",
+    "returns unsupported in this positive realization qualification",
+    "all runtime allowlists,quotas,access checks,cache lineage and matrix registration still required"
+  ],
+  "evidence": "docs/alisa/browser-testing/OZON_PAYMENT_METHODS_2026-10_RUN.md"
+}
