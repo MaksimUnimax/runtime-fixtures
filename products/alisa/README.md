@@ -99,8 +99,9 @@ are provided. The safe JSON receipt reports its own scope and FOUNDATION_READY=f
 
 ## Probe shutdown and acceptance receipt
 
-After the finite acceptance run, stop `alisa-web@stage.service` and
-`alisa-worker@stage.service` to close the ingress and drain this worker. In the private
+After the finite acceptance run, stop `alisa-web@stage.service` and run
+`systemctl disable --now alisa-worker@stage.service` to close the ingress and drain
+this worker. Disabling it also prevents a reboot from starting it with the probe off. In the private
 files `/etc/alisa-platform/stage/web.env` and `/etc/alisa-platform/stage/platform.env`,
 set the existing `FOUNDATION_PROBE_ENABLED` key to `0`, keeping mode 0600 and ownership.
 Restart only `alisa-platform@stage.service` and `alisa-web@stage.service`. Verify an
