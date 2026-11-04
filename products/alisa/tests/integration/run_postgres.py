@@ -180,13 +180,15 @@ def main():
             prod_input.write_text(json.dumps({c: {r + '_password': secrets.token_urlsafe(36)
                                                   for r in ('migration', 'runtime')}
                                              for c in ('platform', 'identity')}))
-            repeated = subprocess.run(provision_prod, env=clean_environment(), stdout=logs, stderr=logs,
+            repeated = subprocess.run(provision_prod, env=clean_environment(), capture_output=True, text=True,
                                       timeout=15)
-            check('existing_production_namespace_refused', repeated.returncode != 0)
+            check('existing_production_namespace_refused', repeated.returncode != 0 and
+                  'Database exists; inspect before retry' in repeated.stderr)
             for component, prod_name in zip(('platform', 'identity'), PROD_NAMES):
-                with connect(prod_name, prod_name + '_runtime', original_prod_credentials[component]['runtime_password']) as db:
-                    empty = db.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'").fetchone()[0] == 0
-                    check(component + '_production_empty_and_original_password_preserved', empty)
+                for role in ('runtime', 'migration'):
+                    with connect(prod_name, prod_name + '_' + role, original_prod_credentials[component][role + '_password']) as db:
+                        empty = db.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'").fetchone()[0] == 0
+                        check(component + '_production_' + role + '_empty_and_original_password_preserved', empty)
             for stage_component, stage_name in zip(('platform', 'identity'), DB_NAMES):
                 for stage_role in ('runtime', 'migration'):
                     user = stage_name + '_' + stage_role

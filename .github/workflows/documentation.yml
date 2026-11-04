@@ -30,4 +30,6 @@ jobs:
         with:
           node-version: "24"
       - name: Check documentation and scaffold
-        run: node tooling/checks/docs-check.mjs
+        run: |
+          node --test tooling/checks/docs-check.test.mjs
+          node tooling/checks/docs-check.mjs
