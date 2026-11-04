@@ -24,3 +24,6 @@ class FoundationProbe(models.Model):
 class FoundationJob(models.Model):
     probe = models.OneToOneField(FoundationProbe, primary_key=True, on_delete=models.CASCADE)
     done = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [models.Index(fields=['probe'], condition=models.Q(done=False), name='foundation_pending_job_idx')]

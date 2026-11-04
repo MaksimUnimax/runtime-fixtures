@@ -90,6 +90,29 @@ class PlatformNegativeTests(unittest.TestCase):
             self.assertFalse(any('foundation' in str(p.pattern) for p in urls.urlpatterns))
         importlib.reload(urls)
 
+    def test_worker_retries_connection_failure_and_recovers_without_private_driver_text(self):
+        from alisa_platform.foundation.management.commands import foundation_worker as worker
+        from django.db import OperationalError
+        sleeps=[]
+        with patch.object(worker,'tick',side_effect=[OperationalError('private-driver-marker'),None]) as tick,patch.object(worker.connections,'close_all'),patch.object(worker.signal,'signal') as signal_handlers:
+            def pause(delay):
+                sleeps.append(delay)
+                if len(sleeps)==2:signal_handlers.call_args_list[0].args[1]()
+            with patch.object(worker.time,'sleep',side_effect=pause),self.assertLogs('alisa.foundation',level='INFO') as logs:
+                worker.Command().handle(once=False)
+            self.assertEqual(tick.call_count,2);self.assertEqual(sleeps,[0.5,0.25])
+            text='\n'.join(logs.output)
+            self.assertIn('worker_database_unavailable',text);self.assertIn('worker_database_recovered',text)
+            self.assertNotIn('private-driver-marker',text)
+
+    def test_once_worker_database_failure_is_non_success_and_safe(self):
+        from alisa_platform.foundation.management.commands import foundation_worker as worker
+        from django.core.management.base import CommandError
+        from django.db import OperationalError
+        with patch.object(worker,'tick',side_effect=OperationalError('private-driver-marker')),patch.object(worker.connections,'close_all'),patch.object(worker.signal,'signal'):
+            with self.assertRaisesRegex(CommandError,'^Foundation database unavailable$'):
+                worker.Command().handle(once=True)
+
 class QualificationSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

@@ -4,7 +4,7 @@ import signal
 import time
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction, connections
+from django.db import transaction, connections, DatabaseError, OperationalError, InterfaceError
 from django.utils import timezone
 from alisa_platform.foundation.models import FoundationProbe, FoundationJob
 
@@ -42,11 +42,28 @@ class Command(BaseCommand):
             stopped = True
         signal.signal(signal.SIGTERM, stop)
         signal.signal(signal.SIGINT, stop)
+        retry_delay = 0.5
+        unavailable = False
         while not stopped:
+            delay = 0.25
             try:
                 tick()
+                if unavailable:
+                    logger.info(json.dumps({"event": "worker_database_recovered"}))
+                unavailable = False
+                retry_delay = 0.5
+            except (OperationalError, InterfaceError):
+                if options["once"]:
+                    raise CommandError("Foundation database unavailable") from None
+                if not unavailable:
+                    logger.warning(json.dumps({"event": "worker_database_unavailable"}))
+                unavailable = True
+                delay = retry_delay
+                retry_delay = min(5, retry_delay * 2)
+            except DatabaseError:
+                raise CommandError("Foundation processing failed") from None
             finally:
                 connections.close_all()
             if options["once"]:
                 return
-            time.sleep(0.25)
+            time.sleep(delay)

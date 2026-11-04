@@ -304,6 +304,32 @@ def main():
                         check('browser_retry_keeps_one_effect', json.loads(page.get_by_test_id('result').inner_text())['effect_count'] == 1)
                     finally: browser.close()
             stop(worker)
+            # A real connection failure must leave the durable job pending, keep
+            # the long-running worker alive and recover without another effect.
+            recovery_id = str(uuid.uuid4())
+            recovery_payload = {'probe_id': recovery_id, 'kind': 'foundation-v1'}
+            check('recovery_probe_accepted_before_database_outage', request(direct, 'POST', recovery_payload, auth)[0] == 202)
+            runtime_role = sql.Identifier(DB_NAMES[0] + '_runtime')
+            admin.execute(sql.SQL('ALTER ROLE {} NOLOGIN').format(runtime_role))
+            try:
+                logs.flush()
+                outage_log_start = logs.tell()
+                worker = spawn([sys.executable, release / 'services/platform/manage.py', 'foundation_worker'], environment('platform'), logs)
+                for _ in range(100):
+                    if worker.poll() is not None: raise RuntimeError('Worker exited during database outage')
+                    if b'"event": "worker_database_unavailable"' in (temp / 'private-process.log').read_bytes()[outage_log_start:]: break
+                    time.sleep(.1)
+                else: raise RuntimeError('Worker did not observe the real database outage')
+                check('worker_survives_real_database_connection_denial', worker.poll() is None)
+            finally:
+                admin.execute(sql.SQL('ALTER ROLE {} LOGIN').format(runtime_role))
+            for _ in range(60):
+                recovered = request(direct + '/' + recovery_id, token=auth)
+                if recovered[0] == 200 and recovered[1]['state'] == 'PROCESSED': break
+                time.sleep(.1)
+            else: raise RuntimeError('Worker did not recover after database access restoration')
+            check('worker_database_recovery_keeps_one_effect', recovered[1]['effect_count'] == 1 and worker.poll() is None)
+            stop(worker)
             with connect(DB_NAMES[0]) as db:
                 db.execute("UPDATE foundation_foundationprobe SET expires_at=now()-interval '1 second' WHERE id=%s", [probe_id])
             manage('platform', ['foundation_cleanup'], FOUNDATION_PROBE_ENABLED='0')
