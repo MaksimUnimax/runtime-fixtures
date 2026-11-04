@@ -1,0 +1,148 @@
+--- a/engine.py
++++ b/engine.py
+@@ -46,6 +46,8 @@
+             scope = self.execution_scope(plan.get('runtime_guard'),plan['tenant'])
+             if not plan_authorized(plan,scope): return False
+             if 'program' in plan and not validate_compiled(plan):return False
++            if 'template_execution' in plan:
++                if self.execution_policy is None or not self.execution_policy.template_authorized(plan):return False
+             if 'table' in plan:
+                 from table_analytics import valid
+                 if not valid(plan) or self.table_capabilities is None:return False
+--- a/runtime_port.py
++++ b/runtime_port.py
+@@ -56,7 +56,7 @@
+                                    if k not in ('execution_ticket','not_after')}}
+ 
+ class RuntimePort:
+-    def __init__(self,engine,authority:Authority|None,*,catalog_release_id:str,service_id:str):
++    def __init__(self,engine,authority:Authority|None,*,catalog_release_id:str,service_id:str,templates=None):
+         if not isinstance(catalog_release_id,str) or not 0<len(catalog_release_id)<=128:
+             raise ValueError('explicit catalog release binding required')
+         if not isinstance(service_id,str) or not 0<len(service_id)<=128:
+@@ -66,6 +66,9 @@
+         self.engine,self.repo,self.authority=engine,engine.repo,authority
+         self.catalog_release_id,self.service_id=catalog_release_id,service_id
+         self.versions=current_versions()
++        self.templates=templates
++        if templates is not None and templates.base_bundle_hash!=self.versions['catalog_bundle_hash']:
++            raise ValueError('template catalog must match the core bundle')
+         engine.execution_policy=self
+         with self.repo.connection(True) as c:
+             c.execute('''CREATE TABLE IF NOT EXISTS rt_job_refs(
+@@ -88,7 +91,10 @@
+     def _resolve(self,approved_pins,action):
+         if self.authority is None:raise Rejected('AUTH_REQUIRED')
+         if approved_pins.get('product_id')!=PRODUCT:raise Rejected('AUTH_REQUIRED')
+-        if approved_pins.get('catalog_release_id')!=self.catalog_release_id:
++        release=approved_pins.get('catalog_release_id')
++        if self.templates is not None and self.templates.has(release):
++            self.templates.check(approved_pins,action)
++        elif release!=self.catalog_release_id:
+             raise Rejected('CATALOG_INCOMPATIBLE')
+         if approved_pins.get('business_timezone')!='Europe/Moscow':
+             raise Rejected('CAPABILITY_UNAVAILABLE')
+@@ -120,7 +126,7 @@
+         if verified!=expected:raise Rejected('PERMISSION_DENIED')
+         approved=pins(ctx);scope=self._resolve(approved,action)
+         guard={'version':GUARD_VERSION,'pins':approved,'scope_hash':fingerprint(asdict(scope)),
+-               'runtime_tenant':scope.tenant,'catalog_bundle_hash':self.versions['catalog_bundle_hash']}
++               'runtime_tenant':scope.tenant,'catalog_bundle_hash':self._bundle_for(approved['catalog_release_id'])}
+         return ctx,guard,scope
+ 
+     def scope_for(self,guard):
+@@ -128,7 +134,7 @@
+         The acceptance ticket may expire; current authority is still mandatory.
+         """
+         if (type(guard)is not dict or set(guard)!={'version','pins','scope_hash','runtime_tenant','catalog_bundle_hash'}
+-            or guard['version']!=GUARD_VERSION or guard['catalog_bundle_hash']!=self.versions['catalog_bundle_hash']):
++            or guard['version']!=GUARD_VERSION or guard['catalog_bundle_hash']!=self._bundle_for(guard['pins'].get('catalog_release_id'))):
+             raise Rejected('CATALOG_INCOMPATIBLE')
+         scope=self._resolve(guard['pins'],'execute')
+         if scope.tenant!=guard['runtime_tenant'] or fingerprint(asdict(scope))!=guard['scope_hash']:
+@@ -139,12 +145,61 @@
+         self._peer(peer)
+         return {**self.versions,'catalog_release_id':self.catalog_release_id}
+ 
++    def _bundle_for(self,release):
++        if self.templates is not None and self.templates.has(release):
++            return self.templates.digest_for(release)
++        if release!=self.catalog_release_id:raise Rejected('CATALOG_INCOMPATIBLE')
++        return self.versions['catalog_bundle_hash']
++
+     def capabilities(self,context,peer):
+-        self._auth(context,peer,'capabilities')
+-        return {**self.versions_for(peer),'operations':['submit','status','read_result','cancel','capabilities','current_versions'],
++        ctx,guard,scope=self._auth(context,peer,'capabilities')
++        answer={**self.versions_for(peer),'catalog_release_id':ctx['catalog_release_id'],
++                'catalog_bundle_hash':guard['catalog_bundle_hash'],
++                'operations':['submit','status','read_result','cancel','capabilities','current_versions'],
+                 'query_input_kinds':['utterance'],'utterance_max_chars':1200,
+                 'business_timezones':['Europe/Moscow'],'unsupported':['template','revoke_scope'],
+                 'replay_retention_seconds':retention.REPLAY_TTL,'read_recomputes':False}
++        if self.templates is not None and self.templates.has(ctx['catalog_release_id']):
++            answer['query_input_kinds'].append('template');answer['unsupported'].remove('template')
++            answer['templates']=[]
++            from datetime import timedelta
++            today=datetime.fromtimestamp(self.repo.clock(),ZoneInfo(ctx['business_timezone'])).date()
++            day=(today-timedelta(days=1)).isoformat()
++            for item in self.templates.descriptors(guard['pins'],scope):
++                try:
++                    query={'kind':'template','template_id':item['id'],'slots':{'period_from':day,'period_to':day}}
++                    _,preview=self.templates.prepare(query,guard['pins'],scope,today,'capabilities')
++                    self.engine.pin_execution(preview,guard)
++                    if self.engine.authorized(preview):answer['templates'].append(item)
++                except Rejected as exc:
++                    if exc.code=='DEPENDENCY_UNAVAILABLE':raise
++                    # An unavailable source/definition is not advertised as executable.
++                    continue
++            answer['template_contract']='runtime_template_scalar_v1'
++        return answer
++
++    def template_authorized(self,plan):
++        if self.templates is None:return False
++        try:
++            guard=plan['runtime_guard'];provenance=plan['template_execution']
++            if provenance['release_id']!=guard['pins']['catalog_release_id']:return False
++            scope=self.scope_for(guard)
++            query={'kind':'template','template_id':provenance['template_id'],'slots':provenance['slots']}
++            from datetime import date
++            draft,expected=self.templates.prepare(query,guard['pins'],scope,date.fromisoformat(provenance['calendar_date']),'execute')
++            self.engine.pin_execution(expected,guard)
++            return expected==plan
++        except (Rejected,KeyError,TypeError,ValueError):return False
++
++    def _submit_template(self,query,scope,guard,rid,digest,today):
++        if self.templates is None or not self.templates.has(guard['pins']['catalog_release_id']):
++            raise Rejected('CAPABILITY_UNAVAILABLE')
++        draft,plan=self.templates.prepare(query,guard['pins'],scope,today)
++        draft['runtime_guard']=copy.deepcopy(guard)
++        self.engine.pin_execution(plan,guard)
++        if not self.engine.authorized(plan):raise Rejected('SOURCE_ACCESS')
++        row,outcome=self.repo.enqueue(scope.tenant,rid,digest,draft,plan,fingerprint(asdict(scope)),update_pointer=False)
++        return {'job_id':row['id'],'state':row['state'],'cache':outcome}
+ 
+     def _old(self,c,ctx,rid,action,digest):
+         old=c.execute('SELECT * FROM rt_job_receipts WHERE tenant=? AND actor=? AND rid=?',
+@@ -170,7 +225,10 @@
+         task=task_shape(task)
+         ctx,guard,scope=self._auth(task['context'],peer,'submit')
+         query=task['query_input']
+-        if query['kind']!='utterance' or len(query['text'])>1200:raise Rejected('CAPABILITY_UNAVAILABLE')
++        if query['kind']=='utterance':
++            if len(query['text'])>1200:raise Rejected('CAPABILITY_UNAVAILABLE')
++        elif query['kind']!='template' or self.templates is None:
++            raise Rejected('CAPABILITY_UNAVAILABLE')
+         request_id=task['request_id'];logical_id=task['logical_query_id']
+         digest=fingerprint({'query':query,'logical_query_id':logical_id,'guard':guard})
+         with self.repo.connection(True) as c:
+@@ -189,7 +247,8 @@
+                 # Internal rid is namespaced; a trusted platform UUID cannot collide with legacy ingress.
+                 rid='rt1:'+fingerprint([ctx['tenant_id'],ctx['actor_id'],request_id])
+                 today=datetime.fromtimestamp(self.repo.clock(),ZoneInfo(ctx['business_timezone'])).date()
+-                answer=self.engine._submit(scope.tenant,query['text'],rid,digest,today,execution_context=guard)
++                answer=(self.engine._submit(scope.tenant,query['text'],rid,digest,today,execution_context=guard)
++                        if query['kind']=='utterance' else self._submit_template(query,scope,guard,rid,digest,today))
+                 ref=str(uuid4());created=self.repo.clock()
+                 c.execute('INSERT INTO rt_job_refs VALUES(?,?,?,?,?,?,?,?,?)',
+                           (ref,ctx['tenant_id'],ctx['actor_id'],logical_id,digest,fingerprint(guard),scope.tenant,answer['job_id'],created))
