@@ -352,6 +352,11 @@ def main():
             stop(worker)
             from qualify_leads import qualify
             qualify(origin, request, check, connect, manage, temp / 'private-process.log', args.browser)
+            with connect(DB_NAMES[0]) as db:
+                lead_count = db.execute('SELECT count(*) FROM leads_lead WHERE confirmed_at IS NOT NULL').fetchone()[0]
+            stop(platform); platform = api('platform',18202)
+            with connect(DB_NAMES[0]) as db:
+                check('s01_confirmed_leads_survive_api_restart',lead_count >= 2 and db.execute('SELECT count(*) FROM leads_lead WHERE confirmed_at IS NOT NULL').fetchone()[0] == lead_count)
             # A real connection failure must leave the durable job pending, keep
             # the long-running worker alive and recover without another effect.
             recovery_id = str(uuid.uuid4())

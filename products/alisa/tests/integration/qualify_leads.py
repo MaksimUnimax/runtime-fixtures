@@ -2,6 +2,7 @@
 import email.policy
 from email.parser import BytesParser
 import json
+from pathlib import Path
 import re
 import socketserver
 import threading
@@ -88,7 +89,12 @@ def qualify(origin, request, check, connect, manage, logs_path, browser_enabled)
                     try:
                         page=browser.new_page(viewport={'width':390,'height':844})
                         page.goto(origin);expect(page.get_by_role('heading',level=1)).to_contain_text('голосовом вопросе')
+                        page.screenshot(path=str(Path(__file__).resolve().parents[2]/'dist/s01-home-mobile.png'),full_page=True)
                         check('s01_mobile_layout',page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'))
+                        page.set_viewport_size({'width':1440,'height':1000})
+                        check('s01_desktop_layout',page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'))
+                        page.screenshot(path=str(Path(__file__).resolve().parents[2]/'dist/s01-home-desktop.png'),full_page=True)
+                        page.set_viewport_size({'width':390,'height':844})
                         for route in ['how-it-works','examples','pricing','faq','help','contacts','privacy','terms','consents','login','app/private-object']:
                             response=page.goto(origin+'/'+route);check('s01_page_'+route.replace('/','_'),response.status==200)
                         page.goto(origin+'/join');page.get_by_label('Синтетическая почта').fill('browser-roundtrip@example.invalid')
@@ -100,7 +106,9 @@ def qualify(origin, request, check, connect, manage, logs_path, browser_enabled)
                         old_browser_token=browser_token
                         with connect('alisa_stage_platform') as db:db.execute("UPDATE leads_lead SET token_expires_at=now()-interval '1 second' WHERE id=%s",[browser_token['lead_id']])
                         page.get_by_label('Синтетическая почта').fill('browser-roundtrip@example.invalid');page.locator('input[name=service]').check()
-                        page.get_by_role('button',name='Отправить тестовую заявку').click()
+                        with page.expect_response(lambda r:r.url.endswith('/api/public/leads') and r.request.method=='POST') as resent:
+                            page.get_by_role('button',name='Отправить тестовую заявку').click()
+                        check('s01_ui_resend_acknowledged',resent.value.status==202)
                         expect(page.get_by_role('button',name='Отправить тестовую заявку')).to_be_enabled()
                         manage('platform',['leads_deliver']);confirmation,browser_token=link(sink.messages[-1])
                         check('s01_ui_expired_link_resend_reuses_lead',browser_token['lead_id']==old_browser_token['lead_id'] and browser_token['token']!=old_browser_token['token'])
@@ -110,7 +118,7 @@ def qualify(origin, request, check, connect, manage, logs_path, browser_enabled)
                         check('s01_browser_smtp_confirmation_and_reload',not urlsplit(page.url).fragment)
                         page.goto(origin+'/join');page.get_by_role('button',name='Разрешить',exact=True).click()
                         with connect('alisa_stage_platform') as db:check('s01_direct_join_visit_is_not_cta',db.execute("SELECT count(*) FROM funnel_funnelevent WHERE event_type='cta.clicked'").fetchone()[0]==0)
-                        page.goto(origin);page.locator('header a[href="/join"]').click()
+                        page.goto(origin);expect(page.get_by_role('button',name='Выключить',exact=True)).to_be_visible();page.locator('header a[href="/join"]').click()
                         import time
                         for _ in range(30):
                             with connect('alisa_stage_platform') as db:clicked=db.execute("SELECT count(*) FROM funnel_funnelevent WHERE event_type='cta.clicked'").fetchone()[0]
