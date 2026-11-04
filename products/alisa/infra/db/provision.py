@@ -16,7 +16,9 @@ def private(path):
     return p.read_text().strip()
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--env',choices=['stage'],required=True)
+    # Provisioning an empty namespace does not activate production applications.
+    # The complete name/role preflight below still refuses every existing target.
+    parser=argparse.ArgumentParser();parser.add_argument('--env',choices=['stage','prod'],required=True)
     parser.add_argument('--admin-dsn-file',required=True);parser.add_argument('--credentials-file',required=True)
     a=parser.parse_args();dsn=private(a.admin_dsn_file);secrets=json.loads(private(a.credentials_file))
     names=[f'alisa_{a.env}_{component}' for component in ['platform','identity']]

@@ -64,6 +64,11 @@ before installation. Build on the separate CI runner. Do not copy old secrets.
 2. From an approved private admin DSN create **new** databases using `infra/db/provision.py`.
    Input JSON is mode 0600; it contains `platform` and `identity` objects, each with
    `migration_password` and `runtime_password`. The script stops if a name already exists.
+   For AL-T00-08, provision the separate empty `--env prod` namespace using a different
+   private input and passwords. This creates only databases/roles; it does not migrate
+   or activate production applications. Verify both stage migration/runtime roles are
+   refused by both production databases. Never reuse stage secrets or retry over an
+   existing namespace; the initial preflight must reject it without changing passwords.
 3. Install only this workspace's `infra/systemd/alisa-*@.service`; no existing unit is edited.
    Run `systemctl daemon-reload`, then `systemctl enable --now alisa-probe-cleanup@stage.timer`
    after the first compatible migration and activation. Install nginx config only for the three new stage names;

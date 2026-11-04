@@ -29,6 +29,7 @@ from psycopg import sql
 
 ROOT = Path(__file__).resolve().parents[2]
 DB_NAMES = ('alisa_stage_platform', 'alisa_stage_identity')
+PROD_NAMES = ('alisa_prod_platform', 'alisa_prod_identity')
 PROD_SENTINEL = 'alisa_prod_test_sentinel'
 PROCESSES = []
 RESULTS = []
@@ -119,8 +120,8 @@ def main():
 
     # Refuse a populated namespace before acquiring any destructive cleanup ownership.
     admin = connect()
-    owned_names = [*DB_NAMES, PROD_SENTINEL]
-    role_names = [name + '_' + role for name in DB_NAMES for role in ('migration', 'runtime')]
+    owned_names = [*DB_NAMES, *PROD_NAMES, PROD_SENTINEL]
+    role_names = [name + '_' + role for name in (*DB_NAMES, *PROD_NAMES) for role in ('migration', 'runtime')]
     try:
         databases = {row[0] for row in admin.execute('SELECT datname FROM pg_database WHERE NOT datistemplate')}
         if databases - {'postgres', 'alisa_ci_admin'}:
@@ -162,6 +163,40 @@ def main():
                             '--admin-dsn-file', str(dsn_file), '--credentials-file', str(credentials_file)],
                            env=clean_environment(), stdout=logs, stderr=logs, check=True, timeout=15)
             check('fresh_separate_database_provision', True)
+            # Real distinct production namespaces, still empty and with no public
+            # applications, prove the stage→production permission boundary.
+            prod_credentials = {component: {role + '_password': secrets.token_urlsafe(36)
+                                           for role in ('migration', 'runtime')}
+                                for component in ('platform', 'identity')}
+            prod_input = temp / 'prod-db-input.json'
+            prod_input.write_text(json.dumps(prod_credentials)); prod_input.chmod(0o600)
+            provision_prod = [sys.executable, str(release / 'infra/db/provision.py'), '--env', 'prod',
+                              '--admin-dsn-file', str(dsn_file), '--credentials-file', str(prod_input)]
+            subprocess.run(provision_prod, env=clean_environment(), stdout=logs, stderr=logs,
+                           check=True, timeout=15)
+            check('fresh_empty_production_namespaces_provisioned', True)
+            # A retry with different passwords must fail before changing anything.
+            original_prod_credentials = prod_credentials
+            prod_input.write_text(json.dumps({c: {r + '_password': secrets.token_urlsafe(36)
+                                                  for r in ('migration', 'runtime')}
+                                             for c in ('platform', 'identity')}))
+            repeated = subprocess.run(provision_prod, env=clean_environment(), stdout=logs, stderr=logs,
+                                      timeout=15)
+            check('existing_production_namespace_refused', repeated.returncode != 0)
+            for component, prod_name in zip(('platform', 'identity'), PROD_NAMES):
+                with connect(prod_name, prod_name + '_runtime', original_prod_credentials[component]['runtime_password']) as db:
+                    empty = db.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'").fetchone()[0] == 0
+                    check(component + '_production_empty_and_original_password_preserved', empty)
+            for stage_component, stage_name in zip(('platform', 'identity'), DB_NAMES):
+                for stage_role in ('runtime', 'migration'):
+                    user = stage_name + '_' + stage_role
+                    for prod_name in PROD_NAMES:
+                        acl = admin.execute('SELECT has_database_privilege(%s,%s,%s)', [user, prod_name, 'CONNECT']).fetchone()[0]
+                        try:
+                            connect(prod_name, user, credentials[stage_component][stage_role + '_password']).close()
+                        except psycopg.Error as exc:
+                            check(user + '_to_' + prod_name + '_denied', acl is False and expected_database_connect_denial(exc), sqlstate=exc.sqlstate)
+                        else: raise RuntimeError('Stage role connected to a production database')
             token = secrets.token_urlsafe(36)
             origin = 'http://127.0.0.1:18200'
             basic = 'Basic ' + base64.b64encode(('engineer:' + secrets.token_urlsafe(24)).encode()).decode()
