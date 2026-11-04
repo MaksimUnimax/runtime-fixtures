@@ -42,6 +42,12 @@ def check(name, condition, **safe):
     RESULTS.append({'case': name, 'passed': True, **safe})
     print(json.dumps(RESULTS[-1]), flush=True)
 
+def expected_database_connect_denial(exc):
+    # libpq may omit SQLSTATE for errors raised during connection establishment.
+    # Require the actual permission-denied diagnostic; network/auth errors fail.
+    primary = exc.diag.message_primary or str(exc)
+    return exc.sqlstate in {None, '42501'} and 'permission denied for database' in primary.lower()
+
 def stop(process):
     if process and process.poll() is None:
         os.killpg(process.pid, signal.SIGTERM)
@@ -197,17 +203,21 @@ def main():
                     except psycopg.errors.InsufficientPrivilege:
                         check(component + '_runtime_ddl_denied', True)
                     else: raise RuntimeError('Runtime DDL was allowed')
+                privilege = admin.execute('SELECT has_database_privilege(%s,%s,%s)', [name + '_runtime', 'alisa_stage_' + other, 'CONNECT']).fetchone()[0]
+                check(component + '_cross_database_acl_denied', privilege is False)
                 try:
                     connect('alisa_stage_' + other, name + '_runtime', password).close()
                 except psycopg.Error as exc:
-                    check(component + '_cross_database_denied', exc.sqlstate == '42501')
+                    check(component + '_cross_database_denied', privilege is False and expected_database_connect_denial(exc), sqlstate=exc.sqlstate)
                 else: raise RuntimeError('Cross-authority database connection was allowed')
             admin.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(PROD_SENTINEL)))
             admin.execute(sql.SQL('REVOKE ALL ON DATABASE {} FROM PUBLIC').format(sql.Identifier(PROD_SENTINEL)))
+            privilege = admin.execute('SELECT has_database_privilege(%s,%s,%s)', [DB_NAMES[0] + '_runtime', PROD_SENTINEL, 'CONNECT']).fetchone()[0]
+            check('synthetic_stage_to_prod_acl_denied', privilege is False)
             try:
                 connect(PROD_SENTINEL, DB_NAMES[0] + '_runtime', credentials['platform']['runtime_password']).close()
             except psycopg.Error as exc:
-                check('synthetic_stage_to_prod_database_denied', exc.sqlstate == '42501')
+                check('synthetic_stage_to_prod_database_denied', privilege is False and expected_database_connect_denial(exc), sqlstate=exc.sqlstate)
             else: raise RuntimeError('Synthetic production sentinel was accessible')
 
             def api(component, port, **override):

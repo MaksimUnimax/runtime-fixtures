@@ -107,4 +107,10 @@ class QualificationSafetyTests(unittest.TestCase):
                     self.module.main()
                 connect.assert_not_called()
 
+    def test_permission_denial_is_not_a_network_or_password_failure(self):
+        error=self.module.psycopg.OperationalError
+        self.assertTrue(self.module.expected_database_connect_denial(error('FATAL: permission denied for database "alisa_stage_identity"')))
+        for message in ['connection refused','password authentication failed','permission denied for schema public']:
+            self.assertFalse(self.module.expected_database_connect_denial(error(message)))
+
 if __name__=='__main__':unittest.main()
