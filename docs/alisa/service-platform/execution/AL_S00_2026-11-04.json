@@ -1,0 +1,277 @@
+{
+  "date": "2026-11-04",
+  "scope": "AL-S00_SOURCE_AND_DISPOSABLE_CI_QUALIFICATION_ONLY",
+  "owner_scope": "Platform; runtime matrix and request processor remain owned by the parallel executor",
+  "documentation": {
+    "status": "PUSHED_AND_BYTE_VERIFIED",
+    "commit": "8af2de0818380979b5698e4ae6317b0b45e9a814",
+    "files": 100,
+    "manifest_sha256": "92fa5c0d0b5d70238d69a49854ed7220ae2eff9b190b8a3b72be299b4158dc59",
+    "url": "https://github.com/MaksimUnimax/runtime-fixtures/tree/8af2de0818380979b5698e4ae6317b0b45e9a814/docs/alisa/service-platform/v0.5"
+  },
+  "source": {
+    "commit": "71b7ab8163c12abd63c52d47e62828dd3edf602a",
+    "product_tree_sha": "e0c1743ebc3c92da1750b6c8b4202ba7a87628c6",
+    "branch": "feat/alisa-platform-foundation-v05",
+    "pr": 383,
+    "pr_url": "https://github.com/MaksimUnimax/runtime-fixtures/pull/383",
+    "source_readback": "Exact products/alisa subtree and workflow blob matched the reviewed local snapshot"
+  },
+  "validation": {
+    "python_source_tests": 20,
+    "node_security_assertions": 6,
+    "ui_builds": [
+      "web",
+      "admin"
+    ],
+    "clean_checkout_build_and_package": "PASS",
+    "postgresql_browser_cases": 36,
+    "cases": [
+      {
+        "case": "single_artifact_root",
+        "passed": true
+      },
+      {
+        "case": "artifact_integrity",
+        "passed": true,
+        "source_sha": "71b7ab8163c12abd63c52d47e62828dd3edf602a"
+      },
+      {
+        "case": "fresh_separate_database_provision",
+        "passed": true
+      },
+      {
+        "case": "initial_and_repeat_migrations",
+        "passed": true
+      },
+      {
+        "case": "identity_uuid_before_auth",
+        "passed": true
+      },
+      {
+        "case": "platform_least_privilege",
+        "passed": true
+      },
+      {
+        "case": "platform_runtime_ddl_denied",
+        "passed": true
+      },
+      {
+        "case": "platform_cross_database_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "platform_cross_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "identity_least_privilege",
+        "passed": true
+      },
+      {
+        "case": "identity_runtime_ddl_denied",
+        "passed": true
+      },
+      {
+        "case": "identity_cross_database_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "identity_cross_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "synthetic_stage_to_prod_acl_denied",
+        "passed": true
+      },
+      {
+        "case": "synthetic_stage_to_prod_database_denied",
+        "passed": true,
+        "sqlstate": null
+      },
+      {
+        "case": "real_database_readiness",
+        "passed": true
+      },
+      {
+        "case": "unauthorized_direct_call_denied",
+        "passed": true
+      },
+      {
+        "case": "concurrent_duplicate_posts",
+        "passed": true
+      },
+      {
+        "case": "one_durable_probe_and_job",
+        "passed": true
+      },
+      {
+        "case": "conflicting_kind_rejected",
+        "passed": true
+      },
+      {
+        "case": "accepted_probe_survives_api_restart",
+        "passed": true
+      },
+      {
+        "case": "two_worker_processes_exit",
+        "passed": true
+      },
+      {
+        "case": "one_processed_effect",
+        "passed": true
+      },
+      {
+        "case": "repeat_after_processing_no_second_effect",
+        "passed": true
+      },
+      {
+        "case": "processed_probe_survives_restart",
+        "passed": true
+      },
+      {
+        "case": "real_database_refusal_is_503",
+        "passed": true
+      },
+      {
+        "case": "packaged_web_entrypoint_refuses_missing_secret",
+        "passed": true
+      },
+      {
+        "case": "bff_without_admission_denied",
+        "passed": true
+      },
+      {
+        "case": "bff_wrong_origin_denied",
+        "passed": true
+      },
+      {
+        "case": "bff_allowed_host_routes_to_real_database",
+        "passed": true
+      },
+      {
+        "case": "bff_foreign_host_still_denied",
+        "passed": true
+      },
+      {
+        "case": "separate_packaged_admin_starts_without_database_credentials",
+        "passed": true
+      },
+      {
+        "case": "browser_bff_api_postgresql_worker_roundtrip",
+        "passed": true
+      },
+      {
+        "case": "browser_retry_keeps_one_effect",
+        "passed": true
+      },
+      {
+        "case": "ttl_cleanup_with_probe_disabled",
+        "passed": true
+      },
+      {
+        "case": "old_code_reads_compatible_expanded_schema",
+        "passed": true
+      }
+    ],
+    "scope_note": "These checks are not the 18 live stage acceptance cases",
+    "push_run": {
+      "id": 41819211872,
+      "status": "SUCCESS",
+      "url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41819211872"
+    },
+    "pr_run": {
+      "id": 41819222949,
+      "status": "SUCCESS",
+      "url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41819222949"
+    },
+    "artifact_sha256": "9b716b93ba58d54640fcd316f71b8c6b9562fc278b2095c8824874f1ee86c615",
+    "safe_receipt_artifact_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41819211872/artifacts/13316625865"
+  },
+  "independent_review": {
+    "kind": "READ_ONLY_SOURCE_REVIEW",
+    "result": "Observed source defects fixed and reviewed; no independent live installation acceptance performed"
+  },
+  "infrastructure": {
+    "observed_at_utc": "2026-11-04T11:19:10.088364+00:00",
+    "dns_all_six_A": "185.244.51.141",
+    "tls_all_six_verified": true,
+    "setup_marker_application_ready": false,
+    "cpu": 1,
+    "memory_total_mib": 961.66,
+    "memory_available_mib": 387.77,
+    "platform_stage_installed": false,
+    "existing_services": [
+      "alice-lab-web active",
+      "alice-lab-worker active",
+      "alice-lab-llm active",
+      "alice-market active",
+      "nginx active"
+    ],
+    "certificate_renewal_simulation": "NOT_PROVEN; ACME staging returned rateLimited/Service busy on latest attempt; no further retries"
+  },
+  "capacity_proposal": {
+    "status": "PROPOSAL_NOT_ADMITTED_NOT_MEASURED_TARGET",
+    "cpu": 2,
+    "ram_gib": 4,
+    "app_memory_limits_mib": 1088,
+    "postgres_budget_mib": 256,
+    "existing_used_memory_mib": 570,
+    "reserve_mib": 1024,
+    "total_budget_mib": 2938,
+    "explanation": "Sum of configured app caps (including cleanup), provisional PostgreSQL budget, observed existing use and policy reserve; actual target load must be measured"
+  },
+  "open_items": [
+    "Adequate approved stage capacity and private engineering ingress",
+    "Install exact artifact and verify all stage processes/DB permissions under systemd",
+    "Actual r1-to-r2-to-r1 release rollback with persisted record",
+    "Independent stage handoff and 18-case foundation receipt",
+    "Renewal simulation after the external ACME limit is cleared",
+    "Shared Documentation CI baseline failures; source and runtime code were not changed to hide them"
+  ],
+  "documentation_ci": {
+    "status": "FAIL",
+    "run_id": 41819222866,
+    "errors": [
+      "Broken relative link: docs/alisa/README.md -> 01_TIMELINE.md",
+      "Broken relative link: docs/alisa/README.md -> 02_PRODUCT_SCOPE_AND_DECISIONS.md",
+      "Broken relative link: docs/alisa/README.md -> 03_SYSTEM_ARCHITECTURE.md",
+      "Broken relative link: docs/alisa/README.md -> 04_YANDEX_DIALOGS_RUNBOOK.md",
+      "Broken relative link: docs/alisa/README.md -> 05_SERVER_ACTUAL_STATE.md",
+      "Broken relative link: docs/alisa/README.md -> 06_DEEPSEEK_MODELS_AND_TESTS.md",
+      "Broken relative link: docs/alisa/README.md -> 07_VERIFICATION_MATRIX.md",
+      "Broken relative link: docs/alisa/README.md -> 08_ECONOMICS_MARKET_TIMELINES.md",
+      "Broken relative link: docs/alisa/README.md -> 09_OAUTH_POPUP_INCIDENT.md",
+      "Broken relative link: docs/alisa/README.md -> 10_NEXT_ACTIONS_AND_ACCEPTANCE.md",
+      "Broken relative link: docs/alisa/README.md -> 11_SOURCE_REGISTER.md",
+      "Broken relative link: docs/alisa/README.md -> 12_CHANGELOG.md",
+      "Broken relative link: docs/alisa/README.md -> 13_OCTOPORT_BACKGROUND.md",
+      "Broken relative link: docs/alisa/README.md -> server-snapshot/",
+      "Broken relative link: docs/alisa/browser-testing/OZON_DAILY_PRICE_VOLUME_2026-10_RUN.md -> ../runtime/v0.10/candidates/price_volume.py",
+      "Broken relative link: docs/alisa/browser-testing/OZON_DAILY_PRICE_VOLUME_2026-10_RUN.md -> ../runtime/v0.10/candidates/test_price_volume.py",
+      "Broken relative link: docs/alisa/browser-testing/OZON_DAILY_PRICE_VOLUME_2026-10_RUN.md -> ../runtime/v0.10/candidates/qualify_oct2026_accruals.py",
+      "Broken relative link: docs/alisa/browser-testing/OZON_DAILY_PRICE_VOLUME_2026-10_RUN.md -> ../runtime/v0.10/candidates/price_thresholds.py",
+      "Broken relative link: docs/alisa/browser-testing/OZON_DAILY_PRICE_VOLUME_2026-10_RUN.md -> ../runtime/v0.10/candidates/pooled_price_thresholds.py",
+      "Broken relative link: docs/alisa/browser-testing/OZON_YOY_OCT_NOV_2025_2026_RUN.md -> ../runtime/v0.10/candidates/signed_accrual_source.py",
+      "Broken relative link: docs/alisa/browser-testing/OZON_YOY_OCT_NOV_2025_2026_RUN.md -> ../runtime/v0.10/candidates/test_signed_accrual_source.py",
+      "Missing final newline: docs/alisa/command-planner/EXACT_CACHE_POLICY_v0.2.md",
+      "Missing final newline: docs/alisa/command-planner/REPORT_v0.1.0.md",
+      "Missing final newline: docs/alisa/project-audits/OCTOPORT_COMPILER_INTEGRATION_AUDIT_2026-11-04.md",
+      "Broken relative link: docs/alisa/runtime/v0.10/MATRIX_REFACTOR_ACCEPTANCE_2026-11-04.md -> matrix_refactor/matrix_core.py",
+      "Broken relative link: docs/alisa/runtime/v0.10/MATRIX_REFACTOR_ACCEPTANCE_2026-11-04.md -> matrix_refactor/matrix_sources.py",
+      "Broken relative link: docs/alisa/runtime/v0.10/MATRIX_REFACTOR_ACCEPTANCE_2026-11-04.md -> matrix_refactor/architecture_gate.py",
+      "Broken relative link: docs/alisa/runtime/v0.10/MATRIX_REFACTOR_ACCEPTANCE_2026-11-04.md -> matrix_refactor/MATRIX_SCHEMA_HARDENING.patch",
+      "Broken relative link: docs/alisa/runtime/v0.10/README.md -> scalar_matrix/test_scalar_resume.py",
+      "Missing final newline: docs/alisa/runtime/v0.6/INTEGRATION_STATUS.md",
+      "Missing final newline: docs/alisa/runtime/v0.6/README.md",
+      "Broken relative link: docs/alisa/service-platform/v0.5/README.md -> ROADMAP_GUIDE.docx",
+      "Broken relative link: docs/alisa/service-platform/v0.5/README.md -> DOMAIN_SETUP_GUIDE.docx"
+    ],
+    "diagnosis": "The scanner indexes only md/mjs/json/tsv/yaml, so links to existing Python and DOCX files can be false positives. Other errors include genuinely missing old navigation targets and old missing newlines. No checker suppression or foreign runtime edits were made."
+  },
+  "foundation_ready": false,
+  "al_s01_started": false,
+  "next_action": "Admit sufficient isolated stage resources; perform installed HTTPS roundtrip, process restart and release rollback; obtain independent FOUNDATION_READY before AL-S01"
+}
