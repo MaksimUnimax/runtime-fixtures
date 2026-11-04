@@ -1,0 +1,143 @@
+{
+  "scope": "AL-T00-08_REAL_STAGE_TO_EMPTY_PRODUCTION_DATABASE_BOUNDARY",
+  "source_tool_sha": "9ebd2096838b4630730dfb3037f0d10106f237bf",
+  "provision_tool_sha256": "14672962fa793bdd34d6b293271560fe3ad1e26f46d101bceac103fe4be2531f",
+  "runtime_stage_release": "alisa-61007bf870cf4f65",
+  "observed_at": "2026-11-04T14:00:30.824681+00:00",
+  "stage_own_database_positive_controls": [
+    {
+      "role": "alisa_stage_platform_runtime",
+      "database": "alisa_stage_platform",
+      "can_connect": true,
+      "privileged_flags": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "role": "alisa_stage_platform_migration",
+      "database": "alisa_stage_platform",
+      "can_connect": true,
+      "privileged_flags": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "role": "alisa_stage_identity_runtime",
+      "database": "alisa_stage_identity",
+      "can_connect": true,
+      "privileged_flags": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "role": "alisa_stage_identity_migration",
+      "database": "alisa_stage_identity",
+      "can_connect": true,
+      "privileged_flags": [
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "production_own_positive_controls": [
+    {
+      "role": "alisa_prod_platform_runtime",
+      "database": "alisa_prod_platform",
+      "can_connect": true,
+      "public_tables": 0
+    },
+    {
+      "role": "alisa_prod_platform_migration",
+      "database": "alisa_prod_platform",
+      "can_connect": true,
+      "public_tables": 0
+    },
+    {
+      "role": "alisa_prod_identity_runtime",
+      "database": "alisa_prod_identity",
+      "can_connect": true,
+      "public_tables": 0
+    },
+    {
+      "role": "alisa_prod_identity_migration",
+      "database": "alisa_prod_identity",
+      "can_connect": true,
+      "public_tables": 0
+    }
+  ],
+  "stage_to_production_denials": [
+    {
+      "role": "alisa_stage_platform_runtime",
+      "target": "alisa_prod_platform",
+      "acl_connect": false,
+      "connection_denied": true,
+      "sqlstate": null
+    },
+    {
+      "role": "alisa_stage_platform_runtime",
+      "target": "alisa_prod_identity",
+      "acl_connect": false,
+      "connection_denied": true,
+      "sqlstate": null
+    },
+    {
+      "role": "alisa_stage_platform_migration",
+      "target": "alisa_prod_platform",
+      "acl_connect": false,
+      "connection_denied": true,
+      "sqlstate": null
+    },
+    {
+      "role": "alisa_stage_platform_migration",
+      "target": "alisa_prod_identity",
+      "acl_connect": false,
+      "connection_denied": true,
+      "sqlstate": null
+    },
+    {
+      "role": "alisa_stage_identity_runtime",
+      "target": "alisa_prod_platform",
+      "acl_connect": false,
+      "connection_denied": true,
+      "sqlstate": null
+    },
+    {
+      "role": "alisa_stage_identity_runtime",
+      "target": "alisa_prod_identity",
+      "acl_connect": false,
+      "connection_denied": true,
+      "sqlstate": null
+    },
+    {
+      "role": "alisa_stage_identity_migration",
+      "target": "alisa_prod_platform",
+      "acl_connect": false,
+      "connection_denied": true,
+      "sqlstate": null
+    },
+    {
+      "role": "alisa_stage_identity_migration",
+      "target": "alisa_prod_identity",
+      "acl_connect": false,
+      "connection_denied": true,
+      "sqlstate": null
+    }
+  ],
+  "production_business_tables": {
+    "alisa_prod_platform": 0,
+    "alisa_prod_identity": 0
+  },
+  "production_applications_activated": false,
+  "foundation_ready": false,
+  "all_eight_role_passwords_distinct": true,
+  "stage_to_production_attempts": 8,
+  "status": "PASS",
+  "limitations": "Production databases are initial empty namespaces with independent roles/secrets; no production applications or customer data were deployed. This proves database CONNECT isolation, not future business authorization."
+}
