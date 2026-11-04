@@ -1,0 +1,94 @@
+{
+  "kind": "SYNTHETIC_DOCUMENTATION_GOLD_NOT_PRODUCT_RESULTS",
+  "money": {
+    "currency": "RUB",
+    "minor_unit": true,
+    "confirmed_payment_amounts": [
+      80000,
+      40000
+    ],
+    "confirmed_refunds": [
+      20000
+    ],
+    "known_provider_fees": [
+      3000
+    ],
+    "expected_gross": 120000,
+    "expected_net_cash": 97000,
+    "gift_days": 7,
+    "expected_gift_revenue": 0,
+    "unknown_fee_policy": "Show unknown separately; do not assume zero"
+  },
+  "calendar": [
+    {
+      "id": "CAL-01",
+      "start": "2027-01-31T10:00:00+03:00",
+      "months": 1,
+      "anchor_day": 31,
+      "expected_end": "2027-02-28T10:00:00+03:00"
+    },
+    {
+      "id": "CAL-02",
+      "start": "2027-02-28T10:00:00+03:00",
+      "months": 1,
+      "anchor_day": 31,
+      "expected_end": "2027-03-31T10:00:00+03:00"
+    },
+    {
+      "id": "CAL-03",
+      "start": "2028-01-31T10:00:00+03:00",
+      "months": 1,
+      "anchor_day": 31,
+      "expected_end": "2028-02-29T10:00:00+03:00"
+    },
+    {
+      "id": "CAL-04",
+      "start": "2027-01-31T10:00:00+03:00",
+      "months": 2,
+      "anchor_day": 31,
+      "expected_end": "2027-03-31T10:00:00+03:00"
+    },
+    {
+      "id": "CAL-05",
+      "start": "2027-02-28T10:00:00+03:00",
+      "gift_days_24h": 7,
+      "expected_end": "2027-03-07T10:00:00+03:00",
+      "next_month_anchor_day": 7
+    },
+    {
+      "id": "CAL-06",
+      "start": "2027-03-07T10:00:00+03:00",
+      "months": 1,
+      "anchor_day": 7,
+      "expected_end": "2027-04-07T10:00:00+03:00"
+    }
+  ],
+  "demand": [
+    {
+      "id": "DEM-01",
+      "distinct_tenants": 5,
+      "days_per_tenant": 4,
+      "episodes_each_tenant_day": 1,
+      "total_episodes": 20,
+      "capped_contributions": 20,
+      "expected_active_candidates": 1
+    },
+    {
+      "id": "DEM-02",
+      "distinct_tenants": 1,
+      "days_per_tenant": 1,
+      "episodes_each_tenant_day": 100,
+      "total_episodes": 100,
+      "capped_contributions": 1,
+      "expected_active_candidates": 0
+    },
+    {
+      "id": "DEM-03",
+      "original_episode_webhook_deliveries": 6,
+      "poll_result_messages": 12,
+      "total_logical_episodes": 1,
+      "capped_contributions": 1,
+      "expected_active_candidates": 0
+    }
+  ]
+}

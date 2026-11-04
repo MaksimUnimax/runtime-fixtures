@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Safe funnel client event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "environment",
+    "product_id",
+    "event_type",
+    "occurred_at",
+    "content_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "funnel_client_event_v1"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "environment": {
+      "enum": [
+        "stage",
+        "prod"
+      ]
+    },
+    "product_id": {
+      "const": "alisa_market"
+    },
+    "event_type": {
+      "enum": [
+        "landing.view",
+        "demo.opened",
+        "cta.clicked"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "content_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$"
+    },
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": "catalog_release_v1",
+  "release_id": "synthetic-c2",
+  "engine_contract_version": "runtime_port_v1",
+  "required_engine_capabilities": [
+    "scalar_sum"
+  ],
+  "semantic_version": "s2",
+  "source_version": "r1",
+  "speech_version": "p2",
+  "content_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "artifact_ref": "00000000-0000-4000-8000-000000000020",
+  "proofs": [
+    {
+      "proof_id": "synthetic-proof",
+      "level": "SOURCE_TEST",
+      "artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "scope": "fixture only"
+    }
+  ],
+  "author_id": "00000000-0000-4000-8000-000000000021",
+  "approver_id": "00000000-0000-4000-8000-000000000022",
+  "approved_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "qualified_scopes": [
+    "synthetic-tenant"
+  ],
+  "created_at": "2026-11-04T10:00:00Z"
+}

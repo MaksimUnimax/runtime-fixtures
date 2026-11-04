@@ -1,0 +1,53 @@
+{
+  "scope": "LOCAL_DOCUMENTATION_UTILITY_TESTS",
+  "checks": [
+    {
+      "test": "manifest_valid",
+      "passed": true
+    },
+    {
+      "test": "manifest_rejects_changed",
+      "passed": true
+    },
+    {
+      "test": "manifest_rejects_extra",
+      "passed": true
+    },
+    {
+      "test": "manifest_rejects_missing",
+      "passed": true
+    },
+    {
+      "test": "manifest_rejects_traversal",
+      "passed": true
+    },
+    {
+      "test": "manifest_rejects_symlink",
+      "passed": true
+    },
+    {
+      "test": "all_utility_scripts_parse",
+      "passed": true
+    },
+    {
+      "test": "publisher_default_offline_dry_run",
+      "passed": true
+    },
+    {
+      "test": "publisher_rejects_push_without_execute",
+      "passed": true
+    },
+    {
+      "test": "publisher_rejects_existing_directory",
+      "passed": true
+    },
+    {
+      "test": "publisher_help",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "network_calls": 0,
+  "actual_github_push": false,
+  "product_tests_executed": 0
+}
