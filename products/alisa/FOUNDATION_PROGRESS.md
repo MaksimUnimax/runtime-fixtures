@@ -1,3 +1,41 @@
+# AL-S00 current checkpoint · 2026-11-04 12:03 UTC
+
+Status: IN_PROGRESS / NOT_ACCEPTED. Draft PR: https://github.com/MaksimUnimax/runtime-fixtures/pull/383.
+
+- Published source 71b7ab8163c12abd63c52d47e62828dd3edf602a passed both own CI runs:
+  https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41819211872 and
+  https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41819222949.
+  Actual results: 20 Python source tests, 6 Node boundary assertions, two production UI
+  builds, immutable package and 36 disposable PostgreSQL/browser checks. This is not
+  target-stage acceptance. General repository Documentation CI has separate unresolved
+  old navigation/checker errors; the PR remains Draft.
+- Full v0.5 package: 100 files byte-verified at 8af2de0818380979b5698e4ae6317b0b45e9a814.
+  Safe execution evidence is published under docs/alisa/service-platform/execution/
+  AL_S00_2026-11-04.json on the alisa branch (05af2b6f3780e1271b6d474bfad7e710e2ad602a).
+- Owner upgraded Alisa to 4 CPU / 8192 MB RAM / 15 GB NVMe. At 12:02:41 UTC the
+  actual OS reported 4 CPU, 7941 MiB total, 7179 MiB available, 8.6 GiB disk free.
+  Existing alice-lab and alice-market services plus nginx were active after reboot.
+  Prior 1 CPU/961 MiB observations below are historical.
+- New release tests reproduce configuration-before-pointer failure and cover automatic
+  previous-code restoration, foreign/dangling current pointers, manifest identity and
+  changed installed bytes. Current local result: 30 Python tests and 6 Node assertions.
+  CI will retain the exact qualified tarball and checksum for stage installation.
+  The next job uses PostgreSQL 16.15 to match the native Ubuntu target package.
+  Package manifests cover all regular files and symlink targets; migration/runtime
+  Python disables bytecode writes to keep the installed payload unchanged.
+- Target PostgreSQL, stage users/config, installed systemd services, actual r1-r2-r1,
+  resource smoke and independent handoff remain pending. No live marketplace/LLM/payment
+  request is authorized or performed by this platform work. Matrix/processor are excluded.
+- Current valid TLS certificate covers all six names through 2027-02-02. Renewal dry-run
+  is unproven (ACME staging DNS failures, then rateLimited/Service busy). Do not retry
+  immediately or call automatic renewal proven.
+
+Next: install the exact qualified package in its own stage namespace, apply only its
+new databases/migrations, check protected HTTPS probe, restart and compatible rollback.
+AL-S01 remains closed until FOUNDATION_READY.
+
+## Historical execution notes (superseded by the checkpoint above)
+
 # AL-S00 execution checkpoint · 2026-11-04
 
 Author: Codex execution dialogue. Independent read-only reviewer: assigned separate

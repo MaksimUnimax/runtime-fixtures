@@ -24,6 +24,31 @@ def valid_id(value):
     if not re.fullmatch(r'alisa-[0-9a-f]{16}',value):raise RuntimeError('Invalid release ID')
     return value
 
+def release_base(env):
+    return Path('/opt/alisa-platform')/env
+
+def installed_release(base,release):
+    target=base/'releases'/valid_id(release)
+    if target.is_symlink() or target.resolve().parent != (base/'releases').resolve():raise RuntimeError('Release must be inside its own namespace')
+    if not (target/'manifest.json').is_file():raise RuntimeError('Unknown release')
+    manifest=json.loads((target/'manifest.json').read_text())
+    if manifest.get('artifact_id')!=release:raise RuntimeError('Release identity mismatch')
+    files=manifest.get('files')
+    if not isinstance(files,dict) or not files:raise RuntimeError('Missing release file manifest')
+    links=manifest.get('links',{})
+    if not isinstance(links,dict):raise RuntimeError('Invalid release link manifest')
+    payload=[p for p in target.rglob('*') if p.relative_to(target).parts[0]!='.venv']
+    actual_files={str(p.relative_to(target)) for p in payload if p.is_file() and not p.is_symlink() and p!=target/'manifest.json'}
+    actual_links={str(p.relative_to(target)):os.readlink(p) for p in payload if p.is_symlink()}
+    if actual_files!=set(files) or actual_links!=links:raise RuntimeError('Installed release file set mismatch')
+    if any(not (target/name).resolve().is_relative_to(target.resolve()) for name in links):raise RuntimeError('Installed release link escapes namespace')
+    for name,checksum in files.items():
+        if not isinstance(name,str) or not isinstance(checksum,str) or not re.fullmatch(r'[0-9a-f]{64}',checksum):raise RuntimeError('Invalid release file manifest')
+        path=(target/name).resolve()
+        if not path.is_relative_to(target.resolve()) or digest(path)!=checksum:raise RuntimeError('Installed release checksum mismatch')
+    if not (target/'.venv/bin/python').exists():raise RuntimeError('Incomplete installation')
+    return target
+
 def private_config(env,name):
     p=Path('/etc/alisa-platform')/env/(name+'.env')
     if p.stat().st_mode & 0o007:raise RuntimeError('World-accessible configuration')
@@ -45,16 +70,21 @@ def readback(env):
     return result
 
 def switch(env,release):
-    base=Path('/opt/alisa-platform')/env
-    target=base/'releases'/valid_id(release)
-    if not (target/'manifest.json').is_file():raise RuntimeError('Unknown release')
-    if not (target/'.venv/bin/python').exists():raise RuntimeError('Incomplete installation')
-    old=(base/'current').resolve() if (base/'current').exists() else None
+    base=release_base(env)
+    target=installed_release(base,release)
+    current=base/'current'
+    old=None
+    if current.is_symlink():
+        old=current.resolve(strict=True)
+        if old.parent!=(base/'releases').resolve() or installed_release(base,old.name)!=old:raise RuntimeError('Previous release is outside its own namespace')
+    elif current.exists():raise RuntimeError('Current must be a release symlink')
+    # Complete configuration checks before changing a running release pointer.
+    probe_enabled=private_config(env,'platform').get('FOUNDATION_PROBE_ENABLED')=='1'
+    components=['platform','identity','web','admin']
+    if probe_enabled:components.append('worker')
     # Never touch a production/foreign unit or change PostgreSQL data here.
     tmp=base/('.current-'+str(uuid.uuid4()))
     tmp.symlink_to(target);os.replace(tmp,base/'current')
-    components=['platform','identity','web','admin']
-    if private_config(env,'platform').get('FOUNDATION_PROBE_ENABLED')=='1':components.append('worker')
     try:
         command('systemctl','restart',*[f'alisa-{c}@{env}.service' for c in components])
         last=None

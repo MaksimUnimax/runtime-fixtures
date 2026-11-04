@@ -47,7 +47,8 @@ cleans expired rows. An independent hourly cleanup timer continues after write-p
 ## Stage installation (not executed yet)
 
 ENV-00 must first admit CPU/RAM/disk, own users/directories, PostgreSQL and a private engineer
-access path. Do not build on the current 1 CPU/961 MiB matrix host. Do not copy old secrets.
+access path. The owner upgraded the target to 4 CPU/8 GB on 2026-11-04; verify current capacity
+before installation. Build on the separate CI runner. Do not copy old secrets.
 
 1. Provision `/opt/alisa-platform/stage/releases`, `/etc/alisa-platform/stage`, own service
    users `alisa-{web,admin,platform,identity,worker}-stage` and the corresponding private
@@ -74,7 +75,13 @@ access path. Do not build on the current 1 CPU/961 MiB matrix host. Do not copy 
    foundation` supplies an additional HTTP roundtrip, not browser acceptance. Record restart,
    concurrent repeats, DB failures and r1→r2→r1 with a compatible expand-only migration.
 8. `evidence --env stage --step AL-S00` prints safe installed metadata, always NOT_ACCEPTED
-   until an independent reviewer executes all 18 cases. Disable the probe flag after acceptance.
+   until an independent reviewer executes all 18 cases. Disable the probe flag after acceptance, restart web/platform and explicitly stop
+   `alisa-worker@stage.service`. Keep the independent cleanup timer active. A code
+   switch does not restore or change the external configuration flags.
+
+CI retains each qualified immutable tarball and its SHA256 as an Actions artifact for
+14 days; download those exact bytes for installation, then keep both admitted rollback
+releases on the target. Do not rebuild a published release on the target.
 
 Deployment/rollback and DB provisioning are candidate code pending actual stage qualification.
 Do not advance to AL-S01 until FOUNDATION_READY. SMTP is a separate AL-S01 input.

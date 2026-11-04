@@ -81,6 +81,9 @@ def package(source):
         run([python(),'-m','pip','download','--only-binary=:all:','--require-hashes','-r',ROOT/'services/platform/requirements.lock','--dest',release/'wheels'])
         # Files are allowlisted above. Never walk the checkout's private configuration.
         m['files']={str(p.relative_to(release)):sha(p) for p in release.rglob('*') if p.is_file() and not p.is_symlink()}
+        m['links']={str(p.relative_to(release)):os.readlink(p) for p in release.rglob('*') if p.is_symlink()}
+        if any(not (release/name).resolve().is_relative_to(release.resolve()) for name in m['links']):
+            raise RuntimeError('Package link escapes release namespace')
         (release/'manifest.json').write_text(json.dumps(m,indent=2)+'\n')
         artifact=dist/(m['artifact_id']+'.tar.gz')
         with tarfile.open(artifact,'w:gz') as archive: archive.add(release,arcname=m['artifact_id'])
@@ -115,6 +118,7 @@ def migration(env, apply, release):
     if not current.is_dir(): raise RuntimeError('Installed release not found')
     for component in ['platform','identity']:
         conf=config(env,component+'-migration')
+        conf['PYTHONDONTWRITEBYTECODE']='1'
         run([current/'.venv/bin/python',current/'services'/component/'manage.py','migrate', '--noinput' if apply else '--plan'],env=conf)
 
 def main():
