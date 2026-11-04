@@ -67,7 +67,7 @@ export function checkDocumentation(files, repositoryPaths = Object.keys(files)) 
     acceptanceScenarios: new Set(matrix.match(/\| A\d{2} \|/g) || []).size };
 }
 
-const ignored = new Set([".git", "node_modules", ".pnpm-store", "dist", "build", ".next", "coverage", "test-results", "playwright-report"]);
+const ignored = new Set([".git", "node_modules", ".pnpm-store", ".venv", "__pycache__", "dist", "build", ".next", "coverage", "test-results", "playwright-report"]);
 export function collectDocumentation(root) {
   const files = {};
   const repositoryPaths = [];

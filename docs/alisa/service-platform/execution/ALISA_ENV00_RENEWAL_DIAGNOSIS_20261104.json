@@ -1,0 +1,254 @@
+{
+  "scope": "OWN_SIX_NAME_CERTIFICATE_RENEWAL_DIAGNOSIS",
+  "latest_dry_run": {
+    "unit": "alisa-stage-cert-renewal-check-20261104-1321.service",
+    "started_at": "2026-11-04T13:21:24Z",
+    "failed_at": "2026-11-04T13:22:01Z",
+    "exit_code": 1,
+    "result": "CA_DNS_VALIDATION_TIMEOUT",
+    "detail": "CA timed out looking up A/AAAA for id and id-stage; prior12:23response Service busy/rateLimited had Retry-After21s, and this retry was57min later."
+  },
+  "authoritative_dns": {
+    "marker": "alisa-renewal-check-6941a631d20e4641951c8112e7c2e95c",
+    "nameservers": [
+      "ns1.adminvps.ru.",
+      "ns2.adminvps.net.",
+      "ns4.adminvps.net.",
+      "ns3.adminvps.ru."
+    ],
+    "queries": [
+      {
+        "ns": "ns1.adminvps.ru.",
+        "exit_code": 0,
+        "result": ";; Got answer:\n;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 22756\n;; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1\n\n;; OPT PSEUDOSECTION:\n; EDNS: version: 0, flags:; udp: 1232\n;; ANSWER SECTION:\nid-stage.octoport.ru.\t300\tIN\tA\t185.244.51.141\n\n",
+        "stderr": ""
+      },
+      {
+        "ns": "ns2.adminvps.net.",
+        "exit_code": 0,
+        "result": ";; Got answer:\n;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 49950\n;; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1\n\n;; OPT PSEUDOSECTION:\n; EDNS: version: 0, flags:; udp: 1680\n;; ANSWER SECTION:\nid-stage.octoport.ru.\t300\tIN\tA\t185.244.51.141\n\n",
+        "stderr": ""
+      },
+      {
+        "ns": "ns4.adminvps.net.",
+        "exit_code": 0,
+        "result": ";; Got answer:\n;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 36108\n;; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1\n\n;; OPT PSEUDOSECTION:\n; EDNS: version: 0, flags:; udp: 1232\n;; ANSWER SECTION:\nid-stage.octoport.ru.\t300\tIN\tA\t185.244.51.141\n\n",
+        "stderr": ""
+      },
+      {
+        "ns": "ns3.adminvps.ru.",
+        "exit_code": 0,
+        "result": ";; Got answer:\n;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 59599\n;; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1\n\n;; OPT PSEUDOSECTION:\n; EDNS: version: 0, flags:; udp: 1680\n;; ANSWER SECTION:\nid-stage.octoport.ru.\t300\tIN\tA\t185.244.51.141\n\n",
+        "stderr": ""
+      }
+    ]
+  },
+  "independent_resolvers": [
+    {
+      "host": "alisa.octoport.ru",
+      "resolver": "google",
+      "status": 0,
+      "answers": [
+        {
+          "name": "alisa.octoport.ru.",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "alisa.octoport.ru",
+      "resolver": "cloudflare",
+      "status": 0,
+      "answers": [
+        {
+          "name": "alisa.octoport.ru",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "alisa-admin.octoport.ru",
+      "resolver": "google",
+      "status": 0,
+      "answers": [
+        {
+          "name": "alisa-admin.octoport.ru.",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "alisa-admin.octoport.ru",
+      "resolver": "cloudflare",
+      "status": 0,
+      "answers": [
+        {
+          "name": "alisa-admin.octoport.ru",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "id.octoport.ru",
+      "resolver": "google",
+      "status": 0,
+      "answers": [
+        {
+          "name": "id.octoport.ru.",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "id.octoport.ru",
+      "resolver": "cloudflare",
+      "status": 0,
+      "answers": [
+        {
+          "name": "id.octoport.ru",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "alisa-stage.octoport.ru",
+      "resolver": "google",
+      "status": 0,
+      "answers": [
+        {
+          "name": "alisa-stage.octoport.ru.",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "alisa-stage.octoport.ru",
+      "resolver": "cloudflare",
+      "status": 0,
+      "answers": [
+        {
+          "name": "alisa-stage.octoport.ru",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "alisa-admin-stage.octoport.ru",
+      "resolver": "google",
+      "status": 0,
+      "answers": [
+        {
+          "name": "alisa-admin-stage.octoport.ru.",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "alisa-admin-stage.octoport.ru",
+      "resolver": "cloudflare",
+      "status": 0,
+      "answers": [
+        {
+          "name": "alisa-admin-stage.octoport.ru",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "id-stage.octoport.ru",
+      "resolver": "google",
+      "status": 0,
+      "answers": [
+        {
+          "name": "id-stage.octoport.ru.",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    },
+    {
+      "host": "id-stage.octoport.ru",
+      "resolver": "cloudflare",
+      "status": 0,
+      "answers": [
+        {
+          "name": "id-stage.octoport.ru",
+          "type": 1,
+          "TTL": 300,
+          "data": "185.244.51.141"
+        }
+      ]
+    }
+  ],
+  "external_webroot": [
+    {
+      "host": "alisa.octoport.ru",
+      "status": 200,
+      "marker_matches": true,
+      "final_url": "http://alisa.octoport.ru/.well-known/acme-challenge/alisa-renewal-check-6941a631d20e4641951c8112e7c2e95c"
+    },
+    {
+      "host": "alisa-admin.octoport.ru",
+      "status": 200,
+      "marker_matches": true,
+      "final_url": "http://alisa-admin.octoport.ru/.well-known/acme-challenge/alisa-renewal-check-6941a631d20e4641951c8112e7c2e95c"
+    },
+    {
+      "host": "id.octoport.ru",
+      "status": 200,
+      "marker_matches": true,
+      "final_url": "http://id.octoport.ru/.well-known/acme-challenge/alisa-renewal-check-6941a631d20e4641951c8112e7c2e95c"
+    },
+    {
+      "host": "alisa-stage.octoport.ru",
+      "status": 200,
+      "marker_matches": true,
+      "final_url": "http://alisa-stage.octoport.ru/.well-known/acme-challenge/alisa-renewal-check-6941a631d20e4641951c8112e7c2e95c"
+    },
+    {
+      "host": "alisa-admin-stage.octoport.ru",
+      "status": 200,
+      "marker_matches": true,
+      "final_url": "http://alisa-admin-stage.octoport.ru/.well-known/acme-challenge/alisa-renewal-check-6941a631d20e4641951c8112e7c2e95c"
+    },
+    {
+      "host": "id-stage.octoport.ru",
+      "status": 200,
+      "marker_matches": true,
+      "final_url": "http://id-stage.octoport.ru/.well-known/acme-challenge/alisa-renewal-check-6941a631d20e4641951c8112e7c2e95c"
+    }
+  ],
+  "official_maintenance": {
+    "url": "https://letsencrypt.status.io/pages/maintenance/55957a99e800baa4470002da/6ae128f23dbbeb05d762175d",
+    "observed_date_utc": "2026-11-04",
+    "window_start": "2026-11-03T16:00:00Z",
+    "window_end": "2026-11-04T21:00:00Z",
+    "latest_status_update": "2026-11-04T06:26:00Z staging is coming back online",
+    "qualification": "An external risk factor; not proof of the exact DNS timeout cause."
+  },
+  "current_certificate_expires": "2027-02-02",
+  "current_certificate_replaced": false,
+  "renewal_proven": false,
+  "further_immediate_retries": false
+}

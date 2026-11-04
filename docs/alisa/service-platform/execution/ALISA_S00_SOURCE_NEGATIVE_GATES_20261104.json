@@ -1,0 +1,30 @@
+{
+  "scope": "AUTHOR_SOURCE_NEGATIVE_BUILD_AND_PACKAGE_GATES",
+  "public_source_sha": "29c99f6d9d00f19e14087a85d488a6cf5264ff1b",
+  "foundation_ready": false,
+  "checks": [
+    {
+      "case": "actual_web_typecheck_rejects_typescript_syntax_error",
+      "exit_code": 1,
+      "passed": true,
+      "diagnostic": "\n> @alisa/web@0.0.1 typecheck /workspace/scratch/6c2f0ed5dac0/alisa-platform-src/products/alisa/apps/web\n> next typegen && tsc --noEmit\n\nGenerating route types...\n\u2713 Types generated successfully\nsrc/server/alisa_acceptance_negative_syntax.ts(1,35): error TS1110: Type expected.\nsrc/server/alisa_acceptance_negative_syntax.ts(1,37): error TS1109: Expression expected.\n/workspace/scratch/6c2f0ed5dac0/alisa-platform-src/products/alisa/apps/web:\n\u2009ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL\u2009 @alisa/web@0.0.1 typecheck: `next typegen && tsc --noEmit`\nExit status 1\nnpm warn Unknown env config \"http-proxy\". This will stop working in the next major version of npm.\n"
+    },
+    {
+      "case": "package_rejects_uncommitted_bad_source",
+      "exit_code": 1,
+      "passed": true
+    },
+    {
+      "case": "actual_build_contract_guard_rejects_drift",
+      "exit_code": 1,
+      "passed": true
+    },
+    {
+      "case": "package_rejects_uncommitted_contract_drift",
+      "exit_code": 1,
+      "passed": true
+    }
+  ],
+  "source_restored_clean": true,
+  "status": "PASS"
+}

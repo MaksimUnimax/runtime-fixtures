@@ -1,0 +1,133 @@
+{
+  "assessment": "ASSESSMENT_R2_R3_EVIDENCE_REUSE",
+  "date_utc": "2026-11-04",
+  "scope": "Read-only comparison of installed r2/r3 package manifests and reuse of existing AL-T00 stage evidence; no probes, production requests, retries, or server mutations performed.",
+  "release_artifacts": {
+    "r2": {
+      "release_id": "alisa-29c99f6d9d00f19e",
+      "source_sha": "29c99f6d9d00f19e14087a85d488a6cf5264ff1b",
+      "package_sha256": "f8c042561abc0cfd00007a2f61deaadd7de285583b7fd83f812dc7adb3ee37fc",
+      "installed_manifest": "/opt/alisa-platform/stage/releases/alisa-29c99f6d9d00f19e/manifest.json"
+    },
+    "r3": {
+      "release_id": "alisa-61007bf870cf4f65",
+      "source_sha": "61007bf870cf4f65afb30b801603eef4eeb422d3",
+      "package_sha256": "4f7351657e99b5babb7e3130e306fc042e3e31fe5d8ea9c964154bd76a412e6b",
+      "installed_manifest": "/opt/alisa-platform/stage/releases/alisa-61007bf870cf4f65/manifest.json"
+    }
+  },
+  "manifest_comparison": {
+    "method": "Read-only read of each installed root manifest; compared SHA-256 entries by exact relative path.",
+    "common_services_entries": 31,
+    "different_services_hashes": 0,
+    "services_entries_missing_on_either_side": 0,
+    "common_services_entries_sha256": {
+      "services/identity/pyproject.toml": "c80e06961c5b097745eebb97d89189c235b53987136e25c5149f205486750c77",
+      "services/identity/manage.py": "896d7116c6081cd1235865dec9ee31c2e69c1b7073560b39b1dfa0112acc9153",
+      "services/identity/requirements.lock": "1c2289a43f0941f50053fda2aec94c1920e08c0a3fc922cdb30c1d9a30d55175",
+      "services/identity/src/octoport_identity/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/identity/src/octoport_identity/accounts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/identity/src/octoport_identity/accounts/models.py": "9aa44ad8e481f4cd29392389e810ef72a5114f13edb863ad2035143a079d61cd",
+      "services/identity/src/octoport_identity/accounts/migrations/0001_initial.py": "73d2b8459c27a7693474f1c65d8eab241f52c8b0024a459fb9bbdbb48f811446",
+      "services/identity/src/octoport_identity/accounts/migrations/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/identity/src/octoport_identity/config/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/identity/src/octoport_identity/config/settings.py": "686737911870408de4b8149f2c89c7a27e596275b942b20e8e9678c459a4d1d3",
+      "services/identity/src/octoport_identity/config/urls.py": "439c489b12885bccaa5de433f98c59ee9f50b15c7018a0ed8610618327b9017c",
+      "services/identity/src/octoport_identity/config/wsgi.py": "1fed4e4cebc1d12b27386d2b67ec1591db9edfae2540a00b847e7eb2ac6db61a",
+      "services/platform/pyproject.toml": "544ffa0ae2cc648f1794425b2984c291776b281fad085b8649fc9b3ce3646956",
+      "services/platform/manage.py": "4822170ef844e50bb88d0b5f9e9e86de826584dc0135d5b0720341f080851b18",
+      "services/platform/requirements.lock": "1c2289a43f0941f50053fda2aec94c1920e08c0a3fc922cdb30c1d9a30d55175",
+      "services/platform/src/alisa_platform/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/platform/src/alisa_platform/config/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/platform/src/alisa_platform/config/settings.py": "6edca4ea583342013c6befa7600e115ee69610ba245a2af6c1c90f3359f1e31a",
+      "services/platform/src/alisa_platform/config/urls.py": "35be5702554ce04c965c8363752b4298e8584b1a5995716f859b9bd7168fe3cf",
+      "services/platform/src/alisa_platform/config/wsgi.py": "01c06b21bd2563c01a58606d8d114b9992c98ebac5e971ce9296beb929ded13c",
+      "services/platform/src/alisa_platform/foundation/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/platform/src/alisa_platform/foundation/models.py": "8f6b6f6aadb764c6ad366cfdd81b26e3e5da0f8a3c90505fe473a248258964df",
+      "services/platform/src/alisa_platform/foundation/views.py": "7a24e9e29dc9a2fa9785b083117f3b8384f872eceefa28f11a93b416238b89f5",
+      "services/platform/src/alisa_platform/foundation/management/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/platform/src/alisa_platform/foundation/management/commands/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/platform/src/alisa_platform/foundation/management/commands/foundation_cleanup.py": "c034605db2e3c0057f6f3ac051dafbf760e0846e0d9df473189ead28967c9227",
+      "services/platform/src/alisa_platform/foundation/management/commands/foundation_worker.py": "901df1c514c1c861da3552166142bdf886666c91d4a851ff929fa8abaae1da72",
+      "services/platform/src/alisa_platform/foundation/migrations/0001_initial.py": "55243714f5b62846223b32da7b5ee1349b5e1071b7a7f10e6db5df540d54a5e9",
+      "services/platform/src/alisa_platform/foundation/migrations/0002_pending_job_index.py": "e1dbdd49207436cc7eb38fc0f9bfc4b23e88928836836fd5c8c022684f8a991b",
+      "services/platform/src/alisa_platform/foundation/migrations/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/platform/src/alisa_platform/runtime_adapter/__init__.py": "b5189a2d712ea451c6bfc4049660016a8e1701179339e33a8e5ba535d7561f1d"
+    },
+    "additional_common_entries_sha256": {
+      "pnpm-lock.yaml": "d85aee942fd8b26560a97062e465e477838f9abc5d759cba703fc750756b6b93",
+      "contracts/foundation-probe-v1.json": "26fe6bf6b4b6b14858f78d0994625b5940508d9523a97faefb8888c706b47841",
+      "contracts/platform.openapi.yaml": "27863593781f19df4441425b5ba6dedb5900a586c2c22fd4b9e3d44dbd75c470",
+      "contracts/runtime/port-v1.json": "169460842a26761c27ddad04b47a3be2fb5b7cf4e146ca91668030a43ae39224",
+      "bin/alisa": "af65b881848adc2b195d56bfe4ca9a1d76aaf3ab7ef959977f5141b0686c6971",
+      "infra/launch.py": "0b37d8e020dd24e86d73af6d1aafa764be840fe958a778d9ef41b22fbf809fc3",
+      "infra/release.py": "2fff691c65c6f97aa39535a27bee68fc904415f9d8ca884ca0ea290d3be8f7e4"
+    },
+    "scope_limit": "These are installed package manifest entries. External systemd unit files are not asserted by this hash map; their equivalence is based on the root's stated unchanged deployment configuration."
+  },
+  "r3_delta_basis": "Root states r3 differs from r2 only in the allowlisted BFF acceptance logger, its tests, and documentation. The exact r3 CI and r3 browser/API/DB/log correlation proof cover the added logger behavior.",
+  "metadata_correction": "The r3 package SHA256 was corrected from the primary r3 receipt; no assessment findings or verdicts changed.",
+  "case_reuse": [
+    {
+      "id": "AL-T00-05",
+      "decision": "REUSE_R2_STAGE_PROOF_WITH_R3_PACKAGE_QUALIFICATION",
+      "r2_fact": "Two concurrent same-UUID POSTs returned 200/202; conflicting kind returned 422; one persisted effect.",
+      "probe_id": "2a01517e-0afe-4202-986e-0cae8abae75f",
+      "why_transfer_is_valid": "Platform views, models, migrations, worker, API contract, BFF CLI/launch/release files and locks have identical installed hashes. The r3-only BFF logger adds an allowlisted success event and is independently exercised on r3; it does not change the idempotency transaction or conflict policy.",
+      "unclosed_product_invariant": null
+    },
+    {
+      "id": "AL-T00-06",
+      "decision": "REUSE_R2_STAGE_PROOF_WITH_R3_PACKAGE_QUALIFICATION",
+      "r2_fact": "Accepted a fresh job while the stage worker was stopped, restarted platform API and worker, then observed the same job processed once; readiness was 200 on all four HTTP components.",
+      "probe_id": "c674838a-8a0f-4924-a364-c34fe8a64298",
+      "why_transfer_is_valid": "Worker, platform API, model, migration, launch/release CLI hashes match across installed r2/r3 manifests; the BFF success logger does not touch the pending-job or worker-restart path. Root reports stage units unchanged.",
+      "unclosed_product_invariant": null
+    },
+    {
+      "id": "AL-T00-07",
+      "decision": "REUSE_R2_STAGE_PROOF_WITH_R3_PACKAGE_QUALIFICATION",
+      "r2_fact": "With only the stage platform runtime role set NOLOGIN, liveness remained 200, readiness and writes returned 503, no row was created; LOGIN restoration recovered the same UUID once.",
+      "probe_id": "104fa122-a84a-4141-82c9-a3fda018a438",
+      "why_transfer_is_valid": "Platform settings/views, worker, DB contract and launch configuration have identical r2/r3 hashes; no r3 migration was pending or applied. R3 logger delta is after successful BFF acceptance and does not change database readiness behavior.",
+      "unclosed_product_invariant": null
+    },
+    {
+      "id": "AL-T00-08",
+      "decision": "PARTIAL_ENVIRONMENT_BOUNDARY",
+      "r2_fact": "Both runtime roles were non-superuser; platform DDL and cross-database connects were denied.",
+      "why_transfer_is_valid": "The stage database contracts, migrations, runtime code, and application roles/configuration are unchanged; those stage least-privilege results remain valid for r3.",
+      "unclosed_product_invariant": "The plan's explicit stage-credentials-against-production rejection was not exercised. Production credentials/DB were intentionally not queried or created, so that denial remains unverified (environment boundary, not a demonstrated product defect)."
+    },
+    {
+      "id": "AL-T00-13",
+      "decision": "REUSE_R2_STAGE_PROOF_WITH_R3_PACKAGE_QUALIFICATION",
+      "r2_fact": "Arbitrary/forged session and tenant cookies produced 404 for /app, /staff, and forged tenant route.",
+      "why_transfer_is_valid": "Root's r2→r3 diff scope confines runtime code change to the engineering BFF logger; those default-deny routes and their auth/tenant handling are outside the changed path. R3 browser and logger checks qualify the changed BFF path separately.",
+      "unclosed_product_invariant": null
+    },
+    {
+      "id": "AL-T00-15",
+      "decision": "REUSE_STAGE_EGRESS_EVIDENCE_WITH_R3_PACKAGE_QUALIFICATION",
+      "r2_fact": "The stage-UID-only temporary nft test denied the legacy loopback 8765 port; the deny counter stayed unchanged during a successful browser roundtrip, while only the expected own-upstream/reply counters advanced. The table was removed.",
+      "evidence_provenance": "This egress run is recorded in the root's stage-author evidence and is not an independently repeated firewall mutation by this reviewer.",
+      "why_transfer_is_valid": "UID/unit policy is reported unchanged. The r3 delta emits only an allowlisted stdout event and adds no network client or destination; exact r3 CI and the r3 end-to-end event chain exercised it.",
+      "unclosed_product_invariant": "The observed old-loopback block and roundtrip were verified; this is not a general packet capture of all possible future traffic. No product defect was demonstrated."
+    }
+  ],
+  "AL_T00_11": {
+    "decision": "SATISFIED_FOR_TESTED_COMPATIBLE_RELEASE_PAIRS",
+    "evidence": [
+      "Root's r1→r2→r1 real stage cycle read the same probe back processed once with the database intact.",
+      "Independent r3→r2→r3 cycle read the same probe/correlation back with effect_count=1 and all four services ready on each side; no database restore was used."
+    ],
+    "interpretation": "Together these establish data-preserving backward/forward compatibility for the tested r1/r2 and r2/r3 pairs; no claim is made for arbitrary future releases."
+  },
+  "remaining_product_defects": [],
+  "remaining_acceptance_limits": [
+    "AL-T00-08 production credential denial remains unverified because no production DB or credential request was in scope.",
+    "AL-T00-15 evidence is the author's stage-only nft run; it demonstrates the recorded deny paths and roundtrip, not universal future network behavior.",
+    "Case reuse is component-equivalence evidence, not a claim that the exact r3 release independently repeated each r2 stage action."
+  ],
+  "overall": "No product defect identified in the reviewed cases; reusing r2 stage evidence for unchanged components is justified with the listed scope limits. This assessment does not change the original r3 receipt or override external ACME/documentation-CI gates."
+}

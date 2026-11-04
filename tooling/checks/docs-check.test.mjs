@@ -35,10 +35,11 @@ test('directories containing only non-documentation assets are valid link target
   assert.deepEqual(broken(root),[]);
 });
 test('ignored dependency trees and symlinks do not satisfy repository links',t=>{
-  const root=fixture(t,'[dependency](node_modules/private.py) [link](linked.py)\n');
+  const root=fixture(t,'[dependency](node_modules/private.py) [Python environment](.venv/private.py) [link](linked.py)\n');
   mkdirSync(join(root,'node_modules'));writeFileSync(join(root,'node_modules','private.py'),'fixture');
+  mkdirSync(join(root,'.venv'));writeFileSync(join(root,'.venv','private.py'),'fixture');
   symlinkSync(join(root,'node_modules','private.py'),join(root,'linked.py'));
-  assert.equal(broken(root).length,2);
+  assert.equal(broken(root).length,3);
 });
 test('strict newline and required-document checks still fail',t=>{
   const root=fixture(t,'missing final newline');
