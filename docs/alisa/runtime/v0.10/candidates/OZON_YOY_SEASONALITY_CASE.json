@@ -1,0 +1,114 @@
+{
+  "case_id": "ozon_daily_yoy_seasonality_v1",
+  "status": "QUALIFIED_RESEARCH_CASE_NOT_REGISTERED_NOT_DEPLOYED",
+  "architecture": "Compose the shared matrix sources, time dimensions and aggregates. No handler for this wording/year/month.",
+  "intent": "Compare daily ordered units and financial realizations between years to assess whether an observed November decline repeats the prior-year pattern.",
+  "canonical_utterance": "Сравни заказы и реализации за октябрь и ноябрь прошлого и текущего года по дням и проверь, повторяется ли ноябрьский спад.",
+  "parameters": {
+    "platform": "ozon",
+    "store": "authorized_active_store",
+    "base_year": "parameter",
+    "comparison_year": "parameter",
+    "months": "parameter, here [10,11]",
+    "as_of": "client calendar date",
+    "include_skus": "all historical SKU",
+    "completed_day_cutoff": "min(period_end,as_of-1 day)",
+    "order_timezone": "Europe/Moscow",
+    "technical_report_timezone": "client timezone"
+  },
+  "sources": [
+    {
+      "operation": "ozon_order_analytics_day",
+      "path": "/v1/analytics/data",
+      "metrics": [
+        "ordered_units",
+        "revenue"
+      ],
+      "dimensions": [
+        "day"
+      ],
+      "role": "preferred source and independent control when accessible; HTTP400 is not zero demand"
+    },
+    {
+      "operation": "ozon_fbo_posting_list",
+      "path": "/v3/posting/fbo/list",
+      "time_field": "created_at",
+      "role": "historical order-line source; cursor pagination; product quantity and Money unit price"
+    },
+    {
+      "operation": "ozon_fbs_posting_list",
+      "path": "/v4/posting/fbs/list",
+      "time_field": "in_process_at",
+      "role": "historical order-line source; cursor pagination; no result wrapper"
+    },
+    {
+      "operation": "ozon_accrual_by_day",
+      "path": "/v1/finance/accrual/by-day",
+      "time_field": "date",
+      "role": "separate realized/reversed quantity and customer amounts by accrual date"
+    },
+    {
+      "operation": "ozon_realization_posting_month",
+      "path": "/v1/finance/realization/posting",
+      "role": "independent historical financial controls; not a substitute for an order-date cohort"
+    }
+  ],
+  "normalization": {
+    "orders": "deduplicate posting_number; sum product.quantity; preserve all statuses for original ordered demand; show cancellations separately; convert timestamps to Moscow before day grouping",
+    "boundaries": "convert local period boundaries to UTC for source acquisition; include required boundary pages, never infer missing days as zero",
+    "money": "product.price Money {amount,currency} is unit price; legacy strings only with explicit matching currency; financial commission.sale_price is line amount",
+    "returns": "negative signed product accruals are separate reversals/corrections; physical return date not inferred"
+  },
+  "dimensions": [
+    "date",
+    "year",
+    "month",
+    "day_of_month",
+    "day_of_week"
+  ],
+  "aggregates": [
+    "SUM quantity",
+    "SUM amount",
+    "SUM unit_price*quantity for orders",
+    "weighted realized unit price",
+    "period totals / calendar day count",
+    "relative period differences",
+    "last seven completed days of previous month",
+    "same day-of-month comparison",
+    "same weekdays sensitivity"
+  ],
+  "comparison_rules": {
+    "primary": "ordered units for demand, realized units shown separately",
+    "month_to_date": "compare equal completed dates, not a partial month with a full month",
+    "seasonality": "prior-year November/October daily-rate ratio is descriptive, not proof of market seasonality",
+    "causal_claim": "unknown unless price,availability,advertising and market controls are obtained; do not infer causal elasticity or local defect from two periods"
+  },
+  "coverage_guards": [
+    "all requested calendar days and terminal cursors accounted for",
+    "unknown/missing dates explicit, future values blank",
+    "no duplicate posting multiplication",
+    "all monetary identities and currencies validated",
+    "financial source signs preserved",
+    "order timestamps normalized consistently",
+    "independent source comparison when available",
+    "do not silently replace ordered units with realized units"
+  ],
+  "acceptance_evidence": {
+    "financial_days": 95,
+    "financial_monthly_item_direction_keys": [
+      585,
+      527
+    ],
+    "financial_monthly_mismatches": 0,
+    "order_days": 95,
+    "current_days_compared_with_analytics": 34,
+    "order_quantity_and_amount_mismatches": 0,
+    "new_http": 87,
+    "http_200": 85,
+    "http_400": 2,
+    "negative_accrual_regressions": 7
+  },
+  "llm_role": "Translate question to approved matrix plan and explain computed results; no arithmetic or invented source fields.",
+  "runtime_modified": false,
+  "evidence": "docs/alisa/browser-testing/OZON_YOY_OCT_NOV_2025_2026_RUN.md"
+}
