@@ -1,0 +1,39 @@
+{
+  "scope": "QUALIFIED_LATEST_SOURCE_STAGE_ACTIVATION",
+  "source_sha": "77d0f8ee2643ef655a6e1e3dc5b2d4379f7e589b",
+  "artifact_sha256": "2b72165cc7f3f5e8ebd580820db944fdf7f06b73e80de1024f76040c9e8a2acc",
+  "foundation_ready": false,
+  "started_at": "2026-11-04T14:15:37.529571+00:00",
+  "migration_plan": "Planned operations:\n  No planned migration operations.\nPlanned operations:\n  No planned migration operations.\n",
+  "migration_apply": "Operations to perform:\n  Apply all migrations: foundation\nRunning migrations:\n  No migrations to apply.\nOperations to perform:\n  Apply all migrations: accounts, auth, contenttypes\nRunning migrations:\n  No migrations to apply.\n",
+  "readback": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY",
+      "authentication": "NOT_IMPLEMENTED"
+    }
+  },
+  "status": "PASS",
+  "finished_at": "2026-11-04T14:15:49.570186+00:00"
+}

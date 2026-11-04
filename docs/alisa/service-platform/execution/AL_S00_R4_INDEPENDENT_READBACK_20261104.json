@@ -1,0 +1,117 @@
+{
+  "record_type": "AL_S00_R4_INDEPENDENT_READBACK",
+  "timestamp_utc": "2026-11-04",
+  "verdict": "READBACK_PASS_WITH_EXTERNAL_GATE_OPEN",
+  "read_only": true,
+  "release": {
+    "r3_source_sha": "61007bf870cf4f65afb30b801603eef4eeb422d3",
+    "r4_source_sha": "77d0f8ee2643ef655a6e1e3dc5b2d4379f7e589b",
+    "r4_package_sha256": "2b72165cc7f3f5e8ebd580820db944fdf7f06b73e80de1024f76040c9e8a2acc",
+    "installed_manifest_files_each": 4235,
+    "r3_r4_manifest_changed_paths": 48,
+    "runtime_services_files": 31,
+    "contracts_files": 3,
+    "lockfiles_changed": 0,
+    "service_contract_lockfiles_unchanged": true,
+    "bin_alisa_unchanged": true,
+    "infra_launch_unchanged": true,
+    "infra_release_unchanged": true,
+    "infra_db_provision_changed_as_expected": true,
+    "infra_db_provision_sha256": "14672962fa793bdd34d6b293271560fe3ad1e26f46d101bceac103fe4be2531f",
+    "r4_activation_report": "/var/lib/alisa-platform/stage/evidence/R4_ACTIVATION_20261104.json",
+    "r4_activation_status": "PASS",
+    "lock_related_paths": 47,
+    "dependency_lockfiles": [
+      "pnpm-lock.yaml",
+      "services/identity/requirements.lock",
+      "services/platform/requirements.lock"
+    ],
+    "dependency_lockfiles_unchanged": true,
+    "lock_related_paths_note": "47 is a broad path-name match for \u201clock\u201d in the installed manifest, including ordinary bundled Next.js source files; the three dependency lockfiles listed above are the relevant lockfiles and all are unchanged."
+  },
+  "stage_readback": {
+    "http_readiness": {
+      "web": {
+        "port": 18100,
+        "status": 200,
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-77d0f8ee2643ef65"
+      },
+      "admin": {
+        "port": 18101,
+        "status": 200,
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-77d0f8ee2643ef65"
+      },
+      "platform": {
+        "port": 18102,
+        "status": 200,
+        "component": "platform",
+        "environment": "stage",
+        "release": "alisa-77d0f8ee2643ef65"
+      },
+      "identity": {
+        "port": 18103,
+        "status": 200,
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-77d0f8ee2643ef65"
+      }
+    },
+    "foundation_probe_enabled": false,
+    "stage_env_files_mode_owner": {
+      "web.env": "0600 root:root",
+      "platform.env": "0600 root:root"
+    },
+    "worker": {
+      "active": false,
+      "enabled": false
+    },
+    "cleanup_timer": {
+      "unit": "alisa-probe-cleanup@stage.timer",
+      "active": true,
+      "state": "waiting"
+    },
+    "probe_was_not_reopened": true,
+    "http_readiness_note": "One read per endpoint; mapping corrected from the prior report, with no separate BFF/web double count."
+  },
+  "production_database_boundary": {
+    "database_owners": {
+      "alisa_prod_platform": "alisa_prod_platform_migration",
+      "alisa_prod_identity": "alisa_prod_identity_migration"
+    },
+    "stage_roles_checked": 4,
+    "production_databases_checked": 2,
+    "stage_role_connect_grants_to_production": 0,
+    "stage_role_connect_denials_to_production": 8,
+    "production_role_superuser_createdb_createrole": false,
+    "production_public_tables": {
+      "alisa_prod_platform": 0,
+      "alisa_prod_identity": 0
+    },
+    "evidence": "Independent PostgreSQL catalog query; existing AL_T00_08 author evidence is /var/lib/alisa-platform/stage/evidence/AL_T00_08_REAL_PROD_BOUNDARY_20261104.json"
+  },
+  "r3_evidence_reuse": {
+    "decision": "REUSABLE_FOR_UNCHANGED_RUNTIME_COMPONENTS",
+    "basis": "Installed r3 and r4 manifests show identical 31 services files, 3 contract files, the 3 dependency lockfiles (pnpm-lock.yaml and both requirements.lock), bin/alisa, infra launch.py, and infra release.py. A broad search found 47 lock-related paths, including ordinary bundled Next.js source files; this is not a count of dependency lockfiles. The only relevant source change is the separately qualified infra/db/provision.py. R3 stage evidence for cases dependent on unchanged artifacts can be carried forward; no repeat of passed live cases was performed.",
+    "r4_ci_qualification_reported": "push 41843983646/job 126622584898 and PR 41843999403 passed 32 Python, 11 Node, and 54 PostgreSQL/browser checks",
+    "docs_ci_qualification_reported": "run 41843999422/job 126622638792 passed 5 checker regressions and full documentation checks"
+  },
+  "remaining_limits": [
+    "ACME certificate renewal dry-run remains unproven after the recorded DNS timeout; no retry was performed.",
+    "This readback does not independently re-run browser, business-flow, resource, migration, or rollback scenarios; prior r3 evidence is reused only where the installed artifacts are identical.",
+    "No FOUNDATION_READY verdict is made while the external renewal gate remains open."
+  ],
+  "source_checker_ignore_review": {
+    "historical_finding": "In the earlier diff, .venv was pruned but not listed in .gitignore, so a tracked document under it could evade checks. The prior finding remains recorded here for history.",
+    "followup_result": "The candidate followup adds .venv/ to .gitignore and queries Git for tracked docs under .venv/__pycache__, adding regular tracked files to the same path/content index. It rejects unsafe paths, skips symlinks, and Git command errors throw rather than pass. The added regression force-tracks malformed docs in both trees and confirms an untracked .venv target remains broken. Parent reports 6 tests and full checker PASS.",
+    "verdict": "The tracked-doc bypass is fixed for normal Git checkouts; no other defect found in the three-file diff. Generated directories remain pruned for untracked content, and linked targets inside them do not count as repository paths.",
+    "scope_note": "The Git-index supplementation runs only when root/.git exists; in a source archive without Git metadata, the checker cannot distinguish tracked files there. Canonical candidate is a Git checkout."
+  },
+  "source_checker_ci_followup_reported": {
+    "docs_ci": "41847634911 SUCCESS",
+    "platform_ci": "41847634890 SUCCESS"
+  }
+}

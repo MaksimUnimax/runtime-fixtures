@@ -1,9 +1,9 @@
 {
   "schema_version": "execution_step_receipt_v1",
   "step_id": "AL-S00",
-  "artifact_sha256": "4f7351657e99b5babb7e3130e306fc042e3e31fe5d8ea9c964154bd76a412e6b",
-  "source_commit": "61007bf870cf4f65afb30b801603eef4eeb422d3",
-  "environment": "stage /185.244.51.141 /alisa-61007bf870cf4f65; engineering probe disabled after finite acceptance",
+  "artifact_sha256": "2b72165cc7f3f5e8ebd580820db944fdf7f06b73e80de1024f76040c9e8a2acc",
+  "source_commit": "77d0f8ee2643ef655a6e1e3dc5b2d4379f7e589b",
+  "environment": "stage /185.244.51.141 /alisa-77d0f8ee2643ef65; probe disabled; worker disabled/inactive; cleanup active",
   "test_ids": [
     "AL-T00-01",
     "AL-T00-02",
@@ -32,18 +32,25 @@
     "real browser/API/DB/worker roundtrip",
     "data-preserving restart and compatible rollback for tested release pairs",
     "resource smoke and safe UUID correlation events",
-    "probe expiry/cleanup and final disabled engineering endpoint"
+    "probe expiry/cleanup and final disabled engineering endpoint",
+    "AL-T00-08: 8 stage-role CONNECT denials to 2 real empty production databases, with valid own-DB controls and independent verification",
+    "R4 activation/readback; unchanged runtime artifacts justify scoped R3 evidence reuse",
+    "32 Python, 11 Node, 54 real PostgreSQL/browser checks; candidate Documentation CI and 6 checker regressions pass"
   ],
   "remaining_external_scope": [
-    "ENV-00 renewal unproven: own six-name dry run13:21–13:22 UTC failed with CA DNS lookup timeouts. Authoritative DNS, Google/Cloudflare A answers and external HTTP webroot checks passed. Official staging maintenance is an external factor, not a proven cause. Current certificate remains valid through2027-02-02.",
-    "AL-T00-08 stage-credentials-against-production rejection remains unverified: no production application/database has been provisioned in this delivery. Stage least-privilege and cross-database denials do not prove a future production ACL.",
-    "General repository Documentation CI remains red for existing navigation/checker failures outside this platform scope. Own platform source/build/package/PostgreSQL/browser workflows passed. PR383 stays Draft; no merge or production promotion."
+    "ENV-00 certificate renewal remains unproven: own six-name dry run at 14:34 UTC returned CA rateLimited / Service busy after a 72-minute interval. Prior 13:22 attempt had CA DNS validation timeouts; authoritative/public DNS and external HTTP webroot checks passed. Official staging maintenance is an external factor, not a proven cause. Current certificate is valid through 2027-02-02. Repeat the own-lineage dry run once provider service is available; require successful renewal/deploy-hook evidence before FOUNDATION_READY or AL-S01."
   ],
-  "reviewer": "Independent gpt-6-luna /root/release_review; parent consolidates execution_step_receipt_v1 without granting FOUNDATION_READY",
+  "reviewer": "Independent /root/release_review; parent consolidates validated evidence. FOUNDATION_READY remains false solely for unproven ENV-00 renewal.",
   "evidence": [
     "https://github.com/MaksimUnimax/runtime-fixtures/pull/383",
-    "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41831933091",
-    "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41831940984",
+    "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41843983646",
+    "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41843999403",
+    "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41848976585",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S00_R4_INDEPENDENT_READBACK_20261104.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_T00_08_INDEPENDENT_REAL_PROD_20261104.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_T00_08_REAL_PROD_BOUNDARY_20261104.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/R4_ACTIVATION_20261104.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/ALISA_ENV00_RENEWAL_RETRY_20261104_1434.json",
     "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/ALISA_S00_INDEPENDENT_STAGE_R3_20261104.json",
     "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/ASSESSMENT_R2_R3_EVIDENCE_REUSE.json",
     "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/ALISA_ENV00_RENEWAL_DIAGNOSIS_20261104.json",
