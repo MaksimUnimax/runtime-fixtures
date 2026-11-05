@@ -1,0 +1,136 @@
+{
+  "schema": "alisa-run-report/v1",
+  "run_id": "20261105-TESTER-a9c46e21",
+  "kind": "FRESH_FINANCE_DAY_EXPORT_AND_PRIOR_FORECAST_COMPARISON",
+  "period": "2026-11-04",
+  "ui_unit_economics_export": "NOT_OBTAINED_BROWSER_CONTEXT_UNAVAILABLE",
+  "dedicated_unit_economics_public_api": "NOT_FOUND",
+  "money_source": "Fresh by-day plus balance, type dictionary and independent Performance daily check",
+  "new_business_http_count": 7,
+  "successful_http": 5,
+  "rate_limited_http": 2,
+  "llm_count": 0,
+  "runtime_changed": false,
+  "started_utc": "2026-11-05T05:08:05.688582+00:00",
+  "finished_utc": "2026-11-05T05:10:17.012252+00:00",
+  "http_sum_ms": 666.8870000000001,
+  "requests": [
+    {
+      "seq": 1,
+      "operation": "ozon_accrual_by_day",
+      "method": "POST",
+      "path": "/v1/finance/accrual/types",
+      "started_utc": "2026-11-05T05:08:05.699256+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 67.239,
+      "bytes": 14619,
+      "finished_utc": "2026-11-05T05:08:05.767403+00:00",
+      "sha256": "1d96c2089b339c9d8dbab370e671d6668cb93a2be3345ac17cde76543eab16ea"
+    },
+    {
+      "seq": 2,
+      "operation": "ozon_accrual_by_day",
+      "method": "POST",
+      "path": "/v1/finance/accrual/by-day",
+      "started_utc": "2026-11-05T05:08:07.701695+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 107.707,
+      "bytes": 21971,
+      "finished_utc": "2026-11-05T05:08:07.811309+00:00",
+      "sha256": "cb6d4adc208d561196499c6abce624c8f340e49b5e8fd0a3399c742801788616"
+    },
+    {
+      "seq": 3,
+      "operation": "ozon_finance",
+      "method": "POST",
+      "path": "/v1/finance/balance",
+      "started_utc": "2026-11-05T05:08:07.818686+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 89.073,
+      "bytes": 1328,
+      "finished_utc": "2026-11-05T05:08:07.908401+00:00",
+      "sha256": "9dde235c0eec14550f33b8a6d9b1dd84820c6b6e7555df7dacc00a493f654c8d"
+    },
+    {
+      "seq": 4,
+      "operation": "ozon_accrual_by_day",
+      "method": "POST",
+      "path": "/v1/finance/accrual/postings",
+      "started_utc": "2026-11-05T05:08:09.706869+00:00",
+      "state": "HTTP_ERROR",
+      "http": 429,
+      "elapsed_ms": 82.649,
+      "bytes": 70,
+      "finished_utc": "2026-11-05T05:08:09.790607+00:00",
+      "sha256": "7dc179def5e5f36af720bfac57289148c076480ac09f829495c56119d957edd8"
+    },
+    {
+      "seq": 5,
+      "operation": "ozon_accrual_by_day",
+      "method": "POST",
+      "path": "/v1/finance/accrual/postings",
+      "started_utc": "2026-11-05T05:10:16.657895+00:00",
+      "state": "HTTP_ERROR",
+      "http": 429,
+      "elapsed_ms": 64.436,
+      "bytes": 70,
+      "finished_utc": "2026-11-05T05:10:16.723518+00:00",
+      "sha256": "7dc179def5e5f36af720bfac57289148c076480ac09f829495c56119d957edd8"
+    },
+    {
+      "seq": 6,
+      "operation": "ozon_ads_token",
+      "method": "POST",
+      "path": "/api/client/token",
+      "started_utc": "2026-11-05T05:10:16.733953+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 56.589,
+      "bytes": 371,
+      "finished_utc": "2026-11-05T05:10:16.791503+00:00",
+      "raw_saved": false
+    },
+    {
+      "seq": 7,
+      "operation": "ozon_expense",
+      "method": "GET",
+      "path": "/api/client/statistics/daily/json",
+      "started_utc": "2026-11-05T05:10:16.802825+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 199.194,
+      "bytes": 3815,
+      "finished_utc": "2026-11-05T05:10:17.002883+00:00",
+      "sha256": "1d191c53a9317d8bb307ca5e12df4dadf690556070b370e72dfeab9fc76536cd"
+    }
+  ],
+  "day_export_complete": true,
+  "source_record_counts": {
+    "accruals": 48,
+    "categories": {
+      "ITEM": 16,
+      "POSTING": 12,
+      "NON_ITEM": 20
+    },
+    "financial_posting_items": 12,
+    "posting_items_overlapping_original_cohort": 0,
+    "item_fee_rows_matching_original_orders": 9,
+    "performance_rows": 23
+  },
+  "checks": {
+    "sum_day_accruals_equals_balance": "VALIDATED_IN_PRIVATE_REPORT",
+    "sales_components_reconcile": "VALIDATED_IN_PRIVATE_REPORT",
+    "advertising_sources_reconcile": "VALIDATED_IN_PRIVATE_REPORT",
+    "same_cohort_finance_postings_endpoint": "RATE_LIMITED_AFTER_DELAYED_RETRY_NO_ZERO_ASSUMED"
+  },
+  "owner_rule": "Unknown cancellation stage from API -> scheme return tariff estimate, no mandatory manual handover confirmation; estimate never claimed actual debit",
+  "private_evidence": {
+    "ttl_days": 7,
+    "server_manifest": "ozon_ue_finance_compare_20261104_20261105_r1_manifest.json",
+    "normalized": "ozon_ue_finance_compare_20261104_20261105_r1_normalized.json"
+  },
+  "financial_values_published": false
+}
