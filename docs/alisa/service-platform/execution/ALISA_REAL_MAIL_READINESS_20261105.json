@@ -1,0 +1,116 @@
+{
+  "record_type": "ALISA_SHARED_IDENTITY_AND_REAL_MAIL_REVIEW",
+  "recorded_utc": "2026-11-05T09:38:08.252Z",
+  "status": "SOURCE_QUALIFIED_AND_STAGED_NOT_ACTIVATED",
+  "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/389",
+  "artifact": {
+    "name": "alisa-dd2b59b99b00b7e4.tar.gz",
+    "sha256": "e19761ed8943c1d17f641ad07dcd474f62c7e9fbdf500f0c4c3905ee24f3f849",
+    "github_artifact_id": 13404325183
+  },
+  "owner_requirement": "Одни и те же люди/администраторы, одна постоянная регистрация; разные кабинеты до объединения.",
+  "document_conclusion": {
+    "common_identity": "id.octoport.ru; initially Alice, later Octoport OIDC consumer",
+    "identity_database": "One central identity authority; existing product-local records retain their IDs",
+    "product_databases": "Remain separate; physical merging is not required",
+    "admin": "Same identity persons; product permissions remain explicit and separate",
+    "merge_steps": [
+      "AL-M01 existing Octoport account adapter",
+      "AL-M02 proof of control and explicit linking",
+      "AL-M04 common staff shell"
+    ]
+  },
+  "existing_octoport": {
+    "host": "Easyscript",
+    "authentication": "Existing local OTP request/verify; not an OIDC provider",
+    "checked_schema_only": [
+      "users",
+      "user_identities",
+      "accounts",
+      "account_memberships",
+      "admin_principals",
+      "admin_role_grants"
+    ],
+    "customer_or_admin_rows_changed": false
+  },
+  "changes": {
+    "real_mail": "Stage invitation policy at both identity and platform session boundaries",
+    "transport": "Existing Octoport Exim/Dovecot; dedicated mail service principal; verified STARTTLS and native SASL PLAIN",
+    "synthetic_mail": "Remains on private loopback sink",
+    "mail_unknown_outcome": "Terminal, no automatic replay after ambiguous DATA or lost process",
+    "migrations_relative_to_s03": [],
+    "identity_or_product_account_linking": false,
+    "ordinary_public_admission": false
+  },
+  "qualification": {
+    "source_unit": {
+      "passed": 60,
+      "total": 60
+    },
+    "postgres_browser_regression": {
+      "passed": 96,
+      "total": 96
+    },
+    "https_identity_bff_cabinet": {
+      "passed": 146,
+      "total": 146
+    },
+    "runtime_policy_subset_included_above": {
+      "passed": 16,
+      "total": 16
+    },
+    "staff_policies": {
+      "passed": 44,
+      "total": 44
+    },
+    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42002923215",
+    "provider_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42002923200",
+    "docs_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42002923265"
+  },
+  "native_transport": {
+    "status": "PASS_AUTH_ONLY",
+    "service_user": "alisa-identity-stage",
+    "host": "mail.octoport.ru",
+    "port": 25,
+    "verified_starttls": true,
+    "auth_mechanism": "PLAIN",
+    "smtp_authenticated": true,
+    "noop": 250,
+    "message_submitted": false,
+    "previous_attempt": "Default native CRAM-MD5 negotiation timed out; explicit native PLAIN with mandatory verified TLS passed"
+  },
+  "stage": {
+    "prepared_release": "alisa-dd2b59b99b00b7e4",
+    "prepared_package_files_and_links_verified": true,
+    "activated": false,
+    "observed_active": {
+      "web": "alisa-e82003211bdcd687",
+      "admin": "alisa-3e91b1aa5d405d0e",
+      "platform": "alisa-3e91b1aa5d405d0e",
+      "identity": "alisa-3e91b1aa5d405d0e"
+    },
+    "s03_activation_status": "PASS_ACTIVATED_PENDING_INSTALLED_SMOKE",
+    "reason_not_activated": "The parallel S03 executor is accepting exact installed 3e91 source; changing identity/platform now would invalidate that acceptance.",
+    "current_real_gmail_registration": "NOT_RUN_NOT_CLOSED",
+    "mail_delivery_to_gmail": "NOT_RUN",
+    "repeated_real_mail_login": "NOT_RUN",
+    "independent_real_mail_installed_acceptance": "NOT_RUN"
+  },
+  "next_action": {
+    "prerequisite": "Complete S03 exact installed acceptance; verify its receipt and no concurrent rollout lock.",
+    "then": [
+      "Activate exact dd2b package for web/platform/identity, preserving admin/S03, DB schema and lab/OAuth.",
+      "Enable one controlled recipient in private identity+platform config and enable truthful web copy.",
+      "Receive native signup code in controlled Gmail, confirm wrong code denial and correct code entry into cabinet.",
+      "Logout; obtain a fresh email code; verify same customer and tenant.",
+      "Restart changed services; verify saved session/data; check outbox clearing and private logs.",
+      "Save exact installed receipt before marking AL-S02 real-mail gap closed."
+    ],
+    "prepared_installer": "/var/lib/alisa-platform/stage/evidence/install-real-mail.py",
+    "prepared_acceptance": "/var/lib/alisa-platform/stage/evidence/real-mail-acceptance.py",
+    "automatic_future_execution": false
+  },
+  "other_open_review_findings": "Existing independent-review findings are not closed by a mail/design change.",
+  "secrets_or_otp_in_record": false
+}
