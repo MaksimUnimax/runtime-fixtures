@@ -1,0 +1,258 @@
+{
+  "schema": "alisa-qa-template-intake/v1",
+  "id": "C-UE01",
+  "state": "CANDIDATE",
+  "change_class": "GENERAL_OPERATOR",
+  "runtime_enabled": false,
+  "runtime_release": null,
+  "approved_hash": null,
+  "slots": {
+    "platform": "wb",
+    "date": "required ISO date or resolved relative date",
+    "timezone": "Europe/Moscow; show in answer",
+    "stores": "authorized selected stores only",
+    "unit_cost_rub": "optional user input; no default; 250 only when user supplies 250",
+    "tax": "optional user rule/base/rate; absent -> excluded and stated",
+    "own_costs": "optional user input; absent -> excluded and stated"
+  },
+  "answer_contract": {
+    "time_axes": [
+      "order_created_date",
+      "status_as_of",
+      "accrual_date_for_actual_costs",
+      "expense_period_for_allocated_overhead",
+      "tariff_retrieved_at"
+    ],
+    "units": [
+      "physical_ordered_item",
+      "remaining_noncancelled_ordered_item",
+      "RUB",
+      "percent_of_same_scenario_seller_value"
+    ],
+    "currency_policy": "RUB or separate currency groups; never mix currencies",
+    "completeness": "A report with estimates is forecast; missing required advertising or expense scope -> PARTIAL with exact reason, no final net profit",
+    "tables": [
+      "A: counterfactual all ordered items fulfilled, no cancellations/returns",
+      "B: current order cohort including cancellation/return losses"
+    ],
+    "columns": [
+      "expense_name",
+      "total_rub",
+      "rub_per_explicit_scenario_item",
+      "percent_of_same_scenario_seller_value",
+      "actual_or_estimate",
+      "endpoint_and_field"
+    ],
+    "quantity_header": [
+      "original_ordered_items",
+      "cancelled_items",
+      "returned_items",
+      "remaining_ordered_items",
+      "status_as_of"
+    ],
+    "unit_cost_display": "user input stays 250 per applicable goods item if input250; allocated cost per all ordered items is separate and must not be relabelled as unit purchase cost"
+  },
+  "expressions": [
+    "N_ordered = SUM(original products.quantity), before removing cancellations; not COUNT(sales)",
+    "N_remaining = N_ordered - cancelled_qty - qualified_returned_qty_without_double_count",
+    "V_all = SUM(seller order unit_price * quantity); buyer discounted payment is a different metric",
+    "V_remaining = V_all - cancelled seller value - qualified returned seller value",
+    "row_percent = expense_total / seller_value_of_same_scenario * 100; zero denominator -> not defined, not zero",
+    "goods_cost = user_unit_cost * applicable_remaining_ordered_quantity; cancellation revenue=0 and cancellation goods_cost=0",
+    "result = seller_value - unique marketplace expenses - advertising - included goods_cost - included own_costs - included tax",
+    "rub_per_item = row_total / explicitly printed scenario quantity; do not replace order cohort with day financial sales count",
+    "cohort = order_feed.data.orders filtered by createdAt in requested Moscow calendar date; one unique srid = one item",
+    "seller_value = SUM(cohort.sellerPrice); not finishedPrice, not rounded funnel orderSum, not forPay",
+    "FBW_base_commission = SUM(sellerPrice * categoryTariff.paidStorageKgvp /100)",
+    "FBS_base_commission = SUM(sellerPrice * categoryTariff.kgvpMarketplace /100)",
+    "forward_mean = SUM(deliveryService where deliveryAmount>0 and returnAmount=0) / SUM(deliveryAmount), within declared scheme/profile; apply to ordered units as estimate",
+    "reverse_mean = SUM(deliveryService where deliveryAmount=0 and returnAmount>0) / SUM(returnAmount), within declared scheme/profile; apply to cancelled units if stage unknown and no exact tariff",
+    "bank_mean = SUM(acquiringFee on qualified sale rows)/SUM(quantity on those sale rows); apply only with printed category, sample count, payment/scheme transfer caveat",
+    "ads = SUM(updSum), with date/currency/paymentType validation, all campaign statuses; not budget deposits",
+    "all_store_overhead is allocated once per period and scope; a matched cohort expense already inside it is not added twice"
+  ],
+  "negative_cases": [
+    "multiunit posting counts quantities",
+    "one partially cancelled child does not duplicate original",
+    "delivery total + its components not added twice",
+    "finance ads + Performance ads not added twice",
+    "unknown cancel stage -> return tariff without manual block",
+    "real reverse debit replaces estimate",
+    "no revenue/COGS on cancelled unit",
+    "zero/omitted tax and COGS distinguished",
+    "429/missing ads yields reason, not blank answer",
+    "supplier/orders incomplete while order-feed and funnel contain more orders",
+    "order-feed selectedPeriod is current status time, not createdAt; querying only one status day misses changed orders",
+    "funnel rounded orderSum must not overwrite decimal sellerPrice sum",
+    "FBW paidStorageKgvp must not be replaced by kgvpSupplier (DBS)",
+    "forPay already net: do not subtract commission/acquiring a second time",
+    "deliveryAmount0 quantity0 fee row is valid and must not disappear",
+    "negative commission/payment corrections retain source signs",
+    "return-to-seller tariff is not buyer-return-to-WB tariff",
+    "no matching warehouse: do not pick the first row or average all warehouse tariffs",
+    "truncated cards page is not full catalog; exact required product lookup can establish needed dimensions"
+  ],
+  "revision": "wb-orders-by-date-r1",
+  "platform": "wb",
+  "title": "Юнитэкономика WB по товарам, заказанным за выбранную дату",
+  "run_id": "20261105-TESTER-3f3405f9",
+  "scope": "Specification and initial live-source qualification; not installed; no independent runtime acceptance",
+  "safe_utterances": [
+    "Юнитэкономика на Вайлдберриз за 4 ноября 2026, себестоимость 250 рублей, без налога"
+  ],
+  "source_bindings": [
+    {
+      "id": "cohort",
+      "path": "POST https://seller-analytics-api.wildberries.ru/api/analytics/v1/order-feed",
+      "request": "selectedPeriod.start=cohort date start; end=status_as_of. Paginate offset+snapshotTime without changing snapshot. Filter returned createdAt by cohort date locally. Source history max31days; older dates require another qualified full order source.",
+      "fields": [
+        "data.snapshotTime",
+        "data.currency",
+        "data.orders[].srid",
+        "createdAt",
+        "updatedAt",
+        "status",
+        "cancelType if present",
+        "sellerPrice",
+        "isMp",
+        "nmId",
+        "warehouseName"
+      ]
+    },
+    {
+      "id": "orders_control",
+      "path": "GET https://statistics-api.wildberries.ru/api/v1/supplier/orders?dateFrom=DATE&flag=1",
+      "fields": [
+        "srid",
+        "date",
+        "priceWithDisc",
+        "finishedPrice",
+        "isCancel",
+        "warehouseType"
+      ],
+      "warning": "preliminary and may omit unpaid/deferred-payment orders; never authoritative when full feed disagrees"
+    },
+    {
+      "id": "funnel_control",
+      "path": "POST https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products",
+      "fields": [
+        "product.subjectId",
+        "statistic.selected.orderCount",
+        "orderSum",
+        "cancelCount",
+        "cancelSum",
+        "buyoutCount",
+        "buyoutSum"
+      ],
+      "warning": "order-cohort outcomes as of refresh; orderSum may be rounded. No sale-event denominator substitution."
+    },
+    {
+      "id": "commission",
+      "path": "GET https://common-api.wildberries.ru/api/v1/tariffs/commission?locale=ru",
+      "join": "product.subjectId -> report[].subjectID",
+      "fields": {
+        "FBW": "paidStorageKgvp",
+        "FBS": "kgvpMarketplace",
+        "DBS": "kgvpSupplier"
+      },
+      "warning": "base current tariff; contract options/date effects need qualification; do not freeze old24.11% or any one observed aggregate"
+    },
+    {
+      "id": "actual_costs",
+      "paths": [
+        "POST https://finance-api.wildberries.ru/api/finance/v1/sales-reports/list",
+        "POST https://finance-api.wildberries.ru/api/finance/v1/sales-reports/detailed"
+      ],
+      "request": "dateFrom/dateTo, period=daily, limit, rrdId; advance last rrdId until HTTP204",
+      "join": "srid exact original item, optionally qualified orderUid; nmId alone is not an order join",
+      "fields": [
+        "quantity",
+        "sellerOperName",
+        "docTypeName",
+        "retailPriceWithDisc",
+        "retailAmount",
+        "forPay",
+        "commissionPercent",
+        "ppvzSalesCommission",
+        "acquiringFee",
+        "acquiringPercent",
+        "deliveryAmount",
+        "returnAmount",
+        "deliveryService",
+        "rebillLogisticCost",
+        "paidStorage",
+        "paidAcceptance",
+        "deduction",
+        "penalty",
+        "additionalPayment",
+        "cashbackAmount",
+        "cashbackDiscount",
+        "cashbackCommissionChange"
+      ],
+      "signs": "Decode operation and field meanings; negative commission/credits are not clipped to zero; forPay must not be charged commission/acquiring twice"
+    },
+    {
+      "id": "ads",
+      "path": "GET https://advert-api.wildberries.ru/adv/v1/upd?from=DATE&to=DATE",
+      "fields": [
+        "updNum",
+        "updTime",
+        "updSum",
+        "advertId",
+        "paymentType",
+        "currency"
+      ],
+      "warning": "mandatory. Treat cash, bonuses and cashback separately; source expenses are not budget deposits. Finance deduction for same advertising is reconciled, not added again."
+    },
+    {
+      "id": "delivery_tariff",
+      "path": "GET https://common-api.wildberries.ru/api/v1/tariffs/box?date=DATE",
+      "fields": [
+        "response.data.warehouseList[].warehouseName",
+        "boxDeliveryBase",
+        "boxDeliveryLiter",
+        "boxDeliveryCoefExpr",
+        "boxDeliveryMarketplaceBase",
+        "boxDeliveryMarketplaceLiter",
+        "boxDeliveryMarketplaceCoefExpr",
+        "boxStorageBase",
+        "boxStorageLiter"
+      ],
+      "warning": "requires matching actual WB receiving/fulfillment warehouse, dimensions and effective tariff/fixation; generic Склад WB or seller-own warehouse name does not select a row; no coefficient multiplied twice"
+    },
+    {
+      "id": "dimensions",
+      "path": "POST https://content-api.wildberries.ru/content/v2/get/cards/list",
+      "fields": [
+        "cards[].nmID",
+        "cards[].dimensions.length",
+        "width",
+        "height",
+        "isValid"
+      ],
+      "warning": "paginate or retrieve exact needed product; volume cm3/1000; no invented default dimensions"
+    }
+  ],
+  "exact_fallbacks": {
+    "commission": "Use matched source actual when complete; otherwise base rate from exact category and FBW/FBS field times sellerPrice; label current tariff forecast. If no category or scheme -> missing_commission_binding, not global percent.",
+    "forward_logistics": "Matched delivery actual first. Otherwise exact applicable WB tariff with verified formula. If warehouse/tariff cannot be bound, use SUM(deliveryService)/SUM(deliveryAmount) for forward-only rows in same scheme and dimensions profile. Print category-transfer scope and sample size; no whole-warehouse average.",
+    "unknown_cancellation_stage": "Include buyer reverse-transport estimate per cancelled unit: exact matched reverse charge/reversal first, then applicable WB buyer-return tariff, otherwise reverse-only observed mean SUM(deliveryService)/SUM(returnAmount) in declared scheme/profile. If none exists, return explicit missing_reverse_cost with source/field/reason. Never copy Ozon return_flow_amount or the Ozon monetary values.",
+    "return_events": "deliveryAmount and returnAmount classify financial transportation events; they do not by themselves prove an order cancellation date. Keep cancellation/nonbuyout/customer return/return-to-seller separate.",
+    "bank": "Exact matched acquiringFee first; otherwise qualified same-category observed fee per sale quantity with sample date/count. Scheme/payment mix transfer must be explicit; no inferred universal percentage.",
+    "period_overhead": "Sum paidStorage, paidAcceptance, rebillLogisticCost, deductions, penalties and other decoded cost types for store-period; assign only once, state cohort allocation and prevent overlaps with item-linked actuals. Unreconciled nested field stays a named completeness gap, not automatic double charge.",
+    "future_adjustments": "Fresh orders are a fulfillment forecast. Later cancellation/returns/credits update the same original cohort; not a new sale-date cohort."
+  },
+  "completeness_gaps": [
+    "No live runtime/Dialogs template installed or tested",
+    "Current base commission not fully reconciled with historical actual net WB remuneration",
+    "Warehouse-specific direct tariff cannot be bound from generic current order names",
+    "Small observed delivery pool and category/scheme bank transfers are estimates",
+    "rebillLogisticCost versus bankPaymentSum independent deduction not fully reconciled"
+  ],
+  "evidence_refs": [
+    "RUN_REPORT.json",
+    "BUG_REPORT.md"
+  ],
+  "independent_gold_ref": "WB_SYNTHETIC_GOLD.json",
+  "production_adapter": "NOT_INSTALLED"
+}
