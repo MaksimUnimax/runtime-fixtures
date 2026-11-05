@@ -12,7 +12,7 @@ Seven Seller API HTTP, all200, collection6.555s, LLM0, Dialogs0. Complete FBO/FB
 - The prices API supplies commission percentages, acquiring amounts, direct/last-mile/first-mile and return-flow estimates. Every projected variable expense has a named field. Intervals are midpoint assumptions, not claimed observed route averages.
 - Current tariff values are forecast inputs for historical unfinished orders, not historical actual accruals.
 - Acquiring ratio derives from acquiring/current price and was checked on every matched price row before applying it to historical order price.
-- Daily storage, distinct courier service and advertising are actual store-period figures with explicit allocation, not falsely joined direct charges.
+- Daily storage and advertising are actual store-period figures with explicit allocation. Historical variable courier, logistics, processing and acquiring amounts are controls only and are replaced by selected-order tariff estimates; they are not added again.
 - Source financial return-flow estimate is counted once; a separate undisclosed reverse/handling charge is not invented.
 - Owner cost and tax remain user inputs; API net_price cannot replace the owner's cost.
 - The cancellation-commission amount kept under owner's conservative all-non-COGS policy is an explicit conditional reserve, not an API assertion of an actual payable fee. Official Ozon explains that sales remuneration is returned for returns; net-commission control is separately reported. No reserve may be silently labelled actual expense.
