@@ -64,12 +64,13 @@
       "id": "orders_fbo",
       "path": "POST /v3/posting/fbo/list",
       "fields": [
-        "created order time",
+        "created_at",
         "posting_number",
         "products.offer_id",
         "products.sku",
         "products.quantity",
-        "products.price",
+        "products.price.amount",
+        "products.price.currency",
         "status"
       ],
       "qualification": "Use active API schema, pagination and order creation date; do not select by delivery date"
@@ -78,16 +79,17 @@
       "id": "orders_fbs",
       "path": "POST /v4/posting/fbs/list",
       "fields": [
-        "created order time",
+        "in_process_at",
         "posting_number",
         "products.offer_id",
         "products.sku",
         "products.quantity",
-        "products.price",
+        "products.price.amount",
+        "products.price.currency",
         "status",
         "cancellation"
       ],
-      "qualification": "Same order-date and identity rules; cancelled_after_ship alone is not physical-handover proof"
+      "qualification": "Live v4 FBS sample has in_process_at and no created_at. It is processing-start axis, not a physical handover. Before accepting exact order-created-date semantics, qualify the API filter/time meaning and reconcile date-boundary cases against the order analytics; do not invent a missing created_at field or silently rename the axis."
     },
     {
       "id": "tariffs",
@@ -199,7 +201,8 @@
     "complete advertising",
     "all-expense classification",
     "user cost/tax parameters",
-    "numeric acceptance and Yandex Dialogs retest"
+    "numeric acceptance and Yandex Dialogs retest",
+    "FBS in_process_at versus exact order-created date boundary qualification"
   ],
   "negative_cases": [
     "multiunit posting counts quantities",
