@@ -102,6 +102,12 @@ def main():
             for component in ['platform','identity']:manage(component,['migrate','--noinput'],True)
             subprocess.run([str(py),str(release/'services/identity/manage.py'),'identity_clients','--apply'],env={**env('identity',True),**client_bootstrap},check=True,stdout=logs,stderr=logs,timeout=25)
             check('s02_separate_migrations_and_confidential_clients',True)
+            record['postgres_version']=admin.execute('SHOW server_version').fetchone()[0]
+            record['schemas']={}
+            for component in ['platform','identity']:
+                with connect('alisa_stage_'+component) as conn:
+                    record['schemas'][component]={'migrations':[list(r) for r in conn.execute('SELECT app,name FROM django_migrations ORDER BY app,name')],
+                        'tables':[r[0] for r in conn.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name")]}
             for name,other in [('platform','identity'),('identity','platform')]:
                 try:connect('alisa_stage_'+other,'alisa_stage_'+name+'_runtime',credentials[name]['runtime_password']).close();denied=False
                 except psycopg.OperationalError as exc:denied=expected_database_connect_denial(exc)
@@ -161,7 +167,7 @@ def main():
             check('s02_no_service_cookie_or_data_in_anonymous_html',auth_service not in page.content())
             check('s02_start_requires_consents',request(WEB+'/auth/start','POST',{}, {'Origin':WEB})[0]==422)
             def open_identity(page):
-                page.goto(WEB+'/login');page.locator('input[name=service]').check();page.locator('input[name=privacy]').check()
+                page.goto(WEB);page.locator('footer a[href="/login"]').click();page.locator('input[name=service]').check();page.locator('input[name=privacy]').check()
                 with page.expect_response(lambda r:r.url==WEB+'/auth/start') as started:
                     page.get_by_role('button',name='Войти или создать кабинет').click()
                 check('s02_bff_start_redirects_to_fixed_authority',started.value.status==303,http_status=started.value.status)
@@ -180,6 +186,9 @@ def main():
                 page.locator('input[name=code]').fill(letter(email));page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').first.click()
                 expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
                 if callbacks and refs:callback_proofs.append((callbacks[-1],refs[-1]))
+            no_script=browser.new_context(ignore_https_errors=False,java_script_enabled=False);no_script_page=no_script.new_page();no_script_page.goto(WEB+'/join')
+            check('s02_no_script_cannot_put_contact_in_query',no_script_page.locator('form').get_attribute('method')=='post' and no_script_page.get_by_role('button',name='Отправить тестовую заявку').is_disabled())
+            no_script.close()
             email='s02-'+uuid.uuid4().hex[:10]+'@example.invalid';contacts.append(email)
             # Lead handoff is opaque and has no authentication effect itself.
             page.goto(WEB+'/join');page.locator('input[name=email]').fill(email);page.locator('input[name=service]').check();page.get_by_role('button',name='Отправить тестовую заявку').click();expect(page.get_by_role('status')).to_contain_text('Заявка сохранена')
@@ -359,6 +368,7 @@ def main():
             tb=tb.tb_next
         if tb:record['error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
         if isinstance(exc,RuntimeError) and str(exc).startswith('CHECK_FAILED:'):record['failed_case']=str(exc).split(':',1)[1]
+        record['safe_http_trace']=[item for proxy in proxies for item in getattr(proxy,'safe_trace',[])][-50:]
         if logs:
             logs.flush();logs.seek(0);diagnostics=[]
             for line in logs:

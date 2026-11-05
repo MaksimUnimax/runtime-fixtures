@@ -1,5 +1,8 @@
 """Private CA and loopback HTTPS proxy for an isolated browser qualification."""
 import datetime
+import json
+import re
+from urllib.parse import urlsplit
 import http.client
 import http.server
 import ipaddress
@@ -46,6 +49,12 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             status=response.status
             hook=getattr(self.server,'result_hook',None)
             if hook:status,body=hook(self.path,status,body)
+            trace={'backend':self.server.backend,'method':self.command,'path':urlsplit(self.path).path,'status':status}
+            if getattr(response,'headers',{}).get('Content-Type','').startswith('application/json'):
+                try:code=json.loads(body).get('code')
+                except (ValueError,AttributeError):code=None
+                if isinstance(code,str) and re.fullmatch(r'[A-Z_]{1,64}',code):trace['code']=code
+            self.server.safe_trace.append(trace)
             self.send_response(status)
             for key,value in response.getheaders():
                 if key.lower() not in {'connection','transfer-encoding','content-length'}:self.send_header(key,value)
@@ -56,7 +65,7 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         finally:connection.close()
 
 def start_proxy(port,backend,cert,key):
-    server=http.server.ThreadingHTTPServer(('127.0.0.1',port),Proxy);server.daemon_threads=True;server.backend=backend
+    server=http.server.ThreadingHTTPServer(('127.0.0.1',port),Proxy);server.daemon_threads=True;server.backend=backend;server.safe_trace=[]
     context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(cert,key)
     server.socket=context.wrap_socket(server.socket,server_side=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -64,6 +73,6 @@ def start_proxy(port,backend,cert,key):
 
 def start_plain_proxy(port,backend):
     server=http.server.ThreadingHTTPServer(('127.0.0.1',port),Proxy)
-    server.daemon_threads=True;server.backend=backend
+    server.daemon_threads=True;server.backend=backend;server.safe_trace=[]
     threading.Thread(target=server.serve_forever,daemon=True).start()
     return server
