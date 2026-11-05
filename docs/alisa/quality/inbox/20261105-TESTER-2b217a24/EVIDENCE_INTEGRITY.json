@@ -1,0 +1,21 @@
+{
+  "run_id": "20261105-TESTER-2b217a24",
+  "observed_replies": 102,
+  "ui_text_checksum_matches": 102,
+  "ui_checksum_algorithm": "FNV-1a-64 for UI/transfer correlation; SHA256 of saved text retained separately",
+  "input_manifest_files": 4,
+  "input_manifest_matches": true,
+  "plan_canonical_sha256": "370f0c80db4174930121c7910564285a78a9603db7a5a3525e7ddad423d99de7",
+  "plan_file_sha256": "b9b0efa0e4b42bfa580f662daf05cdfb153345947f1a8ea0c76e5cb65313c805",
+  "runtime_manifest_sha256": "d2ae6d2b442c6c4b6b699a2b110fe5ed3605f70eb4c0945375e3b997683e9bf1",
+  "runtime_manifest_files": 44,
+  "runtime_manifest_matches": true,
+  "config_sha256": "116fc64c60907de9bcd372f0c4aaffc2b7a421b4c1d32281d72795de65e6c96f",
+  "private_full_transcript_ref": "/var/lib/alice-lab/probe-reports/r3-tester-2b217a24-full-transcript.json",
+  "private_full_transcript_sha256": "eb6a7aa23f87285dbcb161092e3e798b3e1082b1cefafa73e8ee10df44e4f3e7",
+  "private_evidence_ttl_seconds": 86400,
+  "api_repeated_for_documentation": 0,
+  "old_base_139_rerun": false,
+  "station_audio_tested": false,
+  "source_gold_checked": false
+}

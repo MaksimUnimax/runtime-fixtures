@@ -1,0 +1,13 @@
+{
+  "utc": "2026-11-05T04:27:16.998130+00:00",
+  "tests": 970,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "network_attempts": 0,
+  "architecture_violations": {},
+  "dataset_json_only_exit": 0,
+  "runtime_manifest_matches": true,
+  "target_contracts": "installed runtime only; no uninstalled RuntimePort/catalog acceptance",
+  "status": "PASS"
+}
