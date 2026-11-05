@@ -1,0 +1,78 @@
+{
+  "schema": "alisa-qa-run/v1",
+  "run_id": "20261105-TESTER-7d2e9c64",
+  "role": "TESTER",
+  "purpose": "Owner requested one-table unit economics and detailed source/formula explanation",
+  "target_build": "20261105-v010-ads-daily-r1",
+  "catalog_hash": "21c455ab0bbae9595bedb8b0e74fc41a0e804ece5b790f5067c41e5956953d9d",
+  "evidence_level": "LIVE_PROVIDER_PRIVATE_PERIOD_CALCULATION",
+  "started_at_utc": "2026-11-05T03:06:54.354558+00:00",
+  "finished_at_utc": "2026-11-05T03:07:57.046185+00:00",
+  "outcome": "PERIOD_MODEL_CALCULATED_RUNTIME_TEMPLATE_NOT_INSTALLED",
+  "http_calls": 4,
+  "llm_calls": 0,
+  "dialogs_messages": 0,
+  "collection_wall_seconds": 62.692,
+  "http_elapsed_ms_sum": 5262.242,
+  "requests": [
+    {
+      "operation": "ozon_orders",
+      "path": "/v1/analytics/data",
+      "period": "2026-11-04 Europe/Moscow",
+      "http": 200,
+      "elapsed_ms": 5005.447,
+      "response_sha256": "0807b8368499140a7eb2777611d4f567417dda4a14f9faad0874152e8cc42004",
+      "status": "RECEIVED"
+    },
+    {
+      "operation": "ds_ozon_fbo_postings",
+      "path": "/v3/posting/fbo/list",
+      "period": "2026-11-04 Europe/Moscow",
+      "http": 200,
+      "elapsed_ms": 94.041,
+      "response_sha256": "eb2d5d9ec432eda1e606d2d06fd1cc264f10d847cf459c8a25bd3be849730a18",
+      "status": "RECEIVED"
+    },
+    {
+      "operation": "ds_ozon_fbs_postings",
+      "path": "/v4/posting/fbs/list",
+      "period": "2026-11-04 Europe/Moscow",
+      "http": 200,
+      "elapsed_ms": 79.632,
+      "response_sha256": "3e90a93cd9df7abd9501868d92496e351203bc406f686c51c7cb7f8ceb6d0df3",
+      "status": "RECEIVED"
+    },
+    {
+      "operation": "ozon_finance",
+      "path": "/v1/finance/balance",
+      "period": "2026-11-04 Europe/Moscow",
+      "http": 200,
+      "elapsed_ms": 83.122,
+      "response_sha256": "9dde235c0eec14550f33b8a6d9b1dd84820c6b6e7555df7dacc00a493f654c8d",
+      "status": "RECEIVED"
+    }
+  ],
+  "checks": [
+    "Complete FBO+FBS quantity/value match fresh analytics",
+    "Fresh cancelled value and quantity excluded only from revenue/COGS",
+    "All finance fee and seven service lines retained regardless of current order status",
+    "Finance identity and balance identity reconciled",
+    "Finance ad rows equal previously qualified Performance spend and counted once",
+    "Fixed denominator of all originally ordered units",
+    "No realized-unit COGS substituted for owner cancellation policy"
+  ],
+  "known_limits": [
+    "Orders still open: output is period model, not final realized cohort profit",
+    "Returns expense not separately itemized in balance; no deletion of any recorded fee",
+    "Cancellation monetary scalar and unit-economics command still not connected to runtime"
+  ],
+  "own_failure": {
+    "code": "RESEARCH_PRICE_OBJECT_DECIMAL_PARSE",
+    "cause": "First local decoder assumed price scalar; source returned amount/currency object",
+    "resolution": "Replayed the two already RECEIVED and hash-checked responses after correcting decode; no duplicate HTTP requests",
+    "network_unknown_retries": 0
+  },
+  "runtime_changed": false,
+  "platform_changed": false,
+  "raw_data_in_git": false
+}
