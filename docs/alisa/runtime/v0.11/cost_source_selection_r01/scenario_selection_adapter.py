@@ -2,12 +2,17 @@
 No provider access; live use still requires attestation of the produced envelope.
 """
 from copy import deepcopy
-from cost_source_selector import digest,need,SUFFIX
+from cost_source_selector import digest,need,clone,auth,CostSourceSelector,SUFFIX
+from pathlib import Path
+import hashlib
 
 def expand_catalogs(scenario_catalog,gate_catalog,selection_catalog):
     c,g=deepcopy(scenario_catalog),deepcopy(gate_catalog)
     names={name:[name+'_'+SUFFIX[b] for b in rule['priority']]
            for name,rule in selection_catalog['components'].items()}
+    generated=[value for values in names.values()for value in values]
+    need(len(generated)==len(set(generated)) and not (set(generated)&(set(c['sources'])-set(names))),'SELECTION_COMPONENT_COLLISION')
+    need(set(names)<=set(c['sources']),'SELECTION_COMPONENT_MISSING')
     for name,split in names.items():
         source=c['sources'].pop(name)
         for basis,newname in zip(selection_catalog['components'][name]['priority'],split):
@@ -29,7 +34,14 @@ def expand_catalogs(scenario_catalog,gate_catalog,selection_catalog):
     c['version']='20261105-selector-bound-r1';g['version']='20261105-selector-bound-r1'
     return c,g
 
-def expense_envelope(selection,evidence,cohort,context,retained_expenses):
+def expense_envelope(selection,evidence,cohort,context,retained_expenses,*,selector=None,verify=None,now=None):
+    # This execute-time boundary never treats caller-supplied totals as proof.
+    need(isinstance(selector,CostSourceSelector),'SELECTION_VERIFIER_REQUIRED')
+    selection,evidence,cohort,context,retained_expenses=map(clone,(selection,evidence,cohort,context,retained_expenses))
+    need(type(selection)is dict and type(selection.get('pin'))is dict,'SELECTION_RESULT_MISMATCH')
+    expected=selector.select(cohort,evidence,context,verify=verify,now=now,pin=selection['pin'])
+    need(selection==expected,'SELECTION_RESULT_MISMATCH')
+    auth(verify,'retained_expenses',retained_expenses,context,'execute')
     need(selection['status']=='SELECTED' and selection['pin']['evidence_hash']==evidence['sha256']
          and selection['pin']['cohort_hash']==cohort['sha256']
          and selection['pin']['context_hash']==digest(context),'SELECTION_PIN_CHANGED')
@@ -40,7 +52,7 @@ def expense_envelope(selection,evidence,cohort,context,retained_expenses):
     out={k:deepcopy(ep[k]) for k in ('revision','scope_hash','store_entity','currency','period')}
     out.update(schema='alice-scenario-expenses/v1',issued_at=min(ep['issued_at'],cp['issued_at'],old['issued_at']),
                expires_at=min(ep['expires_at'],cp['expires_at'],old['expires_at']),
-               normalization_hash=digest(selection),scenarios={})
+               normalization_hash=digest({'selection':selection,'retained_expenses_hash':retained_expenses['sha256'],'adapter_hash':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}),scenarios={})
     records={r['id']:r for r in ep['records']}
     for sid,selected in selection['scenarios'].items():
         replaced={v['component'] for v in selected['components'].values()}
