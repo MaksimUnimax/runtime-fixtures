@@ -11,7 +11,7 @@ export const metadata = {
     default: 'Алиса Маркет — голосовая аналитика Ozon и Wildberries',
     template: '%s · Алиса Маркет',
   },
-  description: 'Спросите о магазине голосом. Отдельный сервис аналитики Ozon и Wildberries через Яндекс Станцию. Закрытая тестовая версия.',
+  description: 'Спросите о магазине голосом. Отдельный сервис аналитики Ozon и Wildberries через Яндекс Станцию. Предварительная версия.',
   metadataBase: new URL(siteOrigin()),
   alternates: {canonical: '/'},
   robots: {index: false, follow: false},
