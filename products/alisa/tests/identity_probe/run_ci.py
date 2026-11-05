@@ -7,6 +7,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -34,6 +35,9 @@ def main():
     paths=list((PRODUCT/'tests/identity_probe').glob('*.py'))+list((PRODUCT/'tests/identity_probe').glob('requirements.*'))
     identity=PRODUCT/'services/identity/src/octoport_identity'
     paths+=list(identity.glob('__init__.py'))+list((identity/'accounts').glob('*.py'))+list((identity/'accounts/migrations').glob('*.py'))
+    # AccountsConfig registers the native-MFA receiver from this package. Keep
+    # its actual source dependency in the isolated projection as well.
+    paths+=list((identity/'protocol').glob('*.py'))
     hashes={}
     for p in paths:
         if p.is_symlink():raise RuntimeError('Source symlink refused')
@@ -86,7 +90,11 @@ def main():
             result=run([root/'venv/bin/python',source/'tests/identity_probe/run_probe.py',output],probe_env,False)
             (root/(mode+'.private.log')).write_text(result.stdout+result.stderr);(root/(mode+'.private.log')).chmod(0o600)
             proof[mode+'_exit_code']=result.returncode
-            if result.returncode!=0:raise RuntimeError('Candidate probe failed: '+mode)
+            if result.returncode!=0:
+                private_text=result.stdout+result.stderr
+                proof['safe_error_classes']=sorted(set(re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)):',private_text)))
+                proof['missing_source_modules']=sorted(set(re.findall(r"No module named '([A-Za-z0-9_.]+)'",private_text)))
+                raise RuntimeError('Candidate probe failed: '+mode)
         hardened=json.loads((OUT/'hardened.json').read_text())
         if hardened['status']!='PROBE_PASSED':raise RuntimeError('Required candidate policies remain unqualified')
         proof['status']='PROVIDER_CORE_QUALIFIED_NOT_S02_ACCEPTANCE'

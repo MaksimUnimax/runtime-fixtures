@@ -435,7 +435,7 @@ def main():
                 from qualify_staff_browser import run as run_staff_browser
                 run_staff_browser(browser=browser,context=context,second_context=second_context,db=db,manage=manage,
                     check=check,origin=staff_origin,issuer=ISSUER,private_values=private_values,owner_email=email,
-                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path)
+                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record)
             logs.flush();text=(temp/'private-process.log').read_text()
             check('s02_private_logs_have_no_known_codes_tokens_contacts',all(v not in text for v in [*contacts,*private_values] if v) and not re.search(r'eyJ[A-Za-z0-9_-]+\.|[A-Za-z0-9_.+-]+@example\.invalid',text))
             second_context.close();context.close();browser.close();browser=None
@@ -454,13 +454,14 @@ def main():
         if tb:record['error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
         if isinstance(exc,RuntimeError) and str(exc).startswith('CHECK_FAILED:'):record['failed_case']=str(exc).split(':',1)[1]
         record['safe_http_trace']=[item for proxy in proxies for item in getattr(proxy,'safe_trace',[])][-50:]
+        record['safe_http_trace_by_backend']={str(proxy.backend):getattr(proxy,'safe_trace',[])[-15:] for proxy in proxies}
         if logs:
             logs.flush();logs.seek(0);diagnostics=[]
             for line in logs:
                 if not line.startswith('{'):continue
                 try:item=json.loads(line)
                 except ValueError:continue
-                if item.get('event')=='alisa.auth.failure' and set(item)=={'event','stage','code'}:diagnostics.append(item)
+                if item.get('event') in {'alisa.auth.failure','alisa.staff.auth.failure'} and set(item)=={'event','stage','code'}:diagnostics.append(item)
             record['safe_auth_diagnostics']=diagnostics[-10:]
             logs.seek(0);private_text=logs.read()
             record['safe_process_error_classes']=sorted(set(re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)):',private_text)))

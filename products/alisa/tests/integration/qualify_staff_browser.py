@@ -6,6 +6,7 @@ import json
 import re
 import time
 import uuid
+from urllib.parse import urlsplit
 
 import jwt
 from playwright.sync_api import expect
@@ -18,7 +19,7 @@ def totp(secret):
 
 
 def run(*, browser, context, second_context, db, manage, check, origin, issuer,
-        private_values, owner_email, reader_email, authority_proxy, private_key, token_path):
+        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record):
     def subject(email):
         with db('identity') as conn:
             person = conn.execute('SELECT p.id FROM accounts_person p JOIN account_emailaddress e ON e.user_id=p.id WHERE e.email=%s AND e.verified=true AND p.is_active=true', [email]).fetchone()
@@ -34,15 +35,29 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
     manage('platform',['bootstrap_staff_owner','--apply','--subject',owner_sub,'--name','Test Owner'])
     check('s03_owner_closed_bootstrap_uses_verified_admin_client_subject',True)
 
+    observed_pages=set()
     def begin(page):
+        record['staff_browser_phase']='begin'
+        if id(page) not in observed_pages:
+            observed_pages.add(id(page))
+            def observe(response):
+                if not response.request.is_navigation_request():return
+                target=urlsplit(response.url)
+                if target.hostname not in {'127.0.0.1','localhost'}:return
+                trace=record.setdefault('safe_staff_navigation',[])
+                trace.append({'origin':'authority' if target.netloc==urlsplit(issuer).netloc else 'admin','path':target.path,'status':response.status})
+                del trace[:-12]
+            page.on('response',observe)
         page.goto(origin+'/login')
         page.get_by_role('button',name='Войти с MFA',exact=True).click()
         page.wait_for_url(re.compile(re.escape(issuer)+r'/'))
 
     def enroll(page):
         begin(page)
+        record['staff_browser_phase']='require_first_factor'
         expect(page.get_by_role('heading',name='Защищённый вход в админку')).to_be_visible()
         page.get_by_role('link',name='Настроить аутентификатор').click()
+        record['staff_browser_phase']='enroll_totp'
         secret = page.locator('#authenticator_secret').input_value()
         private_values.append(secret)
         value = totp(secret);private_values.append(value)
@@ -56,6 +71,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
 
     def login(page, factor, accepted=True):
         begin(page)
+        record['staff_browser_phase']='native_factor'
         expect(page.locator('input[name=code]')).to_be_visible()
         private_values.append(factor)
         page.locator('input[name=code]').fill(factor)
