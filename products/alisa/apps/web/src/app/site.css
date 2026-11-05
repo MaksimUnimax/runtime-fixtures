@@ -258,9 +258,10 @@ footer p { margin-bottom: 0; }
   .banner h2 { font-size: 25px; }
 }
 @media (max-width: 380px) {
-  .brand { gap: 7px; font-size: 18px; }
+  .brand { gap: 7px; font-size: 17px; }
   .brand img { width: 26px; height: 26px; }
-  .login-link, .site-menu > summary { padding: 9px; }
+  header { gap: 8px; }
+  .login-link, .site-menu > summary { padding: 8px; font-size: 13px; }
   .site-menu > summary::before { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
