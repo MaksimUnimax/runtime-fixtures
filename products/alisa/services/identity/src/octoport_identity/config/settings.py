@@ -81,7 +81,7 @@ ACCOUNT_LOGIN_BY_CODE_REQUIRED=True
 ACCOUNT_LOGIN_BY_CODE_TIMEOUT=600
 ACCOUNT_LOGIN_BY_CODE_MAX_ATTEMPTS=5
 ACCOUNT_PREVENT_ENUMERATION=True
-ACCOUNT_RATE_LIMITS={'request_login_code':'5/m/key','login_failed':'5/m/key','signup':'5/m/ip'}
+ACCOUNT_RATE_LIMITS={'request_login_code':'5/m/key,20/m/ip','login_failed':'5/m/key','signup':'5/m/ip'}
 LOGIN_REDIRECT_URL='/accounts/'
 ACCOUNT_LOGOUT_REDIRECT_URL='/accounts/login/'
 SESSION_COOKIE_NAME='__Host-alisa_identity'
@@ -131,9 +131,14 @@ LOGGING={'version':1,'disable_existing_loggers':False,'handlers':{'console':{'cl
          'loggers':{'django.request':{'handlers':['console'],'level':'CRITICAL','propagate':False},
                     'oauthlib':{'handlers':['console'],'level':'CRITICAL','propagate':False}}}
 
-# An explicit closed-test invitation, not public registration or email-based account linking.
+# Real-email admission is explicit. Existing accounts are never merged by email.
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+REAL_LOGIN_OPEN=os.environ.get('ALISA_REAL_LOGIN_OPEN','0')=='1'
+if os.environ.get('ALISA_REAL_LOGIN_OPEN','0') not in {'0','1'}:
+    raise ImproperlyConfigured('Invalid real-login admission mode')
+if REAL_LOGIN_OPEN and ALISA_ENV not in {'stage','dev'}:
+    raise ImproperlyConfigured('Real-login mode is not enabled for this environment')
 REAL_LOGIN_RECIPIENTS=frozenset(x.strip().lower() for x in os.environ.get('ALISA_REAL_LOGIN_RECIPIENTS','').split(',') if x.strip())
 try:
     if len(REAL_LOGIN_RECIPIENTS)>20:raise ValueError()
@@ -145,7 +150,7 @@ except (ValidationError,ValueError):
     raise ImproperlyConfigured('Invalid closed-test login recipients') from None
 
 REAL_SMTP=None
-if REAL_LOGIN_RECIPIENTS:
+if REAL_LOGIN_OPEN or REAL_LOGIN_RECIPIENTS:
     from pathlib import Path
     import stat
     try:

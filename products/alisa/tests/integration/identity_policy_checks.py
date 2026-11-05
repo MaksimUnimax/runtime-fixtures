@@ -74,15 +74,17 @@ def mail_policies():
             expires_at=django.utils.timezone.now()+timedelta(minutes=10),**values)
         owned.append(row.pk);return row
     try:
-        with override_settings(REAL_LOGIN_RECIPIENTS={'invited@example.test'}):
+        with override_settings(REAL_LOGIN_OPEN=False,REAL_LOGIN_RECIPIENTS={'invited@example.test'}):
             check('s02_real_mail_invited_contact_normalized',AccountAdapter().clean_email('Invited@Example.Test')=='invited@example.test')
             try:AccountAdapter().clean_email('other@example.test');denied=False
             except ValidationError:denied=True
             check('s02_real_mail_uninvited_contact_denied',denied)
-        with override_settings(REAL_LOGIN_RECIPIENTS=frozenset()):
+        with override_settings(REAL_LOGIN_OPEN=False,REAL_LOGIN_RECIPIENTS=frozenset()):
             try:AccountAdapter().clean_email('invited@example.test');denied=False
             except ValidationError:denied=True
             check('s02_real_mail_off_by_default',denied)
+        with override_settings(REAL_LOGIN_OPEN=True,REAL_LOGIN_RECIPIENTS=frozenset()):
+            check('s02_open_registration_accepts_new_real_contact',AccountAdapter().clean_email('Fresh@Example.Test')=='fresh@example.test')
         with patch('octoport_identity.accounts.management.commands.identity_deliver.deliver_mail',return_value='DELIVERY_OUTCOME_UNKNOWN') as send:
             row=queued();Command().deliver();row.refresh_from_db();Command().deliver()
             check('s02_unknown_delivery_never_automatically_replayed',send.call_count==1 and row.attempts==5 and not row.encrypted_payload and row.error_code=='DELIVERY_OUTCOME_UNKNOWN')
