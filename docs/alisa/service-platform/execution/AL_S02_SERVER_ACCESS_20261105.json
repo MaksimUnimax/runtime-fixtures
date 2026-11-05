@@ -1,0 +1,36 @@
+{
+  "record_type": "AL_S02_SERVER_ACCESS_AND_PUBLIC_READBACK",
+  "recorded_at_utc": "2026-11-05T02:16:54.508954+00:00",
+  "rdc": {
+    "device_id": "89049fc7-4160-4636-9ad7-89c31f9bcb32",
+    "host": "185.244.51.141",
+    "inventory_status": "Offline",
+    "inventory_last_seen": "31m ago",
+    "action": "Read-only private stage preflight and retrieval of third disposable probe receipt",
+    "status": "WAITING_CONNECTION",
+    "reason": "Alisa device is offline in the connected Desktop Commander inventory; two earlier read waits were cancelled. This is not an automatic approval-review rejection.",
+    "pending_mutating_operation": false,
+    "fourth_server_probe_started": false,
+    "other_devices_used": false,
+    "resume_condition": "Alisa device Online with a fresh last-seen time; first inspect existing results and own processes before any later action.",
+    "next_single_inventory_window_utc": "2026-11-05T02:30:00Z"
+  },
+  "public_https": [
+    {
+      "checked_at_utc": "2026-11-05T02:14:01.610511+00:00",
+      "path": "/",
+      "http_status": 200,
+      "expected_home_text_present": true,
+      "tls_verification_bypassed": false
+    },
+    {
+      "checked_at_utc": "2026-11-05T02:14:05.356646+00:00",
+      "path": "/health/ready",
+      "http_status": 200,
+      "release": "alisa-8d680f775c8ccdf2",
+      "status": "READY",
+      "tls_verification_bypassed": false
+    }
+  ],
+  "continuation": "Source qualification continued on isolated CI; no live authority expansion or repeated deployment."
+}
