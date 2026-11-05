@@ -18,6 +18,16 @@ def totp(secret):
     return str((int.from_bytes(raw[offset:offset+4],'big') & 0x7fffffff) % 1000000).zfill(6)
 
 
+def fresh_totp(secret, previous):
+    # Native TOTP is one-use per time step. Wait for the next real value;
+    # never change the verifier's clock or reuse a consumed value.
+    for _ in range(160):
+        value=totp(secret)
+        if value!=previous:return value
+        time.sleep(.2)
+    raise RuntimeError('Fresh native TOTP interval did not arrive')
+
+
 def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record):
     def subject(email):
@@ -63,11 +73,19 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         value = totp(secret);private_values.append(value)
         page.locator('input[name=code]').fill(value)
         page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').click()
+        page.wait_for_url(re.compile(re.escape(issuer)+r'/accounts/2fa/(recovery-codes/|reauthenticate/)'))
+        record['staff_browser_phase']='recovery_view_native_step_up'
+        reauth_needed=urlsplit(page.url).path=='/accounts/2fa/reauthenticate/'
+        if reauth_needed:
+            value=totp(secret);private_values.append(value)
+            page.locator('input[name=code]').fill(value)
+            page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').click()
         expect(page.locator('#recovery_codes')).to_be_visible()
+        if reauth_needed:check('s03_native_browser_recovery_view_requires_factor_step_up',True)
         recovery = page.locator('#recovery_codes').input_value().strip().splitlines()
         private_values.extend(recovery)
         check('s03_native_browser_totp_enrollment_and_recovery_codes',len(recovery)>=6)
-        return secret,recovery
+        return secret,recovery,value
 
     def login(page, factor, accepted=True):
         begin(page)
@@ -83,8 +101,8 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
             expect(page).to_have_url(re.compile(re.escape(origin)+r'/login\?error=AUTH_FAILED'))
 
     owner_page = context.new_page()
-    secret, owner_recovery = enroll(owner_page)
-    login(owner_page,totp(secret))
+    secret, owner_recovery, used_value = enroll(owner_page)
+    login(owner_page,fresh_totp(secret,used_value))
     check('s03_real_https_native_mfa_oidc_bff_api_postgresql_admin',True)
     expect(owner_page.get_by_role('button',name=owner_label,exact=True)).to_be_visible()
     expect(owner_page.get_by_role('button',name=reader_email,exact=True)).to_be_visible()
@@ -120,8 +138,8 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
 
     # A normal customer completes native MFA but still receives no staff role.
     reader_page = second_context.new_page()
-    reader_secret, reader_recovery = enroll(reader_page)
-    login(reader_page,totp(reader_secret),False)
+    reader_secret, reader_recovery, _ = enroll(reader_page)
+    login(reader_page,reader_recovery[0],False)
     check('s03_ordinary_customer_with_valid_mfa_still_has_no_admin',not any(c['name']=='__Host-alisa_staff' for c in second_context.cookies()))
     owner_page.get_by_role('button',name='Сотрудники',exact=True).click()
     owner_page.locator('input[name=subject]').fill(reader_sub)
@@ -130,7 +148,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
     owner_page.get_by_role('button',name='Назначить',exact=True).click()
     expect(owner_page.get_by_role('status')).to_contain_text('Изменение сохранено')
     check('s03_owner_assigns_limited_admin_through_real_ui',True)
-    login(reader_page,reader_recovery[0])
+    login(reader_page,reader_recovery[1])
     expect(reader_page.get_by_role('button',name=owner_label,exact=True)).to_be_visible()
     reader_page.get_by_role('button',name=owner_label,exact=True).click()
     expect(reader_page.locator('section[aria-label="Карточка клиента"]')).to_be_visible()
@@ -142,7 +160,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
 
     another = browser.new_context(ignore_https_errors=False)
     another.add_cookies([c for c in second_context.cookies() if c['domain']=='localhost'])
-    another_page = another.new_page();login(another_page,reader_recovery[1])
+    another_page = another.new_page();login(another_page,reader_recovery[2])
     check('s03_same_limited_staff_has_two_independently_authenticated_browsers',True)
     # Revoke that member through the actual UI, then refresh both contexts.
     owner_page.get_by_role('button',name='Сотрудники',exact=True).click()
