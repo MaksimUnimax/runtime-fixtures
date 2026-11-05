@@ -22,7 +22,8 @@ AUTH_USER_MODEL = "accounts.Person"
 MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "octoport_identity.protocol.middleware.IdentityPolicy",
               "django.contrib.sessions.middleware.SessionMiddleware", "django.middleware.common.CommonMiddleware",
               "django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware",
-              "django.contrib.messages.middleware.MessageMiddleware", "allauth.account.middleware.AccountMiddleware"]
+              "django.contrib.messages.middleware.MessageMiddleware", "allauth.account.middleware.AccountMiddleware",
+              "octoport_identity.protocol.staff.StaffMFAPolicy"]
 ROOT_URLCONF = "octoport_identity.config.urls"
 WSGI_APPLICATION = "octoport_identity.config.wsgi.application"
 DATABASES = {"default": {
@@ -107,6 +108,23 @@ EMAIL_TIMEOUT=4
 EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend'
 DEFAULT_FROM_EMAIL='alisa-identity@example.invalid'
 IDENTITY_PRODUCT_ORIGIN=os.environ.get('ALISA_PRODUCT_ORIGIN','https://alisa-stage.octoport.ru')
+IDENTITY_STAFF_ENABLED=os.environ.get('ALISA_STAFF_ENABLED')=='1'
+IDENTITY_STAFF_CLIENT_ID=os.environ.get('ALISA_STAFF_OIDC_CLIENT_ID','')
+IDENTITY_STAFF_CALLBACK=os.environ.get('ALISA_STAFF_OIDC_REDIRECT_URI','')
+if IDENTITY_STAFF_ENABLED:
+    import re
+    from urllib.parse import urlsplit
+    if not IDENTITY_ENABLED or not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}',IDENTITY_STAFF_CLIENT_ID):
+        raise ImproperlyConfigured('Dedicated staff identity client required')
+    u=urlsplit(IDENTITY_STAFF_CALLBACK)
+    if u.path!='/auth/callback' or u.query or u.fragment or u.username or u.password:
+        raise ImproperlyConfigured('Invalid staff callback')
+    if ALISA_ENV=='stage' and (IDENTITY_STAFF_CLIENT_ID!='alisa_admin_stage' or IDENTITY_STAFF_CALLBACK!='https://alisa-admin-stage.octoport.ru/auth/callback'):
+        raise ImproperlyConfigured('Wrong stage staff client')
+    if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'127.0.0.1','localhost'}):
+        raise ImproperlyConfigured('Dev staff callback must be loopback')
+    if IDENTITY_STAFF_CLIENT_ID in {os.environ.get('ALISA_WEB_OIDC_CLIENT_ID'),os.environ.get('ALISA_PROBE_OIDC_CLIENT_ID')}:
+        raise ImproperlyConfigured('Staff client must be separate')
 if IDENTITY_ENABLED and EMAIL_HOST not in {'localhost','127.0.0.1'}:raise ImproperlyConfigured('Private synthetic SMTP required')
 DATA_UPLOAD_MAX_MEMORY_SIZE=16384
 LOGGING={'version':1,'disable_existing_loggers':False,'handlers':{'console':{'class':'logging.StreamHandler'}},

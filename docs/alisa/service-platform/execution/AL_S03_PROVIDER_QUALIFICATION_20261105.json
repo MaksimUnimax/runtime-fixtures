@@ -1,0 +1,488 @@
+{
+  "environment": {
+    "record_type": "AL_S02_CI_DISPOSABLE_ENVIRONMENT",
+    "source_sha": "731c1d20b0a629b3fb94c12069a5f0ad7a59ed8b",
+    "started_at_utc": "2026-11-05T07:45:40.846768+00:00",
+    "source_hashes": {
+      "tests/identity_probe/__init__.py": "52ec7ce389268fead8f1f19c87568dae94de82f34be0f133e40b9cbeca66d915",
+      "tests/identity_probe/run_ci.py": "af4069bbf544512e324b16d4a58d187f17c014231e8a284578d8b525de9eaf04",
+      "tests/identity_probe/run_isolated.py": "b2d3e9cf7187e4cd7b51ad044d355804fcc648cf3e09a38c3b241d1aa56beb11",
+      "tests/identity_probe/policy.py": "554e6babe2211eb95112cd95ed5172fcef4c0e9ddf49394307cbf9ab050f366d",
+      "tests/identity_probe/run_probe.py": "0b20c9a6ee7139582fef0d45ddca89c9f17d0e296f96335b831ba31218c01985",
+      "tests/identity_probe/urls.py": "ee83a1de4951993b47035a04bd97f906ea1408ac5de7bc4bee64515d2764f608",
+      "tests/identity_probe/settings.py": "175f8936ca5697a148d3d3e9a9d4d2fa17ada2706dc4ef6ea19cf0df84faf060",
+      "tests/identity_probe/requirements.in": "ab88c6530d1c3fedb33dc0ed80cec8893972e35d94cef7135786055ffcc57068",
+      "tests/identity_probe/requirements.lock": "220a9c63706ff9511d0acd00f7d40203a180a2f385d719e16bca8842527d5f88",
+      "services/identity/src/octoport_identity/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/identity/src/octoport_identity/accounts/apps.py": "d1ee65c165f302c86a6d2eaf6348bba21e58f9973aa2b8254b07c7a43876b229",
+      "services/identity/src/octoport_identity/accounts/models.py": "0330f6c29128c2462a3a0c86d13d8d9de8f85630cac76205770a94b64b3555d3",
+      "services/identity/src/octoport_identity/accounts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/identity/src/octoport_identity/accounts/migrations/0001_initial.py": "73d2b8459c27a7693474f1c65d8eab241f52c8b0024a459fb9bbdbb48f811446",
+      "services/identity/src/octoport_identity/accounts/migrations/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "services/identity/src/octoport_identity/accounts/migrations/0002_identitymail_protocolcache_identityconsent_subject.py": "a6bdcb9eb99440d817dd5dcab71765c85b0c2f58414dc007291815e8b4b55504",
+      "services/identity/src/octoport_identity/protocol/storage.py": "a2c0dca19411ff1df712c700a5fb7ef6aab4aea34b54adbe3e88e2d9a98af817",
+      "services/identity/src/octoport_identity/protocol/forms.py": "ed773937109ebc41f8d9809d9798e5a22a1985331bb6bd7eef43366df0961468",
+      "services/identity/src/octoport_identity/protocol/middleware.py": "f1fb6cf348a83c77ea818cb6340c55d64d5bbe00a84960ad7cb1e8c39421ffa8",
+      "services/identity/src/octoport_identity/protocol/views.py": "88ae09b81e78544e6cafb064295ced43759aec546074bdbb969b7d8947884a8a",
+      "services/identity/src/octoport_identity/protocol/__init__.py": "ef15f53951f0e6feab5dc0ea1b2247fc07aaf6f4ff016bf0432e3bee357a0723",
+      "services/identity/src/octoport_identity/protocol/adapter.py": "d6dde105be2855c8e9196901f453591a74d6adfb2e71e6ae0a7c2589956ce785",
+      "services/identity/src/octoport_identity/protocol/staff.py": "d9b8627c19a2638e36fff19e1e0966b2443a3d049cbb23958b124bcdbe21c663"
+    },
+    "postgres_image": "postgres:16.15@sha256:5db6dac2ef5dcff512f4f00a009c3c332b9f2f28f24277175bf3e4a3d02ef83a",
+    "docker_network": "none",
+    "live_database_or_credentials_access": false,
+    "status": "PROVIDER_CORE_QUALIFIED_NOT_S02_ACCEPTANCE",
+    "phase": "hardened",
+    "postgres_image_digests": [
+      "postgres@sha256:5db6dac2ef5dcff512f4f00a009c3c332b9f2f28f24277175bf3e4a3d02ef83a"
+    ],
+    "actual_container_network": "none",
+    "actual_host_port_bindings": {},
+    "baseline_exit_code": 0,
+    "hardened_exit_code": 0,
+    "cleanup": [
+      {
+        "object": "own_disposable_container",
+        "removed": true
+      }
+    ],
+    "finished_at_utc": "2026-11-05T07:46:04.098025+00:00"
+  },
+  "baseline": {
+    "record_type": "AL_S02_PROVIDER_CANDIDATE_PROBE",
+    "candidate": "django-allauth==65.21.1",
+    "django": "5.2.19",
+    "database": "Private disposable PostgreSQL cluster; unix socket only; no stage/live database",
+    "email": "Django in-memory backend, example.invalid only; not SMTP/real delivery acceptance",
+    "started_at_utc": "2026-11-05T07:45:56.926480+00:00",
+    "finished_at_utc": "2026-11-05T07:45:59.909978+00:00",
+    "status": "REQUIRES_POLICY_ADAPTERS",
+    "mode": "unmodified_candidate",
+    "observations": [
+      {
+        "check": "existing_uuid_person_and_allauth_migrations",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "email_login_code_generated_without_external_mail",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "email_code_bound_to_issuing_browser",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "wrong_email_code_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "library_email_code_creates_identity_session",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "host_only_secure_httponly_lax_identity_cookie",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "used_email_code_denied_after_logout",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "fresh_login_preserves_same_person",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "expired_email_code_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "five_wrong_email_codes_exhaust_stage",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "discovery_uses_expected_issuer",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "discovery_advertises_s256",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "noncanonical_host_cannot_change_issuer",
+        "passed": false,
+        "kind": "required_policy"
+      },
+      {
+        "check": "library_authorization_code_and_state_echo",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "s256_code_exchange",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "signed_issuer_audience_expiry_subject_nonce",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "authorization_code_one_use",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "authorization_code_atomic_across_workers",
+        "passed": false,
+        "kind": "required_policy"
+      },
+      {
+        "check": "wrong_pkce_verifier_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "public_client_requires_pkce",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "plain_pkce_method_denied",
+        "passed": false,
+        "kind": "required_policy"
+      },
+      {
+        "check": "confidential_client_requires_pkce",
+        "passed": false,
+        "kind": "required_policy"
+      },
+      {
+        "check": "observed_confidential_non_pkce_exchange",
+        "passed": true,
+        "kind": "baseline_observation"
+      },
+      {
+        "check": "authorization_post_cannot_bypass_s256",
+        "passed": false,
+        "kind": "required_policy"
+      },
+      {
+        "check": "legitimate_signed_consent_still_works",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "second_client_has_own_audience",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "second_client_token_rejected_by_first_client",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "wrong_issuer_denied_by_jwt_library",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "tampered_signature_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "expired_token_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "unregistered_callback_not_followed",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "rotation_publishes_both_keys",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "rotation_changes_active_signing_key",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "old_and_new_tokens_validate_during_rotation",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "library_totp_factor_validates",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "library_totp_factor_replay_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "identity_logout_clears_session",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "no_product_tables_created",
+        "passed": true,
+        "kind": "capability"
+      }
+    ],
+    "required_policy_gaps": [
+      "noncanonical_host_cannot_change_issuer",
+      "authorization_code_atomic_across_workers",
+      "plain_pkce_method_denied",
+      "confidential_client_requires_pkce",
+      "authorization_post_cannot_bypass_s256"
+    ],
+    "capability_failures": [],
+    "error_type": null,
+    "error_module": null,
+    "error_location": null,
+    "not_proven": [
+      "Real browser and TLS",
+      "BFF callback state/nonce storage/consumption and product session",
+      "Separate-process networked IdP deployment and service restart",
+      "Registration/tenant idempotency and second-client product data denial",
+      "Browser MFA enrollment/login and RP-initiated logout policy",
+      "Real controlled email delivery"
+    ],
+    "runtime_changed": false,
+    "live_services_or_databases_changed": false
+  },
+  "hardened": {
+    "record_type": "AL_S02_PROVIDER_CANDIDATE_PROBE",
+    "candidate": "django-allauth==65.21.1",
+    "django": "5.2.19",
+    "database": "Private disposable PostgreSQL cluster; unix socket only; no stage/live database",
+    "email": "Django in-memory backend, example.invalid only; not SMTP/real delivery acceptance",
+    "started_at_utc": "2026-11-05T07:46:00.816398+00:00",
+    "finished_at_utc": "2026-11-05T07:46:03.301875+00:00",
+    "status": "PROBE_PASSED",
+    "mode": "hardened_candidate",
+    "observations": [
+      {
+        "check": "existing_uuid_person_and_allauth_migrations",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "email_login_code_generated_without_external_mail",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "email_code_bound_to_issuing_browser",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "wrong_email_code_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "library_email_code_creates_identity_session",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "host_only_secure_httponly_lax_identity_cookie",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "used_email_code_denied_after_logout",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "fresh_login_preserves_same_person",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "expired_email_code_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "five_wrong_email_codes_exhaust_stage",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "discovery_uses_expected_issuer",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "discovery_advertises_s256",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "noncanonical_host_cannot_change_issuer",
+        "passed": true,
+        "kind": "required_policy"
+      },
+      {
+        "check": "library_authorization_code_and_state_echo",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "s256_code_exchange",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "signed_issuer_audience_expiry_subject_nonce",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "authorization_code_one_use",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "authorization_code_atomic_across_workers",
+        "passed": true,
+        "kind": "required_policy"
+      },
+      {
+        "check": "wrong_pkce_verifier_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "public_client_requires_pkce",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "plain_pkce_method_denied",
+        "passed": true,
+        "kind": "required_policy"
+      },
+      {
+        "check": "confidential_client_requires_pkce",
+        "passed": true,
+        "kind": "required_policy"
+      },
+      {
+        "check": "authorization_post_cannot_bypass_s256",
+        "passed": true,
+        "kind": "required_policy"
+      },
+      {
+        "check": "legitimate_signed_consent_still_works",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "second_client_has_own_audience",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "second_client_token_rejected_by_first_client",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "wrong_issuer_denied_by_jwt_library",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "tampered_signature_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "expired_token_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "unregistered_callback_not_followed",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "rotation_publishes_both_keys",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "rotation_changes_active_signing_key",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "old_and_new_tokens_validate_during_rotation",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "library_totp_factor_validates",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "library_totp_factor_replay_denied",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "identity_logout_clears_session",
+        "passed": true,
+        "kind": "capability"
+      },
+      {
+        "check": "no_product_tables_created",
+        "passed": true,
+        "kind": "capability"
+      }
+    ],
+    "required_policy_gaps": [],
+    "capability_failures": [],
+    "error_type": null,
+    "error_module": null,
+    "error_location": null,
+    "not_proven": [
+      "Real browser and TLS",
+      "BFF callback state/nonce storage/consumption and product session",
+      "Separate-process networked IdP deployment and service restart",
+      "Registration/tenant idempotency and second-client product data denial",
+      "Browser MFA enrollment/login and RP-initiated logout policy",
+      "Real controlled email delivery"
+    ],
+    "runtime_changed": false,
+    "live_services_or_databases_changed": false
+  }
+}

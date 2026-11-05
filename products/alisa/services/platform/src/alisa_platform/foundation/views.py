@@ -48,6 +48,10 @@ def ready(request):
             if settings.ACCOUNTS_ENABLED:
                 cursor.execute('SELECT 1 FROM accounts_customer LIMIT 1')
                 cursor.execute('SELECT 1 FROM accounts_websession LIMIT 1')
+            if settings.STAFF_ENABLED:
+                cursor.execute('SELECT 1 FROM staff_staffmember LIMIT 1')
+                cursor.execute('SELECT 1 FROM staff_staffsession LIMIT 1')
+                cursor.execute('SELECT 1 FROM staff_staffauditevent LIMIT 1')
         return reply({"component": "platform", "status": "READY", "runtime": "RUNTIME_NOT_CONNECTED"})
     except DatabaseError:
         return reply({"code": "DATABASE_UNAVAILABLE"}, 503)
