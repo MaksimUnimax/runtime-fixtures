@@ -1,0 +1,20 @@
+{
+  "schema": "alisa-independent-synthetic-gold/v1",
+  "template_id": "ozon_customer_price_by_order_date_v1",
+  "kind": "synthetic_only_no_marketplace_data",
+  "prepared_by": "independent_read_only_reviewer",
+  "currency": "RUB",
+  "original_ordered_units": 4,
+  "store_scope": "SYNTHETIC_STORE_A",
+  "positive_lines": [
+    {"store_scope":"SYNTHETIC_STORE_A","accrual_id":"A","posting":"P1","sku":"SKU1","quantity":2,"sale_price_line_amount":"1600.00"},
+    {"store_scope":"SYNTHETIC_STORE_A","accrual_id":"B","posting":"P2","sku":"SKU2","quantity":1,"sale_price_line_amount":"900.00"}
+  ],
+  "excluded_duplicate": {"store_scope":"SYNTHETIC_STORE_A","accrual_id":"A","posting":"P1","sku":"SKU1","quantity":2,"sale_price_line_amount":"1600.00"},
+  "excluded_cross_store_line": {"store_scope":"SYNTHETIC_STORE_B","accrual_id":"X","posting":"P1","sku":"SKU1","quantity":2,"sale_price_line_amount":"5000.00"},
+  "separate_return": {"accrual_id":"R","quantity":1,"signed_line_amount":"-800.00"},
+  "partial_expected": {"matched_positive_units":3,"buyer_sale_amount":"2500.00","observed_average":"833.33","coverage_pct":"75.00","whole_cohort_average":null,"return_signed_amount_separate":"-800.00"},
+  "late_positive_line": {"store_scope":"SYNTHETIC_STORE_A","accrual_id":"C","posting":"P3","sku":"SKU3","quantity":1,"sale_price_line_amount":"700.00"},
+  "complete_expected": {"matched_positive_units":4,"buyer_sale_amount":"3200.00","observed_average":"800.00","coverage_pct":"100.00","whole_cohort_average":"800.00"},
+  "acceptance_boundary": "Arithmetic example reviewed independently; not a live provider, runtime binding or Yandex Dialogs acceptance. Whole mean still requires qualified order axis and source completeness."
+}
