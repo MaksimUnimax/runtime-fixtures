@@ -160,7 +160,7 @@ def prepare_batch(token, batch_id, preview_id):
 @transaction.atomic
 def apply_item(token, batch_id, item_id, command_id):
     actor = actor_locked(token)
-    batch = AccessBatch.objects.select_for_update().select_related('preview').get(pk=batch_id, product_id=PRODUCT)
+    batch = AccessBatch.objects.select_for_update(of=('self',)).select_related('preview').get(pk=batch_id, product_id=PRODUCT)
     if batch.actor_id != actor.pk or batch.actor_revision != actor.revision:
         raise Rejected('FORBIDDEN', 403)
     spec = gift_input(batch.preview.snapshot['spec'], limits(actor))
