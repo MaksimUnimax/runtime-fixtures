@@ -172,7 +172,7 @@
       "human_label": "Оценка обратной логистики по тарифу API",
       "manual_confirmation_required": false,
       "actual_charge_claim": false,
-      "other_transport": "Conservative full-route estimate when applicability is unknown: direct tariff midpoint + API last-mile amount + FBS first-mile midpoint; matched actual service replaces its estimate. This is an explicit upper-cost scenario, not proof all services occurred."
+      "other_transport": "Full-route forecast when applicability is unknown: direct tariff midpoint + API last-mile amount + FBS first-mile midpoint; matched actual service replaces its estimate. This is not a mathematical upper bound and not proof all services occurred."
     },
     "missing_return_tariff": "If API has no amount, look up official tariff for same scheme/category/date; use midpoint only for a real min/max tariff interval. If still absent -> missing_return_tariff with endpoint/field/reason, PARTIAL, never an invented zero",
     "acquiring": "Use actual matched amount, else explicit acquiring API amount; never infer fixed percent from total debit or prorate a current amount silently",
