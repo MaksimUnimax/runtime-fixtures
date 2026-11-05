@@ -35,7 +35,7 @@
       "tls_verification_bypassed": false
     }
   ],
-  "continuation": "Exact S02 installed and checked under owner approval; full step BLOCKED only on unproven systemd egress witness; no nft fallback applied.",
+  "continuation": "S02 accepted after exact approved nft gate; start isolated S03 source work. No S03 live changes authorized.",
   "resolved_at_utc": "2026-11-05T02:52:27.588128+00:00",
   "read_only_actual": {
     "at_utc": "2026-11-05T02:52:27.588128+00:00",
@@ -198,5 +198,12 @@
       "alisa-s02-rollout.lock": "ABSENT"
     },
     "rollout_processes": []
+  },
+  "acceptance_followup": {
+    "readback_utc": "2026-11-05T06:05:18.447724+00:00",
+    "reference": "AL_S02_POST_EGRESS_READBACK_20261105.json",
+    "nft_table_absent": true,
+    "four_components_ready": true,
+    "stage_verdict": "ACCEPTED_FOR_DECLARED_STAGE_SCOPE"
   }
 }

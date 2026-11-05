@@ -1,0 +1,54 @@
+{
+  "record_type": "AL_S02_FINAL_INDEPENDENT_INSTALLED_ACCEPTANCE",
+  "recorded_at_utc": "2026-11-05T06:08:16.557949+00:00",
+  "reviewer": "existing /root/s00_final_review",
+  "mode": "READ_ONLY_RECEIPT_AND_ACTUAL_HOST_REVIEW_NO_MUTATION_OR_TESTS",
+  "verdict": "ACCEPTED_FOR_DECLARED_STAGE_SCOPE",
+  "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36",
+  "release": "alisa-6ae348354b3db0d3",
+  "artifact_sha256": "4848fc3e0975d4b3fb347e7b0f5634c44ad81d01a31690263a3bf31cfb83136c",
+  "egress_rules_sha256": "491e90c3178d404240de17e684f0651f3d6ca11a5a447cfc306984bda0b9c7d0",
+  "gates": {
+    "installed_smoke": 34,
+    "runtime_policy": 9,
+    "policy_exit_and_smtp": 3,
+    "negative_and_cleanup": 20,
+    "rollback": 11,
+    "manifest_privacy_excluded_scope": 31,
+    "actual_uid_nft_egress": 22,
+    "post_egress_privacy": "PASS"
+  },
+  "egress_evidence": {
+    "both_uid_denial_counter_deltas": [
+      1,
+      1
+    ],
+    "allowed_counter_deltas": {
+      "web_api": 36,
+      "platform_db": 115,
+      "identity_db_mail": 282,
+      "fixed_issuer": 16
+    },
+    "fresh_full_https_flow_under_filter": true,
+    "same_person_customer_tenant_profile": true,
+    "foreign_rule_hashes_unchanged": true,
+    "table_removed": true,
+    "elapsed_seconds": 5.968
+  },
+  "independent_host_readback": {
+    "table_absent": true,
+    "site_and_identity_current": "alisa-6ae348354b3db0d3",
+    "shared_current_and_admin": "alisa-77d0f8ee2643ef65",
+    "four_components_ready": true,
+    "identity_mail_account_cleanup_probe_cleanup_timers_active_enabled": true
+  },
+  "historical_block_retained": "AL_S02_FINAL_INSTALLED_REVIEW_20261105.json",
+  "block_resolution": "Later explicitly approved exact UID/port-scoped nft witness closes declared egress gate; prior systemd timeout remains historical, no network deny inferred from systemd property.",
+  "scope": "Alisa stage; CLOSED synthetic example.invalid, private SMTP only",
+  "not_accepted": [
+    "Production readiness",
+    "Controlled real-recipient email delivery",
+    "S03 functionality"
+  ],
+  "next_step": "Begin S03 source implementation in isolated worktree; S03 live deployment requires its own exact release approval."
+}

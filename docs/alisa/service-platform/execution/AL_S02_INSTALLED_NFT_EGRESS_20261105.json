@@ -1,0 +1,166 @@
+{
+  "scope": "REAL_INSTALLED_EXACT_UID_PORT_NFT_EGRESS_QUALIFICATION",
+  "release": "alisa-6ae348354b3db0d3",
+  "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36",
+  "artifact_sha256": "4848fc3e0975d4b3fb347e7b0f5634c44ad81d01a31690263a3bf31cfb83136c",
+  "rules_sha256": "491e90c3178d404240de17e684f0651f3d6ca11a5a447cfc306984bda0b9c7d0",
+  "table": "alisa_s02_egress_probe_6ae34835",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "exact_stage_pointers",
+      "passed": true
+    },
+    {
+      "case": "exact_three_owned_uids",
+      "passed": true
+    },
+    {
+      "case": "exact_dns_unchanged",
+      "passed": true
+    },
+    {
+      "case": "platform_own_pg_endpoint",
+      "passed": true
+    },
+    {
+      "case": "identity_own_pg_endpoint",
+      "passed": true
+    },
+    {
+      "case": "exact_web_api_and_fixed_issuer",
+      "passed": true
+    },
+    {
+      "case": "exact_rules_hash",
+      "passed": true
+    },
+    {
+      "case": "table_absent_before_apply",
+      "passed": true
+    },
+    {
+      "case": "own_sentinel_positive_observer_baseline",
+      "passed": true
+    },
+    {
+      "case": "only_exact_new_table_applied",
+      "passed": true
+    },
+    {
+      "case": "own_loopback_sentinel_actual_uid_deny",
+      "passed": true,
+      "errno": 111,
+      "deny_packets_delta": 1
+    },
+    {
+      "case": "reserved_external_address_actual_uid_deny",
+      "passed": true,
+      "errno": 111,
+      "deny_packets_delta": 1
+    },
+    {
+      "case": "observer_positive_sentinel_still_available",
+      "passed": true
+    },
+    {
+      "case": "existing_cabinet_with_filter_active",
+      "passed": true
+    },
+    {
+      "case": "fresh_https_identity_code_bff_api_pg_under_filter",
+      "passed": true
+    },
+    {
+      "case": "same_person_customer_tenant_no_duplicate",
+      "passed": true
+    },
+    {
+      "case": "same_profile_preserved",
+      "passed": true
+    },
+    {
+      "case": "alisa-s02-web-api_allowed_packets_observed",
+      "passed": true,
+      "delta": 36
+    },
+    {
+      "case": "alisa-s02-platform-db_allowed_packets_observed",
+      "passed": true,
+      "delta": 115
+    },
+    {
+      "case": "alisa-s02-identity-db-mail_allowed_packets_observed",
+      "passed": true,
+      "delta": 282
+    },
+    {
+      "case": "alisa-s02-fixed-issuer_allowed_packets_observed",
+      "passed": true,
+      "delta": 16
+    },
+    {
+      "case": "foreign_rules_unchanged_while_applied",
+      "passed": true
+    }
+  ],
+  "started_utc": "2026-11-05T06:03:51.599866+00:00",
+  "foreign_rules_before_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "counters_before": {
+    "alisa-s02-web-api": 0,
+    "alisa-s02-platform-db": 0,
+    "alisa-s02-identity-db-mail": 0,
+    "alisa-s02-dns-udp": 0,
+    "alisa-s02-dns-tcp": 0,
+    "alisa-s02-fixed-issuer": 0,
+    "alisa-s02-web-response": 0,
+    "alisa-s02-platform-response": 0,
+    "alisa-s02-identity-response": 0,
+    "alisa-s02-denied": 0
+  },
+  "counters_after": {
+    "alisa-s02-web-api": 36,
+    "alisa-s02-platform-db": 115,
+    "alisa-s02-identity-db-mail": 282,
+    "alisa-s02-dns-udp": 4,
+    "alisa-s02-dns-tcp": 0,
+    "alisa-s02-fixed-issuer": 16,
+    "alisa-s02-web-response": 322,
+    "alisa-s02-platform-response": 35,
+    "alisa-s02-identity-response": 65,
+    "alisa-s02-denied": 2
+  },
+  "table_removed": true,
+  "foreign_rules_after_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "foreign_rules_unchanged": true,
+  "health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    }
+  },
+  "elapsed_seconds": 5.968,
+  "finished_utc": "2026-11-05T06:03:57.567686+00:00"
+}

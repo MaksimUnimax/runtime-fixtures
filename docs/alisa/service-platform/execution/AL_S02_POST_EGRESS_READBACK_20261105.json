@@ -1,0 +1,36 @@
+{
+  "scope": "READ_ONLY_POST_EGRESS_PRIVACY_AND_CLEANUP",
+  "at_utc": "2026-11-05T06:05:18.447724+00:00",
+  "status": "PASS",
+  "private_values_scanned": 29,
+  "new_known_contacts_codes_tokens_cookies_not_logged": true,
+  "table_absent": true,
+  "health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    }
+  }
+}
