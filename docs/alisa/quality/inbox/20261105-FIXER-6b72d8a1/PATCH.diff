@@ -1,0 +1,822 @@
+--- a/engine.py
++++ b/engine.py
+@@ -139,7 +139,8 @@
+         if state=='FAILED' and row['error'] in ('FINANCIAL_BASIS_NOT_REQUESTED','SALES_SOURCE_MISMATCH_WITHDRAWN'):
+             return 'Прежний финансовый отчёт не отвечает исходному вопросу и снят с выдачи. '+CLARIFICATION
+         if state=='FAILED':
+-            return 'Полный отчет не получен. Частичные суммы не выдаю. Код: '+(row['error'] or 'UNSPECIFIED')+'.'
++            from failure_explanations import explain
++            return explain(row['error'])['text']
+         return 'Отчет пока недоступен.'
+ 
+     def control_once(self,tenant,command,request_id,body_hash):
+@@ -184,7 +185,12 @@
+ 
+     def safe_submit(self,*args,**kwargs):
+         try: return self.submit(*args,**kwargs)
+-        except Rejected as exc: return {'text':exc.message,'tts':exc.message,'error':exc.code}
++        except Rejected as exc:
++            if exc.message==exc.code:
++                from failure_explanations import explain,public_code
++                detail=explain(exc.code)
++                return {**detail,'error':public_code(exc.code)}
++            return {'text':exc.message,'tts':exc.message,'error':exc.code}
+ 
+ class Worker:
+     """One HTTP request per step, except a P2 step which only invokes the model.
+--- a/registry.json
++++ b/registry.json
+@@ -1,5 +1,5 @@
+ {
+-  "version": "20261104-base-batch01",
++  "version": "20261105-ad-scope-r1",
+   "status": "READ_ONLY_OWNER_LAB_CANARY_NOT_PRODUCTION_VERIFIED",
+   "metric_definitions": {
+     "ordered_units": {
+@@ -634,7 +634,6 @@
+       "period_mode": "maximum_allowed_contiguous_chunks",
+       "max_days": 62,
+       "metrics": {
+-        "ad_spend": "moneySpent",
+         "ad_bonus_spend": "bonusSpent",
+         "ad_prepayment_spend": "prepaymentSpent"
+       }
+@@ -757,6 +756,21 @@
+         "accrual_reversal_amount": "reversal_buyer_amount",
+         "accrual_seller_amount": "gross_seller_amount",
+         "accrual_reversal_seller_amount": "reversal_seller_amount"
++      }
++    },
++    "ozon_ads_daily": {
++      "id": "ozon_ads_daily.v1",
++      "operation": "ozon_ads_daily",
++      "method": "GET",
++      "url": "https://api-performance.ozon.ru/api/client/statistics/daily/json",
++      "min_interval": 2,
++      "daily_limit": 100,
++      "qualification": "CANDIDATE_EXACT_SCOPE",
++      "decoder": "matrix_daily_expense_v1",
++      "period_mode": "maximum_allowed_contiguous_chunks",
++      "max_days": 62,
++      "metrics": {
++        "ad_spend": "moneySpent"
+       }
+     }
+   },
+--- a/scalar_catalog.json
++++ b/scalar_catalog.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "alice-scalar-catalog/v1",
+-  "version": "20261104-base-batch01",
++  "version": "20261105-ad-scope-r1",
+   "recipes": {
+     "ozon": {
+       "platform": "ozon",
+@@ -251,7 +251,6 @@
+       "max_days": 62,
+       "paired_periods": false,
+       "fields": {
+-        "ad_spend": "moneySpent",
+         "ad_bonus_spend": "bonusSpent",
+         "ad_prepayment_spend": "prepaymentSpent"
+       },
+@@ -1102,6 +1101,87 @@
+       "priority": 90,
+       "auth_profile": null,
+       "comparison_error": "ACCRUAL_COMPARISON"
++    },
++    "ozon_ads_daily": {
++      "platform": "ozon",
++      "family": "ads",
++      "operation": "ozon_ads_daily",
++      "max_days": 62,
++      "paired_periods": false,
++      "fields": {
++        "ad_spend": "moneySpent"
++      },
++      "output": {
++        "values": {
++          "$fn": [
++            "pairs_object",
++            {
++              "$map": [
++                {
++                  "$path": [
++                    "params",
++                    "metrics"
++                  ]
++                },
++                "metric",
++                [
++                  {
++                    "$path": [
++                      "metric"
++                    ]
++                  },
++                  {
++                    "$fn": [
++                      "sum_values",
++                      {
++                        "$map": [
++                          {
++                            "$path": [
++                              "rows"
++                            ]
++                          },
++                          "summand",
++                          {
++                            "$fn": [
++                              "get",
++                              {
++                                "$path": [
++                                  "summand",
++                                  "values"
++                                ]
++                              },
++                              {
++                                "$path": [
++                                  "metric"
++                                ]
++                              }
++                            ]
++                          }
++                        ]
++                      }
++                    ]
++                  }
++                ]
++              ]
++            }
++          ]
++        },
++        "rows": {
++          "$fn": [
++            "len",
++            {
++              "$path": [
++                "rows"
++              ]
++            }
++          ]
++        }
++      },
++      "error_code": "ADS_DAILY_SCHEMA",
++      "workflow": null,
++      "auth_profile": "performance",
++      "priority": 20,
++      "comparison_error": "ADS_DAILY_SCHEMA"
+     }
+   },
+   "auth_profiles": {
+--- a/scalar_source_catalog.json
++++ b/scalar_source_catalog.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "alice-source-matrix/v2",
+-  "version": "20261104-base-batch01",
++  "version": "20261105-ad-scope-r1",
+   "origins": {
+     "ozon": [
+       "https://api-seller.ozon.ru",
+@@ -1611,7 +1611,27 @@
+             "rows"
+           ]
+         },
+-        "root_asserts": [],
++        "root_asserts": [
++          {
++            "test": {
++              "$fn": [
++                "gt",
++                {
++                  "$fn": [
++                    "len",
++                    {
++                      "$path": [
++                        "records"
++                      ]
++                    }
++                  ]
++                },
++                0
++              ]
++            },
++            "code": "ADS_EMPTY_UNCONFIRMED"
++          }
++        ],
+         "lets": [
+           {
+             "name": "day",
+@@ -6254,6 +6274,309 @@
+         "totals_changed_code": "ACCRUAL_TOTAL_CHANGED",
+         "dataset_asserts": []
+       }
++    },
++    "ozon_ads_daily": {
++      "platform": "ozon",
++      "url": "https://api-performance.ozon.ru/api/client/statistics/daily/json",
++      "method": "GET",
++      "quota_operation": "ozon_expense",
++      "interval": 2,
++      "daily_limit": 100,
++      "auth": {
++        "headers": {
++          "Authorization": {
++            "$fn": [
++              "concat",
++              "Bearer ",
++              {
++                "$path": [
++                  "ephemeral",
++                  "token"
++                ]
++              }
++            ]
++          }
++        },
++        "claims": null
++      },
++      "request": {
++        "dateFrom": {
++          "$path": [
++            "period",
++            "from"
++          ]
++        },
++        "dateTo": {
++          "$path": [
++            "period",
++            "to"
++          ]
++        }
++      },
++      "payload_schema": {
++        "type": "object",
++        "properties": {
++          "dateFrom": {
++            "type": "string",
++            "format": "iso_date",
++            "max_length": 10
++          },
++          "dateTo": {
++            "type": "string",
++            "format": "iso_date",
++            "max_length": 10
++          }
++        }
++      },
++      "proof_requirements": {},
++      "availability": [],
++      "axis": "advertising_period",
++      "response": {
++        "items": {
++          "$path": [
++            "response",
++            "rows"
++          ]
++        },
++        "root_asserts": [
++          {
++            "test": {
++              "$fn": [
++                "gt",
++                {
++                  "$fn": [
++                    "len",
++                    {
++                      "$path": [
++                        "records"
++                      ]
++                    }
++                  ]
++                },
++                0
++              ]
++            },
++            "code": "ADS_EMPTY_UNCONFIRMED"
++          },
++          {
++            "test": {
++              "$fn": [
++                "lt",
++                {
++                  "$fn": [
++                    "len",
++                    {
++                      "$path": [
++                        "records"
++                      ]
++                    }
++                  ]
++                },
++                20000
++              ]
++            },
++            "code": "ADS_POSSIBLE_TRUNCATION"
++          },
++          {
++            "test": {
++              "$fn": [
++                "eq",
++                {
++                  "$path": [
++                    "store",
++                    "currency"
++                  ]
++                },
++                "RUB"
++              ]
++            },
++            "code": "ADS_CURRENCY"
++          }
++        ],
++        "lets": [
++          {
++            "name": "day",
++            "value": {
++              "$fn": [
++                "day",
++                {
++                  "$path": [
++                    "row",
++                    "date"
++                  ]
++                }
++              ]
++            },
++            "code": "ADS_SCHEMA"
++          }
++        ],
++        "row_asserts": [
++          {
++            "test": {
++              "$if": [
++                {
++                  "$fn": [
++                    "eq",
++                    {
++                      "$path": [
++                        "v",
++                        "day"
++                      ]
++                    },
++                    null
++                  ]
++                },
++                false,
++                {
++                  "$fn": [
++                    "and",
++                    {
++                      "$fn": [
++                        "le",
++                        {
++                          "$path": [
++                            "period",
++                            "from"
++                          ]
++                        },
++                        {
++                          "$path": [
++                            "v",
++                            "day"
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "$fn": [
++                        "le",
++                        {
++                          "$path": [
++                            "v",
++                            "day"
++                          ]
++                        },
++                        {
++                          "$path": [
++                            "period",
++                            "to"
++                          ]
++                        }
++                      ]
++                    }
++                  ]
++                }
++              ]
++            },
++            "code": "ADS_PERIOD"
++          }
++        ],
++        "map": {
++          "values": {
++            "$fn": [
++              "pairs_object",
++              {
++                "$map": [
++                  {
++                    "$path": [
++                      "params",
++                      "metrics"
++                    ]
++                  },
++                  "metric",
++                  [
++                    {
++                      "$path": [
++                        "metric"
++                      ]
++                    },
++                    {
++                      "$fn": [
++                        "decimal_comma",
++                        {
++                          "$fn": [
++                            "get",
++                            {
++                              "$path": [
++                                "row"
++                              ]
++                            },
++                            {
++                              "$fn": [
++                                "get",
++                                {
++                                  "$path": [
++                                    "params",
++                                    "fields"
++                                  ]
++                                },
++                                {
++                                  "$path": [
++                                    "metric"
++                                  ]
++                                }
++                              ]
++                            }
++                          ]
++                        }
++                      ]
++                    }
++                  ]
++                ]
++              }
++            ]
++          }
++        },
++        "include": true,
++        "currency": {
++          "$path": [
++            "store",
++            "currency"
++          ]
++        },
++        "identity": {
++          "$fn": [
++            "hash",
++            [
++              {
++                "$fn": [
++                  "nonempty",
++                  {
++                    "$path": [
++                      "row",
++                      "id"
++                    ]
++                  }
++                ]
++              },
++              {
++                "$path": [
++                  "row",
++                  "date"
++                ]
++              }
++            ]
++          ]
++        },
++        "duplicate_code": "ADS_DUPLICATE",
++        "page_duplicate_code": "ADS_DUPLICATE",
++        "pagination": {
++          "mode": "single",
++          "size": 20000,
++          "cursor": null,
++          "initial": "",
++          "order_code": "CURSOR_ORDER",
++          "stalled_code": "CURSOR_STALLED"
++        },
++        "totals": null,
++        "totals_changed_code": "ADS_TOTAL_CHANGED",
++        "dataset_asserts": []
++      },
++      "options": {
++        "allow_null_currency": false,
++        "currency_code": "ADS_CURRENCY",
++        "currency_changed_code": "ADS_CURRENCY"
++      }
+     }
+   }
+ }
+--- /dev/null
++++ b/failure_explanations.py
+@@ -0,0 +1,57 @@
++"""Bounded data-driven explanations for execution failures; no raw exception echo."""
++from __future__ import annotations
++import copy
++import hashlib
++import json
++import re
++from pathlib import Path
++
++
++def _load():
++    def pairs(items):
++        obj = {}
++        for key, value in items:
++            if key in obj:
++                raise ValueError('FAILURE_CATALOG_DUPLICATE')
++            obj[key] = value
++        return obj
++    raw = Path(__file__).with_name('failure_catalog.json').read_text(encoding='utf-8')
++    if len(raw.encode()) > 65536:
++        raise ValueError('FAILURE_CATALOG_SIZE')
++    catalog = json.loads(raw, object_pairs_hook=pairs)
++    if set(catalog) != {'schema', 'version', 'fallback', 'entries', 'aliases'} or catalog['schema'] != 'alice-failure-catalog/v1':
++        raise ValueError('FAILURE_CATALOG_SCHEMA')
++    entries, aliases = catalog['entries'], catalog['aliases']
++    if type(entries) is not dict or not 1 <= len(entries) <= 128 or type(aliases) is not dict or len(aliases) > 256:
++        raise ValueError('FAILURE_CATALOG_SCHEMA')
++    for code, record in entries.items():
++        if not re.fullmatch(r'[A-Z][A-Z0-9_]{0,79}', code) or type(record) is not dict or set(record) != {'reason', 'next_action', 'cause_status'}:
++            raise ValueError('FAILURE_CATALOG_ENTRY')
++        if record['cause_status'] not in ('KNOWN_LIMITATION', 'OBSERVED_FAILURE', 'PROVIDER_CAUSE_UNKNOWN', 'UNKNOWN'):
++            raise ValueError('FAILURE_CATALOG_ENTRY')
++        for key in ('reason', 'next_action'):
++            if type(record[key]) is not str or not 1 <= len(record[key]) <= 380 or any(ord(c) < 32 for c in record[key]):
++                raise ValueError('FAILURE_CATALOG_TEXT')
++    if catalog['fallback'] not in entries or any(not re.fullmatch(r'[A-Z][A-Z0-9_]{0,79}', k) or v not in entries for k, v in aliases.items()):
++        raise ValueError('FAILURE_CATALOG_REFERENCE')
++    return catalog
++
++CATALOG = _load()
++HASH = hashlib.sha256(json.dumps(CATALOG, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
++
++
++def explain(code):
++    # Unknown diagnostic text/URLs/tokens/IDs are never reflected to the user.
++    key = code if type(code) is str and code in CATALOG['entries'] else CATALOG['aliases'].get(code) if type(code) is str else None
++    if key not in CATALOG['entries']:
++        key = CATALOG['fallback']
++    result = copy.deepcopy(CATALOG['entries'][key])
++    text = result['reason'] + ' ' + result['next_action']
++    return {'reason_code': key, 'cause_status': result['cause_status'],
++            'reason': result['reason'], 'next_action': result['next_action'],
++            'text': text, 'tts': text, 'retryable': False}
++
++
++def public_code(code):
++    """Retain bounded internal identifiers, never reflect arbitrary exception text."""
++    return code if type(code) is str and re.fullmatch(r"[A-Z][A-Z0-9_]{0,79}", code) else CATALOG["fallback"]
+--- /dev/null
++++ b/failure_catalog.json
+@@ -0,0 +1,182 @@
++{
++  "schema": "alice-failure-catalog/v1",
++  "version": "20261105-gates-r1",
++  "fallback": "UNSPECIFIED",
++  "entries": {
++    "UNSPECIFIED": {
++      "reason": "Полный отчёт не получен; точная причина пока не установлена. Частичные суммы не выдаю.",
++      "next_action": "Нужно проверить сохранённое задание и доступность источников; повтор автоматически не запускаю.",
++      "cause_status": "UNKNOWN"
++    },
++    "ADS_EMPTY_UNCONFIRMED": {
++      "reason": "Источник рекламы вернул пустой ответ. Это не подтверждает нулевые расходы; внутренняя причина ответа площадки неизвестна.",
++      "next_action": "Нужно проверить охват дневного рекламного отчёта за тот же период. Пока расходы и юнит-экономику как полные не сохраняю.",
++      "cause_status": "PROVIDER_CAUSE_UNKNOWN"
++    },
++    "DATASET_CAMPAIGN_COVERAGE": {
++      "reason": "Статистика покрывает не все запрошенные рекламные кампании. Итог всего кабинета пока не подтверждён.",
++      "next_action": "Нужно проверить отсутствующие кампании и период; неполные данные не заменяю нулями.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "INCOMPLETE_RESULT": {
++      "reason": "Не все необходимые данные получены и проверены. Полный результат не готов.",
++      "next_action": "Нужно завершить выборку и проверить её полноту; частичные суммы не выдаю как полный отчёт.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "REPORT_REQUIRED_COMPONENT_MISSING": {
++      "reason": "Не получен обязательный компонент расчёта. Итог нельзя считать пригодным к использованию.",
++      "next_action": "Нужно получить и проверить все обязательные источники, включая рекламу для юнит-экономики.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "REPORT_OVERLAP_UNRESOLVED": {
++      "reason": "Не подтверждено, что статьи расходов не пересекаются. Один расход может попасть в итог дважды.",
++      "next_action": "Нужно сверить рекламные списания с финансовыми и отделить контрольные итоги от слагаемых.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "REPORT_SCOPE_MISMATCH": {
++      "reason": "Данные относятся к разным магазинам, периодам или валютам и не подходят для этого расчёта.",
++      "next_action": "Нужно получить совместимые данные в исходном разрешённом объёме, не меняя смысл запроса.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "SOURCE_PROOF_REQUIRED": {
++      "reason": "Для источника нет действующего подтверждения пригодности в выбранном объёме.",
++      "next_action": "Нужно проверить источник для этого магазина и периода; до этого новый расчёт не запускаю.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "SOURCE_PROOF_EXPIRED": {
++      "reason": "Срок подтверждения источника истёк. Прежние доказательства не дают допуска к новому расчёту.",
++      "next_action": "Нужно обновить квалификацию источника; существующие ограничения доступа не обхожу.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "SOURCE_PROOF_PERIOD": {
++      "reason": "Источник ещё не подтверждён для запрошенного периода.",
++      "next_action": "Нужно квалифицировать этот период; другой период молча не подставляю.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "SOURCE_PROOF_SCOPE": {
++      "reason": "Подтверждение источника относится к другому магазину или версии доступа.",
++      "next_action": "Нужно получить актуальное подтверждение для выбранного магазина.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "SOURCE_PROOF_VERSION": {
++      "reason": "Описание источника изменилось после проверки.",
++      "next_action": "Нужно проверить точную новую версию матрицы до её использования.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "SOURCE_PROOF_REQUIREMENTS": {
++      "reason": "Не выполнены обязательные условия пригодности источника.",
++      "next_action": "Нужно подтвердить заявленный охват данных и остальные условия матрицы.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "HTTP_400": {
++      "reason": "Площадка отклонила параметры запроса. Точное внутреннее объяснение в этой квитанции отсутствует.",
++      "next_action": "Нужно сверить параметры с текущим контрактом API; данные и ключи наугад не меняю.",
++      "cause_status": "PROVIDER_CAUSE_UNKNOWN"
++    },
++    "HTTP_401": {
++      "reason": "Площадка не приняла авторизацию запроса.",
++      "next_action": "Нужно проверить срок и действительность доступа; конкретную причину без диагностики не утверждаю.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "HTTP_403": {
++      "reason": "Площадка запретила обращение к источнику.",
++      "next_action": "Нужно проверить права и доступность метода для кабинета; сменой источника запрет не обхожу.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "HTTP_429_RETRY_EXHAUSTED": {
++      "reason": "Площадка ограничила частоту обращений; разрешённые повторные попытки исчерпаны.",
++      "next_action": "Нужно дождаться допустимого интервала и проверить задание; счётчики и лимиты не обнуляю.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "SOURCE_QUOTA": {
++      "reason": "Достигнут действующий лимит обращений к источнику.",
++      "next_action": "Нужно дождаться освобождения квоты; новый идентификатор запроса не используется для обхода лимита.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "NETWORK_OUTCOME_UNKNOWN": {
++      "reason": "Исход обращения неизвестен: соединение прервалось до подтверждённого результата.",
++      "next_action": "Нужно проверить исход исходного задания; автоматически повторять неопределённое действие не буду.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "LLM_CLARIFY": {
++      "reason": "Не удалось построить однозначный поддержанный план этого вопроса; точная причина пока не подтверждена.",
++      "next_action": "Уточните показатель и период. Заказами, начислениями или другим показателем исходный смысл не заменяю.",
++      "cause_status": "UNKNOWN"
++    },
++    "FINANCIAL_REPORT_NOT_READY": {
++      "reason": "Полные финансовые данные выбранного периода ещё не подтверждены.",
++      "next_action": "Нужно проверить готовность и все страницы отчёта. Отсутствующие значения не считаю нулями.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "MISSING_COST_BASIS": {
++      "reason": "Полная юнит-экономика по этому запросу ещё не подключена.",
++      "next_action": "Для будущего отчёта реклама обязательна; отсутствующие себестоимость и налог будут показаны как не включённые, а не как нули.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "SOURCE_ACCESS": {
++      "reason": "Доступ к необходимому источнику изменился или отсутствует.",
++      "next_action": "Нужно восстановить подтверждённый доступ. Сохранённые цифры без актуальных прав не выдаю.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "DATASET_CURSOR": {
++      "reason": "Источник вернул повторный или некорректный указатель следующей страницы. Полнота не подтверждена.",
++      "next_action": "Нужно проверить пагинацию и исходное задание; уже полученные страницы не выдаю как весь отчёт.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "DATASET_DUPLICATE": {
++      "reason": "В выборке обнаружены повторяющиеся записи. Итог может быть завышен.",
++      "next_action": "Нужно проверить идентификаторы и страницы до подсчёта полного результата.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "SOURCE_CURRENCY_MISMATCH": {
++      "reason": "В источниках обнаружены несовместимые валюты или денежные поля.",
++      "next_action": "Нужно подтвердить валюту и формат; автоматическое преобразование по предположению не выполняю.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "CAPABILITY_UNAVAILABLE": {
++      "reason": "Эта возможность ещё не подключена для выбранного запроса.",
++      "next_action": "Можно проверить поддерживаемые возможности командой «что ты умеешь». Другой показатель молча не подставляю.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "RESULT_EXPIRED": {
++      "reason": "Срок хранения результата истёк. Старые данные больше не выдаются.",
++      "next_action": "Для нового расчёта требуется отдельный исходный запрос; чтение само его не создаёт.",
++      "cause_status": "KNOWN_LIMITATION"
++    }
++  },
++  "aliases": {
++    "HTTP_429": "HTTP_429_RETRY_EXHAUSTED",
++    "DAILY_LIMIT": "SOURCE_QUOTA",
++    "CANARY_QUOTA_WAIT": "SOURCE_QUOTA",
++    "QUOTA_EXCEEDED": "SOURCE_QUOTA",
++    "DATASET_INCOMPLETE": "INCOMPLETE_RESULT",
++    "DATASET_COVERAGE": "INCOMPLETE_RESULT",
++    "TABLE_INCOMPLETE": "INCOMPLETE_RESULT",
++    "INCOMPLETE_COMPARISON": "INCOMPLETE_RESULT",
++    "ADS_DUPLICATE": "INCOMPLETE_RESULT",
++    "ACCRUAL_DUPLICATE": "DATASET_DUPLICATE",
++    "ACCRUAL_CURSOR": "DATASET_CURSOR",
++    "CURSOR_STALLED": "DATASET_CURSOR",
++    "ADS_PERIOD": "INCOMPLETE_RESULT",
++    "ACCRUAL_DATE": "REPORT_SCOPE_MISMATCH",
++    "FINANCE_CURRENCY_CHANGED": "SOURCE_CURRENCY_MISMATCH",
++    "CURRENCY_UNCONFIRMED": "SOURCE_CURRENCY_MISMATCH",
++    "ADS_CURRENCY_CHANGED": "SOURCE_CURRENCY_MISMATCH",
++    "UNKNOWN_OUTCOME": "NETWORK_OUTCOME_UNKNOWN",
++    "WORKER_INTERNAL_UNKNOWN": "UNSPECIFIED",
++    "DEPENDENCY_UNAVAILABLE": "UNSPECIFIED",
++    "AUTH_REQUIRED": "SOURCE_ACCESS",
++    "PERMISSION_DENIED": "SOURCE_ACCESS",
++    "ADS_POSSIBLE_TRUNCATION": "INCOMPLETE_RESULT",
++    "ADS_DAILY_SCHEMA": "INCOMPLETE_RESULT",
++    "REPORT_COVERAGE_INCOMPLETE": "INCOMPLETE_RESULT",
++    "REPORT_EVIDENCE_INVALID": "INCOMPLETE_RESULT",
++    "REPORT_EVIDENCE_EXPIRED": "INCOMPLETE_RESULT",
++    "REPORT_EVIDENCE_UNTRUSTED": "INCOMPLETE_RESULT",
++    "REPORT_EVIDENCE_VERIFIER_REQUIRED": "INCOMPLETE_RESULT",
++    "REPORT_VALUE_INVALID": "INCOMPLETE_RESULT",
++    "REPORT_ZERO_UNPROVEN": "INCOMPLETE_RESULT",
++    "REPORT_EXPENSE_KEYS": "INCOMPLETE_RESULT",
++    "ADS_CURRENCY": "SOURCE_CURRENCY_MISMATCH"
++  }
++}
+--- /dev/null
++++ b/tests/test_advertising_daily_live_merge.py
+@@ -0,0 +1,54 @@
++"""Advertising source regression; independent synthetic values, no network."""
++import copy,unittest
++from test_runtime import plan
++import providers
++from semantics import Rejected
++from scalar_runtime import MATRIX,SOURCES
++class AdvertisingDaily(unittest.TestCase):
++ def setUp(self):
++  self.p=plan('расходы на рекламу за октябрь на озоне');self.s=self.p['stores'][0];self.t=providers.tasks(self.p,self.s)[0]
++  self.raw={'rows':[{'id':'a','date':'2026-10-01','moneySpent':'12,34'},{'id':'b','date':'2026-10-02','moneySpent':'0,66'}]}
++ def decode(self,r):return providers.decode_expense(r,self.t,self.s)
++ def test_independent_sum(self):
++  self.assertEqual(self.decode(self.raw)['values']['ad_spend'],'13.00')
++  self.assertEqual(self.t['recipe'],'ozon_ads_daily')
++  self.assertNotIn('ad_spend',MATRIX.recipe('ozon_ads')['fields'])
++ def test_source_and_quota(self):
++  req=providers.build_task(self.p,self.s,self.t);self.assertEqual(req.operation,'ozon_ads_daily');self.assertTrue(req.source.endswith(':ozon_expense'))
++  self.assertTrue(SOURCES.recipe(req.operation)['url'].endswith('/daily/json'))
++ def test_empty_never_zero(self):
++  with self.assertRaises(Rejected) as e:self.decode({'rows':[]})
++  self.assertEqual(e.exception.code,'ADS_EMPTY_UNCONFIRMED')
++ def test_null_rejected(self):
++  with self.assertRaises(Rejected):self.decode({'rows':None})
++ def test_missing_money_rejected(self):
++  del self.raw['rows'][0]['moneySpent']
++  with self.assertRaises(Rejected):self.decode(self.raw)
++ def test_null_money_rejected(self):
++  self.raw['rows'][0]['moneySpent']=None
++  with self.assertRaises(Rejected):self.decode(self.raw)
++ def test_duplicate_rejected(self):
++  self.raw['rows'].append(copy.deepcopy(self.raw['rows'][0]))
++  with self.assertRaises(Rejected):self.decode(self.raw)
++ def test_outside_period(self):
++  self.raw['rows'][0]['date']='2026-11-01'
++  with self.assertRaises(Rejected):self.decode(self.raw)
++ def test_null_date(self):
++  self.raw['rows'][0]['date']=None
++  with self.assertRaises(Rejected):self.decode(self.raw)
++ def test_negative_rejected(self):
++  self.raw['rows'][0]['moneySpent']='-1,00'
++  with self.assertRaises(Rejected):self.decode(self.raw)
++ def test_nonfinite_rejected(self):
++  self.raw['rows'][0]['moneySpent']='NaN'
++  with self.assertRaises(Rejected):self.decode(self.raw)
++ def test_explicit_zero_allowed(self):
++  for row in self.raw['rows']:row['moneySpent']='0,00'
++  self.assertEqual(self.decode(self.raw)['values']['ad_spend'],'0.00')
++ def test_unknown_currency(self):
++  self.s['currency']=None
++  with self.assertRaises(Rejected):self.decode(self.raw)
++ def test_legacy_empty_never_zero(self):
++  t={**self.t,'recipe':'ozon_ads','metrics':['ad_bonus_spend']}
++  with self.assertRaises(Rejected) as e:providers.decode_expense({'rows':[]},t,self.s)
++  self.assertEqual(e.exception.code,'ADS_EMPTY_UNCONFIRMED')
