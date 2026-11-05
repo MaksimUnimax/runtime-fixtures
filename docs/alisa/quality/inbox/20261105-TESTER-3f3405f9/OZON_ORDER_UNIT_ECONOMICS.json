@@ -1,0 +1,228 @@
+{
+  "schema": "alisa-qa-template-intake/v1",
+  "id": "C-UE01",
+  "revision": "ozon-orders-by-date-r10",
+  "state": "CANDIDATE",
+  "change_class": "GENERAL_OPERATOR",
+  "title": "Юнитэкономика Ozon по товарам, заказанным за выбранную дату",
+  "runtime_enabled": false,
+  "runtime_release": null,
+  "approved_hash": null,
+  "scope": "Specification for another implementer; not an executable or installed matrix template",
+  "safe_utterances": [
+    "Юнитэкономика на Озоне за 4 ноября 2026, себестоимость 250 рублей, без налога",
+    "Рассчитай экономику заказов на Озоне за вчера"
+  ],
+  "slots": {
+    "platform": "ozon",
+    "date": "required ISO date or resolved relative date",
+    "timezone": "Europe/Moscow; show in answer",
+    "stores": "authorized selected stores only",
+    "unit_cost_rub": "optional user input; no default; 250 only when user supplies 250",
+    "tax": "optional user rule/base/rate; absent -> excluded and stated",
+    "own_costs": "optional user input; absent -> excluded and stated"
+  },
+  "answer_contract": {
+    "time_axes": [
+      "order_created_date",
+      "status_as_of",
+      "accrual_date_for_actual_costs",
+      "expense_period_for_allocated_overhead",
+      "tariff_retrieved_at"
+    ],
+    "units": [
+      "physical_ordered_item",
+      "remaining_noncancelled_ordered_item",
+      "RUB",
+      "percent_of_same_scenario_seller_value"
+    ],
+    "currency_policy": "RUB or separate currency groups; never mix currencies",
+    "completeness": "A report with estimates is forecast; missing required advertising or expense scope -> PARTIAL with exact reason, no final net profit",
+    "tables": [
+      "A: counterfactual all ordered items fulfilled, no cancellations/returns",
+      "B: current order cohort including cancellation/return losses"
+    ],
+    "columns": [
+      "expense_name",
+      "total_rub",
+      "rub_per_explicit_scenario_item",
+      "percent_of_same_scenario_seller_value",
+      "actual_or_estimate",
+      "endpoint_and_field"
+    ],
+    "quantity_header": [
+      "original_ordered_items",
+      "cancelled_items",
+      "returned_items",
+      "remaining_ordered_items",
+      "status_as_of"
+    ],
+    "unit_cost_display": "user input stays 250 per applicable goods item if input250; allocated cost per all ordered items is separate and must not be relabelled as unit purchase cost"
+  },
+  "source_bindings": [
+    {
+      "id": "orders_fbo",
+      "path": "POST /v3/posting/fbo/list",
+      "fields": [
+        "created order time",
+        "posting_number",
+        "products.offer_id",
+        "products.sku",
+        "products.quantity",
+        "products.price",
+        "status"
+      ],
+      "qualification": "Use active API schema, pagination and order creation date; do not select by delivery date"
+    },
+    {
+      "id": "orders_fbs",
+      "path": "POST /v4/posting/fbs/list",
+      "fields": [
+        "created order time",
+        "posting_number",
+        "products.offer_id",
+        "products.sku",
+        "products.quantity",
+        "products.price",
+        "status",
+        "cancellation"
+      ],
+      "qualification": "Same order-date and identity rules; cancelled_after_ship alone is not physical-handover proof"
+    },
+    {
+      "id": "tariffs",
+      "path": "POST /v5/product/info/prices",
+      "fields": [
+        "items[].offer_id",
+        "items[].product_id",
+        "items[].acquiring",
+        "items[].commissions.sales_percent_fbo",
+        "items[].commissions.sales_percent_fbs",
+        "items[].commissions.fbo_direct_flow_trans_min_amount",
+        "items[].commissions.fbo_direct_flow_trans_max_amount",
+        "items[].commissions.fbs_direct_flow_trans_min_amount",
+        "items[].commissions.fbs_direct_flow_trans_max_amount",
+        "items[].commissions.fbo_deliv_to_customer_amount",
+        "items[].commissions.fbs_deliv_to_customer_amount",
+        "items[].commissions.fbs_first_mile_min_amount",
+        "items[].commissions.fbs_first_mile_max_amount",
+        "items[].commissions.fbo_return_flow_amount",
+        "items[].commissions.fbs_return_flow_amount"
+      ]
+    },
+    {
+      "id": "actuals",
+      "paths": [
+        "POST /v1/finance/accrual/types",
+        "POST /v1/finance/accrual/by-day",
+        "POST /v1/finance/accrual/postings",
+        "POST /v1/finance/balance"
+      ],
+      "join": "exact posting / order + SKU + quantity and currency; reject ambiguous allocation; keep actual accrual date separate from original order date"
+    },
+    {
+      "id": "advertising",
+      "paths": [
+        "POST /api/client/token",
+        "GET /api/client/statistics/daily/json?dateFrom=DATE&dateTo=DATE"
+      ],
+      "finance_fields": [
+        "cashflows.services[].name=promotion_with_cost_per_order",
+        "cashflows.services[].name=pay_per_click"
+      ],
+      "rule": "CPO and CPC mandatory; reconcile sources; include once, not finance + Performance added twice"
+    },
+    {
+      "id": "storage",
+      "path": "POST /v1/finance/balance",
+      "field": "cashflows.services[].name=product_placement_in_ozon_warehouses",
+      "rule": "whole-store date expense is period allocation, not exact original-order attribution"
+    },
+    {
+      "id": "returns",
+      "path": "POST /v1/returns/list",
+      "rule": "exact unit and posting linkage; partial child cancellation is not a second whole order"
+    }
+  ],
+  "expressions": [
+    "N_ordered = SUM(original products.quantity), before removing cancellations; not COUNT(sales)",
+    "N_remaining = N_ordered - cancelled_qty - qualified_returned_qty_without_double_count",
+    "V_all = SUM(seller order unit_price * quantity); buyer discounted payment is a different metric",
+    "V_remaining = V_all - cancelled seller value - qualified returned seller value",
+    "commission_estimate = SUM(applicable seller line value * scheme commission_percent / 100)",
+    "tariff_midpoint = (API minimum + API maximum) / 2; only a published tariff interval, never probability of an event",
+    "reverse_estimate_cancel_unknown_fbo = commissions.fbo_return_flow_amount * cancelled_fbo_quantity",
+    "reverse_estimate_cancel_unknown_fbs = commissions.fbs_return_flow_amount * cancelled_fbs_quantity",
+    "row_percent = expense_total / seller_value_of_same_scenario * 100; zero denominator -> not defined, not zero",
+    "goods_cost = user_unit_cost * applicable_remaining_ordered_quantity; cancellation revenue=0 and cancellation goods_cost=0",
+    "result = seller_value - unique marketplace expenses - advertising - included goods_cost - included own_costs - included tax",
+    "rub_per_item = row_total / explicitly printed scenario quantity; do not replace order cohort with day financial sales count"
+  ],
+  "deterministic_expense_rules": {
+    "precedence": "exact matched actual net charge/reversal replaces the same service estimate; one service is counted once",
+    "normal_order": "Forecast full fulfillment using scheme-specific commission percent, direct tariff midpoint, last-mile API amount, FBS first-mile midpoint, API acquiring amount when no actual exists",
+    "cancelled_revenue_and_goods": "both zero; do not add the cancelled seller value to result or consume goods purchase cost merely because order was placed",
+    "cancelled_known_no_handover": "unperformed direct/last-mile/handling/reverse forecast=0; do not erase actual contradictory debits; show discrepancy",
+    "cancelled_unknown_stage": {
+      "action": "INCLUDE_RETURN_TARIFF",
+      "fbo_field": "items[].commissions.fbo_return_flow_amount",
+      "fbs_field": "items[].commissions.fbs_return_flow_amount",
+      "quantity": "cancelled physical units, never number of baskets or all items of a partial cancellation",
+      "amount": "scheme return amount * cancelled quantity",
+      "human_label": "Оценка обратной логистики по тарифу API",
+      "manual_confirmation_required": false,
+      "actual_charge_claim": false,
+      "other_transport": "Conservative full-route estimate when applicability is unknown: direct tariff midpoint + API last-mile amount + FBS first-mile midpoint; matched actual service replaces its estimate. This is an explicit upper-cost scenario, not proof all services occurred."
+    },
+    "missing_return_tariff": "If API has no amount, look up official tariff for same scheme/category/date; use midpoint only for a real min/max tariff interval. If still absent -> missing_return_tariff with endpoint/field/reason, PARTIAL, never an invented zero",
+    "acquiring": "Use actual matched amount, else explicit acquiring API amount; never infer fixed percent from total debit or prorate a current amount silently",
+    "ads": "Include all dated CPO and CPC once; no automatic refund solely from cancellation or return; matched documented credit reduces cost",
+    "returns": "Keep separate from cancellations; account exact returned quantity, refund and reverse/processing costs. Recoverable returned goods do not become a permanent lost purchase cost; damaged/lost goods write-off is a separate evidenced expense",
+    "other_expenses": "All source expense types must be classified: acceptance, storage, delivery, processing, acquiring, paid services, penalties, adjustments and other debits. Unmapped type -> explicit unresolved amount/reason; never silently omit",
+    "overhead": "Whole-store advertising/storage for date allocated once to selected cohort; print scope. Product/store filters require qualified allocation, not the full store debit for each SKU",
+    "refunds": "Use actual debit/credit signs or a verified official rule; missing CPO refund rule -> no invented credit",
+    "tariff_date": "Current tariff is forecast input, never relabelled historical actual; record retrieval date and effective period if known",
+    "percentages": "No constants 49.83%, 62.91%, 67.03%, 9.25% or 4.86%; they are report results. Even commission50% must come from returned product/scheme tariff, not hardcode"
+  },
+  "errors": {
+    "no_advertising": "PARTIAL_ADVERTISING_UNAVAILABLE: name failed endpoint/status and next step; do not accept advertising-free template",
+    "provider_429": "keep error message/retry-after; shared ledger; no empty success or zero",
+    "no_orders": "complete order source may prove empty cohort; show quantities0 and undefined per-unit/percent",
+    "scope_mismatch": "do not compare different order cohorts or a financial-day expense pool as final order-level actual",
+    "http200_empty": "check period, readiness and pagination; empty finance response is not proof of zero lifetime costs"
+  },
+  "dependencies": [
+    "C-UE01 shared compositional operator",
+    "qualified order dataset and exact cancellation quantities",
+    "order-to-accrual linkage",
+    "current tariff binding",
+    "complete advertising",
+    "all-expense classification",
+    "user cost/tax parameters",
+    "numeric acceptance and Yandex Dialogs retest"
+  ],
+  "negative_cases": [
+    "multiunit posting counts quantities",
+    "one partially cancelled child does not duplicate original",
+    "50% seller-price commission is not 50% buyer-card price",
+    "one of rates48% must not become all50%",
+    "delivery total + its components not added twice",
+    "finance ads + Performance ads not added twice",
+    "unknown cancel stage -> return tariff without manual block",
+    "real reverse debit replaces estimate",
+    "no revenue/COGS on cancelled unit",
+    "no denominator switch to12 realized items",
+    "zero/omitted tax and COGS distinguished",
+    "429/missing ads yields reason, not blank answer"
+  ],
+  "independent_gold_ref": "SYNTHETIC_GOLD.json",
+  "evidence_refs": [
+    "../20261105-TESTER-a9c46e21/RUN_REPORT.json"
+  ],
+  "linked_bug_ids": [
+    "QA-20261105-TESTER-a9c46e21-RATE"
+  ],
+  "validation_state": "Candidate only: synthetic gold supplied; production operator/source coverage and independent acceptance still required",
+  "owner_rules_recorded_on": "2026-11-05",
+  "run_id": "20261105-TESTER-3f3405f9"
+}
