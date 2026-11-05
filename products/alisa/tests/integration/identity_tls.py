@@ -34,7 +34,7 @@ class Proxy(http.server.BaseHTTPRequestHandler):
     def forward(self):
         size=int(self.headers.get('Content-Length','0'))
         if size>32768:self.send_error(413);return
-        headers={k:v for k,v in self.headers.items() if k.lower() not in {'connection','transfer-encoding'}}
+        headers={k:v for k,v in self.headers.items() if k.lower() not in {'connection','transfer-encoding','content-length'}}
         headers['X-Forwarded-Proto']='https'
         connection=http.client.HTTPConnection('127.0.0.1',self.server.backend,timeout=8)
         try:

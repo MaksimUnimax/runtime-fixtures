@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from playwright.sync_api import sync_playwright,expect
 import jwt
 from identity_tls import certificates,start_proxy,start_plain_proxy
+from identity_network import OwnedNetwork
 from qualify_leads import Sink,SMTP,link as lead_link
 from run_postgres import clean_environment,stop,expected_database_connect_denial
 
@@ -44,7 +45,7 @@ def main():
         with patch.dict(os.environ,clean_environment(),clear=True):return psycopg.connect(**config,autocommit=True)
     admin=connect();owned=False;roles=[n+'_'+r for n in NAMES for r in ['migration','runtime']]
     record={'scope':'S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE','status':'RUNNING','cases':CASES,'not_run':['live_stage_rollout','controlled_real_email','live_release_pair_rollback']}
-    proxies=[];sink=None;browser=None;context=None;temporary=None;logs=None;playwright=None
+    proxies=[];sink=None;browser=None;context=None;temporary=None;logs=None;playwright=None;network=OwnedNetwork()
     try:
         databases={r[0] for r in admin.execute('SELECT datname FROM pg_database WHERE NOT datistemplate')}
         if databases-{'postgres','alisa_ci_admin'}:raise RuntimeError('Disposable cluster is not empty')
@@ -52,7 +53,7 @@ def main():
         owned=True
         temporary=tempfile.TemporaryDirectory(prefix='alisa-s02-private-')
         if temporary:
-            temp=Path(temporary.name);logs=(temp/'private-process.log').open('w+')
+            temp=Path(temporary.name);temp.chmod(0o711);logs=(temp/'private-process.log').open('w+')
             with tarfile.open(args.artifact) as archive:archive.extractall(temp,filter='data')
             release=next(p for p in temp.iterdir() if p.is_dir() and p.name.startswith('alisa-'))
             manifest=json.loads((release/'manifest.json').read_text());record['source_sha']=manifest['source_sha'];record['artifact_sha256']=hashlib.sha256(args.artifact.read_bytes()).hexdigest()
@@ -113,10 +114,13 @@ def main():
                 except psycopg.OperationalError as exc:denied=expected_database_connect_denial(exc)
                 check('s02_'+name+'_foreign_database_denied',denied)
             def spawn(arguments,environment):
-                p=subprocess.Popen(list(map(str,arguments)),env=environment,stdout=logs,stderr=logs,start_new_session=True);PROCESSES.append(p);return p
+                p=subprocess.Popen(list(map(str,arguments)),env=environment,stdout=logs,stderr=logs,start_new_session=True,
+                    user=network.uid,group=network.uid,extra_groups=[]);PROCESSES.append(p);return p
             def start(component):
                 module='alisa_platform' if component=='platform' else 'octoport_identity';port=18402 if component=='platform' else 18403
                 return spawn([py,'-m','gunicorn',module+'.config.wsgi:application','--bind','127.0.0.1:'+str(port),'--workers','2','--access-logfile','-','--access-logformat','%(m)s %(U)s %(s)s'],env(component))
+            network.setup()
+            check('s02_runtime_nonloopback_egress_denied_by_owned_uid_firewall',network.witness(py,clean_environment()))
             api=start('platform');authority=start('identity')
             web=spawn(['node',release/'ui/web/apps/web/server.js'],{**web_env,'PORT':'18400','HOSTNAME':'127.0.0.1'})
             proxies=[start_proxy(19440,18400,cert,key),start_proxy(19443,18403,cert,key),start_plain_proxy(18404,18402)]
@@ -385,6 +389,7 @@ def main():
             try:playwright.stop()
             except Exception:pass
         for p in reversed(PROCESSES):stop(p)
+        network.close()
         for proxy in proxies:proxy.shutdown();proxy.server_close()
         if sink:sink.shutdown();sink.server_close()
         if logs and not logs.closed:logs.close()
