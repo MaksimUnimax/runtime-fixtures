@@ -96,3 +96,48 @@ def revoke_staff(token,staff_id,expected_revision,why):
     StaffSession.objects.filter(member=target,revoked_at__isnull=True).update(revoked_at=timezone.now(),encrypted_payload='')
     audit(actor,'staff.revoked',target.pk,why,'APPLIED',after={'staff_id':str(target.pk),'active':False,'revision':target.revision})
     return {'state':'APPLIED','revision':target.revision},200
+
+@transaction.atomic
+def handover_initial_owner(owner_id,expected_subject,expected_revision,new_subject,name):
+    """One closed initial test-owner handover; never a public staff command."""
+    if not settings.STAFF_ENABLED or settings.ALISA_ENV not in {'dev','stage'}:
+        raise ValueError('Initial handover unavailable')
+    owner_id=uuid.UUID(identifier(owner_id))
+    expected_subject=identifier(expected_subject);new_subject=identifier(new_subject)
+    expected_revision=positive_revision(expected_revision)
+    if not isinstance(name,str) or not 1<=len(name.strip())<=80 or any(ord(c)<32 for c in name):
+        raise ValueError('Named owner required')
+    owner_lock()
+    member=StaffMember.objects.select_for_update().filter(pk=owner_id,product_id=PRODUCT,
+        issuer=settings.IDENTITY_ISSUER,client_id=settings.STAFF_CLIENT_ID,role='OWNER',active=True).first()
+    if member is None:raise ValueError('Expected active owner required')
+    fingerprint=lambda value:hashlib.sha256(value.encode()).hexdigest()
+    previous=StaffAuditEvent.objects.filter(product_id=PRODUCT,action='staff.owner_handover').first()
+    if previous is not None:
+        if (previous.target_id==member.pk and member.subject==new_subject
+                and member.revision==expected_revision+1
+                and previous.before.get('revision')==expected_revision
+                and previous.before.get('subject_fingerprint')==fingerprint(expected_subject)
+                and previous.after.get('subject_fingerprint')==fingerprint(new_subject)):
+            return member,False
+        raise ValueError('Initial owner handover already completed')
+    if member.subject!=expected_subject or member.revision!=expected_revision:
+        raise ValueError('Owner binding or revision changed')
+    if new_subject==expected_subject:raise ValueError('Different verified admin subject required')
+    if StaffMember.objects.filter(product_id=PRODUCT,role='OWNER',active=True).count()!=1:
+        raise ValueError('Exactly one initial owner required')
+    if not StaffAuditEvent.objects.filter(product_id=PRODUCT,action='staff.bootstrap',target_id=member.pk).exists():
+        raise ValueError('Closed bootstrap evidence required')
+    if StaffMember.objects.filter(product_id=PRODUCT,issuer=settings.IDENTITY_ISSUER,
+            client_id=settings.STAFF_CLIENT_ID,subject=new_subject).exclude(pk=member.pk).exists():
+        raise ValueError('Target staff binding already exists')
+    before={'staff_id':str(member.pk),'role':'OWNER','revision':member.revision,
+            'subject_fingerprint':fingerprint(member.subject)}
+    member.subject=new_subject;member.name=name.strip();member.revision+=1
+    member.save(update_fields=['subject','name','revision'])
+    StaffSession.objects.filter(member=member,revoked_at__isnull=True).update(
+        revoked_at=timezone.now(),encrypted_payload='')
+    audit(None,'staff.owner_handover',member.pk,'OWNER_ASSIGNMENT','APPLIED',before,
+        {'staff_id':str(member.pk),'role':'OWNER','revision':member.revision,
+         'subject_fingerprint':fingerprint(new_subject)})
+    return member,True

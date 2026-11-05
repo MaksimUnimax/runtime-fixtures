@@ -1,5 +1,6 @@
 """Staff authority belongs to one product; identity login alone grants nothing."""
 import math
+import re
 import uuid
 
 PRODUCT='alisa_market'
@@ -53,6 +54,7 @@ def audit_projection(value):
         elif key=='revision':result[key]=positive_revision(item)
         elif key=='role' and isinstance(item,str) and item in {'OWNER','ADMIN'}:result[key]=item
         elif key=='permissions':result[key]=permissions(item)
+        elif key=='subject_fingerprint' and isinstance(item,str) and re.fullmatch(r'[0-9a-f]{64}',item):result[key]=item
         elif key=='count' and type(item) is int and 0<=item<=1000:result[key]=item
         else:raise ValueError('Unsafe audit field')
     return result
