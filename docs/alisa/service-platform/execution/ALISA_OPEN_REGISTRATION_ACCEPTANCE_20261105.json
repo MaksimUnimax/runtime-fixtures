@@ -1,0 +1,285 @@
+{
+  "record_type": "ALISA_NORMAL_EMAIL_REGISTRATION_FINAL_INSTALLED_ACCEPTANCE",
+  "status": "PASS_INSTALLED_STAGE_NORMAL_EMAIL_REGISTRATION",
+  "source_sha": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+  "artifact": {
+    "name": "alisa-07290e7c17f556bf.tar.gz",
+    "sha256": "19044804a17f803c0b92d6da55f722db81d92e9ec24e54cab2dc26d0000b5c7b",
+    "github_artifact_id": 13408716940,
+    "github_run_id": 42014260386
+  },
+  "installation": {
+    "record_type": "INSTALLED_OPEN_REGISTRATION_RELEASE",
+    "source_sha": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+    "release": "alisa-07290e7c17f556bf",
+    "status": "PASS",
+    "artifact_sha256": "19044804a17f803c0b92d6da55f722db81d92e9ec24e54cab2dc26d0000b5c7b",
+    "migrations_applied": [],
+    "protected_runtime_unchanged": true,
+    "active_components": [
+      "web",
+      "platform",
+      "identity"
+    ],
+    "admin_release": "alisa-3e91b1aa5d405d0e",
+    "invitation_list_required": false,
+    "smtp_tls_required": true,
+    "ordinary_public_registration": true,
+    "s03_smoke_receipt": "AL_S03_INSTALLED_SMOKE_R4_20261105.json",
+    "s03_reentry_receipt": "AL_S03_INSTALLED_REENTRY_20261105.json",
+    "s03_prior_rollback_timeout_retained": true,
+    "finished_utc": "2026-11-05T11:00:16.890734+00:00"
+  },
+  "actual_browser_database_privacy": {
+    "record_type": "INSTALLED_OPEN_EMAIL_REGISTRATION_ACCEPTANCE",
+    "source_sha": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+    "started_utc": "2026-11-05T11:02:20.076918+00:00",
+    "cases": [
+      {
+        "case": "ordinary_registration_enabled_without_invitation_lists",
+        "passed": true
+      },
+      {
+        "case": "normal_registration_notice",
+        "passed": true
+      },
+      {
+        "case": "registration_no_horizontal_overflow_320",
+        "passed": true
+      },
+      {
+        "case": "registration_no_horizontal_overflow_390",
+        "passed": true
+      },
+      {
+        "case": "registration_no_horizontal_overflow_1440",
+        "passed": true
+      },
+      {
+        "case": "new_real_address_without_invitation_accepted",
+        "passed": true
+      },
+      {
+        "case": "wrong_real_mail_code_denied",
+        "passed": true
+      },
+      {
+        "case": "gmail_verified_registration_reaches_cabinet",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "profile_contact_matches_verified_mail",
+        "passed": true
+      },
+      {
+        "case": "new_login_code_differs",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "repeat_gmail_login_same_customer_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "restart_preserves_same_session_account_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "no_browser_script_errors",
+        "passed": true
+      },
+      {
+        "case": "one_new_identity_account",
+        "passed": true
+      },
+      {
+        "case": "new_mailbox_verified",
+        "passed": true
+      },
+      {
+        "case": "registration_consents_recorded",
+        "passed": true
+      },
+      {
+        "case": "only_web_subject_no_admin_identity",
+        "passed": true
+      },
+      {
+        "case": "two_real_messages_sent_and_payloads_erased",
+        "passed": true
+      },
+      {
+        "case": "previous_owner_identity_preserved",
+        "passed": true
+      },
+      {
+        "case": "one_new_product_customer",
+        "passed": true
+      },
+      {
+        "case": "one_owner_client_tenant",
+        "passed": true
+      },
+      {
+        "case": "one_active_session_after_repeat_and_restart",
+        "passed": true
+      },
+      {
+        "case": "previous_owner_cabinet_preserved",
+        "passed": true
+      },
+      {
+        "case": "product_logs_contain_no_known_codes_contacts_or_secrets",
+        "passed": true
+      }
+    ],
+    "new_real_address_without_invitation": true,
+    "privacy_scope": "Alisa product logs only; existing private MTA retains normal routing metadata.",
+    "status": "PASS",
+    "finished_utc": "2026-11-05T11:03:26.230295+00:00",
+    "browser_error_types": []
+  },
+  "mailbox_headers_sanitized": [
+    {
+      "sequence": 1,
+      "received_utc": "2026-11-05T11:02:24.000Z",
+      "inbox": true,
+      "spf_pass": true,
+      "dkim_pass": true,
+      "dmarc_pass": true
+    },
+    {
+      "sequence": 2,
+      "received_utc": "2026-11-05T11:03:00.000Z",
+      "inbox": true,
+      "spf_pass": true,
+      "dkim_pass": true,
+      "dmarc_pass": true
+    }
+  ],
+  "qualification": {
+    "source_unit": {
+      "passed": 62,
+      "total": 62
+    },
+    "postgres_browser_regression": {
+      "passed": 96,
+      "total": 96
+    },
+    "https_identity_bff_cabinet_staff": {
+      "passed": 147,
+      "total": 147
+    },
+    "open_registration_no_invites": {
+      "passed": 130,
+      "total": 130
+    },
+    "runtime_policy_subset_included": {
+      "passed": 17,
+      "total": 17
+    },
+    "staff_policies": {
+      "passed": 44,
+      "total": 44
+    },
+    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42014260386",
+    "provider_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42014260392",
+    "docs_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42014260293"
+  },
+  "independent_source_review": {
+    "status": "PASS_SOURCE_REVIEW",
+    "source_sha": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+    "reviewer": "registration_review",
+    "scope": "Independent read-only product source review; metadata follow-up reviewed",
+    "installed_acceptance": false
+  },
+  "independent_installed_review": {
+    "status": "PASS_EVIDENCE_INSPECTION",
+    "source_sha": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+    "reviewer": "registration_review",
+    "active_sources_and_health_match": true,
+    "manifest_and_five_admission_smtp_source_hashes_match": true,
+    "recorded_27_cases_and_sanitized_mail_proof_inspected": true,
+    "personally_reexecuted_27_cases": false,
+    "no_authentication_mail_mutation_or_restart_by_reviewer": true
+  },
+  "readback": {
+    "checked_utc": "2026-11-05T11:05:32.222691+00:00",
+    "readiness": {
+      "18100": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-07290e7c17f556bf",
+        "status": "READY"
+      },
+      "18101": {
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "READY"
+      },
+      "18102": {
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-07290e7c17f556bf"
+      },
+      "18103": {
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-07290e7c17f556bf",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      }
+    },
+    "protected_units_same_since_activation": {
+      "alice-market.service": true,
+      "alice-lab-web.service": true,
+      "alice-lab-worker.service": true,
+      "alice-lab-llm.service": true,
+      "alisa-admin@stage.service": true
+    },
+    "private_handoff_files_removed": true,
+    "links": {
+      "web-current": "alisa-07290e7c17f556bf",
+      "site-current": "alisa-07290e7c17f556bf",
+      "identity-current": "alisa-07290e7c17f556bf",
+      "admin-current": "alisa-3e91b1aa5d405d0e"
+    },
+    "disk_free_bytes": 3307909120
+  },
+  "failed_test_start": {
+    "status": "BROWSER_NOT_STARTED",
+    "registration_or_mail_attempted": false,
+    "cause": "Test unit omitted the existing PLAYWRIGHT_BROWSERS_PATH.",
+    "resolution": "A second finite unit used the already installed observer-browsers cache and completed 27/27."
+  },
+  "boundaries": {
+    "stage_only": true,
+    "invitation_list_required": false,
+    "normal_real_email_registration": true,
+    "passwordless_native_email_code": true,
+    "existing_octoport_accounts_linked": false,
+    "shared_identity_remaining_steps": [
+      "AL-M01",
+      "AL-M02",
+      "AL-M04"
+    ],
+    "stores_payments_and_voice_reports_not_added_by_this_change": true,
+    "lead_join_form": "Separate synthetic demo; not the registration form",
+    "production_enabled": false
+  },
+  "privacy": "No email address, Gmail internal ID, OTP, cookie, private key, bearer token, password or signed URL is included. Actual mail test used a new Gmail plus-address owned by the user."
+}

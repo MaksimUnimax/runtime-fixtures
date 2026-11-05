@@ -1,13 +1,14 @@
 {
-  "record_type": "ALISA_SHARED_IDENTITY_AND_REAL_MAIL_REVIEW",
-  "recorded_utc": "2026-11-05T10:30:17.995539+00:00",
-  "status": "INSTALLED_REAL_MAIL_PATH_ACCEPTED_FOR_ONE_INVITED_OWNER",
-  "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
-  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/389",
+  "record_type": "ALISA_NORMAL_EMAIL_REGISTRATION_AND_SHARED_IDENTITY_READINESS",
+  "recorded_utc": "2026-11-05T11:05:32.222691+00:00",
+  "status": "INSTALLED_NORMAL_EMAIL_REGISTRATION_ACCEPTED",
+  "source_sha": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/390",
   "artifact": {
-    "name": "alisa-dd2b59b99b00b7e4.tar.gz",
-    "sha256": "e19761ed8943c1d17f641ad07dcd474f62c7e9fbdf500f0c4c3905ee24f3f849",
-    "github_artifact_id": 13404325183
+    "name": "alisa-07290e7c17f556bf.tar.gz",
+    "sha256": "19044804a17f803c0b92d6da55f722db81d92e9ec24e54cab2dc26d0000b5c7b",
+    "github_artifact_id": 13408716940,
+    "github_run_id": 42014260386
   },
   "owner_requirement": "Одни и те же люди/администраторы, одна постоянная регистрация; разные кабинеты до объединения.",
   "document_conclusion": {
@@ -35,41 +36,46 @@
     "customer_or_admin_rows_changed": false
   },
   "changes": {
-    "real_mail": "Stage invitation policy at both identity and platform session boundaries",
+    "real_mail": "Ordinary validated real-email registration and login with no invitation list; one shared ALISA_REAL_LOGIN_OPEN flag at identity, SMTP, platform and web.",
     "transport": "Existing Octoport Exim/Dovecot; dedicated mail service principal; verified STARTTLS and native SASL PLAIN",
     "synthetic_mail": "Remains on private loopback sink",
     "mail_unknown_outcome": "Terminal, no automatic replay after ambiguous DATA or lost process",
     "migrations_relative_to_s03": [],
     "identity_or_product_account_linking": false,
-    "ordinary_public_admission": false
+    "ordinary_public_admission": true,
+    "environment_scope": "Existing stage origins only; production capability remains closed."
   },
   "qualification": {
     "source_unit": {
-      "passed": 60,
-      "total": 60
+      "passed": 62,
+      "total": 62
     },
     "postgres_browser_regression": {
       "passed": 96,
       "total": 96
     },
-    "https_identity_bff_cabinet": {
-      "passed": 146,
-      "total": 146
+    "https_identity_bff_cabinet_staff": {
+      "passed": 147,
+      "total": 147
     },
-    "runtime_policy_subset_included_above": {
-      "passed": 16,
-      "total": 16
+    "open_registration_no_invites": {
+      "passed": 130,
+      "total": 130
+    },
+    "runtime_policy_subset_included": {
+      "passed": 17,
+      "total": 17
     },
     "staff_policies": {
       "passed": 44,
       "total": 44
     },
-    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42002923215",
-    "provider_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42002923200",
-    "docs_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42002923265"
+    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42014260386",
+    "provider_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42014260392",
+    "docs_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42014260293"
   },
   "native_transport": {
-    "status": "PASS_AUTH_AND_GMAIL_DELIVERY",
+    "status": "PASS_ACTUAL_NEW_ADDRESS_SIGNUP_AND_REPEAT_LOGIN",
     "service_user": "alisa-identity-stage",
     "host": "mail.octoport.ru",
     "port": 25,
@@ -83,77 +89,122 @@
     "sender_and_service_principal_registered": true
   },
   "stage": {
-    "prepared_release": "alisa-dd2b59b99b00b7e4",
-    "prepared_package_files_and_links_verified": true,
+    "release": "alisa-07290e7c17f556bf",
     "activated": true,
     "observed_active": {
-      "web": "alisa-dd2b59b99b00b7e4",
-      "admin": "alisa-3e91b1aa5d405d0e",
-      "platform": "alisa-dd2b59b99b00b7e4",
-      "identity": "alisa-dd2b59b99b00b7e4"
+      "web": "alisa-07290e7c17f556bf",
+      "platform": "alisa-07290e7c17f556bf",
+      "identity": "alisa-07290e7c17f556bf",
+      "admin": "alisa-3e91b1aa5d405d0e"
     },
-    "s03_acceptance_evidence": [
-      "AL_S03_INSTALLED_SMOKE_R4_20261105.json",
-      "AL_S03_INSTALLED_REENTRY_20261105.json"
-    ],
-    "current_real_gmail_registration": "PASS_14_OF_14_EXECUTOR_INSTALLED_ACCEPTANCE",
-    "mail_delivery_to_gmail": "TWO_MESSAGES_IN_INBOX_SPF_DKIM_DMARC_PASS",
+    "invitation_list_required": false,
+    "invited_recipient_list_entries": 0,
+    "ordinary_public_registration": true,
+    "environment": "stage",
+    "current_real_gmail_registration": "PASS_NEW_UNINVITED_GMAIL_ALIAS",
     "repeated_real_mail_login": "PASS_SAME_CUSTOMER_AND_TENANT",
     "restart_session_preservation": "PASS",
-    "privacy_database": "PASS_12_OF_12",
-    "independent_real_mail_installed_acceptance": "NOT_RUN_SEPARATE_INDEPENDENT_REVIEW_NOT_CLAIMED",
-    "real_recipient_count": 1,
-    "ordinary_public_registration": false,
+    "installed_browser_database_privacy": {
+      "passed": 27,
+      "total": 27
+    },
+    "independent_source_review": "PASS_EXACT_SOURCE",
+    "independent_installed_evidence_review": "PASS_READ_ONLY_INSPECTION_NOT_PERSONAL_REEXECUTION",
     "migrations_applied": [],
-    "final_receipt": "ALISA_REAL_MAIL_INSTALLED_ACCEPTANCE_20261105.json"
+    "final_receipt": "ALISA_OPEN_REGISTRATION_ACCEPTANCE_20261105.json"
   },
   "next_action": {
-    "completed": [
-      "Exact dd2b activation after S03 smoke/reentry",
-      "Controlled Gmail delivery, wrong-code rejection, correct-code cabinet entry",
-      "Fresh code and repeat login into the same customer and tenant",
-      "Restart persistence, read-only DB checks and product-log privacy",
-      "Private OTP handoff files removed and sanitized evidence saved"
-    ],
-    "owner_manual_acceptance": "Open https://alisa-stage.octoport.ru/login and request a fresh code for the invited owner address.",
-    "shared_identity_followup": "AL-M01 then AL-M02; preserve existing Octoport local IDs; AL-M04 for common staff shell.",
+    "manual_acceptance": "Open https://alisa-stage.octoport.ru/login; use your own real email. New users select registration, confirm the code, and enter the cabinet. Existing users request a fresh login code.",
+    "shared_identity_followup": "AL-M01 and AL-M02 connect existing Octoport accounts; AL-M04 provides common staff shell.",
     "automatic_future_execution": false
   },
   "other_open_review_findings": "Existing independent-review findings are not closed by a mail/design change.",
   "secrets_or_otp_in_record": false,
   "previous_checkpoint": {
-    "recorded_utc": "2026-11-05T09:38:08.252Z",
-    "status": "SOURCE_QUALIFIED_AND_STAGED_NOT_ACTIVATED",
-    "activation_blocker": "S03 exact-package acceptance was still in progress at the preceding checkpoint."
+    "status": "INSTALLED_REAL_MAIL_PATH_ACCEPTED_FOR_ONE_INVITED_OWNER",
+    "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+    "artifact": {
+      "name": "alisa-dd2b59b99b00b7e4.tar.gz",
+      "sha256": "e19761ed8943c1d17f641ad07dcd474f62c7e9fbdf500f0c4c3905ee24f3f849",
+      "github_artifact_id": 13404325183
+    },
+    "scope": "One invited owner only; superseded by normal stage registration after owner's explicit request."
   },
   "final_evidence": {
-    "installed_acceptance": {
-      "passed": 14,
-      "total": 14
-    },
-    "database_privacy": {
-      "passed": 12,
-      "total": 12
+    "actual_installed_cases": {
+      "passed": 27,
+      "total": 27
     },
     "gmail": [
       {
-        "received_utc": "2026-11-05T10:13:39.000Z",
+        "sequence": 1,
+        "received_utc": "2026-11-05T11:02:24.000Z",
         "inbox": true,
-        "from": "no-reply@octoport.ru",
         "spf_pass": true,
         "dkim_pass": true,
         "dmarc_pass": true
       },
       {
-        "received_utc": "2026-11-05T10:14:23.000Z",
+        "sequence": 2,
+        "received_utc": "2026-11-05T11:03:00.000Z",
         "inbox": true,
-        "from": "no-reply@octoport.ru",
         "spf_pass": true,
         "dkim_pass": true,
         "dmarc_pass": true
       }
     ],
-    "product_log_scan_utc": "2026-11-05T10:19:27.035314+00:00",
-    "live_readback_utc": "2026-11-05T10:30:17.995539+00:00"
+    "readback": {
+      "checked_utc": "2026-11-05T11:05:32.222691+00:00",
+      "readiness": {
+        "18100": {
+          "component": "web",
+          "environment": "stage",
+          "release": "alisa-07290e7c17f556bf",
+          "status": "READY"
+        },
+        "18101": {
+          "component": "admin",
+          "environment": "stage",
+          "release": "alisa-3e91b1aa5d405d0e",
+          "status": "READY"
+        },
+        "18102": {
+          "component": "platform",
+          "status": "READY",
+          "runtime": "RUNTIME_NOT_CONNECTED",
+          "environment": "stage",
+          "release": "alisa-07290e7c17f556bf"
+        },
+        "18103": {
+          "component": "identity",
+          "environment": "stage",
+          "release": "alisa-07290e7c17f556bf",
+          "status": "READY",
+          "authentication": "OIDC_CODE_PKCE"
+        }
+      },
+      "protected_units_same_since_activation": {
+        "alice-market.service": true,
+        "alice-lab-web.service": true,
+        "alice-lab-worker.service": true,
+        "alice-lab-llm.service": true,
+        "alisa-admin@stage.service": true
+      },
+      "private_handoff_files_removed": true,
+      "links": {
+        "web-current": "alisa-07290e7c17f556bf",
+        "site-current": "alisa-07290e7c17f556bf",
+        "identity-current": "alisa-07290e7c17f556bf",
+        "admin-current": "alisa-3e91b1aa5d405d0e"
+      },
+      "disk_free_bytes": 3307909120
+    },
+    "independent_source_review": {
+      "status": "PASS_SOURCE_REVIEW",
+      "source_sha": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+      "reviewer": "registration_review",
+      "scope": "Independent read-only product source review; metadata follow-up reviewed",
+      "installed_acceptance": false
+    }
   }
 }
