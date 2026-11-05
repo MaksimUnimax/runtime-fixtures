@@ -1,0 +1,262 @@
+--- a/repository.py
++++ b/repository.py
+@@ -49,4 +49,6 @@
+             CREATE TABLE IF NOT EXISTS denied(source TEXT,revision TEXT,PRIMARY KEY(source,revision));
+             ''')
++        from reader_state import install as install_readers
++        install_readers(self)
+         retention.install(self)
+         if os.stat(self.path).st_uid == os.getuid():
+@@ -170,5 +172,6 @@
+             c.execute('INSERT INTO inbox VALUES(?,?,?,?)',(tenant,rid,body_hash,jid))
+             c.execute('INSERT INTO inbox_age VALUES(?,?,?)',(tenant,rid,self.clock()))
+-            c.execute('INSERT OR REPLACE INTO pointers VALUES(?,?)',(tenant,jid))
++            from reader_state import bind
++            bind(self,c,tenant,jid)
+             return self._row(c,jid,tenant), outcome
+ 
+@@ -241,36 +244,26 @@
+             return True
+ 
++    def reader_scope(self,tenant,conversation):
++        from reader_state import scope
++        return scope(self,tenant,conversation)
++
+     def get(self,tenant,jid=None):
+         with self.connection(True) as c:
+             if jid is None:
+-                p = c.execute('SELECT jid FROM pointers WHERE tenant=?',(tenant,)).fetchone()
+-                if not p: return None
+-                jid = p['jid']
++                from reader_state import selected
++                return self._expired(c,selected(self,c,tenant))
+             return self._expired(c,self._row(c,jid,tenant))
+ 
+     def cancel(self,tenant):
+-        with self.connection(True) as c:
+-            p = c.execute('SELECT jid FROM pointers WHERE tenant=?',(tenant,)).fetchone()
+-            r = self._row(c,p['jid'],tenant) if p else None
+-            if r and r['state'] in ACTIVE:
+-                c.execute("UPDATE jobs SET state='CANCELLED',updated=? WHERE id=?",(self.clock(),r['id']))
+-                return True
+-            return False
++        from reader_state import cancel
++        return cancel(self,tenant)
+ 
+     def page(self,tenant,jid,next_page=False):
+-        with self.connection(True) as c:
+-            r = self._row(c,jid,tenant)
+-            if not r or r['state']!='READY' or (r['expires'] or 0)<=self.clock(): raise Rejected('NOT_READY')
+-            result = strict_json(r['result']); pages = result['pages']
+-            i = min(r['page']+1,len(pages)-1) if next_page else 0
+-            c.execute('UPDATE jobs SET page=?,delivered=? WHERE id=?',(i,int(i==len(pages)-1),r['id']))
+-            return pages[i]
++        from reader_state import page
++        return page(self,tenant,jid,next_page)
+ 
+     def unread(self,tenant,exclude=None):
+-        # Notification index, not report reuse or historical result reconstruction.
+-        with self.connection() as c:
+-            r = c.execute("SELECT id,plan FROM jobs WHERE tenant=? AND state='READY' AND delivered=0 AND expires>? AND id!=? ORDER BY created LIMIT 1",
+-                          (tenant,self.clock(),exclude or '')).fetchone()
+-            return dict(r) if r else None
++        from reader_state import unread
++        return unread(self,tenant,exclude)
+ 
+     def reserve(self,jid,owner,source,interval,daily_limit):
+--- a/dialogue.py
++++ b/dialogue.py
+@@ -159,5 +159,5 @@
+ 
+ 
+-def submit(engine, tenant, command, rid, body_hash, today, conversation, message_seq):
++def _submit_scoped(engine, tenant, command, rid, body_hash, today, conversation, message_seq):
+     repo = engine.repo
+     repo.validate_ingress(tenant, rid, body_hash)
+@@ -165,4 +165,5 @@
+             or type(message_seq) is not int or not 0 <= message_seq <= 99999999):
+         raise Rejected('DIALOGUE_SCHEMA')
++    inner_rid = 'dialogue1:' + fingerprint([conversation,rid])
+     text = normalize(command)
+     from information import is_help
+@@ -209,5 +210,5 @@
+             reply = _reply('Незавершённый запрос отменён. Другие отчёты не отменяю.')
+         elif p and text in PASS_CONTROLS:
+-            reply = engine._submit(tenant, text, rid, body_hash, today)
++            reply = engine._submit(tenant, text, inner_rid, body_hash, today)
+         elif p and text in PENDING_CONTROLS:
+             reply = _prompt(p)
+@@ -262,5 +263,5 @@
+                 # Rejected() must not leave a partially enqueued request behind.
+                 c.execute('SAVEPOINT dialogue_action')
+-                reply = engine._submit(tenant, query, rid, body_hash, anchor, clarification=metadata)
++                reply = engine._submit(tenant, query, inner_rid, body_hash, anchor, clarification=metadata)
+                 c.execute('RELEASE dialogue_action')
+                 p = None
+@@ -301,2 +302,9 @@
+         # Active expiration is performed by the independent retention timer.
+         return reply
++
++
++def submit(engine, tenant, command, rid, body_hash, today, conversation, message_seq):
++    # Scope restored even when authorization/parser/SQLite raises. Worker threads
++    # and legacy ingress never inherit another request's selected job or page.
++    with engine.repo.reader_scope(tenant,conversation):
++        return _submit_scoped(engine,tenant,command,rid,body_hash,today,conversation,message_seq)
+--- a/retention.py
++++ b/retention.py
+@@ -47,5 +47,5 @@
+                  c.execute("SELECT count(*) FROM jobs WHERE state='UNKNOWN'").fetchone()[0] >= MAX_UNKNOWN)
+     else:
+-        table = {'dialogue':'dialogue_receipts','control':'control_inbox','inbox':'inbox'}[kind]
++        table = {'dialogue':'dialogue_receipts','control':'control_inbox','inbox':'inbox','reader':'reader_cursors'}[kind]
+         limit = (c.execute('SELECT count(*) FROM '+table).fetchone()[0] >= MAX_RECEIPTS or
+                  c.execute('SELECT count(*) FROM '+table+' WHERE tenant=?',(tenant,)).fetchone()[0] >= MAX_TENANT_RECEIPTS)
+@@ -69,4 +69,15 @@
+             change('old_context_cursors','DELETE FROM dialogue_context WHERE rowid IN (SELECT rowid FROM dialogue_context WHERE pending IS NULL AND updated<=? ORDER BY updated LIMIT ?)',(now-REPLAY_TTL,batch))
+             change('dialogue_payloads',"UPDATE dialogue_receipts SET reply='{}',plan=NULL,expires=MIN(COALESCE(expires,created+?),created+?) WHERE rowid IN (SELECT rowid FROM dialogue_receipts WHERE (created+?<=? OR (expires IS NOT NULL AND expires<=?)) AND (reply!='{}' OR plan IS NOT NULL) LIMIT ?)",(PAYLOAD_TTL,PAYLOAD_TTL,PAYLOAD_TTL,now,now,batch))
++        if 'reader_cursors' in tables:
++            # Preserve a reference to an active canonical job behind aliases.
++            active_chain = """WITH RECURSIVE chain(id,state,alias,depth) AS (
++              SELECT id,state,alias,0 FROM jobs WHERE id=reader_cursors.jid
++              UNION ALL SELECT j.id,j.state,j.alias,ch.depth+1 FROM jobs j
++              JOIN chain ch ON j.id=ch.alias WHERE ch.depth<7)
++              SELECT 1 FROM chain WHERE state IN ('QUEUED','RUNNING')"""
++            change('old_reader_cursors',"DELETE FROM reader_cursors WHERE rowid IN (SELECT rowid FROM reader_cursors WHERE updated<=? AND NOT EXISTS("+active_chain+") ORDER BY updated LIMIT ?)",(now-REPLAY_TTL,batch))
++            change('orphan_reader_cursors',"DELETE FROM reader_cursors WHERE rowid IN (SELECT rowid FROM reader_cursors WHERE NOT EXISTS(SELECT 1 FROM jobs j WHERE j.id=reader_cursors.jid AND j.tenant=reader_cursors.tenant) LIMIT ?)",(batch,))
++            change('orphan_reader_pointers',"DELETE FROM reader_pointers WHERE rowid IN (SELECT rowid FROM reader_pointers p WHERE NOT EXISTS(SELECT 1 FROM reader_cursors r WHERE r.tenant=p.tenant AND r.conversation=p.conversation AND r.jid=p.jid) LIMIT ?)",(batch,))
++            change('expired_legacy_readers',"DELETE FROM pointers WHERE rowid IN (SELECT rowid FROM pointers p WHERE NOT EXISTS(SELECT 1 FROM reader_cursors r WHERE r.tenant=p.tenant AND r.conversation='' AND r.jid=p.jid) LIMIT ?)",(batch,))
+         change('old_controls','DELETE FROM control_inbox WHERE rowid IN (SELECT rowid FROM control_inbox WHERE created<=? ORDER BY created LIMIT ?)',(now-REPLAY_TTL,batch))
+         change('control_payloads',"UPDATE control_inbox SET reply='{}',plan=NULL,expires=MIN(COALESCE(expires,created+?),created+?) WHERE rowid IN (SELECT rowid FROM control_inbox WHERE (created+?<=? OR (expires IS NOT NULL AND expires<=?)) AND (reply!='{}' OR plan IS NOT NULL) LIMIT ?)",(PAYLOAD_TTL,PAYLOAD_TTL,PAYLOAD_TTL,now,now,batch))
+@@ -81,4 +92,6 @@
+         # a target while a recent message or alias still references it.
+         refs = " AND NOT EXISTS(SELECT 1 FROM inbox WHERE jid=jobs.id) AND NOT EXISTS(SELECT 1 FROM jobs a WHERE a.alias=jobs.id)"
++        if 'reader_cursors' in tables:
++            refs += ' AND NOT EXISTS(SELECT 1 FROM reader_cursors r WHERE r.jid=jobs.id)'
+         if 'dialogue_receipts' in tables:
+             refs += ' AND NOT EXISTS(SELECT 1 FROM dialogue_receipts d WHERE d.jid=jobs.id)'
+--- a/engine.py
++++ b/engine.py
+@@ -13,4 +13,5 @@
+ from request_basis import validate_request_basis, POLICY_VERSION, CLARIFICATION
+ import providers
++from matrix_core import MatrixError
+ 
+ HELP = ('Доступны заказы, расход рекламы и ДРР от заказов. Для WB — воронка и выкупы по заказам периода. Также доступны финансовая сводка за период и текущие остатки на складах площадки. Пример: ДРР за октябрь 2026 на Озоне. '
+@@ -169,5 +170,7 @@
+                 text+=' Дополнительный пакет наборов данных: '+CATALOG['version']+'. Доступны только источники с подтверждённым допуском.'
+         elif command=='отмени отчет':
+-            text='Задание отменено.' if self.repo.cancel(tenant) else 'Активного задания для отмены нет.'
++            from reader_state import key as reader_key
++            local=bool(reader_key(self.repo,tenant))
++            text=('Задание отменено для этой беседы. Другие беседы продолжают свою работу.' if local else 'Задание отменено.') if self.repo.cancel(tenant) else 'Активного задания для отмены нет.'
+         else:
+             row=self.repo.get(tenant)
+@@ -301,5 +304,7 @@
+             else:
+                 self.repo.fail(jid,owner,exc.code,exc.unknown)
+-        except Rejected as exc:
++        except (Rejected,MatrixError) as exc:
++            # A known response failed deterministic schema/math/projection checks.
++            # Do not misclassify it as an uncertain provider outcome.
+             self.repo.fail(jid,owner,exc.code)
+         except Exception:
+--- a/matrix_core.py
++++ b/matrix_core.py
+@@ -44,14 +44,30 @@
+ 
+ 
+-def money(value):
++# Explicit resource bounds, not rounding rules or hidden defaults.
++MAX_COEFFICIENT_DIGITS = 80
++MAX_SOURCE_SCALE = 32
++MAX_INTERMEDIATE_SCALE = 64
++MAX_FIXED_TEXT = 100
++
++
++def money(value, *, max_scale=MAX_INTERMEDIATE_SCALE):
+     if isinstance(value, bool) or not isinstance(value, (str, int, float, Decimal)):
+         fail('NUMBER_TYPE')
+-    if isinstance(value, str) and len(value) > 100:
++    if isinstance(value,str) and len(value)>100:
++        fail('NUMBER_RANGE')
++    if type(value)is int and value.bit_length()>256:
+         fail('NUMBER_RANGE')
+     try:
+-        number = Decimal(str(value))
++        number = value if isinstance(value,Decimal) else Decimal(str(value))
+     except (InvalidOperation, ValueError):
+         fail('NUMBER_FORMAT')
+-    if not number.is_finite() or abs(number) > Decimal('1e18'):
++    if not number.is_finite():
++        fail('NUMBER_RANGE')
++    parts=number.as_tuple();exponent=parts.exponent;digits=len(parts.digits)
++    scale=max(0,-exponent)
++    # Check before fixed-point formatting, including zero with a huge exponent.
++    fixed_length=parts.sign+max(1,digits+exponent)+(1+scale if scale else 0)
++    if (digits>MAX_COEFFICIENT_DIGITS or scale>max_scale or exponent>18
++            or fixed_length>MAX_FIXED_TEXT or number.copy_abs()>Decimal('1e18')):
+         fail('NUMBER_RANGE')
+     return number
+@@ -60,4 +76,8 @@
+ def decimal_text(value):
+     return format(money(value), 'f')
++
++
++def source_decimal_text(value):
++    return format(money(value,max_scale=MAX_SOURCE_SCALE),'f')
+ 
+ 
+@@ -235,5 +255,5 @@
+     'len': (1, len), 'text': (1, text), 'label': (1, label),
+     'brand': (1, lambda a: label(a).casefold().replace('ё', 'е')),
+-    'decimal': (1, decimal_text), 'natural': (1, natural),
++    'decimal': (1, source_decimal_text), 'natural': (1, natural),
+     'nonnegative': (1, nonnegative), 'integer_id': (1, identifier),
+     'string_id': (1, string_identifier), 'day': (1, day),
+--- a/semantics.py
++++ b/semantics.py
+@@ -63,5 +63,7 @@
+ 
+ def period_from_text(text: str, today: date, allow_compare: bool=False) -> tuple[dict, str]:
++    if not isinstance(text,str) or len(text)>1200:raise Rejected('INPUT_SIZE')
+     rules = [
++        (rf'с\s+(\d{{1,2}})\s+({MONTH_PATTERN})(?:\s+(20\d{{2}})(?:\s+года)?)?\s+по\s+(\d{{1,2}})\s+({MONTH_PATTERN})(?:\s+(20\d{{2}})(?:\s+года)?)?', 'named_range'),
+         (r'с\s+(\d{4}\s*-\s*\d{2}\s*-\s*\d{2})\s+по\s+(\d{4}\s*-\s*\d{2}\s*-\s*\d{2})', 'iso'),
+         (r'с\s+(\d{2}\.\d{2}\.\d{4})\s+по\s+(\d{2}\.\d{2}\.\d{4})', 'ru'),
+@@ -79,6 +81,14 @@
+     try:
+         for pattern, kind in rules:
+-            for match in list(re.finditer(r'(?<!\w)' + pattern + r'(?!\w)', masked)):
+-                if kind == 'iso':
++            searchable=re.sub(r'"[^"\n]*"|«[^»\n]*»',lambda m:' '*len(m.group(0)),masked)
++            for match in list(re.finditer(r'(?<!\w)' + pattern + r'(?!\w)', searchable)):
++                if kind == 'named_range':
++                    a,m1,y1,b,m2,y2=match.groups();m1,m2=MONTHS[m1],MONTHS[m2]
++                    if y1 and y2:y1,y2=int(y1),int(y2)
++                    elif y2:y2=int(y2);y1=y2-int(m1>m2)
++                    elif y1:y1=int(y1);y2=y1+int(m2<m1)
++                    else:y2=today.year-int(m2>today.month);y1=y2-int(m1>m2)
++                    start,end=date(y1,m1,int(a)),date(y2,m2,int(b))
++                elif kind == 'iso':
+                     # Only the two explicitly matched date tokens are joined.
+                     # Never remove spaces from unrelated identifiers/product names.
+--- a/failure_catalog.json
++++ b/failure_catalog.json
+@@ -1,5 +1,5 @@
+ {
+   "schema": "alice-failure-catalog/v1",
+-  "version": "20261105-join-r1",
++  "version": "20261105-conversation-safety-r1",
+   "fallback": "UNSPECIFIED",
+   "entries": {
+@@ -217,4 +217,9 @@
+       "reason": "Соединение пытается заменить исходное поле результата вместо добавления метаданных.",
+       "next_action": "Нужно исправить определение матрицы; исходные суммы и количества не перезаписываю.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "NUMBER_RANGE": {
++      "reason": "Источник вернул число за пределами безопасной точности или размера. Полный отчёт не сформирован; частичные суммы не выдаю.",
++      "next_action": "Нужно проверить формат поля источника. Автоматический повтор этого ответа не выполняю.",
+       "cause_status": "OBSERVED_FAILURE"
+     }
