@@ -26,6 +26,16 @@ def run(*, context, second_context, db, check, web_origin, private_values, resta
     api=page.request.get(web_origin+'/api/account/stores').json()
     check('s05_form_persists_and_checks_one_actual_store',len(api['items'])==1 and api['items'][0]['id']==store_id and api['items'][0]['credentials'][0]['status']=='ACTIVE')
     check('s05_secret_not_returned_or_retained_in_form',secret not in json.dumps(api) and form.get_by_label('API-ключ',exact=True).input_value()=='')
+    # Real server HTML remains inert without JS and never uses GET for secrets.
+    no_script=context.browser.new_context(java_script_enabled=False,ignore_https_errors=False,storage_state=context.storage_state())
+    try:
+        inert=no_script.new_page();inert.goto(web_origin+'/app/stores')
+        forms=inert.locator('form');count=forms.count()
+        check('s05_no_script_all_store_forms_use_fixed_post',count>=3 and all(forms.nth(i).get_attribute('method')=='post' and forms.nth(i).get_attribute('action')=='/api/account/stores' for i in range(count)))
+        expect(inert.get_by_role('button',name='Сохранить и проверить',exact=True)).to_be_disabled()
+        check('s05_no_script_secret_form_cannot_submit_before_hydration',True)
+    finally:no_script.close()
+
     foreign=second_context.request.post(web_origin+'/api/account/stores',data={'action':'disable','command_id':str(uuid.uuid4()),'store_id':store_id,'expected_revision':api['items'][0]['revision']},headers={'Origin':web_origin})
     check('s05_browser_foreign_store_id_is_denied',foreign.status==404)
     denied=page.request.post(web_origin+'/api/account/stores',data={'action':'delete'},headers={'Origin':'https://evil.invalid'})

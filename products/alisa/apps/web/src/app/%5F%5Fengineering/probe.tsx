@@ -1,6 +1,8 @@
 'use client';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 export default function Probe() {
+  const [ready,setReady]=useState(false);
+  useEffect(()=>setReady(true),[]);
   const [id, setId] = useState('');
   const [result, setResult] = useState('');
   const [busy, setBusy] = useState(false);
@@ -22,5 +24,5 @@ export default function Probe() {
     } catch {setResult('Не удалось получить результат. Повтор использует тот же ID.');}
     finally {setBusy(false);}
   }
-  return <section><label>UUID пробы<input aria-label="UUID пробы" value={id} onChange={e => setId(e.target.value)} /></label><button disabled={busy} onClick={run}>{busy ? 'Проверка…' : 'Отправить пробу'}</button><pre data-testid="result" aria-live="polite">{result}</pre></section>;
+  return <section><label>UUID пробы<input aria-label="UUID пробы" value={id} onChange={e => setId(e.target.value)} /></label><button disabled={!ready||busy} onClick={run}>{busy ? 'Проверка…' : 'Отправить пробу'}</button><pre data-testid="result" aria-live="polite">{result}</pre></section>;
 }

@@ -1,5 +1,5 @@
 'use client';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import type {Store,StoreCredential,StoreList} from '../../../server/stores';
 
 const messages:Record<string,string>={
@@ -35,6 +35,8 @@ function material(form:FormData,kind:StoreCredential['kind']){
 }
 
 export function StoresView({initial}:{initial:StoreList}){
+  const [ready,setReady]=useState(false);
+  useEffect(()=>setReady(true),[]);
   const [list,setList]=useState(initial),[provider,setProvider]=useState<'OZON'|'WB'>('OZON'),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   async function refresh(append=false){
     const suffix=append&&list.next_cursor?'?cursor='+encodeURIComponent(list.next_cursor):'';
@@ -70,20 +72,20 @@ export function StoresView({initial}:{initial:StoreList}){
   return <>
     <p>Подключить магазин можно без оплаты. Проверка подключения не запускает финансовый отчёт.</p>
     <p role="status" aria-live="polite">{message}</p>
-    <button className="button" disabled={busy} onClick={()=>void perform(()=>refresh())}>Обновить список</button>
+    <button className="button" disabled={!ready||busy} onClick={()=>void perform(()=>refresh())}>Обновить список</button>
     <section aria-label="Добавить магазин"><h2>Добавить магазин</h2>
-      <form onSubmit={event=>{event.preventDefault();const form=event.currentTarget;void perform(async()=>{
+      <form method="post" action="/api/account/stores" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;void perform(async()=>{
         const data=new FormData(form),kind=provider==='OZON'?'SELLER':'WB';
         const command={action:'create',provider,name:String(data.get('name')||''),voice_alias:String(data.get('voice_alias')||''),credential:material(data,kind)};
         form.reset();setProvider('OZON');
         const value=await send(command);if(value.store)await check(value.store,value.store.credentials[0]);
       });}}>
-        <label htmlFor="store-provider">Маркетплейс<select id="store-provider" value={provider} disabled={busy} onChange={event=>setProvider(event.target.value as 'OZON'|'WB')}><option value="OZON">Ozon</option><option value="WB">Wildberries</option></select></label>
-        <label htmlFor="store-name">Название магазина<input id="store-name" name="name" maxLength={80} required disabled={busy}/></label>
-        <label htmlFor="store-alias">Как называть магазин голосом<input id="store-alias" name="voice_alias" maxLength={80} disabled={busy}/></label>
+        <label htmlFor="store-provider">Маркетплейс</label><select id="store-provider" value={provider} disabled={!ready||busy} onChange={event=>setProvider(event.target.value as 'OZON'|'WB')}><option value="OZON">Ozon</option><option value="WB">Wildberries</option></select>
+        <label htmlFor="store-name">Название магазина<input id="store-name" name="name" maxLength={80} required disabled={!ready||busy}/></label>
+        <label htmlFor="store-alias">Как называть магазин голосом<input id="store-alias" name="voice_alias" maxLength={80} disabled={!ready||busy}/></label>
         <KeyFields key={provider} kind={provider==='OZON'?'SELLER':'WB'} id="new-store"/>
         <p>Ключ после сохранения не показывается. Рекламу Ozon можно подключить отдельно в карточке магазина.</p>
-        <button className="button" disabled={busy}>Сохранить и проверить</button>
+        <button className="button" disabled={!ready||busy}>Сохранить и проверить</button>
       </form>
     </section>
     <section aria-label="Сохранённые магазины"><h2>Сохранённые магазины</h2>
@@ -92,31 +94,31 @@ export function StoresView({initial}:{initial:StoreList}){
         <h3>{store.name} · {store.provider==='OZON'?'Ozon':'Wildberries'}</h3>
         <p>{store.status==='DISABLED'?'Магазин отключён. Сохранённые ключи удалены.':'Магазин включён.'}</p>
         {store.voice_alias&&<p>Голосовое название: {store.voice_alias}</p>}
-        <form onSubmit={event=>{event.preventDefault();const data=new FormData(event.currentTarget);void perform(()=>send({action:'rename',store_id:store.id,expected_revision:store.revision,name:String(data.get('name')||''),voice_alias:String(data.get('voice_alias')||'')}));}}>
+        <form method="post" action="/api/account/stores" onSubmit={event=>{event.preventDefault();const data=new FormData(event.currentTarget);void perform(()=>send({action:'rename',store_id:store.id,expected_revision:store.revision,name:String(data.get('name')||''),voice_alias:String(data.get('voice_alias')||'')}));}}>
           <label>Название<input key={store.name} name="name" required maxLength={80} defaultValue={store.name}/></label>
           <label>Голосовое название<input key={store.voice_alias} name="voice_alias" maxLength={80} defaultValue={store.voice_alias}/></label>
-          <button className="button" disabled={busy}>Сохранить названия</button>
+          <button className="button" disabled={!ready||busy}>Сохранить названия</button>
         </form>
         {(store.provider==='OZON'?['SELLER','PERFORMANCE'] as const:['WB'] as const).map(kind=><section key={kind} aria-label={kinds[kind]}>
           <h4>{kinds[kind]}</h4>
           {!store.credentials.some(c=>c.kind===kind)&&<p>Не подключено.</p>}
           {store.credentials.filter(c=>c.kind===kind).map(c=><div key={c.id}>
             <p>{c.status==='PENDING'?'Новый ключ, версия ':'Текущий ключ, версия '}{c.revision}: {messages[c.check_code]||'Проверка не подтверждена.'}</p>
-            {store.status==='ACTIVE'&&<button className="button" disabled={busy} onClick={()=>void perform(()=>check(store,c))}>Проверить {c.status==='PENDING'?'новый':'текущий'} ключ</button>}
+            {store.status==='ACTIVE'&&<button className="button" disabled={!ready||busy} onClick={()=>void perform(()=>check(store,c))}>Проверить {c.status==='PENDING'?'новый':'текущий'} ключ</button>}
           </div>)}
-          {store.credentials.some(c=>c.kind===kind)&&<button className="button" disabled={busy} onClick={()=>void perform(()=>send({action:'revoke_credential',store_id:store.id,expected_revision:store.revision,kind}))}>Отключить {kinds[kind]}</button>}
+          {store.credentials.some(c=>c.kind===kind)&&<button className="button" disabled={!ready||busy} onClick={()=>void perform(()=>send({action:'revoke_credential',store_id:store.id,expected_revision:store.revision,kind}))}>Отключить {kinds[kind]}</button>}
           {store.status==='ACTIVE'&&<details><summary>{kind==='PERFORMANCE'?'Подключить или заменить ключ рекламы':'Сохранить новый ключ'}</summary>
-            <form onSubmit={event=>{event.preventDefault();const form=event.currentTarget;void perform(()=>saveKey(store,kind,form));}}>
+            <form method="post" action="/api/account/stores" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;void perform(()=>saveKey(store,kind,form));}}>
               <KeyFields kind={kind} id={store.id+'-'+kind}/>
               <p>Действующий ключ заменится после подтверждения того же кабинета площадки.</p>
-              <button className="button" disabled={busy}>Сохранить и проверить новый ключ</button>
+              <button className="button" disabled={!ready||busy}>Сохранить и проверить новый ключ</button>
             </form>
           </details>}
         </section>)}
-        <button className="button" disabled={busy} onClick={()=>void perform(()=>send({action:store.status==='DISABLED'?'enable':'disable',store_id:store.id,expected_revision:store.revision}))}>{store.status==='DISABLED'?'Включить магазин':'Отключить и удалить ключи'}</button>
-        <button className="button" disabled={busy} onClick={()=>{if(window.confirm('Удалить магазин и его сохранённые ключи?'))void perform(()=>send({action:'delete',store_id:store.id,expected_revision:store.revision}));}}>Удалить магазин</button>
+        <button className="button" disabled={!ready||busy} onClick={()=>void perform(()=>send({action:store.status==='DISABLED'?'enable':'disable',store_id:store.id,expected_revision:store.revision}))}>{store.status==='DISABLED'?'Включить магазин':'Отключить и удалить ключи'}</button>
+        <button className="button" disabled={!ready||busy} onClick={()=>{if(window.confirm('Удалить магазин и его сохранённые ключи?'))void perform(()=>send({action:'delete',store_id:store.id,expected_revision:store.revision}));}}>Удалить магазин</button>
       </section>)}
-      {list.next_cursor&&<button className="button" disabled={busy} onClick={()=>{setBusy(true);void refresh(true).catch(()=>setMessage('Не удалось загрузить следующую страницу.')).finally(()=>setBusy(false));}}>Показать ещё</button>}
+      {list.next_cursor&&<button className="button" disabled={!ready||busy} onClick={()=>{setBusy(true);void refresh(true).catch(()=>setMessage('Не удалось загрузить следующую страницу.')).finally(()=>setBusy(false));}}>Показать ещё</button>}
     </section>
   </>;
 }
