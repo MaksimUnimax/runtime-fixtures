@@ -78,6 +78,7 @@ jobs:
             products/alisa/dist/s01-home-*.png
             products/alisa/dist/s02-*.json
             products/alisa/dist/s02-empty-state.png
+            products/alisa/dist/s02-identity-*.png
           if-no-files-found: error
       - name: Save the qualified immutable stage package
         uses: actions/upload-artifact@v4

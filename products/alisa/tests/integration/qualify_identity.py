@@ -215,13 +215,30 @@ def main():
                     page.get_by_role('button',name='Войти или создать кабинет').click()
                 check('s02_bff_start_redirects_to_fixed_authority',started.value.status==303,http_status=started.value.status)
                 page.wait_for_url(re.compile(re.escape(ISSUER)+r'/accounts/'))
+            checked_theme_pages=set()
+            def verify_identity_theme(page,label):
+                if label in checked_theme_pages:return
+                page.evaluate('document.fonts.ready')
+                check('s02_identity_'+label+'_theme',page.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(13, 25, 41)')
+                check('s02_identity_'+label+'_test_mail_notice',page.locator('.stage-notice').is_visible() and 'example.invalid' in page.locator('.stage-notice').inner_text())
+                viewport=page.viewport_size
+                for width in [320,390,1440]:
+                    page.set_viewport_size({'width':width,'height':900})
+                    check('s02_identity_'+label+'_layout_'+str(width),page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'))
+                    if width==390:page.screenshot(path=str(output.parent/('s02-identity-'+label+'-mobile.png')),full_page=True)
+                page.set_viewport_size(viewport)
+                page.screenshot(path=str(output.parent/('s02-identity-'+label+'-desktop.png')),full_page=True)
+                checked_theme_pages.add(label)
             callback_proofs=[]
             def register(page,email):
                 open_identity(page)
+                verify_identity_theme(page,'login')
                 page.locator('a[href*="/accounts/signup/"]').first.click()
+                verify_identity_theme(page,'signup')
                 page.locator('input[name=email]').fill(email);page.locator('input[name=privacy]').check();page.locator('input[name=service]').check()
                 page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
                 expect(page.locator('input[name=code]')).to_be_visible()
+                verify_identity_theme(page,'code')
                 manage('identity',['identity_deliver'])
                 refs=[c['value'] for c in page.context.cookies() if c['name']=='__Host-alisa_login']
                 callbacks=[]
@@ -356,6 +373,7 @@ def main():
             # Repeat login goes through the authority and a fresh email code.
             open_identity(page)
             if page.get_by_role('button',name='Продолжить вход по коду').count():
+                verify_identity_theme(page,'reauthentication')
                 page.get_by_role('button',name='Продолжить вход по коду').click()
             login_field=page.locator('input[name=login],input[name=email]').first
             expect(login_field).to_be_visible();login_field.fill(email)
