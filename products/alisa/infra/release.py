@@ -124,12 +124,12 @@ def install(env,artifact,expected):
             if not p.is_relative_to(root.resolve()) or digest(p)!=checksum:raise RuntimeError('Manifest file checksum mismatch')
         if base.joinpath(release).exists():raise RuntimeError('Immutable release already installed')
         command(sys.executable,'-m','venv',root/'.venv')
-        command(root/'.venv/bin/python','-m','pip','install','--no-index','--find-links',root/'wheels','--require-hashes','-r',root/'services/platform/requirements.lock')
+        command(root/'.venv/bin/python','-m','pip','install','--no-index','--find-links',root/'wheels','--require-hashes','-r',root/'services/platform/requirements.lock','-r',root/'services/identity/requirements.lock')
         # venv shebangs embed an absolute path. Recreate at its final path before use.
         shutil.rmtree(root/'.venv')
         os.replace(root,base/release)
         command(sys.executable,'-m','venv',base/release/'.venv')
-        command(base/release/'.venv/bin/python','-m','pip','install','--no-index','--find-links',base/release/'wheels','--require-hashes','-r',base/release/'services/platform/requirements.lock')
+        command(base/release/'.venv/bin/python','-m','pip','install','--no-index','--find-links',base/release/'wheels','--require-hashes','-r',base/release/'services/platform/requirements.lock','-r',base/release/'services/identity/requirements.lock')
         return release
 
 def verify(env):

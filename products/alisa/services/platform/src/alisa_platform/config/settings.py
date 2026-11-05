@@ -18,7 +18,7 @@ RELEASE = required("ALISA_RELEASE")
 DEBUG = False
 ALLOWED_HOSTS = required("ALISA_ALLOWED_HOSTS").split(",")
 FOUNDATION_PROBE_ENABLED = ALISA_ENV in {"dev", "stage"} and os.environ.get("FOUNDATION_PROBE_ENABLED") == "1"
-INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel"]
+INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts"]
 MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "django.middleware.common.CommonMiddleware"]
 ROOT_URLCONF = "alisa_platform.config.urls"
 WSGI_APPLICATION = "alisa_platform.config.wsgi.application"
@@ -61,3 +61,18 @@ EMAIL_TIMEOUT = 4
 DEFAULT_FROM_EMAIL = 'alisa-test@example.invalid'
 if LEAD_INTAKE_ENABLED and EMAIL_HOST not in {'127.0.0.1', 'localhost'}:
     raise ImproperlyConfigured('Only private synthetic SMTP sink is admitted')
+
+ACCOUNTS_ENABLED=os.environ.get('ALISA_ACCOUNTS_ENABLED')=='1'
+AUTH_SERVICE_TOKEN=os.environ.get('ALISA_AUTH_SERVICE_TOKEN','')
+IDENTITY_ISSUER=os.environ.get('ALISA_IDENTITY_ISSUER','').rstrip('/')
+OIDC_CLIENT_ID=os.environ.get('ALISA_WEB_OIDC_CLIENT_ID','')
+if ACCOUNTS_ENABLED:
+    if ALISA_ENV=='prod':raise ImproperlyConfigured('Public account admission is not authorized')
+    if len(AUTH_SERVICE_TOKEN)<32 or AUTH_SERVICE_TOKEN==SERVICE_TOKEN or not OIDC_CLIENT_ID:
+        raise ImproperlyConfigured('Dedicated account service authority required')
+    from urllib.parse import urlsplit
+    u=urlsplit(IDENTITY_ISSUER)
+    if u.path or u.query or u.fragment or u.username or u.password:raise ImproperlyConfigured('Invalid issuer')
+    if ALISA_ENV=='stage' and IDENTITY_ISSUER!='https://id-stage.octoport.ru':raise ImproperlyConfigured('Wrong stage issuer')
+    if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'127.0.0.1','localhost'}):raise ImproperlyConfigured('Dev issuer must be loopback')
+DATA_UPLOAD_MAX_MEMORY_SIZE=32768

@@ -1,0 +1,21 @@
+[Unit]
+Description=Alisa finite identity-only mail delivery (%i)
+
+[Service]
+Type=oneshot
+User=alisa-identity-%i
+Group=alisa-identity-%i
+EnvironmentFile=/etc/alisa-platform/%i/identity.env
+WorkingDirectory=/opt/alisa-platform/%i/current
+ExecStart=/opt/alisa-platform/%i/current/.venv/bin/python /opt/alisa-platform/%i/current/infra/launch.py identity-mail
+RuntimeMaxSec=110
+TimeoutStopSec=5
+KillMode=control-group
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=96M
+MemorySwapMax=0
+TasksMax=32
+UMask=0077

@@ -3,14 +3,14 @@ on:
   pull_request:
     paths: ['products/alisa/**', '.github/workflows/alisa-platform-ci.yml']
   push:
-    branches: ['feat/alisa-platform-foundation-v05', 'feat/alisa-site-funnel-v05']
+    branches: ['feat/alisa-platform-foundation-v05', 'feat/alisa-site-funnel-v05', 'feat/alisa-identity-cabinet-v05']
     paths: ['products/alisa/**', '.github/workflows/alisa-platform-ci.yml']
 permissions:
   contents: read
 jobs:
   source:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       ALISA_TEST_DB_ALLOW: '1'
@@ -31,6 +31,8 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -46,13 +48,21 @@ jobs:
           ./bin/alisa package --source "$GITHUB_SHA"
       - name: Install a disposable Chromium test browser
         working-directory: products/alisa
-        run: .venv/bin/python -m playwright install --with-deps chromium
+        run: |
+          .venv/bin/python -m playwright install --with-deps chromium
+          sudo apt-get install --no-install-recommends -y libnss3-tools
       - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
         working-directory: products/alisa
         run: |
           .venv/bin/python tests/integration/run_postgres.py \
             --artifact "dist/alisa-${GITHUB_SHA:0:16}.tar.gz" --browser \
             --output dist/postgresql-browser-qualification.json
+      - name: Real identity BFF and cabinet on isolated PostgreSQL and verified HTTPS
+        working-directory: products/alisa
+        run: |
+          .venv/bin/python tests/integration/qualify_identity.py \
+            --artifact "dist/alisa-${GITHUB_SHA:0:16}.tar.gz" \
+            --output dist/s02-qualification.json
       - name: Save safe qualification receipt
         if: always()
         uses: actions/upload-artifact@v4
@@ -61,6 +71,8 @@ jobs:
           path: |
             products/alisa/dist/postgresql-browser-qualification.json
             products/alisa/dist/s01-home-*.png
+            products/alisa/dist/s02-*.json
+            products/alisa/dist/s02-empty-state.png
           if-no-files-found: error
       - name: Save the qualified immutable stage package
         uses: actions/upload-artifact@v4
