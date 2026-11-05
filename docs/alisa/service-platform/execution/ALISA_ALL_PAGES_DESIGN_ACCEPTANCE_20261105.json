@@ -1,0 +1,1370 @@
+{
+  "record_type": "ALISA_ALL_PAGES_DESIGN_AND_REGISTRATION_REVIEW",
+  "recorded_at_utc": "2026-11-05T08:30:17.016523+00:00",
+  "status": "PASS",
+  "source_sha": "e82003211bdcd68732e90b1e8dea8ca09b288e69",
+  "release": "alisa-e82003211bdcd687",
+  "source_pull_request": 388,
+  "merged_into": "feat/alisa-identity-cabinet-v05",
+  "merge_sha": "bece2206b83a719c2cbd74189263b822a00c15b6",
+  "owner_direction": [
+    "Исправить оформление по Октопорту",
+    "Посмотреть все страницы",
+    "Разобраться с регистрацией"
+  ],
+  "changes": [
+    "Единая палитра и локальный Rubik на всех шаблонах центра входа",
+    "Регистрация, ввод кода, повторная авторизация, выход, страницы управления аккаунтом и MFA используют общий шаблон",
+    "Обновлены техническая админка, страницы ошибок и устаревшие сведения о регистрации на сайте",
+    "Пример допустимого тестового адреса и способ получения кода показаны до отправки формы",
+    "QR-код настройки TOTP получил белую подложку"
+  ],
+  "ci": {
+    "platform_run": 41993786583,
+    "platform_result": "success",
+    "identity_probe_run": 41993786542,
+    "identity_probe_result": "success",
+    "documentation_run": 41993786494,
+    "documentation_result": "success",
+    "package_artifact_id": 13399142156,
+    "qualification_artifact_id": 13398659431
+  },
+  "installation": {
+    "recorded_at_utc": "2026-11-05T08:27:26.616678+00:00",
+    "status": "INSTALLED_READY_FOR_ALL_PAGE_ACCEPTANCE",
+    "source_sha": "e82003211bdcd68732e90b1e8dea8ca09b288e69",
+    "release": "alisa-e82003211bdcd687",
+    "artifact_sha256": "657646a3d9a985e1bd8590d52107e552125ad2b3594a2e7ed04da4d30fc2ded2",
+    "changed_components": [
+      "web",
+      "admin shell",
+      "identity presentation"
+    ],
+    "runtime_versions": {
+      "18100": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-e82003211bdcd687",
+        "status": "READY"
+      },
+      "18101": {
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-e82003211bdcd687",
+        "status": "READY"
+      },
+      "18103": {
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-e82003211bdcd687",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      }
+    },
+    "platform_release": "alisa-6ae348354b3db0d3",
+    "live_migrations_applied": 0,
+    "protected_source_files_verified": 89,
+    "protected_baseline_equal": true,
+    "registration_mode": "example.invalid and private SMTP"
+  },
+  "installed_browser_walkthrough": {
+    "recorded_at_utc": "2026-11-05T08:30:17.016523+00:00",
+    "release": "alisa-e82003211bdcd687",
+    "source_sha": "e82003211bdcd68732e90b1e8dea8ca09b288e69",
+    "status": "PASS",
+    "checks": [
+      {
+        "case": "web-home_theme",
+        "passed": true
+      },
+      {
+        "case": "web-home_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-home_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-home_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-examples_theme",
+        "passed": true
+      },
+      {
+        "case": "web-examples_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-examples_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-examples_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-join_theme",
+        "passed": true
+      },
+      {
+        "case": "web-join_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-join_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-join_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-join-confirm_theme",
+        "passed": true
+      },
+      {
+        "case": "web-join-confirm_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-join-confirm_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-join-confirm_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-login_theme",
+        "passed": true
+      },
+      {
+        "case": "web-login_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-login_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-login_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-how-it-works_theme",
+        "passed": true
+      },
+      {
+        "case": "web-how-it-works_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-how-it-works_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-how-it-works_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-help_theme",
+        "passed": true
+      },
+      {
+        "case": "web-help_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-help_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-help_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-faq_theme",
+        "passed": true
+      },
+      {
+        "case": "web-faq_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-faq_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-faq_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-pricing_theme",
+        "passed": true
+      },
+      {
+        "case": "web-pricing_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-pricing_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-pricing_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-contacts_theme",
+        "passed": true
+      },
+      {
+        "case": "web-contacts_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-contacts_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-contacts_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-privacy_theme",
+        "passed": true
+      },
+      {
+        "case": "web-privacy_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-privacy_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-privacy_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-terms_theme",
+        "passed": true
+      },
+      {
+        "case": "web-terms_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-terms_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-terms_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-consents_theme",
+        "passed": true
+      },
+      {
+        "case": "web-consents_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-consents_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-consents_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-app_theme",
+        "passed": true
+      },
+      {
+        "case": "web-app_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-app_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-app_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-app-stores_theme",
+        "passed": true
+      },
+      {
+        "case": "web-app-stores_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-app-stores_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-app-stores_width_1440",
+        "passed": true
+      },
+      {
+        "case": "web-design-page-not-found_theme",
+        "passed": true
+      },
+      {
+        "case": "web-design-page-not-found_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-design-page-not-found_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-design-page-not-found_width_1440",
+        "passed": true
+      },
+      {
+        "case": "admin-home_theme",
+        "passed": true
+      },
+      {
+        "case": "admin-home_width_320",
+        "passed": true
+      },
+      {
+        "case": "admin-home_width_390",
+        "passed": true
+      },
+      {
+        "case": "admin-home_width_1440",
+        "passed": true
+      },
+      {
+        "case": "admin-not-found_theme",
+        "passed": true
+      },
+      {
+        "case": "admin-not-found_width_320",
+        "passed": true
+      },
+      {
+        "case": "admin-not-found_width_390",
+        "passed": true
+      },
+      {
+        "case": "admin-not-found_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-signup_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-signup_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-signup_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-signup_width_1440",
+        "passed": true
+      },
+      {
+        "case": "registration_restriction_visible_before_input",
+        "passed": true
+      },
+      {
+        "case": "ordinary_email_clear_denial",
+        "passed": true
+      },
+      {
+        "case": "identity-ordinary-email-error_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-ordinary-email-error_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-ordinary-email-error_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-ordinary-email-error_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-login_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-login_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-login_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-login_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-registration-code_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-registration-code_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-registration-code_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-registration-code_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-wrong-code-error_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-wrong-code-error_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-wrong-code-error_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-wrong-code-error_width_1440",
+        "passed": true
+      },
+      {
+        "case": "cabinet-new-account_theme",
+        "passed": true
+      },
+      {
+        "case": "cabinet-new-account_width_320",
+        "passed": true
+      },
+      {
+        "case": "cabinet-new-account_width_390",
+        "passed": true
+      },
+      {
+        "case": "cabinet-new-account_width_1440",
+        "passed": true
+      },
+      {
+        "case": "registration_reaches_own_cabinet",
+        "passed": true
+      },
+      {
+        "case": "profile_save_and_reload",
+        "passed": true
+      },
+      {
+        "case": "web-logged-out_theme",
+        "passed": true
+      },
+      {
+        "case": "web-logged-out_width_320",
+        "passed": true
+      },
+      {
+        "case": "web-logged-out_width_390",
+        "passed": true
+      },
+      {
+        "case": "web-logged-out_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-reauthentication_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-reauthentication_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-reauthentication_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-reauthentication_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-login-code_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-login-code_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-login-code_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-login-code_width_1440",
+        "passed": true
+      },
+      {
+        "case": "repeat_login_same_customer_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "cabinet-repeat-login_theme",
+        "passed": true
+      },
+      {
+        "case": "cabinet-repeat-login_width_320",
+        "passed": true
+      },
+      {
+        "case": "cabinet-repeat-login_width_390",
+        "passed": true
+      },
+      {
+        "case": "cabinet-repeat-login_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-email-management_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-email-management_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-email-management_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-email-management_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-password-change_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-password-change_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-password-change_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-password-change_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-password-set_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-password-set_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-password-set_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-password-set_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset-done_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset-done_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset-done_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset-done_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset-key-done_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset-key-done_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset-key-done_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-password-reset-key-done_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-invalid-reset-link_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-invalid-reset-link_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-invalid-reset-link_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-invalid-reset-link_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-email-confirmation_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-email-confirmation_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-email-confirmation_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-email-confirmation_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-totp-setup_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-totp-setup_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-totp-setup_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-totp-setup_width_1440",
+        "passed": true
+      },
+      {
+        "case": "totp_qr_has_readable_white_surface",
+        "passed": true
+      },
+      {
+        "case": "identity-totp-deactivate_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-totp-deactivate_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-totp-deactivate_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-totp-deactivate_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-recovery-codes_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-recovery-codes_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-recovery-codes_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-recovery-codes_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-recovery-generate_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-recovery-generate_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-recovery-generate_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-recovery-generate_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa-authenticate_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa-authenticate_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa-authenticate_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa-authenticate_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa-reauthenticate_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa-reauthenticate_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa-reauthenticate_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-mfa-reauthenticate_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-inactive_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-inactive_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-inactive_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-inactive_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-not-found_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-not-found_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-not-found_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-not-found_width_1440",
+        "passed": true
+      },
+      {
+        "case": "identity-logout_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-logout_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-logout_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-logout_width_1440",
+        "passed": true
+      },
+      {
+        "case": "csrf_rejection_is_403",
+        "passed": true
+      },
+      {
+        "case": "identity-csrf-error-response_theme",
+        "passed": true
+      },
+      {
+        "case": "identity-csrf-error-response_width_320",
+        "passed": true
+      },
+      {
+        "case": "identity-csrf-error-response_width_390",
+        "passed": true
+      },
+      {
+        "case": "identity-csrf-error-response_width_1440",
+        "passed": true
+      },
+      {
+        "case": "browser_no_uncaught_js_errors",
+        "passed": true,
+        "error_count": 0
+      }
+    ],
+    "pages": [
+      {
+        "page": "web-home",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/",
+        "http_status": 200,
+        "screenshots": [
+          "web-home-390.png",
+          "web-home-1440.png"
+        ]
+      },
+      {
+        "page": "web-examples",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/examples",
+        "http_status": 200,
+        "screenshots": [
+          "web-examples-390.png",
+          "web-examples-1440.png"
+        ]
+      },
+      {
+        "page": "web-join",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/join",
+        "http_status": 200,
+        "screenshots": [
+          "web-join-390.png",
+          "web-join-1440.png"
+        ]
+      },
+      {
+        "page": "web-join-confirm",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/join/confirm",
+        "http_status": 200,
+        "screenshots": [
+          "web-join-confirm-390.png",
+          "web-join-confirm-1440.png"
+        ]
+      },
+      {
+        "page": "web-login",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/login",
+        "http_status": 200,
+        "screenshots": [
+          "web-login-390.png",
+          "web-login-1440.png"
+        ]
+      },
+      {
+        "page": "web-how-it-works",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/how-it-works",
+        "http_status": 200,
+        "screenshots": [
+          "web-how-it-works-390.png",
+          "web-how-it-works-1440.png"
+        ]
+      },
+      {
+        "page": "web-help",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/help",
+        "http_status": 200,
+        "screenshots": [
+          "web-help-390.png",
+          "web-help-1440.png"
+        ]
+      },
+      {
+        "page": "web-faq",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/faq",
+        "http_status": 200,
+        "screenshots": [
+          "web-faq-390.png",
+          "web-faq-1440.png"
+        ]
+      },
+      {
+        "page": "web-pricing",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/pricing",
+        "http_status": 200,
+        "screenshots": [
+          "web-pricing-390.png",
+          "web-pricing-1440.png"
+        ]
+      },
+      {
+        "page": "web-contacts",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/contacts",
+        "http_status": 200,
+        "screenshots": [
+          "web-contacts-390.png",
+          "web-contacts-1440.png"
+        ]
+      },
+      {
+        "page": "web-privacy",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/privacy",
+        "http_status": 200,
+        "screenshots": [
+          "web-privacy-390.png",
+          "web-privacy-1440.png"
+        ]
+      },
+      {
+        "page": "web-terms",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/terms",
+        "http_status": 200,
+        "screenshots": [
+          "web-terms-390.png",
+          "web-terms-1440.png"
+        ]
+      },
+      {
+        "page": "web-consents",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/consents",
+        "http_status": 200,
+        "screenshots": [
+          "web-consents-390.png",
+          "web-consents-1440.png"
+        ]
+      },
+      {
+        "page": "web-app",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/login",
+        "http_status": 200,
+        "screenshots": [
+          "web-app-390.png",
+          "web-app-1440.png"
+        ]
+      },
+      {
+        "page": "web-app-stores",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/login",
+        "http_status": 200,
+        "screenshots": [
+          "web-app-stores-390.png",
+          "web-app-stores-1440.png"
+        ]
+      },
+      {
+        "page": "web-design-page-not-found",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/design-page-not-found",
+        "http_status": 404,
+        "screenshots": [
+          "web-design-page-not-found-390.png",
+          "web-design-page-not-found-1440.png"
+        ]
+      },
+      {
+        "page": "admin-home",
+        "host": "alisa-admin-stage.octoport.ru",
+        "path": "/",
+        "http_status": 200,
+        "screenshots": [
+          "admin-home-390.png",
+          "admin-home-1440.png"
+        ]
+      },
+      {
+        "page": "admin-not-found",
+        "host": "alisa-admin-stage.octoport.ru",
+        "path": "/design-page-not-found",
+        "http_status": 404,
+        "screenshots": [
+          "admin-not-found-390.png",
+          "admin-not-found-1440.png"
+        ]
+      },
+      {
+        "page": "identity-signup",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/signup/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-signup-390.png",
+          "identity-signup-1440.png"
+        ]
+      },
+      {
+        "page": "identity-ordinary-email-error",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/signup/",
+        "http_status": null,
+        "screenshots": [
+          "identity-ordinary-email-error-390.png",
+          "identity-ordinary-email-error-1440.png"
+        ]
+      },
+      {
+        "page": "identity-login",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/login/",
+        "http_status": null,
+        "screenshots": [
+          "identity-login-390.png",
+          "identity-login-1440.png"
+        ]
+      },
+      {
+        "page": "identity-registration-code",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/login/code/confirm/",
+        "http_status": null,
+        "screenshots": [
+          "identity-registration-code-390.png",
+          "identity-registration-code-1440.png"
+        ]
+      },
+      {
+        "page": "identity-wrong-code-error",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/login/code/confirm/",
+        "http_status": null,
+        "screenshots": [
+          "identity-wrong-code-error-390.png",
+          "identity-wrong-code-error-1440.png"
+        ]
+      },
+      {
+        "page": "cabinet-new-account",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/app",
+        "http_status": null,
+        "screenshots": [
+          "cabinet-new-account-390.png",
+          "cabinet-new-account-1440.png"
+        ]
+      },
+      {
+        "page": "web-logged-out",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/login",
+        "http_status": null,
+        "screenshots": [
+          "web-logged-out-390.png",
+          "web-logged-out-1440.png"
+        ]
+      },
+      {
+        "page": "identity-reauthentication",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/reauthenticate/",
+        "http_status": null,
+        "screenshots": [
+          "identity-reauthentication-390.png",
+          "identity-reauthentication-1440.png"
+        ]
+      },
+      {
+        "page": "identity-login-code",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/login/code/confirm/",
+        "http_status": null,
+        "screenshots": [
+          "identity-login-code-390.png",
+          "identity-login-code-1440.png"
+        ]
+      },
+      {
+        "page": "cabinet-repeat-login",
+        "host": "alisa-stage.octoport.ru",
+        "path": "/app",
+        "http_status": null,
+        "screenshots": [
+          "cabinet-repeat-login-390.png",
+          "cabinet-repeat-login-1440.png"
+        ]
+      },
+      {
+        "page": "identity-email-management",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/email/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-email-management-390.png",
+          "identity-email-management-1440.png"
+        ]
+      },
+      {
+        "page": "identity-password-change",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/password/set/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-password-change-390.png",
+          "identity-password-change-1440.png"
+        ]
+      },
+      {
+        "page": "identity-password-set",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/password/set/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-password-set-390.png",
+          "identity-password-set-1440.png"
+        ]
+      },
+      {
+        "page": "identity-password-reset",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/password/reset/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-password-reset-390.png",
+          "identity-password-reset-1440.png"
+        ]
+      },
+      {
+        "page": "identity-password-reset-done",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/password/reset/done/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-password-reset-done-390.png",
+          "identity-password-reset-done-1440.png"
+        ]
+      },
+      {
+        "page": "identity-password-reset-key-done",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/password/reset/key/done/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-password-reset-key-done-390.png",
+          "identity-password-reset-key-done-1440.png"
+        ]
+      },
+      {
+        "page": "identity-invalid-reset-link",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/password/reset/key/invalid-token/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-invalid-reset-link-390.png",
+          "identity-invalid-reset-link-1440.png"
+        ]
+      },
+      {
+        "page": "identity-email-confirmation",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/email/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-email-confirmation-390.png",
+          "identity-email-confirmation-1440.png"
+        ]
+      },
+      {
+        "page": "identity-mfa",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/2fa/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-mfa-390.png",
+          "identity-mfa-1440.png"
+        ]
+      },
+      {
+        "page": "identity-totp-setup",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/2fa/totp/activate/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-totp-setup-390.png",
+          "identity-totp-setup-1440.png"
+        ]
+      },
+      {
+        "page": "identity-totp-deactivate",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/2fa/totp/deactivate/",
+        "http_status": 404,
+        "screenshots": [
+          "identity-totp-deactivate-390.png",
+          "identity-totp-deactivate-1440.png"
+        ]
+      },
+      {
+        "page": "identity-recovery-codes",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/2fa/recovery-codes/",
+        "http_status": 404,
+        "screenshots": [
+          "identity-recovery-codes-390.png",
+          "identity-recovery-codes-1440.png"
+        ]
+      },
+      {
+        "page": "identity-recovery-generate",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/2fa/recovery-codes/generate/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-recovery-generate-390.png",
+          "identity-recovery-generate-1440.png"
+        ]
+      },
+      {
+        "page": "identity-mfa-authenticate",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/email/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-mfa-authenticate-390.png",
+          "identity-mfa-authenticate-1440.png"
+        ]
+      },
+      {
+        "page": "identity-mfa-reauthenticate",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/2fa/reauthenticate/",
+        "http_status": 403,
+        "screenshots": [
+          "identity-mfa-reauthenticate-390.png",
+          "identity-mfa-reauthenticate-1440.png"
+        ]
+      },
+      {
+        "page": "identity-inactive",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/inactive/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-inactive-390.png",
+          "identity-inactive-1440.png"
+        ]
+      },
+      {
+        "page": "identity-not-found",
+        "host": "id-stage.octoport.ru",
+        "path": "/design-page-not-found",
+        "http_status": 404,
+        "screenshots": [
+          "identity-not-found-390.png",
+          "identity-not-found-1440.png"
+        ]
+      },
+      {
+        "page": "identity-logout",
+        "host": "id-stage.octoport.ru",
+        "path": "/accounts/logout/",
+        "http_status": 200,
+        "screenshots": [
+          "identity-logout-390.png",
+          "identity-logout-1440.png"
+        ]
+      },
+      {
+        "page": "identity-csrf-error-response",
+        "host": "id-stage.octoport.ru",
+        "path": "/design-csrf-preview",
+        "http_status": 403,
+        "screenshots": [
+          "identity-csrf-error-response-390.png",
+          "identity-csrf-error-response-1440.png"
+        ],
+        "render_method": "Render actual HTTP 403 response body"
+      }
+    ],
+    "synthetic_identity_hash": "b60e260b2af6f7d1252145bfe823261cb89e695d60deba2aa5a1da00d90f2cea",
+    "ordinary_email_delivery": "NOT_CONFIGURED_PRIVATE_SMTP_ONLY",
+    "mfa_scope": "GET and presentation only. No factor activation or recovery-code generation submitted.",
+    "checks_total": 196,
+    "presentation_scenarios": 47
+  },
+  "previous_attempt": {
+    "release": "alisa-51d2a57db66647e0",
+    "checks_total": 191,
+    "checks_passed": 190,
+    "failed_check": "browser_no_uncaught_js_errors",
+    "diagnosis": "Тест повторно исполнял глобальный mail-ui.js в том же document при искусственном показе HTTP 403. В новой вкладке ошибка не повторяется. Способ проверки исправлен, проверка JS ошибок сохранена.",
+    "design_issue_found": "QR-код библиотеки имеет прозрачный фон. Добавлена белая подложка и проверка читаемой поверхности.",
+    "first_attempt_evidence": "/var/lib/alisa-platform/stage/evidence/all-pages-51d2a57db66647e0/acceptance.json"
+  },
+  "registration": {
+    "tested_path": "Сайт → собственный центр входа → синтетическая регистрация → письмо во внутренний приёмник → код → кабинет → сохранение профиля → выход → повторный код → тот же клиент и tenant",
+    "result": "PASS",
+    "ordinary_email_mode": "BLOCKED_BY_CURRENT_TEST_POLICY",
+    "smtp_destination": "private loopback SMTP",
+    "smtp_host": "127.0.0.1",
+    "smtp_port": 18225,
+    "configured_sender": "alisa-identity@example.invalid",
+    "remaining": "Подключить разрешённый настоящий отправитель и SMTP, проверить доставку кода на контролируемую настоящую почту. В этом проходе обычная почта не включалась."
+  },
+  "scope_notes": [
+    "Техническая админка проверена как текущий каркас. Полная функциональность S03 проходит собственную приёмку.",
+    "MFA страницы просмотрены в доступных состояниях тестового аккаунта. Активация фактора и генерация recovery codes не отправлялись.",
+    "Страницы HTTP 403/404 различаются с успешными формами. В перечне сохранены фактический путь и статус каждого результата.",
+    "Проверки прежних ошибок callback, междиалоговых заданий и числовой матрицы сохраняют свои отдельные статусы."
+  ],
+  "screenshot": {
+    "file_name": "ALISA_REGISTRATION_AFTER_2026-11-05.png",
+    "library_file_id": "libfile_97a49d3124408191aa0d4a4a6642dd9c"
+  }
+}
