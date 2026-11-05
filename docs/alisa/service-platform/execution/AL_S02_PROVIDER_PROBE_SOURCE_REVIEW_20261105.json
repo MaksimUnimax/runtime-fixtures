@@ -1,0 +1,109 @@
+{
+  "record_type": "AL_S02_PROVIDER_PROBE_SOURCE_REVIEW",
+  "reviewed_at_utc": "2026-11-05T02:05:25Z",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "feat/alisa-identity-cabinet-v05",
+  "review_head": "c4fb9f02095038a5e592a86b13e35c4285fbf078",
+  "scope": "Static read-only review of the candidate probe source and the added ephemeral GitHub Actions CI workflow/runner. No tests, CI jobs, active server attempts, or server operations were run or accessed.",
+  "verdict": "SOURCE_REVIEW_ACCEPTED_WITH_LIMITS",
+  "findings": [
+    {
+      "id": "S02-PROBE-01",
+      "severity": "P1_MEASUREMENT_INTEGRITY",
+      "file": "products/alisa/tests/identity_probe/run_probe.py:120-121",
+      "finding": "The email-code replay check can report a pass without demonstrating that the consumed code is rejected. It reposts the same code through the already-authenticated Browser session, accepts either 302 or 409, and only checks that the user count remains one. A redirect because the session is already authenticated can satisfy this assertion even if the replay was not rejected as an invalid/consumed code.",
+      "recommended_change": "Repeat the consumed code from a fresh anonymous browser/session and assert the explicit denial/no authenticated session (and no new effect). If the library response is intentionally non-specific, assert a predicate that distinguishes the replay from a normal authenticated redirect.",
+      "status": "RESOLVED_BY_FOLLOW_UP_SOURCE_REVIEW",
+      "follow_up": {
+        "verified_predicates": [
+          "Consumed email code is replayed only after an actual logout POST; the probe asserts the authenticated session key is absent after replay and the account count remains one.",
+          "The consumed code is separately submitted from a distinct anonymous browser and the test asserts it does not authenticate that browser.",
+          "A newly requested code then authenticates the same Person without creating a duplicate account.",
+          "A code submitted after time.time advances 901 seconds is denied; five wrong-code attempts exhaust the configured five-attempt allowance.",
+          "The unregistered redirect test now includes valid state, nonce, and S256 challenge parameters, so the denial measures redirect URI enforcement."
+        ],
+        "result": "The prior measurement-integrity finding is resolved by source inspection. These predicates were not executed by this reviewer; they do not establish runtime behavior."
+      }
+    },
+    {
+      "id": "S02-PROBE-02",
+      "severity": "P2_EVIDENCE_LABELING",
+      "file": "products/alisa/tests/identity_probe/run_probe.py:247-253",
+      "finding": "The result record_type is hard-coded as AL_S02_UNMODIFIED_PROVIDER_PROBE in both baseline and policy-enabled modes, while the same record contains mode=hardened_candidate for the policy-enabled run. Consumers relying on record_type can misclassify the hardened result as an unmodified library observation.",
+      "recommended_change": "Select an explicit record_type from settings.PROBE_POLICY_ENABLED, or use a mode-neutral record_type and retain mode as the discriminator. Keep baseline and hardened outputs separately named as the runner currently does.",
+      "status": "RESOLVED_BY_FOLLOW_UP_SOURCE_REVIEW",
+      "follow_up": "The output now uses neutral record_type AL_S02_PROVIDER_CANDIDATE_PROBE and keeps unmodified_candidate versus hardened_candidate in the separate mode field."
+    },
+    {
+      "id": "S02-CI-01",
+      "severity": "P1_CI_READ_TOKEN_EXPOSURE",
+      "file": ".github/workflows/alisa-identity-probe-ci.yml:15",
+      "finding": "The pull_request workflow executes repository-controlled code as root after actions/checkout. Checkout is pinned but does not set persist-credentials: false; its default is true, so the read-only GITHUB_TOKEN credential is persisted in the workspace Git configuration for subsequent steps. The root runner can read that credential, and untrusted PR code can use or exfiltrate it during the job. This contradicts the claim that the CI environment has no credentials, even though the token is limited to contents:read.",
+      "recommended_change": "Set persist-credentials: false on checkout so the token used to fetch the PR is not left available to the later root execution step. Keep the job permissions restricted to contents:read.",
+      "status": "RESOLVED_BY_FOLLOW_UP_SOURCE_REVIEW",
+      "follow_up": "actions/checkout now explicitly sets persist-credentials: false. Workflow still restricts permissions to contents:read."
+    }
+  ],
+  "reviewed_safety_and_truth_controls": {
+    "isolated_database_guard": "PASS by source inspection; settings require a fixed owned probe socket path and marker, and run_probe checks current_database=alisa_s02_probe with inet_server_addr NULL before migrations.",
+    "runner_scope_and_cleanup": "PASS by source inspection with noted cleanup semantics; runner requires euid 0 and root-owned fixed directory, hashes manifest inputs, installs only from a locked requirements file in a private venv, creates a private PostgreSQL cluster with listen_addresses empty/auth-host reject and a private Unix socket, then stops before deleting cluster/socket/cache/venv. Stop failure preserves data and records cleanup failure; live stage files/DB settings are not read by this code.",
+    "lockfile": "PASS by source inspection; Django 5.2.19, django-allauth 65.21.1 and dependencies are exact pinned versions with hashes, and runner uses --only-binary=:all: --require-hashes.",
+    "required_policy_gap_classification": "PASS by source inspection; host-independent issuer and confidential-client PKCE behavior are recorded as required_policy observations; any such gaps produce REQUIRES_POLICY_ADAPTERS rather than PROBE_PASSED. The report separately lists not_proven browser/BFF/session, concurrency, registration/tenant, browser MFA/logout and real email scopes.",
+    "candidate_boundary": "PASS by source inspection; settings use locmem email and example.invalid, restrictive probe host list, disposable secret/key, no product grants, and the output states live/runtime unchanged. No S02 installation or acceptance is claimed."
+  },
+  "execution": {
+    "tests_run_by_reviewer": false,
+    "server_access_by_reviewer": false,
+    "source_or_service_changes_by_reviewer": false
+  },
+  "acceptance_boundary": "Source review accepted with limits for the candidate probe and its CI harness. The CI workflow has not been run by this reviewer; no S02 runtime acceptance, product identity flow acceptance, or deployment approval is implied.",
+  "initial_verdict": "REWORK",
+  "reviewed_source_state": "Root-owned uncommitted follow-up working-tree edits were inspected read-only; HEAD is unchanged and probe attempt a003 was not accessed.",
+  "follow_up_review": {
+    "scope": "Static read-only inspection of current working-tree run_probe.py, run_isolated.py, settings.py, policy.py, urls.py, requirements.in, requirements.lock, README.md, .github/workflows/alisa-identity-probe-ci.yml, and run_ci.py. No tests, CI jobs, active a004 attempt, or server operations were run or accessed.",
+    "reviewed_source_state": "Working tree is uncommitted under branch feat/alisa-identity-cabinet-v05; Git HEAD remains 291219aaad5502ae68e6864dd8cffe28ad9bd1a2.",
+    "resolved_prior_findings": [
+      "S02-PROBE-01 replay check: chronology and assertions reviewed; source only, not executed.",
+      "S02-PROBE-02 report mode labeling: neutral record_type now used, with mode separately identifying baseline and hardened candidate."
+    ],
+    "policy_review": "Hardened ProviderPolicy rejects any host other than the canonical probe host; the test contrasts baseline host-derived issuer behavior with hardened invalid_host rejection. FixedIssuerAdapter overrides the documented get_issuer() method. The S256 middleware gate checks the initial authorization GET for one 43-character challenge and method S256. The pinned allauth authorization view signs request info on GET; its consent POST validates and reuses that signed request, while an initial POST without signed request redirects back to GET, where the S256 gate applies. The added checks cover both POST-plain bypass denial and legitimate signed consent.",
+    "transaction_review": "For authorization-code POSTs, middleware validates the code length, derives a signed 64-bit advisory-lock key from SHA256(code), sets a local three-second lock timeout, and wraps the library token view in transaction.atomic. DatabaseError exits the atomic block before returning a 503; HTTP 5xx responses mark the transaction for rollback. Hardened mode creates and uses the disposable database cache table. These choices are structurally coherent for the candidate probe; runtime race/rollback behavior remains unverified by this reviewer.",
+    "candidate_label_review": "run_probe.py now emits record_type AL_S02_PROVIDER_CANDIDATE_PROBE and mode separately as unmodified_candidate or hardened_candidate, resolving the prior mislabeled report issue.",
+    "remaining_findings": []
+  },
+  "timestamp_correction": {
+    "prior_reported_values_utc": [
+      "2026-11-05T02:00:00Z",
+      "2026-11-05T02:24:00Z"
+    ],
+    "note": "The two original timestamps were erroneous values later than the actual UTC clock. Later timestamps were taken from date -u."
+  },
+  "source_chronology_correction": {
+    "note": "The anonymous stranger browser checks issuing-browser binding before the code is consumed. The issuing browser then uses the code, posts logout, and attempts replay. The report now describes these steps in that order."
+  },
+  "ci_review": {
+    "reviewed_at_utc": "2026-11-05T02:05:25Z",
+    "files": [
+      ".github/workflows/alisa-identity-probe-ci.yml",
+      "products/alisa/tests/identity_probe/run_ci.py"
+    ],
+    "positive_findings": "The workflow is pull_request-scoped and requests only contents:read. Checkout, setup-python, and upload-artifact are pinned by commit SHA; checkout now explicitly disables credential persistence. Runner requires root and GITHUB_ACTIONS=true, derives a 12-hex unique path from run/attempt IDs, copies explicit candidate files after rejecting symlinks and hashes them, uses a private hash-locked venv, pins postgres:16.15 by manifest digest, checks the pulled RepoDigests against that digest, starts an exactly named disposable Docker container with --network none and no TCP listen address, then reads back effective network mode and host port bindings and asserts none/empty. It uses only the Unix socket, creates distinct baseline/hardened reports, checks hardened status before qualified result, removes the identified container and owned venv/cache/socket, and uploads only safe JSON reports. No live application credentials/database configuration or real email are referenced in the probe.",
+    "scope_limitation": "--network none applies to the PostgreSQL container, not the GitHub runner. The runner downloads hash-locked packages with pip and pulls the digest-pinned PostgreSQL image; the probe makes no authentication/protocol requests to external services. This was source review only; image digest source and workflow/API execution were not independently queried in this follow-up.",
+    "remaining_findings": [],
+    "not_executed": true,
+    "source_follow_up": "A read-only review of commit c4fb9f02 confirmed its only change is deletion of one extra blank line at EOF in settings.py; git diff --check passes. Updated settings.py SHA256 is recorded in reviewed_candidate_state."
+  },
+  "reviewed_candidate_state": {
+    "git_head": "c4fb9f02095038a5e592a86b13e35c4285fbf078",
+    "note": "The source-only candidate is now committed at c4fb9f02095038a5e592a86b13e35c4285fbf078 (parent 8926662000c5a4da1f6cd79cc331996c3879ab68). This commit removes one trailing blank line at EOF from settings.py only; the commit diff and git diff --check were read-only verified.",
+    "sha256": {
+      ".github/workflows/alisa-identity-probe-ci.yml": "2e53fbf370afa65a4749f0b798f5690fb9494bc3f92578a7ade4dac79fc8880e",
+      "products/alisa/tests/identity_probe/run_ci.py": "1b879f6bd1c5feff038a50e494f5e6088329f5362146ef9e34245d3b6212c1ae",
+      "products/alisa/tests/identity_probe/run_probe.py": "0b20c9a6ee7139582fef0d45ddca89c9f17d0e296f96335b831ba31218c01985",
+      "products/alisa/tests/identity_probe/policy.py": "554e6babe2211eb95112cd95ed5172fcef4c0e9ddf49394307cbf9ab050f366d",
+      "products/alisa/tests/identity_probe/settings.py": "175f8936ca5697a148d3d3e9a9d4d2fa17ada2706dc4ef6ea19cf0df84faf060",
+      "products/alisa/tests/identity_probe/requirements.lock": "220a9c63706ff9511d0acd00f7d40203a180a2f385d719e16bca8842527d5f88",
+      "products/alisa/tests/identity_probe/README.md": "df1ae9ce59a55f5b2280a903b6c6246a8ddc43e03570015a2c3737122086f7c3"
+    }
+  }
+}
