@@ -46,5 +46,7 @@
     "Do not add historical variable courier/logistics/processing/acquiring charges on top of matched forecast delivery tariffs",
     "Owner rejected tariff inference from sums: use explicit percentage only when returned as percentage, else use explicit API amount"
   ],
-  "production_adapter": "NOT_INSTALLED"
+  "production_adapter": "NOT_INSTALLED",
+  "main_cancellation_commission_policy": "Official expected net remuneration for noncancelled units; never invent an unobserved cancellation commission charge",
+  "conditional_sensitivity": "Unreturned cancellation commission, if actually applicable, is separate and excluded from main forecast"
 }
