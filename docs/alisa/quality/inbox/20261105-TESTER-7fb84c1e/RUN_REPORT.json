@@ -1,0 +1,71 @@
+{
+  "schema": "alisa-run-report/v1",
+  "run_id": "20261105-TESTER-7fb84c1e",
+  "kind": "SOURCE_AND_EVENT_SEMANTICS_RESEARCH",
+  "runtime_changed": false,
+  "voice_template_installed": false,
+  "new_source_http_count": 3,
+  "llm_count": 0,
+  "started_utc": "2026-11-05T04:54:45.599685+00:00",
+  "finished_utc": "2026-11-05T04:54:45.873316+00:00",
+  "http_sum_ms": 218.825,
+  "requests": [
+    {
+      "seq": 1,
+      "operation": "ds_ozon_fbs_postings",
+      "method": "POST",
+      "path": "/v3/posting/fbs/get",
+      "started_utc": "2026-11-05T04:54:45.615361+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 91.311,
+      "bytes": 3593,
+      "finished_utc": "2026-11-05T04:54:45.708145+00:00",
+      "sha256": "2f464f52eebe7ec16cf97783629fc0cd8ca143ef1163eaebe32031230859d560"
+    },
+    {
+      "seq": 2,
+      "operation": "ozon_returns_list",
+      "method": "POST",
+      "path": "/v1/returns/list",
+      "started_utc": "2026-11-05T04:54:45.722862+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 62.677,
+      "bytes": 31,
+      "finished_utc": "2026-11-05T04:54:45.786209+00:00",
+      "sha256": "62b725d77500564a634b472a908aca95ebe3f046bfab231194fc9d245077b670"
+    },
+    {
+      "seq": 3,
+      "operation": "ozon_accrual_by_day",
+      "method": "POST",
+      "path": "/v1/finance/accrual/postings",
+      "started_utc": "2026-11-05T04:54:45.804699+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 64.837,
+      "bytes": 124,
+      "finished_utc": "2026-11-05T04:54:45.870228+00:00",
+      "sha256": "32c7e8dbf6d989f141c28a6cb4c0e47a144288883969354b3117eb099d62721f"
+    }
+  ],
+  "source_results": {
+    "fbs_get": "Cancellation flag true, delivery/receipt timestamps not populated; flag alone insufficient to infer physical handover",
+    "returns": "No records for selected two cancellations, complete page",
+    "accrual_postings": "Two empty accrual arrays; not proof of no future charge"
+  },
+  "owner_evidence": "Owner explicitly confirms no physical handover of selected FBS item; supplied screenshots inspected privately and matched to item",
+  "money_basis": "Correction to previous14-call fresh run; no new complete money collection claimed",
+  "exact_flag_backend_rule": "NOT_FOUND",
+  "dedicated_unit_economics_public_api": "NOT_FOUND",
+  "documents": [
+    "HANDOVER_AND_UNIT_API_RESEARCH.md",
+    "TEMPLATE_CANDIDATE.json"
+  ],
+  "private_evidence": {
+    "ttl_days": 7,
+    "server_manifest": "ozon_cancel_acceptance_20261105_r1_manifest.json"
+  },
+  "financial_values_published": false
+}
