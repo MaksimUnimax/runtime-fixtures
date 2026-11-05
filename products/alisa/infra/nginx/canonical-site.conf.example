@@ -54,10 +54,18 @@ server {
 server {
  listen 443 ssl;
  server_name alisa-stage.octoport.ru;
+ access_log /var/log/nginx/alisa-platform-previous-domain.access.log alisa_platform_safe;
  ssl_certificate /etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem;
  ssl_certificate_key /etc/letsencrypt/live/alisa-platform-bootstrap/privkey.pem;
  ssl_protocols TLSv1.2 TLSv1.3;
- location = /auth/callback { return 303 https://alisa.octoport.ru/login?error=ALREADY_HANDLED_OR_EXPIRED; }
+ location = /auth/callback {
+  if ($request_method !~ ^(GET|HEAD)$) { return 409; }
+  return 303 https://alisa.octoport.ru/login?error=ALREADY_HANDLED_OR_EXPIRED;
+ }
+ location = /oidc-probe/callback {
+  if ($request_method !~ ^(GET|HEAD)$) { return 409; }
+  return 303 https://alisa.octoport.ru/login?error=ALREADY_HANDLED_OR_EXPIRED;
+ }
  location / {
   if ($request_method !~ ^(GET|HEAD)$) { return 409; }
   return 308 https://alisa.octoport.ru$request_uri;
