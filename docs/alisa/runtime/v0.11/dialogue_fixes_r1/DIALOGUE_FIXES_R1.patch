@@ -153,6 +153,7 @@
 --- a/dialogue.py
 +++ b/dialogue.py
 @@ -284,7 +284,7 @@
+                     # Unsupported scope must not be silently weakened by a follow-up.
                      p = None
                      from failure_explanations import rejection_reply
 -                    reply = rejection_reply(exc.code, exc.message)
