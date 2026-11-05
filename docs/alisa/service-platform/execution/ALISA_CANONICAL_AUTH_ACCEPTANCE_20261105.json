@@ -1,0 +1,289 @@
+{
+  "record_type": "CANONICAL_ADMIN_IDENTITY_ACCEPTANCE",
+  "status": "INSTALLED_CANONICAL_DOMAINS_ACCEPTED_OWNER_MFA_PENDING",
+  "source_sha": "482ed11832b666af17f879ae710fd43d2c321ce7",
+  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/394",
+  "main_origin": "https://alisa.octoport.ru",
+  "admin_origin": "https://alisa-admin.octoport.ru",
+  "identity_issuer": "https://id.octoport.ru",
+  "artifact_sha256": "9c7b0d5ad216da453f1ed3b8f053b0f5d16f7c0551d5cc9e97f26e3729c1faf7",
+  "qualification": {
+    "source_unit": {
+      "passed": 62,
+      "total": 62
+    },
+    "postgres_browser": {
+      "passed": 96,
+      "total": 96
+    },
+    "https_identity_bff_cabinet_staff": {
+      "passed": 147,
+      "total": 147
+    },
+    "open_registration": {
+      "passed": 130,
+      "total": 130
+    },
+    "runtime_policy_subset": {
+      "passed": 17,
+      "total": 17
+    },
+    "staff_native_and_canonical_cutover": {
+      "passed": 92,
+      "total": 92
+    },
+    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42032145588",
+    "identity_probe_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42032145546",
+    "documentation_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42032145957"
+  },
+  "independent_source_review": {
+    "status": "PASS_SOURCE_REVIEW",
+    "source_sha": "482ed11832b666af17f879ae710fd43d2c321ce7",
+    "reviewer": "registration_review",
+    "fixed_findings": [
+      "Atomic native callback cutover marker",
+      "Preserve terminal unknown mail outcome diagnostics"
+    ],
+    "scope": "Exact source only; no real-owner authentication"
+  },
+  "independent_operation_review": {
+    "status": "PASS_READ_ONLY_OPERATION_REVIEW",
+    "reviewer": "registration_review",
+    "script_sha256": "9a701cb76264d351673560867c50d5e8c32a2ffb1736a58beefe839847f08ffd",
+    "attempt": 2,
+    "executed_by_reviewer": false
+  },
+  "secrets_or_codes_in_record": false,
+  "installation": {
+    "record_type": "CANONICAL_ADMIN_AND_IDENTITY_INSTALL",
+    "source_sha": "482ed11832b666af17f879ae710fd43d2c321ce7",
+    "status": "PASS_INSTALLED_AWAITING_NATIVE_POSTCHECK",
+    "real_owner_factor_or_login_operated": false,
+    "migrations_applied": [],
+    "phase": "INSTALL_FINISHED",
+    "checked_utc": "2026-11-05T13:29:49.025689+00:00",
+    "all_six_https_ingress_gates_observed": true,
+    "maintenance_poll_attempts": 2,
+    "artifact_sha256": "9c7b0d5ad216da453f1ed3b8f053b0f5d16f7c0551d5cc9e97f26e3729c1faf7",
+    "web_links_preserved": 8,
+    "staff_members_preserved": 2,
+    "owner_revision_before": 2,
+    "identity_state_before": {
+      "people": "19821610260110e12ac30b17ff9315839e8199c0f1576a402d74aed27e87b98e",
+      "verified_contacts": "f51b21c93e33626a9d26be61ce1776019b93ad4d3b3d68691c2fe88cbd06876f",
+      "subjects": "de5af8af6b742ce90a73bb309d5f99e9cc480d1624258264d450b3e8f838efc3",
+      "consents": "bcddab0ceac12777213188f86a158edf12ba4fdc698b706cc16449904e3542b4",
+      "factors_without_data": "9c8cd674b0073d3ec09e934cbb0dbd5250972dd6a449ac7fe04c18a9d72651a0"
+    },
+    "customer_state_before": {
+      "customers": "94c09c91326fbd5bb9058a20727d410c907f881888ff0de91ad7534bbc021af2",
+      "tenants": "349c6a7d8dacb2547e19d80ba05ea7d2ac928ca5a94c7e355f8655cc5a2796aa",
+      "memberships": "50a6307d2704cf4a7d306e8ab665ee2d17c435af3e6370578ea4a78d85cef79a",
+      "consents": "a87b762d4080e3db0c9702a1f5e8b9c1d2bc765d4379de2f2fbecc00549d26f4"
+    },
+    "same_people_subjects_contacts_consents_and_factor_rows": true,
+    "factor_data_read_or_changed": false,
+    "same_customers_tenants_memberships_consents": true,
+    "same_staff_ids_subjects_roles_permissions": true,
+    "old_native_tokens_codes_sessions_retired": true,
+    "owner_revision_after": 3,
+    "all_components_release": "alisa-482ed11832b666af",
+    "protected_runtime_preserved": true,
+    "manual_owner_login_status": "WAITING_FOR_USER_FRESH_CANONICAL_LOGIN"
+  },
+  "native_before": {
+    "record_type": "CANONICAL_AUTH_EXISTING_SYNTHETIC_LOGIN",
+    "phase": "before",
+    "status": "PASS",
+    "cases": [
+      {
+        "case": "native_synthetic_email_oidc_bff_cabinet",
+        "passed": true
+      },
+      {
+        "case": "same_existing_customer_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "secure_host_only_web_cookie",
+        "passed": true
+      }
+    ],
+    "real_owner_factor_or_login_operated": false,
+    "checked_utc": "2026-11-05T13:09:33.420523+00:00",
+    "total": 3,
+    "passed": 3
+  },
+  "native_after": {
+    "record_type": "CANONICAL_AUTH_EXISTING_SYNTHETIC_LOGIN",
+    "phase": "after",
+    "status": "PASS",
+    "cases": [
+      {
+        "case": "native_synthetic_email_oidc_bff_cabinet",
+        "passed": true
+      },
+      {
+        "case": "same_existing_customer_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "secure_host_only_web_cookie",
+        "passed": true
+      },
+      {
+        "case": "pre_cutover_web_session_rejected",
+        "passed": true
+      },
+      {
+        "case": "canonical_discovery_all_endpoints",
+        "passed": true
+      },
+      {
+        "case": "admin_login_https",
+        "passed": true
+      },
+      {
+        "case": "admin_oidc_begins_at_canonical_authority",
+        "passed": true
+      },
+      {
+        "case": "admin_origin_guard_preserved",
+        "passed": true
+      },
+      {
+        "case": "old_admin_callback_drops_code_and_state",
+        "passed": true
+      },
+      {
+        "case": "old_admin_post_not_replayed",
+        "passed": true
+      },
+      {
+        "case": "old_identity_authorization_endpoint_retired",
+        "passed": true
+      },
+      {
+        "case": "old_identity_token_endpoint_retired",
+        "passed": true
+      },
+      {
+        "case": "old_identity_jwks_uri_retired",
+        "passed": true
+      },
+      {
+        "case": "old_identity_discovery_retired",
+        "passed": true
+      },
+      {
+        "case": "old_mfa_bookmark_requires_clean_new_login",
+        "passed": true
+      },
+      {
+        "case": "old_identity_post_not_replayed",
+        "passed": true
+      },
+      {
+        "case": "mobile_cabinet_no_horizontal_overflow",
+        "passed": true
+      },
+      {
+        "case": "synthetic_postcheck_session_logged_out",
+        "passed": true
+      }
+    ],
+    "real_owner_factor_or_login_operated": false,
+    "checked_utc": "2026-11-05T13:31:24.318532+00:00",
+    "total": 18,
+    "passed": 18
+  },
+  "final_readback": {
+    "record_type": "CANONICAL_ADMIN_IDENTITY_FINAL_READBACK",
+    "status": "PASS",
+    "source_sha": "482ed11832b666af17f879ae710fd43d2c321ce7",
+    "checked_utc": "2026-11-05T13:32:14.383218+00:00",
+    "main_origin": "https://alisa.octoport.ru",
+    "admin_origin": "https://alisa-admin.octoport.ru",
+    "identity_issuer": "https://id.octoport.ru",
+    "ready": {
+      "18100": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-482ed11832b666af",
+        "status": "READY"
+      },
+      "18101": {
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-482ed11832b666af",
+        "status": "READY"
+      },
+      "18102": {
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-482ed11832b666af"
+      },
+      "18103": {
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-482ed11832b666af",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      }
+    },
+    "same_known_verified_real_owner": true,
+    "active_owner_count": 1,
+    "owner_revision": 3,
+    "issuer_migration_audit_count": 2,
+    "old_staff_sessions_revoked_and_payloads_cleared": true,
+    "previous_web_issuer_links_remaining": 0,
+    "identity_people_subjects_contacts_consents_and_factor_rows_preserved": true,
+    "customer_tenant_membership_consents_preserved": true,
+    "configs_unchanged_except_fixed_origin_settings": true,
+    "same_admin_client_id_and_secret": true,
+    "protected_runtime_preserved": true,
+    "real_owner_factor_count": 0,
+    "real_owner_native_sessions_observed": 0,
+    "manual_owner_login_status": "WAITING_FOR_USER_FACTOR_SETUP",
+    "factor_secret_read_or_changed_by_operator": false,
+    "real_owner_authentication_operated": false,
+    "browser_postcheck": {
+      "passed": 18,
+      "total": 18
+    },
+    "available_disk_bytes": 3263438848
+  },
+  "independent_installed_evidence_review": {
+    "status": "PASS_INSTALLED_EVIDENCE",
+    "reviewer": "registration_review",
+    "source_sha": "482ed11832b666af17f879ae710fd43d2c321ce7",
+    "fresh_anonymous_admin_https_and_discovery_verified": true,
+    "old_issuer_retirement_and_query_drop_verified": true,
+    "manifest_and_component_hashes_match": true,
+    "native_staff_mfa_policy_unchanged": true,
+    "personally_reexecuted_18_cases": false,
+    "real_owner_factor_or_login_operated": false
+  },
+  "prior_failed_attempt": {
+    "record_type": "CANONICAL_ADMIN_AND_IDENTITY_INSTALL",
+    "source_sha": "482ed11832b666af17f879ae710fd43d2c321ce7",
+    "status": "FAILED_INSPECT_SAVED_STATE",
+    "real_owner_factor_or_login_operated": false,
+    "migrations_applied": [],
+    "phase": "EXACT_PACKAGE_INSTALLED_NOT_ACTIVATED",
+    "checked_utc": "2026-11-05T13:26:01.555385+00:00",
+    "rollback": "GUARDED_FIELDS_ONLY_OLD_LOGIN_STATE_REMAINS_REVOKED",
+    "error_type": "RuntimeError",
+    "safe_reason": "Observed HTTPS maintenance missing for a fixed origin"
+  },
+  "prior_attempt_reconciliation": {
+    "nginx_and_setup_original_restored": true,
+    "no_authority_binding_plan_or_changes": true,
+    "old_components_readiness_restored": true,
+    "main_https_200": true,
+    "retry_guarded_and_separately_reviewed": true
+  },
+  "automatic_future_execution": false
+}
