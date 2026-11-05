@@ -25,7 +25,9 @@ def cache_key(key,key_prefix,version):
 
 class PrivateDatabaseCache(DatabaseCache):
     def _base_set(self,mode,key,value,timeout=DEFAULT_TIMEOUT):
-        if mode!='touch':value=seal(value)
+        if mode!='touch':
+            from .staff import bind_code
+            value=seal(bind_code(value))
         return super()._base_set(mode,key,value,timeout)
     def get_many(self,keys,version=None):
         result={}

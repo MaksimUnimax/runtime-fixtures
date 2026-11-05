@@ -33,7 +33,7 @@ def check(name,condition,**safe):
     CASES.append({'case':name,'passed':True,**safe});print(json.dumps(CASES[-1]),flush=True)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');args=parser.parse_args()
     params=psycopg.conninfo.conninfo_to_dict(os.environ.get('ALISA_TEST_PG_DSN',''))
     if (os.environ.get('ALISA_TEST_DB_ALLOW')!='1' or params.get('host')!='127.0.0.1' or params.get('port')!='55480' or params.get('dbname')!='alisa_ci_admin' or params.get('user')!='alisa_ci_admin' or not params.get('password') or set(params)-{'host','port','dbname','user','password'}):
         raise RuntimeError('Guarded disposable CI database required')
@@ -87,6 +87,12 @@ def main():
             client_bootstrap={'ALISA_WEB_OIDC_CLIENT_ID':'s02_web','ALISA_WEB_OIDC_CLIENT_SECRET':web_secret,
                   'ALISA_WEB_OIDC_REDIRECT_URI':WEB+'/auth/callback','ALISA_PROBE_OIDC_CLIENT_ID':'s02_probe',
                   'ALISA_PROBE_OIDC_CLIENT_SECRET':probe_secret,'ALISA_PROBE_OIDC_REDIRECT_URI':WEB+'/oidc-probe/callback'}
+            if args.staff:
+                staff_origin='https://127.0.0.1:19441';staff_secret=secrets.token_urlsafe(40)
+                staff_service=secrets.token_urlsafe(40);staff_key=secrets.token_urlsafe(32)
+                identity_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_REDIRECT_URI':staff_origin+'/auth/callback'})
+                platform_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_SERVICE_TOKEN':staff_service})
+                client_bootstrap.update({'ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_CLIENT_SECRET':staff_secret,'ALISA_STAFF_OIDC_REDIRECT_URI':staff_origin+'/auth/callback'})
             component_keys={c:secrets.token_urlsafe(48) for c in ['platform','identity','web']}
             web_env={**clean_environment(),'HOME':str(home),'ALISA_ENV':'dev','ALISA_RELEASE':manifest['artifact_id'],
                   'ALISA_LEAD_INTAKE_ENABLED':'1','ALISA_SECRET_KEY':component_keys['web'],'ALISA_ACCOUNTS_ENABLED':'1','ALISA_IDENTITY_ISSUER':ISSUER,
@@ -128,6 +134,14 @@ def main():
             api=start('platform');authority=start('identity')
             web=spawn(['node',release/'ui/web/apps/web/server.js'],{**web_env,'PORT':'18400','HOSTNAME':'127.0.0.1'})
             proxies=[start_proxy(19440,18400,cert,key),start_proxy(19443,18403,cert,key),start_plain_proxy(18404,18402)]
+            if args.staff:
+                admin_env={**clean_environment(),'HOME':str(home),'ALISA_ENV':'dev','ALISA_RELEASE':manifest['artifact_id'],
+                    'ALISA_STAFF_ENABLED':'1','ALISA_IDENTITY_ISSUER':ISSUER,'ALISA_ADMIN_BASE_URL':staff_origin,
+                    'ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_CLIENT_SECRET':staff_secret,
+                    'ALISA_STAFF_SERVICE_TOKEN':staff_service,'ALISA_STAFF_SESSION_KEY':staff_key,
+                    'ALISA_PLATFORM_URL':'http://127.0.0.1:18404','NODE_EXTRA_CA_CERTS':str(ca),'PORT':'18401','HOSTNAME':'127.0.0.1'}
+                staff_process=spawn(['node',release/'ui/admin/apps/admin/server.js'],admin_env)
+                proxies.append(start_proxy(19441,18401,cert,key))
             committed_response_lost=[];session_payload_hashes=[]
             def session_payload(path,body):
                 if path=='/api/v1/auth/sessions':session_payload_hashes.append(hashlib.sha256(body).hexdigest())
@@ -187,6 +201,7 @@ def main():
                 check('s02_basic_'+kind+'_validation',(status==400 and body.get('error')=='invalid_grant') if kind=='encoded' else (status==401 and body.get('error')=='invalid_client'))
             sink=Sink(('127.0.0.1',18226),SMTP);sink.messages=[];threading.Thread(target=sink.serve_forever,daemon=True).start()
             contacts=[];private_values=[service,auth_service,web_secret,probe_secret,data_key,bff_key]
+            if args.staff:private_values.extend([staff_secret,staff_service,staff_key])
             def letter(email):
                 matches=[]
                 for item in sink.messages:
@@ -416,6 +431,11 @@ def main():
             manage('identity',['identity_deliver'])
             with db('identity') as conn:
                 check('s02_smtp_recovery_sends_and_erases_code',len(sink.messages)>=1 and not conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND encrypted_payload<>'' AND expires_at>now()").fetchone())
+            if args.staff:
+                from qualify_staff_browser import run as run_staff_browser
+                run_staff_browser(browser=browser,context=context,second_context=second_context,db=db,manage=manage,
+                    check=check,origin=staff_origin,issuer=ISSUER,private_values=private_values,owner_email=email,
+                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path)
             logs.flush();text=(temp/'private-process.log').read_text()
             check('s02_private_logs_have_no_known_codes_tokens_contacts',all(v not in text for v in [*contacts,*private_values] if v) and not re.search(r'eyJ[A-Za-z0-9_-]+\.|[A-Za-z0-9_.+-]+@example\.invalid',text))
             second_context.close();context.close();browser.close();browser=None

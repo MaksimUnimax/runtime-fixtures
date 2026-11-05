@@ -1,0 +1,50 @@
+{
+  "record_type": "AL_S03_SOURCE_PACKAGE_CHECKPOINT_NOT_ACCEPTANCE",
+  "source_sha": "c5423aa5bf018ed3ec5ad1fd46f52f842c6972b1",
+  "source_base": "7a8875323712b8860756259e2684dac81063202f",
+  "artifact": "alisa-c5423aa5bf018ed3.tar.gz",
+  "artifact_sha256": "af6f239f7ec86307facf498272c583794f67c88aa04c2b3553973fc71b5c1364",
+  "manifest_files_verified": 4393,
+  "manifest_links_verified": 42,
+  "source_checks": {
+    "python_unittest": {
+      "passed": 50
+    },
+    "typescript": "PASS",
+    "web_and_admin_build": "PASS",
+    "architecture": "PASS",
+    "engineering_boundary": "PASS",
+    "migration_definition_drift": "NO_CHANGES_PLATFORM_AND_IDENTITY"
+  },
+  "disposable_postgres_core": {
+    "passed": 44,
+    "failed": 0,
+    "exact_test_input_files_verified": 83,
+    "input_archive_sha256": "413c50d0df88a9005cf7c0524a158edc0c466340ee7840ab04bd192667104a06",
+    "evidence": "AL_S03_NATIVE_MFA_CORE_20261105.json",
+    "private_network_distinct_from_host": true,
+    "temporary_cluster_stopped_and_removed": true
+  },
+  "not_run": [
+    "full_packaged_staff_browser_flow",
+    "new_S00_S01_S02_packaged_regression",
+    "independent_full_source_package_review",
+    "S03_stage_installation_and_rollback"
+  ],
+  "publication": {
+    "status": "BLOCKED_BY_AUTOMATIC_APPROVAL_REVIEW",
+    "attempts": 2,
+    "destination": "MaksimUnimax/runtime-fixtures refs/heads/feat/alisa-admin-v05 PR386",
+    "remote_head": "7a8875323712b8860756259e2684dac81063202f",
+    "reason": "Explicit user approval for source and workflow publication to a public repository is required after rejection. No workaround attempted.",
+    "no_main_merge": true
+  },
+  "observed_live": {
+    "web": "alisa-6ae348354b3db0d3",
+    "identity": "alisa-6ae348354b3db0d3",
+    "admin": "alisa-77d0f8ee2643ef65",
+    "all_https_ready_statuses": 200
+  },
+  "s03_acceptance": "NOT_QUALIFIED_NOT_INSTALLED",
+  "next_step": "Explicit authorization for the exact draft-branch source/evidence/workflow update, then CI browser and regression runs and independent review before any exact stage rollout approval."
+}

@@ -54,6 +54,10 @@ jobs:
         run: |
           .venv/bin/python -m playwright install --with-deps chromium
           sudo apt-get install --no-install-recommends -y libnss3-tools
+      - name: Native staff MFA and command policies on isolated PostgreSQL
+        working-directory: products/alisa
+        run: |
+          .venv/bin/python tests/integration/qualify_staff_core.py --output dist/s03-core-qualification.json
       - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
         working-directory: products/alisa
         run: |
@@ -67,7 +71,7 @@ jobs:
           sudo --preserve-env=ALISA_TEST_DB_ALLOW,ALISA_TEST_PG_DSN,GITHUB_ACTIONS,PATH,PLAYWRIGHT_BROWSERS_PATH \
             .venv/bin/python tests/integration/qualify_identity.py \
             --artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz" \
-            --output dist/s02-qualification.json
+            --output dist/s02-qualification.json --staff
       - name: Save safe qualification receipt
         if: always()
         uses: actions/upload-artifact@v4
@@ -78,6 +82,7 @@ jobs:
             products/alisa/dist/s01-home-*.png
             products/alisa/dist/s02-*.json
             products/alisa/dist/s02-empty-state.png
+            products/alisa/dist/s03-*.json
           if-no-files-found: error
       - name: Save the qualified immutable stage package
         uses: actions/upload-artifact@v4

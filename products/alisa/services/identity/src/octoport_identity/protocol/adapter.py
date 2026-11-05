@@ -18,6 +18,10 @@ class MFAAdapter(DefaultMFAAdapter):
 
 class OIDCAdapter(DefaultOIDCAdapter):
     def get_issuer(self):return settings.IDENTITY_ISSUER
+    def populate_id_token(self,id_token,client,scopes):
+        if client.id==settings.IDENTITY_STAFF_CLIENT_ID:
+            from .staff import token_claims
+            id_token.update(token_claims(client,id_token))
     def get_user_sub(self,client,user):
         subject,_=Subject.objects.get_or_create(client=client,person=user)
         return str(subject.pk)

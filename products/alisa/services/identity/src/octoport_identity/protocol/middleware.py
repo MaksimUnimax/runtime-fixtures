@@ -36,6 +36,10 @@ class IdentityPolicy:
                 not re.fullmatch(r'[A-Za-z0-9_-]{43}',request.GET['code_challenge'])):
                 return JsonResponse({'error':'invalid_request'},status=400)
         scope=None
+        if (request.method=='GET' and request.path==authorization
+                and getattr(settings,'IDENTITY_STAFF_ENABLED',False)
+                and settings.IDENTITY_STAFF_CLIENT_ID in request.GET.getlist('client_id')):
+            scope='browser:'+request.COOKIES.get(settings.SESSION_COOKIE_NAME,'anonymous')
         if request.method=='POST' and request.path.startswith('/accounts/'):
             scope='browser:'+request.COOKIES.get(settings.SESSION_COOKIE_NAME,'anonymous')
         if request.method=='POST' and request.path==reverse('idp:oidc:token') and request.POST.get('grant_type')=='authorization_code':

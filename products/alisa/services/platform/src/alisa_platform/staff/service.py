@@ -25,6 +25,9 @@ def principal(token,permission):
     member=StaffMember.objects.select_for_update().get(pk=row.member_id)
     row=StaffSession.objects.select_for_update().filter(pk=row.pk,member=member).first()
     if not row:return None
+    if permission is None:
+        try:permission='staff.manage' if member.role=='OWNER' else next(iter(permissions(member.permissions)),None)
+        except ValueError:return None
     allowed=session_allowed({'product_id':member.product_id,'issuer':member.issuer,'client_id':member.client_id,'active':member.active,'revision':member.revision,'role':member.role,'permissions':member.permissions},
         {'product_id':row.product_id,'revision':row.revision,'revoked':row.revoked_at is not None,'expires_at':row.expires_at.timestamp(),'created_at':row.created_at.timestamp(),'mfa_at':row.mfa_verified_at.timestamp(),'mfa_type':row.mfa_type},
         issuer=settings.IDENTITY_ISSUER,client=settings.STAFF_CLIENT_ID,now=timezone.now().timestamp(),permission=permission)
