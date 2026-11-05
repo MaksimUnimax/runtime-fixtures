@@ -103,6 +103,11 @@
       "conflicts": "Preserve contradictory raw flags; do not infer physical custody from one ambiguous flag. An actual charge conflicting with verified non-handover remains a recorded charge plus discrepancy for investigation, not silently deleted.",
       "case_resolution": "Owner confirms selected FBS cancelled item was not physically handed over. Exclude unperformed forward transport, return transport, handover processing and delivery-to-point estimates for that item. Do not erase actual advertising/acquiring or other incurred costs.",
       "flag_backend_trigger": "Exact internal cancelled_after_ship trigger NOT_FOUND; do not invent a universal 'after assembly' definition from endpoint naming alone."
+    },
+    "partial_nonbuyout": {
+      "source": "https://dev.ozon.ru/start/448-Spravochnik-metodov-Seller-API-dlia-Ozon-Logistiki/",
+      "rule": "Official example: refusal of one item at receipt leaves original posting Delivered and creates a separate Cancelled posting with return type PartialReturn. Do not classify a cancelled child as an additional whole order cancellation or count both quantities twice; qualify linkage and reason.",
+      "classification": "Separate whole-order cancellation before handover, cancellation/nonbuyout after handover, partial refusal at receipt and customer return after receipt. Status cancelled alone does not identify which event occurred."
     }
   },
   "official_research": "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/quality/inbox/20261105-TESTER-d391a4b1/CANCELLATION_RETURNS_RESEARCH.md",
