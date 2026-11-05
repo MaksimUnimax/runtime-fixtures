@@ -1,0 +1,22 @@
+{
+  "schema":"alisa-qualified-pass-delivery/v1",
+  "observed_utc":"2026-11-05T06:32:16.643415+00:00",
+  "acceptance":"JOIN_NUMERIC_Q01_ACCEPTANCE_2026-11-05.md",
+  "counts":"CATALOG_PROGRESS_CURRENT.json",
+  "mini_report_rule":"MINI_REPORT_CONTRACT.md",
+  "active_release":"20261105-v010-dialogue-fixes-r1",
+  "active_and_candidate_runtime_unchanged":true,
+  "configuration_unchanged":true,
+  "platform_changed":false,
+  "services_active":4,
+  "retention_timers_active":3,
+  "active_jobs":0,
+  "sqlite_quick_check":"ok",
+  "calls":{"physical":16,"http200":16,"deepseek":0},
+  "joined_sample":{"days":2,"target_rows":29,"matched_rows":29,"views_reconciled":5,"unknown_or_unmatched":0},
+  "tester_metadata":{"rows":27,"identity_sku_quantity_equal":true,"snapshot_difference_fields":["status"],"fresh_decoder_vs_independent_equal":true,"cabinet_verified":false,"tester_outcomes_rewritten":false},
+  "wb":{"requested":21,"returned":18,"missing":3,"status":"NOT_QUALIFIED_DATASET_CAMPAIGN_COVERAGE"},
+  "archive":{"location":"server-side, not automatically mounted in conversation","path":"/root/alice-lab-evidence/join-numeric-q01-20261105/ALISA_JOIN_NUMERIC_Q01_2026-11-05.zip","sha256":"3890ffb6264330315fcd89cf0b35359645cdacfd012d818dc694f5c3dd3eeb93","bytes":23629,"files":12,"raw_business_data":false,"credentials":false,"kind":"qualification code, reference hashes and safe evidence; not a runtime installer"},
+  "summary":{"implemented":82,"enabled":69,"implemented_not_enabled":13,"new_definitions_this_pass":0,"new_installs_this_pass":0},
+  "next":"Exact bounded B05/join activation plan and smoke; keep WB fullstats disabled; return numeric evidence to tester."
+}
