@@ -1,0 +1,52 @@
+{
+  "schema": "synthetic-financial-gold/v1",
+  "real_merchant_values": false,
+  "case": "three ordered units, seller price1000, one FBO cancellation with unknown stage; conservative complete-route forecast",
+  "inputs": {
+    "ordered_units": 3,
+    "cancelled_units": 1,
+    "seller_unit_value": 1000,
+    "commission_percent": 50,
+    "acquiring_per_ordered_unit": 10,
+    "direct_per_ordered_unit": 100,
+    "last_mile_per_ordered_unit": 10,
+    "return_for_unknown_cancel": 70,
+    "storage": 30,
+    "advertising": 120,
+    "user_goods_cost": 250,
+    "tax": "excluded"
+  },
+  "expected_no_cancel": {
+    "units": 3,
+    "seller_value": 3000,
+    "commission": 1500,
+    "acquiring": 30,
+    "direct": 300,
+    "last_mile": 30,
+    "return": 0,
+    "storage": 30,
+    "advertising": 120,
+    "marketplace_costs": 2010,
+    "goods_cost": 750,
+    "result": 240,
+    "result_per_item": 80
+  },
+  "expected_with_cancel": {
+    "original_ordered_units": 3,
+    "remaining_units": 2,
+    "seller_value": 2000,
+    "commission": 1000,
+    "acquiring": 30,
+    "direct": 300,
+    "last_mile": 30,
+    "return": 70,
+    "storage": 30,
+    "advertising": 120,
+    "marketplace_costs": 1580,
+    "goods_cost": 500,
+    "result": -80,
+    "result_per_remaining_ordered_item": -40,
+    "user_goods_cost_per_applicable_item": 250
+  },
+  "purpose": "Expected totals are explicit hand-calculated synthetic values; do not claim independent production acceptance."
+}
