@@ -1,0 +1,197 @@
+{
+  "record_type": "ALISA_OCTOPORT_DESIGN_INSTALLED_ACCEPTANCE",
+  "recorded_at_utc": "2026-11-05T07:50:42Z",
+  "owner_request": "Привести оформление сайта Алисы к референсу Октопорта и исправить установленный сайт.",
+  "status": "INSTALLED_STAGE_VISUAL_PASS",
+  "source_sha": "140150ba526b6c3d3b23eab1c880a8722692d75e",
+  "source_pull_request": 387,
+  "merged_into": "feat/alisa-identity-cabinet-v05",
+  "merge_sha": "a1407818fa1370494e03a9d20eb6c96fb92e174d",
+  "site_url": "https://alisa-stage.octoport.ru/",
+  "reference_url": "https://octoport.ru/",
+  "changes": [
+    "Палитра #0d1929/#17273b/#b0d2f2 и шрифт Rubik из референса",
+    "Локально упакованные шрифты и знак Октопорта, лицензия Rubik",
+    "Шапка с входом и меню, главная, внутренние страницы, формы, таблицы и кабинет",
+    "Удалены декоративные номера блоков"
+  ],
+  "ci": {
+    "run_id": 41989193983,
+    "url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41989193983",
+    "conclusion": "success",
+    "documentation_run_id": 41989193993,
+    "documentation_conclusion": "success",
+    "package_artifact_id": 13397815150,
+    "qualification_artifact_id": 13396504773
+  },
+  "installation": {
+    "recorded_at_utc": "2026-11-05T07:50:24.618217+00:00",
+    "status": "WEB_INSTALLED_READY_FOR_VISUAL_ACCEPTANCE",
+    "source_sha": "140150ba526b6c3d3b23eab1c880a8722692d75e",
+    "release": "alisa-140150ba526b6c3d",
+    "artifact_sha256": "2849d1348e605f9b8655f73a1c2d0b724d6b59f6577bfe91e5527a34225c46c7",
+    "protected_source_files_verified": 93,
+    "live_migrations_applied": 0,
+    "scope": "Owner-authorized Octoport reference design, stage web only",
+    "web_ready": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-140150ba526b6c3d",
+      "status": "READY"
+    },
+    "backend_releases": {
+      "18101": "alisa-77d0f8ee2643ef65",
+      "18102": "alisa-6ae348354b3db0d3",
+      "18103": "alisa-6ae348354b3db0d3"
+    },
+    "protected_baseline_equal": true
+  },
+  "visual_acceptance": {
+    "recorded_at_utc": "2026-11-05T07:50:42.358308+00:00",
+    "release": "alisa-140150ba526b6c3d",
+    "source_sha": "140150ba526b6c3d3b23eab1c880a8722692d75e",
+    "status": "PASS",
+    "checks": [
+      {
+        "case": "home_https_200",
+        "passed": true
+      },
+      {
+        "case": "octoport_background",
+        "passed": true
+      },
+      {
+        "case": "local_rubik_loaded",
+        "passed": true
+      },
+      {
+        "case": "brand_mark_loaded",
+        "passed": true
+      },
+      {
+        "case": "layout_320",
+        "passed": true
+      },
+      {
+        "case": "menu_320",
+        "passed": true
+      },
+      {
+        "case": "layout_390",
+        "passed": true
+      },
+      {
+        "case": "menu_390",
+        "passed": true
+      },
+      {
+        "case": "layout_768",
+        "passed": true
+      },
+      {
+        "case": "menu_768",
+        "passed": true
+      },
+      {
+        "case": "layout_1440",
+        "passed": true
+      },
+      {
+        "case": "menu_1440",
+        "passed": true
+      },
+      {
+        "case": "menu_opens_application",
+        "passed": true
+      },
+      {
+        "case": "page_examples",
+        "passed": true
+      },
+      {
+        "case": "form_layout_examples",
+        "passed": true
+      },
+      {
+        "case": "page_join",
+        "passed": true
+      },
+      {
+        "case": "form_layout_join",
+        "passed": true
+      },
+      {
+        "case": "page_login",
+        "passed": true
+      },
+      {
+        "case": "form_layout_login",
+        "passed": true
+      },
+      {
+        "case": "page_how-it-works",
+        "passed": true
+      },
+      {
+        "case": "page_help",
+        "passed": true
+      },
+      {
+        "case": "page_faq",
+        "passed": true
+      },
+      {
+        "case": "page_pricing",
+        "passed": true
+      },
+      {
+        "case": "page_contacts",
+        "passed": true
+      },
+      {
+        "case": "page_privacy",
+        "passed": true
+      },
+      {
+        "case": "page_terms",
+        "passed": true
+      },
+      {
+        "case": "page_consents",
+        "passed": true
+      },
+      {
+        "case": "anonymous_cabinet_redirect",
+        "passed": true
+      },
+      {
+        "case": "browser_no_js_errors",
+        "passed": true,
+        "error_count": 0
+      }
+    ],
+    "screenshots": [
+      "join-desktop.png",
+      "examples-desktop.png",
+      "home-desktop.png",
+      "application-desktop.png",
+      "login-desktop.png",
+      "home-mobile.png"
+    ],
+    "scope": "Public pages, forms, responsive geometry, local assets and anonymous access. Read-only browser run."
+  },
+  "first_attempt": {
+    "status": "AUTOMATIC_ROLLBACK",
+    "cause": "Новый каталог и venv были созданы с mode 0700, служебный пользователь web получил CHDIR Permission denied.",
+    "correction": "Права файлов пакета приведены к режимам принятого выпуска. Каталоги 0755, обычные файлы 0644, исполняемые 0755. Содержимое файлов повторно сверено. Вторая активация успешна."
+  },
+  "scope_of_verification": {
+    "ci": "Пакетные браузерные проверки заявки, SMTP, регистрации и кабинета на изолированной PostgreSQL.",
+    "installed": "29 read-only браузерных проверок страниц, форм, меню, шрифта и адаптивности на действующем stage. Полный повтор создания аккаунта на stage в этот проход не выполнялся.",
+    "manual_owner_visual_acceptance": "Ожидается оценка владельца по установленному сайту."
+  },
+  "screenshot": {
+    "file_name": "ALISA_SITE_AFTER_2026-11-05.png",
+    "library_file_id": "libfile_0279eb03d6cc8191b0cb5a602660c376"
+  }
+}
