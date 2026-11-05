@@ -1,0 +1,93 @@
+{
+  "schema": "alisa-qa-run/v1",
+  "run_id": "20261105-TESTER-d391a4b1",
+  "role": "TESTER",
+  "purpose": "Owner-authorized API actuals then official tariff midpoint fallback for every line",
+  "target_build": "20261105-v010-ads-daily-r1",
+  "evidence_level": "LIVE_PROVIDER_WITH_EXPLICIT_TARIFF_FORECAST",
+  "outcome": "PRIVATE_API_FORECAST_COMPUTED_NOT_ACTUAL_PROFIT",
+  "started_at_utc": "2026-11-05T03:37:55.464086+00:00",
+  "finished_at_utc": "2026-11-05T03:38:02.019064+00:00",
+  "http_calls": 7,
+  "llm_calls": 0,
+  "dialogs_messages": 0,
+  "collection_wall_seconds": 6.555,
+  "screenshots_used": false,
+  "price_items": 14,
+  "postings_complete": true,
+  "price_pages_complete": true,
+  "accrual_complete": true,
+  "requests": [
+    {
+      "operation": "ds_ozon_fbo_postings",
+      "path": "/v3/posting/fbo/list",
+      "http": 200,
+      "elapsed_ms": 103.745,
+      "bytes": 21613,
+      "response_sha256": "cfbf99be8ad6283d3fe7987afba8f69bf2192f276290bb5cf7c63ee3f6577282"
+    },
+    {
+      "operation": "ds_ozon_fbs_postings",
+      "path": "/v4/posting/fbs/list",
+      "http": 200,
+      "elapsed_ms": 88.82,
+      "bytes": 10807,
+      "response_sha256": "ee0b2f1e5603285aa4aaefaf766287054626e4fa5a57e30de820d19899158a61"
+    },
+    {
+      "operation": "ds_ozon_prices",
+      "path": "/v5/product/info/prices",
+      "http": 200,
+      "elapsed_ms": 116.703,
+      "bytes": 60230,
+      "response_sha256": "1d3af779a5e7c301c7369aa26aadb7489c43a0128f9e825b1b47d39a64af3884"
+    },
+    {
+      "operation": "ds_ozon_prices",
+      "path": "/v5/product/info/prices",
+      "http": 200,
+      "elapsed_ms": 66.968,
+      "bytes": 50,
+      "response_sha256": "f6d3967eee07c9a221ee2f3b8c1d36f0d5953742b4890b0f56348c5f57044969"
+    },
+    {
+      "operation": "ozon_accrual_by_day",
+      "path": "/v1/finance/accrual/by-day",
+      "http": 200,
+      "elapsed_ms": 93.95,
+      "bytes": 21971,
+      "response_sha256": "cb6d4adc208d561196499c6abce624c8f340e49b5e8fd0a3399c742801788616"
+    },
+    {
+      "operation": "ozon_finance",
+      "path": "/v1/finance/balance",
+      "http": 200,
+      "elapsed_ms": 86.431,
+      "bytes": 1328,
+      "response_sha256": "9dde235c0eec14550f33b8a6d9b1dd84820c6b6e7555df7dacc00a493f654c8d"
+    },
+    {
+      "operation": "ozon_orders",
+      "path": "/v1/analytics/data",
+      "http": 200,
+      "elapsed_ms": 4022.435,
+      "bytes": 143,
+      "response_sha256": "50456f0f618a3dc5bba2530a0b02fc4407ef13422e21452913e557e4a1fcabe2"
+    }
+  ],
+  "checks": [
+    "All original postings and quantities reconcile to analytics",
+    "Every selected product mapped to official price API row",
+    "Each acquiring/current-price ratio verified before projecting",
+    "Pending zero commission not treated as a verified zero",
+    "No financial-day commission substituted for selected order tariff",
+    "Explicit period allocations for store overhead and advertising",
+    "Tariff ranges use midpoint as requested",
+    "No cancelled COGS, product cost input unchanged",
+    "No duplicate external Performance/finance advertising",
+    "Optional cancellation commission reserve labelled conditional, official reversal control separate"
+  ],
+  "runtime_changed": false,
+  "platform_changed": false,
+  "raw_data_in_git": false
+}
