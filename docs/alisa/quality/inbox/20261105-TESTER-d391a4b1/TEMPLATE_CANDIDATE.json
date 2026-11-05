@@ -1,0 +1,48 @@
+{
+  "schema": "alisa-template-candidate/v1",
+  "template_id": "C-UE01",
+  "revision": "api-actual-then-tariff-midpoint-r4",
+  "status": "SOURCE_BACKED_FORECAST_RESEARCH_NOT_INSTALLED",
+  "required_basis": "declared unit profile and original ordered cohort",
+  "source_fallback_order": [
+    "matched actual accrual if available and complete",
+    "matched official API tariff estimate",
+    "current official published tariff with temporal/method scope and user-requested interval midpoint"
+  ],
+  "field_sources": {
+    "seller_order_price": "FBO/FBS products.price.amount/currency",
+    "commission_rate": "product/info/prices commissions.sales_percent_fbo/fbs",
+    "acquiring_rate": "verified acquiring/current price, projected to order price; otherwise direct qualified amount",
+    "direct_logistics": "commissions.<scheme>_direct_flow_trans_min_amount/max_amount",
+    "last_mile": "commissions.<scheme>_deliv_to_customer_amount",
+    "fbs_handling": "commissions.fbs_first_mile_min_amount/max_amount",
+    "return_flow": "commissions.<scheme>_return_flow_amount; grouped service estimate, no blind extra handling",
+    "storage": "finance.balance cashflows.services product_placement_in_ozon_warehouses",
+    "extra_courier": "finance.balance cashflows.services courier_client_reinvoice, explicit store-period allocation",
+    "ads_cpo": "finance.balance promotion_with_cost_per_order, crosschecked against qualified Performance data",
+    "ads_cpc": "finance.balance pay_per_click, crosschecked against qualified Performance data",
+    "cogs": "owner input, never replaced by prices.net_price",
+    "tax": "owner input or explicit exclusion"
+  },
+  "midpoint": "(minimum + maximum) / 2",
+  "labels": [
+    "ACTUAL_MATCHED",
+    "ACTUAL_PERIOD_ALLOCATION",
+    "API_TARIFF_ESTIMATE",
+    "OFFICIAL_TARIFF_ESTIMATE",
+    "OWNER_CONDITIONAL_RESERVE",
+    "USER_INPUT"
+  ],
+  "guards": [
+    "No unqualified zero from pending financial_data",
+    "Do not relabel forecast as actual charge or final profit",
+    "Current tariff not claimed historical actual",
+    "No cancelled revenue or COGS",
+    "Retain incurred non-COGS costs unless actual reversal; expected tariff/refund scenarios explicitly named",
+    "Commission reserve optional and explicit, not an invented API fee",
+    "Return-flow composite counted once",
+    "Product cost input stays unchanged; denominators explicit per scenario",
+    "Missing actual charge triggers authorized tariff fallback rather than unexplained empty result"
+  ],
+  "production_adapter": "NOT_INSTALLED"
+}
