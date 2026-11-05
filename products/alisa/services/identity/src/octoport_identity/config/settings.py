@@ -66,6 +66,7 @@ LANGUAGE_CODE='ru'
 USE_I18N=True
 TIME_ZONE='UTC'
 ACCOUNT_ADAPTER='octoport_identity.protocol.adapter.AccountAdapter'
+MFA_ADAPTER='octoport_identity.protocol.adapter.MFAAdapter'
 ACCOUNT_FORMS={'signup':'octoport_identity.protocol.forms.SignupForm',
  'login':'octoport_identity.protocol.forms.LoginForm','request_login_code':'octoport_identity.protocol.forms.RequestLoginCodeForm'}
 ACCOUNT_LOGIN_METHODS={'email'}

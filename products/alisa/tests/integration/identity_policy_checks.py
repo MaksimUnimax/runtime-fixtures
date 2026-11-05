@@ -85,6 +85,11 @@ def run():
     known.get(path,secure=True);unknown.get(path,secure=True)
     a=post(known,path,{'email':email});b=post(unknown,path,{'email':'unknown-'+uuid.uuid4().hex+'@example.invalid'})
     check('s02_known_unknown_code_request_same_response',(a.status_code,a.get('Location'))==(b.status_code,b.get('Location')))
+    from allauth.mfa.totp.internal.auth import TOTP,generate_totp_secret,hotp_value,format_hotp_value
+    factor_secret=generate_totp_secret();factor=TOTP.activate(person,factor_secret)
+    factor_code=format_hotp_value(hotp_value(factor_secret,int(time.time())//30))
+    private_values.extend([factor_secret,factor_code])
+    check('s02_mfa_secret_encrypted_and_factor_one_use',factor_secret not in json.dumps(factor.instance.data) and factor.validate_code(factor_code) and not factor.validate_code(factor_code))
     # Parent exercises outage and delivery using this queued encrypted message.
     IdentityMail.objects.filter(sent_at__isnull=True).exclude(pk=known.session.get('identity_mail_id')).delete()
 

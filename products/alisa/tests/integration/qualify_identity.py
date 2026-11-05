@@ -6,7 +6,7 @@ certificate verification is never disabled. No live config/DB/mail is available.
 """
 import argparse,base64,hashlib,json,os,re,secrets,signal,ssl,subprocess,sys,tarfile,tempfile,time,threading,uuid
 from pathlib import Path
-from urllib.parse import urlencode,urlsplit,parse_qs
+from urllib.parse import urlencode,urlsplit,parse_qs,unquote_plus
 import urllib.request,urllib.error
 from email import policy
 from email.parser import BytesParser
@@ -162,7 +162,11 @@ def main():
                 if path!=token_path:return
                 auth=next((v for k,v in headers.items() if k.lower()=='authorization'),'')
                 values=parse_qs(body.decode()) if body else {}
-                auth_observations.append({'basic_matches_registered_fixture':secrets.compare_digest(auth,expected_basic),
+                try:
+                    scheme,_,value=auth.partition(' ');decoded=base64.b64decode(value,validate=True).decode();identifier,_,password=decoded.partition(':')
+                    semantic=scheme.lower()=='basic' and secrets.compare_digest(unquote_plus(identifier),'s02_web') and secrets.compare_digest(unquote_plus(password),web_secret)
+                except (ValueError,UnicodeError):semantic=False
+                auth_observations.append({'raw_basic_matches_registered_fixture':secrets.compare_digest(auth,expected_basic),'decoded_basic_matches_registered_fixture':semantic,
                     'body_client_id_present':'client_id' in values,'authorization_header_present':bool(auth)})
             proxies[1].request_observer=observe_client_auth
             data=urlencode({'grant_type':'authorization_code','code':'x'*43,'code_verifier':'x'*64,'redirect_uri':WEB+'/auth/callback'}).encode()
@@ -173,6 +177,14 @@ def main():
             error=probe_body.get('error')
             record['client_auth_probe']={'http_status':probe_status,'error':error if error in ['invalid_grant','invalid_client'] else 'OTHER'}
             check('s02_confidential_basic_authentication_reaches_grant_validation',probe_status==400 and error=='invalid_grant')
+            def encoded_component(value):return ''.join(c if c.isascii() and c.isalnum() else '%'+format(ord(c),'02X') for c in value)
+            for kind,password in [('encoded',web_secret),('wrong_secret',web_secret+'x')]:
+                header='Basic '+base64.b64encode((encoded_component('s02_web')+':'+encoded_component(password)).encode()).decode()
+                req=urllib.request.Request(metadata['token_endpoint'],data=data,headers={'Content-Type':'application/x-www-form-urlencoded','Authorization':header})
+                try:
+                    with opener.open(req,timeout=8) as r:status=r.status;body=json.load(r)
+                except urllib.error.HTTPError as exc:status=exc.code;body=json.load(exc)
+                check('s02_basic_'+kind+'_validation',(status==400 and body.get('error')=='invalid_grant') if kind=='encoded' else (status==401 and body.get('error')=='invalid_client'))
             sink=Sink(('127.0.0.1',18226),SMTP);sink.messages=[];threading.Thread(target=sink.serve_forever,daemon=True).start()
             contacts=[];private_values=[service,auth_service,web_secret,probe_secret,data_key,bff_key]
             def letter(email):

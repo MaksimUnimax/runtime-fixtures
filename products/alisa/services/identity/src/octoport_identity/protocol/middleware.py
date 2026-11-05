@@ -1,7 +1,8 @@
 """Fixed authority and serialization around the library, not a new protocol."""
 import hashlib
 import re
-from urllib.parse import urlsplit
+import base64
+from urllib.parse import urlsplit,unquote_plus
 from django.conf import settings
 from django.db import connection,transaction,DatabaseError
 from django.http import JsonResponse
@@ -14,6 +15,20 @@ class IdentityPolicy:
             return self.get_response(request)
         if request.get_host()!=urlsplit(settings.IDENTITY_ISSUER).netloc:
             return JsonResponse({'error':'invalid_host'},status=400)
+        if request.method=='POST' and request.path==reverse('idp:oidc:token'):
+            # RFC 6749 §2.3.1 encodes both Basic components as form data.
+            # Pinned allauth's parser does not decode them. Normalize transport
+            # once, then delegate secret/grant/PKCE validation to the library.
+            auth=request.META.get('HTTP_AUTHORIZATION','')
+            scheme,_,credentials=auth.partition(' ')
+            if scheme.lower()=='basic':
+                try:
+                    raw=base64.b64decode(credentials,validate=True).decode('utf-8')
+                    client,separator,secret=raw.partition(':')
+                    client=unquote_plus(client,errors='strict');secret=unquote_plus(secret,errors='strict')
+                    if not separator or not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}',client) or not re.fullmatch(r'[A-Za-z0-9_-]{32,128}',secret):raise ValueError()
+                    request.META['HTTP_AUTHORIZATION']='Basic '+base64.b64encode((client+':'+secret).encode()).decode()
+                except (ValueError,UnicodeError):return JsonResponse({'error':'invalid_client'},status=401,headers={'WWW-Authenticate':'Basic realm="Alisa identity"'})
         authorization=reverse('idp:oidc:authorization')
         if request.path==authorization and request.method=='GET':
             if (request.GET.getlist('code_challenge_method')!=['S256'] or

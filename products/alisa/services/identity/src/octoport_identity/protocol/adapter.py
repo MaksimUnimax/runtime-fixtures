@@ -2,11 +2,19 @@ import uuid
 from datetime import timedelta
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.idp.oidc.adapter import DefaultOIDCAdapter
+from allauth.mfa.adapter import DefaultMFAAdapter
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from octoport_identity.accounts.models import Subject, IdentityMail
-from .storage import seal
+from .storage import seal,open_sealed
+
+class MFAAdapter(DefaultMFAAdapter):
+    def encrypt(self,text):return seal({'value':text})
+    def decrypt(self,encrypted_text):
+        value=open_sealed(encrypted_text).get('value')
+        if not isinstance(value,str):raise ValueError('Invalid factor secret')
+        return value
 
 class OIDCAdapter(DefaultOIDCAdapter):
     def get_issuer(self):return settings.IDENTITY_ISSUER

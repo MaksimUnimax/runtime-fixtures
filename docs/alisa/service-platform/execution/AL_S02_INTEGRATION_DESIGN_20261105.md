@@ -4,7 +4,9 @@
 
 ## Границы данных
 
-Identity использует только свою БД: UUID Person, подтверждённый контакт, согласия, библиотечные OIDC/MFA, пару Person/client → постоянный pairwise subject, сессии и почтовый outbox. Issuer среды фиксирован. Django-allauth 65.21.1 закреплён вместе с Django 5.2.19; динамическая регистрация клиентов/CIMD выключены. Только заранее созданные confidential clients с client_secret_basic и обязательным S256.
+Identity использует только свою БД: UUID Person, подтверждённый контакт, согласия, библиотечные OIDC/MFA, пару Person/client → постоянный pairwise subject, сессии и почтовый outbox. MFA adapter шифрует TOTP/recovery secret стандартным Fernet; исходный no-op hook библиотеки не используется для секретов. Issuer среды фиксирован. Перед библиотечной проверкой Basic credentials выполняется однократное стандартное form-decoding компонентов по [RFC 6749 §2.3.1](https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1): закреплённый openid-client экранирует даже `_`/`-`, а parser allauth их не декодирует. Проверка хеша секрета, grant и PKCE остаётся библиотечной; допускаются только заранее созданные ASCII IDs и случайные URL-safe secrets. Неверный секрет по-прежнему получает 401.
+
+Django-allauth 65.21.1 закреплён вместе с Django 5.2.19; динамическая регистрация клиентов/CIMD выключены. Только заранее созданные confidential clients с client_secret_basic и обязательным S256.
 
 Session token создаётся случайно до начала входа и хранится в зашифрованном flow. После успешного OIDC проверенный payload создания сессии повторяется максимум один раз при неопределённом ответе API, без изменения hash/blob. Повтор callback уже потреблённого flow получает безопасную квитанцию и новый вход, без восстановления потерянной cookie.
 

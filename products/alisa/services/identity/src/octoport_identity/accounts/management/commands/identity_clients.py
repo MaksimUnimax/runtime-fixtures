@@ -1,5 +1,6 @@
 """Explicit own authority configuration; never called by a build or migration."""
 import os
+import re
 from urllib.parse import urlsplit
 from django.conf import settings
 from django.core.management.base import BaseCommand,CommandError
@@ -13,7 +14,7 @@ class Command(BaseCommand):
         for prefix in ['ALISA_WEB_OIDC','ALISA_PROBE_OIDC']:
             client_id=os.environ.get(prefix+'_CLIENT_ID','');secret=os.environ.get(prefix+'_CLIENT_SECRET','')
             callback=os.environ.get(prefix+'_REDIRECT_URI','');u=urlsplit(callback)
-            if not client_id or len(secret)<32 or u.query or u.fragment or u.username or u.password:
+            if not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}',client_id) or not re.fullmatch(r'[A-Za-z0-9_-]{32,128}',secret) or secret.startswith('REPLACE_') or u.query or u.fragment or u.username or u.password:
                 raise CommandError('Incomplete client configuration')
             if settings.ALISA_ENV=='stage' and callback not in {'https://alisa-stage.octoport.ru/auth/callback','https://alisa-stage.octoport.ru/oidc-probe/callback'}:
                 raise CommandError('Unregistered stage callback')
