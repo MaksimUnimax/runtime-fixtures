@@ -1,0 +1,207 @@
+{
+  "schema": "alisa-template-candidate/v1",
+  "template_id": "C-UE01",
+  "revision": "physical-handover-qualified-unit-economics-r8",
+  "status": "CANDIDATE_WITH_EXPLICIT_FORECAST_GAPS",
+  "required_basis": "declared unit profile and original ordered cohort",
+  "source_fallback_order": [
+    "matched actual accrual if available and complete",
+    "matched official API tariff estimate",
+    "current official published tariff with temporal/method scope and user-requested interval midpoint"
+  ],
+  "field_sources": {
+    "seller_order_price": "FBO/FBS products.price.amount/currency",
+    "commission_rate": "product/info/prices commissions.sales_percent_fbo/fbs",
+    "direct_logistics": "commissions.<scheme>_direct_flow_trans_min_amount/max_amount",
+    "last_mile": "commissions.<scheme>_deliv_to_customer_amount",
+    "fbs_handling": "commissions.fbs_first_mile_min_amount/max_amount",
+    "return_flow": "commissions.<scheme>_return_flow_amount; grouped service estimate, no blind extra handling",
+    "storage": "finance.balance cashflows.services product_placement_in_ozon_warehouses",
+    "extra_courier": "Historical financial-day control only; not added to forecast last-mile tariff",
+    "ads_cpo": "finance.balance promotion_with_cost_per_order, crosschecked against qualified Performance data",
+    "ads_cpc": "finance.balance pay_per_click, crosschecked against qualified Performance data",
+    "cogs": "owner input, never replaced by prices.net_price",
+    "tax": "owner input or explicit exclusion",
+    "acquiring_amount": "product/info/prices acquiring: direct amount per matched product, no inferred percentage or price-ratio projection"
+  },
+  "midpoint": "(minimum + maximum) / 2",
+  "labels": [
+    "ACTUAL_MATCHED",
+    "ACTUAL_PERIOD_ALLOCATION",
+    "API_TARIFF_ESTIMATE",
+    "OFFICIAL_TARIFF_ESTIMATE",
+    "OWNER_CONDITIONAL_RESERVE",
+    "USER_INPUT",
+    "OWNER_CONFIRMED",
+    "PHYSICAL_EVENT_UNKNOWN"
+  ],
+  "guards": [
+    "No unqualified zero from pending financial_data",
+    "Do not relabel forecast as actual charge or final profit",
+    "Current tariff not claimed historical actual",
+    "No cancelled revenue or COGS",
+    "Retain incurred non-COGS costs unless actual reversal; expected tariff/refund scenarios explicitly named",
+    "Return-flow composite counted once",
+    "Product cost input stays unchanged; denominators explicit per scenario",
+    "Missing actual charge triggers authorized tariff fallback rather than unexplained empty result",
+    "Do not add historical variable courier/logistics/processing/acquiring charges on top of matched forecast delivery tariffs",
+    "Owner rejected tariff inference from sums: use explicit percentage only when returned as percentage, else use explicit API amount",
+    "Cancellation type alone must not imply zero reverse logistics or a blanket reverse-tariff charge",
+    "Missing official CPO refund rule is unknown, not automatic refund or proven universal nonrefund",
+    "Absent Return events in a limited logistic-date window do not establish zero reverse charges",
+    "Do not derive final cohort profit from store-day overhead without explicit allocation and scope",
+    "No invented cancellation commission reserve",
+    "Fresh owner-requested run must contain new source HTTP calls and must not reuse earlier money values",
+    "A final result is numeric only if every required component is known or an authorized scoped estimate; otherwise provide calculated subtotal plus explicit unresolved component",
+    "Keep per-physical-unit cost250 and label per-ordered-unit allocation separately if used; no silent denominator switch",
+    "Ship/assembly state must not establish physical handover",
+    "Known cancelled item not physically handed over gets zero forecast for unperformed physical logistics, without deleting real unrelated charges",
+    "Do not average zero and a tariff to invent a probability of an unknown physical event",
+    "UI report/Excel existence does not establish a public API endpoint",
+    "Do not infer real receipt from sentinel dates before order creation"
+  ],
+  "production_adapter": "NOT_INSTALLED",
+  "main_cancellation_commission_policy": "Official expected net remuneration for noncancelled units; never invent an unobserved cancellation commission charge",
+  "conditional_sensitivity": "Removed from main result: do not invent cancellation commission liability or a second conditional profit.",
+  "event_policy": {
+    "classify": [
+      "cancellation_before_handover",
+      "cancellation_after_handover",
+      "nonbuyout_at_receipt",
+      "customer_return_after_receipt"
+    ],
+    "reverse_logistics": "Use matched actual charge/reversal; forecast requires verified scheme and stage applicability. Neither Cancellation nor absent Return proves zero reverse cost.",
+    "sales_commission": "Cancelled revenue and cost of goods excluded; expected sales remuneration only on noncancelled fulfilled units; actual debit/reversal ledger separate.",
+    "cpo_refund": "General cancellation/return policy and time limits not verified in accessible official regulation; do not erase recorded CPO or invent a credit.",
+    "cpc_refund": "Clicks remain a separate service; no automatic sale-outcome reversal. Provider corrections require their own basis.",
+    "return_processing": "Warehouse return processing included in reverse logistics; assess PVZ processing, packaging and storage independently without double count.",
+    "source_date": "2026-11-05",
+    "required_fields": [
+      "scheme",
+      "status",
+      "cancelled_after_ship_if_available",
+      "delivery_or_receipt_evidence",
+      "return_type",
+      "matched_actual_charge_and_reversal"
+    ],
+    "physical_handover": {
+      "not_sufficient": [
+        "cancelled_after_ship=true by itself",
+        "ship endpoint name or POSTING_ALREADY_SHIPPED message",
+        "awaiting_deliver / Готов к отгрузке",
+        "Принят / Принят в обработку timestamp",
+        "shipment_date schedule",
+        "created act/carriage without confirmed handover"
+      ],
+      "evidence_required": [
+        "qualified actual handover/acceptance event including pickup/dropoff",
+        "validated non-sentinel receipt timestamp",
+        "historical logistics transition with qualified meaning",
+        "owner-confirmed physical fact, explicitly labelled OWNER_CONFIRMED"
+      ],
+      "nulls": "Null or sentinel timestamps alone do not prove no handover; no-return records alone do not prove no logistics.",
+      "conflicts": "Preserve contradictory raw flags; do not infer physical custody from one ambiguous flag. An actual charge conflicting with verified non-handover remains a recorded charge plus discrepancy for investigation, not silently deleted.",
+      "case_resolution": "Owner confirms selected FBS cancelled item was not physically handed over. Exclude unperformed forward transport, return transport, handover processing and delivery-to-point estimates for that item. Do not erase actual advertising/acquiring or other incurred costs.",
+      "flag_backend_trigger": "Exact internal cancelled_after_ship trigger NOT_FOUND; do not invent a universal 'after assembly' definition from endpoint naming alone."
+    }
+  },
+  "official_research": "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/quality/inbox/20261105-TESTER-d391a4b1/CANCELLATION_RETURNS_RESEARCH.md",
+  "owner_inputs": {
+    "unit_cost_rub": 250,
+    "tax": "EXCLUDED_BY_OWNER",
+    "if_missing": "Report explicit exclusion of user cost/tax and do not claim net profit"
+  },
+  "required_outputs": {
+    "tables": [
+      "without_cancellations_counterfactual",
+      "with_actual_cancellations"
+    ],
+    "columns": [
+      "total_rub",
+      "rub_per_explicit_unit",
+      "percent_of_same_scenario_price",
+      "source_and_actual_or_estimate"
+    ],
+    "logs": "Every HTTP request, response summary, UTC start/end, elapsed_ms, pagination completeness"
+  },
+  "source_join": {
+    "actual_acquiring": "by-day item_fees, type1 from freshly read types dictionary; unique order_number + SKU + quantity, never broad string matching",
+    "posting_accruals": "Empty current arrays do not cancel by-day order-level item fees and do not establish zero fees",
+    "general_cardinality_guard": "Split, repeated-SKU or ambiguous orders require a qualified allocation; do not assign all order-level cost to one arbitrary posting"
+  },
+  "forecast": {
+    "without_cancellations": "Counterfactual fulfillment of all original ordered units; all normal unit costs; no reverse-flow event assumed",
+    "with_cancellations": "Fulfillment of remaining units; no cancelled revenue or COGS; keep actual non-COGS costs and qualified stage-dependent tariff forecast",
+    "direct_logistics": "Use exact actual when available; else owner-authorized arithmetic tariff midpoint for the relevant unit. Unknown event applicability remains a separate scenario, not an invented event probability.",
+    "acquiring_cancelled": "Current conservative tariff allocation may be retained as an explicit estimate until refund is evidenced; never call this an incurred debit",
+    "unqualified_extra": "Expose X and subtract from calculated subtotal; no final net profit while required components remain unqualified",
+    "unit_economics_ui_api": {
+      "dedicated_public_method": "NOT_FOUND",
+      "evidence": "Official UI article describes table and XLSX; official moderator describes accrual APIs matching store-economy accrual logic. Does not establish a ready unit-economics API endpoint.",
+      "fallback": "Use qualified actual accruals and explicit quantities; if amount missing use a qualified observed per-unit mean, else authorized official/API tariff midpoint; do not invent missing source values or event probabilities.",
+      "unit_alignment": "Check period, revenue definition and denominator before comparing UI sales-with-returns results with an ordered-cohort forecast."
+    }
+  },
+  "default_scopes": {
+    "period": "parameter, not per-day hardcoded handler",
+    "revenue": "seller order price/value; buyer discounted payment is a separate metric",
+    "overhead": "store-period advertising and storage explicitly allocated once; never described as exact posting attribution",
+    "percent": "row amount / same-scenario seller order value * 100",
+    "unit": "explicit physical noncancelled-unit denominator; original order denominator separately labelled"
+  },
+  "official_sources": [
+    {
+      "id": "sale_refund",
+      "url": "https://seller.ozon.ru/media/instructions/kak-rabotat-s-vozvratami/",
+      "verified": true
+    },
+    {
+      "id": "event_definitions",
+      "url": "https://seller.ozon.ru/media/beginners/fbo-na-ozon-chto-takoe-i-kak-nachat/",
+      "verified": true
+    },
+    {
+      "id": "reverse_logistics",
+      "url": "https://seller.ozon.ru/media/money/kak-poschitat-rashody-na-hranenie-i-dostavku-tovarov/",
+      "verified": true
+    },
+    {
+      "id": "warehouse_processing",
+      "url": "https://seller.ozon.ru/media/news/rasshiryaem-upakovku-vozvratov-v-pvz-i-drugie-izmeneniya-v-dogovore/",
+      "verified": true
+    },
+    {
+      "id": "cpc",
+      "url": "https://seller.ozon.ru/media/boost/oplata-za-klik-instrument-prodvizheniya-na-ozon/",
+      "verified": true
+    },
+    {
+      "id": "cpo",
+      "url": "https://seller.ozon.ru/media/boost/kak-prodvigat-tovary-na-ozon-pri-pomoshi-instrumenta-oplata-za-zakaz/",
+      "verified": true
+    },
+    {
+      "id": "cpo_exception",
+      "url": "https://seller.ozon.ru/media/news/mery-podderzhki-i-strahovye-vyplaty/",
+      "verified": true
+    },
+    {
+      "id": "promotion_regulation",
+      "url": "https://seller-edu.ozon.ru/libra/contract-for-sellers/regulations-promotion/reglament-uslug-po-prodvizheniu",
+      "verified": false
+    }
+  ],
+  "latest_private_evidence": {
+    "run_id": "20261105-TESTER-7fb84c1e",
+    "new_targeted_http_count": 3,
+    "previous_money_run": "20261105-TESTER-821b750e",
+    "fresh_all_money_reads_repeated_this_review": false,
+    "production_changed": false
+  },
+  "physical_acceptance_research": "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/quality/inbox/20261105-TESTER-7fb84c1e/HANDOVER_AND_UNIT_API_RESEARCH.md",
+  "human_labels": {
+    "return_flow": "Обратная перевозка товара",
+    "awaiting_deliver_fbs": "Готов к отгрузке, ожидает сдачи",
+    "owner_not_handed_over": "Владелец подтвердил: товар Ozon не сдавали"
+  }
+}
