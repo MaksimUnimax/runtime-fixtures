@@ -1,7 +1,7 @@
 {
   "schema": "alisa-qa-template-intake/v1",
   "id": "C-UE01",
-  "state": "NEW",
+  "state": "BLOCKED",
   "change_class": "GENERAL_OPERATOR",
   "title": "Юнитэкономика по заказанным единицам с полным составом расходов и явными пропусками",
   "amendment_to": "C-UE01 / S03 in BASE_TEMPLATE_CATALOG_V1_SCOPE_2026-11-04.md",
@@ -92,7 +92,7 @@
       "RUB per ordered unit"
     ],
     "currency_policy": "One matching currency for each calculation; reject mixed currency without explicit qualified conversion.",
-    "completeness": "Report as_of and maturity. OPEN_COHORT or missing cost coverage forbids final cohort profit. Preserve period result as separately labelled indicator.",
+    "completeness": "Report as_of and maturity. OPEN_COHORT or missing cost coverage forbids final cohort profit. Preserve period result as separately labelled indicator. Owner follow-up: advertising is mandatory; empty/unknown advertising blocks usable unit-economics output and template release, not an optional omission.",
     "required_outputs": [
       "ordered_units_gross",
       "ordered_amount_not_revenue",
@@ -114,7 +114,9 @@
     "cancellation_policy": "Cancelled/returned units are subsets of originally ordered units; do not add them to denominator. Ads, outbound/return logistics and nonrefunded acquiring remain costs.",
     "aggregation": "Ratio of totals; no average of SKU averages. Round only final presentation, decimal half-up.",
     "primary_order_cohort": "Match each original ordered line to all financial and return events through observation_as_of across later dates; no cross-cohort substitution.",
-    "period_mode": "May divide period financial result by period ordered units only with explicit label that cohorts differ; not an estimate of profit of selected orders."
+    "period_mode": "May divide period financial result by period ordered units only with explicit label that cohorts differ; not an estimate of profit of selected orders.",
+    "advertising_required": true,
+    "save_gate": "DO_NOT_FINALIZE_OR_SAVE_USABLE_UNIT_ECONOMICS_UNTIL_ALL_ADVERTISING_COSTS_AND_OVERLAP_ARE_QUALIFIED"
   },
   "source_bindings": [
     {
@@ -245,5 +247,5 @@
     "QA-20261105-TESTER-70ac9103"
   ],
   "runtime_enabled": false,
-  "notes": "Owner requested optional cost/tax behavior and ordered-unit denominator. Intake amendment only; no deployed recipe, Python business handler or claimed LIVE_DIALOGS acceptance. DeepSeek may identify slots, deterministic typed arithmetic calculates values."
+  "notes": "Owner requested optional cost/tax behavior and ordered-unit denominator. Intake amendment only; no deployed recipe, Python business handler or claimed LIVE_DIALOGS acceptance. DeepSeek may identify slots, deterministic typed arithmetic calculates values. Owner follow-up: do not finalize without advertising. BLOCKED pending Performance/CPO source investigation."
 }
