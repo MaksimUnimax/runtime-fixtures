@@ -1,0 +1,205 @@
+--- a/semantics.py
++++ b/semantics.py
+@@ -25,9 +25,11 @@
+ MONTH_PATTERN = '|'.join(sorted(MONTHS,key=len,reverse=True))
+ 
+ class Rejected(ValueError):
+-    def __init__(self, code: str, message: str = ''):
++    def __init__(self, code: str, message: str = '', *, context: dict | None = None):
+         self.code = code
+         self.message = message or code
++        # Internal catalogue reference, not a user-supplied message/template.
++        self.context = dict(context) if type(context) is dict else None
+         super().__init__(code)
+ 
+ def canonical_json(value: Any) -> str:
+@@ -61,7 +63,7 @@
+ 
+ def period_from_text(text: str, today: date, allow_compare: bool=False) -> tuple[dict, str]:
+     rules = [
+-        (r'с\s+(\d{4}-\d{2}-\d{2})\s+по\s+(\d{4}-\d{2}-\d{2})', 'iso'),
++        (r'с\s+(\d{4}\s*-\s*\d{2}\s*-\s*\d{2})\s+по\s+(\d{4}\s*-\s*\d{2}\s*-\s*\d{2})', 'iso'),
+         (r'с\s+(\d{2}\.\d{2}\.\d{4})\s+по\s+(\d{2}\.\d{2}\.\d{4})', 'ru'),
+         (rf'с\s+(\d{{1,2}})\s+по\s+(\d{{1,2}})\s+({MONTH_PATTERN})(?:\s+(20\d{{2}})(?:\s+года)?)?', 'days'),
+         (r'(?:за\s+)?(?:прошлый|предыдущий)\s+месяц', 'last_month'),
+@@ -78,7 +80,9 @@
+         for pattern, kind in rules:
+             for match in list(re.finditer(r'(?<!\w)' + pattern + r'(?!\w)', masked)):
+                 if kind == 'iso':
+-                    start, end = map(date.fromisoformat, match.groups())
++                    # Only the two explicitly matched date tokens are joined.
++                    # Never remove spaces from unrelated identifiers/product names.
++                    start, end = (date.fromisoformat(re.sub(r'\s+', '', token)) for token in match.groups())
+                 elif kind == 'ru':
+                     start, end = (datetime.strptime(x, '%d.%m.%Y').date() for x in match.groups())
+                 elif kind in ('days', 'month'):
+@@ -179,7 +183,7 @@
+     for phrase in SNAPSHOT_PHRASES:
+         guard_text=re.sub(r'(?<!\w)'+re.escape(phrase)+r'(?!\w)',' ',guard_text)
+     if re.search(r'\b(?:кроме|без|не|исключ\w*|сравни\w*|артикул\w*|sku|бренд\w*|склад\w*|категори\w*|топ|доллар\w*|евро|юан\w*|рубл\w*|регионам|городам)\b|по\s+(?:дням|неделям|месяцам|товарам)',guard_text):
+-        raise Rejected('OPERATION_NOT_ENABLED','Неоднозначный либо неподключенный фильтр или разрез. Укажите артикул WB с числом или бренд в кавычках; ограничение не игнорирую.')
++        raise Rejected('OPERATION_NOT_ENABLED','Этот фильтр или разрез пока не поддерживается выбранным источником. Условие не отбрасываю и другую площадку не подставляю.')
+     if sales_ambiguous(cleaned):
+         raise Rejected('METRIC_AMBIGUOUS', CLARIFICATION)
+     if re.search(r'\b(?:количество заказов|сколько заказов|средн\w* чек|средняя сумма заказа)\b', basis_text(cleaned)):
+@@ -189,7 +193,7 @@
+     snapshot=any(re.search(r'(?<!\w)'+re.escape(p)+r'(?!\w)',cleaned) for p in SNAPSHOT_PHRASES)
+     if snapshot:
+         if compare or re.search(r'\b(?:вчера|позавчера|недел\w*|месяц\w*|20\d{2})\b|'+MONTH_PATTERN,cleaned):
+-            raise Rejected('HISTORICAL_SNAPSHOT','Этот источник показывает только текущие остатки или баланс. Исторический период не подменяю текущим снимком.')
++            raise Rejected('HISTORICAL_SNAPSHOT','Выбранный источник показывает текущий снимок. Для текущего состояния укажите «сейчас»; исторический период им не подменяю.')
+         period={'from':today.isoformat(),'to':today.isoformat()};comparison=None
+         remainder=re.sub(r'\b(?:сейчас|сегодня)\b',' ',cleaned)
+     else:
+--- a/dataset_pipeline.py
++++ b/dataset_pipeline.py
+@@ -65,7 +65,12 @@
+  if not found:return None
+  _,qid,phrase,a,b=max(found);q=CATALOG['queries'][qid]
+  replacement='остатки на складах площадки' if q['snapshot'] else 'сводка заказов'
+- d=parse(text[:a]+replacement+text[b:],today)
++ try:d=parse(text[:a]+replacement+text[b:],today)
++ except Rejected as exc:
++  if exc.code in ('HISTORICAL_SNAPSHOT','OPERATION_NOT_ENABLED'):
++   # Reference comes from the matched, validated matrix, never the raw question.
++   raise Rejected(exc.code,exc.message,context={'subject_ref':qid}) from None
++  raise
+  if d['route']!='P1' or d.get('filters') or d.get('comparison') or d['group_by']!='marketplace':fail('DATASET_UNSUPPORTED_CONDITION','Этот разрез или фильтр ещё не поддерживается для выбранного набора; условия не отбрасываю.')
+  if d['snapshot']!=q['snapshot']:fail('DATASET_TIME_AXIS')
+  d.update(question=text,dataset_request={'id':qid},route='D1')
+--- a/failure_explanations.py
++++ b/failure_explanations.py
+@@ -19,8 +19,17 @@
+     if len(raw.encode()) > 65536:
+         raise ValueError('FAILURE_CATALOG_SIZE')
+     catalog = json.loads(raw, object_pairs_hook=pairs)
+-    if set(catalog) != {'schema', 'version', 'fallback', 'entries', 'aliases'} or catalog['schema'] != 'alice-failure-catalog/v1':
++    required = {'schema', 'version', 'fallback', 'entries', 'aliases'}
++    if not required <= set(catalog) or set(catalog) - required - {'subjects'} or catalog['schema'] != 'alice-failure-catalog/v1':
+         raise ValueError('FAILURE_CATALOG_SCHEMA')
++    subjects = catalog.get('subjects', {})
++    if type(subjects) is not dict or len(subjects) > 128:
++        raise ValueError('FAILURE_CATALOG_SUBJECTS')
++    for ref, label in subjects.items():
++        if (type(ref) is not str or re.fullmatch(r'[a-z][a-z0-9_]{0,79}', ref) is None
++                or type(label) is not str or not 1 <= len(label) <= 160
++                or any(ord(c) < 32 or c in '{}<>' for c in label)):
++            raise ValueError('FAILURE_CATALOG_SUBJECTS')
+     entries, aliases = catalog['entries'], catalog['aliases']
+     if type(entries) is not dict or not 1 <= len(entries) <= 128 or type(aliases) is not dict or len(aliases) > 256:
+         raise ValueError('FAILURE_CATALOG_SCHEMA')
+@@ -32,6 +41,12 @@
+         for key in ('reason', 'next_action'):
+             if type(record[key]) is not str or not 1 <= len(record[key]) <= 380 or any(ord(c) < 32 for c in record[key]):
+                 raise ValueError('FAILURE_CATALOG_TEXT')
++            remainder = record[key].replace('{subject}', '')
++            if '{' in remainder or '}' in remainder:
++                raise ValueError('FAILURE_CATALOG_PLACEHOLDER')
++        maximum = record['reason'].replace('{subject}', 'x' * 160) + ' ' + record['next_action'].replace('{subject}', 'x' * 160)
++        if len(maximum) > 900:
++            raise ValueError('FAILURE_CATALOG_TEXT')
+     if catalog['fallback'] not in entries or any(not re.fullmatch(r'[A-Z][A-Z0-9_]{0,79}', k) or v not in entries for k, v in aliases.items()):
+         raise ValueError('FAILURE_CATALOG_REFERENCE')
+     return catalog
+@@ -40,12 +55,20 @@
+ HASH = hashlib.sha256(json.dumps(CATALOG, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+ 
+ 
+-def explain(code):
++def explain(code, *, context=None):
+     # Unknown diagnostic text/URLs/tokens/IDs are never reflected to the user.
+     key = code if type(code) is str and code in CATALOG['entries'] else CATALOG['aliases'].get(code) if type(code) is str else None
+     if key not in CATALOG['entries']:
+         key = CATALOG['fallback']
+     result = copy.deepcopy(CATALOG['entries'][key])
++    subjects = CATALOG.get('subjects', {})
++    subject = subjects.get('default', 'выбранные данные')
++    if type(context) is dict and set(context) == {'subject_ref'}:
++        ref = context['subject_ref']
++        if type(ref) is str and ref in subjects:
++            subject = subjects[ref]
++    for field in ('reason', 'next_action'):
++        result[field] = result[field].replace('{subject}', subject)
+     text = result['reason'] + ' ' + result['next_action']
+     return {'reason_code': key, 'cause_status': result['cause_status'],
+             'reason': result['reason'], 'next_action': result['next_action'],
+@@ -57,7 +80,7 @@
+     return code if type(code) is str and re.fullmatch(r"[A-Z][A-Z0-9_]{0,79}", code) else CATALOG["fallback"]
+ 
+ 
+-def rejection_reply(code, message):
++def rejection_reply(code, message, context=None):
+     """Catalog-backed failures share one rendering path across ingress/dialogue.
+     Explicit context prompts outside the catalogue retain their original wording.
+     A generic wrapper around a known code never bypasses its approved explanation.
+@@ -65,5 +88,5 @@
+     key = public_code(code)
+     known = type(code) is str and (code in CATALOG['entries'] or code in CATALOG['aliases'])
+     if known or key != code or message == code or type(message) is not str or not 1 <= len(message) <= 900:
+-        return {**explain(code), 'error': key}
++        return {**explain(code, context=context), 'error': key}
+     return {'text': message, 'tts': message, 'error': key}
+--- a/engine.py
++++ b/engine.py
+@@ -187,7 +187,7 @@
+         try: return self.submit(*args,**kwargs)
+         except Rejected as exc:
+             from failure_explanations import rejection_reply
+-            return rejection_reply(exc.code,exc.message)
++            return rejection_reply(exc.code,exc.message,exc.context)
+ 
+ class Worker:
+     """One HTTP request per step, except a P2 step which only invokes the model.
+--- a/dialogue.py
++++ b/dialogue.py
+@@ -284,7 +284,7 @@
+                     p = None
+                     from failure_explanations import rejection_reply
+-                    reply = rejection_reply(exc.code, exc.message)
++                    reply = rejection_reply(exc.code, exc.message, exc.context)
+         jid = reply.get('job_id')
+         row = repo.get(tenant, jid) if jid else None
+         if not row and not p and text in PENDING_CONTROLS:
+--- a/failure_catalog.json
++++ b/failure_catalog.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "alice-failure-catalog/v1",
+-  "version": "20261105-errors-r3",
++  "version": "20261105-dialogue-fixes-r1",
+   "fallback": "UNSPECIFIED",
+   "entries": {
+     "UNSPECIFIED": {
+@@ -181,6 +181,16 @@
+     "DATASET_TOKEN_POLICY": {
+       "reason": "Для выбранного набора не подтверждён требуемый тип доступа к источнику.",
+       "next_action": "Проверьте подключение магазина и разрешения источника; другой набор данных вместо него не подставляю.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "HISTORICAL_SNAPSHOT": {
++      "reason": "Запрос «{subject}» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются.",
++      "next_action": "Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "OPERATION_NOT_ENABLED": {
++      "reason": "Для «{subject}» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю.",
++      "next_action": "Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+       "cause_status": "KNOWN_LIMITATION"
+     }
+   },
+@@ -218,5 +228,15 @@
+     "REPORT_ZERO_UNPROVEN": "INCOMPLETE_RESULT",
+     "REPORT_EXPENSE_KEYS": "INCOMPLETE_RESULT",
+     "ADS_CURRENCY": "SOURCE_CURRENCY_MISMATCH"
++  },
++  "subjects": {
++    "default": "выбранные данные",
++    "product_registry": "справочник товаров",
++    "offer_prices": "текущие цены предложения",
++    "posting_metadata": "метаданные отправлений",
++    "wb_active_ads": "статистика активных рекламных кампаний",
++    "accrual_items": "товарные начисления по товарам",
++    "accrual_days": "товарные начисления по дням",
++    "accrual_items_days": "товарные начисления по товарам и дням"
+   }
+ }
