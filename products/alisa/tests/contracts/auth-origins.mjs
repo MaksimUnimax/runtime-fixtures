@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {permittedAuthOrigins} from '../../apps/web/src/server/auth-origins.ts';
+const stage='https://alisa-stage.octoport.ru',site='https://alisa.octoport.ru',issuer='https://id-stage.octoport.ru';
+const allowed=(url,authority=issuer,canonical=true,environment='stage')=>permittedAuthOrigins(environment,new URL(url),new URL(authority),canonical);
+assert.equal(allowed(stage,issuer,false),true);
+assert.equal(allowed(site,issuer,false),false);
+assert.equal(allowed(site),true);
+assert.equal(allowed(stage),false);
+for(const bad of ['https://alisa.octoport.ru.attacker.test','http://alisa.octoport.ru','https://alisa.octoport.ru/path','https://alisa.octoport.ru/?code=value','https://alisa.octoport.ru/#value','https://user:pass@alisa.octoport.ru'])assert.equal(allowed(bad),false);
+for(const bad of ['https://id.octoport.ru','https://id-stage.octoport.ru.attacker.test','https://id-stage.octoport.ru/path'])assert.equal(allowed(site,bad),false);
+assert.equal(allowed('http://127.0.0.1:19440','https://localhost:19443',false,'dev'),true);
+assert.equal(allowed(site,issuer,true,'dev'),false);
+assert.equal(allowed(site,issuer,true,'prod'),false);
+console.log('Configured auth origin and canonical migration boundaries PASS');

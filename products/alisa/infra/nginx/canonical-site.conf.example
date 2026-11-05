@@ -1,0 +1,65 @@
+# Install only after ENV-00 capacity admission and independent SOURCE review.
+# Three separate server blocks; reuse ONLY new Alisa names and own certificate.
+log_format alisa_platform_safe '$time_iso8601 $request_method $uri $status $body_bytes_sent';
+server {
+    listen 443 ssl;
+    server_name alisa.octoport.ru;
+    access_log /var/log/nginx/alisa-platform-stage.access.log alisa_platform_safe;
+    ssl_certificate /etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/alisa-platform-bootstrap/privkey.pem;
+    client_max_body_size 16k;
+    location /__engineering {
+        satisfy all;
+        allow REPLACE_WITH_ENGINEER_IP;
+        deny all;
+        auth_basic "Alisa engineering";
+        auth_basic_user_file /etc/alisa-platform/stage/engineering.htpasswd;
+        proxy_pass http://127.0.0.1:18100;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+    location /api/engineering/ {
+        satisfy all;
+        allow REPLACE_WITH_ENGINEER_IP;
+        deny all;
+        auth_basic "Alisa engineering";
+        auth_basic_user_file /etc/alisa-platform/stage/engineering.htpasswd;
+        proxy_pass http://127.0.0.1:18100;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+    location / { proxy_pass http://127.0.0.1:18100; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https; }
+}
+server {
+    listen 443 ssl;
+    server_name alisa-admin-stage.octoport.ru;
+    access_log /var/log/nginx/alisa-admin-stage.access.log alisa_platform_safe;
+    client_max_body_size 16k;
+    ssl_certificate /etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/alisa-platform-bootstrap/privkey.pem;
+    location / { proxy_pass http://127.0.0.1:18101; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https; }
+}
+server {
+    listen 443 ssl;
+    server_name id-stage.octoport.ru;
+    client_max_body_size 16k;
+    access_log /var/log/nginx/alisa-identity-stage.access.log alisa_platform_safe;
+    ssl_certificate /etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/alisa-platform-bootstrap/privkey.pem;
+    location / { proxy_pass http://127.0.0.1:18103; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto https; }
+}
+
+
+# Previous browser entry point: never replay a stale POST or forward an OAuth code.
+server {
+ listen 443 ssl;
+ server_name alisa-stage.octoport.ru;
+ ssl_certificate /etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem;
+ ssl_certificate_key /etc/letsencrypt/live/alisa-platform-bootstrap/privkey.pem;
+ ssl_protocols TLSv1.2 TLSv1.3;
+ location = /auth/callback { return 303 https://alisa.octoport.ru/login?error=ALREADY_HANDLED_OR_EXPIRED; }
+ location / {
+  if ($request_method !~ ^(GET|HEAD)$) { return 409; }
+  return 308 https://alisa.octoport.ru$request_uri;
+ }
+}
