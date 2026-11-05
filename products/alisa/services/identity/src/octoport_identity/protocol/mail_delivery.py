@@ -11,7 +11,7 @@ def deliver_mail(mail_id,payload,recipient):
         backend='django.core.mail.backends.smtp.EmailBackend'
         options={'host':settings.EMAIL_HOST,'port':settings.EMAIL_PORT,'timeout':4}
         sender=settings.DEFAULT_FROM_EMAIL;domain='identity.example.invalid'
-    elif recipient in settings.REAL_LOGIN_RECIPIENTS and settings.REAL_SMTP:
+    elif (settings.REAL_LOGIN_OPEN or recipient in settings.REAL_LOGIN_RECIPIENTS) and settings.REAL_SMTP:
         backend='octoport_identity.protocol.smtp.EmailBackend'
         options=settings.REAL_SMTP;sender=settings.REAL_FROM_EMAIL
         domain='id-stage.octoport.ru'

@@ -77,9 +77,14 @@ if ACCOUNTS_ENABLED:
     if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'127.0.0.1','localhost'}):raise ImproperlyConfigured('Dev issuer must be loopback')
 DATA_UPLOAD_MAX_MEMORY_SIZE=32768
 
-# An explicit closed-test invitation, not public registration or email-based account linking.
+# Real-email admission is explicit. Existing accounts are never merged by email.
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+REAL_LOGIN_OPEN=os.environ.get('ALISA_REAL_LOGIN_OPEN','0')=='1'
+if os.environ.get('ALISA_REAL_LOGIN_OPEN','0') not in {'0','1'}:
+    raise ImproperlyConfigured('Invalid real-login admission mode')
+if REAL_LOGIN_OPEN and ALISA_ENV not in {'stage','dev'}:
+    raise ImproperlyConfigured('Real-login mode is not enabled for this environment')
 REAL_LOGIN_RECIPIENTS=frozenset(x.strip().lower() for x in os.environ.get('ALISA_REAL_LOGIN_RECIPIENTS','').split(',') if x.strip())
 try:
     if len(REAL_LOGIN_RECIPIENTS)>20:raise ValueError()

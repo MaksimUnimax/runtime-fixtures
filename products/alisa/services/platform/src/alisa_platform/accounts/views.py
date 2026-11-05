@@ -79,7 +79,7 @@ def session_create(request,data):
         return reply({'code':'WRONG_IDENTITY_CONTEXT'},403)
     if not isinstance(subject,str) or not 1<=len(subject)<=256 or data['email_verified'] is not True:raise ValueError()
     email=data['email'].strip().lower();validate_email(email)
-    if len(email)>254 or (not email.endswith('@example.invalid') and email not in settings.REAL_LOGIN_RECIPIENTS):raise ValueError()
+    if len(email)>254 or (not email.endswith('@example.invalid') and not settings.REAL_LOGIN_OPEN and email not in settings.REAL_LOGIN_RECIPIENTS):raise ValueError()
     if not isinstance(data['session_hash'],str) or not re.fullmatch(r'[0-9a-f]{64}',data['session_hash']):raise ValueError()
     payload=opaque(data['encrypted_payload']);now=timezone.now()
     with transaction.atomic():

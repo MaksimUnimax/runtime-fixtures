@@ -15,7 +15,7 @@ class IdentityMailTransportTests(unittest.TestCase):
         self.message.return_value.send.return_value=1
         self.settings=SimpleNamespace(EMAIL_HOST='127.0.0.1',EMAIL_PORT=18225,
             DEFAULT_FROM_EMAIL='alisa-identity@example.invalid',
-            REAL_LOGIN_RECIPIENTS={'invited@example.test'},
+            REAL_LOGIN_OPEN=False,REAL_LOGIN_RECIPIENTS={'invited@example.test'},
             REAL_SMTP={'host':'mail.octoport.ru','port':25,'username':'alisa-mailer@octoport.ru',
                        'password':'synthetic-fixture-only','use_tls':True,'use_ssl':False,'timeout':4},
             REAL_FROM_EMAIL='no-reply@octoport.ru')
@@ -37,6 +37,15 @@ class IdentityMailTransportTests(unittest.TestCase):
         self.assertEqual(delivery.get_connection.call_args.kwargs,{'host':'127.0.0.1','port':18225,'timeout':4})
     def test_other_recipient_never_opens_smtp(self):
         self.assertEqual(self.send('not-invited@example.test'),'DELIVERY_REJECTED')
+        delivery.get_connection.assert_not_called()
+    def test_open_registration_delivers_uninvited_real_mail(self):
+        self.settings.REAL_LOGIN_OPEN=True
+        self.settings.REAL_LOGIN_RECIPIENTS=frozenset()
+        self.assertEqual(self.send('new-person@example.test'),'SENT')
+        self.assertEqual(delivery.get_connection.call_args.kwargs,self.settings.REAL_SMTP)
+    def test_open_registration_still_requires_real_transport(self):
+        self.settings.REAL_LOGIN_OPEN=True;self.settings.REAL_SMTP=None
+        self.assertEqual(self.send('new-person@example.test'),'DELIVERY_REJECTED')
         delivery.get_connection.assert_not_called()
     def test_open_failure_is_safe_to_retry(self):
         self.connection.open.side_effect=OSError()
