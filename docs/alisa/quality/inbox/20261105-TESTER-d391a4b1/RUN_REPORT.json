@@ -78,7 +78,7 @@
   "checks": [
     "All original postings and quantities reconcile to analytics",
     "Every selected product mapped to official price API row",
-    "Each acquiring/current-price ratio verified before projecting",
+    "Direct API acquiring amount used for every matched product; no inferred rate",
     "Pending zero commission not treated as a verified zero",
     "No financial-day commission substituted for selected order tariff",
     "Explicit period allocations for store overhead and advertising",
@@ -89,5 +89,6 @@
   ],
   "runtime_changed": false,
   "platform_changed": false,
-  "raw_data_in_git": false
+  "raw_data_in_git": false,
+  "owner_steering": "No tariff inferred from monetary ratios; all operative acquiring inputs are direct API amounts"
 }
