@@ -1,8 +1,8 @@
 {
   "schema": "alisa-template-candidate/v1",
   "template_id": "C-UE01",
-  "revision": "api-actual-then-tariff-stage-and-refunds-r5",
-  "status": "BLOCKED_EVENT_STAGE_AND_CPO_REFUND_VERIFICATION",
+  "revision": "fresh-orders-unit-economics-r6",
+  "status": "SPECIFIED_RESEARCH_NOT_INSTALLED",
   "required_basis": "declared unit profile and original ordered cohort",
   "source_fallback_order": [
     "matched actual accrual if available and complete",
@@ -39,7 +39,6 @@
     "Current tariff not claimed historical actual",
     "No cancelled revenue or COGS",
     "Retain incurred non-COGS costs unless actual reversal; expected tariff/refund scenarios explicitly named",
-    "Commission reserve optional and explicit, not an invented API fee",
     "Return-flow composite counted once",
     "Product cost input stays unchanged; denominators explicit per scenario",
     "Missing actual charge triggers authorized tariff fallback rather than unexplained empty result",
@@ -48,7 +47,11 @@
     "Cancellation type alone must not imply zero reverse logistics or a blanket reverse-tariff charge",
     "Missing official CPO refund rule is unknown, not automatic refund or proven universal nonrefund",
     "Absent Return events in a limited logistic-date window do not establish zero reverse charges",
-    "Do not derive final cohort profit from store-day overhead without explicit allocation and scope"
+    "Do not derive final cohort profit from store-day overhead without explicit allocation and scope",
+    "No invented cancellation commission reserve",
+    "Fresh owner-requested run must contain new source HTTP calls and must not reuse earlier money values",
+    "A final result is numeric only if every required component is known or an authorized scoped estimate; otherwise provide calculated subtotal plus explicit unresolved component",
+    "Keep per-physical-unit cost250 and label per-ordered-unit allocation separately if used; no silent denominator switch"
   ],
   "production_adapter": "NOT_INSTALLED",
   "main_cancellation_commission_policy": "Official expected net remuneration for noncancelled units; never invent an unobserved cancellation commission charge",
@@ -65,7 +68,33 @@
     "cpo_refund": "General cancellation/return policy and time limits not verified in accessible official regulation; do not erase recorded CPO or invent a credit.",
     "cpc_refund": "Clicks remain a separate service; no automatic sale-outcome reversal. Provider corrections require their own basis.",
     "return_processing": "Warehouse return processing included in reverse logistics; assess PVZ processing, packaging and storage independently without double count.",
-    "source_date": "2026-11-05"
+    "source_date": "2026-11-05",
+    "required_fields": [
+      "scheme",
+      "status",
+      "cancelled_after_ship_if_available",
+      "delivery_or_receipt_evidence",
+      "return_type",
+      "matched_actual_charge_and_reversal"
+    ]
   },
-  "official_research": "CANCELLATION_RETURNS_RESEARCH.md"
+  "official_research": "CANCELLATION_RETURNS_RESEARCH.md",
+  "owner_inputs": {
+    "unit_cost_rub": 250,
+    "tax": "EXCLUDED_BY_OWNER",
+    "if_missing": "Report explicit exclusion of user cost/tax and do not claim net profit"
+  },
+  "required_outputs": {
+    "tables": [
+      "without_cancellations_counterfactual",
+      "with_actual_cancellations"
+    ],
+    "columns": [
+      "total_rub",
+      "rub_per_explicit_unit",
+      "percent_of_same_scenario_price",
+      "source_and_actual_or_estimate"
+    ],
+    "logs": "Every HTTP request, response summary, UTC start/end, elapsed_ms, pagination completeness"
+  }
 }
