@@ -203,7 +203,7 @@
   "changed_files": [
     {
       "path": "BUG_REPORT.md",
-      "sha256": "803146c509f8161a58597c25c3f9abb6f292bf07a64bb38173075f99d018b956"
+      "sha256": "4e94cedba0535f9140211a4270897ed4cb75d1e7558e50bc85815e29cda96f63"
     },
     {
       "path": "HANDOFF.md",
@@ -227,16 +227,27 @@
     },
     {
       "path": "WB_ORDER_UNIT_ECONOMICS.json",
-      "sha256": "f30c8f42b27e43956147f7e56ead63f207bbdca17c9d2149d39adf1e8218eb4b"
+      "sha256": "3e380d55e5bb2bd55a8fe0ebb4384d2d3db32dc5381ca52949a69d4aec901765"
     },
     {
       "path": "WB_ORDER_UNIT_ECONOMICS.md",
       "sha256": "4868c3e1798fb4fd36b5d5ae076ea0647b0cecd6805648e2b22bb45b1d749e07"
     },
     {
+      "path": "WB_RETURN_SCOPE_CORRECTION.md",
+      "sha256": "5c5ba44d747c36babfdbc1f6bf0b6285244ccb7f1b49a88a348a81569db42d9b"
+    },
+    {
       "path": "WB_SYNTHETIC_GOLD.json",
       "sha256": "5b856ccffcd81f3b0be93c0aafef1e90e32287f8c8429cf86b5e0ebe765c4bb7"
     }
   ],
-  "source_qualification_ref": "SOURCE_QUALIFICATION.md"
+  "source_qualification_ref": "SOURCE_QUALIFICATION.md",
+  "documentation_followup": {
+    "revision": "wb-return-scopes-r2",
+    "source_http_calls_added": 0,
+    "basis": "existing private finance detail and order-feed snapshot",
+    "finding": "QA-20261105-TESTER-3f3405f9-WB-RETURN-ROW",
+    "runtime_changed": false
+  }
 }
