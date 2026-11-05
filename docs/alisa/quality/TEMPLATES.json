@@ -1,7 +1,281 @@
-{"schema":"alisa-qa-candidates/v1","records":[
-{"id":"ozon_customer_realization_prices","title":"Цена покупателя по товарам, дата начисления","state":"TRIAGED","revision":1,"change_class":"SOURCE_BINDING","owner_role":"RUNTIME","source_reported_status":"SPEC_FOR_PATCH_NOT_INSTALLED","source_spec":{"path":"docs/alisa/runtime/v0.10/candidates/OZON_CUSTOMER_PRICES_CASE.json","commit":"a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9","sha256":"ddae2dad3e164a986ebb01130e87157bbbb8129e04c84c5830b7bd3466470a2a","line_start":1,"line_end":84},"source_claims_reverified":false,"time_axes":["accrual_date"],"dependencies":[],"blockers":["SRC-OZON-ACCRUAL","AXIS-ACCRUAL","MONEY-LINE-UNIT","RUNTIME-CATALOG","DIALOGS-RETEST"],"linked_findings":["OZCP-001","OZCP-002","OZCP-003","OZCP-004","OZCP-G001","OZCP-G002","OZCP-G003","OZCP-G004","OZCP-G005","OZCP-005"],"candidate_path":"docs/alisa/runtime/v0.10/candidates/OZON_CUSTOMER_PRICES_CASE.json","candidate_sha256":"ddae2dad3e164a986ebb01130e87157bbbb8129e04c84c5830b7bd3466470a2a","runtime_enabled":false,"runtime_release":null,"approved_hash":null,"approval_ref":null,"proofs":[],"next_action":"Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."},
-{"id":"ozon_daily_customer_price_and_volume","title":"Дневные количества и средняя цена реализации","state":"TRIAGED","revision":1,"change_class":"SOURCE_BINDING","owner_role":"RUNTIME","source_reported_status":"INPUTS_AND_ALGEBRA_QUALIFIED_NOT_INSTALLED_IN_SKILL","source_spec":{"path":"docs/alisa/runtime/v0.10/candidates/OZON_DAILY_PRICE_VOLUME_CASE.json","commit":"a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9","sha256":"64dc8b64589eda9519c5dd56b4c3f1865721ff41c1446789b90a14c92d1acd43","line_start":1,"line_end":106},"source_claims_reverified":false,"time_axes":["accrual_date"],"dependencies":["ozon_customer_realization_prices"],"blockers":["SRC-OZON-ACCRUAL","GROUP-DAY-SKU","WEIGHTED-MEAN","DIALOGS-RETEST"],"linked_findings":["OZCP-001","OZCP-002","OZCP-003","OZCP-004","OZCP-G001","OZCP-G002","OZCP-G003","OZCP-G004","OZCP-G005","OZCP-005"],"candidate_path":"docs/alisa/runtime/v0.10/candidates/OZON_DAILY_PRICE_VOLUME_CASE.json","candidate_sha256":"64dc8b64589eda9519c5dd56b4c3f1865721ff41c1446789b90a14c92d1acd43","runtime_enabled":false,"runtime_release":null,"approved_hash":null,"approval_ref":null,"proofs":[],"next_action":"Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."},
-{"id":"ozon_payment_methods_v1","title":"Разбивка реализаций по способам оплаты","state":"TRIAGED","revision":1,"change_class":"SOURCE_BINDING","owner_role":"RUNTIME","source_reported_status":"SOURCE_QUALIFIED_NOT_REGISTERED_NOT_DEPLOYED","source_spec":{"path":"docs/alisa/runtime/v0.10/candidates/OZON_PAYMENT_METHODS_CASE.json","commit":"a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9","sha256":"f2537eb36beac83f31901c119843c2170e6795361aa872098f671aacc2238d67","line_start":1,"line_end":87},"source_claims_reverified":false,"time_axes":["accrual_date"],"dependencies":["ozon_customer_realization_prices"],"blockers":["SRC-OZON-POSTINGS","QUALIFIED-JOIN","PAYMENT-UNKNOWN","DIALOGS-RETEST"],"linked_findings":["OZPAY-001","OZPAY-002","OZPAY-003","OZPAY-004"],"candidate_path":"docs/alisa/runtime/v0.10/candidates/OZON_PAYMENT_METHODS_CASE.json","candidate_sha256":"f2537eb36beac83f31901c119843c2170e6795361aa872098f671aacc2238d67","runtime_enabled":false,"runtime_release":null,"approved_hash":null,"approval_ref":null,"proofs":[],"next_action":"Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."},
-{"id":"realization_price_bands_and_thresholds","title":"Ценовые диапазоны и исследовательские пороги","state":"TRIAGED","revision":1,"change_class":"GENERAL_OPERATOR","owner_role":"RUNTIME","source_reported_status":"EXPLORATORY_OFFLINE_NOT_INSTALLED","source_spec":{"path":"docs/alisa/runtime/v0.10/candidates/OZON_PRICE_BANDS_CASE.json","commit":"a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9","sha256":"069b776e6035978be18a5687e69943a094979cbcb4de31b451972fdf94c71c2d","line_start":1,"line_end":68},"source_claims_reverified":false,"time_axes":["accrual_date"],"dependencies":["ozon_daily_customer_price_and_volume"],"blockers":["GENERAL-STATISTICS","INDEPENDENT-NUMERICAL-GOLD","NONCAUSAL-LABEL","DIALOGS-RETEST"],"linked_findings":[],"candidate_path":"docs/alisa/runtime/v0.10/candidates/OZON_PRICE_BANDS_CASE.json","candidate_sha256":"069b776e6035978be18a5687e69943a094979cbcb4de31b451972fdf94c71c2d","runtime_enabled":false,"runtime_release":null,"approved_hash":null,"approval_ref":null,"proofs":[],"next_action":"Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."},
-{"id":"ozon_daily_yoy_seasonality_v1","title":"Октябрь/ноябрь по дням, год к году","state":"TRIAGED","revision":1,"change_class":"SOURCE_BINDING","owner_role":"RUNTIME","source_reported_status":"QUALIFIED_RESEARCH_CASE_NOT_REGISTERED_NOT_DEPLOYED","source_spec":{"path":"docs/alisa/runtime/v0.10/candidates/OZON_YOY_SEASONALITY_CASE.json","commit":"a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9","sha256":"129e0263dac44fd16f306ae2d0d630c5dfd0543d83bc4fa751a7508d9a3ca1e9","line_start":1,"line_end":114},"source_claims_reverified":false,"time_axes":["order_date","accrual_date"],"dependencies":[],"blockers":["SRC-OZON-POSTINGS","SIGNED-ACCRUALS","MOSCOW-BOUNDARIES","EQUAL-COMPLETED-PERIODS","DIALOGS-RETEST"],"linked_findings":["OZYOY-001","OZYOY-002","OZYOY-003","OZYOY-004","OZYOY-005","OZYOY-006","OZYOY-007","OZYOY-008","INFRA-YOY-001"],"candidate_path":"docs/alisa/runtime/v0.10/candidates/OZON_YOY_SEASONALITY_CASE.json","candidate_sha256":"129e0263dac44fd16f306ae2d0d630c5dfd0543d83bc4fa751a7508d9a3ca1e9","runtime_enabled":false,"runtime_release":null,"approved_hash":null,"approval_ref":null,"proofs":[],"next_action":"Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."}
-]}
+{
+  "schema": "alisa-qa-candidates/v1",
+  "records": [
+    {
+      "id": "ozon_customer_realization_prices",
+      "title": "Цена покупателя по товарам, дата начисления",
+      "state": "TRIAGED",
+      "revision": 1,
+      "change_class": "SOURCE_BINDING",
+      "owner_role": "RUNTIME",
+      "source_reported_status": "SPEC_FOR_PATCH_NOT_INSTALLED",
+      "source_spec": {
+        "path": "docs/alisa/runtime/v0.10/candidates/OZON_CUSTOMER_PRICES_CASE.json",
+        "commit": "a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9",
+        "sha256": "ddae2dad3e164a986ebb01130e87157bbbb8129e04c84c5830b7bd3466470a2a",
+        "line_start": 1,
+        "line_end": 84
+      },
+      "source_claims_reverified": false,
+      "time_axes": [
+        "accrual_date"
+      ],
+      "dependencies": [],
+      "blockers": [
+        "SRC-OZON-ACCRUAL",
+        "AXIS-ACCRUAL",
+        "MONEY-LINE-UNIT",
+        "RUNTIME-CATALOG",
+        "DIALOGS-RETEST"
+      ],
+      "linked_findings": [
+        "OZCP-001",
+        "OZCP-002",
+        "OZCP-003",
+        "OZCP-004",
+        "OZCP-G001",
+        "OZCP-G002",
+        "OZCP-G003",
+        "OZCP-G004",
+        "OZCP-G005",
+        "OZCP-005"
+      ],
+      "candidate_path": "docs/alisa/runtime/v0.10/candidates/OZON_CUSTOMER_PRICES_CASE.json",
+      "candidate_sha256": "ddae2dad3e164a986ebb01130e87157bbbb8129e04c84c5830b7bd3466470a2a",
+      "runtime_enabled": false,
+      "runtime_release": null,
+      "approved_hash": null,
+      "approval_ref": null,
+      "proofs": [],
+      "next_action": "Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."
+    },
+    {
+      "id": "ozon_daily_customer_price_and_volume",
+      "title": "Дневные количества и средняя цена реализации",
+      "state": "TRIAGED",
+      "revision": 1,
+      "change_class": "SOURCE_BINDING",
+      "owner_role": "RUNTIME",
+      "source_reported_status": "INPUTS_AND_ALGEBRA_QUALIFIED_NOT_INSTALLED_IN_SKILL",
+      "source_spec": {
+        "path": "docs/alisa/runtime/v0.10/candidates/OZON_DAILY_PRICE_VOLUME_CASE.json",
+        "commit": "a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9",
+        "sha256": "64dc8b64589eda9519c5dd56b4c3f1865721ff41c1446789b90a14c92d1acd43",
+        "line_start": 1,
+        "line_end": 106
+      },
+      "source_claims_reverified": false,
+      "time_axes": [
+        "accrual_date"
+      ],
+      "dependencies": [
+        "ozon_customer_realization_prices"
+      ],
+      "blockers": [
+        "SRC-OZON-ACCRUAL",
+        "GROUP-DAY-SKU",
+        "WEIGHTED-MEAN",
+        "DIALOGS-RETEST"
+      ],
+      "linked_findings": [
+        "OZCP-001",
+        "OZCP-002",
+        "OZCP-003",
+        "OZCP-004",
+        "OZCP-G001",
+        "OZCP-G002",
+        "OZCP-G003",
+        "OZCP-G004",
+        "OZCP-G005",
+        "OZCP-005"
+      ],
+      "candidate_path": "docs/alisa/runtime/v0.10/candidates/OZON_DAILY_PRICE_VOLUME_CASE.json",
+      "candidate_sha256": "64dc8b64589eda9519c5dd56b4c3f1865721ff41c1446789b90a14c92d1acd43",
+      "runtime_enabled": false,
+      "runtime_release": null,
+      "approved_hash": null,
+      "approval_ref": null,
+      "proofs": [],
+      "next_action": "Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."
+    },
+    {
+      "id": "ozon_payment_methods_v1",
+      "title": "Разбивка реализаций по способам оплаты",
+      "state": "TRIAGED",
+      "revision": 1,
+      "change_class": "SOURCE_BINDING",
+      "owner_role": "RUNTIME",
+      "source_reported_status": "SOURCE_QUALIFIED_NOT_REGISTERED_NOT_DEPLOYED",
+      "source_spec": {
+        "path": "docs/alisa/runtime/v0.10/candidates/OZON_PAYMENT_METHODS_CASE.json",
+        "commit": "a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9",
+        "sha256": "f2537eb36beac83f31901c119843c2170e6795361aa872098f671aacc2238d67",
+        "line_start": 1,
+        "line_end": 87
+      },
+      "source_claims_reverified": false,
+      "time_axes": [
+        "accrual_date"
+      ],
+      "dependencies": [
+        "ozon_customer_realization_prices"
+      ],
+      "blockers": [
+        "SRC-OZON-POSTINGS",
+        "QUALIFIED-JOIN",
+        "PAYMENT-UNKNOWN",
+        "DIALOGS-RETEST"
+      ],
+      "linked_findings": [
+        "OZPAY-001",
+        "OZPAY-002",
+        "OZPAY-003",
+        "OZPAY-004"
+      ],
+      "candidate_path": "docs/alisa/runtime/v0.10/candidates/OZON_PAYMENT_METHODS_CASE.json",
+      "candidate_sha256": "f2537eb36beac83f31901c119843c2170e6795361aa872098f671aacc2238d67",
+      "runtime_enabled": false,
+      "runtime_release": null,
+      "approved_hash": null,
+      "approval_ref": null,
+      "proofs": [],
+      "next_action": "Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."
+    },
+    {
+      "id": "realization_price_bands_and_thresholds",
+      "title": "Ценовые диапазоны и исследовательские пороги",
+      "state": "TRIAGED",
+      "revision": 1,
+      "change_class": "GENERAL_OPERATOR",
+      "owner_role": "RUNTIME",
+      "source_reported_status": "EXPLORATORY_OFFLINE_NOT_INSTALLED",
+      "source_spec": {
+        "path": "docs/alisa/runtime/v0.10/candidates/OZON_PRICE_BANDS_CASE.json",
+        "commit": "a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9",
+        "sha256": "069b776e6035978be18a5687e69943a094979cbcb4de31b451972fdf94c71c2d",
+        "line_start": 1,
+        "line_end": 68
+      },
+      "source_claims_reverified": false,
+      "time_axes": [
+        "accrual_date"
+      ],
+      "dependencies": [
+        "ozon_daily_customer_price_and_volume"
+      ],
+      "blockers": [
+        "GENERAL-STATISTICS",
+        "INDEPENDENT-NUMERICAL-GOLD",
+        "NONCAUSAL-LABEL",
+        "DIALOGS-RETEST"
+      ],
+      "linked_findings": [],
+      "candidate_path": "docs/alisa/runtime/v0.10/candidates/OZON_PRICE_BANDS_CASE.json",
+      "candidate_sha256": "069b776e6035978be18a5687e69943a094979cbcb4de31b451972fdf94c71c2d",
+      "runtime_enabled": false,
+      "runtime_release": null,
+      "approved_hash": null,
+      "approval_ref": null,
+      "proofs": [],
+      "next_action": "Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."
+    },
+    {
+      "id": "ozon_daily_yoy_seasonality_v1",
+      "title": "Октябрь/ноябрь по дням, год к году",
+      "state": "TRIAGED",
+      "revision": 1,
+      "change_class": "SOURCE_BINDING",
+      "owner_role": "RUNTIME",
+      "source_reported_status": "QUALIFIED_RESEARCH_CASE_NOT_REGISTERED_NOT_DEPLOYED",
+      "source_spec": {
+        "path": "docs/alisa/runtime/v0.10/candidates/OZON_YOY_SEASONALITY_CASE.json",
+        "commit": "a1e56f116f8d86b8fe9d72129cc28c2cb6790ff9",
+        "sha256": "129e0263dac44fd16f306ae2d0d630c5dfd0543d83bc4fa751a7508d9a3ca1e9",
+        "line_start": 1,
+        "line_end": 114
+      },
+      "source_claims_reverified": false,
+      "time_axes": [
+        "order_date",
+        "accrual_date"
+      ],
+      "dependencies": [],
+      "blockers": [
+        "SRC-OZON-POSTINGS",
+        "SIGNED-ACCRUALS",
+        "MOSCOW-BOUNDARIES",
+        "EQUAL-COMPLETED-PERIODS",
+        "DIALOGS-RETEST"
+      ],
+      "linked_findings": [
+        "OZYOY-001",
+        "OZYOY-002",
+        "OZYOY-003",
+        "OZYOY-004",
+        "OZYOY-005",
+        "OZYOY-006",
+        "OZYOY-007",
+        "OZYOY-008",
+        "INFRA-YOY-001"
+      ],
+      "candidate_path": "docs/alisa/runtime/v0.10/candidates/OZON_YOY_SEASONALITY_CASE.json",
+      "candidate_sha256": "129e0263dac44fd16f306ae2d0d630c5dfd0543d83bc4fa751a7508d9a3ca1e9",
+      "runtime_enabled": false,
+      "runtime_release": null,
+      "approved_hash": null,
+      "approval_ref": null,
+      "proofs": [],
+      "next_action": "Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."
+    },
+    {
+      "id": "ozon_customer_price_by_order_date_v1",
+      "title": "Стоимость реализации для покупателя по дате заказа",
+      "state": "CANDIDATE",
+      "revision": 1,
+      "change_class": "SOURCE_BINDING",
+      "owner_role": "RUNTIME",
+      "source_reported_status": "OWNER_REQUESTED_SPECIFICATION_NOT_INSTALLED",
+      "source_spec": {
+        "path": "docs/alisa/quality/inbox/20261105-TESTER-3f3405f9/OZON_CUSTOMER_PRICE_BY_ORDER_DATE.md",
+        "commit": "e3104d0bf594d0c0b8a47e3d8485a6e886373f5c",
+        "sha256": "00d39294d2821f744da64cccdbeb8c98cdae941200d6d311fa1eb497797508f3",
+        "line_start": 1,
+        "line_end": 41
+      },
+      "source_claims_reverified": false,
+      "time_axes": [
+        "order_date",
+        "accrual_date",
+        "collection_time"
+      ],
+      "dependencies": [
+        "ozon_customer_realization_prices"
+      ],
+      "blockers": [
+        "ORDER_AXIS_QUALIFICATION",
+        "EXHAUSTIVE_SOURCE_JOIN",
+        "INDEPENDENT_SOURCE_GOLD",
+        "GENERAL_RUNTIME_BINDING",
+        "YANDEX_DIALOGS_RETEST"
+      ],
+      "linked_findings": [],
+      "candidate_path": "docs/alisa/quality/inbox/20261105-TESTER-3f3405f9/OZON_CUSTOMER_PRICE_BY_ORDER_DATE.json",
+      "candidate_sha256": "bc324a4059f9e348256b5783679022bde8f8c75dbf739eaef3f88a369608ea97",
+      "runtime_enabled": false,
+      "runtime_release": null,
+      "approved_hash": null,
+      "approval_ref": null,
+      "proofs": [
+        {
+          "id": "ORDER-PRICE-SYNTHETIC-GOLD-R1",
+          "level": "SOURCE_TEST",
+          "sha256": "13fa385d46073b1c7cd4125e6a2d9105a19700df06529988c0efbc4afb69bee0",
+          "scope": "Independent synthetic arithmetic only: line quantity, duplicate and cross-store exclusion, partial coverage and late accrual; not provider/runtime/Dialogs acceptance"
+        }
+      ],
+      "independent_gold_ref": "docs/alisa/quality/inbox/20261105-TESTER-3f3405f9/OZON_CUSTOMER_PRICE_BY_ORDER_DATE_SYNTHETIC_GOLD.json",
+      "answer_contract_ref": "docs/alisa/quality/inbox/20261105-TESTER-3f3405f9/OZON_CUSTOMER_PRICE_BY_ORDER_DATE.md",
+      "next_action": "Квалифицировать posting-level order_date и полное соединение через общий оператор, затем runtime/Яндекс retest; не создавать отдельный обработчик под дату."
+    }
+  ]
+}

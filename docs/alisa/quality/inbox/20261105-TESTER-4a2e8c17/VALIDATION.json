@@ -1,0 +1,10 @@
+{
+  "schema": "alisa-documentation-validation/v1",
+  "author_registry_check": {"status":"PASS","findings":27,"candidates":6,"source_reports":8,"enabled_candidates":0,"network_calls":0},
+  "independent_registry_check_and_transition": "PASS",
+  "old_templates_and_runs_preserved": true,
+  "exact_generator_change": "Only heading changed from Пять кандидатов to Кандидаты",
+  "independent_review": "PASS_DOCUMENTATION_AND_SYNTHETIC_SCOPE",
+  "runtime_or_yandex_acceptance": false,
+  "source_docs_commit": "e3104d0bf594d0c0b8a47e3d8485a6e886373f5c"
+}

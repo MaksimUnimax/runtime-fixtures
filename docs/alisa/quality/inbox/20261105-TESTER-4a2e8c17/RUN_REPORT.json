@@ -1,0 +1,29 @@
+{
+  "schema": "alisa-documentation-candidate-run/v1",
+  "run_id": "20261105-TESTER-4a2e8c17",
+  "created_utc": "2026-11-05T13:27:08.285232+00:00",
+  "scope": "Owner-requested order-date buyer-price candidate and analytics template index only",
+  "source_docs_commit": "e3104d0bf594d0c0b8a47e3d8485a6e886373f5c",
+  "candidate_id": "ozon_customer_price_by_order_date_v1",
+  "candidate_sha256": "bc324a4059f9e348256b5783679022bde8f8c75dbf739eaef3f88a369608ea97",
+  "independent_review": "PASS_DOCUMENTATION_AND_SYNTHETIC_SCOPE",
+  "independent_reviewer": "template_review",
+  "reviewed_files": {
+    "OZON_CUSTOMER_PRICE_BY_ORDER_DATE.json": "bc324a4059f9e348256b5783679022bde8f8c75dbf739eaef3f88a369608ea97",
+    "OZON_CUSTOMER_PRICE_BY_ORDER_DATE.md": "00d39294d2821f744da64cccdbeb8c98cdae941200d6d311fa1eb497797508f3",
+    "OZON_CUSTOMER_PRICE_BY_ORDER_DATE_SYNTHETIC_GOLD.json": "13fa385d46073b1c7cd4125e6a2d9105a19700df06529988c0efbc4afb69bee0",
+    "TEMPLATE_INDEX.md": "aa0822387bb432fc585c1b0f78a3e8c57474fc42f67a8785d25408808d7c42d9"
+  },
+  "installed": false,
+  "runtime_changed": false,
+  "new_yandex_dialogs_calls": 0,
+  "runtime_acceptance_claimed": false,
+  "marketplace_financial_rows_in_this_package": false,
+  "qa_check": "PASS after registry generation; see validation receipt",
+  "remaining": [
+    "Qualified per-posting order-date source",
+    "Exhaustive provider join and independent source gold",
+    "Common runtime binding and external Yandex retest"
+  ],
+  "next_action": "Integrate through shared operator after source qualification; statistics collection continues through existing authorized APIs."
+}

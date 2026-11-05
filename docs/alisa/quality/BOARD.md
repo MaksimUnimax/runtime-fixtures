@@ -2,9 +2,9 @@
 
 **Генерируется из BUGS.json, TEMPLATES.json, RUNS.json. Не редактировать статусы вручную здесь.**
 
-Импорт: 5 кандидатов; 27 записей разных типов; 7 исторических журналов. Включённых импортированных кандидатов: **0**.
+Импорт: 6 кандидатов; 27 записей разных типов; 8 исторических журналов. Включённых импортированных кандидатов: **0**.
 
-## Пять кандидатов
+## Кандидаты
 
 | ID | Название | Этап | Зависимости | Блокеры |
 |---|---|---|---|---|
@@ -13,6 +13,7 @@
 | ozon_payment_methods_v1 | Разбивка реализаций по способам оплаты | TRIAGED | ozon_customer_realization_prices | SRC-OZON-POSTINGS, QUALIFIED-JOIN, PAYMENT-UNKNOWN, DIALOGS-RETEST |
 | realization_price_bands_and_thresholds | Ценовые диапазоны и исследовательские пороги | TRIAGED | ozon_daily_customer_price_and_volume | GENERAL-STATISTICS, INDEPENDENT-NUMERICAL-GOLD, NONCAUSAL-LABEL, DIALOGS-RETEST |
 | ozon_daily_yoy_seasonality_v1 | Октябрь/ноябрь по дням, год к году | TRIAGED | — | SRC-OZON-POSTINGS, SIGNED-ACCRUALS, MOSCOW-BOUNDARIES, EQUAL-COMPLETED-PERIODS, DIALOGS-RETEST |
+| ozon_customer_price_by_order_date_v1 | Стоимость реализации для покупателя по дате заказа | CANDIDATE | ozon_customer_realization_prices | ORDER_AXIS_QUALIFICATION, EXHAUSTIVE_SOURCE_JOIN, INDEPENDENT_SOURCE_GOLD, GENERAL_RUNTIME_BINDING, YANDEX_DIALOGS_RETEST |
 
 ## Дефекты и наблюдения
 
@@ -59,6 +60,7 @@ TRIAGED означает разбор материалов, не повторн�
 | docs/alisa/browser-testing/CLOUD_CONSOLE_SEVEN_TESTS_2026-11-04.md | HISTORICAL_CONSOLE | build8 | Исторический источник, не новая приёмка |
 | docs/alisa/browser-testing/CLOUD_CONSOLE_REQUEST_TIMINGS_2026-11-04.md | HISTORICAL_CONSOLE | build8 | Исторический источник, не новая приёмка |
 | docs/alisa/browser-testing/BROWSER_DESKTOP_2026-11-04.md | INFRA_HISTORY | SEE_SOURCE | Исторический источник, не новая приёмка |
+| docs/alisa/quality/inbox/20261105-TESTER-3f3405f9/OZON_CUSTOMER_PRICE_BY_ORDER_DATE.md | DOCUMENTATION_CANDIDATE | DOCUMENTATION_ONLY_NOT_INSTALLED | Исторический источник, не новая приёмка |
 
 ## Следующий пакет
 
