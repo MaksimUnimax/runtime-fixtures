@@ -65,8 +65,8 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
     def enroll(page):
         begin(page)
         record['staff_browser_phase']='require_first_factor'
-        expect(page.get_by_role('heading',name='Защищённый вход в админку')).to_be_visible()
-        page.get_by_role('link',name='Настроить аутентификатор').click()
+        expect(page.get_by_role('heading',name='Дополнительная защита входа в админку')).to_be_visible()
+        page.get_by_role('link',name='Подключить приложение для кодов').click()
         record['staff_browser_phase']='enroll_totp'
         secret = page.locator('#authenticator_secret').input_value()
         private_values.append(secret)

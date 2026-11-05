@@ -62,6 +62,22 @@ def main():
     enrollment.post(reverse('account_confirm_login_code'), {'code':code}, secure=True, HTTP_ORIGIN=settings.IDENTITY_ISSUER, HTTP_X_CSRFTOKEN=csrf)
     response=enrollment.get(reverse('mfa_activate_totp'), secure=True)
     check('s03_real_native_email_code_allows_first_factor_enrollment',response.status_code==200 and b'authenticator_secret' in response.content)
+    import io
+    from django.core.management import call_command
+    from django.core.management.base import CommandError
+    from octoport_identity.accounts.models import Subject
+    result=io.StringIO()
+    call_command('prepare_verified_staff_subject',apply=True,person_id=str(unenrolled.pk),stdout=result)
+    prepared=Subject.objects.get(person=unenrolled,client_id=settings.IDENTITY_STAFF_CLIENT_ID)
+    check('s03_closed_prepare_subject_maps_verified_person_to_admin_client',str(prepared.pk) in result.getvalue())
+    second=io.StringIO();call_command('prepare_verified_staff_subject',apply=True,person_id=str(unenrolled.pk),stdout=second)
+    check('s03_closed_prepare_subject_is_idempotent',result.getvalue()==second.getvalue()
+        and Subject.objects.filter(person=unenrolled,client_id=settings.IDENTITY_STAFF_CLIENT_ID).count()==1)
+    check('s03_closed_prepare_subject_does_not_create_factor',not Authenticator.objects.filter(user=unenrolled).exists())
+    unverified=get_user_model().objects.create_user(username=uuid.uuid4().hex,email='unverified-staff@example.invalid')
+    try:call_command('prepare_verified_staff_subject',apply=True,person_id=str(unverified.pk),stdout=io.StringIO());denied=False
+    except CommandError:denied=True
+    check('s03_closed_prepare_subject_rejects_unverified_person',denied and not Subject.objects.filter(person=unverified).exists())
     person = get_user_model().objects.create_user(username=uuid.uuid4().hex, email='staff-core@example.invalid')
     EmailAddress.objects.create(user=person, email=person.email, primary=True, verified=True)
     secret = generate_totp_secret()

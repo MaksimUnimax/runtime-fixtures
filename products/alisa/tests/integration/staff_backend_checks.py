@@ -127,6 +127,32 @@ def main():
     check('s03_cleanup_erases_owned_expired_and_revoked_staff_payloads',own_expired.encrypted_payload=='' and owner_session.encrypted_payload=='')
     check('s03_cleanup_preserves_foreign_product_staff_payload',foreign_expired.encrypted_payload=='foreign-private-state')
     check('s03_staff_enabled_readiness_checks_own_schema',Client(HTTP_HOST='localhost').get('/health/ready').status_code==200)
+    from alisa_platform.staff.service import handover_initial_owner
+    old_subject=owner.subject;new_subject=str(uuid.uuid4())
+    active_owner_token,active_response,_=login(owner)
+    check('s03_initial_handover_fixture_has_fresh_owner_session',active_response.status_code==201)
+    def handover_rejected(owner_id,sub,revision,target):
+        try:handover_initial_owner(owner_id,sub,revision,target,'Real Owner');return False
+        except ValueError:return True
+    check('s03_initial_handover_requires_exact_revision',handover_rejected(str(owner.pk),old_subject,2,new_subject))
+    check('s03_initial_handover_rejects_existing_staff_binding',handover_rejected(str(owner.pk),old_subject,1,reader.subject))
+    check('s03_initial_handover_rejects_wrong_owner',handover_rejected(str(uuid.uuid4()),old_subject,1,new_subject))
+    route=api('command',command('staff.owner_handover',{'new_subject':new_subject},active_owner_token))
+    check('s03_initial_handover_is_not_a_public_staff_command',route.status_code in [400,422])
+    session_count=StaffSession.objects.count()
+    result,changed=handover_initial_owner(str(owner.pk),old_subject,1,new_subject,'Real Owner')
+    check('s03_initial_handover_preserves_one_owner_and_member_id',changed and result.pk==owner.pk and result.revision==2 and result.subject==new_subject
+        and StaffMember.objects.filter(product_id=PRODUCT,role='OWNER',active=True).count()==1)
+    check('s03_initial_handover_revokes_old_owner_without_minting_session',StaffSession.objects.count()==session_count
+        and api('me',{'session_token':active_owner_token}).status_code==401
+        and not StaffSession.objects.filter(member=result,revoked_at__isnull=True).exists())
+    _,changed=handover_initial_owner(str(owner.pk),old_subject,1,new_subject,'Real Owner')
+    check('s03_initial_handover_identical_retry_is_noop',not changed and StaffAuditEvent.objects.filter(action='staff.owner_handover').count()==1)
+    check('s03_initial_handover_stale_other_target_cannot_apply',handover_rejected(str(owner.pk),old_subject,1,str(uuid.uuid4())))
+    check('s03_initial_handover_cannot_rotate_authority_again',handover_rejected(str(owner.pk),new_subject,2,old_subject))
+    check('s03_initial_handover_audits_only_subject_fingerprints',
+        StaffAuditEvent.objects.filter(action='staff.owner_handover').get().before['subject_fingerprint']==hashlib.sha256(old_subject.encode()).hexdigest()
+        and old_subject not in json.dumps(list(StaffAuditEvent.objects.filter(action='staff.owner_handover').values('before','after'))))
     return CASES
 
 if __name__ == '__main__':
