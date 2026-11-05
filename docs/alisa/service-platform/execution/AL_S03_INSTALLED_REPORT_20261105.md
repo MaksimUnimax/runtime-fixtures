@@ -1,5 +1,7 @@
 # AL-S03 · выполненная установка и текущий остаток
 
+> Последующая текущая S03 staff boundary admin3e91 + API/web/Identity07290 независимо принята; см. [актуальный отчёт](AL_S03_CURRENT_REPORT_20261105.md). Ниже сохранён исторический3e91 отчёт без переноса его PASS на другие версии.
+
 **RECORDED_3E91_STAGE_SCOPE_ACCEPTED / CURRENT_MIXED_DEPLOYMENT_NOT_ACCEPTED.**
 
 После явного «да» владельца выполнен [согласованный план](https://github.com/MaksimUnimax/runtime-fixtures/blob/83ba6c99a57897037286b2773ccf633f7b2f3c28/docs/alisa/service-platform/execution/AL_S03_STAGE_ROLLOUT_20261105.md), SHA256 `7efbcf47e2ea5f8c0ec1245a9108037c482b506fbae11975841f28615344572d`. Установлена S03, применена единственная staff migration, включена отдельная админка и пройдены native MFA, реальные команды, перезапуск, возврат к прежнему коду и повторное включение.
