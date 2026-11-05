@@ -1,11 +1,11 @@
 """Tenant-owned stores; external validation happens outside every DB transaction."""
-import hashlib
 import json
 from datetime import timedelta
 from django.core import signing
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 from alisa_platform.accounts.models import Customer, Tenant
 from alisa_platform.accounts.views import session
 from alisa_platform.runtime_adapter.store_check import check_store
@@ -98,6 +98,13 @@ def result(command, value, status=200):
     return value, status
 
 
+def request_fingerprint(actor, data):
+    envelope = {'environment': settings.ALISA_ENV, 'product_id': PRODUCT,
+        'tenant_id': str(actor.tenant_id), 'customer_id': str(actor.customer_id), 'command': data}
+    return salted_hmac('alisa.store.command.v1', json.dumps(envelope, sort_keys=True,
+        separators=(',', ':')), algorithm='sha256').hexdigest()
+
+
 def execute(token, data):
     validate(data)
     checking = None
@@ -105,7 +112,7 @@ def execute(token, data):
         actor = principal(token)
         if data['action'] == 'list':
             return listing(actor, data.get('cursor', '')), 200
-        fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        fingerprint = request_fingerprint(actor, data)
         previous = StoreCommand.objects.filter(product_id=PRODUCT, tenant_id=actor.tenant_id,
             customer_id=actor.customer_id, request_id=identifier(data['command_id'])).first()
         if previous:
@@ -146,6 +153,7 @@ def execute(token, data):
             command.credential = candidate; command.deadline = now+timedelta(seconds=15)
             command.result = {'state': 'CHECKING', 'store_id': str(store.pk)}; command.http_status = 202
             command.save()
+            audit(actor, store, 'check_started', 'CHECKING')
             pins = {'environment': settings.ALISA_ENV, 'product_id': PRODUCT, 'tenant_id': str(store.tenant_id), 'store_id': str(store.pk),
                 'provider': store.provider, 'kind': candidate.kind, 'credential_revision': candidate.revision,
                 'store_revision': store.revision, 'request_id': str(command.pk)}

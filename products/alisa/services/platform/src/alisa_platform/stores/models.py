@@ -71,7 +71,7 @@ class StoreCommand(models.Model):
     tenant = models.ForeignKey('accounts.Tenant', on_delete=models.PROTECT)
     customer = models.ForeignKey('accounts.Customer', on_delete=models.PROTECT)
     fingerprint = models.CharField(max_length=64)
-    action = models.CharField(max_length=16)
+    action = models.CharField(max_length=24)
     state = models.CharField(max_length=16, default='DONE')
     result = models.JSONField(default=dict)
     http_status = models.PositiveSmallIntegerField(default=200)

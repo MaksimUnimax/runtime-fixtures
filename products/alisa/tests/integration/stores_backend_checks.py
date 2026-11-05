@@ -65,6 +65,10 @@ try:
         again=api(token,created)
         check('same_create_command_replays_one_store_and_secret',again[0]==201 and again[1]['store']==s and Store.objects.filter(tenant=ta).count()==1 and VaultSecret.objects.filter(store_id=s['id']).count()==1)
         check('changed_create_payload_same_uuid_conflicts',api(token,{**created,'name':'Changed'})[0]==409)
+        saved_command=StoreCommand.objects.get(request_id=created['command_id'])
+        from types import SimpleNamespace
+        scoped_other=SimpleNamespace(tenant_id=tb.pk,customer_id=b.pk)
+        check('secret_idempotency_digest_is_server_keyed_and_tenant_bound',saved_command.fingerprint!=hashlib.sha256(json.dumps(created,sort_keys=True,separators=(',',':')).encode()).hexdigest() and saved_command.fingerprint!=service.request_fingerprint(scoped_other,created))
         s,checked,checked_cmd=verify(token,s);before=fixture.calls
         check('actual_unix_peer_check_promotes_only_its_revision',checked['check_code']=='CONNECTED' and s['credentials'][0]['status']=='ACTIVE' and s['identity_verified'])
         check('same_check_command_does_not_dispatch_again',api(token,checked_cmd)[1]=={**checked,'environment':settings.ALISA_ENV,'release':settings.RELEASE} and fixture.calls==before)
@@ -97,6 +101,9 @@ try:
         check('disconnected_runtime_never_claims_connected',out['check_code']=='CHECK_UNAVAILABLE')
         s=replace(token,s,{'client_id':'perf-123','client_secret':'fixture:CONNECTED:ozon:one'},'PERFORMANCE');s,out,_=verify(token,s,next(c for c in s['credentials'] if c['kind']=='PERFORMANCE'))
         check('performance_independent_same_account_capability',out['check_code']=='CONNECTED' and any(c['kind']=='SELLER' and c['status']=='ACTIVE' for c in s['credentials']))
+        revoked=api(token,command('revoke_credential',store_id=s['id'],expected_revision=s['revision'],kind='PERFORMANCE'))
+        check('revoke_performance_erases_only_its_secret_and_keeps_seller',revoked[0]==200 and not VaultSecret.objects.filter(store_id=s['id'],kind='PERFORMANCE').exclude(ciphertext='').exists() and CredentialRevision.objects.filter(store_id=s['id'],kind='SELLER',status='ACTIVE').exists())
+        s=revoked[1]['store']
         wb,_=create(token,'wb:one','WB');wb,out,_=verify(token,wb)
         check('wildberries_uses_its_own_verified_channel',out['check_code']=='CONNECTED' and wb['provider']=='WB' and wb['credentials'][0]['kind']=='WB')
         renamed=api(token,command('rename',store_id=s['id'],expected_revision=s['revision'],name='Новое имя',voice_alias='Первый'))[1]['store']

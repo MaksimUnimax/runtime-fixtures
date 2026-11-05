@@ -81,7 +81,7 @@ class Migration(migrations.Migration):
                 ('request_id', models.UUIDField()),
                 ('product_id', models.CharField(default='alisa_market', max_length=40)),
                 ('fingerprint', models.CharField(max_length=64)),
-                ('action', models.CharField(max_length=16)),
+                ('action', models.CharField(max_length=24)),
                 ('state', models.CharField(default='DONE', max_length=16)),
                 ('result', models.JSONField(default=dict)),
                 ('http_status', models.PositiveSmallIntegerField(default=200)),

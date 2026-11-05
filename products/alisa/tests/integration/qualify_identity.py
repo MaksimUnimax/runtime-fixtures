@@ -477,6 +477,20 @@ def main():
             with db('identity') as conn:
                 check('s02_smtp_recovery_sends_and_erases_code',len(sink.messages)>=1 and not conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND encrypted_payload<>'' AND expires_at>now()").fetchone())
             if args.stores:
+                # S02 cleanup deliberately expired the second customer's session.
+                # Reauthenticate through native email-code before testing a foreign store.
+                open_identity(second_page)
+                if second_page.get_by_role('button',name='Продолжить вход по коду').count():
+                    second_page.get_by_role('button',name='Продолжить вход по коду').click()
+                field=second_page.locator('input[name=login],input[name=email]').first
+                expect(field).to_be_visible();field.fill(second_email)
+                second_page.locator('form').filter(has=field).locator('button[type=submit]').first.click()
+                expect(second_page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+                second_page.locator('input[name=code]').fill(letter(second_email))
+                second_page.locator('form').filter(has=second_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+                expect(second_page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
+                other_profile=second_page.request.get(WEB+'/api/account/me')
+                check('s05_other_customer_has_fresh_native_session',other_profile.status==200 and other_profile.json()['profile']['tenant_id']!=str(first[1]))
                 from qualify_stores_browser import run as run_stores_browser
                 def restart_actual_platform():
                     nonlocal api

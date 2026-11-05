@@ -1,0 +1,37 @@
+{
+  "record_type": "AL_S05_QUALIFICATION_HISTORY",
+  "status": "IN_PROGRESS_NOT_INSTALLED",
+  "attempts": [
+    {
+      "source_sha": "3f3162ac7709f575b3bf965ad0b709e326060cab",
+      "tree_sha": "dfa8cbc6e364decdfce4105f967e1801bf41ac47",
+      "platform_ci": 42051572026,
+      "documentation_ci": 42051571823,
+      "status": "FAILED",
+      "s04_regression_core": 36,
+      "native_canonical_core": 92,
+      "s05_postgresql_unix_core": 36,
+      "packaged_browser": 96,
+      "integrated_completed_cases": 125,
+      "failed_case": "s05_browser_foreign_store_id_is_denied",
+      "cause": "The prior S02 cleanup intentionally expired the second customer session; the new foreign-store test received the authentication denial before reaching object isolation.",
+      "resolution": "Fresh native email-code login for the same second customer, assert valid distinct tenant, then retain exact 404 foreign-store assertion.",
+      "qualification_artifact": 13426274324,
+      "qualification_zip_sha256": "649ed59bd16f26a3c8ac06998c55b6672362092d6181d3e64da8e2cd0ff32c7f",
+      "original_receipt_export": "s05-source-qualification-20261105/s05-3f3162-receipts.json",
+      "receipt_export_sha256": "7768e3ab7c5e15c9a381340d0d0cb6f815ad9d0c9222c2bae712b7b0415de42d",
+      "independent_source_review": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R1_20261105.json"
+    }
+  ],
+  "local_checks": {
+    "unit_tests": 74,
+    "architecture": "PASS",
+    "model_consistency": "PASS_WITH_NO_TEST_DATABASE_CONNECTION",
+    "generated_contracts": "PASS",
+    "documentation_structure": "PASS"
+  },
+  "limits": [
+    "No S05 live DB/config/deploy/real provider calls.",
+    "Missing runtime-side RT-CHECK remains explicit; proposed protocol is not a live function."
+  ]
+}
