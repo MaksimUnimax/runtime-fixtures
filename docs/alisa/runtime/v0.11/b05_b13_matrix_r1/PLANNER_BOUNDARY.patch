@@ -1,0 +1,13 @@
+--- a/dataset_pipeline.py
++++ b/dataset_pipeline.py
+@@ -88,7 +88,9 @@
+    proof=capabilities.get(store['id'],{}).get(op,{})
+    if proof.get('status')!='READ_ONLY_CANARY' or proof.get('dataset_source_hash')!=SOURCES.hash or proof.get('dataset_query_hash')!=HASH:fail('DATASET_NOT_QUALIFIED')
+    if any(proof.get(k)!=v for k,v in SOURCES.recipe(op)['proof_requirements'].items()):fail('DATASET_TOKEN_POLICY')
+-   SOURCES.available(op,draft['period'],draft['calendar_date']);proofs[store['id']][op]=copy.deepcopy(proof)
++   try:SOURCES.available(op,draft['period'],draft['calendar_date'])
++   except MatrixError as e:fail(e.code)
++   proofs[store['id']][op]=copy.deepcopy(proof)
+  base.update(metrics=['dataset:'+qid],definition='matrix-dataset-v1',dataset={'id':qid,'catalog_hash':HASH,'calendar_date':draft['calendar_date']},dataset_capabilities=proofs)
+  return base
+ 
