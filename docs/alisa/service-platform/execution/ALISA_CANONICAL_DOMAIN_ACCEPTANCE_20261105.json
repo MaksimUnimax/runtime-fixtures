@@ -1,0 +1,344 @@
+{
+  "record_type": "ALISA_CANONICAL_DOMAIN_FINAL_ACCEPTANCE",
+  "status": "PASS_INSTALLED_CANONICAL_SITE_AND_EXISTING_ACCOUNT_LOGIN",
+  "source_sha": "0f22ffbc3cd17bdb26242d7cf4e88152fa0289e7",
+  "artifact": {
+    "name": "alisa-0f22ffbc3cd17bdb.tar.gz",
+    "sha256": "b31c0da7acdf61ed87d51344348e58e788718063b899cb71a4439c1d19a338ae",
+    "github_artifact_id": 13411670877,
+    "github_run_id": 42019529820
+  },
+  "main_origin": "https://alisa.octoport.ru",
+  "previous_origin": "https://alisa-stage.octoport.ru",
+  "installation": {
+    "record_type": "INSTALLED_CANONICAL_SITE_RELEASE",
+    "source_sha": "0f22ffbc3cd17bdb26242d7cf4e88152fa0289e7",
+    "release": "alisa-0f22ffbc3cd17bdb",
+    "status": "PASS",
+    "artifact_sha256": "b31c0da7acdf61ed87d51344348e58e788718063b899cb71a4439c1d19a338ae",
+    "migrations_applied": [],
+    "protected_runtime_unchanged": true,
+    "active_components": [
+      "web",
+      "platform",
+      "identity"
+    ],
+    "admin_release": "alisa-3e91b1aa5d405d0e",
+    "main_origin": "https://alisa.octoport.ru",
+    "previous_origin": "https://alisa-stage.octoport.ru",
+    "issuer_preserved": "https://id-stage.octoport.ru",
+    "client_ids_and_accounts_preserved": true,
+    "callbacks_explicitly_registered": 2,
+    "old_callback_query_dropped": true,
+    "old_post_not_replayed": true,
+    "invitation_list_required": false,
+    "smtp_tls_required": true,
+    "ordinary_public_registration": true,
+    "s03_smoke_receipt": "AL_S03_INSTALLED_SMOKE_R4_20261105.json",
+    "s03_reentry_receipt": "AL_S03_INSTALLED_REENTRY_20261105.json",
+    "s03_prior_rollback_timeout_retained": true,
+    "finished_utc": "2026-11-05T11:38:30.501749+00:00"
+  },
+  "actual_browser_database_privacy": {
+    "record_type": "INSTALLED_CANONICAL_SITE_LOGIN_ACCEPTANCE",
+    "source_sha": "0f22ffbc3cd17bdb26242d7cf4e88152fa0289e7",
+    "started_utc": "2026-11-05T11:40:33.343203+00:00",
+    "cases": [
+      {
+        "case": "canonical_main_https_serves_site",
+        "passed": true
+      },
+      {
+        "case": "main_canonical_metadata",
+        "passed": true
+      },
+      {
+        "case": "canonical_site_width_320",
+        "passed": true
+      },
+      {
+        "case": "canonical_site_width_390",
+        "passed": true
+      },
+      {
+        "case": "canonical_site_width_1440",
+        "passed": true
+      },
+      {
+        "case": "canonical_page_examples",
+        "passed": true
+      },
+      {
+        "case": "canonical_page_login",
+        "passed": true
+      },
+      {
+        "case": "canonical_page_faq",
+        "passed": true
+      },
+      {
+        "case": "canonical_page_help",
+        "passed": true
+      },
+      {
+        "case": "canonical_page_privacy",
+        "passed": true
+      },
+      {
+        "case": "canonical_page_terms",
+        "passed": true
+      },
+      {
+        "case": "previous_site_get_redirects_to_canonical",
+        "passed": true
+      },
+      {
+        "case": "previous_callback_drops_query_auth_callback",
+        "passed": true
+      },
+      {
+        "case": "previous_callback_post_not_replayed_auth_callback",
+        "passed": true
+      },
+      {
+        "case": "previous_callback_drops_query_oidc-probe_callback",
+        "passed": true
+      },
+      {
+        "case": "previous_callback_post_not_replayed_oidc-probe_callback",
+        "passed": true
+      },
+      {
+        "case": "previous_site_post_not_replayed",
+        "passed": true
+      },
+      {
+        "case": "engineering_route_still_protected",
+        "passed": true
+      },
+      {
+        "case": "registration_remains_available",
+        "passed": true
+      },
+      {
+        "case": "identity_brand_returns_to_canonical",
+        "passed": true
+      },
+      {
+        "case": "existing_real_email_accepted_on_canonical_site",
+        "passed": true
+      },
+      {
+        "case": "wrong_real_mail_code_denied",
+        "passed": true
+      },
+      {
+        "case": "gmail_verified_registration_reaches_cabinet",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "profile_contact_matches_verified_mail",
+        "passed": true
+      },
+      {
+        "case": "same_existing_customer_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "canonical_host_only_secure_session_cookie",
+        "passed": true
+      },
+      {
+        "case": "new_login_code_differs",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "repeat_gmail_login_same_customer_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "restart_preserves_same_session_account_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "no_browser_script_errors",
+        "passed": true
+      },
+      {
+        "case": "same_person_no_duplicate_identity",
+        "passed": true
+      },
+      {
+        "case": "identity_issuer_preserved",
+        "passed": true
+      },
+      {
+        "case": "web_client_id_preserved",
+        "passed": true
+      },
+      {
+        "case": "current_codes_erased_from_outbox",
+        "passed": true
+      },
+      {
+        "case": "same_customer_tenant_no_duplicates",
+        "passed": true
+      },
+      {
+        "case": "product_logs_no_contact_codes_or_secrets",
+        "passed": true
+      },
+      {
+        "case": "old_domain_access_log_has_no_callback_query",
+        "passed": true
+      }
+    ],
+    "existing_account_preserved_without_recreation": true,
+    "main_origin": "https://alisa.octoport.ru",
+    "previous_origin": "https://alisa-stage.octoport.ru",
+    "status": "PASS",
+    "finished_utc": "2026-11-05T11:41:58.131112+00:00",
+    "browser_error_types": []
+  },
+  "mailbox_headers_sanitized": [
+    {
+      "sequence": 1,
+      "received_utc": "2026-11-05T11:40:37.000Z",
+      "inbox": true,
+      "spf_pass": true,
+      "dkim_pass": true,
+      "dmarc_pass": true
+    },
+    {
+      "sequence": 2,
+      "received_utc": "2026-11-05T11:41:15.000Z",
+      "inbox": true,
+      "spf_pass": true,
+      "dkim_pass": true,
+      "dmarc_pass": true
+    }
+  ],
+  "qualification": {
+    "source_unit": {
+      "passed": 62,
+      "total": 62
+    },
+    "configured_origin_contract": "PASS_CANONICAL_FLAG_NEGATIVE_HOST_ISSUER_AND_DEV_BOUNDARIES",
+    "postgres_browser": {
+      "passed": 96,
+      "total": 96
+    },
+    "https_identity_bff_cabinet_staff": {
+      "passed": 147,
+      "total": 147
+    },
+    "open_registration": {
+      "passed": 130,
+      "total": 130
+    },
+    "runtime_policy_subset": {
+      "passed": 17,
+      "total": 17
+    },
+    "staff_policies": {
+      "passed": 44,
+      "total": 44
+    },
+    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42019529820",
+    "identity_probe": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42019529810",
+    "documentation_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42019529807"
+  },
+  "independent_source_review": {
+    "status": "PASS_SOURCE_REVIEW",
+    "source_sha": "0f22ffbc3cd17bdb26242d7cf4e88152fa0289e7",
+    "reviewer": "registration_review",
+    "resolved_findings": [
+      "Safe old-origin access logging",
+      "Both old OAuth callbacks drop queries",
+      "Old callback POSTs return409"
+    ],
+    "installed_acceptance": false
+  },
+  "independent_installed_evidence_review": {
+    "status": "PASS_READ_ONLY_INSTALLED_EVIDENCE_REVIEW",
+    "source_sha": "0f22ffbc3cd17bdb26242d7cf4e88152fa0289e7",
+    "reviewer": "registration_review",
+    "fresh_https_html_and_canonical_root": true,
+    "old_root_redirect_308": true,
+    "active_source_matches": true,
+    "recorded_cases": 40,
+    "personally_reexecuted_authentication_or_40_cases": false
+  },
+  "readback": {
+    "checked_utc": "2026-11-05T11:43:27.965867+00:00",
+    "readiness": {
+      "18100": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-0f22ffbc3cd17bdb",
+        "status": "READY"
+      },
+      "18101": {
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "READY"
+      },
+      "18102": {
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-0f22ffbc3cd17bdb"
+      },
+      "18103": {
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-0f22ffbc3cd17bdb",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      }
+    },
+    "accounts_person_subject_and_product_fingerprints_preserved": true,
+    "protected_runtime_preserved": true,
+    "private_codes_removed": true,
+    "main_origin": "https://alisa.octoport.ru",
+    "issuer": "https://id-stage.octoport.ru",
+    "certificate_reissued": false,
+    "nginx_config_valid": true
+  },
+  "initial_test_expectation_failure": {
+    "status": "FAILED_CANONICAL_URL_TRAILING_SLASH_EXPECTATION",
+    "before_authentication_or_mail": true,
+    "actual_canonical": "https://alisa.octoport.ru",
+    "expected_initially": "https://alisa.octoport.ru/",
+    "resolution": "The test accepts exactly the two equivalent bare/root canonical URLs; rerun completed40/40.",
+    "original_receipt_retained": "canonical-domain-0f22ffbc/first-metadata-check.json"
+  },
+  "boundaries": {
+    "operational_environment": "Existing accepted stage application using its canonical external site name, explicitly requested by owner",
+    "separate_production_database_created": false,
+    "issuer_unchanged": "https://id-stage.octoport.ru",
+    "existing_person_subject_and_client_ids_preserved": true,
+    "customer_tenant_and_identity_links_preserved": true,
+    "admin_and_lab_unchanged": true,
+    "dns_and_existing_certificate_reused": true,
+    "old_oauth_query_not_forwarded": true,
+    "old_post_not_replayed": true,
+    "ordinary_registration_without_invitation": true,
+    "existing_octoport_accounts_not_linked_by_this_change": true
+  },
+  "private_data": "No user email, native code, cookie, secret, Gmail ID or signed URL appears in this record."
+}
