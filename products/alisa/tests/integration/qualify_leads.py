@@ -118,7 +118,9 @@ def qualify(origin, request, check, connect, manage, logs_path, browser_enabled)
                         check('s01_browser_smtp_confirmation_and_reload',not urlsplit(page.url).fragment)
                         page.goto(origin+'/join');page.get_by_role('button',name='Разрешить',exact=True).click()
                         with connect('alisa_stage_platform') as db:check('s01_direct_join_visit_is_not_cta',db.execute("SELECT count(*) FROM funnel_funnelevent WHERE event_type='cta.clicked'").fetchone()[0]==0)
-                        page.goto(origin);expect(page.get_by_role('button',name='Выключить',exact=True)).to_be_visible();page.locator('header a[href="/join"]').click()
+                        page.goto(origin);expect(page.get_by_role('button',name='Выключить',exact=True)).to_be_visible()
+                        page.locator('header summary').click()
+                        page.locator('header a[href="/join"]').click()
                         import time
                         for _ in range(30):
                             with connect('alisa_stage_platform') as db:clicked=db.execute("SELECT count(*) FROM funnel_funnelevent WHERE event_type='cta.clicked'").fetchone()[0]
