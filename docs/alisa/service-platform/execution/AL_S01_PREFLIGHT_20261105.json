@@ -1,0 +1,51 @@
+{
+  "record_type": "AL_S01_ROLLOUT_PREFLIGHT",
+  "observed_at_utc": "2026-11-05T00:42:54.268246+00:00",
+  "old_release": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+  "expected_source": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "expected_package_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+  "scope": "web/platform site only; private SMTP; own vhost path-only logging; additive platform migrations",
+  "backup_directory": "/var/lib/alisa-platform/stage/rollout-backups/s01-8d680f775c8ccdf2",
+  "own_original_hashes": {
+    "/etc/alisa-platform/stage/web.env": "58c6d7b7a8bc26e4e4b61f72065c810a22f5b14642ce9187c5f8866362ead9b5",
+    "/etc/alisa-platform/stage/platform.env": "a6acdec8c1723d2d778b15ce0134590dd05b87782fd10132e1fb6b83169648a7",
+    "/etc/nginx/sites-available/alisa-platform-stage.conf": "d7a118fae0ca1090edc769f0321eb9228a7bc676a33192ee08684e6dd1a1d576"
+  },
+  "protected_hashes": {
+    "/etc/nginx/sites-available/alice-lab.conf": "143620f49afca554582c5770ddec26950d098d40075f2c8d93fce33ac0d94c2e",
+    "/etc/nginx/sites-available/default": "ce0901350a021608139b5639cf4ccd7717bef8c3a9e4f79031eb46386b67b03f",
+    "/etc/alisa-platform/stage/identity.env": "2cdc0d21215b8ab9ce371a2f295815bf95258c971255904271a2285f52cbbe35",
+    "/etc/alisa-platform/stage/admin.env": "17839efecd3cb8c20dbbf1ff6798b3002be0e381faaec0ca8f99d600f023cdf2"
+  },
+  "excluded_units": {
+    "alisa-identity@stage.service": {
+      "MainPID": "23574",
+      "ActiveState": "active",
+      "ActiveEnterTimestamp": "Wed 2026-11-04 14:15:48 UTC"
+    },
+    "alisa-admin@stage.service": {
+      "MainPID": "23549",
+      "ActiveState": "active",
+      "ActiveEnterTimestamp": "Wed 2026-11-04 14:15:47 UTC"
+    },
+    "alice-lab-web.service": {
+      "MainPID": "737",
+      "ActiveState": "active",
+      "ActiveEnterTimestamp": "Wed 2026-11-04 12:00:12 UTC"
+    },
+    "alice-lab-worker.service": {
+      "MainPID": "739",
+      "ActiveState": "active",
+      "ActiveEnterTimestamp": "Wed 2026-11-04 12:00:12 UTC"
+    },
+    "alice-lab-llm.service": {
+      "MainPID": "738",
+      "ActiveState": "active",
+      "ActiveEnterTimestamp": "Wed 2026-11-04 12:00:12 UTC"
+    }
+  },
+  "target_release_present": false,
+  "concurrent_rollout_detected": false,
+  "local_wip": "clean; single existing author; no merge/unmerged paths",
+  "status": "PASS"
+}

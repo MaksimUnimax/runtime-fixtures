@@ -3,7 +3,7 @@
   "step_id": "AL-S01",
   "artifact_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
   "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
-  "environment": "Guarded disposable CI PostgreSQL+SMTP+Chromium only; target stage NOT_DEPLOYED; live remains accepted S00 alisa-77d0f8ee2643ef65",
+  "environment": "Installed synthetic stage https://alisa-stage.octoport.ru; own web/API site-current=alisa-8d680f775c8ccdf2; identity/admin remain accepted S00",
   "test_ids": [
     "AL-N01-01",
     "AL-N01-02",
@@ -13,18 +13,24 @@
     "AL-V04-03",
     "AL-V04-04"
   ],
-  "verdict": "BLOCKED",
+  "verdict": "ACCEPTED_FOR_DECLARED_SCOPE",
   "accepted_inputs": [
-    "Independently accepted S00 prerequisite; exact source/package fingerprints",
-    "Own CLOSED site, persistent synthetic lead/email confirmation and safe funnel implementation",
-    "Clean CI:36 Python,11 Node and96 PostgreSQL/browser cases including42 S01 checks",
-    "Independent source review with two corrected findings; no stage/live acceptance claimed"
+    "Independently accepted S00 including proven six-name HTTPS renewal dry-run",
+    "Exact authorized source/package installed; immutable manifest and tar SHA independently verified",
+    "Only funnel.0001_initial and leads.0001_initial applied to own platform DB; five additive tables",
+    "Real TLS browser/BFF/API/PostgreSQL/private SMTP confirmation path; 80 successful installed assertions",
+    "One-use, replay, expiry, attempt limit, deduplication, real API/SMTP outages and restart persistence passed",
+    "CLOSED example.invalid only; path-only logs and metrics privacy passed; protected services/configs unchanged",
+    "Independent installed verdict ACCEPTED_FOR_DECLARED_SCOPE for this exact stage artifact"
   ],
-  "remaining_external_scope": [
-    "Separate authorization is required for the live stage package install, two additive platform business migrations (five tables), own ingress log privacy setting and mail configuration. Approved private SMTP sandbox at loopback is required. Installed S01 acceptance has not run; no public contact collection or product production is enabled."
-  ],
-  "reviewer": "Independent /root/s00_final_review: source/package only; installed AL-S01 remains unaccepted.",
+  "remaining_external_scope": [],
+  "reviewer": "Independent /root/s00_final_review; read-only installed acceptance in AL_S01_INDEPENDENT_INSTALLED_ACCEPTANCE_20261105.json",
   "evidence": [
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S01_INDEPENDENT_INSTALLED_ACCEPTANCE_20261105.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S01_INSTALLED_SMOKE_SUMMARY_20261105.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S01_ACTIVATION_20261105.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S01_STAGE_SMOKE_FINAL_20261105.json",
+    "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/service-platform/execution/AL_S01_STAGE_RETURN_20261105.md",
     "https://github.com/MaksimUnimax/runtime-fixtures/pull/384",
     "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41925878784",
     "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41925884741"

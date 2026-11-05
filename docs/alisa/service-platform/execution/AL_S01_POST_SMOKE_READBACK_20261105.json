@@ -1,0 +1,93 @@
+{
+  "record_type": "AL_S01_POST_SMOKE_READBACK",
+  "checked_at_utc": "2026-11-05T01:19:55.407869+00:00",
+  "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "rollout_lock_available": true,
+  "site_pointer": "/opt/alisa-platform/stage/releases/alisa-8d680f775c8ccdf2",
+  "excluded_pointer": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+  "units": {
+    "alisa-web@stage.service": {
+      "MainPID": "41898",
+      "ActiveState": "active",
+      "UnitFileState": "enabled"
+    },
+    "alisa-platform@stage.service": {
+      "MainPID": "41918",
+      "ActiveState": "active",
+      "UnitFileState": "enabled"
+    },
+    "alisa-admin@stage.service": {
+      "MainPID": "23549",
+      "ActiveState": "active",
+      "UnitFileState": "enabled"
+    },
+    "alisa-identity@stage.service": {
+      "MainPID": "23574",
+      "ActiveState": "active",
+      "UnitFileState": "enabled"
+    },
+    "alisa-lead-mail@stage.timer": {
+      "ActiveState": "active",
+      "UnitFileState": "enabled"
+    },
+    "alisa-smtp-sandbox-stage.service": {
+      "MainPID": "41937",
+      "ActiveState": "active",
+      "UnitFileState": "enabled"
+    },
+    "alisa-worker@stage.service": {
+      "MainPID": "0",
+      "ActiveState": "inactive",
+      "UnitFileState": "disabled"
+    },
+    "alisa-probe-cleanup@stage.timer": {
+      "ActiveState": "active",
+      "UnitFileState": "enabled"
+    }
+  },
+  "readiness": {
+    "18100": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-8d680f775c8ccdf2",
+      "status": "READY"
+    },
+    "18101": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    },
+    "18102": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-8d680f775c8ccdf2"
+    },
+    "18103": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY",
+      "authentication": "NOT_IMPLEMENTED"
+    }
+  },
+  "own_configuration_modes": {
+    "web.env": "0o600",
+    "platform.env": "0o600"
+  },
+  "approved_flags": {
+    "web": {
+      "ALISA_LEAD_INTAKE_ENABLED": "1",
+      "ALISA_LANDING_MODE": "CLOSED",
+      "ALISA_PUBLIC_BASE_URL": "https://alisa-stage.octoport.ru"
+    },
+    "platform": {
+      "ALISA_LEAD_INTAKE_ENABLED": "1",
+      "ALISA_LANDING_MODE": "CLOSED",
+      "ALISA_PUBLIC_BASE_URL": "https://alisa-stage.octoport.ru"
+    }
+  },
+  "status": "PASS"
+}
