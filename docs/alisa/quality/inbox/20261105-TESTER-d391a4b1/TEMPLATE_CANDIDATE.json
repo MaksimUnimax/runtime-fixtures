@@ -1,8 +1,8 @@
 {
   "schema": "alisa-template-candidate/v1",
   "template_id": "C-UE01",
-  "revision": "fresh-orders-unit-economics-r6",
-  "status": "SPECIFIED_RESEARCH_NOT_INSTALLED",
+  "revision": "fresh-orders-stage-qualified-unit-economics-r7",
+  "status": "CANDIDATE_WITH_EXPLICIT_FORECAST_GAPS",
   "required_basis": "declared unit profile and original ordered cohort",
   "source_fallback_order": [
     "matched actual accrual if available and complete",
@@ -64,7 +64,7 @@
       "customer_return_after_receipt"
     ],
     "reverse_logistics": "Use matched actual charge/reversal; forecast requires verified scheme and stage applicability. Neither Cancellation nor absent Return proves zero reverse cost.",
-    "sales_commission": "Separate sales remuneration and its actual/expected reversal from advertising CPO.",
+    "sales_commission": "Cancelled revenue and cost of goods excluded; expected sales remuneration only on noncancelled fulfilled units; actual debit/reversal ledger separate.",
     "cpo_refund": "General cancellation/return policy and time limits not verified in accessible official regulation; do not erase recorded CPO or invent a credit.",
     "cpc_refund": "Clicks remain a separate service; no automatic sale-outcome reversal. Provider corrections require their own basis.",
     "return_processing": "Warehouse return processing included in reverse logistics; assess PVZ processing, packaging and storage independently without double count.",
@@ -78,7 +78,7 @@
       "matched_actual_charge_and_reversal"
     ]
   },
-  "official_research": "CANCELLATION_RETURNS_RESEARCH.md",
+  "official_research": "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/quality/inbox/20261105-TESTER-d391a4b1/CANCELLATION_RETURNS_RESEARCH.md",
   "owner_inputs": {
     "unit_cost_rub": 250,
     "tax": "EXCLUDED_BY_OWNER",
@@ -96,5 +96,72 @@
       "source_and_actual_or_estimate"
     ],
     "logs": "Every HTTP request, response summary, UTC start/end, elapsed_ms, pagination completeness"
+  },
+  "source_join": {
+    "actual_acquiring": "by-day item_fees, type1 from freshly read types dictionary; unique order_number + SKU + quantity, never broad string matching",
+    "posting_accruals": "Empty current arrays do not cancel by-day order-level item fees and do not establish zero fees",
+    "general_cardinality_guard": "Split, repeated-SKU or ambiguous orders require a qualified allocation; do not assign all order-level cost to one arbitrary posting"
+  },
+  "forecast": {
+    "without_cancellations": "Counterfactual fulfillment of all original ordered units; all normal unit costs; no reverse-flow event assumed",
+    "with_cancellations": "Fulfillment of remaining units; no cancelled revenue or COGS; keep actual non-COGS costs and qualified stage-dependent tariff forecast",
+    "direct_logistics": "Use exact actual when available; else owner-authorized arithmetic tariff midpoint for the relevant unit. Unknown event applicability remains a separate scenario, not an invented event probability.",
+    "acquiring_cancelled": "Current conservative tariff allocation may be retained as an explicit estimate until refund is evidenced; never call this an incurred debit",
+    "unqualified_extra": "Expose X and subtract from calculated subtotal; no final net profit while required components remain unqualified"
+  },
+  "default_scopes": {
+    "period": "parameter, not per-day hardcoded handler",
+    "revenue": "seller order price/value; buyer discounted payment is a separate metric",
+    "overhead": "store-period advertising and storage explicitly allocated once; never described as exact posting attribution",
+    "percent": "row amount / same-scenario seller order value * 100",
+    "unit": "explicit physical noncancelled-unit denominator; original order denominator separately labelled"
+  },
+  "official_sources": [
+    {
+      "id": "sale_refund",
+      "url": "https://seller.ozon.ru/media/instructions/kak-rabotat-s-vozvratami/",
+      "verified": true
+    },
+    {
+      "id": "event_definitions",
+      "url": "https://seller.ozon.ru/media/beginners/fbo-na-ozon-chto-takoe-i-kak-nachat/",
+      "verified": true
+    },
+    {
+      "id": "reverse_logistics",
+      "url": "https://seller.ozon.ru/media/money/kak-poschitat-rashody-na-hranenie-i-dostavku-tovarov/",
+      "verified": true
+    },
+    {
+      "id": "warehouse_processing",
+      "url": "https://seller.ozon.ru/media/news/rasshiryaem-upakovku-vozvratov-v-pvz-i-drugie-izmeneniya-v-dogovore/",
+      "verified": true
+    },
+    {
+      "id": "cpc",
+      "url": "https://seller.ozon.ru/media/boost/oplata-za-klik-instrument-prodvizheniya-na-ozon/",
+      "verified": true
+    },
+    {
+      "id": "cpo",
+      "url": "https://seller.ozon.ru/media/boost/kak-prodvigat-tovary-na-ozon-pri-pomoshi-instrumenta-oplata-za-zakaz/",
+      "verified": true
+    },
+    {
+      "id": "cpo_exception",
+      "url": "https://seller.ozon.ru/media/news/mery-podderzhki-i-strahovye-vyplaty/",
+      "verified": true
+    },
+    {
+      "id": "promotion_regulation",
+      "url": "https://seller-edu.ozon.ru/libra/contract-for-sellers/regulations-promotion/reglament-uslug-po-prodvizheniu",
+      "verified": false
+    }
+  ],
+  "latest_private_evidence": {
+    "run_id": "20261105-TESTER-821b750e",
+    "fresh_http_count": 14,
+    "cached_answers_used": false,
+    "production_changed": false
   }
 }
