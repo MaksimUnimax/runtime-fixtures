@@ -1,7 +1,7 @@
 {
   "record_type": "ALISA_SHARED_IDENTITY_AND_REAL_MAIL_REVIEW",
-  "recorded_utc": "2026-11-05T09:38:08.252Z",
-  "status": "SOURCE_QUALIFIED_AND_STAGED_NOT_ACTIVATED",
+  "recorded_utc": "2026-11-05T10:30:17.995539+00:00",
+  "status": "INSTALLED_REAL_MAIL_PATH_ACCEPTED_FOR_ONE_INVITED_OWNER",
   "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
   "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/389",
   "artifact": {
@@ -69,7 +69,7 @@
     "docs_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42002923265"
   },
   "native_transport": {
-    "status": "PASS_AUTH_ONLY",
+    "status": "PASS_AUTH_AND_GMAIL_DELIVERY",
     "service_user": "alisa-identity-stage",
     "host": "mail.octoport.ru",
     "port": 25,
@@ -77,40 +77,83 @@
     "auth_mechanism": "PLAIN",
     "smtp_authenticated": true,
     "noop": 250,
-    "message_submitted": false,
-    "previous_attempt": "Default native CRAM-MD5 negotiation timed out; explicit native PLAIN with mandatory verified TLS passed"
+    "message_submitted": true,
+    "previous_attempt": "Default native CRAM-MD5 negotiation timed out; explicit native PLAIN with mandatory verified TLS passed",
+    "gmail_messages_confirmed": 2,
+    "sender_and_service_principal_registered": true
   },
   "stage": {
     "prepared_release": "alisa-dd2b59b99b00b7e4",
     "prepared_package_files_and_links_verified": true,
-    "activated": false,
+    "activated": true,
     "observed_active": {
-      "web": "alisa-e82003211bdcd687",
+      "web": "alisa-dd2b59b99b00b7e4",
       "admin": "alisa-3e91b1aa5d405d0e",
-      "platform": "alisa-3e91b1aa5d405d0e",
-      "identity": "alisa-3e91b1aa5d405d0e"
+      "platform": "alisa-dd2b59b99b00b7e4",
+      "identity": "alisa-dd2b59b99b00b7e4"
     },
-    "s03_activation_status": "PASS_ACTIVATED_PENDING_INSTALLED_SMOKE",
-    "reason_not_activated": "The parallel S03 executor is accepting exact installed 3e91 source; changing identity/platform now would invalidate that acceptance.",
-    "current_real_gmail_registration": "NOT_RUN_NOT_CLOSED",
-    "mail_delivery_to_gmail": "NOT_RUN",
-    "repeated_real_mail_login": "NOT_RUN",
-    "independent_real_mail_installed_acceptance": "NOT_RUN"
+    "s03_acceptance_evidence": [
+      "AL_S03_INSTALLED_SMOKE_R4_20261105.json",
+      "AL_S03_INSTALLED_REENTRY_20261105.json"
+    ],
+    "current_real_gmail_registration": "PASS_14_OF_14_EXECUTOR_INSTALLED_ACCEPTANCE",
+    "mail_delivery_to_gmail": "TWO_MESSAGES_IN_INBOX_SPF_DKIM_DMARC_PASS",
+    "repeated_real_mail_login": "PASS_SAME_CUSTOMER_AND_TENANT",
+    "restart_session_preservation": "PASS",
+    "privacy_database": "PASS_12_OF_12",
+    "independent_real_mail_installed_acceptance": "NOT_RUN_SEPARATE_INDEPENDENT_REVIEW_NOT_CLAIMED",
+    "real_recipient_count": 1,
+    "ordinary_public_registration": false,
+    "migrations_applied": [],
+    "final_receipt": "ALISA_REAL_MAIL_INSTALLED_ACCEPTANCE_20261105.json"
   },
   "next_action": {
-    "prerequisite": "Complete S03 exact installed acceptance; verify its receipt and no concurrent rollout lock.",
-    "then": [
-      "Activate exact dd2b package for web/platform/identity, preserving admin/S03, DB schema and lab/OAuth.",
-      "Enable one controlled recipient in private identity+platform config and enable truthful web copy.",
-      "Receive native signup code in controlled Gmail, confirm wrong code denial and correct code entry into cabinet.",
-      "Logout; obtain a fresh email code; verify same customer and tenant.",
-      "Restart changed services; verify saved session/data; check outbox clearing and private logs.",
-      "Save exact installed receipt before marking AL-S02 real-mail gap closed."
+    "completed": [
+      "Exact dd2b activation after S03 smoke/reentry",
+      "Controlled Gmail delivery, wrong-code rejection, correct-code cabinet entry",
+      "Fresh code and repeat login into the same customer and tenant",
+      "Restart persistence, read-only DB checks and product-log privacy",
+      "Private OTP handoff files removed and sanitized evidence saved"
     ],
-    "prepared_installer": "/var/lib/alisa-platform/stage/evidence/install-real-mail.py",
-    "prepared_acceptance": "/var/lib/alisa-platform/stage/evidence/real-mail-acceptance.py",
+    "owner_manual_acceptance": "Open https://alisa-stage.octoport.ru/login and request a fresh code for the invited owner address.",
+    "shared_identity_followup": "AL-M01 then AL-M02; preserve existing Octoport local IDs; AL-M04 for common staff shell.",
     "automatic_future_execution": false
   },
   "other_open_review_findings": "Existing independent-review findings are not closed by a mail/design change.",
-  "secrets_or_otp_in_record": false
+  "secrets_or_otp_in_record": false,
+  "previous_checkpoint": {
+    "recorded_utc": "2026-11-05T09:38:08.252Z",
+    "status": "SOURCE_QUALIFIED_AND_STAGED_NOT_ACTIVATED",
+    "activation_blocker": "S03 exact-package acceptance was still in progress at the preceding checkpoint."
+  },
+  "final_evidence": {
+    "installed_acceptance": {
+      "passed": 14,
+      "total": 14
+    },
+    "database_privacy": {
+      "passed": 12,
+      "total": 12
+    },
+    "gmail": [
+      {
+        "received_utc": "2026-11-05T10:13:39.000Z",
+        "inbox": true,
+        "from": "no-reply@octoport.ru",
+        "spf_pass": true,
+        "dkim_pass": true,
+        "dmarc_pass": true
+      },
+      {
+        "received_utc": "2026-11-05T10:14:23.000Z",
+        "inbox": true,
+        "from": "no-reply@octoport.ru",
+        "spf_pass": true,
+        "dkim_pass": true,
+        "dmarc_pass": true
+      }
+    ],
+    "product_log_scan_utc": "2026-11-05T10:19:27.035314+00:00",
+    "live_readback_utc": "2026-11-05T10:30:17.995539+00:00"
+  }
 }

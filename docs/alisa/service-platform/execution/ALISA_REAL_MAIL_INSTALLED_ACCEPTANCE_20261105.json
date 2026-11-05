@@ -1,0 +1,216 @@
+{
+  "record_type": "AL_S02_CONTROLLED_REAL_MAIL_FINAL_INSTALLED_ACCEPTANCE",
+  "status": "PASS_FOR_ONE_INVITED_OWNER_REAL_MAIL_PATH",
+  "scope": "AL-S02 external controlled mailbox delivery, cabinet login, repeat login, restart persistence and privacy",
+  "independent_verdict": "NOT_RUN; recorded checks are executor-run acceptance and subsequent direct evidence/readiness inspection.",
+  "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+  "artifact": {
+    "name": "alisa-dd2b59b99b00b7e4.tar.gz",
+    "sha256": "e19761ed8943c1d17f641ad07dcd474f62c7e9fbdf500f0c4c3905ee24f3f849",
+    "github_artifact_id": 13404325183
+  },
+  "installation": {
+    "record_type": "INSTALLED_REAL_MAIL_RELEASE",
+    "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+    "release": "alisa-dd2b59b99b00b7e4",
+    "status": "PASS",
+    "artifact_sha256": "e19761ed8943c1d17f641ad07dcd474f62c7e9fbdf500f0c4c3905ee24f3f849",
+    "migrations_applied": [],
+    "protected_runtime_unchanged": true,
+    "active_components": [
+      "web",
+      "platform",
+      "identity"
+    ],
+    "admin_release": "alisa-3e91b1aa5d405d0e",
+    "real_recipient_count": 1,
+    "smtp_tls_required": true,
+    "ordinary_public_registration": false,
+    "s03_smoke_receipt": "AL_S03_INSTALLED_SMOKE_R4_20261105.json",
+    "s03_reentry_receipt": "AL_S03_INSTALLED_REENTRY_20261105.json",
+    "s03_prior_rollback_timeout_retained": true,
+    "finished_utc": "2026-11-05T10:01:12.688064+00:00"
+  },
+  "browser_acceptance": {
+    "record_type": "INSTALLED_REAL_MAIL_ACCEPTANCE",
+    "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+    "started_utc": "2026-11-05T10:13:35.241074+00:00",
+    "cases": [
+      {
+        "case": "real_mail_invitation_visible",
+        "passed": true
+      },
+      {
+        "case": "mobile_registration_no_horizontal_overflow",
+        "passed": true
+      },
+      {
+        "case": "uninvited_real_address_denied",
+        "passed": true
+      },
+      {
+        "case": "initial_unverified_signup_resumes_via_native_email_code",
+        "passed": true
+      },
+      {
+        "case": "wrong_real_mail_code_denied",
+        "passed": true
+      },
+      {
+        "case": "gmail_verified_registration_reaches_cabinet",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "profile_contact_matches_verified_mail",
+        "passed": true
+      },
+      {
+        "case": "new_login_code_differs",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "repeat_gmail_login_same_customer_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "own_profile_available",
+        "passed": true
+      },
+      {
+        "case": "restart_preserves_same_session_account_and_tenant",
+        "passed": true
+      },
+      {
+        "case": "no_browser_script_errors",
+        "passed": true
+      }
+    ],
+    "previous_attempts": [
+      "real-mail-dd2b59b9/first-attempt.json",
+      "real-mail-dd2b59b9-r2/terminal-attempt.json"
+    ],
+    "registration_resumed_without_deleting_or_recreating_person": true,
+    "status": "PASS",
+    "finished_utc": "2026-11-05T10:14:57.734600+00:00",
+    "browser_error_types": []
+  },
+  "database_and_privacy": {
+    "record_type": "INSTALLED_REAL_MAIL_DATABASE_PRIVACY_AND_READBACK",
+    "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+    "status": "PASS",
+    "checks": {
+      "product_logs_no_controlled_contact_codes_or_config_secrets": true,
+      "one_identity_person": true,
+      "one_verified_contact": true,
+      "only_expected_web_subject_no_automatic_admin_identity": true,
+      "actual_outbox_codes_erased": true,
+      "two_actual_messages_sent": true,
+      "one_product_customer": true,
+      "customer_bound_to_actual_verified_native_subject": true,
+      "one_owner_membership_and_tenant": true,
+      "one_active_session_after_repeat_and_restart": true,
+      "exact_active_mail_versions": true,
+      "admin_kept_on_s03": true
+    },
+    "outbox": {
+      "rows": 4,
+      "sent": 2,
+      "payloads_remaining": 0,
+      "preserved_terminal_failures": 0
+    },
+    "versions": {
+      "18100": "alisa-dd2b59b99b00b7e4",
+      "18101": "alisa-3e91b1aa5d405d0e",
+      "18102": "alisa-dd2b59b99b00b7e4",
+      "18103": "alisa-dd2b59b99b00b7e4"
+    },
+    "protected_units_same_as_before_activation": {
+      "alice-market.service": true,
+      "alice-lab-web.service": true,
+      "alice-lab-worker.service": true,
+      "alice-lab-llm.service": true,
+      "alisa-admin@stage.service": true
+    },
+    "routing_mta_logs_scope": "Not included in product log scan; standard sender/recipient routing metadata is retained by the existing private MTA.",
+    "checked_utc": "2026-11-05T10:19:27.035314+00:00"
+  },
+  "mailbox_headers_sanitized": [
+    {
+      "received_utc": "2026-11-05T10:13:39.000Z",
+      "inbox": true,
+      "from": "no-reply@octoport.ru",
+      "spf_pass": true,
+      "dkim_pass": true,
+      "dmarc_pass": true
+    },
+    {
+      "received_utc": "2026-11-05T10:14:23.000Z",
+      "inbox": true,
+      "from": "no-reply@octoport.ru",
+      "spf_pass": true,
+      "dkim_pass": true,
+      "dmarc_pass": true
+    }
+  ],
+  "live_readback": {
+    "checked_utc": "2026-11-05T10:30:17.995539+00:00",
+    "web": "alisa-dd2b59b99b00b7e4",
+    "identity": "alisa-dd2b59b99b00b7e4",
+    "platform": "alisa-dd2b59b99b00b7e4",
+    "admin": "alisa-3e91b1aa5d405d0e",
+    "all_four_ready": true,
+    "platform_runtime": "RUNTIME_NOT_CONNECTED",
+    "private_otp_handoff_file_removed": true
+  },
+  "historical_failures": [
+    {
+      "receipt": {
+        "status": "FAILED_SMTP_REJECTED",
+        "scope": "actual_registration_initial_submission",
+        "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+        "mail_error_code": "DELIVERY_REJECTED",
+        "mail_attempts": 5,
+        "encrypted_payload_erased": true,
+        "automatic_replay": false,
+        "browser_test_stopped_after_known_terminal_mail_error": true,
+        "time_utc": "2026-11-05T10:03:52.726969+00:00"
+      },
+      "cause": "Visible From sender was not registered in the existing mail service.",
+      "resolution": "Registered the Alisa no-reply sender and verified sender acceptance."
+    },
+    {
+      "receipt": {
+        "status": "FAILED_SMTP_RELAY_DENIED",
+        "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+        "mail_error_code": "DELIVERY_REJECTED",
+        "old_code_will_not_be_retried": true,
+        "browser_stopped_after_known_terminal_error": true,
+        "time_utc": "2026-11-05T10:11:21.421954+00:00"
+      },
+      "cause": "Dedicated SMTP principal was absent from the existing service sender/relay registry.",
+      "resolution": "Registered the dedicated Alisa service sender; requested a new code without replaying the old code."
+    }
+  ],
+  "closed_gap": "AL-S02 real mailbox verification for the explicitly invited owner",
+  "boundaries": {
+    "ordinary_public_registration": false,
+    "invited_real_recipients": 1,
+    "join_lead_form": "Still synthetic-only",
+    "octoport_existing_accounts_linked": false,
+    "shared_identity_merge_steps": [
+      "AL-M01",
+      "AL-M02",
+      "AL-M04"
+    ],
+    "other_review_findings_closed": false
+  },
+  "private_data": "No recipient address, OTP, cookie, token, password or Gmail internal message ID is included."
+}
