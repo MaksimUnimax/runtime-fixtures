@@ -40,6 +40,9 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 
 # Auth is an explicit release/config capability; old shell config stays closed.
+CANONICAL_AUTH_ENABLED = os.environ.get('ALISA_CANONICAL_AUTH_ENABLED','0')=='1'
+if os.environ.get('ALISA_CANONICAL_AUTH_ENABLED','0') not in {'0','1'} or CANONICAL_AUTH_ENABLED and ALISA_ENV!='stage':
+    raise ImproperlyConfigured('Invalid canonical auth mode')
 IDENTITY_ENABLED = os.environ.get('ALISA_IDENTITY_ENABLED')=='1'
 IDENTITY_ISSUER = os.environ.get('ALISA_IDENTITY_ISSUER','').rstrip('/')
 IDENTITY_DATA_KEYS = os.environ.get('ALISA_IDENTITY_DATA_KEYS','').split(',') if IDENTITY_ENABLED else []
@@ -50,7 +53,7 @@ if IDENTITY_ENABLED:
     u=urlsplit(IDENTITY_ISSUER)
     if u.path or u.query or u.fragment or u.username or u.password or not u.hostname:
         raise ImproperlyConfigured('Invalid fixed identity issuer')
-    if ALISA_ENV=='stage' and IDENTITY_ISSUER!='https://id-stage.octoport.ru':raise ImproperlyConfigured('Wrong stage issuer')
+    if ALISA_ENV=='stage' and IDENTITY_ISSUER!=('https://id.octoport.ru' if CANONICAL_AUTH_ENABLED else 'https://id-stage.octoport.ru'):raise ImproperlyConfigured('Wrong stage issuer')
     if ALISA_ENV=='prod':raise ImproperlyConfigured('Public identity admission is not authorized')
     if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'localhost','127.0.0.1'}):raise ImproperlyConfigured('Dev issuer must be loopback')
     try:
@@ -81,7 +84,7 @@ ACCOUNT_LOGIN_BY_CODE_REQUIRED=True
 ACCOUNT_LOGIN_BY_CODE_TIMEOUT=600
 ACCOUNT_LOGIN_BY_CODE_MAX_ATTEMPTS=5
 ACCOUNT_PREVENT_ENUMERATION=True
-ACCOUNT_RATE_LIMITS={'request_login_code':'5/m/key','login_failed':'5/m/key','signup':'5/m/ip'}
+ACCOUNT_RATE_LIMITS={'request_login_code':'5/m/key,20/m/ip','login_failed':'5/m/key','signup':'5/m/ip'}
 LOGIN_REDIRECT_URL='/accounts/'
 ACCOUNT_LOGOUT_REDIRECT_URL='/accounts/login/'
 SESSION_COOKIE_NAME='__Host-alisa_identity'
@@ -119,7 +122,7 @@ if IDENTITY_STAFF_ENABLED:
     u=urlsplit(IDENTITY_STAFF_CALLBACK)
     if u.path!='/auth/callback' or u.query or u.fragment or u.username or u.password:
         raise ImproperlyConfigured('Invalid staff callback')
-    if ALISA_ENV=='stage' and (IDENTITY_STAFF_CLIENT_ID!='alisa_admin_stage' or IDENTITY_STAFF_CALLBACK!='https://alisa-admin-stage.octoport.ru/auth/callback'):
+    if ALISA_ENV=='stage' and (IDENTITY_STAFF_CLIENT_ID!='alisa_admin_stage' or IDENTITY_STAFF_CALLBACK!=('https://alisa-admin.octoport.ru/auth/callback' if CANONICAL_AUTH_ENABLED else 'https://alisa-admin-stage.octoport.ru/auth/callback')):
         raise ImproperlyConfigured('Wrong stage staff client')
     if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'127.0.0.1','localhost'}):
         raise ImproperlyConfigured('Dev staff callback must be loopback')
@@ -130,3 +133,38 @@ DATA_UPLOAD_MAX_MEMORY_SIZE=16384
 LOGGING={'version':1,'disable_existing_loggers':False,'handlers':{'console':{'class':'logging.StreamHandler'}},
          'loggers':{'django.request':{'handlers':['console'],'level':'CRITICAL','propagate':False},
                     'oauthlib':{'handlers':['console'],'level':'CRITICAL','propagate':False}}}
+
+# Real-email admission is explicit. Existing accounts are never merged by email.
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+REAL_LOGIN_OPEN=os.environ.get('ALISA_REAL_LOGIN_OPEN','0')=='1'
+if os.environ.get('ALISA_REAL_LOGIN_OPEN','0') not in {'0','1'}:
+    raise ImproperlyConfigured('Invalid real-login admission mode')
+if REAL_LOGIN_OPEN and ALISA_ENV not in {'stage','dev'}:
+    raise ImproperlyConfigured('Real-login mode is not enabled for this environment')
+REAL_LOGIN_RECIPIENTS=frozenset(x.strip().lower() for x in os.environ.get('ALISA_REAL_LOGIN_RECIPIENTS','').split(',') if x.strip())
+try:
+    if len(REAL_LOGIN_RECIPIENTS)>20:raise ValueError()
+    for contact in REAL_LOGIN_RECIPIENTS:
+        validate_email(contact)
+        if len(contact)>254 or contact.endswith('@example.invalid'):raise ValueError()
+    if REAL_LOGIN_RECIPIENTS and ALISA_ENV!='stage':raise ValueError()
+except (ValidationError,ValueError):
+    raise ImproperlyConfigured('Invalid closed-test login recipients') from None
+
+REAL_SMTP=None
+if REAL_LOGIN_OPEN or REAL_LOGIN_RECIPIENTS:
+    from pathlib import Path
+    import stat
+    try:
+        secret_file=Path(required('ALISA_REAL_SMTP_PASSWORD_FILE'))
+        if not secret_file.is_absolute() or not secret_file.is_file():raise ValueError()
+        if stat.S_IMODE(secret_file.stat().st_mode)&0o007:raise ValueError()
+        secret=secret_file.read_text().strip()
+        if len(secret)<32:raise ValueError()
+        REAL_SMTP={'host':'mail.octoport.ru','port':25,
+                   'username':'alisa-mailer@octoport.ru','password':secret,
+                   'use_tls':True,'use_ssl':False,'timeout':4}
+        REAL_FROM_EMAIL='no-reply@octoport.ru'
+    except (OSError,ValueError):
+        raise ImproperlyConfigured('Private real-mail transport configuration required') from None

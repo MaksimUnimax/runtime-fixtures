@@ -1,0 +1,127 @@
+{
+  "record_type": "AL_S04_INSTALLED_INDEPENDENT_REVIEW",
+  "review_date": "2026-11-05",
+  "verdict": "READY_FOR_OWNER_TEST",
+  "scope": "Read-only installed state and customer-only route; no real staff grant test performed.",
+  "binding": {
+    "source_sha": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+    "tree_sha": "786126cc26dc094911b891f8600bf94a95353d1f",
+    "release": "alisa-c8666516683e7b2b",
+    "ci_binding_sha256": "253fee65c06f005e71e9acc76ecc374a251915009e7c50302f96263745353823",
+    "zip_sha256": "68f91fba8e7cec6eeb2d9ac81c1ba95a4ec554255a469ae95c6dd1f825abae6d",
+    "tar_sha256": "81c2bd21d8d9eec6e1a0094f8ecb384b394b1061cb3b7650497b9607ee51345e",
+    "manifest_sha256": "3287fa567545e9598a04e4ba57f7a484814e45195f6cd724bb0532c24b6606f5",
+    "manifest_files": 4433,
+    "manifest_links": 42
+  },
+  "receipts": {
+    "package_install": {
+      "path": "/var/lib/alisa-platform/stage/evidence/AL_S04_PACKAGE_INSTALL_20261105.json",
+      "status": "PASS",
+      "cases": "20_OF_20_PASS",
+      "finished_utc": "2026-11-05T14:00:06.211309+00:00",
+      "disk_mib": "4046_BEFORE_3685_AFTER",
+      "all_old_pointers_preserved": true
+    },
+    "activation": {
+      "path": "/var/lib/alisa-platform/stage/evidence/AL_S04_ACTIVATION_20261105.json",
+      "status": "PASS",
+      "cases": "42_OF_42_PASS",
+      "finished_utc": "2026-11-05T14:13:23.056526+00:00",
+      "exact_single_migration_and_ledger_delta": true,
+      "immutable_table_update_delete_truncate_denied": "9_OF_9",
+      "access_grants_after_migration": 0,
+      "staff_authority_fingerprint_unchanged": true,
+      "identity_and_shared_pointers_preserved": true
+    },
+    "customer_readback": {
+      "path": "/var/lib/alisa-platform/stage/evidence/AL_S04_CUSTOMER_READBACK_20261105.json",
+      "status": "PASS",
+      "cases": "12_OF_12_PASS",
+      "finished_utc": "2026-11-05T14:17:04.071418+00:00",
+      "scope": "Existing own synthetic customer login and access page only; no signup or staff grant.",
+      "access_status": "NOT_PROVISIONED",
+      "history_count": 0,
+      "manual_owner_grant_test": "NOT_RUN_AUTHORITY_HANDED_OVER"
+    },
+    "qualification_window_release": {
+      "r1": {
+        "path": "/var/lib/alisa-platform/stage/evidence/AL_S04_QUALIFICATION_WINDOW_RELEASE_20261105.json",
+        "status": "FAILED_BEFORE_CASES",
+        "finished_utc": "2026-11-05T14:22:30.759330+00:00",
+        "cause": "The window was already inactive with ExecMainStatus=0; a systemctl stop request returned nonzero. No product or host state changed."
+      },
+      "r2": {
+        "path": "/var/lib/alisa-platform/stage/evidence/AL_S04_QUALIFICATION_WINDOW_RELEASE_R2_20261105.json",
+        "status": "PASS",
+        "cases": "32_OF_32_PASS",
+        "finished_utc": "2026-11-05T14:23:13.392475+00:00",
+        "window_already_inactive_clean_exit": true,
+        "all_bounded_units_inactive": true
+      }
+    }
+  },
+  "independent_readback": {
+    "device": "Alisa",
+    "first_snapshot_utc": "2026-11-05T14:18:48Z",
+    "later_snapshot_utc": "2026-11-05T14:23:13.392475Z",
+    "maintenance_window": "The g003 bounded window was active at the first snapshot and inactive with ExecMainStatus=0 by 14:20:38 UTC. All checks after expiry were read-only; no additional locks or mutations were started.",
+    "pointers": {
+      "admin-current": "alisa-c8666516683e7b2b",
+      "web-current": "alisa-c8666516683e7b2b",
+      "site-current": "alisa-c8666516683e7b2b",
+      "identity-current": "alisa-482ed11832b666af",
+      "current": "alisa-482ed11832b666af",
+      "all_are_owned_release_symlinks": true
+    },
+    "health": {
+      "web": "READY:c866",
+      "admin": "READY:c866",
+      "platform": "READY:c866",
+      "identity": "READY:482"
+    },
+    "public_readiness": {
+      "https://alisa.octoport.ru/health/ready": "READY:c866",
+      "https://alisa-admin.octoport.ru/health/ready": "READY:c866"
+    },
+    "installed_manifest": {
+      "sha256": "3287fa567545e9598a04e4ba57f7a484814e45195f6cd724bb0532c24b6606f5",
+      "source_sha": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+      "manifest_file_set": "4433_OF_4433_MATCH",
+      "manifest_symlink_set": "42_OF_42_MATCH",
+      "read_only_existing_installer_integrity_check": "PASS",
+      "final_window_release_exact_manifest_and_4433_42_check": "PASS",
+      "bytecode_writes": "DISABLED"
+    },
+    "configuration": {
+      "root_owned_mode_0600": "6_OF_6_FILES",
+      "web_site_origin": "https://alisa.octoport.ru",
+      "admin_origin": "https://alisa-admin.octoport.ru",
+      "identity_issuer": "https://id.octoport.ru",
+      "canonical_auth_flags": "1_FOR_WEB_ADMIN_PLATFORM_IDENTITY",
+      "entitlements_flag": "1",
+      "identity_staff_callback": "https://alisa-admin.octoport.ru/auth/callback",
+      "migration_configs_preserved": true
+    },
+    "database": {
+      "platform_runtime_role": "alisa_stage_platform_runtime",
+      "entitlements_initial_migration_rows": 1,
+      "access_grant_rows": 0,
+      "runtime_update_delete_truncate_denied": {
+        "entitlements_accessgrant": true,
+        "entitlements_accessadjustment": true,
+        "entitlements_accesspreview": true,
+        "staff_staffauditevent": true
+      },
+      "existing_canonical_staff_client_callback_matches": true
+    },
+    "free_disk_mib": "3682_TO_3684_DURING_READBACK"
+  },
+  "reviewer_validation_note": "One initial ad-hoc link count included four .venv symlinks outside the release manifest contract. The manifest-aware recheck excluded .venv, matched 4433 files and 42 links, and the existing installer integrity check plus final R2 receipt both passed.",
+  "limits": [
+    "No manual or real-owner entitlement grant test was performed; the owner received authority in another stream.",
+    "No owner role creation/restoration, identity handover, customer contact output, or credential output.",
+    "No S04 functional grant PASS is claimed. Final state is READY_FOR_OWNER_TEST pending the real OWNER's own test."
+  ],
+  "review_method": "Read safe receipts and ran bounded read-only host health, pointer, configuration metadata, manifest, database privilege/count, and existing client callback readbacks. No tests or mutations were performed."
+}

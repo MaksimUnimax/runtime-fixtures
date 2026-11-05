@@ -2,11 +2,14 @@ import * as oidc from 'openid-client';
 import {EncryptJWT,jwtDecrypt} from 'jose';
 import {createHash,randomBytes} from 'node:crypto';
 import {siteOrigin} from './public';
+import {permittedAuthOrigins} from './auth-origins';
 import type {AuthFlowInput,AuthSessionInput} from '@alisa/contracts';
 
 export const SESSION_COOKIE='__Host-alisa_session';
 export const FLOW_COOKIE='__Host-alisa_login';
 export const HANDOFF_COOKIE='__Host-alisa_handoff';
+export function realLoginEnabled(){return (process.env.ALISA_REAL_LOGIN_ENABLED==='1'||process.env.ALISA_REAL_LOGIN_OPEN==='1')&&authEnabled();}
+export function registrationOpen(){return process.env.ALISA_REAL_LOGIN_OPEN==='1'&&authEnabled();}
 export function authEnabled(){return process.env.ALISA_ACCOUNTS_ENABLED==='1'&&['stage','dev'].includes(process.env.ALISA_ENV||'');}
 export class AuthUnavailable extends Error{
   stage:string;safeCode:string;
@@ -20,14 +23,14 @@ export function reportAuthFailure(error:unknown){
   const failure=error instanceof AuthUnavailable?error:new AuthUnavailable('protocol',error);
   console.warn(JSON.stringify({event:'alisa.auth.failure',stage:failure.stage,code:failure.safeCode}));
 }
-export type Profile={customer_id:string;tenant_id:string;email:string;display_name:string;role:'OWNER_CLIENT';access_status:'NOT_PROVISIONED';stores:never[]};
+export type Profile={customer_id:string;tenant_id:string;email:string;display_name:string;role:'OWNER_CLIENT';access_status:'NOT_PROVISIONED'|'ACTIVE'|'SCHEDULED'|'EXPIRED'|'REVOKED';stores:never[]};
 function configuration(){
   if(!authEnabled())throw new AuthUnavailable();
   const origin=new URL(siteOrigin()),issuer=new URL(process.env.ALISA_IDENTITY_ISSUER||'');
   const clientId=process.env.ALISA_WEB_OIDC_CLIENT_ID||'',secret=process.env.ALISA_WEB_OIDC_CLIENT_SECRET||'';
   if(origin.pathname!=='/'||origin.search||origin.hash||origin.username||origin.password||issuer.pathname!=='/'||issuer.search||issuer.hash||issuer.username||issuer.password||!clientId||secret.length<32)throw new AuthUnavailable();
-  if(process.env.ALISA_ENV==='stage'&&(origin.href!=='https://alisa-stage.octoport.ru/'||issuer.href!=='https://id-stage.octoport.ru/'))throw new AuthUnavailable();
-  if(process.env.ALISA_ENV==='dev'&&![origin,issuer].every(u=>['127.0.0.1','localhost'].includes(u.hostname)&&['http:','https:'].includes(u.protocol)))throw new AuthUnavailable();
+  const canonicalAuth=process.env.ALISA_CANONICAL_AUTH_ENABLED||'0';
+  if(!['0','1'].includes(canonicalAuth)||!permittedAuthOrigins(process.env.ALISA_ENV,origin,issuer,process.env.ALISA_CANONICAL_SITE_ENABLED==='1',canonicalAuth==='1'))throw new AuthUnavailable();
   const encoded=process.env.ALISA_WEB_SESSION_KEY||'';
   if(!/^[A-Za-z0-9_-]{43}$/.test(encoded))throw new AuthUnavailable();
   const key=Buffer.from(encoded,'base64url');if(key.length!==32)throw new AuthUnavailable();
@@ -43,7 +46,7 @@ export function readCookie(request:Request,name:string){
 export function cookie(name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
 export function response(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}
 export async function accountApi(action:string,data:Record<string,unknown>){
-  const paths:Record<string,string>={createFlow:'auth/flows',consumeFlow:'auth/flows/consume',createSession:'auth/sessions',me:'account/me',profile:'account/profile',logout:'auth/logout'};
+  const paths:Record<string,string>={createFlow:'auth/flows',consumeFlow:'auth/flows/consume',createSession:'auth/sessions',me:'account/me',profile:'account/profile',access:'account/access',logout:'auth/logout'};
   const base=new URL(process.env.ALISA_PLATFORM_URL||''),token=process.env.ALISA_AUTH_SERVICE_TOKEN||'';
   if(!paths[action]||base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||base.pathname!=='/'||base.search||base.hash||base.username||base.password||token.length<32)throw new AuthUnavailable();
   try{

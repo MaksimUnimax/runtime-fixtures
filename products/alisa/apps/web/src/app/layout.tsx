@@ -2,6 +2,7 @@ import './site.css';
 import Link from 'next/link';
 import brandMark from './octoport-brand.png';
 import {siteOrigin} from '../server/public';
+import {realLoginEnabled,registrationOpen} from '../server/auth';
 import {Tracking} from './tracking';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ export const metadata = {
     default: 'Алиса Маркет — голосовая аналитика Ozon и Wildberries',
     template: '%s · Алиса Маркет',
   },
-  description: 'Спросите о магазине голосом. Отдельный сервис аналитики Ozon и Wildberries через Яндекс Станцию. Закрытая тестовая версия.',
+  description: 'Спросите о магазине голосом. Отдельный сервис аналитики Ozon и Wildberries через Яндекс Станцию. Предварительная версия.',
   metadataBase: new URL(siteOrigin()),
   alternates: {canonical: '/'},
   robots: {index: false, follow: false},
@@ -49,7 +50,7 @@ export default function Layout({children}: {children: React.ReactNode}) {
         <Link href="/consents">Согласия</Link>
         <Link href="/login">Вход</Link>
       </div>
-      <p>Алиса Маркет · Закрытая тестовая среда. Реальные контакты и платежи не принимаются.</p>
+      <p>Алиса Маркет · {registrationOpen()?'Предварительная версия.':'Закрытая тестовая среда.'} {registrationOpen()?'Регистрация по электронной почте. Магазины и платежи ещё не подключаются.':realLoginEnabled()?'Вход по приглашению. Магазины и платежи ещё не подключаются.':'Реальные контакты и платежи не принимаются.'}</p>
     </footer>
   </body></html>;
 }

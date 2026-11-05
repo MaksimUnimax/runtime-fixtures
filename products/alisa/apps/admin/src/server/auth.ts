@@ -1,7 +1,7 @@
 import * as oidc from 'openid-client';
 import {EncryptJWT,jwtDecrypt} from 'jose';
 import {createHash,randomBytes} from 'node:crypto';
-import {siteOrigin} from './origin';
+import {siteOrigin,canonicalAuthEnabled,permittedStaffAuthOrigins} from './origin';
 
 export const SESSION_COOKIE='__Host-alisa_staff';
 export const FLOW_COOKIE='__Host-alisa_staff_login';
@@ -24,7 +24,7 @@ function configuration(){
   const origin=new URL(siteOrigin()),issuer=new URL(process.env.ALISA_IDENTITY_ISSUER||'');
   const clientId=process.env.ALISA_STAFF_OIDC_CLIENT_ID||'',secret=process.env.ALISA_STAFF_OIDC_CLIENT_SECRET||'';
   if(origin.pathname!=='/'||origin.search||origin.hash||origin.username||origin.password||issuer.pathname!=='/'||issuer.search||issuer.hash||issuer.username||issuer.password||!clientId||secret.length<32)throw new AuthUnavailable();
-  if(process.env.ALISA_ENV==='stage'&&(origin.href!=='https://alisa-admin-stage.octoport.ru/'||issuer.href!=='https://id-stage.octoport.ru/'))throw new AuthUnavailable();
+  if(!permittedStaffAuthOrigins(process.env.ALISA_ENV,origin,issuer,canonicalAuthEnabled()))throw new AuthUnavailable();
   if(process.env.ALISA_ENV==='dev'&&![origin,issuer].every(u=>['127.0.0.1','localhost'].includes(u.hostname)&&['http:','https:'].includes(u.protocol)))throw new AuthUnavailable();
   const encoded=process.env.ALISA_STAFF_SESSION_KEY||'';
   if(!/^[A-Za-z0-9_-]{43}$/.test(encoded))throw new AuthUnavailable();
@@ -41,7 +41,7 @@ export function readCookie(request:Request,name:string){
 export function cookie(name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
 export function response(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}
 export async function accountApi(action:string,data:Record<string,unknown>){
-  const paths:Record<string,string>={createFlow:'staff/auth/flows',consumeFlow:'staff/auth/flows/consume',createSession:'staff/auth/sessions',me:'staff/me',read:'staff/read',command:'staff/command',logout:'staff/logout'};
+  const paths:Record<string,string>={createFlow:'staff/auth/flows',consumeFlow:'staff/auth/flows/consume',createSession:'staff/auth/sessions',me:'staff/me',read:'staff/read',command:'staff/command',access:'staff/access',logout:'staff/logout'};
   const base=new URL(process.env.ALISA_PLATFORM_URL||''),token=process.env.ALISA_STAFF_SERVICE_TOKEN||'';
   if(!paths[action]||base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||base.pathname!=='/'||base.search||base.hash||base.username||base.password||token.length<32)throw new AuthUnavailable();
   try{

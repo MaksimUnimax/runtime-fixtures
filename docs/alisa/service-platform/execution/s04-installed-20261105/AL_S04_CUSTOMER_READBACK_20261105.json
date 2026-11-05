@@ -1,0 +1,59 @@
+{
+  "scope": "INSTALLED_CUSTOMER_READBACK_ONLY_NO_STAFF_GRANT_TEST",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "activation_passed",
+      "passed": true
+    },
+    {
+      "case": "only_existing_own_invalid_contact",
+      "passed": true
+    },
+    {
+      "case": "same_existing_synthetic_customer",
+      "passed": true
+    },
+    {
+      "case": "canonical_customer_native_login",
+      "passed": true
+    },
+    {
+      "case": "same_customer_tenant_after_canonical_login",
+      "passed": true
+    },
+    {
+      "case": "access_link_opens_actual_customer_page",
+      "passed": true
+    },
+    {
+      "case": "actual_authenticated_access_api",
+      "passed": true
+    },
+    {
+      "case": "page_matches_current_ledger_status",
+      "passed": true
+    },
+    {
+      "case": "untrusted_customer_scope_rejected",
+      "passed": true
+    },
+    {
+      "case": "customer_has_no_automatic_staff_authority",
+      "passed": true
+    },
+    {
+      "case": "all_identity_posts_own_synthetic_no_signup",
+      "passed": true
+    },
+    {
+      "case": "real_owner_not_replaced_by_test",
+      "passed": true
+    }
+  ],
+  "started_utc": "2026-11-05T14:15:55.931934+00:00",
+  "manual_owner_grant_test": "NOT_RUN_AUTHORITY_HANDED_OVER",
+  "access_status": "NOT_PROVISIONED",
+  "history_count": 0,
+  "finished_utc": "2026-11-05T14:17:04.071418+00:00"
+}

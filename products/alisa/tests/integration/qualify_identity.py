@@ -33,7 +33,7 @@ def check(name,condition,**safe):
     CASES.append({'case':name,'passed':True,**safe});print(json.dumps(CASES[-1]),flush=True)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');parser.add_argument('--access',action='store_true');parser.add_argument('--open-registration',action='store_true');args=parser.parse_args()
     params=psycopg.conninfo.conninfo_to_dict(os.environ.get('ALISA_TEST_PG_DSN',''))
     if (os.environ.get('ALISA_TEST_DB_ALLOW')!='1' or params.get('host')!='127.0.0.1' or params.get('port')!='55480' or params.get('dbname')!='alisa_ci_admin' or params.get('user')!='alisa_ci_admin' or not params.get('password') or set(params)-{'host','port','dbname','user','password'}):
         raise RuntimeError('Guarded disposable CI database required')
@@ -93,18 +93,32 @@ def main():
                 identity_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_REDIRECT_URI':staff_origin+'/auth/callback'})
                 platform_only.update({'ALISA_STAFF_ENABLED':'1','ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_SERVICE_TOKEN':staff_service})
                 client_bootstrap.update({'ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin','ALISA_STAFF_OIDC_CLIENT_SECRET':staff_secret,'ALISA_STAFF_OIDC_REDIRECT_URI':staff_origin+'/auth/callback'})
+            if args.access:
+                if not args.staff:raise RuntimeError('Access qualification requires native staff flow')
+                platform_only['ALISA_ENTITLEMENTS_ENABLED']='1'
+                platform_only['ALISA_ACCESS_SINK_DELIVERY']='1'
             component_keys={c:secrets.token_urlsafe(48) for c in ['platform','identity','web']}
             web_env={**clean_environment(),'HOME':str(home),'ALISA_ENV':'dev','ALISA_RELEASE':manifest['artifact_id'],
                   'ALISA_LEAD_INTAKE_ENABLED':'1','ALISA_SECRET_KEY':component_keys['web'],'ALISA_ACCOUNTS_ENABLED':'1','ALISA_IDENTITY_ISSUER':ISSUER,
                   'ALISA_PUBLIC_BASE_URL':WEB,'ALISA_SERVICE_TOKEN':service,'ALISA_AUTH_SERVICE_TOKEN':auth_service,
                   'ALISA_WEB_OIDC_CLIENT_ID':'s02_web','ALISA_WEB_OIDC_CLIENT_SECRET':web_secret,'NODE_EXTRA_CA_CERTS':str(ca),
                   'ALISA_WEB_SESSION_KEY':bff_key,'ALISA_PLATFORM_URL':'http://127.0.0.1:18404','ALISA_ALLOWED_HOSTS':'127.0.0.1,localhost'}
+            if args.open_registration:
+                fixture_secret=temp/'real-smtp-fixture.private'
+                fixture_secret.write_text('synthetic-owned-smtp-fixture-password-0001')
+                fixture_secret.chmod(0o600);os.chown(fixture_secret,network.uid,network.uid)
+                identity_only.update({'ALISA_REAL_LOGIN_OPEN':'1','ALISA_REAL_SMTP_PASSWORD_FILE':str(fixture_secret)})
+                platform_only['ALISA_REAL_LOGIN_OPEN']='1'
+                web_env['ALISA_REAL_LOGIN_OPEN']='1'
+                record['registration_mode']='OPEN_WITH_NO_INVITATION_LIST'
             def env(component,migration=False):
                 name='alisa_stage_'+component;role='migration' if migration else 'runtime'
                 return {**base,**(identity_only if component=='identity' else platform_only),'ALISA_SECRET_KEY':component_keys[component],
                         'ALISA_DB_NAME':name,'ALISA_DB_USER':name+'_'+role,'ALISA_DB_PASSWORD':credentials[component][role+'_password'],
                         'PYTHONPATH':str(release/'services'/component/'src'),'DJANGO_SETTINGS_MODULE':('alisa_platform' if component=='platform' else 'octoport_identity')+'.config.settings'}
             def manage(component,arguments,migration=False):
+                if args.open_registration and component=='identity' and arguments==['identity_deliver']:
+                    return subprocess.run([str(py),str(ROOT/'tests/integration/deliver_fixture_real_mail.py')],env=env(component),check=True,stdout=logs,stderr=logs,timeout=25)
                 return subprocess.run([str(py),str(release/'services'/component/'manage.py'),*arguments],env=env(component,migration),check=True,stdout=logs,stderr=logs,timeout=25)
             for component in ['platform','identity']:manage(component,['migrate','--noinput'],True)
             subprocess.run([str(py),str(release/'services/identity/manage.py'),'identity_clients','--apply'],env={**env('identity',True),**client_bootstrap},check=True,stdout=logs,stderr=logs,timeout=25)
@@ -235,7 +249,7 @@ def main():
                 if label in checked_theme_pages:return
                 page.evaluate('document.fonts.ready')
                 check('s02_identity_'+label+'_theme',page.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(13, 25, 41)')
-                check('s02_identity_'+label+'_test_mail_notice',page.locator('.stage-notice').is_visible() and 'example.invalid' in page.locator('.stage-notice').inner_text())
+                check('s02_identity_'+label+'_test_mail_notice',page.locator('.stage-notice').is_visible() and ('пароль не нужен' if args.open_registration else 'example.invalid') in page.locator('.stage-notice').inner_text().lower())
                 viewport=page.viewport_size
                 for width in [320,390,1440]:
                     page.set_viewport_size({'width':width,'height':900})
@@ -461,7 +475,42 @@ def main():
                 from qualify_staff_browser import run as run_staff_browser
                 run_staff_browser(browser=browser,context=context,second_context=second_context,db=db,manage=manage,
                     check=check,origin=staff_origin,issuer=ISSUER,private_values=private_values,owner_email=email,
-                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record)
+                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record,access_enabled=args.access,web_origin=WEB)
+            if args.open_registration:
+                real_context=browser.new_context(ignore_https_errors=False)
+                real_page=real_context.new_page()
+                real_email='public-'+uuid.uuid4().hex[:10]+'@example.test';contacts.append(real_email)
+                register(real_page,real_email)
+                initial=real_page.request.get(WEB+'/api/account/me').json()['profile']
+                check('s02_open_real_address_without_invitation_reaches_own_cabinet',initial['email']==real_email)
+                with db('identity') as conn:
+                    check('s02_open_real_contact_verified_and_consent_recorded',
+                        conn.execute('SELECT verified FROM account_emailaddress WHERE email=%s',[real_email]).fetchone()==(True,)
+                        and conn.execute("SELECT count(*) FROM accounts_identityconsent c JOIN accounts_person p ON p.id=c.person_id WHERE p.email=%s AND c.version='identity-s02-open-1'",[real_email]).fetchone()[0]==2)
+                real_page.get_by_role('button',name='Выйти из кабинета').click()
+                open_identity(real_page)
+                if real_page.get_by_role('button',name='Продолжить вход по коду').count():
+                    real_page.get_by_role('button',name='Продолжить вход по коду').click()
+                field=real_page.locator('input[name=login],input[name=email]').first;field.fill(real_email)
+                real_page.locator('form').filter(has=field).locator('button[type=submit]').first.click()
+                expect(real_page.locator('input[name=code]')).to_be_visible()
+                manage('identity',['identity_deliver'])
+                fresh=letter(real_email)
+                real_page.locator('input[name=code]').fill(fresh)
+                real_page.locator('form').filter(has=real_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+                expect(real_page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
+                repeated=real_page.request.get(WEB+'/api/account/me').json()['profile']
+                check('s02_open_real_mail_repeat_login_same_customer_and_tenant',
+                    all(initial[k]==repeated[k] for k in ['customer_id','tenant_id']))
+                other_context=browser.new_context(ignore_https_errors=False);other_page=other_context.new_page()
+                other_email='public-'+uuid.uuid4().hex[:10]+'@example.test';contacts.append(other_email)
+                register(other_page,other_email)
+                other=other_page.request.get(WEB+'/api/account/me').json()['profile']
+                check('s02_open_second_real_address_isolated',other['email']==other_email
+                    and all(other[k]!=initial[k] for k in ['customer_id','tenant_id']))
+                check('s02_open_new_customer_has_no_product_or_admin_grants',other['role']=='OWNER_CLIENT'
+                    and other['access_status']=='NOT_PROVISIONED' and other['stores']==[])
+                other_context.close();real_context.close()
             logs.flush();text=(temp/'private-process.log').read_text()
             check('s02_private_logs_have_no_known_codes_tokens_contacts',all(v not in text for v in [*contacts,*private_values] if v) and not re.search(r'eyJ[A-Za-z0-9_-]+\.|[A-Za-z0-9_.+-]+@example\.invalid',text))
             second_context.close();context.close();browser.close();browser=None
@@ -475,6 +524,7 @@ def main():
         tb=exc.__traceback__
         while tb:
             if Path(tb.tb_frame.f_code.co_filename).name=='qualify_identity.py':record['qualification_line']=tb.tb_lineno
+            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_access_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
             if not tb.tb_next:break
             tb=tb.tb_next
         if tb:record['error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}

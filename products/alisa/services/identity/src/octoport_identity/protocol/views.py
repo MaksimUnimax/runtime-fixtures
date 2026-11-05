@@ -41,12 +41,12 @@ def mail_status(request):
     try:mail_id=uuid.UUID(request.session.get('identity_mail_id',''))
     except (ValueError,TypeError,AttributeError):return JsonResponse({'state':'UNKNOWN'},status=404)
     row=IdentityMail.objects.filter(pk=mail_id).first()
-    state='UNKNOWN' if not row else 'EXPIRED' if row.expires_at<=timezone.now() else 'DELIVERED' if row.sent_at else 'DELAYED' if row.error_code else 'QUEUED'
+    state='UNKNOWN' if not row else 'EXPIRED' if row.expires_at<=timezone.now() else 'DELIVERED' if row.sent_at else 'FAILED' if row.error_code in {'DELIVERY_OUTCOME_UNKNOWN','DELIVERY_REJECTED','INVALID_PAYLOAD'} or row.attempts>=5 else 'DELAYED' if row.error_code=='DELIVERY_UNAVAILABLE' else 'QUEUED'
     response=JsonResponse({'state':state});response['Cache-Control']='no-store';return response
 
-def brand_context(request):return {'alisa_product_origin':settings.IDENTITY_PRODUCT_ORIGIN}
+def brand_context(request):return {'alisa_product_origin':settings.IDENTITY_PRODUCT_ORIGIN,'real_login_enabled':bool(settings.REAL_LOGIN_OPEN or settings.REAL_LOGIN_RECIPIENTS),'registration_open':settings.REAL_LOGIN_OPEN}
 
 def mail_ui(request):
     paths=json.dumps([reverse('account_confirm_login_code'),reverse('account_email_verification_sent')])
-    script="const codePaths="+paths+";"+"""let attempts=0;async function check(){try{const r=await fetch('/identity/mail-status',{cache:'no-store'});if(r.ok){const d=await r.json();const el=document.getElementById('mail-status');const text={QUEUED:'Готовим письмо с кодом. Проверьте тестовую почту.',DELIVERED:'Письмо с кодом отправлено.',DELAYED:'Пока не удалось отправить письмо. Повторим отправку; можно запросить новый код.',EXPIRED:'Срок кода истёк. Запросите новый код.'};el.textContent=text[d.state]||'';if(['DELIVERED','EXPIRED'].includes(d.state))return;}}catch{}if(++attempts<60)setTimeout(check,2000);}if(codePaths.includes(location.pathname)&&document.querySelector('input[name=code]'))check();"""
+    script="const codePaths="+paths+";"+"""let attempts=0;async function check(){try{const r=await fetch('/identity/mail-status',{cache:'no-store'});if(r.ok){const d=await r.json();const el=document.getElementById('mail-status');const text={QUEUED:'Готовим письмо с кодом. Проверьте почту.',DELIVERED:'Письмо с кодом отправлено.',DELAYED:'Пока не удалось отправить письмо. Повторим отправку; можно запросить новый код.',EXPIRED:'Срок кода истёк. Запросите новый код.',FAILED:'Доставка не подтверждена. Проверьте почту; если письма нет, запросите новый код.'};el.textContent=text[d.state]||'';if(['DELIVERED','EXPIRED','FAILED'].includes(d.state))return;}}catch{}if(++attempts<60)setTimeout(check,2000);}if(codePaths.includes(location.pathname)&&document.querySelector('input[name=code]'))check();"""
     return HttpResponse(script,content_type='application/javascript')

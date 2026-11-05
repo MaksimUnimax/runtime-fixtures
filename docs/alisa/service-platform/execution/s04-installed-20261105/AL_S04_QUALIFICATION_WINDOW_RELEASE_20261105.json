@@ -1,0 +1,16 @@
+{
+  "scope": "POST_WINDOW_INSTALLED_READ_ONLY_AND_OWN_LOCK_RELEASE",
+  "status": "FAILED",
+  "started_utc": "2026-11-05T14:22:30.742060+00:00",
+  "cases": [],
+  "window_invocation": "0a0794815ed04aefadb673510b37498b",
+  "functional_owner_grant_test": "NOT_RUN_AUTHORITY_HANDED_OVER",
+  "window_before_release": [
+    "Result=success",
+    "ExecMainStatus=0",
+    "ActiveState=inactive",
+    "SubState=dead"
+  ],
+  "error_type": "CalledProcessError",
+  "finished_utc": "2026-11-05T14:22:30.759330+00:00"
+}
