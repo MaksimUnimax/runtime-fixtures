@@ -12,7 +12,6 @@
   "field_sources": {
     "seller_order_price": "FBO/FBS products.price.amount/currency",
     "commission_rate": "product/info/prices commissions.sales_percent_fbo/fbs",
-    "acquiring_rate": "verified acquiring/current price, projected to order price; otherwise direct qualified amount",
     "direct_logistics": "commissions.<scheme>_direct_flow_trans_min_amount/max_amount",
     "last_mile": "commissions.<scheme>_deliv_to_customer_amount",
     "fbs_handling": "commissions.fbs_first_mile_min_amount/max_amount",
@@ -22,7 +21,8 @@
     "ads_cpo": "finance.balance promotion_with_cost_per_order, crosschecked against qualified Performance data",
     "ads_cpc": "finance.balance pay_per_click, crosschecked against qualified Performance data",
     "cogs": "owner input, never replaced by prices.net_price",
-    "tax": "owner input or explicit exclusion"
+    "tax": "owner input or explicit exclusion",
+    "acquiring_amount": "product/info/prices acquiring: direct amount per matched product, no inferred percentage or price-ratio projection"
   },
   "midpoint": "(minimum + maximum) / 2",
   "labels": [
@@ -43,7 +43,8 @@
     "Return-flow composite counted once",
     "Product cost input stays unchanged; denominators explicit per scenario",
     "Missing actual charge triggers authorized tariff fallback rather than unexplained empty result",
-    "Do not add historical variable courier/logistics/processing/acquiring charges on top of matched forecast delivery tariffs"
+    "Do not add historical variable courier/logistics/processing/acquiring charges on top of matched forecast delivery tariffs",
+    "Owner rejected tariff inference from sums: use explicit percentage only when returned as percentage, else use explicit API amount"
   ],
   "production_adapter": "NOT_INSTALLED"
 }
