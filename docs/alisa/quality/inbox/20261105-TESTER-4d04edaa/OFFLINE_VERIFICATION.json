@@ -1,0 +1,91 @@
+{
+  "utc": "2026-11-05T10:44:59.415245+00:00",
+  "checks": {
+    "baseline": {
+      "exit_code": 0,
+      "receipt": {
+        "utc": "2026-11-05T10:45:53.582530+00:00",
+        "tests": 1035,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "network_attempts": 0,
+        "architecture_violations": {},
+        "dataset_json_only_exit": 0,
+        "runtime_manifest_matches": true,
+        "target_contracts": "installed runtime only; no uninstalled RuntimePort/catalog acceptance",
+        "status": "PASS"
+      }
+    },
+    "b05_b13": {
+      "exit_code": 0,
+      "receipt": {
+        "tests": 57,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "external_calls": 0,
+        "credential_reads": 0,
+        "live_database_used": false,
+        "status": "PASS"
+      }
+    },
+    "join": {
+      "exit_code": 0,
+      "receipt": {
+        "status": "PASS",
+        "tests": 70,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "live_http": 0,
+        "credentials_read": false,
+        "live_database_used": false
+      }
+    },
+    "json_only": {
+      "exit_code": 0,
+      "receipt": {
+        "reports": [
+          {
+            "variant": 1,
+            "state": "READY",
+            "exact_cache": "HIT",
+            "enrichment_complete": false
+          },
+          {
+            "variant": 2,
+            "state": "READY",
+            "exact_cache": "HIT",
+            "enrichment_complete": true
+          }
+        ],
+        "fixture_http_calls": 4,
+        "new_source_pairs": 2,
+        "new_relations": 2,
+        "network_calls": 0,
+        "status": "PASS",
+        "json_files_changed": 2,
+        "python_files_unchanged": 31,
+        "python_manifest_sha256": "ad798a1cefe5c651b63432b923d61e7810035a74f0d45c8fb1e6ccef16594a18"
+      }
+    },
+    "review_safety": {
+      "exit_code": 0,
+      "receipt": {
+        "status": "PASS",
+        "tests": 78,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "network_attempts": 0,
+        "live_database_used": false,
+        "live_credentials_read": false
+      }
+    }
+  },
+  "external_api_calls": 0,
+  "installed": false,
+  "runtime_manifest_matches": true,
+  "status": "PASS"
+}

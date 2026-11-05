@@ -1,0 +1,24 @@
+{
+  "manifest_sha256": "86d2e3000d5f980e70a6ed821c34e87b09e01e25ee0bb60735776af021b6664c",
+  "files": 46,
+  "mismatches": [],
+  "config_sha256": "92702c1136ebd0d785ef2b1b76c9d7873761076478e568df739e7d4635b252b5",
+  "migration": [
+    {
+      "id": "reader-state-v1",
+      "applied": 1793870207.0407455
+    }
+  ],
+  "active_jobs": 0,
+  "quick_check": "ok",
+  "pid": "78925",
+  "units": {
+    "alice-market": "active",
+    "alice-lab-web": "active",
+    "alice-lab-worker": "active",
+    "alice-lab-llm": "active",
+    "alice-market-retention.timer": "active",
+    "alice-lab-retention.timer": "active",
+    "alice-private-artifacts.timer": "active"
+  }
+}

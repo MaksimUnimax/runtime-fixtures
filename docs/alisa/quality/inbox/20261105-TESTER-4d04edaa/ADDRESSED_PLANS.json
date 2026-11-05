@@ -1,0 +1,140 @@
+{
+  "realization_payment_totals": {
+    "period": {
+      "from": "2026-10-31",
+      "to": "2026-11-04"
+    },
+    "stages": [
+      {
+        "stage": 0,
+        "source": "ds_ozon_accrual_join_rows",
+        "tasks": [
+          {
+            "source": "ds_ozon_accrual_join_rows",
+            "period": {
+              "from": "2026-10-31",
+              "to": "2026-10-31"
+            }
+          },
+          {
+            "source": "ds_ozon_accrual_join_rows",
+            "period": {
+              "from": "2026-11-01",
+              "to": "2026-11-01"
+            }
+          },
+          {
+            "source": "ds_ozon_accrual_join_rows",
+            "period": {
+              "from": "2026-11-02",
+              "to": "2026-11-02"
+            }
+          },
+          {
+            "source": "ds_ozon_accrual_join_rows",
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-03"
+            }
+          },
+          {
+            "source": "ds_ozon_accrual_join_rows",
+            "period": {
+              "from": "2026-11-04",
+              "to": "2026-11-04"
+            }
+          }
+        ]
+      },
+      {
+        "stage": 1,
+        "source": "ds_ozon_fbo_join_items",
+        "tasks": [
+          {
+            "source": "ds_ozon_fbo_join_items",
+            "period": {
+              "from": "2026-09-30",
+              "to": "2026-10-30"
+            }
+          },
+          {
+            "source": "ds_ozon_fbo_join_items",
+            "period": {
+              "from": "2026-10-31",
+              "to": "2026-11-04"
+            }
+          }
+        ]
+      },
+      {
+        "stage": 2,
+        "source": "ds_ozon_fbs_join_items",
+        "tasks": [
+          {
+            "source": "ds_ozon_fbs_join_items",
+            "period": {
+              "from": "2026-09-30",
+              "to": "2026-10-30"
+            }
+          },
+          {
+            "source": "ds_ozon_fbs_join_items",
+            "period": {
+              "from": "2026-10-31",
+              "to": "2026-11-04"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "accrual_days": {
+    "period": {
+      "from": "2026-10-31",
+      "to": "2026-11-04"
+    },
+    "stages": [
+      {
+        "stage": 0,
+        "source": "ds_ozon_accrual_rows",
+        "tasks": [
+          {
+            "source": "ds_ozon_accrual_rows",
+            "period": {
+              "from": "2026-10-31",
+              "to": "2026-10-31"
+            }
+          },
+          {
+            "source": "ds_ozon_accrual_rows",
+            "period": {
+              "from": "2026-11-01",
+              "to": "2026-11-01"
+            }
+          },
+          {
+            "source": "ds_ozon_accrual_rows",
+            "period": {
+              "from": "2026-11-02",
+              "to": "2026-11-02"
+            }
+          },
+          {
+            "source": "ds_ozon_accrual_rows",
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-03"
+            }
+          },
+          {
+            "source": "ds_ozon_accrual_rows",
+            "period": {
+              "from": "2026-11-04",
+              "to": "2026-11-04"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

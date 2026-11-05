@@ -1,0 +1,997 @@
+[
+  {
+    "job_ref": "J01",
+    "created_utc": "2026-11-05T10:49:01.927720+00:00",
+    "final_state": "EXPIRED",
+    "ready_service_ms": 1262.56,
+    "http": 1,
+    "transitions": [
+      {
+        "observed_at": 1793875741.9591491,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875741.9277203,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875742.9853187,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875742.914591,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875743.2969108,
+        "state": "READY",
+        "error": null,
+        "updated": 1793875743.1902795,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793876101.575879,
+        "state": "EXPIRED",
+        "error": null,
+        "updated": 1793875743.1902795,
+        "alias": null,
+        "progress_summary": null
+      }
+    ]
+  },
+  {
+    "job_ref": "J02",
+    "created_utc": "2026-11-05T10:51:13.526173+00:00",
+    "final_state": "EXPIRED",
+    "ready_service_ms": 1073.26,
+    "http": 1,
+    "transitions": [
+      {
+        "observed_at": 1793875873.5373452,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875873.5261734,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875874.3869586,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875874.294222,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875874.7032084,
+        "state": "READY",
+        "error": null,
+        "updated": 1793875874.599429,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793876225.0805368,
+        "state": "EXPIRED",
+        "error": null,
+        "updated": 1793875874.599429,
+        "alias": null,
+        "progress_summary": null
+      }
+    ]
+  },
+  {
+    "job_ref": "J03",
+    "created_utc": "2026-11-05T10:51:14.441626+00:00",
+    "final_state": "CANCELLED",
+    "ready_service_ms": null,
+    "http": 1,
+    "transitions": [
+      {
+        "observed_at": 1793875874.4923375,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875874.441626,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875875.6607108,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875875.6116548,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875875.8712304,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875875.7653034,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875876.0838284,
+        "state": "CANCELLED",
+        "error": null,
+        "updated": 1793875875.9915543,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 1
+        }
+      }
+    ]
+  },
+  {
+    "job_ref": "J04",
+    "created_utc": "2026-11-05T10:51:49.445675+00:00",
+    "final_state": "READY",
+    "ready_service_ms": 9668.7,
+    "http": 5,
+    "transitions": [
+      {
+        "observed_at": 1793875909.5312965,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875909.4456747,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875910.0654345,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875910.0521834,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875910.2774005,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875910.2287712,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875911.347396,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875911.255475,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875912.312873,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875912.266133,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875912.526968,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875912.4835658,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 2,
+          "steps": 2
+        }
+      },
+      {
+        "observed_at": 1793875913.5951405,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875913.5086014,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 2,
+          "steps": 2
+        }
+      },
+      {
+        "observed_at": 1793875914.556954,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875914.5195796,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 2,
+          "steps": 2
+        }
+      },
+      {
+        "observed_at": 1793875914.7727013,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875914.6852903,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 3,
+          "steps": 3
+        }
+      },
+      {
+        "observed_at": 1793875915.758218,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875915.71085,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 3,
+          "steps": 3
+        }
+      },
+      {
+        "observed_at": 1793875916.8400254,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875916.7258627,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 3,
+          "steps": 3
+        }
+      },
+      {
+        "observed_at": 1793875916.9481902,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875916.8919458,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 4,
+          "steps": 4
+        }
+      },
+      {
+        "observed_at": 1793875917.9394295,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875917.9247584,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 4,
+          "steps": 4
+        }
+      },
+      {
+        "observed_at": 1793875919.0422504,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875918.9357796,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 4,
+          "steps": 4
+        }
+      },
+      {
+        "observed_at": 1793875919.1540236,
+        "state": "READY",
+        "error": null,
+        "updated": 1793875919.1143756,
+        "alias": null,
+        "progress_summary": null
+      }
+    ]
+  },
+  {
+    "job_ref": "J05",
+    "created_utc": "2026-11-05T10:52:05.690409+00:00",
+    "final_state": "READY",
+    "ready_service_ms": 2415.34,
+    "http": 2,
+    "transitions": [
+      {
+        "observed_at": 1793875925.8013287,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875925.690409,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875926.2427342,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875926.1689613,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875926.6875403,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875926.662406,
+        "alias": null,
+        "progress_summary": {
+          "task_index": 0
+        }
+      },
+      {
+        "observed_at": 1793875927.6891334,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875927.670752,
+        "alias": null,
+        "progress_summary": {
+          "task_index": 0
+        }
+      },
+      {
+        "observed_at": 1793875928.1327178,
+        "state": "READY",
+        "error": null,
+        "updated": 1793875928.1057503,
+        "alias": null,
+        "progress_summary": null
+      }
+    ]
+  },
+  {
+    "job_ref": "J06",
+    "created_utc": "2026-11-05T10:52:45.346108+00:00",
+    "final_state": "CANCELLED",
+    "ready_service_ms": null,
+    "http": 2,
+    "transitions": [
+      {
+        "observed_at": 1793875965.3932416,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875965.346108,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875965.5052302,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875965.4165561,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875965.6179662,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875965.56624,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875966.624801,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875966.60616,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875967.6361146,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875967.6147761,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875967.8594067,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875967.850069,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 2,
+          "steps": 2
+        }
+      },
+      {
+        "observed_at": 1793875968.6479728,
+        "state": "CANCELLED",
+        "error": null,
+        "updated": 1793875968.6086094,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 2,
+          "steps": 2
+        }
+      }
+    ]
+  },
+  {
+    "job_ref": "J07",
+    "created_utc": "2026-11-05T10:52:57.984422+00:00",
+    "final_state": "READY",
+    "ready_service_ms": 31525.95,
+    "http": 15,
+    "transitions": [
+      {
+        "observed_at": 1793875978.071032,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875977.9844224,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875978.9676547,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875978.9353745,
+        "alias": null,
+        "progress_summary": null
+      },
+      {
+        "observed_at": 1793875979.0805752,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875979.0762405,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875980.1044102,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875980.086559,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875980.2168794,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875980.1137438,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875981.23382,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875981.1221666,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 1,
+          "steps": 1
+        }
+      },
+      {
+        "observed_at": 1793875981.347376,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875981.2807922,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 2,
+          "steps": 2
+        }
+      },
+      {
+        "observed_at": 1793875982.3640645,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875982.3182886,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 2,
+          "steps": 2
+        }
+      },
+      {
+        "observed_at": 1793875983.3873515,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875983.328184,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 2,
+          "steps": 2
+        }
+      },
+      {
+        "observed_at": 1793875983.6119783,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875983.5138006,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 3,
+          "steps": 3
+        }
+      },
+      {
+        "observed_at": 1793875984.6281717,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875984.5493302,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 3,
+          "steps": 3
+        }
+      },
+      {
+        "observed_at": 1793875985.6483018,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875985.557353,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 3,
+          "steps": 3
+        }
+      },
+      {
+        "observed_at": 1793875985.761937,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875985.7430162,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 4,
+          "steps": 4
+        }
+      },
+      {
+        "observed_at": 1793875986.78888,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875986.78102,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 4,
+          "steps": 4
+        }
+      },
+      {
+        "observed_at": 1793875987.8280818,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875987.8038678,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 0,
+          "task_index": 4,
+          "steps": 4
+        }
+      },
+      {
+        "observed_at": 1793875988.059071,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875987.9522917,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 5
+        }
+      },
+      {
+        "observed_at": 1793875988.999736,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875988.9613032,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 5
+        }
+      },
+      {
+        "observed_at": 1793875989.350161,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875989.2837167,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 6
+        }
+      },
+      {
+        "observed_at": 1793875990.421262,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875990.337277,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 6
+        }
+      },
+      {
+        "observed_at": 1793875991.4934747,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875991.3520381,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 6
+        }
+      },
+      {
+        "observed_at": 1793875991.7304978,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875991.659466,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 7
+        }
+      },
+      {
+        "observed_at": 1793875992.6906939,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875992.6675115,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 7
+        }
+      },
+      {
+        "observed_at": 1793875992.818202,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875992.703566,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 7
+        }
+      },
+      {
+        "observed_at": 1793875993.8053463,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875993.7124805,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 7
+        }
+      },
+      {
+        "observed_at": 1793875994.06019,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875993.9751832,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 8
+        }
+      },
+      {
+        "observed_at": 1793875995.0737696,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875995.034284,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 8
+        }
+      },
+      {
+        "observed_at": 1793875996.1258717,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875996.0450377,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 8
+        }
+      },
+      {
+        "observed_at": 1793875996.391896,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875996.32951,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 9
+        }
+      },
+      {
+        "observed_at": 1793875997.46973,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875997.4027941,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 9
+        }
+      },
+      {
+        "observed_at": 1793875998.5472014,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793875998.4127276,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 9
+        }
+      },
+      {
+        "observed_at": 1793875998.8105936,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875998.7526052,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 10
+        }
+      },
+      {
+        "observed_at": 1793875999.8927236,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793875999.8243792,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 10
+        }
+      },
+      {
+        "observed_at": 1793876001.007803,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793876000.8424714,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 0,
+          "steps": 10
+        }
+      },
+      {
+        "observed_at": 1793876001.1523979,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793876001.067911,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 1,
+          "steps": 11
+        }
+      },
+      {
+        "observed_at": 1793876002.1854935,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793876002.1350253,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 1,
+          "steps": 11
+        }
+      },
+      {
+        "observed_at": 1793876003.2227101,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793876003.1442077,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 1,
+          "task_index": 1,
+          "steps": 11
+        }
+      },
+      {
+        "observed_at": 1793876003.5314288,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793876003.3647473,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 0,
+          "steps": 12
+        }
+      },
+      {
+        "observed_at": 1793876004.4479182,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793876004.3852043,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 0,
+          "steps": 12
+        }
+      },
+      {
+        "observed_at": 1793876004.9176297,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793876004.7806077,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 0,
+          "steps": 13
+        }
+      },
+      {
+        "observed_at": 1793876005.8625505,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793876005.7968893,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 0,
+          "steps": 13
+        }
+      },
+      {
+        "observed_at": 1793876006.0183625,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793876005.8628411,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 0,
+          "steps": 13
+        }
+      },
+      {
+        "observed_at": 1793876007.0423093,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793876006.8778067,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 0,
+          "steps": 13
+        }
+      },
+      {
+        "observed_at": 1793876007.2099133,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793876007.1090567,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 1,
+          "steps": 14
+        }
+      },
+      {
+        "observed_at": 1793876008.2498996,
+        "state": "QUEUED",
+        "error": null,
+        "updated": 1793876008.2131462,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 1,
+          "steps": 14
+        }
+      },
+      {
+        "observed_at": 1793876009.3427215,
+        "state": "RUNNING",
+        "error": null,
+        "updated": 1793876009.2276595,
+        "alias": null,
+        "progress_summary": {
+          "stage_index": 2,
+          "task_index": 1,
+          "steps": 14
+        }
+      },
+      {
+        "observed_at": 1793876009.7009742,
+        "state": "READY",
+        "error": null,
+        "updated": 1793876009.5103743,
+        "alias": null,
+        "progress_summary": null
+      }
+    ]
+  }
+]

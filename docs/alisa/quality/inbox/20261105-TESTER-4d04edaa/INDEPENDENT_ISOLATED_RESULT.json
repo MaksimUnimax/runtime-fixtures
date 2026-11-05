@@ -1,0 +1,101 @@
+{
+  "utc": "2026-11-05T10:54:45.996744+00:00",
+  "release": "20261105-v010-conversation-safety-r1",
+  "cases": {
+    "DS01": {
+      "outcome": "PASS",
+      "evidence": {
+        "rejections": {
+          "1e-400": "NUMBER_RANGE",
+          "1e-10000": "NUMBER_RANGE",
+          "1e-999999": "NUMBER_RANGE",
+          "0e-999999": "NUMBER_RANGE"
+        },
+        "fixed_format_calls": 0
+      },
+      "elapsed_ms": 0.521
+    },
+    "DS02": {
+      "outcome": "PASS",
+      "evidence": {
+        "ordinary": {
+          "100": "100",
+          "-123.45": "-123.45",
+          "1e-10": "0.0000000001",
+          "0.002411": "0.002411",
+          "0": "0",
+          "-0": "-0"
+        },
+        "source32": "PASS",
+        "intermediate64": "PASS",
+        "source33": "NUMBER_RANGE",
+        "intermediate65": "NUMBER_RANGE"
+      },
+      "elapsed_ms": 0.097
+    },
+    "DS03": {
+      "outcome": "FAIL",
+      "error": "AssertionError: ('FAILED', 'TABLE_RESPONSE_SCHEMA')",
+      "traceback": "Traceback (most recent call last):\n  File \"/root/alice-lab-evidence/independent-conversation-safety-r1-tester-20261105/independent_isolated.py\", line 130, in <module>\n    try:out['cases'][case]={'outcome':'PASS','evidence':fn()}\n                                                        ^^^^\n  File \"/root/alice-lab-evidence/independent-conversation-safety-r1-tester-20261105/independent_isolated.py\", line 53, in ds03\n    return pipeline(run)\n           ^^^^^^^^^^^^^\n  File \"/root/alice-lab-evidence/independent-conversation-safety-r1-tester-20261105/independent_isolated.py\", line 24, in pipeline\n    try:return fn(t)\n               ^^^^^\n  File \"/root/alice-lab-evidence/independent-conversation-safety-r1-tester-20261105/independent_isolated.py\", line 50, in run\n    assert (row['state'],row['error'],row['result'])==('FAILED','NUMBER_RANGE',None),(row['state'],row['error'])\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: ('FAILED', 'TABLE_RESPONSE_SCHEMA')\n",
+      "elapsed_ms": 413.009
+    },
+    "DS04": {
+      "outcome": "PASS",
+      "evidence": {
+        "state": "UNKNOWN",
+        "error": "NETWORK_OUTCOME_UNKNOWN",
+        "fake_calls": 1,
+        "automatic_retry": false
+      },
+      "elapsed_ms": 126.125
+    },
+    "DS05": {
+      "outcome": "PASS",
+      "evidence": {
+        "explicit_foreign_read": "TENANT_DENIED",
+        "foreign_selected_cancel": "TENANT_DENIED",
+        "owner_state": "QUEUED",
+        "pointer_seed": "temporary hostile fixture only"
+      },
+      "elapsed_ms": 69.868
+    },
+    "DS06": {
+      "outcome": "PASS",
+      "evidence": {
+        "terminal_refs_after_ttl": [
+          0,
+          0
+        ],
+        "active_canonical_alias_refs": 2,
+        "clock": "fake only"
+      },
+      "elapsed_ms": 151.55
+    },
+    "DS07": {
+      "outcome": "PASS",
+      "evidence": {
+        "old_tables_preserved": 11,
+        "old_content_sha256": "8885d7c8e2f71e63bc84ee2ff60e004641687d3c681fe906073dfae33ff28840",
+        "second_apply_identical": true,
+        "named_binding_from_receipt": true,
+        "new_reader_inherited_global": false
+      },
+      "elapsed_ms": 102.818
+    },
+    "DS08": {
+      "outcome": "PASS",
+      "evidence": {
+        "cross_year": 2,
+        "leap_valid": 1,
+        "invalid_rejected": 2,
+        "comparison_two_ranges": true,
+        "quoted_name_preserved": true
+      },
+      "elapsed_ms": 0.67
+    }
+  },
+  "network_attempts": [],
+  "status": "FAIL",
+  "live_database_used": false,
+  "live_credentials_read": false
+}

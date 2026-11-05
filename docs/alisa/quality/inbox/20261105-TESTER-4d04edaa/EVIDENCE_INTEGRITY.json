@@ -1,0 +1,14 @@
+{
+  "ui_observations": 71,
+  "successful_responses": 70,
+  "transport_failures": 1,
+  "verified_text_fingerprints": 70,
+  "fingerprint_algorithm": "FNV1a32 over UTF-16 code units for original UI captures; SHA256 for persisted payloads",
+  "unique_price_pages": 14,
+  "page_pairs": 14,
+  "price_reply_retention_note": "29 financial page receipts were cleared by normal retention before final export. Original UI texts retained and verified against UI observation fingerprints. No provider call was repeated for evidence recovery.",
+  "private_evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json",
+  "private_evidence_sha256": "bcc853a50eb0b2a3995f129d2f330cbf5617e989354327afaa72d6614714af56",
+  "private_evidence_retention_seconds": 86400,
+  "private_evidence_capacity_limit_bytes": 33554432
+}

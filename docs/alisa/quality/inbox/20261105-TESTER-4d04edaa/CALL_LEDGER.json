@@ -1,0 +1,251 @@
+{
+  "physical_http": 27,
+  "deepseek": 0,
+  "calls": [
+    {
+      "job_ref": "J07",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:52:58.955277+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 74,
+      "response_bytes": 28053
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:53:01.146006+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 74,
+      "response_bytes": 24230
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:53:03.356198+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 108,
+      "response_bytes": 27465
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:53:05.584040+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 104,
+      "response_bytes": 29876
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:53:07.831295+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 72,
+      "response_bytes": 21971
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbo_postings",
+      "at_utc": "2026-11-05T10:53:09.014737+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 232,
+      "response_bytes": 108200
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbo_postings",
+      "at_utc": "2026-11-05T10:53:11.405142+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 218,
+      "response_bytes": 107824
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbo_postings",
+      "at_utc": "2026-11-05T10:53:13.749125+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 182,
+      "response_bytes": 108103
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbo_postings",
+      "at_utc": "2026-11-05T10:53:16.082013+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 202,
+      "response_bytes": 108332
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbo_postings",
+      "at_utc": "2026-11-05T10:53:18.473535+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 224,
+      "response_bytes": 107930
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbo_postings",
+      "at_utc": "2026-11-05T10:53:20.891637+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 138,
+      "response_bytes": 40706
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbo_postings",
+      "at_utc": "2026-11-05T10:53:23.190854+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 138,
+      "response_bytes": 53749
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbs_postings",
+      "at_utc": "2026-11-05T10:53:24.456612+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 272,
+      "response_bytes": 267644
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbs_postings",
+      "at_utc": "2026-11-05T10:53:26.941474+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 128,
+      "response_bytes": 79858
+    },
+    {
+      "job_ref": "J07",
+      "source_operation": "ds_ozon_fbs_postings",
+      "at_utc": "2026-11-05T10:53:29.313049+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 91,
+      "response_bytes": 31505
+    },
+    {
+      "job_ref": "J05",
+      "source_operation": "ozon_orders",
+      "at_utc": "2026-11-05T10:52:06.179400+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 468,
+      "response_bytes": 140
+    },
+    {
+      "job_ref": "J05",
+      "source_operation": "wb_orders",
+      "at_utc": "2026-11-05T10:52:07.678397+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 372,
+      "response_bytes": 187721
+    },
+    {
+      "job_ref": "J03",
+      "source_operation": "ds_ozon_fbo_postings",
+      "at_utc": "2026-11-05T10:51:15.625176+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 126,
+      "response_bytes": 16277
+    },
+    {
+      "job_ref": "J02",
+      "source_operation": "ds_ozon_prices",
+      "at_utc": "2026-11-05T10:51:14.308723+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 260,
+      "response_bytes": 320969
+    },
+    {
+      "job_ref": "J04",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:51:50.067334+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 100,
+      "response_bytes": 28053
+    },
+    {
+      "job_ref": "J04",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:51:52.293234+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 123,
+      "response_bytes": 24230
+    },
+    {
+      "job_ref": "J04",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:51:54.541459+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 93,
+      "response_bytes": 27465
+    },
+    {
+      "job_ref": "J04",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:51:56.751463+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 94,
+      "response_bytes": 29876
+    },
+    {
+      "job_ref": "J04",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:51:58.965882+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 98,
+      "response_bytes": 21971
+    },
+    {
+      "job_ref": "J06",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:52:45.432478+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 82,
+      "response_bytes": 28053
+    },
+    {
+      "job_ref": "J06",
+      "source_operation": "ozon_accrual_by_day",
+      "at_utc": "2026-11-05T10:52:47.630603+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 169,
+      "response_bytes": 24230
+    },
+    {
+      "job_ref": "J01",
+      "source_operation": "ds_ozon_prices",
+      "at_utc": "2026-11-05T10:49:02.921880+00:00",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 238,
+      "response_bytes": 320975
+    }
+  ],
+  "case_counts_overlap": true,
+  "note": "CS05/CS10 share J04; CS01/CS02 share J02/J03. Do not sum case-level counters."
+}

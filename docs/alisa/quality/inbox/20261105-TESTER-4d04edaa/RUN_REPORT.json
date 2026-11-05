@@ -1,0 +1,1779 @@
+{
+  "schema": "alisa-qa-run/v1",
+  "run_id": "20261105-TESTER-4d04edaa",
+  "role": "TESTER",
+  "purpose": "Independent conversation safety R01 24-case retest",
+  "target_build": "20261105-v010-conversation-safety-r1",
+  "manifest_sha256": "86d2e3000d5f980e70a6ed821c34e87b09e01e25ee0bb60735776af021b6664c",
+  "catalog_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7",
+  "started_at_utc": "2026-11-05T10:44:43.411575+00:00",
+  "finished_at_utc": "2026-11-05T11:00:15.197127+00:00",
+  "evidence_level": "LIVE_DIALOGS_AND_ISOLATED_RUNTIME_SEPARATE",
+  "outcome": "REQUIRES_CORRECTION",
+  "summary": {
+    "SKIP_TIMING": 1,
+    "PASS": 18,
+    "SKIP_PREREQUISITE": 2,
+    "PARTIAL": 2,
+    "FAIL": 1
+  },
+  "external_summary": {
+    "PASS": 11,
+    "PARTIAL": 2,
+    "SKIP": 3
+  },
+  "isolated_summary": {
+    "PASS": 7,
+    "FAIL": 1
+  },
+  "scenarios": [
+    {
+      "id": "CS01",
+      "outcome": "SKIP_TIMING",
+      "notes": "Цена A уже READY до отмены. Ответ «активного задания нет» не подтверждает отмену незавершённой A; отдельная синтетическая проверка прошла.",
+      "messages": [
+        {
+          "id": "CS01.A.select",
+          "reader": "A",
+          "started_ms": 1793875873165,
+          "observed_ms": 1793875873933,
+          "first_response_ms": 768,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 22,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "текущие цены предложения сейчас на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J02",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875873.5210443,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS01.B.submit",
+          "reader": "B",
+          "started_ms": 1793875873952,
+          "observed_ms": 1793875874836,
+          "first_response_ms": 884,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 17,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "метаданные отправлений с 4 по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J03",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875874.4356332,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS01.A.cancel",
+          "reader": "A",
+          "started_ms": 1793875874867,
+          "observed_ms": 1793875875643,
+          "first_response_ms": 776,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 23,
+          "text_fnv1a32_utf16": "4477b7fd",
+          "text_equals_tts": true,
+          "original_utterance": "отмени отчёт",
+          "reply": {
+            "text": "Активного задания для отмены нет.",
+            "tts": "Активного задания для отмены нет."
+          },
+          "server_created": 1793875875.2305667,
+          "reply_origin": "server receipt",
+          "response_sha256": "177a12912290deef801111310e778797abfacd4abd96ba3851d0201b86d63cf0"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS01"
+    },
+    {
+      "id": "CS02",
+      "outcome": "PASS",
+      "notes": "B=J03 отменена в QUEUED, A=J02 осталась READY и вернула свою первую страницу.",
+      "messages": [
+        {
+          "id": "CS01.A.select",
+          "reader": "A",
+          "started_ms": 1793875873165,
+          "observed_ms": 1793875873933,
+          "first_response_ms": 768,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 22,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "текущие цены предложения сейчас на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J02",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875873.5210443,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS01.B.submit",
+          "reader": "B",
+          "started_ms": 1793875873952,
+          "observed_ms": 1793875874836,
+          "first_response_ms": 884,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 17,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "метаданные отправлений с 4 по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J03",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875874.4356332,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS02.B.cancel",
+          "reader": "B",
+          "started_ms": 1793875875662,
+          "observed_ms": 1793875876355,
+          "first_response_ms": 693,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 18,
+          "text_fnv1a32_utf16": "cf1bac8e",
+          "text_equals_tts": true,
+          "original_utterance": "отмени отчёт",
+          "reply": {
+            "text": "Задание отменено для этой беседы. Другие беседы продолжают свою работу.",
+            "tts": "Задание отменено для этой беседы. Другие беседы продолжают свою работу."
+          },
+          "server_created": 1793875875.9894578,
+          "reply_origin": "server receipt",
+          "response_sha256": "063096ea631bc4463be1b0c034e43ffb281eb0b27c31ae4fc2901f7b2b9fc775"
+        },
+        {
+          "id": "CS02.A.read",
+          "reader": "A",
+          "started_ms": 1793875876379,
+          "observed_ms": 1793875877045,
+          "first_response_ms": 666,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 24,
+          "text_fnv1a32_utf16": "16ac2272",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "596fa11716263583cf473f6898ec79cdd46677fb9d4ec181b4a0f38b6ee6dda1",
+            "error": null
+          },
+          "server_created": 1793875876.6452065,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "596fa11716263583cf473f6898ec79cdd46677fb9d4ec181b4a0f38b6ee6dda1"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS02"
+    },
+    {
+      "id": "CS03",
+      "outcome": "PASS",
+      "notes": "A/B выбрали J01: NEW/JOIN, один HTTP. Обе независимо прочитали все 14 страниц; начало 1,1,2,2,3,3. Готовый HIT отдельно не заявляется: B присоединилась до READY.",
+      "messages": [
+        {
+          "id": "CS03.A.submit",
+          "reader": "A",
+          "started_ms": 1793875741545,
+          "observed_ms": 1793875742349,
+          "first_response_ms": 804,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 7,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "текущие цены предложения сейчас на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J01",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875741.9205372,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS03.B.submit",
+          "reader": "B",
+          "started_ms": 1793875742374,
+          "observed_ms": 1793875743153,
+          "first_response_ms": 779,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 2,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "текущие цены предложения сейчас на озоне",
+          "reply": {
+            "cache": "JOIN",
+            "job_id": "J01",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875742.754283,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS03.A.page1",
+          "reader": "A",
+          "started_ms": 1793875743177,
+          "observed_ms": 1793875744047,
+          "first_response_ms": 870,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 8,
+          "text_fnv1a32_utf16": "16ac2272",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "596fa11716263583cf473f6898ec79cdd46677fb9d4ec181b4a0f38b6ee6dda1",
+            "error": null
+          },
+          "server_created": 1793875743.6296582,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "596fa11716263583cf473f6898ec79cdd46677fb9d4ec181b4a0f38b6ee6dda1"
+        },
+        {
+          "id": "CS03.B.page1",
+          "reader": "B",
+          "started_ms": 1793875744066,
+          "observed_ms": 1793875744746,
+          "first_response_ms": 680,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 3,
+          "text_fnv1a32_utf16": "16ac2272",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "596fa11716263583cf473f6898ec79cdd46677fb9d4ec181b4a0f38b6ee6dda1",
+            "error": null
+          },
+          "server_created": 1793875744.3515842,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "596fa11716263583cf473f6898ec79cdd46677fb9d4ec181b4a0f38b6ee6dda1"
+        },
+        {
+          "id": "CS03.A.page2",
+          "reader": "A",
+          "started_ms": 1793875744782,
+          "observed_ms": 1793875745458,
+          "first_response_ms": 676,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 9,
+          "text_fnv1a32_utf16": "9968c998",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "3b33b4f59f2354c6480434a1d422b5524996814b7213f90c2cbae4ca1f317a19",
+            "error": null
+          },
+          "server_created": 1793875745.0544987,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "3b33b4f59f2354c6480434a1d422b5524996814b7213f90c2cbae4ca1f317a19"
+        },
+        {
+          "id": "CS03.B.page2",
+          "reader": "B",
+          "started_ms": 1793875745477,
+          "observed_ms": 1793875746262,
+          "first_response_ms": 785,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 4,
+          "text_fnv1a32_utf16": "9968c998",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "3b33b4f59f2354c6480434a1d422b5524996814b7213f90c2cbae4ca1f317a19",
+            "error": null
+          },
+          "server_created": 1793875745.845233,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "3b33b4f59f2354c6480434a1d422b5524996814b7213f90c2cbae4ca1f317a19"
+        },
+        {
+          "id": "CS03.A.page3",
+          "reader": "A",
+          "started_ms": 1793875779836,
+          "observed_ms": 1793875780502,
+          "first_response_ms": 666,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 10,
+          "text_fnv1a32_utf16": "3fffc04c",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "98c9023062ed8392de60a550e2e79d8ad5514ffe2abb429a10fe6450b0e2cbc4",
+            "error": null
+          },
+          "server_created": 1793875780.1049669,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "98c9023062ed8392de60a550e2e79d8ad5514ffe2abb429a10fe6450b0e2cbc4"
+        },
+        {
+          "id": "CS03.B.page3",
+          "reader": "B",
+          "started_ms": 1793875780517,
+          "observed_ms": 1793875781723,
+          "first_response_ms": 1206,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 5,
+          "text_fnv1a32_utf16": "3fffc04c",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "98c9023062ed8392de60a550e2e79d8ad5514ffe2abb429a10fe6450b0e2cbc4",
+            "error": null
+          },
+          "server_created": 1793875781.3154569,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "98c9023062ed8392de60a550e2e79d8ad5514ffe2abb429a10fe6450b0e2cbc4"
+        },
+        {
+          "id": "CS03.A.page4.transport_error",
+          "reader": "A",
+          "started_ms": null,
+          "observed_ms": 1793875829401,
+          "first_response_ms": null,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": null,
+          "text_fnv1a32_utf16": "e50b7428",
+          "text_equals_tts": false,
+          "original_utterance": null,
+          "reply": {
+            "text": "Ошибка. Попробуйте ещё раз."
+          },
+          "response_sha256": "19ac44667e4086f69133925040269ef169d33f248a6d0fb945c3d31343de6dcb"
+        },
+        {
+          "id": "CS03.A.page4.recovery",
+          "reader": "A",
+          "started_ms": 1793875829413,
+          "observed_ms": 1793875830285,
+          "first_response_ms": 872,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 11,
+          "text_fnv1a32_utf16": "cdfa3d0f",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "dd93d605a62cb3d1617fcb016f64386b9d3ff2e11ef072fd57e88df668fc214a",
+            "error": null
+          },
+          "server_created": 1793875829.8360963,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "dd93d605a62cb3d1617fcb016f64386b9d3ff2e11ef072fd57e88df668fc214a"
+        },
+        {
+          "id": "CS03.B.page4",
+          "reader": "B",
+          "started_ms": 1793875844577,
+          "observed_ms": 1793875845264,
+          "first_response_ms": 687,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 6,
+          "text_fnv1a32_utf16": "cdfa3d0f",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "dd93d605a62cb3d1617fcb016f64386b9d3ff2e11ef072fd57e88df668fc214a",
+            "error": null
+          },
+          "server_created": 1793875844.8575988,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "dd93d605a62cb3d1617fcb016f64386b9d3ff2e11ef072fd57e88df668fc214a"
+        },
+        {
+          "id": "CS03.A.page5",
+          "reader": "A",
+          "started_ms": 1793875845283,
+          "observed_ms": 1793875845969,
+          "first_response_ms": 686,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 12,
+          "text_fnv1a32_utf16": "b9c64600",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "5cc1ff71b03e995b42d95cb2120870a6c8e0f9e4dafe8d844f7f31ed17392546",
+            "error": null
+          },
+          "server_created": 1793875845.547223,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "5cc1ff71b03e995b42d95cb2120870a6c8e0f9e4dafe8d844f7f31ed17392546"
+        },
+        {
+          "id": "CS03.B.page5",
+          "reader": "B",
+          "started_ms": 1793875845985,
+          "observed_ms": 1793875846762,
+          "first_response_ms": 777,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 7,
+          "text_fnv1a32_utf16": "b9c64600",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "5cc1ff71b03e995b42d95cb2120870a6c8e0f9e4dafe8d844f7f31ed17392546",
+            "error": null
+          },
+          "server_created": 1793875846.392873,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "5cc1ff71b03e995b42d95cb2120870a6c8e0f9e4dafe8d844f7f31ed17392546"
+        },
+        {
+          "id": "CS03.A.page6",
+          "reader": "A",
+          "started_ms": 1793875846782,
+          "observed_ms": 1793875848711,
+          "first_response_ms": 1929,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 13,
+          "text_fnv1a32_utf16": "469196b6",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "b7e4ddba70fdc196e29c5b364ff511d69e168e3ed6eb3f1ae31bb2026fbfec59",
+            "error": null
+          },
+          "server_created": 1793875848.3246005,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "b7e4ddba70fdc196e29c5b364ff511d69e168e3ed6eb3f1ae31bb2026fbfec59"
+        },
+        {
+          "id": "CS03.B.page6",
+          "reader": "B",
+          "started_ms": 1793875848729,
+          "observed_ms": 1793875849500,
+          "first_response_ms": 771,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 8,
+          "text_fnv1a32_utf16": "469196b6",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "b7e4ddba70fdc196e29c5b364ff511d69e168e3ed6eb3f1ae31bb2026fbfec59",
+            "error": null
+          },
+          "server_created": 1793875849.0266328,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "b7e4ddba70fdc196e29c5b364ff511d69e168e3ed6eb3f1ae31bb2026fbfec59"
+        },
+        {
+          "id": "CS03.A.page7",
+          "reader": "A",
+          "started_ms": 1793875849517,
+          "observed_ms": 1793875851128,
+          "first_response_ms": 1611,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 14,
+          "text_fnv1a32_utf16": "5b6b27ed",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "03a55ac8368e1e0f8aa185c891efec092ef0595604d4efd32d320b0bc1610a8a",
+            "error": null
+          },
+          "server_created": 1793875849.8676038,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "03a55ac8368e1e0f8aa185c891efec092ef0595604d4efd32d320b0bc1610a8a"
+        },
+        {
+          "id": "CS03.B.page7",
+          "reader": "B",
+          "started_ms": 1793875851149,
+          "observed_ms": 1793875851811,
+          "first_response_ms": 662,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 9,
+          "text_fnv1a32_utf16": "5b6b27ed",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "03a55ac8368e1e0f8aa185c891efec092ef0595604d4efd32d320b0bc1610a8a",
+            "error": null
+          },
+          "server_created": 1793875851.360011,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "03a55ac8368e1e0f8aa185c891efec092ef0595604d4efd32d320b0bc1610a8a"
+        },
+        {
+          "id": "CS03.A.page8",
+          "reader": "A",
+          "started_ms": 1793875851827,
+          "observed_ms": 1793875852606,
+          "first_response_ms": 779,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 15,
+          "text_fnv1a32_utf16": "3e069f0d",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "9f8c8e81840a9e087403c167f723f9b8578477d6edeed6fad1b186a61a7787ed",
+            "error": null
+          },
+          "server_created": 1793875852.2259076,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "9f8c8e81840a9e087403c167f723f9b8578477d6edeed6fad1b186a61a7787ed"
+        },
+        {
+          "id": "CS03.B.page8",
+          "reader": "B",
+          "started_ms": 1793875852639,
+          "observed_ms": 1793875853519,
+          "first_response_ms": 880,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 10,
+          "text_fnv1a32_utf16": "3e069f0d",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "9f8c8e81840a9e087403c167f723f9b8578477d6edeed6fad1b186a61a7787ed",
+            "error": null
+          },
+          "server_created": 1793875853.1391685,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "9f8c8e81840a9e087403c167f723f9b8578477d6edeed6fad1b186a61a7787ed"
+        },
+        {
+          "id": "CS03.A.page9",
+          "reader": "A",
+          "started_ms": 1793875853540,
+          "observed_ms": 1793875854214,
+          "first_response_ms": 674,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 16,
+          "text_fnv1a32_utf16": "0e81b12e",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "db8bfab08a02250508ecb28ae84c1c5ee6c1858d462053691db667110ad651ee",
+            "error": null
+          },
+          "server_created": 1793875853.808495,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "db8bfab08a02250508ecb28ae84c1c5ee6c1858d462053691db667110ad651ee"
+        },
+        {
+          "id": "CS03.B.page9",
+          "reader": "B",
+          "started_ms": 1793875854230,
+          "observed_ms": 1793875855530,
+          "first_response_ms": 1300,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 11,
+          "text_fnv1a32_utf16": "0e81b12e",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "db8bfab08a02250508ecb28ae84c1c5ee6c1858d462053691db667110ad651ee",
+            "error": null
+          },
+          "server_created": 1793875855.0715847,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "db8bfab08a02250508ecb28ae84c1c5ee6c1858d462053691db667110ad651ee"
+        },
+        {
+          "id": "CS03.A.page10",
+          "reader": "A",
+          "started_ms": 1793875855551,
+          "observed_ms": 1793875856234,
+          "first_response_ms": 683,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 17,
+          "text_fnv1a32_utf16": "3576ab62",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "18585947bd0afefa2ddd87d5cbfa77a054c601b1492af0eda7947fa60175dafe",
+            "error": null
+          },
+          "server_created": 1793875855.8529267,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "18585947bd0afefa2ddd87d5cbfa77a054c601b1492af0eda7947fa60175dafe"
+        },
+        {
+          "id": "CS03.B.page10",
+          "reader": "B",
+          "started_ms": 1793875856251,
+          "observed_ms": 1793875857545,
+          "first_response_ms": 1294,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 12,
+          "text_fnv1a32_utf16": "3576ab62",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "18585947bd0afefa2ddd87d5cbfa77a054c601b1492af0eda7947fa60175dafe",
+            "error": null
+          },
+          "server_created": 1793875857.1174273,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "18585947bd0afefa2ddd87d5cbfa77a054c601b1492af0eda7947fa60175dafe"
+        },
+        {
+          "id": "CS03.A.page11",
+          "reader": "A",
+          "started_ms": 1793875857574,
+          "observed_ms": 1793875858350,
+          "first_response_ms": 776,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 18,
+          "text_fnv1a32_utf16": "b3b78fc4",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "1352a958ed07d542f8f81cbfe71a6675584bea0ae1bbc823f81e356cda631f30",
+            "error": null
+          },
+          "server_created": 1793875857.8582325,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "1352a958ed07d542f8f81cbfe71a6675584bea0ae1bbc823f81e356cda631f30"
+        },
+        {
+          "id": "CS03.B.page11",
+          "reader": "B",
+          "started_ms": 1793875858369,
+          "observed_ms": 1793875859172,
+          "first_response_ms": 803,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 13,
+          "text_fnv1a32_utf16": "b3b78fc4",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "1352a958ed07d542f8f81cbfe71a6675584bea0ae1bbc823f81e356cda631f30",
+            "error": null
+          },
+          "server_created": 1793875858.7152424,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "1352a958ed07d542f8f81cbfe71a6675584bea0ae1bbc823f81e356cda631f30"
+        },
+        {
+          "id": "CS03.A.page12",
+          "reader": "A",
+          "started_ms": 1793875859195,
+          "observed_ms": 1793875859992,
+          "first_response_ms": 797,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 19,
+          "text_fnv1a32_utf16": "68c90dcd",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "63bc6adcf20f9cc0e1b094b762900793c57c0951366be1ef65f764e0ef6d26df",
+            "error": null
+          },
+          "server_created": 1793875859.6105828,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "63bc6adcf20f9cc0e1b094b762900793c57c0951366be1ef65f764e0ef6d26df"
+        },
+        {
+          "id": "CS03.B.page12",
+          "reader": "B",
+          "started_ms": 1793875860016,
+          "observed_ms": 1793875860798,
+          "first_response_ms": 782,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 14,
+          "text_fnv1a32_utf16": "68c90dcd",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "63bc6adcf20f9cc0e1b094b762900793c57c0951366be1ef65f764e0ef6d26df",
+            "error": null
+          },
+          "server_created": 1793875860.4169645,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "63bc6adcf20f9cc0e1b094b762900793c57c0951366be1ef65f764e0ef6d26df"
+        },
+        {
+          "id": "CS03.A.page13",
+          "reader": "A",
+          "started_ms": 1793875860822,
+          "observed_ms": 1793875861622,
+          "first_response_ms": 800,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 20,
+          "text_fnv1a32_utf16": "48f97389",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "6e1358081f1396df4627b23537fbfc5dc52ff9cff8fad61257d3f5ceffd15b40",
+            "error": null
+          },
+          "server_created": 1793875861.0843081,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "6e1358081f1396df4627b23537fbfc5dc52ff9cff8fad61257d3f5ceffd15b40"
+        },
+        {
+          "id": "CS03.B.page13",
+          "reader": "B",
+          "started_ms": 1793875861653,
+          "observed_ms": 1793875862430,
+          "first_response_ms": 777,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 15,
+          "text_fnv1a32_utf16": "48f97389",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "6e1358081f1396df4627b23537fbfc5dc52ff9cff8fad61257d3f5ceffd15b40",
+            "error": null
+          },
+          "server_created": 1793875861.9674046,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "6e1358081f1396df4627b23537fbfc5dc52ff9cff8fad61257d3f5ceffd15b40"
+        },
+        {
+          "id": "CS03.A.page14",
+          "reader": "A",
+          "started_ms": 1793875862450,
+          "observed_ms": 1793875863231,
+          "first_response_ms": 781,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 21,
+          "text_fnv1a32_utf16": "cb1112a5",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "267e78ee5fee5b0385b672f7801311dcb93288d3dadfe8aa50c8344cee7180dd",
+            "error": null
+          },
+          "server_created": 1793875862.7510288,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "267e78ee5fee5b0385b672f7801311dcb93288d3dadfe8aa50c8344cee7180dd"
+        },
+        {
+          "id": "CS03.B.page14",
+          "reader": "B",
+          "started_ms": 1793875863248,
+          "observed_ms": 1793875863931,
+          "first_response_ms": 683,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 16,
+          "text_fnv1a32_utf16": "cb1112a5",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "267e78ee5fee5b0385b672f7801311dcb93288d3dadfe8aa50c8344cee7180dd",
+            "error": null
+          },
+          "server_created": 1793875863.5238311,
+          "reply_origin": "original Yandex UI snapshot; server receipt payload expired under retention",
+          "response_sha256": "267e78ee5fee5b0385b672f7801311dcb93288d3dadfe8aa50c8344cee7180dd"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS03"
+    },
+    {
+      "id": "CS04",
+      "outcome": "SKIP_PREREQUISITE",
+      "notes": "Нет согласованного с исполнителем окна production restart. Сервис не перезапускался. Сохранность после переоткрытия Repository подтверждена только офлайн.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS04"
+    },
+    {
+      "id": "CS05",
+      "outcome": "PASS",
+      "notes": "A/B выбрали незавершённый J04. Отмена A оставила canonical job работающим; B получила полный отчёт, A — ответ об отмене.",
+      "messages": [
+        {
+          "id": "CS10.CS05.A.submit",
+          "reader": "A",
+          "started_ms": 1793875908693,
+          "observed_ms": 1793875909894,
+          "first_response_ms": 1201,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 25,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "товарные начисления по дням с 31 октября по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J04",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875909.4333196,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS10.CS05.B.submit",
+          "reader": "B",
+          "started_ms": 1793875909913,
+          "observed_ms": 1793875911005,
+          "first_response_ms": 1092,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 19,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "товарные начисления по дням с 31 октября по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "JOIN",
+            "job_id": "J04",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875910.5780528,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS05.A.cancel",
+          "reader": "A",
+          "started_ms": 1793875911019,
+          "observed_ms": 1793875911903,
+          "first_response_ms": 884,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 26,
+          "text_fnv1a32_utf16": "cf1bac8e",
+          "text_equals_tts": true,
+          "original_utterance": "отмени отчёт",
+          "reply": {
+            "text": "Задание отменено для этой беседы. Другие беседы продолжают свою работу.",
+            "tts": "Задание отменено для этой беседы. Другие беседы продолжают свою работу."
+          },
+          "server_created": 1793875911.5350752,
+          "reply_origin": "server receipt",
+          "response_sha256": "063096ea631bc4463be1b0c034e43ffb281eb0b27c31ae4fc2901f7b2b9fc775"
+        },
+        {
+          "id": "CS05.A.result",
+          "reader": "A",
+          "started_ms": 1793875912928,
+          "observed_ms": 1793875913796,
+          "first_response_ms": 868,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 27,
+          "text_fnv1a32_utf16": "a60c5c90",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "Задание отменено. Уже отправленный запрос на стороне площадки отменить нельзя.",
+            "tts": "Задание отменено. Уже отправленный запрос на стороне площадки отменить нельзя."
+          },
+          "server_created": 1793875913.3610787,
+          "reply_origin": "server receipt",
+          "response_sha256": "c0c7807d46947bf165a16e8276e186abbc31a282d3572439ba0b39d3cbe748b9"
+        },
+        {
+          "id": "CS10.B.result",
+          "reader": "B",
+          "started_ms": 1793875922260,
+          "observed_ms": 1793875923239,
+          "first_response_ms": 979,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 21,
+          "text_fnv1a32_utf16": "36fa3da6",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "be1cc5f7313fd6c38d49cbc3c782768bd72830269c6710e5ec8cd19c3d4f536d",
+            "error": null
+          },
+          "server_created": 1793875922.8079286,
+          "reply_origin": "server receipt",
+          "response_sha256": "be1cc5f7313fd6c38d49cbc3c782768bd72830269c6710e5ec8cd19c3d4f536d"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS05"
+    },
+    {
+      "id": "CS06",
+      "outcome": "PASS",
+      "notes": "Общий J06: после отмены A продолжился, после отмены B стал CANCELLED. Отправлено 2 из пяти дневных вызовов; последующие три не начались.",
+      "messages": [
+        {
+          "id": "CS06.A.submit",
+          "reader": "A",
+          "started_ms": 1793875964755,
+          "observed_ms": 1793875965748,
+          "first_response_ms": 993,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 33,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "товарные начисления по товарам с 31 октября по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J06",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875965.331874,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS06.B.submit",
+          "reader": "B",
+          "started_ms": 1793875965781,
+          "observed_ms": 1793875966557,
+          "first_response_ms": 776,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 23,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "товарные начисления по товарам с 31 октября по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "JOIN",
+            "job_id": "J06",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875966.1152391,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS06.A.cancel",
+          "reader": "A",
+          "started_ms": 1793875966574,
+          "observed_ms": 1793875967788,
+          "first_response_ms": 1214,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 34,
+          "text_fnv1a32_utf16": "cf1bac8e",
+          "text_equals_tts": true,
+          "original_utterance": "отмени отчёт",
+          "reply": {
+            "text": "Задание отменено для этой беседы. Другие беседы продолжают свою работу.",
+            "tts": "Задание отменено для этой беседы. Другие беседы продолжают свою работу."
+          },
+          "server_created": 1793875967.40122,
+          "reply_origin": "server receipt",
+          "response_sha256": "063096ea631bc4463be1b0c034e43ffb281eb0b27c31ae4fc2901f7b2b9fc775"
+        },
+        {
+          "id": "CS06.B.cancel",
+          "reader": "B",
+          "started_ms": 1793875967803,
+          "observed_ms": 1793875969011,
+          "first_response_ms": 1208,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 24,
+          "text_fnv1a32_utf16": "cf1bac8e",
+          "text_equals_tts": true,
+          "original_utterance": "отмени отчёт",
+          "reply": {
+            "text": "Задание отменено для этой беседы. Другие беседы продолжают свою работу.",
+            "tts": "Задание отменено для этой беседы. Другие беседы продолжают свою работу."
+          },
+          "server_created": 1793875968.6059723,
+          "reply_origin": "server receipt",
+          "response_sha256": "063096ea631bc4463be1b0c034e43ffb281eb0b27c31ae4fc2901f7b2b9fc775"
+        },
+        {
+          "id": "CS06.A.result",
+          "reader": "A",
+          "started_ms": 1793875969033,
+          "observed_ms": 1793875969902,
+          "first_response_ms": 869,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 35,
+          "text_fnv1a32_utf16": "a60c5c90",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "Задание отменено. Уже отправленный запрос на стороне площадки отменить нельзя.",
+            "tts": "Задание отменено. Уже отправленный запрос на стороне площадки отменить нельзя."
+          },
+          "server_created": 1793875969.5228624,
+          "reply_origin": "server receipt",
+          "response_sha256": "c0c7807d46947bf165a16e8276e186abbc31a282d3572439ba0b39d3cbe748b9"
+        },
+        {
+          "id": "CS06.B.result",
+          "reader": "B",
+          "started_ms": 1793875969919,
+          "observed_ms": 1793875970591,
+          "first_response_ms": 672,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 25,
+          "text_fnv1a32_utf16": "a60c5c90",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "Задание отменено. Уже отправленный запрос на стороне площадки отменить нельзя.",
+            "tts": "Задание отменено. Уже отправленный запрос на стороне площадки отменить нельзя."
+          },
+          "server_created": 1793875970.189248,
+          "reply_origin": "server receipt",
+          "response_sha256": "c0c7807d46947bf165a16e8276e186abbc31a282d3572439ba0b39d3cbe748b9"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS06"
+    },
+    {
+      "id": "CS07",
+      "outcome": "SKIP_PREREQUISITE",
+      "notes": "В консоли нет штатного управления повторной доставкой прежнего body/message_id. Новая фраза не выдана за replay. Офлайн replay прошёл.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS07"
+    },
+    {
+      "id": "CS08",
+      "outcome": "PASS",
+      "notes": "Новая C не получила отчёт или план аккаунта, никого не отменила и не создала job/HTTP. A/B сохранили позиции чтения.",
+      "messages": [
+        {
+          "id": "CS08.C.result",
+          "reader": "C",
+          "started_ms": 1793875770801,
+          "observed_ms": 1793875771777,
+          "first_response_ms": 976,
+          "session_hash_fnv1a32": "a800aa54",
+          "message_id": 1,
+          "text_fnv1a32_utf16": "ebfad43f",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "Доступны заказы, расход рекламы и ДРР от заказов. Для WB — воронка и выкупы по заказам периода. Также доступны финансовая сводка за период и текущие остатки на складах площадки. Пример: ДРР за октябрь 2026 на Озоне. Для получения отчета: результат. Для обновления: обнови и исходный запрос.",
+            "tts": "Доступны заказы, расход рекламы и ДРР от заказов. Для WB — воронка и выкупы по заказам периода. Также доступны финансовая сводка за период и текущие остатки на складах площадки. Пример: ДРР за октябрь 2026 на Озоне. Для получения отчета: результат. Для обновления: обнови и исходный запрос."
+          },
+          "server_created": 1793875771.3349562,
+          "reply_origin": "server receipt",
+          "response_sha256": "05f744c5a02dc87df786041fcc650c3fb853401db758ae774cb9024eea58bc74"
+        },
+        {
+          "id": "CS08.C.plan",
+          "reader": "C",
+          "started_ms": 1793875771809,
+          "observed_ms": 1793875772573,
+          "first_response_ms": 764,
+          "session_hash_fnv1a32": "a800aa54",
+          "message_id": 2,
+          "text_fnv1a32_utf16": "27bbb337",
+          "text_equals_tts": true,
+          "original_utterance": "план запроса",
+          "reply": {
+            "text": "Доступного сформированного плана нет.",
+            "tts": "Доступного сформированного плана нет."
+          },
+          "server_created": 1793875772.1200724,
+          "reply_origin": "server receipt",
+          "response_sha256": "58c7535e125caf9944592e5ca599065d285b971a77c344e6edbbbcf0bc2c437f"
+        },
+        {
+          "id": "CS08.C.cancel",
+          "reader": "C",
+          "started_ms": 1793875772596,
+          "observed_ms": 1793875773578,
+          "first_response_ms": 982,
+          "session_hash_fnv1a32": "a800aa54",
+          "message_id": 3,
+          "text_fnv1a32_utf16": "4477b7fd",
+          "text_equals_tts": true,
+          "original_utterance": "отмени отчёт",
+          "reply": {
+            "text": "Активного задания для отмены нет.",
+            "tts": "Активного задания для отмены нет."
+          },
+          "server_created": 1793875773.1290736,
+          "reply_origin": "server receipt",
+          "response_sha256": "177a12912290deef801111310e778797abfacd4abd96ba3851d0201b86d63cf0"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS08"
+    },
+    {
+      "id": "CS09",
+      "outcome": "PASS",
+      "notes": "Период 2026-11-04 и уточнение сохранены через справку; «заказанные» создало собственный J05. Справка без job/LLM/marketplace HTTP.",
+      "messages": [
+        {
+          "id": "CS09.A.ambiguous",
+          "reader": "A",
+          "started_ms": 1793875923255,
+          "observed_ms": 1793875924136,
+          "first_response_ms": 881,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 28,
+          "text_fnv1a32_utf16": "7a41d6ee",
+          "text_equals_tts": true,
+          "original_utterance": "дай продажи за вчера",
+          "reply": {
+            "clarification_required": true,
+            "error": "METRIC_AMBIGUOUS",
+            "text": "Период 2026-11-04 сохранён. Что считать продажами: заказанные товары и их сумму или выкупы? Можно ответить одним словом: «заказанные».",
+            "tts": "Период 2026-11-04 сохранён. Что считать продажами: заказанные товары и их сумму или выкупы? Можно ответить одним словом: «заказанные»."
+          },
+          "server_created": 1793875923.7477841,
+          "reply_origin": "server receipt",
+          "response_sha256": "47a25ea72a69ecfa93f614fca946a33ee90ad7bada210a8ef7aed4a8e61aa9f4"
+        },
+        {
+          "id": "CS09.A.help",
+          "reader": "A",
+          "started_ms": 1793875924152,
+          "observed_ms": 1793875925155,
+          "first_response_ms": 1003,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 29,
+          "text_fnv1a32_utf16": "7e5ae069",
+          "text_equals_tts": true,
+          "original_utterance": "что ты умеешь",
+          "reply": {
+            "text": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно.",
+            "tts": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно."
+          },
+          "server_created": 1793875924.6738508,
+          "reply_origin": "server receipt",
+          "response_sha256": "c9610cfa7869f69634a92da734837c26e681fc7eecece71d16232bffb52b2c03"
+        },
+        {
+          "id": "CS09.A.clarify",
+          "reader": "A",
+          "started_ms": 1793875925174,
+          "observed_ms": 1793875926155,
+          "first_response_ms": 981,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 30,
+          "text_fnv1a32_utf16": "ee445c70",
+          "text_equals_tts": true,
+          "original_utterance": "заказанные",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J05",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет. Также есть другой готовый непрочитанный отчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет. Также есть другой готовый непрочитанный отчет."
+          },
+          "server_created": 1793875925.6476593,
+          "reply_origin": "server receipt",
+          "response_sha256": "9c7bfc13485b32a4ea60b637493809f9f7061efb6c9bf20c5f3aed1d03d1dd5d"
+        },
+        {
+          "id": "CS09.A.result",
+          "reader": "A",
+          "started_ms": 1793875926175,
+          "observed_ms": 1793875926938,
+          "first_response_ms": 763,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 31,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875926.561063,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS09.A.ready",
+          "reader": "A",
+          "started_ms": 1793875940247,
+          "observed_ms": 1793875940906,
+          "first_response_ms": 659,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 32,
+          "text_fnv1a32_utf16": "6e94a176",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "a333ea321521c5b93bdad46268c3b1fec81944efc49432af9e6babc143018769",
+            "error": null
+          },
+          "server_created": 1793875940.5378969,
+          "reply_origin": "server receipt",
+          "response_sha256": "a333ea321521c5b93bdad46268c3b1fec81944efc49432af9e6babc143018769"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS09"
+    },
+    {
+      "id": "CS10",
+      "outcome": "PARTIAL",
+      "notes": "Голосовой диапазон 2026-10-31—2026-11-04 принят; пять дневных задач, пять строк и две страницы. Семантика PASS; независимого числового эталона нет.",
+      "messages": [
+        {
+          "id": "CS10.CS05.A.submit",
+          "reader": "A",
+          "started_ms": 1793875908693,
+          "observed_ms": 1793875909894,
+          "first_response_ms": 1201,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 25,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "товарные начисления по дням с 31 октября по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J04",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875909.4333196,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS10.CS05.B.submit",
+          "reader": "B",
+          "started_ms": 1793875909913,
+          "observed_ms": 1793875911005,
+          "first_response_ms": 1092,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 19,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "товарные начисления по дням с 31 октября по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "JOIN",
+            "job_id": "J04",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875910.5780528,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS10.B.plan",
+          "reader": "B",
+          "started_ms": 1793875911922,
+          "observed_ms": 1793875912912,
+          "first_response_ms": 990,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 20,
+          "text_fnv1a32_utf16": "cea03489",
+          "text_equals_tts": true,
+          "original_utterance": "план запроса",
+          "reply": {
+            "text": "План набора данных accrual_days. Полная выборка и обработка общей матрицей; без повторного расчёта при чтении.",
+            "tts": "План набора данных accrual_days. Полная выборка и обработка общей матрицей; без повторного расчёта при чтении."
+          },
+          "server_created": 1793875912.42884,
+          "reply_origin": "server receipt",
+          "response_sha256": "75663e76024c98c5c5707a876e6800c87df215cf59480209e2619e4a5f4d6eb9"
+        },
+        {
+          "id": "CS10.B.result",
+          "reader": "B",
+          "started_ms": 1793875922260,
+          "observed_ms": 1793875923239,
+          "first_response_ms": 979,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 21,
+          "text_fnv1a32_utf16": "36fa3da6",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "be1cc5f7313fd6c38d49cbc3c782768bd72830269c6710e5ec8cd19c3d4f536d",
+            "error": null
+          },
+          "server_created": 1793875922.8079286,
+          "reply_origin": "server receipt",
+          "response_sha256": "be1cc5f7313fd6c38d49cbc3c782768bd72830269c6710e5ec8cd19c3d4f536d"
+        },
+        {
+          "id": "CS10.B.page2",
+          "reader": "B",
+          "started_ms": 1793875939343,
+          "observed_ms": 1793875940229,
+          "first_response_ms": 886,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 22,
+          "text_fnv1a32_utf16": "7d952218",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "90fc2bde4666e0deef0b70dbca004f2df7ec150640a5932c2ca771d8c76df9ad",
+            "error": null
+          },
+          "server_created": 1793875939.768579,
+          "reply_origin": "server receipt",
+          "response_sha256": "90fc2bde4666e0deef0b70dbca004f2df7ec150640a5932c2ca771d8c76df9ad"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS10"
+    },
+    {
+      "id": "CS11",
+      "outcome": "PARTIAL",
+      "notes": "Тот же интервал, пять accrual задач и отдельные metadata окна с 2026-09-30. Полный отчёт на 3 страницах; 71/71 строка сопоставлена по заявлению runtime. Независимый числовой эталон отсутствует.",
+      "messages": [
+        {
+          "id": "CS11.B.submit",
+          "reader": "B",
+          "started_ms": 1793875977598,
+          "observed_ms": 1793875978506,
+          "first_response_ms": 908,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 26,
+          "text_fnv1a32_utf16": "5f403119",
+          "text_equals_tts": true,
+          "original_utterance": "реализации по способам оплаты с 31 октября 2026 по 4 ноября 2026 на озоне",
+          "reply": {
+            "cache": "NEW",
+            "job_id": "J07",
+            "state": "QUEUED",
+            "text": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет.",
+            "tts": "Задание принято. Выполняется. Скажите: результат. Повтор этой команды не запускает новый расчет."
+          },
+          "server_created": 1793875977.970324,
+          "reply_origin": "server receipt",
+          "response_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c"
+        },
+        {
+          "id": "CS11.B.plan",
+          "reader": "B",
+          "started_ms": 1793875978542,
+          "observed_ms": 1793875979328,
+          "first_response_ms": 786,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 27,
+          "text_fnv1a32_utf16": "ac9e2fd1",
+          "text_equals_tts": true,
+          "original_utterance": "план запроса",
+          "reply": {
+            "text": "План набора данных realization_payment_totals. Полная выборка и обработка общей матрицей; без повторного расчёта при чтении.",
+            "tts": "План набора данных realization_payment_totals. Полная выборка и обработка общей матрицей; без повторного расчёта при чтении."
+          },
+          "server_created": 1793875978.867522,
+          "reply_origin": "server receipt",
+          "response_sha256": "115b263082903c2b474a9f6661cc462a20b5c8f08a30b226c634beb5495fd08a"
+        },
+        {
+          "id": "CS11.B.result",
+          "reader": "B",
+          "started_ms": 1793876095637,
+          "observed_ms": 1793876097256,
+          "first_response_ms": 1619,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 28,
+          "text_fnv1a32_utf16": "8d3a856a",
+          "text_equals_tts": true,
+          "original_utterance": "результат",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "1226ab117cbc4d1168178b712f57368f5ff490269eb3ef069c51a6c535bfb0ea",
+            "error": null
+          },
+          "server_created": 1793876096.8155355,
+          "reply_origin": "server receipt",
+          "response_sha256": "1226ab117cbc4d1168178b712f57368f5ff490269eb3ef069c51a6c535bfb0ea"
+        },
+        {
+          "id": "CS11.B.page2",
+          "reader": "B",
+          "started_ms": 1793876106754,
+          "observed_ms": 1793876107729,
+          "first_response_ms": 975,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 29,
+          "text_fnv1a32_utf16": "474bb4a4",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "[Полный финансовый ответ в закрытом evidence]",
+            "tts": "[В закрытом evidence]",
+            "response_sha256": "e83a776b04706242f4b48f2b1799c3a6cd11b83060cc68ac877e5b3eadf4ed68",
+            "error": null
+          },
+          "server_created": 1793876107.2258058,
+          "reply_origin": "server receipt",
+          "response_sha256": "e83a776b04706242f4b48f2b1799c3a6cd11b83060cc68ac877e5b3eadf4ed68"
+        },
+        {
+          "id": "CS11.B.page3",
+          "reader": "B",
+          "started_ms": 1793876112575,
+          "observed_ms": 1793876114090,
+          "first_response_ms": 1515,
+          "session_hash_fnv1a32": "e022f2aa",
+          "message_id": 30,
+          "text_fnv1a32_utf16": "b44662a7",
+          "text_equals_tts": true,
+          "original_utterance": "дальше",
+          "reply": {
+            "text": "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку. Получено 2026-11-05 10:53 UTC.",
+            "tts": "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку. Получено 2026-11-05 10:53 UTC."
+          },
+          "server_created": 1793876113.6232295,
+          "reply_origin": "server receipt",
+          "response_sha256": "58f7d881f81de688beed9130760b2e68af0a7736677f3dd933576033c817b1db"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS11"
+    },
+    {
+      "id": "CS12",
+      "outcome": "PASS",
+      "notes": "31 сентября отклонено INVALID_DATE; без job/HTTP.",
+      "messages": [
+        {
+          "id": "CS12",
+          "reader": "A",
+          "started_ms": 1793875609788,
+          "observed_ms": 1793875628907,
+          "first_response_ms": null,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 3,
+          "text_fnv1a32_utf16": "ac7fa1ea",
+          "text_equals_tts": true,
+          "original_utterance": "товарные начисления по дням с 31 сентября по 4 октября 2026 на озоне",
+          "reply": {
+            "error": "INVALID_DATE",
+            "text": "Укажите существующие даты начала и конца.",
+            "tts": "Укажите существующие даты начала и конца."
+          },
+          "server_created": 1793875610.1112537,
+          "reply_origin": "server receipt",
+          "response_sha256": "0d11eddd9bf324cd5c0490557ec5d90a8b8095e745abb7b76d50c03cc3256884"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS12"
+    },
+    {
+      "id": "CS13",
+      "outcome": "PASS",
+      "notes": "Нормализованный ISO-диапазон отклонён DATASET_PERIOD_LIMIT; повторного вопроса о периоде нет.",
+      "messages": [
+        {
+          "id": "CS13",
+          "reader": "A",
+          "started_ms": 1793875628934,
+          "observed_ms": 1793875629736,
+          "first_response_ms": 802,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 4,
+          "text_fnv1a32_utf16": "f082ae30",
+          "text_equals_tts": true,
+          "original_utterance": "метаданные отправлений с 2026 - 10 - 01 по 2026 - 11 - 04 на озоне",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "DATASET_PERIOD_LIMIT",
+            "next_action": "Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+            "reason": "Указанный период превышает проверенное ограничение этого набора данных.",
+            "reason_code": "DATASET_PERIOD_LIMIT",
+            "retryable": false,
+            "text": "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+            "tts": "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован."
+          },
+          "server_created": 1793875629.2716386,
+          "reply_origin": "server receipt",
+          "response_sha256": "becc86fd94b27d968c643564cd25e70df54de65583bece90a91ef24baa2d2e78"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS13"
+    },
+    {
+      "id": "CS14",
+      "outcome": "PASS",
+      "notes": "HISTORICAL_SNAPSHOT объясняет отсутствие истории текущих цен.",
+      "messages": [
+        {
+          "id": "CS14",
+          "reader": "A",
+          "started_ms": 1793875639452,
+          "observed_ms": 1793875640466,
+          "first_response_ms": 1014,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 5,
+          "text_fnv1a32_utf16": "16cf3262",
+          "text_equals_tts": true,
+          "original_utterance": "текущие цены предложения за октябрь 2026 на озоне",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "HISTORICAL_SNAPSHOT",
+            "next_action": "Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+            "reason": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются.",
+            "reason_code": "HISTORICAL_SNAPSHOT",
+            "retryable": false,
+            "text": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+            "tts": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя."
+          },
+          "server_created": 1793875639.9828339,
+          "reply_origin": "server receipt",
+          "response_sha256": "b664df15570ef3323a34f366cd3aaa20abe00be638336c1bd49dbf069ad0bc69"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS14"
+    },
+    {
+      "id": "CS15",
+      "outcome": "PASS",
+      "notes": "OPERATION_NOT_ENABLED: условие не отброшено, WB не подставляется.",
+      "messages": [
+        {
+          "id": "CS15",
+          "reader": "A",
+          "started_ms": 1793875640489,
+          "observed_ms": 1793875641272,
+          "first_response_ms": 783,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 6,
+          "text_fnv1a32_utf16": "e6ad26fd",
+          "text_equals_tts": true,
+          "original_utterance": "текущие цены предложения сейчас на озоне кроме артикула А",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "OPERATION_NOT_ENABLED",
+            "next_action": "Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+            "reason": "Для «текущие цены предложения» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю.",
+            "reason_code": "OPERATION_NOT_ENABLED",
+            "retryable": false,
+            "text": "Для «текущие цены предложения» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+            "tts": "Для «текущие цены предложения» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса."
+          },
+          "server_created": 1793875640.8254542,
+          "reply_origin": "server receipt",
+          "response_sha256": "3f67b31daf87e3c5eaf60888f9b54f3e1e48bd6cbda25a976e5124552fc9db21"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS15"
+    },
+    {
+      "id": "CS16",
+      "outcome": "PASS",
+      "notes": "Справка и диагностика сохранены. Точный release установлен по manifest/ExecStart, а не по общему заголовку ответа.",
+      "messages": [
+        {
+          "id": "CS16.diagnostics",
+          "reader": "A",
+          "started_ms": null,
+          "observed_ms": 1793875579842,
+          "first_response_ms": null,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 1,
+          "text_fnv1a32_utf16": "894fbd27",
+          "text_equals_tts": true,
+          "original_utterance": "диагностика аналитики",
+          "reply": {
+            "text": "Матрица 0.10, базовый пакет 1. Фактические продажи WB по дате события, рейтинги товаров и дневная динамика. Товарные начисления Ozon доступны отдельно по дате начисления; это не фактические выкупы. Уточнения, точный кэш и очистка сохранены. Дополнительный пакет наборов данных: 20261105-join-r1. Доступны только источники с подтверждённым допуском.",
+            "tts": "Матрица 0.10, базовый пакет 1. Фактические продажи WB по дате события, рейтинги товаров и дневная динамика. Товарные начисления Ozon доступны отдельно по дате начисления; это не фактические выкупы. Уточнения, точный кэш и очистка сохранены. Дополнительный пакет наборов данных: 20261105-join-r1. Доступны только источники с подтверждённым допуском."
+          },
+          "server_created": 1793875532.1333468,
+          "reply_origin": "server receipt",
+          "response_sha256": "a9cef5a6d76e1939519d1b5ee602c20f6f6383809e3e3e4f6482cc82fc8a6ddd"
+        },
+        {
+          "id": "CS16.help",
+          "reader": "A",
+          "started_ms": 1793875591421,
+          "observed_ms": 1793875609767,
+          "first_response_ms": null,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 2,
+          "text_fnv1a32_utf16": "7e5ae069",
+          "text_equals_tts": true,
+          "original_utterance": "что ты умеешь",
+          "reply": {
+            "text": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно.",
+            "tts": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно."
+          },
+          "server_created": 1793875591.755484,
+          "reply_origin": "server receipt",
+          "response_sha256": "c9610cfa7869f69634a92da734837c26e681fc7eecece71d16232bffb52b2c03"
+        },
+        {
+          "id": "CS16.final.diagnostics",
+          "reader": "A",
+          "started_ms": 1793875979346,
+          "observed_ms": 1793875980010,
+          "first_response_ms": 664,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 36,
+          "text_fnv1a32_utf16": "894fbd27",
+          "text_equals_tts": true,
+          "original_utterance": "диагностика аналитики",
+          "reply": {
+            "text": "Матрица 0.10, базовый пакет 1. Фактические продажи WB по дате события, рейтинги товаров и дневная динамика. Товарные начисления Ozon доступны отдельно по дате начисления; это не фактические выкупы. Уточнения, точный кэш и очистка сохранены. Дополнительный пакет наборов данных: 20261105-join-r1. Доступны только источники с подтверждённым допуском.",
+            "tts": "Матрица 0.10, базовый пакет 1. Фактические продажи WB по дате события, рейтинги товаров и дневная динамика. Товарные начисления Ozon доступны отдельно по дате начисления; это не фактические выкупы. Уточнения, точный кэш и очистка сохранены. Дополнительный пакет наборов данных: 20261105-join-r1. Доступны только источники с подтверждённым допуском."
+          },
+          "server_created": 1793875979.6352396,
+          "reply_origin": "server receipt",
+          "response_sha256": "a9cef5a6d76e1939519d1b5ee602c20f6f6383809e3e3e4f6482cc82fc8a6ddd"
+        },
+        {
+          "id": "CS16.final.help",
+          "reader": "A",
+          "started_ms": 1793876107745,
+          "observed_ms": 1793876108949,
+          "first_response_ms": 1204,
+          "session_hash_fnv1a32": "13f83dcb",
+          "message_id": 37,
+          "text_fnv1a32_utf16": "7e5ae069",
+          "text_equals_tts": true,
+          "original_utterance": "что ты умеешь",
+          "reply": {
+            "text": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно.",
+            "tts": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно."
+          },
+          "server_created": 1793876108.4223258,
+          "reply_origin": "server receipt",
+          "response_sha256": "c9610cfa7869f69634a92da734837c26e681fc7eecece71d16232bffb52b2c03"
+        }
+      ],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#CS16"
+    },
+    {
+      "id": "DS01",
+      "outcome": "PASS",
+      "notes": "Адресная изолированная проверка на точном исходнике: PASS.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#DS01"
+    },
+    {
+      "id": "DS02",
+      "outcome": "PASS",
+      "notes": "Адресная изолированная проверка на точном исходнике: PASS.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#DS02"
+    },
+    {
+      "id": "DS03",
+      "outcome": "FAIL",
+      "notes": "Адресная изолированная проверка на точном исходнике: FAILED/TABLE_RESPONSE_SCHEMA вместо обещанного FAILED/NUMBER_RANGE; объяснение ошибочно говорит, что точная причина не установлена.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#DS03"
+    },
+    {
+      "id": "DS04",
+      "outcome": "PASS",
+      "notes": "Адресная изолированная проверка на точном исходнике: PASS.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#DS04"
+    },
+    {
+      "id": "DS05",
+      "outcome": "PASS",
+      "notes": "Адресная изолированная проверка на точном исходнике: PASS.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#DS05"
+    },
+    {
+      "id": "DS06",
+      "outcome": "PASS",
+      "notes": "Адресная изолированная проверка на точном исходнике: PASS.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#DS06"
+    },
+    {
+      "id": "DS07",
+      "outcome": "PASS",
+      "notes": "Адресная изолированная проверка на точном исходнике: PASS.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#DS07"
+    },
+    {
+      "id": "DS08",
+      "outcome": "PASS",
+      "notes": "Адресная изолированная проверка на точном исходнике: PASS.",
+      "messages": [],
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/conversation-safety-retest-4d04edaa-20261105.json#DS08"
+    }
+  ],
+  "http_calls": 27,
+  "llm_calls": 0,
+  "new_jobs": 7,
+  "replies_observed": 70,
+  "ui_transport_failures": 1,
+  "runtime_changed": false,
+  "config_changed": false,
+  "platform_changed": false,
+  "restarts": 0,
+  "raw_data_in_git": false,
+  "next_step": "Fix DS03 source error propagation/explanation; exact-build independent targeted retest."
+}
