@@ -8,7 +8,7 @@
   "evidence_level": "LIVE_PROVIDER_PRIVATE_PERIOD_CALCULATION",
   "started_at_utc": "2026-11-05T03:06:54.354558+00:00",
   "finished_at_utc": "2026-11-05T03:07:57.046185+00:00",
-  "outcome": "PERIOD_MODEL_CALCULATED_RUNTIME_TEMPLATE_NOT_INSTALLED",
+  "outcome": "INPUTS_COLLECTED_PRODUCT_UNIT_ECONOMICS_WITHDRAWN",
   "http_calls": 4,
   "llm_calls": 0,
   "dialogs_messages": 0,
@@ -53,13 +53,13 @@
     }
   ],
   "checks": [
-    "Complete FBO+FBS quantity/value match fresh analytics",
-    "Fresh cancelled value and quantity excluded only from revenue/COGS",
-    "All finance fee and seven service lines retained regardless of current order status",
-    "Finance identity and balance identity reconciled",
-    "Finance ad rows equal previously qualified Performance spend and counted once",
-    "Fixed denominator of all originally ordered units",
-    "No realized-unit COGS substituted for owner cancellation policy"
+    "Complete FBO+FBS quantity/value match fresh analytics (source/arithmetic check only; does not establish product profit)",
+    "Fresh cancelled value and quantity excluded only from revenue/COGS (source/arithmetic check only; does not establish product profit)",
+    "All finance fee and seven service lines retained regardless of current order status (source/arithmetic check only; does not establish product profit)",
+    "Finance identity and balance identity reconciled (source/arithmetic check only; does not establish product profit)",
+    "Finance ad rows equal previously qualified Performance spend and counted once (source/arithmetic check only; does not establish product profit)",
+    "Fixed denominator of all originally ordered units (source/arithmetic check only; does not establish product profit)",
+    "No realized-unit COGS substituted for owner cancellation policy (source/arithmetic check only; does not establish product profit)"
   ],
   "known_limits": [
     "Orders still open: output is period model, not final realized cohort profit",
@@ -70,9 +70,13 @@
     "code": "RESEARCH_PRICE_OBJECT_DECIMAL_PARSE",
     "cause": "First local decoder assumed price scalar; source returned amount/currency object",
     "resolution": "Replayed the two already RECEIVED and hash-checked responses after correcting decode; no duplicate HTTP requests",
-    "network_unknown_retries": 0
+    "network_unknown_retries": 0,
+    "business_method": "Mismatched populations/order value and financial-period fees, plus misleading product-cost labeling"
   },
   "runtime_changed": false,
   "platform_changed": false,
-  "raw_data_in_git": false
+  "raw_data_in_git": false,
+  "methodology_correction": "METHODOLOGY_CORRECTION.md",
+  "business_result_validated": false,
+  "period_arithmetic_only": true
 }
