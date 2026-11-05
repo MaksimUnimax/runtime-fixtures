@@ -11,7 +11,7 @@ Seven Seller API HTTP, all200, collection6.555s, LLM0, Dialogs0. Complete FBO/FB
 - Pending postings contain zero commission and payout placeholders; they do not qualify free fulfillment or zero fees. Separate source state from monetary zero.
 - The prices API supplies commission percentages, acquiring amounts, direct/last-mile/first-mile and return-flow estimates. Every projected variable expense has a named field. Intervals are midpoint assumptions, not claimed observed route averages.
 - Current tariff values are forecast inputs for historical unfinished orders, not historical actual accruals.
-- Acquiring ratio derives from acquiring/current price and was checked on every matched price row before applying it to historical order price.
+- Acquiring is the direct acquiring amount returned for each matched product. An earlier inferred percentage was explicitly rejected by the owner and removed from all operative calculations; no bank tariff is inferred from sums.
 - Daily storage and advertising are actual store-period figures with explicit allocation. Historical variable courier, logistics, processing and acquiring amounts are controls only and are replaced by selected-order tariff estimates; they are not added again.
 - Source financial return-flow estimate is counted once; a separate undisclosed reverse/handling charge is not invented.
 - Owner cost and tax remain user inputs; API net_price cannot replace the owner's cost.
