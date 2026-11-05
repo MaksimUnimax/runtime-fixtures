@@ -1,8 +1,8 @@
 # AL-S03 · точный план установки на stage
 
-**READY_FOR_OWNER_STAGE_APPROVAL / EXACT_SOURCE_PACKAGE_INDEPENDENTLY_ACCEPTED / NOT_EXECUTED.**
+**AUTHORIZED_EXECUTED_RECORDED_3E91_SCOPE / CURRENT_MIXED_NOT_ACCEPTED.**
 
-План включает отдельную админку, native MFA и серверные staff-права. Подготовка не означает разрешение менять stage. Exact package скачан и проверен; [независимый source/package verdict и проверка плана](AL_S03_DESIGN_INTEGRATED_INDEPENDENT_REVIEW_20261105.json) завершены. До выполнения нужен отдельный допуск владельца на перечисленные ниже изменения. S02 live-допуск не включал staff migration и admin security configuration.
+Владелец явно разрешил этот exact план; выполненная область3e91 принята как зафиксированная историческая stage-проверка. [Фактический отчёт и открытый остаток](AL_S03_INSTALLED_REPORT_20261105.md). После выполнения другой поток сменил web/API/identity наdd2; текущая комбинация не принята, этот старый план нельзя повторять поверх чужого обновления. Оригинальный согласованный текст сохранён в Git commit83ba6c99, SHA2567efbcf47…; последовательность ниже отражает именно тот допуск, а не новую текущую установку.
 
 ## Точный кандидат и доказательства
 
