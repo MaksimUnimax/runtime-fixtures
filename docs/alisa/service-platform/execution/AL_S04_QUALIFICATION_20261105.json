@@ -1,6 +1,6 @@
 {
   "record_type": "AL_S04_QUALIFICATION_HISTORY",
-  "status": "IN_PROGRESS_NOT_INSTALLED",
+  "status": "READY_FOR_OWNER_TEST",
   "canonical_customer_site": "https://alisa.octoport.ru",
   "owner_instruction": "Proceed with access duration; owner handles admin domain move separately.",
   "attempts": [
@@ -228,7 +228,50 @@
       "source_sha": "4467af34e65970e2259c49ea7500569529734b08",
       "tree_sha": "5f9a8ffc29d17f4bc8b570da256507e8fcc377b5",
       "platform_ci": 42028730757,
-      "status": "RUNNING_AT_RECORD_CREATION"
+      "status": "RUNNING_AT_RECORD_CREATION",
+      "outcome_update": {
+        "status": "FAILED",
+        "s04_postgresql_cases": 36,
+        "packaged_browser_cases": 96,
+        "integrated_browser_completed_cases": 129,
+        "cause": "Added access status created a second role=status; historical S03 unscoped locator failed strict matching.",
+        "resolution": "Scoped the existing customer-block status assertion to main > p[role=status]; no assertion or backend guard removed.",
+        "receipt_snapshot": "s04-source-qualification-20261105/s04-4467-receipts.json"
+      }
+    },
+    {
+      "source_sha": "a00884194138fe6b178a55c63bc949869ad1035c",
+      "platform_ci": 42029911666,
+      "documentation_ci": 42029911594,
+      "identity_probe_ci": 42029911633,
+      "status": "SOURCE_PACKAGE_ACCEPTED_NOT_INSTALLED",
+      "superseded_reason": "Canonical domain stream installed 482; preserve its changes and requalify merged c866.",
+      "receipt_snapshot": "s04-source-qualification-20261105/s04-a008-receipts.json"
+    },
+    {
+      "source_sha": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+      "tree_sha": "786126cc26dc094911b891f8600bf94a95353d1f",
+      "platform_ci": 42037466701,
+      "documentation_ci": 42037466761,
+      "identity_probe_ci": 42037466757,
+      "status": "READY_FOR_OWNER_TEST",
+      "installed_binding": {
+        "source_sha": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+        "tree_sha": "786126cc26dc094911b891f8600bf94a95353d1f",
+        "release": "alisa-c8666516683e7b2b",
+        "zip_sha256": "68f91fba8e7cec6eeb2d9ac81c1ba95a4ec554255a469ae95c6dd1f825abae6d",
+        "tar_sha256": "81c2bd21d8d9eec6e1a0094f8ecb384b394b1061cb3b7650497b9607ee51345e",
+        "manifest_sha256": "3287fa567545e9598a04e4ba57f7a484814e45195f6cd724bb0532c24b6606f5",
+        "files": 4433,
+        "links": 42,
+        "zip_bytes": 51686060,
+        "tar_bytes": 51763039,
+        "payload_allocated_bytes": 139657216,
+        "package_artifact": 13419830937,
+        "platform_ci": 42037466701
+      },
+      "receipt_snapshot": "s04-source-qualification-20261105/s04-c866-receipts.json",
+      "installed_evidence": "AL_S04_INSTALLED_EVIDENCE_20261105.json"
     }
   ],
   "source_local_checks": {
@@ -241,8 +284,19 @@
     "Executable bin/alisa mode100755 and full Git tree matched before candidate commit; all34 authored blobs read back identical."
   ],
   "scope_limits": [
+    "Customer native login and access-page/API readback only on own existing example.invalid account.",
+    "No synthetic OWNER was restored after real OWNER handover.",
+    "Live real-OWNER grant/confirm/revoke remains for owner testing.",
+    "No real customer grant, payment, email batch or domain move was performed by this flow.",
+    "All source/browser qualification counts bind c866, not this later evidence-only commit.",
+    "The bounded native window expired normally before the final R2 snapshot; no claim of a held lock at 14:23.",
+    "Public canonical host deployment is confirmed; broad product production acceptance is not claimed."
+  ],
+  "historical_record_status": "IN_PROGRESS_NOT_INSTALLED",
+  "scope_limits_at_record_creation": [
     "No S04 server schema/config/deployment yet.",
     "Merged registration/domain/identity/owner-handover work is preserved, not accepted as S04.",
     "No real customer grant, commercial payment or external email sent by this flow."
-  ]
+  ],
+  "current_installed_report": "AL_S04_INSTALLED_REPORT_20261105.md"
 }
