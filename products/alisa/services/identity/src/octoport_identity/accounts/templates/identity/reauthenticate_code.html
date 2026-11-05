@@ -1,0 +1,10 @@
+{% extends "allauth/layouts/base.html" %}
+{% block head_title %}Подтвердите вход{% endblock %}
+{% block content %}
+<h1>Подтвердите вход ещё раз</h1>
+<p>Для нового входа нужен свежий код на тестовую почту. После продолжения текущая сессия центра входа завершится.</p>
+<form method="post" action="{% url 'account_logout' %}">
+  {% csrf_token %}<input type="hidden" name="next" value="{{ login_target }}">
+  <button type="submit">Продолжить вход по коду</button>
+</form>
+{% endblock %}

@@ -299,6 +299,8 @@ def main():
             check('s02_second_rp_token_has_no_product_access',forged.request.get(WEB+'/api/account/me').status==401);forged.close()
             with db('identity') as conn:check('s02_pairwise_subjects_keep_same_person',conn.execute('SELECT count(DISTINCT id) FROM accounts_subject WHERE person_id=(SELECT id FROM accounts_person WHERE email=%s)',[email]).fetchone()[0]==2)
             check('s02_foreign_return_to_rejected',page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on','return_to':'https://wrong.example.invalid'},headers={'Origin':WEB}).status==422)
+            foreign=page.request.get(ISSUER+'/accounts/reauthenticate/?'+urlencode({'next':'https://wrong.example.invalid'}),max_redirects=0)
+            check('s02_identity_reauthentication_external_target_denied',foreign.status==400)
             # Exercise the REAL BFF validator. Only the disposable TLS proxy
             # mutates its own fixture token, never a product debug endpoint.
             token_path=urlsplit(metadata['token_endpoint']).path
@@ -353,10 +355,11 @@ def main():
             check('s02_logout_revokes_server_session',request('http://127.0.0.1:18402/api/v1/account/me','POST',{'session_token':saved},{'Authorization':'Bearer '+auth_service})[0]==401)
             # Repeat login goes through the authority and a fresh email code.
             open_identity(page)
-            if page.locator('input[name=email]').count():
-                page.locator('input[name=email]').fill(email);page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
-            else:
-                page.locator('form').filter(has=page.locator('button')).locator('button[type=submit]').first.click()
+            if page.get_by_role('button',name='Продолжить вход по коду').count():
+                page.get_by_role('button',name='Продолжить вход по коду').click()
+            login_field=page.locator('input[name=login],input[name=email]').first
+            expect(login_field).to_be_visible();login_field.fill(email)
+            page.locator('form').filter(has=login_field).locator('button[type=submit]').first.click()
             expect(page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
             page.locator('input[name=code]').fill(letter(email));page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').first.click()
             expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)

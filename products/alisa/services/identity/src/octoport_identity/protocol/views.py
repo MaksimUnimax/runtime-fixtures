@@ -1,19 +1,52 @@
 import uuid
+import json
+from urllib.parse import urlsplit,urlencode
+from django.contrib.auth import REDIRECT_FIELD_NAME
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+from django.urls import reverse
+from django.utils import timezone
 from django.http import JsonResponse
 from django.http import HttpResponse
 from django.conf import settings
 from octoport_identity.accounts.models import IdentityMail
+
+def code_reauthentication(request):
+    """Use native logout/login for passwordless OIDC prompt=login.
+
+    Allauth's reauth methods are password/MFA only. GET never signs anyone out;
+    the explicit CSRF-protected form posts to the native logout view, followed
+    by the unchanged native email-code and (when enrolled) MFA login stages.
+    """
+    from allauth.account.adapter import get_adapter
+    from allauth.account.views import ReauthenticateView
+    if request.user.is_authenticated and get_adapter().get_reauthentication_methods(request.user):
+        return ReauthenticateView.as_view()(request)
+    if request.method!='GET':return JsonResponse({'code':'METHOD_NOT_ALLOWED'},status=405)
+    values=request.GET.getlist(REDIRECT_FIELD_NAME)
+    target=values[0] if len(values)==1 else ''
+    if not target or len(target)>4096 or '\\' in target or any(ord(c)<32 or ord(c)==127 for c in target):
+        return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
+    try:u=urlsplit(target)
+    except ValueError:return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
+    if u.scheme or u.netloc or u.fragment or u.path!=reverse('idp:oidc:authorization'):
+        return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
+    login=reverse('account_login')+'?'+urlencode({REDIRECT_FIELD_NAME:target})
+    if not request.user.is_authenticated:return HttpResponseRedirect(login)
+    response=render(request,'identity/reauthenticate_code.html',{'login_target':login})
+    response['Cache-Control']='no-store';return response
 
 def mail_status(request):
     if request.method!='GET':return JsonResponse({'code':'METHOD_NOT_ALLOWED'},status=405)
     try:mail_id=uuid.UUID(request.session.get('identity_mail_id',''))
     except (ValueError,TypeError,AttributeError):return JsonResponse({'state':'UNKNOWN'},status=404)
     row=IdentityMail.objects.filter(pk=mail_id).first()
-    state='UNKNOWN' if not row else 'DELIVERED' if row.sent_at else 'DELAYED' if row.error_code else 'QUEUED'
+    state='UNKNOWN' if not row else 'EXPIRED' if row.expires_at<=timezone.now() else 'DELIVERED' if row.sent_at else 'DELAYED' if row.error_code else 'QUEUED'
     response=JsonResponse({'state':state});response['Cache-Control']='no-store';return response
 
 def brand_context(request):return {'alisa_product_origin':settings.IDENTITY_PRODUCT_ORIGIN}
 
 def mail_ui(request):
-    script="""let attempts=0;async function check(){try{const r=await fetch('/identity/mail-status',{cache:'no-store'});if(r.ok){const d=await r.json();const el=document.getElementById('mail-status');const text={QUEUED:'Готовим письмо с кодом. Проверьте тестовую почту.',DELIVERED:'Письмо с кодом отправлено.',DELAYED:'Пока не удалось отправить письмо. Повторим отправку; можно запросить новый код.'};el.textContent=text[d.state]||'';if(d.state==='DELIVERED')return;}}catch{}if(++attempts<60)setTimeout(check,2000);}check();"""
+    paths=json.dumps([reverse('account_confirm_login_code'),reverse('account_email_verification_sent')])
+    script="const codePaths="+paths+";"+"""let attempts=0;async function check(){try{const r=await fetch('/identity/mail-status',{cache:'no-store'});if(r.ok){const d=await r.json();const el=document.getElementById('mail-status');const text={QUEUED:'Готовим письмо с кодом. Проверьте тестовую почту.',DELIVERED:'Письмо с кодом отправлено.',DELAYED:'Пока не удалось отправить письмо. Повторим отправку; можно запросить новый код.',EXPIRED:'Срок кода истёк. Запросите новый код.'};el.textContent=text[d.state]||'';if(['DELIVERED','EXPIRED'].includes(d.state))return;}}catch{}if(++attempts<60)setTimeout(check,2000);}if(codePaths.includes(location.pathname)&&document.querySelector('input[name=code]'))check();"""
     return HttpResponse(script,content_type='application/javascript')
