@@ -1,0 +1,50 @@
+{
+  "record_type": "AL_S02_EXACT_SOURCE_PACKAGE_BINDING",
+  "recorded_at_utc": "2026-11-05T05:21:19.805059+00:00",
+  "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36",
+  "source_tree": "d182c92c7f8d8f65088d177bd4fda4075e9f5a8c",
+  "local_identical_tree_commit": "6499e819bcaa63a15824dbff476084a23258a89b",
+  "package": "alisa-6ae348354b3db0d3.tar.gz",
+  "package_sha256": "4848fc3e0975d4b3fb347e7b0f5634c44ad81d01a31690263a3bf31cfb83136c",
+  "package_bytes": 51438835,
+  "manifest_regular_files_verified": 4354,
+  "manifest_symlinks_verified": 42,
+  "workflow_run": 41972534700,
+  "workflow_job": 127063839214,
+  "workflow_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/41972534700",
+  "ci_conclusion": "success",
+  "checks": {
+    "python_source": 36,
+    "node_boundary": 11,
+    "foundation_s01_disposable_assertions": 96,
+    "s02_full_disposable_assertions": 92,
+    "runtime_policy_assertions_included_in_92": 9,
+    "all_receipt_assertions_passed": true,
+    "typecheck_ui_build_architecture_contracts": "PASS",
+    "documentation_ci": "PASS",
+    "provider_core_probe_ci": "PASS"
+  },
+  "artifacts": [
+    {
+      "id": 13389958698,
+      "kind": "qualification_zip",
+      "sha256": "d87f617629004bc782bb73e12305a0a52c168a1bd6225a21509de619ea0a643e",
+      "expires_at_utc": "2027-02-03T05:15:27Z"
+    },
+    {
+      "id": 13390527169,
+      "kind": "immutable_package_zip",
+      "sha256": "d91060c3d5eff4a59cefddb4a565cdfbcf583594d64a6eb97519a2b286cd8222",
+      "expires_at_utc": "2026-11-19T05:15:28Z"
+    }
+  ],
+  "previous_failed_attempts_retained": 12,
+  "qualified_scope": "SOURCE_AND_IMMUTABLE_PACKAGE_DISPOSABLE_ONLY",
+  "installed_stage_acceptance": false,
+  "not_run": [
+    "live_stage_rollout",
+    "controlled_real_email",
+    "live_release_pair_rollback",
+    "independent_installed_acceptance"
+  ]
+}

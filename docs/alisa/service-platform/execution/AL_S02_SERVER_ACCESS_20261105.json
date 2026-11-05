@@ -44,5 +44,104 @@
     "s01_rollout_lock": "AVAILABLE",
     "s02_provider_probe_lock": "AVAILABLE",
     "fourth_probe_directory_exists": false
+  },
+  "latest_read_only_actual": {
+    "at_utc": "2026-11-05T05:18:35.769351+00:00",
+    "mutation_requested": false,
+    "pointers": {
+      "site-current": "/opt/alisa-platform/stage/releases/alisa-8d680f775c8ccdf2",
+      "current": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+      "identity-current": null
+    },
+    "health": {
+      "web": {
+        "http": 200,
+        "body": {
+          "component": "web",
+          "environment": "stage",
+          "release": "alisa-8d680f775c8ccdf2",
+          "status": "READY"
+        }
+      },
+      "platform": {
+        "http": 200,
+        "body": {
+          "component": "platform",
+          "status": "READY",
+          "runtime": "RUNTIME_NOT_CONNECTED",
+          "environment": "stage",
+          "release": "alisa-8d680f775c8ccdf2"
+        }
+      },
+      "identity": {
+        "http": 200,
+        "body": {
+          "component": "identity",
+          "environment": "stage",
+          "release": "alisa-77d0f8ee2643ef65",
+          "status": "READY",
+          "authentication": "NOT_IMPLEMENTED"
+        }
+      },
+      "admin": {
+        "http": 200,
+        "body": {
+          "component": "admin",
+          "environment": "stage",
+          "release": "alisa-77d0f8ee2643ef65",
+          "status": "READY"
+        }
+      }
+    },
+    "locks": {
+      "alisa-s01-rollout.lock": "AVAILABLE",
+      "alisa-s02-provider-probe.lock": "AVAILABLE",
+      "alisa-s02-rollout.lock": "ABSENT"
+    },
+    "rollout_processes": []
+  },
+  "previous_read_only_actual_0425": {
+    "at_utc": "2026-11-05T04:25:22.383917+00:00",
+    "mutation_requested": false,
+    "pointers": {
+      "site-current": "/opt/alisa-platform/stage/releases/alisa-8d680f775c8ccdf2",
+      "current": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+      "identity-current": null
+    },
+    "health": {
+      "web": {
+        "http": 200,
+        "body": {
+          "component": "web",
+          "environment": "stage",
+          "release": "alisa-8d680f775c8ccdf2",
+          "status": "READY"
+        }
+      },
+      "platform": {
+        "http": 200,
+        "body": {
+          "component": "platform",
+          "status": "READY",
+          "runtime": "RUNTIME_NOT_CONNECTED",
+          "environment": "stage",
+          "release": "alisa-8d680f775c8ccdf2"
+        }
+      },
+      "identity": {
+        "http": 200,
+        "body": {
+          "component": "identity",
+          "environment": "stage",
+          "release": "alisa-77d0f8ee2643ef65",
+          "status": "READY",
+          "authentication": "NOT_IMPLEMENTED"
+        }
+      }
+    },
+    "locks": {
+      "alisa-s01-rollout.lock": "AVAILABLE",
+      "alisa-s02-provider-probe.lock": "AVAILABLE"
+    }
   }
 }

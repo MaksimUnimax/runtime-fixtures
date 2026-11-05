@@ -1,0 +1,409 @@
+{
+  "scope": "DISPOSABLE_POSTGRESQL_AND_PACKAGED_UI_AUTHOR_QUALIFICATION",
+  "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36",
+  "cases": [
+    {
+      "case": "single_artifact_root",
+      "passed": true
+    },
+    {
+      "case": "artifact_integrity",
+      "passed": true,
+      "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36"
+    },
+    {
+      "case": "fresh_separate_database_provision",
+      "passed": true
+    },
+    {
+      "case": "fresh_empty_production_namespaces_provisioned",
+      "passed": true
+    },
+    {
+      "case": "existing_production_namespace_refused",
+      "passed": true
+    },
+    {
+      "case": "platform_production_runtime_empty_and_original_password_preserved",
+      "passed": true
+    },
+    {
+      "case": "platform_production_migration_empty_and_original_password_preserved",
+      "passed": true
+    },
+    {
+      "case": "identity_production_runtime_empty_and_original_password_preserved",
+      "passed": true
+    },
+    {
+      "case": "identity_production_migration_empty_and_original_password_preserved",
+      "passed": true
+    },
+    {
+      "case": "alisa_stage_platform_runtime_to_alisa_prod_platform_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "alisa_stage_platform_runtime_to_alisa_prod_identity_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "alisa_stage_platform_migration_to_alisa_prod_platform_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "alisa_stage_platform_migration_to_alisa_prod_identity_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "alisa_stage_identity_runtime_to_alisa_prod_platform_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "alisa_stage_identity_runtime_to_alisa_prod_identity_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "alisa_stage_identity_migration_to_alisa_prod_platform_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "alisa_stage_identity_migration_to_alisa_prod_identity_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "initial_and_repeat_migrations",
+      "passed": true
+    },
+    {
+      "case": "identity_uuid_before_auth",
+      "passed": true
+    },
+    {
+      "case": "platform_least_privilege",
+      "passed": true
+    },
+    {
+      "case": "platform_runtime_ddl_denied",
+      "passed": true
+    },
+    {
+      "case": "platform_cross_database_acl_denied",
+      "passed": true
+    },
+    {
+      "case": "platform_cross_database_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "identity_least_privilege",
+      "passed": true
+    },
+    {
+      "case": "identity_runtime_ddl_denied",
+      "passed": true
+    },
+    {
+      "case": "identity_cross_database_acl_denied",
+      "passed": true
+    },
+    {
+      "case": "identity_cross_database_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "synthetic_stage_to_prod_acl_denied",
+      "passed": true
+    },
+    {
+      "case": "synthetic_stage_to_prod_database_denied",
+      "passed": true,
+      "sqlstate": null
+    },
+    {
+      "case": "real_database_readiness",
+      "passed": true
+    },
+    {
+      "case": "unauthorized_direct_call_denied",
+      "passed": true
+    },
+    {
+      "case": "concurrent_duplicate_posts",
+      "passed": true
+    },
+    {
+      "case": "one_durable_probe_and_job",
+      "passed": true
+    },
+    {
+      "case": "conflicting_kind_rejected",
+      "passed": true
+    },
+    {
+      "case": "accepted_probe_survives_api_restart",
+      "passed": true
+    },
+    {
+      "case": "two_worker_processes_exit",
+      "passed": true
+    },
+    {
+      "case": "one_processed_effect",
+      "passed": true
+    },
+    {
+      "case": "repeat_after_processing_no_second_effect",
+      "passed": true
+    },
+    {
+      "case": "processed_probe_survives_restart",
+      "passed": true
+    },
+    {
+      "case": "real_database_refusal_is_503",
+      "passed": true
+    },
+    {
+      "case": "packaged_web_entrypoint_refuses_missing_secret",
+      "passed": true
+    },
+    {
+      "case": "bff_without_admission_denied",
+      "passed": true
+    },
+    {
+      "case": "bff_wrong_origin_denied",
+      "passed": true
+    },
+    {
+      "case": "bff_allowed_host_routes_to_real_database",
+      "passed": true
+    },
+    {
+      "case": "bff_foreign_host_still_denied",
+      "passed": true
+    },
+    {
+      "case": "separate_packaged_admin_starts_without_database_credentials",
+      "passed": true
+    },
+    {
+      "case": "browser_bff_api_postgresql_worker_roundtrip",
+      "passed": true
+    },
+    {
+      "case": "bff_emits_allowlisted_browser_correlation",
+      "passed": true
+    },
+    {
+      "case": "browser_retry_keeps_one_effect",
+      "passed": true
+    },
+    {
+      "case": "s01_cross_origin_denied",
+      "passed": true
+    },
+    {
+      "case": "s01_no_real_contact_collection",
+      "passed": true
+    },
+    {
+      "case": "s01_consent_required",
+      "passed": true
+    },
+    {
+      "case": "s01_concurrent_duplicate_submission_acknowledged",
+      "passed": true
+    },
+    {
+      "case": "s01_request_id_contact_conflict",
+      "passed": true
+    },
+    {
+      "case": "s01_one_lead_outbox_and_server_effect",
+      "passed": true
+    },
+    {
+      "case": "s01_unknown_attribution_stripped",
+      "passed": true
+    },
+    {
+      "case": "s01_real_smtp_delivery",
+      "passed": true
+    },
+    {
+      "case": "s01_token_in_fragment_not_query",
+      "passed": true
+    },
+    {
+      "case": "s01_repeat_mail_batch_does_not_resend",
+      "passed": true
+    },
+    {
+      "case": "s01_wrong_token_rejected",
+      "passed": true
+    },
+    {
+      "case": "s01_confirm_contact",
+      "passed": true
+    },
+    {
+      "case": "s01_token_one_use",
+      "passed": true
+    },
+    {
+      "case": "s01_one_confirmed_effect_and_outbox_cleared",
+      "passed": true
+    },
+    {
+      "case": "s01_analytics_consent_optional",
+      "passed": true
+    },
+    {
+      "case": "s01_client_cannot_emit_confirmation",
+      "passed": true
+    },
+    {
+      "case": "s01_event_uuid_idempotency",
+      "passed": true
+    },
+    {
+      "case": "s01_expired_link_rejected",
+      "passed": true
+    },
+    {
+      "case": "s01_expired_challenge_reissued_without_new_lead",
+      "passed": true
+    },
+    {
+      "case": "s01_confirmation_attempt_limit",
+      "passed": true
+    },
+    {
+      "case": "s01_mobile_layout",
+      "passed": true
+    },
+    {
+      "case": "s01_desktop_layout",
+      "passed": true
+    },
+    {
+      "case": "s01_page_how-it-works",
+      "passed": true
+    },
+    {
+      "case": "s01_page_examples",
+      "passed": true
+    },
+    {
+      "case": "s01_page_pricing",
+      "passed": true
+    },
+    {
+      "case": "s01_page_faq",
+      "passed": true
+    },
+    {
+      "case": "s01_page_help",
+      "passed": true
+    },
+    {
+      "case": "s01_page_contacts",
+      "passed": true
+    },
+    {
+      "case": "s01_page_privacy",
+      "passed": true
+    },
+    {
+      "case": "s01_page_terms",
+      "passed": true
+    },
+    {
+      "case": "s01_page_consents",
+      "passed": true
+    },
+    {
+      "case": "s01_page_login",
+      "passed": true
+    },
+    {
+      "case": "s01_page_app_private-object",
+      "passed": true
+    },
+    {
+      "case": "s01_ui_rotates_request_uuid_after_ack",
+      "passed": true
+    },
+    {
+      "case": "s01_ui_resend_acknowledged",
+      "passed": true
+    },
+    {
+      "case": "s01_ui_expired_link_resend_reuses_lead",
+      "passed": true
+    },
+    {
+      "case": "s01_browser_smtp_confirmation_and_reload",
+      "passed": true
+    },
+    {
+      "case": "s01_direct_join_visit_is_not_cta",
+      "passed": true
+    },
+    {
+      "case": "s01_actual_cta_click_recorded",
+      "passed": true
+    },
+    {
+      "case": "s01_browser_persistent_confirmed_lead",
+      "passed": true
+    },
+    {
+      "case": "s01_logs_contain_no_contact_or_confirmation_token",
+      "passed": true
+    },
+    {
+      "case": "s01_confirmed_leads_survive_api_restart",
+      "passed": true
+    },
+    {
+      "case": "recovery_probe_accepted_before_database_outage",
+      "passed": true
+    },
+    {
+      "case": "worker_survives_real_database_connection_denial",
+      "passed": true
+    },
+    {
+      "case": "worker_database_recovery_keeps_one_effect",
+      "passed": true
+    },
+    {
+      "case": "ttl_cleanup_with_probe_disabled",
+      "passed": true
+    },
+    {
+      "case": "old_code_reads_compatible_expanded_schema",
+      "passed": true
+    }
+  ],
+  "foundation_ready": false,
+  "not_run": [
+    "real_stage_https_ingress",
+    "systemd_deploy",
+    "r1_r2_r1_release_rollback",
+    "independent_stage_handoff"
+  ]
+}

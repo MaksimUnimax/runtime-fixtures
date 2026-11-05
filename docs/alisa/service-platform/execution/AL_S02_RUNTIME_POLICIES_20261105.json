@@ -1,0 +1,42 @@
+{
+  "scope": "ACTUAL_RUNTIME_POLICIES_DISPOSABLE_ONLY",
+  "cases": [
+    {
+      "case": "s02_runtime_code_ttl_600_and_five_attempts",
+      "passed": true
+    },
+    {
+      "case": "s02_identity_session_encrypted_in_database",
+      "passed": true
+    },
+    {
+      "case": "s02_expired_email_code_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_five_invalid_codes_exhaust_attempts",
+      "passed": true
+    },
+    {
+      "case": "s02_runtime_email_code_atomic_across_requests",
+      "passed": true
+    },
+    {
+      "case": "s02_verify_retry_safe_receipt_same_identity_session",
+      "passed": true
+    },
+    {
+      "case": "s02_used_code_old_browser_cookie_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_known_unknown_code_request_same_response",
+      "passed": true
+    },
+    {
+      "case": "s02_mfa_secret_encrypted_and_factor_one_use",
+      "passed": true
+    }
+  ],
+  "status": "PASS"
+}
