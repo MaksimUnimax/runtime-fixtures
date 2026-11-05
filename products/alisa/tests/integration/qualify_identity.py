@@ -155,6 +155,24 @@ def main():
             check('s02_strict_https_web_and_identity_ready',True)
             metadata=request(ISSUER+'/.well-known/openid-configuration')[1]
             check('s02_fixed_issuer_and_s256_discovery',metadata['issuer']==ISSUER and metadata['code_challenge_methods_supported']==['S256'])
+            token_path=urlsplit(metadata['token_endpoint']).path
+            auth_observations=[];record['safe_client_auth_observations']=auth_observations
+            expected_basic='Basic '+base64.b64encode(('s02_web:'+web_secret).encode()).decode()
+            def observe_client_auth(path,headers,body):
+                if path!=token_path:return
+                auth=next((v for k,v in headers.items() if k.lower()=='authorization'),'')
+                values=parse_qs(body.decode()) if body else {}
+                auth_observations.append({'basic_matches_registered_fixture':secrets.compare_digest(auth,expected_basic),
+                    'body_client_id_present':'client_id' in values,'authorization_header_present':bool(auth)})
+            proxies[1].request_observer=observe_client_auth
+            data=urlencode({'grant_type':'authorization_code','code':'x'*43,'code_verifier':'x'*64,'redirect_uri':WEB+'/auth/callback'}).encode()
+            req=urllib.request.Request(metadata['token_endpoint'],data=data,headers={'Content-Type':'application/x-www-form-urlencoded','Authorization':expected_basic})
+            try:
+                with opener.open(req,timeout=8) as r:probe_status=r.status;probe_body=json.load(r)
+            except urllib.error.HTTPError as exc:probe_status=exc.code;probe_body=json.load(exc)
+            error=probe_body.get('error')
+            record['client_auth_probe']={'http_status':probe_status,'error':error if error in ['invalid_grant','invalid_client'] else 'OTHER'}
+            check('s02_confidential_basic_authentication_reaches_grant_validation',probe_status==400 and error=='invalid_grant')
             sink=Sink(('127.0.0.1',18226),SMTP);sink.messages=[];threading.Thread(target=sink.serve_forever,daemon=True).start()
             contacts=[];private_values=[service,auth_service,web_secret,probe_secret,data_key,bff_key]
             def letter(email):
@@ -346,8 +364,10 @@ def main():
                 check('s02_cleanup_erases_expired_session_and_flow_blobs',not conn.execute("SELECT 1 FROM accounts_websession WHERE expires_at<=now() AND encrypted_payload<>''").fetchone() and not conn.execute("SELECT 1 FROM accounts_authflow WHERE expires_at<=now() AND encrypted_payload<>''").fetchone())
                 check('s02_cleanup_preserves_active_session',profile_status()==200 and bool(conn.execute('SELECT 1 FROM accounts_websession WHERE token_hash=%s AND encrypted_payload<>\'\'',[hashlib.sha256(current_cookie.encode()).hexdigest()]).fetchone()))
             policy_output=args.output.with_name('s02-runtime-policies.json')
-            policy_run=subprocess.run([str(py),str(ROOT/'tests/integration/identity_policy_checks.py'),str(policy_output)],
+            policy_run=subprocess.run([str(py),str(ROOT/'tests/integration/identity_policy_checks.py'),str(policy_output),str(temp/'private-policy-values.json')],
                 env={**env('identity'),'ALISA_IDENTITY_POLICY_TEST_ALLOW':'1'},stdout=logs,stderr=logs,timeout=45)
+            private_policy=temp/'private-policy-values.json'
+            if private_policy.exists():private_values.extend(json.loads(private_policy.read_text()));private_policy.unlink()
             if policy_output.exists():
                 policy_record=json.loads(policy_output.read_text());CASES.extend(policy_record.get('cases',[]))
             check('s02_actual_runtime_negative_account_policies',policy_run.returncode==0)
@@ -361,7 +381,7 @@ def main():
             with db('identity') as conn:
                 check('s02_smtp_recovery_sends_and_erases_code',len(sink.messages)>=1 and not conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND encrypted_payload<>'' AND expires_at>now()").fetchone())
             logs.flush();text=(temp/'private-process.log').read_text()
-            check('s02_private_logs_have_no_known_codes_tokens_contacts',all(v not in text for v in [*contacts,*private_values] if v))
+            check('s02_private_logs_have_no_known_codes_tokens_contacts',all(v not in text for v in [*contacts,*private_values] if v) and not re.search(r'eyJ[A-Za-z0-9_-]+\.|[A-Za-z0-9_.+-]+@example\.invalid',text))
             second_context.close();context.close();browser.close();browser=None
             record['status']='SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE'
             logs.close()

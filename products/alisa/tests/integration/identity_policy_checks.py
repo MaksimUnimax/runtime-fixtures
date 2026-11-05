@@ -22,7 +22,7 @@ from allauth.account.models import EmailAddress
 from octoport_identity.accounts.models import IdentityMail
 from octoport_identity.protocol.storage import open_sealed
 
-cases=[]
+cases=[];private_values=[]
 def check(name,ok):
     if not ok:raise RuntimeError('CHECK_FAILED:'+name)
     cases.append({'case':name,'passed':True})
@@ -38,6 +38,7 @@ def code(b,email):
     match=re.search(r'(?m)^\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$',open_sealed(row.encrypted_payload)['body'])
     if not match:raise RuntimeError('Expected private code')
     b.get(reverse('account_confirm_login_code'),secure=True)
+    private_values.extend([email,match.group(1)])
     return match.group(1)
 
 def run():
@@ -54,10 +55,16 @@ def run():
     check('s02_identity_session_encrypted_in_database',protected)
     with patch('time.time',return_value=time.time()+601):post(b,reverse('account_confirm_login_code'),{'code':value})
     check('s02_expired_email_code_denied','_auth_user_id' not in b.session)
-    limited=browser();valid=code(limited,email);wrong='AAAA-AAAA' if valid!='AAAA-AAAA' else 'BBBB-BBBB'
+    limited_email='limited-'+uuid.uuid4().hex[:10]+'@example.invalid'
+    limited_person=get_user_model().objects.create_user(username=uuid.uuid4().hex,email=limited_email)
+    EmailAddress.objects.create(user=limited_person,email=limited_email,primary=True,verified=True)
+    limited=browser();valid=code(limited,limited_email);wrong='AAAA-AAAA' if valid!='AAAA-AAAA' else 'BBBB-BBBB'
     for _ in range(5):post(limited,reverse('account_confirm_login_code'),{'code':wrong})
     post(limited,reverse('account_confirm_login_code'),{'code':valid})
     check('s02_five_invalid_codes_exhaust_attempts','_auth_user_id' not in limited.session)
+    email='concurrent-'+uuid.uuid4().hex[:10]+'@example.invalid'
+    person=get_user_model().objects.create_user(username=uuid.uuid4().hex,email=email)
+    EmailAddress.objects.create(user=person,email=email,primary=True,verified=True)
     concurrent=browser();valid=code(concurrent,email);cookie=concurrent.cookies.output(header='',sep=';').strip()
     # Independent HTTP middleware/session instances share only the original browser cookie.
     def redeem(index):
@@ -86,5 +93,9 @@ try:run();result['status']='PASS'
 except Exception as exc:
     result['status']='FAILED';result['error_type']=type(exc).__name__
     if isinstance(exc,RuntimeError) and str(exc).startswith('CHECK_FAILED:'):result['failed_case']=str(exc).split(':',1)[1]
-finally:Path(sys.argv[1]).write_text(json.dumps(result,indent=2)+'\n');connections.close_all()
+finally:
+    Path(sys.argv[1]).write_text(json.dumps(result,indent=2)+'\n')
+    if len(sys.argv)>2:
+        private=Path(sys.argv[2]);private.write_text(json.dumps(private_values));private.chmod(0o600)
+    connections.close_all()
 sys.exit(0 if result['status']=='PASS' else 1)
