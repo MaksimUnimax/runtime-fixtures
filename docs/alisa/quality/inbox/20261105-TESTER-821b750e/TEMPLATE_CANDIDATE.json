@@ -1,7 +1,7 @@
 {
   "schema": "alisa-template-candidate/v1",
   "template_id": "C-UE01",
-  "revision": "fresh-orders-stage-qualified-unit-economics-r7",
+  "revision": "physical-handover-qualified-unit-economics-r8",
   "status": "CANDIDATE_WITH_EXPLICIT_FORECAST_GAPS",
   "required_basis": "declared unit profile and original ordered cohort",
   "source_fallback_order": [
@@ -31,7 +31,9 @@
     "API_TARIFF_ESTIMATE",
     "OFFICIAL_TARIFF_ESTIMATE",
     "OWNER_CONDITIONAL_RESERVE",
-    "USER_INPUT"
+    "USER_INPUT",
+    "OWNER_CONFIRMED",
+    "PHYSICAL_EVENT_UNKNOWN"
   ],
   "guards": [
     "No unqualified zero from pending financial_data",
@@ -51,7 +53,12 @@
     "No invented cancellation commission reserve",
     "Fresh owner-requested run must contain new source HTTP calls and must not reuse earlier money values",
     "A final result is numeric only if every required component is known or an authorized scoped estimate; otherwise provide calculated subtotal plus explicit unresolved component",
-    "Keep per-physical-unit cost250 and label per-ordered-unit allocation separately if used; no silent denominator switch"
+    "Keep per-physical-unit cost250 and label per-ordered-unit allocation separately if used; no silent denominator switch",
+    "Ship/assembly state must not establish physical handover",
+    "Known cancelled item not physically handed over gets zero forecast for unperformed physical logistics, without deleting real unrelated charges",
+    "Do not average zero and a tariff to invent a probability of an unknown physical event",
+    "UI report/Excel existence does not establish a public API endpoint",
+    "Do not infer real receipt from sentinel dates before order creation"
   ],
   "production_adapter": "NOT_INSTALLED",
   "main_cancellation_commission_policy": "Official expected net remuneration for noncancelled units; never invent an unobserved cancellation commission charge",
@@ -76,7 +83,27 @@
       "delivery_or_receipt_evidence",
       "return_type",
       "matched_actual_charge_and_reversal"
-    ]
+    ],
+    "physical_handover": {
+      "not_sufficient": [
+        "cancelled_after_ship=true by itself",
+        "ship endpoint name or POSTING_ALREADY_SHIPPED message",
+        "awaiting_deliver / Готов к отгрузке",
+        "Принят / Принят в обработку timestamp",
+        "shipment_date schedule",
+        "created act/carriage without confirmed handover"
+      ],
+      "evidence_required": [
+        "qualified actual handover/acceptance event including pickup/dropoff",
+        "validated non-sentinel receipt timestamp",
+        "historical logistics transition with qualified meaning",
+        "owner-confirmed physical fact, explicitly labelled OWNER_CONFIRMED"
+      ],
+      "nulls": "Null or sentinel timestamps alone do not prove no handover; no-return records alone do not prove no logistics.",
+      "conflicts": "Preserve contradictory raw flags; do not infer physical custody from one ambiguous flag. An actual charge conflicting with verified non-handover remains a recorded charge plus discrepancy for investigation, not silently deleted.",
+      "case_resolution": "Owner confirms selected FBS cancelled item was not physically handed over. Exclude unperformed forward transport, return transport, handover processing and delivery-to-point estimates for that item. Do not erase actual advertising/acquiring or other incurred costs.",
+      "flag_backend_trigger": "Exact internal cancelled_after_ship trigger NOT_FOUND; do not invent a universal 'after assembly' definition from endpoint naming alone."
+    }
   },
   "official_research": "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/quality/inbox/20261105-TESTER-d391a4b1/CANCELLATION_RETURNS_RESEARCH.md",
   "owner_inputs": {
@@ -107,7 +134,13 @@
     "with_cancellations": "Fulfillment of remaining units; no cancelled revenue or COGS; keep actual non-COGS costs and qualified stage-dependent tariff forecast",
     "direct_logistics": "Use exact actual when available; else owner-authorized arithmetic tariff midpoint for the relevant unit. Unknown event applicability remains a separate scenario, not an invented event probability.",
     "acquiring_cancelled": "Current conservative tariff allocation may be retained as an explicit estimate until refund is evidenced; never call this an incurred debit",
-    "unqualified_extra": "Expose X and subtract from calculated subtotal; no final net profit while required components remain unqualified"
+    "unqualified_extra": "Expose X and subtract from calculated subtotal; no final net profit while required components remain unqualified",
+    "unit_economics_ui_api": {
+      "dedicated_public_method": "NOT_FOUND",
+      "evidence": "Official UI article describes table and XLSX; official moderator describes accrual APIs matching store-economy accrual logic. Does not establish a ready unit-economics API endpoint.",
+      "fallback": "Use qualified actual accruals and explicit quantities; if amount missing use a qualified observed per-unit mean, else authorized official/API tariff midpoint; do not invent missing source values or event probabilities.",
+      "unit_alignment": "Check period, revenue definition and denominator before comparing UI sales-with-returns results with an ordered-cohort forecast."
+    }
   },
   "default_scopes": {
     "period": "parameter, not per-day hardcoded handler",
@@ -159,9 +192,16 @@
     }
   ],
   "latest_private_evidence": {
-    "run_id": "20261105-TESTER-821b750e",
-    "fresh_http_count": 14,
-    "cached_answers_used": false,
+    "run_id": "20261105-TESTER-7fb84c1e",
+    "new_targeted_http_count": 3,
+    "previous_money_run": "20261105-TESTER-821b750e",
+    "fresh_all_money_reads_repeated_this_review": false,
     "production_changed": false
+  },
+  "physical_acceptance_research": "https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/quality/inbox/20261105-TESTER-7fb84c1e/HANDOVER_AND_UNIT_API_RESEARCH.md",
+  "human_labels": {
+    "return_flow": "Обратная перевозка товара",
+    "awaiting_deliver_fbs": "Готов к отгрузке, ожидает сдачи",
+    "owner_not_handed_over": "Владелец подтвердил: товар Ozon не сдавали"
   }
 }
