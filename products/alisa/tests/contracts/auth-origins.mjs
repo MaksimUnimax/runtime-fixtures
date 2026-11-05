@@ -11,4 +11,16 @@ for(const bad of ['https://id.octoport.ru','https://id-stage.octoport.ru.attacke
 assert.equal(allowed('http://127.0.0.1:19440','https://localhost:19443',false,'dev'),true);
 assert.equal(allowed(site,issuer,true,'dev'),false);
 assert.equal(allowed(site,issuer,true,'prod'),false);
-console.log('Configured auth origin and canonical migration boundaries PASS');
+assert.equal(permittedAuthOrigins('stage',new URL(site),new URL('https://id.octoport.ru'),true,true),true);
+assert.equal(permittedAuthOrigins('stage',new URL(site),new URL(issuer),true,true),false);
+assert.equal(permittedAuthOrigins('stage',new URL(stage),new URL('https://id.octoport.ru'),false,true),false);
+import {permittedStaffAuthOrigins} from '../../apps/admin/src/server/origin.ts';
+const admin='https://alisa-admin.octoport.ru',oldAdmin='https://alisa-admin-stage.octoport.ru',canonicalIssuer='https://id.octoport.ru';
+const staff=(origin,authority,mode=true,env='stage')=>permittedStaffAuthOrigins(env,new URL(origin),new URL(authority),mode);
+assert.equal(staff(admin,canonicalIssuer),true);
+assert.equal(staff(oldAdmin,issuer,false),true);
+for(const pair of [[oldAdmin,canonicalIssuer],[admin,issuer],[admin+'.attacker.test',canonicalIssuer],['http://alisa-admin.octoport.ru',canonicalIssuer],[admin+'/path',canonicalIssuer],[admin,canonicalIssuer+'/?code=value']])assert.equal(staff(...pair),false);
+assert.equal(staff(admin,canonicalIssuer,true,'prod'),false);
+assert.equal(staff(admin,canonicalIssuer,true,'dev'),false);
+assert.equal(staff('http://127.0.0.1:19441','https://localhost:19443',false,'dev'),true);
+console.log('Configured web/admin auth origin and canonical migration boundaries PASS');

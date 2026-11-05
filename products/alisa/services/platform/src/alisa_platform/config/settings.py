@@ -62,6 +62,9 @@ DEFAULT_FROM_EMAIL = 'alisa-test@example.invalid'
 if LEAD_INTAKE_ENABLED and EMAIL_HOST not in {'127.0.0.1', 'localhost'}:
     raise ImproperlyConfigured('Only private synthetic SMTP sink is admitted')
 
+CANONICAL_AUTH_ENABLED=os.environ.get('ALISA_CANONICAL_AUTH_ENABLED','0')=='1'
+if os.environ.get('ALISA_CANONICAL_AUTH_ENABLED','0') not in {'0','1'} or CANONICAL_AUTH_ENABLED and ALISA_ENV!='stage':
+    raise ImproperlyConfigured('Invalid canonical auth mode')
 ACCOUNTS_ENABLED=os.environ.get('ALISA_ACCOUNTS_ENABLED')=='1'
 AUTH_SERVICE_TOKEN=os.environ.get('ALISA_AUTH_SERVICE_TOKEN','')
 IDENTITY_ISSUER=os.environ.get('ALISA_IDENTITY_ISSUER','').rstrip('/')
@@ -73,7 +76,7 @@ if ACCOUNTS_ENABLED:
     from urllib.parse import urlsplit
     u=urlsplit(IDENTITY_ISSUER)
     if u.path or u.query or u.fragment or u.username or u.password:raise ImproperlyConfigured('Invalid issuer')
-    if ALISA_ENV=='stage' and IDENTITY_ISSUER!='https://id-stage.octoport.ru':raise ImproperlyConfigured('Wrong stage issuer')
+    if ALISA_ENV=='stage' and IDENTITY_ISSUER!=('https://id.octoport.ru' if CANONICAL_AUTH_ENABLED else 'https://id-stage.octoport.ru'):raise ImproperlyConfigured('Wrong stage issuer')
     if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'127.0.0.1','localhost'}):raise ImproperlyConfigured('Dev issuer must be loopback')
 DATA_UPLOAD_MAX_MEMORY_SIZE=32768
 

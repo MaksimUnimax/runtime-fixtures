@@ -40,6 +40,9 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 
 # Auth is an explicit release/config capability; old shell config stays closed.
+CANONICAL_AUTH_ENABLED = os.environ.get('ALISA_CANONICAL_AUTH_ENABLED','0')=='1'
+if os.environ.get('ALISA_CANONICAL_AUTH_ENABLED','0') not in {'0','1'} or CANONICAL_AUTH_ENABLED and ALISA_ENV!='stage':
+    raise ImproperlyConfigured('Invalid canonical auth mode')
 IDENTITY_ENABLED = os.environ.get('ALISA_IDENTITY_ENABLED')=='1'
 IDENTITY_ISSUER = os.environ.get('ALISA_IDENTITY_ISSUER','').rstrip('/')
 IDENTITY_DATA_KEYS = os.environ.get('ALISA_IDENTITY_DATA_KEYS','').split(',') if IDENTITY_ENABLED else []
@@ -50,7 +53,7 @@ if IDENTITY_ENABLED:
     u=urlsplit(IDENTITY_ISSUER)
     if u.path or u.query or u.fragment or u.username or u.password or not u.hostname:
         raise ImproperlyConfigured('Invalid fixed identity issuer')
-    if ALISA_ENV=='stage' and IDENTITY_ISSUER!='https://id-stage.octoport.ru':raise ImproperlyConfigured('Wrong stage issuer')
+    if ALISA_ENV=='stage' and IDENTITY_ISSUER!=('https://id.octoport.ru' if CANONICAL_AUTH_ENABLED else 'https://id-stage.octoport.ru'):raise ImproperlyConfigured('Wrong stage issuer')
     if ALISA_ENV=='prod':raise ImproperlyConfigured('Public identity admission is not authorized')
     if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'localhost','127.0.0.1'}):raise ImproperlyConfigured('Dev issuer must be loopback')
     try:
@@ -119,7 +122,7 @@ if IDENTITY_STAFF_ENABLED:
     u=urlsplit(IDENTITY_STAFF_CALLBACK)
     if u.path!='/auth/callback' or u.query or u.fragment or u.username or u.password:
         raise ImproperlyConfigured('Invalid staff callback')
-    if ALISA_ENV=='stage' and (IDENTITY_STAFF_CLIENT_ID!='alisa_admin_stage' or IDENTITY_STAFF_CALLBACK!='https://alisa-admin-stage.octoport.ru/auth/callback'):
+    if ALISA_ENV=='stage' and (IDENTITY_STAFF_CLIENT_ID!='alisa_admin_stage' or IDENTITY_STAFF_CALLBACK!=('https://alisa-admin.octoport.ru/auth/callback' if CANONICAL_AUTH_ENABLED else 'https://alisa-admin-stage.octoport.ru/auth/callback')):
         raise ImproperlyConfigured('Wrong stage staff client')
     if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'127.0.0.1','localhost'}):
         raise ImproperlyConfigured('Dev staff callback must be loopback')
