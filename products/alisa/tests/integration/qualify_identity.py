@@ -33,7 +33,7 @@ def check(name,condition,**safe):
     CASES.append({'case':name,'passed':True,**safe});print(json.dumps(CASES[-1]),flush=True)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');parser.add_argument('--access',action='store_true');parser.add_argument('--open-registration',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');parser.add_argument('--access',action='store_true');parser.add_argument('--stores',action='store_true');parser.add_argument('--open-registration',action='store_true');args=parser.parse_args()
     params=psycopg.conninfo.conninfo_to_dict(os.environ.get('ALISA_TEST_PG_DSN',''))
     if (os.environ.get('ALISA_TEST_DB_ALLOW')!='1' or params.get('host')!='127.0.0.1' or params.get('port')!='55480' or params.get('dbname')!='alisa_ci_admin' or params.get('user')!='alisa_ci_admin' or not params.get('password') or set(params)-{'host','port','dbname','user','password'}):
         raise RuntimeError('Guarded disposable CI database required')
@@ -45,7 +45,7 @@ def main():
         with patch.dict(os.environ,clean_environment(),clear=True):return psycopg.connect(**config,autocommit=True)
     admin=connect();owned=False;roles=[n+'_'+r for n in NAMES for r in ['migration','runtime']]
     record={'scope':'S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE','status':'RUNNING','cases':CASES,'not_run':['live_stage_rollout','controlled_real_email','live_release_pair_rollback']}
-    proxies=[];sink=None;browser=None;context=None;temporary=None;logs=None;playwright=None;network=OwnedNetwork()
+    proxies=[];store_fixture=None;sink=None;browser=None;context=None;temporary=None;logs=None;playwright=None;network=OwnedNetwork()
     try:
         databases={r[0] for r in admin.execute('SELECT datname FROM pg_database WHERE NOT datistemplate')}
         if databases-{'postgres','alisa_ci_admin'}:raise RuntimeError('Disposable cluster is not empty')
@@ -97,6 +97,11 @@ def main():
                 if not args.staff:raise RuntimeError('Access qualification requires native staff flow')
                 platform_only['ALISA_ENTITLEMENTS_ENABLED']='1'
                 platform_only['ALISA_ACCESS_SINK_DELIVERY']='1'
+            if args.stores:
+                from store_check_fixture import Fixture
+                store_fixture=Fixture(temp/'stores-check.sock',network.uid)
+                platform_only.update({'ALISA_STORES_ENABLED':'1','ALISA_STORE_DATA_KEYS':Fernet.generate_key().decode(),
+                    'ALISA_STORE_CHECK_SOCKET':str(temp/'stores-check.sock'),'ALISA_STORE_CHECK_UID':str(os.getuid())})
             component_keys={c:secrets.token_urlsafe(48) for c in ['platform','identity','web']}
             web_env={**clean_environment(),'HOME':str(home),'ALISA_ENV':'dev','ALISA_RELEASE':manifest['artifact_id'],
                   'ALISA_LEAD_INTAKE_ENABLED':'1','ALISA_SECRET_KEY':component_keys['web'],'ALISA_ACCOUNTS_ENABLED':'1','ALISA_IDENTITY_ISSUER':ISSUER,
@@ -471,6 +476,14 @@ def main():
             manage('identity',['identity_deliver'])
             with db('identity') as conn:
                 check('s02_smtp_recovery_sends_and_erases_code',len(sink.messages)>=1 and not conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND encrypted_payload<>'' AND expires_at>now()").fetchone())
+            if args.stores:
+                from qualify_stores_browser import run as run_stores_browser
+                def restart_actual_platform():
+                    nonlocal api
+                    stop(api)
+                    api=start('platform')
+                run_stores_browser(context=context,second_context=second_context,db=db,check=check,
+                    web_origin=WEB,private_values=private_values,restart=restart_actual_platform)
             if args.staff:
                 from qualify_staff_browser import run as run_staff_browser
                 run_staff_browser(browser=browser,context=context,second_context=second_context,db=db,manage=manage,
@@ -524,7 +537,7 @@ def main():
         tb=exc.__traceback__
         while tb:
             if Path(tb.tb_frame.f_code.co_filename).name=='qualify_identity.py':record['qualification_line']=tb.tb_lineno
-            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_access_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
+            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_access_browser.py','qualify_stores_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
             if not tb.tb_next:break
             tb=tb.tb_next
         if tb:record['error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
@@ -553,6 +566,7 @@ def main():
         for p in reversed(PROCESSES):stop(p)
         network.close()
         for proxy in proxies:proxy.shutdown();proxy.server_close()
+        if store_fixture:store_fixture.close()
         if sink:sink.shutdown();sink.server_close()
         if logs and not logs.closed:logs.close()
         if temporary:temporary.cleanup()

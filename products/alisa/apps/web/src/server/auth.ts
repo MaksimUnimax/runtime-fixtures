@@ -46,7 +46,7 @@ export function readCookie(request:Request,name:string){
 export function cookie(name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
 export function response(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}
 export async function accountApi(action:string,data:Record<string,unknown>){
-  const paths:Record<string,string>={createFlow:'auth/flows',consumeFlow:'auth/flows/consume',createSession:'auth/sessions',me:'account/me',profile:'account/profile',access:'account/access',logout:'auth/logout'};
+  const paths:Record<string,string>={createFlow:'auth/flows',consumeFlow:'auth/flows/consume',createSession:'auth/sessions',me:'account/me',profile:'account/profile',access:'account/access',stores:'account/stores',logout:'auth/logout'};
   const base=new URL(process.env.ALISA_PLATFORM_URL||''),token=process.env.ALISA_AUTH_SERVICE_TOKEN||'';
   if(!paths[action]||base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||base.pathname!=='/'||base.search||base.hash||base.username||base.password||token.length<32)throw new AuthUnavailable();
   try{
