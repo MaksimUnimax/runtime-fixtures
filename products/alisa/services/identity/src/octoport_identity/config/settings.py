@@ -130,3 +130,33 @@ DATA_UPLOAD_MAX_MEMORY_SIZE=16384
 LOGGING={'version':1,'disable_existing_loggers':False,'handlers':{'console':{'class':'logging.StreamHandler'}},
          'loggers':{'django.request':{'handlers':['console'],'level':'CRITICAL','propagate':False},
                     'oauthlib':{'handlers':['console'],'level':'CRITICAL','propagate':False}}}
+
+# An explicit closed-test invitation, not public registration or email-based account linking.
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+REAL_LOGIN_RECIPIENTS=frozenset(x.strip().lower() for x in os.environ.get('ALISA_REAL_LOGIN_RECIPIENTS','').split(',') if x.strip())
+try:
+    if len(REAL_LOGIN_RECIPIENTS)>20:raise ValueError()
+    for contact in REAL_LOGIN_RECIPIENTS:
+        validate_email(contact)
+        if len(contact)>254 or contact.endswith('@example.invalid'):raise ValueError()
+    if REAL_LOGIN_RECIPIENTS and ALISA_ENV!='stage':raise ValueError()
+except (ValidationError,ValueError):
+    raise ImproperlyConfigured('Invalid closed-test login recipients') from None
+
+REAL_SMTP=None
+if REAL_LOGIN_RECIPIENTS:
+    from pathlib import Path
+    import stat
+    try:
+        secret_file=Path(required('ALISA_REAL_SMTP_PASSWORD_FILE'))
+        if not secret_file.is_absolute() or not secret_file.is_file():raise ValueError()
+        if stat.S_IMODE(secret_file.stat().st_mode)&0o007:raise ValueError()
+        secret=secret_file.read_text().strip()
+        if len(secret)<32:raise ValueError()
+        REAL_SMTP={'host':'mail.octoport.ru','port':25,
+                   'username':'alisa-mailer@octoport.ru','password':secret,
+                   'use_tls':True,'use_ssl':False,'timeout':4}
+        REAL_FROM_EMAIL='no-reply@octoport.ru'
+    except (OSError,ValueError):
+        raise ImproperlyConfigured('Private real-mail transport configuration required') from None

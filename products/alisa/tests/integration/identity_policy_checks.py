@@ -59,7 +59,51 @@ def code(b,email):
     private_values.extend([email,match.group(1)])
     return match.group(1)
 
+def mail_policies():
+    from datetime import timedelta
+    from django.core.exceptions import ValidationError
+    from django.test import override_settings
+    from octoport_identity.protocol.adapter import AccountAdapter
+    from octoport_identity.accounts.management.commands.identity_deliver import Command
+    # Keep the parent's actual fixture outbox untouched by this isolated test batch.
+    waiting=list(IdentityMail.objects.filter(sent_at__isnull=True).values_list('pk','lease_until'))
+    IdentityMail.objects.filter(pk__in=[pk for pk,_ in waiting]).update(lease_until=django.utils.timezone.now()+timedelta(minutes=5))
+    owned=[]
+    def queued(**values):
+        row=IdentityMail.objects.create(recipient='fixture@example.invalid',encrypted_payload='encrypted-test',
+            expires_at=django.utils.timezone.now()+timedelta(minutes=10),**values)
+        owned.append(row.pk);return row
+    try:
+        with override_settings(REAL_LOGIN_RECIPIENTS={'invited@example.test'}):
+            check('s02_real_mail_invited_contact_normalized',AccountAdapter().clean_email('Invited@Example.Test')=='invited@example.test')
+            try:AccountAdapter().clean_email('other@example.test');denied=False
+            except ValidationError:denied=True
+            check('s02_real_mail_uninvited_contact_denied',denied)
+        with override_settings(REAL_LOGIN_RECIPIENTS=frozenset()):
+            try:AccountAdapter().clean_email('invited@example.test');denied=False
+            except ValidationError:denied=True
+            check('s02_real_mail_off_by_default',denied)
+        with patch('octoport_identity.accounts.management.commands.identity_deliver.deliver_mail',return_value='DELIVERY_OUTCOME_UNKNOWN') as send:
+            row=queued();Command().deliver();row.refresh_from_db();Command().deliver()
+            check('s02_unknown_delivery_never_automatically_replayed',send.call_count==1 and row.attempts==5 and not row.encrypted_payload and row.error_code=='DELIVERY_OUTCOME_UNKNOWN')
+        with patch('octoport_identity.accounts.management.commands.identity_deliver.deliver_mail',return_value='SENT') as send:
+            row=queued(error_code='SENDING',lease_until=django.utils.timezone.now()-timedelta(seconds=1))
+            Command().deliver();row.refresh_from_db()
+            check('s02_abandoned_submission_fail_closed_without_resend',not send.called and row.error_code=='DELIVERY_OUTCOME_UNKNOWN' and not row.encrypted_payload)
+        with patch('octoport_identity.accounts.management.commands.identity_deliver.deliver_mail',return_value='DELIVERY_UNAVAILABLE') as send:
+            row=queued();Command().deliver();Command().deliver();row.refresh_from_db()
+            check('s02_connection_failure_keeps_encrypted_code_and_backoff',send.call_count==1 and row.encrypted_payload and row.error_code=='DELIVERY_UNAVAILABLE')
+        with patch('octoport_identity.accounts.management.commands.identity_deliver.deliver_mail',return_value='SENT') as send:
+            IdentityMail.objects.filter(pk=row.pk).update(lease_until=None)
+            Command().deliver();row.refresh_from_db();Command().deliver()
+            check('s02_known_connection_recovery_once_and_private_payload_erased',send.call_count==1 and row.sent_at is not None and not row.encrypted_payload)
+    finally:
+        IdentityMail.objects.filter(pk__in=owned).delete()
+        for pk,lease in waiting:IdentityMail.objects.filter(pk=pk).update(lease_until=lease)
+
+
 def run():
+    mail_policies()
     check('s02_runtime_code_ttl_600_and_five_attempts',settings.ACCOUNT_LOGIN_BY_CODE_TIMEOUT==600 and settings.ACCOUNT_EMAIL_VERIFICATION_BY_CODE_TIMEOUT==600 and settings.ACCOUNT_LOGIN_BY_CODE_MAX_ATTEMPTS==5)
     email='policy-'+uuid.uuid4().hex[:10]+'@example.invalid'
     person=get_user_model().objects.create_user(username=uuid.uuid4().hex,email=email)

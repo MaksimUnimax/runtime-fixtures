@@ -2,6 +2,7 @@ import './site.css';
 import Link from 'next/link';
 import brandMark from './octoport-brand.png';
 import {siteOrigin} from '../server/public';
+import {realLoginEnabled} from '../server/auth';
 import {Tracking} from './tracking';
 
 export const dynamic = 'force-dynamic';
@@ -49,7 +50,7 @@ export default function Layout({children}: {children: React.ReactNode}) {
         <Link href="/consents">Согласия</Link>
         <Link href="/login">Вход</Link>
       </div>
-      <p>Алиса Маркет · Закрытая тестовая среда. Реальные контакты и платежи не принимаются.</p>
+      <p>Алиса Маркет · Закрытая тестовая среда. {realLoginEnabled()?'Вход по приглашению. Магазины и платежи ещё не подключаются.':'Реальные контакты и платежи не принимаются.'}</p>
     </footer>
   </body></html>;
 }
