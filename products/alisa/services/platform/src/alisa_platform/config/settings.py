@@ -76,3 +76,16 @@ if ACCOUNTS_ENABLED:
     if ALISA_ENV=='stage' and IDENTITY_ISSUER!='https://id-stage.octoport.ru':raise ImproperlyConfigured('Wrong stage issuer')
     if ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'127.0.0.1','localhost'}):raise ImproperlyConfigured('Dev issuer must be loopback')
 DATA_UPLOAD_MAX_MEMORY_SIZE=32768
+
+# An explicit closed-test invitation, not public registration or email-based account linking.
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+REAL_LOGIN_RECIPIENTS=frozenset(x.strip().lower() for x in os.environ.get('ALISA_REAL_LOGIN_RECIPIENTS','').split(',') if x.strip())
+try:
+    if len(REAL_LOGIN_RECIPIENTS)>20:raise ValueError()
+    for contact in REAL_LOGIN_RECIPIENTS:
+        validate_email(contact)
+        if len(contact)>254 or contact.endswith('@example.invalid'):raise ValueError()
+    if REAL_LOGIN_RECIPIENTS and ALISA_ENV!='stage':raise ValueError()
+except (ValidationError,ValueError):
+    raise ImproperlyConfigured('Invalid closed-test login recipients') from None

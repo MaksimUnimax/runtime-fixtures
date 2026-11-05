@@ -7,6 +7,7 @@ import type {AuthFlowInput,AuthSessionInput} from '@alisa/contracts';
 export const SESSION_COOKIE='__Host-alisa_session';
 export const FLOW_COOKIE='__Host-alisa_login';
 export const HANDOFF_COOKIE='__Host-alisa_handoff';
+export function realLoginEnabled(){return process.env.ALISA_REAL_LOGIN_ENABLED==='1'&&authEnabled();}
 export function authEnabled(){return process.env.ALISA_ACCOUNTS_ENABLED==='1'&&['stage','dev'].includes(process.env.ALISA_ENV||'');}
 export class AuthUnavailable extends Error{
   stage:string;safeCode:string;
