@@ -1,5 +1,5 @@
 import {authEnabled} from '../../server/auth';
-export const metadata={title:'Вход в кабинет',alternates:{canonical:'/login'}};
+export const metadata={referrer:'same-origin',title:'Вход в кабинет',alternates:{canonical:'/login'}};
 export default async function Login({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){
   const query=await searchParams;
   return <main className="site"><article className="article"><p className="eyebrow">Алиса Маркет / CLOSED</p><h1>{authEnabled()?'Вход в кабинет Алисы':'Вход появится на следующем этапе'}</h1>

@@ -1,7 +1,7 @@
 import {cookies} from 'next/headers';
 import {redirect} from 'next/navigation';
 import {authEnabled,getProfile,SESSION_COOKIE} from '../../server/auth';
-export const metadata={title:'Мой кабинет',robots:{index:false,follow:false}};
+export const metadata={referrer:'same-origin',title:'Мой кабинет',robots:{index:false,follow:false}};
 export default async function Cabinet(){
   if(!authEnabled())return <main className="site"><h1>Личный кабинет ещё не открыт</h1></main>;
   const token=(await cookies()).get(SESSION_COOKIE)?.value||'';

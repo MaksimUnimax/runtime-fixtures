@@ -49,7 +49,9 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             status=response.status
             hook=getattr(self.server,'result_hook',None)
             if hook:status,body=hook(self.path,status,body)
-            trace={'backend':self.server.backend,'method':self.command,'path':urlsplit(self.path).path,'status':status}
+            origin=self.headers.get('Origin')
+            kind='absent' if origin is None else 'null' if origin=='null' else 'loopback' if urlsplit(origin).hostname in {'127.0.0.1','localhost'} else 'other'
+            trace={'backend':self.server.backend,'method':self.command,'path':urlsplit(self.path).path,'status':status,'origin_kind':kind}
             if getattr(response,'headers',{}).get('Content-Type','').startswith('application/json'):
                 try:code=json.loads(body).get('code')
                 except (ValueError,AttributeError):code=None
@@ -59,7 +61,8 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             for key,value in response.getheaders():
                 if key.lower() not in {'connection','transfer-encoding','content-length'}:self.send_header(key,value)
             self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
-        except OSError:
+        except OSError as exc:
+            self.server.safe_trace.append({'backend':self.server.backend,'method':self.command,'path':urlsplit(self.path).path,'error_type':type(exc).__name__})
             # Browser cancellation must not print a traceback or reflect a URL.
             self.close_connection=True
         finally:connection.close()
