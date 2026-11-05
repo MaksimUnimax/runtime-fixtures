@@ -329,14 +329,21 @@ def main():
                     token_mutated.append(True);return urlencode({k:v[0] for k,v in values.items()}).encode()
                 proxies[1].response_hook=alter_token;proxies[1].request_hook=alter_request
                 if mode=='state':
-                    def wrong_state(route):
-                        url=urlsplit(route.request.url);query=parse_qs(url.query);query['state']=['wrong-private-fixture-state']
-                        route.continue_(url=url._replace(query=urlencode({k:v[0] for k,v in query.items()})).geturl())
-                    np.route('**/auth/callback?**',wrong_state)
+                    def wrong_state(path):
+                        url=urlsplit(path)
+                        if url.path!='/auth/callback':return path
+                        query=parse_qs(url.query);query['state']=['wrong-private-fixture-state']
+                        token_mutated.append(True)
+                        return url._replace(query=urlencode({k:v[0] for k,v in query.items()})).geturl()
+                    proxies[0].path_hook=wrong_state
                 try:
-                    np.goto(href);expect(np).to_have_url(re.compile('/login\\?error=AUTH_FAILED'))
-                    check('s02_bff_rejects_'+mode,np.request.get(WEB+'/api/account/me').status==401 and (mode=='state' or bool(token_mutated)))
+                    np.goto(href)
+                    record['negative_fixture']={'mode':mode,'mutation_applied':bool(token_mutated),'landing_path':urlsplit(np.url).path}
+                    check('s02_negative_'+mode+'_fixture_applied',bool(token_mutated))
+                    expect(np).to_have_url(re.compile('/login\\?error=AUTH_FAILED'))
+                    check('s02_bff_rejects_'+mode,np.request.get(WEB+'/api/account/me').status==401)
                 finally:
+                    proxies[0].path_hook=None
                     proxies[1].response_hook=None;proxies[1].request_hook=None
                     negative.close()
             with db('platform') as conn:check('s02_rejected_callbacks_create_no_customer_or_tenant',conn.execute('SELECT count(*) FROM accounts_customer').fetchone()[0]==2 and conn.execute('SELECT count(*) FROM accounts_tenant').fetchone()[0]==2)

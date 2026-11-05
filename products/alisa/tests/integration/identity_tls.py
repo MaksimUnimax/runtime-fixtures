@@ -44,7 +44,9 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             hook=getattr(self.server,'request_hook',None)
             if hook:body=hook(self.path,body)
             if body is not None:headers['Content-Length']=str(len(body))
-            connection.request(self.command,self.path,body,headers)
+            path_hook=getattr(self.server,'path_hook',None)
+            forwarded_path=path_hook(self.path) if path_hook else self.path
+            connection.request(self.command,forwarded_path,body,headers)
             response=connection.getresponse();body=response.read()
             hook=getattr(self.server,'response_hook',None)
             if hook:body=hook(self.path,response.status,body)
