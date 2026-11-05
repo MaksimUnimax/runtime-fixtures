@@ -18,7 +18,7 @@
     "fbs_handling": "commissions.fbs_first_mile_min_amount/max_amount",
     "return_flow": "commissions.<scheme>_return_flow_amount; grouped service estimate, no blind extra handling",
     "storage": "finance.balance cashflows.services product_placement_in_ozon_warehouses",
-    "extra_courier": "finance.balance cashflows.services courier_client_reinvoice, explicit store-period allocation",
+    "extra_courier": "Historical financial-day control only; not added to forecast last-mile tariff",
     "ads_cpo": "finance.balance promotion_with_cost_per_order, crosschecked against qualified Performance data",
     "ads_cpc": "finance.balance pay_per_click, crosschecked against qualified Performance data",
     "cogs": "owner input, never replaced by prices.net_price",
@@ -42,7 +42,8 @@
     "Commission reserve optional and explicit, not an invented API fee",
     "Return-flow composite counted once",
     "Product cost input stays unchanged; denominators explicit per scenario",
-    "Missing actual charge triggers authorized tariff fallback rather than unexplained empty result"
+    "Missing actual charge triggers authorized tariff fallback rather than unexplained empty result",
+    "Do not add historical variable courier/logistics/processing/acquiring charges on top of matched forecast delivery tariffs"
   ],
   "production_adapter": "NOT_INSTALLED"
 }
