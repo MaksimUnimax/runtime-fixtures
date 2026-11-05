@@ -1,0 +1,153 @@
+--- a/dataset_pipeline.py
++++ b/dataset_pipeline.py
+@@ -9,6 +9,7 @@
+ from semantics import Scope,Store,Rejected,parse,normalize,make_plan,strict_json,canonical_json,fingerprint
+ from matrix_sources import SourceMatrix
+ from matrix_core import MatrixError,validate_expression,evaluate,money,decimal_text
++from dataset_relations import validate_relations,validate_window,calendar_windows,apply_relations
+ ROOT=Path(__file__).parent
+ SOURCES=SourceMatrix(strict_json((ROOT/'dataset_sources.json').read_text()))
+ CATALOG=strict_json((ROOT/'dataset_queries.json').read_text())
+@@ -22,7 +23,7 @@
+  if not isinstance(c['version'],str) or not 1<=len(c['version'])<=100 or type(c['queries'])is not dict or not 1<=len(c['queries'])<=100:fail('DATASET_CATALOG')
+  phrases=set()
+  for qid,q in c['queries'].items():
+-  if not re.fullmatch(r'[a-z][a-z0-9_]{0,79}',qid) or type(q)is not dict or set(q)!={'phrases','snapshot','max_days','flows','columns','group_by','aggregates','notes','output_stage'}:fail('DATASET_QUERY_SCHEMA')
++  if not re.fullmatch(r'[a-z][a-z0-9_]{0,79}',qid) or type(q)is not dict or not {'phrases','snapshot','max_days','flows','columns','group_by','aggregates','notes','output_stage'}<=set(q) or set(q)-{'phrases','snapshot','max_days','flows','columns','group_by','aggregates','notes','output_stage','relations'}:fail('DATASET_QUERY_SCHEMA')
+   if type(q['snapshot'])is not bool or type(q['max_days'])is not int or not 1<=q['max_days']<=365:fail('DATASET_PERIOD_SCHEMA')
+   if not isinstance(q['phrases'],list) or not 1<=len(q['phrases'])<=50:fail('DATASET_PHRASES')
+   for p in q['phrases']:
+@@ -33,12 +34,14 @@
+    if not isinstance(stages,list) or not 1<=len(stages)<=16:fail('DATASET_STAGES')
+    ids=set()
+    for s in stages:
+-    if type(s)is not dict or set(s)!={'id','source','period_mode','foreach'} or not re.fullmatch(r'[a-z][a-z0-9_]{0,79}',s['id']) or s['id']in ids:fail('DATASET_STAGE')
++    if type(s)is not dict or not {'id','source','period_mode','foreach'}<=set(s) or set(s)-{'id','source','period_mode','foreach','window'} or not re.fullmatch(r'[a-z][a-z0-9_]{0,79}',s['id']) or s['id']in ids:fail('DATASET_STAGE')
+     ids.add(s['id'])
+     if s['source']not in SOURCES.sources or SOURCES.recipe(s['source'])['platform']!=platform or s['period_mode']not in ('whole','days'):fail('DATASET_SOURCE_ROUTE')
+     validate_expression(s['foreach'],{'datasets','period'})
++    if 'window' in s:validate_window(s['window'])
+    outs=[q['output_stage']] if isinstance(q['output_stage'],str) else q['output_stage']
+-   if not isinstance(outs,list) or not outs or len(set(outs))!=len(outs) or not set(outs)<=ids:fail('DATASET_OUTPUT')
++   derived=validate_relations(q.get('relations',[]),ids)
++   if not isinstance(outs,list) or not outs or len(set(outs))!=len(outs) or not set(outs)<=derived:fail('DATASET_OUTPUT')
+   if not isinstance(q['columns'],list) or not 1<=len(q['columns'])<=16:fail('DATASET_COLUMNS')
+   seen=set()
+   for col in q['columns']:
+@@ -93,7 +96,12 @@
+    proof=capabilities.get(store['id'],{}).get(op,{})
+    if proof.get('status')!='READ_ONLY_CANARY' or proof.get('dataset_source_hash')!=SOURCES.hash or proof.get('dataset_query_hash')!=HASH:fail('DATASET_NOT_QUALIFIED')
+    if any(proof.get(k)!=v for k,v in SOURCES.recipe(op)['proof_requirements'].items()):fail('DATASET_TOKEN_POLICY')
+-   SOURCES.available(op,draft['period'],draft['calendar_date']);proofs[store['id']][op]=copy.deepcopy(proof)
++   try:
++    for stage in q['flows'][store['platform']]:
++     if stage['source']==op:
++      for window in calendar_windows(stage,draft['period']):SOURCES.available(op,window,draft['calendar_date'])
++   except MatrixError as e:fail(e.code)
++   proofs[store['id']][op]=copy.deepcopy(proof)
+  base.update(metrics=['dataset:'+qid],definition='matrix-dataset-v1',dataset={'id':qid,'catalog_hash':HASH,'calendar_date':draft['calendar_date']},dataset_capabilities=proofs)
+  return base
+ 
+@@ -114,10 +122,14 @@
+  try:params=evaluate(stage['foreach'],{'datasets':datasets,'period':plan['period']})
+  except MatrixError as e:fail(e.code)
+  if not isinstance(params,list) or len(params)>CATALOG['max_tasks'] or any(type(x)is not dict for x in params):fail('DATASET_FANOUT')
+- periods=[plan['period']]
++ try:periods=calendar_windows(stage,plan['period'])
++ except MatrixError as e:fail(e.code)
+  if stage['period_mode']=='days':
+-  a,b=map(date.fromisoformat,(plan['period']['from'],plan['period']['to']))
+-  periods=[{'from':(a+timedelta(days=n)).isoformat(),'to':(a+timedelta(days=n)).isoformat()} for n in range((b-a).days+1)]
++  expanded=[]
++  for window in periods:
++   a,b=map(date.fromisoformat,(window['from'],window['to']))
++   expanded.extend({'from':(a+timedelta(days=n)).isoformat(),'to':(a+timedelta(days=n)).isoformat()} for n in range((b-a).days+1))
++  periods=expanded
+  tasks=[{'source':stage['source'],'period':copy.deepcopy(period),'params':p} for period in periods for p in params]
+  if len(tasks)>CATALOG['max_tasks']:fail('DATASET_FANOUT')
+  return tasks
+@@ -133,7 +145,10 @@
+  try:return SOURCES.decode(task['source'],body,normalized,store,task,page,CATALOG)
+  except MatrixError as e:fail(e.code)
+ 
+-def projected_rows(q,datasets):
++def projected_rows(q,datasets,*,relations_applied=False):
++ if not relations_applied:
++  try:datasets,_=apply_relations(q,datasets,max_rows=CATALOG['max_rows'],max_bytes=CATALOG['max_bytes'])
++  except MatrixError as e:fail(e.code)
+  outputs=[q['output_stage']] if isinstance(q['output_stage'],str) else q['output_stage']
+  rows=[]
+  for name in outputs:
+@@ -159,7 +174,7 @@
+  if not valid(plan) or len(completed)!=len(plan['stores']):fail('DATASET_INCOMPLETE')
+  if len(canonical_json(completed).encode())>CATALOG['max_bytes']:fail('DATASET_CAPACITY')
+  q=CATALOG['queries'][plan['dataset']['id']]
+- lines=['Текущий снимок.' if q['snapshot'] else 'Период '+plan['period']['from']+' — '+plan['period']['to']+'.']
++ lines=['Текущий снимок.' if q['snapshot'] else 'Период '+plan['period']['from']+' — '+plan['period']['to']+'.'];join_coverage=[]
+  for store,block in zip(plan['stores'],completed):
+   if block.get('store_id')!=store['id'] or block.get('complete')is not True:fail('DATASET_INCOMPLETE')
+   stageids={x['id'] for x in q['flows'][store['platform']]}
+@@ -168,7 +183,14 @@
+    if not isinstance(rows,list) or len(rows)>CATALOG['max_rows']:fail('DATASET_CAPACITY')
+    keys=[r.get('key') for r in rows]
+    if any(not isinstance(k,str) or not k for k in keys) or len(set(keys))!=len(keys):fail('DATASET_ROW_ID')
+-  rows=projected_rows(q,block['datasets']);lines.append(store['platform']+': строк '+str(len(rows))+'.')
++  try:prepared,coverage=apply_relations(q,block['datasets'],max_rows=CATALOG['max_rows'],max_bytes=CATALOG['max_bytes'])
++  except MatrixError as e:fail(e.code)
++  if coverage:
++   join_coverage.append({'store_id':store['id'],'relations':coverage})
++   for proof in coverage:
++    lines.append('Покрытие «'+proof['label']+'»: целевых строк '+str(proof['target_rows'])+', с известным значением '+str(proof['matched_rows'])+', с неизвестным значением '+str(proof['unknown_value_rows'])+', без соответствия '+str(proof['unmatched_rows'])+'.')
++    if proof['excluded_rows']:lines.append('За пределами явно выбранного типа строк: '+str(proof['excluded_rows'])+'. Они не включены в суммы этого отчёта.')
++  rows=projected_rows(q,prepared,relations_applied=True);lines.append(store['platform']+': строк '+str(len(rows))+'.')
+   for row in rows:
+    pieces=[]
+    for c in q['columns']:
+@@ -196,7 +218,11 @@
+  if text:pages.append(text.strip())
+  if len(pages)>CATALOG['max_pages']:fail('DATASET_VOICE_CAPACITY','Полный отчёт слишком длинный для озвучивания; нужен меньший период или поддержанный разрез.')
+  for i in range(len(pages)-1):pages[i]+=' Скажите: дальше.'
+- return {'complete':True,'pages':pages,'data':completed,'fetched_at':stamp}
++ result={'complete':True,'pages':pages,'data':completed,'fetched_at':stamp}
++ if join_coverage:
++  result['join_coverage']=join_coverage
++  result['enrichment_complete']=all(r['enrichment_complete'] for b in join_coverage for r in b['relations'])
++ return result
+ 
+ def worker_step(worker,row,plan):
+  repo=worker.repo;jid,owner=row['id'],row['owner']
+--- a/repository.py
++++ b/repository.py
+@@ -216,7 +216,11 @@
+         with self.connection(True) as c:
+             r = self._owned(c,jid,owner)
+             if not r['plan']: raise Rejected('PLAN_REQUIRED')
+-            if set(result)!={'complete','pages','data','fetched_at'}:
++            base_fields={'complete','pages','data','fetched_at'}
++            joined_fields=base_fields|{'join_coverage','enrichment_complete'}
++            if set(result) not in (base_fields,joined_fields):
++                raise Rejected('RESULT_SCHEMA')
++            if set(result)==joined_fields and (type(result['join_coverage']) is not list or type(result['enrichment_complete']) is not bool):
+                 raise Rejected('RESULT_SCHEMA')
+             try:
+                 datetime.strptime(result['fetched_at'],'%Y-%m-%d %H:%M UTC')
+@@ -224,7 +228,7 @@
+                 raise Rejected('RESULT_TIMESTAMP') from None
+             plan=strict_json(r['plan'])
+             verified=providers.render(plan,result['data'],result['fetched_at'])
+-            if verified!=result:raise Rejected('RESULT_PROJECTION_MISMATCH')
++            if canonical_json(verified)!=canonical_json(result):raise Rejected('RESULT_PROJECTION_MISMATCH')
+             c.execute("UPDATE jobs SET state='READY',result=?,progress=NULL,error=NULL,expires=?,updated=?,owner=NULL,lease=NULL WHERE id=?",
+                       (canonical_json(result),self.clock()+min(self.ttl,plan.get('freshness_seconds',self.ttl)),self.clock(),jid))
+ 
+--- a/architecture_gate.py
++++ b/architecture_gate.py
+@@ -8,7 +8,7 @@
+ import hashlib
+ import json
+ from pathlib import Path
+-GENERIC_MODULES=('matrix_core.py','matrix_sources.py','scalar_runtime.py','registry.py','qualification_scope.py','report_contracts.py','failure_explanations.py')
++GENERIC_MODULES=('matrix_core.py','matrix_sources.py','scalar_runtime.py','registry.py','qualification_scope.py','report_contracts.py','failure_explanations.py','dataset_relations.py')
+ ROW_BRIDGES=('table_analytics.py','http_transport.py','engine.py')
+ 
+ 
