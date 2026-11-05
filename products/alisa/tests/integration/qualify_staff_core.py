@@ -95,7 +95,7 @@ def main():
                     if component=='identity':
                         subprocess.run([str(py),str(ROOT/'services/identity/manage.py'),'identity_clients','--apply'],env=migration,stdout=log,stderr=log,check=True,timeout=15)
                 record[component+'_migrations_applied'] = True
-            for component, filename in [('identity','staff_identity_checks.py'),('platform','staff_backend_checks.py')]:
+            for component, filename in [('identity','staff_identity_checks.py'),('platform','staff_backend_checks.py'),('identity','canonical_auth_checks.py'),('platform','canonical_auth_checks.py')]:
                 output = temp/(component+'-result.json')
                 with (temp/(component+'-checks.log')).open('w+') as log:
                     result = subprocess.run([str(py),str(ROOT/'tests/integration'/filename),str(output)],

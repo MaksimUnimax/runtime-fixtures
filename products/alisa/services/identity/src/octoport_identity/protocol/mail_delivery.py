@@ -14,7 +14,7 @@ def deliver_mail(mail_id,payload,recipient):
     elif (settings.REAL_LOGIN_OPEN or recipient in settings.REAL_LOGIN_RECIPIENTS) and settings.REAL_SMTP:
         backend='octoport_identity.protocol.smtp.EmailBackend'
         options=settings.REAL_SMTP;sender=settings.REAL_FROM_EMAIL
-        domain='id-stage.octoport.ru'
+        domain='id.octoport.ru' if getattr(settings,'CANONICAL_AUTH_ENABLED',False) else 'id-stage.octoport.ru'
     else:return 'DELIVERY_REJECTED'
     try:
         data=open_sealed(payload)
