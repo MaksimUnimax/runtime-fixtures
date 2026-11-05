@@ -22,3 +22,7 @@ Seven Seller API HTTP, all200, collection6.555s, LLM0, Dialogs0. Complete FBO/FB
 API-backed forecast data are complete for the declared model; actual cohort profitability remains not proven. Preserve the requested order model; do not substitute realized count. Two denominators and scenario assumptions are disclosed. The unit-cost input is immutable per physical noncancelled item.
 
 Runtime and platform unchanged. C-UE01 generic worker fallback/monetary cancellation projection are still not installed. Shared catalogs must implement the declared fallback policies and evidence labels; no per-question financial handler. Next implementation proof: source field coverage, inclusion/exclusion, currency/period, no duplicate ads/return-flow, immutable product cost and conditional commission reversal.
+
+## Main forecast cancellation correction
+
+The primary cancellation scenario uses the official net sales-remuneration reversal/non-sale rule. No unobserved cancellation commission is invented as an actual charge. A conservative conditional-reserve calculation remains only a separately labelled sensitivity, not in the primary expense table. All other declared original-order tariff expenses and period overhead remain. Actual future postings can replace estimates; screenshot values and bank percentages inferred from sums are never operative inputs.
