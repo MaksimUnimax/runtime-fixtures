@@ -50,7 +50,15 @@
       "remaining_ordered_items",
       "status_as_of"
     ],
-    "unit_cost_display": "user input stays 250 per applicable goods item if input250; allocated cost per all ordered items is separate and must not be relabelled as unit purchase cost"
+    "unit_cost_display": "user input stays 250 per applicable goods item if input250; allocated cost per all ordered items is separate and must not be relabelled as unit purchase cost",
+    "mandatory_return_display": {
+      "chosen_orders": "Separate rows: cancelled units; post-buyout returned units if evidenced; forward transport; buyer reverse transport; return-to-seller transport if present. Print current status snapshot and no-data versus explicit zero.",
+      "financial_day_control": "Show all reverse-transport charges posted in day separately from forward transport, with number of events, charged amount and how many link to selected original orders.",
+      "zero_explanation": "Zero in chosen order cohort must never be phrased as no reverse charges anywhere in store-day ledger.",
+      "deduplication": "Day deliveryServiceSum already contains forward and reverse components. Never add reverse total on top of that aggregate.",
+      "profit_scope": "A cost of old orders cannot be silently charged to newly ordered cohort. If user selects whole-day allocation, identify that mode and denominator; mark it period allocation, not matched original-order expense.",
+      "event_meaning": "deliveryAmount=0 and returnAmount>0 establishes reverse financial transport. It does not alone prove a customer refund after completed buyout. Check docTypeName/sellerOperName and order status separately."
+    }
   },
   "expressions": [
     "N_ordered = SUM(original products.quantity), before removing cancellations; not COUNT(sales)",
@@ -90,9 +98,12 @@
     "negative commission/payment corrections retain source signs",
     "return-to-seller tariff is not buyer-return-to-WB tariff",
     "no matching warehouse: do not pick the first row or average all warehouse tariffs",
-    "truncated cards page is not full catalog; exact required product lookup can establish needed dimensions"
+    "truncated cards page is not full catalog; exact required product lookup can establish needed dimensions",
+    "reverse charges of older orders must be shown in financial-day control even if selected new cohort has no cancellations",
+    "do not infer post-buyout customer refund from returnAmount transport field alone",
+    "never add reverse transport twice when deliveryServiceSum already includes it"
   ],
-  "revision": "wb-orders-by-date-r1",
+  "revision": "wb-orders-by-date-r2-explicit-return-scopes",
   "platform": "wb",
   "title": "Юнитэкономика WB по товарам, заказанным за выбранную дату",
   "run_id": "20261105-TESTER-3f3405f9",
@@ -251,7 +262,8 @@
   ],
   "evidence_refs": [
     "RUN_REPORT.json",
-    "BUG_REPORT.md"
+    "BUG_REPORT.md",
+    "WB_RETURN_SCOPE_CORRECTION.md"
   ],
   "independent_gold_ref": "WB_SYNTHETIC_GOLD.json",
   "production_adapter": "NOT_INSTALLED"
