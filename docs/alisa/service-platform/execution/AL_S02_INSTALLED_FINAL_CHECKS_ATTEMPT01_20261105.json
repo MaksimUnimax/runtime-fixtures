@@ -1,0 +1,63 @@
+{
+  "scope": "INSTALLED_EXACT_BYTES_LOG_PRIVACY_AND_EXCLUDED_COMPONENT_READBACK",
+  "release": "alisa-6ae348354b3db0d3",
+  "cases": [
+    {
+      "case": "installed_immutable_manifest_all_files",
+      "passed": true
+    },
+    {
+      "case": "retained_archive_exact_hash",
+      "passed": true
+    },
+    {
+      "case": "unchanged_vhost_alice-lab.conf",
+      "passed": true
+    },
+    {
+      "case": "unchanged_vhost_alisa-platform-setup.conf",
+      "passed": true
+    },
+    {
+      "case": "unchanged_vhost_default",
+      "passed": true
+    },
+    {
+      "case": "admin_vhost_exactly_preserved",
+      "passed": true
+    },
+    {
+      "case": "unchanged_process_alice-lab-llm.service",
+      "passed": true
+    },
+    {
+      "case": "unchanged_process_alice-lab-web.service",
+      "passed": true
+    },
+    {
+      "case": "unchanged_process_alice-lab-worker.service",
+      "passed": true
+    },
+    {
+      "case": "unchanged_process_alice-market.service",
+      "passed": true
+    },
+    {
+      "case": "admin_private_config_preserved",
+      "passed": true
+    },
+    {
+      "case": "privacy_probe_real_https_response",
+      "passed": true
+    },
+    {
+      "case": "path_only_access_format_alisa-platform-stage.access.log",
+      "passed": false
+    }
+  ],
+  "status": "FAILED",
+  "error_type": "RuntimeError",
+  "failed_case": "path_only_access_format_alisa-platform-stage.access.log",
+  "finished_utc": "2026-11-05T05:48:20.711489+00:00",
+  "case_count": 13
+}

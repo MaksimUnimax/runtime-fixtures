@@ -1,0 +1,345 @@
+{
+  "at_utc": "2026-11-05T05:34:38.392429+00:00",
+  "status": "ACTIVATED_NOT_ACCEPTED",
+  "release": "alisa-6ae348354b3db0d3",
+  "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36",
+  "artifact_sha256": "4848fc3e0975d4b3fb347e7b0f5634c44ad81d01a31690263a3bf31cfb83136c",
+  "health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    }
+  },
+  "migrations": {
+    "platform": {
+      "migrations": [
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0002_pending_job_index"
+        ],
+        [
+          "funnel",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0002_submission_created_at"
+        ]
+      ],
+      "tables": [
+        "accounts_authflow",
+        "accounts_consentrecord",
+        "accounts_customer",
+        "accounts_identitylink",
+        "accounts_leadlink",
+        "accounts_membership",
+        "accounts_tenant",
+        "accounts_websession",
+        "django_migrations",
+        "foundation_foundationjob",
+        "foundation_foundationprobe",
+        "funnel_funnelevent",
+        "leads_lead",
+        "leads_mailoutbox",
+        "leads_ratebucket",
+        "leads_submission"
+      ],
+      "applied_delta": [
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0002_submission_created_at"
+        ]
+      ],
+      "new_tables": [
+        "accounts_authflow",
+        "accounts_consentrecord",
+        "accounts_customer",
+        "accounts_identitylink",
+        "accounts_leadlink",
+        "accounts_membership",
+        "accounts_tenant",
+        "accounts_websession"
+      ]
+    },
+    "identity": {
+      "migrations": [
+        [
+          "account",
+          "0001_initial"
+        ],
+        [
+          "account",
+          "0002_email_max_length"
+        ],
+        [
+          "account",
+          "0003_alter_emailaddress_create_unique_verified_email"
+        ],
+        [
+          "account",
+          "0004_alter_emailaddress_drop_unique_email"
+        ],
+        [
+          "account",
+          "0005_emailaddress_idx_upper_email"
+        ],
+        [
+          "account",
+          "0006_emailaddress_lower"
+        ],
+        [
+          "account",
+          "0007_emailaddress_idx_email"
+        ],
+        [
+          "account",
+          "0008_emailaddress_unique_primary_email_fixup"
+        ],
+        [
+          "account",
+          "0009_emailaddress_unique_primary_email"
+        ],
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "accounts",
+          "0002_identitymail_protocolcache_identityconsent_subject"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0001_initial"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0002_client_default_scopes"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0003_client_allow_uri_wildcards"
+        ],
+        [
+          "auth",
+          "0001_initial"
+        ],
+        [
+          "auth",
+          "0002_alter_permission_name_max_length"
+        ],
+        [
+          "auth",
+          "0003_alter_user_email_max_length"
+        ],
+        [
+          "auth",
+          "0004_alter_user_username_opts"
+        ],
+        [
+          "auth",
+          "0005_alter_user_last_login_null"
+        ],
+        [
+          "auth",
+          "0006_require_contenttypes_0002"
+        ],
+        [
+          "auth",
+          "0007_alter_validators_add_error_messages"
+        ],
+        [
+          "auth",
+          "0008_alter_user_username_max_length"
+        ],
+        [
+          "auth",
+          "0009_alter_user_last_name_max_length"
+        ],
+        [
+          "auth",
+          "0010_alter_group_name_max_length"
+        ],
+        [
+          "auth",
+          "0011_update_proxy_permissions"
+        ],
+        [
+          "auth",
+          "0012_alter_user_first_name_max_length"
+        ],
+        [
+          "contenttypes",
+          "0001_initial"
+        ],
+        [
+          "contenttypes",
+          "0002_remove_content_type_name"
+        ],
+        [
+          "mfa",
+          "0001_initial"
+        ],
+        [
+          "mfa",
+          "0002_authenticator_timestamps"
+        ],
+        [
+          "mfa",
+          "0003_authenticator_type_uniq"
+        ],
+        [
+          "sessions",
+          "0001_initial"
+        ]
+      ],
+      "tables": [
+        "account_emailaddress",
+        "account_emailconfirmation",
+        "accounts_identityconsent",
+        "accounts_identitymail",
+        "accounts_person",
+        "accounts_person_groups",
+        "accounts_person_user_permissions",
+        "accounts_subject",
+        "allauth_idp_oidc_client",
+        "allauth_idp_oidc_token",
+        "auth_group",
+        "auth_group_permissions",
+        "auth_permission",
+        "django_content_type",
+        "django_migrations",
+        "django_session",
+        "identity_protocol_cache",
+        "mfa_authenticator"
+      ],
+      "applied_delta": [
+        [
+          "account",
+          "0001_initial"
+        ],
+        [
+          "account",
+          "0002_email_max_length"
+        ],
+        [
+          "account",
+          "0003_alter_emailaddress_create_unique_verified_email"
+        ],
+        [
+          "account",
+          "0004_alter_emailaddress_drop_unique_email"
+        ],
+        [
+          "account",
+          "0005_emailaddress_idx_upper_email"
+        ],
+        [
+          "account",
+          "0006_emailaddress_lower"
+        ],
+        [
+          "account",
+          "0007_emailaddress_idx_email"
+        ],
+        [
+          "account",
+          "0008_emailaddress_unique_primary_email_fixup"
+        ],
+        [
+          "account",
+          "0009_emailaddress_unique_primary_email"
+        ],
+        [
+          "accounts",
+          "0002_identitymail_protocolcache_identityconsent_subject"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0001_initial"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0002_client_default_scopes"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0003_client_allow_uri_wildcards"
+        ],
+        [
+          "mfa",
+          "0001_initial"
+        ],
+        [
+          "mfa",
+          "0002_authenticator_timestamps"
+        ],
+        [
+          "mfa",
+          "0003_authenticator_type_uniq"
+        ],
+        [
+          "sessions",
+          "0001_initial"
+        ]
+      ],
+      "new_tables": [
+        "account_emailaddress",
+        "account_emailconfirmation",
+        "accounts_identityconsent",
+        "accounts_identitymail",
+        "accounts_subject",
+        "allauth_idp_oidc_client",
+        "allauth_idp_oidc_token",
+        "django_session",
+        "identity_protocol_cache",
+        "mfa_authenticator"
+      ]
+    }
+  },
+  "admin_vhost_sha256": "bc813f4352c801c23026cb58942b72e909205d5ab4664764c394c51ca84b12bc",
+  "shared_current_preserved": true,
+  "new_timers_enabled": true,
+  "remaining": [
+    "installed_smoke",
+    "controlled_release_pair_rollback",
+    "independent_installed_verdict"
+  ]
+}

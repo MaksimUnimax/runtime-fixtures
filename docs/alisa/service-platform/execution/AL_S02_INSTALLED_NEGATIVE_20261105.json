@@ -1,0 +1,89 @@
+{
+  "scope": "REAL_INSTALLED_BFF_NEGATIVE_HTTP",
+  "release": "alisa-6ae348354b3db0d3",
+  "cases": [
+    {
+      "case": "state_fixture_applied",
+      "passed": true
+    },
+    {
+      "case": "real_bff_rejects_state",
+      "passed": true
+    },
+    {
+      "case": "issuer_fixture_applied",
+      "passed": true
+    },
+    {
+      "case": "real_bff_rejects_issuer",
+      "passed": true
+    },
+    {
+      "case": "audience_fixture_applied",
+      "passed": true
+    },
+    {
+      "case": "real_bff_rejects_audience",
+      "passed": true
+    },
+    {
+      "case": "nonce_fixture_applied",
+      "passed": true
+    },
+    {
+      "case": "real_bff_rejects_nonce",
+      "passed": true
+    },
+    {
+      "case": "expiry_fixture_applied",
+      "passed": true
+    },
+    {
+      "case": "real_bff_rejects_expiry",
+      "passed": true
+    },
+    {
+      "case": "signature_fixture_applied",
+      "passed": true
+    },
+    {
+      "case": "real_bff_rejects_signature",
+      "passed": true
+    },
+    {
+      "case": "pkce_fixture_applied",
+      "passed": true
+    },
+    {
+      "case": "real_bff_rejects_pkce",
+      "passed": true
+    },
+    {
+      "case": "negative_callbacks_create_no_customer",
+      "passed": true
+    },
+    {
+      "case": "actual_api_outage_reported",
+      "passed": true
+    },
+    {
+      "case": "api_recovery_preserves_session",
+      "passed": true
+    },
+    {
+      "case": "expired_own_session_denied",
+      "passed": true
+    },
+    {
+      "case": "cleanup_clears_expired_own_payload",
+      "passed": true
+    },
+    {
+      "case": "cleanup_preserves_active_profile",
+      "passed": true
+    }
+  ],
+  "status": "PASS",
+  "temporary_token_proxy_removed": true,
+  "finished_utc": "2026-11-05T05:43:49.823096+00:00"
+}

@@ -35,7 +35,7 @@
       "tls_verification_bypassed": false
     }
   ],
-  "continuation": "Read-only recovery verified existing S01; no live S02 mutation. Source integration continues in disposable CI.",
+  "continuation": "Exact S02 installed and checked under owner approval; full step BLOCKED only on unproven systemd egress witness; no nft fallback applied.",
   "resolved_at_utc": "2026-11-05T02:52:27.588128+00:00",
   "read_only_actual": {
     "at_utc": "2026-11-05T02:52:27.588128+00:00",
@@ -46,6 +46,105 @@
     "fourth_probe_directory_exists": false
   },
   "latest_read_only_actual": {
+    "at_utc": "2026-11-05T05:54:22.398807+00:00",
+    "mutation_requested": false,
+    "pointers": {
+      "current": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+      "site-current": "/opt/alisa-platform/stage/releases/alisa-6ae348354b3db0d3",
+      "identity-current": "/opt/alisa-platform/stage/releases/alisa-6ae348354b3db0d3"
+    },
+    "health": {
+      "web": {
+        "http": 200,
+        "body": {
+          "component": "web",
+          "environment": "stage",
+          "release": "alisa-6ae348354b3db0d3",
+          "status": "READY"
+        }
+      },
+      "platform": {
+        "http": 200,
+        "body": {
+          "component": "platform",
+          "status": "READY",
+          "runtime": "RUNTIME_NOT_CONNECTED",
+          "environment": "stage",
+          "release": "alisa-6ae348354b3db0d3"
+        }
+      },
+      "identity": {
+        "http": 200,
+        "body": {
+          "component": "identity",
+          "environment": "stage",
+          "release": "alisa-6ae348354b3db0d3",
+          "status": "READY",
+          "authentication": "OIDC_CODE_PKCE"
+        }
+      },
+      "admin": {
+        "http": 200,
+        "body": {
+          "component": "admin",
+          "environment": "stage",
+          "release": "alisa-77d0f8ee2643ef65",
+          "status": "READY"
+        }
+      }
+    },
+    "locks": {
+      "alisa-stage-rollout.lock": "AVAILABLE",
+      "alisa-s01-rollout.lock": "AVAILABLE",
+      "alisa-s02-provider-probe.lock": "AVAILABLE",
+      "alisa-s02-rollout.lock": "AVAILABLE"
+    }
+  },
+  "previous_read_only_actual_0425": {
+    "at_utc": "2026-11-05T04:25:22.383917+00:00",
+    "mutation_requested": false,
+    "pointers": {
+      "site-current": "/opt/alisa-platform/stage/releases/alisa-8d680f775c8ccdf2",
+      "current": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
+      "identity-current": null
+    },
+    "health": {
+      "web": {
+        "http": 200,
+        "body": {
+          "component": "web",
+          "environment": "stage",
+          "release": "alisa-8d680f775c8ccdf2",
+          "status": "READY"
+        }
+      },
+      "platform": {
+        "http": 200,
+        "body": {
+          "component": "platform",
+          "status": "READY",
+          "runtime": "RUNTIME_NOT_CONNECTED",
+          "environment": "stage",
+          "release": "alisa-8d680f775c8ccdf2"
+        }
+      },
+      "identity": {
+        "http": 200,
+        "body": {
+          "component": "identity",
+          "environment": "stage",
+          "release": "alisa-77d0f8ee2643ef65",
+          "status": "READY",
+          "authentication": "NOT_IMPLEMENTED"
+        }
+      }
+    },
+    "locks": {
+      "alisa-s01-rollout.lock": "AVAILABLE",
+      "alisa-s02-provider-probe.lock": "AVAILABLE"
+    }
+  },
+  "pre_s02_live_readback": {
     "at_utc": "2026-11-05T05:18:35.769351+00:00",
     "mutation_requested": false,
     "pointers": {
@@ -99,49 +198,5 @@
       "alisa-s02-rollout.lock": "ABSENT"
     },
     "rollout_processes": []
-  },
-  "previous_read_only_actual_0425": {
-    "at_utc": "2026-11-05T04:25:22.383917+00:00",
-    "mutation_requested": false,
-    "pointers": {
-      "site-current": "/opt/alisa-platform/stage/releases/alisa-8d680f775c8ccdf2",
-      "current": "/opt/alisa-platform/stage/releases/alisa-77d0f8ee2643ef65",
-      "identity-current": null
-    },
-    "health": {
-      "web": {
-        "http": 200,
-        "body": {
-          "component": "web",
-          "environment": "stage",
-          "release": "alisa-8d680f775c8ccdf2",
-          "status": "READY"
-        }
-      },
-      "platform": {
-        "http": 200,
-        "body": {
-          "component": "platform",
-          "status": "READY",
-          "runtime": "RUNTIME_NOT_CONNECTED",
-          "environment": "stage",
-          "release": "alisa-8d680f775c8ccdf2"
-        }
-      },
-      "identity": {
-        "http": 200,
-        "body": {
-          "component": "identity",
-          "environment": "stage",
-          "release": "alisa-77d0f8ee2643ef65",
-          "status": "READY",
-          "authentication": "NOT_IMPLEMENTED"
-        }
-      }
-    },
-    "locks": {
-      "alisa-s01-rollout.lock": "AVAILABLE",
-      "alisa-s02-provider-probe.lock": "AVAILABLE"
-    }
   }
 }

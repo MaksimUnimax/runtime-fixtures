@@ -1,0 +1,13 @@
+{
+  "reviewer": "existing /root/s00_final_review",
+  "scope": "PROPOSED_RULES_READ_ONLY_NOT_INSTALLED_ACCEPTANCE",
+  "initial_rule_sha256": "6e43f87175ef5b3738fca5649d66fd9b1777b7e15901152091730f920e1bb1e5",
+  "initial_verdict": "NOT_READY_FOR_OWNER_APPROVAL",
+  "finding": "Shared loopback allow granted web network access to PostgreSQL and unneeded services",
+  "correction": "Per-UID upstream and established reply rules; DNS/issuer only web, platform only own PG, identity only own PG/SMTP",
+  "corrected_sha256": "491e90c3178d404240de17e684f0651f3d6ca11a5a447cfc306984bda0b9c7d0",
+  "corrected_verdict": "READY_TO_PRESENT_FOR_NEW_OWNER_APPROVAL",
+  "rules_applied": false,
+  "independently_rechecked_sha256": "491e90c3178d404240de17e684f0651f3d6ca11a5a447cfc306984bda0b9c7d0",
+  "independent_recheck": "Exact hash matches amendment/preflight, per-UID upstream/response rules match service boundaries, syntax PASS and table absent; no blocker to presenting proposal; installed verdict remains BLOCKED."
+}

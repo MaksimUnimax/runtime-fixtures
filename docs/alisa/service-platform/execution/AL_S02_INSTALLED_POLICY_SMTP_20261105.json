@@ -1,0 +1,22 @@
+{
+  "scope": "INSTALLED_OWN_STAGE_POLICY_AND_SMTP_OUTAGE",
+  "release": "alisa-6ae348354b3db0d3",
+  "cases": [
+    {
+      "case": "installed_policy_fixture_exit",
+      "passed": true
+    },
+    {
+      "case": "smtp_outage_retains_own_encrypted_pending_message",
+      "passed": true
+    },
+    {
+      "case": "smtp_recovery_sends_and_clears_own_payload",
+      "passed": true
+    }
+  ],
+  "status": "PASS",
+  "smtp_restored_active": true,
+  "identity_timer_restored_active": true,
+  "finished_utc": "2026-11-05T05:39:02.125283+00:00"
+}

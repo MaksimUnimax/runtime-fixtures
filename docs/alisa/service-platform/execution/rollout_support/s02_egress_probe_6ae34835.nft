@@ -1,0 +1,18 @@
+# PROPOSED_ONLY: NOT APPLIED. Requires separate owner approval of EGRESS_AMENDMENT.
+# Exact own stage UIDs: web=995 platform=993 identity=990; verify before apply.
+# Never flush or change existing tables/chains, foreign UIDs, credentials or routes.
+table inet alisa_s02_egress_probe_6ae34835 {
+ chain output {
+  type filter hook output priority 0; policy accept;
+  meta skuid 995 ip daddr 127.0.0.1 tcp dport 18102 counter accept comment "alisa-s02-web-api"
+  meta skuid 993 ip daddr 127.0.0.1 tcp dport 5432 counter accept comment "alisa-s02-platform-db"
+  meta skuid 990 ip daddr 127.0.0.1 tcp dport { 5432, 18225 } counter accept comment "alisa-s02-identity-db-mail"
+  meta skuid 995 ip daddr { 195.208.4.1, 8.8.4.4 } udp dport 53 counter accept comment "alisa-s02-dns-udp"
+  meta skuid 995 ip daddr { 195.208.4.1, 8.8.4.4 } tcp dport 53 counter accept comment "alisa-s02-dns-tcp"
+  meta skuid 995 ip daddr 185.244.51.141 tcp dport 443 counter accept comment "alisa-s02-fixed-issuer"
+  meta skuid 995 ip daddr 127.0.0.1 tcp sport 18100 ct state established counter accept comment "alisa-s02-web-response"
+  meta skuid 993 ip daddr 127.0.0.1 tcp sport 18102 ct state established counter accept comment "alisa-s02-platform-response"
+  meta skuid 990 ip daddr 127.0.0.1 tcp sport 18103 ct state established counter accept comment "alisa-s02-identity-response"
+  meta skuid { 995, 993, 990 } counter reject comment "alisa-s02-denied"
+ }
+}

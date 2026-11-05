@@ -1,0 +1,8 @@
+{
+  "initial_preparation": "FAILED_BEFORE_PLAN_AND_MIGRATION",
+  "reason": "Legacy platform-migration env retained FOUNDATION_PROBE_ENABLED=1; runtime flags remained0",
+  "reconciled_outcome": "web/platform/identity new config saved; no bootstrap or migration occurred",
+  "correction": "Reuse exact saved auth/client/JWE/identity keys; set migration-only technical probe flag0; finish remaining preparation once",
+  "install_repeated": false,
+  "keys_rotated": false
+}

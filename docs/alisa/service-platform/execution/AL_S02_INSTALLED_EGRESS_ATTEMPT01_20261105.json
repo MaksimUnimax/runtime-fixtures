@@ -1,0 +1,11 @@
+{
+  "scope": "TEMPORARY_OWN_SYSTEMD_UNIT_IP_EGRESS_ISOLATION",
+  "release": "alisa-6ae348354b3db0d3",
+  "cases": [],
+  "status": "BLOCKED",
+  "network_limit": "Allowed issuer IP permits all its ports at network layer; fixed issuer/path enforced by product, not IP filter.",
+  "witness_errno_lines": [],
+  "blocked_reason": "Per-unit deny mechanism/witness not demonstrated",
+  "temporary_dropins_removed": true,
+  "finished_utc": "2026-11-05T05:42:34.107934+00:00"
+}

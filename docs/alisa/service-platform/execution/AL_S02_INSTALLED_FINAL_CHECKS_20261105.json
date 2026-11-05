@@ -1,0 +1,162 @@
+{
+  "scope": "INSTALLED_EXACT_BYTES_LOG_PRIVACY_AND_EXCLUDED_COMPONENT_READBACK",
+  "release": "alisa-6ae348354b3db0d3",
+  "cases": [
+    {
+      "case": "installed_immutable_manifest_all_files",
+      "passed": true
+    },
+    {
+      "case": "retained_archive_exact_hash",
+      "passed": true
+    },
+    {
+      "case": "unchanged_vhost_alice-lab.conf",
+      "passed": true
+    },
+    {
+      "case": "unchanged_vhost_alisa-platform-setup.conf",
+      "passed": true
+    },
+    {
+      "case": "unchanged_vhost_default",
+      "passed": true
+    },
+    {
+      "case": "admin_vhost_exactly_preserved",
+      "passed": true
+    },
+    {
+      "case": "unchanged_process_alice-lab-llm.service",
+      "passed": true
+    },
+    {
+      "case": "unchanged_process_alice-lab-web.service",
+      "passed": true
+    },
+    {
+      "case": "unchanged_process_alice-lab-worker.service",
+      "passed": true
+    },
+    {
+      "case": "unchanged_process_alice-market.service",
+      "passed": true
+    },
+    {
+      "case": "admin_private_config_preserved",
+      "passed": true
+    },
+    {
+      "case": "privacy_probe_real_https_response",
+      "passed": true
+    },
+    {
+      "case": "path_only_access_format_alisa-platform-stage.access.log",
+      "passed": true
+    },
+    {
+      "case": "path_only_access_format_alisa-platform-identity-stage.access.log",
+      "passed": true
+    },
+    {
+      "case": "known_contacts_codes_cookies_keys_not_in_logs",
+      "passed": true
+    },
+    {
+      "case": "no_jwt_or_callback_query_in_logs",
+      "passed": true
+    },
+    {
+      "case": "utm_referrer_marker_not_logged",
+      "passed": true
+    },
+    {
+      "case": "web_has_no_database_or_identity_private_keys",
+      "passed": true
+    },
+    {
+      "case": "platform_has_no_identity_or_web_private_keys",
+      "passed": true
+    },
+    {
+      "case": "identity_has_no_product_client_secret_or_auth_token",
+      "passed": true
+    },
+    {
+      "case": "private_env_permissions",
+      "passed": true
+    },
+    {
+      "case": "runtime_technical_probe_disabled",
+      "passed": true
+    },
+    {
+      "case": "engineering_worker_inactive",
+      "passed": true
+    },
+    {
+      "case": "identity-mail_timer_enabled_active",
+      "passed": true
+    },
+    {
+      "case": "account-cleanup_timer_enabled_active",
+      "passed": true
+    },
+    {
+      "case": "new_pointer_and_shared_s00_current",
+      "passed": true
+    },
+    {
+      "case": "temporary_testing_proxy_and_dropins_absent",
+      "passed": true
+    },
+    {
+      "case": "web_exact_version",
+      "passed": true
+    },
+    {
+      "case": "platform_exact_version",
+      "passed": true
+    },
+    {
+      "case": "identity_exact_version",
+      "passed": true
+    },
+    {
+      "case": "admin_exact_version",
+      "passed": true
+    }
+  ],
+  "status": "PASS",
+  "health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    }
+  },
+  "known_private_values_scanned": 46,
+  "finished_utc": "2026-11-05T05:50:07.389566+00:00",
+  "case_count": 31
+}

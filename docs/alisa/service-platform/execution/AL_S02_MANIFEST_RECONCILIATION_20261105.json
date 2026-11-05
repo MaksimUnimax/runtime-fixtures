@@ -1,0 +1,8 @@
+{
+  "initial_check": "FAILED_EXTRA_GENERATED_BYTECODE",
+  "extra": "infra/__pycache__/release.cpython-312.pyc",
+  "missing_files": 0,
+  "migrations_applied": false,
+  "site_still_s01": true,
+  "correction": "Removed only bytecode created by installer import; retry with bytecode generation disabled; archive files unchanged"
+}

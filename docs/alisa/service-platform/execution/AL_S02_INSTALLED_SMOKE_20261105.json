@@ -1,0 +1,152 @@
+{
+  "record_type": "EXACT_INSTALLED_S02_STAGE_SMOKE",
+  "release": "alisa-6ae348354b3db0d3",
+  "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36",
+  "artifact_sha256": "4848fc3e0975d4b3fb347e7b0f5634c44ad81d01a31690263a3bf31cfb83136c",
+  "started_utc": "2026-11-05T05:37:12.759491+00:00",
+  "cases": [
+    {
+      "case": "platform_runtime_has_no_ddl",
+      "passed": true
+    },
+    {
+      "case": "platform_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "identity_runtime_has_no_ddl",
+      "passed": true
+    },
+    {
+      "case": "identity_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "own_api_without_auth_denied",
+      "passed": true
+    },
+    {
+      "case": "real_https_fixed_issuer_s256",
+      "passed": true
+    },
+    {
+      "case": "anonymous_private_home_closed",
+      "passed": true
+    },
+    {
+      "case": "start_requires_consents",
+      "passed": true
+    },
+    {
+      "case": "cross_origin_denied",
+      "passed": true
+    },
+    {
+      "case": "no_js_contact_not_in_query",
+      "passed": true
+    },
+    {
+      "case": "real_bff_api_pg_sandbox_lead_confirmation",
+      "passed": true
+    },
+    {
+      "case": "real_https_browser_email_code_bff_api_pg_cabinet",
+      "passed": true
+    },
+    {
+      "case": "one_customer_tenant_identity_link",
+      "passed": true
+    },
+    {
+      "case": "owner_client_no_grants",
+      "passed": true
+    },
+    {
+      "case": "durable_product_consents",
+      "passed": true
+    },
+    {
+      "case": "confirmed_lead_handoff",
+      "passed": true
+    },
+    {
+      "case": "stable_person_and_identity_consents",
+      "passed": true
+    },
+    {
+      "case": "profile_persists_and_empty_shop",
+      "passed": true
+    },
+    {
+      "case": "host_only_secure_httponly_session",
+      "passed": true
+    },
+    {
+      "case": "no_tokens_in_browser_storage",
+      "passed": true
+    },
+    {
+      "case": "callback_replay_safe_no_session",
+      "passed": true
+    },
+    {
+      "case": "second_client_isolated",
+      "passed": true
+    },
+    {
+      "case": "foreign_handoff_does_not_link",
+      "passed": true
+    },
+    {
+      "case": "tenant_spoof_denied",
+      "passed": true
+    },
+    {
+      "case": "foreign_cookie_denied",
+      "passed": true
+    },
+    {
+      "case": "foreign_return_to_denied",
+      "passed": true
+    },
+    {
+      "case": "external_identity_reauth_target_denied",
+      "passed": true
+    },
+    {
+      "case": "second_rp_state_preserved",
+      "passed": true
+    },
+    {
+      "case": "second_rp_valid_identity_only",
+      "passed": true
+    },
+    {
+      "case": "second_rp_has_no_product_access",
+      "passed": true
+    },
+    {
+      "case": "pairwise_subjects_same_person",
+      "passed": true
+    },
+    {
+      "case": "logout_revokes_server_session",
+      "passed": true
+    },
+    {
+      "case": "repeat_login_same_person_customer_tenant",
+      "passed": true
+    },
+    {
+      "case": "restart_preserves_profile_session_ids",
+      "passed": true
+    }
+  ],
+  "status": "PASS",
+  "fixture_run_id": "fcb8827e1298",
+  "customer_id": "6c7dd6a6-bf94-4743-afbd-01ffa17d43aa",
+  "tenant_id": "f542c68b-c5d9-4d72-a4f1-e42b71ef7441",
+  "person_id": "236ed601-ba29-4a07-b2d3-6381fac893e6",
+  "finished_utc": "2026-11-05T05:37:50.858364+00:00",
+  "case_count": 34
+}

@@ -1,0 +1,50 @@
+{
+  "record_type": "AL_S02_FINAL_INDEPENDENT_INSTALLED_REVIEW",
+  "recorded_at_utc": "2026-11-05T05:54:23.030155+00:00",
+  "reviewer": "existing /root/s00_final_review",
+  "mode": "INDEPENDENT_READ_ONLY_HOST_AND_RECEIPT_REVIEW_NO_MUTATION_OR_TESTS",
+  "verdict": "BLOCKED_FOR_FULL_DECLARED_INSTALLED_SCOPE",
+  "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36",
+  "release": "alisa-6ae348354b3db0d3",
+  "artifact_sha256": "4848fc3e0975d4b3fb347e7b0f5634c44ad81d01a31690263a3bf31cfb83136c",
+  "reviewed_passing_gates": {
+    "real_installed_browser_smoke": 34,
+    "runtime_policies": 9,
+    "policy_exit_and_smtp_outage_recovery": 3,
+    "bff_api_negative_and_cleanup": 20,
+    "real_retained_data_release_pair_rollback": 11,
+    "immutable_manifest_privacy_and_excluded_components": 31
+  },
+  "applied_migration_delta": {
+    "platform": 2,
+    "identity": 17,
+    "new_platform_tables": 8,
+    "new_identity_tables": 10
+  },
+  "independent_host_readback": {
+    "site_current": "alisa-6ae348354b3db0d3",
+    "identity_current": "alisa-6ae348354b3db0d3",
+    "shared_current": "alisa-77d0f8ee2643ef65",
+    "web_platform_identity_ready": true,
+    "admin_s00_ready": true,
+    "identity_mail_account_cleanup_probe_cleanup_timers_active": true,
+    "readiness_http_gets_performed": true
+  },
+  "functional_auth_package_gates": "ACCEPTABLE_FOR_REVIEWED_INSTALLED_SCOPE",
+  "blocking_gates": [
+    {
+      "scenario": "Actual installed per-unit outbound network deny",
+      "observed": "Witness errno=None (timeout), zero denial cases passed",
+      "status": "BLOCKED",
+      "temporary_test_dropins_removed": true,
+      "global_firewall_fallback_used": false,
+      "reason": "Approved plan explicitly leaves scenario BLOCKED if effective deny is not demonstrated."
+    }
+  ],
+  "limits": [
+    "No tests or mutations performed by reviewer",
+    "No controlled real recipient, public clients or production acceptance",
+    "No full native MFA reauthentication UI acceptance"
+  ],
+  "next_step": "New exact owner approval of proposed own-UID-only nft table, bounded egress witness/fresh login and cleanup/readback; then final independent acceptance of exact installed package."
+}

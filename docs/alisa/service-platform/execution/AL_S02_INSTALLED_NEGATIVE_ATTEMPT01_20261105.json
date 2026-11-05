@@ -1,0 +1,11 @@
+{
+  "scope": "REAL_INSTALLED_BFF_NEGATIVE_HTTP",
+  "release": "alisa-6ae348354b3db0d3",
+  "cases": [],
+  "status": "FAILED",
+  "error_type": "AssertionError",
+  "last_browser_path": "/app",
+  "line": 56,
+  "temporary_token_proxy_removed": true,
+  "finished_utc": "2026-11-05T05:41:17.742930+00:00"
+}

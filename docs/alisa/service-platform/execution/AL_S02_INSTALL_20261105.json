@@ -1,0 +1,24 @@
+{
+  "at_utc": "2026-11-05T05:30:51.284272+00:00",
+  "status": "INSTALLED_NOT_ACTIVATED",
+  "release": "alisa-6ae348354b3db0d3",
+  "source_sha": "6ae348354b3db0d3cdcdac03c7fcc7dd3ca0eb36",
+  "artifact_sha256": "4848fc3e0975d4b3fb347e7b0f5634c44ad81d01a31690263a3bf31cfb83136c",
+  "backup_directory": "/var/lib/alisa-platform/stage/rollout-backups/s02-6ae348354b3db0d3",
+  "baseline_foreign_nginx_files": 3,
+  "baseline_foreign_units": [
+    "run-credentials-alice\\x2dmarket.service.mount",
+    "alice-lab-llm.service",
+    "alice-lab-retention.service",
+    "alice-lab-web.service",
+    "alice-lab-worker.service",
+    "alice-market-retention.service",
+    "alice-market.service",
+    "alice-private-artifacts.service",
+    "blk-availability.service",
+    "alice-lab-retention.timer",
+    "alice-market-retention.timer",
+    "alice-private-artifacts.timer"
+  ],
+  "live_migrations_applied": false
+}

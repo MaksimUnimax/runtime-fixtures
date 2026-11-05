@@ -1,0 +1,109 @@
+{
+  "scope": "REAL_STAGE_S02_S01_S00_SAME_S02_ROLLBACK_RETAIN_DATA",
+  "release": "alisa-6ae348354b3db0d3",
+  "cases": [
+    {
+      "case": "real_s01_and_s00_versions_restored",
+      "passed": true
+    },
+    {
+      "case": "new_tables_and_same_ids_retained_under_old_code",
+      "passed": true
+    },
+    {
+      "case": "identity_auth_disabled_during_rollback",
+      "passed": true
+    },
+    {
+      "case": "old_s01_bff_inserts_compatible_expanded_schema",
+      "passed": true
+    },
+    {
+      "case": "old_s01_repeat_has_one_effect",
+      "passed": true
+    },
+    {
+      "case": "old_submission_nullable_timestamp_compatible",
+      "passed": true
+    },
+    {
+      "case": "exact_same_s02_reenabled",
+      "passed": true
+    },
+    {
+      "case": "same_browser_session_and_profile_survive_release_pair",
+      "passed": true
+    },
+    {
+      "case": "same_customer_tenant_person_no_duplicate",
+      "passed": true
+    },
+    {
+      "case": "new_keys_retained",
+      "passed": true
+    },
+    {
+      "case": "shared_s00_current_unchanged",
+      "passed": true
+    }
+  ],
+  "status": "PASS",
+  "rolled_back_health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-8d680f775c8ccdf2",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-8d680f775c8ccdf2"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY",
+      "authentication": "NOT_IMPLEMENTED"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    }
+  },
+  "rollback_without_database_restore": true,
+  "restored_s02_health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3"
+    },
+    "identity": {
+      "component": "identity",
+      "environment": "stage",
+      "release": "alisa-6ae348354b3db0d3",
+      "status": "READY",
+      "authentication": "OIDC_CODE_PKCE"
+    },
+    "admin": {
+      "component": "admin",
+      "environment": "stage",
+      "release": "alisa-77d0f8ee2643ef65",
+      "status": "READY"
+    }
+  },
+  "finished_utc": "2026-11-05T05:46:55.743472+00:00"
+}
