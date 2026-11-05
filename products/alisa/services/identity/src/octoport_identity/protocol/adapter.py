@@ -35,7 +35,7 @@ class AccountAdapter(DefaultAccountAdapter):
     def clean_email(self,email):
         email=super().clean_email(email).strip().lower()
         if not email.endswith('@example.invalid'):
-            raise ValidationError('В закрытом тесте нужен адрес example.invalid.')
+            raise ValidationError('На этом тестовом стенде используйте адрес вида tester@example.invalid. Обычная почта пока не подключена.')
         return email
     def is_open_for_signup(self,request):return settings.IDENTITY_ENABLED
     def send_mail(self,template_prefix,email,context):
