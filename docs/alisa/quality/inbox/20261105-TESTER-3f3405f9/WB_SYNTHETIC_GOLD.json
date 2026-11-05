@@ -1,0 +1,48 @@
+{
+  "schema": "synthetic-financial-gold/v1",
+  "real_merchant_values": false,
+  "case": "two WB ordered items, one FBW1000 and one FBS2000, FBS cancelled with unknown stage",
+  "inputs": {
+    "ordered_items": [
+      {
+        "sellerPrice": 1000,
+        "isMp": false,
+        "commission_field": "paidStorageKgvp",
+        "commission_rate": 30
+      },
+      {
+        "sellerPrice": 2000,
+        "isMp": true,
+        "commission_field": "kgvpMarketplace",
+        "commission_rate": 40
+      }
+    ],
+    "advertising": 200,
+    "storage": 20,
+    "processing": 10,
+    "acquiring": 30,
+    "direct_transport": 100,
+    "reverse_transport_on_unknown_cancel": 20,
+    "unit_goods_cost": 250,
+    "tax": "excluded"
+  },
+  "expected_no_cancel": {
+    "seller_value": 3000,
+    "commission": 1100,
+    "marketplace_expenses": 1460,
+    "goods_cost": 500,
+    "result": 1040,
+    "units": 2,
+    "result_per_ordered_item": 520
+  },
+  "expected_with_cancel": {
+    "seller_value": 1000,
+    "commission": 300,
+    "marketplace_expenses": 680,
+    "goods_cost": 250,
+    "result": 70,
+    "remaining_units": 1,
+    "original_ordered_units": 2,
+    "result_per_remaining_ordered_item": 70
+  }
+}
