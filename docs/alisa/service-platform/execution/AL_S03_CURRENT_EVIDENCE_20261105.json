@@ -1,0 +1,1685 @@
+{
+  "record_type": "AL_S03_AUTHORIZED_CURRENT_STAFF_QUALIFICATION",
+  "recorded_at_utc": "2026-11-05T11:31:17.848128+00:00",
+  "owner_authorization": "Prior explicit да to S03 installation and Делай to reserve recovery/current tuple qualification; no repeated confirmation.",
+  "binding": {
+    "admin_source": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+    "admin_release": "alisa-3e91b1aa5d405d0e",
+    "web_platform_identity_source": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+    "web_platform_identity_release": "alisa-07290e7c17f556bf",
+    "shared_current": "alisa-77d0f8ee2643ef65",
+    "ci": {
+      "source_sha": "07290e7c17f556bfe8e144fd766ee0163c0b88db",
+      "tar_sha256": "19044804a17f803c0b92d6da55f722db81d92e9ec24e54cab2dc26d0000b5c7b",
+      "zip_sha256": "1896175689c75a1f3ca87a2897ce480c468bad7e8a8e18cd1e43560868cf7946",
+      "manifest_sha256": "bc4b3945650ec6b867a8ef7aafe53eb9b9958b0908cdf6a3d78bb5dcaf574158",
+      "files": 4408,
+      "links": 42
+    },
+    "successful_ci_runs": {
+      "platform": 42014260386,
+      "provider": 42014260392,
+      "docs": 42014260293
+    }
+  },
+  "scope": "Installed stage S03 staff functions only; real/public mail-registration changes and production not accepted.",
+  "summary": {
+    "current_smoke": {
+      "status": "PASS",
+      "checks": 24
+    },
+    "current_staff_feature_return": {
+      "status": "PASS",
+      "checks": 48
+    },
+    "current_final_readonly": {
+      "status": "PASS",
+      "checks": 72
+    },
+    "disk_free_final_mib": 3455,
+    "paths_or_archives_deleted": 0,
+    "active_inodes_changed_by_dedup": 0
+  },
+  "history_notes": [
+    "DD2 first smoke and final remain FAILED on non-manifest derived bytecode. DD2 R2 smoke24 and rollback48 remain valid recorded evidence only; concurrent07290 rollout prevented current DD2 final acceptance.",
+    "07290 was deployed by another stream; this qualification preserved that code and all current mail/public registration configuration bytes.",
+    "Inactive own byte-identical vendor hardlinks reclaimed453MiB then302MiB. All paths/bytes/modes/owners retained; inactive mtime follows canonical, old metadata privately retained. Independent timestamp restoration needs breaking links.",
+    "Five existing native rollout locks held across current smoke, return, final QA and independent review. No new runner, queue or controller.",
+    "Fresh07290 baseline non-synthetic mail state was captured after the other stream deployment; unchanged during this qualification. Earlier DD2 baseline is not asserted equal to later07290 baseline.",
+    "Completed transient units are unloaded. Post-completion systemctl may show default RuntimeMax/MemoryMax/invocation-empty values; those are not the submitted execution budgets. Use submitted command settings and receipt times below."
+  ],
+  "bounded_execution": {
+    "lock_holder": {
+      "unit": "alisa-s03-qualified-window-20261105f002",
+      "invocation": "7f1fca35deae4fc985cedb581f064959",
+      "runtime_max_sec": 1200,
+      "memory_max_mib": 64,
+      "swap_max": 0,
+      "stop_timeout_sec": 5,
+      "locks": [
+        "alisa-stage-rollout.lock",
+        "alisa-s01-rollout.lock",
+        "alisa-s02-provider-probe.lock",
+        "alisa-s02-rollout.lock",
+        "alisa-s03-rollout.lock"
+      ]
+    },
+    "steps": {
+      "smoke": {
+        "unit": "alisa-s03-07290-smoke-20261105f001",
+        "invocation": "4381c4b9f2134dbb9dd088ba9000ec1b",
+        "runtime_max_sec": 480,
+        "memory_max_mib": 1536
+      },
+      "rollback": {
+        "unit": "alisa-s03-07290-rollback-20261105f001",
+        "invocation": "0b11e499844d4614a5061ac91ae25faa",
+        "runtime_max_sec": 480,
+        "memory_max_mib": 1536
+      },
+      "final": {
+        "unit": "alisa-s03-07290-final-20261105f001",
+        "invocation": "1608cb60a10d43c88cc85d32b4702062",
+        "runtime_max_sec": 180,
+        "memory_max_mib": 512
+      }
+    },
+    "all_steps_swap_max": 0,
+    "all_steps_kill_mode": "control-group",
+    "all_steps_stop_timeout_sec": 5
+  },
+  "post_completion_unit_readback": {
+    "alisa-s03-qualified-window-20261105f002": {
+      "TimeoutStopUSec": "5s",
+      "RuntimeMaxUSec": "20min",
+      "MainPID": "91916",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "/system.slice/alisa-s03-qualified-window-20261105f002.service",
+      "MemoryMax": "67108864",
+      "MemorySwapMax": "0",
+      "TasksMax": "32",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "7f1fca35deae4fc985cedb581f064959"
+    },
+    "alisa-s03-07290-smoke-20261105f001": {
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "MemoryMax": "infinity",
+      "MemorySwapMax": "infinity",
+      "TasksMax": "9431",
+      "KillMode": "control-group",
+      "ActiveState": "inactive",
+      "InvocationID": ""
+    },
+    "alisa-s03-07290-rollback-20261105f001": {
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "MemoryMax": "infinity",
+      "MemorySwapMax": "infinity",
+      "TasksMax": "9431",
+      "KillMode": "control-group",
+      "ActiveState": "inactive",
+      "InvocationID": ""
+    },
+    "alisa-s03-07290-final-20261105f001": {
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "MemoryMax": "infinity",
+      "MemorySwapMax": "infinity",
+      "TasksMax": "9431",
+      "KillMode": "control-group",
+      "ActiveState": "inactive",
+      "InvocationID": ""
+    },
+    "alisa-s03-dedup-20261105f001": {
+      "TimeoutStopUSec": "1min 30s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "MemoryMax": "infinity",
+      "MemorySwapMax": "infinity",
+      "TasksMax": "9431",
+      "KillMode": "control-group",
+      "ActiveState": "inactive",
+      "InvocationID": ""
+    }
+  },
+  "remote_script_sha256": {
+    "inactive-vendor-dedup.py": "253dff15619424f7bee9cd9d99f042896925da4ae0d12e1815173521762f44f3",
+    "inactive-vendor-dedup-r2.py": "e1478cf1b626c33f13b01481a3cc4ee769fd4314ec8e4ffd0ba5d39b66dbcbbf",
+    "current-mixed-smoke.py": "84ab7bf17a0569ce7e78620006082660ef25b4ab14faea6f85da68c4f76e8176",
+    "current-mixed-smoke-r2.py": "ad5a29551455d39851c44b79839b6f56e95ef6013495eaa7822cff213ef69e1a",
+    "current-mixed-rollback.py": "4f416bb5682b752674e800c43f67fddc7064f1db0a80daa4e616403351eca110",
+    "current-mixed-final.py": "de0dd455cff8b30de5ae80574f7c157b5861bd8c953d26d28162856c33cd82aa",
+    "current-07290-smoke.py": "46fb522798369b8f610425cab61499f741187026328e8e827e286e7c2e19f621",
+    "current-07290-rollback.py": "30560279627f048b2f6584cf9da5547ff94685addb0df698df999e081b9291dc",
+    "current-07290-final.py": "6772ea22e1032adef6bb298792bb79e274b984165aa7dd68abaf62d6baf07bd0"
+  },
+  "receipts": {
+    "AL_S03_INACTIVE_VENDOR_DEDUP_20261105.json": {
+      "sha256": "2f8d77b1e7a2e7d681090df47605ccbd08f1c9d4555a91209c3ff4068415a4e9",
+      "receipt": {
+        "scope": "S03_DISK_RESERVE_INACTIVE_OWN_VENDOR_DEDUP",
+        "status": "PASS",
+        "started_utc": "2026-11-05T10:34:06.423533+00:00",
+        "disk_free_before_mib": 2930,
+        "cases": [
+          {
+            "case": "owned_targets_all_inactive",
+            "passed": true
+          },
+          {
+            "case": "no_process_uses_target_release",
+            "passed": true
+          },
+          {
+            "case": "alisa-3e763ad761fac377_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-3e763ad761fac377_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-29c99f6d9d00f19e_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-29c99f6d9d00f19e_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-61007bf870cf4f65_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-61007bf870cf4f65_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-8d680f775c8ccdf2_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-8d680f775c8ccdf2_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-6ae348354b3db0d3_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-6ae348354b3db0d3_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "all_target_manifests_verified_before",
+            "passed": true
+          },
+          {
+            "case": "nonzero_dedup_candidate_set",
+            "passed": true
+          },
+          {
+            "case": "all_planned_links_applied",
+            "passed": true
+          },
+          {
+            "case": "all_target_manifest_bytes_and_links_unchanged_after",
+            "passed": true
+          },
+          {
+            "case": "targets_still_inactive",
+            "passed": true
+          },
+          {
+            "case": "reserve_plus_100mib_test_growth_restored",
+            "passed": true
+          }
+        ],
+        "applied_links": 18070,
+        "archives_or_version_paths_removed": 0,
+        "active_inodes_touched": 0,
+        "mtime_note": "Inactive target mtimes intentionally follow canonical. Restore individual original timestamps only after breaking/copying the hardlink. Original metadata preserved in private gzip receipt.",
+        "planned_links": 18070,
+        "expected_reclaimed_mib": 453.473,
+        "disk_free_after_mib": 3383,
+        "actual_free_gain_mib": 453,
+        "finished_utc": "2026-11-05T10:34:30.081484+00:00"
+      }
+    },
+    "AL_S03_INACTIVE_VENDOR_DEDUP_R2_20261105.json": {
+      "sha256": "96b091f39238cc774e1a045ea0637d0f8303463e2ad6f14857748f332943a9ce",
+      "receipt": {
+        "scope": "S03_DISK_RESERVE_INACTIVE_OWN_VENDOR_DEDUP",
+        "status": "PASS",
+        "started_utc": "2026-11-05T11:17:03.121617+00:00",
+        "disk_free_before_mib": 3154,
+        "cases": [
+          {
+            "case": "owned_targets_all_inactive",
+            "passed": true
+          },
+          {
+            "case": "no_process_uses_target_release",
+            "passed": true
+          },
+          {
+            "case": "alisa-3e763ad761fac377_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-3e763ad761fac377_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-29c99f6d9d00f19e_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-29c99f6d9d00f19e_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-61007bf870cf4f65_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-61007bf870cf4f65_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-8d680f775c8ccdf2_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-8d680f775c8ccdf2_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-6ae348354b3db0d3_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-6ae348354b3db0d3_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-140150ba526b6c3d_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-140150ba526b6c3d_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-51d2a57db66647e0_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-51d2a57db66647e0_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "alisa-e82003211bdcd687_regular_release_directory",
+            "passed": true
+          },
+          {
+            "case": "alisa-e82003211bdcd687_manifest_identity",
+            "passed": true
+          },
+          {
+            "case": "all_target_manifests_verified_before",
+            "passed": true
+          },
+          {
+            "case": "nonzero_dedup_candidate_set",
+            "passed": true
+          },
+          {
+            "case": "all_planned_links_applied",
+            "passed": true
+          },
+          {
+            "case": "all_target_manifest_bytes_and_links_unchanged_after",
+            "passed": true
+          },
+          {
+            "case": "targets_still_inactive",
+            "passed": true
+          },
+          {
+            "case": "reserve_plus_100mib_test_growth_restored",
+            "passed": true
+          }
+        ],
+        "applied_links": 12042,
+        "archives_or_version_paths_removed": 0,
+        "active_inodes_touched": 0,
+        "mtime_note": "Inactive target mtimes intentionally follow canonical. Restore individual original timestamps only after breaking/copying the hardlink. Original metadata preserved in private gzip receipt.",
+        "planned_links": 12042,
+        "expected_reclaimed_mib": 302.297,
+        "disk_free_after_mib": 3456,
+        "actual_free_gain_mib": 302,
+        "finished_utc": "2026-11-05T11:17:31.604616+00:00"
+      }
+    },
+    "AL_S03_CURRENT_MIXED_SMOKE_20261105.json": {
+      "sha256": "dd607ed62e198cabd211abaac1438be9a7413c277156720fd82d212f204c8a42",
+      "receipt": {
+        "scope": "CURRENT_S03_STAFF_BOUNDARY_ONLY",
+        "bindings": {
+          "admin": "alisa-3e91b1aa5d405d0e",
+          "web": "alisa-dd2b59b99b00b7e4",
+          "platform": "alisa-dd2b59b99b00b7e4",
+          "identity": "alisa-dd2b59b99b00b7e4"
+        },
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "reserve_plus_growth_and_memory",
+            "passed": true
+          },
+          {
+            "case": "exact_current_pointer_tuple",
+            "passed": true
+          },
+          {
+            "case": "alisa-3e91b1aa5d405d0e_exact_manifest_files",
+            "passed": false
+          }
+        ],
+        "started_utc": "2026-11-05T10:50:04.767537+00:00",
+        "error_type": "RuntimeError",
+        "failed_case": "alisa-3e91b1aa5d405d0e_exact_manifest_files",
+        "line": 11,
+        "finished_utc": "2026-11-05T10:50:07.113619+00:00"
+      }
+    },
+    "AL_S03_CURRENT_MIXED_SMOKE_R2_20261105.json": {
+      "sha256": "e01e99e43368b8bc67086240b4ead6fe4644f13ab6003134efb5e8a0c4f4afe5",
+      "receipt": {
+        "scope": "CURRENT_S03_STAFF_BOUNDARY_ONLY",
+        "bindings": {
+          "admin": "alisa-3e91b1aa5d405d0e",
+          "web": "alisa-dd2b59b99b00b7e4",
+          "platform": "alisa-dd2b59b99b00b7e4",
+          "identity": "alisa-dd2b59b99b00b7e4"
+        },
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "reserve_plus_growth_and_memory",
+            "passed": true
+          },
+          {
+            "case": "exact_current_pointer_tuple",
+            "passed": true
+          },
+          {
+            "case": "alisa-3e91b1aa5d405d0e_exact_manifest_files",
+            "passed": true
+          },
+          {
+            "case": "alisa-dd2b59b99b00b7e4_exact_manifest_files",
+            "passed": true
+          },
+          {
+            "case": "dd2_ci_zip_and_tar_binding",
+            "passed": true
+          },
+          {
+            "case": "only_own_existing_synthetic_fixtures",
+            "passed": true
+          },
+          {
+            "case": "staff_members_exact_own_subjects",
+            "passed": true
+          },
+          {
+            "case": "fresh_customer_current_dd2_via_synthetic_sink",
+            "passed": true
+          },
+          {
+            "case": "native_admin_code_after_actual_factor",
+            "passed": true
+          },
+          {
+            "case": "closed_bootstrap_state_matches",
+            "passed": true
+          },
+          {
+            "case": "actual_signed_admin_mfa_nonce_subject_verified",
+            "passed": true
+          },
+          {
+            "case": "native_subject_is_exact_verified_person_and_client",
+            "passed": true
+          },
+          {
+            "case": "current_signed_subject_same_owner",
+            "passed": true
+          },
+          {
+            "case": "current_mixed_fresh_totp_bff_api_pg",
+            "passed": true
+          },
+          {
+            "case": "current_staff_session_actual_totp",
+            "passed": true
+          },
+          {
+            "case": "dedicated_staff_cookie",
+            "passed": true
+          },
+          {
+            "case": "current_real_customer_list",
+            "passed": true
+          },
+          {
+            "case": "own_reader_limited_role_current_api",
+            "passed": true
+          },
+          {
+            "case": "limited_reader_current_native_totp_login",
+            "passed": true
+          },
+          {
+            "case": "current_limited_backend_write_denied",
+            "passed": true
+          },
+          {
+            "case": "two_independent_current_staff_sessions",
+            "passed": true
+          },
+          {
+            "case": "current_staff_revocation_both_contexts",
+            "passed": true
+          },
+          {
+            "case": "real_mail_not_enqueued_or_submitted",
+            "passed": true
+          },
+          {
+            "case": "all_identity_contacts_synthetic_no_signup",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T10:53:59.773800+00:00",
+        "real_mail_before": {
+          "rows": 5,
+          "fingerprint": "a9f115d110680b8805dd7bb59fdf261f0c7e6c27935fa59772bebeb82c3b0ad0"
+        },
+        "real_mail_after": {
+          "rows": 5,
+          "fingerprint": "a9f115d110680b8805dd7bb59fdf261f0c7e6c27935fa59772bebeb82c3b0ad0"
+        },
+        "finished_utc": "2026-11-05T10:55:07.686515+00:00"
+      }
+    },
+    "AL_S03_CURRENT_MIXED_ROLLBACK_20261105.json": {
+      "sha256": "99bd31b7ecbea2bd2cb9dd5f0737424c63a05c3ebd6fdbb90586ec923bb5d558",
+      "receipt": {
+        "scope": "CURRENT_S03_STAFF_FEATURE_ROLLBACK_REENTRY_NOT_DD2_MAIL_ROLLBACK",
+        "bindings": {
+          "admin": "alisa-3e91b1aa5d405d0e",
+          "web": "alisa-dd2b59b99b00b7e4",
+          "platform": "alisa-dd2b59b99b00b7e4",
+          "identity": "alisa-dd2b59b99b00b7e4"
+        },
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "current_mixed_smoke_passed",
+            "passed": true
+          },
+          {
+            "case": "bound_current_tuple_before_mutation",
+            "passed": true
+          },
+          {
+            "case": "all_current_config_snapshots_exact",
+            "passed": true
+          },
+          {
+            "case": "fresh_native_bearer_valid_before_suspend",
+            "passed": true
+          },
+          {
+            "case": "actual_pending_flow_current_combo",
+            "passed": true
+          },
+          {
+            "case": "only_expected_own_vhost_changed",
+            "passed": true
+          },
+          {
+            "case": "admin_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "platform_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "identity_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "staff_off_tuple_and_flags",
+            "passed": true
+          },
+          {
+            "case": "native_admin_authorize_closed",
+            "passed": true
+          },
+          {
+            "case": "staff_api_closed",
+            "passed": true
+          },
+          {
+            "case": "platform-close.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "owned_staff_sessions_and_flows_zero_payloads",
+            "passed": true
+          },
+          {
+            "case": "identity-suspend.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "identity-suspend.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "admin_grants_empty_tokens_zero_flags_off",
+            "passed": true
+          },
+          {
+            "case": "old_native_bearer_revoked",
+            "passed": true
+          },
+          {
+            "case": "native_authorize_still_closed_after_drain",
+            "passed": true
+          },
+          {
+            "case": "actual_dd2_native_code_ttl_60",
+            "passed": true
+          },
+          {
+            "case": "current_customer_session_works_staff_off",
+            "passed": true
+          },
+          {
+            "case": "native_code_ttl_elapsed",
+            "passed": true
+          },
+          {
+            "case": "tuple_still_current_before_fallback",
+            "passed": true
+          },
+          {
+            "case": "only_expected_own_vhost_changed",
+            "passed": true
+          },
+          {
+            "case": "closed_shell_public_ready",
+            "passed": true
+          },
+          {
+            "case": "only_admin_pointer_changed_for_fallback",
+            "passed": true
+          },
+          {
+            "case": "fallback_admin_has_no_staff_start_route",
+            "passed": true
+          },
+          {
+            "case": "dd2_customer_profile_works_during_admin_fallback",
+            "passed": true
+          },
+          {
+            "case": "no_real_mail_enqueued_or_submitted_before_restore",
+            "passed": true
+          },
+          {
+            "case": "only_expected_own_vhost_changed",
+            "passed": true
+          },
+          {
+            "case": "same_admin_code_reentered_closed",
+            "passed": true
+          },
+          {
+            "case": "staff_flags_and_mail_guard_before_native_restore",
+            "passed": true
+          },
+          {
+            "case": "only_preserved_native_admin_capabilities_restored",
+            "passed": true
+          },
+          {
+            "case": "identity_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "platform_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "admin_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "only_expected_own_vhost_changed",
+            "passed": true
+          },
+          {
+            "case": "public_same_admin_fresh_tls_ready",
+            "passed": true
+          },
+          {
+            "case": "current_mixed_fresh_totp_after_feature_rollback",
+            "passed": true
+          },
+          {
+            "case": "current_session_has_actual_totp",
+            "passed": true
+          },
+          {
+            "case": "prior_staff_token_stays_revoked",
+            "passed": true
+          },
+          {
+            "case": "prior_pending_flow_stays_consumed",
+            "passed": true
+          },
+          {
+            "case": "same_owner_subject_customer_tenant_profile",
+            "passed": true
+          },
+          {
+            "case": "platform_current_full_settings_preserved",
+            "passed": true
+          },
+          {
+            "case": "identity_current_full_settings_preserved",
+            "passed": true
+          },
+          {
+            "case": "admin_current_full_settings_preserved",
+            "passed": true
+          },
+          {
+            "case": "all_current_config_bytes_web_and_dropin_preserved",
+            "passed": true
+          },
+          {
+            "case": "final_current_tuple_and_real_mail_unchanged",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T10:57:17.817944+00:00",
+        "real_mail_before": {
+          "rows": 5,
+          "fingerprint": "a9f115d110680b8805dd7bb59fdf261f0c7e6c27935fa59772bebeb82c3b0ad0"
+        },
+        "disabled_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          }
+        },
+        "waited_code_ttl_seconds": 61.133,
+        "feature_fallback_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY"
+          }
+        },
+        "reenabled_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-dd2b59b99b00b7e4",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          }
+        },
+        "real_mail_after": {
+          "rows": 5,
+          "fingerprint": "a9f115d110680b8805dd7bb59fdf261f0c7e6c27935fa59772bebeb82c3b0ad0"
+        },
+        "finished_utc": "2026-11-05T10:58:33.329197+00:00"
+      }
+    },
+    "AL_S03_CURRENT_MIXED_FINAL_CHECKS_20261105.json": {
+      "sha256": "ed83601ca586740e4412a74d3fc8b3277358e9f8275f2cf7e324e56225ebde21",
+      "receipt": {
+        "scope": "CURRENT_MIXED_S03_STAFF_SCOPE_FINAL_BINDING_PRIVACY_RUNTIME",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "actual_smoke_pass",
+            "passed": true
+          },
+          {
+            "case": "actual_reentry_pass",
+            "passed": true
+          },
+          {
+            "case": "exact_installed_source_all_4406_hashes_and_42_links",
+            "passed": true
+          },
+          {
+            "case": "dd2_exact_installed_4408_files_and_42_links",
+            "passed": false
+          }
+        ],
+        "started_utc": "2026-11-05T11:04:24.213105+00:00",
+        "error_type": "RuntimeError",
+        "failed_case": "dd2_exact_installed_4408_files_and_42_links",
+        "line": 10,
+        "finished_utc": "2026-11-05T11:04:30.493142+00:00"
+      }
+    },
+    "AL_S03_DERIVED_CACHE_CLEANUP_F001_20261105.json": {
+      "sha256": "883a61a21e2c268ea9f5867db15621b0e75ea4b7cfd9189e2f28aa42f4b88bca",
+      "receipt": {
+        "only_unmanifested_root_generated_caches": [],
+        "source_bytes_changed": false
+      }
+    },
+    "AL_S03_OWN_CACHE_REMOVAL_20261105.json": {
+      "sha256": "ca22a7cc3c6d3e4d2d6ec17595e28922a8daabf400d5e8e2cc0f65bb1aaa3345",
+      "receipt": {
+        "scope": "OWN_NONMANIFEST_DERIVED_CACHE_ONLY",
+        "path": "infra/__pycache__/release.cpython-312.pyc",
+        "sha256": "a3cd546d10fb3dfc00914e4e14381db47f20d20a3970b01ebe56162a62915b65",
+        "mtime_utc": "2026-11-05T10:01:06.400192+00:00",
+        "source_hash_matches_manifest": true,
+        "removed_only_this_generated_cache": true
+      }
+    },
+    "AL_S03_CURRENT_07290_SMOKE_20261105.json": {
+      "sha256": "f2ee26fca4eb313e6138b1d1a32fa7d7e0ddb4770277b01865828c43c396630b",
+      "receipt": {
+        "scope": "CURRENT_S03_STAFF_BOUNDARY_ONLY",
+        "bindings": {
+          "admin": "alisa-3e91b1aa5d405d0e",
+          "web": "alisa-07290e7c17f556bf",
+          "platform": "alisa-07290e7c17f556bf",
+          "identity": "alisa-07290e7c17f556bf"
+        },
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "reserve_plus_growth_and_memory",
+            "passed": true
+          },
+          {
+            "case": "exact_current_pointer_tuple",
+            "passed": true
+          },
+          {
+            "case": "alisa-3e91b1aa5d405d0e_exact_manifest_files",
+            "passed": true
+          },
+          {
+            "case": "alisa-07290e7c17f556bf_exact_manifest_files",
+            "passed": true
+          },
+          {
+            "case": "07290_ci_manifest_binding",
+            "passed": true
+          },
+          {
+            "case": "only_own_existing_synthetic_fixtures",
+            "passed": true
+          },
+          {
+            "case": "staff_members_exact_own_subjects",
+            "passed": true
+          },
+          {
+            "case": "fresh_customer_current_07290_via_synthetic_sink",
+            "passed": true
+          },
+          {
+            "case": "native_admin_code_after_actual_factor",
+            "passed": true
+          },
+          {
+            "case": "closed_bootstrap_state_matches",
+            "passed": true
+          },
+          {
+            "case": "actual_signed_admin_mfa_nonce_subject_verified",
+            "passed": true
+          },
+          {
+            "case": "native_subject_is_exact_verified_person_and_client",
+            "passed": true
+          },
+          {
+            "case": "current_signed_subject_same_owner",
+            "passed": true
+          },
+          {
+            "case": "current_mixed_fresh_totp_bff_api_pg",
+            "passed": true
+          },
+          {
+            "case": "current_staff_session_actual_totp",
+            "passed": true
+          },
+          {
+            "case": "dedicated_staff_cookie",
+            "passed": true
+          },
+          {
+            "case": "current_real_customer_list",
+            "passed": true
+          },
+          {
+            "case": "own_reader_limited_role_current_api",
+            "passed": true
+          },
+          {
+            "case": "limited_reader_current_native_totp_login",
+            "passed": true
+          },
+          {
+            "case": "current_limited_backend_write_denied",
+            "passed": true
+          },
+          {
+            "case": "two_independent_current_staff_sessions",
+            "passed": true
+          },
+          {
+            "case": "current_staff_revocation_both_contexts",
+            "passed": true
+          },
+          {
+            "case": "real_mail_not_enqueued_or_submitted",
+            "passed": true
+          },
+          {
+            "case": "all_identity_contacts_synthetic_no_signup",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T11:27:19.353905+00:00",
+        "real_mail_before": {
+          "rows": 7,
+          "fingerprint": "106c0e643d14262ceff16015ca886cb1994de3db6af25fdaf8023e97eeec0a9c"
+        },
+        "real_mail_after": {
+          "rows": 7,
+          "fingerprint": "106c0e643d14262ceff16015ca886cb1994de3db6af25fdaf8023e97eeec0a9c"
+        },
+        "finished_utc": "2026-11-05T11:28:37.011979+00:00"
+      }
+    },
+    "AL_S03_CURRENT_07290_ROLLBACK_20261105.json": {
+      "sha256": "6e09f4bd86a3cdb64b50e17bf6a7689476297b3fbf9de079dfb42939814156cc",
+      "receipt": {
+        "scope": "CURRENT_S03_STAFF_FEATURE_ROLLBACK_REENTRY_NOT_07290_MAIL_ROLLBACK",
+        "bindings": {
+          "admin": "alisa-3e91b1aa5d405d0e",
+          "web": "alisa-07290e7c17f556bf",
+          "platform": "alisa-07290e7c17f556bf",
+          "identity": "alisa-07290e7c17f556bf"
+        },
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "current_mixed_smoke_passed",
+            "passed": true
+          },
+          {
+            "case": "bound_current_tuple_before_mutation",
+            "passed": true
+          },
+          {
+            "case": "all_current_config_snapshots_exact",
+            "passed": true
+          },
+          {
+            "case": "fresh_native_bearer_valid_before_suspend",
+            "passed": true
+          },
+          {
+            "case": "actual_pending_flow_current_combo",
+            "passed": true
+          },
+          {
+            "case": "only_expected_own_vhost_changed",
+            "passed": true
+          },
+          {
+            "case": "admin_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "platform_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "identity_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "staff_off_tuple_and_flags",
+            "passed": true
+          },
+          {
+            "case": "native_admin_authorize_closed",
+            "passed": true
+          },
+          {
+            "case": "staff_api_closed",
+            "passed": true
+          },
+          {
+            "case": "platform-close.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "owned_staff_sessions_and_flows_zero_payloads",
+            "passed": true
+          },
+          {
+            "case": "identity-suspend.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "identity-suspend.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "admin_grants_empty_tokens_zero_flags_off",
+            "passed": true
+          },
+          {
+            "case": "old_native_bearer_revoked",
+            "passed": true
+          },
+          {
+            "case": "native_authorize_still_closed_after_drain",
+            "passed": true
+          },
+          {
+            "case": "actual_07290_native_code_ttl_60",
+            "passed": true
+          },
+          {
+            "case": "current_customer_session_works_staff_off",
+            "passed": true
+          },
+          {
+            "case": "native_code_ttl_elapsed",
+            "passed": true
+          },
+          {
+            "case": "tuple_still_current_before_fallback",
+            "passed": true
+          },
+          {
+            "case": "only_expected_own_vhost_changed",
+            "passed": true
+          },
+          {
+            "case": "closed_shell_public_ready",
+            "passed": true
+          },
+          {
+            "case": "only_admin_pointer_changed_for_fallback",
+            "passed": true
+          },
+          {
+            "case": "fallback_admin_has_no_staff_start_route",
+            "passed": true
+          },
+          {
+            "case": "07290_customer_profile_works_during_admin_fallback",
+            "passed": true
+          },
+          {
+            "case": "no_real_mail_enqueued_or_submitted_before_restore",
+            "passed": true
+          },
+          {
+            "case": "only_expected_own_vhost_changed",
+            "passed": true
+          },
+          {
+            "case": "same_admin_code_reentered_closed",
+            "passed": true
+          },
+          {
+            "case": "staff_flags_and_mail_guard_before_native_restore",
+            "passed": true
+          },
+          {
+            "case": "only_preserved_native_admin_capabilities_restored",
+            "passed": true
+          },
+          {
+            "case": "identity_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "platform_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "admin_no_nonstaff_config_drift",
+            "passed": true
+          },
+          {
+            "case": "only_expected_own_vhost_changed",
+            "passed": true
+          },
+          {
+            "case": "public_same_admin_fresh_tls_ready",
+            "passed": true
+          },
+          {
+            "case": "current_mixed_fresh_totp_after_feature_rollback",
+            "passed": true
+          },
+          {
+            "case": "current_session_has_actual_totp",
+            "passed": true
+          },
+          {
+            "case": "prior_staff_token_stays_revoked",
+            "passed": true
+          },
+          {
+            "case": "prior_pending_flow_stays_consumed",
+            "passed": true
+          },
+          {
+            "case": "same_owner_subject_customer_tenant_profile",
+            "passed": true
+          },
+          {
+            "case": "platform_current_full_settings_preserved",
+            "passed": true
+          },
+          {
+            "case": "identity_current_full_settings_preserved",
+            "passed": true
+          },
+          {
+            "case": "admin_current_full_settings_preserved",
+            "passed": true
+          },
+          {
+            "case": "all_current_config_bytes_web_and_dropin_preserved",
+            "passed": true
+          },
+          {
+            "case": "final_current_tuple_and_real_mail_unchanged",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T11:28:52.565182+00:00",
+        "real_mail_before": {
+          "rows": 7,
+          "fingerprint": "106c0e643d14262ceff16015ca886cb1994de3db6af25fdaf8023e97eeec0a9c"
+        },
+        "disabled_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          }
+        },
+        "waited_code_ttl_seconds": 61.117,
+        "feature_fallback_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY"
+          }
+        },
+        "reenabled_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          }
+        },
+        "real_mail_after": {
+          "rows": 7,
+          "fingerprint": "106c0e643d14262ceff16015ca886cb1994de3db6af25fdaf8023e97eeec0a9c"
+        },
+        "finished_utc": "2026-11-05T11:30:07.732757+00:00"
+      }
+    },
+    "AL_S03_CURRENT_07290_FINAL_CHECKS_20261105.json": {
+      "sha256": "e425241a32b1720e17ba10c6e972cdee504fea971085a57aa10d2c9ab71ad6db",
+      "receipt": {
+        "scope": "CURRENT_MIXED_S03_STAFF_SCOPE_FINAL_BINDING_PRIVACY_RUNTIME",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "actual_smoke_pass",
+            "passed": true
+          },
+          {
+            "case": "actual_reentry_pass",
+            "passed": true
+          },
+          {
+            "case": "exact_installed_source_all_4406_hashes_and_42_links",
+            "passed": true
+          },
+          {
+            "case": "07290_exact_installed_4408_files_and_42_links",
+            "passed": true
+          },
+          {
+            "case": "disk_reserve_retained_after_tests",
+            "passed": true
+          },
+          {
+            "case": "web_all_current_config_bytes_preserved",
+            "passed": true
+          },
+          {
+            "case": "platform_all_current_config_bytes_preserved",
+            "passed": true
+          },
+          {
+            "case": "identity_all_current_config_bytes_preserved",
+            "passed": true
+          },
+          {
+            "case": "admin_all_current_config_bytes_preserved",
+            "passed": true
+          },
+          {
+            "case": "platform-close.sql.receipt.txt_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "identity-suspend.sql.receipt.txt_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "fixture-progress.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "real-mail-before-private.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "reader-browser-state.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "client-preserved.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "admin-dropin.conf_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "owner-browser-state.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "vhost-closed.conf_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "pointers.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "platform.env_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "fixture.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "owner-browser-after.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "web.env_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "identity.env_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "fixture-after.json_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "admin.env_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "vhost-open.conf_root_private_current_snapshot",
+            "passed": true
+          },
+          {
+            "case": "web_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "admin_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "platform_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "identity_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "platform-migration_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "identity-migration_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "s03-3e91b1aa5d405d0e_root_private_directory",
+            "passed": true
+          },
+          {
+            "case": "evidence_root_private_directory",
+            "passed": true
+          },
+          {
+            "case": "mixed-07290-20261105f001_root_private_directory",
+            "passed": true
+          },
+          {
+            "case": "synthetic-fixture.json_private",
+            "passed": true
+          },
+          {
+            "case": "synthetic-owner-browser-state.json_private",
+            "passed": true
+          },
+          {
+            "case": "synthetic-reader-browser-state.json_private",
+            "passed": true
+          },
+          {
+            "case": "verified-owner.json_private",
+            "passed": true
+          },
+          {
+            "case": "admin-client-preserved.json_private",
+            "passed": true
+          },
+          {
+            "case": "staff_client_key_service_authority_separate",
+            "passed": true
+          },
+          {
+            "case": "admin_config_no_database_or_web_private_material",
+            "passed": true
+          },
+          {
+            "case": "closed_synthetic_private_mail_retained",
+            "passed": true
+          },
+          {
+            "case": "platform_runtime_no_ddl",
+            "passed": true
+          },
+          {
+            "case": "platform_other_own_database_connect_denied_acl_and_native_fatal",
+            "passed": true
+          },
+          {
+            "case": "identity_runtime_no_ddl",
+            "passed": true
+          },
+          {
+            "case": "identity_other_own_database_connect_denied_acl_and_native_fatal",
+            "passed": true
+          },
+          {
+            "case": "native_factor_secret_encrypted_in_own_db",
+            "passed": true
+          },
+          {
+            "case": "audit_contains_no_contacts_or_factor_tokens",
+            "passed": true
+          },
+          {
+            "case": "old_oidc_clients_exact",
+            "passed": true
+          },
+          {
+            "case": "own_vhost_exact_safe_open_configuration",
+            "passed": true
+          },
+          {
+            "case": "all_excluded_nginx_files_unchanged",
+            "passed": true
+          },
+          {
+            "case": "web_expected_ready_release",
+            "passed": true
+          },
+          {
+            "case": "identity_expected_ready_release",
+            "passed": true
+          },
+          {
+            "case": "admin_expected_ready_release",
+            "passed": true
+          },
+          {
+            "case": "platform_expected_ready_release",
+            "passed": true
+          },
+          {
+            "case": "web_shared_pointer_and_config_unchanged",
+            "passed": true
+          },
+          {
+            "case": "alisa-web@stage.service_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-platform@stage.service_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-identity@stage.service_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-admin@stage.service_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-account-cleanup@stage.timer_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-identity-mail@stage.timer_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-lead-mail@stage.timer_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-probe-cleanup@stage.timer_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "own_ingress_and_service_logs_no_fixture_private_values",
+            "passed": true
+          },
+          {
+            "case": "logs_no_new_config_secrets",
+            "passed": true
+          },
+          {
+            "case": "qualification_window_active",
+            "passed": true
+          },
+          {
+            "case": "full_current_pointer_tuple",
+            "passed": true
+          },
+          {
+            "case": "all_own_previous_test_cgroups_finished",
+            "passed": true
+          },
+          {
+            "case": "non_synthetic_mail_unchanged_from_before_current_smoke",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T11:30:33.417186+00:00",
+        "disk_free_mib": 3455,
+        "actual_https_readback": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf",
+            "status": "READY"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-07290e7c17f556bf"
+          }
+        },
+        "non_synthetic_mail_fingerprint": "106c0e643d14262ceff16015ca886cb1994de3db6af25fdaf8023e97eeec0a9c",
+        "finished_utc": "2026-11-05T11:30:41.041737+00:00"
+      }
+    }
+  },
+  "independent_verdict": "ACCEPTED_FOR_DECLARED_CURRENT_S03_STAFF_SCOPE_ONLY",
+  "independent_review_sha256": "785d864b7f637f24f2cdf4aa1ebe3f642d6e1d48adffa7ab8b227b25132ab4e1",
+  "qualification_window_release": {
+    "record_type": "S03_QUALIFICATION_WINDOW_RELEASE",
+    "recorded_at_utc": "2026-11-05T11:32:52.049741+00:00",
+    "unit": "alisa-s03-qualified-window-20261105f002.service",
+    "expected_invocation": "7f1fca35deae4fc985cedb581f064959",
+    "pointers": {
+      "admin-current": "alisa-3e91b1aa5d405d0e",
+      "web-current": "alisa-07290e7c17f556bf",
+      "site-current": "alisa-07290e7c17f556bf",
+      "identity-current": "alisa-07290e7c17f556bf",
+      "current": "alisa-77d0f8ee2643ef65"
+    },
+    "health": {
+      "admin": {
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "READY"
+      },
+      "web": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-07290e7c17f556bf",
+        "status": "READY"
+      },
+      "identity": {
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-07290e7c17f556bf",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      },
+      "platform": {
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-07290e7c17f556bf"
+      }
+    },
+    "unit_inactive": true
+  }
+}

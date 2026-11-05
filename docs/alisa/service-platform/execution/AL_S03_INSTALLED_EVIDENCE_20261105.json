@@ -1,0 +1,2052 @@
+{
+  "record_type": "AL_S03_AUTHORIZED_INSTALLED_STAGE_EXECUTION_EVIDENCE",
+  "recorded_at_utc": "2026-11-05T10:18:08.877Z",
+  "binding": {
+    "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+    "tree_sha": "c89ea16dd4773855d83335d0ed151680725d69d9",
+    "artifact": "alisa-3e91b1aa5d405d0e.tar.gz",
+    "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+    "approved_plan_commit": "83ba6c99a57897037286b2773ccf633f7b2f3c28",
+    "approved_plan_sha256": "7efbcf47e2ea5f8c0ec1245a9108037c482b506fbae11975841f28615344572d"
+  },
+  "owner_authorization": "Explicit да to published exact S03 stage plan; no repeated approval requested.",
+  "recorded_stage_summary": {
+    "smoke_r4": {
+      "status": "PASS",
+      "cases": 36
+    },
+    "actual_return": {
+      "status": "INTERRUPTED_AFTER_27_PASSING_STEPS_AT_RELOAD_503",
+      "prior_code_versions_confirmed": true,
+      "code_ttl_wait_seconds": 61.199,
+      "standalone_rollback_receipt_pass": false
+    },
+    "reentry": {
+      "status": "PASS",
+      "cases": 12,
+      "actual_native_totp_verified": true,
+      "old_session_denied": true,
+      "old_flow_consumed": true
+    },
+    "final_read_only_checks_r2": {
+      "status": "PASS",
+      "cases": 44,
+      "exact_installed_file_hashes": 4406,
+      "exact_installed_links": 42
+    }
+  },
+  "interpretation_notes": [
+    {
+      "receipt": "AL_S03_INSTALLED_SMOKE_R4_20261105.json",
+      "case": "real_https_totp_admin_bff_api_pg",
+      "clarification": "Inherited label uses recovery[4] in R4. Actual native TOTP BFF is separately proven in R3 before its later CSS assertion, and reentry confirms actual session.mfa_type=totp. Do not count label as separate TOTP proof."
+    },
+    {
+      "receipt": "AL_S03_INSTALLED_ROLLBACK_20261105.json",
+      "clarification": "Original status remains FAILED at final fresh browser step after nginx reload; 27 earlier rollback/reentry checks passed, actual prior versions and same S03 restored. Separate reentry PASS completes that interrupted check; no rewrite to standalone rollback PASS."
+    }
+  ],
+  "procedural_findings_and_resolutions": [
+    {
+      "finding": "Expired temporary artifact URL, no runtime/schema mutation",
+      "resolution": "Read known expiry; refreshed URL to same immutable bytes, verified ZIP/tar hashes; reused private snapshots.",
+      "receipt": "install-result.json"
+    },
+    {
+      "finding": "Literal percent interpreted as query placeholder by psycopg with empty params",
+      "resolution": "Reproduced exact read-only error; pass no params when empty. Migration already applied, not repeated.",
+      "receipt": "activation-result.json"
+    },
+    {
+      "finding": "Private umask caused code/venv dirs0700 and runtime CHDIR failure",
+      "resolution": "Restored rX only inside new secret-free release. Config/private data retained0600/0700. All file hashes verified afterward.",
+      "receipt": "activation-resume-result.json"
+    },
+    {
+      "finding": "Bootstrap callback route was not intercepted inside redirect chain",
+      "resolution": "Capture native authority302 Location without changing verifier; redeem actual native code with secret/PKCE; validate signed nonce/issuer/audience/MFA/Subject. Existing users/factors retained.",
+      "receipts": [
+        "AL_S03_INSTALLED_SMOKE_20261105.json",
+        "AL_S03_INSTALLED_SMOKE_R2_20261105.json"
+      ]
+    },
+    {
+      "finding": "Admin CSS check expected opaque body though upstream sets background on root",
+      "resolution": "R4 checks actual root canvas and main panel, same source styles and three widths. Product source unchanged.",
+      "receipt": "AL_S03_INSTALLED_SMOKE_R3_20261105.json"
+    },
+    {
+      "finding": "Connection-stage permission error exposes no SQLSTATE in library object",
+      "resolution": "Require actual connection failure with explicit permission/CONNECT denial and independent CONNECT ACL=false for both own runtime roles. No generic failure accepted.",
+      "receipt": "AL_S03_INSTALLED_FINAL_CHECKS_20261105.json"
+    },
+    {
+      "finding": "Native maintenance calls generated nine unmanifested own bytecode files",
+      "resolution": "Removed only own nonmanifest __pycache__/*.pyc in new release. Final exact4406/42 verified; future final checks set dont_write_bytecode."
+    }
+  ],
+  "execution": {
+    "recorded_at_utc": "2026-11-05T10:02:52.654788+00:00",
+    "receipts": {
+      "install-result.json": {
+        "record_type": "AUTHORIZED_S03_STAGE_EXACT_INSTALL",
+        "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+        "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+        "plan_sha256": "7efbcf47e2ea5f8c0ec1245a9108037c482b506fbae11975841f28615344572d",
+        "owner_allowance": "User explicitly answered да to exact stage plan",
+        "status": "FAILED",
+        "started_utc": "2026-11-05T09:16:54.888236+00:00",
+        "cases": [
+          {
+            "case": "approved_pointer_baseline",
+            "passed": true
+          },
+          {
+            "case": "resources_before_install",
+            "passed": true
+          },
+          {
+            "case": "candidate_not_previously_installed",
+            "passed": true
+          },
+          {
+            "case": "platform_own_runtime",
+            "passed": true
+          },
+          {
+            "case": "no_existing_staff_schema",
+            "passed": true
+          },
+          {
+            "case": "identity_own_runtime",
+            "passed": true
+          },
+          {
+            "case": "only_existing_web_probe_clients",
+            "passed": true
+          },
+          {
+            "case": "private_config_and_own_database_snapshots_complete",
+            "passed": true
+          }
+        ],
+        "error_type": "HTTPError",
+        "failed_case": null,
+        "finished_utc": "2026-11-05T09:16:55.625639+00:00"
+      },
+      "install-retry-result.json": {
+        "record_type": "AUTHORIZED_S03_STAGE_EXACT_INSTALL",
+        "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+        "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+        "plan_sha256": "7efbcf47e2ea5f8c0ec1245a9108037c482b506fbae11975841f28615344572d",
+        "owner_allowance": "User explicitly answered да to exact stage plan",
+        "status": "PASS_INSTALLED_NOT_ACTIVATED",
+        "started_utc": "2026-11-05T09:19:16.227638+00:00",
+        "cases": [
+          {
+            "case": "approved_pointer_baseline",
+            "passed": true
+          },
+          {
+            "case": "resources_before_install",
+            "passed": true
+          },
+          {
+            "case": "candidate_not_previously_installed",
+            "passed": true
+          },
+          {
+            "case": "prior_private_snapshots_available",
+            "passed": true
+          },
+          {
+            "case": "download_zip_sha256",
+            "passed": true
+          },
+          {
+            "case": "download_zip_exact_file_allowlist",
+            "passed": true
+          },
+          {
+            "case": "exact_tar_sha256",
+            "passed": true
+          },
+          {
+            "case": "installed_manifest_all_files_and_links_verified",
+            "passed": true
+          },
+          {
+            "case": "no_pointers_activated",
+            "passed": true
+          },
+          {
+            "case": "resource_reserve_after_install",
+            "passed": true
+          }
+        ],
+        "free_mib_after": 3666,
+        "finished_utc": "2026-11-05T09:19:57.587960+00:00"
+      },
+      "activation-result.json": {
+        "record_type": "AUTHORIZED_S03_STAGE_MIGRATION_ACTIVATION",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "exact_install_previously_passed",
+            "passed": true
+          },
+          {
+            "case": "pointer_baseline_unchanged",
+            "passed": true
+          },
+          {
+            "case": "config_fingerprints_unchanged",
+            "passed": true
+          },
+          {
+            "case": "staff_secrets_distinct",
+            "passed": true
+          },
+          {
+            "case": "only_staff_0001_planned",
+            "passed": true
+          },
+          {
+            "case": "repeat_migration_plan_empty",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T09:22:00.708022+00:00",
+        "error_type": "ProgrammingError",
+        "failed_case": null,
+        "line": 16,
+        "finished_utc": "2026-11-05T09:22:06.423863+00:00"
+      },
+      "activation-resume-result.json": {
+        "record_type": "AUTHORIZED_S03_STAGE_MIGRATION_ACTIVATION",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "prior_attempt_migrated_then_stopped",
+            "passed": true
+          },
+          {
+            "case": "five_staff_tables",
+            "passed": true
+          },
+          {
+            "case": "runtime_audit_append_only",
+            "passed": true
+          },
+          {
+            "case": "identity_migrations_unchanged",
+            "passed": true
+          },
+          {
+            "case": "one_own_admin_vhost",
+            "passed": true
+          },
+          {
+            "case": "own_admin_dropin_absent",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T09:23:15.161395+00:00",
+        "error_type": "RuntimeError",
+        "failed_case": "health_web",
+        "line": 30,
+        "finished_utc": "2026-11-05T09:23:30.736642+00:00"
+      },
+      "activation-final-result.json": {
+        "record_type": "AUTHORIZED_S03_STAGE_MIGRATION_ACTIVATION",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "PASS_ACTIVATED_PENDING_INSTALLED_SMOKE",
+        "cases": [
+          {
+            "case": "exact_s03_pointers_staff_still_closed",
+            "passed": true
+          },
+          {
+            "case": "closed_admin_start_denied",
+            "passed": true
+          },
+          {
+            "case": "closed_platform_staff_api_denied",
+            "passed": true
+          },
+          {
+            "case": "old_web_probe_clients_unchanged",
+            "passed": true
+          },
+          {
+            "case": "dedicated_admin_client_registered",
+            "passed": true
+          },
+          {
+            "case": "web_config_pointer_preserved",
+            "passed": true
+          },
+          {
+            "case": "shared_current_preserved",
+            "passed": true
+          },
+          {
+            "case": "admin_has_no_database_credentials",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T09:27:28.541494+00:00",
+        "closed_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          }
+        },
+        "active_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          }
+        },
+        "finished_utc": "2026-11-05T09:27:33.913076+00:00"
+      },
+      "AL_S03_INSTALLED_SMOKE_20261105.json": {
+        "scope": "ACTUAL_AUTHORIZED_STAGE_S03_HTTPS_NATIVE_MFA_BFF_API_POSTGRES",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+        "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "first_owner_scope_empty",
+            "passed": true
+          },
+          {
+            "case": "real_fixed_issuer_s256",
+            "passed": true
+          },
+          {
+            "case": "real_s03_fixture_lead_confirmed",
+            "passed": true
+          },
+          {
+            "case": "new_web_customers_real_email_code_bff_pg",
+            "passed": true
+          },
+          {
+            "case": "native_enrollment_qr_white_surface",
+            "passed": true
+          },
+          {
+            "case": "native_recovery_view_requires_real_factor",
+            "passed": true
+          },
+          {
+            "case": "native_totp_and_recovery_enrolled",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T09:36:34.606041+00:00",
+        "error_type": "AssertionError",
+        "failed_case": null,
+        "line": 54,
+        "finished_utc": "2026-11-05T09:36:52.567432+00:00"
+      },
+      "AL_S03_INSTALLED_SMOKE_R2_20261105.json": {
+        "scope": "ACTUAL_STAGE_S03_SMOKE_RESUME_EXISTING_NATIVE_USERS_NO_RESET",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+        "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "existing_fixture_preserved_no_owner_yet",
+            "passed": true
+          },
+          {
+            "case": "existing_users_login_without_duplicate_or_factor_reset",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T09:41:24.173159+00:00",
+        "previous_attempt": "AL_S03_INSTALLED_SMOKE_20261105.json",
+        "safe_navigation": [
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/authenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/authenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/app",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/app",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          }
+        ],
+        "last_phase": "native_direct_authorize",
+        "last_path": "/login",
+        "error_type": "AssertionError",
+        "failed_case": null,
+        "line": 56,
+        "finished_utc": "2026-11-05T09:41:37.458949+00:00"
+      },
+      "AL_S03_INSTALLED_SMOKE_R3_20261105.json": {
+        "scope": "ACTUAL_STAGE_S03_SMOKE_RESUME_EXISTING_NATIVE_USERS_NO_RESET",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+        "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "existing_fixture_preserved_no_owner_yet",
+            "passed": true
+          },
+          {
+            "case": "existing_users_login_without_duplicate_or_factor_reset",
+            "passed": true
+          },
+          {
+            "case": "native_admin_code_after_actual_factor",
+            "passed": true
+          },
+          {
+            "case": "closed_bootstrap_state_matches",
+            "passed": true
+          },
+          {
+            "case": "actual_signed_admin_mfa_nonce_subject_verified",
+            "passed": true
+          },
+          {
+            "case": "native_subject_is_exact_verified_person_and_client",
+            "passed": true
+          },
+          {
+            "case": "closed_native_call_command_owner_no_subject_in_output",
+            "passed": true
+          },
+          {
+            "case": "real_https_totp_admin_bff_api_pg",
+            "passed": true
+          },
+          {
+            "case": "real_customer_list",
+            "passed": true
+          },
+          {
+            "case": "separate_host_only_staff_cookie",
+            "passed": true
+          },
+          {
+            "case": "admin_layout_320",
+            "passed": true
+          },
+          {
+            "case": "admin_layout_390",
+            "passed": true
+          },
+          {
+            "case": "admin_layout_1440",
+            "passed": true
+          },
+          {
+            "case": "admin_theme_preserved",
+            "passed": false
+          }
+        ],
+        "started_utc": "2026-11-05T09:45:45.076771+00:00",
+        "previous_attempt": "AL_S03_INSTALLED_SMOKE_R2_20261105.json",
+        "safe_navigation": [
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/authenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/authenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/app",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/app",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/admin",
+            "status": 200
+          }
+        ],
+        "last_phase": "native_direct_authorize",
+        "last_path": "/admin",
+        "error_type": "RuntimeError",
+        "failed_case": "admin_theme_preserved",
+        "line": 19,
+        "finished_utc": "2026-11-05T09:46:02.233063+00:00"
+      },
+      "AL_S03_INSTALLED_SMOKE_R4_20261105.json": {
+        "scope": "ACTUAL_STAGE_S03_SMOKE_RESUME_EXISTING_NATIVE_USERS_NO_RESET",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+        "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "verified_owner_retained_no_rebootstrap",
+            "passed": true
+          },
+          {
+            "case": "existing_users_login_without_duplicate_or_factor_reset",
+            "passed": true
+          },
+          {
+            "case": "real_https_totp_admin_bff_api_pg",
+            "passed": true
+          },
+          {
+            "case": "real_customer_list",
+            "passed": true
+          },
+          {
+            "case": "separate_host_only_staff_cookie",
+            "passed": true
+          },
+          {
+            "case": "admin_layout_320",
+            "passed": true
+          },
+          {
+            "case": "admin_layout_390",
+            "passed": true
+          },
+          {
+            "case": "admin_layout_1440",
+            "passed": true
+          },
+          {
+            "case": "admin_theme_preserved_root_canvas_and_panel",
+            "passed": true
+          },
+          {
+            "case": "admin_referrer_noindex_preserved",
+            "passed": true
+          },
+          {
+            "case": "cross_origin_staff_command_denied",
+            "passed": true
+          },
+          {
+            "case": "local_block_one_revision_global_person_active",
+            "passed": true
+          },
+          {
+            "case": "identical_command_replay_one_effect",
+            "passed": true
+          },
+          {
+            "case": "changed_payload_same_uuid_conflicts",
+            "passed": true
+          },
+          {
+            "case": "customer_unblocked",
+            "passed": true
+          },
+          {
+            "case": "leads_separate_from_customer_records",
+            "passed": true
+          },
+          {
+            "case": "native_enrollment_qr_white_surface",
+            "passed": true
+          },
+          {
+            "case": "native_recovery_view_requires_real_factor",
+            "passed": true
+          },
+          {
+            "case": "native_totp_and_recovery_enrolled",
+            "passed": true
+          },
+          {
+            "case": "native_admin_code_after_actual_factor",
+            "passed": true
+          },
+          {
+            "case": "closed_bootstrap_state_matches",
+            "passed": true
+          },
+          {
+            "case": "actual_signed_admin_mfa_nonce_subject_verified",
+            "passed": true
+          },
+          {
+            "case": "native_subject_is_exact_verified_person_and_client",
+            "passed": true
+          },
+          {
+            "case": "ordinary_customer_valid_mfa_has_no_staff_role",
+            "passed": true
+          },
+          {
+            "case": "owner_assigns_verified_limited_admin",
+            "passed": true
+          },
+          {
+            "case": "limited_admin_real_login",
+            "passed": true
+          },
+          {
+            "case": "limited_admin_has_no_block_button",
+            "passed": true
+          },
+          {
+            "case": "limited_direct_backend_command_denied",
+            "passed": true
+          },
+          {
+            "case": "limited_staff_two_independent_native_sessions",
+            "passed": true
+          },
+          {
+            "case": "revoked_staff_both_browsers_denied",
+            "passed": true
+          },
+          {
+            "case": "last_owner_protected",
+            "passed": true
+          },
+          {
+            "case": "safe_audit_no_contact_or_factor",
+            "passed": true
+          },
+          {
+            "case": "runtime_pg_audit_rewrite_denied",
+            "passed": true
+          },
+          {
+            "case": "scoped_staff_cleanup_erases_expired_payload",
+            "passed": true
+          },
+          {
+            "case": "restart_preserves_owner_session_identity_profile",
+            "passed": true
+          },
+          {
+            "case": "staff_logout_revokes_server_session",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T09:49:19.783067+00:00",
+        "previous_attempt": "AL_S03_INSTALLED_SMOKE_R3_20261105.json",
+        "safe_navigation": [
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/authenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/authenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/app",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/login/code/confirm/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-stage.octoport.ru",
+            "path": "/app",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/admin",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/totp/activate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/totp/activate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/recovery-codes/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/recovery-codes/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/admin",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/admin",
+            "status": 307
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/admin",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/logout",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/login",
+            "status": 200
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/start",
+            "status": 303
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 200
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/accounts/2fa/reauthenticate/",
+            "status": 302
+          },
+          {
+            "host": "id-stage.octoport.ru",
+            "path": "/identity/o/authorize",
+            "status": 302
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/auth/callback",
+            "status": 303
+          },
+          {
+            "host": "alisa-admin-stage.octoport.ru",
+            "path": "/admin",
+            "status": 200
+          }
+        ],
+        "finished_utc": "2026-11-05T09:49:43.291474+00:00"
+      },
+      "AL_S03_INSTALLED_ROLLBACK_20261105.json": {
+        "scope": "ACTUAL_AUTHORIZED_STAGE_S03_PRIOR_CODE_SAME_S03_ROLLBACK",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "installed_smoke_previously_passed",
+            "passed": true
+          },
+          {
+            "case": "s03-3e91b1aa5d405d0e_private_root_directory",
+            "passed": true
+          },
+          {
+            "case": "evidence_private_root_directory",
+            "passed": true
+          },
+          {
+            "case": "approved_web_current_and_shared_preserved",
+            "passed": true
+          },
+          {
+            "case": "preexisting_clients_still_exact",
+            "passed": true
+          },
+          {
+            "case": "native_staff_bearer_valid_before_suspend",
+            "passed": true
+          },
+          {
+            "case": "web_profile_before_return",
+            "passed": true
+          },
+          {
+            "case": "real_pending_admin_flow_created",
+            "passed": true
+          },
+          {
+            "case": "flags_off_and_s03_processes_drained",
+            "passed": true
+          },
+          {
+            "case": "closed_native_admin_authorize_denied",
+            "passed": true
+          },
+          {
+            "case": "closed_backend_staff_endpoint_denied",
+            "passed": true
+          },
+          {
+            "case": "platform-close.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "all_own_staff_payloads_and_active_sessions_closed",
+            "passed": true
+          },
+          {
+            "case": "identity-suspend.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "native_admin_code_issuance_still_denied_after_drain",
+            "passed": true
+          },
+          {
+            "case": "identity-suspend.sql_exact_hash",
+            "passed": true
+          },
+          {
+            "case": "dedicated_client_disabled_and_tokens_zero",
+            "passed": true
+          },
+          {
+            "case": "prior_native_staff_token_revoked",
+            "passed": true
+          },
+          {
+            "case": "actual_native_code_ttl_is_60",
+            "passed": true
+          },
+          {
+            "case": "customer_session_works_while_staff_closed",
+            "passed": true
+          },
+          {
+            "case": "native_authorization_code_ttl_fully_elapsed",
+            "passed": true
+          },
+          {
+            "case": "actual_prior_compatible_versions_restored",
+            "passed": true
+          },
+          {
+            "case": "old_code_same_customer_tenant_profile",
+            "passed": true
+          },
+          {
+            "case": "prior_idp_disabled_admin_client_cannot_issue_code",
+            "passed": true
+          },
+          {
+            "case": "staff_schema_data_and_owner_retained_under_old_code",
+            "passed": true
+          },
+          {
+            "case": "same_s03_code_started_closed",
+            "passed": true
+          },
+          {
+            "case": "only_preserved_admin_client_capabilities_restored",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T09:50:40.474094+00:00",
+        "phase": "WAIT_CODE_TTL",
+        "waited_code_ttl_seconds": 61.199,
+        "prior_code_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-6ae348354b3db0d3"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY"
+          }
+        },
+        "same_s03_health": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          }
+        },
+        "error_type": "TimeoutError",
+        "failed_case": null,
+        "line": 79,
+        "finished_utc": "2026-11-05T09:52:23.940286+00:00"
+      },
+      "AL_S03_INSTALLED_REENTRY_20261105.json": {
+        "scope": "ACTUAL_STAGE_S03_FRESH_MFA_REENTRY_AFTER_RECORDED_ROLLBACK",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "actual_old_code_and_same_s03_recorded",
+            "passed": true
+          },
+          {
+            "case": "same_s03_pointers_and_flags_enabled",
+            "passed": true
+          },
+          {
+            "case": "public_admin_ingress_ready_on_fresh_tls_connection",
+            "passed": true
+          },
+          {
+            "case": "fresh_native_mfa_login_after_real_rollback",
+            "passed": true
+          },
+          {
+            "case": "new_current_staff_session_has_actual_totp_evidence",
+            "passed": true
+          },
+          {
+            "case": "old_staff_token_remains_revoked",
+            "passed": true
+          },
+          {
+            "case": "old_staff_flow_remains_consumed",
+            "passed": true
+          },
+          {
+            "case": "same_customer_tenant_identity_profile_and_one_owner",
+            "passed": true
+          },
+          {
+            "case": "old_web_probe_clients_exact_after_reentry",
+            "passed": true
+          },
+          {
+            "case": "same_new_keys_retained",
+            "passed": true
+          },
+          {
+            "case": "web_shared_pointers_and_config_preserved",
+            "passed": true
+          },
+          {
+            "case": "same_customer_browser_profile_after_reentry",
+            "passed": true
+          }
+        ],
+        "previous_attempt": "AL_S03_INSTALLED_ROLLBACK_20261105.json",
+        "started_utc": "2026-11-05T09:54:45.184751+00:00",
+        "finished_utc": "2026-11-05T09:54:49.446374+00:00"
+      },
+      "AL_S03_INSTALLED_FINAL_CHECKS_20261105.json": {
+        "scope": "ACTUAL_S03_MANIFEST_RUNTIME_PRIVACY_AND_EXCLUDED_SCOPE",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "FAILED",
+        "cases": [
+          {
+            "case": "actual_smoke_pass",
+            "passed": true
+          },
+          {
+            "case": "actual_reentry_pass",
+            "passed": true
+          },
+          {
+            "case": "exact_installed_source_all_4406_hashes_and_42_links",
+            "passed": true
+          },
+          {
+            "case": "web_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "admin_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "platform_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "identity_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "platform-migration_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "identity-migration_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "s03-3e91b1aa5d405d0e_root_private_directory",
+            "passed": true
+          },
+          {
+            "case": "evidence_root_private_directory",
+            "passed": true
+          },
+          {
+            "case": "synthetic-fixture.json_private",
+            "passed": true
+          },
+          {
+            "case": "synthetic-owner-browser-state.json_private",
+            "passed": true
+          },
+          {
+            "case": "synthetic-reader-browser-state.json_private",
+            "passed": true
+          },
+          {
+            "case": "verified-owner.json_private",
+            "passed": true
+          },
+          {
+            "case": "admin-client-preserved.json_private",
+            "passed": true
+          },
+          {
+            "case": "staff_client_key_service_authority_separate",
+            "passed": true
+          },
+          {
+            "case": "admin_config_no_database_or_web_private_material",
+            "passed": true
+          },
+          {
+            "case": "closed_synthetic_private_mail_retained",
+            "passed": true
+          },
+          {
+            "case": "platform_runtime_no_ddl",
+            "passed": true
+          },
+          {
+            "case": "platform_other_own_database_connect_denied_42501",
+            "passed": false
+          }
+        ],
+        "started_utc": "2026-11-05T09:59:10.693112+00:00",
+        "error_type": "RuntimeError",
+        "failed_case": "platform_other_own_database_connect_denied_42501",
+        "line": 9,
+        "finished_utc": "2026-11-05T09:59:13.403763+00:00"
+      },
+      "AL_S03_INSTALLED_FINAL_CHECKS_R2_20261105.json": {
+        "scope": "ACTUAL_S03_MANIFEST_RUNTIME_PRIVACY_AND_EXCLUDED_SCOPE",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "PASS",
+        "cases": [
+          {
+            "case": "actual_smoke_pass",
+            "passed": true
+          },
+          {
+            "case": "actual_reentry_pass",
+            "passed": true
+          },
+          {
+            "case": "exact_installed_source_all_4406_hashes_and_42_links",
+            "passed": true
+          },
+          {
+            "case": "web_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "admin_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "platform_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "identity_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "platform-migration_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "identity-migration_private_root_config",
+            "passed": true
+          },
+          {
+            "case": "s03-3e91b1aa5d405d0e_root_private_directory",
+            "passed": true
+          },
+          {
+            "case": "evidence_root_private_directory",
+            "passed": true
+          },
+          {
+            "case": "synthetic-fixture.json_private",
+            "passed": true
+          },
+          {
+            "case": "synthetic-owner-browser-state.json_private",
+            "passed": true
+          },
+          {
+            "case": "synthetic-reader-browser-state.json_private",
+            "passed": true
+          },
+          {
+            "case": "verified-owner.json_private",
+            "passed": true
+          },
+          {
+            "case": "admin-client-preserved.json_private",
+            "passed": true
+          },
+          {
+            "case": "staff_client_key_service_authority_separate",
+            "passed": true
+          },
+          {
+            "case": "admin_config_no_database_or_web_private_material",
+            "passed": true
+          },
+          {
+            "case": "closed_synthetic_private_mail_retained",
+            "passed": true
+          },
+          {
+            "case": "platform_runtime_no_ddl",
+            "passed": true
+          },
+          {
+            "case": "platform_other_own_database_connect_denied_acl_and_native_fatal",
+            "passed": true
+          },
+          {
+            "case": "identity_runtime_no_ddl",
+            "passed": true
+          },
+          {
+            "case": "identity_other_own_database_connect_denied_acl_and_native_fatal",
+            "passed": true
+          },
+          {
+            "case": "native_factor_secret_encrypted_in_own_db",
+            "passed": true
+          },
+          {
+            "case": "audit_contains_no_contacts_or_factor_tokens",
+            "passed": true
+          },
+          {
+            "case": "old_oidc_clients_exact",
+            "passed": true
+          },
+          {
+            "case": "own_vhost_exact_safe_open_configuration",
+            "passed": true
+          },
+          {
+            "case": "all_excluded_nginx_files_unchanged",
+            "passed": true
+          },
+          {
+            "case": "web_expected_ready_release",
+            "passed": true
+          },
+          {
+            "case": "identity_expected_ready_release",
+            "passed": true
+          },
+          {
+            "case": "admin_expected_ready_release",
+            "passed": true
+          },
+          {
+            "case": "platform_expected_ready_release",
+            "passed": true
+          },
+          {
+            "case": "web_shared_pointer_and_config_unchanged",
+            "passed": true
+          },
+          {
+            "case": "alisa-web@stage.service_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-platform@stage.service_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-identity@stage.service_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-admin@stage.service_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-account-cleanup@stage.timer_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-identity-mail@stage.timer_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-lead-mail@stage.timer_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "alisa-probe-cleanup@stage.timer_active_enabled",
+            "passed": true
+          },
+          {
+            "case": "own_ingress_and_service_logs_no_fixture_private_values",
+            "passed": true
+          },
+          {
+            "case": "logs_no_new_config_secrets",
+            "passed": true
+          },
+          {
+            "case": "all_own_previous_test_cgroups_finished",
+            "passed": true
+          }
+        ],
+        "started_utc": "2026-11-05T10:00:42.831295+00:00",
+        "actual_https_readback": {
+          "web": {
+            "component": "web",
+            "environment": "stage",
+            "release": "alisa-e82003211bdcd687",
+            "status": "READY"
+          },
+          "identity": {
+            "component": "identity",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY",
+            "authentication": "OIDC_CODE_PKCE"
+          },
+          "admin": {
+            "component": "admin",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e",
+            "status": "READY"
+          },
+          "platform": {
+            "component": "platform",
+            "status": "READY",
+            "runtime": "RUNTIME_NOT_CONNECTED",
+            "environment": "stage",
+            "release": "alisa-3e91b1aa5d405d0e"
+          }
+        },
+        "finished_utc": "2026-11-05T10:00:46.584097+00:00"
+      }
+    },
+    "scripts": {
+      "activate-final.py": {
+        "sha256": "08d60ba32a396dbb42e128fc726ee2e5a212ce1c952dbb18302b0834b5dedda5",
+        "bytes": 6428
+      },
+      "activate-resume.py": {
+        "sha256": "ca82ad12b58d2346500403f2708e0433e1962c9c7abd274c74084fe39918ba9f",
+        "bytes": 8560
+      },
+      "activate.py": {
+        "sha256": "e379c5ebdeec196d09f7ffa3e92cf87c60c4e0d8323bb1535e6db72071e4910c",
+        "bytes": 10750
+      },
+      "final-checks-r2.py": {
+        "sha256": "99e84f79793c81cb328a768641b315c302e8bc4969fa5df62f13945b82ef4a31",
+        "bytes": 8856
+      },
+      "final-checks.py": {
+        "sha256": "26d52f67a74f3c8327f2694f7d0213e7f3f9b762badf13316088ab5b3ff5f107",
+        "bytes": 8600
+      },
+      "install-retry.py": {
+        "sha256": "e258ad62533be73c6f1f45ab81d9815cfaa14ecb8b8c929aa459d79c5984ea08",
+        "bytes": 4546
+      },
+      "install.py": {
+        "sha256": "8aebf72078dbb1aaef1af423f9e95eb062f093ca00439bfbd45bbc4a6f24156a",
+        "bytes": 6499
+      },
+      "reentry.py": {
+        "sha256": "14875ab417c7a92ef7c2ab3de6b77135f96cc53b50eddaa4fe5e786ce2dac147",
+        "bytes": 6272
+      },
+      "rollback.py": {
+        "sha256": "286ee4d604acc788cd66b8ef8ecf56691bd603468f2baa10c1dfc5852467398a",
+        "bytes": 15473
+      },
+      "smoke-r2.py": {
+        "sha256": "c235c2fb0634ffd319b8b28fb36d16f07f693528b175697637810e8cc2e82069",
+        "bytes": 23543
+      },
+      "smoke-r3.py": {
+        "sha256": "24d1a430a4adce612ee2d6e57c48c0412c25f2b6030163b4dae9c3f544394fbf",
+        "bytes": 23619
+      },
+      "smoke-r4.py": {
+        "sha256": "7eec1ffd80a1edaf4670f0b6c12e78f8445c20dccaf2f6324bf7cd1a9564f27e",
+        "bytes": 22590
+      },
+      "smoke.py": {
+        "sha256": "0ba0b6d95d8d1a6dc9b269a6338cd94f7d2c5917d0da8481661e972e698af1c0",
+        "bytes": 22498
+      }
+    },
+    "resources": {
+      "disk_free_mib": 2939,
+      "inode_free": 568384,
+      "mem_available_mib": 6091
+    }
+  },
+  "current_mixed_readback": {
+    "observed_at_utc": "2026-11-05T10:16:46.828467+00:00",
+    "pointers": {
+      "current": "alisa-77d0f8ee2643ef65",
+      "web-current": "alisa-dd2b59b99b00b7e4",
+      "site-current": "alisa-dd2b59b99b00b7e4",
+      "identity-current": "alisa-dd2b59b99b00b7e4",
+      "admin-current": "alisa-3e91b1aa5d405d0e"
+    },
+    "health": {
+      "web": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-dd2b59b99b00b7e4",
+        "status": "READY"
+      },
+      "platform": {
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-dd2b59b99b00b7e4"
+      },
+      "identity": {
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-dd2b59b99b00b7e4",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      },
+      "admin": {
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "READY"
+      }
+    },
+    "safe_configuration": {
+      "web": {
+        "uid": 0,
+        "mode": "0o600",
+        "sha256": "a021553cdbe315863ceb6841a99e5a51fd6c57d824f00b176980241a29776b0d",
+        "staff_enabled": false,
+        "real_login_extension_present": true
+      },
+      "platform": {
+        "uid": 0,
+        "mode": "0o600",
+        "sha256": "3bb99af345c19094499c85c9e0ef885805af1b2c99f5e977fccf8af49baf7ccf",
+        "staff_enabled": true,
+        "real_login_extension_present": true,
+        "all_own_prior_s03_settings_preserved": true
+      },
+      "identity": {
+        "uid": 0,
+        "mode": "0o600",
+        "sha256": "26d058926a36e9cb78e03cc9f316d26dbc775d36a25ef83ec72bc2a1e3273afe",
+        "staff_enabled": true,
+        "real_login_extension_present": true,
+        "all_own_prior_s03_settings_preserved": true
+      },
+      "admin": {
+        "uid": 0,
+        "mode": "0o600",
+        "sha256": "7021d7886f5422aee9126f0f156e9ab909157d56669296dfabbb56532bc84c37",
+        "staff_enabled": true,
+        "real_login_extension_present": false,
+        "all_own_prior_s03_settings_preserved": true
+      }
+    },
+    "disk_free_mib": 2939
+  },
+  "drift": {
+    "source_sha": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+    "source_history": [
+      "dd2b59b9 TLS/SASL PLAIN mail fix",
+      "23f05f2e merge real mail against accepted S03",
+      "55c8e6b6 invited real mail",
+      "83ba6c99 accepted S03 plan/evidence parent"
+    ],
+    "new_ci": {
+      "platform": 42002923215,
+      "provider": 42002923200,
+      "documentation": 42002923265,
+      "all_success": true
+    },
+    "source_level_only": "S03 policy/storage/admin BFF/platform staff/migration unchanged. Mail recipient allowlist/SMTP/customer email acceptance changed outside this task. No installed acceptance transfer.",
+    "action": "Preserved concurrent deployment; no rollback/overwrite of another stream. Defer heavy mixed qualification until disk reserve restored through authorized cleanup."
+  },
+  "current_acceptance": "NOT_ACCEPTED_CURRENT_MIXED_DEPLOYMENT",
+  "historical_acceptance": "ACCEPTED_FOR_RECORDED_3E91_STAGE_SCOPE",
+  "remaining": [
+    "Fresh exact current mixed config/pointer/source/service binding",
+    "Staff-boundary qualification and controlled rollback/reentry for the agreed mixed deployment",
+    "Restore3072MiB disk reserve before heavy tests; current2939MiB. No foreign releases/backups/data removed."
+  ],
+  "excluded": [
+    "Production",
+    "Real controlled-recipient delivery acceptance",
+    "New mail feature approval",
+    "Automatic identity merge/common DB adoption",
+    "Main merge",
+    "S04 and later capabilities"
+  ]
+}
