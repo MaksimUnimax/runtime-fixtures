@@ -114,7 +114,7 @@ def main():
                 except psycopg.OperationalError as exc:denied=expected_database_connect_denial(exc)
                 check('s02_'+name+'_foreign_database_denied',denied)
             def spawn(arguments,environment):
-                p=subprocess.Popen(list(map(str,arguments)),env=environment,stdout=logs,stderr=logs,start_new_session=True,
+                p=subprocess.Popen(list(map(str,arguments)),cwd=release,env=environment,stdout=logs,stderr=logs,start_new_session=True,
                     user=network.uid,group=network.uid,extra_groups=[]);PROCESSES.append(p);return p
             def start(component):
                 module='alisa_platform' if component=='platform' else 'octoport_identity';port=18402 if component=='platform' else 18403
@@ -389,7 +389,7 @@ def main():
             logs.seek(0);private_text=logs.read()
             record['safe_process_error_classes']=sorted(set(re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)):',private_text)))
             record['safe_process_exit_codes']=[process.poll() for process in PROCESSES]
-            record['safe_failure_categories']=[name for name,marker in {'SOURCE_PERMISSION_DENIED':'Permission denied','UNREGISTERED_UID':'getpwuid','WORKER_BOOT_FAILED':'Worker failed to boot','MISSING_MODULE':'ModuleNotFoundError','CONNECTION_REFUSED':'Connection refused'}.items() if marker in private_text]
+            record['safe_failure_categories']=[name for name,marker in {'CWD_NOT_ACCESSIBLE':"can't chdir",'SOURCE_PERMISSION_DENIED':'Permission denied','UNREGISTERED_UID':'getpwuid','WORKER_BOOT_FAILED':'Worker failed to boot','MISSING_MODULE':'ModuleNotFoundError','CONNECTION_REFUSED':'Connection refused'}.items() if marker in private_text]
     finally:
         if browser:
             try:browser.close()

@@ -13,7 +13,10 @@
     "fourth_server_probe_started": false,
     "other_devices_used": false,
     "resume_condition": "Alisa device Online with a fresh last-seen time; first inspect existing results and own processes before any later action.",
-    "next_single_inventory_window_utc": "2026-11-05T02:30:00Z"
+    "next_single_inventory_window_utc": null,
+    "current_status": "READ_ONLY_ACCESS_RECOVERED",
+    "previous_offline_history_retained": true,
+    "third_probe_reports_retrieved": true
   },
   "public_https": [
     {
@@ -32,5 +35,14 @@
       "tls_verification_bypassed": false
     }
   ],
-  "continuation": "Source qualification continued on isolated CI; no live authority expansion or repeated deployment."
+  "continuation": "Read-only recovery verified existing S01; no live S02 mutation. Source integration continues in disposable CI.",
+  "resolved_at_utc": "2026-11-05T02:52:27.588128+00:00",
+  "read_only_actual": {
+    "at_utc": "2026-11-05T02:52:27.588128+00:00",
+    "site_release": "alisa-8d680f775c8ccdf2",
+    "shared_identity_admin_release": "alisa-77d0f8ee2643ef65",
+    "s01_rollout_lock": "AVAILABLE",
+    "s02_provider_probe_lock": "AVAILABLE",
+    "fourth_probe_directory_exists": false
+  }
 }
