@@ -1,6 +1,6 @@
 {
   "record_type": "AL_S05_QUALIFICATION_HISTORY",
-  "status": "IN_PROGRESS_NOT_INSTALLED",
+  "status": "SOURCE_PACKAGE_ACCEPTED_RT_CHECK_REQUIRED",
   "attempts": [
     {
       "source_sha": "3f3162ac7709f575b3bf965ad0b709e326060cab",
@@ -64,6 +64,42 @@
       "qualification_artifact": 13427894990,
       "qualification_zip_sha256": "860b76050d378a568c57eba14a9ddf472961db91f1e4e402a0b8f1694771c999",
       "original_receipt_export": "s05-source-qualification-20261105/s05-c6217b-attempt2-receipts.json"
+    },
+    {
+      "source_sha": "efa6a412ddc6926132cfd6fa648b71d0a155232a",
+      "tree_sha": "a5c7cbff1dcc7c2b0f5c1b40776dc0e75d145eee",
+      "platform_ci": 42055388054,
+      "documentation_ci": 42055388060,
+      "status": "SUCCESS_SOURCE_PACKAGE_ONLY",
+      "binding": {
+        "source_sha": "efa6a412ddc6926132cfd6fa648b71d0a155232a",
+        "tree_sha": "a5c7cbff1dcc7c2b0f5c1b40776dc0e75d145eee",
+        "release": "alisa-efa6a412ddc69261",
+        "zip_sha256": "ab01e364bed3bd0ce2f66c7ab8041db5fc6853c76c20a33acffc3cdf7dc7b32c",
+        "tar_sha256": "f587420cc97755636562c14aa36833841a2d598be30abe0db4ef1dc185681dc7",
+        "manifest_sha256": "d88d308deb445b50f840cfabc43fddf4700683518884e32754eba24e65bf883e",
+        "files": 4451,
+        "links": 42,
+        "platform_ci": 42055388054,
+        "documentation_ci": 42055388060,
+        "package_artifact": 13429087347,
+        "qualification_artifact": 13430191320,
+        "qualification_zip_sha256": "cf8e3a8264fa6382881a8cc7e241f7647d89f50f5140ccb146d046a91b627568",
+        "status": "SOURCE_PACKAGE_ONLY_NOT_INSTALLED_NOT_LIVE_PROVIDER"
+      },
+      "s05_postgresql_unix_core": 38,
+      "s05_named_browser_cases": 15,
+      "integrated_browser_cases": 175,
+      "packaged_browser_cases": 96,
+      "native_canonical_core": 92,
+      "s04_regression_core": 36,
+      "open_registration_regression": 130,
+      "receipt_export": "s05-source-qualification-20261105/s05-efa6a4-receipts.json",
+      "independent_source_review": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R3_20261105.json",
+      "limits": [
+        "Synthetic RT-CHECK Unix peer only, not actual marketplace endpoint.",
+        "No S05 installed/live/real provider acceptance."
+      ]
     }
   ],
   "local_checks": {
@@ -83,6 +119,9 @@
     "independently_confirmed_by": "s03_independent_review",
     "finding": "Client-only store forms omitted method/action; native fallback could submit credential fields in a GET query before hydration or with JavaScript disabled.",
     "resolution": "All store forms now have fixed POST action to the BFF, which rejects form encoding; controls disabled until hydration. Added actual packaged authenticated no-JavaScript case. Existing R2 review retained unchanged as its earlier inspection snapshot.",
-    "legacy_engineering_note": "Its submit control is also gated on hydration. Prior engineering AssertionError cause remains UNKNOWN; no assertion or timeout was relaxed."
-  }
+    "legacy_engineering_note": "Its submit control is also gated on hydration. Prior engineering AssertionError cause remains UNKNOWN; no assertion or timeout was relaxed.",
+    "closed_by_source": "efa6a412ddc6926132cfd6fa648b71d0a155232a"
+  },
+  "current_source_review": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R3_20261105.json",
+  "current_package_review": "AL_S05_PACKAGE_INDEPENDENT_REVIEW_20261105.json"
 }
