@@ -29,7 +29,7 @@ def fresh_totp(secret, previous):
 
 
 def run(*, browser, context, second_context, db, manage, check, origin, issuer,
-        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record):
+        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record, access_enabled=False, web_origin=None):
     def subject(email):
         with db('identity') as conn:
             person = conn.execute('SELECT p.id FROM accounts_person p JOIN account_emailaddress e ON e.user_id=p.id WHERE e.email=%s AND e.verified=true AND p.is_active=true', [email]).fetchone()
@@ -197,6 +197,11 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         finally:
             authority_proxy.response_hook=None
             negative.close()
+    if access_enabled:
+        from qualify_access_browser import run as run_access_browser
+        login(owner_page,fresh_totp(secret,totp(secret)))
+        run_access_browser(owner_page=owner_page,context=context,second_context=second_context,db=db,
+            check=check,origin=origin,web_origin=web_origin,owner_email=owner_email,reader_email=reader_email,owner_label=owner_label,manage=manage)
     owner_page.goto(origin+'/admin')
     owner_page.get_by_role('button',name='Аудит',exact=True).click()
     expect(owner_page.locator('section[aria-label="Данные"]')).to_contain_text('staff.revoked')

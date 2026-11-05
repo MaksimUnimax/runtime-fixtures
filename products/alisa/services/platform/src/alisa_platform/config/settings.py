@@ -18,7 +18,7 @@ RELEASE = required("ALISA_RELEASE")
 DEBUG = False
 ALLOWED_HOSTS = required("ALISA_ALLOWED_HOSTS").split(",")
 FOUNDATION_PROBE_ENABLED = ALISA_ENV in {"dev", "stage"} and os.environ.get("FOUNDATION_PROBE_ENABLED") == "1"
-INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts", "alisa_platform.staff"]
+INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts", "alisa_platform.staff", "alisa_platform.entitlements"]
 MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "django.middleware.common.CommonMiddleware"]
 ROOT_URLCONF = "alisa_platform.config.urls"
 WSGI_APPLICATION = "alisa_platform.config.wsgi.application"
@@ -104,3 +104,22 @@ if STAFF_ENABLED:
     if not ACCOUNTS_ENABLED or len(STAFF_SERVICE_TOKEN)<32 or STAFF_SERVICE_TOKEN in {SERVICE_TOKEN,AUTH_SERVICE_TOKEN} or not STAFF_CLIENT_ID or STAFF_CLIENT_ID==OIDC_CLIENT_ID:
         raise ImproperlyConfigured('Dedicated staff authority required')
     if ALISA_ENV=='stage' and STAFF_CLIENT_ID!='alisa_admin_stage':raise ImproperlyConfigured('Wrong stage staff client')
+
+ENTITLEMENTS_ENABLED = os.environ.get('ALISA_ENTITLEMENTS_ENABLED') == '1'
+if ENTITLEMENTS_ENABLED and not ACCOUNTS_ENABLED:
+    raise ImproperlyConfigured('Access requires the existing account boundary')
+
+def access_limit(name, default, ceiling):
+    value = int(os.environ.get(name, str(default)))
+    if not 1 <= value <= ceiling:
+        raise ImproperlyConfigured('Invalid access limit: ' + name)
+    return value
+
+ACCESS_LIMITS = {
+    'ADMIN': {'days': access_limit('ALISA_ACCESS_ADMIN_DAYS', 30, 30),
+              'recipients': access_limit('ALISA_ACCESS_ADMIN_RECIPIENTS', 10, 10),
+              'budget': access_limit('ALISA_ACCESS_ADMIN_BUDGET', 300, 300)},
+    'OWNER': {'days': access_limit('ALISA_ACCESS_OWNER_DAYS', 365, 365),
+              'recipients': access_limit('ALISA_ACCESS_OWNER_RECIPIENTS', 50, 50),
+              'budget': access_limit('ALISA_ACCESS_OWNER_BUDGET', 5000, 5000)},
+}

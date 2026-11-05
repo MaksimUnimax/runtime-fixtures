@@ -58,8 +58,8 @@ def manifest(source):
             'required_config_names': ['ALISA_ENV','ALISA_RELEASE','ALISA_ALLOWED_HOSTS','ALISA_SECRET_KEY','ALISA_DB_NAME','ALISA_DB_USER','ALISA_DB_PASSWORD','ALISA_DB_HOST','ALISA_DB_PORT'],
             'schema_compatibility': {'foundation': ['0001_initial'], 'leads':['0001_initial','0002_submission_created_at'],
                 'platform_accounts':['0001_initial'],'identity_accounts':['0001_initial','0002_identitymail_protocolcache_identityconsent_subject'],
-                'platform_staff':['0001_initial'],
-                'rollback':'Retain additive schema/data and audit privileges; disable S03 staff capability in platform/admin/identity and restore previous compatible code/config. Preserve S02 accounts. Never reverse migrations over user data.'},
+                'platform_staff':['0001_initial'],'platform_entitlements':['0001_initial'],
+                'rollback':'For S04 retain access grants/adjustments and disable ENTITLEMENTS capability before restoring compatible code. Retain additive schema/data and audit privileges; disable S03 staff capability in platform/admin/identity and restore previous compatible code/config. Preserve S02 accounts. Never reverse migrations over user data.'},
             'acceptance': 'NOT_ACCEPTED'}
 
 def package(source):

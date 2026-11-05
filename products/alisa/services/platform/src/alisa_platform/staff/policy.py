@@ -5,7 +5,7 @@ import uuid
 PRODUCT='alisa_market'
 ADMIN_PERMISSIONS=frozenset({'users.read','users.block','users.unblock','leads.read','sessions.revoke','audit.read','access.grant'})
 OWNER_PERMISSIONS=ADMIN_PERMISSIONS|{'staff.manage'}
-REASONS=frozenset({'SUPPORT_REQUEST','SECURITY_REVIEW','OWNER_ASSIGNMENT','STAFF_REVOCATION','STAFF_READ','BOOTSTRAP'})
+REASONS=frozenset({'SUPPORT_REQUEST','SECURITY_REVIEW','OWNER_ASSIGNMENT','STAFF_REVOCATION','STAFF_READ','BOOTSTRAP','PILOT_ACCESS','ACCESS_REVOCATION'})
 
 def permissions(value):
     if not isinstance(value,list) or len(value)>len(ADMIN_PERMISSIONS):raise ValueError('Invalid permission set')
@@ -46,7 +46,9 @@ def audit_projection(value):
     if not isinstance(value,dict):raise ValueError('Safe projection required')
     result={}
     for key,item in value.items():
-        if key in {'customer_id','tenant_id','staff_id','session_id'}:result[key]=identifier(item)
+        if key in {'customer_id','tenant_id','staff_id','session_id','grant_id'}:result[key]=identifier(item)
+        elif key=='source' and item in {'GIFT','COMPENSATION'}:result[key]=item
+        elif key=='days' and type(item) is int and 1<=item<=3650:result[key]=item
         elif key=='active' and type(item) is bool:result[key]=item
         elif key=='revision':result[key]=positive_revision(item)
         elif key=='role' and isinstance(item,str) and item in {'OWNER','ADMIN'}:result[key]=item
