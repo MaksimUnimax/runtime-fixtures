@@ -1,5 +1,7 @@
 """Actual runtime account policies, only inside the owned disposable CI database."""
 import json,os,re,sys,time,uuid
+import ssl,urllib.request,urllib.error
+from urllib.parse import urlencode
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
@@ -30,6 +32,22 @@ def browser():return Client(enforce_csrf_checks=True,HTTP_HOST='localhost:19443'
 def post(b,path,data,key=None):
     cookie=b.cookies.get(settings.CSRF_COOKIE_NAME)
     return b.post(path,data,secure=True,HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=cookie.value if cookie else '',HTTP_IDEMPOTENCY_KEY=key or '')
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,*args):return None
+def network_verify(b,value,key):
+    """Actual TLS HTTP requests to the two real Gunicorn workers."""
+    tls=ssl.create_default_context(cafile=os.environ['ALISA_TEST_CA_FILE'])
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPSHandler(context=tls),NoRedirect())
+    cookie='; '.join(k+'='+v.value for k,v in b.cookies.items())
+    csrf=b.cookies[settings.CSRF_COOKIE_NAME].value
+    req=urllib.request.Request(settings.IDENTITY_ISSUER+reverse('account_confirm_login_code'),data=urlencode({'code':value}).encode(),
+        headers={'Content-Type':'application/x-www-form-urlencoded','Cookie':cookie,'X-CSRFToken':csrf,'Origin':settings.IDENTITY_ISSUER,'Idempotency-Key':key})
+    try:response=opener.open(req,timeout=8)
+    except urllib.error.HTTPError as exc:response=exc
+    with response:
+        status=response.status
+        for header in response.headers.get_all('Set-Cookie',[]):b.cookies.load(header)
+    return status
 def code(b,email):
     path=reverse('account_request_login_code');b.get(path,secure=True)
     r=post(b,path,{'email':email})
@@ -71,15 +89,15 @@ def run():
         other=browser();other.cookies.load(cookie)
         try:
             key='owned-policy-verify-'+str(index)
-            post(other,reverse('account_confirm_login_code'),{'code':valid},key)
+            network_verify(other,valid,key)
             return (other,key) if other.session.get('_auth_user_id')==str(person.pk) else None
         finally:connections.close_all()
     with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(redeem,range(2)))
     check('s02_runtime_email_code_atomic_across_requests',sum(r is not None for r in results)==1)
     winner,key=next(r for r in results if r is not None);session_key=winner.cookies[settings.SESSION_COOKIE_NAME].value
-    replay=post(winner,reverse('account_confirm_login_code'),{'code':valid},key)
-    check('s02_verify_retry_safe_receipt_same_identity_session',replay.status_code in [302,409] and winner.cookies[settings.SESSION_COOKIE_NAME].value==session_key and winner.session.get('_auth_user_id')==str(person.pk))
-    stale=browser();stale.cookies.load(cookie);post(stale,reverse('account_confirm_login_code'),{'code':valid},key)
+    replay=network_verify(winner,valid,key)
+    check('s02_verify_retry_safe_receipt_same_identity_session',replay in [302,409] and winner.cookies[settings.SESSION_COOKIE_NAME].value==session_key and winner.session.get('_auth_user_id')==str(person.pk))
+    stale=browser();stale.cookies.load(cookie);network_verify(stale,valid,key)
     check('s02_used_code_old_browser_cookie_denied','_auth_user_id' not in stale.session)
     known=browser();unknown=browser();path=reverse('account_request_login_code')
     known.get(path,secure=True);unknown.get(path,secure=True)

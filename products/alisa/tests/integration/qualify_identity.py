@@ -197,7 +197,11 @@ def main():
                 if not match:raise RuntimeError('Expected code format missing')
                 private_values.append(match.group(1));return match.group(1)
             def db(component):return connect('alisa_stage_'+component)
-            playwright=sync_playwright().start();p=playwright
+            # The browser trusts our NSS root, while APIRequestContext uses the
+            # separate Node driver. Give both their explicit CA without bypass.
+            with patch.dict(os.environ,{'NODE_EXTRA_CA_CERTS':str(ca)}):
+                playwright=sync_playwright().start()
+            p=playwright
             check('s02_disposable_chromium_binary_available',Path(p.chromium.executable_path).is_file())
             browser=p.chromium.launch(headless=True,env={**clean_environment(),'HOME':str(home)})
             context=browser.new_context(ignore_https_errors=False);page=context.new_page()
@@ -267,7 +271,10 @@ def main():
             page.locator('section[aria-label=Магазины]').screenshot(path=str(args.output.with_name('s02-empty-state.png')))
             # Different person/browser must remain separated even with the same site.
             second_context=browser.new_context(ignore_https_errors=False);second_page=second_context.new_page()
+            with db('platform') as conn:foreign_handoff=str(conn.execute('SELECT id FROM leads_submission LIMIT 1').fetchone()[0])
+            second_context.add_cookies([{'name':'__Host-alisa_handoff','value':foreign_handoff,'url':WEB,'secure':True,'httpOnly':True}])
             second_email='s02-'+uuid.uuid4().hex[:10]+'@example.invalid';contacts.append(second_email);register(second_page,second_email)
+            with db('platform') as conn:check('s02_foreign_lead_handoff_not_attached',conn.execute('SELECT count(*) FROM accounts_leadlink').fetchone()[0]==1)
             with db('platform') as conn:second_id=conn.execute('SELECT id FROM accounts_tenant WHERE id<>%s',[first[1]]).fetchone()[0]
             reply=page.request.post(WEB+'/api/account/profile',data={'display_name':'bad','tenant_id':str(second_id)},headers={'Origin':WEB})
             check('s02_tenant_spoof_rejected',reply.status==422)
@@ -356,6 +363,13 @@ def main():
                 time.sleep(.1)
             page.reload();expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
             check('s02_service_restart_preserves_customer_session',True)
+            after=parse_qs(urlsplit(authorize).query)
+            after['state']=[secrets.token_urlsafe(24)];after['nonce']=[secrets.token_urlsafe(24)]
+            resumed=page.request.get(metadata['authorization_endpoint']+'?'+urlencode({k:v[0] for k,v in after.items()}),max_redirects=0)
+            target=urlsplit(resumed.headers.get('location',''))
+            check('s02_identity_restart_preserves_authority_session',
+                (resumed.status==200 and 'name="request"' in resumed.text()) or
+                (resumed.status==302 and target.path=='/oidc-probe/callback' and 'code' in parse_qs(target.query)))
             # Revocation decisions use the server's account and session rows.
             current_cookie=next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')
             def profile_status():
@@ -377,7 +391,7 @@ def main():
                 check('s02_cleanup_preserves_active_session',profile_status()==200 and bool(conn.execute('SELECT 1 FROM accounts_websession WHERE token_hash=%s AND encrypted_payload<>\'\'',[hashlib.sha256(current_cookie.encode()).hexdigest()]).fetchone()))
             policy_output=args.output.with_name('s02-runtime-policies.json')
             policy_run=subprocess.run([str(py),str(ROOT/'tests/integration/identity_policy_checks.py'),str(policy_output),str(temp/'private-policy-values.json')],
-                env={**env('identity'),'ALISA_IDENTITY_POLICY_TEST_ALLOW':'1'},stdout=logs,stderr=logs,timeout=45)
+                env={**env('identity'),'ALISA_IDENTITY_POLICY_TEST_ALLOW':'1','ALISA_TEST_CA_FILE':str(ca)},stdout=logs,stderr=logs,timeout=45)
             private_policy=temp/'private-policy-values.json'
             if private_policy.exists():private_values.extend(json.loads(private_policy.read_text()));private_policy.unlink()
             if policy_output.exists():
