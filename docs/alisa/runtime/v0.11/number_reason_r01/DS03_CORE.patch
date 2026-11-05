@@ -1,0 +1,37 @@
+--- a/matrix_sources.py
++++ b/matrix_sources.py
+@@ -80,7 +80,11 @@
+ 
+ def _read(expr,env,code='TABLE_RESPONSE_SCHEMA'):
+     try:return _evaluate(expr,env)
+-    except (MatrixError,ValueError,TypeError,KeyError,IndexError):fail(code)
++    except MatrixError as exc:
++        # Preserve the bounded numeric cause, not raw provider diagnostics.
++        if exc.code == 'NUMBER_RANGE': raise
++        fail(code)
++    except (ValueError,TypeError,KeyError,IndexError):fail(code)
+ 
+ 
+ class SourceMatrix:
+--- a/failure_catalog.json
++++ b/failure_catalog.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "alice-failure-catalog/v1",
+-  "version": "20261105-conversation-safety-r1",
++  "version": "20261105-number-reason-r1",
+   "fallback": "UNSPECIFIED",
+   "entries": {
+     "UNSPECIFIED": {
+@@ -221,6 +221,11 @@
+     "NUMBER_RANGE": {
+       "reason": "Источник вернул число за пределами безопасной точности или размера. Полный отчёт не сформирован; частичные суммы не выдаю.",
+       "next_action": "Нужно проверить формат поля источника. Автоматический повтор этого ответа не выполняю.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "TABLE_RESPONSE_SCHEMA": {
++      "reason": "Полученные данные не соответствуют ожидаемой структуре источника. Полный отчёт не сформирован; частичные суммы не выдаю.",
++      "next_action": "Нужно сверить поля ответа с проверенной схемой источника. Автоматически повторять запрос не буду.",
+       "cause_status": "OBSERVED_FAILURE"
+     }
+   },
