@@ -8,16 +8,18 @@ from .storage import open_sealed
 def deliver_mail(mail_id,payload,recipient):
     # Re-check the recipient at the delivery boundary, not only in the HTTP form.
     if recipient.endswith('@example.invalid'):
+        backend='django.core.mail.backends.smtp.EmailBackend'
         options={'host':settings.EMAIL_HOST,'port':settings.EMAIL_PORT,'timeout':4}
         sender=settings.DEFAULT_FROM_EMAIL;domain='identity.example.invalid'
     elif recipient in settings.REAL_LOGIN_RECIPIENTS and settings.REAL_SMTP:
+        backend='octoport_identity.protocol.smtp.EmailBackend'
         options=settings.REAL_SMTP;sender=settings.REAL_FROM_EMAIL
         domain='id-stage.octoport.ru'
     else:return 'DELIVERY_REJECTED'
     try:
         data=open_sealed(payload)
         if not all(isinstance(data[k],str) and data[k] for k in ['subject','body']):return 'INVALID_PAYLOAD'
-        connection=get_connection('django.core.mail.backends.smtp.EmailBackend',**options)
+        connection=get_connection(backend,**options)
     except (InvalidToken,ValueError,KeyError,TypeError):return 'INVALID_PAYLOAD'
     try:
         # Connection/authentication failures happen before DATA and can safely retry.

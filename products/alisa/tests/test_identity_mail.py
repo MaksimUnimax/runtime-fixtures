@@ -29,6 +29,7 @@ class IdentityMailTransportTests(unittest.TestCase):
     def test_invited_recipient_requires_authenticated_starttls(self):
         self.assertEqual(self.send(),'SENT')
         self.assertEqual(delivery.get_connection.call_args.kwargs,self.settings.REAL_SMTP)
+        self.assertEqual(delivery.get_connection.call_args.args[0],'octoport_identity.protocol.smtp.EmailBackend')
         self.assertEqual(self.message.call_args.args[2],'no-reply@octoport.ru')
         self.connection.open.assert_called_once();self.connection.close.assert_called_once()
     def test_synthetic_recipient_stays_on_private_sink(self):
@@ -56,3 +57,26 @@ class IdentityMailTransportTests(unittest.TestCase):
     def test_corrupt_payload_never_opens_smtp(self):
         delivery.open_sealed.return_value={'subject':'Code','body':[]}
         self.assertEqual(self.send(),'INVALID_PAYLOAD');delivery.get_connection.assert_not_called()
+
+class VerifiedSMTPAuthenticationTests(unittest.TestCase):
+    def test_plain_auth_requires_verified_tls_and_advertised_mechanism(self):
+        import ssl
+        from smtplib import SMTPNotSupportedError
+        from octoport_identity.protocol.smtp import VerifiedTLSLoginSMTP
+        smtp=VerifiedTLSLoginSMTP()
+        smtp.ehlo_or_helo_if_needed=Mock()
+        smtp.auth=Mock(return_value=(235,b'accepted'))
+        smtp.esmtp_features={'auth':'CRAM-MD5 PLAIN LOGIN'}
+        for socket in [None,Mock()]:
+            smtp.sock=socket
+            with self.assertRaises(SMTPNotSupportedError):smtp.login('fixture','not-live')
+        socket=Mock(spec=ssl.SSLSocket);socket.context=SimpleNamespace(check_hostname=True,verify_mode=ssl.CERT_REQUIRED)
+        smtp.sock=socket
+        self.assertEqual(smtp.login('fixture','not-live')[0],235)
+        self.assertEqual(smtp.auth.call_args.args[0],'PLAIN')
+        socket.context.check_hostname=False
+        with self.assertRaises(SMTPNotSupportedError):smtp.login('fixture','not-live')
+        socket.context.check_hostname=True;socket.context.verify_mode=ssl.CERT_NONE
+        with self.assertRaises(SMTPNotSupportedError):smtp.login('fixture','not-live')
+        socket.context.verify_mode=ssl.CERT_REQUIRED;smtp.esmtp_features={'auth':'CRAM-MD5'}
+        with self.assertRaises(SMTPNotSupportedError):smtp.login('fixture','not-live')
