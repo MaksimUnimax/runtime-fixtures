@@ -1,0 +1,917 @@
+{
+  "schema": "alisa-dialogue-hotfix-results/v1",
+  "source_run": "20261105-TESTER-2b217a24",
+  "run_id": "20261105-TESTER-d7a5899c",
+  "target_release": "20261105-v010-dialogue-fixes-r1",
+  "expected_manifest_sha256": "cbf16b0488801eb692b3402d117707c51819c6bf07175e6f84999ec1091e3c16",
+  "observed_manifest_sha256": "cbf16b0488801eb692b3402d117707c51819c6bf07175e6f84999ec1091e3c16",
+  "channel": "LIVE_DIALOGS",
+  "test_started_utc": "2026-11-05T05:29:39.264000+00:00",
+  "test_finished_utc": "2026-11-05T05:31:16.680000+00:00",
+  "previous_seven_numeric_partial_not_reclassified": true,
+  "cases": [
+    {
+      "id": "N06",
+      "outcome": "PASS",
+      "actual_response": "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+      "actual_tts": [
+        "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован."
+      ],
+      "sanitized_original_utterance": "метаданные отправлений с 2026-10-01 по 2026-11-04 на озоне",
+      "sanitized_request_command": "метаданные отправлений с 2026 - 10 - 01 по 2026 - 11 - 04 на озоне",
+      "messages": [
+        {
+          "step_id": "N06",
+          "counter": 3,
+          "started_at_utc": "2026-11-05T05:29:39.264000+00:00",
+          "observed_at_utc": "2026-11-05T05:29:41+00:00",
+          "submission_epoch_ms": 1793856579264,
+          "observation_epoch_ms": 1793856581000,
+          "first_response_ms": 1736,
+          "sanitized_original_utterance": "метаданные отправлений с 2026-10-01 по 2026-11-04 на озоне",
+          "sanitized_request_command": "метаданные отправлений с 2026 - 10 - 01 по 2026 - 11 - 04 на озоне",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "DATASET_PERIOD_LIMIT",
+            "next_action": "Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+            "reason": "Указанный период превышает проверенное ограничение этого набора данных.",
+            "text": "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+            "tts": "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован."
+          },
+          "reply_sha256": "becc86fd94b27d968c643564cd25e70df54de65583bece90a91ef24baa2d2e78",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        }
+      ],
+      "first_response_ms": 1736,
+      "full_report_observed_ms": null,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": "DATASET_PERIOD_LIMIT",
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_APPLICABLE",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#N06",
+      "notes": "Исходный ISO-вопрос распознан после реальной нормализации Яндексом; объяснён лимит периода и предложен более короткий интервал. Повторного вопроса о датах, jobs/HTTP/LLM нет."
+    },
+    {
+      "id": "N08",
+      "outcome": "PASS",
+      "actual_response": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+      "actual_tts": [
+        "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя."
+      ],
+      "sanitized_original_utterance": "текущие цены предложения за октябрь 2026 на озоне",
+      "sanitized_request_command": "текущие цены предложения за октябрь 2026 на озоне",
+      "messages": [
+        {
+          "step_id": "N08",
+          "counter": 4,
+          "started_at_utc": "2026-11-05T05:29:41.066000+00:00",
+          "observed_at_utc": "2026-11-05T05:29:43.033000+00:00",
+          "submission_epoch_ms": 1793856581066,
+          "observation_epoch_ms": 1793856583033,
+          "first_response_ms": 1967,
+          "sanitized_original_utterance": "текущие цены предложения за октябрь 2026 на озоне",
+          "sanitized_request_command": "текущие цены предложения за октябрь 2026 на озоне",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "HISTORICAL_SNAPSHOT",
+            "next_action": "Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+            "reason": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются.",
+            "text": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+            "tts": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя."
+          },
+          "reply_sha256": "b664df15570ef3323a34f366cd3aaa20abe00be638336c1bd49dbf069ad0bc69",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        }
+      ],
+      "first_response_ms": 1967,
+      "full_report_observed_ms": null,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": "HISTORICAL_SNAPSHOT",
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_APPLICABLE",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#N08",
+      "notes": "Ответ называет текущие цены предложения, объясняет отсутствие исторического снимка и предлагает «сейчас» либо отдельный исторический источник. Остатки/баланс не подставлены. Jobs/HTTP/LLM: 0."
+    },
+    {
+      "id": "N09",
+      "outcome": "PASS",
+      "actual_response": "Для «текущие цены предложения» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+      "actual_tts": [
+        "Для «текущие цены предложения» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса."
+      ],
+      "sanitized_original_utterance": "текущие цены предложения сейчас на озоне кроме артикула А",
+      "sanitized_request_command": "текущие цены предложения сейчас на озоне кроме артикула а",
+      "messages": [
+        {
+          "step_id": "N09",
+          "counter": 5,
+          "started_at_utc": "2026-11-05T05:29:43.084000+00:00",
+          "observed_at_utc": "2026-11-05T05:29:45.043000+00:00",
+          "submission_epoch_ms": 1793856583084,
+          "observation_epoch_ms": 1793856585043,
+          "first_response_ms": 1959,
+          "sanitized_original_utterance": "текущие цены предложения сейчас на озоне кроме артикула А",
+          "sanitized_request_command": "текущие цены предложения сейчас на озоне кроме артикула а",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "OPERATION_NOT_ENABLED",
+            "next_action": "Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+            "reason": "Для «текущие цены предложения» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю.",
+            "text": "Для «текущие цены предложения» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+            "tts": "Для «текущие цены предложения» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса."
+          },
+          "reply_sha256": "3f67b31daf87e3c5eaf60888f9b54f3e1e48bd6cbda25a976e5124552fc9db21",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        }
+      ],
+      "first_response_ms": 1959,
+      "full_report_observed_ms": null,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": "OPERATION_NOT_ENABLED",
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_APPLICABLE",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#N09",
+      "notes": "Ограничение относится к выбранному набору цен; условие не отброшено, другая площадка и артикул WB не предложены. Jobs/HTTP/LLM: 0."
+    },
+    {
+      "id": "R01-normalized",
+      "outcome": "PASS",
+      "actual_response": "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+      "actual_tts": [
+        "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован."
+      ],
+      "sanitized_original_utterance": "метаданные отправлений с 2026 - 10 - 01 по 2026 - 11 - 04 на озоне",
+      "sanitized_request_command": "метаданные отправлений с 2026 - 10 - 01 по 2026 - 11 - 04 на озоне",
+      "messages": [
+        {
+          "step_id": "R01-normalized",
+          "counter": 6,
+          "started_at_utc": "2026-11-05T05:29:54.801000+00:00",
+          "observed_at_utc": "2026-11-05T05:29:56.197000+00:00",
+          "submission_epoch_ms": 1793856594801,
+          "observation_epoch_ms": 1793856596197,
+          "first_response_ms": 1396,
+          "sanitized_original_utterance": "метаданные отправлений с 2026 - 10 - 01 по 2026 - 11 - 04 на озоне",
+          "sanitized_request_command": "метаданные отправлений с 2026 - 10 - 01 по 2026 - 11 - 04 на озоне",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "DATASET_PERIOD_LIMIT",
+            "next_action": "Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+            "reason": "Указанный период превышает проверенное ограничение этого набора данных.",
+            "text": "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
+            "tts": "Указанный период превышает проверенное ограничение этого набора данных. Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован."
+          },
+          "reply_sha256": "becc86fd94b27d968c643564cd25e70df54de65583bece90a91ef24baa2d2e78",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        }
+      ],
+      "first_response_ms": 1396,
+      "full_report_observed_ms": null,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": "DATASET_PERIOD_LIMIT",
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_APPLICABLE",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#R01-normalized",
+      "notes": "Нормализованный диапазон получил тот же DATASET_PERIOD_LIMIT и тот же текст, что N06. Jobs/HTTP/LLM: 0."
+    },
+    {
+      "id": "R02-short-ISO",
+      "outcome": "PARTIAL",
+      "actual_response": "[PRIVATE_METADATA_REPORT_REDACTED]",
+      "actual_tts": null,
+      "sanitized_original_utterance": "метаданные отправлений с 2026-11-03 по 2026-11-04 на озоне",
+      "sanitized_request_command": "метаданные отправлений с 2026 - 11 - 03 по 2026 - 11 - 04 на озоне",
+      "messages": [
+        {
+          "step_id": "R02-short-ISO.submit",
+          "counter": 11,
+          "started_at_utc": "2026-11-05T05:30:15.549000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:17.826000+00:00",
+          "submission_epoch_ms": 1793856615549,
+          "observation_epoch_ms": 1793856617826,
+          "first_response_ms": 2277,
+          "sanitized_original_utterance": "метаданные отправлений с 2026-11-03 по 2026-11-04 на озоне",
+          "sanitized_request_command": "метаданные отправлений с 2026 - 11 - 03 по 2026 - 11 - 04 на озоне",
+          "reply": {
+            "cache": "NEW",
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "69cb456673e824f86fde44c2f8f4a4fc0563546c5ddff359829e84cadbaac04c",
+          "job_ref": "J01",
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R02-short-ISO.result",
+          "counter": 12,
+          "started_at_utc": "2026-11-05T05:30:43.035000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:44.665000+00:00",
+          "submission_epoch_ms": 1793856643035,
+          "observation_epoch_ms": 1793856644665,
+          "first_response_ms": 1630,
+          "sanitized_original_utterance": "результат",
+          "sanitized_request_command": "результат",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "07b607c4b6c60b361217d41078bcc0591c2c3a762b87ca6eedf7361b94df6f81",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R02-short-ISO.page2",
+          "counter": 13,
+          "started_at_utc": "2026-11-05T05:30:44.737000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:46.964000+00:00",
+          "submission_epoch_ms": 1793856644737,
+          "observation_epoch_ms": 1793856646964,
+          "first_response_ms": 2227,
+          "sanitized_original_utterance": "дальше",
+          "sanitized_request_command": "дальше",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "487414ff269a82a8b9133ba9cbbb04cb0b99e5f4a992276fe37c732d7a81b8f0",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R02-short-ISO.page3",
+          "counter": 14,
+          "started_at_utc": "2026-11-05T05:30:47.019000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:48.423000+00:00",
+          "submission_epoch_ms": 1793856647019,
+          "observation_epoch_ms": 1793856648423,
+          "first_response_ms": 1404,
+          "sanitized_original_utterance": "дальше",
+          "sanitized_request_command": "дальше",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "0c939abb39ce0c652dbfffc9e7b922a9292abc4cb30b1d47d977e7d8da43aa1e",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R02-short-ISO.page4",
+          "counter": 15,
+          "started_at_utc": "2026-11-05T05:30:48.488000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:51.040000+00:00",
+          "submission_epoch_ms": 1793856648488,
+          "observation_epoch_ms": 1793856651040,
+          "first_response_ms": 2552,
+          "sanitized_original_utterance": "дальше",
+          "sanitized_request_command": "дальше",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "7369260e8e772dd946ae62c00d7b285b4c10c8e876f94f57d8e20ce44f633a1a",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R02-short-ISO.page5",
+          "counter": 16,
+          "started_at_utc": "2026-11-05T05:30:51.099000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:52.504000+00:00",
+          "submission_epoch_ms": 1793856651099,
+          "observation_epoch_ms": 1793856652504,
+          "first_response_ms": 1405,
+          "sanitized_original_utterance": "дальше",
+          "sanitized_request_command": "дальше",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "2a2000dffc53f33ea603eb31874c6335681771ac970e64b91f3710696846ea61",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        }
+      ],
+      "first_response_ms": 2277,
+      "full_report_observed_ms": 36955,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 2,
+      "llm_calls": 0,
+      "error_code": null,
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_VERIFIED",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#R02-short-ISO",
+      "notes": "Двухдневный ISO-период принят без вопроса о датах. READY/complete; дочитаны 5 страниц, 27 строк (24 FBO и 3 FBS), страницы совпали с сохранённым результатом. Семантика PASS; независимого числового эталона источника нет.",
+      "observed_report_state": "READY",
+      "pages": 5,
+      "page_read_provider_calls": 0,
+      "job_ref": "J01"
+    },
+    {
+      "id": "R03-followup",
+      "outcome": "PARTIAL",
+      "actual_response": "[PRIVATE_METADATA_REPORT_REDACTED]",
+      "actual_tts": null,
+      "sanitized_original_utterance": "метаданные отправлений на озоне",
+      "sanitized_request_command": "метаданные отправлений на озоне",
+      "messages": [
+        {
+          "step_id": "R03-followup.start",
+          "counter": 17,
+          "started_at_utc": "2026-11-05T05:31:00.761000+00:00",
+          "observed_at_utc": "2026-11-05T05:31:02.637000+00:00",
+          "submission_epoch_ms": 1793856660761,
+          "observation_epoch_ms": 1793856662637,
+          "first_response_ms": 1876,
+          "sanitized_original_utterance": "метаданные отправлений на озоне",
+          "sanitized_request_command": "метаданные отправлений на озоне",
+          "reply": {
+            "error": "PERIOD_REQUIRED",
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "1266cbe18b0a5f5804d5936726fcf052a1c699ab3e6870d4b0797f43aa051bb2",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        },
+        {
+          "step_id": "R03-followup.help",
+          "counter": 18,
+          "started_at_utc": "2026-11-05T05:31:02.726000+00:00",
+          "observed_at_utc": "2026-11-05T05:31:04.670000+00:00",
+          "submission_epoch_ms": 1793856662726,
+          "observation_epoch_ms": 1793856664670,
+          "first_response_ms": 1944,
+          "sanitized_original_utterance": "что ты умеешь",
+          "sanitized_request_command": "что ты умеешь",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "c9610cfa7869f69634a92da734837c26e681fc7eecece71d16232bffb52b2c03",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        },
+        {
+          "step_id": "R03-followup.dates",
+          "counter": 19,
+          "started_at_utc": "2026-11-05T05:31:04.732000+00:00",
+          "observed_at_utc": "2026-11-05T05:31:06.720000+00:00",
+          "submission_epoch_ms": 1793856664732,
+          "observation_epoch_ms": 1793856666720,
+          "first_response_ms": 1988,
+          "sanitized_original_utterance": "с 2026 - 11 - 03 по 2026 - 11 - 04",
+          "sanitized_request_command": "с 2026 - 11 - 03 по 2026 - 11 - 04",
+          "reply": {
+            "cache": "HIT",
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "07b607c4b6c60b361217d41078bcc0591c2c3a762b87ca6eedf7361b94df6f81",
+          "job_ref": "J01",
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R03-followup.result",
+          "counter": 20,
+          "started_at_utc": "2026-11-05T05:31:06.780000+00:00",
+          "observed_at_utc": "2026-11-05T05:31:08.770000+00:00",
+          "submission_epoch_ms": 1793856666780,
+          "observation_epoch_ms": 1793856668770,
+          "first_response_ms": 1990,
+          "sanitized_original_utterance": "результат",
+          "sanitized_request_command": "результат",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "07b607c4b6c60b361217d41078bcc0591c2c3a762b87ca6eedf7361b94df6f81",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R03-followup.page2",
+          "counter": 21,
+          "started_at_utc": "2026-11-05T05:31:08.829000+00:00",
+          "observed_at_utc": "2026-11-05T05:31:10.799000+00:00",
+          "submission_epoch_ms": 1793856668829,
+          "observation_epoch_ms": 1793856670799,
+          "first_response_ms": 1970,
+          "sanitized_original_utterance": "дальше",
+          "sanitized_request_command": "дальше",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "487414ff269a82a8b9133ba9cbbb04cb0b99e5f4a992276fe37c732d7a81b8f0",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R03-followup.page3",
+          "counter": 22,
+          "started_at_utc": "2026-11-05T05:31:10.865000+00:00",
+          "observed_at_utc": "2026-11-05T05:31:12.867000+00:00",
+          "submission_epoch_ms": 1793856670865,
+          "observation_epoch_ms": 1793856672867,
+          "first_response_ms": 2002,
+          "sanitized_original_utterance": "дальше",
+          "sanitized_request_command": "дальше",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "0c939abb39ce0c652dbfffc9e7b922a9292abc4cb30b1d47d977e7d8da43aa1e",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R03-followup.page4",
+          "counter": 23,
+          "started_at_utc": "2026-11-05T05:31:12.935000+00:00",
+          "observed_at_utc": "2026-11-05T05:31:14.843000+00:00",
+          "submission_epoch_ms": 1793856672935,
+          "observation_epoch_ms": 1793856674843,
+          "first_response_ms": 1908,
+          "sanitized_original_utterance": "дальше",
+          "sanitized_request_command": "дальше",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "7369260e8e772dd946ae62c00d7b285b4c10c8e876f94f57d8e20ce44f633a1a",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        },
+        {
+          "step_id": "R03-followup.page5",
+          "counter": 24,
+          "started_at_utc": "2026-11-05T05:31:14.899000+00:00",
+          "observed_at_utc": "2026-11-05T05:31:16.680000+00:00",
+          "submission_epoch_ms": 1793856674899,
+          "observation_epoch_ms": 1793856676680,
+          "first_response_ms": 1781,
+          "sanitized_original_utterance": "дальше",
+          "sanitized_request_command": "дальше",
+          "reply": {
+            "text": "[PRIVATE_METADATA_REPORT_REDACTED]"
+          },
+          "reply_sha256": "2a2000dffc53f33ea603eb31874c6335681771ac970e64b91f3710696846ea61",
+          "job_ref": null,
+          "plan": {
+            "definition": "matrix-dataset-v1",
+            "metrics": [
+              "dataset:posting_metadata"
+            ],
+            "period": {
+              "from": "2026-11-03",
+              "to": "2026-11-04"
+            },
+            "timezone": "Europe/Moscow",
+            "snapshot": false,
+            "snapshot_slot": null,
+            "filters": {},
+            "registry_hash": "56838ce468de9db473387912bb193a9ab8d6a67c90c230cf48517c47ccb26ac7"
+          }
+        }
+      ],
+      "first_response_ms": 1876,
+      "full_report_observed_ms": 15919,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": null,
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_VERIFIED",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#R03-followup",
+      "notes": "Период запрошен один раз; справка сохранила запрос. Ответ датами дал HIT того же J01 и готовую первую страницу, «результат» повторил её; остальные 4 страницы дочитаны. Новых jobs/HTTP/LLM нет. Семантика PASS; числовой эталон отсутствует.",
+      "observed_report_state": "READY",
+      "pages": 5,
+      "page_read_provider_calls": 0,
+      "job_ref": "J01"
+    },
+    {
+      "id": "R04-invalid-date",
+      "outcome": "PASS",
+      "actual_response": "Укажите существующие даты начала и конца.",
+      "actual_tts": [
+        "Укажите существующие даты начала и конца."
+      ],
+      "sanitized_original_utterance": "метаданные отправлений с 2026 - 02 - 30 по 2026 - 03 - 01 на озоне",
+      "sanitized_request_command": "метаданные отправлений с 2026 - 02 - 30 по 2026 - 03 - 01 на озоне",
+      "messages": [
+        {
+          "step_id": "R04-invalid-date",
+          "counter": 7,
+          "started_at_utc": "2026-11-05T05:29:56.260000+00:00",
+          "observed_at_utc": "2026-11-05T05:29:58.244000+00:00",
+          "submission_epoch_ms": 1793856596260,
+          "observation_epoch_ms": 1793856598244,
+          "first_response_ms": 1984,
+          "sanitized_original_utterance": "метаданные отправлений с 2026 - 02 - 30 по 2026 - 03 - 01 на озоне",
+          "sanitized_request_command": "метаданные отправлений с 2026 - 02 - 30 по 2026 - 03 - 01 на озоне",
+          "reply": {
+            "error": "INVALID_DATE",
+            "text": "Укажите существующие даты начала и конца.",
+            "tts": "Укажите существующие даты начала и конца."
+          },
+          "reply_sha256": "0d11eddd9bf324cd5c0490557ec5d90a8b8095e745abb7b76d50c03cc3256884",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        }
+      ],
+      "first_response_ms": 1984,
+      "full_report_observed_ms": null,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": "INVALID_DATE",
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_APPLICABLE",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#R04-invalid-date",
+      "notes": "30 февраля отклонено INVALID_DATE; календарь не исправлен молча, jobs/HTTP/LLM: 0."
+    },
+    {
+      "id": "R05-WB-price",
+      "outcome": "PASS",
+      "actual_response": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+      "actual_tts": [
+        "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя."
+      ],
+      "sanitized_original_utterance": "текущие цены предложения за октябрь 2026 на wb",
+      "sanitized_request_command": "текущие цены предложения за октябрь 2026 на wb",
+      "messages": [
+        {
+          "step_id": "R05-WB-price",
+          "counter": 8,
+          "started_at_utc": "2026-11-05T05:29:58.299000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:00.311000+00:00",
+          "submission_epoch_ms": 1793856598299,
+          "observation_epoch_ms": 1793856600311,
+          "first_response_ms": 2012,
+          "sanitized_original_utterance": "текущие цены предложения за октябрь 2026 на wb",
+          "sanitized_request_command": "текущие цены предложения за октябрь 2026 на wb",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "HISTORICAL_SNAPSHOT",
+            "next_action": "Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+            "reason": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются.",
+            "text": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя.",
+            "tts": "Запрос «текущие цены предложения» относится к текущему снимку. Исторические значения за выбранный период этим источником не восстанавливаются. Для текущего состояния скажите «сейчас»; для истории нужен отдельный источник именно запрошенного показателя."
+          },
+          "reply_sha256": "b664df15570ef3323a34f366cd3aaa20abe00be638336c1bd49dbf069ad0bc69",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        }
+      ],
+      "first_response_ms": 2012,
+      "full_report_observed_ms": null,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": "HISTORICAL_SNAPSHOT",
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_APPLICABLE",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#R05-WB-price",
+      "notes": "История цен WB отклонена тем же корректным объяснением снимка цен. Jobs/HTTP/LLM: 0."
+    },
+    {
+      "id": "R06-original-OZCP001",
+      "outcome": "PASS",
+      "actual_response": "Для «выбранные данные» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+      "actual_tts": [
+        "Для «выбранные данные» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса."
+      ],
+      "sanitized_original_utterance": "сумма заказов за вчера на озоне кроме артикула А",
+      "sanitized_request_command": "сумма заказов за вчера на озоне кроме артикула а",
+      "messages": [
+        {
+          "step_id": "R06-original-OZCP001",
+          "counter": 9,
+          "started_at_utc": "2026-11-05T05:30:00.362000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:02.313000+00:00",
+          "submission_epoch_ms": 1793856600362,
+          "observation_epoch_ms": 1793856602313,
+          "first_response_ms": 1951,
+          "sanitized_original_utterance": "сумма заказов за вчера на озоне кроме артикула А",
+          "sanitized_request_command": "сумма заказов за вчера на озоне кроме артикула а",
+          "reply": {
+            "cause_status": "KNOWN_LIMITATION",
+            "error": "OPERATION_NOT_ENABLED",
+            "next_action": "Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+            "reason": "Для «выбранные данные» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю.",
+            "text": "Для «выбранные данные» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса.",
+            "tts": "Для «выбранные данные» выбранный фильтр или разрез пока не поддерживается. Условие не отбрасываю и другую площадку не подставляю. Проверьте доступные возможности командой «что ты умеешь» или явно измените неподдержанное условие исходного запроса."
+          },
+          "reply_sha256": "81167c85163dfa2686fd61b51c6917946af211fe10e41dfdfc252c9c6ddf40de",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        }
+      ],
+      "first_response_ms": 1951,
+      "full_report_observed_ms": null,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": "OPERATION_NOT_ENABLED",
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_APPLICABLE",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#R06-original-OZCP001",
+      "notes": "Исходный scalar-пример не предлагает WB; неподдержанное условие явно сохранено как ограничение. Jobs/HTTP/LLM: 0."
+    },
+    {
+      "id": "R07-help",
+      "outcome": "PASS",
+      "actual_response": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно.",
+      "actual_tts": [
+        "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно."
+      ],
+      "sanitized_original_utterance": "что ты умеешь",
+      "sanitized_request_command": "что ты умеешь",
+      "messages": [
+        {
+          "step_id": "R07-help",
+          "counter": 10,
+          "started_at_utc": "2026-11-05T05:30:02.366000+00:00",
+          "observed_at_utc": "2026-11-05T05:30:04.359000+00:00",
+          "submission_epoch_ms": 1793856602366,
+          "observation_epoch_ms": 1793856604359,
+          "first_response_ms": 1993,
+          "sanitized_original_utterance": "что ты умеешь",
+          "sanitized_request_command": "что ты умеешь",
+          "reply": {
+            "text": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно.",
+            "tts": "Могу показать заказы, финансовые сводки, расходы, рекламу и ДРР, текущие остатки, справочники товаров, текущие цены предложения, метаданные отправлений по подключённым магазинам; набор данных зависит от площадки. Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно."
+          },
+          "reply_sha256": "c9610cfa7869f69634a92da734837c26e681fc7eecece71d16232bffb52b2c03",
+          "job_ref": null,
+          "plan": {
+            "definition": null,
+            "metrics": null,
+            "period": null,
+            "timezone": null,
+            "snapshot": null,
+            "snapshot_slot": null,
+            "filters": null,
+            "registry_hash": null
+          }
+        }
+      ],
+      "first_response_ms": 1993,
+      "full_report_observed_ms": null,
+      "measurement_method": "Wall clock from Send click until observation of new Yandex Response; includes browser/UI observation. Full-report interval includes our page-reading/polling gaps.",
+      "provider_calls": 0,
+      "llm_calls": 0,
+      "error_code": null,
+      "semantic_check": "PASS",
+      "numeric_check": "NOT_APPLICABLE",
+      "evidence_ref": "/var/lib/alice-lab/probe-reports/dialogue-hotfix-retest-d7a5899c-20261105.json#R07-help",
+      "notes": "Справка сохранила две фразы и доступные наборы; C-UE01 обозначен как план. Jobs/HTTP/LLM: 0."
+    }
+  ],
+  "summary": {
+    "PASS": 8,
+    "PARTIAL": 2,
+    "FAIL": 0,
+    "SKIP": 0
+  },
+  "three_bug_retest": "PASS",
+  "all_semantic_checks": "PASS",
+  "overall_package_acceptance": "NOT_ACCEPTED_PENDING_NUMERIC_GOLD_AND_EXISTING_PREREQUISITES",
+  "previous_two_skips_not_reclassified": true,
+  "new_conversation_confirmed": true
+}

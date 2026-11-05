@@ -1,0 +1,27 @@
+{
+  "run_id": "20261105-TESTER-d7a5899c",
+  "calls": [
+    {
+      "at": 1793856618.0940363,
+      "source": "ds_ozon_fbo_postings",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 2603,
+      "response_bytes": 25971
+    },
+    {
+      "at": 1793856621.7919595,
+      "source": "ds_ozon_fbs_postings",
+      "state": "RECEIVED",
+      "http": 200,
+      "elapsed_ms": 87,
+      "response_bytes": 9954
+    }
+  ],
+  "main_three_new_jobs": 0,
+  "main_three_http_calls": 0,
+  "main_three_llm_calls": 0,
+  "reading_and_followup_http_calls": 0,
+  "ready_job_elapsed_ms": 4815.58,
+  "normal_gateway_writes_only": true
+}
