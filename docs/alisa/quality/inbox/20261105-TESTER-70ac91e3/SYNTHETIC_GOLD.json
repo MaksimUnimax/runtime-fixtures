@@ -1,0 +1,91 @@
+{
+  "schema": "alisa-unit-economics-independent-gold/v1",
+  "kind": "SYNTHETIC_NOT_MERCHANT_DATA",
+  "definition": "10 ordered units: 2 cancelled before shipment, 8 realized, of which 1 subsequently returned and confirmed restocked; 7 kept. Two orders may contain multiple units; denominator is units.",
+  "inputs": {
+    "ordered_units": 10,
+    "order_count": 4,
+    "cancelled_units": 2,
+    "realized_units": 8,
+    "returned_and_restocked_units": 1,
+    "kept_units": 7,
+    "gross_seller_revenue": "8000",
+    "refund_signed": "-1000",
+    "cost_per_unit": "250",
+    "tax": null,
+    "expenses": {
+      "commission_net": "700",
+      "outbound_logistics": "800",
+      "return_logistics": "100",
+      "storage": "100",
+      "acquiring_net": "70",
+      "advertising": "500",
+      "other": "30"
+    }
+  },
+  "expected": {
+    "denominator": 10,
+    "net_revenue": "7000",
+    "all_expenses": "2300",
+    "cogs": "1750",
+    "result": "2950",
+    "per_ordered_unit": "295.00",
+    "tax_inclusion": "NOT_INCLUDED"
+  },
+  "variants": [
+    {
+      "id": "COST_MISSING",
+      "cost_per_unit": null,
+      "expected_result": "4700",
+      "expected_per_unit": "470.00",
+      "expected_cost_inclusion": "NOT_INCLUDED"
+    },
+    {
+      "id": "COST_EXPLICIT_ZERO",
+      "cost_per_unit": "0",
+      "expected_result": "4700",
+      "expected_per_unit": "470.00",
+      "expected_cost_inclusion": "KNOWN_ZERO"
+    },
+    {
+      "id": "USER_FIXED_TAX",
+      "tax_amount": "350",
+      "expected_result": "2600",
+      "expected_per_unit": "260.00"
+    },
+    {
+      "id": "ADS_DUPLICATE_IN_FINANCE",
+      "finance_ads": "500",
+      "performance_ads": "500",
+      "qualified_same_charge": true,
+      "expected_ads_cost": "500",
+      "expected_result": "2950"
+    },
+    {
+      "id": "OPEN_COHORT",
+      "closed": false,
+      "expected_final_result": null
+    },
+    {
+      "id": "NO_QUANTITY",
+      "ordered_units": 0,
+      "expected_per_unit": null
+    },
+    {
+      "id": "MISSING_EXPENSE_COVERAGE",
+      "advertising": null,
+      "expected_final_result": null
+    },
+    {
+      "id": "UNKNOWN_RESTOCK",
+      "returned_units": 1,
+      "restock_confirmed": false,
+      "expected_cogs_recovery": null
+    }
+  ],
+  "forbidden_results": {
+    "denominator_13": "Adding cancellations and returns to original ordered units",
+    "cogs_2500": "Charging all 10 ordered units despite 2 unshipped cancellations and 1 confirmed restock",
+    "ads_1000": "Double counting the same advertising charge"
+  }
+}
