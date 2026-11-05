@@ -1,8 +1,8 @@
 {
   "schema": "alisa-template-candidate/v1",
   "template_id": "C-UE01",
-  "revision": "api-actual-then-tariff-midpoint-r4",
-  "status": "SOURCE_BACKED_FORECAST_RESEARCH_NOT_INSTALLED",
+  "revision": "api-actual-then-tariff-stage-and-refunds-r5",
+  "status": "BLOCKED_EVENT_STAGE_AND_CPO_REFUND_VERIFICATION",
   "required_basis": "declared unit profile and original ordered cohort",
   "source_fallback_order": [
     "matched actual accrual if available and complete",
@@ -44,9 +44,28 @@
     "Product cost input stays unchanged; denominators explicit per scenario",
     "Missing actual charge triggers authorized tariff fallback rather than unexplained empty result",
     "Do not add historical variable courier/logistics/processing/acquiring charges on top of matched forecast delivery tariffs",
-    "Owner rejected tariff inference from sums: use explicit percentage only when returned as percentage, else use explicit API amount"
+    "Owner rejected tariff inference from sums: use explicit percentage only when returned as percentage, else use explicit API amount",
+    "Cancellation type alone must not imply zero reverse logistics or a blanket reverse-tariff charge",
+    "Missing official CPO refund rule is unknown, not automatic refund or proven universal nonrefund",
+    "Absent Return events in a limited logistic-date window do not establish zero reverse charges",
+    "Do not derive final cohort profit from store-day overhead without explicit allocation and scope"
   ],
   "production_adapter": "NOT_INSTALLED",
   "main_cancellation_commission_policy": "Official expected net remuneration for noncancelled units; never invent an unobserved cancellation commission charge",
-  "conditional_sensitivity": "Unreturned cancellation commission, if actually applicable, is separate and excluded from main forecast"
+  "conditional_sensitivity": "Removed from main result: do not invent cancellation commission liability or a second conditional profit.",
+  "event_policy": {
+    "classify": [
+      "cancellation_before_handover",
+      "cancellation_after_handover",
+      "nonbuyout_at_receipt",
+      "customer_return_after_receipt"
+    ],
+    "reverse_logistics": "Use matched actual charge/reversal; forecast requires verified scheme and stage applicability. Neither Cancellation nor absent Return proves zero reverse cost.",
+    "sales_commission": "Separate sales remuneration and its actual/expected reversal from advertising CPO.",
+    "cpo_refund": "General cancellation/return policy and time limits not verified in accessible official regulation; do not erase recorded CPO or invent a credit.",
+    "cpc_refund": "Clicks remain a separate service; no automatic sale-outcome reversal. Provider corrections require their own basis.",
+    "return_processing": "Warehouse return processing included in reverse logistics; assess PVZ processing, packaging and storage independently without double count.",
+    "source_date": "2026-11-05"
+  },
+  "official_research": "CANCELLATION_RETURNS_RESEARCH.md"
 }
