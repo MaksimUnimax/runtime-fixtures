@@ -1,0 +1,146 @@
+{
+  "schema": "alisa-template-candidate/v1",
+  "id": "OZON-DAILY-ADS-ORDERS-DRR",
+  "revision": 1,
+  "state": "CANDIDATE",
+  "runtime_enabled": false,
+  "title": "Ozon: дневные заказы, реклама по кампаниям и общий ДРР за произвольный период",
+  "change_class": "GENERAL_OPERATOR",
+  "marketplace": "ozon",
+  "sample_utterances": [
+    "Сравни заказы и рекламу по дням за октябрь и начало ноября на Озоне",
+    "Покажи за период цену клика по кампаниям и общий ДРР по дням"
+  ],
+  "parameters": {
+    "from": "ISO date required",
+    "to": "ISO date required",
+    "shop_scope": "explicit authorized Ozon store",
+    "timezone": "provider day boundaries; record source timezone",
+    "include_partial_day": "false by default"
+  },
+  "axes": [
+    "store",
+    "marketplace",
+    "currency",
+    "day",
+    "campaign_id",
+    "payment_model",
+    "object_type"
+  ],
+  "sources": [
+    {
+      "path": "/v1/analytics/data",
+      "metrics": [
+        "ordered_units",
+        "revenue"
+      ],
+      "dimension": [
+        "day"
+      ],
+      "meaning": "all ordered items and total order value, not delivered units or buyer discounted cash"
+    },
+    {
+      "path": "/api/client/statistics/daily/json",
+      "meaning": "unique daily campaign spend, views, clicks; CPC + both CPO programs"
+    },
+    {
+      "path": "/api/client/campaign",
+      "meaning": "targeted metadata for every ID in date reports; current state only"
+    },
+    {
+      "path": "/api/client/statistic/orders/generate/json",
+      "meaning": "selected CPO applied bid from charged order rows"
+    },
+    {
+      "path": "/api/client/statistics/all_sku_promo/orders/generate/json",
+      "meaning": "all-SKU CPO explicit bid from charged order rows"
+    },
+    {
+      "path": "/api/client/statistics/all_sku_promo/products/generate/json",
+      "meaning": "source-reported daily all-SKU flag; missing row means unknown"
+    }
+  ],
+  "formulas": {
+    "daily_ad_spend": "SUM(unique campaign/day spend across CPC and CPO)",
+    "daily_drr": "daily_ad_spend / daily_all_shop_order_value * 100",
+    "period_drr": "SUM(daily_ad_spend) / SUM(daily_all_shop_order_value) * 100",
+    "actual_campaign_cpc": "CPC spend / CPC clicks; clicks=0 -> unavailable; CPO -> not applicable"
+  },
+  "answer_contract": {
+    "daily": [
+      "date",
+      "ordered_units",
+      "all_shop_order_value",
+      "cpc_spend",
+      "cpo_spend",
+      "total_ad_spend",
+      "total_drr",
+      "cpc_clicks",
+      "actual_cpc",
+      "cpc_campaigns_with_impressions",
+      "allsku_cpo_source_flag",
+      "completeness"
+    ],
+    "campaign_day": [
+      "id",
+      "name",
+      "payment_model",
+      "source_placement",
+      "impressions",
+      "clicks",
+      "spend",
+      "actual_cpc_for_CPC_only",
+      "explicit_applied_CPO_rates_when_charged"
+    ],
+    "prohibited": [
+      "per-campaign DRR unless separately requested",
+      "invented historic configured bids",
+      "zero for missing metrics",
+      "attributed order sum as unique shop orders",
+      "correlation as causal uplift",
+      "CPO detail added again to total spend"
+    ]
+  },
+  "checks": [
+    "Validate returned metric vector arity against requested list",
+    "Every campaign/day key unique",
+    "Targeted metadata covers all report campaign IDs",
+    "Daily CPC+CPO sum reconciles to total",
+    "CPO charged detail reconciles per complete day",
+    "Missing history explicitly unavailable",
+    "Exclude partial day from comparisons and correlations",
+    "Zero order value -> undefined DRR, not zero",
+    "Record every source HTTP status, answer and duration; no tokens"
+  ],
+  "negative_cases": [
+    "CPO source flag off but expense nonzero: preserve both facts",
+    "No CPC impressions: state unknown, not off",
+    "CPO rate absent on zero-order day: unknown, not zero",
+    "Campaign catalog limit reached: targeted requery, not silent omission",
+    "Report generation not ready: preserve job, do not regenerate blindly",
+    "Missing source/authorization -> explicit reason, never empty answer"
+  ],
+  "statistics": {
+    "unit": "ordered items per day",
+    "report_pearson_and_spearman": true,
+    "compare_same_weekdays": true,
+    "warn_CPO_mechanical_dependency": true,
+    "causal_conclusion": "not established from this observational report"
+  },
+  "blockers": [
+    "Independent synthetic numeric gold and runtime adapter integration not completed",
+    "No live Dialogs verification for this operator",
+    "Historical configured CPC bids and full status transitions not retrieved"
+  ],
+  "deployment": {
+    "installed": false,
+    "current_release_acceptance": false,
+    "approval_ref": null
+  },
+  "evidence": {
+    "run_id": "20261105-TESTER-cf78caf3",
+    "private_source_sha256": "bc049350255a7a123d828797129e6cdf707c61dd6d7fa26b9baba82ed552ec0f",
+    "private_analysis_sha256": "b7c4932d9343907fcbe3a5a3d2826c11d2ad1bf2276b7f36d3a904db92a4101f",
+    "retention": "server original evidence 7 days; sanitized owner archive supplied separately"
+  }
+}
