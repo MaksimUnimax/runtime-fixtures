@@ -44,7 +44,7 @@ def identity_checks():
     from django.contrib.sessions.models import Session
     from octoport_identity.accounts.models import Person,Subject,ProtocolCache,IdentityMail
     old='https://alisa-admin-stage.octoport.ru/auth/callback';new='https://alisa-admin.octoport.ru/auth/callback'
-    client=Client.objects.create(id='alisa_admin_stage',type=Client.Type.CONFIDENTIAL,secret='synthetic-hashed-secret',redirect_uris=old)
+    client=Client.objects.create(id='alisa_admin_stage',type=Client.Type.CONFIDENTIAL,secret='synthetic-hashed-secret',redirect_uris=old,data={'retained':'synthetic-existing-metadata'})
     person=Person.objects.create_user(username=uuid.uuid4().hex,email='canonical-owner@example.invalid')
     Subject.objects.create(person=person,client=client)
     before_people=list(Person.objects.values_list('id','email').order_by('id'))
@@ -56,6 +56,7 @@ def identity_checks():
     ProtocolCache.objects.update_or_create(cache_key='canonical-old-code',defaults={'value':'synthetic-encrypted-code','expires':expiry})
     Session.objects.create(session_key=secrets.token_hex(16),session_data='synthetic-session',expire_date=expiry)
     mail=IdentityMail.objects.create(recipient=person.email,encrypted_payload='synthetic-encrypted-code',expires_at=expiry)
+    ambiguous=IdentityMail.objects.create(recipient=person.email,encrypted_payload='',expires_at=expiry,error_code='DELIVERY_OUTCOME_UNKNOWN',attempts=1)
     flags={'ALISA_ENV':'stage','CANONICAL_AUTH_ENABLED':True,'IDENTITY_ISSUER':'https://id.octoport.ru',
            'IDENTITY_STAFF_CLIENT_ID':client.pk,'IDENTITY_STAFF_CALLBACK':new}
     with override_settings(**flags):
@@ -63,12 +64,16 @@ def identity_checks():
             check('canonical_identity_disabled_command_denied',denied('canonicalize_staff_callback') and Token.objects.exists())
         client.redirect_uris=old+'\nhttps://attacker.test/auth/callback';client.save(update_fields=['redirect_uris'])
         check('canonical_identity_unknown_callback_refuses_without_clearing_tokens',denied('canonicalize_staff_callback') and Token.objects.exists())
+        client.redirect_uris=new;client.save(update_fields=['redirect_uris'])
+        check('canonical_identity_partial_callback_without_marker_denied',denied('canonicalize_staff_callback') and Token.objects.exists())
         client.redirect_uris=old;client.save(update_fields=['redirect_uris'])
         call_command('canonicalize_staff_callback',apply=True,stdout=io.StringIO())
         client.refresh_from_db();mail.refresh_from_db()
-        check('canonical_identity_same_confidential_client_and_secret',client.pk=='alisa_admin_stage' and client.type==Client.Type.CONFIDENTIAL and client.secret=='synthetic-hashed-secret' and client.redirect_uris==new)
+        check('canonical_identity_same_confidential_client_and_secret',client.pk=='alisa_admin_stage' and client.type==Client.Type.CONFIDENTIAL and client.secret=='synthetic-hashed-secret' and client.redirect_uris==new and client.data.get('retained')=='synthetic-existing-metadata')
         check('canonical_identity_native_codes_tokens_sessions_invalidated',not Token.objects.exists() and not ProtocolCache.objects.exists() and not Session.objects.exists())
         check('canonical_identity_pending_mail_code_erased_without_replay',mail.encrypted_payload=='' and mail.expires_at<=timezone.now() and mail.error_code=='AUTHORITY_DOMAIN_CHANGED')
+        ambiguous.refresh_from_db()
+        check('canonical_identity_terminal_unknown_outcome_preserved',ambiguous.error_code=='DELIVERY_OUTCOME_UNKNOWN' and ambiguous.attempts==1)
         check('canonical_identity_people_subjects_factors_preserved',
               before_people==list(Person.objects.values_list('id','email').order_by('id'))
               and before_subjects==list(Subject.objects.values_list('id','person_id','client_id').order_by('id'))

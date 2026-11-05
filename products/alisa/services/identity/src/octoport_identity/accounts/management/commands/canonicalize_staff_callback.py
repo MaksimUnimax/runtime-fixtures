@@ -9,6 +9,8 @@ from octoport_identity.accounts.models import ProtocolCache, IdentityMail
 
 OLD='https://alisa-admin-stage.octoport.ru/auth/callback'
 NEW='https://alisa-admin.octoport.ru/auth/callback'
+MARKER_KEY='_alisa_canonical_auth_v1'
+MARKER={'version':1,'old_issuer':'https://id-stage.octoport.ru','issuer':'https://id.octoport.ru','callback':NEW}
 
 class Command(BaseCommand):
     def add_arguments(self, parser):
@@ -26,17 +28,21 @@ class Command(BaseCommand):
         with connection.cursor() as cursor:
             cursor.execute('LOCK TABLE allauth_idp_oidc_client, allauth_idp_oidc_token, django_session, identity_protocol_cache, accounts_identitymail IN SHARE ROW EXCLUSIVE MODE')
         client=Client.objects.select_for_update().filter(pk=settings.IDENTITY_STAFF_CLIENT_ID, type=Client.Type.CONFIDENTIAL).first()
-        if client is not None and client.redirect_uris==NEW:
+        if client is None or client.data is not None and not isinstance(client.data,dict):
+            raise CommandError('Existing confidential client metadata required')
+        data=dict(client.data or {})
+        if client.redirect_uris==NEW and data.get(MARKER_KEY)==MARKER:
             self.stdout.write('CANONICAL_STAFF_CALLBACK_ALREADY_APPLIED')
             return
-        if client is None or client.redirect_uris!=OLD:
+        if client.redirect_uris!=OLD or MARKER_KEY in data:
             raise CommandError('Exact previous confidential admin callback required; inspect before retry')
         client.redirect_uris=NEW
-        client.save(update_fields=['redirect_uris'])
+        data[MARKER_KEY]=MARKER;client.data=data
+        client.save(update_fields=['redirect_uris','data'])
         # Opaque token rows have no issuer column; retaining them would carry old authority forward.
         Token.objects.all().delete()
         ProtocolCache.objects.all().delete()
         Session.objects.all().delete()
-        IdentityMail.objects.filter(sent_at__isnull=True).update(
+        IdentityMail.objects.filter(sent_at__isnull=True,expires_at__gt=timezone.now(),error_code__in=['','DELIVERY_UNAVAILABLE']).update(
             encrypted_payload='', expires_at=timezone.now(), lease_until=None, error_code='AUTHORITY_DOMAIN_CHANGED')
         self.stdout.write('CANONICAL_STAFF_CALLBACK_APPLIED')
