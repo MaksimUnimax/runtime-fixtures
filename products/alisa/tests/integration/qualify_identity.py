@@ -121,6 +121,10 @@ def main():
                 return spawn([py,'-m','gunicorn',module+'.config.wsgi:application','--bind','127.0.0.1:'+str(port),'--workers','2','--access-logfile','-','--access-logformat','%(m)s %(U)s %(s)s'],env(component))
             network.setup()
             check('s02_runtime_nonloopback_egress_denied_by_owned_uid_firewall',network.witness(py,clean_environment()))
+            for component in ['platform','identity']:
+                module='alisa_platform' if component=='platform' else 'octoport_identity'
+                boot=subprocess.run([str(py),'-c','import '+module+'.config.wsgi'],env=env(component),user=network.uid,group=network.uid,extra_groups=[],stdout=logs,stderr=logs,timeout=12)
+                check('s02_'+component+'_owned_uid_import',boot.returncode==0)
             api=start('platform');authority=start('identity')
             web=spawn(['node',release/'ui/web/apps/web/server.js'],{**web_env,'PORT':'18400','HOSTNAME':'127.0.0.1'})
             proxies=[start_proxy(19440,18400,cert,key),start_proxy(19443,18403,cert,key),start_plain_proxy(18404,18402)]
@@ -164,6 +168,7 @@ def main():
                 private_values.append(match.group(1));return match.group(1)
             def db(component):return connect('alisa_stage_'+component)
             playwright=sync_playwright().start();p=playwright
+            check('s02_disposable_chromium_binary_available',Path(p.chromium.executable_path).is_file())
             browser=p.chromium.launch(headless=True,env={**clean_environment(),'HOME':str(home)})
             context=browser.new_context(ignore_https_errors=False);page=context.new_page()
             page.goto(WEB+'/app');expect(page).to_have_url(re.compile('/login'))
@@ -381,6 +386,10 @@ def main():
                 except ValueError:continue
                 if item.get('event')=='alisa.auth.failure' and set(item)=={'event','stage','code'}:diagnostics.append(item)
             record['safe_auth_diagnostics']=diagnostics[-10:]
+            logs.seek(0);private_text=logs.read()
+            record['safe_process_error_classes']=sorted(set(re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception)):',private_text)))
+            record['safe_process_exit_codes']=[process.poll() for process in PROCESSES]
+            record['safe_failure_categories']=[name for name,marker in {'SOURCE_PERMISSION_DENIED':'Permission denied','UNREGISTERED_UID':'getpwuid','WORKER_BOOT_FAILED':'Worker failed to boot','MISSING_MODULE':'ModuleNotFoundError','CONNECTION_REFUSED':'Connection refused'}.items() if marker in private_text]
     finally:
         if browser:
             try:browser.close()

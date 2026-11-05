@@ -63,7 +63,8 @@ jobs:
       - name: Real identity BFF and cabinet on isolated PostgreSQL and verified HTTPS
         working-directory: products/alisa
         run: |
-          sudo --preserve-env=ALISA_TEST_DB_ALLOW,ALISA_TEST_PG_DSN,GITHUB_ACTIONS,PATH \
+          export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+          sudo --preserve-env=ALISA_TEST_DB_ALLOW,ALISA_TEST_PG_DSN,GITHUB_ACTIONS,PATH,PLAYWRIGHT_BROWSERS_PATH \
             .venv/bin/python tests/integration/qualify_identity.py \
             --artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz" \
             --output dist/s02-qualification.json
