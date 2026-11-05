@@ -1,0 +1,242 @@
+{
+  "schema": "alisa-qa-run/v1",
+  "run_id": "20261105-TESTER-3f3405f9",
+  "kind": "ORDER_DATE_UNIT_ECONOMICS_SPECIFICATION_AND_WB_LIVE_QUALIFICATION",
+  "state": "CANDIDATE_NOT_INSTALLED",
+  "period": "2026-11-04",
+  "source_run": {
+    "started_utc": "2026-11-05T05:34:08.805823+00:00",
+    "finished_utc": "2026-11-05T05:42:55.087256+00:00",
+    "elapsed_including_pauses_seconds": 526.281433,
+    "http_count": 11,
+    "http200": 10,
+    "http204": 1,
+    "http_sum_ms": 3612.46,
+    "requests": [
+      {
+        "seq": 1,
+        "operation": "wb_supplier_orders",
+        "host": "statistics-api.wildberries.ru",
+        "path": "/api/v1/supplier/orders",
+        "method": "GET",
+        "started_utc": "2026-11-05T05:34:08.815726+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 133.789,
+        "bytes": 2456,
+        "finished_utc": "2026-11-05T05:34:08.950678+00:00",
+        "sha256": "e6644c7aa971415138d6a7060faa9821f2b58889be7fc622951fd7c0db861ff6"
+      },
+      {
+        "seq": 2,
+        "operation": "wb_orders",
+        "host": "seller-analytics-api.wildberries.ru",
+        "path": "/api/analytics/v3/sales-funnel/products",
+        "method": "POST",
+        "started_utc": "2026-11-05T05:34:08.966897+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 374.039,
+        "bytes": 187721,
+        "finished_utc": "2026-11-05T05:34:09.341699+00:00",
+        "sha256": "d97a1f1a1142e7e5e5d26bb6199852cd421e62c510cf6fcc366f929015efc69c"
+      },
+      {
+        "seq": 3,
+        "operation": "wb_expense",
+        "host": "advert-api.wildberries.ru",
+        "path": "/adv/v1/upd",
+        "method": "GET",
+        "started_utc": "2026-11-05T05:34:09.362586+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 808.255,
+        "bytes": 2734,
+        "finished_utc": "2026-11-05T05:34:10.171436+00:00",
+        "sha256": "416abd3a501788d0287baf2c70676a63b292aed82e669097776c0a0243f24135"
+      },
+      {
+        "seq": 4,
+        "operation": "wb_tariffs_commission",
+        "host": "common-api.wildberries.ru",
+        "path": "/api/v1/tariffs/commission",
+        "method": "GET",
+        "started_utc": "2026-11-05T05:34:10.183077+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 410.212,
+        "bytes": 1923065,
+        "finished_utc": "2026-11-05T05:34:10.594265+00:00",
+        "sha256": "2302f77118e85bde45f8d30482411ffa35463aff42de9a48369454f0997eb3a3"
+      },
+      {
+        "seq": 5,
+        "operation": "wb_finance",
+        "host": "finance-api.wildberries.ru",
+        "path": "/api/finance/v1/sales-reports/list",
+        "method": "POST",
+        "started_utc": "2026-11-05T05:34:10.641685+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 83.364,
+        "bytes": 1085,
+        "finished_utc": "2026-11-05T05:34:10.726056+00:00",
+        "sha256": "c378c61847df93d825a79af5b09fa3c9b7f0572f13388de026aa323c5519c30a"
+      },
+      {
+        "seq": 6,
+        "operation": "wb_order_feed",
+        "host": "seller-analytics-api.wildberries.ru",
+        "path": "/api/analytics/v1/order-feed",
+        "method": "POST",
+        "started_utc": "2026-11-05T05:34:10.735311+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 627.874,
+        "bytes": 7365,
+        "finished_utc": "2026-11-05T05:34:11.364260+00:00",
+        "sha256": "8fe87c450d0712c05b746343d1dc8c5c893f2a18a5a0e95d710baed6bb54e1e8"
+      },
+      {
+        "seq": 7,
+        "operation": "wb_finance",
+        "host": "finance-api.wildberries.ru",
+        "path": "/api/finance/v1/sales-reports/detailed",
+        "method": "POST",
+        "started_utc": "2026-11-05T05:35:11.648287+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 97.578,
+        "bytes": 94880,
+        "finished_utc": "2026-11-05T05:35:11.747663+00:00",
+        "sha256": "7eed7c949ebdf12a9453994aca5604126f185a97a049ec260895aaa0b8cc6f8e"
+      },
+      {
+        "seq": 8,
+        "operation": "wb_finance",
+        "host": "finance-api.wildberries.ru",
+        "path": "/api/finance/v1/sales-reports/detailed",
+        "method": "POST",
+        "started_utc": "2026-11-05T05:38:14.682747+00:00",
+        "state": "RECEIVED",
+        "http": 204,
+        "elapsed_ms": 89.363,
+        "bytes": 0,
+        "finished_utc": "2026-11-05T05:38:14.773583+00:00",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "seq": 9,
+        "operation": "wb_tariffs_box",
+        "host": "common-api.wildberries.ru",
+        "path": "/api/v1/tariffs/box",
+        "method": "GET",
+        "started_utc": "2026-11-05T05:38:14.783768+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 78.969,
+        "bytes": 8273,
+        "finished_utc": "2026-11-05T05:38:14.863827+00:00",
+        "sha256": "c4a8578ba5d2b055acd14bb2c679caf78a50de0ae0529e30491ea8839369aeaa"
+      },
+      {
+        "seq": 10,
+        "operation": "ds_wb_products",
+        "host": "content-api.wildberries.ru",
+        "path": "/content/v2/get/cards/list",
+        "method": "POST",
+        "started_utc": "2026-11-05T05:38:14.878972+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 626.349,
+        "bytes": 1064245,
+        "finished_utc": "2026-11-05T05:38:15.506569+00:00",
+        "sha256": "1d48204cbeebe84ef0cad1f0b683ef370bcedabd7f9e31d6b2c43da8723831a0"
+      },
+      {
+        "seq": 11,
+        "operation": "ds_wb_products",
+        "host": "content-api.wildberries.ru",
+        "path": "/content/v2/get/cards/list",
+        "method": "POST",
+        "started_utc": "2026-11-05T05:42:54.793508+00:00",
+        "state": "RECEIVED",
+        "http": 200,
+        "elapsed_ms": 282.668,
+        "bytes": 10603,
+        "finished_utc": "2026-11-05T05:42:55.078771+00:00",
+        "sha256": "3711672c120f0540f77dfc1b1a2bec5ab54ebcd5d5edd8b78d5743ad9f3e783c"
+      }
+    ]
+  },
+  "counts": {
+    "cohort_ordered_items": 5,
+    "supplier_orders_preliminary_items": 3,
+    "order_feed_all_status_window_rows": 17,
+    "finance_detail_rows": 43,
+    "finance_detail_terminal_204": true,
+    "ads_rows": 13,
+    "tariff_category_rows": 7420,
+    "box_tariff_warehouse_rows": 25,
+    "cohort_product_dimensions_qualified": 5
+  },
+  "runtime_changed": false,
+  "runtime_enabled": false,
+  "dialogs_requests": 0,
+  "dialogs_elapsed_ms": null,
+  "llm_requests": 0,
+  "independent_production_acceptance": "NOT_RUN",
+  "checks": [
+    "synthetic financial gold arithmetic verified",
+    "order cohort count equals funnel count",
+    "private money/source reconciliation checked",
+    "no production deployment performed",
+    "Ozon and WB synthetic financial gold arithmetic PASS",
+    "qa_check --check --render on unchanged shared-registry snapshot: PASS, findings27/candidates5/reports7/files19, zero enabled; new inbox candidates not yet imported"
+  ],
+  "private_evidence": {
+    "prefix": "wb_order_unit_economics_20261104_20261105_r1",
+    "ttl_days": 7,
+    "normalized_sha256": "17f665fa6173eee819dd8e939036eb31e71f658dc7fb8c7dfe4b78432742588c"
+  },
+  "merchant_financial_values_published": false,
+  "changed_files": [
+    {
+      "path": "BUG_REPORT.md",
+      "sha256": "803146c509f8161a58597c25c3f9abb6f292bf07a64bb38173075f99d018b956"
+    },
+    {
+      "path": "HANDOFF.md",
+      "sha256": "bee60426d69057201b1069488ac0de4248abbbce832f56f059f01018bd4206ae"
+    },
+    {
+      "path": "OZON_ORDER_UNIT_ECONOMICS.json",
+      "sha256": "5c9b59d11e48ef3d40af34ca847b34f4b9deff5e1526633c8d679b016b8c1695"
+    },
+    {
+      "path": "OZON_ORDER_UNIT_ECONOMICS.md",
+      "sha256": "c1f6be9396ee70f13705d4647a0bab6c41bc1a673dd812ba6e9a63248380d5df"
+    },
+    {
+      "path": "SOURCE_QUALIFICATION.md",
+      "sha256": "57ffeb34a743cb8dccfcc92216858d98402246bf3a37a882cb27a35774ac2fed"
+    },
+    {
+      "path": "SYNTHETIC_GOLD.json",
+      "sha256": "f15bfb741e408330f64da5a81a6d8862fd18ebfcd2d33a210dd2f991020c7f94"
+    },
+    {
+      "path": "WB_ORDER_UNIT_ECONOMICS.json",
+      "sha256": "f30c8f42b27e43956147f7e56ead63f207bbdca17c9d2149d39adf1e8218eb4b"
+    },
+    {
+      "path": "WB_ORDER_UNIT_ECONOMICS.md",
+      "sha256": "4868c3e1798fb4fd36b5d5ae076ea0647b0cecd6805648e2b22bb45b1d749e07"
+    },
+    {
+      "path": "WB_SYNTHETIC_GOLD.json",
+      "sha256": "5b856ccffcd81f3b0be93c0aafef1e90e32287f8c8429cf86b5e0ebe765c4bb7"
+    }
+  ],
+  "source_qualification_ref": "SOURCE_QUALIFICATION.md"
+}
