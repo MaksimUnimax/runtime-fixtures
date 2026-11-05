@@ -1,0 +1,60 @@
+--- a/tests/test_extended_matrix.py
++++ b/tests/test_extended_matrix.py
+@@ -16,7 +16,7 @@
+ class ExtendedTransport:
+     def __init__(self):self.calls=[];self.token=False;self.fail=None;self.negative=False;self.zero=False;self.model=['drr_ordered']
+     def prepare(self,r,s):
+-        if r.operation=='ozon_expense' and not self.token:
++        if r.operation in ('ozon_expense','ozon_ads_daily') and not self.token:
+             return providers.Request('ozon_ads_token','ozon:'+s['identity']+':ozon_ads_token',s['id'],{},2,100)
+     def execute(self,r,s):
+         self.calls.append(r)
+@@ -31,7 +31,7 @@
+             period=r.body['selectedPeriod']
+             def selected(period,old=False):return {'period':period,'orderCount':2 if old else 4,'orderSum':'100' if old else ('0' if self.zero else '200'),'buyoutCount':2,'buyoutSum':'100','cancelCount':1,'cancelSum':'50','openCount':40,'cartCount':10}
+             data={'data':{'currency':'RUB','products':[{'product':{'nmId':123,'brandName':'Лес'},'statistic':{'selected':selected(period),'past':selected(r.body.get('pastPeriod',period),True)}}]}}
+-        elif r.operation=='ozon_expense':data={'rows':[{'id':'1','date':r.body['dateFrom'],'moneySpent':'20,00','bonusSpent':'3,00','prepaymentSpent':'5,00'}]}
++        elif r.operation in ('ozon_expense','ozon_ads_daily'):data={'rows':[{'id':'1','date':r.body['dateFrom'],'moneySpent':'20,00','bonusSpent':'3,00','prepaymentSpent':'5,00'}]}
+         elif r.operation=='wb_expense':data=[{'advertId':1,'updNum':0,'updTime':None,'updSum':20,'currency':'RUB'}]
+         else:raise AssertionError(r.operation)
+         return data,{'status':200,'elapsed_ms':1,'bytes':100}
+@@ -55,7 +55,7 @@
+     def text(self,r):return ' '.join(r['pages'])
+     def test_ozon_drr_and_auth_counted(self):
+         r=self.run_job('дрр за октябрь на озоне');self.assertIn('10 процентов',self.text(r))
+-        self.assertEqual([x.operation for x in self.http.calls],['ozon_orders','ozon_ads_token','ozon_expense'])
++        self.assertEqual([x.operation for x in self.http.calls],['ozon_orders','ozon_ads_token','ozon_ads_daily'])
+         self.assertEqual(self.http.calls[0].body['metrics'],['revenue']);self.assertEqual(self.repo.call_count(),3)
+     def test_wb_drr_two_calls(self):
+         r=self.run_job('дрр за октябрь на wb');self.assertIn('10 процентов',self.text(r));self.assertEqual(len(self.http.calls),2)
+@@ -103,7 +103,7 @@
+     def test_ozon_ad_bonus_not_double_counted(self):
+         r=self.run_job('расходы на рекламу и расход рекламных бонусов за октябрь на озоне')
+         self.assertEqual(r['data'][0]['values'],{'ad_bonus_spend':'3.00','ad_spend':'20.00'})
+-        self.assertEqual(len(self.http.calls),2)
++        self.assertEqual(len(self.http.calls),3)
+     def test_ready_read_does_not_call(self):
+         self.run_job('дрр за октябрь на wb');count=self.repo.call_count();self.submit('результат');self.assertEqual(self.repo.call_count(),count)
+     def test_exact_hit_no_calls(self):
+--- a/tests/test_query_program.py
++++ b/tests/test_query_program.py
+@@ -249,7 +249,7 @@
+     def test_period_roles_only_fetch_required(self):
+         d=draft(True);p=make_composed_plan(self.scope,d,expressions=[metric('ordered_units'),metric('ad_spend','previous')])
+         ts=providers.tasks(p,p['stores'][0]);self.assertEqual(len(ts),2)
+-        self.assertEqual([(t['recipe'],t['role'],t['metrics']) for t in ts],[('ozon','current',['ordered_units']),('ozon_ads','previous',['ad_spend'])])
++        self.assertEqual([(t['recipe'],t['role'],t['metrics']) for t in ts],[('ozon','current',['ordered_units']),('ozon_ads_daily','previous',['ad_spend'])])
+     def test_shared_formula_ratio_aggregate_raw_operands(self):
+         d=parse('дрр за октябрь на озоне и wb всего',TODAY)
+         p=make_composed_plan(self.scope,d,expressions=[op('percent',metric('ad_spend'),metric('ordered_revenue'))])
+--- a/query_corpus.json
++++ b/query_corpus.json
+@@ -4558,7 +4558,7 @@
+         "group_by": "marketplace",
+         "first_physical_requests": [
+           {
+-            "operation": "ozon_expense",
++            "operation": "ozon_ads_daily",
+             "body": {
+               "dateFrom": "2026-10-01",
+               "dateTo": "2026-10-31"
