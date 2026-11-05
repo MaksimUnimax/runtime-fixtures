@@ -87,6 +87,8 @@ def session_create(request,data):
         if not flow or not flow.consumed_at or flow.expires_at<=now:return reply({'code':'INVALID_FLOW'},400)
         previous=WebSession.objects.filter(flow=flow).first()
         if previous:
+            if previous.revoked_at or previous.expires_at<=now or not previous.customer.is_active:
+                return reply({'code':'ACCOUNT_UNAVAILABLE'},403)
             if hmac.compare_digest(previous.token_hash,data['session_hash']):return reply({'state':'ALREADY_CREATED'})
             return reply({'code':'FLOW_ALREADY_USED'},409)
         # Serializes concurrent registrations of the same verified OIDC subject.

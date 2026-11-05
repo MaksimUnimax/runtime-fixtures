@@ -43,7 +43,10 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             response=connection.getresponse();body=response.read()
             hook=getattr(self.server,'response_hook',None)
             if hook:body=hook(self.path,response.status,body)
-            self.send_response(response.status)
+            status=response.status
+            hook=getattr(self.server,'result_hook',None)
+            if hook:status,body=hook(self.path,status,body)
+            self.send_response(status)
             for key,value in response.getheaders():
                 if key.lower() not in {'connection','transfer-encoding','content-length'}:self.send_header(key,value)
             self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
@@ -56,5 +59,11 @@ def start_proxy(port,backend,cert,key):
     server=http.server.ThreadingHTTPServer(('127.0.0.1',port),Proxy);server.daemon_threads=True;server.backend=backend
     context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(cert,key)
     server.socket=context.wrap_socket(server.socket,server_side=True)
+    threading.Thread(target=server.serve_forever,daemon=True).start()
+    return server
+
+def start_plain_proxy(port,backend):
+    server=http.server.ThreadingHTTPServer(('127.0.0.1',port),Proxy)
+    server.daemon_threads=True;server.backend=backend
     threading.Thread(target=server.serve_forever,daemon=True).start()
     return server

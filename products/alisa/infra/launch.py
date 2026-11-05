@@ -24,13 +24,13 @@ if component in {'web','admin'}:
     os.environ['PORT']='18100' if component=='web' else '18101'
     os.chdir(root/'ui'/component)
     os.execvp('node',['node',str(root/'ui'/component/'apps'/component/'server.js')])
-elif component in {'platform','identity','worker','cleanup','lead-mail','identity-mail'}:
+elif component in {'platform','identity','worker','cleanup','lead-mail','identity-mail','account-cleanup'}:
     service='identity' if component in {'identity','identity-mail'} else 'platform'
     module='alisa_platform' if service=='platform' else 'octoport_identity'
     directory=root/'services'/service
     os.environ['PYTHONPATH']=str(directory/'src')
     os.environ['DJANGO_SETTINGS_MODULE']=module+'.config.settings'
     python=str(root/'.venv/bin/python')
-    if component in {'worker','cleanup','lead-mail','identity-mail'}:os.execv(python,[python,str(directory/'manage.py'),{'worker':'foundation_worker','cleanup':'foundation_cleanup','lead-mail':'leads_deliver','identity-mail':'identity_deliver'}[component]])
+    if component in {'worker','cleanup','lead-mail','identity-mail','account-cleanup'}:os.execv(python,[python,str(directory/'manage.py'),{'worker':'foundation_worker','cleanup':'foundation_cleanup','lead-mail':'leads_deliver','identity-mail':'identity_deliver','account-cleanup':'accounts_cleanup'}[component]])
     else:os.execv(python,[python,'-m','gunicorn',module+'.config.wsgi:application','--bind','127.0.0.1:'+('18102' if service=='platform' else '18103'),'--workers','1','--timeout','20','--access-logfile','-','--access-logformat','%(m)s %(U)s %(s)s','--error-logfile','-'])
 else:raise SystemExit('Unknown component')

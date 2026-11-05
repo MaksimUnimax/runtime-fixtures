@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from playwright.sync_api import sync_playwright,expect
 import jwt
-from identity_tls import certificates,start_proxy
+from identity_tls import certificates,start_proxy,start_plain_proxy
 from qualify_leads import Sink,SMTP,link as lead_link
 from run_postgres import clean_environment,stop,expected_database_connect_denial
 
@@ -44,7 +44,7 @@ def main():
         with patch.dict(os.environ,clean_environment(),clear=True):return psycopg.connect(**config,autocommit=True)
     admin=connect();owned=False;roles=[n+'_'+r for n in NAMES for r in ['migration','runtime']]
     record={'scope':'S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE','status':'RUNNING','cases':CASES,'not_run':['live_stage_rollout','controlled_real_email','live_release_pair_rollback']}
-    proxies=[];sink=None;browser=None;context=None;temporary=None;logs=None
+    proxies=[];sink=None;browser=None;context=None;temporary=None;logs=None;playwright=None
     try:
         databases={r[0] for r in admin.execute('SELECT datname FROM pg_database WHERE NOT datistemplate')}
         if databases-{'postgres','alisa_ci_admin'}:raise RuntimeError('Disposable cluster is not empty')
@@ -91,7 +91,7 @@ def main():
                   'ALISA_LEAD_INTAKE_ENABLED':'1','ALISA_SECRET_KEY':component_keys['web'],'ALISA_ACCOUNTS_ENABLED':'1','ALISA_IDENTITY_ISSUER':ISSUER,
                   'ALISA_PUBLIC_BASE_URL':WEB,'ALISA_SERVICE_TOKEN':service,'ALISA_AUTH_SERVICE_TOKEN':auth_service,
                   'ALISA_WEB_OIDC_CLIENT_ID':'s02_web','ALISA_WEB_OIDC_CLIENT_SECRET':web_secret,'NODE_EXTRA_CA_CERTS':str(ca),
-                  'ALISA_WEB_SESSION_KEY':bff_key,'ALISA_PLATFORM_URL':'http://127.0.0.1:18402','ALISA_ALLOWED_HOSTS':'127.0.0.1,localhost'}
+                  'ALISA_WEB_SESSION_KEY':bff_key,'ALISA_PLATFORM_URL':'http://127.0.0.1:18404','ALISA_ALLOWED_HOSTS':'127.0.0.1,localhost'}
             def env(component,migration=False):
                 name='alisa_stage_'+component;role='migration' if migration else 'runtime'
                 return {**base,**(identity_only if component=='identity' else platform_only),'ALISA_SECRET_KEY':component_keys[component],
@@ -113,7 +113,16 @@ def main():
                 return spawn([py,'-m','gunicorn',module+'.config.wsgi:application','--bind','127.0.0.1:'+str(port),'--workers','2','--access-logfile','-','--access-logformat','%(m)s %(U)s %(s)s'],env(component))
             api=start('platform');authority=start('identity')
             web=spawn(['node',release/'ui/web/apps/web/server.js'],{**web_env,'PORT':'18400','HOSTNAME':'127.0.0.1'})
-            proxies=[start_proxy(19440,18400,cert,key),start_proxy(19443,18403,cert,key)]
+            proxies=[start_proxy(19440,18400,cert,key),start_proxy(19443,18403,cert,key),start_plain_proxy(18404,18402)]
+            committed_response_lost=[];session_payload_hashes=[]
+            def session_payload(path,body):
+                if path=='/api/v1/auth/sessions':session_payload_hashes.append(hashlib.sha256(body).hexdigest())
+                return body
+            def lose_commit_response(path,status,body):
+                if path=='/api/v1/auth/sessions' and status==201 and not committed_response_lost:
+                    committed_response_lost.append(True);return 503,b'{"code":"SYNTHETIC_RESPONSE_LOST_AFTER_COMMIT"}'
+                return status,body
+            proxies[2].request_hook=session_payload;proxies[2].result_hook=lose_commit_response
             opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPSHandler(context=tls))
             def request(url,method='GET',data=None,headers=None):
                 body=json.dumps(data).encode() if data is not None else None
@@ -144,180 +153,205 @@ def main():
                 if not match:raise RuntimeError('Expected code format missing')
                 private_values.append(match.group(1));return match.group(1)
             def db(component):return connect('alisa_stage_'+component)
-            with sync_playwright() as p:
-                browser=p.chromium.launch(headless=True,env={**clean_environment(),'HOME':str(home)})
-                context=browser.new_context(ignore_https_errors=False);page=context.new_page()
-                page.goto(WEB+'/app');expect(page).to_have_url(re.compile('/login'))
-                check('s02_private_home_requires_own_session',True)
-                check('s02_no_service_cookie_or_data_in_anonymous_html',auth_service not in page.content())
-                check('s02_start_requires_consents',request(WEB+'/auth/start','POST',{}, {'Origin':WEB})[0]==422)
-                def open_identity(page):
-                    page.goto(WEB+'/login');page.locator('input[name=service]').check();page.locator('input[name=privacy]').check()
-                    with page.expect_response(lambda r:r.url==WEB+'/auth/start') as started:
-                        page.get_by_role('button',name='Войти или создать кабинет').click()
-                    check('s02_bff_start_redirects_to_fixed_authority',started.value.status==303,http_status=started.value.status)
-                    page.wait_for_url(re.compile(re.escape(ISSUER)+r'/accounts/'))
-                def register(page,email):
-                    open_identity(page)
-                    page.locator('a[href*="/accounts/signup/"]').first.click()
-                    page.locator('input[name=email]').fill(email);page.locator('input[name=privacy]').check();page.locator('input[name=service]').check()
-                    page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
-                    expect(page.locator('input[name=code]')).to_be_visible()
-                    manage('identity',['identity_deliver'])
-                    page.locator('input[name=code]').fill(letter(email));page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').first.click()
-                    expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
-                email='s02-'+uuid.uuid4().hex[:10]+'@example.invalid';contacts.append(email)
-                # Lead handoff is opaque and has no authentication effect itself.
-                page.goto(WEB+'/join');page.locator('input[name=email]').fill(email);page.locator('input[name=service]').check();page.get_by_role('button',name='Отправить тестовую заявку').click();expect(page.get_by_role('status')).to_contain_text('Заявка сохранена')
-                manage('platform',['leads_deliver']);confirmation,lead_token=lead_link(sink.messages[-1]);private_values.append(lead_token['token'])
-                page.goto(confirmation);page.get_by_role('button',name='Подтвердить контакт').click();expect(page.get_by_role('status')).to_contain_text('Контакт подтверждён')
-                register(page,email)
-                check('s02_real_browser_identity_code_bff_postgresql_home',True)
-                check('s02_callback_does_not_retain_code_or_state',page.url==WEB+'/app')
-                with db('platform') as conn:
-                    counts=conn.execute('SELECT (SELECT count(*) FROM accounts_customer),(SELECT count(*) FROM accounts_tenant),(SELECT count(*) FROM accounts_membership),(SELECT count(*) FROM accounts_identitylink)').fetchone()
-                    check('s02_one_customer_tenant_membership_identity_link',counts==(1,1,1,1),counts=list(counts))
-                    check('s02_owner_client_and_no_grants',conn.execute('SELECT role FROM accounts_membership').fetchone()[0]=='OWNER_CLIENT')
-                    first=conn.execute('SELECT customer_id,tenant_id FROM accounts_membership').fetchone()
-                    check('s02_confirmed_lead_linked_only_after_verified_identity',conn.execute('SELECT count(*) FROM accounts_leadlink').fetchone()[0]==1)
-                    check('s02_durable_product_consents',conn.execute('SELECT count(*) FROM accounts_consentrecord').fetchone()[0]==2)
-                with db('identity') as conn:
-                    check('s02_stable_uuid_person_and_identity_consents',conn.execute('SELECT count(*) FROM accounts_person').fetchone()[0]==1 and conn.execute('SELECT count(*) FROM accounts_identityconsent').fetchone()[0]==2)
-                    check('s02_mail_payload_cleared_after_send',all(not row[0] for row in conn.execute('SELECT encrypted_payload FROM accounts_identitymail WHERE sent_at IS NOT NULL')))
-                cookies=context.cookies();session=next(c for c in cookies if c['name']=='__Host-alisa_session')
-                check('s02_host_only_secure_httponly_lax_product_cookie',session['domain']=='127.0.0.1' and session['secure'] and session['httpOnly'] and session['sameSite']=='Lax')
-                private_values.extend(c['value'] for c in cookies if c['name'].startswith('__Host-'))
-                check('s02_no_bearer_tokens_in_browser_storage',page.evaluate('JSON.stringify(localStorage)+JSON.stringify(sessionStorage)').find('eyJ')==-1)
-                page.reload();expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
-                check('s02_private_home_refresh_keeps_real_profile',page.get_by_text(email,exact=True).is_visible())
-                page.locator('input[name=display_name]').fill('Тестовый пользователь');page.get_by_role('button',name='Сохранить профиль').click();expect(page.locator('input[name=display_name]')).to_have_value('Тестовый пользователь')
-                check('s02_own_profile_persists',True)
-                page.locator('section[aria-label=Магазины]').screenshot(path=str(args.output.with_name('s02-empty-state.png')))
-                # Different person/browser must remain separated even with the same site.
-                second_context=browser.new_context(ignore_https_errors=False);second_page=second_context.new_page()
-                second_email='s02-'+uuid.uuid4().hex[:10]+'@example.invalid';contacts.append(second_email);register(second_page,second_email)
-                with db('platform') as conn:second_id=conn.execute('SELECT id FROM accounts_tenant WHERE id<>%s',[first[1]]).fetchone()[0]
-                reply=page.request.post(WEB+'/api/account/profile',data={'display_name':'bad','tenant_id':str(second_id)},headers={'Origin':WEB})
-                check('s02_tenant_spoof_rejected',reply.status==422)
-                reply=page.request.get(WEB+'/api/account/me?tenant_id='+str(second_id));check('s02_profile_lookup_cannot_select_other_tenant',reply.status==422)
-                check('s02_second_browser_has_distinct_profile',second_page.get_by_text(second_email,exact=True).is_visible() and not second_page.get_by_text(email,exact=True).count())
-                anonymous=browser.new_context(ignore_https_errors=False);anonymous.add_cookies([{'name':'octoport_session','value':'synthetic-foreign-cookie','url':WEB,'secure':True}])
-                check('s02_foreign_cookie_does_not_authorize',anonymous.request.get(WEB+'/api/account/me').status==401);anonymous.close()
-                # A valid identity token for the second confidential RP is not an Alisa session.
-                nonce=secrets.token_urlsafe(24);state=secrets.token_urlsafe(24);verifier=secrets.token_urlsafe(48)
-                challenge=base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
-                authorize=metadata['authorization_endpoint']+'?'+urlencode({'client_id':'s02_probe','redirect_uri':WEB+'/oidc-probe/callback','response_type':'code','scope':'openid email','state':state,'nonce':nonce,'code_challenge':challenge,'code_challenge_method':'S256'})
-                page.goto(authorize);page.locator('button[name=action][value=grant]').click();page.wait_for_url(re.compile('/oidc-probe/callback'))
-                query=parse_qs(urlsplit(page.url).query);check('s02_second_confidential_rp_state_preserved',query.get('state')==[state])
-                code=query['code'][0];private_values.extend([code,state,nonce])
-                data=urlencode({'grant_type':'authorization_code','code':code,'redirect_uri':WEB+'/oidc-probe/callback','code_verifier':verifier}).encode()
-                req=urllib.request.Request(metadata['token_endpoint'],data=data,headers={'Content-Type':'application/x-www-form-urlencoded','Authorization':'Basic '+base64.b64encode(('s02_probe:'+probe_secret).encode()).decode()})
-                with opener.open(req,timeout=8) as r:tokens=json.load(r)
-                keys=request(metadata['jwks_uri'])[1];kid=jwt.get_unverified_header(tokens['id_token'])['kid'];public=jwt.PyJWK.from_dict(next(k for k in keys['keys'] if k['kid']==kid)).key
-                claims=jwt.decode(tokens['id_token'],public,algorithms=['RS256'],audience='s02_probe',issuer=ISSUER);private_values.extend([tokens['id_token'],tokens['access_token']])
-                check('s02_second_confidential_rp_compatible',claims['nonce']==nonce and claims['email']==email)
-                forged=browser.new_context(ignore_https_errors=False);forged.add_cookies([{'name':'__Host-alisa_session','value':tokens['id_token'],'url':WEB,'secure':True,'httpOnly':True}])
-                check('s02_second_rp_token_has_no_product_access',forged.request.get(WEB+'/api/account/me').status==401);forged.close()
-                with db('identity') as conn:check('s02_pairwise_subjects_keep_same_person',conn.execute('SELECT count(DISTINCT id) FROM accounts_subject WHERE person_id=(SELECT id FROM accounts_person WHERE email=%s)',[email]).fetchone()[0]==2)
-                check('s02_foreign_return_to_rejected',page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on','return_to':'https://wrong.example.invalid'},headers={'Origin':WEB}).status==422)
-                # Exercise the REAL BFF validator. Only the disposable TLS proxy
-                # mutates its own fixture token, never a product debug endpoint.
-                token_path=urlsplit(metadata['token_endpoint']).path
-                bad_key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
-                for mode in ['state','issuer','audience','nonce','expiry','signature','pkce']:
-                    negative=browser.new_context(ignore_https_errors=False)
-                    negative.add_cookies([c for c in context.cookies() if c['domain']=='localhost'])
-                    np=negative.new_page();authorizations=[];callbacks=[]
-                    np.on('request',lambda r:authorizations.append(r.url) if r.url.startswith(metadata['authorization_endpoint']+'?') else None)
-                    np.on('request',lambda r:callbacks.append(r.url) if r.url.startswith(WEB+'/auth/callback?') else None)
-                    open_identity(np)
-                    values=parse_qs(urlsplit(authorizations[0]).query);values.pop('prompt',None)
-                    href=metadata['authorization_endpoint']+'?'+urlencode({k:v[0] for k,v in values.items()})
-                    token_mutated=[]
-                    def alter_token(path,status,body):
-                        if path!=token_path or status!=200 or mode not in ['issuer','audience','nonce','expiry','signature']:return body
-                        data=json.loads(body);header=jwt.get_unverified_header(data['id_token'])
-                        claims=jwt.decode(data['id_token'],options={'verify_signature':False})
-                        if mode=='issuer':claims['iss']='https://wrong.example.invalid'
-                        if mode=='audience':claims['aud']='s02_probe'
-                        if mode=='nonce':claims['nonce']='wrong-private-fixture-nonce'
-                        if mode=='expiry':claims['exp']=int(time.time())-120
-                        data['id_token']=jwt.encode(claims,bad_key if mode=='signature' else private_key,algorithm='RS256',headers={'kid':header['kid']})
-                        token_mutated.append(True);return json.dumps(data).encode()
-                    def alter_request(path,body):
-                        if path!=token_path or mode!='pkce':return body
-                        values=parse_qs(body.decode());values['code_verifier']=['wrong-verifier-'+'x'*40]
-                        token_mutated.append(True);return urlencode({k:v[0] for k,v in values.items()}).encode()
-                    proxies[1].response_hook=alter_token;proxies[1].request_hook=alter_request
-                    if mode=='state':
-                        def wrong_state(route):
-                            url=urlsplit(route.request.url);query=parse_qs(url.query);query['state']=['wrong-private-fixture-state']
-                            route.continue_(url=url._replace(query=urlencode({k:v[0] for k,v in query.items()})).geturl())
-                        np.route('**/auth/callback?**',wrong_state)
-                    try:
-                        np.goto(href);expect(np).to_have_url(re.compile('/login\\?error=AUTH_FAILED'))
-                        check('s02_bff_rejects_'+mode,np.request.get(WEB+'/api/account/me').status==401 and (mode=='state' or bool(token_mutated)))
-                    finally:
-                        proxies[1].response_hook=None;proxies[1].request_hook=None
-                        negative.close()
-                with db('platform') as conn:check('s02_rejected_callbacks_create_no_customer_or_tenant',conn.execute('SELECT count(*) FROM accounts_customer').fetchone()[0]==2 and conn.execute('SELECT count(*) FROM accounts_tenant').fetchone()[0]==2)
-                page.goto(WEB+'/app');expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
-                # Logout revokes the server-side product session, not just its cookie.
-                saved=session['value'];page.get_by_role('button',name='Выйти из кабинета').click();expect(page).to_have_url(re.compile('/login'))
-                check('s02_logout_revokes_server_session',request('http://127.0.0.1:18402/api/v1/account/me','POST',{'session_token':saved},{'Authorization':'Bearer '+auth_service})[0]==401)
-                # Repeat login goes through the authority and a fresh email code.
+            playwright=sync_playwright().start();p=playwright
+            browser=p.chromium.launch(headless=True,env={**clean_environment(),'HOME':str(home)})
+            context=browser.new_context(ignore_https_errors=False);page=context.new_page()
+            page.goto(WEB+'/app');expect(page).to_have_url(re.compile('/login'))
+            check('s02_private_home_requires_own_session',True)
+            check('s02_no_service_cookie_or_data_in_anonymous_html',auth_service not in page.content())
+            check('s02_start_requires_consents',request(WEB+'/auth/start','POST',{}, {'Origin':WEB})[0]==422)
+            def open_identity(page):
+                page.goto(WEB+'/login');page.locator('input[name=service]').check();page.locator('input[name=privacy]').check()
+                with page.expect_response(lambda r:r.url==WEB+'/auth/start') as started:
+                    page.get_by_role('button',name='Войти или создать кабинет').click()
+                check('s02_bff_start_redirects_to_fixed_authority',started.value.status==303,http_status=started.value.status)
+                page.wait_for_url(re.compile(re.escape(ISSUER)+r'/accounts/'))
+            callback_proofs=[]
+            def register(page,email):
                 open_identity(page)
-                if page.locator('input[name=email]').count():
-                    page.locator('input[name=email]').fill(email);page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
-                else:
-                    page.locator('form').filter(has=page.locator('button')).locator('button[type=submit]').first.click()
-                expect(page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+                page.locator('a[href*="/accounts/signup/"]').first.click()
+                page.locator('input[name=email]').fill(email);page.locator('input[name=privacy]').check();page.locator('input[name=service]').check()
+                page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
+                expect(page.locator('input[name=code]')).to_be_visible()
+                manage('identity',['identity_deliver'])
+                refs=[c['value'] for c in page.context.cookies() if c['name']=='__Host-alisa_login']
+                callbacks=[]
+                page.on('request',lambda r:callbacks.append(r.url) if r.url.startswith(WEB+'/auth/callback?') else None)
                 page.locator('input[name=code]').fill(letter(email));page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').first.click()
                 expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
-                with db('platform') as conn:check('s02_repeat_login_preserves_customer_and_tenant',conn.execute('SELECT customer_id,tenant_id FROM accounts_membership WHERE customer_id=%s',[first[0]]).fetchone()==first and conn.execute('SELECT count(*) FROM accounts_customer').fetchone()[0]==2)
-                # Recovery through genuine process restarts retains the same row and cookie.
-                stop(api);api=start('platform');stop(authority);authority=start('identity')
-                for _ in range(50):
-                    try:
-                        if request(WEB+'/api/account/me',headers={'Cookie':'__Host-alisa_session='+next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')})[0]==200:break
-                    except OSError:pass
-                    time.sleep(.1)
-                page.reload();expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
-                check('s02_service_restart_preserves_customer_session',True)
-                # Revocation decisions use the server's account and session rows.
-                current_cookie=next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')
-                def profile_status():
-                    return page.request.get(WEB+'/api/account/me').status
-                with db('platform') as conn:
-                    conn.execute('UPDATE accounts_customer SET is_active=false WHERE id=%s',[first[0]])
-                    check('s02_blocked_customer_session_denied',profile_status()==401)
-                    conn.execute('UPDATE accounts_customer SET is_active=true WHERE id=%s',[first[0]])
-                    conn.execute("UPDATE accounts_websession SET expires_at=now()-interval '1 second' WHERE token_hash=%s",[hashlib.sha256(current_cookie.encode()).hexdigest()])
-                    check('s02_expired_product_session_denied',profile_status()==401)
-                    conn.execute("UPDATE accounts_websession SET expires_at=now()+interval '10 minutes' WHERE token_hash=%s",[hashlib.sha256(current_cookie.encode()).hexdigest()])
-                check('s02_own_session_restored_after_owned_fixture_change',profile_status()==200)
-                policy_output=args.output.with_name('s02-runtime-policies.json')
-                policy_run=subprocess.run([str(py),str(ROOT/'tests/integration/identity_policy_checks.py'),str(policy_output)],
-                    env={**env('identity'),'ALISA_IDENTITY_POLICY_TEST_ALLOW':'1'},stdout=logs,stderr=logs,timeout=45)
-                if policy_output.exists():
-                    policy_record=json.loads(policy_output.read_text());CASES.extend(policy_record.get('cases',[]))
-                check('s02_actual_runtime_negative_account_policies',policy_run.returncode==0)
-                sink.shutdown();sink.server_close();sink=None
-                manage('identity',['identity_deliver'])
-                with db('identity') as conn:
-                    check('s02_smtp_outage_retains_encrypted_pending_mail',bool(conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND error_code='DELIVERY_UNAVAILABLE' AND encrypted_payload<>''").fetchone()))
-                    conn.execute('UPDATE accounts_identitymail SET lease_until=NULL WHERE sent_at IS NULL')
-                sink=Sink(('127.0.0.1',18226),SMTP);sink.messages=[];threading.Thread(target=sink.serve_forever,daemon=True).start()
-                manage('identity',['identity_deliver'])
-                with db('identity') as conn:
-                    check('s02_smtp_recovery_sends_and_erases_code',len(sink.messages)>=1 and not conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND encrypted_payload<>'' AND expires_at>now()").fetchone())
-                logs.flush();text=(temp/'private-process.log').read_text()
-                check('s02_private_logs_have_no_known_codes_tokens_contacts',all(v not in text for v in [*contacts,*private_values] if v))
-                second_context.close();context.close();browser.close();browser=None
+                if callbacks and refs:callback_proofs.append((callbacks[-1],refs[-1]))
+            email='s02-'+uuid.uuid4().hex[:10]+'@example.invalid';contacts.append(email)
+            # Lead handoff is opaque and has no authentication effect itself.
+            page.goto(WEB+'/join');page.locator('input[name=email]').fill(email);page.locator('input[name=service]').check();page.get_by_role('button',name='Отправить тестовую заявку').click();expect(page.get_by_role('status')).to_contain_text('Заявка сохранена')
+            check('s02_handoff_lead_submitted_in_browser',True)
+            manage('platform',['leads_deliver']);confirmation,lead_token=lead_link(sink.messages[-1]);private_values.append(lead_token['token'])
+            page.goto(confirmation);page.get_by_role('button',name='Подтвердить контакт').click();expect(page.get_by_role('status')).to_contain_text('Контакт подтверждён')
+            check('s02_handoff_contact_confirmed_in_browser',True)
+            register(page,email)
+            check('s02_real_browser_identity_code_bff_postgresql_home',True)
+            check('s02_lost_api_commit_response_retries_identical_session_payload',bool(committed_response_lost) and len(session_payload_hashes)==2 and len(set(session_payload_hashes))==1)
+            replay_context=browser.new_context(ignore_https_errors=False)
+            repeated_url,repeated_ref=callback_proofs[0]
+            private_values.extend(v[0] for v in parse_qs(urlsplit(repeated_url).query).values())
+            replay_context.add_cookies([{'name':'__Host-alisa_login','value':repeated_ref,'url':WEB,'httpOnly':True,'secure':True}])
+            replay=replay_context.request.get(repeated_url)
+            check('s02_callback_replay_safe_receipt_no_new_session','ALREADY_HANDLED_OR_EXPIRED' in replay.url and replay_context.request.get(WEB+'/api/account/me').status==401)
+            replay_context.close()
+            check('s02_callback_does_not_retain_code_or_state',page.url==WEB+'/app')
+            with db('platform') as conn:
+                counts=conn.execute('SELECT (SELECT count(*) FROM accounts_customer),(SELECT count(*) FROM accounts_tenant),(SELECT count(*) FROM accounts_membership),(SELECT count(*) FROM accounts_identitylink)').fetchone()
+                check('s02_one_customer_tenant_membership_identity_link',counts==(1,1,1,1),counts=list(counts))
+                check('s02_owner_client_and_no_grants',conn.execute('SELECT role FROM accounts_membership').fetchone()[0]=='OWNER_CLIENT')
+                first=conn.execute('SELECT customer_id,tenant_id FROM accounts_membership').fetchone()
+                check('s02_confirmed_lead_linked_only_after_verified_identity',conn.execute('SELECT count(*) FROM accounts_leadlink').fetchone()[0]==1)
+                check('s02_durable_product_consents',conn.execute('SELECT count(*) FROM accounts_consentrecord').fetchone()[0]==2)
+            with db('identity') as conn:
+                check('s02_stable_uuid_person_and_identity_consents',conn.execute('SELECT count(*) FROM accounts_person').fetchone()[0]==1 and conn.execute('SELECT count(*) FROM accounts_identityconsent').fetchone()[0]==2)
+                check('s02_mail_payload_cleared_after_send',all(not row[0] for row in conn.execute('SELECT encrypted_payload FROM accounts_identitymail WHERE sent_at IS NOT NULL')))
+            cookies=context.cookies();session=next(c for c in cookies if c['name']=='__Host-alisa_session')
+            check('s02_host_only_secure_httponly_lax_product_cookie',session['domain']=='127.0.0.1' and session['secure'] and session['httpOnly'] and session['sameSite']=='Lax')
+            private_values.extend(c['value'] for c in cookies if c['name'].startswith('__Host-'))
+            check('s02_no_bearer_tokens_in_browser_storage',page.evaluate('JSON.stringify(localStorage)+JSON.stringify(sessionStorage)').find('eyJ')==-1)
+            page.reload();expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
+            check('s02_private_home_refresh_keeps_real_profile',page.get_by_text(email,exact=True).is_visible())
+            page.locator('input[name=display_name]').fill('Тестовый пользователь');page.get_by_role('button',name='Сохранить профиль').click();expect(page.locator('input[name=display_name]')).to_have_value('Тестовый пользователь')
+            check('s02_own_profile_persists',True)
+            page.locator('section[aria-label=Магазины]').screenshot(path=str(args.output.with_name('s02-empty-state.png')))
+            # Different person/browser must remain separated even with the same site.
+            second_context=browser.new_context(ignore_https_errors=False);second_page=second_context.new_page()
+            second_email='s02-'+uuid.uuid4().hex[:10]+'@example.invalid';contacts.append(second_email);register(second_page,second_email)
+            with db('platform') as conn:second_id=conn.execute('SELECT id FROM accounts_tenant WHERE id<>%s',[first[1]]).fetchone()[0]
+            reply=page.request.post(WEB+'/api/account/profile',data={'display_name':'bad','tenant_id':str(second_id)},headers={'Origin':WEB})
+            check('s02_tenant_spoof_rejected',reply.status==422)
+            reply=page.request.get(WEB+'/api/account/me?tenant_id='+str(second_id));check('s02_profile_lookup_cannot_select_other_tenant',reply.status==422)
+            check('s02_second_browser_has_distinct_profile',second_page.get_by_text(second_email,exact=True).is_visible() and not second_page.get_by_text(email,exact=True).count())
+            anonymous=browser.new_context(ignore_https_errors=False);anonymous.add_cookies([{'name':'octoport_session','value':'synthetic-foreign-cookie','url':WEB,'secure':True}])
+            check('s02_foreign_cookie_does_not_authorize',anonymous.request.get(WEB+'/api/account/me').status==401);anonymous.close()
+            # A valid identity token for the second confidential RP is not an Alisa session.
+            nonce=secrets.token_urlsafe(24);state=secrets.token_urlsafe(24);verifier=secrets.token_urlsafe(48)
+            challenge=base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
+            authorize=metadata['authorization_endpoint']+'?'+urlencode({'client_id':'s02_probe','redirect_uri':WEB+'/oidc-probe/callback','response_type':'code','scope':'openid email','state':state,'nonce':nonce,'code_challenge':challenge,'code_challenge_method':'S256'})
+            page.goto(authorize);page.locator('button[name=action][value=grant]').click();page.wait_for_url(re.compile('/oidc-probe/callback'))
+            query=parse_qs(urlsplit(page.url).query);check('s02_second_confidential_rp_state_preserved',query.get('state')==[state])
+            code=query['code'][0];private_values.extend([code,state,nonce])
+            data=urlencode({'grant_type':'authorization_code','code':code,'redirect_uri':WEB+'/oidc-probe/callback','code_verifier':verifier}).encode()
+            req=urllib.request.Request(metadata['token_endpoint'],data=data,headers={'Content-Type':'application/x-www-form-urlencoded','Authorization':'Basic '+base64.b64encode(('s02_probe:'+probe_secret).encode()).decode()})
+            with opener.open(req,timeout=8) as r:tokens=json.load(r)
+            keys=request(metadata['jwks_uri'])[1];kid=jwt.get_unverified_header(tokens['id_token'])['kid'];public=jwt.PyJWK.from_dict(next(k for k in keys['keys'] if k['kid']==kid)).key
+            claims=jwt.decode(tokens['id_token'],public,algorithms=['RS256'],audience='s02_probe',issuer=ISSUER);private_values.extend([tokens['id_token'],tokens['access_token']])
+            check('s02_second_confidential_rp_compatible',claims['nonce']==nonce and claims['email']==email)
+            forged=browser.new_context(ignore_https_errors=False);forged.add_cookies([{'name':'__Host-alisa_session','value':tokens['id_token'],'url':WEB,'secure':True,'httpOnly':True}])
+            check('s02_second_rp_token_has_no_product_access',forged.request.get(WEB+'/api/account/me').status==401);forged.close()
+            with db('identity') as conn:check('s02_pairwise_subjects_keep_same_person',conn.execute('SELECT count(DISTINCT id) FROM accounts_subject WHERE person_id=(SELECT id FROM accounts_person WHERE email=%s)',[email]).fetchone()[0]==2)
+            check('s02_foreign_return_to_rejected',page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on','return_to':'https://wrong.example.invalid'},headers={'Origin':WEB}).status==422)
+            # Exercise the REAL BFF validator. Only the disposable TLS proxy
+            # mutates its own fixture token, never a product debug endpoint.
+            token_path=urlsplit(metadata['token_endpoint']).path
+            bad_key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
+            for mode in ['state','issuer','audience','nonce','expiry','signature','pkce']:
+                negative=browser.new_context(ignore_https_errors=False)
+                negative.add_cookies([c for c in context.cookies() if c['domain']=='localhost'])
+                np=negative.new_page();authorizations=[];callbacks=[]
+                np.on('request',lambda r:authorizations.append(r.url) if r.url.startswith(metadata['authorization_endpoint']+'?') else None)
+                np.on('request',lambda r:callbacks.append(r.url) if r.url.startswith(WEB+'/auth/callback?') else None)
+                open_identity(np)
+                values=parse_qs(urlsplit(authorizations[0]).query);values.pop('prompt',None)
+                href=metadata['authorization_endpoint']+'?'+urlencode({k:v[0] for k,v in values.items()})
+                token_mutated=[]
+                def alter_token(path,status,body):
+                    if path!=token_path or status!=200 or mode not in ['issuer','audience','nonce','expiry','signature']:return body
+                    data=json.loads(body);header=jwt.get_unverified_header(data['id_token'])
+                    claims=jwt.decode(data['id_token'],options={'verify_signature':False})
+                    if mode=='issuer':claims['iss']='https://wrong.example.invalid'
+                    if mode=='audience':claims['aud']='s02_probe'
+                    if mode=='nonce':claims['nonce']='wrong-private-fixture-nonce'
+                    if mode=='expiry':claims['exp']=int(time.time())-120
+                    data['id_token']=jwt.encode(claims,bad_key if mode=='signature' else private_key,algorithm='RS256',headers={'kid':header['kid']})
+                    token_mutated.append(True);return json.dumps(data).encode()
+                def alter_request(path,body):
+                    if path!=token_path or mode!='pkce':return body
+                    values=parse_qs(body.decode());values['code_verifier']=['wrong-verifier-'+'x'*40]
+                    token_mutated.append(True);return urlencode({k:v[0] for k,v in values.items()}).encode()
+                proxies[1].response_hook=alter_token;proxies[1].request_hook=alter_request
+                if mode=='state':
+                    def wrong_state(route):
+                        url=urlsplit(route.request.url);query=parse_qs(url.query);query['state']=['wrong-private-fixture-state']
+                        route.continue_(url=url._replace(query=urlencode({k:v[0] for k,v in query.items()})).geturl())
+                    np.route('**/auth/callback?**',wrong_state)
+                try:
+                    np.goto(href);expect(np).to_have_url(re.compile('/login\\?error=AUTH_FAILED'))
+                    check('s02_bff_rejects_'+mode,np.request.get(WEB+'/api/account/me').status==401 and (mode=='state' or bool(token_mutated)))
+                finally:
+                    proxies[1].response_hook=None;proxies[1].request_hook=None
+                    negative.close()
+            with db('platform') as conn:check('s02_rejected_callbacks_create_no_customer_or_tenant',conn.execute('SELECT count(*) FROM accounts_customer').fetchone()[0]==2 and conn.execute('SELECT count(*) FROM accounts_tenant').fetchone()[0]==2)
+            page.goto(WEB+'/app');expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
+            # Logout revokes the server-side product session, not just its cookie.
+            saved=session['value'];page.get_by_role('button',name='Выйти из кабинета').click();expect(page).to_have_url(re.compile('/login'))
+            check('s02_logout_revokes_server_session',request('http://127.0.0.1:18402/api/v1/account/me','POST',{'session_token':saved},{'Authorization':'Bearer '+auth_service})[0]==401)
+            # Repeat login goes through the authority and a fresh email code.
+            open_identity(page)
+            if page.locator('input[name=email]').count():
+                page.locator('input[name=email]').fill(email);page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
+            else:
+                page.locator('form').filter(has=page.locator('button')).locator('button[type=submit]').first.click()
+            expect(page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+            page.locator('input[name=code]').fill(letter(email));page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+            expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
+            with db('platform') as conn:check('s02_repeat_login_preserves_customer_and_tenant',conn.execute('SELECT customer_id,tenant_id FROM accounts_membership WHERE customer_id=%s',[first[0]]).fetchone()==first and conn.execute('SELECT count(*) FROM accounts_customer').fetchone()[0]==2)
+            # Recovery through genuine process restarts retains the same row and cookie.
+            stop(api);api=start('platform');stop(authority);authority=start('identity')
+            for _ in range(50):
+                try:
+                    if request(WEB+'/api/account/me',headers={'Cookie':'__Host-alisa_session='+next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')})[0]==200:break
+                except OSError:pass
+                time.sleep(.1)
+            page.reload();expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
+            check('s02_service_restart_preserves_customer_session',True)
+            # Revocation decisions use the server's account and session rows.
+            current_cookie=next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')
+            def profile_status():
+                return page.request.get(WEB+'/api/account/me').status
+            with db('platform') as conn:
+                conn.execute('UPDATE accounts_customer SET is_active=false WHERE id=%s',[first[0]])
+                check('s02_blocked_customer_session_denied',profile_status()==401)
+                conn.execute('UPDATE accounts_customer SET is_active=true WHERE id=%s',[first[0]])
+                conn.execute("UPDATE accounts_websession SET expires_at=now()-interval '1 second' WHERE token_hash=%s",[hashlib.sha256(current_cookie.encode()).hexdigest()])
+                check('s02_expired_product_session_denied',profile_status()==401)
+                conn.execute("UPDATE accounts_websession SET expires_at=now()+interval '10 minutes' WHERE token_hash=%s",[hashlib.sha256(current_cookie.encode()).hexdigest()])
+            check('s02_own_session_restored_after_owned_fixture_change',profile_status()==200)
+            with db('platform') as conn:
+                conn.execute("UPDATE accounts_websession SET expires_at=now()-interval '1 second' WHERE customer_id<>%s",[first[0]])
+                conn.execute("UPDATE accounts_authflow SET expires_at=now()-interval '1 second' WHERE consumed_at IS NULL")
+            manage('platform',['accounts_cleanup'])
+            with db('platform') as conn:
+                check('s02_cleanup_erases_expired_session_and_flow_blobs',not conn.execute("SELECT 1 FROM accounts_websession WHERE expires_at<=now() AND encrypted_payload<>''").fetchone() and not conn.execute("SELECT 1 FROM accounts_authflow WHERE expires_at<=now() AND encrypted_payload<>''").fetchone())
+                check('s02_cleanup_preserves_active_session',profile_status()==200 and bool(conn.execute('SELECT 1 FROM accounts_websession WHERE token_hash=%s AND encrypted_payload<>\'\'',[hashlib.sha256(current_cookie.encode()).hexdigest()]).fetchone()))
+            policy_output=args.output.with_name('s02-runtime-policies.json')
+            policy_run=subprocess.run([str(py),str(ROOT/'tests/integration/identity_policy_checks.py'),str(policy_output)],
+                env={**env('identity'),'ALISA_IDENTITY_POLICY_TEST_ALLOW':'1'},stdout=logs,stderr=logs,timeout=45)
+            if policy_output.exists():
+                policy_record=json.loads(policy_output.read_text());CASES.extend(policy_record.get('cases',[]))
+            check('s02_actual_runtime_negative_account_policies',policy_run.returncode==0)
+            sink.shutdown();sink.server_close();sink=None
+            manage('identity',['identity_deliver'])
+            with db('identity') as conn:
+                check('s02_smtp_outage_retains_encrypted_pending_mail',bool(conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND error_code='DELIVERY_UNAVAILABLE' AND encrypted_payload<>''").fetchone()))
+                conn.execute('UPDATE accounts_identitymail SET lease_until=NULL WHERE sent_at IS NULL')
+            sink=Sink(('127.0.0.1',18226),SMTP);sink.messages=[];threading.Thread(target=sink.serve_forever,daemon=True).start()
+            manage('identity',['identity_deliver'])
+            with db('identity') as conn:
+                check('s02_smtp_recovery_sends_and_erases_code',len(sink.messages)>=1 and not conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND encrypted_payload<>'' AND expires_at>now()").fetchone())
+            logs.flush();text=(temp/'private-process.log').read_text()
+            check('s02_private_logs_have_no_known_codes_tokens_contacts',all(v not in text for v in [*contacts,*private_values] if v))
+            second_context.close();context.close();browser.close();browser=None
             record['status']='SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE'
             logs.close()
     except Exception as exc:
         record['status']='FAILED';record['error_type']=type(exc).__name__
+        if 'page' in locals():
+            try:record['last_browser_path']=urlsplit(page.url).path
+            except Exception:pass
         tb=exc.__traceback__
         while tb:
             if Path(tb.tb_frame.f_code.co_filename).name=='qualify_identity.py':record['qualification_line']=tb.tb_lineno
@@ -336,6 +370,9 @@ def main():
     finally:
         if browser:
             try:browser.close()
+            except Exception:pass
+        if playwright:
+            try:playwright.stop()
             except Exception:pass
         for p in reversed(PROCESSES):stop(p)
         for proxy in proxies:proxy.shutdown();proxy.server_close()

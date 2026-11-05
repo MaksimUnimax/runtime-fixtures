@@ -7,7 +7,7 @@ from django.db import transaction,DatabaseError
 from django.db.models import Q
 from django.utils import timezone
 from cryptography.fernet import InvalidToken
-from octoport_identity.accounts.models import IdentityMail
+from octoport_identity.accounts.models import IdentityMail,ProtocolCache
 from octoport_identity.protocol.storage import open_sealed
 
 class Command(BaseCommand):
@@ -18,7 +18,10 @@ class Command(BaseCommand):
         except DatabaseError:raise CommandError('Identity mail storage unavailable') from None
     def deliver(self):
         now=timezone.now()
-        Session.objects.filter(expire_date__lt=now).delete()
+        ids=list(Session.objects.filter(expire_date__lt=now).values_list('pk',flat=True)[:1000])
+        Session.objects.filter(pk__in=ids).delete()
+        ids=list(ProtocolCache.objects.filter(expires__lt=now).values_list('pk',flat=True)[:1000])
+        ProtocolCache.objects.filter(pk__in=ids).delete()
         IdentityMail.objects.filter(expires_at__lt=now,sent_at__isnull=True).update(encrypted_payload='',error_code='EXPIRED')
         IdentityMail.objects.filter(expires_at__lt=now-timedelta(days=1)).delete()
         for _ in range(25):

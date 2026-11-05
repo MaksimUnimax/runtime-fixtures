@@ -82,7 +82,7 @@ export async function begin(request:Request){
   const text=await boundedBody(request,2048);const form=new URLSearchParams(text);
   if([...form.keys()].some(k=>!['service','privacy','return_to'].includes(k))||form.getAll('service').length!==1||form.getAll('privacy').length!==1||form.get('service')!=='on'||form.get('privacy')!=='on'||(form.get('return_to')||'/app')!=='/app')return response({code:'INVALID_PAYLOAD'},422);
   const config=await client(),state=oidc.randomState(),nonce=oidc.randomNonce(),verifier=oidc.randomPKCECodeVerifier();
-  const encrypted=await seal({state,nonce,verifier,return_to:'/app'},'alisa-flow','10m');
+  const encrypted=await seal({state,nonce,verifier,session_token:randomBytes(32).toString('base64url'),return_to:'/app'},'alisa-flow','10m');
   const handoff=readCookie(request,HANDOFF_COOKIE);
   const input:AuthFlowInput={encrypted_payload:encrypted,service_consent:true,privacy_consent:true,...(/^[0-9a-f-]{36}$/i.test(handoff)?{handoff_id:handoff}:{})};
   const flow=await accountApi('createFlow',input);if(flow.status!==201||typeof flow.body.flow_ref!=='string')throw new AuthUnavailable();
@@ -96,18 +96,23 @@ export async function callback(request:Request){
   try{
     const ref=readCookie(request,FLOW_COOKIE),incoming=new URL(request.url);
     if(!/^[A-Za-z0-9_-]{43}$/.test(ref)||incoming.searchParams.getAll('code').length!==1||incoming.searchParams.getAll('state').length!==1)throw new Error();
-    const flow=await accountApi('consumeFlow',{flow_ref:ref});if(flow.status!==200||typeof flow.body.encrypted_payload!=='string'||typeof flow.body.flow_id!=='string')throw new Error();
+    const flow=await accountApi('consumeFlow',{flow_ref:ref});
+    if(flow.status===400){target.search='?error=ALREADY_HANDLED_OR_EXPIRED';throw new Error();}
+    if(flow.status!==200||typeof flow.body.encrypted_payload!=='string'||typeof flow.body.flow_id!=='string')throw new Error();
     const {payload}=await jwtDecrypt(flow.body.encrypted_payload,c.key,{issuer:c.origin,audience:'alisa-flow'});
-    if(typeof payload.state!=='string'||typeof payload.nonce!=='string'||typeof payload.verifier!=='string'||payload.return_to!=='/app')throw new Error();
+    if(typeof payload.state!=='string'||typeof payload.nonce!=='string'||typeof payload.verifier!=='string'||typeof payload.session_token!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(payload.session_token)||payload.return_to!=='/app')throw new Error();
     const url=new URL('/auth/callback',c.origin);url.search=incoming.search;
     const tokens=await oidc.authorizationCodeGrant(await client(),url,{expectedState:payload.state,expectedNonce:payload.nonce,pkceCodeVerifier:payload.verifier,idTokenExpected:true});
     const claims=tokens.claims();
     if(!claims||typeof claims.sub!=='string'||typeof claims.email!=='string'||claims.email_verified!==true)throw new Error();
-    const sessionToken=randomBytes(32).toString('base64url');
+    const sessionToken=payload.session_token;
     const encrypted=await seal({access_token:tokens.access_token,id_token:tokens.id_token,token_type:tokens.token_type},'alisa-tokens','1h');
     const input:AuthSessionInput={flow_id:flow.body.flow_id,issuer:c.issuer.origin,client_id:c.clientId,subject:claims.sub,email:claims.email,email_verified:true,
       session_hash:createHash('sha256').update(sessionToken).digest('hex'),encrypted_payload:encrypted};
-    const result=await accountApi('createSession',input);if(result.status!==201)throw new Error();
+    let result;
+    try{result=await accountApi('createSession',input);}
+    catch{result=await accountApi('createSession',input);}
+    if(result.status!==201&&!(result.status===200&&result.body.state==='ALREADY_CREATED'))throw new Error();
     const headers=new Headers({Location:c.origin+'/app','Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
     headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,3600));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));headers.append('Set-Cookie',cookie(HANDOFF_COOKIE,'',0));
     return new Response(null,{status:303,headers});

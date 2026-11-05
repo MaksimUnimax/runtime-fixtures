@@ -1,6 +1,16 @@
 from allauth.account.forms import SignupForm as LibrarySignupForm
+from allauth.account.forms import LoginForm as LibraryLoginForm,RequestLoginCodeForm as LibraryRequestLoginCodeForm
+from allauth.account.adapter import get_adapter
 from django import forms
 from octoport_identity.accounts.models import IdentityConsent
+
+class LoginForm(LibraryLoginForm):
+    def clean_login(self):return get_adapter().clean_email(super().clean_login())
+
+class RequestLoginCodeForm(LibraryRequestLoginCodeForm):
+    def clean_email(self):
+        self.cleaned_data['email']=get_adapter().clean_email(self.cleaned_data['email'])
+        return super().clean_email()
 
 class SignupForm(LibrarySignupForm):
     privacy = forms.BooleanField(label='Согласен на обработку синтетического контакта для входа.')
