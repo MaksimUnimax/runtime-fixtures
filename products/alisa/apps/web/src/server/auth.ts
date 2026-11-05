@@ -2,6 +2,7 @@ import * as oidc from 'openid-client';
 import {EncryptJWT,jwtDecrypt} from 'jose';
 import {createHash,randomBytes} from 'node:crypto';
 import {siteOrigin} from './public';
+import {permittedAuthOrigins} from './auth-origins';
 import type {AuthFlowInput,AuthSessionInput} from '@alisa/contracts';
 
 export const SESSION_COOKIE='__Host-alisa_session';
@@ -28,8 +29,7 @@ function configuration(){
   const origin=new URL(siteOrigin()),issuer=new URL(process.env.ALISA_IDENTITY_ISSUER||'');
   const clientId=process.env.ALISA_WEB_OIDC_CLIENT_ID||'',secret=process.env.ALISA_WEB_OIDC_CLIENT_SECRET||'';
   if(origin.pathname!=='/'||origin.search||origin.hash||origin.username||origin.password||issuer.pathname!=='/'||issuer.search||issuer.hash||issuer.username||issuer.password||!clientId||secret.length<32)throw new AuthUnavailable();
-  if(process.env.ALISA_ENV==='stage'&&(origin.href!=='https://alisa-stage.octoport.ru/'||issuer.href!=='https://id-stage.octoport.ru/'))throw new AuthUnavailable();
-  if(process.env.ALISA_ENV==='dev'&&![origin,issuer].every(u=>['127.0.0.1','localhost'].includes(u.hostname)&&['http:','https:'].includes(u.protocol)))throw new AuthUnavailable();
+  if(!permittedAuthOrigins(process.env.ALISA_ENV,origin,issuer,process.env.ALISA_CANONICAL_SITE_ENABLED==='1'))throw new AuthUnavailable();
   const encoded=process.env.ALISA_WEB_SESSION_KEY||'';
   if(!/^[A-Za-z0-9_-]{43}$/.test(encoded))throw new AuthUnavailable();
   const key=Buffer.from(encoded,'base64url');if(key.length!==32)throw new AuthUnavailable();

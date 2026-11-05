@@ -19,13 +19,22 @@ class Command(BaseCommand):
             if not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}',client_id) or not re.fullmatch(r'[A-Za-z0-9_-]{32,128}',secret) or secret.startswith('REPLACE_') or u.query or u.fragment or u.username or u.password:
                 raise CommandError('Incomplete client configuration')
             expected={'ALISA_WEB_OIDC':'https://alisa-stage.octoport.ru/auth/callback','ALISA_PROBE_OIDC':'https://alisa-stage.octoport.ru/oidc-probe/callback','ALISA_STAFF_OIDC':'https://alisa-admin-stage.octoport.ru/auth/callback'}
+            approved={key:{value} for key,value in expected.items()}
+            if settings.ALISA_ENV=='stage':
+                approved['ALISA_WEB_OIDC'].add('https://alisa.octoport.ru/auth/callback')
+                approved['ALISA_PROBE_OIDC'].add('https://alisa.octoport.ru/oidc-probe/callback')
+                if os.environ.get('ALISA_CANONICAL_SITE_ENABLED')=='1':
+                    expected['ALISA_WEB_OIDC']='https://alisa.octoport.ru/auth/callback'
+                    expected['ALISA_PROBE_OIDC']='https://alisa.octoport.ru/oidc-probe/callback'
             if settings.ALISA_ENV=='stage' and callback!=expected[prefix]:
                 raise CommandError('Unregistered stage callback')
             if settings.ALISA_ENV=='dev' and not (u.scheme in {'http','https'} and u.hostname in {'127.0.0.1','localhost'}):
                 raise CommandError('Dev callback must be loopback')
             existing=Client.objects.filter(pk=client_id).first()
             if existing:
-                if existing.redirect_uris!=callback or not check_password(secret,existing.secret):
+                registered=set(existing.redirect_uris.split())
+                approved_uris=approved[prefix] if settings.ALISA_ENV=='stage' else {callback}
+                if callback not in registered or not registered<=approved_uris or not check_password(secret,existing.secret):
                     raise CommandError('Existing client differs; explicit rotation procedure required')
                 continue
             Client.objects.create(id=client_id,name='Алиса' if prefix=='ALISA_WEB_OIDC' else 'Проверка совместимости',
