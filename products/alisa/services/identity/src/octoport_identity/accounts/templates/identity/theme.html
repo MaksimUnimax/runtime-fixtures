@@ -113,3 +113,6 @@ pre { max-width: 100%; overflow-x: auto; padding: 14px; border-radius: 8px; back
   .brand img { width: 26px; height: 26px; }
   .header-label { max-width: 65px; font-size: 11px; }
 }
+
+/* Authenticator QR artwork uses black modules on a transparent SVG. */
+main img[src^="data:image/svg"] { background: #fff; padding: 12px; border-radius: 8px; }
