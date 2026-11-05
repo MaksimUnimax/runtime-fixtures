@@ -1,0 +1,228 @@
+{
+  "schema": "alisa-qa-run/v1",
+  "run_id": "20261105-TESTER-70ac91e3",
+  "role": "TESTER",
+  "purpose": "C-UE01/S03 intake: ordered-unit economics, optional user cost/tax, exhaustive expense coverage, cancellation/return semantics",
+  "target_build": "20261104-v010-base-batch01",
+  "catalog_hash": "4d99afc39033ed47688c6467e4444a71d1706d4e60dafe20c7366b24acf06e02",
+  "source_catalog_hash": "68a8d913ffc3db9f4a9aa335ab600b26d0724c1ba596fe89a3aa18e58fa54d5a",
+  "decoder_hash": "0b888e90d885ce64763ae4c9e327eb497394936a56c2c7b18909244913ebb7f0",
+  "build_files_readback": {
+    "runtime.py": "b29c4a407512651aa63b7208801bd366ccf46e0b7400601e2e855332eea7b6a4",
+    "matrix_core.py": "0b888e90d885ce64763ae4c9e327eb497394936a56c2c7b18909244913ebb7f0",
+    "scalar_catalog.json": "4d99afc39033ed47688c6467e4444a71d1706d4e60dafe20c7366b24acf06e02",
+    "scalar_source_catalog.json": "68a8d913ffc3db9f4a9aa335ab600b26d0724c1ba596fe89a3aa18e58fa54d5a",
+    "expression_catalog.json": "1f7e533a4778f1143006620c9554d56631247fece9cfac33e7c82e7596b62767",
+    "speech_catalog.json": "00988812e774cbce07a800309d49fd3d6d7d64025bc9b13438004fb6355061bc",
+    "registry.json": "e9fa4b7edce80b931ac187d22cfa204b956857f36f8a47d59790ab2d6a4ceae1",
+    "base_blocks.json": "7b9ae08552d0088e07517496353d20a1a81eba5596e120a7ff0c10e1b8f44067"
+  },
+  "started_at_utc": "2026-11-05T01:18:52.212310+00:00",
+  "finished_at_utc": "2026-11-05T01:29:51.713Z",
+  "evidence_level": "LIVE_PROVIDER",
+  "current_release_acceptance": false,
+  "scenarios": [
+    {
+      "id": "UE-ORDER-01",
+      "question": "Юнитэкономика за {completed_day} по всем товарам на одну заказанную единицу; себестоимость {user_cost}, налог исключить",
+      "expected": "Gross ordered units, separate statuses, all cost coverage and cohort-aware denominator",
+      "actual_safe": {
+        "analytics_postings_quantities_reconcile": true,
+        "analytics_postings_amount_reconcile": true,
+        "all_pages_received": true,
+        "cohort_open": true
+      },
+      "outcome": "PARTIAL"
+    },
+    {
+      "id": "UE-FIN-01",
+      "question": "Все начисленные расходы площадки, включая комиссию, хранение, логистику, эквайринг, прочие услуги и финансовые возвраты",
+      "expected": "All ledger categories retained, no component/control-total double counting, reconciliation",
+      "actual_safe": {
+        "ledger_equals_balance_total": true,
+        "balance_gross_equals_accrual_gross": true,
+        "component_identity_checks": true,
+        "balance_movement_reconciles": true
+      },
+      "outcome": "PASS_FOR_PROVIDER_SNAPSHOT_NOT_COMPLETE_COHORT"
+    },
+    {
+      "id": "UE-ADS-01",
+      "question": "Расходы рекламы за тот же период",
+      "expected": "Separate source, no funding/finance duplication; empty source coverage explicit",
+      "actual_safe": {
+        "response_code": "EMPTY_ROWS",
+        "final_zero_certified": false
+      },
+      "outcome": "PARTIAL"
+    },
+    {
+      "id": "UE-LIFECYCLE-01",
+      "question": "Отмены и возвраты выбранных заказов и логистические возвратные события дня",
+      "expected": "No denominator additions, no Cancellation=>post-purchase-return substitution, no list-price=>financial-debit substitution",
+      "actual_safe": {
+        "order_statuses_checked": true,
+        "logistic_event_type_checked": true,
+        "selected_order_cohort_differs_from_financial_cohort": true,
+        "final_cohort_profit_available": false
+      },
+      "outcome": "PARTIAL"
+    },
+    {
+      "id": "UE-GOLD-01",
+      "expected": "Independent manual synthetic arithmetic and missing/zero/open-cohort variants",
+      "actual_safe": {
+        "script": "verify_intake.py",
+        "status": "PASS",
+        "variants": 8
+      },
+      "outcome": "PASS_OFFLINE_NOT_RUNTIME"
+    }
+  ],
+  "http_calls": 8,
+  "llm_calls": 0,
+  "dialogs_messages": 0,
+  "physical_station_tests": 0,
+  "timings": {
+    "provider_latency_ms_sum": 5303.542,
+    "acquisition_stage_elapsed_ms": [
+      219.291,
+      189.155,
+      4983.078
+    ],
+    "first_provider_start_to_last_provider_finish_seconds": 292.211,
+    "webhook_latency_ms": null,
+    "job_to_ready_ms": null,
+    "ui_latency_ms": null,
+    "report_preparation_elapsed_ms": null,
+    "reason_null": "No Alice UI/webhook/job exercised; authoring completion separately recorded in private report."
+  },
+  "requests": [
+    {
+      "seq": 1,
+      "method": "POST",
+      "path": "/v1/finance/accrual/by-day",
+      "safe_parameters": "authorized_store={SCOPE}; completed_day={DAY}; cursor={CURSOR}; Moscow date bounds for lists",
+      "started_at_utc": "2026-11-05T01:18:52.212310+00:00",
+      "finished_at_utc": "2026-11-05T01:18:52.312534+00:00",
+      "http": 200,
+      "provider_latency_ms": 99.143,
+      "state": "RECEIVED",
+      "response_sha256": "1e46851d2a4b01f3dcac30ad485b1b9a5afe349a73554a92b5a4b7fa6846c665",
+      "safe_response_code": "ACCRUAL_PAGE_COMPLETE"
+    },
+    {
+      "seq": 2,
+      "method": "POST",
+      "path": "/v1/finance/balance",
+      "safe_parameters": "authorized_store={SCOPE}; completed_day={DAY}; cursor={CURSOR}; Moscow date bounds for lists",
+      "started_at_utc": "2026-11-05T01:18:52.324674+00:00",
+      "finished_at_utc": "2026-11-05T01:18:52.415728+00:00",
+      "http": 200,
+      "provider_latency_ms": 90.084,
+      "state": "RECEIVED",
+      "response_sha256": "325bae2c0d1d75162af32100ceb68fda84f1adee67a27994f205b0e031c88f29",
+      "safe_response_code": "FINANCE_CONTROL_RECEIVED"
+    },
+    {
+      "seq": 3,
+      "method": "POST",
+      "path": "/api/client/token",
+      "safe_parameters": "OAuth client_credentials, credential values and token never persisted",
+      "started_at_utc": "2026-11-05T01:20:28.797049+00:00",
+      "finished_at_utc": "2026-11-05T01:20:28.852947+00:00",
+      "http": 200,
+      "provider_latency_ms": 54.95,
+      "state": "RECEIVED",
+      "response_sha256": null,
+      "safe_response_code": "TOKEN_RECEIVED_NOT_SAVED"
+    },
+    {
+      "seq": 4,
+      "method": "GET",
+      "path": "/api/client/statistics/expense/json",
+      "safe_parameters": "authorized_store={SCOPE}; completed_day={DAY}; cursor={CURSOR}; Moscow date bounds for lists",
+      "started_at_utc": "2026-11-05T01:20:28.858972+00:00",
+      "finished_at_utc": "2026-11-05T01:20:28.970699+00:00",
+      "http": 200,
+      "provider_latency_ms": 111.008,
+      "state": "RECEIVED",
+      "response_sha256": "6c45288a5e9d1444ab024fac905b02495e73426d74e22544bbf867e5f4811680",
+      "safe_response_code": "EMPTY_ADS_ROWS"
+    },
+    {
+      "seq": 5,
+      "method": "POST",
+      "path": "/v1/analytics/data",
+      "safe_parameters": "authorized_store={SCOPE}; completed_day={DAY}; cursor={CURSOR}; Moscow date bounds for lists",
+      "started_at_utc": "2026-11-05T01:23:39.440979+00:00",
+      "finished_at_utc": "2026-11-05T01:23:44.102909+00:00",
+      "http": 200,
+      "provider_latency_ms": 4660.668,
+      "state": "RECEIVED",
+      "response_sha256": "0bffa2587f57b6f7b208ff08d819cae54f34b6bcb649393a0fdcdb46e4965824",
+      "safe_response_code": "ORDER_ANALYTICS_RECEIVED"
+    },
+    {
+      "seq": 6,
+      "method": "POST",
+      "path": "/v3/posting/fbo/list",
+      "safe_parameters": "authorized_store={SCOPE}; completed_day={DAY}; cursor={CURSOR}; Moscow date bounds for lists",
+      "started_at_utc": "2026-11-05T01:23:44.110760+00:00",
+      "finished_at_utc": "2026-11-05T01:23:44.221383+00:00",
+      "http": 200,
+      "provider_latency_ms": 109.381,
+      "state": "RECEIVED",
+      "response_sha256": "cdc55dda2d8aee03a00771647154f63f63f3d2b7506c9ad137d37fb2596f3307",
+      "safe_response_code": "FBO_PAGE_COMPLETE"
+    },
+    {
+      "seq": 7,
+      "method": "POST",
+      "path": "/v4/posting/fbs/list",
+      "safe_parameters": "authorized_store={SCOPE}; completed_day={DAY}; cursor={CURSOR}; Moscow date bounds for lists",
+      "started_at_utc": "2026-11-05T01:23:44.228450+00:00",
+      "finished_at_utc": "2026-11-05T01:23:44.341911+00:00",
+      "http": 200,
+      "provider_latency_ms": 112.477,
+      "state": "RECEIVED",
+      "response_sha256": "3e90a93cd9df7abd9501868d92496e351203bc406f686c51c7cb7f8ceb6d0df3",
+      "safe_response_code": "FBS_PAGE_COMPLETE"
+    },
+    {
+      "seq": 8,
+      "method": "POST",
+      "path": "/v1/returns/list",
+      "safe_parameters": "authorized_store={SCOPE}; completed_day={DAY}; cursor={CURSOR}; Moscow date bounds for lists",
+      "started_at_utc": "2026-11-05T01:23:44.347348+00:00",
+      "finished_at_utc": "2026-11-05T01:23:44.413921+00:00",
+      "http": 200,
+      "provider_latency_ms": 65.831,
+      "state": "RECEIVED",
+      "response_sha256": "35052b3968bf1bce0e994cce3a70ca79ac191ed308d417cede767dcfb938c1a3",
+      "safe_response_code": "RETURN_PAGE_COMPLETE"
+    }
+  ],
+  "evidence": {
+    "private_summary": "Owner HTML report; aggregate monetary values stay private",
+    "raw_retention": "Existing lab retention applies; manifest not_after is a declared upper bound, availability can end earlier. No retention policy changed.",
+    "declared_not_after_utc": "2026-11-12T01:18:52.207192+00:00",
+    "raw_data_in_git": false
+  },
+  "raw_data_in_git": false,
+  "platform_changed": false,
+  "runtime_changed": false,
+  "shared_registries_changed": false,
+  "source_readback": "Active release paths confirmed. Scalar/source catalogs observed before acquisition and after; 8 build files identical between post-initial-acquisition baseline and final readback. Not a proof about unmeasured earlier history.",
+  "qa_registry_check": {
+    "status": "PASS",
+    "findings": 27,
+    "candidates": 5,
+    "source_reports": 7,
+    "source_files": 19,
+    "enabled_candidates": 0,
+    "scope": "qa_check.py --check; canonical snapshot only, does not validate intake or production"
+  },
+  "outcome": "PARTIAL",
+  "next_step": "Core author triages C-UE01 amendment; implement general cohort/cost/completeness operators and S03 read contract. Qualify all-date order joins, lifecycle/stock returns, shared-cost allocation and ads completeness, then independent gold and LIVE_DIALOGS retest. No final cohort profit claim for open yesterday cohort."
+}
