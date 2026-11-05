@@ -29,7 +29,8 @@ function configuration(){
   const origin=new URL(siteOrigin()),issuer=new URL(process.env.ALISA_IDENTITY_ISSUER||'');
   const clientId=process.env.ALISA_WEB_OIDC_CLIENT_ID||'',secret=process.env.ALISA_WEB_OIDC_CLIENT_SECRET||'';
   if(origin.pathname!=='/'||origin.search||origin.hash||origin.username||origin.password||issuer.pathname!=='/'||issuer.search||issuer.hash||issuer.username||issuer.password||!clientId||secret.length<32)throw new AuthUnavailable();
-  if(!permittedAuthOrigins(process.env.ALISA_ENV,origin,issuer,process.env.ALISA_CANONICAL_SITE_ENABLED==='1'))throw new AuthUnavailable();
+  const canonicalAuth=process.env.ALISA_CANONICAL_AUTH_ENABLED||'0';
+  if(!['0','1'].includes(canonicalAuth)||!permittedAuthOrigins(process.env.ALISA_ENV,origin,issuer,process.env.ALISA_CANONICAL_SITE_ENABLED==='1',canonicalAuth==='1'))throw new AuthUnavailable();
   const encoded=process.env.ALISA_WEB_SESSION_KEY||'';
   if(!/^[A-Za-z0-9_-]{43}$/.test(encoded))throw new AuthUnavailable();
   const key=Buffer.from(encoded,'base64url');if(key.length!==32)throw new AuthUnavailable();

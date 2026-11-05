@@ -23,6 +23,9 @@ class Command(BaseCommand):
             if settings.ALISA_ENV=='stage':
                 approved['ALISA_WEB_OIDC'].add('https://alisa.octoport.ru/auth/callback')
                 approved['ALISA_PROBE_OIDC'].add('https://alisa.octoport.ru/oidc-probe/callback')
+                approved['ALISA_STAFF_OIDC'].add('https://alisa-admin.octoport.ru/auth/callback')
+                if settings.CANONICAL_AUTH_ENABLED:
+                    expected['ALISA_STAFF_OIDC']='https://alisa-admin.octoport.ru/auth/callback'
                 if os.environ.get('ALISA_CANONICAL_SITE_ENABLED')=='1':
                     expected['ALISA_WEB_OIDC']='https://alisa.octoport.ru/auth/callback'
                     expected['ALISA_PROBE_OIDC']='https://alisa.octoport.ru/oidc-probe/callback'
