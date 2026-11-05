@@ -8,7 +8,18 @@ export const SESSION_COOKIE='__Host-alisa_session';
 export const FLOW_COOKIE='__Host-alisa_login';
 export const HANDOFF_COOKIE='__Host-alisa_handoff';
 export function authEnabled(){return process.env.ALISA_ACCOUNTS_ENABLED==='1'&&['stage','dev'].includes(process.env.ALISA_ENV||'');}
-export class AuthUnavailable extends Error{}
+export class AuthUnavailable extends Error{
+  stage:string;safeCode:string;
+  constructor(stage='configuration',cause?:unknown){
+    super('Authentication temporarily unavailable');this.stage=stage;
+    const code=(cause as {code?:unknown})?.code;
+    this.safeCode=typeof code==='string'&&/^[A-Z0-9_]{1,64}$/.test(code)?code:'UNAVAILABLE';
+  }
+}
+export function reportAuthFailure(error:unknown){
+  const failure=error instanceof AuthUnavailable?error:new AuthUnavailable('protocol',error);
+  console.warn(JSON.stringify({event:'alisa.auth.failure',stage:failure.stage,code:failure.safeCode}));
+}
 export type Profile={customer_id:string;tenant_id:string;email:string;display_name:string;role:'OWNER_CLIENT';access_status:'NOT_PROVISIONED';stores:never[]};
 function configuration(){
   if(!authEnabled())throw new AuthUnavailable();
@@ -38,7 +49,7 @@ export async function accountApi(action:string,data:Record<string,unknown>){
   try{
     const r=await fetch(new URL('/api/v1/'+paths[action],base),{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(data),redirect:'error',cache:'no-store',signal:AbortSignal.timeout(5000)});
     const body=await r.json();if(r.status>=500)throw new AuthUnavailable();return {status:r.status,body};
-  }catch{throw new AuthUnavailable();}
+  }catch(error){throw new AuthUnavailable('platform',error);}
 }
 let clientPromise:Promise<oidc.Configuration>|undefined;
 async function client(){
@@ -57,7 +68,7 @@ async function client(){
         const endpoint=metadata[field];if(typeof endpoint!=='string'||new URL(endpoint).origin!==c.issuer.origin)throw new AuthUnavailable();
       }
       return config;
-    }).catch(()=>{clientPromise=undefined;throw new AuthUnavailable();});
+    }).catch(error=>{clientPromise=undefined;throw new AuthUnavailable('discovery',error);});
   }
   return clientPromise;
 }
@@ -100,7 +111,8 @@ export async function callback(request:Request){
     const headers=new Headers({Location:c.origin+'/app','Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
     headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,3600));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));headers.append('Set-Cookie',cookie(HANDOFF_COOKIE,'',0));
     return new Response(null,{status:303,headers});
-  }catch{
+  }catch(error){
+    reportAuthFailure(error);
     return new Response(null,{status:303,headers:{Location:target.href,'Set-Cookie':cookie(FLOW_COOKIE,'',0),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
   }
 }

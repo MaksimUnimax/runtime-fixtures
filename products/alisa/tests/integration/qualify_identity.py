@@ -152,7 +152,10 @@ def main():
                 check('s02_no_service_cookie_or_data_in_anonymous_html',auth_service not in page.content())
                 check('s02_start_requires_consents',request(WEB+'/auth/start','POST',{}, {'Origin':WEB})[0]==422)
                 def open_identity(page):
-                    page.goto(WEB+'/login');page.locator('input[name=service]').check();page.locator('input[name=privacy]').check();page.get_by_role('button',name='Войти или создать кабинет').click()
+                    page.goto(WEB+'/login');page.locator('input[name=service]').check();page.locator('input[name=privacy]').check()
+                    with page.expect_response(lambda r:r.url==WEB+'/auth/start') as started:
+                        page.get_by_role('button',name='Войти или создать кабинет').click()
+                    check('s02_bff_start_redirects_to_fixed_authority',started.value.status==303,http_status=started.value.status)
                     page.wait_for_url(re.compile(re.escape(ISSUER)+r'/accounts/'))
                 def register(page,email):
                     open_identity(page)
@@ -216,6 +219,48 @@ def main():
                 forged=browser.new_context(ignore_https_errors=False);forged.add_cookies([{'name':'__Host-alisa_session','value':tokens['id_token'],'url':WEB,'secure':True,'httpOnly':True}])
                 check('s02_second_rp_token_has_no_product_access',forged.request.get(WEB+'/api/account/me').status==401);forged.close()
                 with db('identity') as conn:check('s02_pairwise_subjects_keep_same_person',conn.execute('SELECT count(DISTINCT id) FROM accounts_subject WHERE person_id=(SELECT id FROM accounts_person WHERE email=%s)',[email]).fetchone()[0]==2)
+                check('s02_foreign_return_to_rejected',page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on','return_to':'https://wrong.example.invalid'},headers={'Origin':WEB}).status==422)
+                # Exercise the REAL BFF validator. Only the disposable TLS proxy
+                # mutates its own fixture token, never a product debug endpoint.
+                token_path=urlsplit(metadata['token_endpoint']).path
+                bad_key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
+                for mode in ['state','issuer','audience','nonce','expiry','signature','pkce']:
+                    negative=browser.new_context(ignore_https_errors=False)
+                    negative.add_cookies([c for c in context.cookies() if c['domain']=='localhost'])
+                    np=negative.new_page();authorizations=[];callbacks=[]
+                    np.on('request',lambda r:authorizations.append(r.url) if r.url.startswith(metadata['authorization_endpoint']+'?') else None)
+                    np.on('request',lambda r:callbacks.append(r.url) if r.url.startswith(WEB+'/auth/callback?') else None)
+                    open_identity(np)
+                    values=parse_qs(urlsplit(authorizations[0]).query);values.pop('prompt',None)
+                    href=metadata['authorization_endpoint']+'?'+urlencode({k:v[0] for k,v in values.items()})
+                    token_mutated=[]
+                    def alter_token(path,status,body):
+                        if path!=token_path or status!=200 or mode not in ['issuer','audience','nonce','expiry','signature']:return body
+                        data=json.loads(body);header=jwt.get_unverified_header(data['id_token'])
+                        claims=jwt.decode(data['id_token'],options={'verify_signature':False})
+                        if mode=='issuer':claims['iss']='https://wrong.example.invalid'
+                        if mode=='audience':claims['aud']='s02_probe'
+                        if mode=='nonce':claims['nonce']='wrong-private-fixture-nonce'
+                        if mode=='expiry':claims['exp']=int(time.time())-120
+                        data['id_token']=jwt.encode(claims,bad_key if mode=='signature' else private_key,algorithm='RS256',headers={'kid':header['kid']})
+                        token_mutated.append(True);return json.dumps(data).encode()
+                    def alter_request(path,body):
+                        if path!=token_path or mode!='pkce':return body
+                        values=parse_qs(body.decode());values['code_verifier']=['wrong-verifier-'+'x'*40]
+                        token_mutated.append(True);return urlencode({k:v[0] for k,v in values.items()}).encode()
+                    proxies[1].response_hook=alter_token;proxies[1].request_hook=alter_request
+                    if mode=='state':
+                        def wrong_state(route):
+                            url=urlsplit(route.request.url);query=parse_qs(url.query);query['state']=['wrong-private-fixture-state']
+                            route.continue_(url=url._replace(query=urlencode({k:v[0] for k,v in query.items()})).geturl())
+                        np.route('**/auth/callback?**',wrong_state)
+                    try:
+                        np.goto(href);expect(np).to_have_url(re.compile('/login\\?error=AUTH_FAILED'))
+                        check('s02_bff_rejects_'+mode,np.request.get(WEB+'/api/account/me').status==401 and (mode=='state' or bool(token_mutated)))
+                    finally:
+                        proxies[1].response_hook=None;proxies[1].request_hook=None
+                        negative.close()
+                with db('platform') as conn:check('s02_rejected_callbacks_create_no_customer_or_tenant',conn.execute('SELECT count(*) FROM accounts_customer').fetchone()[0]==2 and conn.execute('SELECT count(*) FROM accounts_tenant').fetchone()[0]==2)
                 page.goto(WEB+'/app');expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
                 # Logout revokes the server-side product session, not just its cookie.
                 saved=session['value'];page.get_by_role('button',name='Выйти из кабинета').click();expect(page).to_have_url(re.compile('/login'))
@@ -274,9 +319,20 @@ def main():
     except Exception as exc:
         record['status']='FAILED';record['error_type']=type(exc).__name__
         tb=exc.__traceback__
-        while tb and tb.tb_next:tb=tb.tb_next
+        while tb:
+            if Path(tb.tb_frame.f_code.co_filename).name=='qualify_identity.py':record['qualification_line']=tb.tb_lineno
+            if not tb.tb_next:break
+            tb=tb.tb_next
         if tb:record['error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
         if isinstance(exc,RuntimeError) and str(exc).startswith('CHECK_FAILED:'):record['failed_case']=str(exc).split(':',1)[1]
+        if logs:
+            logs.flush();logs.seek(0);diagnostics=[]
+            for line in logs:
+                if not line.startswith('{'):continue
+                try:item=json.loads(line)
+                except ValueError:continue
+                if item.get('event')=='alisa.auth.failure' and set(item)=={'event','stage','code'}:diagnostics.append(item)
+            record['safe_auth_diagnostics']=diagnostics[-10:]
     finally:
         if browser:
             try:browser.close()

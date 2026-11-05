@@ -35,12 +35,21 @@ class Proxy(http.server.BaseHTTPRequestHandler):
         headers['X-Forwarded-Proto']='https'
         connection=http.client.HTTPConnection('127.0.0.1',self.server.backend,timeout=8)
         try:
-            connection.request(self.command,self.path,self.rfile.read(size) if size else None,headers)
-            response=connection.getresponse();body=response.read();self.send_response(response.status)
+            body=self.rfile.read(size) if size else None
+            hook=getattr(self.server,'request_hook',None)
+            if hook:body=hook(self.path,body)
+            if body is not None:headers['Content-Length']=str(len(body))
+            connection.request(self.command,self.path,body,headers)
+            response=connection.getresponse();body=response.read()
+            hook=getattr(self.server,'response_hook',None)
+            if hook:body=hook(self.path,response.status,body)
+            self.send_response(response.status)
             for key,value in response.getheaders():
                 if key.lower() not in {'connection','transfer-encoding','content-length'}:self.send_header(key,value)
             self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
-        except OSError:self.send_error(503)
+        except OSError:
+            # Browser cancellation must not print a traceback or reflect a URL.
+            self.close_connection=True
         finally:connection.close()
 
 def start_proxy(port,backend,cert,key):
