@@ -1,0 +1,66 @@
+{
+  "schema": "alisa-unit-cancellation-gold/v1",
+  "kind": "SYNTHETIC_NOT_MERCHANT_DATA",
+  "inputs": {
+    "gross_ordered_units": 10,
+    "gross_order_revenue": "10000",
+    "cancelled_units": 2,
+    "cancelled_order_value": "2000",
+    "user_cost_per_product": "250",
+    "non_cogs_costs": {
+      "advertising": "1000",
+      "commission": "3000",
+      "logistics_including_cancelled": "500",
+      "storage": "100",
+      "acquiring": "100"
+    },
+    "tax": "EXCLUDED_BY_USER"
+  },
+  "expected": {
+    "denominator": 10,
+    "net_revenue": "8000",
+    "cogs": "2000",
+    "non_cogs_costs": "4700",
+    "total_expenses": "6700",
+    "result": "1300",
+    "revenue_per_original_unit": "800.00",
+    "cogs_per_original_unit": "200.00",
+    "expense_per_original_unit": "670.00",
+    "result_per_original_unit": "130.00"
+  },
+  "variants": [
+    {
+      "id": "NO_CANCELLATIONS",
+      "cancelled_units": 0,
+      "cancelled_order_value": "0",
+      "expected_cogs": "2500",
+      "expected_result": "2800"
+    },
+    {
+      "id": "ALL_CANCELLED",
+      "cancelled_units": 10,
+      "cancelled_order_value": "10000",
+      "expected_cogs": "0",
+      "expected_result": "-4700"
+    },
+    {
+      "id": "CANCELLATION_VALUE_UNKNOWN",
+      "cancelled_order_value": null,
+      "expected_final_result": null
+    },
+    {
+      "id": "MANDATORY_ADS_UNKNOWN",
+      "advertising": null,
+      "expected_final_result": null
+    }
+  ],
+  "rules": [
+    "Fixed original denominator, never remove cancellation quantity",
+    "No revenue for cancelled orders",
+    "No COGS for cancelled orders",
+    "All incurred advertising/fees including cancellation costs stay unless actual reimbursements qualified",
+    "No guessing cancelled value from average price",
+    "Cost/tax inputs optional but missing quantities/source coverage are not zero",
+    "No mixing selected orders with unrelated financial realizations"
+  ]
+}
