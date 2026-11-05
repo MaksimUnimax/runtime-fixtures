@@ -2,7 +2,7 @@
   "schema": "alisa-template-candidate/v1",
   "template_id": "C-UE01",
   "revision": "period-ordered-units-cancellation-and-ad-overlap-r3",
-  "status": "PRIVATE_DATA_VALIDATED_MANUAL_CALCULATION_NOT_INSTALLED",
+  "status": "BLOCKED_METHOD_VALIDATION",
   "intent": "Средняя юнитэкономика периода на исходно заказанную единицу",
   "period_basis": "One requested calendar period; ordered value for noncancelled units, all recognized platform costs for the period",
   "required_inputs": [
@@ -47,5 +47,17 @@
   "references": [
     "../20261105-TESTER-3c8e502a/TEMPLATE_CANDIDATE.json",
     "../20261105-FIXER-6b72d8a1/README.md"
+  ],
+  "review_note": "See METHODOLOGY_CORRECTION.md. Manual period arithmetic on unlinked order value and financial-day fees is not validated product unit economics.",
+  "unit_profiles": {
+    "owner_order_report": "Fixed original order group; actual vs estimated revenue/cost states explicit; cancelled revenue and COGS excluded, incurred other costs retained",
+    "actual_financial_period": "Sales/costs on consistent financial recognition basis with disclosed shared allocation",
+    "product_forecast": "Unchanged product cost input and explicit tariffs/probabilities; forecast labelled"
+  },
+  "forbidden_claims": [
+    "Allocated COGS per original order is not product cost per unit",
+    "Open noncancelled quantity is not realized quantity",
+    "Same date does not prove order revenue and financial fees belong to same orders",
+    "Changing denominator alone does not validate profit"
   ]
 }
