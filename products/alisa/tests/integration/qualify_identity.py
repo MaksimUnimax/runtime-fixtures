@@ -225,9 +225,9 @@ def main():
                 for width in [320,390,1440]:
                     page.set_viewport_size({'width':width,'height':900})
                     check('s02_identity_'+label+'_layout_'+str(width),page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'))
-                    if width==390:page.screenshot(path=str(output.parent/('s02-identity-'+label+'-mobile.png')),full_page=True)
+                    if width==390:page.screenshot(path=str(args.output.parent/('s02-identity-'+label+'-mobile.png')),full_page=True)
                 page.set_viewport_size(viewport)
-                page.screenshot(path=str(output.parent/('s02-identity-'+label+'-desktop.png')),full_page=True)
+                page.screenshot(path=str(args.output.parent/('s02-identity-'+label+'-desktop.png')),full_page=True)
                 checked_theme_pages.add(label)
             callback_proofs=[]
             def register(page,email):
