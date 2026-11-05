@@ -1,0 +1,51 @@
+{
+  "schema": "alisa-template-candidate/v1",
+  "template_id": "C-UE01",
+  "revision": "period-ordered-units-cancellation-and-ad-overlap-r3",
+  "status": "PRIVATE_DATA_VALIDATED_MANUAL_CALCULATION_NOT_INSTALLED",
+  "intent": "Средняя юнитэкономика периода на исходно заказанную единицу",
+  "period_basis": "One requested calendar period; ordered value for noncancelled units, all recognized platform costs for the period",
+  "required_inputs": [
+    "ordered_units",
+    "ordered_revenue",
+    "cancelled_units",
+    "cancelled_order_value",
+    "all_signed_finance_services",
+    "signed_commission",
+    "signed_return_adjustments",
+    "mandatory_ad_spend_control"
+  ],
+  "optional_user_inputs": {
+    "cogs_per_unit": "If absent: omit COGS explicitly and label result before COGS; never invent cost",
+    "tax": "If absent or excluded: do not calculate tax; label before tax",
+    "own_costs": "Only supplied actual costs; omissions disclosed"
+  },
+  "rules": [
+    "Denominator is every originally ordered unit including cancelled",
+    "Exclude cancelled value from order revenue",
+    "COGS applies to noncancelled quantity only",
+    "Keep all actual non-COGS platform costs including costs incurred on cancelled/returned orders",
+    "Do not filter period financial fees by current order status",
+    "Finance may later contain promotion_with_cost_per_order and pay_per_click: reconcile to Performance and count advertising once",
+    "External Performance report is a control when matching finance ad lines already exist",
+    "No universal finance+external_ads addition; no omission or duplication of unmatched advertising",
+    "Empty/null/missing mandatory source never means zero",
+    "Reconcile complete FBO+FBS ordered quantities and values to analytics",
+    "Use finite Decimal and explicit RUB; decode price as amount/currency when API returns an object",
+    "Period model is not final realized cohort profit; open orders and later financial corrections disclosed",
+    "No per-question Python finance handler; generic row reducers plus scalar expressions"
+  ],
+  "formula": {
+    "net_order_value": "ordered_revenue - cancelled_order_value",
+    "cogs": "(ordered_units - cancelled_units) * supplied_cogs_per_unit",
+    "period_expense": "sum(all signed commission/services/return fee adjustments), normalized as actual expenses and refunds; classify ad overlap before adding any external-only ad spend",
+    "result": "net_order_value - period_expense - included_cogs - supplied_tax - supplied_own_costs",
+    "per_ordered_unit": "result / ordered_units"
+  },
+  "zero_denominator": "Explain undefined; never divide by zero",
+  "installation_gap": "Monetary cancellation projection and C-UE01 worker adapter are not installed; manual source-backed owner result does not close runtime capability",
+  "references": [
+    "../20261105-TESTER-3c8e502a/TEMPLATE_CANDIDATE.json",
+    "../20261105-FIXER-6b72d8a1/README.md"
+  ]
+}
