@@ -1,0 +1,182 @@
+{
+  "record_type": "AL_S03_CI_AUTHOR_QUALIFICATION_PENDING_INDEPENDENT_REVIEW",
+  "status": "AUTHOR_SOURCE_PACKAGE_QUALIFIED_NOT_INSTALLED",
+  "owner_publication_approval": "Explicit user reply Разрешаю after request naming 37 source/test/CI/evidence files in public PR386",
+  "initial_publication": {
+    "source": "774f773049afcc675e3e4ecfebfeaa0693283560",
+    "tree": "b6147de332200ebbfda97393229e073ec554206e",
+    "approved_files": 37,
+    "readback": "Exact tree equals local approved checkpoint 2966210cd53103ca1ef24206e9099d236d016671"
+  },
+  "qualified_candidate": {
+    "source_sha": "d5e338acfec27fd691b68f158dd93e82cbd9a4fe",
+    "source_tree": "878c10dc458a466124e7e00b4b99f7efc05577f1",
+    "artifact": "alisa-d5e338acfec27fd6.tar.gz",
+    "artifact_sha256": "68f868ba3f43b07c094f0e79161abcdc3fb25f51a7eacba10dc990c794484450",
+    "file_hashes_verified": 4393,
+    "links_verified": 42,
+    "cases": {
+      "full_https_browser": 117,
+      "native_staff_core": 44,
+      "regression": 96,
+      "s03_browser_occurrences": 25
+    },
+    "runtime_port": "1",
+    "toolchain": {
+      "python": "3.12.16",
+      "node": "v24.22.1",
+      "pnpm": "10.34.5",
+      "platform": "linux",
+      "architecture": "x86_64"
+    },
+    "manifest_schema_compatibility": {
+      "foundation": [
+        "0001_initial"
+      ],
+      "leads": [
+        "0001_initial",
+        "0002_submission_created_at"
+      ],
+      "platform_accounts": [
+        "0001_initial"
+      ],
+      "identity_accounts": [
+        "0001_initial",
+        "0002_identitymail_protocolcache_identityconsent_subject"
+      ],
+      "platform_staff": [
+        "0001_initial"
+      ],
+      "rollback": "Retain additive schema/data and audit privileges; disable S03 staff capability in platform/admin/identity and restore previous compatible code/config. Preserve S02 accounts. Never reverse migrations over user data."
+    },
+    "acceptance": "AUTHOR_QUALIFIED_NOT_INDEPENDENT_NOT_INSTALLED"
+  },
+  "ci_runs": {
+    "platform": {
+      "id": 41989478073,
+      "conclusion": "success"
+    },
+    "provider": {
+      "id": 41989478067,
+      "conclusion": "success",
+      "merge_source": "731c1d20b0a629b3fb94c12069a5f0ad7a59ed8b",
+      "merge_tree_equals_candidate": true
+    },
+    "documentation": {
+      "id": 41989478070,
+      "conclusion": "success"
+    }
+  },
+  "downloaded_artifacts": {
+    "receipts": {
+      "id": 13398080219,
+      "zip_sha256": "dcf7fc52b6ba7899ea94d9e45ee7d117710c64e6abdafd21530ac76ad4bb246f"
+    },
+    "package": {
+      "id": 13397661013,
+      "zip_sha256": "b52543e11d38624b90d912fae9706da982b49f6a2cdb7ef7a236fea6ad5b71e5"
+    },
+    "provider": {
+      "id": 13397368346,
+      "zip_sha256": "c5d792368343658b5b40d9903efea926d6ada036d50ab676cb0a1f190077d53e"
+    }
+  },
+  "prior_ci_attempts": [
+    {
+      "label": "initial",
+      "source": "774f773049afcc675e3e4ecfebfeaa0693283560",
+      "run_id": 41987617904,
+      "staff_core_status": "PASS",
+      "staff_core_cases": 44,
+      "full_status": "FAILED",
+      "cases": 92,
+      "phase": null,
+      "navigation": [],
+      "cleanup": true,
+      "regression_cases_passed": 96
+    },
+    {
+      "label": "navigation",
+      "source": "9109d89e5a1902a597f1fb744151ea296ac8aeba",
+      "run_id": 41988697728,
+      "staff_core_status": "PASS",
+      "staff_core_cases": 44,
+      "full_status": "FAILED",
+      "cases": 92,
+      "phase": "enroll_totp",
+      "navigation": [
+        {
+          "origin": "admin",
+          "path": "/login",
+          "status": 200
+        },
+        {
+          "origin": "admin",
+          "path": "/auth/start",
+          "status": 303
+        },
+        {
+          "origin": "authority",
+          "path": "/identity/o/authorize",
+          "status": 200
+        },
+        {
+          "origin": "authority",
+          "path": "/accounts/2fa/totp/activate/",
+          "status": 200
+        },
+        {
+          "origin": "authority",
+          "path": "/accounts/2fa/totp/activate/",
+          "status": 302
+        },
+        {
+          "origin": "authority",
+          "path": "/accounts/2fa/recovery-codes/",
+          "status": 302
+        },
+        {
+          "origin": "authority",
+          "path": "/accounts/2fa/reauthenticate/",
+          "status": 200
+        }
+      ],
+      "cleanup": true,
+      "regression_cases_passed": 96
+    }
+  ],
+  "probe_projection_failure": {
+    "run_id": 41987617813,
+    "source": "774f773049afcc675e3e4ecfebfeaa0693283560",
+    "baseline_exit": 1,
+    "reproduced_error": "ModuleNotFoundError: No module named 'octoport_identity.protocol'",
+    "fix": "Copy actual protocol source dependency into isolated provider projection; original and fixed imports reproduced, then provider CI passed."
+  },
+  "browser_harness_correction": {
+    "failure": "Native recovery-code view requires MFA reauthentication after initial TOTP enrollment. Earlier test expected immediate recovery codes.",
+    "fix": "Complete native form, then wait for a new real one-use TOTP before admin login; reuse recovery codes only once. No product policy or verifier relaxed."
+  },
+  "evidence_files": {
+    "AL_S03_FULL_BROWSER_QUALIFICATION_20261105.json": "069e4a43cd6d68f86af06fa56299b5ed4b0df269dc9ae2649bc330ddb77e4c5f",
+    "AL_S03_CORE_CI_QUALIFICATION_20261105.json": "ffb851a1eb5962223d84f9f1baff3c216a7265de8bcca0816baa1456d67d3a55",
+    "AL_S03_REGRESSION_20261105.json": "461782e0bd2a3c87301d415a4a2e58d4ee1c8e5e46b0a809fc92138659baf76c",
+    "AL_S03_PROVIDER_QUALIFICATION_20261105.json": "fcd8e009a9dadd1a824b47f9e48006124e9656c7bd34106f5908586fa18097d9"
+  },
+  "fresh_stage_readback": {
+    "web": "alisa-140150ba526b6c3d",
+    "platform": "alisa-6ae348354b3db0d3",
+    "identity": "alisa-6ae348354b3db0d3",
+    "admin": "alisa-77d0f8ee2643ef65",
+    "all_health_ready": true,
+    "parallel_web_source": "140150ba526b6c3d3b23eab1c880a8722692d75e",
+    "parallel_web_auth_blob_equals_s02": "c03f7a78b47b5979eb2bddd914e0cb7675b5084c",
+    "preserve_web_current": true,
+    "our_stage_mutations": false
+  },
+  "open_acceptance": [
+    "Independent full source/package review",
+    "Exact S03 stage rollout approval after review",
+    "Installed S03 smoke/restart/rollback on actual distinct HTTPS hosts"
+  ],
+  "next_step": "Read-only independent review of source d5e338ac and exact qualified package; preserve current parallel web release during any future S03 installation."
+}

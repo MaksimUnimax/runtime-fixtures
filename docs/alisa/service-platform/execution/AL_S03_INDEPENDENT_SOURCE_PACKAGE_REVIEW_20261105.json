@@ -1,0 +1,57 @@
+{
+  "record_type": "AL_S03_INDEPENDENT_SOURCE_PACKAGE_REVIEW",
+  "recorded_at_utc": "2026-11-05T08:48:01.752Z",
+  "reviewer": {
+    "task": "/root/s03_independent_review",
+    "model": "gpt-6-luna",
+    "mode": "READ_ONLY_SOURCE_PACKAGE_EVIDENCE_NO_WRITES_NO_TESTS"
+  },
+  "verdict": "ACCEPTED_FOR_DECLARED_SOURCE_PACKAGE_SCOPE",
+  "binding": {
+    "source_sha": "d5e338acfec27fd691b68f158dd93e82cbd9a4fe",
+    "tree_sha": "878c10dc458a466124e7e00b4b99f7efc05577f1",
+    "artifact": "alisa-d5e338acfec27fd6.tar.gz",
+    "sha256": "68f868ba3f43b07c094f0e79161abcdc3fb25f51a7eacba10dc990c794484450"
+  },
+  "reviewed": [
+    "native authenticator_used -> current request -> encrypted library code -> signed claims -> separate admin BFF",
+    "fresh email login before passwordless first-factor enrollment; actual native TOTP/recovery proof",
+    "separate cookies/keys/client/service authority; issuer/client/state/nonce/PKCE/audience/signature/expiry",
+    "current product permissions and revision; closed bootstrap and last OWNER",
+    "command receipt/fingerprint; concurrency and transaction lock order",
+    "safe ORM/PostgreSQL append-only audit, additive migration and scoped cleanup"
+  ],
+  "blocking_source_package_findings": [],
+  "considered_and_resolved": [
+    {
+      "hypothesis": "Concurrent authorize GETs might reuse one session proof",
+      "resolution": "IdentityPolicy precedes SessionMiddleware and holds PostgreSQL advisory transaction lock around session read and save. Existing source closes hypothesized race; no runtime change made."
+    }
+  ],
+  "author_evidence_seen": {
+    "https_browser": 117,
+    "native_core": 44,
+    "regression": 96,
+    "provider": 37
+  },
+  "rollback_observation": "Flag-off alone does not erase/revoke active own StaffSession/StaffAuthFlow payloads. Close ingress, disable flags, drain/restart S03 and prove endpoints closed; execute reviewed platform close and identity suspension before old S02 code.",
+  "sql_reviews": {
+    "platform": {
+      "sha256": "d084c24e10df3448431fb55bf9c40a018fe7b91ae2e6374375439b7ecb5efe96",
+      "verdict": "SUITABLE_WITH_DECLARED_INGRESS_DRAIN_SEQUENCE_AND_POSTCONDITIONS"
+    },
+    "identity": {
+      "sha256": "cc059d09e8deecef1652844b8aa4523d473340e6d870380fb7ac97a96e7c1558",
+      "verdict": "SUITABLE_AFTER_EXACTLY_ONE_CLIENT_GUARD_ADDED",
+      "corrected_finding": "Initial script accepted an absent target client. Final requires exactly one Client, blank grant/response types and zero tokens before commit.",
+      "not_removed": "authorization codes in identity protocol cache",
+      "reentry_requirement": "After suspension/drain wait beyond verified native authorization-code TTL (pinned default60sec); preserve id/secret/redirect/Subjects/Persons; restore only authorization_code/code before fresh S03 MFA login."
+    }
+  },
+  "not_accepted": [
+    "S03 installed stage smoke/restart/rollback",
+    "Production readiness",
+    "Any later design-integrated source/package without new qualification and exact binding"
+  ],
+  "follow_on": "Actual host drift to design e820 detected after this review. Preserve this accepted historical verdict; qualify new integrated candidate before stage approval."
+}
