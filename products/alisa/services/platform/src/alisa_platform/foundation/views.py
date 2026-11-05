@@ -42,6 +42,9 @@ def ready(request):
             if not cursor.fetchone():
                 return reply({"code": "SCHEMA_NOT_READY"}, 503)
             cursor.execute("SELECT 1 FROM foundation_foundationprobe LIMIT 1")
+            if settings.LEAD_INTAKE_ENABLED:
+                cursor.execute('SELECT 1 FROM leads_lead LIMIT 1')
+                cursor.execute('SELECT 1 FROM funnel_funnelevent LIMIT 1')
         return reply({"component": "platform", "status": "READY", "runtime": "RUNTIME_NOT_CONNECTED"})
     except DatabaseError:
         return reply({"code": "DATABASE_UNAVAILABLE"}, 503)

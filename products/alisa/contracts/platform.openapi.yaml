@@ -1,10 +1,45 @@
 openapi: 3.1.0
 info:
-  title: Alisa foundation internal API
-  version: 0.0.1
+  title: Alisa platform API
+  version: 0.1.0
 servers:
   - url: http://127.0.0.1:18102
 paths:
+  /api/v1/leads:
+    post:
+      description: CLOSED synthetic-only intake; dedicated BFF bearer; email dedupe and persistent request idempotency; no account or grant
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './lead-intake-v1.json'}
+      responses:
+        '202': {description: Same generic acknowledgement for new, pending and confirmed contacts}
+        '404': {description: Intake disabled or production}
+        '409': {description: Request ID already bound to a different contact}
+        '422': {description: Invalid payload or non-synthetic address}
+        '429': {description: Persistent rate limit}
+        '503': {description: Database unavailable}
+  /api/v1/leads/confirm:
+    post:
+      description: One use, 15 minute TTL, at most 5 failed checks; no authentication session created
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './lead-confirm-v1.json'}
+      responses:
+        '200': {description: Contact confirmed and one server funnel effect}
+        '400': {description: Invalid, expired or already used link}
+        '404': {description: Intake disabled or production}
+  /api/v1/funnel/events:
+    post:
+      description: Only landing.view/demo.opened/cta.clicked with analytics consent; server binds product/environment/release; unknown attribution becomes OTHER and raw query/contact/token is never stored
+      security: [{serviceToken: []}]
+      responses:
+        '202': {description: Recorded once by event ID, or intentionally not tracked without consent}
   /health/live:
     get:
       responses:

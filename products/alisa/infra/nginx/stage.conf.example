@@ -1,8 +1,10 @@
 # Install only after ENV-00 capacity admission and independent SOURCE review.
 # Three separate server blocks; reuse ONLY new Alisa names and own certificate.
+log_format alisa_platform_safe '$time_iso8601 $request_method $uri $status $body_bytes_sent';
 server {
     listen 443 ssl;
     server_name alisa-stage.octoport.ru;
+    access_log /var/log/nginx/alisa-platform-stage.access.log alisa_platform_safe;
     ssl_certificate /etc/letsencrypt/live/alisa-platform-bootstrap/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/alisa-platform-bootstrap/privkey.pem;
     client_max_body_size 1k;

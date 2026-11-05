@@ -1,2 +1,7 @@
-import "@alisa/ui/style.css";
-export default function Layout({children}: {children: React.ReactNode}) {return <html lang="ru"><body>{children}</body></html>;}
+import './site.css';
+import Link from 'next/link';
+import {siteOrigin} from '../server/public';
+import {Tracking} from './tracking';
+export const dynamic='force-dynamic';
+export const metadata={title:{default:'Алиса Маркет — голосовая аналитика Ozon и Wildberries',template:'%s · Алиса Маркет'},description:'Спросите о магазине голосом. Отдельный сервис аналитики Ozon и Wildberries через Яндекс Станцию. Закрытая тестовая версия.',metadataBase:new URL(siteOrigin()),alternates:{canonical:'/'},robots:{index:false,follow:false},referrer:'no-referrer'};
+export default function Layout({children}: {children: React.ReactNode}) {return <html lang="ru"><body><header><Link className="brand" href="/">Алиса Маркет<small>ГОЛОСОВАЯ АНАЛИТИКА МАГАЗИНА</small></Link><nav aria-label="Основная навигация"><Link href="/examples">Примеры</Link><Link className="optional" href="/how-it-works">Как это работает</Link><Link href="/help">Помощь</Link><Link className="pill" href="/join">Тестовая заявка</Link></nav></header>{children}<Tracking/><footer><div className="footer-links"><Link href="/faq">Вопросы</Link><Link href="/pricing">Тариф</Link><Link href="/contacts">Контакты</Link><Link href="/privacy">Данные</Link><Link href="/terms">Условия</Link><Link href="/consents">Согласия</Link><Link href="/login">Вход</Link></div><p>Алиса Маркет · CLOSED · Не расширение для ИИ-чатов. Закрытая тестовая среда: реальные контакты и платежи не принимаются.</p></footer></body></html>;}
