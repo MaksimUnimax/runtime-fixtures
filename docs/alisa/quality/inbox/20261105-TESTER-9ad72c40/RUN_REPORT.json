@@ -1,0 +1,245 @@
+{
+  "schema": "alisa-qa-run/v1",
+  "run_id": "20261105-TESTER-9ad72c40",
+  "role": "TESTER",
+  "purpose": "Qualify mandatory advertising for expenses per ordered unit; investigate empty legacy endpoint",
+  "target_build": "20261104-v010-base-batch01",
+  "catalog_hash": "4d99afc39033ed47688c6467e4444a71d1706d4e60dafe20c7366b24acf06e02",
+  "source_catalog_hash": "68a8d913ffc3db9f4a9aa335ab600b26d0724c1ba596fe89a3aa18e58fa54d5a",
+  "started_at_utc": "2026-11-05T01:39:31.357883+00:00",
+  "finished_at_utc": "2026-11-05T01:43:49.997394+00:00",
+  "evidence_level": "LIVE_PROVIDER",
+  "scenarios": [
+    {
+      "id": "ADS-SCOPE",
+      "outcome": "PASS_OBSERVED_SCOPE",
+      "actual_safe": "Auth works; complete campaign inventory; CPO shares Seller order identities"
+    },
+    {
+      "id": "ADS-EMPTY",
+      "outcome": "REPRODUCED_SOURCE_MISMATCH",
+      "actual_safe": "Legacy JSON empty; explicit campaign IDs empty; CSV header only; same-period daily has spend. Provider internal reason unknown"
+    },
+    {
+      "id": "ADS-CONTROL",
+      "outcome": "PASS",
+      "actual_safe": "Unique campaign/date rows, valid Decimal/date, daily CPO equals all-goods detailed CPO; selected rows empty and numeric overExpenses zero. No double counting"
+    },
+    {
+      "id": "UNIT-PERIOD",
+      "outcome": "PASS_ARITHMETIC_NOT_COHORT_FINAL",
+      "actual_safe": "All recorded period fees + mandatory ads + applied cost input, divided by gross ordered units"
+    },
+    {
+      "id": "EMPTY-REASON",
+      "outcome": "REQUIREMENT_NOT_RUNTIME_RETESTED",
+      "actual_safe": "Reason/source/missing metric/next action required; unknown reason stated honestly"
+    },
+    {
+      "id": "GOLD",
+      "outcome": "PASS_OFFLINE_NOT_RUNTIME",
+      "actual_safe": "Manual synthetic expense arithmetic and mandatory advertising contract"
+    }
+  ],
+  "http_calls": 14,
+  "prior_http_calls": 8,
+  "combined_http_calls": 22,
+  "llm_calls": 0,
+  "dialogs_messages": 0,
+  "timings": {
+    "provider_latency_ms_sum": 2078.143,
+    "webhook_ms": null,
+    "job_to_ready_ms": null,
+    "ui_ms": null
+  },
+  "requests": [
+    {
+      "seq": 1,
+      "operation": "ozon_ads_token",
+      "method": "POST",
+      "path": "/api/client/token",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:39:31.364125+00:00",
+      "finished_at_utc": "2026-11-05T01:39:31.421480+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 55.772,
+      "response_sha256": null
+    },
+    {
+      "seq": 2,
+      "operation": "ozon_ads_campaigns",
+      "method": "GET",
+      "path": "/api/client/campaign",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:39:31.437719+00:00",
+      "finished_at_utc": "2026-11-05T01:39:31.721014+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 282.706,
+      "response_sha256": "829dd28a3c0f97e503e733931e4861c98a81d23efd1d5f7492402006b2c44f8b"
+    },
+    {
+      "seq": 3,
+      "operation": "ozon_ads_daily",
+      "method": "GET",
+      "path": "/api/client/statistics/daily/json",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:39:31.748357+00:00",
+      "finished_at_utc": "2026-11-05T01:39:32.088237+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 339.333,
+      "response_sha256": "1d191c53a9317d8bb307ca5e12df4dadf690556070b370e72dfeab9fc76536cd"
+    },
+    {
+      "seq": 4,
+      "operation": "ozon_ads_allsku_report",
+      "method": "GET",
+      "path": "/api/client/statistics/all_sku_promo/orders/generate/json",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:39:32.095729+00:00",
+      "finished_at_utc": "2026-11-05T01:39:32.237200+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 140.671,
+      "response_sha256": "d4404bdd527ea2921ca4bb384100d93f3fb25cf4f9b28e5108ca3b569e9b44dc"
+    },
+    {
+      "seq": 5,
+      "operation": "ozon_ads_token",
+      "method": "POST",
+      "path": "/api/client/token",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:41:49.741721+00:00",
+      "finished_at_utc": "2026-11-05T01:41:49.798160+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 55.666,
+      "response_sha256": null
+    },
+    {
+      "seq": 6,
+      "operation": "ozon_ads_job_status",
+      "method": "GET",
+      "path": "/api/client/statistics/{JOB_UUID}",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:41:49.805959+00:00",
+      "finished_at_utc": "2026-11-05T01:41:49.914704+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 108.023,
+      "response_sha256": "a0336fc8038eb1c7d4e0609297c849cc84d17d9572b3906b6d25ccacbe25ce54"
+    },
+    {
+      "seq": 7,
+      "operation": "ozon_ads_allsku_download",
+      "method": "GET",
+      "path": "/api/client/statistics/report",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:41:49.921954+00:00",
+      "finished_at_utc": "2026-11-05T01:41:50.113905+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 191.026,
+      "response_sha256": "7e3b63ab587d152e0de871dd9371c348f8c34edcfa6e40158270736c9f114b20"
+    },
+    {
+      "seq": 8,
+      "operation": "ozon_ads_selected_report",
+      "method": "POST",
+      "path": "/api/client/statistic/orders/generate/json",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:41:50.121555+00:00",
+      "finished_at_utc": "2026-11-05T01:41:50.334369+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 211.695,
+      "response_sha256": "5ecebc5a90129169957082da8166e05ab1da7bbfc5cdbb5372e1add3359305ec"
+    },
+    {
+      "seq": 9,
+      "operation": "ozon_ads_token",
+      "method": "POST",
+      "path": "/api/client/token",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:42:41.370223+00:00",
+      "finished_at_utc": "2026-11-05T01:42:41.434296+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 62.711,
+      "response_sha256": null
+    },
+    {
+      "seq": 10,
+      "operation": "ozon_ads_selected_status",
+      "method": "GET",
+      "path": "/api/client/statistics/{JOB_UUID}",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:42:41.440195+00:00",
+      "finished_at_utc": "2026-11-05T01:42:41.535135+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 94.116,
+      "response_sha256": "85480aaa391db31f799b698a5d36c5ccfe33a85e456cbb127ddc74befee7ad1e"
+    },
+    {
+      "seq": 11,
+      "operation": "ozon_ads_selected_download",
+      "method": "GET",
+      "path": "/api/client/statistics/report",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:42:41.539887+00:00",
+      "finished_at_utc": "2026-11-05T01:42:41.734720+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 194.004,
+      "response_sha256": "6cf7e412fba5df36b012c68ac5243e77829de92100f57622f7a19026257ad399"
+    },
+    {
+      "seq": 12,
+      "operation": "ozon_ads_token",
+      "method": "POST",
+      "path": "/api/client/token",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:43:49.600009+00:00",
+      "finished_at_utc": "2026-11-05T01:43:49.656225+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 55.21,
+      "response_sha256": null
+    },
+    {
+      "seq": 13,
+      "operation": "ozon_ads_expense_explicit_ids",
+      "method": "GET",
+      "path": "/api/client/statistics/expense/json",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:43:49.685548+00:00",
+      "finished_at_utc": "2026-11-05T01:43:49.847701+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 161.254,
+      "response_sha256": "6c45288a5e9d1444ab024fac905b02495e73426d74e22544bbf867e5f4811680"
+    },
+    {
+      "seq": 14,
+      "operation": "ozon_ads_expense_csv",
+      "method": "GET",
+      "path": "/api/client/statistics/expense",
+      "safe_parameters": "Authorized account; completed day; private campaign/job identifiers omitted",
+      "started_at_utc": "2026-11-05T01:43:49.864976+00:00",
+      "finished_at_utc": "2026-11-05T01:43:49.992233+00:00",
+      "http": 200,
+      "state": "RECEIVED",
+      "provider_latency_ms": 125.956,
+      "response_sha256": "6441280d4106a0b49713724ba3b15f69c76b89ef04ff882198c3c85074a0f287"
+    }
+  ],
+  "raw_data_in_git": false,
+  "platform_changed": false,
+  "runtime_changed": false,
+  "current_release_acceptance": false,
+  "outcome": "PARTIAL",
+  "next_step": "Core author triages new daily ad_spend source binding and reason contract, preserving bonus/prepayment distinction; independent LIVE_DIALOGS retest of exact version."
+}
