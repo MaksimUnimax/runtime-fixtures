@@ -1,0 +1,269 @@
+{
+  "schema": "alisa-qa-run/v1",
+  "run_id": "20261105-TESTER-3c8e502a",
+  "role": "TESTER",
+  "purpose": "Owner-ordered fresh requests and corrected cancellation policy; reject changing bases/unqualified mandatory advertising",
+  "target_build": "Матрица 0.10, базовый пакет 1; 20261105-batch02-r1",
+  "catalog_hash": "UNKNOWN_RDC_OFFLINE",
+  "started_at_utc": "2026-11-05T02:10:58.323Z",
+  "started_at_note": "First absolute-day submission preceded first instrumented status read; exact start not measured.",
+  "finished_at_utc": "2026-11-05T02:26:05.275Z",
+  "evidence_level": "LIVE_DIALOGS",
+  "scenarios": [
+    {
+      "id": "ABSOLUTE_DAY",
+      "expected": "One requested calendar day",
+      "actual_safe": "Returned month-to-date; excluded from economics",
+      "outcome": "FAIL",
+      "finding": "QA-20261105-TESTER-3c8e502b"
+    },
+    {
+      "id": "YESTERDAY_ORDERS",
+      "expected": "Requested previous day, count and gross amount",
+      "actual_safe": "Correct single day; source result read; monetary values private",
+      "outcome": "PASS_FOR_CONSOLE_READBACK"
+    },
+    {
+      "id": "DAY_FINANCE",
+      "actual_safe": "Financial day readback received; gross income/commission/services/control reconcile in private report; not substituted for order revenue",
+      "outcome": "PASS_FOR_CONSOLE_READBACK"
+    },
+    {
+      "id": "MANDATORY_ADVERTISING",
+      "actual_safe": "Legacy source returned zero again; inconsistent with prior independently controlled daily/CPO evidence for same day; zero rejected",
+      "outcome": "FAIL",
+      "finding": "QA-20261105-TESTER-9ad72c41"
+    },
+    {
+      "id": "CANCELLATION_METRIC",
+      "actual_safe": "PLATFORM_METRIC_NOT_ENABLED; no human source-specific explanation/next action",
+      "outcome": "CAPABILITY_GAP_AND_ERROR_MESSAGE_FAIL",
+      "findings": [
+        "OZCP-003",
+        "QA-20261105-TESTER-70ac9201"
+      ]
+    },
+    {
+      "id": "S02_POSTINGS",
+      "actual_safe": "All voice pages read; count of all status units equals order count; cancelled quantity observable; no cancelled-order monetary total exposed",
+      "outcome": "PARTIAL"
+    },
+    {
+      "id": "OWNER_POLICY",
+      "actual_safe": "Fixed gross denominator; cancelled revenue and COGS excluded; all incurred non-COGS including cancellation costs retained",
+      "outcome": "SYNTHETIC_GOLD_PASS_NOT_RUNTIME"
+    },
+    {
+      "id": "ACCESS",
+      "actual_safe": "Alisa RDC offline; health 200; no existing trusted SSH route recovered; active UI diagnostics observed",
+      "outcome": "BLOCKED_DIRECT_FRESH_COLLECTOR"
+    }
+  ],
+  "ui_messages": 19,
+  "report_requests": 6,
+  "status_reads": 9,
+  "pagination_reads": 3,
+  "diagnostic_reads": 1,
+  "http_calls": null,
+  "llm_calls": null,
+  "timing_policy": "UI elapsed is end-to-end UI observation, never provider latency. Missing measures null. Early status bounds include intermediate work.",
+  "ui_requests": [
+    {
+      "seq": 1,
+      "counter": 2,
+      "query": "сводка заказов за 4 ноября 2026 на Озоне",
+      "started_at_utc": null,
+      "observed_at_utc": null,
+      "ui_elapsed_ms": null,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 2,
+      "counter": 3,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:10:58.323Z",
+      "observed_at_utc": "2026-11-05T02:11:28.998Z",
+      "ui_elapsed_ms": null,
+      "ui_upper_bound_ms": 30675,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 3,
+      "counter": 4,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:12:29.282Z",
+      "observed_at_utc": "2026-11-05T02:14:22.256Z",
+      "ui_elapsed_ms": null,
+      "ui_upper_bound_ms": 112974,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 4,
+      "counter": 5,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:14:36.673Z",
+      "observed_at_utc": "2026-11-05T02:14:37.604Z",
+      "ui_elapsed_ms": 931,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "WRONG_PERIOD_MONTH_TO_DATE"
+    },
+    {
+      "seq": 5,
+      "counter": 6,
+      "query": "сводка заказов за вчера на Озоне",
+      "started_at_utc": "2026-11-05T02:15:42.034Z",
+      "observed_at_utc": "2026-11-05T02:15:43.556Z",
+      "ui_elapsed_ms": 1522,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 6,
+      "counter": 7,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:16:36.117Z",
+      "observed_at_utc": "2026-11-05T02:16:37.310Z",
+      "ui_elapsed_ms": 1193,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 7,
+      "counter": 8,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:17:34.078Z",
+      "observed_at_utc": "2026-11-05T02:17:36.063Z",
+      "ui_elapsed_ms": 1985,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "DAY_ORDER_REPORT"
+    },
+    {
+      "seq": 8,
+      "counter": 9,
+      "query": "финансовая сводка за вчера на Озоне",
+      "started_at_utc": "2026-11-05T02:18:27.598Z",
+      "observed_at_utc": "2026-11-05T02:18:28.837Z",
+      "ui_elapsed_ms": 1239,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 9,
+      "counter": 10,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:18:44.284Z",
+      "observed_at_utc": "2026-11-05T02:18:45.217Z",
+      "ui_elapsed_ms": 933,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "DAY_FINANCE_REPORT"
+    },
+    {
+      "seq": 10,
+      "counter": 11,
+      "query": "расход на рекламу за вчера на Озоне",
+      "started_at_utc": "2026-11-05T02:18:58.456Z",
+      "observed_at_utc": "2026-11-05T02:19:00.227Z",
+      "ui_elapsed_ms": 1771,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 11,
+      "counter": 12,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:20:09.972Z",
+      "observed_at_utc": "2026-11-05T02:20:11.223Z",
+      "ui_elapsed_ms": 1251,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "ADVERTISING_ZERO_REJECTED"
+    },
+    {
+      "seq": 12,
+      "counter": 13,
+      "query": "сумма и количество отменённых товаров за вчера на Озоне",
+      "started_at_utc": "2026-11-05T02:20:31.022Z",
+      "observed_at_utc": "2026-11-05T02:20:32.436Z",
+      "ui_elapsed_ms": 1414,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 13,
+      "counter": 14,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:21:29.879Z",
+      "observed_at_utc": "2026-11-05T02:21:31.252Z",
+      "ui_elapsed_ms": 1373,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "PLATFORM_METRIC_NOT_ENABLED"
+    },
+    {
+      "seq": 14,
+      "counter": 15,
+      "query": "диагностика аналитики",
+      "started_at_utc": "2026-11-05T02:22:47.957Z",
+      "observed_at_utc": "2026-11-05T02:22:49.390Z",
+      "ui_elapsed_ms": 1433,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "BASE_BATCH02_DIAGNOSTIC"
+    },
+    {
+      "seq": 15,
+      "counter": 16,
+      "query": "метаданные отправлений за вчера на Озоне",
+      "started_at_utc": "2026-11-05T02:24:06.909Z",
+      "observed_at_utc": "2026-11-05T02:24:08.616Z",
+      "ui_elapsed_ms": 1707,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "QUEUED_OR_RATE_WAIT"
+    },
+    {
+      "seq": 16,
+      "counter": 17,
+      "query": "результат",
+      "started_at_utc": "2026-11-05T02:25:22.560Z",
+      "observed_at_utc": "2026-11-05T02:25:23.731Z",
+      "ui_elapsed_ms": 1171,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "POSTING_PAGE_1"
+    },
+    {
+      "seq": 17,
+      "counter": 18,
+      "query": "дальше",
+      "started_at_utc": "2026-11-05T02:26:01.916Z",
+      "observed_at_utc": "2026-11-05T02:26:03.113Z",
+      "ui_elapsed_ms": 1197,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "POSTING_PAGE_2"
+    },
+    {
+      "seq": 18,
+      "counter": 19,
+      "query": "дальше",
+      "started_at_utc": "2026-11-05T02:26:03.113Z",
+      "observed_at_utc": "2026-11-05T02:26:04.148Z",
+      "ui_elapsed_ms": 1035,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "POSTING_PAGE_3"
+    },
+    {
+      "seq": 19,
+      "counter": 20,
+      "query": "дальше",
+      "started_at_utc": "2026-11-05T02:26:04.148Z",
+      "observed_at_utc": "2026-11-05T02:26:05.275Z",
+      "ui_elapsed_ms": 1127,
+      "ui_upper_bound_ms": null,
+      "safe_response_code": "POSTING_PAGE_4_FINAL"
+    }
+  ],
+  "raw_data_in_git": false,
+  "platform_changed": false,
+  "runtime_changed": false,
+  "shared_registries_changed": false,
+  "current_release_acceptance": false,
+  "outcome": "BLOCKED",
+  "next_step": "Restore existing Alisa RDC connection; execute approved fresh daily advertising and cancellation amount queries under ledger. Author integrates daily ad_spend binding, cancellation money projection and explained errors. Do not publish usable economics until required sources qualify. Do not replace a period-per-ordered-unit request with an all-date-cohort requirement."
+}
