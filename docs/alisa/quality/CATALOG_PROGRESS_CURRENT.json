@@ -1,0 +1,68 @@
+{
+  "schema": "alisa-catalog-progress/v1",
+  "observed_utc": "2026-11-05T06:23:21.151086+00:00",
+  "counting_unit": "One declared metric, summary, formula, dataset view or help definition. Synonyms, platform variants, API requests and tests are not additional definitions.",
+  "active_release": "20261105-v010-dialogue-fixes-r1",
+  "active_manifest_sha256": "cbf16b0488801eb692b3402d117707c51819c6bf07175e6f84999ec1091e3c16",
+  "candidate_release": "20261105-v010-matrix-join-r1",
+  "candidate_manifest_sha256": "27c03b86db8b0b7f7b3ba871e464971004c0fe3dba0f9e49c6abbc83dacef09d",
+  "implemented_total": 82,
+  "enabled_total": 69,
+  "implemented_not_enabled": 13,
+  "breakdown": {
+    "primary_scalar": 42,
+    "base_summaries": 15,
+    "base_event_reports": 2,
+    "derived_formulas": 6,
+    "dataset_views_implemented": 16,
+    "dataset_views_enabled": 3,
+    "help": 1
+  },
+  "enabled_dataset_views": ["product_registry", "offer_prices", "posting_metadata"],
+  "enabled_dataset_platform_variants": 5,
+  "implemented_not_enabled_groups": {
+    "B05_four_projections": ["accrual_items", "accrual_days", "accrual_items_days", "accrual_price_lines"],
+    "WB_four_campaign_views": ["wb_active_ads", "wb_campaign_inventory", "wb_active_ads_totals", "wb_supported_ads"],
+    "five_payment_join_views": ["realization_payment_lines", "realization_payment_totals", "realization_payment_days", "realization_payment_items", "realization_payment_items_days"]
+  },
+  "families": {
+    "planned_business": 16,
+    "planned_service": 3,
+    "with_enabled_subset": 17,
+    "without_enabled_subset": ["B13", "S03"],
+    "warning": "Working subset does not mean complete coverage of all marketplaces, axes and granularities. Family count is not template-definition count."
+  },
+  "remaining_functional_work_outside_implemented_count": [
+    "S03: versioned cost and own-expense input integration",
+    "C-UE01: completed calculation and report, including explicit omissions",
+    "Ozon physical redemption event source",
+    "Ozon physical return event source",
+    "Ozon B13 advertising counter source",
+    "S01 verified cross-market product mapping"
+  ],
+  "evidence_changes_this_pass": {
+    "new_template_definitions": 0,
+    "newly_installed_definitions": 0,
+    "payment_join_views_live_sample_checked": 5,
+    "accrual_days_independently_recomputed": 2,
+    "tester_metadata_rows_checked": 27,
+    "new_readonly_http": 16,
+    "http200": 16,
+    "wb_requested_campaigns": 21,
+    "wb_returned_campaigns": 18,
+    "wb_missing_campaigns": 3
+  },
+  "tester": {
+    "N06": "VERIFIED",
+    "N08": "VERIFIED",
+    "N09_OZCP001": "VERIFIED",
+    "latest_retest_partial": 2,
+    "previous_partial": 7,
+    "previous_skip": 2,
+    "numeric_followup": "SAME_API_INDEPENDENT_ALGORITHM_MATCH; STATUS_ONLY_DIFF; REVIEW_PENDING",
+    "original_outcomes_rewritten": false
+  },
+  "enabled_is_not_independent_numeric_acceptance": true,
+  "count_script": "/opt/alice-market/qualification/20261105-join-numeric-q01/catalog_inventory.py",
+  "next_step": "Prepare exact bounded activation of qualified B05/join; keep incomplete WB fullstats disabled; return numeric reconciliation to tester."
+}
