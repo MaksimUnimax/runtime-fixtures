@@ -1,0 +1,149 @@
+{
+  "record_type": "ALISA_MFA_REAL_OWNER_ACCESS",
+  "status": "INSTALLED_FORM_AND_OWNER_ROLE_ACCEPTED_MANUAL_MFA_PENDING",
+  "source_sha": "b8a5d56e2e132ce5cd3f411587f24af5477f4876",
+  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/392",
+  "artifact_sha256": "40bfa3fe6455bb3c067b04a3a5c888adfb948a6fb4290bd178a37ce49d666453",
+  "qualification": {
+    "source_unit": {
+      "passed": 62,
+      "total": 62
+    },
+    "postgres_browser": {
+      "passed": 96,
+      "total": 96
+    },
+    "https_identity_bff_cabinet_staff": {
+      "passed": 147,
+      "total": 147
+    },
+    "open_registration": {
+      "passed": 130,
+      "total": 130
+    },
+    "runtime_policy_subset": {
+      "passed": 17,
+      "total": 17
+    },
+    "staff_native_core": {
+      "passed": 59,
+      "total": 59
+    },
+    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42025966499",
+    "identity_probe_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42025966647",
+    "documentation_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42025966471",
+    "scope": "Disposable synthetic qualification; not the real owner's manual factor/login acceptance"
+  },
+  "independent_source_review": {
+    "status": "PASS_SOURCE_REVIEW",
+    "source_sha": "b8a5d56e2e132ce5cd3f411587f24af5477f4876",
+    "reviewer": "registration_review",
+    "scope": "Native MFA templates and closed one-time initial owner handover",
+    "live_preflight_required": true
+  },
+  "installation": {
+    "record_type": "INSTALLED_MFA_ENROLLMENT_UI",
+    "status": "PASS",
+    "source_sha": "b8a5d56e2e132ce5cd3f411587f24af5477f4876",
+    "artifact_sha256": "40bfa3fe6455bb3c067b04a3a5c888adfb948a6fb4290bd178a37ce49d666453",
+    "identity_release": "alisa-b8a5d56e2e132ce5",
+    "web_platform_release": "alisa-0f22ffbc3cd17bdb",
+    "admin_release": "alisa-3e91b1aa5d405d0e",
+    "migrations_applied": [],
+    "identity_only_restarted": true,
+    "protected_runtime_preserved": true,
+    "no_account_or_factor_mutation": true,
+    "finished_utc": "2026-11-05T12:31:45.985446+00:00"
+  },
+  "owner_handover": {
+    "record_type": "EXPLICIT_INITIAL_REAL_OWNER_HANDOVER",
+    "source_sha": "b8a5d56e2e132ce5cd3f411587f24af5477f4876",
+    "status": "PASS_ROLE_HANDOVER",
+    "user_factor_read_or_created": false,
+    "operator_minted_staff_session": false,
+    "single_initial_owner_verified": true,
+    "old_owner_synthetic_identity_verified": true,
+    "target_active_verified_primary_contact_verified": true,
+    "authority_product_client_verified": true,
+    "customer_state_before": "738c4f74bb83ce90d99410d715c567789120d6565af0a1fdd9bdc3d102ed93e0",
+    "factor_count_before": 0,
+    "phase": "FINAL_READBACK_PASS",
+    "checked_utc": "2026-11-05T12:39:23.897547+00:00",
+    "handover_command_result": "OWNER_HANDOVER_APPLIED",
+    "active_owner_count": 1,
+    "same_owner_member_id_preserved": true,
+    "owner_revision_before": 1,
+    "owner_revision_after": 2,
+    "verified_real_person_admin_binding": true,
+    "old_staff_sessions_revoked_and_cleared": true,
+    "audit_event_count": 1,
+    "ordinary_customer_state_preserved": true,
+    "factor_count_after": 0,
+    "user_totp_or_other_factor_is_enrolled": false,
+    "native_owner_sessions_observed": 0,
+    "manual_owner_login_status": "WAITING_FOR_USER_FACTOR_SETUP",
+    "no_staff_session_or_factor_minted_by_operator": true
+  },
+  "installed_readback": {
+    "record_type": "INSTALLED_MFA_OWNER_ACCESS_READBACK",
+    "status": "PASS",
+    "checked_utc": "2026-11-05T12:41:11.032403+00:00",
+    "source_sha": "b8a5d56e2e132ce5cd3f411587f24af5477f4876",
+    "template": {
+      "checks": {
+        "project_override_loaded": true,
+        "setup_key_explicit": true,
+        "setup_key_readonly_and_not_submitted": true,
+        "code_six_digit_label": true,
+        "code_six_digit_pattern": true,
+        "code_maxlength_six": true,
+        "native_action": true,
+        "csrf_present": true,
+        "native_errors_preserved": true,
+        "qr_native_context": true,
+        "clear_gate_label": true,
+        "staff_mfa_policy_enabled": true
+      },
+      "template_sha256": "a233613ec1d28f4812ca8fead59903136acd60be728ebb9dadd7b47796d68ee2",
+      "gate_sha256": "2d001098b1e321d4b754b022e4bd2940cb19b54b489c861a84d7255cda35f4a1"
+    },
+    "ready": {
+      "18100": {
+        "release": "alisa-0f22ffbc3cd17bdb",
+        "status": "READY"
+      },
+      "18101": {
+        "release": "alisa-3e91b1aa5d405d0e",
+        "status": "READY"
+      },
+      "18102": {
+        "release": "alisa-0f22ffbc3cd17bdb",
+        "status": "READY"
+      },
+      "18103": {
+        "release": "alisa-b8a5d56e2e132ce5",
+        "status": "READY"
+      }
+    },
+    "canonical_https_status": 200,
+    "protected_runtime_preserved": true,
+    "owner_role_status": "PASS_ROLE_HANDOVER",
+    "manual_owner_login_status": "WAITING_FOR_USER_FACTOR_SETUP"
+  },
+  "main_origin": "https://alisa.octoport.ru",
+  "admin_origin": "https://alisa-admin-stage.octoport.ru",
+  "identity_issuer": "https://id-stage.octoport.ru",
+  "manual_owner_login": "NOT_RUN_BY_OPERATOR_WAITING_FOR_USER_FACTOR_SETUP",
+  "secrets_or_otp_in_record": false,
+  "independent_installed_evidence_review": {
+    "status": "PASS_READ_ONLY_INSTALLED_EVIDENCE_REVIEW",
+    "reviewer": "registration_review",
+    "source_sha": "b8a5d56e2e132ce5cd3f411587f24af5477f4876",
+    "template_manifest_and_readback_hashes_match": true,
+    "native_staff_policy_unchanged": true,
+    "readiness_and_artifact_qualification_consistent": true,
+    "operational_identity_preflight_and_held_mapping_reviewed": true,
+    "role_handover_evidence_consistent": true,
+    "real_owner_factor_setup_or_login_personally_completed": false
+  }
+}

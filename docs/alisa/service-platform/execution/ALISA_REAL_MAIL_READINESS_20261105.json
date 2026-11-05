@@ -96,7 +96,7 @@
     "observed_active": {
       "web": "alisa-0f22ffbc3cd17bdb",
       "platform": "alisa-0f22ffbc3cd17bdb",
-      "identity": "alisa-0f22ffbc3cd17bdb",
+      "identity": "alisa-b8a5d56e2e132ce5",
       "admin": "alisa-3e91b1aa5d405d0e"
     },
     "invitation_list_required": false,
@@ -119,7 +119,8 @@
   "next_action": {
     "manual_acceptance": "Open https://alisa.octoport.ru/login; existing users sign in with a fresh code, new users register. All normal site links use alisa.octoport.ru.",
     "shared_identity_followup": "AL-M01 and AL-M02 connect existing Octoport accounts; AL-M04 provides common staff shell.",
-    "automatic_future_execution": false
+    "automatic_future_execution": false,
+    "manual_admin_acceptance": "Обновить форму настройки; подключить QR в своём приложении-аутентификаторе, ввести6 цифр в нижнее поле, затем продолжить вход в админку. Не вставлять длинный ключ в поле кода."
   },
   "other_open_review_findings": "Existing independent-review findings are not closed by a mail/design change.",
   "secrets_or_otp_in_record": false,
@@ -219,5 +220,29 @@
   },
   "main_origin": "https://alisa.octoport.ru",
   "previous_origin": "https://alisa-stage.octoport.ru",
-  "identity_issuer": "https://id-stage.octoport.ru"
+  "identity_issuer": "https://id-stage.octoport.ru",
+  "previous_canonical_installation_checkpoint": {
+    "source_sha": "0f22ffbc3cd17bdb26242d7cf4e88152fa0289e7",
+    "recorded_utc": "2026-11-05T11:43:27.965867+00:00",
+    "observed_active": {
+      "web": "alisa-0f22ffbc3cd17bdb",
+      "platform": "alisa-0f22ffbc3cd17bdb",
+      "identity": "alisa-b8a5d56e2e132ce5",
+      "admin": "alisa-3e91b1aa5d405d0e"
+    }
+  },
+  "current_identity_followup": {
+    "source_sha": "b8a5d56e2e132ce5cd3f411587f24af5477f4876",
+    "recorded_utc": "2026-11-05T12:41:11.032403+00:00",
+    "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/392",
+    "status": "INSTALLED_FORM_AND_OWNER_ROLE_ACCEPTED_MANUAL_MFA_PENDING",
+    "receipt": "ALISA_MFA_REAL_OWNER_ACCESS_20261105.json",
+    "identity_only_restarted": true,
+    "ordinary_customer_state_preserved": true,
+    "migrations_applied": [],
+    "single_real_owner_binding": true,
+    "manual_owner_login": "WAITING_FOR_USER_FACTOR_SETUP",
+    "user_factor_or_session_created_by_operator": false,
+    "independent_installed_evidence_review": "PASS_READ_ONLY_INSTALLED_EVIDENCE_REVIEW"
+  }
 }
