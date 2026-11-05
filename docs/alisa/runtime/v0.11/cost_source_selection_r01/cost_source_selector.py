@@ -63,16 +63,18 @@ def number(value, integral=False):
     need(type(value) is str and len(value) <= 70 and
          re.fullmatch(r'-?\d{1,19}(?:\.\d{1,32})?', value), 'SELECTION_NUMBER')
     n = Decimal(value)
-    need(abs(n) <= Decimal('1e18'), 'SELECTION_NUMBER')
+    need(n.copy_abs() <= Decimal('1e18'), 'SELECTION_NUMBER')
     need(not integral or n == n.to_integral_value(), 'SELECTION_QUANTITY')
     return n
 
 def text(n: Decimal) -> str:
-    need(n.is_finite() and abs(n) <= Decimal('1e18'), 'SELECTION_NUMBER')
-    # Coefficients are calculated only from bounded numbers inside local precision.
-    s = format(n, 'f')
-    need(len(s) <= 100, 'SELECTION_NUMBER')
-    return s
+    # Reuse the installed generic pre-format bounds, including zero exponents.
+    try: return matrix_core.decimal_text(n)
+    except MatrixError: raise SelectionError('SELECTION_NUMBER') from None
+
+def intermediate(value):
+    try: return matrix_core.money(value)
+    except MatrixError: raise SelectionError('SELECTION_NUMBER') from None
 
 def auth(verifier, kind, value, context, action):
     need(callable(verifier), 'SELECTION_AUTH_REQUIRED')
@@ -104,7 +106,7 @@ class CostSourceSelector:
             try: validate_expression(rule['percent_base'], {'row'})
             except MatrixError: raise SelectionError('SELECTION_EXPRESSION') from None
             for basis, methods in rule['methods'].items():
-                need(type(methods) is list and methods and len(methods) == len(set(methods)))
+                need(type(methods) is list and methods and all(type(x)is str for x in methods) and len(methods) == len(set(methods)))
                 need(set(methods) <= {'line_amount','unit_amount','explicit_percent','interval_unit_amount'})
                 need(basis != 'ACTUAL_MATCHED' or methods == ['line_amount'])
         need(type(c['scenarios']) is dict and 1 <= len(c['scenarios']) <= 8)
@@ -132,6 +134,7 @@ class CostSourceSelector:
         need(type(context['currency']) is str and re.fullmatch('[A-Z]{3}',context['currency']), 'SELECTION_CURRENCY')
         exact(context['period'], {'from','to'});a,b=map(day,[context['period']['from'],context['period']['to']]);need(a<=b,'SELECTION_PERIOD')
         need(type(now) is int and type(context['as_of']) is int and 0<=context['as_of']<=now,'SELECTION_TIME')
+        need((date.fromisoformat(b)-date.fromisoformat(a)).days<366 and b<=datetime.fromtimestamp(now,timezone.utc).date().isoformat(),'SELECTION_PERIOD')
         for envelope, schema, extra in [(cohort,'alice-qualified-cohort/v1',{'coverage','rows'}),
                                         (evidence,'alice-cost-candidates/v1',{'cohort_hash','records'})]:
             exact(envelope, {'payload','sha256'});payload=envelope['payload']
@@ -150,6 +153,7 @@ class CostSourceSelector:
         need(cp['coverage']=='COMPLETE','SELECTION_COHORT_INCOMPLETE')
         need(ep['cohort_hash']==cohort['sha256'],'SELECTION_SCOPE')
         need(type(cp['rows'])is list and 0<len(cp['rows'])<=c['max_rows'],'SELECTION_CAPACITY')
+        need(len(cp['rows'])*len(c['components'])*len(c['scenarios'])<=10000,'SELECTION_CAPACITY')
         rows={}
         for row in cp['rows']:
             need(type(row)is dict and c['line_id_field'] in row,'SELECTION_ROW')
@@ -252,10 +256,13 @@ class CostSourceSelector:
                     for basis in rule['priority']:
                         subset=[r for r in selected if r['component']==component and r['basis']==basis]
                         groups[component+'_'+SUFFIX[basis]]={'component':component,'basis':basis,
-                            'value':text(sum((number(x['amount'])for x in subset),Decimal(0))),
+                            'value':text(sum((intermediate(x['amount'])for x in subset),Decimal(0))),
                             'expense_keys':[k for r in subset for k in r['expense_keys']],
                             'candidate_ids':[r['candidate_id']for r in subset]}
                 results[sid]={'lines':selected,'components':groups}
-        return {'schema':'alice-cost-selection/v1','status':'SELECTED' if not gaps else 'BLOCKED','pin':actual_pin,
+        result={'schema':'alice-cost-selection/v1','status':'SELECTED' if not gaps else 'BLOCKED','pin':actual_pin,
                 'scenarios':results if not gaps else {},'gaps':gaps,'production_ready':False,
                 'financial_report_saved':False,'network_calls':0}
+
+        canonical(result)  # Bound the complete output, not just input envelopes.
+        return result
