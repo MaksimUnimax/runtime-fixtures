@@ -1,0 +1,285 @@
+{
+  "schema": "alisa-qa-template-intake/v1",
+  "id": "C-UE01",
+  "state": "BLOCKED",
+  "change_class": "SOURCE_BINDING",
+  "title": "C-UE01: заказы с исключением выручки и себестоимости отмен, все остальные расходы сохраняются",
+  "amendment_to": "C-UE01 / S03 in BASE_TEMPLATE_CATALOG_V1_SCOPE_2026-11-04.md",
+  "safe_utterances": [
+    "Юнитэкономика за {period} на {marketplace}, по всем товарам, на одну заказанную единицу, себестоимость {cost_per_unit} {currency}, без налога",
+    "Посчитай экономику заказов за {period}; себестоимость и налог не указаны"
+  ],
+  "slots": {
+    "marketplace": {
+      "type": "platform",
+      "required": true
+    },
+    "store_scope": {
+      "type": "authorized_store_scope",
+      "required": true
+    },
+    "period": {
+      "type": "completed_calendar_period",
+      "required": true
+    },
+    "timezone": {
+      "type": "iana_timezone",
+      "default_policy": "source-qualified; Ozon order-day Europe/Moscow"
+    },
+    "denominator": {
+      "type": "enum",
+      "values": [
+        "ordered_units_gross"
+      ],
+      "default": "ordered_units_gross",
+      "meaning": "SUM original product quantities, includes subsequently cancelled and returned units once; not distinct order count"
+    },
+    "mode": {
+      "type": "enum",
+      "values": [
+        "order_cohort",
+        "period_financial_result_per_ordered_unit"
+      ],
+      "default": "period_financial_result_per_ordered_unit",
+      "requires_explicit_label": true
+    },
+    "observation_as_of": {
+      "type": "timestamp",
+      "required": true
+    },
+    "cost_per_unit": {
+      "type": "optional_money",
+      "origin": "USER_OR_VERSIONED_S03",
+      "missing_policy": "OMIT_WITH_LABEL_COST_NOT_INCLUDED",
+      "zero_policy": "EXPLICIT_KNOWN_ZERO",
+      "validity": "currency, per-unit basis, effective dates; no inference from APIs"
+    },
+    "tax": {
+      "type": "optional_user_tax_contract",
+      "allowed": [
+        "EXCLUDED_BY_USER",
+        "NOT_PROVIDED",
+        "FIXED_AMOUNT",
+        "RATE_WITH_USER_SPECIFIED_BASE"
+      ],
+      "missing_policy": "OMIT_WITH_LABEL_TAX_NOT_INCLUDED",
+      "default_rate": null
+    },
+    "shared_cost_allocation": {
+      "type": "optional_versioned_policy",
+      "missing_policy": "UNALLOCATED_VISIBLE; final cohort total unavailable"
+    },
+    "inventory_return_cost_policy": {
+      "type": "qualified_inventory_event_policy",
+      "missing_policy": "No automatic COGS recovery on financial reversal"
+    },
+    "other_seller_costs": {
+      "type": "optional_user_cost_schedule",
+      "missing_policy": "OMITTED_COMPONENTS_VISIBLE"
+    }
+  },
+  "answer_contract": {
+    "time_axes": [
+      "order_date for selected original units",
+      "accrual_date for signed financial ledger",
+      "logistic_return_date for return events; not order date",
+      "qualified ads expense date"
+    ],
+    "units": [
+      "ordered units",
+      "orders and postings as separate counters",
+      "RUB",
+      "RUB per ordered unit"
+    ],
+    "currency_policy": "One matching currency for each calculation; reject mixed currency without explicit qualified conversion.",
+    "completeness": "Owner requests period unit economics on gross ordered quantity with cancellation revenue and product cost excluded, and all incurred non-COGS period costs retained. Label period allocation explicitly; do not require unimplemented all-date cohort joins for that period indicator. Exact cohort mode remains separate.",
+    "required_outputs": [
+      "original_ordered_units",
+      "original_order_amount",
+      "cancelled_units",
+      "cancelled_order_amount",
+      "net_order_revenue",
+      "user_cost_per_product",
+      "cost_quantity_excluding_cancellations",
+      "COGS_total_and_per_original_unit",
+      "all_non_COGS_costs_including_cancellation_costs",
+      "mandatory_advertising",
+      "tax_and_own_cost_omissions",
+      "total_expenses_and_result_per_original_unit",
+      "date_axes/as_of/allocation_policy/coverage"
+    ],
+    "missing_versus_zero": "Absent cost/tax/source means NOT_INCLUDED or UNKNOWN, never silently zero. Explicit user zero is KNOWN_ZERO.",
+    "profit_label": "Result before excluded taxes and unreported own costs; never net profit with omissions.",
+    "cancellation_policy": "Keep gross ordered units as fixed denominator. Exclude actual cancelled-order revenue from final revenue. Exclude cancelled units from user product-cost quantity. Keep all actually incurred non-COGS fees and advertising, including cancelled orders; no automatic expense reversal. Only qualified recorded reimbursements adjust a cost.",
+    "aggregation": "Ratio of totals; no average of SKU averages. Round only final presentation, decimal half-up.",
+    "primary_order_cohort": "Match each original ordered line to all financial and return events through observation_as_of across later dates; no cross-cohort substitution.",
+    "period_mode": "May divide period financial result by period ordered units only with explicit label that cohorts differ; not an estimate of profit of selected orders.",
+    "advertising_required": true,
+    "save_gate": "Unknown/contradictory mandatory advertising, unknown cancellations or unqualified fee allocation blocks usable final economics; return reason and next action.",
+    "cogs_policy": "User cost_per_product * (gross_ordered_units - cancelled_units), plus explicit qualified inventory/return adjustments. Do not substitute realized-unit count for this owner-requested model. If cancellations are unknown, COGS is UNKNOWN, not cost * all units and not cost * unrelated realizations.",
+    "revenue_policy": "Original ordered revenue minus exact cancelled-order value minus qualified refund/return monetary adjustments; keep original sum and adjustments in separate rows. Do not use financial revenue from other order cohorts."
+  },
+  "source_bindings": [
+    {
+      "block": "B01",
+      "fields": [
+        "ordered_units",
+        "ordered_revenue"
+      ],
+      "source": "ozon_orders",
+      "grain": "order_day",
+      "purpose": "Denominator/control, not recognized revenue"
+    },
+    {
+      "block": "S02",
+      "source": "qualified FBO v3 / FBS v4 posting metadata",
+      "join_key": [
+        "store",
+        "posting_number",
+        "sku"
+      ],
+      "pagination": "cursor until has_next=false; duplicate and repeated-cursor checks",
+      "purpose": "Original cohort, quantities and current cancellations/status",
+      "additional_required_projection": "exact cancelled ordered line value, not exposed by current metadata UI; qualify Money/string price fields and quantity before enabling"
+    },
+    {
+      "block": "B05/B06/B07/B08",
+      "source": "ozon_accrual_by_day and ozon_finance",
+      "purpose": "Period non-COGS fees/refunds/controls; do not substitute unrelated financial realizations for original order revenue or COGS quantity",
+      "pagination": "by-day last_id until empty; no duplicate accrual_id",
+      "control": "Every included ledger amount reconciles to financial total. Summary/control total is not an additional expense."
+    },
+    {
+      "block": "B03",
+      "source": "Ozon /v1/returns/list (research qualification)",
+      "purpose": "Quantity/type/logistic date. Cancellation is not post-purchase return; event date not cohort. No debit inferred from listed price.",
+      "pagination": "last_id until has_next=false; verify date, quantity, identities and no repeats"
+    },
+    {
+      "block": "B12",
+      "source": "ozon_ads_daily_actual_spend",
+      "method": "GET",
+      "url": "https://api-performance.ozon.ru/api/client/statistics/daily/json",
+      "query": {
+        "dateFrom": "{period.from}",
+        "dateTo": "{period.to}",
+        "campaignIds": "omitted for all"
+      },
+      "auth_profile": "performance",
+      "rows": "rows",
+      "money": "moneySpent",
+      "identity": [
+        "id",
+        "date"
+      ],
+      "metric": "ad_spend",
+      "decimals": "Strict finite nonnegative Decimal with comma parsing; exact requested dates; no duplicates.",
+      "controls": [
+        "complete campaign inventory; case-sensitive PaymentType",
+        "CPO all-goods asynchronous report: daily CPO sum matches detailed expense sum",
+        "CPO selected-goods report: rows and numeric overExpenses checked"
+      ],
+      "nonoverlap": "Daily includes CPO: detailed CPO is a control, not an additional expense. Reconcile finance advertising charges before combining sources.",
+      "unsupported_fields": [
+        "ad_bonus_spend",
+        "ad_prepayment_spend"
+      ],
+      "legacy_problem": "expense JSON empty, explicit campaign IDs empty, CSV header only; same-period daily and CPO nonempty",
+      "provider_internal_cause": "UNKNOWN",
+      "required": true
+    },
+    {
+      "block": "S03",
+      "source": "User cost/tax/own-cost inputs",
+      "purpose": "Optional inputs with validity/version/currency. Missing inputs do not block partial report."
+    }
+  ],
+  "expressions": [
+    {
+      "id": "q",
+      "expr": "SUM original ordered quantities, includes cancelled units once; fixed denominator"
+    },
+    {
+      "id": "cancelled_units",
+      "expr": "SUM quantities of qualified cancelled order lines in selected period/scope"
+    },
+    {
+      "id": "cancelled_value",
+      "expr": "SUM exact ordered line values of those cancelled lines; no average-price substitution"
+    },
+    {
+      "id": "net_order_revenue",
+      "expr": "gross_ordered_amount - cancelled_value - explicit qualified monetary return/refund adjustments"
+    },
+    {
+      "id": "cost_quantity",
+      "expr": "q - cancelled_units, plus only explicit qualified inventory-return cost adjustments"
+    },
+    {
+      "id": "cogs",
+      "expr": "IF user cost supplied THEN user_cost_per_product * cost_quantity ELSE OMIT_WITH_LABEL; unknown required quantity -> UNKNOWN"
+    },
+    {
+      "id": "non_cogs_costs",
+      "expr": "All actually incurred period marketplace fees and mandatory qualified advertising, including cancelled-order costs; only actual reimbursements reverse costs; no advertising double counting"
+    },
+    {
+      "id": "total_expenses",
+      "expr": "non_cogs_costs + supplied/applied COGS + supplied own costs + supplied tax"
+    },
+    {
+      "id": "result",
+      "expr": "net_order_revenue - total_expenses"
+    },
+    {
+      "id": "per_unit",
+      "expr": "result / q; q=0 -> null with reason"
+    }
+  ],
+  "dependencies": [
+    "B01",
+    "B05",
+    "B06",
+    "B07",
+    "B08",
+    "B12",
+    "S03",
+    "generic decimal arithmetic",
+    "expense completeness and nonoverlap; cohort joins only in cohort mode"
+  ],
+  "negative_cases": [
+    "order count differs from unit count",
+    "cancelled/returned denominator double counting",
+    "open cohort with later expenses missing",
+    "same-day realizations belong to earlier orders",
+    "return event without financial refund",
+    "financial reversal without confirmed restock",
+    "missing COGS vs explicit zero",
+    "missing tax vs explicit exclude",
+    "ads empty response vs certified zero",
+    "ads also booked in finance / bonus funding duplication",
+    "unknown service not dropped",
+    "shared storage no allocation policy",
+    "duplicate pages/accrual IDs",
+    "incomplete pagination",
+    "mixed currencies",
+    "zero denominator",
+    "date boundaries Europe/Moscow",
+    "round before dividing"
+  ],
+  "independent_gold_ref": "docs/alisa/quality/inbox/20261105-TESTER-3c8e502a/SYNTHETIC_GOLD.json",
+  "evidence_refs": [
+    "docs/alisa/quality/inbox/20261105-TESTER-3c8e502a/RUN_REPORT.json",
+    "docs/alisa/quality/inbox/20261105-TESTER-3c8e502a/BUG_REPORT.md"
+  ],
+  "linked_bug_ids": [
+    "OZCP-003",
+    "OZCP-G001",
+    "QA-20261105-TESTER-70ac9201",
+    "QA-20261105-TESTER-9ad72c41",
+    "QA-20261105-TESTER-3c8e502b",
+    "QA-20261105-TESTER-3c8e502c"
+  ],
+  "runtime_enabled": false,
+  "notes": "Latest explicit owner cancellation rule supersedes previous intake COGS/revenue variants. Prior headline unit-profit numbers withdrawn. New live Dialogs recheck: ads incorrectly zero via legacy source; absolute-day request incorrectly became month-to-date. Alisa RDC offline; no direct new Seller/Performance collector access. Candidate BLOCKED, no usable saved/released unit economics."
+}
