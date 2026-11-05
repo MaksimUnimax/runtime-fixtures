@@ -7,7 +7,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser();parser.add_argument('--check',action='store_true');args=parser.parse_args()
 generated=''
-for filename,type_name in [('foundation-probe-v1.json','FoundationProbeInput'),('lead-intake-v1.json','LeadIntakeInput'),('lead-confirm-v1.json','LeadConfirmInput')]:
+for filename,type_name in [('foundation-probe-v1.json','FoundationProbeInput'),('lead-intake-v1.json','LeadIntakeInput'),('lead-confirm-v1.json','LeadConfirmInput'),('auth-flow-v1.json','AuthFlowInput'),('auth-session-v1.json','AuthSessionInput')]:
     schema=json.loads((root/'contracts'/filename).read_text());fields=[]
     for name,field in schema['properties'].items():
         if 'const' in field:kind=json.dumps(field['const'])

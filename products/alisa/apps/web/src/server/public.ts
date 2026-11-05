@@ -16,6 +16,10 @@ export async function publicRequest(request: Request, action: string) {
     const body=Buffer.concat(chunks).toString('utf8');JSON.parse(body);
     const result=await fetch(base+paths[action],{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body,cache:'no-store',redirect:'error',signal:AbortSignal.timeout(5000)});
     const data=await result.json();const keys=['state','delivery','code','environment','release'];
-    return Response.json(Object.fromEntries(Object.entries(data).filter(([k])=>keys.includes(k))),{status:result.status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+    const response=Response.json(Object.fromEntries(Object.entries(data).filter(([k])=>keys.includes(k))),{status:result.status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+    const requestId=JSON.parse(body).request_id;
+    if(action==='leads'&&result.status===202&&typeof requestId==='string'&&/^[0-9a-f-]{36}$/i.test(requestId))
+      response.headers.append('Set-Cookie',`__Host-alisa_handoff=${requestId}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`);
+    return response;
   } catch { return Response.json({code:'PLATFORM_UNAVAILABLE'},{status:503,headers:{'Cache-Control':'no-store'}}); }
 }

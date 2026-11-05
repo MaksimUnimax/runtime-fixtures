@@ -1,0 +1,663 @@
+{
+  "scope": "S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "s02_immutable_package_hashes",
+      "passed": true
+    },
+    {
+      "case": "s02_offline_identity_dependencies_installed",
+      "passed": true
+    },
+    {
+      "case": "s02_separate_migrations_and_confidential_clients",
+      "passed": true
+    },
+    {
+      "case": "s02_platform_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_identity_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_runtime_nonloopback_egress_denied_by_owned_uid_firewall",
+      "passed": true
+    },
+    {
+      "case": "s02_platform_owned_uid_import",
+      "passed": true
+    },
+    {
+      "case": "s02_identity_owned_uid_import",
+      "passed": true
+    },
+    {
+      "case": "s02_strict_https_web_and_identity_ready",
+      "passed": true
+    },
+    {
+      "case": "s02_fixed_issuer_and_s256_discovery",
+      "passed": true
+    },
+    {
+      "case": "s02_disposable_chromium_binary_available",
+      "passed": true
+    },
+    {
+      "case": "s02_private_home_requires_own_session",
+      "passed": true
+    },
+    {
+      "case": "s02_no_service_cookie_or_data_in_anonymous_html",
+      "passed": true
+    },
+    {
+      "case": "s02_start_requires_consents",
+      "passed": true
+    },
+    {
+      "case": "s02_no_script_cannot_put_contact_in_query",
+      "passed": true
+    },
+    {
+      "case": "s02_handoff_lead_submitted_in_browser",
+      "passed": true
+    },
+    {
+      "case": "s02_handoff_contact_confirmed_in_browser",
+      "passed": true
+    },
+    {
+      "case": "s02_bff_start_redirects_to_fixed_authority",
+      "passed": true,
+      "http_status": 303
+    }
+  ],
+  "not_run": [
+    "live_stage_rollout",
+    "controlled_real_email",
+    "live_release_pair_rollback"
+  ],
+  "source_sha": "ed72506293e55b7459312f7b5b04c1354f398082",
+  "artifact_sha256": "6b0d3e96f5f91f34960fadd952d220b165525ccb0786e0fa14ef556b73c5168b",
+  "postgres_version": "16.15 (Debian 16.15-1.pgdg13+2)",
+  "schemas": {
+    "platform": {
+      "migrations": [
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0002_pending_job_index"
+        ],
+        [
+          "funnel",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0002_submission_created_at"
+        ]
+      ],
+      "tables": [
+        "accounts_authflow",
+        "accounts_consentrecord",
+        "accounts_customer",
+        "accounts_identitylink",
+        "accounts_leadlink",
+        "accounts_membership",
+        "accounts_tenant",
+        "accounts_websession",
+        "django_migrations",
+        "foundation_foundationjob",
+        "foundation_foundationprobe",
+        "funnel_funnelevent",
+        "leads_lead",
+        "leads_mailoutbox",
+        "leads_ratebucket",
+        "leads_submission"
+      ]
+    },
+    "identity": {
+      "migrations": [
+        [
+          "account",
+          "0001_initial"
+        ],
+        [
+          "account",
+          "0002_email_max_length"
+        ],
+        [
+          "account",
+          "0003_alter_emailaddress_create_unique_verified_email"
+        ],
+        [
+          "account",
+          "0004_alter_emailaddress_drop_unique_email"
+        ],
+        [
+          "account",
+          "0005_emailaddress_idx_upper_email"
+        ],
+        [
+          "account",
+          "0006_emailaddress_lower"
+        ],
+        [
+          "account",
+          "0007_emailaddress_idx_email"
+        ],
+        [
+          "account",
+          "0008_emailaddress_unique_primary_email_fixup"
+        ],
+        [
+          "account",
+          "0009_emailaddress_unique_primary_email"
+        ],
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "accounts",
+          "0002_identitymail_protocolcache_identityconsent_subject"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0001_initial"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0002_client_default_scopes"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0003_client_allow_uri_wildcards"
+        ],
+        [
+          "auth",
+          "0001_initial"
+        ],
+        [
+          "auth",
+          "0002_alter_permission_name_max_length"
+        ],
+        [
+          "auth",
+          "0003_alter_user_email_max_length"
+        ],
+        [
+          "auth",
+          "0004_alter_user_username_opts"
+        ],
+        [
+          "auth",
+          "0005_alter_user_last_login_null"
+        ],
+        [
+          "auth",
+          "0006_require_contenttypes_0002"
+        ],
+        [
+          "auth",
+          "0007_alter_validators_add_error_messages"
+        ],
+        [
+          "auth",
+          "0008_alter_user_username_max_length"
+        ],
+        [
+          "auth",
+          "0009_alter_user_last_name_max_length"
+        ],
+        [
+          "auth",
+          "0010_alter_group_name_max_length"
+        ],
+        [
+          "auth",
+          "0011_update_proxy_permissions"
+        ],
+        [
+          "auth",
+          "0012_alter_user_first_name_max_length"
+        ],
+        [
+          "contenttypes",
+          "0001_initial"
+        ],
+        [
+          "contenttypes",
+          "0002_remove_content_type_name"
+        ],
+        [
+          "mfa",
+          "0001_initial"
+        ],
+        [
+          "mfa",
+          "0002_authenticator_timestamps"
+        ],
+        [
+          "mfa",
+          "0003_authenticator_type_uniq"
+        ],
+        [
+          "sessions",
+          "0001_initial"
+        ]
+      ],
+      "tables": [
+        "account_emailaddress",
+        "account_emailconfirmation",
+        "accounts_identityconsent",
+        "accounts_identitymail",
+        "accounts_person",
+        "accounts_person_groups",
+        "accounts_person_user_permissions",
+        "accounts_subject",
+        "allauth_idp_oidc_client",
+        "allauth_idp_oidc_token",
+        "auth_group",
+        "auth_group_permissions",
+        "auth_permission",
+        "django_content_type",
+        "django_migrations",
+        "django_session",
+        "identity_protocol_cache",
+        "mfa_authenticator"
+      ]
+    }
+  },
+  "error_type": "AssertionError",
+  "last_browser_path": "/login",
+  "qualification_line": 196,
+  "error_location": {
+    "file": "_assertions.py",
+    "line": 60
+  },
+  "safe_http_trace": [
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/examples",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/help",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/join",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/contacts",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/pricing",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/consents",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/terms",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/privacy",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "POST",
+      "path": "/auth/start",
+      "status": 303,
+      "origin_kind": "loopback"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/auth/callback",
+      "status": 303,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/login",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/help",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/examples",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/how-it-works",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/join",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/examples",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/how-it-works",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/help",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/faq",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/join",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/pricing",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/contacts",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/terms",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/privacy",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/consents",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/login",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/.well-known/openid-configuration",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/.well-known/openid-configuration",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/identity/o/authorize",
+      "status": 302,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/accounts/login/",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/identity/mail-ui.js",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/identity/mail-status",
+      "status": 404,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/accounts/signup/",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/identity/mail-ui.js",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/identity/mail-status",
+      "status": 404,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "POST",
+      "path": "/accounts/signup/",
+      "status": 302,
+      "origin_kind": "loopback"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/accounts/login/code/confirm/",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/identity/mail-ui.js",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/identity/mail-status",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "POST",
+      "path": "/accounts/login/code/confirm/",
+      "status": 302,
+      "origin_kind": "loopback"
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/identity/o/authorize",
+      "status": 302,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18403,
+      "method": "POST",
+      "path": "/identity/o/api/token",
+      "status": 401,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18402,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18402,
+      "method": "POST",
+      "path": "/api/v1/leads",
+      "status": 202,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18402,
+      "method": "POST",
+      "path": "/api/v1/leads/confirm",
+      "status": 200,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18402,
+      "method": "POST",
+      "path": "/api/v1/auth/flows",
+      "status": 201,
+      "origin_kind": "absent"
+    },
+    {
+      "backend": 18402,
+      "method": "POST",
+      "path": "/api/v1/auth/flows/consume",
+      "status": 200,
+      "origin_kind": "absent"
+    }
+  ],
+  "safe_auth_diagnostics": [
+    {
+      "event": "alisa.auth.failure",
+      "stage": "protocol",
+      "code": "OAUTH_WWW_AUTHENTICATE_CHALLENGE"
+    }
+  ],
+  "safe_process_error_classes": [],
+  "safe_process_exit_codes": [
+    null,
+    null,
+    null
+  ],
+  "safe_failure_categories": [
+    "SOURCE_PERMISSION_DENIED"
+  ],
+  "owned_database_and_process_cleanup": true
+}

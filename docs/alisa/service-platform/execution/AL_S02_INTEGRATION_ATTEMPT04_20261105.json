@@ -1,0 +1,565 @@
+{
+  "scope": "S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "s02_immutable_package_hashes",
+      "passed": true
+    },
+    {
+      "case": "s02_offline_identity_dependencies_installed",
+      "passed": true
+    },
+    {
+      "case": "s02_separate_migrations_and_confidential_clients",
+      "passed": true
+    },
+    {
+      "case": "s02_platform_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_identity_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_strict_https_web_and_identity_ready",
+      "passed": true
+    },
+    {
+      "case": "s02_fixed_issuer_and_s256_discovery",
+      "passed": true
+    },
+    {
+      "case": "s02_private_home_requires_own_session",
+      "passed": true
+    },
+    {
+      "case": "s02_no_service_cookie_or_data_in_anonymous_html",
+      "passed": true
+    },
+    {
+      "case": "s02_start_requires_consents",
+      "passed": true
+    },
+    {
+      "case": "s02_no_script_cannot_put_contact_in_query",
+      "passed": true
+    }
+  ],
+  "not_run": [
+    "live_stage_rollout",
+    "controlled_real_email",
+    "live_release_pair_rollback"
+  ],
+  "source_sha": "f75e2d219408344d41212e4f825dcdadcba3cc6d",
+  "artifact_sha256": "5dc6185ea8b263e9c582b844c445f84c567263779310c3078529de6493b58927",
+  "postgres_version": "16.15 (Debian 16.15-1.pgdg13+2)",
+  "schemas": {
+    "platform": {
+      "migrations": [
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0002_pending_job_index"
+        ],
+        [
+          "funnel",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0002_submission_created_at"
+        ]
+      ],
+      "tables": [
+        "accounts_authflow",
+        "accounts_consentrecord",
+        "accounts_customer",
+        "accounts_identitylink",
+        "accounts_leadlink",
+        "accounts_membership",
+        "accounts_tenant",
+        "accounts_websession",
+        "django_migrations",
+        "foundation_foundationjob",
+        "foundation_foundationprobe",
+        "funnel_funnelevent",
+        "leads_lead",
+        "leads_mailoutbox",
+        "leads_ratebucket",
+        "leads_submission"
+      ]
+    },
+    "identity": {
+      "migrations": [
+        [
+          "account",
+          "0001_initial"
+        ],
+        [
+          "account",
+          "0002_email_max_length"
+        ],
+        [
+          "account",
+          "0003_alter_emailaddress_create_unique_verified_email"
+        ],
+        [
+          "account",
+          "0004_alter_emailaddress_drop_unique_email"
+        ],
+        [
+          "account",
+          "0005_emailaddress_idx_upper_email"
+        ],
+        [
+          "account",
+          "0006_emailaddress_lower"
+        ],
+        [
+          "account",
+          "0007_emailaddress_idx_email"
+        ],
+        [
+          "account",
+          "0008_emailaddress_unique_primary_email_fixup"
+        ],
+        [
+          "account",
+          "0009_emailaddress_unique_primary_email"
+        ],
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "accounts",
+          "0002_identitymail_protocolcache_identityconsent_subject"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0001_initial"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0002_client_default_scopes"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0003_client_allow_uri_wildcards"
+        ],
+        [
+          "auth",
+          "0001_initial"
+        ],
+        [
+          "auth",
+          "0002_alter_permission_name_max_length"
+        ],
+        [
+          "auth",
+          "0003_alter_user_email_max_length"
+        ],
+        [
+          "auth",
+          "0004_alter_user_username_opts"
+        ],
+        [
+          "auth",
+          "0005_alter_user_last_login_null"
+        ],
+        [
+          "auth",
+          "0006_require_contenttypes_0002"
+        ],
+        [
+          "auth",
+          "0007_alter_validators_add_error_messages"
+        ],
+        [
+          "auth",
+          "0008_alter_user_username_max_length"
+        ],
+        [
+          "auth",
+          "0009_alter_user_last_name_max_length"
+        ],
+        [
+          "auth",
+          "0010_alter_group_name_max_length"
+        ],
+        [
+          "auth",
+          "0011_update_proxy_permissions"
+        ],
+        [
+          "auth",
+          "0012_alter_user_first_name_max_length"
+        ],
+        [
+          "contenttypes",
+          "0001_initial"
+        ],
+        [
+          "contenttypes",
+          "0002_remove_content_type_name"
+        ],
+        [
+          "mfa",
+          "0001_initial"
+        ],
+        [
+          "mfa",
+          "0002_authenticator_timestamps"
+        ],
+        [
+          "mfa",
+          "0003_authenticator_type_uniq"
+        ],
+        [
+          "sessions",
+          "0001_initial"
+        ]
+      ],
+      "tables": [
+        "account_emailaddress",
+        "account_emailconfirmation",
+        "accounts_identityconsent",
+        "accounts_identitymail",
+        "accounts_person",
+        "accounts_person_groups",
+        "accounts_person_user_permissions",
+        "accounts_subject",
+        "allauth_idp_oidc_client",
+        "allauth_idp_oidc_token",
+        "auth_group",
+        "auth_group_permissions",
+        "auth_permission",
+        "django_content_type",
+        "django_migrations",
+        "django_session",
+        "identity_protocol_cache",
+        "mfa_authenticator"
+      ]
+    }
+  },
+  "error_type": "AssertionError",
+  "last_browser_path": "/join",
+  "qualification_line": 194,
+  "error_location": {
+    "file": "_assertions.py",
+    "line": 60
+  },
+  "safe_http_trace": [
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/app",
+      "status": 307
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/login",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/css/fe6637727c98124f.css",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/chunks/webpack-f942892fb0af72ec.js",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/chunks/main-app-55922360666d2700.js",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/chunks/696-42f8967e76bf98d4.js",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/chunks/6bf18944-c26e5cef8a889a1c.js",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/chunks/330-bbef7184263c3327.js",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/chunks/app/page-db7513996461a407.js",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/chunks/app/layout-fd66a38207f287bb.js",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/examples",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/help",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/how-it-works",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "POST",
+      "path": "/auth/start",
+      "status": 422,
+      "code": "INVALID_PAYLOAD"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/join",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/how-it-works",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/examples",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/help",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/join",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/join",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/faq",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/pricing",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/css/fe6637727c98124f.css",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/contacts",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/terms",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/privacy",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/consents",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/join",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/_next/static/chunks/app/join/page-7c4b3285d6b3229e.js",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/examples",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/how-it-works",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/help",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/faq",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/login",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/examples",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/how-it-works",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/help",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/faq",
+      "status": 200
+    },
+    {
+      "backend": 18400,
+      "method": "POST",
+      "path": "/api/public/leads",
+      "status": 503,
+      "code": "PLATFORM_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/pricing",
+      "status": 200
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 200
+    },
+    {
+      "backend": 18403,
+      "method": "GET",
+      "path": "/.well-known/openid-configuration",
+      "status": 200
+    },
+    {
+      "backend": 18402,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 200
+    },
+    {
+      "backend": 18402,
+      "method": "POST",
+      "path": "/api/v1/leads",
+      "status": 400
+    }
+  ],
+  "safe_auth_diagnostics": [],
+  "owned_database_and_process_cleanup": true
+}

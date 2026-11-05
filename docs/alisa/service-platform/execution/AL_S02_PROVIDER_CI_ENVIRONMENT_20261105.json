@@ -1,0 +1,40 @@
+{
+  "record_type": "AL_S02_CI_DISPOSABLE_ENVIRONMENT",
+  "source_sha": "cad39441454519d04778d7283ccb18ec9f0f79c1",
+  "started_at_utc": "2026-11-05T02:07:17.364512+00:00",
+  "source_hashes": {
+    "tests/identity_probe/__init__.py": "52ec7ce389268fead8f1f19c87568dae94de82f34be0f133e40b9cbeca66d915",
+    "tests/identity_probe/run_ci.py": "1b879f6bd1c5feff038a50e494f5e6088329f5362146ef9e34245d3b6212c1ae",
+    "tests/identity_probe/run_isolated.py": "b2d3e9cf7187e4cd7b51ad044d355804fcc648cf3e09a38c3b241d1aa56beb11",
+    "tests/identity_probe/policy.py": "554e6babe2211eb95112cd95ed5172fcef4c0e9ddf49394307cbf9ab050f366d",
+    "tests/identity_probe/run_probe.py": "0b20c9a6ee7139582fef0d45ddca89c9f17d0e296f96335b831ba31218c01985",
+    "tests/identity_probe/urls.py": "ee83a1de4951993b47035a04bd97f906ea1408ac5de7bc4bee64515d2764f608",
+    "tests/identity_probe/settings.py": "175f8936ca5697a148d3d3e9a9d4d2fa17ada2706dc4ef6ea19cf0df84faf060",
+    "tests/identity_probe/requirements.in": "ab88c6530d1c3fedb33dc0ed80cec8893972e35d94cef7135786055ffcc57068",
+    "tests/identity_probe/requirements.lock": "220a9c63706ff9511d0acd00f7d40203a180a2f385d719e16bca8842527d5f88",
+    "services/identity/src/octoport_identity/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "services/identity/src/octoport_identity/accounts/models.py": "9aa44ad8e481f4cd29392389e810ef72a5114f13edb863ad2035143a079d61cd",
+    "services/identity/src/octoport_identity/accounts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "services/identity/src/octoport_identity/accounts/migrations/0001_initial.py": "73d2b8459c27a7693474f1c65d8eab241f52c8b0024a459fb9bbdbb48f811446",
+    "services/identity/src/octoport_identity/accounts/migrations/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "postgres_image": "postgres:16.15@sha256:5db6dac2ef5dcff512f4f00a009c3c332b9f2f28f24277175bf3e4a3d02ef83a",
+  "docker_network": "none",
+  "live_database_or_credentials_access": false,
+  "status": "PROVIDER_CORE_QUALIFIED_NOT_S02_ACCEPTANCE",
+  "phase": "hardened",
+  "postgres_image_digests": [
+    "postgres@sha256:5db6dac2ef5dcff512f4f00a009c3c332b9f2f28f24277175bf3e4a3d02ef83a"
+  ],
+  "actual_container_network": "none",
+  "actual_host_port_bindings": {},
+  "baseline_exit_code": 0,
+  "hardened_exit_code": 0,
+  "cleanup": [
+    {
+      "object": "own_disposable_container",
+      "removed": true
+    }
+  ],
+  "finished_at_utc": "2026-11-05T02:07:45.676889+00:00"
+}

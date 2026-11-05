@@ -1,0 +1,40 @@
+{% load i18n %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="same-origin">
+  <title>{% block head_title %}Центр входа{% endblock %} · Алиса Маркет</title>
+  <style>{% include "identity/theme.html" %}</style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <header>
+    <a class="brand" href="{{ alisa_product_origin }}">
+      {% include "identity/brand_mark.html" %}
+      <span>Алиса Маркет</span>
+    </a>
+    <span class="header-label">Центр входа</span>
+  </header>
+  <main>
+    <aside class="stage-notice" aria-label="Режим тестирования">
+      <strong>Закрытый тест</strong>
+      <p>Используйте тестовый адрес вида <code>tester@example.invalid</code>.
+      Код поступит во внутреннюю тестовую почту. Доставка на Gmail и другие обычные ящики пока не подключена.</p>
+    </aside>
+    {% block body %}
+      {% if messages %}
+        {% for message in messages %}<p role="status">{{ message }}</p>{% endfor %}
+      {% endif %}
+      {% block content %}{% endblock %}
+    {% endblock %}
+    <p id="mail-status" role="status" aria-live="polite"></p>
+    <a class="back-link" href="{{ alisa_product_origin }}">← Вернуться к Алисе</a>
+  </main>
+  <footer>Алиса Маркет · Тестовый кабинет. Подключение магазинов и доступ к отчётам проходят отдельные этапы.</footer>
+  {% block extra_body %}{% endblock %}
+  <script src="/identity/mail-ui.js" defer></script>
+</body>
+</html>

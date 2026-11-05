@@ -10,7 +10,7 @@ permissions:
 jobs:
   source:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       ALISA_TEST_DB_ALLOW: '1'
@@ -31,6 +31,11 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Record exact checked out source
+        run: echo "ALISA_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -43,29 +48,42 @@ jobs:
           ./bin/alisa bootstrap --locked
           ./bin/alisa test --scope foundation
           ./bin/alisa build
-          ./bin/alisa package --source "$GITHUB_SHA"
+          ./bin/alisa package --source "$ALISA_SOURCE_SHA"
       - name: Install a disposable Chromium test browser
         working-directory: products/alisa
-        run: .venv/bin/python -m playwright install --with-deps chromium
+        run: |
+          .venv/bin/python -m playwright install --with-deps chromium
+          sudo apt-get install --no-install-recommends -y libnss3-tools
       - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
         working-directory: products/alisa
         run: |
           .venv/bin/python tests/integration/run_postgres.py \
-            --artifact "dist/alisa-${GITHUB_SHA:0:16}.tar.gz" --browser \
+            --artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz" --browser \
             --output dist/postgresql-browser-qualification.json
+      - name: Real identity BFF and cabinet on isolated PostgreSQL and verified HTTPS
+        working-directory: products/alisa
+        run: |
+          export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+          sudo --preserve-env=ALISA_TEST_DB_ALLOW,ALISA_TEST_PG_DSN,GITHUB_ACTIONS,PATH,PLAYWRIGHT_BROWSERS_PATH \
+            .venv/bin/python tests/integration/qualify_identity.py \
+            --artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz" \
+            --output dist/s02-qualification.json
       - name: Save safe qualification receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: alisa-foundation-qualification-${{ github.sha }}
+          name: alisa-foundation-qualification-${{ env.ALISA_SOURCE_SHA }}
           path: |
             products/alisa/dist/postgresql-browser-qualification.json
             products/alisa/dist/s01-home-*.png
+            products/alisa/dist/s02-*.json
+            products/alisa/dist/s02-empty-state.png
+            products/alisa/dist/s02-identity-*.png
           if-no-files-found: error
       - name: Save the qualified immutable stage package
         uses: actions/upload-artifact@v4
         with:
-          name: alisa-platform-package-${{ github.sha }}
+          name: alisa-platform-package-${{ env.ALISA_SOURCE_SHA }}
           path: |
             products/alisa/dist/alisa-*.tar.gz
             products/alisa/dist/alisa-*.tar.gz.sha256

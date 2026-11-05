@@ -1,0 +1,36 @@
+{
+  "record_type": "AL_S02_UNMODIFIED_PROVIDER_PROBE",
+  "candidate": "django-allauth==65.21.1",
+  "django": "5.2.19",
+  "database": "Private disposable PostgreSQL cluster; unix socket only; no stage/live database",
+  "email": "Django in-memory backend, example.invalid only; not SMTP/real delivery acceptance",
+  "started_at_utc": "2026-11-05T01:41:49.131104+00:00",
+  "finished_at_utc": "2026-11-05T01:41:50.101267+00:00",
+  "status": "FAILED",
+  "observations": [
+    {
+      "check": "existing_uuid_person_and_allauth_migrations",
+      "passed": true,
+      "kind": "capability"
+    },
+    {
+      "check": "email_login_code_generated_without_external_mail",
+      "passed": true,
+      "kind": "capability"
+    }
+  ],
+  "required_policy_gaps": [],
+  "capability_failures": [],
+  "error_type": "RuntimeError",
+  "error_module": null,
+  "not_proven": [
+    "Real browser and TLS",
+    "BFF callback state/nonce storage/consumption and product session",
+    "Concurrent and cross-process authorization-code redemption",
+    "Registration/tenant idempotency and second-client product data denial",
+    "Browser MFA enrollment/login and RP-initiated logout policy",
+    "Real controlled email delivery"
+  ],
+  "runtime_changed": false,
+  "live_services_or_databases_changed": false
+}

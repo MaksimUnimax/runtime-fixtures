@@ -29,3 +29,5 @@ class Submission(models.Model):
     id = models.UUIDField(primary_key=True)
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE)
     contact_digest = models.CharField(max_length=64)
+    # Nullable expansion keeps accepted S01 inserts compatible on code rollback.
+    created_at = models.DateTimeField(auto_now_add=True,null=True)
