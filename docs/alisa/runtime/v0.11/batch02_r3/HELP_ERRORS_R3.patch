@@ -1,0 +1,182 @@
+--- a/failure_explanations.py
++++ b/failure_explanations.py
+@@ -55,3 +55,15 @@
+ def public_code(code):
+     """Retain bounded internal identifiers, never reflect arbitrary exception text."""
+     return code if type(code) is str and re.fullmatch(r"[A-Z][A-Z0-9_]{0,79}", code) else CATALOG["fallback"]
++
++
++def rejection_reply(code, message):
++    """Catalog-backed failures share one rendering path across ingress/dialogue.
++    Explicit context prompts outside the catalogue retain their original wording.
++    A generic wrapper around a known code never bypasses its approved explanation.
++    """
++    key = public_code(code)
++    known = type(code) is str and (code in CATALOG['entries'] or code in CATALOG['aliases'])
++    if known or key != code or message == code or type(message) is not str or not 1 <= len(message) <= 900:
++        return {**explain(code), 'error': key}
++    return {'text': message, 'tts': message, 'error': key}
+--- a/engine.py
++++ b/engine.py
+@@ -186,11 +186,8 @@
+     def safe_submit(self,*args,**kwargs):
+         try: return self.submit(*args,**kwargs)
+         except Rejected as exc:
+-            if exc.message==exc.code:
+-                from failure_explanations import explain,public_code
+-                detail=explain(exc.code)
+-                return {**detail,'error':public_code(exc.code)}
+-            return {'text':exc.message,'tts':exc.message,'error':exc.code}
++            from failure_explanations import rejection_reply
++            return rejection_reply(exc.code,exc.message)
+ 
+ class Worker:
+     """One HTTP request per step, except a P2 step which only invokes the model.
+--- a/dialogue.py
++++ b/dialogue.py
+@@ -283,7 +283,8 @@
+                 else:
+                     # Unsupported scope must not be silently weakened by a follow-up.
+                     p = None
+-                    reply = _reply(exc.message, exc.code)
++                    from failure_explanations import rejection_reply
++                    reply = rejection_reply(exc.code, exc.message)
+         jid = reply.get('job_id')
+         row = repo.get(tenant, jid) if jid else None
+         if not row and not p and text in PENDING_CONTROLS:
+--- a/information.py
++++ b/information.py
+@@ -21,7 +21,11 @@
+         if any(not isinstance(x,str) or len(x)>200 or any(ord(ch)<32 for ch in x) for x in c[key]):raise ValueError('INFORMATION_TEXT')
+     if not isinstance(c['features'],list) or not 1<=len(c['features'])<=12:raise ValueError('INFORMATION_FEATURES')
+     for feature in c['features']:
+-        if set(feature)!={'label','metrics'} or not isinstance(feature['label'],str) or not 0<len(feature['label'])<=80 or not isinstance(feature['metrics'],list) or not feature['metrics']:raise ValueError('INFORMATION_FEATURES')
++        if not isinstance(feature,dict) or set(feature) not in ({'label','metrics'},{'label','dataset'}):raise ValueError('INFORMATION_FEATURES')
++        if not isinstance(feature['label'],str) or not 0<len(feature['label'])<=80 or any(ord(ch)<32 for ch in feature['label']):raise ValueError('INFORMATION_FEATURES')
++        if 'metrics' in feature:
++            if not isinstance(feature['metrics'],list) or not feature['metrics'] or any(not isinstance(m,str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,79}',m) for m in feature['metrics']):raise ValueError('INFORMATION_FEATURES')
++        elif not isinstance(feature['dataset'],str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,79}',feature['dataset']):raise ValueError('INFORMATION_FEATURES')
+     for key in ('answer_prefix','answer_end','planned_sentence','no_access'):
+         if not isinstance(c[key],str) or not 0<len(c[key])<=400:raise ValueError('INFORMATION_TEXT')
+     return c
+@@ -52,6 +56,9 @@
+     today=datetime.fromtimestamp(engine.repo.clock(),ZoneInfo('Europe/Moscow')).date()
+     labels=[]
+     for feature in CATALOG['features']:
++        if 'dataset' in feature:
++            if _dataset_available(engine,scope,feature['dataset'],today):labels.append(feature['label'])
++            continue
+         metrics=feature['metrics']
+         if not all(m in DEFINITIONS for m in metrics):continue
+         for store in scope.stores:
+@@ -69,3 +76,29 @@
+     text=CATALOG['answer_prefix']+', '.join(labels)+CATALOG['answer_end']+' '+CATALOG['planned_sentence']
+     if len(text)>800:raise Rejected('INFORMATION_SIZE')
+     return text
++
++
++def _dataset_available(engine,scope,query_id,today):
++    """Pure plan authorization for a declared query; never executes provider work.
++    It tests each eligible store separately, like existing scalar information.
++    All operation IDs and stages remain in the dataset matrix.
++    """
++    if engine.dataset_capabilities is None:return False
++    from datetime import timedelta
++    from semantics import Scope,Rejected
++    from dataset_pipeline import CATALOG as datasets,make_dataset_plan
++    query=datasets['queries'].get(query_id)
++    if query is None:return False
++    for store in scope.stores:
++        if store.platform not in query['flows']:continue
++        snapshot=query['snapshot'];day=today if snapshot else today-timedelta(days=1)
++        draft={'question':'справка о возможностях','period':{'from':day.isoformat(),'to':day.isoformat()},
++               'calendar_date':today.isoformat(),'platforms':[store.platform],'timezone':'Europe/Moscow',
++               'group_by':'marketplace','filters':{},'comparison':None,'snapshot':snapshot,
++               'snapshot_slot':int(engine.repo.clock()//300) if snapshot else None,
++               'dataset_request':{'id':query_id}}
++        try:
++            plan=make_dataset_plan(Scope(scope.tenant,scope.revision,(store,)),draft,engine.dataset_capabilities())
++            if engine.authorized(plan):return True
++        except (Rejected,KeyError,TypeError,ValueError):continue
++    return False
+--- a/information_catalog.json
++++ b/information_catalog.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "alice-information/v1",
+-  "version": "20261104-h00",
++  "version": "20261105-h00-r3",
+   "id": "H00",
+   "prefixes": [
+     "",
+@@ -76,10 +76,22 @@
+       "metrics": [
+         "stock_fbo_units"
+       ]
++    },
++    {
++      "label": "справочники товаров",
++      "dataset": "product_registry"
++    },
++    {
++      "label": "текущие цены предложения",
++      "dataset": "offer_prices"
++    },
++    {
++      "label": "метаданные отправлений",
++      "dataset": "posting_metadata"
+     }
+   ],
+   "answer_prefix": "Могу показать ",
+   "answer_end": " по подключённым магазинам; набор данных зависит от площадки.",
+-  "planned_sentence": "Юнит-экономика запланирована: её добавим после подключения себестоимости и всех необходимых расходов.",
++  "planned_sentence": "Юнит-экономика запланирована; реклама и полнота расходов обязательны, а себестоимость и налог можно указать отдельно — пропуски будут названы явно.",
+   "no_access": "Для доступных вам отчётов сначала подключите магазин или восстановите доступ."
+ }
+--- a/failure_catalog.json
++++ b/failure_catalog.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "alice-failure-catalog/v1",
+-  "version": "20261105-gates-r1",
++  "version": "20261105-errors-r3",
+   "fallback": "UNSPECIFIED",
+   "entries": {
+     "UNSPECIFIED": {
+@@ -152,6 +152,36 @@
+       "reason": "Не удалось подтвердить актуальный допуск источника. Запрос к площадке не отправлен.",
+       "next_action": "Нужно восстановить проверку допуска; ключи и данные повторно передавать не требуется.",
+       "cause_status": "OBSERVED_FAILURE"
++    },
++    "DATASET_NOT_QUALIFIED": {
++      "reason": "Этот набор данных ещё не включён для выбранного магазина: его полнота и условия доступа должны быть проверены.",
++      "next_action": "Спросите «что ты умеешь», чтобы выбрать доступный отчёт; для этого источника нужна отдельная проверка.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "DATASET_PLATFORM_UNAVAILABLE": {
++      "reason": "Этот набор пока не поддерживается для всех выбранных площадок; одну площадку молча не исключаю.",
++      "next_action": "Укажите одну поддерживаемую площадку или выберите другой доступный отчёт.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "DATASET_UNSUPPORTED_CONDITION": {
++      "reason": "Этот фильтр, сравнение или группировка пока не поддерживаются выбранным набором данных; условия не отбрасываю.",
++      "next_action": "Уточните запрос без неподдержанного условия либо выберите другой отчёт, который его поддерживает.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "DATASET_PERIOD_LIMIT": {
++      "reason": "Указанный период превышает проверенное ограничение этого набора данных.",
++      "next_action": "Укажите более короткий период; полный отчёт за неподдержанный интервал не сформирован.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "DATASET_TIME_AXIS": {
++      "reason": "Запрошенная дата не соответствует этому источнику: текущий снимок нельзя выдать за исторический отчёт.",
++      "next_action": "Для текущего состояния скажите «сейчас»; для истории нужен источник с нужной датой события.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "DATASET_TOKEN_POLICY": {
++      "reason": "Для выбранного набора не подтверждён требуемый тип доступа к источнику.",
++      "next_action": "Проверьте подключение магазина и разрешения источника; другой набор данных вместо него не подставляю.",
++      "cause_status": "KNOWN_LIMITATION"
+     }
+   },
+   "aliases": {
