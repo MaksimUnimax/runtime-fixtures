@@ -135,6 +135,27 @@ def main():
     # The same TOTP value cannot be used twice, including on a different flow.
     repeated = post_factor(response['Location'], valid)
     check('s03_native_totp_replay_does_not_attest_new_flow', repeated.status_code == 200 and PROOF not in browser.session)
+
+    from octoport_identity.protocol.mfa_forms import LoginCodeForm,ConfirmCodeForm
+    from allauth.core import context as native_context
+    from django.contrib.auth.models import AnonymousUser
+    from django.core.exceptions import ValidationError
+    from unittest.mock import patch as patch_native
+    from allauth.mfa.base.forms import AuthenticateForm as NativeAuthenticateForm
+    # The submitted value was genuinely accepted above. Inspect only native
+    # form behavior; never bypass/clear its consumed-value marker.
+    check('s03_reauth_replay_has_precise_used_code_error',repeated.context_data['form'].errors['code'].as_data()[0].code=='code_already_used')
+    check('s03_rejected_totp_is_not_prefilled_again',valid not in str(repeated.context_data['form']['code']))
+    anonymous_request=repeated.wsgi_request;anonymous_request.user=AnonymousUser()
+    with native_context.request_context(anonymous_request):
+        replay_login=LoginCodeForm(user=person,data={'code':valid})
+        check('s03_login_stage_uses_form_user_for_native_replay_hint',not replay_login.is_valid() and replay_login.errors['code'].as_data()[0].code=='code_already_used')
+        wrong_login=LoginCodeForm(user=person,data={'code':'not-a-factor'})
+        check('s03_wrong_code_keeps_native_incorrect_error',not wrong_login.is_valid() and wrong_login.errors['code'].as_data()[0].code=='incorrect_code')
+        with patch_native.object(NativeAuthenticateForm,'clean_code',side_effect=ValidationError('native limit',code='too_many_login_attempts')):
+            limited=LoginCodeForm(user=person,data={'code':valid})
+            check('s03_native_rate_limit_error_not_relabelled_as_replay',not limited.is_valid() and limited.errors['code'].as_data()[0].code=='too_many_login_attempts')
+
     recovery_response = post_factor(response['Location'], codes[0])
     check('s03_native_recovery_consumption_creates_attestation', recovery_response.status_code == 302 and browser.session[PROOF]['type'] == 'recovery_codes')
     # A new authorization request destroys evidence for the previous request.

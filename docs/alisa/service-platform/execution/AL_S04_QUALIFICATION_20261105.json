@@ -1,0 +1,248 @@
+{
+  "record_type": "AL_S04_QUALIFICATION_HISTORY",
+  "status": "IN_PROGRESS_NOT_INSTALLED",
+  "canonical_customer_site": "https://alisa.octoport.ru",
+  "owner_instruction": "Proceed with access duration; owner handles admin domain move separately.",
+  "attempts": [
+    {
+      "source_sha": "b9b3c18a5b4f7d86412cb190b9e02c44dae9ddab",
+      "tree_sha": "9b573d530bcbee35f82f073fb08cc78e2a3a4e70",
+      "platform_ci": 42027713810,
+      "status": "FAILED",
+      "artifact_id": 13415270436,
+      "artifact_sha256": "15af839ddcfb171c16f0971be1865bd61465ec39dc5c228c99c955cccf7675d2",
+      "receipts": {
+        "s03-core-qualification.json": {
+          "sha256": "ffb851a1eb5962223d84f9f1baff3c216a7265de8bcca0816baa1456d67d3a55",
+          "receipt": {
+            "scope": "S03_NATIVE_MFA_AND_PLATFORM_CORE_NOT_BROWSER_NOT_STAGE",
+            "status": "PASS",
+            "cases": [
+              {
+                "case": "s03_stale_passwordless_session_cannot_enroll_first_factor",
+                "passed": true
+              },
+              {
+                "case": "s03_real_native_email_code_allows_first_factor_enrollment",
+                "passed": true
+              },
+              {
+                "case": "s03_existing_identity_and_enrolled_factor_do_not_issue_admin_code",
+                "passed": true
+              },
+              {
+                "case": "s03_native_factor_form_rejects_missing_csrf",
+                "passed": true
+              },
+              {
+                "case": "s03_wrong_native_factor_has_no_attestation",
+                "passed": true
+              },
+              {
+                "case": "s03_native_totp_creates_pending_request_bound_evidence",
+                "passed": true
+              },
+              {
+                "case": "s03_native_totp_issues_one_library_authorization_code",
+                "passed": true
+              },
+              {
+                "case": "s03_wrong_client_secret_cannot_exchange_bound_code",
+                "passed": true
+              },
+              {
+                "case": "s03_native_mfa_bound_code_exchanges_via_library",
+                "passed": true
+              },
+              {
+                "case": "s03_signed_mfa_evidence_has_fixed_issuer_client_subject_nonce",
+                "passed": true
+              },
+              {
+                "case": "s03_admin_authorization_code_replay_denied",
+                "passed": true
+              },
+              {
+                "case": "s03_persisted_authentication_records_do_not_attest_a_new_request",
+                "passed": true
+              },
+              {
+                "case": "s03_native_totp_replay_does_not_attest_new_flow",
+                "passed": true
+              },
+              {
+                "case": "s03_native_recovery_consumption_creates_attestation",
+                "passed": true
+              },
+              {
+                "case": "s03_native_proof_cannot_move_to_another_authorization_request",
+                "passed": true
+              },
+              {
+                "case": "s03_used_recovery_code_cannot_attest_another_flow",
+                "passed": true
+              },
+              {
+                "case": "s03_stale_native_factor_requires_step_up",
+                "passed": true
+              },
+              {
+                "case": "s03_recovery_proof_is_signed_for_the_actual_code",
+                "passed": true
+              },
+              {
+                "case": "s03_factor_secret_is_encrypted_in_postgresql",
+                "passed": true
+              },
+              {
+                "case": "s03_client_registration_uses_confidential_dedicated_admin",
+                "passed": true
+              },
+              {
+                "case": "s03_closed_bootstrap_and_explicit_staff_session",
+                "passed": true
+              },
+              {
+                "case": "s03_session_creation_identical_retry_recovers_receipt",
+                "passed": true
+              },
+              {
+                "case": "s03_session_flow_cannot_bind_another_session_token",
+                "passed": true
+              },
+              {
+                "case": "s03_web_service_token_cannot_call_staff_api",
+                "passed": true
+              },
+              {
+                "case": "s03_browser_role_labels_do_not_authorize",
+                "passed": true
+              },
+              {
+                "case": "s03_closed_bootstrap_cannot_replace_or_append_owner",
+                "passed": true
+              },
+              {
+                "case": "s03_local_block_and_idempotent_receipt",
+                "passed": true
+              },
+              {
+                "case": "s03_local_block_revokes_only_product_customer_sessions",
+                "passed": true
+              },
+              {
+                "case": "s03_command_uuid_cannot_apply_changed_payload",
+                "passed": true
+              },
+              {
+                "case": "s03_concurrent_identical_commands_have_one_revision_effect",
+                "passed": true
+              },
+              {
+                "case": "s03_limited_staff_can_read_real_customer",
+                "passed": true
+              },
+              {
+                "case": "s03_reader_block_denied_by_backend_and_audited",
+                "passed": true
+              },
+              {
+                "case": "s03_staff_revocation_invalidates_both_sessions",
+                "passed": true
+              },
+              {
+                "case": "s03_last_owner_is_transactionally_protected",
+                "passed": true
+              },
+              {
+                "case": "s03_other_product_staff_has_no_alisa_session",
+                "passed": true
+              },
+              {
+                "case": "s03_stale_mfa_denies_current_backend_reads",
+                "passed": true
+              },
+              {
+                "case": "s03_runtime_audit_update_denied_by_postgresql",
+                "passed": true
+              },
+              {
+                "case": "s03_runtime_audit_delete_denied_by_postgresql",
+                "passed": true
+              },
+              {
+                "case": "s03_runtime_audit_truncate_denied_by_postgresql",
+                "passed": true
+              },
+              {
+                "case": "s03_safe_audit_excludes_contacts_and_session_tokens",
+                "passed": true
+              },
+              {
+                "case": "s03_logout_revokes_current_staff_session",
+                "passed": true
+              },
+              {
+                "case": "s03_cleanup_erases_owned_expired_and_revoked_staff_payloads",
+                "passed": true
+              },
+              {
+                "case": "s03_cleanup_preserves_foreign_product_staff_payload",
+                "passed": true
+              },
+              {
+                "case": "s03_staff_enabled_readiness_checks_own_schema",
+                "passed": true
+              }
+            ],
+            "platform_migrations_applied": true,
+            "identity_migrations_applied": true,
+            "owned_database_and_role_cleanup": true
+          }
+        },
+        "s04-core-qualification.json": {
+          "sha256": "c5893f14ea19f269a2418a1a30f28a738e6c35b55430fb534e736b9c7d854e83",
+          "receipt": {
+            "scope": "S04_POSTGRES_BACKEND_NOT_NATIVE_OIDC_NOT_INSTALLED",
+            "status": "FAILED",
+            "cases": [
+              {
+                "case": "concurrent_same_command_same_response_one_grant",
+                "passed": false
+              }
+            ],
+            "error_type": "RuntimeError",
+            "error_line": 27,
+            "owned_database_and_role_cleanup": true
+          }
+        }
+      },
+      "cause": "FOR UPDATE with select_related(preview) attempted to lock immutable AccessPreview; PostgreSQL correctly requires denied UPDATE permission.",
+      "resolution": "4467af34 uses select_for_update(of=self) on mutable batch only; no ACL or verifier relaxation.",
+      "not_run": [
+        "packaged_browser",
+        "installation"
+      ]
+    },
+    {
+      "source_sha": "4467af34e65970e2259c49ea7500569529734b08",
+      "tree_sha": "5f9a8ffc29d17f4bc8b570da256507e8fcc377b5",
+      "platform_ci": 42028730757,
+      "status": "RUNNING_AT_RECORD_CREATION"
+    }
+  ],
+  "source_local_checks": {
+    "policy_unit_tests": 7,
+    "documentation_tests": 6,
+    "documentation_check": "PASS"
+  },
+  "publication_notes": [
+    "Initial GitHub update_ref cannot create a new reference (422); no ref changed. Used create_branch for exact approved candidate, then created Draft PR393.",
+    "Executable bin/alisa mode100755 and full Git tree matched before candidate commit; all34 authored blobs read back identical."
+  ],
+  "scope_limits": [
+    "No S04 server schema/config/deployment yet.",
+    "Merged registration/domain/identity/owner-handover work is preserved, not accepted as S04.",
+    "No real customer grant, commercial payment or external email sent by this flow."
+  ]
+}

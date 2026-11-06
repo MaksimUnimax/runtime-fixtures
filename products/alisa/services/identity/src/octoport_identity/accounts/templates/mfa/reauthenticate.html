@@ -13,4 +13,6 @@
   {{ redirect_field }}
   <button type="submit">Продолжить вход</button>
 </form>
+<p>Код в приложении меняется примерно каждые 30 секунд. Уже использованный код повторно не принимается.</p>
+{% if staff_continuation_context %}<p><a href="{{ admin_home_url }}">Открыть админку</a></p>{% endif %}
 {% endblock %}

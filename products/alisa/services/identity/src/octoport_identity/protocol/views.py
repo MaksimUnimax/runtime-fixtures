@@ -52,6 +52,7 @@ def brand_context(request):
     return {'alisa_product_origin':settings.IDENTITY_PRODUCT_ORIGIN,
         'real_login_enabled':bool(settings.REAL_LOGIN_OPEN or settings.REAL_LOGIN_RECIPIENTS),
         'registration_open':settings.REAL_LOGIN_OPEN,'mfa_page':mfa_page,
+        'admin_home_url':settings.IDENTITY_STAFF_CALLBACK.rsplit('/auth/callback',1)[0]+'/admin' if settings.IDENTITY_STAFF_ENABLED else '',
         'mfa_recovery_page':name in {'mfa_view_recovery_codes','mfa_generate_recovery_codes'},
         'mfa_setup_page':name=='mfa_activate_totp',
         'staff_continuation_context':bool(settings.IDENTITY_STAFF_ENABLED and request.user.is_authenticated)}
