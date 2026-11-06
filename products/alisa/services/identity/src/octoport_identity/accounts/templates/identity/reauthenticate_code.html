@@ -2,9 +2,9 @@
 {% block head_title %}Подтвердите вход{% endblock %}
 {% block content %}
 <h1>Подтвердите вход ещё раз</h1>
-<p>Для нового входа нужен свежий код на тестовую почту. После продолжения текущая сессия центра входа завершится.</p>
+<p>{% if customer_reauthentication %}Для нового входа введите логин и пароль, затем код из письма.{% else %}Для нового входа нужен свежий код на почту.{% endif %} После продолжения текущая сессия центра входа завершится.</p>
 <form method="post" action="{% url 'account_logout' %}">
   {% csrf_token %}<input type="hidden" name="next" value="{{ login_target }}">
-  <button type="submit">Продолжить вход по коду</button>
+  <button type="submit">{% if customer_reauthentication %}Продолжить вход в кабинет{% else %}Продолжить вход по коду{% endif %}</button>
 </form>
 {% endblock %}
