@@ -57,7 +57,7 @@ def pending_authorization_target(request,user=None):
             or pending.get('user') not in {None,str(user.pk)}):
         return None
     target=pending.get('target')
-    if not isinstance(target,str) or not 1<=len(target)<=4096 or '\\\\' in target or any(ord(c)<32 or ord(c)==127 for c in target):
+    if not isinstance(target,str) or not 1<=len(target)<=4096 or '\\' in target or any(ord(c)<32 or ord(c)==127 for c in target):
         return None
     try:parsed=urlsplit(target);query=QueryDict(parsed.query)
     except ValueError:return None

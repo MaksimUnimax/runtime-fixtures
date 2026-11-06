@@ -87,7 +87,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
             expect(page).to_have_url(origin+'/admin')
             check('s03_single_enrollment_challenge_resumes_original_admin_request',True)
         else:
-            expect(page).to_have_url(re.compile(re.escape(origin)+r'/login\\?error=AUTH_FAILED'))
+            expect(page).to_have_url(re.compile(re.escape(origin)+r'/login\?error=AUTH_FAILED'))
         return secret,recovery,value
 
     def login(page, factor, accepted=True):

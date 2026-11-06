@@ -238,6 +238,8 @@ def main():
         and PENDING not in enrollment.session and PROOF not in enrollment.session)
     check('s03_single_challenge_code_exchanges_once_with_native_mfa',redeem(single_code,enrollment_verifier).status_code==200
         and redeem(single_code,enrollment_verifier).status_code==400)
+    legacy=enrollment.get(reverse('mfa_view_recovery_codes'),secure=True)
+    check('s03_missing_pending_recovery_page_keeps_visible_admin_action',legacy.status_code==200 and b'identity/staff/continue' in legacy.content)
     fallback=enrollment.post(path,{},secure=True,HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
     check('s03_finished_or_legacy_missing_pending_has_clean_admin_fallback',
         fallback.status_code==303 and fallback['Location']==staff_login_url())

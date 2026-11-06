@@ -54,8 +54,7 @@ def brand_context(request):
         'registration_open':settings.REAL_LOGIN_OPEN,'mfa_page':mfa_page,
         'mfa_recovery_page':name in {'mfa_view_recovery_codes','mfa_generate_recovery_codes'},
         'mfa_setup_page':name=='mfa_activate_totp',
-        'staff_continuation_context':bool(settings.IDENTITY_STAFF_ENABLED and request.user.is_authenticated
-            and isinstance(pending,dict) and pending.get('request'))}
+        'staff_continuation_context':bool(settings.IDENTITY_STAFF_ENABLED and request.user.is_authenticated)}
 
 
 def mail_ui(request):
