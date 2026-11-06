@@ -29,7 +29,7 @@ def fresh_totp(secret, previous):
 
 
 def run(*, browser, context, second_context, db, manage, check, origin, issuer,
-        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record, access_enabled=False, web_origin=None, platform_proxy=None, native_letter=None):
+        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record, access_enabled=False, web_origin=None, platform_proxy=None, native_letter=None, native_password=None):
     def subject(email):
         with db('identity') as conn:
             person = conn.execute('SELECT p.id FROM accounts_person p JOIN account_emailaddress e ON e.user_id=p.id WHERE e.email=%s AND e.verified=true AND p.is_active=true', [email]).fetchone()
@@ -67,6 +67,10 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         record['staff_browser_phase']='require_first_factor'
         expect(page.get_by_role('heading',name='Дополнительная защита входа в админку')).to_be_visible()
         page.get_by_role('link',name='Подключить приложение для кодов').click()
+        if page.locator('input[name=password]').count():
+            if native_password is None:raise RuntimeError('Owned synthetic password required by native security settings')
+            page.locator('input[name=password]').fill(native_password)
+            page.locator('form').filter(has=page.locator('input[name=password]')).locator('button[type=submit]').click()
         record['staff_browser_phase']='enroll_totp'
         secret = page.locator('#authenticator_secret').input_value()
         private_values.append(secret)

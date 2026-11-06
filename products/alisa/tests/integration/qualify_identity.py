@@ -518,7 +518,21 @@ def main():
                 from qualify_staff_browser import run as run_staff_browser
                 run_staff_browser(browser=browser,context=context,second_context=second_context,db=db,manage=manage,
                     check=check,origin=staff_origin,issuer=ISSUER,private_values=private_values,owner_email=email,
-                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record,access_enabled=args.access,web_origin=WEB,platform_proxy=proxies[2],native_letter=letter)
+                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record,access_enabled=args.access,web_origin=WEB,platform_proxy=proxies[2],native_letter=letter,native_password=customer_password)
+                # The same identity now has a real native admin authenticator.
+                # Ordinary customer login must still use password + email only.
+                customer_page=context.new_page();open_identity(customer_page)
+                if customer_page.get_by_role('button',name='Продолжить вход в кабинет').count():
+                    customer_page.get_by_role('button',name='Продолжить вход в кабинет').click()
+                customer_page.locator('input[name=login]').fill(email)
+                customer_page.locator('input[name=password]').fill(customer_password)
+                customer_page.locator('form').filter(has=customer_page.locator('input[name=login]')).locator('button[type=submit]').click()
+                expect(customer_page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+                customer_page.locator('input[name=code]').fill(letter(email))
+                customer_page.locator('form').filter(has=customer_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+                expect(customer_page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
+                check('customer_enrolled_admin_enters_cabinet_with_password_and_email_without_totp',True)
+                customer_page.close()
             if args.open_registration:
                 real_context=browser.new_context(ignore_https_errors=False)
                 real_page=real_context.new_page()
