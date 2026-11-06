@@ -1,0 +1,14 @@
+{
+  "scope": "PUBLIC_ANONYMOUS_REPRODUCTION_NO_COOKIE_NO_PROVIDER_CALLS",
+  "release": "alisa-6098b31384ae23a4",
+  "GET": {
+    "status": 422,
+    "code": "INVALID_PAYLOAD"
+  },
+  "POST_application_json_same_origin": {
+    "status": 422,
+    "code": "INVALID_PAYLOAD"
+  },
+  "store_writes": 0,
+  "provider_calls": 0
+}

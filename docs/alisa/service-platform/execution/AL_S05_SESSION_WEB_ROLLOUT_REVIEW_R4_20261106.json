@@ -1,0 +1,58 @@
+{
+  "schema_version": "alisa_rollout_source_review_v1",
+  "scope": "READ_ONLY_FINAL_SOURCE_REVIEW_NO_EXECUTION",
+  "reviewed_at": "2026-11-06",
+  "source": {
+    "review_workspace_commit": "ae100ab",
+    "product_commit": "d9918bcb3695b432f1dcc6108f91a64824e7588c",
+    "product_tree": "bdd5d54375b54480fa2de200c34739d33d6179b6",
+    "install_web_script_sha256": "45c8919a3e9c27f09b470ed131fccc74e241d8a4af8eeddb8b04a0d62e0eb24a",
+    "activate_web_script_sha256": "babb7c734acb229183c386c425746e454110da163386ef595cca6484e58f0534"
+  },
+  "verdicts": {
+    "inactive_web_install_source": "ACCEPTED_CONDITIONALLY_ON_EXACT_PACKAGE_PINS_AND_POSTCOPY_READBACK",
+    "web_activation_source": "ACCEPTED_CONDITIONALLY_ON_INSTALL_RECEIPT_AND_FRESH_PREFLIGHTS",
+    "execution_or_installed_acceptance": "NOT_REVIEWED_OR_PERFORMED",
+    "live_provider_or_customer_acceptance": "NOT_ESTABLISHED"
+  },
+  "R3_findings_resolved": [
+    "Both entrypoints validate every directory in the releases and private evidence path chains with lstat: directories only, root:root, and no group/world write; D is additionally required to be exactly mode 0700.",
+    "Both entrypoints reject existing or dangling OUT paths before execution. They keep an opened O_DIRECTORY|O_NOFOLLOW fd for D and create the outcome with O_CREAT|O_EXCL|O_NOFOLLOW relative to that dirfd, mode 0600.",
+    "Activation rechecks the private install receipt with lstat as a regular root:root mode-0600 file before reading it.",
+    "The effective systemd ExecStart identity is parsed as exactly one path+argv pair and included in pre/post profile comparison and rollback guard.",
+    "After the post-switch smoke checks, activation asserts web-current resolves to the exact candidate release.",
+    "Web health polling now uses a real 15-second monotonic deadline with per-request timeout bounded by remaining time."
+  ],
+  "review_notes": [
+    "Installer binds its private package inputs to the exact source/tree and configured successful CI identifiers, bounds ZIP/TAR size/member count, downloads with HTTPS verification, proxies disabled and redirects rejected, verifies archive digests and the complete manifest before selecting payload, and hashes the extracted component again.",
+    "The installation selects only ui/web/, unchanged infra/launch.py and the original manifest, creates a stdlib-only venv with no pip, does not change pointers, and preserves an inactive outcome.",
+    "Activation changes only web-current and restarts only alisa-web@stage.service. It checks web and platform predecessors, service launch identity/profile, private env-file hashes, runtime uid/cwd/cgroup/executable, public anonymous 401 responses, /app/stores login redirect, and that the platform, runtime and checker remain on their current releases.",
+    "The anonymous POST includes JSON Content-Type, same-site Origin and a synthetic fixture string; no cookie is sent. It does not invoke the checker manually or contact Ozon/WB APIs."
+  ],
+  "execution_gates": [
+    "At review time the documentation CI has succeeded, while platform CI 42163427391 is still installing Chromium and has not run the browser cases; package artifacts are not yet available. The installer must remain unrun until the platform run is successful and exact artifact pins are produced.",
+    "Wait for successful exact CI artifacts and independently verify package-binding.json, artifact-input.private.json, source/tree, CI IDs, zip/tar sizes and digests, manifest digest and archive contents before running the installer.",
+    "After inactive copy, read back selected payload hashes, owners, modes, symlink targets, service-UID traversal/readability, venv existence without pip, pointer invariance, disk reserve and inode reserve. The manifest pins bytes and links; installed mode/owner validation remains a host readback gate.",
+    "Activation requires the installer receipt to be PASS and mode/owner/private-path correct, plus fresh service, pointer, config-hash, health and 3072 MiB/200000-inode reserve checks. Abort on any mismatch; no cleanup or deduplication is authorized by these scripts.",
+    "The activation script hashes six private environment files in process memory to prove they remain unchanged and stores/prints only hashes. This is part of its reviewed profile guard; the reviewer did not execute it or access their contents."
+  ],
+  "resource_assessment": {
+    "reported_selected_payload_bytes": 49795619,
+    "script_growth_formula": "ceil(selected regular-file bytes * 1.15) + 16 MiB",
+    "reported_growth": "approximately 75 MiB",
+    "reported_headroom_over_3072_MiB_floor": "approximately 160 MiB",
+    "review": "The stated estimate is consistent with the source formula and reported payload size. It remains conditional on fresh installer preflight and postcopy reserve checks; no host capacity was read by this reviewer."
+  },
+  "limits": {
+    "scripts_executed": false,
+    "host_calls": 0,
+    "tests_or_CI_run_by_reviewer": false,
+    "package_archive_reviewed": false,
+    "credentials_sessions_database_read": false,
+    "provider_calls": false,
+    "browser_owner_negative_canary": "not performed; must be tracked separately",
+    "seller_binding": "false",
+    "performance_identity": "unverified"
+  },
+  "history": "R3 HOLD receipt remains in AL_S05_SESSION_WEB_ROLLOUT_REVIEW_20261106.json. This R4 receipt supersedes its source-gap findings only for the exact hashes above; it does not claim package, execution, live-provider, or customer acceptance."
+}

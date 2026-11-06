@@ -1,0 +1,75 @@
+{
+  "schema_version": "alisa_rollout_source_review_v1",
+  "scope": "READ_ONLY_SOURCE_REVIEW_OF_WEB_COMPONENT_INSTALL_AND_ACTIVATION",
+  "reviewed_at": "2026-11-06",
+  "source": {
+    "commit": "d9918bcb3695b432f1dcc6108f91a64824e7588c",
+    "tree": "bdd5d54375b54480fa2de200c34739d33d6179b6",
+    "install_web_script_sha256": "11e272256dba6dbc2ec3e7d0e6d752f4a0e80d028bb79263cd2a56b1fde4329a",
+    "activate_web_script_sha256": "4164d4524792ad84e0c10364e6a21e240bee196e265c0de3b33db9d0c2aad2c0"
+  },
+  "verdicts": {
+    "inactive_web_install_script": "CONDITIONALLY_ACCEPTABLE_AFTER_EXACT_CI_PACKAGE_PIN_AND_PRIVATE_INPUT_READBACK",
+    "web_activation_script": "HOLD_FOR_FAIL_PATH_AND_DESTINATION_CHAIN_GUARDS",
+    "script_execution_or_host_acceptance": "NOT_REVIEWED_AND_NOT_PERFORMED",
+    "live_provider_or_customer_acceptance": "NOT_ESTABLISHED"
+  },
+  "positive_findings": [
+    "Installer pins the source SHA/tree and CI run identifiers, bounds archive sizes and member count, hashes the downloaded ZIP and TAR in RAM, rejects redirects and ambient proxies, checks the complete source manifest before selecting the web payload, and verifies the installed selected-file hashes and symlinks.",
+    "Only ui/web plus the unchanged infra/launch.py and manifest are selected; it creates a stdlib-only venv without pip, does not move pointers, and checks that all pointers remain unchanged.",
+    "The reserve calculation uses selected uncompressed file bytes with 15 percent plus 16 MiB overhead, rechecks the 3072 MiB free-space floor and inode reserve before and after extraction, and keeps ZIP/TAR bytes in memory. The stated approximately 75 MiB growth against approximately 160 MiB headroom clears that guard, conditional on fresh host readings.",
+    "Activation is limited to web-current plus restarting alisa-web@stage.service. Public probes use no cookie; they check exact anonymous 401 bodies for GET and POST, private page redirect to /login, web health release, and that platform/core/checker remain active on the previous qualified release. A failed post-switch check attempts rollback only when observed pointers, selected config hashes, and the service profile still match the captured state.",
+    "The revised process check reads the actual process executable and cwd/uid/cgroup and compares effective launch argv before and after. The prior invalid /proc/cmdline server.js assumption is gone."
+  ],
+  "resolved_findings_from_previous_draft": [
+    {
+      "id": "ACTIVATE_EXECSTART_PATH_NOT_PINNED",
+      "detail": "Resolved in this exact source: launch_identity() requires one path+argv pair and its tuple is included in profile, before/after checks, and rollback guard."
+    },
+    {
+      "id": "ACTIVATE_PRIVATE_RECEIPT_DIRECTORY_NOT_REVALIDATED",
+      "detail": "Resolved in this exact source for D itself and install-web.json: activation checks D ownership/mode/no-symlink and lstat regular root-owned mode-0600 receipt before reading it. The parent-chain gap remains below."
+    },
+    {
+      "id": "ACTIVATE_WEB_POINTER_FINAL_STATE_NOT_ASSERTED",
+      "detail": "Resolved in this exact source: postchecks assert that web-current resolves to R."
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "ROOT_RECEIPT_WRITE_AFTER_PRIVATE_DIR_GUARD_FAILURE",
+      "severity": "high",
+      "detail": "Both scripts unconditionally write OUT in finally even if the initial D ownership/mode/no-symlink guard fails. If D is a symlink/untrusted namespace and OUT is a dangling symlink, OUT.exists() is false; the guard then fails but finally follows the path and performs a root-owned write through the invalid namespace.",
+      "required_resolution": "Validate D and its trusted path before entering a block that persists a receipt, and gate failure receipt writes on the validated directory; preferably create output via a verified directory fd with O_NOFOLLOW|O_EXCL. Apply to both installer and activator."
+    },
+    {
+      "id": "INSTALL_DESTINATION_PARENT_CHAIN_NOT_GUARDED",
+      "severity": "high",
+      "detail": "The root installer verifies D and TARGET nonexistence but does not verify B or B/releases ownership, mode, and absence of symlinks before TARGET.mkdir and tar extraction. A changed/untrusted parent could redirect privileged extraction outside the intended release directory.",
+      "required_resolution": "Add fail-closed trust checks for B and B/releases and relevant ancestors, or make a fresh exact host readback of owner/mode/symlink state a mandatory precondition with a sufficiently narrow, protected runner."
+    }
+  ],
+  "conditional_package_and_permissions_gates": [
+    "Do not execute install-web.py until package-binding.json, artifact-input.private.json, exact CI success, source tree, archive sizes, ZIP/TAR hashes, and manifest hash are independently read back from trusted private inputs.",
+    "After inactive extraction, verify target and all selected files/directories are root-owned and not group/world writable, and that the alisa-web-stage service UID can traverse/read required web files. Manifest checks currently pin file bytes and symlink targets, not installed owner/mode metadata.",
+    "Activation config_hashes() reads the complete contents of six environment files into process memory to compare their hashes; it prints/stores only hashes. This is not a DB read and no values are logged, but if the rollout boundary forbids even in-memory reads of secret-bearing configuration, the operator must resolve that boundary before running it.",
+    "The post-switch profile guard covers an allowlist of systemd properties. If the stated requirement is full unit-profile immutability, include other effective execution/restart/kill properties or explicitly scope the profile claim to the listed properties."
+  ],
+  "resource_assessment": {
+    "reported_payload_bytes": 49795619,
+    "reported_growth_estimate": "approximately 75 MiB",
+    "reported_headroom_over_3072_MiB_floor": "approximately 160 MiB",
+    "review": "Arithmetic is plausible with the stated payload and current source formula. The script correctly requires a fresh disk/inode reserve check at execution; no host capacity was read by this reviewer."
+  },
+  "review_limits": {
+    "scripts_executed": false,
+    "reviewed_install_web_sha256": "11e272256dba6dbc2ec3e7d0e6d752f4a0e80d028bb79263cd2a56b1fde4329a",
+    "reviewed_activate_web_sha256": "4164d4524792ad84e0c10364e6a21e240bee196e265c0de3b33db9d0c2aad2c0",
+    "host_calls": 0,
+    "credentials_sessions_database_read": false,
+    "tests_or_ci_run_by_reviewer": false,
+    "package_payload_reviewed": false,
+    "seller_binding": "still false",
+    "performance_identity": "still unverified"
+  }
+}
