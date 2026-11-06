@@ -44,7 +44,18 @@ def mail_status(request):
     state='UNKNOWN' if not row else 'EXPIRED' if row.expires_at<=timezone.now() else 'DELIVERED' if row.sent_at else 'FAILED' if row.error_code in {'DELIVERY_OUTCOME_UNKNOWN','DELIVERY_REJECTED','INVALID_PAYLOAD'} or row.attempts>=5 else 'DELAYED' if row.error_code=='DELIVERY_UNAVAILABLE' else 'QUEUED'
     response=JsonResponse({'state':state});response['Cache-Control']='no-store';return response
 
-def brand_context(request):return {'alisa_product_origin':settings.IDENTITY_PRODUCT_ORIGIN,'real_login_enabled':bool(settings.REAL_LOGIN_OPEN or settings.REAL_LOGIN_RECIPIENTS),'registration_open':settings.REAL_LOGIN_OPEN}
+def brand_context(request):
+    from .staff import PENDING
+    name=request.resolver_match.url_name if request.resolver_match else ''
+    mfa_page=request.path.startswith('/accounts/2fa/')
+    pending=request.session.get(PENDING)
+    return {'alisa_product_origin':settings.IDENTITY_PRODUCT_ORIGIN,
+        'real_login_enabled':bool(settings.REAL_LOGIN_OPEN or settings.REAL_LOGIN_RECIPIENTS),
+        'registration_open':settings.REAL_LOGIN_OPEN,'mfa_page':mfa_page,
+        'mfa_recovery_page':name in {'mfa_view_recovery_codes','mfa_generate_recovery_codes'},
+        'mfa_setup_page':name=='mfa_activate_totp',
+        'staff_continuation_context':bool(settings.IDENTITY_STAFF_ENABLED and request.user.is_authenticated)}
+
 
 def mail_ui(request):
     paths=json.dumps([reverse('account_confirm_login_code'),reverse('account_email_verification_sent')])

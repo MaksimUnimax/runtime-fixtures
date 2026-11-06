@@ -62,7 +62,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         page.get_by_role('button',name='Войти с MFA',exact=True).click()
         page.wait_for_url(re.compile(re.escape(issuer)+r'/'))
 
-    def enroll(page):
+    def enroll(page, accepted=True):
         begin(page)
         record['staff_browser_phase']='require_first_factor'
         expect(page.get_by_role('heading',name='Дополнительная защита входа в админку')).to_be_visible()
@@ -74,17 +74,20 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         page.locator('input[name=code]').fill(value)
         page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').click()
         page.wait_for_url(re.compile(re.escape(issuer)+r'/accounts/2fa/(recovery-codes/|reauthenticate/)'))
-        record['staff_browser_phase']='recovery_view_native_step_up'
-        reauth_needed=urlsplit(page.url).path=='/accounts/2fa/reauthenticate/'
-        if reauth_needed:
-            value=totp(secret);private_values.append(value)
-            page.locator('input[name=code]').fill(value)
-            page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').click()
+        record['staff_browser_phase']='recovery_view_single_verified_challenge'
+        check('s03_native_browser_enrollment_does_not_ask_second_totp',urlsplit(page.url).path=='/accounts/2fa/recovery-codes/')
         expect(page.locator('#recovery_codes')).to_be_visible()
-        if reauth_needed:check('s03_native_browser_recovery_view_requires_factor_step_up',True)
+        check('s03_mfa_recovery_page_does_not_promise_email',page.get_by_text('Введите свою электронную почту.',exact=False).count()==0)
         recovery = page.locator('#recovery_codes').input_value().strip().splitlines()
         private_values.extend(recovery)
         check('s03_native_browser_totp_enrollment_and_recovery_codes',len(recovery)>=6)
+        page.get_by_role('button',name='Коды сохранены — перейти в админку').click()
+        if accepted:
+            expect(page.get_by_role('heading',name='Админка Алисы',exact=True)).to_be_visible(timeout=15000)
+            expect(page).to_have_url(origin+'/admin')
+            check('s03_single_enrollment_challenge_resumes_original_admin_request',True)
+        else:
+            expect(page).to_have_url(re.compile(re.escape(origin)+r'/login\?error=AUTH_FAILED'))
         return secret,recovery,value
 
     def login(page, factor, accepted=True):
@@ -102,7 +105,6 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
 
     owner_page = context.new_page()
     secret, owner_recovery, used_value = enroll(owner_page)
-    login(owner_page,fresh_totp(secret,used_value))
     check('s03_real_https_native_mfa_oidc_bff_api_postgresql_admin',True)
     expect(owner_page.get_by_role('button',name=owner_label,exact=True)).to_be_visible()
     expect(owner_page.get_by_role('button',name=reader_email,exact=True)).to_be_visible()
@@ -138,7 +140,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
 
     # A normal customer completes native MFA but still receives no staff role.
     reader_page = second_context.new_page()
-    reader_secret, reader_recovery, _ = enroll(reader_page)
+    reader_secret, reader_recovery, _ = enroll(reader_page,False)
     login(reader_page,reader_recovery[0],False)
     check('s03_ordinary_customer_with_valid_mfa_still_has_no_admin',not any(c['name']=='__Host-alisa_staff' for c in second_context.cookies()))
     owner_page.get_by_role('button',name='Сотрудники',exact=True).click()

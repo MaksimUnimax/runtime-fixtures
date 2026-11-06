@@ -5,6 +5,7 @@ factor verification, recovery-code consumption, OAuth codes, PKCE and signing.
 No authentication-record labels or browser-provided MFA claims are trusted.
 """
 import hashlib
+import re
 import time
 from urllib.parse import urlencode
 
@@ -31,6 +32,42 @@ def fingerprint(query):
         for value in values)).encode()).hexdigest()
 
 
+def valid_admin_query(query):
+    from allauth.idp.oidc.models import Client
+    if not settings.IDENTITY_ENABLED or not settings.IDENTITY_STAFF_ENABLED:
+        return False
+    client=Client.objects.filter(pk=settings.IDENTITY_STAFF_CLIENT_ID,type=Client.Type.CONFIDENTIAL).first()
+    return (query.getlist('client_id')==[settings.IDENTITY_STAFF_CLIENT_ID]
+        and not any(len(values)!=1 for _,values in query.lists())
+        and query.getlist('redirect_uri')==[settings.IDENTITY_STAFF_CALLBACK]
+        and client is not None and client.redirect_uris==settings.IDENTITY_STAFF_CALLBACK
+        and query.getlist('response_type')==['code']
+        and bool(query.get('state')) and bool(query.get('nonce'))
+        and query.getlist('code_challenge_method')==['S256']
+        and len(query.getlist('code_challenge'))==1
+        and re.fullmatch(r'[A-Za-z0-9_-]{43}',query['code_challenge']) is not None)
+
+def pending_authorization_target(request,user=None):
+    from urllib.parse import urlsplit
+    from django.http import QueryDict
+    pending=request.session.get(PENDING)
+    user=user or request.user
+    if (not getattr(user,'is_authenticated',False) or not isinstance(pending,dict)
+            or not fresh(pending.get('started'),time.time(),600)
+            or pending.get('user') not in {None,str(user.pk)}):
+        return None
+    target=pending.get('target')
+    if not isinstance(target,str) or not 1<=len(target)<=4096 or '\\' in target or any(ord(c)<32 or ord(c)==127 for c in target):
+        return None
+    try:parsed=urlsplit(target);query=QueryDict(parsed.query)
+    except ValueError:return None
+    if (parsed.scheme or parsed.netloc or parsed.fragment
+            or parsed.path!=reverse('idp:oidc:authorization')
+            or not valid_admin_query(query) or fingerprint(query)!=pending.get('request')):
+        return None
+    return target
+
+
 def native_factor_used(sender, request, user, authenticator, **kwargs):
     """Only called by allauth after successful native factor validation."""
     if not getattr(settings,'IDENTITY_STAFF_ENABLED',False) or authenticator.type not in {'totp', 'recovery_codes'}:
@@ -39,7 +76,7 @@ def native_factor_used(sender, request, user, authenticator, **kwargs):
     now = time.time()
     if (not isinstance(pending, dict) or not fresh(pending.get('started'), now, 600)
             or pending.get('user') not in {None, str(user.pk)}
-            or authenticator.user_id != user.pk):
+            or authenticator.user_id != user.pk or pending_authorization_target(request,user) is None):
         return
     request.session[PROOF] = {
         'request': pending['request'], 'user': str(user.pk),
@@ -57,7 +94,8 @@ def proof_for_request(request):
             or proof['at'] < pending['started']
             or proof.get('request') != pending.get('request')
             or proof.get('user') != str(request.user.pk)
-            or proof.get('type') not in {'totp', 'recovery_codes'}):
+            or proof.get('type') not in {'totp', 'recovery_codes'}
+            or pending_authorization_target(request) is None):
         return None
     return proof
 
@@ -110,6 +148,13 @@ class StaffMFAPolicy:
         self.get_response = get_response
 
     def __call__(self, request):
+        response=self.handle_request(request)
+        if request.path.startswith('/accounts/2fa/'):
+            response['Cache-Control']='no-store'
+            response['Referrer-Policy']='no-referrer'
+        return response
+
+    def handle_request(self, request):
         client_id = settings.IDENTITY_STAFF_CLIENT_ID
         if (settings.IDENTITY_STAFF_ENABLED and request.user.is_authenticated
                 and request.path == reverse('mfa_activate_totp')
@@ -145,8 +190,11 @@ class StaffMFAPolicy:
         if (not isinstance(pending, dict) or pending.get('request') != mark
                 or not fresh(pending.get('started'), time.time(), 600)):
             request.session[PENDING] = {'request': mark, 'started': time.time(),
-                'user': str(request.user.pk) if request.user.is_authenticated else None}
+                'user': str(request.user.pk) if request.user.is_authenticated else None,'target':request.get_full_path()}
             request.session.pop(PROOF, None)
+        else:
+            # Only this validated native authorization GET can refresh the stored target.
+            request.session[PENDING]={**pending,'target':request.get_full_path()}
         if request.user.is_authenticated and proof_for_request(request) is None:
             if Authenticator.objects.filter(user=request.user, type='totp').exists():
                 response = HttpResponseRedirect(reverse('mfa_reauthenticate') + '?' +
