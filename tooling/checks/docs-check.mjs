@@ -1,10 +1,15 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-function checkDocumentation(files) {
+export function checkDocumentation(files, repositoryPaths = Object.keys(files)) {
   const errors = [];
   const paths = Object.keys(files).sort();
+  // Link existence concerns every regular repository file. Content checks below
+  // intentionally remain limited to documentation/text formats, not binary assets.
+  const targets = [...new Set([...repositoryPaths, ...paths])];
+  const targetSet = new Set(targets);
   const required = [
     "README.md", "AGENTS.md", "docs/README.md", "docs/STATUS.md", "docs/ROADMAP.md",
     "docs/product/SPEC.md", "docs/product/UX.md", "docs/product/BETA_ADMISSION.md",
@@ -32,7 +37,7 @@ function checkDocumentation(files) {
       }
       const target = parts.join("/");
       checkedLinks++;
-      if (!(target in files) && !paths.some(x => x.startsWith(target + "/"))) {
+      if (!targetSet.has(target) && !targets.some(x => x.startsWith(target + "/"))) {
         errors.push("Broken relative link: " + p + " -> " + href);
       }
     }
@@ -63,26 +68,49 @@ function checkDocumentation(files) {
     acceptanceScenarios: new Set(matrix.match(/\| A\d{2} \|/g) || []).size };
 }
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const ignored = new Set([".git", "node_modules", ".pnpm-store", "dist", "build", ".next", "coverage", "test-results", "playwright-report"]);
-const files = {};
-function visit(dir) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (ignored.has(entry.name) || entry.isSymbolicLink()) continue;
-    const absolute = resolve(dir, entry.name);
-    if (entry.isDirectory()) visit(absolute);
-    else {
-      const path = relative(root, absolute).replaceAll("\\", "/");
-      if (/\.(md|mjs|json|tsv|ya?ml)$/.test(path) || [".gitignore", ".editorconfig"].includes(path)) files[path] = readFileSync(absolute, "utf8");
+const ignored = new Set([".git", "node_modules", ".pnpm-store", ".venv", "__pycache__", "dist", "build", ".next", "coverage", "test-results", "playwright-report"]);
+export function collectDocumentation(root) {
+  const files = {};
+  const repositoryPaths = [];
+  function addFile(path) {
+    repositoryPaths.push(path);
+    if (/\.(md|mjs|json|tsv|ya?ml)$/.test(path) || [".gitignore", ".editorconfig"].includes(path)) files[path] = readFileSync(resolve(root, path), "utf8");
+  }
+  function visit(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (ignored.has(entry.name) || entry.isSymbolicLink()) continue;
+      const absolute = resolve(dir, entry.name);
+      if (entry.isDirectory()) visit(absolute);
+      else {
+        const path = relative(root, absolute).replaceAll("\\", "/");
+        addFile(path);
+      }
     }
   }
+  visit(root);
+  // Generated Python trees are skipped, but deliberately tracked documents in
+  // them still receive the same checks. A failed Git index read must not pass.
+  if (existsSync(resolve(root, ".git"))) {
+    const tracked = execFileSync("git", ["-C", root, "ls-files", "-z", "--", ":(glob)**/.venv/**", ":(glob)**/__pycache__/**"], { encoding: "utf8" }).split("\0").filter(Boolean);
+    for (const path of tracked) {
+      const parts = path.split("/");
+      if (parts.some(part => part === ".." || part === "." || !part)) throw new Error("Unsafe tracked path: " + path);
+      // Never follow a symlink, even if its destination contains tracked paths.
+      if (parts.some((_, i) => !existsSync(resolve(root, ...parts.slice(0, i + 1))) || lstatSync(resolve(root, ...parts.slice(0, i + 1))).isSymbolicLink())) continue;
+      if (lstatSync(resolve(root, path)).isFile()) addFile(path);
+    }
+  }
+  return { files, repositoryPaths };
 }
-visit(root);
-const result = checkDocumentation(files);
-if (result.errors.length) {
-  for (const error of result.errors) console.error(error);
-  process.exitCode = 1;
-} else {
-  console.log("Documentation check PASS: " + JSON.stringify(result));
-  console.log("Scope: structure, relative file links and requirement coverage. No product tests executed.");
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  const { files, repositoryPaths } = collectDocumentation(root);
+  const result = checkDocumentation(files, repositoryPaths);
+  if (result.errors.length) {
+    for (const error of result.errors) console.error(error);
+    process.exitCode = 1;
+  } else {
+    console.log("Documentation check PASS: " + JSON.stringify(result));
+    console.log("Scope: structure, relative file links and requirement coverage. No product tests executed.");
+  }
 }

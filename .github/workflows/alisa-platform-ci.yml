@@ -1,0 +1,70 @@
+name: Alisa platform source checks
+on:
+  pull_request:
+    paths: ['products/alisa/**', '.github/workflows/alisa-platform-ci.yml']
+  push:
+    branches: ['feat/alisa-platform-foundation-v05']
+    paths: ['products/alisa/**', '.github/workflows/alisa-platform-ci.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ALISA_TEST_DB_ALLOW: '1'
+      # Disposable fixture credentials; no live secrets are available to this job.
+      ALISA_TEST_PG_DSN: postgresql://alisa_ci_admin:synthetic-alisa-ci-only@127.0.0.1:55480/alisa_ci_admin
+    services:
+      postgres:
+        # Match the target's admitted Ubuntu PostgreSQL 16.15 runtime.
+        image: postgres:16.15
+        env:
+          POSTGRES_USER: alisa_ci_admin
+          POSTGRES_DB: alisa_ci_admin
+          POSTGRES_PASSWORD: synthetic-alisa-ci-only
+        ports:
+          - 55480:5432
+        options: >-
+          --health-cmd "pg_isready -U alisa_ci_admin -d alisa_ci_admin"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - name: Locked source checks and UI build (not stage acceptance)
+        working-directory: products/alisa
+        run: |
+          ./bin/alisa bootstrap --locked
+          ./bin/alisa test --scope foundation
+          ./bin/alisa build
+          ./bin/alisa package --source "$GITHUB_SHA"
+      - name: Install a disposable Chromium test browser
+        working-directory: products/alisa
+        run: .venv/bin/python -m playwright install --with-deps chromium
+      - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
+        working-directory: products/alisa
+        run: |
+          .venv/bin/python tests/integration/run_postgres.py \
+            --artifact "dist/alisa-${GITHUB_SHA:0:16}.tar.gz" --browser \
+            --output dist/postgresql-browser-qualification.json
+      - name: Save safe qualification receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: alisa-foundation-qualification-${{ github.sha }}
+          path: products/alisa/dist/postgresql-browser-qualification.json
+          if-no-files-found: error
+      - name: Save the qualified immutable stage package
+        uses: actions/upload-artifact@v4
+        with:
+          name: alisa-platform-package-${{ github.sha }}
+          path: |
+            products/alisa/dist/alisa-*.tar.gz
+            products/alisa/dist/alisa-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14

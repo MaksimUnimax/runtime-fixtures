@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RuntimePort v1: disconnected capability at AL-S00",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["port_version", "status"],
+  "properties": {"port_version": {"const": "1"}, "status": {"const": "RUNTIME_NOT_CONNECTED"}}
+}

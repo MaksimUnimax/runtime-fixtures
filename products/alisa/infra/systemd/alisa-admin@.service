@@ -1,0 +1,32 @@
+[Unit]
+Description=Alisa admin (%i)
+After=network.target
+
+[Service]
+Type=simple
+User=alisa-admin-%i
+Group=alisa-admin-%i
+EnvironmentFile=/etc/alisa-platform/%i/admin.env
+WorkingDirectory=/opt/alisa-platform/%i/current
+ExecStart=/opt/alisa-platform/%i/current/.venv/bin/python /opt/alisa-platform/%i/current/infra/launch.py admin
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=5
+KillMode=control-group
+SendSIGKILL=yes
+OOMPolicy=stop
+MemoryAccounting=yes
+MemoryMax=256M
+MemorySwapMax=0
+TasksMax=128
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
