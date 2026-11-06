@@ -1,0 +1,24 @@
+{
+  "schema_version": "alisa_s05_activation_retry_review_v1",
+  "scope": "READ_ONLY_SOURCE_DELTA_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "file": {
+    "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r8.py",
+    "sha256": "8bbbe04e613a0eb371eeee8717b6944d59f1d6071a79b570d23fe667a76ed857"
+  },
+  "parent_source": {
+    "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r7.py",
+    "sha256": "ea78332dc4222205f2ce79bbe513517d0ec2b7ba7374a7299072f0d9941d03cb"
+  },
+  "verdict": "PASS_SOURCE_DELTA",
+  "delta": "Adds a typed systemd D-Bus LoadCredential reader using busctl and shlex, validates the object-path and a(ss) response shape/count, requires no credential pairs before activation, and requires the pairs remain equal after restart. The previous truthiness check on systemctl's compound LoadCredential display string is removed. The only other functional delta is a distinct platform-activation-r8.json outcome path; existing failed outcomes are preserved.",
+  "secrets": "No credential source values are printed or copied to the receipt; only in-memory credential name/path pairs are compared.",
+  "boundary": {
+    "source_read_only": true,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "scripts_executed": false,
+    "live_credentials_used": false,
+    "platform_activation_performed": false,
+    "provider_calls_performed": false
+  }
+}

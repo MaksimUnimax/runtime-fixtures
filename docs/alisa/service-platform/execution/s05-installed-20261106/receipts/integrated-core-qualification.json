@@ -1,0 +1,13 @@
+{
+  "scope": "EXACT_PREPARED_INTEGRATED_CORE_NOT_ACTIVE",
+  "tests_run": 1035,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "forbidden_network_attempts": 0,
+  "external_api_calls": 0,
+  "integration_manifest_sha256": "170fc0c331b588615451c7073862f4a93b2a55729808a2d1dca642936a8af439",
+  "unit": "alisa-s05-integrated-core-6098-20261106.service",
+  "status": "PASS",
+  "private_network": true
+}

@@ -1,0 +1,9 @@
+{
+  "scope": "PREPARED_NEW_CORE_VERSION_NOT_ACTIVE",
+  "status": "PASS",
+  "new_directory": "/opt/alice-market/releases/20261106-store-check-6098-r1",
+  "file_count": 74,
+  "active_core_unchanged": true,
+  "checker_source_sha": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "integration_manifest_sha256": "170fc0c331b588615451c7073862f4a93b2a55729808a2d1dca642936a8af439"
+}

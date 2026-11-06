@@ -1,0 +1,42 @@
+{
+  "schema_version": "alisa_s05_activation_retry_review_v1",
+  "scope": "READ_ONLY_SOURCE_DELTA_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "files": {
+    "core_retry": {
+      "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-core-r4.py",
+      "sha256": "1c95bf617118bc7e4462d886dabfd9d38725d1c69e0093ccf3d010e42b6381fe"
+    },
+    "platform_retry": {
+      "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r5.py",
+      "sha256": "706a0f5ae86895763e8cd4a1731a74b4d1d3355aa241b8df101ad5ecbc28d2a1"
+    }
+  },
+  "parent_sources": {
+    "core": "b3c27a060f01fa8adc20c4c211661fae6b599c21060599dda842b2a44501ad66",
+    "platform": "fa70261d2aa1c87f5eb17d46d5876460d155cca79bd193c308936f31761fce58"
+  },
+  "verdict": "HOLD_FOR_NARROWED_RETAINED_GROUP_LOOKUP_EXCEPTION",
+  "reviewed_delta": {
+    "core_uses_distinct_r4_receipt_and_profile_snapshot_names": true,
+    "core_waits_for_gateway_and_checker_socket_before_readiness_success": true,
+    "core_allows_only_same_gid_empty_group_with_own_r3_failure_and_recovery_receipt": "INTENDED_BUT_EXCEPTION_SCOPE_BUG",
+    "platform_consumes_core_r4_receipt_only": true,
+    "all_other_source_deltas_are_limited_to_named_receipt_changes": true
+  },
+  "finding": {
+    "severity": "HIGH",
+    "file": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-core-r4.py",
+    "detail": "A broad `except KeyError: pass` covers both grp.getgrnam and the subsequent prior receipt lookups. If the checker group exists but its R3 receipt is absent, malformed, or lacks `created_group_gid`, the KeyError is swallowed. `existing_group` remains set, so groupadd is skipped and the script proceeds with the unverified group's GID.",
+    "recommendation": "Catch KeyError only around grp.getgrnam. If the group exists, parse the R3 receipt and require all ownership/recovery/GID/member predicates; any missing or malformed receipt field must abort before writes."
+  },
+  "secondary_note": "Readiness is gated on both sockets but the existing 60 x 0.2s loop gives a 12-second deadline. Confirm this fits the observed gateway startup time or lengthen the bounded loop within the 300-second runner limit.",
+  "boundary": {
+    "source_read_only": true,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "scripts_executed": false,
+    "live_credentials_used": false,
+    "activation_performed": false,
+    "prior_failed_receipts_overwritten": false
+  }
+}

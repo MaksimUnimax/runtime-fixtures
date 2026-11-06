@@ -1,5 +1,7 @@
 # S05 · текущая передача проверки ключей
 
+**Актуальный итог 06.11, 04:04 UTC: INSTALLED_READY_FOR_OWNER_TEST.** На https://alisa.octoport.ru/app/stores включены web/API 6098, stores migration/vault и отдельная служба checker. Действующие admin/Identity 731 и shared current 482 сохранены. Точный интегрированный core прошёл 1 035 offline checks; фактические activation core/platform — 25/41 PASS, IPC — 6 PASS. Независимый установленный review принят в ограниченном read-only scope. Authenticated customer smoke требует нового обычного входа, live provider acceptance остаётся открытым. [Установленный результат](AL_S05_INSTALLED_REPORT_20261106.md), [receipts и процедуры](s05-installed-20261106/PROGRESS.md). Ниже — сохранённый прежний handoff до активации, он больше не описывает текущие pointers/сервисы.
+
 **SOURCE_PACKAGE_QUALIFIED_CURRENT_CORE_PATCH_READY_NOT_ACTIVATED.** Пользователь поручил продолжать на https://alisa.octoport.ru/. Админка передана другому потоку; её домен, текущая Identity, SMTP и действующие назначения не входят в эту поставку. Это продолжение предыдущего handoff, а не отмена его ограничений.
 
 ## Что готово

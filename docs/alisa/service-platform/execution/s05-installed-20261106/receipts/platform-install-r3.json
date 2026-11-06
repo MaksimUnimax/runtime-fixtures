@@ -1,0 +1,78 @@
+{
+  "scope": "INACTIVE_PLATFORM_PACKAGE_COPY_NO_ACTIVATION",
+  "status": "PASS",
+  "source_sha": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "cases": [
+    {
+      "case": "new_receipt_and_target",
+      "passed": true
+    },
+    {
+      "case": "physical_disk_and_inode_reserve",
+      "passed": true
+    },
+    {
+      "case": "memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "root_private_input",
+      "passed": true
+    },
+    {
+      "case": "private_input_https",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "checksum_sidecar",
+      "passed": true
+    },
+    {
+      "case": "exact_tar",
+      "passed": true
+    },
+    {
+      "case": "single_owned_root",
+      "passed": true
+    },
+    {
+      "case": "exact_manifest",
+      "passed": true
+    },
+    {
+      "case": "full_payload_and_links",
+      "passed": true
+    },
+    {
+      "case": "bootstrap_existing_site_venv",
+      "passed": true
+    },
+    {
+      "case": "all_pointers_unchanged",
+      "passed": true
+    },
+    {
+      "case": "disk_reserve_retained",
+      "passed": true
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-c8666516683e7b2b",
+    "identity-current": "alisa-1432dcc21a07b90b",
+    "current": "alisa-482ed11832b666af"
+  },
+  "maximum_growth_bytes": 314143253,
+  "free_before": 3536273408,
+  "free_after": 3263320064,
+  "finished_utc": "2026-11-06T02:51:45.494480+00:00"
+}

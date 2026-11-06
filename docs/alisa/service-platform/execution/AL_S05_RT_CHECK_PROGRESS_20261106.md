@@ -1,5 +1,7 @@
 # S05 · продолжение проверки ключей
 
+**Итог 06.11, 04:04 UTC: INSTALLED_READY_FOR_OWNER_TEST.** Раздел магазинов включён на основном сайте, web/API 6098; admin/Identity 731 сохранены. Точный интегрированный core — 1 035 offline checks; установленный core/platform — 25/41 PASS и IPC — 6 PASS. Authenticated customer smoke остановился на необходимости обычного входа, реальные кабинеты площадок не подтверждены. [Актуальный установленный отчёт](AL_S05_INSTALLED_REPORT_20261106.md). Дальнейший текст — история подготовки, а не текущий статус активации.
+
 **SOURCE_PACKAGE_QUALIFIED_CURRENT_CORE_PATCH_READY_NOT_ACTIVATED.** Продолжение по команде владельца «Ты завис, продолжай». База ветки feat/alisa-stores-v05 — f3b612f84297bd68dbffe06af485cd0f1ea04fe6, предыдущий принятый platform package efa6 сохранён. Новый scope: только runtime-side RT-CHECK module/package/tests, узкий shared HTTP extraction patch и безопасный PROVIDER_PLAN_REQUIRED result для HTTP402 в platform/client UI. Реальные core Engine/SQLite/matrix/gateway, Identity/staff/домены и чужие active paths не меняются.
 
 Scratch-копия была удалена обслуживанием среды. Восстановлена из GitHub; pinned RT-JOB-R01 архив восстановлен из существующего Library файла и проверен по SHA256 d5db0d7220048af0cea155e80a4af638ec4e60d21a5c07baf685bd14a40341d3. Оригинал сохранён. Он используется только как baseline fixture, не как замена текущего работающего ядра.
