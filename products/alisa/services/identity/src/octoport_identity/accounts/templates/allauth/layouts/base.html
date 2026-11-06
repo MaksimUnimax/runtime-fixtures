@@ -19,10 +19,25 @@
     <span class="header-label">Центр входа</span>
   </header>
   <main>
-    <aside class="stage-notice" aria-label="Режим тестирования">
-      {% if registration_open %}
+    <aside class="stage-notice" aria-label="Подсказка для входа">
+      {% if mfa_page %}
+        {% if mfa_recovery_page %}
+        <strong>Резервный доступ</strong>
+        <p>Сохраните коды восстановления, затем продолжите вход в админку. Письмо с кодом здесь не отправляется.</p>
+        {% elif mfa_setup_page %}
+        <strong>Подключение приложения</strong>
+        <p>Добавьте QR в приложение-аутентификатор и введите его проверочный код.</p>
+        {% else %}
+        <strong>Проверка приложения</strong>
+        <p>Используйте текущий код из приложения-аутентификатора. Это не код из письма.</p>
+        {% endif %}
+      {% else %}
+      {% if staff_login_context %}
+      <strong>Вход в админку</strong>
+      <p>Введите почту, затем код из письма и код приложения-аутентификатора.</p>
+      {% elif registration_open %}
       <strong>Вход и регистрация</strong>
-      <p>Введите свою электронную почту. Мы отправим одноразовый код для подтверждения. Код действует 10 минут; пароль не нужен.</p>
+      <p>Логин — ваша электронная почта. Введите логин и пароль, затем код из письма. Код действует 10 минут.</p>
       {% else %}
       <strong>Закрытый тест</strong>
       {% if real_login_enabled %}
@@ -31,6 +46,8 @@
       <p>Используйте тестовый адрес вида <code>tester@example.invalid</code>.
       Код поступит во внутреннюю тестовую почту. Доставка на Gmail и другие обычные ящики пока не подключена.</p>
       {% endif %}
+      {% endif %}
+      {% if not mfa_page and not staff_login_context %}<p>Если раньше входили без пароля, выберите «Установить или сбросить пароль» и подтвердите почту.</p>{% endif %}
       {% endif %}
     </aside>
     {% block body %}
@@ -42,7 +59,7 @@
     <p id="mail-status" role="status" aria-live="polite"></p>
     <a class="back-link" href="{{ alisa_product_origin }}">← Вернуться к Алисе</a>
   </main>
-  <footer>Алиса Маркет · Тестовый кабинет. Подключение магазинов и доступ к отчётам проходят отдельные этапы.</footer>
+  <footer>Алиса Маркет · Центр входа.</footer>
   {% block extra_body %}{% endblock %}
   <script src="/identity/mail-ui.js" defer></script>
 </body>

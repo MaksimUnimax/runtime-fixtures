@@ -107,7 +107,10 @@ export async function callback(request:Request){
     const url=new URL('/auth/callback',c.origin);url.search=incoming.search;
     const tokens=await oidc.authorizationCodeGrant(await client(),url,{expectedState:payload.state,expectedNonce:payload.nonce,pkceCodeVerifier:payload.verifier,idTokenExpected:true});
     const claims=tokens.claims();
-    if(!claims||typeof claims.sub!=='string'||typeof claims.email!=='string'||claims.email_verified!==true)throw new Error();
+    if(!claims||typeof claims.sub!=='string'||typeof claims.email!=='string'||claims.email_verified!==true
+      ||claims.acr!=='urn:octoport:customer:password-email:v1'||!Array.isArray(claims.amr)
+      ||!claims.amr.includes('pwd')||!claims.amr.includes('email_otp')
+      ||typeof claims.auth_time!=='number'||claims.auth_time<Date.now()/1000-300||claims.auth_time>Date.now()/1000+5)throw new Error();
     const sessionToken=payload.session_token;
     const encrypted=await seal({access_token:tokens.access_token,id_token:tokens.id_token,token_type:tokens.token_type},'alisa-tokens','1h');
     const input:AuthSessionInput={flow_id:flow.body.flow_id,issuer:c.issuer.origin,client_id:c.clientId,subject:claims.sub,email:claims.email,email_verified:true,

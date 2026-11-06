@@ -34,10 +34,11 @@ function configuration(){
 export function validBrowserRequest(request:Request,post=false){
   try{const own=new URL(siteOrigin());return request.headers.get('host')===own.host&&(!post||request.headers.get('origin')===own.origin);}catch{return false;}
 }
-export function readCookie(request:Request,name:string){
-  const values=(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).filter(s=>s.startsWith(name+'='));
+export function readCookieHeader(header:string|null,name:string){
+  const values=(header||'').split(';').map(s=>s.trim()).filter(s=>s.startsWith(name+'='));
   return values.length===1?values[0].slice(name.length+1):'';
 }
+export function readCookie(request:Request,name:string){return readCookieHeader(request.headers.get('cookie'),name);}
 export function cookie(name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
 export function response(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}
 export async function accountApi(action:string,data:Record<string,unknown>){
@@ -79,6 +80,8 @@ export async function begin(request:Request){
   if(new URL(request.url).search)return response({code:'INVALID_PAYLOAD'},422);
   const text=await boundedBody(request,2048);const form=new URLSearchParams(text);
   if([...form.keys()].some(k=>k!=='return_to')||form.getAll('return_to').length!==1||form.get('return_to')!=='/admin')return response({code:'INVALID_PAYLOAD'},422);
+  const existing=await getProfile(readCookie(request,SESSION_COOKIE));
+  if(existing)return new Response(null,{status:303,headers:{Location:siteOrigin()+'/admin','Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
   const config=await client(),state=oidc.randomState(),nonce=oidc.randomNonce(),verifier=oidc.randomPKCECodeVerifier();
   const encrypted=await seal({state,nonce,verifier,session_token:randomBytes(32).toString('base64url'),return_to:'/admin'},'alisa-staff-flow','10m');
   const input={encrypted_payload:encrypted};

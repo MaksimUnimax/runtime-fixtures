@@ -58,7 +58,7 @@ def main():
                 'ALISA_ALLOWED_HOSTS':'localhost,127.0.0.1', 'ALISA_DB_HOST':'127.0.0.1', 'ALISA_DB_PORT':'55480',
                 'ALISA_STAFF_ENABLED':'1', 'ALISA_STAFF_OIDC_CLIENT_ID':'s03_admin', 'ALISA_IDENTITY_ISSUER':issuer,
                 'ALISA_STAFF_CORE_TEST_ALLOW':'1'}
-            identity = {'ALISA_IDENTITY_ENABLED':'1', 'ALISA_IDENTITY_DATA_KEYS':Fernet.generate_key().decode(),
+            identity = {'ALISA_IDENTITY_ENABLED':'1', 'ALISA_PRODUCT_ORIGIN':'https://127.0.0.1:19440', 'ALISA_IDENTITY_DATA_KEYS':Fernet.generate_key().decode(),
                 'ALISA_IDENTITY_SIGNING_KEYS_B64':base64.b64encode(json.dumps([{'pem':key,'issued_at':'2026-01-01T00:00:00+00:00'}]).encode()).decode(),
                 'ALISA_STAFF_OIDC_CLIENT_SECRET':staff_secret, 'ALISA_STAFF_OIDC_REDIRECT_URI':'https://127.0.0.1:19441/auth/callback',
                 'ALISA_WEB_OIDC_CLIENT_ID':'s03_web', 'ALISA_WEB_OIDC_CLIENT_SECRET':web_secret,

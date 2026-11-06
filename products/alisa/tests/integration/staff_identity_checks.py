@@ -37,6 +37,8 @@ def check(name, ok):
     CASES.append({'case': name, 'passed': True})
 
 def main():
+    from customer_identity_checks import run as customer_checks
+    customer_checks(check)
     unenrolled = get_user_model().objects.create_user(username=uuid.uuid4().hex, email='staff-enrollment@example.invalid')
     EmailAddress.objects.create(user=unenrolled, email=unenrolled.email, primary=True, verified=True)
     enrollment = Client(enforce_csrf_checks=True, HTTP_HOST='localhost:19443')
@@ -45,11 +47,15 @@ def main():
     check('s03_stale_passwordless_session_cannot_enroll_first_factor', response.status_code == 200 and b'authenticator_secret' not in response.content and reverse('account_logout').encode() in response.content)
     # Reach the enrollment page only after the actual native email code is
     # consumed; no session labels are injected by this positive test.
-    enrollment.get(reverse('account_request_login_code'), secure=True)
-    # The request-code view is for anonymous users, so use native logout first.
+    # Follow the actual rendered continuation; do not substitute a test-only URL.
+    import re
+    from html import unescape
+    continuation=unescape(re.search(r'name="next" value="([^"]+)"',response.content.decode()).group(1))
+    check('s03_stale_enrollment_continuation_uses_native_email_route',
+        urlsplit(continuation).path==reverse('account_request_login_code'))
     csrf=enrollment.cookies[settings.CSRF_COOKIE_NAME].value
-    enrollment.post(reverse('account_logout'), secure=True, HTTP_ORIGIN=settings.IDENTITY_ISSUER, HTTP_X_CSRFTOKEN=csrf)
-    enrollment.get(reverse('account_request_login_code'), secure=True)
+    logged_out=enrollment.post(reverse('account_logout'),{'next':continuation},secure=True, HTTP_ORIGIN=settings.IDENTITY_ISSUER, HTTP_X_CSRFTOKEN=csrf)
+    enrollment.get(logged_out['Location'], secure=True)
     csrf=enrollment.cookies[settings.CSRF_COOKIE_NAME].value
     response=enrollment.post(reverse('account_request_login_code'), {'email':unenrolled.email}, secure=True, HTTP_ORIGIN=settings.IDENTITY_ISSUER, HTTP_X_CSRFTOKEN=csrf)
     from octoport_identity.accounts.models import IdentityMail
@@ -135,6 +141,27 @@ def main():
     # The same TOTP value cannot be used twice, including on a different flow.
     repeated = post_factor(response['Location'], valid)
     check('s03_native_totp_replay_does_not_attest_new_flow', repeated.status_code == 200 and PROOF not in browser.session)
+
+    from octoport_identity.protocol.mfa_forms import LoginCodeForm,ConfirmCodeForm
+    from allauth.core import context as native_context
+    from django.contrib.auth.models import AnonymousUser
+    from django.core.exceptions import ValidationError
+    from unittest.mock import patch as patch_native
+    from allauth.mfa.base.forms import AuthenticateForm as NativeAuthenticateForm
+    # The submitted value was genuinely accepted above. Inspect only native
+    # form behavior; never bypass/clear its consumed-value marker.
+    check('s03_reauth_replay_has_precise_used_code_error',repeated.context_data['form'].errors['code'].as_data()[0].code=='code_already_used')
+    check('s03_rejected_totp_is_not_prefilled_again',valid not in str(repeated.context_data['form']['code']))
+    anonymous_request=repeated.wsgi_request;anonymous_request.user=AnonymousUser()
+    with native_context.request_context(anonymous_request):
+        replay_login=LoginCodeForm(user=person,data={'code':valid})
+        check('s03_login_stage_uses_form_user_for_native_replay_hint',not replay_login.is_valid() and replay_login.errors['code'].as_data()[0].code=='code_already_used')
+        wrong_login=LoginCodeForm(user=person,data={'code':'not-a-factor'})
+        check('s03_wrong_code_keeps_native_incorrect_error',not wrong_login.is_valid() and wrong_login.errors['code'].as_data()[0].code=='incorrect_code')
+        with patch_native.object(NativeAuthenticateForm,'clean_code',side_effect=ValidationError('native limit',code='too_many_login_attempts')):
+            limited=LoginCodeForm(user=person,data={'code':valid})
+            check('s03_native_rate_limit_error_not_relabelled_as_replay',not limited.is_valid() and limited.errors['code'].as_data()[0].code=='too_many_login_attempts')
+
     recovery_response = post_factor(response['Location'], codes[0])
     check('s03_native_recovery_consumption_creates_attestation', recovery_response.status_code == 302 and browser.session[PROOF]['type'] == 'recovery_codes')
     # A new authorization request destroys evidence for the previous request.
@@ -161,6 +188,89 @@ def main():
     check('s03_factor_secret_is_encrypted_in_postgresql', secret not in json.dumps(Authenticator.objects.get(user=person,type='totp').data))
     # The ordinary client does not gain staff claims even for an MFA person.
     check('s03_client_registration_uses_confidential_dedicated_admin', OIDCClient.objects.get(pk=settings.IDENTITY_STAFF_CLIENT_ID).type == OIDCClient.Type.CONFIDENTIAL)
+
+    # Complete the originally passwordless, unenrolled native email identity
+    # through one real enrollment POST and every following HTTP redirect.
+    enrollment_url,enrollment_verifier,_=authorize()
+    response=enrollment.get(enrollment_url,secure=True)
+    check('s03_single_enrollment_starts_with_registered_admin_request',response.status_code==200)
+    response=enrollment.get(reverse('mfa_activate_totp'),secure=True)
+    from allauth.account.internal.flows.login import get_authentication_records
+    setup_secret=response.context_data['form'].secret
+    csrf=enrollment.cookies[settings.CSRF_COOKIE_NAME].value
+    mail_before=IdentityMail.objects.filter(recipient=unenrolled.email).count()
+    bad=enrollment.post(reverse('mfa_activate_totp'),{'code':'incorrect'},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_wrong_enrollment_code_cannot_add_factor_or_proof',bad.status_code==200
+        and not Authenticator.objects.filter(user=unenrolled,type='totp').exists() and PROOF not in enrollment.session)
+    enrollment_code=format_hotp_value(hotp_value(setup_secret,int(time.time())//30))
+    # A prior factor of this synthetic identity may have consumed the same
+    # six-digit value. Force the real native marker, never fake auth records.
+    from allauth.mfa.totp.internal.auth import SECRET_SESSION_KEY
+    TOTP(Authenticator(user=unenrolled,type='totp'))._mark_code_used(enrollment_code)
+    rejected=enrollment.post(reverse('mfa_activate_totp'),{'code':enrollment_code},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_enrollment_replay_rolls_back_new_factor_and_preserves_displayed_qr',rejected.status_code==200
+        and not Authenticator.objects.filter(user=unenrolled,type='totp').exists()
+        and enrollment.session.get(SECRET_SESSION_KEY)==setup_secret
+        and rejected.context_data['form'].secret==setup_secret and PROOF not in enrollment.session)
+    previous=enrollment_code
+    until=time.monotonic()+33
+    while enrollment_code==previous and time.monotonic()<until:
+        time.sleep(.2);enrollment_code=format_hotp_value(hotp_value(setup_secret,int(time.time())//30))
+    check('s03_enrollment_replay_retry_uses_next_real_code_same_qr',enrollment_code!=previous)
+    response=enrollment.post(reverse('mfa_activate_totp'),{'code':enrollment_code},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_one_enrollment_post_redirects_directly_to_recovery',response.status_code==302
+        and response['Location']==reverse('mfa_view_recovery_codes'))
+    recovered=enrollment.get(response['Location'],secure=True)
+    check('s03_recovery_http_uses_same_verified_challenge_without_second_form',recovered.status_code==200
+        and b'identity/staff/continue' in recovered.content and b'input name="code"' not in recovered.content
+        and PROOF in enrollment.session)
+    check('s03_native_reauth_record_survives_redirect_after_enrollment',any(
+        r.get('method')=='mfa' and r.get('reauthenticated') is True
+        for r in get_authentication_records(recovered.wsgi_request,unenrolled)))
+    check('s03_same_enrollment_code_has_native_replay_marker',
+        not Authenticator.objects.get(user=unenrolled,type='totp').wrap().validate_code(enrollment_code))
+    check('s03_enrollment_recovery_does_not_send_second_login_mail',
+        IdentityMail.objects.filter(recipient=unenrolled.email).count()==mail_before)
+    check('s03_recovery_response_not_cacheable',recovered['Cache-Control']=='no-store'
+        and recovered['Referrer-Policy']=='no-referrer')
+    path=reverse('identity_staff_continue')
+    check('s03_continue_requires_csrf',enrollment.post(path,{},secure=True).status_code==403)
+    csrf=enrollment.cookies[settings.CSRF_COOKIE_NAME].value
+    import copy
+    native_pending=copy.deepcopy(enrollment.session[PENDING])
+    native_proof=copy.deepcopy(enrollment.session[PROOF])
+    for name,changes in [
+        ('external_target',{'target':'https://attacker.test/'}),
+        ('changed_nonce',{'target':enrollment_url.replace('nonce=','nonce=changed')}),
+        ('different_user',{'user':str(person.pk)}),
+        ('stale_pending',{'started':time.time()-601})]:
+        state=enrollment.session;state[PENDING]={**native_pending,**changes};state[PROOF]=native_proof;state.save()
+        fallback=enrollment.post(path,{'next':'https://attacker.test/'},secure=True,
+            HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+        from octoport_identity.protocol.mfa import staff_login_url
+        check('s03_continue_rejects_'+name,fallback.status_code==303 and fallback['Location']==staff_login_url())
+    state=enrollment.session;state[PENDING]=native_pending;state[PROOF]={**native_proof,'at':time.time()-301};state.save()
+    fallback=enrollment.post(path,{},secure=True,HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_continue_does_not_extend_expired_mfa',fallback.status_code==303 and fallback['Location']==staff_login_url())
+    state=enrollment.session;state[PENDING]=native_pending;state[PROOF]=native_proof;state.save()
+    resumed=enrollment.post(path,{'next':'https://attacker.test/'},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_continue_uses_only_original_validated_native_target',resumed.status_code==303 and resumed['Location']==enrollment_url)
+    issued=enrollment.get(resumed['Location'],secure=True)
+    single_code=parse_qs(urlsplit(issued.get('Location','')).query).get('code',[None])[0]
+    check('s03_single_challenge_resumes_to_library_oauth_code',issued.status_code==302 and bool(single_code)
+        and PENDING not in enrollment.session and PROOF not in enrollment.session)
+    check('s03_single_challenge_code_exchanges_once_with_native_mfa',redeem(single_code,enrollment_verifier).status_code==200
+        and redeem(single_code,enrollment_verifier).status_code==400)
+    legacy=enrollment.get(reverse('mfa_view_recovery_codes'),secure=True)
+    check('s03_missing_pending_recovery_page_keeps_visible_admin_action',legacy.status_code==200 and b'identity/staff/continue' in legacy.content)
+    fallback=enrollment.post(path,{},secure=True,HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_finished_or_legacy_missing_pending_has_clean_admin_fallback',
+        fallback.status_code==303 and fallback['Location']==staff_login_url())
+
     return CASES
 
 if __name__ == '__main__':

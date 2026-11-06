@@ -71,10 +71,22 @@ USE_I18N=True
 TIME_ZONE='UTC'
 ACCOUNT_ADAPTER='octoport_identity.protocol.adapter.AccountAdapter'
 MFA_ADAPTER='octoport_identity.protocol.adapter.MFAAdapter'
+MFA_FORMS={'authenticate':'octoport_identity.protocol.mfa_forms.LoginCodeForm',
+           'reauthenticate':'octoport_identity.protocol.mfa_forms.ConfirmCodeForm'}
 ACCOUNT_FORMS={'signup':'octoport_identity.protocol.forms.SignupForm',
  'login':'octoport_identity.protocol.forms.LoginForm','request_login_code':'octoport_identity.protocol.forms.RequestLoginCodeForm'}
 ACCOUNT_LOGIN_METHODS={'email'}
-ACCOUNT_SIGNUP_FIELDS=['email*']
+ACCOUNT_SIGNUP_FIELDS=['email*','password1*','password2*']
+AUTH_PASSWORD_VALIDATORS=[
+ {'NAME':'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+ {'NAME':'django.contrib.auth.password_validation.MinimumLengthValidator','OPTIONS':{'min_length':10}},
+ {'NAME':'django.contrib.auth.password_validation.CommonPasswordValidator'},
+ {'NAME':'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED=True
+ACCOUNT_PASSWORD_RESET_BY_CODE_TIMEOUT=600
+ACCOUNT_PASSWORD_RESET_BY_CODE_MAX_ATTEMPTS=5
+ACCOUNT_LOGIN_ON_PASSWORD_RESET=False
 ACCOUNT_EMAIL_VERIFICATION='mandatory'
 ACCOUNT_EMAIL_VERIFICATION_BY_CODE_ENABLED=True
 ACCOUNT_EMAIL_VERIFICATION_BY_CODE_TIMEOUT=600
