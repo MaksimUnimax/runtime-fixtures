@@ -3,6 +3,7 @@ from allauth.account.internal.flows.login import get_authentication_records
 from allauth.mfa.base.internal.flows import post_authentication
 from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.views import ActivateTOTPView
+from allauth.mfa.totp.internal.auth import SECRET_SESSION_KEY
 from django.conf import settings
 from django.db import transaction
 from django.http import HttpResponseRedirect, JsonResponse
@@ -37,6 +38,9 @@ class ActivateOnceTOTPView(ActivateTOTPView):
                 post_authentication(request,authenticator,reauthenticated=True)
                 return response
         except EnrollmentCodeUnavailable:
+            # Database rollback does not undo native clear_totp_secret() in the
+            # in-memory session. Keep the QR/form consistent for a fresh code.
+            request.session[SECRET_SESSION_KEY]=form.secret
             form.add_error('code','Этот код уже использован или истёк. Повторите подключение с новым кодом из приложения.')
             return self.form_invalid(form)
 

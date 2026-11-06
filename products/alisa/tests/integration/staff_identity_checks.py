@@ -177,6 +177,21 @@ def main():
     check('s03_wrong_enrollment_code_cannot_add_factor_or_proof',bad.status_code==200
         and not Authenticator.objects.filter(user=unenrolled,type='totp').exists() and PROOF not in enrollment.session)
     enrollment_code=format_hotp_value(hotp_value(setup_secret,int(time.time())//30))
+    # A prior factor of this synthetic identity may have consumed the same
+    # six-digit value. Force the real native marker, never fake auth records.
+    from allauth.mfa.totp.internal.auth import SECRET_SESSION_KEY
+    TOTP(Authenticator(user=unenrolled,type='totp'))._mark_code_used(enrollment_code)
+    rejected=enrollment.post(reverse('mfa_activate_totp'),{'code':enrollment_code},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_enrollment_replay_rolls_back_new_factor_and_preserves_displayed_qr',rejected.status_code==200
+        and not Authenticator.objects.filter(user=unenrolled,type='totp').exists()
+        and enrollment.session.get(SECRET_SESSION_KEY)==setup_secret
+        and rejected.context_data['form'].secret==setup_secret and PROOF not in enrollment.session)
+    previous=enrollment_code
+    until=time.monotonic()+33
+    while enrollment_code==previous and time.monotonic()<until:
+        time.sleep(.2);enrollment_code=format_hotp_value(hotp_value(setup_secret,int(time.time())//30))
+    check('s03_enrollment_replay_retry_uses_next_real_code_same_qr',enrollment_code!=previous)
     response=enrollment.post(reverse('mfa_activate_totp'),{'code':enrollment_code},secure=True,
         HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
     check('s03_one_enrollment_post_redirects_directly_to_recovery',response.status_code==302
