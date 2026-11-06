@@ -1,0 +1,634 @@
+{
+  "record_type": "ALISA_ADMIN_SESSION_RESUME_INSTALLED_ACCEPTANCE",
+  "recorded_utc": "2026-11-06T03:16:46.973782+00:00",
+  "status": "INSTALLED_SOURCE_AND_ANONYMOUS_READBACK_PASS_REAL_OWNER_UI_RETEST_PENDING",
+  "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/397",
+  "artifact": {
+    "name": "alisa-73180172646b7012.tar.gz",
+    "sha256": "db04b26d521a141cff933b54003700e73152b94d5df4dcc3e2463c44cf4ec2e5",
+    "github_run_id": 42153553914,
+    "github_artifact_id": 13473244349,
+    "package_zip_sha256": "fc9fb9aabacea72f407f012d7972613e280279b61b767e9db51b972cb469a508",
+    "qualification_artifact_id": 13474220213,
+    "qualification_zip_sha256": "55d0523a972b9115b3f7911092175f6380bb8a33838c9edfc0f74474e6fa3eae"
+  },
+  "canonical_urls": {
+    "product": "https://alisa.octoport.ru",
+    "admin": "https://alisa-admin.octoport.ru/admin",
+    "identity": "https://id.octoport.ru"
+  },
+  "composite_baselines": {
+    "web_admin_platform": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+    "identity": "1432dcc21a07b90b07428ef2585af5cd196a80aa"
+  },
+  "incident_observations_from_prior_read_only_metadata_check": {
+    "scope": "Metadata only; no factor content, expected codes, cookie tokens or encrypted sessions read",
+    "totp_created_utc": "2026-11-06T01:51:08.933673Z",
+    "recovery_created_utc": "2026-11-06T01:51:08.948698Z",
+    "native_totp_last_used_utc": "2026-11-06T02:34:35.828488Z",
+    "owner_staff_session_created_utc": "2026-11-06T02:34:18.154779Z",
+    "mfa_verified_utc": "2026-11-06T02:34:16Z",
+    "owner_revision": 3,
+    "interpretation": "Original factor existed before both hotfixes; user had a native-accepted MFA and OWNER session. This does not establish why the screenshot value failed.",
+    "ntp_synchronized_at_prior_check": true
+  },
+  "changes": [
+    "Existing staff cookie is reused only after backend validation, after request boundary checks; no new flow, cookie, session or timestamp renewal.",
+    "Login page forwards backend-valid staff session to /admin and shows temporary-unavailable on backend failure.",
+    "Exact-one cookie parsing shared by login, protected admin and auth/start; forged/duplicate/stale/expired/revoked/revision-mismatch paths retain normal denial.",
+    "Native MFA verifier unchanged. Only native incorrect_code plus existing consumed-value marker gets precise wait-for-next-code message; marker read-only and rejected input blank.",
+    "MFA screen has fixed dashboard link; existing single-challenge activation and recovery continuation preserved."
+  ],
+  "security_policy_preserved": {
+    "native_mfa_required": true,
+    "freshness_seconds": 300,
+    "staff_session_absolute_max_seconds": 3600,
+    "real_owner_factor_reset": false,
+    "real_owner_code_or_secret_used_by_operator": false,
+    "operator_staff_session_created": false,
+    "roles_or_issuer_or_client_or_key_changes": false,
+    "migrations_applied": []
+  },
+  "qualification": {
+    "s02-open-registration-qualification.json": {
+      "passed": 130,
+      "total": 130,
+      "sha256": "d80605c81b95fb9f64c5be460ef7af0744872eb48e631e9b16e1e844f4a2bd4a",
+      "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE"
+    },
+    "s02-runtime-policies.json": {
+      "passed": 17,
+      "total": 17,
+      "sha256": "e9acf7734a31101a906b86237cd904a45c67c72983baa2c42953aad157d4029f",
+      "status": "PASS"
+    },
+    "s02-qualification.json": {
+      "passed": 179,
+      "total": 179,
+      "sha256": "dde8d193584b46b8cc9910be8a5d641b6bb38d0a9d40300b9753239537472742",
+      "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE"
+    },
+    "s04-core-qualification.json": {
+      "passed": 36,
+      "total": 36,
+      "sha256": "4be400990fbc2761bef3e17a7931e5bc83a3af037e4e7f4d22f4f425089e44d9",
+      "status": "PASS"
+    },
+    "s03-core-qualification.json": {
+      "passed": 118,
+      "total": 118,
+      "sha256": "e0c14a8f8b26c37b545f776e76b89f9c4417bc833e4d97893df52ee91734d6ad",
+      "status": "PASS"
+    },
+    "postgresql-browser-qualification.json": {
+      "passed": 96,
+      "total": 96,
+      "sha256": "65cd770f1f2512ec8b1d70be11d0e59bc470a75ebd23fac6be09936f2920cdc8",
+      "status": null
+    }
+  },
+  "ci": {
+    "platform": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42153553914",
+    "identity_probe": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42153554205",
+    "documentation": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42153554016",
+    "conclusion": "success",
+    "scope": "Disposable native HTTP and packaged browser; includes genuine already-enrolled email+one TOTP→OWNER dashboard and backend-validated session reuse"
+  },
+  "independent_source_review": {
+    "status": "PASS_SOURCE_REVIEW",
+    "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+    "reviewer": "registration_review",
+    "scope": "Composite deployed baselines preserved; backend-validated session reuse and native consumed-code diagnostic; no live owner authentication"
+  },
+  "independent_operation_review": {
+    "status": "PASS_READ_ONLY_OPERATION_REVIEW",
+    "reviewer": "registration_review",
+    "install_script_sha256": "cb8c3ce4f76cea36000c8919410d3672691d2debfd5de98d8e850620e115a0f3",
+    "scope": "Wrappers then inactive immutable wheel dedup then admin+identity-only activation",
+    "executed_by_reviewer": false
+  },
+  "installation": {
+    "scope": "ADMIN_IDENTITY_ONLY_SESSION_RESUME",
+    "status": "PASS",
+    "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+    "artifact_sha256": "db04b26d521a141cff933b54003700e73152b94d5df4dcc3e2463c44cf4ec2e5",
+    "started_utc": "2026-11-06T03:15:35.618332+00:00",
+    "cases": [
+      {
+        "case": "fresh_receipt",
+        "passed": true
+      },
+      {
+        "case": "expected_component_pointers",
+        "passed": true
+      },
+      {
+        "case": "installation_disk_growth_reserve",
+        "passed": true
+      },
+      {
+        "case": "inode_memory_reserves",
+        "passed": true
+      },
+      {
+        "case": "running_component_baselines",
+        "passed": true
+      },
+      {
+        "case": "qualified_tar_checksum",
+        "passed": true
+      },
+      {
+        "case": "qualified_checksum_file",
+        "passed": true
+      },
+      {
+        "case": "exact_candidate_source",
+        "passed": true
+      },
+      {
+        "case": "contracts_locks_migrations_preserved",
+        "passed": true
+      },
+      {
+        "case": "platform_component_bytes_preserved",
+        "passed": true
+      },
+      {
+        "case": "only_reviewed_identity_delta",
+        "passed": true
+      },
+      {
+        "case": "ci_s04-core-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_s03-core-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_s02-runtime-policies.json",
+        "passed": true
+      },
+      {
+        "case": "ci_s02-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_source_s02-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_tar_s02-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_s02-open-registration-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_source_s02-open-registration-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_tar_s02-open-registration-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_postgresql-browser-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "ci_source_postgresql-browser-qualification.json",
+        "passed": true
+      },
+      {
+        "case": "normal_immutable_install",
+        "passed": true
+      },
+      {
+        "case": "installed_full_manifest_verified",
+        "passed": true
+      },
+      {
+        "case": "dedicated_runtime_user_alisa-identity@stage.service",
+        "passed": true
+      },
+      {
+        "case": "runtime_can_read_and_import_alisa-identity@stage.service",
+        "passed": true
+      },
+      {
+        "case": "dedicated_runtime_user_alisa-admin@stage.service",
+        "passed": true
+      },
+      {
+        "case": "runtime_can_read_and_import_alisa-admin@stage.service",
+        "passed": true
+      },
+      {
+        "case": "preactivation_reserve",
+        "passed": true
+      },
+      {
+        "case": "pointers_still_baseline",
+        "passed": true
+      },
+      {
+        "case": "config_unchanged_before_activation",
+        "passed": true
+      },
+      {
+        "case": "protected_processes_unchanged_before_activation",
+        "passed": true
+      },
+      {
+        "case": "only_two_pointers_changed",
+        "passed": true
+      },
+      {
+        "case": "all_config_bytes_unchanged",
+        "passed": true
+      },
+      {
+        "case": "protected_processes_unchanged",
+        "passed": true
+      },
+      {
+        "case": "operating_disk_inode_memory_reserves",
+        "passed": true
+      }
+    ],
+    "no_database_or_mfa_factor_mutations": true,
+    "resources_before": {
+      "disk_free_bytes": 3721338880,
+      "free_inodes": 552929,
+      "memory_available_bytes": 6155321344
+    },
+    "ready": {
+      "web": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-c8666516683e7b2b",
+        "status": "READY"
+      },
+      "admin": {
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-73180172646b7012",
+        "status": "READY"
+      },
+      "platform": {
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-c8666516683e7b2b"
+      },
+      "identity": {
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-73180172646b7012",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      }
+    },
+    "resources_after": {
+      "disk_free_bytes": 3445690368,
+      "free_inodes": 535168,
+      "memory_available_bytes": 6234918912
+    },
+    "finished_utc": "2026-11-06T03:16:11.420120+00:00"
+  },
+  "readback": {
+    "record_type": "INSTALLED_ADMIN_SESSION_RESUME_READBACK",
+    "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+    "status": "PASS",
+    "checked_utc": "2026-11-06T03:16:46.973782+00:00",
+    "real_owner_factor_content_read_or_changed": false,
+    "real_owner_login_operated": false,
+    "mfa_or_session_reset": false,
+    "checks": {
+      "loaded_code": true,
+      "canonical_anonymous_routes": true,
+      "component_versions": true,
+      "exact_archive_retained": true,
+      "resource_reserve": true
+    },
+    "loaded_code": {
+      "checks": {
+        "native_forms_loaded": true,
+        "rejected_input_not_repopulated": true,
+        "fixed_admin_dashboard_link": true,
+        "single_challenge_activation_preserved": true,
+        "canonical_issuer": true
+      },
+      "template_hashes": {
+        "mfa/reauthenticate.html": "db3704b279d5dae38cbd8663941ad7ab1668a0dbe2de447b4addfa9567372c59",
+        "mfa/recovery_codes/index.html": "94a149648600e286e7cbd39b7f56a9977b9533973d64e1bb86b376b1bd660817",
+        "allauth/layouts/base.html": "021088044344665feab777cf3f7a5cd9223e4480698a62ce98837e8e47b61599"
+      },
+      "mfa_forms": {
+        "authenticate": "octoport_identity.protocol.mfa_forms.LoginCodeForm",
+        "reauthenticate": "octoport_identity.protocol.mfa_forms.ConfirmCodeForm"
+      }
+    },
+    "anonymous_https": {
+      "admin_root": {
+        "status": 307,
+        "location": "/admin",
+        "cache_control": "private, no-cache, no-store, max-age=0, must-revalidate"
+      },
+      "admin_dashboard": {
+        "status": 307,
+        "location": "/login",
+        "cache_control": "private, no-cache, no-store, max-age=0, must-revalidate"
+      },
+      "admin_login": {
+        "status": 200,
+        "location": "",
+        "cache_control": "private, no-cache, no-store, max-age=0, must-revalidate"
+      },
+      "identity_login": {
+        "status": 200,
+        "location": "",
+        "cache_control": "max-age=0, no-cache, no-store, must-revalidate, private"
+      },
+      "product": {
+        "status": 200,
+        "location": "",
+        "cache_control": "private, no-cache, no-store, max-age=0, must-revalidate"
+      }
+    },
+    "ready": {
+      "web": {
+        "component": "web",
+        "environment": "stage",
+        "release": "alisa-c8666516683e7b2b",
+        "status": "READY"
+      },
+      "admin": {
+        "component": "admin",
+        "environment": "stage",
+        "release": "alisa-73180172646b7012",
+        "status": "READY"
+      },
+      "platform": {
+        "component": "platform",
+        "status": "READY",
+        "runtime": "RUNTIME_NOT_CONNECTED",
+        "environment": "stage",
+        "release": "alisa-c8666516683e7b2b"
+      },
+      "identity": {
+        "component": "identity",
+        "environment": "stage",
+        "release": "alisa-73180172646b7012",
+        "status": "READY",
+        "authentication": "OIDC_CODE_PKCE"
+      }
+    },
+    "disk_free_after_archive_bytes": 3393871872
+  },
+  "resource_maintenance": {
+    "wrappers": {
+      "scope": "EXACT_DUPLICATE_WRAPPERS_ONLY",
+      "removed": [
+        "s01-8d-qualified.zip",
+        "61007bf8-qualified.zip",
+        "3e763ad7-qualified.zip"
+      ],
+      "skipped": [
+        "alisa-6ae348354b3db0d3.tar.zip"
+      ],
+      "retained_archives": [
+        {
+          "archive": "alisa-8d680f775c8ccdf2.tar.gz",
+          "sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+          "wrapper": "s01-8d-qualified.zip",
+          "wrapper_sha256": "a7e9b1f179fb56e90b81ad021fd7ec5604e80d4e42f0c8beb87d7bc0b0a179d2",
+          "wrapper_bytes": 43205553
+        },
+        {
+          "archive": "alisa-61007bf870cf4f65.tar.gz",
+          "sha256": "4f7351657e99b5babb7e3130e306fc042e3e31fe5d8ea9c964154bd76a412e6b",
+          "wrapper": "61007bf8-qualified.zip",
+          "wrapper_sha256": "ab31b50ae117ceaa9d0738dea51d6f41f7604048940c14e3d260567a7822ce1e",
+          "wrapper_bytes": 43129403
+        },
+        {
+          "archive": "alisa-3e763ad761fac377.tar.gz",
+          "sha256": "9967d4f655632b36489148cfabb99de2235613c97391ba2925be6d3c7bbe601c",
+          "wrapper": "3e763ad7-qualified.zip",
+          "wrapper_sha256": "a88d9c5935b4589f80b8bc03e02079cafe7460aff3367025a1fb6f530db8e861",
+          "wrapper_bytes": 43125642
+        }
+      ],
+      "utc": "2026-11-06T03:14:22.498271+00:00",
+      "free_before": 3296800768,
+      "free_after": 3426267136,
+      "status": "APPLIED"
+    },
+    "inactive_wheels": {
+      "scope": "SESSION_RESUME_INACTIVE_OWN_IMMUTABLE_WHEEL_DEDUP",
+      "status": "PASS",
+      "started_utc": "2026-11-06T03:14:39.840796+00:00",
+      "disk_free_before_mib": 3267,
+      "cases": [
+        {
+          "case": "owned_targets_all_inactive",
+          "passed": true
+        },
+        {
+          "case": "no_process_uses_target_release",
+          "passed": true
+        },
+        {
+          "case": "alisa-07290e7c17f556bf_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-07290e7c17f556bf_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-0f22ffbc3cd17bdb_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-0f22ffbc3cd17bdb_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-140150ba526b6c3d_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-140150ba526b6c3d_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-23f05f2e43686098_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-23f05f2e43686098_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-29c99f6d9d00f19e_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-29c99f6d9d00f19e_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-3e763ad761fac377_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-3e763ad761fac377_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-3e91b1aa5d405d0e_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-3e91b1aa5d405d0e_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-51d2a57db66647e0_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-51d2a57db66647e0_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-6098b31384ae23a4_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-6098b31384ae23a4_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-61007bf870cf4f65_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-61007bf870cf4f65_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-6ae348354b3db0d3_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-6ae348354b3db0d3_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-77d0f8ee2643ef65_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-77d0f8ee2643ef65_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-8d680f775c8ccdf2_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-8d680f775c8ccdf2_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-b8a5d56e2e132ce5_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-b8a5d56e2e132ce5_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-dd2b59b99b00b7e4_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-dd2b59b99b00b7e4_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "alisa-e82003211bdcd687_regular_release_directory",
+          "passed": true
+        },
+        {
+          "case": "alisa-e82003211bdcd687_manifest_identity",
+          "passed": true
+        },
+        {
+          "case": "all_target_manifests_verified_before",
+          "passed": true
+        },
+        {
+          "case": "nonzero_dedup_candidate_set",
+          "passed": true
+        },
+        {
+          "case": "all_planned_links_applied",
+          "passed": true
+        },
+        {
+          "case": "all_target_manifest_bytes_and_links_unchanged_after",
+          "passed": true
+        },
+        {
+          "case": "targets_still_inactive",
+          "passed": true
+        },
+        {
+          "case": "reserve_for_install_restored",
+          "passed": true
+        }
+      ],
+      "applied_links": 235,
+      "archives_or_version_paths_removed": 0,
+      "active_inodes_touched": 0,
+      "mtime_note": "Inactive target mtimes intentionally follow canonical. Restore individual original timestamps only after breaking/copying the hardlink. Original metadata preserved in private gzip receipt.",
+      "planned_links": 235,
+      "expected_reclaimed_mib": 281.426,
+      "disk_free_after_mib": 3548,
+      "actual_free_gain_mib": 281,
+      "finished_utc": "2026-11-06T03:15:22.791598+00:00"
+    },
+    "no_unique_archives_or_release_paths_removed": true
+  },
+  "installed_evidence_review": {
+    "status": "PASS_INSTALLED_EVIDENCE",
+    "reviewer": "registration_review",
+    "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+    "four_identity_file_hashes_match": true,
+    "retained_tar_matches": true,
+    "fresh_anonymous_https_verified": true,
+    "qualification_reports_verified": 6,
+    "installation_checks": 36,
+    "real_owner_ui_flow_personally_checked": false,
+    "real_owner_codes_factors_or_sessions_used": false
+  },
+  "real_owner_manual_acceptance": {
+    "status": "PENDING_USER_UI_RETEST",
+    "admin_url": "https://alisa-admin.octoport.ru/admin",
+    "instructions": "Use existing authenticator binding; a valid current staff session opens dashboard. Otherwise one fresh email code and one current app code; if native marker says consumed, wait for app value to change. Do not reinstall/reset authenticator."
+  },
+  "evidence_paths": {
+    "receipts": "/var/lib/alisa-platform/stage/evidence",
+    "qualification": "/var/lib/alisa-platform/stage/rollout-backups/session-resume-73180172/qualification",
+    "archive": "/var/lib/alisa-platform/stage/artifacts/alisa-73180172646b7012.tar.gz"
+  }
+}

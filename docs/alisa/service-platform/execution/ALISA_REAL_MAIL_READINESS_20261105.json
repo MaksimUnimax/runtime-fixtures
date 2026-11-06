@@ -1,14 +1,17 @@
 {
   "record_type": "ALISA_CANONICAL_SITE_AND_NORMAL_EMAIL_AUTH_READINESS",
-  "recorded_utc": "2026-11-06T02:26:44.912565+00:00",
-  "status": "CANONICAL_DOMAINS_SINGLE_CHALLENGE_FIX_INSTALLED_OWNER_UI_RETEST_PENDING",
-  "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
-  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/396",
+  "recorded_utc": "2026-11-06T03:16:46.973782+00:00",
+  "status": "CANONICAL_DOMAINS_SESSION_RESUME_FIX_INSTALLED_OWNER_UI_RETEST_PENDING",
+  "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/397",
   "artifact": {
-    "name": "alisa-1432dcc21a07b90b.tar.gz",
-    "sha256": "745f884f721ed448090cb683da0a4b74853e9e74eb03954452d2d78cbdde6226",
-    "github_artifact_id": 13471227963,
-    "github_run_id": 42149275871
+    "name": "alisa-73180172646b7012.tar.gz",
+    "sha256": "db04b26d521a141cff933b54003700e73152b94d5df4dcc3e2463c44cf4ec2e5",
+    "github_run_id": 42153553914,
+    "github_artifact_id": 13473244349,
+    "package_zip_sha256": "fc9fb9aabacea72f407f012d7972613e280279b61b767e9db51b972cb469a508",
+    "qualification_artifact_id": 13474220213,
+    "qualification_zip_sha256": "55d0523a972b9115b3f7911092175f6380bb8a33838c9edfc0f74474e6fa3eae"
   },
   "owner_requirement": "Одни и те же люди/администраторы, одна постоянная регистрация; разные кабинеты до объединения.",
   "document_conclusion": {
@@ -49,16 +52,16 @@
   },
   "qualification": {
     "source_unit": {
-      "passed": 62,
-      "total": 62
+      "status": "PASS_CI",
+      "scope": "Locked source checks and UI build; no count asserted here"
     },
     "postgres_browser": {
       "passed": 96,
       "total": 96
     },
     "https_bff_cabinet_staff": {
-      "passed": 150,
-      "total": 150
+      "passed": 179,
+      "total": 179
     },
     "open_registration": {
       "passed": 130,
@@ -69,13 +72,17 @@
       "total": 17
     },
     "staff_native_canonical_and_enrollment_http": {
-      "passed": 113,
-      "total": 113
+      "passed": 118,
+      "total": 118
     },
-    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42149275871",
-    "identity_probe_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42149275689",
-    "documentation_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42149275790",
-    "scope": "Disposable synthetic full native HTTP and packaged browser; not real-owner login acceptance"
+    "access_ledger_s04": {
+      "passed": 36,
+      "total": 36
+    },
+    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42153553914",
+    "identity_probe_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42153554205",
+    "documentation_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42153554016",
+    "scope": "Disposable native HTTP and packaged browser; includes genuine already-enrolled email+one TOTP→OWNER dashboard and backend-validated session reuse"
   },
   "native_transport": {
     "status": "PASS_EXISTING_ACCOUNT_CANONICAL_SITE_AND_REPEAT_LOGIN",
@@ -94,13 +101,13 @@
     "verification_scope": "Previous Gmail proof retained; SMTP config unchanged. Current domain cutover reverified native synthetic email/OIDC only, without a new real-owner Gmail/MFA login."
   },
   "stage": {
-    "release": "alisa-1432dcc21a07b90b",
+    "release": "alisa-73180172646b7012",
     "activated": true,
     "observed_active": {
       "web": "alisa-c8666516683e7b2b",
-      "admin": "alisa-c8666516683e7b2b",
+      "admin": "alisa-73180172646b7012",
       "platform": "alisa-c8666516683e7b2b",
-      "identity": "alisa-1432dcc21a07b90b"
+      "identity": "alisa-73180172646b7012"
     },
     "invitation_list_required": false,
     "invited_recipient_list_entries": 0,
@@ -111,23 +118,25 @@
     "restart_session_preservation": "PASS",
     "installed_browser_database_privacy": {
       "passed": 18,
-      "total": 18
+      "total": 18,
+      "observed_at_previous_source": "482ed11832b666af17f879ae710fd43d2c321ce7",
+      "scope": "Historical installed privacy proof; current installed version checked by readback and package qualification"
     },
-    "independent_source_review": "PASS_EXACT_SOURCE",
-    "independent_installed_evidence_review": "PASS_INSTALLED_EVIDENCE_READ_ONLY_AND_FRESH_ANONYMOUS_INGRESS",
+    "independent_source_review": "PASS_SOURCE_REVIEW",
+    "independent_installed_evidence_review": "PASS_INSTALLED_EVIDENCE",
     "migrations_applied": [],
-    "final_receipt": "ALISA_MFA_SINGLE_CHALLENGE_ACCEPTANCE_20261106.json",
+    "final_receipt": "ALISA_ADMIN_SESSION_RESUME_ACCEPTANCE_20261106.json",
     "main_origin": "https://alisa.octoport.ru",
     "current_domain_native_synthetic_login": "PASS_SAME_EXISTING_CUSTOMER_AND_TENANT_BEFORE_AND_AFTER_ISSUER_RENAME",
-    "deployment_shape": "Identity-only; see observed_active per component",
+    "deployment_shape": "Admin+identity only; web/platform c866 preserved",
     "manual_owner_factor_state": "ALREADY_ENROLLED_TOTP_AND_RECOVERY",
-    "manual_owner_login_status": "PENDING_USER_UI_RETEST_AFTER_FIX"
+    "manual_owner_login_status": "PENDING_USER_UI_RETEST_AFTER_SESSION_RESUME_FIX"
   },
   "next_action": {
     "manual_acceptance": "Open https://alisa.octoport.ru/login for ordinary registration or fresh email-code login.",
     "shared_identity_followup": "AL-M01 and AL-M02 connect existing Octoport accounts; AL-M04 provides common staff shell.",
     "automatic_future_execution": false,
-    "manual_admin_acceptance": "Open https://alisa-admin.octoport.ru/login using the already connected app. Recovery page now has Codes saved—continue to admin; no reinstall/reset required. Missing/stale pending starts fixed fresh admin login. Email is not sent at the MFA code step."
+    "manual_admin_acceptance": "Use existing authenticator binding; a valid current staff session opens dashboard. Otherwise one fresh email code and one current app code; if native marker says consumed, wait for app value to change. Do not reinstall/reset authenticator. Open https://alisa-admin.octoport.ru/admin."
   },
   "other_open_review_findings": "Existing independent-review findings are not closed by a mail/design change.",
   "secrets_or_otp_in_record": false,
@@ -144,95 +153,314 @@
   },
   "final_evidence": {
     "installation": {
-      "record_type": "IDENTITY_SINGLE_NATIVE_MFA_CHALLENGE_INSTALL",
+      "scope": "ADMIN_IDENTITY_ONLY_SESSION_RESUME",
       "status": "PASS",
-      "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
-      "artifact_sha256": "745f884f721ed448090cb683da0a4b74853e9e74eb03954452d2d78cbdde6226",
-      "identity_release": "alisa-1432dcc21a07b90b",
-      "web_admin_platform_release": "alisa-c8666516683e7b2b",
-      "identity_only_restarted": true,
-      "protected_runtime_and_config_preserved": true,
-      "migrations_applied": [],
-      "operator_account_factor_or_staff_session_mutation": false,
-      "finished_utc": "2026-11-06T02:26:08.409693+00:00"
-    },
-    "readback": {
-      "record_type": "INSTALLED_SINGLE_CHALLENGE_READBACK",
-      "status": "PASS",
-      "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
-      "checked_utc": "2026-11-06T02:26:44.912565+00:00",
-      "loaded_code": {
-        "checks": {
-          "mfa/reauthenticate.html_project_override": true,
-          "mfa/recovery_codes/index.html_project_override": true,
-          "allauth/layouts/base.html_project_override": true,
-          "recovery_missing_pending_has_visible_continue": true,
-          "recovery_does_not_promise_email": true,
-          "mfa_explicit_app_instruction": true,
-          "mfa_does_not_promise_email": true,
-          "activation_uses_native_subclass": true,
-          "original_canonical_authority_preserved": true
+      "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+      "artifact_sha256": "db04b26d521a141cff933b54003700e73152b94d5df4dcc3e2463c44cf4ec2e5",
+      "started_utc": "2026-11-06T03:15:35.618332+00:00",
+      "cases": [
+        {
+          "case": "fresh_receipt",
+          "passed": true
         },
-        "template_hashes": {
-          "mfa/reauthenticate.html": "82853a057a4582bd0dbfcf46e50eac23f205a13bd22287f8ff2748663033753f",
-          "mfa/recovery_codes/index.html": "94a149648600e286e7cbd39b7f56a9977b9533973d64e1bb86b376b1bd660817",
-          "allauth/layouts/base.html": "021088044344665feab777cf3f7a5cd9223e4480698a62ce98837e8e47b61599"
+        {
+          "case": "expected_component_pointers",
+          "passed": true
+        },
+        {
+          "case": "installation_disk_growth_reserve",
+          "passed": true
+        },
+        {
+          "case": "inode_memory_reserves",
+          "passed": true
+        },
+        {
+          "case": "running_component_baselines",
+          "passed": true
+        },
+        {
+          "case": "qualified_tar_checksum",
+          "passed": true
+        },
+        {
+          "case": "qualified_checksum_file",
+          "passed": true
+        },
+        {
+          "case": "exact_candidate_source",
+          "passed": true
+        },
+        {
+          "case": "contracts_locks_migrations_preserved",
+          "passed": true
+        },
+        {
+          "case": "platform_component_bytes_preserved",
+          "passed": true
+        },
+        {
+          "case": "only_reviewed_identity_delta",
+          "passed": true
+        },
+        {
+          "case": "ci_s04-core-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_s03-core-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_s02-runtime-policies.json",
+          "passed": true
+        },
+        {
+          "case": "ci_s02-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_source_s02-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_tar_s02-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_s02-open-registration-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_source_s02-open-registration-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_tar_s02-open-registration-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_postgresql-browser-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "ci_source_postgresql-browser-qualification.json",
+          "passed": true
+        },
+        {
+          "case": "normal_immutable_install",
+          "passed": true
+        },
+        {
+          "case": "installed_full_manifest_verified",
+          "passed": true
+        },
+        {
+          "case": "dedicated_runtime_user_alisa-identity@stage.service",
+          "passed": true
+        },
+        {
+          "case": "runtime_can_read_and_import_alisa-identity@stage.service",
+          "passed": true
+        },
+        {
+          "case": "dedicated_runtime_user_alisa-admin@stage.service",
+          "passed": true
+        },
+        {
+          "case": "runtime_can_read_and_import_alisa-admin@stage.service",
+          "passed": true
+        },
+        {
+          "case": "preactivation_reserve",
+          "passed": true
+        },
+        {
+          "case": "pointers_still_baseline",
+          "passed": true
+        },
+        {
+          "case": "config_unchanged_before_activation",
+          "passed": true
+        },
+        {
+          "case": "protected_processes_unchanged_before_activation",
+          "passed": true
+        },
+        {
+          "case": "only_two_pointers_changed",
+          "passed": true
+        },
+        {
+          "case": "all_config_bytes_unchanged",
+          "passed": true
+        },
+        {
+          "case": "protected_processes_unchanged",
+          "passed": true
+        },
+        {
+          "case": "operating_disk_inode_memory_reserves",
+          "passed": true
         }
+      ],
+      "no_database_or_mfa_factor_mutations": true,
+      "resources_before": {
+        "disk_free_bytes": 3721338880,
+        "free_inodes": 552929,
+        "memory_available_bytes": 6155321344
       },
       "ready": {
-        "18100": {
+        "web": {
+          "component": "web",
+          "environment": "stage",
           "release": "alisa-c8666516683e7b2b",
           "status": "READY"
         },
-        "18101": {
-          "release": "alisa-c8666516683e7b2b",
+        "admin": {
+          "component": "admin",
+          "environment": "stage",
+          "release": "alisa-73180172646b7012",
           "status": "READY"
         },
-        "18102": {
-          "release": "alisa-c8666516683e7b2b",
-          "status": "READY"
+        "platform": {
+          "component": "platform",
+          "status": "READY",
+          "runtime": "RUNTIME_NOT_CONNECTED",
+          "environment": "stage",
+          "release": "alisa-c8666516683e7b2b"
         },
-        "18103": {
-          "release": "alisa-1432dcc21a07b90b",
-          "status": "READY"
+        "identity": {
+          "component": "identity",
+          "environment": "stage",
+          "release": "alisa-73180172646b7012",
+          "status": "READY",
+          "authentication": "OIDC_CODE_PKCE"
         }
       },
+      "resources_after": {
+        "disk_free_bytes": 3445690368,
+        "free_inodes": 535168,
+        "memory_available_bytes": 6234918912
+      },
+      "finished_utc": "2026-11-06T03:16:11.420120+00:00"
+    },
+    "readback": {
+      "record_type": "INSTALLED_ADMIN_SESSION_RESUME_READBACK",
+      "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+      "status": "PASS",
+      "checked_utc": "2026-11-06T03:16:46.973782+00:00",
       "real_owner_factor_content_read_or_changed": false,
       "real_owner_login_operated": false,
       "mfa_or_session_reset": false,
-      "owner_factors_metadata_only": {
-        "totp": 1,
-        "recovery_codes": 1
+      "checks": {
+        "loaded_code": true,
+        "canonical_anonymous_routes": true,
+        "component_versions": true,
+        "exact_archive_retained": true,
+        "resource_reserve": true
       },
-      "same_real_owner_role_preserved": true,
-      "owner_role_revision": 3,
-      "owner_native_sessions_observed": 0
+      "loaded_code": {
+        "checks": {
+          "native_forms_loaded": true,
+          "rejected_input_not_repopulated": true,
+          "fixed_admin_dashboard_link": true,
+          "single_challenge_activation_preserved": true,
+          "canonical_issuer": true
+        },
+        "template_hashes": {
+          "mfa/reauthenticate.html": "db3704b279d5dae38cbd8663941ad7ab1668a0dbe2de447b4addfa9567372c59",
+          "mfa/recovery_codes/index.html": "94a149648600e286e7cbd39b7f56a9977b9533973d64e1bb86b376b1bd660817",
+          "allauth/layouts/base.html": "021088044344665feab777cf3f7a5cd9223e4480698a62ce98837e8e47b61599"
+        },
+        "mfa_forms": {
+          "authenticate": "octoport_identity.protocol.mfa_forms.LoginCodeForm",
+          "reauthenticate": "octoport_identity.protocol.mfa_forms.ConfirmCodeForm"
+        }
+      },
+      "anonymous_https": {
+        "admin_root": {
+          "status": 307,
+          "location": "/admin",
+          "cache_control": "private, no-cache, no-store, max-age=0, must-revalidate"
+        },
+        "admin_dashboard": {
+          "status": 307,
+          "location": "/login",
+          "cache_control": "private, no-cache, no-store, max-age=0, must-revalidate"
+        },
+        "admin_login": {
+          "status": 200,
+          "location": "",
+          "cache_control": "private, no-cache, no-store, max-age=0, must-revalidate"
+        },
+        "identity_login": {
+          "status": 200,
+          "location": "",
+          "cache_control": "max-age=0, no-cache, no-store, must-revalidate, private"
+        },
+        "product": {
+          "status": 200,
+          "location": "",
+          "cache_control": "private, no-cache, no-store, max-age=0, must-revalidate"
+        }
+      },
+      "ready": {
+        "web": {
+          "component": "web",
+          "environment": "stage",
+          "release": "alisa-c8666516683e7b2b",
+          "status": "READY"
+        },
+        "admin": {
+          "component": "admin",
+          "environment": "stage",
+          "release": "alisa-73180172646b7012",
+          "status": "READY"
+        },
+        "platform": {
+          "component": "platform",
+          "status": "READY",
+          "runtime": "RUNTIME_NOT_CONNECTED",
+          "environment": "stage",
+          "release": "alisa-c8666516683e7b2b"
+        },
+        "identity": {
+          "component": "identity",
+          "environment": "stage",
+          "release": "alisa-73180172646b7012",
+          "status": "READY",
+          "authentication": "OIDC_CODE_PKCE"
+        }
+      },
+      "disk_free_after_archive_bytes": 3393871872
     },
     "independent_source_review": {
       "status": "PASS_SOURCE_REVIEW",
-      "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
+      "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
       "reviewer": "registration_review",
-      "scope": "One native verified enrollment challenge with original request continuation, native replay/records, legacy fallback; no live owner factor used"
+      "scope": "Composite deployed baselines preserved; backend-validated session reuse and native consumed-code diagnostic; no live owner authentication"
     },
     "independent_operation_review": {
       "status": "PASS_READ_ONLY_OPERATION_REVIEW",
       "reviewer": "registration_review",
-      "script_sha256": "a265762b1db993d3c090b9df8d04b2d8c314a0cc07f555129df6124dc34a62bf",
-      "identity_only": true,
-      "other_runtime": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+      "install_script_sha256": "cb8c3ce4f76cea36000c8919410d3672691d2debfd5de98d8e850620e115a0f3",
+      "scope": "Wrappers then inactive immutable wheel dedup then admin+identity-only activation",
       "executed_by_reviewer": false
     },
     "independent_installed_evidence_review": {
       "status": "PASS_INSTALLED_EVIDENCE",
       "reviewer": "registration_review",
-      "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
-      "current_templates_modules_manifest_and_versions_match": true,
-      "fresh_anonymous_canonical_https_verified": true,
-      "personally_reexecuted_authenticated_flows": false,
-      "real_owner_factors_or_codes_read": false,
-      "scope": "Read-only installed proof; authenticated single-challenge verified in synthetic CI"
+      "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+      "four_identity_file_hashes_match": true,
+      "retained_tar_matches": true,
+      "fresh_anonymous_https_verified": true,
+      "qualification_reports_verified": 6,
+      "installation_checks": 36,
+      "real_owner_ui_flow_personally_checked": false,
+      "real_owner_codes_factors_or_sessions_used": false
     },
-    "scope": "Full authenticated one-challenge flow verified in disposable CI; installed actual code/templates/canonical pages/metadata-only owner role proof. Real owner codes not read or entered."
+    "scope": "Native enrolled login and valid-session reuse verified in disposable package CI; installed actual code, canonical anonymous HTTPS and protected runtime/config verified. Real owner UI login remains pending."
   },
   "main_origin": "https://alisa.octoport.ru",
   "previous_origin": "https://alisa-stage.octoport.ru",
@@ -248,18 +476,20 @@
     }
   },
   "current_identity_followup": {
-    "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
-    "recorded_utc": "2026-11-06T02:26:44.912565+00:00",
-    "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/396",
-    "status": "INSTALLED_SINGLE_CHALLENGE_AND_RECOVERY_CONTINUATION_FIX",
-    "receipt": "ALISA_MFA_SINGLE_CHALLENGE_ACCEPTANCE_20261106.json",
-    "identity_only_restarted": true,
-    "newer_web_admin_platform_preserved": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+    "source_sha": "73180172646b7012f1df8026ee8e3b43e8829ce0",
+    "recorded_utc": "2026-11-06T03:16:46.973782+00:00",
+    "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/397",
+    "status": "INSTALLED_ADMIN_SESSION_RESUME_AND_NATIVE_USED_CODE_HINT",
+    "receipt": "ALISA_ADMIN_SESSION_RESUME_ACCEPTANCE_20261106.json",
+    "restarted_components": [
+      "admin",
+      "identity"
+    ],
+    "preserved_web_platform": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
     "migrations_applied": [],
     "configs_and_keys_preserved": true,
-    "single_real_owner_binding": true,
-    "owner_revision": 3,
-    "owner_factors_already_configured": true,
+    "original_native_factor_preserved_by_operator": true,
+    "owner_revision_at_prior_metadata_check": 3,
     "manual_owner_login": "PENDING_USER_UI_RETEST",
     "user_factor_or_staff_session_created_by_operator": false,
     "independent_installed_evidence_review": "PASS_INSTALLED_EVIDENCE"
@@ -315,5 +545,17 @@
     },
     "document": "https://github.com/MaksimUnimax/runtime-fixtures/blob/c93d0893e640028ec19d07d37b6e564733ddfc2e/docs/alisa/service-platform/execution/ALISA_REAL_MAIL_READINESS_20261105.json"
   },
-  "source_scope": "Identity-only MFA enrollment and recovery continuation hotfix; current web/admin/platform c866 preserved"
+  "source_scope": "Composite of deployed S04c866 and identity1432; admin+identity session resume and native consumed-code diagnostic. Web/platform runtime preserved.",
+  "previous_single_challenge_checkpoint": {
+    "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
+    "recorded_utc": "2026-11-06T02:26:44.912565+00:00",
+    "receipt": "ALISA_MFA_SINGLE_CHALLENGE_ACCEPTANCE_20261106.json",
+    "document": "ALISA_MFA_SINGLE_CHALLENGE_20261106.md",
+    "observed_active": {
+      "web": "alisa-c8666516683e7b2b",
+      "admin": "alisa-c8666516683e7b2b",
+      "platform": "alisa-c8666516683e7b2b",
+      "identity": "alisa-1432dcc21a07b90b"
+    }
+  }
 }
