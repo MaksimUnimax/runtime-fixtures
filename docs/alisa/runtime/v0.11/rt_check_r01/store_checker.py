@@ -97,8 +97,8 @@ def error_code(kind, status, body=None):
             if status == 403 and message.startswith('Api-Key is missing a required role'):
                 return 'SCOPE_MISSING'
         # 403 can also mean IP restrictions or an unsigned offer. Do not guess.
-    elif kind == 'WB' and status == 403:
-        return 'SCOPE_MISSING'
+    # WB seller-info accepts every token category. A bare 403 does not prove
+    # missing scope; preserve the unclassified safe failure below.
     elif kind == 'PERFORMANCE' and status == 400 and isinstance(body, dict) and body.get('error') == 'invalid_client':
         return 'AUTH_DENIED'
     return 'PROVIDER_UNAVAILABLE' if 500 <= status <= 599 else 'CHECK_UNAVAILABLE'
@@ -123,6 +123,7 @@ class Checker:
         if kind == 'WB':
             headers['Authorization'] = credential['token']
         elif kind == 'SELLER':
+            # Minimum response shape only, not the complete provider schema.
             headers.update({'Client-Id': credential['client_id'], 'Api-Key': credential['api_key']})
             payload = b'{}'
         else:

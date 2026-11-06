@@ -97,6 +97,11 @@ try:
         check('changed_response_tenant_pins_fail_closed',out['check_code']=='CHECK_UNAVAILABLE')
         with override_settings(STORE_CHECK_UID=os.getuid()+1):s,out,_=verify(token,s)
         check('wrong_server_peer_never_receives_secret',out['check_code']=='CHECK_UNAVAILABLE')
+        before=fixture.calls
+        Path(folder).chmod(0o770)
+        try:s,out,_=verify(token,s)
+        finally:Path(folder).chmod(0o700)
+        check('group_writable_socket_parent_never_receives_secret',out['check_code']=='CHECK_UNAVAILABLE' and fixture.calls==before)
         with override_settings(STORE_CHECK_SOCKET=''):s,out,_=verify(token,s)
         check('disconnected_runtime_never_claims_connected',out['check_code']=='CHECK_UNAVAILABLE')
         s=replace(token,s,{'client_id':'perf-123','client_secret':'fixture:CONNECTED:ozon:one'},'PERFORMANCE');s,out,_=verify(token,s,next(c for c in s['credentials'] if c['kind']=='PERFORMANCE'))

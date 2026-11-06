@@ -62,7 +62,7 @@ class Server(socketserver.ThreadingUnixStreamServer):
         Checker(enabled=enabled, seller_binding_qualified=seller_binding_qualified)
         parent = target.parent.lstat()
         if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in {0, os.geteuid()}
-                or parent.st_mode & 0o002 or target.exists() or target.is_symlink()):
+                or parent.st_mode & 0o022 or target.exists() or target.is_symlink()):
             raise ValueError('Private owned socket path required; existing paths are preserved')
         self.allowed_uid, self.environment = allowed_uid, environment
         self.enabled, self.seller_binding_qualified, self.runner = tuple(enabled), seller_binding_qualified, runner

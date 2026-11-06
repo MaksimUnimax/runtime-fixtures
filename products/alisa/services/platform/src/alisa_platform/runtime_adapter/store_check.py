@@ -38,7 +38,7 @@ def check_store(pins, credential):
         if not stat.S_ISSOCK(info.st_mode) or info.st_uid != settings.STORE_CHECK_UID:
             raise ValueError()
         parent = os.lstat(str(Path(path).parent))
-        if not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in {0, settings.STORE_CHECK_UID} or parent.st_mode & 0o002:
+        if not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in {0, settings.STORE_CHECK_UID} or parent.st_mode & 0o022:
             raise ValueError()
         message = {'schema_version': VERSION, 'operation': 'check_store', 'pins': pins, 'credential': credential}
         raw = json.dumps(message, separators=(',', ':'), allow_nan=False).encode()+b'\n'

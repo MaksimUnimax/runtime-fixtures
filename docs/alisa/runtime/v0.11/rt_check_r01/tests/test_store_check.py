@@ -129,7 +129,7 @@ class HTTPSChecks(unittest.TestCase):
         self.assertEqual(loads(self.server.bodies[0])['grant_type'], 'client_credentials')
 
     def test_statuses_are_distinct_and_no_upstream_text_is_returned(self):
-        for status, code in [(401, 'AUTH_DENIED'), (402, 'PROVIDER_PLAN_REQUIRED'), (403, 'SCOPE_MISSING'), (429, 'RATE_LIMITED'), (503, 'PROVIDER_UNAVAILABLE')]:
+        for status, code in [(401, 'AUTH_DENIED'), (402, 'PROVIDER_PLAN_REQUIRED'), (403, 'CHECK_UNAVAILABLE'), (429, 'RATE_LIMITED'), (503, 'PROVIDER_UNAVAILABLE')]:
             self.server.status = status; self.server.body = b'{"message":"owned-fixture-token-123456"}'
             self.assertEqual(self.checker().check(message(), 'dev'), {'code': code})
 
@@ -141,6 +141,12 @@ class HTTPSChecks(unittest.TestCase):
                 (403, 'Offer not signed', 'CHECK_UNAVAILABLE'), (403, 'unknown-new-reason', 'CHECK_UNAVAILABLE')]:
             self.server.status = status; self.server.body = json.dumps({'message': text}).encode()
             self.assertEqual(self.checker().check(message('SELLER'), 'dev'), {'code': expected})
+
+    def test_wb_403_does_not_guess_a_scope_from_status_or_message(self):
+        self.server.status = 403
+        for body in [{}, {'message':'missing scope'}, {'message':'blocked user'}, {'message':'subscription required'}]:
+            self.server.body = json.dumps(body).encode()
+            self.assertEqual(self.checker().check(message(), 'dev'), {'code':'CHECK_UNAVAILABLE'})
 
     def test_redirect_is_not_followed_and_secret_is_not_forwarded(self):
         self.server.status = 302; self.server.body = b'{}'
@@ -217,6 +223,15 @@ class IPCChecks(unittest.TestCase):
         self.path.write_text('owned-fixture-preserve')
         with self.assertRaises(ValueError):self.server()
         self.assertEqual(self.path.read_text(), 'owned-fixture-preserve')
+
+    def test_group_or_world_writable_parent_is_rejected_before_bind(self):
+        for mode in [0o770, 0o707]:
+            self.path.parent.chmod(mode)
+            with patch('store_check_ipc.socketserver.ThreadingUnixStreamServer.__init__') as bind:
+                with self.assertRaises(ValueError):self.server()
+                bind.assert_not_called()
+            self.assertFalse(self.path.exists())
+        self.path.parent.chmod(0o700)
 
     def test_newline_limit_and_malformed_json_do_not_reflect_payload(self):
         self.server()
