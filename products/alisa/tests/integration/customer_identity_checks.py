@@ -91,6 +91,8 @@ def run(check):
     check('customer_oauth_code_single_use',b.post(reverse('idp:oidc:token'),grant,secure=True,HTTP_AUTHORIZATION=basic).status_code==400)
     new_url,_=target()
     check('customer_existing_sso_cannot_issue_new_code',b.get(new_url,secure=True).status_code==403)
+    external=reverse('account_reauthenticate')+'?'+urlencode({'next':'https://wrong.example.invalid/'})
+    check('customer_password_account_reauth_rejects_external_target',b.get(external,secure=True).status_code==400)
     check('customer_duplicate_parameter_not_customer_authorization',customer_target(new_url+'&nonce=duplicate') is None)
     check('customer_probe_callback_not_customer_authorization',customer_target(new_url.replace('%2Fauth%2Fcallback','%2Foidc-probe%2Fcallback')) is None)
     staff=reverse('idp:oidc:authorization')+'?'+urlencode({'client_id':settings.IDENTITY_STAFF_CLIENT_ID,

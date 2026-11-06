@@ -12,26 +12,23 @@ from django.conf import settings
 from octoport_identity.accounts.models import IdentityMail
 
 def code_reauthentication(request):
-    """Use native logout/login for passwordless OIDC prompt=login.
-
-    Allauth's reauth methods are password/MFA only. GET never signs anyone out;
-    the explicit CSRF-protected form posts to the native logout view, followed
-    by the unchanged native email-code and (when enrolled) MFA login stages.
-    """
+    """Restart both customer factors; retain native account-security reauth."""
     from allauth.account.adapter import get_adapter
     from allauth.account.views import ReauthenticateView
     from .customer import customer_target
-    if (customer_target(request.GET.get(REDIRECT_FIELD_NAME)) is None
-            and request.user.is_authenticated and get_adapter().get_reauthentication_methods(request.user)):
-        return ReauthenticateView.as_view()(request)
-    if request.method!='GET':return JsonResponse({'code':'METHOD_NOT_ALLOWED'},status=405)
-    values=request.GET.getlist(REDIRECT_FIELD_NAME)
+    values=request.POST.getlist(REDIRECT_FIELD_NAME) or request.GET.getlist(REDIRECT_FIELD_NAME)
     target=values[0] if len(values)==1 else ''
-    if not target or len(target)>4096 or '\\' in target or any(ord(c)<32 or ord(c)==127 for c in target):
+    if len(values)>1 or len(target)>4096 or '\\' in target or any(ord(c)<32 or ord(c)==127 for c in target):
         return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
     try:u=urlsplit(target)
     except ValueError:return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
-    if u.scheme or u.netloc or u.fragment or u.path!=reverse('idp:oidc:authorization'):
+    if u.scheme or u.netloc or u.fragment or target and not u.path.startswith('/'):
+        return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
+    if (customer_target(target) is None and request.user.is_authenticated
+            and get_adapter().get_reauthentication_methods(request.user)):
+        return ReauthenticateView.as_view()(request)
+    if request.method!='GET':return JsonResponse({'code':'METHOD_NOT_ALLOWED'},status=405)
+    if not target or u.path!=reverse('idp:oidc:authorization'):
         return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
     login=reverse('account_login')+'?'+urlencode({REDIRECT_FIELD_NAME:target})
     if not request.user.is_authenticated:return HttpResponseRedirect(login)
