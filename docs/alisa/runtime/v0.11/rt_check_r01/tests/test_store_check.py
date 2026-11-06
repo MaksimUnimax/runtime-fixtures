@@ -148,6 +148,11 @@ class HTTPSChecks(unittest.TestCase):
             self.server.body = json.dumps(body).encode()
             self.assertEqual(self.checker().check(message(), 'dev'), {'code':'CHECK_UNAVAILABLE'})
 
+    def test_ozon_402_does_not_claim_a_plan_requirement_without_provider_contract(self):
+        self.server.status = 402; self.server.body = b'{}'
+        for kind in ['SELLER', 'PERFORMANCE']:
+            self.assertEqual(self.checker().check(message(kind), 'dev'), {'code':'CHECK_UNAVAILABLE'})
+
     def test_redirect_is_not_followed_and_secret_is_not_forwarded(self):
         self.server.status = 302; self.server.body = b'{}'
         self.assertEqual(self.checker().check(message(), 'dev'), {'code': 'CHECK_UNAVAILABLE'})

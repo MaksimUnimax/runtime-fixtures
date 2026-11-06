@@ -85,7 +85,7 @@ def error_code(kind, status, body=None):
         return 'RATE_LIMITED'
     if status == 401:
         return 'AUTH_DENIED'
-    if status == 402:
+    if kind == 'WB' and status == 402:
         return 'PROVIDER_PLAN_REQUIRED'
     if kind == 'SELLER' and isinstance(body, dict):
         message = body.get('message', '')
