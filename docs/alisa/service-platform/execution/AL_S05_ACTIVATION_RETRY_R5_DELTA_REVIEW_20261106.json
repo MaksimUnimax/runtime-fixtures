@@ -1,0 +1,37 @@
+{
+  "schema_version": "alisa_s05_activation_retry_review_v1",
+  "scope": "READ_ONLY_SOURCE_DELTA_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "files": {
+    "core_retry": {
+      "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-core-r5.py",
+      "sha256": "96c4e4f1813fe0f17c1a759b7262ae35aa2eccfce51fcebbdf16166c08b5ba84"
+    },
+    "platform_retry": {
+      "path": "docs/alisa/service-platform/execution/s05-installed-20261106/activate-platform-r6.py",
+      "sha256": "b81f01c31d231cbe7c989d04676130917a327310b61722dbe57ca80362f56448"
+    }
+  },
+  "parent_sources": {
+    "core_retry_r4": "1c95bf617118bc7e4462d886dabfd9d38725d1c69e0093ccf3d010e42b6381fe",
+    "platform_retry_r5": "706a0f5ae86895763e8cd4a1731a74b4d1d3355aa241b8df101ad5ecbc28d2a1"
+  },
+  "verdict": "PASS_SOURCE_DELTA",
+  "reviewed_delta": {
+    "core_group_lookup_catches_keyerror_only_for_missing_group": true,
+    "existing_group_requires_prior_r3_owned_failure_recovery_matching_gid_and_empty_members": true,
+    "missing_or_malformed_receipt_fails_closed": true,
+    "retry_uses_distinct_r5_receipt_profile_and_backup_names": true,
+    "readiness_requires_gateway_and_checker_socket_and_active_units": true,
+    "platform_only_switches_to_core_r5_receipt": true,
+    "previous_failed_receipts_preserved": true
+  },
+  "boundary": {
+    "source_read_only": true,
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "scripts_executed": false,
+    "live_credentials_used": false,
+    "activation_performed": false,
+    "provider_calls_performed": false
+  }
+}

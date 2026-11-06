@@ -1,0 +1,29 @@
+{
+  "scope": "SOURCE_PACKAGE_NOT_INSTALLED_NOT_LIVE_PROVIDER",
+  "status": "PASS",
+  "source_sha": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "source_tree": "746cd1be53a45a47c3ac6cf5fb64041aced785b0",
+  "ci": {
+    "platform": 42148492021,
+    "documentation": 42148492013,
+    "conclusion": "success"
+  },
+  "packages": {
+    "runtime": {
+      "tar_sha256": "de61cf3fb8d537179606d5dcb9c9097fa8f83f5e3021c9e7403f952d846e76eb",
+      "manifest_sha256": "59e211dd8c34c94510c897e33e3ca64d60ffddd643fd909ca40dac3ddc763b05",
+      "files": 7,
+      "links": 0,
+      "root": "rt-check-6098b31384ae23a4",
+      "complete_payload_verified": true
+    },
+    "platform": {
+      "tar_sha256": "dfbc0e8550b25a23266e1b801547c7fb291b7d9b7d49b7728d7d71baf886e2d3",
+      "manifest_sha256": "a181fef7c03637badef896f9a2a675f40d533a4ad767dbc9b23426769378578c",
+      "files": 4451,
+      "links": 42,
+      "root": "alisa-6098b31384ae23a4",
+      "complete_payload_verified": true
+    }
+  }
+}

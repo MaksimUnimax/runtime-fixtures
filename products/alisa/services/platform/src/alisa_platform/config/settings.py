@@ -18,7 +18,7 @@ RELEASE = required("ALISA_RELEASE")
 DEBUG = False
 ALLOWED_HOSTS = required("ALISA_ALLOWED_HOSTS").split(",")
 FOUNDATION_PROBE_ENABLED = ALISA_ENV in {"dev", "stage"} and os.environ.get("FOUNDATION_PROBE_ENABLED") == "1"
-INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts", "alisa_platform.staff", "alisa_platform.entitlements"]
+INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts", "alisa_platform.staff", "alisa_platform.entitlements", "alisa_platform.stores"]
 MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "django.middleware.common.CommonMiddleware"]
 ROOT_URLCONF = "alisa_platform.config.urls"
 WSGI_APPLICATION = "alisa_platform.config.wsgi.application"
@@ -126,3 +126,29 @@ ACCESS_LIMITS = {
               'recipients': access_limit('ALISA_ACCESS_OWNER_RECIPIENTS', 50, 50),
               'budget': access_limit('ALISA_ACCESS_OWNER_BUDGET', 5000, 5000)},
 }
+
+# S05 is opt-in with a separate product vault; existing identity/BFF keys are not reused.
+STORES_ENABLED = os.environ.get('ALISA_STORES_ENABLED', '0') == '1'
+STORE_DATA_KEYS = [value for value in os.environ.get('ALISA_STORE_DATA_KEYS', '').split(',') if value]
+STORE_CHECK_SOCKET = os.environ.get('ALISA_STORE_CHECK_SOCKET', '')
+try:
+    STORE_CHECK_UID = int(os.environ.get('ALISA_STORE_CHECK_UID', '-1'))
+    if os.environ.get('ALISA_STORES_ENABLED', '0') not in {'0', '1'}:
+        raise ValueError()
+    if STORES_ENABLED:
+        from cryptography.fernet import Fernet
+        if not ACCOUNTS_ENABLED or not 1 <= len(STORE_DATA_KEYS) <= 5 or len(set(STORE_DATA_KEYS)) != len(STORE_DATA_KEYS):
+            raise ValueError()
+        for key in STORE_DATA_KEYS:
+            Fernet(key.encode())
+        if set(STORE_DATA_KEYS) & set(os.environ.get('ALISA_IDENTITY_DATA_KEYS', '').split(',')):
+            raise ValueError()
+    if STORE_CHECK_SOCKET:
+        if not STORES_ENABLED or STORE_CHECK_UID < 0:
+            raise ValueError()
+        if ALISA_ENV != 'dev' and STORE_CHECK_SOCKET != '/run/alice-market/store-check.sock':
+            raise ValueError()
+        if ALISA_ENV == 'dev' and (not STORE_CHECK_SOCKET.startswith('/') or '..' in STORE_CHECK_SOCKET.split('/')):
+            raise ValueError()
+except (ValueError, TypeError):
+    raise ImproperlyConfigured('Invalid store vault or RT-CHECK configuration') from None

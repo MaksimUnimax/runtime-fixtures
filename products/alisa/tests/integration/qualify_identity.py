@@ -33,7 +33,7 @@ def check(name,condition,**safe):
     CASES.append({'case':name,'passed':True,**safe});print(json.dumps(CASES[-1]),flush=True)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');parser.add_argument('--access',action='store_true');parser.add_argument('--open-registration',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');parser.add_argument('--access',action='store_true');parser.add_argument('--stores',action='store_true');parser.add_argument('--open-registration',action='store_true');args=parser.parse_args()
     params=psycopg.conninfo.conninfo_to_dict(os.environ.get('ALISA_TEST_PG_DSN',''))
     if (os.environ.get('ALISA_TEST_DB_ALLOW')!='1' or params.get('host')!='127.0.0.1' or params.get('port')!='55480' or params.get('dbname')!='alisa_ci_admin' or params.get('user')!='alisa_ci_admin' or not params.get('password') or set(params)-{'host','port','dbname','user','password'}):
         raise RuntimeError('Guarded disposable CI database required')
@@ -45,7 +45,7 @@ def main():
         with patch.dict(os.environ,clean_environment(),clear=True):return psycopg.connect(**config,autocommit=True)
     admin=connect();owned=False;roles=[n+'_'+r for n in NAMES for r in ['migration','runtime']]
     record={'scope':'S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE','status':'RUNNING','cases':CASES,'not_run':['live_stage_rollout','controlled_real_email','live_release_pair_rollback']}
-    proxies=[];sink=None;browser=None;context=None;temporary=None;logs=None;playwright=None;network=OwnedNetwork()
+    proxies=[];store_fixture=None;sink=None;browser=None;context=None;temporary=None;logs=None;playwright=None;network=OwnedNetwork()
     try:
         databases={r[0] for r in admin.execute('SELECT datname FROM pg_database WHERE NOT datistemplate')}
         if databases-{'postgres','alisa_ci_admin'}:raise RuntimeError('Disposable cluster is not empty')
@@ -97,6 +97,11 @@ def main():
                 if not args.staff:raise RuntimeError('Access qualification requires native staff flow')
                 platform_only['ALISA_ENTITLEMENTS_ENABLED']='1'
                 platform_only['ALISA_ACCESS_SINK_DELIVERY']='1'
+            if args.stores:
+                from store_check_fixture import Fixture
+                store_fixture=Fixture(temp/'stores-check.sock',network.uid)
+                platform_only.update({'ALISA_STORES_ENABLED':'1','ALISA_STORE_DATA_KEYS':Fernet.generate_key().decode(),
+                    'ALISA_STORE_CHECK_SOCKET':str(temp/'stores-check.sock'),'ALISA_STORE_CHECK_UID':str(os.getuid())})
             component_keys={c:secrets.token_urlsafe(48) for c in ['platform','identity','web']}
             web_env={**clean_environment(),'HOME':str(home),'ALISA_ENV':'dev','ALISA_RELEASE':manifest['artifact_id'],
                   'ALISA_LEAD_INTAKE_ENABLED':'1','ALISA_SECRET_KEY':component_keys['web'],'ALISA_ACCOUNTS_ENABLED':'1','ALISA_IDENTITY_ISSUER':ISSUER,
@@ -249,7 +254,7 @@ def main():
                 if label in checked_theme_pages:return
                 page.evaluate('document.fonts.ready')
                 check('s02_identity_'+label+'_theme',page.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(13, 25, 41)')
-                check('s02_identity_'+label+'_test_mail_notice',page.locator('.stage-notice').is_visible() and ('пароль не нужен' if args.open_registration else 'example.invalid') in page.locator('.stage-notice').inner_text().lower())
+                check('s02_identity_'+label+'_test_mail_notice',page.locator('.stage-notice').is_visible() and ('логин и пароль' if args.open_registration else 'example.invalid') in page.locator('.stage-notice').inner_text().lower())
                 viewport=page.viewport_size
                 for width in [320,390,1440]:
                     page.set_viewport_size({'width':width,'height':900})
@@ -258,13 +263,14 @@ def main():
                 page.set_viewport_size(viewport)
                 page.screenshot(path=str(args.output.parent/('s02-identity-'+label+'-desktop.png')),full_page=True)
                 checked_theme_pages.add(label)
+            customer_password=secrets.token_urlsafe(24);private_values.append(customer_password)
             callback_proofs=[]
             def register(page,email):
                 open_identity(page)
                 verify_identity_theme(page,'login')
                 page.locator('a[href*="/accounts/signup/"]').first.click()
                 verify_identity_theme(page,'signup')
-                page.locator('input[name=email]').fill(email);page.locator('input[name=privacy]').check();page.locator('input[name=service]').check()
+                page.locator('input[name=email]').fill(email);page.locator('input[name=password1]').fill(customer_password);page.locator('input[name=password2]').fill(customer_password);page.locator('input[name=privacy]').check();page.locator('input[name=service]').check()
                 page.locator('form').filter(has=page.locator('input[name=email]')).locator('button[type=submit]').first.click()
                 expect(page.locator('input[name=code]')).to_be_visible()
                 verify_identity_theme(page,'code')
@@ -288,6 +294,11 @@ def main():
             register(page,email)
             mfa_theme_page=context.new_page()
             mfa_theme_page.goto(ISSUER+'/accounts/2fa/totp/activate/')
+            # Password-based accounts must satisfy the native security-settings
+            # reauthentication before previewing an authenticator enrollment.
+            if mfa_theme_page.locator('input[name=password]').count():
+                mfa_theme_page.locator('input[name=password]').fill(customer_password)
+                mfa_theme_page.locator('form').filter(has=mfa_theme_page.locator('input[name=password]')).locator('button[type=submit]').click()
             qr=mfa_theme_page.locator('main img[src^="data:image/svg"]')
             expect(qr).to_be_visible()
             check('s02_totp_qr_readable_surface',qr.evaluate('image => getComputedStyle(image).backgroundColor')=='rgb(255, 255, 255)')
@@ -359,24 +370,27 @@ def main():
             # mutates its own fixture token, never a product debug endpoint.
             token_path=urlsplit(metadata['token_endpoint']).path
             bad_key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
-            for mode in ['state','issuer','audience','nonce','expiry','signature','pkce']:
+            for mode in ['state','issuer','audience','nonce','expiry','signature','pkce','acr_missing','acr_wrong','pwd_missing','email_otp_missing','auth_time_stale']:
                 negative=browser.new_context(ignore_https_errors=False)
                 negative.add_cookies([c for c in context.cookies() if c['domain']=='localhost'])
                 np=negative.new_page();authorizations=[];callbacks=[]
                 np.on('request',lambda r:authorizations.append(r.url) if r.url.startswith(metadata['authorization_endpoint']+'?') else None)
                 np.on('request',lambda r:callbacks.append(r.url) if r.url.startswith(WEB+'/auth/callback?') else None)
                 open_identity(np)
-                values=parse_qs(urlsplit(authorizations[0]).query);values.pop('prompt',None)
-                href=metadata['authorization_endpoint']+'?'+urlencode({k:v[0] for k,v in values.items()})
                 token_mutated=[]
                 def alter_token(path,status,body):
-                    if path!=token_path or status!=200 or mode not in ['issuer','audience','nonce','expiry','signature']:return body
+                    if path!=token_path or status!=200 or mode not in ['issuer','audience','nonce','expiry','signature','acr_missing','acr_wrong','pwd_missing','email_otp_missing','auth_time_stale']:return body
                     data=json.loads(body);header=jwt.get_unverified_header(data['id_token'])
                     claims=jwt.decode(data['id_token'],options={'verify_signature':False})
                     if mode=='issuer':claims['iss']='https://wrong.example.invalid'
                     if mode=='audience':claims['aud']='s02_probe'
                     if mode=='nonce':claims['nonce']='wrong-private-fixture-nonce'
                     if mode=='expiry':claims['exp']=int(time.time())-120
+                    if mode=='acr_missing':claims.pop('acr',None)
+                    if mode=='acr_wrong':claims['acr']='urn:wrong:authentication'
+                    if mode=='pwd_missing':claims['amr']=['email_otp']
+                    if mode=='email_otp_missing':claims['amr']=['pwd']
+                    if mode=='auth_time_stale':claims['auth_time']=int(time.time())-301
                     data['id_token']=jwt.encode(claims,bad_key if mode=='signature' else private_key,algorithm='RS256',headers={'kid':header['kid']})
                     token_mutated.append(True);return json.dumps(data).encode()
                 def alter_request(path,body):
@@ -393,7 +407,14 @@ def main():
                         return url._replace(query=urlencode({k:v[0] for k,v in query.items()})).geturl()
                     proxies[0].path_hook=wrong_state
                 try:
-                    np.goto(href)
+                    if np.get_by_role('button',name='Продолжить вход в кабинет').count():
+                        np.get_by_role('button',name='Продолжить вход в кабинет').click()
+                    np.locator('input[name=login]').fill(email);np.locator('input[name=password]').fill(customer_password)
+                    np.locator('form').filter(has=np.locator('input[name=login]')).locator('button[type=submit]').click()
+                    expect(np.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+                    np.locator('input[name=code]').fill(letter(email))
+                    np.locator('form').filter(has=np.locator('input[name=code]')).locator('button[type=submit]').first.click()
+                    np.wait_for_url(re.compile('/login\\?error=AUTH_FAILED'))
                     record['negative_fixture']={'mode':mode,'mutation_applied':bool(token_mutated),'landing_path':urlsplit(np.url).path}
                     check('s02_negative_'+mode+'_fixture_applied',bool(token_mutated))
                     expect(np).to_have_url(re.compile('/login\\?error=AUTH_FAILED'))
@@ -409,11 +430,11 @@ def main():
             check('s02_logout_revokes_server_session',request('http://127.0.0.1:18402/api/v1/account/me','POST',{'session_token':saved},{'Authorization':'Bearer '+auth_service})[0]==401)
             # Repeat login goes through the authority and a fresh email code.
             open_identity(page)
-            if page.get_by_role('button',name='Продолжить вход по коду').count():
+            if page.get_by_role('button',name='Продолжить вход в кабинет').count():
                 verify_identity_theme(page,'reauthentication')
-                page.get_by_role('button',name='Продолжить вход по коду').click()
+                page.get_by_role('button',name='Продолжить вход в кабинет').click()
             login_field=page.locator('input[name=login],input[name=email]').first
-            expect(login_field).to_be_visible();login_field.fill(email)
+            expect(login_field).to_be_visible();login_field.fill(email);page.locator('input[name=password]').fill(customer_password)
             page.locator('form').filter(has=login_field).locator('button[type=submit]').first.click()
             expect(page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
             page.locator('input[name=code]').fill(letter(email));page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').first.click()
@@ -471,11 +492,47 @@ def main():
             manage('identity',['identity_deliver'])
             with db('identity') as conn:
                 check('s02_smtp_recovery_sends_and_erases_code',len(sink.messages)>=1 and not conn.execute("SELECT 1 FROM accounts_identitymail WHERE sent_at IS NULL AND encrypted_payload<>'' AND expires_at>now()").fetchone())
+            if args.stores:
+                # S02 cleanup deliberately expired the second customer's session.
+                # Reauthenticate through native email-code before testing a foreign store.
+                open_identity(second_page)
+                if second_page.get_by_role('button',name='Продолжить вход в кабинет').count():
+                    second_page.get_by_role('button',name='Продолжить вход в кабинет').click()
+                field=second_page.locator('input[name=login],input[name=email]').first
+                expect(field).to_be_visible();field.fill(second_email);second_page.locator('input[name=password]').fill(customer_password)
+                second_page.locator('form').filter(has=field).locator('button[type=submit]').first.click()
+                expect(second_page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+                second_page.locator('input[name=code]').fill(letter(second_email))
+                second_page.locator('form').filter(has=second_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+                expect(second_page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
+                other_profile=second_page.request.get(WEB+'/api/account/me')
+                check('s05_other_customer_has_fresh_native_session',other_profile.status==200 and other_profile.json()['profile']['tenant_id']!=str(first[1]))
+                from qualify_stores_browser import run as run_stores_browser
+                def restart_actual_platform():
+                    nonlocal api
+                    stop(api)
+                    api=start('platform')
+                run_stores_browser(context=context,second_context=second_context,db=db,check=check,
+                    web_origin=WEB,private_values=private_values,restart=restart_actual_platform)
             if args.staff:
                 from qualify_staff_browser import run as run_staff_browser
                 run_staff_browser(browser=browser,context=context,second_context=second_context,db=db,manage=manage,
                     check=check,origin=staff_origin,issuer=ISSUER,private_values=private_values,owner_email=email,
-                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record,access_enabled=args.access,web_origin=WEB)
+                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record,access_enabled=args.access,web_origin=WEB,platform_proxy=proxies[2],native_letter=letter,native_password=customer_password)
+                # The same identity now has a real native admin authenticator.
+                # Ordinary customer login must still use password + email only.
+                customer_page=context.new_page();open_identity(customer_page)
+                if customer_page.get_by_role('button',name='Продолжить вход в кабинет').count():
+                    customer_page.get_by_role('button',name='Продолжить вход в кабинет').click()
+                customer_page.locator('input[name=login]').fill(email)
+                customer_page.locator('input[name=password]').fill(customer_password)
+                customer_page.locator('form').filter(has=customer_page.locator('input[name=login]')).locator('button[type=submit]').click()
+                expect(customer_page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+                customer_page.locator('input[name=code]').fill(letter(email))
+                customer_page.locator('form').filter(has=customer_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+                expect(customer_page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
+                check('customer_enrolled_admin_enters_cabinet_with_password_and_email_without_totp',True)
+                customer_page.close()
             if args.open_registration:
                 real_context=browser.new_context(ignore_https_errors=False)
                 real_page=real_context.new_page()
@@ -489,9 +546,9 @@ def main():
                         and conn.execute("SELECT count(*) FROM accounts_identityconsent c JOIN accounts_person p ON p.id=c.person_id WHERE p.email=%s AND c.version='identity-s02-open-1'",[real_email]).fetchone()[0]==2)
                 real_page.get_by_role('button',name='Выйти из кабинета').click()
                 open_identity(real_page)
-                if real_page.get_by_role('button',name='Продолжить вход по коду').count():
-                    real_page.get_by_role('button',name='Продолжить вход по коду').click()
-                field=real_page.locator('input[name=login],input[name=email]').first;field.fill(real_email)
+                if real_page.get_by_role('button',name='Продолжить вход в кабинет').count():
+                    real_page.get_by_role('button',name='Продолжить вход в кабинет').click()
+                field=real_page.locator('input[name=login],input[name=email]').first;field.fill(real_email);real_page.locator('input[name=password]').fill(customer_password)
                 real_page.locator('form').filter(has=field).locator('button[type=submit]').first.click()
                 expect(real_page.locator('input[name=code]')).to_be_visible()
                 manage('identity',['identity_deliver'])
@@ -524,7 +581,7 @@ def main():
         tb=exc.__traceback__
         while tb:
             if Path(tb.tb_frame.f_code.co_filename).name=='qualify_identity.py':record['qualification_line']=tb.tb_lineno
-            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_access_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
+            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_access_browser.py','qualify_stores_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
             if not tb.tb_next:break
             tb=tb.tb_next
         if tb:record['error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
@@ -553,6 +610,7 @@ def main():
         for p in reversed(PROCESSES):stop(p)
         network.close()
         for proxy in proxies:proxy.shutdown();proxy.server_close()
+        if store_fixture:store_fixture.close()
         if sink:sink.shutdown();sink.server_close()
         if logs and not logs.closed:logs.close()
         if temporary:temporary.cleanup()

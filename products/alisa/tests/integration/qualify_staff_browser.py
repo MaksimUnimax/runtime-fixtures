@@ -29,7 +29,7 @@ def fresh_totp(secret, previous):
 
 
 def run(*, browser, context, second_context, db, manage, check, origin, issuer,
-        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record, access_enabled=False, web_origin=None):
+        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record, access_enabled=False, web_origin=None, platform_proxy=None, native_letter=None, native_password=None):
     def subject(email):
         with db('identity') as conn:
             person = conn.execute('SELECT p.id FROM accounts_person p JOIN account_emailaddress e ON e.user_id=p.id WHERE e.email=%s AND e.verified=true AND p.is_active=true', [email]).fetchone()
@@ -62,11 +62,16 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         page.get_by_role('button',name='Войти с MFA',exact=True).click()
         page.wait_for_url(re.compile(re.escape(issuer)+r'/'))
 
-    def enroll(page):
+    def enroll(page, accepted=True):
         begin(page)
         record['staff_browser_phase']='require_first_factor'
         expect(page.get_by_role('heading',name='Дополнительная защита входа в админку')).to_be_visible()
         page.get_by_role('link',name='Подключить приложение для кодов').click()
+        expect(page.locator('input[name=password],#authenticator_secret').first).to_be_visible()
+        if page.locator('input[name=password]').count():
+            if native_password is None:raise RuntimeError('Owned synthetic password required by native security settings')
+            page.locator('input[name=password]').fill(native_password)
+            page.locator('form').filter(has=page.locator('input[name=password]')).locator('button[type=submit]').click()
         record['staff_browser_phase']='enroll_totp'
         secret = page.locator('#authenticator_secret').input_value()
         private_values.append(secret)
@@ -74,20 +79,26 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         page.locator('input[name=code]').fill(value)
         page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').click()
         page.wait_for_url(re.compile(re.escape(issuer)+r'/accounts/2fa/(recovery-codes/|reauthenticate/)'))
-        record['staff_browser_phase']='recovery_view_native_step_up'
-        reauth_needed=urlsplit(page.url).path=='/accounts/2fa/reauthenticate/'
-        if reauth_needed:
-            value=totp(secret);private_values.append(value)
-            page.locator('input[name=code]').fill(value)
-            page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').click()
+        record['staff_browser_phase']='recovery_view_single_verified_challenge'
+        check('s03_native_browser_enrollment_does_not_ask_second_totp',urlsplit(page.url).path=='/accounts/2fa/recovery-codes/')
         expect(page.locator('#recovery_codes')).to_be_visible()
-        if reauth_needed:check('s03_native_browser_recovery_view_requires_factor_step_up',True)
+        check('s03_mfa_recovery_page_does_not_promise_email',page.get_by_text('Введите свою электронную почту.',exact=False).count()==0)
         recovery = page.locator('#recovery_codes').input_value().strip().splitlines()
         private_values.extend(recovery)
         check('s03_native_browser_totp_enrollment_and_recovery_codes',len(recovery)>=6)
+        page.get_by_role('button',name='Коды сохранены — перейти в админку').click()
+        if accepted:
+            expect(page.get_by_role('heading',name='Админка Алисы',exact=True)).to_be_visible(timeout=15000)
+            expect(page).to_have_url(origin+'/admin')
+            check('s03_single_enrollment_challenge_resumes_original_admin_request',True)
+        else:
+            expect(page).to_have_url(re.compile(re.escape(origin)+r'/login\?error=AUTH_FAILED'))
         return secret,recovery,value
 
     def login(page, factor, accepted=True):
+        # This helper explicitly starts a NEW login (lost-cookie scenario).
+        # Active-cookie reuse is exercised separately below.
+        page.context.clear_cookies(name='__Host-alisa_staff')
         begin(page)
         record['staff_browser_phase']='native_factor'
         expect(page.locator('input[name=code]')).to_be_visible()
@@ -102,7 +113,6 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
 
     owner_page = context.new_page()
     secret, owner_recovery, used_value = enroll(owner_page)
-    login(owner_page,fresh_totp(secret,used_value))
     check('s03_real_https_native_mfa_oidc_bff_api_postgresql_admin',True)
     expect(owner_page.get_by_role('button',name=owner_label,exact=True)).to_be_visible()
     expect(owner_page.get_by_role('button',name=reader_email,exact=True)).to_be_visible()
@@ -111,6 +121,79 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
     staff_cookie = next(c for c in cookies if c['name']=='__Host-alisa_staff')
     private_values.append(staff_cookie['value'])
     check('s03_dedicated_host_only_secure_httponly_staff_cookie',staff_cookie['secure'] and staff_cookie['httpOnly'] and staff_cookie['sameSite']=='Lax' and staff_cookie['domain']=='127.0.0.1')
+
+    # Existing native MFA + backend-validated staff session must cover every
+    # public entry without generating another factor challenge or auth flow.
+    def flow_counts():
+        with db('platform') as con:
+            platform_counts=[con.execute('SELECT count(*) FROM '+table).fetchone()[0]
+                for table in ['staff_staffauthflow','staff_staffsession']]
+        with db('identity') as con:mail_count=con.execute('SELECT count(*) FROM accounts_identitymail').fetchone()[0]
+        return [*platform_counts,mail_count]
+    with db('platform') as con:
+        own_session=con.execute('SELECT id,created_at,expires_at,mfa_verified_at,revoked_at,revision FROM staff_staffsession WHERE token_hash=%s',[hashlib.sha256(staff_cookie['value'].encode()).hexdigest()]).fetchone()
+    before_counts=flow_counts()
+    for entry_path in ['/','/login','/login?error=AUTH_FAILED']:
+        owner_page.goto(origin+entry_path)
+        expect(owner_page).to_have_url(origin+'/admin')
+        check('s03_active_session_resumes_'+entry_path.replace('/','_').replace('?','_').replace('=','_'),True)
+    reused=owner_page.request.post(origin+'/auth/start',form={'return_to':'/admin'},headers={'Origin':origin},max_redirects=0)
+    check('s03_active_session_start_skips_new_oidc_and_cookie',reused.status==303 and reused.headers.get('location')==origin+'/admin' and 'set-cookie' not in reused.headers)
+    check('s03_active_session_start_keeps_origin_guard',owner_page.request.post(origin+'/auth/start',form={'return_to':'/admin'},headers={'Origin':'https://wrong.example.invalid'},max_redirects=0).status==403)
+    check('s03_active_session_start_keeps_payload_guard',owner_page.request.post(origin+'/auth/start',form={'return_to':'https://wrong.example.invalid/'},headers={'Origin':origin},max_redirects=0).status==422)
+    check('s03_active_session_start_keeps_query_guard',owner_page.request.post(origin+'/auth/start?next=value',form={'return_to':'/admin'},headers={'Origin':origin},max_redirects=0).status==422)
+    with db('platform') as con:
+        unchanged=con.execute('SELECT id,created_at,expires_at,mfa_verified_at,revoked_at,revision FROM staff_staffsession WHERE id=%s',[own_session[0]]).fetchone()
+    check('s03_reuse_does_not_create_flow_session_mail_or_extend_mfa',flow_counts()==before_counts and unchanged==own_session)
+    for label,cookie in [('forged','z'*43),('duplicate',';'.join(['__Host-alisa_staff='+staff_cookie['value'],'__Host-alisa_staff='+'z'*43]))]:
+        raw=cookie if label=='duplicate' else '__Host-alisa_staff='+cookie
+        denied_login=owner_page.request.get(origin+'/login',headers={'Cookie':raw},max_redirects=0)
+        check('s03_login_rejects_'+label+'_cookie',denied_login.status==200 and 'Войти с MFA' in denied_login.text())
+    for label,field,value in [
+        ('revoked','revoked_at','now()'),('expired','expires_at',"now()-interval '1 second'"),
+        ('stale_mfa','mfa_verified_at',"now()-interval '301 seconds'"),('revision_mismatch','revision','revision+1')]:
+        with db('platform') as con:con.execute('UPDATE staff_staffsession SET '+field+'='+value+' WHERE id=%s',[own_session[0]])
+        try:
+            blocked=owner_page.request.get(origin+'/login',max_redirects=0)
+            check('s03_login_requires_new_auth_for_'+label,blocked.status==200 and 'Войти с MFA' in blocked.text())
+        finally:
+            with db('platform') as con:con.execute('UPDATE staff_staffsession SET expires_at=%s,mfa_verified_at=%s,revoked_at=%s,revision=%s WHERE id=%s',[own_session[2],own_session[3],own_session[4],own_session[5],own_session[0]])
+    if platform_proxy is None:raise RuntimeError('Owned platform proxy required for dependency outage case')
+    def unavailable(path,status,body):
+        if path=='/api/v1/staff/me':return 503,b'{"code":"TEMPORARILY_UNAVAILABLE"}'
+        return status,body
+    platform_proxy.result_hook=unavailable
+    try:
+        unavailable_login=owner_page.request.get(origin+'/login',max_redirects=0)
+        check('s03_backend_outage_login_does_not_offer_new_mfa','Проверка входа временно недоступна' in unavailable_login.text() and 'Войти с MFA' not in unavailable_login.text())
+        blocked=owner_page.request.post(origin+'/auth/start',form={'return_to':'/admin'},headers={'Origin':origin},max_redirects=0)
+        check('s03_backend_outage_start_fails_closed_without_flow',blocked.status==503 and flow_counts()==before_counts)
+    finally:platform_proxy.result_hook=None
+    owner_page.goto(origin+'/admin');expect(owner_page.get_by_role('heading',name='Админка Алисы',exact=True)).to_be_visible()
+
+    # Real already-enrolled login from an anonymous identity context: one
+    # email code and one TOTP, not the enrollment-only happy path.
+    if native_letter is None:raise RuntimeError('Owned synthetic mailbox helper required')
+    enrolled_context=browser.new_context(ignore_https_errors=False)
+    enrolled_page=enrolled_context.new_page();begin(enrolled_page)
+    if enrolled_page.get_by_role('button',name='Продолжить вход по коду').count():
+        enrolled_page.get_by_role('button',name='Продолжить вход по коду').click()
+    field=enrolled_page.locator('input[name=login],input[name=email]').first;field.fill(owner_email)
+    enrolled_page.locator('form').filter(has=field).locator('button[type=submit]').first.click()
+    expect(enrolled_page.locator('input[name=code]')).to_be_visible()
+    manage('identity',['identity_deliver']);mail_value=native_letter(owner_email);private_values.append(mail_value)
+    enrolled_page.locator('input[name=code]').fill(mail_value)
+    enrolled_page.locator('form').filter(has=enrolled_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+    enrolled_page.wait_for_url(re.compile(re.escape(issuer)+r'/accounts/2fa/authenticate/'))
+    app_value=fresh_totp(secret,totp(secret));private_values.append(app_value)
+    enrolled_page.locator('input[name=code]').fill(app_value)
+    enrolled_page.locator('form').filter(has=enrolled_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+    expect(enrolled_page.get_by_role('heading',name='Админка Алисы',exact=True)).to_be_visible(timeout=15000)
+    expect(enrolled_page).to_have_url(origin+'/admin')
+    check('s03_existing_enrolled_identity_email_one_totp_enters_admin',True)
+    enrolled_page.get_by_role('button',name='Выйти',exact=True).click()
+    expect(enrolled_page).to_have_url(origin+'/login');enrolled_context.close()
+
     # Product and identity cookies alone cannot authenticate the separate BFF.
     foreign = browser.new_context(ignore_https_errors=False)
     foreign.add_cookies([c for c in cookies if c['name']!='__Host-alisa_staff'])
@@ -138,7 +221,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
 
     # A normal customer completes native MFA but still receives no staff role.
     reader_page = second_context.new_page()
-    reader_secret, reader_recovery, _ = enroll(reader_page)
+    reader_secret, reader_recovery, _ = enroll(reader_page,False)
     login(reader_page,reader_recovery[0],False)
     check('s03_ordinary_customer_with_valid_mfa_still_has_no_admin',not any(c['name']=='__Host-alisa_staff' for c in second_context.cookies()))
     owner_page.get_by_role('button',name='Сотрудники',exact=True).click()

@@ -1,0 +1,47 @@
+{
+  "record_type": "AL_S05_PACKAGE_INDEPENDENT_REVIEW",
+  "reviewer": "s03_independent_review",
+  "source_sha": "efa6a412ddc6926132cfd6fa648b71d0a155232a",
+  "tree_sha": "a5c7cbff1dcc7c2b0f5c1b40776dc0e75d145eee",
+  "package_sha256": "ab01e364bed3bd0ce2f66c7ab8041db5fc6853c76c20a33acffc3cdf7dc7b32c",
+  "tar_sha256": "f587420cc97755636562c14aa36833841a2d598be30abe0db4ef1dc185681dc7",
+  "manifest_sha256": "d88d308deb445b50f840cfabc43fddf4700683518884e32754eba24e65bf883e",
+  "verdict": "ACCEPTED_FOR_DECLARED_SOURCE_PACKAGE_SCOPE",
+  "package_integrity": {
+    "zip_tar_sidecar_hashes_match_binding": true,
+    "manifest_source_matches_candidate": true,
+    "manifest_file_hashes_match_archive": true,
+    "regular_files": 4451,
+    "links": 42,
+    "all_links_resolve_within_package": true,
+    "escaping_or_cyclic_links": 0,
+    "missing_link_targets": 0,
+    "duplicate_paths": 0,
+    "unsafe_paths": 0,
+    "hardlinks": 0,
+    "extraction_performed": false
+  },
+  "ci_and_qualification_scope": {
+    "platform_ci_run": 42055388054,
+    "platform_ci_status": "success",
+    "documentation_ci_run": 42055388060,
+    "documentation_ci_status": "success",
+    "platform_workflow_runs_independently_read": true,
+    "qualification_zip_sha256": "cf8e3a8264fa6382881a8cc7e241f7647d89f50f5140ccb146d046a91b627568",
+    "s05_disposable_postgresql_unix_cases": "38/38 pass; synthetic peer, not real provider",
+    "packaged_browser_cases": "96/96 pass",
+    "integrated_browser_cases": "175/175 pass, including 15 S05 browser cases",
+    "s02_open_registration_regression_cases": "130/130 pass",
+    "s03_native_core_regression_cases": "92/92 pass",
+    "s04_core_regression_cases": "36/36 pass"
+  },
+  "remaining_gates": [
+    "The package manifest declares runtime_port=1, runtime_status=RUNTIME_NOT_CONNECTED, and acceptance=NOT_ACCEPTED.",
+    "RT-CHECK is still client-only; no runtime socket or marketplace provider check is included.",
+    "Real authorized Ozon, WB, and Performance checks and installed-stage readback remain open."
+  ],
+  "review_limits": [
+    "Read-only archive and receipt inspection; no product tests or host actions were run.",
+    "No real provider credentials or private customer data were read or included."
+  ]
+}

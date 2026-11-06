@@ -51,6 +51,10 @@ def ready(request):
             if settings.ENTITLEMENTS_ENABLED:
                 cursor.execute('SELECT 1 FROM entitlements_accessgrant LIMIT 1')
                 cursor.execute('SELECT 1 FROM entitlements_accessnotification LIMIT 1')
+            if settings.STORES_ENABLED:
+                cursor.execute('SELECT 1 FROM stores_store LIMIT 1')
+                cursor.execute('SELECT 1 FROM stores_vaultsecret LIMIT 1')
+                cursor.execute('SELECT 1 FROM stores_credentialrevision LIMIT 1')
             if settings.STAFF_ENABLED:
                 cursor.execute('SELECT 1 FROM staff_staffmember LIMIT 1')
                 cursor.execute('SELECT 1 FROM staff_staffsession LIMIT 1')

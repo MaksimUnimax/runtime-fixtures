@@ -1,0 +1,26 @@
+{
+  "scope": "INACTIVE_PLATFORM_PACKAGE_COPY_NO_ACTIVATION",
+  "status": "FAILED",
+  "source_sha": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "cases": [
+    {
+      "case": "new_receipt_and_target",
+      "passed": true
+    },
+    {
+      "case": "physical_disk_and_inode_reserve",
+      "passed": false
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-c8666516683e7b2b",
+    "identity-current": "alisa-1432dcc21a07b90b",
+    "current": "alisa-482ed11832b666af"
+  },
+  "maximum_growth_bytes": 322890466,
+  "free_before": 3538771968,
+  "error_type": "RuntimeError",
+  "finished_utc": "2026-11-06T02:48:00.526071+00:00"
+}

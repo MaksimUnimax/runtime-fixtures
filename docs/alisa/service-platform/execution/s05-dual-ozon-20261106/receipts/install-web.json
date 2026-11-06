@@ -1,0 +1,285 @@
+{
+  "scope": "EXACT_CI_WEB_COMPONENT_ONLY_NO_ACTIVATION_NO_ENV_DB_CORE_CHANGES",
+  "source_sha": "9b716ba6ffe18a459c476332daf22160fe069b96",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "new_root_private_namespace_and_target",
+      "passed": true
+    },
+    {
+      "case": "qualified_predecessor",
+      "passed": true
+    },
+    {
+      "case": "private_root_input_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "private_root_input_artifact-input.private.json",
+      "passed": true
+    },
+    {
+      "case": "exact_source_successful_ci_binding",
+      "passed": true
+    },
+    {
+      "case": "bounded_download_size",
+      "passed": true
+    },
+    {
+      "case": "physical_reserve_before_download",
+      "passed": true
+    },
+    {
+      "case": "memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "https_download_without_credentials",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "bounded_zip_expansion",
+      "passed": true
+    },
+    {
+      "case": "checksum_sidecar",
+      "passed": true
+    },
+    {
+      "case": "exact_tar",
+      "passed": true
+    },
+    {
+      "case": "bounded_unique_member_paths",
+      "passed": true
+    },
+    {
+      "case": "exact_manifest",
+      "passed": true
+    },
+    {
+      "case": "same_backend_contracts_locks_migrations_launcher",
+      "passed": true
+    },
+    {
+      "case": "complete_archive_payload_before_component_selection",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/apps/admin/node_modules/next",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/@img+sharp-linux-x64@0.35.5/node_modules/@img/sharp-libvips-linux-x64",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@next/env",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@swc/helpers",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/baseline-browser-mapping",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/caniuse-lite",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/postcss",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-dom",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/sharp",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/styled-jsx",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/postcss@8.5.23/node_modules/nanoid",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/postcss@8.5.23/node_modules/picocolors",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/postcss@8.5.23/node_modules/source-map-js",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/sharp@0.35.5_@types+node@24.19.2/node_modules/@img/colour",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/sharp@0.35.5_@types+node@24.19.2/node_modules/@img/sharp-linux-x64",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/sharp@0.35.5_@types+node@24.19.2/node_modules/detect-libc",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/sharp@0.35.5_@types+node@24.19.2/node_modules/semver",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/styled-jsx@5.1.6_react@19.3.1/node_modules/client-only",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/admin/node_modules/.pnpm/styled-jsx@5.1.6_react@19.3.1/node_modules/react",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/apps/web/node_modules/next",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/@img+sharp-linux-x64@0.35.5/node_modules/@img/sharp-libvips-linux-x64",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@next/env",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@swc/helpers",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/baseline-browser-mapping",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/caniuse-lite",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/postcss",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-dom",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/sharp",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/next@16.4.5_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/styled-jsx",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/postcss@8.5.23/node_modules/nanoid",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/postcss@8.5.23/node_modules/picocolors",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/postcss@8.5.23/node_modules/source-map-js",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/sharp@0.35.5_@types+node@24.19.2/node_modules/@img/colour",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/sharp@0.35.5_@types+node@24.19.2/node_modules/@img/sharp-linux-x64",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/sharp@0.35.5_@types+node@24.19.2/node_modules/detect-libc",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/sharp@0.35.5_@types+node@24.19.2/node_modules/semver",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/styled-jsx@5.1.6_react@19.3.1/node_modules/client-only",
+      "passed": true
+    },
+    {
+      "case": "internal_package_link_ui/web/node_modules/.pnpm/styled-jsx@5.1.6_react@19.3.1/node_modules/react",
+      "passed": true
+    },
+    {
+      "case": "physical_component_reserve",
+      "passed": true
+    },
+    {
+      "case": "only_fixed_launcher_and_web_selected",
+      "passed": true
+    },
+    {
+      "case": "exact_selected_component",
+      "passed": true
+    },
+    {
+      "case": "no_other_component_payload_or_pip",
+      "passed": true
+    },
+    {
+      "case": "pointers_unchanged",
+      "passed": true
+    },
+    {
+      "case": "reserve_retained",
+      "passed": true
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-d9918bcb3695b432",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "web_component_logical_bytes": 49802254,
+  "maximum_disk_growth_bytes": 74049809,
+  "free_before": 3333861376,
+  "free_after": 3274719232,
+  "component_files": 2175,
+  "component_links": 21,
+  "manifest_sha256": "0759f04404ea15a926e14c2f213a9c0a126abfbad8910c37d9d41dc6f9698e1d"
+}

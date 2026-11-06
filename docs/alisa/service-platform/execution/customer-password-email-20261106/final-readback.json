@@ -1,0 +1,31 @@
+{
+  "scope": "INSTALLED_EXACT_COMPONENT_READONLY_SMOKE_NOT_PERSONAL_OWNER_LOGIN",
+  "status": "PASS",
+  "source_sha": "7afaf646b9b35a588051c744f876f6dc1ef7d176",
+  "manifest_sha256": "84c8c9b3aba553f785d4d697bd34af74a2e02ac8200777dea572704f3be49c5e",
+  "selected_files_checked": 2223,
+  "health": {
+    "web": {
+      "status": "READY",
+      "release": "alisa-7afaf646b9b35a58"
+    },
+    "identity": {
+      "status": "READY",
+      "release": "alisa-7afaf646b9b35a58"
+    },
+    "platform": {
+      "status": "READY",
+      "release": "alisa-6098b31384ae23a4"
+    },
+    "admin": {
+      "status": "READY",
+      "release": "alisa-73180172646b7012"
+    }
+  },
+  "free_bytes": 3326521344,
+  "free_inodes": 525141,
+  "migrations_applied": [],
+  "marketplace_calls": 0,
+  "personal_owner_login": "NOT_RUN",
+  "finished_utc": "2026-11-06T06:23:13.023543+00:00"
+}
