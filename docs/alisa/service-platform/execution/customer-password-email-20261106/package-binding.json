@@ -1,0 +1,23 @@
+{
+  "source_sha": "7afaf646b9b35a588051c744f876f6dc1ef7d176",
+  "ci_status": "success",
+  "ci": {
+    "platform": 42172014785,
+    "documentation": 42172014796,
+    "identity_probe": 42172016170
+  },
+  "independent_source_review": "APPROVED_SOURCE",
+  "rollout_sha256": "4fe591977766b46d7f0f8ef8ed0140bde13fb07aae70e5178be518b72235f7b9",
+  "zip_size": 51735062,
+  "zip_sha256": "738b28d9bc8e612aa753d13535276db384d4f0919bb0e63788f5ad3a365c5bc4",
+  "tar_size": 51809210,
+  "tar_sha256": "3ee09f2b8e84541783b631efa1a762d09d44a4cf825f6529e85b3ed9c8f429db",
+  "manifest_sha256": "84c8c9b3aba553f785d4d697bd34af74a2e02ac8200777dea572704f3be49c5e",
+  "baseline": {
+    "web-current": "alisa-9b716ba6ffe18a45",
+    "identity-current": "alisa-73180172646b7012",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  }
+}

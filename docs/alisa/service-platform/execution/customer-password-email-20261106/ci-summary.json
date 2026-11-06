@@ -1,0 +1,56 @@
+[
+  {
+    "file": "postgresql-browser-qualification.json",
+    "status": "CHECKS_COMPLETED_NOT_STAGE_ACCEPTANCE",
+    "cases": 96,
+    "failed": 0
+  },
+  {
+    "file": "rt-check-qualification.json",
+    "status": "PASS",
+    "cases": 24,
+    "failed": 0
+  },
+  {
+    "file": "rt-check-baseline-qualification.json",
+    "status": "PASS",
+    "cases": 0,
+    "failed": 0
+  },
+  {
+    "file": "s02-open-registration-qualification.json",
+    "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE",
+    "cases": 140,
+    "failed": 0
+  },
+  {
+    "file": "s02-qualification.json",
+    "status": "SOURCE_FLOW_QUALIFIED_NOT_STAGE_ACCEPTANCE",
+    "cases": 221,
+    "failed": 0
+  },
+  {
+    "file": "s02-runtime-policies.json",
+    "status": "PASS",
+    "cases": 17,
+    "failed": 0
+  },
+  {
+    "file": "s03-core-qualification.json",
+    "status": "PASS",
+    "cases": 142,
+    "failed": 0
+  },
+  {
+    "file": "s04-core-qualification.json",
+    "status": "PASS",
+    "cases": 36,
+    "failed": 0
+  },
+  {
+    "file": "s05-core-qualification.json",
+    "status": "PASS",
+    "cases": 40,
+    "failed": 0
+  }
+]

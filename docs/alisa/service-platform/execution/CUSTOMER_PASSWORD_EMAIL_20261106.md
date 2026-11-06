@@ -1,9 +1,35 @@
-# Ordinary customer password and email-code correction
+# Вход клиента: пароль и код из письма · 6 ноября 2026
 
-Owner scope (2026-11-06): ordinary registration/login at https://alisa.octoport.ru/app/stores uses email as login, a password, then a fresh email code. No customer authenticator challenge. Preserve native staff TOTP/recovery, installed admin fixes, account/store isolation, keys and the existing identity DB.
+Установлено на основном https://alisa.octoport.ru/. Обычный вход и регистрация используют почту как логин, пароль и свежий код из письма. Пользователь с подключённым TOTP для админки входит в клиентский кабинет без запроса TOTP. Для прежних аккаунтов без пароля есть «Установить или сбросить пароль»: native подтверждение почты, установка пароля, затем новый полноценный вход. Подтверждение сброса не выдаёт клиентскую сессию.
 
-Source combines stores 7ad86730 with installed admin/identity 73180172. Changes are confined to native identity policy/UI, web login/claim enforcement, regression qualification and this receipt. No migration or provider change is required: existing native Person already has a password field. Existing passwordless accounts set a password through native email-confirmed reset, then perform a fresh password + login-email-code flow. Reset confirmation never becomes a product login.
+Источник работающих web/identity: `7afaf646b9b35a588051c744f876f6dc1ef7d176`, release `alisa-7afaf646b9b35a58`. PR398 принят в `feat/alisa-stores-v05`; main не изменялся. Сохранены установленные исправления identity/admin73180172, двух ключей Ozon9b716ba6 и истечения сессии.
 
-Native allauth validates passwords, login/reset email codes, CSRF, rate limits, PKCE, authorization codes and signatures. Customer proof belongs to one native Login and one exact registered web callback/client/state/nonce/PKCE target. It is consumed with the encrypted authorization-code row. All authorization GETs now share the browser-session PostgreSQL lock. Staff MFA policy and its proof remain separate. Web BFF requires signed customer authentication claims.
+## Проверка
 
-Validation and deployment: pending. Local foundation 74 tests and UI/type build passed; native disposable SQLite flow checks are diagnostic only and do not prove PostgreSQL concurrency or installation. Independent source review in progress. No installed claim until exact CI package and server readback complete.
+Точные CI: [platform42172014785](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42172014785), [documentation42172014796](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42172014796), [identity probe42172016170](https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42172016170) — success.
+
+| Набор | Проверок |
+|---|---:|
+| Полный HTTPS/браузер: кабинет, staff MFA, доступ, магазины | 221 |
+| Открытая регистрация и повторный вход | 140 |
+| Native identity/staff PostgreSQL core | 142 |
+| Store vault/tenant/Unix core | 40 |
+| Access core | 36 |
+| PostgreSQL/packaged UI | 96 |
+| Native runtime code/mail policies | 17 |
+
+Наборы пересекаются; числа не суммируются как уникальные сценарии. Также прошли foundation74, baseline800 и runtime-check24. Полный пользовательский путь проверен на изолированных синтетических данных с настоящими native password/email/TOTP validators, PostgreSQL и проверяемым HTTPS. Отдельно проверены одновременное потребление подтверждения, одноразовый OAuth code, неверные пароль/код, code-only обход, ACR/AMR/auth_time, сохранность staff TOTP/recovery, установка пароля прежнего аккаунта и клиентский вход после подключения TOTP.
+
+Независимый итог исходника и скрипта установки — APPROVED_SOURCE / APPROVED_ROLLOUT_SOURCE. На установленном сайте выполнены проверка точных файлов и readiness, HTTP-формы и браузерный просмотр: login содержит почту и пароль, signup — пароль с повтором, доступен сброс. Личный вход владельца и получение письма в его ящик не выполнялись; LIVE_OWNER остаётся NOT_RUN.
+
+## Установка и сохранённые попытки
+
+Активированы только web-current и identity-current. Platform остаётся6098b313, admin73180172, общий current482ed118. Схема, конфигурация, ключи, роли, аккаунты и факторы не изменялись; новых marketplace/DeepSeek вызовов нет. Исходные файлы сервисов проверены по manifest. Установка выбрала web/identity из полного неизменяемого CI-пакета и сохранила его оригинальный manifest; это компонентная установка. Совпадающие payload-файлы и уже допущенные identity dependencies связаны hardlink: их байты сохранены, счётчики ссылок/ctime меняются. Сверены lock, версии/imports и native callback; новых зависимостей не установлено. Дисковый резерв3GiB и200k inode сохранён.
+
+Первая подготовка завершилась до создания target: общие platform locks ошибочно сравнивались со старым identity manifest. Исправлена адресная сверка компонентов, независимо перепроверена; исходный FAILED сохранён. Первая активация прошла readiness и вернула оба собственных указателя при ложном расхождении: ExecStart содержал изменяемые PID/время. Сверка исправлена на команду и постоянные настройки, независимо проверена; FAILED и успешный rollback сохранены. Повторная активация прошла19/19 проверок; подготовка33/33.
+
+Предыдущие неуспешные CI сохранены: e231 — тест не проходил native password reauth перед QR;1aa — выявлен и исправлен порядок проверки внешнего return target;0dea/58f5 — тест первого staff enrollment адаптирован к native password reauth и ожиданию перехода страницы. Условия защиты не удалены и не ослаблены. Финальный7afa прошёл всё.
+
+В браузере подтверждены новые формы, страница входа оставлена для просмотра. Служебный вызов завершения CUA после проверки был отвергнут несоответствием схемы (требовал code вместо объявленного completion_summary); это не отменяет наблюдавшийся результат и не меняло сайт.
+
+Доказательства: [каталог](customer-password-email-20261106/), [package binding](customer-password-email-20261106/package-binding.json), [активация](customer-password-email-20261106/activate.json), [независимое review](customer-password-email-20261106/independent-review.json). Следующий шаг для прежнего пользователя без пароля: открыть /login, выбрать установку/сброс пароля в центре входа, подтвердить почту и войти с новым паролем и свежим кодом.
