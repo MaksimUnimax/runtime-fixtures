@@ -1,0 +1,35 @@
+{
+  "schema_version": "alisa_independent_source_review_v1",
+  "scope": "PREPARED_PATCH_NOT_LIVE_APPLIED",
+  "review_target": "docs/alisa/service-platform/execution/s05-runtime-20261106/current-core-http-extraction.patch",
+  "raw_before_source": "/workspace/scratch/6c2f0ed5dac0/current-http-20261106.py",
+  "before_sha256": "c5bef1600d8f70449c908c8abd974d358d18cb74243df4d5683c7c228000ba2f",
+  "after_sha256": "ecc93ed78f5ab718d66992f43eef74c1c66bbb68dd5a9ec911f7f57dc206db20",
+  "patch_sha256": "a3df7f323d67790a2cc9676ffbd640fbc2b928656a07f9f75f158af2e8de4988",
+  "shared_http_sha256": "da3ecbb2ceb2671adda1fd8a4cab7ea4331eb1cd43b0b6a1f70dc9cb12ec34cb",
+  "overall": "PREPARED_PATCH_REVIEW_ACCEPTED_WITH_SCOPE_LIMITATION",
+  "review": {
+    "before_hash_matches_binding": true,
+    "patch_hash_matches_binding": true,
+    "shared_http_hash_matches_binding": true,
+    "patch_applies_cleanly_without_fuzz": true,
+    "computed_after_hash_matches_binding": true,
+    "patch_changes_only_transport_class_import_and_read_call": true,
+    "proxy_disabled_and_redirect_handler_preserved": true,
+    "timeout_25_seconds_preserved": true,
+    "bounded_read_12000001_bytes_preserved_via_limit_12000000": true,
+    "HTTPError_status_and_retry_after_path_unchanged": true,
+    "qualification_scope_cache_matrix_decoder_and_engine_logic_untouched_by_patch": true
+  },
+  "scope_limitations": [
+    "The /opt/alice-market/store-check-qualification/6098-current-core path was not present in this review workspace, so the complete 69-file copied tree could not be independently rehashed here; its unchanged-file claim remains the supplied binding record rather than an independent reviewer observation.",
+    "No current-core test suite was run by the reviewer; no runtime host calls, installation, live credentials, or working-path modifications were made.",
+    "This receipt reviews the prepared patch only. It does not authorize or assert live application; the patch must remain separate from the working runtime until exact-source integration is approved and tested."
+  ],
+  "verification": {
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "live_credentials_used": false,
+    "working_runtime_modified": false
+  }
+}
