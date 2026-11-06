@@ -1,0 +1,185 @@
+--- a/repository.py
++++ b/repository.py
+@@ -19,9 +19,18 @@
+         super().__init__('SOURCE_RATE_LIMIT')
+ 
+ class Repository:
+-    def __init__(self, path: str, clock=time.time, ttl: int=900, lease: int=120):
++    def __init__(self, path: str, clock=time.time, ttl: int=900, lease: int=120, quota_path=None):
+         self.path, self.clock, self.ttl, self.lease = str(path), clock, ttl, lease
+         self._transaction = threading.local()
++        self.quota_path = str(quota_path) if quota_path is not None else self.path
++        self._external_quota = Path(self.quota_path).resolve() != Path(self.path).resolve()
++        if self._external_quota:
++            q=Path(self.quota_path)
++            if not q.is_file() or q.is_symlink():raise Rejected("QUOTA_STORE_UNAVAILABLE")
++            with sqlite3.connect("file:"+str(q.resolve())+"?mode=ro",uri=True) as c:
++                expected={"calls":{"id","jid","source","at","state","http","elapsed_ms","response_bytes"},"rates":{"source","not_before"},"denied":{"source","revision"}}
++                for name,fields in expected.items():
++                    if {r[1] for r in c.execute("PRAGMA table_info("+name+")")}!=fields:raise Rejected("QUOTA_STORE_SCHEMA")
+         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+         with self.connection() as c:
+             c.execute('PRAGMA journal_mode=WAL')
+@@ -81,6 +90,27 @@
+             self._transaction.connection, self._transaction.write = None, False
+             c.close()
+ 
++    @contextmanager
++    def quota_connection(self, write=False):
++        """One authoritative existing ledger; default keeps the same transaction.
++
++        Optional external ledger isolates canary jobs, never their provider limits.
++        No schema/retention/journal settings are changed on the external database.
++        """
++        if not self._external_quota:
++            with self.connection(write) as c:yield c
++            return
++        c=sqlite3.connect('file:'+str(Path(self.quota_path).resolve())+'?mode=rw',uri=True,timeout=2)
++        c.row_factory=sqlite3.Row
++        try:
++            c.execute('PRAGMA busy_timeout=2000')
++            if write:c.execute('BEGIN IMMEDIATE')
++            yield c
++            c.commit()
++        except BaseException:
++            c.rollback();raise
++        finally:c.close()
++
+     @staticmethod
+     def validate_ingress(tenant, rid, body_hash):
+         if (not isinstance(tenant, str) or not tenant or not isinstance(rid, str)
+@@ -276,37 +306,40 @@
+     def reserve(self,jid,owner,source,interval,daily_limit):
+         if interval<1 or daily_limit<1: raise Rejected('RATE_CONFIG')
+         now = self.clock()
+-        with self.connection(True) as c:
+-            self._owned(c,jid,owner)
+-            rate = c.execute('SELECT not_before FROM rates WHERE source=?',(source,)).fetchone()
+-            if rate and rate['not_before']>now: raise Deferred(rate['not_before'])
+-            recent = c.execute('SELECT at FROM calls WHERE source=? AND at>? ORDER BY at',(source,now-86400)).fetchall()
+-            if len(recent)>=daily_limit: raise Deferred(recent[-daily_limit]['at']+86400)
+-            c.execute('INSERT OR REPLACE INTO rates VALUES(?,?)',(source,now+interval))
+-            row = c.execute("INSERT INTO calls(jid,source,at,state) VALUES(?,?,?,'SENDING')",(jid,source,now))
+-            return row.lastrowid
++        with self.connection(True) as jobs:
++            self._owned(jobs,jid,owner)
++            with self.quota_connection(True) as c:
++                if self._external_quota and c.execute("SELECT 1 FROM calls WHERE source=? AND state IN ('SENDING','UNKNOWN')",(source,)).fetchone():
++                    raise Rejected('SOURCE_OUTCOME_UNRESOLVED')
++                rate=c.execute('SELECT not_before FROM rates WHERE source=?',(source,)).fetchone()
++                if rate and rate['not_before']>now:raise Deferred(rate['not_before'])
++                recent=c.execute('SELECT at FROM calls WHERE source=? AND at>? ORDER BY at',(source,now-86400)).fetchall()
++                if len(recent)>=daily_limit:raise Deferred(recent[-daily_limit]['at']+86400)
++                c.execute('INSERT OR REPLACE INTO rates VALUES(?,?)',(source,now+interval))
++                row=c.execute("INSERT INTO calls(jid,source,at,state) VALUES(?,?,?,'SENDING')",(jid,source,now))
++                return row.lastrowid
+ 
+     def received(self,event_id,meta):
+-        with self.connection(True) as c:
++        with self.quota_connection(True) as c:
+             c.execute("UPDATE calls SET state='RECEIVED',http=?,elapsed_ms=?,response_bytes=? WHERE id=?",
+                       (meta.get('status'),meta.get('elapsed_ms'),meta.get('bytes'),event_id))
+ 
+     def failed_call(self,event_id,status=None,unknown=False):
+-        with self.connection(True) as c:
++        with self.quota_connection(True) as c:
+             c.execute('UPDATE calls SET state=?,http=? WHERE id=?',('UNKNOWN' if unknown else 'HTTP_ERROR',status,event_id))
+ 
+     def defer_source(self,source,until):
+-        with self.connection(True) as c:
++        with self.quota_connection(True) as c:
+             old = c.execute('SELECT not_before FROM rates WHERE source=?',(source,)).fetchone()
+             c.execute('INSERT OR REPLACE INTO rates VALUES(?,?)',(source,max(until,old['not_before'] if old else 0)))
+ 
+     def deny(self,source,revision):
+-        with self.connection(True) as c:
++        with self.quota_connection(True) as c:
+             c.execute('INSERT OR IGNORE INTO denied VALUES(?,?)',(source,revision))
+ 
+     def denied(self,source,revision):
+-        with self.connection() as c:
++        with self.quota_connection() as c:
+             return c.execute('SELECT 1 FROM denied WHERE source=? AND revision=?',(source,revision)).fetchone() is not None
+ 
+     def call_count(self):
+-        with self.connection() as c: return c.execute('SELECT COUNT(*) FROM calls').fetchone()[0]
++        with self.quota_connection() as c: return c.execute('SELECT COUNT(*) FROM calls').fetchone()[0]
+--- a/engine.py
++++ b/engine.py
+@@ -331,7 +331,7 @@
+             if exc.status == 429 and not exc.unknown:
+                 # HTTP 429 is a known rejection, unlike a transport timeout.
+                 # Bound all automatic retries and preserve the exact job identity.
+-                with self.repo.connection() as c:
++                with self.repo.quota_connection() as c:
+                     failures = c.execute('SELECT COUNT(*) FROM calls WHERE jid=? AND http=429', (jid,)).fetchone()[0]
+                 if failures <= 2:
+                     pause = 90 * (2 ** (failures - 1))
+--- a/task_graph.py
++++ b/task_graph.py
+@@ -11,6 +11,8 @@
+ from pathlib import Path
+ import hashlib
+ import re
++from decimal import Decimal
++from matrix_core import decimal_text
+ 
+ from semantics import (Rejected, Scope, Store, make_plan, canonical_json,
+                        strict_json, fingerprint)
+@@ -32,6 +34,20 @@
+ 
+ def size(value):
+     return len(canonical_json(value).encode())
++
++
++def capture_value(value,depth=0,budget=None):
++    """Exact bounded JSON materialization of approved fields, never float coercion."""
++    if budget is None:budget=[0]
++    budget[0]+=1
++    require(depth<=40 and budget[0]<=200000,'GRAPH_CAPTURE_CAPACITY')
++    if isinstance(value,Decimal):return decimal_text(value)
++    if value is None or type(value) in (bool,int,str):return value
++    if type(value) is list:return [capture_value(v,depth+1,budget)for v in value]
++    if type(value) is dict:
++        require(all(type(k)is str for k in value),'GRAPH_CAPTURE_SCHEMA')
++        return {k:capture_value(v,depth+1,budget)for k,v in value.items()}
++    raise Rejected('GRAPH_CAPTURE_SCHEMA')
+ 
+ 
+ class TaskGraphRuntime:
+@@ -210,7 +226,7 @@
+         require(state['page'] is None or (state['index'] < len(nodes) and
+                 nodes[state['index']]['kind'] == 'source'), 'GRAPH_PROGRESS_PAGE')
+         require(size(state) <= self.catalog['limits']['max_bytes'], 'GRAPH_PROGRESS_CAPACITY')
+-        with repo.connection() as c:
++        with repo.quota_connection() as c:
+             calls = [dict(x) for x in c.execute('SELECT * FROM calls WHERE jid=? ORDER BY id', (row['id'],))]
+         unresolved = [x for x in calls if x['state'] in ('SENDING', 'UNKNOWN')]
+         received = {x['id']: x for x in calls if x['state'] == 'RECEIVED'}
+@@ -228,7 +244,7 @@
+         return state
+ 
+     def _record(self, worker, row, state, request, grant):
+-        with worker.repo.connection() as c:
++        with worker.repo.quota_connection() as c:
+             call = c.execute("SELECT * FROM calls WHERE jid=? AND state='RECEIVED' ORDER BY id DESC LIMIT 1",
+                              (row['id'],)).fetchone()
+         require(call is not None and call['source'] == request.source and
+@@ -238,7 +254,7 @@
+                                   'grant': grant})
+ 
+     def _budget(self, repo, row):
+-        with repo.connection() as c:
++        with repo.quota_connection() as c:
+             count = c.execute('SELECT count(*) FROM calls WHERE jid=?', (row['id'],)).fetchone()[0]
+         require(count < self.catalog['limits']['max_calls'], 'GRAPH_CALL_BUDGET')
+ 
+@@ -282,7 +298,7 @@
+                                         'max_bytes': self.catalog['limits']['max_bytes']})
+                 require(type(result.get('complete')) is bool, 'GRAPH_SOURCE_COMPLETENESS')
+                 if 'capture' in node:
+-                    captured=evaluate(node['capture'],{'response':response})
++                    captured=capture_value(evaluate(node['capture'],{'response':response}))
+                     require(type(captured) is dict and size(captured)<=self.catalog['limits']['max_bytes'],
+                             'GRAPH_CAPTURE_CAPACITY')
+                     state['capture_pages'].append({'data':clone(captured),
