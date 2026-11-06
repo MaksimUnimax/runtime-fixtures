@@ -133,8 +133,12 @@ def session(data):
     return row
 
 def profile(row):
+    access_status='NOT_PROVISIONED'
+    if settings.ENTITLEMENTS_ENABLED:
+        from alisa_platform.entitlements.service import snapshot
+        access_status=snapshot(row.tenant_id)['status']
     return {'customer_id':str(row.customer_id),'tenant_id':str(row.tenant_id),'email':row.customer.email,
-            'display_name':row.customer.display_name,'role':'OWNER_CLIENT','access_status':'NOT_PROVISIONED','stores':[]}
+            'display_name':row.customer.display_name,'role':'OWNER_CLIENT','access_status':access_status,'stores':[]}
 
 @boundary
 def me(request,data):

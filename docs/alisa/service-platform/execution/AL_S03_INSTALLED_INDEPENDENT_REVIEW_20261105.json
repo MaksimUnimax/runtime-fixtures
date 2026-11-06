@@ -1,0 +1,62 @@
+{
+  "record_type": "AL_S03_INDEPENDENT_INSTALLED_REVIEW",
+  "recorded_at_utc": "2026-11-05T10:18:08.877Z",
+  "reviewer": {
+    "task": "/root/s03_independent_review",
+    "model": "gpt-6-luna",
+    "mode": "READ_ONLY_RECEIPTS_SOURCE_DELTA_AND_ACTUAL_HOST_NO_TESTS_OR_MUTATIONS"
+  },
+  "binding": {
+    "source_sha": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+    "tree_sha": "c89ea16dd4773855d83335d0ed151680725d69d9",
+    "artifact": "alisa-3e91b1aa5d405d0e.tar.gz",
+    "artifact_sha256": "b9eb8f011482d3921c9bb32f98c2c4751aaf3bacf7fdcb101d2fc9ba9f6a8b21",
+    "approved_plan_commit": "83ba6c99a57897037286b2773ccf633f7b2f3c28",
+    "approved_plan_sha256": "7efbcf47e2ea5f8c0ec1245a9108037c482b506fbae11975841f28615344572d"
+  },
+  "historical_verdict": "ACCEPTED_FOR_RECORDED_3E91_STAGE_SCOPE_WITH_INTERRUPTION_DISCLOSED",
+  "current_mixed_verdict": "NOT_ACCEPTED",
+  "reason": "Independent actual-host readback found subsequent concurrent web/platform/identity dd2 while admin stayed3e91. Pre-drift receipts cannot establish current mixed installed acceptance.",
+  "historical_assessment": "R3 actual signed native recovery/MFA bootstrap and real TOTP, R4 smoke36, separate reentry12, final-check44 support recorded historical3e91 stage scope. Rollback original remains FAILED after transient503/Timeout despite27 earlier passing steps; later reentry is separate evidence.",
+  "actual_host_readback": {
+    "web": "alisa-dd2b59b99b00b7e4",
+    "platform": "alisa-dd2b59b99b00b7e4",
+    "identity": "alisa-dd2b59b99b00b7e4",
+    "admin": "alisa-3e91b1aa5d405d0e",
+    "shared_current": "alisa-77d0f8ee2643ef65",
+    "all_ready": true,
+    "staff_flags_enabled": true,
+    "private_configs_root0600": true,
+    "private_dirs_root0700_nonsymlink": true,
+    "staff_tables": 5,
+    "audit_insert_only": true,
+    "active_owner": 1,
+    "staff_members": 2,
+    "admin_client": "confidential/callback-exact/code-enabled",
+    "native_admin_token_rows_at_readback": 2,
+    "old_web_probe_clients_preserved": true,
+    "services_and_timers_active_enabled": true
+  },
+  "delta_review": {
+    "from": "3e91b1aa5d405d0e8160c4dbe3dcad56eb606dae",
+    "to": "dd2b59b99b00b7e4c751f6f32034886245363d49",
+    "confirmed_identical_git_blobs": [
+      "identity middleware and storage",
+      "admin auth BFF",
+      "platform staff views/models/initial migration"
+    ],
+    "changed": "web presentation, mail delivery/recipient allowlisting and related customer email validation",
+    "finding": "No changed staff-specific authorization/MFA/token/platform staff logic found; source-level compatibility only."
+  },
+  "annotation": "R4 inherited TOTP case label actually uses recovery[4]; actual TOTP independently recorded in R3 and reentry.",
+  "resource_block": "2939MiB free below3072MiB reserve; no new heavy qualification until authorized cleanup.",
+  "minimum_remaining_gate": "Bind exact current component pointers/configs, then qualify current staff boundary with fresh native TOTP and rollback/reentry. Keep old source/package verdict scoped to3e91; do not extend to dd2/current mixed.",
+  "not_accepted": [
+    "Production",
+    "Real controlled-recipient delivery acceptance",
+    "New mail feature approval",
+    "Automatic identity merge/common DB adoption",
+    "Main merge",
+    "S04 and later capabilities"
+  ]
+}

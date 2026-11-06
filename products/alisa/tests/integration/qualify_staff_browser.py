@@ -29,7 +29,7 @@ def fresh_totp(secret, previous):
 
 
 def run(*, browser, context, second_context, db, manage, check, origin, issuer,
-        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record):
+        private_values, owner_email, reader_email, authority_proxy, private_key, token_path, record, access_enabled=False, web_origin=None):
     def subject(email):
         with db('identity') as conn:
             person = conn.execute('SELECT p.id FROM accounts_person p JOIN account_emailaddress e ON e.user_id=p.id WHERE e.email=%s AND e.verified=true AND p.is_active=true', [email]).fetchone()
@@ -127,12 +127,12 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
     card = owner_page.locator('section[aria-label="Карточка клиента"]')
     expect(card).to_contain_text(reader_email)
     card.get_by_role('button',name='Заблокировать в Алисе').click()
-    expect(owner_page.get_by_role('status')).to_contain_text('Изменение сохранено')
+    expect(owner_page.locator('main > p[role="status"]')).to_contain_text('Изменение сохранено')
     with db('identity') as conn:
         check('s03_local_customer_block_preserves_global_identity',conn.execute('SELECT is_active FROM accounts_person WHERE id=%s',[reader_person]).fetchone()[0] is True)
     owner_page.get_by_role('button',name=reader_email,exact=True).click()
     card.get_by_role('button',name='Разблокировать в Алисе').click()
-    expect(owner_page.get_by_role('status')).to_contain_text('Изменение сохранено')
+    expect(owner_page.locator('main > p[role="status"]')).to_contain_text('Изменение сохранено')
     check('s03_browser_customer_card_block_and_unblock',True)
     owner_page.get_by_role('button',name='Заявки',exact=True).click()
     expect(owner_page.locator('section[aria-label="Данные"]')).to_contain_text(owner_email)
@@ -148,7 +148,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
     owner_page.locator('input[name=name]').fill('Test Reader')
     owner_page.get_by_label('Просмотр клиентов',exact=True).check()
     owner_page.get_by_role('button',name='Назначить',exact=True).click()
-    expect(owner_page.get_by_role('status')).to_contain_text('Изменение сохранено')
+    expect(owner_page.locator('main > p[role="status"]')).to_contain_text('Изменение сохранено')
     check('s03_owner_assigns_limited_admin_through_real_ui',True)
     login(reader_page,reader_recovery[1])
     expect(reader_page.get_by_role('button',name=owner_label,exact=True)).to_be_visible()
@@ -168,7 +168,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
     owner_page.get_by_role('button',name='Сотрудники',exact=True).click()
     entry = owner_page.locator('li').filter(has_text='Test Reader')
     entry.get_by_role('button',name='Отозвать сотрудника').click()
-    expect(owner_page.get_by_role('status')).to_contain_text('Изменение сохранено')
+    expect(owner_page.locator('main > p[role="status"]')).to_contain_text('Изменение сохранено')
     for item in [reader_page,another_page]:
         item.goto(origin+'/admin');expect(item).to_have_url(origin+'/login')
     check('s03_staff_revocation_denies_both_real_browser_sessions',True)
@@ -199,6 +199,11 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         finally:
             authority_proxy.response_hook=None
             negative.close()
+    if access_enabled:
+        from qualify_access_browser import run as run_access_browser
+        login(owner_page,fresh_totp(secret,totp(secret)))
+        run_access_browser(owner_page=owner_page,context=context,second_context=second_context,db=db,
+            check=check,origin=origin,web_origin=web_origin,owner_email=owner_email,reader_email=reader_email,owner_label=owner_label,manage=manage)
     owner_page.goto(origin+'/admin')
     owner_page.get_by_role('button',name='Аудит',exact=True).click()
     expect(owner_page.locator('section[aria-label="Данные"]')).to_contain_text('staff.revoked')
