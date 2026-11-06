@@ -90,7 +90,7 @@ try:
         check('replacement_other_account_keeps_original_active_key',out['check_code']=='ACCOUNT_MISMATCH' and active.status=='ACTIVE' and active.secret.ciphertext==old_cipher)
         s=replace(token,s,key());s,out,_=verify(token,s);active.refresh_from_db();active.secret.refresh_from_db()
         check('same_account_replacement_promotes_new_and_erases_retired_secret',out['check_code']=='CONNECTED' and active.status=='REVOKED' and active.secret.ciphertext=='' and CredentialRevision.objects.filter(store_id=s['id'],status='ACTIVE').count()==1)
-        for code in ['AUTH_DENIED','SCOPE_MISSING','TIMEOUT','RATE_LIMITED']:
+        for code in ['AUTH_DENIED','SCOPE_MISSING','TIMEOUT','RATE_LIMITED','PROVIDER_PLAN_REQUIRED']:
             s=replace(token,s,key(code=code));s,out,_=verify(token,s)
             check('provider_'+code.lower()+'_is_distinct_and_preserves_active',out['check_code']==code and CredentialRevision.objects.filter(store_id=s['id'],status='ACTIVE').count()==1)
         fixture.bad_pins=True;s,out,_=verify(token,s);fixture.bad_pins=False
