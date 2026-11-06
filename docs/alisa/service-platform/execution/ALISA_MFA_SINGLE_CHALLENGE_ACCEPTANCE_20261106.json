@@ -1,0 +1,133 @@
+{
+  "record_type": "ALISA_SINGLE_NATIVE_MFA_CHALLENGE_ACCEPTANCE",
+  "status": "INSTALLED_FIX_ACCEPTED_OWNER_UI_RETEST_PENDING",
+  "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
+  "pr": "https://github.com/MaksimUnimax/runtime-fixtures/pull/396",
+  "artifact_sha256": "745f884f721ed448090cb683da0a4b74853e9e74eb03954452d2d78cbdde6226",
+  "qualification": {
+    "source_unit": {
+      "passed": 62,
+      "total": 62
+    },
+    "postgres_browser": {
+      "passed": 96,
+      "total": 96
+    },
+    "https_bff_cabinet_staff": {
+      "passed": 150,
+      "total": 150
+    },
+    "open_registration": {
+      "passed": 130,
+      "total": 130
+    },
+    "runtime_policy_subset": {
+      "passed": 17,
+      "total": 17
+    },
+    "staff_native_canonical_and_enrollment_http": {
+      "passed": 113,
+      "total": 113
+    },
+    "platform_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42149275871",
+    "identity_probe_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42149275689",
+    "documentation_ci": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/42149275790",
+    "scope": "Disposable synthetic full native HTTP and packaged browser; not real-owner login acceptance"
+  },
+  "independent_source_review": {
+    "status": "PASS_SOURCE_REVIEW",
+    "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
+    "reviewer": "registration_review",
+    "scope": "One native verified enrollment challenge with original request continuation, native replay/records, legacy fallback; no live owner factor used"
+  },
+  "independent_operation_review": {
+    "status": "PASS_READ_ONLY_OPERATION_REVIEW",
+    "reviewer": "registration_review",
+    "script_sha256": "a265762b1db993d3c090b9df8d04b2d8c314a0cc07f555129df6124dc34a62bf",
+    "identity_only": true,
+    "other_runtime": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+    "executed_by_reviewer": false
+  },
+  "installation": {
+    "record_type": "IDENTITY_SINGLE_NATIVE_MFA_CHALLENGE_INSTALL",
+    "status": "PASS",
+    "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
+    "artifact_sha256": "745f884f721ed448090cb683da0a4b74853e9e74eb03954452d2d78cbdde6226",
+    "identity_release": "alisa-1432dcc21a07b90b",
+    "web_admin_platform_release": "alisa-c8666516683e7b2b",
+    "identity_only_restarted": true,
+    "protected_runtime_and_config_preserved": true,
+    "migrations_applied": [],
+    "operator_account_factor_or_staff_session_mutation": false,
+    "finished_utc": "2026-11-06T02:26:08.409693+00:00"
+  },
+  "installed_readback": {
+    "record_type": "INSTALLED_SINGLE_CHALLENGE_READBACK",
+    "status": "PASS",
+    "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
+    "checked_utc": "2026-11-06T02:26:44.912565+00:00",
+    "loaded_code": {
+      "checks": {
+        "mfa/reauthenticate.html_project_override": true,
+        "mfa/recovery_codes/index.html_project_override": true,
+        "allauth/layouts/base.html_project_override": true,
+        "recovery_missing_pending_has_visible_continue": true,
+        "recovery_does_not_promise_email": true,
+        "mfa_explicit_app_instruction": true,
+        "mfa_does_not_promise_email": true,
+        "activation_uses_native_subclass": true,
+        "original_canonical_authority_preserved": true
+      },
+      "template_hashes": {
+        "mfa/reauthenticate.html": "82853a057a4582bd0dbfcf46e50eac23f205a13bd22287f8ff2748663033753f",
+        "mfa/recovery_codes/index.html": "94a149648600e286e7cbd39b7f56a9977b9533973d64e1bb86b376b1bd660817",
+        "allauth/layouts/base.html": "021088044344665feab777cf3f7a5cd9223e4480698a62ce98837e8e47b61599"
+      }
+    },
+    "ready": {
+      "18100": {
+        "release": "alisa-c8666516683e7b2b",
+        "status": "READY"
+      },
+      "18101": {
+        "release": "alisa-c8666516683e7b2b",
+        "status": "READY"
+      },
+      "18102": {
+        "release": "alisa-c8666516683e7b2b",
+        "status": "READY"
+      },
+      "18103": {
+        "release": "alisa-1432dcc21a07b90b",
+        "status": "READY"
+      }
+    },
+    "real_owner_factor_content_read_or_changed": false,
+    "real_owner_login_operated": false,
+    "mfa_or_session_reset": false,
+    "owner_factors_metadata_only": {
+      "totp": 1,
+      "recovery_codes": 1
+    },
+    "same_real_owner_role_preserved": true,
+    "owner_role_revision": 3,
+    "owner_native_sessions_observed": 0
+  },
+  "independent_installed_evidence_review": {
+    "status": "PASS_INSTALLED_EVIDENCE",
+    "reviewer": "registration_review",
+    "source_sha": "1432dcc21a07b90b07428ef2585af5cd196a80aa",
+    "current_templates_modules_manifest_and_versions_match": true,
+    "fresh_anonymous_canonical_https_verified": true,
+    "personally_reexecuted_authenticated_flows": false,
+    "real_owner_factors_or_codes_read": false,
+    "scope": "Read-only installed proof; authenticated single-challenge verified in synthetic CI"
+  },
+  "owner_factor_already_enrolled": true,
+  "real_owner_ui_retest": "PENDING_USER_AFTER_INSTALLED_FIX",
+  "main_origin": "https://alisa.octoport.ru",
+  "admin_origin": "https://alisa-admin.octoport.ru",
+  "identity_issuer": "https://id.octoport.ru",
+  "secrets_otp_or_recovery_codes_in_record": false,
+  "automatic_future_execution": false
+}
