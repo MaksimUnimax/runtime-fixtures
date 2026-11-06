@@ -1,0 +1,111 @@
+{
+  "scope": "FINAL_DUAL_OZON_WEB_COMPONENT_READBACK_NO_PROVIDER_CALLS",
+  "observed_utc": "2026-11-06T05:35:48.760852+00:00",
+  "provider_calls": 0,
+  "pointers": {
+    "web-current": "alisa-9b716ba6ffe18a45",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "health": {
+    "web": {
+      "status": "READY",
+      "release": "alisa-9b716ba6ffe18a45"
+    },
+    "platform": {
+      "status": "READY",
+      "release": "alisa-6098b31384ae23a4"
+    },
+    "admin": {
+      "status": "READY",
+      "release": "alisa-73180172646b7012"
+    },
+    "identity": {
+      "status": "READY",
+      "release": "alisa-73180172646b7012"
+    }
+  },
+  "services": {
+    "alisa-web@stage.service": {
+      "MainPID": "151370",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-9b716ba6ffe18a45/ui/web/apps/web"
+    },
+    "alisa-platform@stage.service": {
+      "MainPID": "146181",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-6098b31384ae23a4"
+    },
+    "alisa-admin@stage.service": {
+      "MainPID": "144260",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-73180172646b7012/ui/admin/apps/admin"
+    },
+    "alisa-identity@stage.service": {
+      "MainPID": "144271",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-73180172646b7012"
+    },
+    "alice-market.service": {
+      "MainPID": "145588",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alice-market/releases/20261106-store-check-6098-r1"
+    },
+    "alisa-store-check.service": {
+      "MainPID": "145594",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alice-market/releases/20261106-store-check-6098-r1"
+    }
+  },
+  "public_dual_form_asset": {
+    "path": "/_next/static/chunks/app/app/stores/page-60a1c07e58ab8c4f.js",
+    "status": 200,
+    "sha256_matches_manifest": true,
+    "both_separate_field_names_present": true,
+    "both_api_labels_present": true
+  },
+  "resources": {
+    "disk_free_bytes": 3274305536,
+    "free_inodes": 525514,
+    "mem_available_kib": 6109384,
+    "memory_pressure": "some avg10=0.00 avg60=0.01 avg300=0.00 total=565492\nfull avg10=0.00 avg60=0.01 avg300=0.00 total=525554"
+  },
+  "finite_units": {
+    "alisa-s05-dual-resource-9b716ba6-20261106.service": {
+      "MainPID": "0",
+      "ControlGroup": "",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "empty_cgroup": true
+    },
+    "alisa-s05-dual-install-9b716ba6-20261106.service": {
+      "MainPID": "0",
+      "ControlGroup": "",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "empty_cgroup": true
+    },
+    "alisa-s05-dual-activate-9b716ba6-20261106.service": {
+      "MainPID": "0",
+      "ControlGroup": "",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "empty_cgroup": true
+    }
+  },
+  "existing_locks_free": {
+    "alisa-stage-rollout.lock": true,
+    "alisa-s01-rollout.lock": true,
+    "alisa-s02-provider-probe.lock": true,
+    "alisa-s02-rollout.lock": true,
+    "alisa-s03-rollout.lock": true
+  }
+}

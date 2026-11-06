@@ -1,0 +1,169 @@
+{
+  "scope": "S05_DISPOSABLE_POSTGRES_VAULT_UNIX_NOT_REAL_PROVIDER_NOT_INSTALLED",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "unpaid_customer_can_persist_pending_store",
+      "passed": true
+    },
+    {
+      "case": "vault_ciphertext_has_no_plaintext_and_context_roundtrips",
+      "passed": true
+    },
+    {
+      "case": "projection_has_no_secret_ciphertext_reference_or_identity",
+      "passed": true
+    },
+    {
+      "case": "same_create_command_replays_one_store_and_secret",
+      "passed": true
+    },
+    {
+      "case": "changed_create_payload_same_uuid_conflicts",
+      "passed": true
+    },
+    {
+      "case": "secret_idempotency_digest_is_server_keyed_and_tenant_bound",
+      "passed": true
+    },
+    {
+      "case": "actual_unix_peer_check_promotes_only_its_revision",
+      "passed": true
+    },
+    {
+      "case": "same_check_command_does_not_dispatch_again",
+      "passed": true
+    },
+    {
+      "case": "concurrent_same_command_has_one_persisted_effect",
+      "passed": true
+    },
+    {
+      "case": "verified_duplicate_is_tenant_local_and_not_promoted",
+      "passed": true
+    },
+    {
+      "case": "same_provider_identity_in_other_tenant_is_allowed_without_disclosure",
+      "passed": true
+    },
+    {
+      "case": "foreign_store_id_returns_not_found",
+      "passed": true
+    },
+    {
+      "case": "forged_browser_tenant_is_rejected",
+      "passed": true
+    },
+    {
+      "case": "replacement_other_account_keeps_original_active_key",
+      "passed": true
+    },
+    {
+      "case": "same_account_replacement_promotes_new_and_erases_retired_secret",
+      "passed": true
+    },
+    {
+      "case": "provider_auth_denied_is_distinct_and_preserves_active",
+      "passed": true
+    },
+    {
+      "case": "provider_scope_missing_is_distinct_and_preserves_active",
+      "passed": true
+    },
+    {
+      "case": "provider_timeout_is_distinct_and_preserves_active",
+      "passed": true
+    },
+    {
+      "case": "provider_rate_limited_is_distinct_and_preserves_active",
+      "passed": true
+    },
+    {
+      "case": "provider_provider_plan_required_is_distinct_and_preserves_active",
+      "passed": true
+    },
+    {
+      "case": "changed_response_tenant_pins_fail_closed",
+      "passed": true
+    },
+    {
+      "case": "wrong_server_peer_never_receives_secret",
+      "passed": true
+    },
+    {
+      "case": "group_writable_socket_parent_never_receives_secret",
+      "passed": true
+    },
+    {
+      "case": "disconnected_runtime_never_claims_connected",
+      "passed": true
+    },
+    {
+      "case": "performance_independent_same_account_capability",
+      "passed": true
+    },
+    {
+      "case": "revoke_performance_erases_only_its_secret_and_keeps_seller",
+      "passed": true
+    },
+    {
+      "case": "wildberries_uses_its_own_verified_channel",
+      "passed": true
+    },
+    {
+      "case": "rename_preserves_store_id_and_credential_revisions",
+      "passed": true
+    },
+    {
+      "case": "stale_revision_is_rejected",
+      "passed": true
+    },
+    {
+      "case": "postgresql_rejects_cross_tenant_store_foreign_key",
+      "passed": true
+    },
+    {
+      "case": "audit_runtime_update_denied",
+      "passed": true
+    },
+    {
+      "case": "audit_runtime_delete_denied",
+      "passed": true
+    },
+    {
+      "case": "audit_runtime_truncate_denied",
+      "passed": true
+    },
+    {
+      "case": "vault_ciphertext_cannot_move_between_stores",
+      "passed": true
+    },
+    {
+      "case": "crashed_check_replay_has_no_second_dispatch",
+      "passed": true
+    },
+    {
+      "case": "new_explicit_check_marks_expired_previous_unknown",
+      "passed": true
+    },
+    {
+      "case": "disable_during_ipc_prevents_late_activation_and_erases_all_keys",
+      "passed": true
+    },
+    {
+      "case": "delete_tombstone_disappears_from_list_without_losing_audit",
+      "passed": true
+    },
+    {
+      "case": "customer_cookie_or_web_token_cannot_authorize_service_api",
+      "passed": true
+    },
+    {
+      "case": "safe_durable_command_results_have_no_credentials",
+      "passed": true
+    }
+  ],
+  "migrations_and_model_consistency": "PASS",
+  "schema_rollback_policy": "Retain additive store history and audit; disable stores capability and preserve vault keys. Never migrate down over customer data.",
+  "owned_database_and_role_cleanup": true
+}
