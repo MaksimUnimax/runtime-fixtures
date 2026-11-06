@@ -294,6 +294,11 @@ def main():
             register(page,email)
             mfa_theme_page=context.new_page()
             mfa_theme_page.goto(ISSUER+'/accounts/2fa/totp/activate/')
+            # Password-based accounts must satisfy the native security-settings
+            # reauthentication before previewing an authenticator enrollment.
+            if mfa_theme_page.locator('input[name=password]').count():
+                mfa_theme_page.locator('input[name=password]').fill(customer_password)
+                mfa_theme_page.locator('form').filter(has=mfa_theme_page.locator('input[name=password]')).locator('button[type=submit]').click()
             qr=mfa_theme_page.locator('main img[src^="data:image/svg"]')
             expect(qr).to_be_visible()
             check('s02_totp_qr_readable_surface',qr.evaluate('image => getComputedStyle(image).backgroundColor')=='rgb(255, 255, 255)')
