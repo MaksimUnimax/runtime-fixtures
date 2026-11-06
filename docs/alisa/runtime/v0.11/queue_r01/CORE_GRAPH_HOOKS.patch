@@ -1,0 +1,234 @@
+--- a/architecture_gate.py
++++ b/architecture_gate.py
+@@ -8,7 +8,7 @@
+ import hashlib
+ import json
+ from pathlib import Path
+-GENERIC_MODULES=('matrix_core.py','matrix_sources.py','scalar_runtime.py','registry.py','qualification_scope.py','report_contracts.py','failure_explanations.py','dataset_relations.py')
++GENERIC_MODULES=('matrix_core.py','matrix_sources.py','scalar_runtime.py','registry.py','qualification_scope.py','report_contracts.py','failure_explanations.py','dataset_relations.py','task_graph.py')
+ ROW_BRIDGES=('table_analytics.py','http_transport.py','engine.py')
+ 
+ 
+--- a/engine.py
++++ b/engine.py
+@@ -4,6 +4,7 @@
+ from datetime import date, datetime, timezone
+ from typing import Callable
+ from pathlib import Path
++from contextlib import nullcontext
+ from semantics import (Rejected, Scope, Store, parse, make_plan, fingerprint,
+                        strict_json, canonical_json, plan_authorized, validate_model)
+ from repository import Repository, Deferred
+@@ -30,10 +31,12 @@
+     return dict(value)
+ 
+ class Engine:
+-    def __init__(self,repository: Repository,scope_for: Callable[[str], Scope],catalog=None,table_capabilities=None,dataset_capabilities=None):
++    def __init__(self,repository: Repository,scope_for: Callable[[str], Scope],catalog=None,table_capabilities=None,dataset_capabilities=None,task_graph_runtime=None):
+         self.repo,self.scope_for = repository,scope_for
+         self.table_capabilities=table_capabilities
+         self.dataset_capabilities=dataset_capabilities
++        self.task_graph_runtime=task_graph_runtime
++        self.repo.task_graph_runtime=task_graph_runtime
+         self.catalog=validate_catalog_typed(catalog or EXPRESSION_CATALOG)
+         self.model_budget=validate_model_budget(strict_json(Path(__file__).with_name('resource_limits.json').read_text()))
+         from dialogue import ensure_schema
+@@ -45,6 +48,11 @@
+         try:
+             scope = self.scope_for(plan['tenant'])
+             if not plan_authorized(plan,scope): return False
++            if 'task_graph' in plan:
++                graph=self.task_graph_runtime
++                return (graph is not None and graph.permitted(plan,self.repo.clock(),'read')
++                        and not any(self.repo.denied(source,plan['stores'][0]['access_revision'])
++                                    for source in graph.source_names(plan)))
+             if 'program' in plan and not validate_compiled(plan):return False
+             if 'dataset' in plan:
+                 from dataset_pipeline import valid
+@@ -65,6 +73,24 @@
+             from dialogue import submit as dialogue_submit
+             return dialogue_submit(self,tenant,command,request_id,body_hash,today,conversation_id,message_id)
+         return self._submit(tenant,command,request_id,body_hash,today)
++
++    def submit_graph(self,tenant,graph_id,draft,inputs,request_id,body_hash,conversation_id=None):
++        """Internal typed route; graph IDs, input authority and policies are trusted.
++        Voice routing is deliberately not auto-enabled by installing this hook.
++        """
++        if self.task_graph_runtime is None:raise Rejected('GRAPH_NOT_ENABLED')
++        scope=self.scope_for(tenant)
++        if scope.tenant!=tenant:raise Rejected('TENANT_DENIED')
++        self.repo.validate_ingress(tenant,request_id,body_hash)
++        if type(draft)is not dict or type(draft.get('refresh'))is not bool:raise Rejected('GRAPH_QUERY_CONDITION')
++        plan=self.task_graph_runtime.make_plan(scope,draft,graph_id,inputs,self.repo.clock())
++        if not self.authorized(plan):raise Rejected('SOURCE_ACCESS')
++        context=self.repo.reader_scope(tenant,conversation_id) if conversation_id is not None else nullcontext()
++        bound_body_hash=fingerprint({'body_hash':body_hash,'graph_id':graph_id,'inputs':inputs,'draft':draft,'scope':asdict(scope)})
++        with context:
++            row,outcome=self.repo.enqueue(tenant,request_id,bound_body_hash,draft,plan,fingerprint(asdict(scope)))
++            text=self.describe(tenant,row,deliver=True)
++        return {'text':text,'tts':text,'job_id':row['id'],'state':row['state'],'cache':outcome}
+ 
+     def _submit(self,tenant,command,request_id,body_hash,today: date,clarification=None):
+         scope = self.scope_for(tenant)
+@@ -124,6 +150,10 @@
+             return 'Доступ к источнику изменился. Сохраненные цифры не выдаю.'
+         state = row['state']
+         if state=='READY':
++            if row['plan'] and 'task_graph' in strict_json(row['plan']):
++                graph=self.task_graph_runtime
++                if graph is None or not graph.readable(strict_json(row['plan']),strict_json(row['result']),self.repo.clock()):
++                    return 'Доступ или срок действия исходных данных изменился. Сохраненные цифры не выдаю.'
+             if (row['expires'] or 0)<=self.repo.clock():
+                 return 'Отчет устарел. Повторите исходный запрос для нового полного отчета.'
+             if not deliver: return 'Отчет готов. Скажите: результат.'
+@@ -177,7 +207,9 @@
+             if command=='план запроса':
+                 if row and row['plan'] and self.authorized(strict_json(row['plan'])):
+                     p=strict_json(row['plan'])
+-                    if 'dataset' in p:
++                    if 'task_graph' in p:
++                        text='План составного отчёта. Стадии исполняются в общей очереди; чтение не запускает повторный расчёт.'
++                    elif 'dataset' in p:
+                         text='План набора данных '+p['dataset']['id']+'. Полная выборка и обработка общей матрицей; без повторного расчёта при чтении.'
+                     elif 'table' in p:
+                         t=p['table'];text=f"Период {p['period']['from']} — {p['period']['to']}. Табличный план: {t['family']}; разрез {t['view']}; топ {t['top'] or 'все строки'}. Фильтр → группировка → сортировка после полной выборки."
+@@ -241,6 +273,9 @@
+             plan=strict_json(row['plan'])
+             validate_request_basis(draft,plan)
+             if not self.engine.authorized(plan): raise Rejected('SOURCE_ACCESS')
++            if 'task_graph' in plan:
++                self.engine.task_graph_runtime.worker_step(self,row,plan)
++                return True
+             if 'dataset' in plan:
+                 from dataset_pipeline import worker_step
+                 worker_step(self,row,plan)
+@@ -288,7 +323,10 @@
+                 self.repo.complete(jid,owner,report)
+             else:self.repo.reschedule(jid,owner,progress)
+         except Deferred as exc:
+-            self.repo.reschedule(jid,owner,until=exc.until)
++            if row['plan'] and 'task_graph' in strict_json(row['plan']) and exc.until>=strict_json(row['plan'])['task_graph']['deadline']:
++                self.repo.fail(jid,owner,'GRAPH_DEADLINE_BEFORE_QUOTA')
++            else:
++                self.repo.reschedule(jid,owner,until=exc.until)
+         except CallError as exc:
+             if exc.status == 429 and not exc.unknown:
+                 # HTTP 429 is a known rejection, unlike a transport timeout.
+--- a/failure_catalog.json
++++ b/failure_catalog.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": "alice-failure-catalog/v1",
+-  "version": "20261105-number-reason-r1",
++  "version": "20261106-queue-r1",
+   "fallback": "UNSPECIFIED",
+   "entries": {
+     "UNSPECIFIED": {
+@@ -226,6 +226,46 @@
+     "TABLE_RESPONSE_SCHEMA": {
+       "reason": "Полученные данные не соответствуют ожидаемой структуре источника. Полный отчёт не сформирован; частичные суммы не выдаю.",
+       "next_action": "Нужно сверить поля ответа с проверенной схемой источника. Автоматически повторять запрос не буду.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "GRAPH_ACCESS_CHANGED": {
++      "reason": "Изменился допуск, версия расчёта или срок действия исходных данных. Сохранённые суммы не выдаю.",
++      "next_action": "Нужно заново подтвердить доступ и собрать актуальный полный отчёт.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "GRAPH_PROGRESS_CHANGED": {
++      "reason": "Сохранённые стадии составного отчёта не прошли проверку целостности. Частичный результат не выдаю.",
++      "next_action": "Нужна проверка задания. Автоматически повторять уже выполненные запросы не буду.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "GRAPH_DEADLINE_BEFORE_QUOTA": {
++      "reason": "Разрешённое время следующего обращения наступит позже срока действия исходных данных этого задания.",
++      "next_action": "Нужно запустить новый полный расчёт после освобождения лимита; лимит не увеличиваю.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "GRAPH_CALL_BUDGET": {
++      "reason": "Для этого составного отчёта исчерпан проверенный бюджет обращений к источникам. Полного результата нет.",
++      "next_action": "Нужно сократить период или проверить пагинацию; дополнительные обращения автоматически не запускаю.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "GRAPH_SCENARIO_BLOCKED": {
++      "reason": "Не подтверждены обязательные расходы или контроль полноты составного отчёта. Частичные суммы за готовый итог не выдаю.",
++      "next_action": "Нужно проверить рекламу, отсутствующие статьи и повторный учёт расходов.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "GRAPH_RESULT_EXPIRED": {
++      "reason": "Срок действия исходных данных составного отчёта истёк. Старые суммы не выдаю.",
++      "next_action": "Нужен новый полный расчёт с актуальными данными.",
++      "cause_status": "OBSERVED_FAILURE"
++    },
++    "GRAPH_NOT_ENABLED": {
++      "reason": "Этот составной расчёт ещё не подключён к действующему навыку.",
++      "next_action": "Используйте доступные отдельные отчёты; включение составного расчёта требует проверки.",
++      "cause_status": "KNOWN_LIMITATION"
++    },
++    "GRAPH_RESULT_CHANGED": {
++      "reason": "Готовый результат не совпадает с проверенной сохранённой проекцией. Его суммы не выдаю.",
++      "next_action": "Нужна проверка целостности задания; повторные запросы к площадкам автоматически не запускаю.",
+       "cause_status": "OBSERVED_FAILURE"
+     }
+   },
+@@ -262,7 +302,36 @@
+     "REPORT_VALUE_INVALID": "INCOMPLETE_RESULT",
+     "REPORT_ZERO_UNPROVEN": "INCOMPLETE_RESULT",
+     "REPORT_EXPENSE_KEYS": "INCOMPLETE_RESULT",
+-    "ADS_CURRENCY": "SOURCE_CURRENCY_MISMATCH"
++    "ADS_CURRENCY": "SOURCE_CURRENCY_MISMATCH",
++    "GRAPH_ADAPTER_AUTH_DENIED": "GRAPH_ACCESS_CHANGED",
++    "GRAPH_ADAPTER_AUTH_REQUIRED": "GRAPH_ACCESS_CHANGED",
++    "GRAPH_ADAPTER_AUTH_UNAVAILABLE": "GRAPH_ACCESS_CHANGED",
++    "GRAPH_ADAPTER_POLICY_CHANGED": "GRAPH_ACCESS_CHANGED",
++    "GRAPH_RAW_AUTH_DENIED": "GRAPH_ACCESS_CHANGED",
++    "GRAPH_CATALOG_CHANGED": "GRAPH_ACCESS_CHANGED",
++    "GRAPH_PROGRESS_SCHEMA": "GRAPH_PROGRESS_CHANGED",
++    "GRAPH_PROGRESS_INDEX": "GRAPH_PROGRESS_CHANGED",
++    "GRAPH_PROGRESS_OUTPUTS": "GRAPH_PROGRESS_CHANGED",
++    "GRAPH_PROGRESS_PAGE": "GRAPH_PROGRESS_CHANGED",
++    "GRAPH_RECEIPT_DUPLICATE": "GRAPH_PROGRESS_CHANGED",
++    "GRAPH_RECEIPT_SCHEMA": "GRAPH_PROGRESS_CHANGED",
++    "GRAPH_RECEIPT_MISMATCH": "GRAPH_PROGRESS_CHANGED",
++    "GRAPH_CAPTURE_STATE": "GRAPH_PROGRESS_CHANGED",
++    "GRAPH_PROGRESS_CAPACITY": "GRAPH_CALL_BUDGET",
++    "GRAPH_CAPTURE_CAPACITY": "GRAPH_CALL_BUDGET",
++    "GRAPH_RESULT_CAPACITY": "GRAPH_CALL_BUDGET",
++    "GRAPH_INPUT_CAPACITY": "GRAPH_CALL_BUDGET",
++    "GRAPH_COMPUTATION_INVALID": "GRAPH_SCENARIO_BLOCKED",
++    "GRAPH_SCENARIO_INPUT_INCOMPLETE": "GRAPH_SCENARIO_BLOCKED",
++    "GRAPH_SCENARIO_ENVELOPE": "GRAPH_SCENARIO_BLOCKED",
++    "GRAPH_RAW_SOURCE_INCOMPLETE": "GRAPH_SCENARIO_BLOCKED",
++    "GRAPH_RAW_SCENARIO_BLOCKED": "GRAPH_SCENARIO_BLOCKED",
++    "GRAPH_SCENARIO_RESULT_CHANGED": "GRAPH_RESULT_CHANGED",
++    "GRAPH_RAW_RESULT_CHANGED": "GRAPH_RESULT_CHANGED",
++    "GRAPH_RESULT_PREMATURE": "GRAPH_RESULT_CHANGED",
++    "GRAPH_INPUT_EXPIRED": "GRAPH_RESULT_EXPIRED",
++    "GRAPH_RAW_CAPTURE_EXPIRED": "GRAPH_RESULT_EXPIRED",
++    "GRAPH_RAW_RESULT_EXPIRED": "GRAPH_RESULT_EXPIRED"
+   },
+   "subjects": {
+     "default": "выбранные данные",
+--- a/repository.py
++++ b/repository.py
+@@ -230,10 +230,17 @@
+             except (ValueError,TypeError):
+                 raise Rejected('RESULT_TIMESTAMP') from None
+             plan=strict_json(r['plan'])
+-            verified=providers.render(plan,result['data'],result['fetched_at'])
+-            if canonical_json(verified)!=canonical_json(result):raise Rejected('RESULT_PROJECTION_MISMATCH')
++            if 'task_graph' in plan:
++                graph=getattr(self,'task_graph_runtime',None)
++                if graph is None:raise Rejected('GRAPH_NOT_ENABLED')
++                graph.verify_result(self,r,plan,result)
++            else:
++                verified=providers.render(plan,result['data'],result['fetched_at'])
++                if canonical_json(verified)!=canonical_json(result):raise Rejected('RESULT_PROJECTION_MISMATCH')
++            expires=self.clock()+min(self.ttl,plan.get('freshness_seconds',self.ttl))
++            if 'task_graph' in plan:expires=min(expires,plan['task_graph']['deadline'],result['data']['valid_until'])
+             c.execute("UPDATE jobs SET state='READY',result=?,progress=NULL,error=NULL,expires=?,updated=?,owner=NULL,lease=NULL WHERE id=?",
+-                      (canonical_json(result),self.clock()+min(self.ttl,plan.get('freshness_seconds',self.ttl)),self.clock(),jid))
++                      (canonical_json(result),expires,self.clock(),jid))
+ 
+     def fail(self,jid,owner,code,unknown=False):
+         with self.connection(True) as c:
