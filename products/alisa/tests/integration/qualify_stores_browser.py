@@ -28,19 +28,33 @@ def run(*, context, second_context, db, check, web_origin, private_values, resta
     profile=page.request.get(web_origin+'/api/account/me').json()['profile']
     check('s05_unpaid_customer_can_open_setup',profile['access_status']=='NOT_PROVISIONED')
     form=page.locator('section[aria-label="Добавить магазин"]')
+    seller_fields=form.get_by_role('group',name='Ozon Seller API',exact=True)
+    performance_fields=form.get_by_role('group',name='Ozon Performance API — реклама (необязательно)',exact=True)
+    expect(performance_fields).to_be_visible()
+    check('s05_create_form_exposes_both_ozon_channels',seller_fields.is_visible() and performance_fields.is_visible())
     secret='fixture:CONNECTED:ozon:browser-one';private_values.append(secret)
+    performance_secret='fixture:IDENTITY_NOT_VERIFIED:ozon:browser-one';private_values.append(performance_secret)
     form.get_by_label('Название магазина',exact=True).fill('Synthetic Ozon')
     form.get_by_label('Как называть магазин голосом',exact=True).fill('Первый')
-    form.get_by_label('Client ID',exact=True).fill('123')
-    form.get_by_label('API-ключ',exact=True).fill(secret)
+    seller_fields.get_by_label('Client ID',exact=True).fill('123')
+    seller_fields.get_by_label('API-ключ',exact=True).fill(secret)
+    performance_fields.get_by_label('Client ID',exact=True).fill('performance-one')
+    form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+    check('s05_partial_performance_client_id_creates_no_store',bool(performance_fields.get_by_label('Client Secret',exact=True).evaluate('(input)=>input.validationMessage')) and page.request.get(web_origin+'/api/account/stores').json()['items']==[])
+    performance_fields.get_by_label('Client Secret',exact=True).fill(performance_secret)
+    performance_fields.get_by_label('Client ID',exact=True).fill('')
+    form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+    check('s05_partial_performance_secret_creates_no_store',bool(performance_fields.get_by_label('Client ID',exact=True).evaluate('(input)=>input.validationMessage')) and page.request.get(web_origin+'/api/account/stores').json()['items']==[])
+    performance_fields.get_by_label('Client ID',exact=True).fill('performance-one')
     form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
     card=page.locator('section[data-store-id]').filter(has=page.get_by_role('heading',name='Synthetic Ozon · Ozon',exact=True))
     expect(card).to_contain_text('Подключение подтверждено')
     expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_enabled()
     store_id=card.get_attribute('data-store-id')
     api=page.request.get(web_origin+'/api/account/stores').json()
-    check('s05_form_persists_and_checks_one_actual_store',len(api['items'])==1 and api['items'][0]['id']==store_id and api['items'][0]['credentials'][0]['status']=='ACTIVE')
-    check('s05_secret_not_returned_or_retained_in_form',secret not in json.dumps(api) and form.get_by_label('API-ключ',exact=True).input_value()=='')
+    check('s05_form_persists_and_checks_one_actual_store',len(api['items'])==1 and api['items'][0]['id']==store_id and any(c['kind']=='SELLER' and c['status']=='ACTIVE' for c in api['items'][0]['credentials']))
+    check('s05_both_ozon_keys_are_saved_to_one_store_and_checked_separately',{c['kind'] for c in api['items'][0]['credentials']}=={'SELLER','PERFORMANCE'} and any(c['kind']=='PERFORMANCE' and c['status']=='PENDING' and c['check_code']=='IDENTITY_NOT_VERIFIED' for c in api['items'][0]['credentials']))
+    check('s05_secret_not_returned_or_retained_in_form',all(v not in json.dumps(api) for v in [secret,performance_secret]) and seller_fields.get_by_label('API-ключ',exact=True).input_value()=='' and performance_fields.get_by_label('Client Secret',exact=True).input_value()=='')
     # Real server HTML remains inert without JS and never uses GET for secrets.
     no_script=context.browser.new_context(java_script_enabled=False,ignore_https_errors=False,storage_state=context.storage_state())
     try:
@@ -77,7 +91,52 @@ def run(*, context, second_context, db, check, web_origin, private_values, resta
     card.get_by_role('button',name='Сохранить названия',exact=True).click()
     card=page.locator('section[data-store-id="'+store_id+'"]');expect(card).to_contain_text('Renamed Ozon')
     check('s05_rename_and_voice_alias_keep_same_store_id',card.get_attribute('data-store-id')==store_id)
+    # Advertising remains optional, and the two stored channels do not depend
+    # on a successful Seller provider response during creation.
+    for with_advertising in [False,True]:
+        name='Synthetic Seller only' if not with_advertising else 'Synthetic denied Seller'
+        seller_secret='fixture:CONNECTED:ozon:only' if not with_advertising else 'fixture:AUTH_DENIED:ozon:denied'
+        private_values.append(seller_secret)
+        form.get_by_label('Название магазина',exact=True).fill(name)
+        seller_fields.get_by_label('Client ID',exact=True).fill('789')
+        seller_fields.get_by_label('API-ключ',exact=True).fill(seller_secret)
+        if with_advertising:
+            performance_fields.get_by_label('Client ID',exact=True).fill('performance-denied-seller')
+            performance_fields.get_by_label('Client Secret',exact=True).fill(performance_secret)
+        form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+        extra=page.locator('section[data-store-id]').filter(has=page.get_by_role('heading',name=name+' · Ozon',exact=True))
+        expect(extra).to_be_visible();expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_enabled()
+        item=next(s for s in page.request.get(web_origin+'/api/account/stores').json()['items'] if s['name']==name)
+        if with_advertising:
+            check('s05_seller_auth_error_keeps_and_checks_advertising_key',len(item['credentials'])==2 and any(c['kind']=='SELLER' and c['check_code']=='AUTH_DENIED' for c in item['credentials']) and any(c['kind']=='PERFORMANCE' and c['check_code']=='IDENTITY_NOT_VERIFIED' for c in item['credentials']))
+        else:check('s05_seller_only_store_needs_no_advertising_key',len(item['credentials'])==1 and item['credentials'][0]['kind']=='SELLER' and item['credentials'][0]['status']=='ACTIVE')
+        page.once('dialog',lambda dialog:dialog.accept())
+        extra.get_by_role('button',name='Удалить магазин',exact=True).click();expect(extra).to_have_count(0)
+    # Inject loss of the second save response. The UI must show the existing
+    # store and a partial-save notice, without retrying creation or checks.
+    def fail_advertising_save(route):
+        data=route.request.post_data_json if route.request.method=='POST' else None
+        if data and data.get('action')=='credential' and data.get('kind')=='PERFORMANCE':
+            route.fulfill(status=503,content_type='application/json',body=json.dumps({'code':'STORES_UNAVAILABLE'}))
+        else:route.continue_()
+    page.route('**/api/account/stores',fail_advertising_save)
+    try:
+        partial_secret='fixture:CONNECTED:ozon:partial';private_values.append(partial_secret)
+        form.get_by_label('Название магазина',exact=True).fill('Synthetic partial save')
+        seller_fields.get_by_label('Client ID',exact=True).fill('901')
+        seller_fields.get_by_label('API-ключ',exact=True).fill(partial_secret)
+        performance_fields.get_by_label('Client ID',exact=True).fill('performance-partial')
+        performance_fields.get_by_label('Client Secret',exact=True).fill(performance_secret)
+        form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+        expect(page.get_by_role('status')).to_contain_text('Магазин уже создан. Не удалось подтвердить сохранение ключа рекламы.')
+        expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_enabled()
+    finally:page.unroute('**/api/account/stores',fail_advertising_save)
+    partial=[s for s in page.request.get(web_origin+'/api/account/stores').json()['items'] if s['name']=='Synthetic partial save']
+    check('s05_partial_advertising_save_shows_one_store_without_false_success',len(partial)==1 and len(partial[0]['credentials'])==1 and partial[0]['credentials'][0]['check_code']=='NOT_CHECKED' and performance_fields.get_by_label('Client Secret',exact=True).input_value()=='')
+    extra=page.locator('section[data-store-id="'+partial[0]['id']+'"]')
+    page.once('dialog',lambda dialog:dialog.accept());extra.get_by_role('button',name='Удалить магазин',exact=True).click();expect(extra).to_have_count(0)
     form.get_by_label('Маркетплейс',exact=True).select_option('WB')
+    expect(performance_fields).to_have_count(0)
     wb_secret='fixture:CONNECTED:wb:browser-one';private_values.append(wb_secret)
     form.get_by_label('Название магазина',exact=True).fill('Synthetic WB');form.get_by_label('API-токен',exact=True).fill(wb_secret)
     form.get_by_role('button',name='Сохранить и проверить',exact=True).click()

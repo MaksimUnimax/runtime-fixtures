@@ -22,17 +22,18 @@ const messages:Record<string,string>={
 const kinds={SELLER:'Ozon Seller API',PERFORMANCE:'Реклама Ozon',WB:'Wildberries API'};
 type Command=Record<string,unknown>;
 
-function KeyFields({kind,id}:{kind:StoreCredential['kind'];id:string}){
-  return <fieldset><legend>{kinds[kind]}</legend>
-    {kind!=='WB'&&<label htmlFor={id+'-client'}>Client ID<input id={id+'-client'} name="client_id" required maxLength={160} autoComplete="off"/></label>}
+function KeyFields({kind,id,prefix='',optional=false}:{kind:StoreCredential['kind'];id:string;prefix?:string;optional?:boolean}){
+  return <fieldset onInput={event=>{event.currentTarget.querySelectorAll('input').forEach(input=>input.setCustomValidity(''));}}>
+    <legend>{kind==='PERFORMANCE'?'Ozon Performance API — реклама':kinds[kind]}{optional?' (необязательно)':''}</legend>
+    {kind!=='WB'&&<label htmlFor={id+'-client'}>Client ID<input id={id+'-client'} name={prefix+'client_id'} required={!optional} maxLength={160} autoComplete="off"/></label>}
     <label htmlFor={id+'-secret'}>{kind==='WB'?'API-токен':kind==='SELLER'?'API-ключ':'Client Secret'}
-      <input id={id+'-secret'} name="secret" type="password" required minLength={12} maxLength={8192} autoComplete="new-password" spellCheck={false}/>
+      <input id={id+'-secret'} name={prefix+'secret'} type="password" required={!optional} minLength={12} maxLength={8192} autoComplete="new-password" spellCheck={false}/>
     </label>
   </fieldset>;
 }
-function material(form:FormData,kind:StoreCredential['kind']){
-  const secret=String(form.get('secret')||'');
-  return kind==='WB'?{token:secret}:kind==='SELLER'?{client_id:String(form.get('client_id')||''),api_key:secret}:{client_id:String(form.get('client_id')||''),client_secret:secret};
+function material(form:FormData,kind:StoreCredential['kind'],prefix=''){
+  const secret=String(form.get(prefix+'secret')||'');
+  return kind==='WB'?{token:secret}:kind==='SELLER'?{client_id:String(form.get(prefix+'client_id')||''),api_key:secret}:{client_id:String(form.get(prefix+'client_id')||''),client_secret:secret};
 }
 
 export function StoresView({initial}:{initial:StoreList}){
@@ -61,9 +62,50 @@ export function StoresView({initial}:{initial:StoreList}){
     catch(error){setMessage(error instanceof Error?error.message:'Не удалось получить ответ. Обновите список перед повтором.');try{await refresh();}catch{/* Keep the last known list. */}}
     finally{setBusy(false);}
   }
-  async function check(store:Store,credential:StoreCredential){
+  async function check(store:Store,credential:StoreCredential,notify=true){
     const value=await send({action:'check',store_id:store.id,expected_revision:store.revision,credential_id:credential.id});
-    setMessage(value.state==='CHECKING'?'Проверка выполняется. Обновите список позже.':messages[value.check_code||'']||'Проверка завершена.');
+    if(notify)setMessage(value.state==='CHECKING'?'Проверка выполняется. Обновите список позже.':messages[value.check_code||'']||'Проверка завершена.');
+    return value;
+  }
+  function createStore(form:HTMLFormElement){
+    const data=new FormData(form),kind=provider==='OZON'?'SELLER':'WB';
+    const withPerformance=provider==='OZON'&&Boolean(data.get('performance_client_id')||data.get('performance_secret'));
+    if(withPerformance){
+      for(const name of ['performance_client_id','performance_secret']){
+        if(!data.get(name)){
+          const input=form.elements.namedItem(name) as HTMLInputElement;
+          input.setCustomValidity('Для рекламы заполните Client ID и Client Secret либо оставьте оба поля пустыми.');
+          input.reportValidity();return;
+        }
+      }
+    }
+    const command={action:'create',provider,name:String(data.get('name')||''),voice_alias:String(data.get('voice_alias')||''),credential:material(data,kind)};
+    const performance=withPerformance?material(data,'PERFORMANCE','performance_'):null;
+    void perform(async()=>{
+      form.reset();setProvider('OZON');
+      const created=await send(command);
+      if(!created.store)throw new Error('Обновите список перед повторным добавлением магазина.');
+      let store=created.store;
+      // Persist both channels before provider checks. A failed Seller check
+      // must not discard or prevent saving the separate advertising key.
+      if(performance){
+        try{
+          const saved=await send({action:'credential',store_id:store.id,expected_revision:store.revision,kind:'PERFORMANCE',credential:performance});
+          if(!saved.store)throw new Error();
+          store=saved.store;
+        }catch{throw new Error('Магазин уже создан. Не удалось подтвердить сохранение ключа рекламы. Обновите карточку и проверьте раздел «Реклама Ozon» перед повтором.');}
+      }
+      const results:string[]=[],channels:StoreCredential['kind'][]=performance?[kind,'PERFORMANCE']:[kind];
+      for(const channel of channels){
+        const credential=store.credentials.find(c=>c.kind===channel&&c.status==='PENDING');
+        if(!credential)throw new Error('Магазин сохранён. Обновите карточку для проверки ключей.');
+        const checked=await check(store,credential,false);
+        results.push(kinds[channel]+': '+(checked.state==='CHECKING'?'Проверка выполняется.':messages[checked.check_code||'']||'Проверка завершена.'));
+        if(checked.store)store=checked.store;
+        if(checked.state==='CHECKING')break;
+      }
+      setMessage(results.join(' '));
+    });
   }
   async function saveKey(store:Store,kind:StoreCredential['kind'],form:HTMLFormElement){
     const data=new FormData(form),credential=material(data,kind);form.reset();
@@ -75,17 +117,16 @@ export function StoresView({initial}:{initial:StoreList}){
     <p role="status" aria-live="polite">{message}</p>
     <button className="button" disabled={!ready||busy} onClick={()=>void perform(()=>refresh())}>Обновить список</button>
     <section aria-label="Добавить магазин"><h2>Добавить магазин</h2>
-      <form method="post" action="/api/account/stores" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;void perform(async()=>{
-        const data=new FormData(form),kind=provider==='OZON'?'SELLER':'WB';
-        const command={action:'create',provider,name:String(data.get('name')||''),voice_alias:String(data.get('voice_alias')||''),credential:material(data,kind)};
-        form.reset();setProvider('OZON');
-        const value=await send(command);if(value.store)await check(value.store,value.store.credentials[0]);
-      });}}>
+      <form method="post" action="/api/account/stores" onSubmit={event=>{event.preventDefault();createStore(event.currentTarget);}}>
         <label htmlFor="store-provider">Маркетплейс</label><select id="store-provider" value={provider} disabled={!ready||busy} onChange={event=>setProvider(event.target.value as 'OZON'|'WB')}><option value="OZON">Ozon</option><option value="WB">Wildberries</option></select>
         <label htmlFor="store-name">Название магазина<input id="store-name" name="name" maxLength={80} required disabled={!ready||busy}/></label>
         <label htmlFor="store-alias">Как называть магазин голосом<input id="store-alias" name="voice_alias" maxLength={80} disabled={!ready||busy}/></label>
         <KeyFields key={provider} kind={provider==='OZON'?'SELLER':'WB'} id="new-store"/>
-        <p>Ключ после сохранения не показывается. Рекламу Ozon можно подключить отдельно в карточке магазина.</p>
+        {provider==='OZON'&&<>
+          <p>Для этого же магазина можно сразу добавить отдельный доступ к рекламе или подключить его позже.</p>
+          <KeyFields kind="PERFORMANCE" id="new-store-performance" prefix="performance_" optional/>
+        </>}
+        <p>Сохранённые ключи не показываются. Доступ к продажам и рекламе проверяется отдельно.</p>
         <button className="button" disabled={!ready||busy}>Сохранить и проверить</button>
       </form>
     </section>
