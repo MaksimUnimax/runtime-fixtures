@@ -67,6 +67,7 @@ def run(*, browser, context, second_context, db, manage, check, origin, issuer,
         record['staff_browser_phase']='require_first_factor'
         expect(page.get_by_role('heading',name='Дополнительная защита входа в админку')).to_be_visible()
         page.get_by_role('link',name='Подключить приложение для кодов').click()
+        expect(page.locator('input[name=password],#authenticator_secret').first).to_be_visible()
         if page.locator('input[name=password]').count():
             if native_password is None:raise RuntimeError('Owned synthetic password required by native security settings')
             page.locator('input[name=password]').fill(native_password)
