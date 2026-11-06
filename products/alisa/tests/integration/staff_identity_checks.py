@@ -161,6 +161,72 @@ def main():
     check('s03_factor_secret_is_encrypted_in_postgresql', secret not in json.dumps(Authenticator.objects.get(user=person,type='totp').data))
     # The ordinary client does not gain staff claims even for an MFA person.
     check('s03_client_registration_uses_confidential_dedicated_admin', OIDCClient.objects.get(pk=settings.IDENTITY_STAFF_CLIENT_ID).type == OIDCClient.Type.CONFIDENTIAL)
+
+    # Complete the originally passwordless, unenrolled native email identity
+    # through one real enrollment POST and every following HTTP redirect.
+    enrollment_url,enrollment_verifier,_=authorize()
+    response=enrollment.get(enrollment_url,secure=True)
+    check('s03_single_enrollment_starts_with_registered_admin_request',response.status_code==200)
+    response=enrollment.get(reverse('mfa_activate_totp'),secure=True)
+    from allauth.account.internal.flows.login import get_authentication_records
+    setup_secret=response.context_data['form'].secret
+    csrf=enrollment.cookies[settings.CSRF_COOKIE_NAME].value
+    mail_before=IdentityMail.objects.filter(recipient=unenrolled.email).count()
+    bad=enrollment.post(reverse('mfa_activate_totp'),{'code':'incorrect'},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_wrong_enrollment_code_cannot_add_factor_or_proof',bad.status_code==200
+        and not Authenticator.objects.filter(user=unenrolled,type='totp').exists() and PROOF not in enrollment.session)
+    enrollment_code=format_hotp_value(hotp_value(setup_secret,int(time.time())//30))
+    response=enrollment.post(reverse('mfa_activate_totp'),{'code':enrollment_code},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_one_enrollment_post_redirects_directly_to_recovery',response.status_code==302
+        and response['Location']==reverse('mfa_view_recovery_codes'))
+    recovered=enrollment.get(response['Location'],secure=True)
+    check('s03_recovery_http_uses_same_verified_challenge_without_second_form',recovered.status_code==200
+        and b'identity/staff/continue' in recovered.content and b'input name="code"' not in recovered.content
+        and PROOF in enrollment.session)
+    check('s03_native_reauth_record_survives_redirect_after_enrollment',any(
+        r.get('method')=='mfa' and r.get('reauthenticated') is True
+        for r in get_authentication_records(recovered.wsgi_request,unenrolled)))
+    check('s03_same_enrollment_code_has_native_replay_marker',
+        not Authenticator.objects.get(user=unenrolled,type='totp').wrap().validate_code(enrollment_code))
+    check('s03_enrollment_recovery_does_not_send_second_login_mail',
+        IdentityMail.objects.filter(recipient=unenrolled.email).count()==mail_before)
+    check('s03_recovery_response_not_cacheable',recovered['Cache-Control']=='no-store'
+        and recovered['Referrer-Policy']=='no-referrer')
+    path=reverse('identity_staff_continue')
+    check('s03_continue_requires_csrf',enrollment.post(path,{},secure=True).status_code==403)
+    csrf=enrollment.cookies[settings.CSRF_COOKIE_NAME].value
+    import copy
+    native_pending=copy.deepcopy(enrollment.session[PENDING])
+    native_proof=copy.deepcopy(enrollment.session[PROOF])
+    for name,changes in [
+        ('external_target',{'target':'https://attacker.test/'}),
+        ('changed_nonce',{'target':enrollment_url.replace('nonce=','nonce=changed')}),
+        ('different_user',{'user':str(person.pk)}),
+        ('stale_pending',{'started':time.time()-601})]:
+        state=enrollment.session;state[PENDING]={**native_pending,**changes};state[PROOF]=native_proof;state.save()
+        fallback=enrollment.post(path,{'next':'https://attacker.test/'},secure=True,
+            HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+        from octoport_identity.protocol.mfa import staff_login_url
+        check('s03_continue_rejects_'+name,fallback.status_code==303 and fallback['Location']==staff_login_url())
+    state=enrollment.session;state[PENDING]=native_pending;state[PROOF]={**native_proof,'at':time.time()-301};state.save()
+    fallback=enrollment.post(path,{},secure=True,HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_continue_does_not_extend_expired_mfa',fallback.status_code==303 and fallback['Location']==staff_login_url())
+    state=enrollment.session;state[PENDING]=native_pending;state[PROOF]=native_proof;state.save()
+    resumed=enrollment.post(path,{'next':'https://attacker.test/'},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_continue_uses_only_original_validated_native_target',resumed.status_code==303 and resumed['Location']==enrollment_url)
+    issued=enrollment.get(resumed['Location'],secure=True)
+    single_code=parse_qs(urlsplit(issued.get('Location','')).query).get('code',[None])[0]
+    check('s03_single_challenge_resumes_to_library_oauth_code',issued.status_code==302 and bool(single_code)
+        and PENDING not in enrollment.session and PROOF not in enrollment.session)
+    check('s03_single_challenge_code_exchanges_once_with_native_mfa',redeem(single_code,enrollment_verifier).status_code==200
+        and redeem(single_code,enrollment_verifier).status_code==400)
+    fallback=enrollment.post(path,{},secure=True,HTTP_ORIGIN=settings.IDENTITY_ISSUER,HTTP_X_CSRFTOKEN=csrf)
+    check('s03_finished_or_legacy_missing_pending_has_clean_admin_fallback',
+        fallback.status_code==303 and fallback['Location']==staff_login_url())
+
     return CASES
 
 if __name__ == '__main__':

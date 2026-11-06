@@ -30,6 +30,9 @@ def ready(request):
 urlpatterns = [path("health/live", live), path("health/ready", ready)]
 if getattr(settings,'IDENTITY_ENABLED',False):
     from octoport_identity.protocol.views import mail_status,mail_ui,code_reauthentication
-    urlpatterns += [path('accounts/reauthenticate/',code_reauthentication),
+    from octoport_identity.protocol.mfa import ActivateOnceTOTPView,continue_staff
+    urlpatterns += [path('accounts/2fa/totp/activate/',ActivateOnceTOTPView.as_view(),name='mfa_activate_totp'),
+                    path('identity/staff/continue',continue_staff,name='identity_staff_continue'),
+                    path('accounts/reauthenticate/',code_reauthentication),
                     path('accounts/',include('allauth.urls')),path('',include('allauth.idp.urls')),
                     path('identity/mail-status',mail_status),path('identity/mail-ui.js',mail_ui)]

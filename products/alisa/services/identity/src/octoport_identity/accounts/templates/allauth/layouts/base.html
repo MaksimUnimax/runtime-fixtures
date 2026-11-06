@@ -19,7 +19,19 @@
     <span class="header-label">Центр входа</span>
   </header>
   <main>
-    <aside class="stage-notice" aria-label="Режим тестирования">
+    <aside class="stage-notice" aria-label="Подсказка для входа">
+      {% if mfa_page %}
+        {% if mfa_recovery_page %}
+        <strong>Резервный доступ</strong>
+        <p>Сохраните коды восстановления, затем продолжите вход в админку. Письмо с кодом здесь не отправляется.</p>
+        {% elif mfa_setup_page %}
+        <strong>Подключение приложения</strong>
+        <p>Добавьте QR в приложение-аутентификатор и введите его проверочный код.</p>
+        {% else %}
+        <strong>Проверка приложения</strong>
+        <p>Используйте текущий код из приложения-аутентификатора. Это не код из письма.</p>
+        {% endif %}
+      {% else %}
       {% if registration_open %}
       <strong>Вход и регистрация</strong>
       <p>Введите свою электронную почту. Мы отправим одноразовый код для подтверждения. Код действует 10 минут; пароль не нужен.</p>
@@ -32,6 +44,7 @@
       Код поступит во внутреннюю тестовую почту. Доставка на Gmail и другие обычные ящики пока не подключена.</p>
       {% endif %}
       {% endif %}
+      {% endif %}
     </aside>
     {% block body %}
       {% if messages %}
@@ -42,7 +55,7 @@
     <p id="mail-status" role="status" aria-live="polite"></p>
     <a class="back-link" href="{{ alisa_product_origin }}">← Вернуться к Алисе</a>
   </main>
-  <footer>Алиса Маркет · Тестовый кабинет. Подключение магазинов и доступ к отчётам проходят отдельные этапы.</footer>
+  <footer>Алиса Маркет · Центр входа.</footer>
   {% block extra_body %}{% endblock %}
   <script src="/identity/mail-ui.js" defer></script>
 </body>
