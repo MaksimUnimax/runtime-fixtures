@@ -475,7 +475,7 @@ def main():
                 from qualify_staff_browser import run as run_staff_browser
                 run_staff_browser(browser=browser,context=context,second_context=second_context,db=db,manage=manage,
                     check=check,origin=staff_origin,issuer=ISSUER,private_values=private_values,owner_email=email,
-                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record,access_enabled=args.access,web_origin=WEB)
+                    reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record,access_enabled=args.access,web_origin=WEB,platform_proxy=proxies[2],native_letter=letter)
             if args.open_registration:
                 real_context=browser.new_context(ignore_https_errors=False)
                 real_page=real_context.new_page()
