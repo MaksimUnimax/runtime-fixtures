@@ -508,7 +508,10 @@ const calculators = {
       days <= 0
     )
       return null;
-    return stock / (demand / days);
+    const dailyDemand = demand / days;
+    if (!Number.isFinite(dailyDemand) || dailyDemand <= 0) return null;
+    const cover = stock / dailyDemand;
+    return Number.isFinite(cover) ? cover : null;
   },
   drr(input) {
     if (input?.complete !== true) return null;
@@ -1348,6 +1351,70 @@ for (const [name, kind, input, expected] of observedZeroCases) {
   assert.equal(calculators[kind](input), expected, name + " must stay valid");
 }
 
+let daysCoverFiniteConsumerCases = 0;
+function checkDaysCoverConsumer(input, expected, label) {
+  const actual = calculators.days_cover(input);
+  assert.ok(Object.is(actual, expected), label);
+  assert.ok(actual === null || Number.isFinite(actual), label + " finite/null");
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), label + " JSON");
+  daysCoverFiniteConsumerCases++;
+}
+for (const [label, stock, demandUnits, days, expected] of [
+  ["R1 MAX overflow", Number.MAX_VALUE, 0.5, 1, null],
+  ["R1 subnormal divisor", 1, Number.MIN_VALUE, 1, null],
+  ["derived denominator overflow", 1, Number.MAX_VALUE, Number.MIN_VALUE, null],
+  ["derived denominator underflow", 1, Number.MIN_VALUE, Number.MAX_VALUE, null],
+  ["zero with invalid denominator", 0, Number.MIN_VALUE, Number.MAX_VALUE, null],
+  ["zero with overflow denominator", 0, Number.MAX_VALUE, Number.MIN_VALUE, null],
+  ["finite MAX", Number.MAX_VALUE, 1, 1, Number.MAX_VALUE],
+  ["MAX period and demand", Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE],
+  ["derived unit daily demand", 1, Number.MAX_VALUE, Number.MAX_VALUE, 1],
+  ["ordinary period", 42, 21, 7, 14],
+  ["fractional period", 3, 3, 0.5, 0.5],
+  ["subnormal daily demand", Number.MIN_VALUE, Number.MIN_VALUE, 1, 1],
+  ["subnormal daily demand doubled", Number.MIN_VALUE, Number.MIN_VALUE, 0.5, 0.5],
+  ["subnormal finite result", Number.MIN_VALUE, 1, 1, Number.MIN_VALUE],
+  ["final underflow retained", Number.MIN_VALUE, 2, 1, 0],
+  ["subnormal tie to even up", 3 * Number.MIN_VALUE, 2, 1, 2 * Number.MIN_VALUE],
+  ["subnormal tie to even down", 5 * Number.MIN_VALUE, 2, 1, 2 * Number.MIN_VALUE],
+  ["real zero stock", 0, 10, 7, 0],
+  ["negative zero stock", -0, 10, 7, -0],
+  ["zero demand", 3, 0, 7, null],
+  ["negative zero demand", 3, -0, 7, null],
+  ["zero days", 3, 2, 0, null],
+  ["negative stock", -1, 2, 7, null],
+  ["negative demand", 3, -1, 7, null],
+  ["negative days", 3, 2, -1, null],
+  ["numeric strings retained", "42", "21", "7", 14],
+  ["numeric whitespace retained", " 42 ", " 21 ", " 7 ", 14],
+  ["existing Number syntax retained", "0x10", "2", "1", 8],
+]) {
+  checkDaysCoverConsumer({ complete: true, stock, demandUnits, days }, expected, label);
+}
+for (const field of ["stock", "demandUnits", "days"]) {
+  for (const value of [
+    null, undefined, NaN, Infinity, -Infinity, "", " ", "1e309",
+    {}, [], true, false, 1n, Symbol("invalid metric"), new Number(1), () => 1,
+  ]) {
+    checkDaysCoverConsumer(
+      { complete: true, stock: 42, demandUnits: 21, days: 7, [field]: value },
+      null,
+      "invalid/nonfinite " + field,
+    );
+  }
+  const missing = { complete: true, stock: 42, demandUnits: 21, days: 7 };
+  delete missing[field];
+  checkDaysCoverConsumer(missing, null, "missing " + field);
+}
+for (const complete of [false, undefined, null, 0, 1, "true", new Boolean(true)])
+  checkDaysCoverConsumer({ complete, stock: 42, demandUnits: 21, days: 7 }, null, "strict completeness");
+for (const input of [null, undefined, false, 0, "", [], {}])
+  checkDaysCoverConsumer(input, null, "incomplete root");
+const frozenCoverInput = Object.freeze({ complete: true, stock: "42", demandUnits: "21", days: "7" });
+const frozenCoverBefore = JSON.stringify(frozenCoverInput);
+checkDaysCoverConsumer(frozenCoverInput, 14, "frozen numeric-string input");
+assert.equal(JSON.stringify(frozenCoverInput), frozenCoverBefore, "days_cover input unchanged");
+
 // STD-04 SOURCE-only: require declared complete source rows, amounts, matching
 // provider/store/operation/field/metric/currency, and yesterday/prior relative
 // to a stated calendar reference. Declared identities do not prove real provider
@@ -1991,6 +2058,7 @@ console.log(
     wbOperationRefs,
     wbHosts: [...wbHosts].sort(),
     numericCases: numeric.cases.length,
+    daysCoverFiniteConsumerCases,
     semanticProjectionSha256: coverage.readiness.semanticProjectionSha256,
     ozonRegistrySha256: coverage.authorities.ozon.registrySha256,
     wbRegistrySha256: coverage.authorities.wildberries.registrySha256,
