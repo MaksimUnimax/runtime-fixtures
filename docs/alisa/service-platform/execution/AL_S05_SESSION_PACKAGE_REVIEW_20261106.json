@@ -1,0 +1,95 @@
+{
+  "schema_version": "alisa_package_and_inactive_copy_review_v1",
+  "reviewed_at": "2026-11-06",
+  "scope": "INDEPENDENT_PACKAGE_BINDING_AND_INACTIVE_WEB_COPY_READBACK",
+  "source": {
+    "commit": "d9918bcb3695b432f1dcc6108f91a64824e7588c",
+    "tree": "bdd5d54375b54480fa2de200c34739d33d6179b6",
+    "installer_sha256": "45c8919a3e9c27f09b470ed131fccc74e241d8a4af8eeddb8b04a0d62e0eb24a",
+    "activator_sha256": "babb7c734acb229183c386c425746e454110da163386ef595cca6484e58f0534"
+  },
+  "verdict": "PACKAGE_AND_INACTIVE_WEB_COPY_MATCH_EXACT_SOURCE_NO_BLOCKER_FOUND",
+  "ci": {
+    "platform_run": 42163427391,
+    "documentation_run": 42163427383,
+    "both_runs": "completed_success",
+    "platform_head_sha": "d9918bcb3695b432f1dcc6108f91a64824e7588c",
+    "platform_tree": "bdd5d54375b54480fa2de200c34739d33d6179b6",
+    "verified_platform_steps": [
+      "Real PostgreSQL and packaged browser qualification (not stage acceptance)",
+      "Real identity BFF and cabinet on isolated PostgreSQL and verified HTTPS",
+      "Save the qualified immutable stage package"
+    ],
+    "verification_source": "GitHub Actions read-only run and artifact metadata; no rerun performed"
+  },
+  "package": {
+    "artifact_id": 13478806168,
+    "artifact_name": "alisa-platform-package-d9918bcb3695b432f1dcc6108f91a64824e7588c",
+    "zip_bytes": 51723355,
+    "zip_sha256": "a6287d66e7a545629b9e94a40c16234c3cdfcbbf8d5d9e85789e72d614f2f7e4",
+    "github_artifact_digest_matches": true,
+    "tar_bytes": 51800489,
+    "tar_sha256": "db71bb686185cc9d02545befad959ed1d7ab9b43a1f7e37cd10579511a4e9bb0",
+    "tar_sidecar_matches": true,
+    "manifest_sha256": "b3fc7bb7882d6004221ca3f87b617e963d003aae4c30d8363bde08582271eb4d",
+    "manifest_file_count": 4451,
+    "manifest_link_count": 42,
+    "manifest_and_all_files_match": true,
+    "all_link_targets_match": true,
+    "unsafe_paths_or_special_archive_members": 0,
+    "git_tree_matches_pinned_source": true,
+    "packaged_launcher_hash_matches_git_source": true,
+    "selected_web_component": {
+      "regular_files": 2175,
+      "symlinks": 21,
+      "logical_bytes_including_unchanged_launcher": 49798288,
+      "compiled_stores_route_contains_session_guard": true,
+      "compiled_route_evidence": ["43-character base64url guard", "AUTHENTICATION_REQUIRED", "STORES_UNAVAILABLE"]
+    },
+    "logical_size_note": "package-binding.json web_logical_bytes is 49,795,809; installer selected bytes are 49,798,288 because selection also includes the unchanged 2,479-byte infra/launch.py."
+  },
+  "inactive_copy_readback": {
+    "install_receipt_status": "PASS",
+    "install_receipt_source_sha_matches": true,
+    "installed_manifest_sha_matches_receipt": true,
+    "installed_manifest_source_sha_matches": true,
+    "selected_payload_hashes_match_package": true,
+    "selected_regular_files": 2175,
+    "selected_symlinks": 21,
+    "selected_links_match_package": true,
+    "escaping_symlinks": 0,
+    "regular_files_root_root_no_group_or_world_write": true,
+    "directories_root_root_no_group_or_world_write": true,
+    "symlinks_root_owned_and_internal": true,
+    "uid_995_gid_987_readback": "All 2,175 selected files opened successfully; all 21 selected symlinks resolved inside ui/web.",
+    "no_pip": true,
+    "no_services_payload": true,
+    "no_admin_payload": true,
+    "private_evidence_directory": "root:root mode 0700, not symlink",
+    "install_receipt_metadata": "root:root mode 0600 regular file",
+    "pointers_after_copy": {
+      "web-current": "alisa-6098b31384ae23a4",
+      "site-current": "alisa-6098b31384ae23a4",
+      "admin-current": "alisa-73180172646b7012",
+      "identity-current": "alisa-73180172646b7012",
+      "current": "alisa-482ed11832b666af"
+    },
+    "free_bytes": 3330039808,
+    "free_inodes": 532057,
+    "minimum_free_bytes": 3221225472,
+    "free_margin_bytes_over_floor": 108814336
+  },
+  "limits": {
+    "reviewer_server_calls": "read-only metadata, hash and UID readability checks only",
+    "scripts_executed_by_reviewer": false,
+    "tests_or_ci_run_by_reviewer": false,
+    "provider_calls": false,
+    "sessions_credentials_environment_values_or_database_read": false,
+    "web_cutover_or_service_restart": false,
+    "current_web_pointer_remains_6098": true,
+    "browser_owner_negative_canary": "not part of this package/copy review",
+    "seller_binding": "false",
+    "performance_identity": "unverified"
+  },
+  "next_boundary": "This receipt approves package identity and inactive-copy readback only. It does not report web activation, public health, negative-canary, live customer, or live-provider acceptance."
+}

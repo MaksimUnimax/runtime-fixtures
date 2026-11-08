@@ -1,10 +1,10 @@
 name: Alisa platform source checks
 on:
   pull_request:
-    paths: ['products/alisa/**', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', '.github/workflows/alisa-platform-ci.yml']
   push:
     branches: ['feat/alisa-platform-foundation-v05', 'feat/alisa-site-funnel-v05']
-    paths: ['products/alisa/**', '.github/workflows/alisa-platform-ci.yml']
+    paths: ['products/alisa/**', 'docs/alisa/runtime/v0.11/rt_check_r01/**', '.github/workflows/alisa-platform-ci.yml']
 permissions:
   contents: read
 jobs:
@@ -42,6 +42,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.22.1'
+      - name: Bounded store-check HTTPS and Unix protocol, no live provider
+        working-directory: docs/alisa/runtime/v0.11/rt_check_r01
+        run: |
+          python qualify.py --output "$GITHUB_WORKSPACE/products/alisa/dist/rt-check-qualification.json"
+          python qualify_baseline.py --output "$GITHUB_WORKSPACE/products/alisa/dist/rt-check-baseline-qualification.json"
+          python build_package.py --source "$ALISA_SOURCE_SHA" --output "$GITHUB_WORKSPACE/products/alisa/dist"
+      - name: Current runtime fairness, deadlines and offline regression
+        working-directory: products/alisa/runtime
+        run: |
+          python run_checks.py --output ../dist/runtime-qualification.json
+          python build_package.py --source "$ALISA_SOURCE_SHA" --output ../dist
       - name: Locked source checks and UI build (not stage acceptance)
         working-directory: products/alisa
         run: |
@@ -62,6 +73,10 @@ jobs:
         working-directory: products/alisa
         run: |
           .venv/bin/python tests/integration/qualify_access_core.py --output dist/s04-core-qualification.json
+      - name: Store vault, tenant isolation and Unix setup-check on isolated PostgreSQL
+        working-directory: products/alisa
+        run: |
+          .venv/bin/python tests/integration/qualify_stores_core.py --output dist/s05-core-qualification.json
       - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
         working-directory: products/alisa
         run: |
@@ -75,7 +90,7 @@ jobs:
           sudo --preserve-env=ALISA_TEST_DB_ALLOW,ALISA_TEST_PG_DSN,GITHUB_ACTIONS,PATH,PLAYWRIGHT_BROWSERS_PATH \
             .venv/bin/python tests/integration/qualify_identity.py \
             --artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz" \
-            --output dist/s02-qualification.json --staff --access
+            --output dist/s02-qualification.json --staff --access --stores
       - name: Open email registration and repeat login without an invitation list
         working-directory: products/alisa
         run: |
@@ -96,6 +111,9 @@ jobs:
             products/alisa/dist/s02-empty-state.png
             products/alisa/dist/s03-*.json
             products/alisa/dist/s04-*.json
+            products/alisa/dist/s05-*.json
+            products/alisa/dist/rt-check-*.json
+            products/alisa/dist/runtime-qualification.json
             products/alisa/dist/s02-identity-*.png
           if-no-files-found: error
       - name: Save the qualified immutable stage package
@@ -105,5 +123,15 @@ jobs:
           path: |
             products/alisa/dist/alisa-*.tar.gz
             products/alisa/dist/alisa-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Save qualified runtime-side store-check source package
+        uses: actions/upload-artifact@v4
+        with:
+          name: alisa-runtime-store-check-${{ env.ALISA_SOURCE_SHA }}
+          path: |
+            products/alisa/dist/rt-check-*.tar.gz
+            products/alisa/dist/rt-check-*.tar.gz.sha256
           if-no-files-found: error
           retention-days: 14

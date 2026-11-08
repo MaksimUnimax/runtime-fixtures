@@ -1,0 +1,51 @@
+{
+  "schema_version": "alisa_independent_source_review_v1",
+  "scope": "READ_ONLY_SOURCE_REVIEW_RT_CHECK_R01_NO_TESTS_NO_HOST_CALLS_NO_LIVE_CREDENTIALS",
+  "candidate_commit": "2c57e56dea47b07bcb0f4e01adb9473b9ff322e1",
+  "candidate_tree": "f3ba9cc3c5c5b0ce31e08907bd94ca0ddac4a3fd",
+  "observed_local_head": "6b86591293d01201dcfd8e99aa9b7ddbd7fcb903",
+  "observed_local_tree": "f3ba9cc3c5c5b0ce31e08907bd94ca0ddac4a3fd",
+  "overall": "CONDITIONAL_SOURCE_REVIEW_WITH_FINDINGS",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "docs/alisa/runtime/v0.11/rt_check_r01/store_checker.py",
+      "lines": "100-101",
+      "finding": "WB HTTP 403 is unconditionally mapped to SCOPE_MISSING. The selected /api/v1/seller-info method is documented as available to any token category, so 403 alone does not prove a missing scope; it may signal another authorization/provider condition. This overstates diagnostic certainty and can mislead platform UX.",
+      "recommendation": "Map WB 403 to CHECK_UNAVAILABLE unless WB documents a structured scope-specific error discriminator for this endpoint. Add fixtures for 403 with and without recognized structured discriminator."
+    },
+    {
+      "severity": "MEDIUM",
+      "file": "docs/alisa/runtime/v0.11/rt_check_r01/store_check_ipc.py",
+      "lines": "63-66, 70-72",
+      "finding": "Socket parent validation rejects world-writable directories but permits group-writable parents. A group-writable parent may permit another group member to race the pathname between bind/chmod/inode capture, depending on deployed group membership; this weakens the stated private-path ownership guarantee.",
+      "recommendation": "Require parent not group- or world-writable unless the exact trusted group and deployment ownership model are explicitly pinned; perform chmod and inode capture against a verified socket inode with race-resistant handling."
+    },
+    {
+      "severity": "LOW",
+      "file": "docs/alisa/runtime/v0.11/rt_check_r01/store_checker.py",
+      "lines": "165-170",
+      "finding": "Seller response validation checks a minimum subset of company fields but accepts arbitrary additional/missing top-level and company fields. This is fail-closed for promotion when those minimum fields are absent and binding qualification is false, but it is not a strict complete expected schema as described in the review request.",
+      "recommendation": "Either call this a minimum schema guard, or validate documented required top-level/company fields while permitting documented optional fields. Keep promotion disabled absent binding qualification."
+    }
+  ],
+  "reviewed_controls": {
+    "fixed_provider_urls_and_methods": "PASS_SOURCE",
+    "wb_identity_from_authenticated_sid_only": "PASS_SOURCE",
+    "seller_identity_disabled_by_default_and_company_identity_not_used": "PASS_SOURCE",
+    "performance_never_promotes_from_token_or_jwt": "PASS_SOURCE",
+    "credentials_in_child_stdin_and_environment_stripped": "PASS_SOURCE",
+    "peer_uid_check_before_request_body_read": "PASS_SOURCE",
+    "two_concurrent_child_slots_and_child_timeout_kill_reap": "PASS_SOURCE",
+    "https_tls_verification_proxy_disabled_redirects_disabled": "PASS_SOURCE",
+    "upstream_error_text_not_returned": "PASS_SOURCE",
+    "no_live_provider_or_runtime_host_actions_performed": "PASS_SOURCE_SCOPE_ONLY"
+  },
+  "verification": {
+    "tests_run_by_reviewer": 0,
+    "live_credentials_used": false,
+    "runtime_server_touched": false,
+    "working_engine_sqlite_or_report_gateway_modified": false,
+    "candidate_matches_local_head_tree": true
+  }
+}

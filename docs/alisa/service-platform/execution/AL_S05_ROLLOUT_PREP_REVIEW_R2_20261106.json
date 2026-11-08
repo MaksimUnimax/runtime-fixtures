@@ -1,0 +1,48 @@
+{
+  "schema_version": "alisa_rollout_preparation_review_v1",
+  "scope": "READ_ONLY_SOURCE_REVIEW_NO_HOST_CALLS_NO_EXECUTION",
+  "reviewed_hashes": {
+    "install-platform.py": "491f5fff1c3868a69ba746a64213d63a09fa0be348976af5c3ffe0048521c201",
+    "prepare-core.py": "e80a9f4c95c293c78206cb2d7c01038fe36d8a2b2fbaf178e8d9d23723912421",
+    "check-integrated-core.py": "bb9d66688a54d90193b8b241ad7d3727ac638faf3afc157d6c66238ff078a794",
+    "store-check-permissions.py": "e63b20c9079a986120b90daa4dac5edf2ced63516be3f6bb577fd653b7b96905",
+    "alisa-store-check.service": "ef2583094d15b9690ded07e905018a13ba5a8f3c66ae19d667013b58ce502c2a"
+  },
+  "verdicts": {
+    "inactive_platform_install": "HOLD_NAME_ERROR",
+    "inactive_core_prepare": "SOURCE_REVIEW_ACCEPTED_CONDITIONAL_ON_VERIFIED_PLATFORM_INPUT_AND_FRESH_RESOURCES",
+    "activation": "NOT_REVIEWED"
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "install-platform.py",
+      "line": 27,
+      "finding": "The revised installer invokes `NoRedirect()` when building its opener, but the reviewed file neither imports nor defines `NoRedirect`. Execution raises NameError before the artifact download.",
+      "recommendation": "Define a local HTTPRedirectHandler whose redirect_request returns None, or import a separately pinned helper present in the execution environment; then recheck exact file hash."
+    }
+  ],
+  "closed_r1_findings": {
+    "redirect_ssrf": "CLOSED_SOURCE: opener disables environment proxy and NoRedirect is intended; initial URL requires HTTPS, approved hostname suffix and port 443. Installer execution remains blocked by the missing NoRedirect symbol.",
+    "acl_helper_path_and_integrity": "CLOSED_SOURCE: prepare-core pins SHA-256 e63b20... and copies the ACL helper into the exact path referenced by ExecStartPre."
+  },
+  "source_boundary": {
+    "inactive_platform": "Installer verifies exact CI zip/tar/manifest, extracts into a new release, hashes every file/link, creates platform-only locked no-compile venv, runs pip check, and compares pointer snapshots. No unit activation or pointer switch is present.",
+    "inactive_core": "prepare-core checks the 69 original source hashes, exact patched HTTP hash, shared/runtime package hashes, and pinned ACL helper hash; copies into a new versioned directory; records a manifest and reports active_core_unchanged. It does not switch the active runtime.",
+    "integrated_checks": "check-integrated-core discovers the expected 1,035 tests and monkeypatches Python TCP/DNS. Its use is safe only inside the promised OS PrivateNetwork isolation, since Python monkeypatches alone do not block subprocess or raw UDP network attempts.",
+    "native_unit": "Dedicated Group and UID, bounded memory/tasks/shutdown, private filesystem, old credential paths inaccessible, no credentials in environment, separate socket, starts with the product dependency."
+  },
+  "budget": {
+    "free_bytes_reported": 3547582464,
+    "required_free_bytes": 3544115937,
+    "margin_bytes": 3466527,
+    "assessment": "Tight pass by source math only; fresh disk/inode/memory recheck is mandatory before each copy stage."
+  },
+  "verification": {
+    "tests_run_by_reviewer": 0,
+    "host_calls": 0,
+    "scripts_executed": false,
+    "live_credentials_used": false,
+    "active_files_modified": false
+  }
+}

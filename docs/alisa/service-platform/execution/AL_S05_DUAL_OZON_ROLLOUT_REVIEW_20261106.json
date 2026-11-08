@@ -1,0 +1,92 @@
+{
+  "schema_version": "alisa_s05_dual_ozon_rollout_source_review_v1",
+  "scope": "READ_ONLY_SOURCE_REVIEW_NO_SCRIPT_EXECUTION_NO_HOST_CALLS",
+  "candidate": {
+    "source_sha": "9b716ba6ffe18a459c476332daf22160fe069b96",
+    "source_tree": "773ef16417f62b5449d07c26d5243652743d8ad2",
+    "platform_ci": 42167619286,
+    "documentation_ci": 42167619221,
+    "candidate_predecessor_web": "alisa-d9918bcb3695b432",
+    "candidate_predecessor_site": "alisa-6098b31384ae23a4"
+  },
+  "verdict": "PASS_SOURCE_WITH_RESOURCE_GUARD_NOTE",
+  "files": {
+    "docs/alisa/service-platform/execution/s05-dual-ozon-20261106/install-web.py": {
+      "sha256": "2171f128e42970c7a57f722f740b5ff633d0f9db1501eb1c86d995d735808804",
+      "delta_from_accepted_session_expiry_r4": [
+        "release/source pins updated to candidate 9b716ba6 and its source tree/CI run IDs",
+        "predecessor guard updated to web d9918bcb plus site 6098"
+      ]
+    },
+    "docs/alisa/service-platform/execution/s05-dual-ozon-20261106/activate-web.py": {
+      "sha256": "292a14981ca614455bba6e8a323884ce0a93bc66ed4b26eff20a53a0b8b6b66e",
+      "delta_from_accepted_session_expiry_r4": [
+        "candidate release/source and predecessor pins updated",
+        "temporary web pointer name isolated for this rollout"
+      ]
+    },
+    "docs/alisa/service-platform/execution/s05-dual-ozon-20261106/inactive-dependencies.py": {
+      "sha256": "c822089919324ca094a293793245f509816c70030b35677c6ebcc3a80082fe85",
+      "prior_reviewed_base_sha256": "1517cf1f442bb098587a6028a8e7b26575b2d62c0e79e0eb1e8f83e9a56f9105",
+      "delta": [
+        "private output namespace moved to dual-ozon-9b716ba6",
+        "target changed to pinned inactive c866 release and its exact manifest hash",
+        "scope wording updated",
+        "secure directory-chain checks and exact mode 0700 added",
+        "metadata and receipt creation use O_EXCL/O_NOFOLLOW; receipt is opened relative to a retained directory fd"
+      ]
+    }
+  },
+  "reviewed_controls": {
+    "installer": [
+      "pins exact source/tree/CI and checks expected predecessor pointers before download",
+      "HTTPS-only approved host and port, proxy disabled, redirects rejected, no credentials added",
+      "bounded archive sizes, exact ZIP/tar/checksum/manifest/payload verification before selection",
+      "selects only infra/launch.py and ui/web; creates stdlib-only web launcher venv without pip",
+      "preserves service/config/database/core pointers and enforces 3072 MiB reserve before and after installation",
+      "exclusive private receipt creation through no-follow dirfd"
+    ],
+    "activation": [
+      "changes only web-current and restarts alisa-web@stage.service",
+      "requires exact install receipt, exact candidate payload, expected web/site predecessor, and unchanged effective launch/profile/config",
+      "checks new process cwd/executable/uid/cgroup, all other pointers, anonymous GET/POST 401, private-page redirect, candidate health, and prior platform/runtime health",
+      "15-second readiness deadline and guarded recovery restore only the reviewed web pointer when surrounding state remains unchanged",
+      "exclusive private receipt creation through no-follow dirfd"
+    ],
+    "resource_helper": [
+      "targets only pinned inactive c866 release dependency code: wheels, Python site-packages, and UI node_modules",
+      "skips active releases and process-referenced inodes using pointer/cwd/exe/cmdline/fd/maps inventories, repeated immediately before each link",
+      "requires exact candidate manifest, identical bytes and metadata/xattrs, single-link target, and canonical link count matching the owned inactive inventory",
+      "creates private metadata backup, preserves all paths and bytes, removes no files/releases/archives, and checks the full package manifest after linking",
+      "documents the residual process-start race after inventory and before link; five rollout locks and single-author constraint reduce but cannot eliminate it"
+    ]
+  },
+  "resource_assessment": {
+    "given_fresh_free_bytes": 3265568768,
+    "installer_projected_growth_bytes": 74045248,
+    "pre_dedup_margin_over_3072_mib_floor_bytes": 44343296,
+    "pre_dedup_shortfall_for_projected_growth_bytes": 29701952,
+    "given_planned_dedup_gain_bytes": 80982016,
+    "expected_post_dedup_free_bytes_before_concurrent_changes": 3346550784,
+    "installer_rechecks_projected_growth_and_floor": true,
+    "note": "The installer will refuse to extract if actual free space does not satisfy the component-growth reserve. The dependency helper does not itself assert the 3072 MiB floor after linking; it reports free_after, and the installer independently rechecks capacity before download/extraction and after install. Concurrent unrelated disk growth may therefore stop the rollout safely at installer preflight."
+  },
+  "limitations": [
+    {
+      "severity": "NONBLOCKING",
+      "detail": "The resource helper's reported gain is planned from allocated target blocks, and its 64 MiB stop threshold can be exceeded by the final file operation. The subsequent installer uses observed free space and a pinned projected-growth reserve, so the helper's estimate does not authorize an under-reserved installation."
+    },
+    {
+      "severity": "KNOWN_RESIDUAL",
+      "detail": "A process could start using an inactive release after the last inventory and before os.link/os.replace. The script records this race; candidate and canonical bytes are required to match and are revalidated, but the race is not mathematically eliminated."
+    }
+  ],
+  "not_performed": [
+    "scripts or tests executed",
+    "host or server calls",
+    "provider API calls",
+    "credential, session, or database access",
+    "source or Git metadata changes"
+  ],
+  "reviewer_boundary": "This is a source-only assessment. CI/package pins and capacity figures are the stated inputs; this reviewer did not independently query CI artifacts or host state. No activation or deployment readiness is inferred from this receipt."
+}

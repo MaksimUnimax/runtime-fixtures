@@ -22,6 +22,11 @@ class OIDCAdapter(DefaultOIDCAdapter):
         if client.id==settings.IDENTITY_STAFF_CLIENT_ID:
             from .staff import token_claims
             id_token.update(token_claims(client,id_token))
+        else:
+            from .customer import customer_client,token_claims
+            customer=customer_client()
+            if customer is not None and customer.id==client.id:
+                id_token.update(token_claims(client,id_token))
     def get_user_sub(self,client,user):
         subject,_=Subject.objects.get_or_create(client=client,person=user)
         return str(subject.pk)
@@ -32,6 +37,14 @@ class OIDCAdapter(DefaultOIDCAdapter):
         return subject.person if subject else None
 
 class AccountAdapter(DefaultAccountAdapter):
+    def get_login_stages(self):
+        stages=super().get_login_stages()
+        stages=[('octoport_identity.protocol.customer.CustomerAwareMFAStage'
+            if path=='allauth.mfa.stages.AuthenticateStage' else path) for path in stages]
+        position=stages.index('octoport_identity.protocol.customer.CustomerAwareMFAStage')
+        stages.insert(position,'octoport_identity.protocol.customer.CustomerProofStage')
+        return ['octoport_identity.protocol.customer.CredentialStage',*stages]
+
     def clean_email(self,email):
         email=super().clean_email(email).strip().lower()
         if not email.endswith('@example.invalid') and not settings.REAL_LOGIN_OPEN and email not in settings.REAL_LOGIN_RECIPIENTS:

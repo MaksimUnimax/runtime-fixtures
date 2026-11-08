@@ -1,0 +1,40 @@
+{
+  "schema_version": "alisa_rollout_preparation_review_v1",
+  "scope": "READ_ONLY_DELTA_REVIEW_INACTIVE_PLATFORM_INSTALL_NO_HOST_CALLS_NO_EXECUTION",
+  "reviewed_file": "docs/alisa/service-platform/execution/s05-installed-20261106/install-platform-r3.py",
+  "sha256": "8435762631da8330b98a2db849c46f4f6400072dd2d5507515ec97b677a51d55",
+  "delta_from_r2": [
+    "Receipt filename changed to platform-install-r3.json.",
+    "Growth estimate uses measured no-pip venv footprint 71073792 bytes.",
+    "Creates a target venv with --without-pip and uses the existing immutable c866 site venv pip with --python targeting the new venv for locked no-compile install and pip check."
+  ],
+  "verdict": "SOURCE_DELTA_ACCEPTED_FOR_INACTIVE_COPY_WITH_FRESH_PRECHECKS",
+  "resource_math": {
+    "platform_tar_bytes": 51800794,
+    "platform_payload_bytes": 135704576,
+    "measured_target_venv_bytes": 71073792,
+    "growth_guard_bytes": 314143253,
+    "reserved_floor_bytes": 3221225472,
+    "required_free_before_bytes": 3535368725,
+    "reported_free_bytes": 3538829312,
+    "reported_margin_bytes": 3460587,
+    "assessment": "Guard remains above the 3072 MiB floor and reflects actual reduced venv growth. Margin is narrow; re-read free space/inodes/memory immediately before execution and abort if any guard fails."
+  },
+  "scope_checks": {
+    "outer_archive_hashes_and_manifest_pins_unchanged": true,
+    "no_redirect_proxy_disabled_verified_https_and_approved_host_gate_unchanged": true,
+    "existing_target_and_receipt_absence_required": true,
+    "target_pip_install_is_locked_no_index_no_compile": true,
+    "existing_c866_venv_is_only_bootstrap_pip_and_not_install_target": true,
+    "active_pointers_checked_unchanged": true,
+    "new_target_remains_inactive_and_no_runtime_unit_or_socket_changes": true
+  },
+  "verification": {
+    "diff_only_expected_r3_changes": true,
+    "tests_run_by_reviewer": 0,
+    "scripts_executed": false,
+    "host_calls": 0,
+    "live_credentials_used": false,
+    "activation_reviewed": false
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "scope": "INSTALLED_PUBLIC_BROWSER_OWN_EXAMPLE_INVALID_REGISTRATION_AND_SESSION_NAVIGATION",
+  "phase": "after",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "disk_and_memory_reserve",
+      "passed": false
+    }
+  ],
+  "navigation": [],
+  "provider_calls": 0,
+  "error_type": "RuntimeError",
+  "error_line": 14,
+  "failed_case": "disk_and_memory_reserve"
+}
+

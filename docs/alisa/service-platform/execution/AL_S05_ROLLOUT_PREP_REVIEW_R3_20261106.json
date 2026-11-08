@@ -1,0 +1,49 @@
+{
+  "schema_version": "alisa_rollout_preparation_review_v1",
+  "scope": "READ_ONLY_REVIEW_INACTIVE_PLATFORM_INSTALL_AND_CORE_PREP_NO_HOST_CALLS_NO_EXECUTION",
+  "reviewed_hashes": {
+    "install-platform.py": "491f5fff1c3868a69ba746a64213d63a09fa0be348976af5c3ffe0048521c201",
+    "prepare-core.py": "e80a9f4c95c293c78206cb2d7c01038fe36d8a2b2fbaf178e8d9d23723912421",
+    "check-integrated-core.py": "bb9d66688a54d90193b8b241ad7d3727ac638faf3afc157d6c66238ff078a794",
+    "store-check-permissions.py": "e63b20c9079a986120b90daa4dac5edf2ced63516be3f6bb577fd653b7b96905",
+    "alisa-store-check.service": "ef2583094d15b9690ded07e905018a13ba5a8f3c66ae19d667013b58ce502c2a"
+  },
+  "verdicts": {
+    "inactive_platform_install_source": "ACCEPTED_FOR_REVIEWED_INACTIVE_COPY_AFTER_FRESH_GUARDS",
+    "inactive_core_prepare_source": "ACCEPTED_FOR_NEW_VERSION_PREPARATION_ONLY",
+    "integrated_test_execution": "ACCEPTED_ONLY_INSIDE_OS_PRIVATE_NETWORK_ISOLATION",
+    "activation_or_live_provider_acceptance": "NOT_REVIEWED"
+  },
+  "verification": {
+    "install_platform_sha_matches_root_candidate": true,
+    "top_level_ast_contains_NoRedirect": true,
+    "NoRedirect_invocation_resolves": true,
+    "prepare_core_sha_matches_root_candidate": true,
+    "prepare_core_pins_permission_helper_sha256": "e63b20c9079a986120b90daa4dac5edf2ced63516be3f6bb577fd653b7b96905",
+    "tests_run_by_reviewer": 0,
+    "scripts_executed": false,
+    "host_calls": 0,
+    "live_credentials_used": false,
+    "active_files_modified": false
+  },
+  "review_notes": {
+    "platform_install": "The NoRedirect class is defined at top level and used by an opener with ProxyHandler({}); URL gate requires HTTPS, an approved oaiusercontent.com subdomain and default/443 port. ZIP and TAR are pinned and verified before extraction; platform file/link manifest is checked before a platform-only locked no-compile venv is created; pip check and pointer invariance are required. The script records and preserves incomplete outcomes; it does not switch release pointers or activate services.",
+    "core_prepare": "Copies only the 69 hash-verified current-core files, the exact tested HTTP extraction result, four runtime modules and the SHA-pinned ACL helper into a new immutable path. It verifies copied source hashes and records an integration manifest with active=false; no current pointer, active HTTP file, service, socket or DB is changed by this script.",
+    "integrated_core_test": "The script blocks Python TCP connect/connect_ex and DNS calls and runs the fixed 1,035-test suite. It must execute in the declared native PrivateNetwork sandbox because Python monkeypatches are not an OS-level barrier against subprocess or raw UDP traffic.",
+    "native_unit": "The reviewed unit uses dedicated UID/GID, bounded memory/tasks and kill-group shutdown, private read/write paths, old credential directories inaccessible, and a separate store-check socket. ExecStartPre helper path is now supplied by prepare-core and the helper source hash is pinned."
+  },
+  "resource_budget": {
+    "free_bytes_reference": 3547582464,
+    "growth_guard_bytes": 322890465,
+    "minimum_reserve_bytes": 3221225472,
+    "required_free_before_bytes": 3544115937,
+    "reference_margin_bytes": 3466527,
+    "assessment": "Narrow source-level pass. Installer rechecks free blocks, inodes and memory before work and reserve afterward; core preparation remains dependent on a fresh resource readback before copying. Abort on any reserve shortfall; no cleanup or deduplication."
+  },
+  "correction": "Review R2 reported NoRedirect missing because it inspected an incomplete file slice. The exact absolute path and SHA in this receipt were re-read; R2 finding is superseded by this R3 receipt.",
+  "remaining_scope": [
+    "This source review does not execute or authorize the scripts.",
+    "Core cutover, platform unit release selection, service install/enable, ACL mutation, DB migration and pointer changes remain outside this review.",
+    "Seller identity binding and Performance same-cabinet proof remain open; live marketplace checks are not established."
+  ]
+}

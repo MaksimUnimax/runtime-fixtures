@@ -1,0 +1,11 @@
+{% extends "account/base_entrance.html" %}
+{% block head_title %}Вход{% endblock %}
+{% block content %}
+<h1>{% if staff_login_context %}Вход в админку{% else %}Вход в кабинет{% endif %}</h1>
+<p>Нет аккаунта? <a href="{{ signup_url }}">Зарегистрироваться</a>.</p>
+<form method="post" action="{% url 'account_login' %}">
+  {% csrf_token %}{{ form.as_p }}{{ redirect_field }}
+  <button type="submit">Войти</button>
+</form>
+{% if not staff_login_context %}<p><a href="{% url 'account_reset_password' %}">Установить или сбросить пароль</a></p>{% endif %}
+{% endblock %}

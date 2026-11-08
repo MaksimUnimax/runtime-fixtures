@@ -1,0 +1,80 @@
+{
+  "scope": "AUTHORIZED_REAL_OWNER_CREDENTIALS_READ_ONLY_API_NO_DB_OR_KEY_IMPORT",
+  "provider_request_count": 5,
+  "cases": [
+    {
+      "case": "seller_actual",
+      "kind": "SELLER",
+      "http_status": 200,
+      "json_object": true,
+      "response_field_names": [
+        "company",
+        "subscription",
+        "ratings"
+      ],
+      "company_object": true,
+      "expected_company_fields_present": true,
+      "company_field_names": [
+        "name",
+        "ownership_form",
+        "legal_name",
+        "inn",
+        "ogrn",
+        "tax_system",
+        "currency",
+        "country"
+      ],
+      "current_product_code": "IDENTITY_NOT_VERIFIED",
+      "duration_ms": 70
+    },
+    {
+      "case": "seller_wrong_client_canary",
+      "kind": "SELLER",
+      "http_status": 401,
+      "current_product_code": "AUTH_DENIED",
+      "duration_ms": 50
+    },
+    {
+      "case": "seller_wrong_key_canary",
+      "kind": "SELLER",
+      "http_status": 401,
+      "current_product_code": "AUTH_DENIED",
+      "duration_ms": 51
+    },
+    {
+      "case": "performance_actual",
+      "kind": "PERFORMANCE",
+      "http_status": 200,
+      "json_object": true,
+      "response_field_names": [
+        "access_token",
+        "expires_in",
+        "token_type"
+      ],
+      "access_token_issued": true,
+      "bearer_type": true,
+      "positive_expiry": true,
+      "current_product_code": "IDENTITY_NOT_VERIFIED",
+      "duration_ms": 55
+    },
+    {
+      "case": "wb_actual",
+      "kind": "WB",
+      "http_status": 200,
+      "json_object": true,
+      "response_field_names": [
+        "country",
+        "name",
+        "sid",
+        "tin",
+        "tradeMark"
+      ],
+      "sid_uuid4": true,
+      "current_product_code": "CONNECTED",
+      "duration_ms": 68
+    }
+  ],
+  "production_changed": false,
+  "secrets_response_values_or_tokens_recorded": false
+}
+

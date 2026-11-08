@@ -1,0 +1,123 @@
+{
+  "scope": "CURRENT_CORE_AND_PRIVATE_CHECKER_ACTIVATION_NO_PLATFORM_DB_OR_CONFIG",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "inactive_core_prepared",
+      "passed": true
+    },
+    {
+      "case": "new_exact_core_manifest",
+      "passed": true
+    },
+    {
+      "case": "exact_integrated_core_qualified",
+      "passed": true
+    },
+    {
+      "case": "old_exact_core_manifest",
+      "passed": true
+    },
+    {
+      "case": "exact_old_launch_and_identity",
+      "passed": true
+    },
+    {
+      "case": "alice-market.service_actual_pid",
+      "passed": true
+    },
+    {
+      "case": "runtime_platform_uids",
+      "passed": true
+    },
+    {
+      "case": "fresh_free_reserve",
+      "passed": true
+    },
+    {
+      "case": "own_pointers_expected_foreign_versions_snapshotted",
+      "passed": true
+    },
+    {
+      "case": "owned_new_unit_and_overrides_absent",
+      "passed": true
+    },
+    {
+      "case": "owned_systemd_parents_secure",
+      "passed": true
+    },
+    {
+      "case": "new_socket_absent",
+      "passed": true
+    },
+    {
+      "case": "pinned_unit_source",
+      "passed": true
+    },
+    {
+      "case": "pinned_root_helper",
+      "passed": true
+    },
+    {
+      "case": "no_queued_or_running_jobs",
+      "passed": true
+    },
+    {
+      "case": "only_retained_own_group_reused",
+      "passed": true
+    },
+    {
+      "case": "exact_active_core_directory",
+      "passed": true
+    },
+    {
+      "case": "exact_new_launch_and_inherited_properties",
+      "passed": true
+    },
+    {
+      "case": "alice-market.service_actual_pid",
+      "passed": true
+    },
+    {
+      "case": "checker_unit_active",
+      "passed": true
+    },
+    {
+      "case": "socket_owner_group_mode",
+      "passed": true
+    },
+    {
+      "case": "gateway_access_metadata_preserved",
+      "passed": true
+    },
+    {
+      "case": "all_platform_pointers_preserved",
+      "passed": true
+    },
+    {
+      "case": "exact_integrated_source_still_present",
+      "passed": true
+    },
+    {
+      "case": "old_core_source_unchanged",
+      "passed": true
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-c8666516683e7b2b",
+    "site-current": "alisa-c8666516683e7b2b",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "created_group_gid": 982,
+  "retained_own_group_reused": true,
+  "active_core_directory": "/opt/alice-market/releases/20261106-store-check-6098-r1",
+  "inherited_profile_sha256": "7f5683b0bfe19a672b47c8f9a5b774075a7854874fcc0b2da76e104d0956417c",
+  "installed_unit_hashes": {
+    "/etc/systemd/system/alisa-store-check.service": "ef2583094d15b9690ded07e905018a13ba5a8f3c66ae19d667013b58ce502c2a",
+    "/etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzz-s05-store-check.conf": "b51473ef0eaba2283909a8d05dd840b30f24793fe6cda74933aa173f138ee395",
+    "/etc/systemd/system/alisa-platform@stage.service.d/s05-store-check.conf": "fafb3b668b2af79b6538f045626f31a97be500b1ce277d5f5fdfdb9b70374a25"
+  },
+  "integration_manifest_sha256": "170fc0c331b588615451c7073862f4a93b2a55729808a2d1dca642936a8af439"
+}
