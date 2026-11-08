@@ -158,6 +158,9 @@ class _HTTPSHandler(urllib.request.HTTPSHandler):
 def _read_body(response, budget, limit):
     chunks = bytearray()
     while len(chunks) <= limit:
+        budget.remaining()
+        if getattr(response, 'isclosed', lambda: False)():
+            break
         budget.prepare(budget.sock)
         chunk = response.read1(min(8192, limit + 1 - len(chunks)))
         if not chunk:
@@ -236,3 +239,4 @@ def read_response(request, *, timeout=25, limit=12000000, deadline=None, ssl_con
     if error is not None:
         raise error
     return result
+
