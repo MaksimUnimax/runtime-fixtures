@@ -190,6 +190,11 @@ function aggregateSellerWarehouses(warehouses, responses) {
   }
   if (byWarehouse.size !== names.size)
     return { status: "INCOMPLETE", reason: "MISSING_WAREHOUSE_RESPONSE" };
+  // COMPLETE exposes finite numeric totals; preserve all earlier diagnostics.
+  for (const total of byWarehouse.values()) {
+    if (!Number.isFinite(total))
+      return { status: "INCOMPLETE", reason: "INVALID_STOCK_ROW" };
+  }
   return {
     status: "COMPLETE",
     rows: [...byWarehouse]
@@ -339,6 +344,89 @@ for (const [warehouses, responses, reason] of [
     responses,
     { status: "INCOMPLETE", reason },
   );
+
+// This local DTO refinement adds no provider bound or new input admission rule.
+for (const [label, amounts, total] of [
+  ["single MAX", [Number.MAX_VALUE], Number.MAX_VALUE],
+  ["half MAX sum", [Number.MAX_VALUE / 2, Number.MAX_VALUE / 2], Number.MAX_VALUE],
+  ["MAX plus one", [Number.MAX_VALUE, 1], Number.MAX_VALUE],
+  ["wide ordered loss", [2 ** 53, 1, 1], 2 ** 53],
+  ["wide ordered retention", [1, 1, 2 ** 53], 9007199254740994],
+  ["explicit signed zeros", [-0, 0], 0],
+]) {
+  const responses = structuredClone(sellerCase.responses);
+  responses[0].stocks = amounts.map((amount, index) => ({
+    chrtId: index + 1,
+    amount,
+  }));
+  const rows = [
+    { warehouseId: 10, warehouseName: "Seller Fixture A", onHandUnits: total },
+    { warehouseId: 20, warehouseName: "Seller Fixture B", onHandUnits: 3 },
+  ];
+  assertSellerStockCase(
+    `STD-08 finite total preserves ${label}`,
+    sellerCase.warehouses,
+    responses,
+    { status: "COMPLETE", rows: total < 3 ? rows.reverse() : rows },
+  );
+}
+const overflowResponses = structuredClone(sellerCase.responses);
+overflowResponses[0].stocks = [
+  { chrtId: 1, amount: Number.MAX_VALUE },
+  { chrtId: 2, amount: Number.MAX_VALUE },
+];
+for (const responses of [overflowResponses, [...overflowResponses].reverse()])
+  assertSellerStockCase(
+    "STD-08 nonfinite total must not become successful JSON null",
+    sellerCase.warehouses,
+    responses,
+    invalidStockRow,
+  );
+assertSellerStockCase(
+  "STD-08 each warehouse may independently hold a finite MAX total",
+  sellerCase.warehouses,
+  sellerCase.responses.map((response) => ({
+    warehouseId: response.warehouseId,
+    stocks: [{ chrtId: 1, amount: Number.MAX_VALUE }],
+  })),
+  {
+    status: "COMPLETE",
+    rows: sellerCase.expected.map((row) => ({
+      ...row,
+      onHandUnits: Number.MAX_VALUE,
+    })),
+  },
+);
+for (const [label, warehouses, responses, reason] of [
+  ["missing response", sellerCase.warehouses, overflowResponses.slice(0, 1),
+    "MISSING_WAREHOUSE_RESPONSE"],
+  ["unknown later response", sellerCase.warehouses,
+    [...overflowResponses, { warehouseId: 999, stocks: [] }],
+    "WAREHOUSE_RESPONSE_MISMATCH"],
+  ["duplicate later response", sellerCase.warehouses,
+    [...overflowResponses, overflowResponses[0]], "WAREHOUSE_RESPONSE_MISMATCH"],
+  ["duplicate warehouse", [...sellerCase.warehouses, sellerCase.warehouses[0]],
+    overflowResponses, "DUPLICATE_WAREHOUSE_ID"],
+  ["invalid later row", sellerCase.warehouses,
+    [overflowResponses[0], { warehouseId: 20, stocks: [{ chrtId: 1, amount: -1 }] }],
+    "INVALID_STOCK_ROW"],
+])
+  assertSellerStockCase(
+    `STD-08 overflow preserves earlier diagnostic: ${label}`,
+    warehouses,
+    responses,
+    { status: "INCOMPLETE", reason },
+  );
+for (const stocks of [null, {}, [null]]) {
+  const responses = [overflowResponses[0], { warehouseId: 20, stocks }];
+  const before = structuredClone({ warehouses: sellerCase.warehouses, responses });
+  assert.throws(
+    () => aggregateSellerWarehouses(sellerCase.warehouses, responses),
+    TypeError,
+    "STD-08 overflow preserves later shape TypeError",
+  );
+  assert.deepEqual({ warehouses: sellerCase.warehouses, responses }, before);
+}
 
 console.log(
   JSON.stringify({
