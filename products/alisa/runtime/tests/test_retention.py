@@ -112,7 +112,10 @@ class RetentionTests(unittest.TestCase):
    with self.assertRaises(ValueError):retention.sweep(self.repo,n)
  def test_incremental_compaction(self):
   with sqlite3.connect(self.path) as c:
-   c.execute('PRAGMA auto_vacuum=INCREMENTAL');c.execute('VACUUM');c.execute('CREATE TABLE filler(x BLOB)');c.execute('INSERT INTO filler VALUES(zeroblob(2000000))');c.commit();c.execute('DROP TABLE filler')
+   c.execute('PRAGMA auto_vacuum=INCREMENTAL');c.execute('VACUUM');c.execute('CREATE TABLE filler(x BLOB)');c.execute('INSERT INTO filler VALUES(zeroblob(2000000))');c.commit();c.execute('DROP TABLE filler');c.commit()
+   # Compare main-file sizes only after publishing the fixture WAL. SQLite
+   # versions differ in automatic checkpoint timing; pending WAL is not compacted data.
+   self.assertEqual(c.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone()[0],0)
   before=self.path.stat().st_size
   r=retention.maintain(self.path);self.assertEqual(r['database']['auto_vacuum'],2);self.assertLess(self.path.stat().st_size,before)
  def test_existing_mode_zero_does_not_run_full_vacuum(self):
