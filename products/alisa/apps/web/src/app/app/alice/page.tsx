@@ -3,7 +3,7 @@ import {redirect} from 'next/navigation';
 import {getProfile,SESSION_COOKIE} from '../../../server/auth';
 import {aliceEnabled,getAlice} from '../../../server/alice-link';
 export const dynamic='force-dynamic';
-export const metadata={title:'Подключение Алисы',robots:{index:false,follow:false}};
+export const metadata={title:'Подключение Алисы',referrer:'same-origin',robots:{index:false,follow:false}};
 export default async function AlicePage({searchParams}:{searchParams:Promise<{notice?:string}>}){
   if(!aliceEnabled())redirect('/app');
   const token=(await cookies()).get(SESSION_COOKIE)?.value||'';

@@ -65,6 +65,7 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
         select=page.get_by_label('Приватность',exact=True)
         expect(select).to_have_value('on');select.select_option('off')
         page.get_by_role('button',name='Сохранить настройку',exact=True).click()
+        check('s06_actual_privacy_form_preserves_exact_site_origin',consent_origins[-1]==web_origin)
         expect(page.get_by_role('status')).to_have_text('Настройка сохранена.')
         check('s06_voice_privacy_saved_in_browser',page.get_by_label('Приватность',exact=True).input_value()=='off')
         refresh_started=time.monotonic()
