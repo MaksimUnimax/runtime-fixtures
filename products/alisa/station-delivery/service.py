@@ -25,6 +25,16 @@ def normalize(value):
     return ' '.join(value.lower().replace('ё', 'е').strip(' .!?').split())
 
 
+def internal_voice_command(value):
+    if not isinstance(value, str): return None
+    command = normalize(value)
+    matched = re.fullmatch(r'(?:спроси|попроси|запусти|открой)(?: навык)? октопорт маркет (доставка(?: .*)?|привязать колонку(?: .*)?)', command)
+    if matched: command = matched.group(1)
+    if command == 'доставка' or command.startswith('доставка '): return command
+    if command == 'привязать колонку' or command.startswith('привязать колонку '): return command
+    return None
+
+
 def validate_settings(value):
     if not isinstance(value, dict) or set(value) != set(DEFAULTS):
         raise Fault('settings_schema')
@@ -282,7 +292,8 @@ class Delivery:
                 self.state['job']['token_hash'] = data['token_hash']; self.save()
             if data['op'] == 'before':
                 if not isinstance(command, str) or len(command) > 1000: raise Fault('command_schema')
-                if command.startswith('доставка '):
+                command = internal_voice_command(command) or command
+                if command == 'доставка' or command.startswith('доставка '):
                     job = self.state['job']
                     code = ''.join(re.findall(r'\d', command[9:]))
                     if not match or not job or not settings['enabled'] or job.get('nonce_until', 0) < self.clock() or job.get('nonce_generation') != self.state['generation'] or not hmac.compare_digest(job.get('nonce', '-'), code):
@@ -454,6 +465,11 @@ class Registry:
             bound=[d for d in self.users.values() if d.state['binding'] and (d.state['binding']['tenant'],d.state['binding']['application'])==identity]
             if len(bound)>1:return {'error':'ambiguous_station_binding'}
             command=data.get('command','')
+            internal=internal_voice_command(command) if data.get('op')=='before' else None
+            if internal:
+                data=dict(data,command=internal); command=internal
+                if internal == 'доставка' or internal.startswith('доставка '):
+                    return bound[0].ingress(data) if bound else {'reply':'Этот автоматический ответ больше недоступен.'}
             if data.get('op')=='before' and isinstance(command,str) and command.startswith('привязать колонку'):
                 code=''.join(re.findall(r'\d',command[len('привязать колонку'):]))
                 marker=identity
@@ -554,14 +570,21 @@ class Ingress(socketserver.ThreadingUnixStreamServer):
     daemon_threads = True
 class IngressHandler(socketserver.StreamRequestHandler):
     def handle(self):
+        data = None
         try:
             self.request.settimeout(.5)
             uid = struct.unpack('3i', self.request.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
             if uid != os.geteuid(): raise Fault('peer_denied')
             raw = self.rfile.readline(16001)
             if len(raw) > 16000 or not raw.endswith(b'\n'): raise Fault('ingress_size')
-            result = self.server.delivery.ingress(json.loads(raw))
-        except Exception: result = {'error':'delivery_unavailable'}
+            data = json.loads(raw)
+            result = self.server.delivery.ingress(data)
+        except Exception as exc:
+            print('station ingress failure', type(exc).__name__, getattr(exc, 'code', ''), flush=True)
+            if isinstance(data, dict) and data.get('op') == 'before' and internal_voice_command(data.get('command')):
+                result = {'reply':'Автоматический ответ сейчас недоступен. Повторите исходный запрос.'}
+            else:
+                result = {'error':'delivery_unavailable'}
         try: self.wfile.write(json.dumps(result, ensure_ascii=False).encode()+b'\n')
         except OSError: pass
 
