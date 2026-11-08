@@ -37,7 +37,7 @@ class DeliveryTests(unittest.TestCase):
     def test_pending_at_10_not_before(self):
         self.after();self.now+=9;self.core.tick();self.assertFalse(self.launches())
         self.now+=1;self.core.tick();self.assertEqual(len(self.launches()),1)
-        self.assertIn(DEFAULTS['pending_messages'][0],json.dumps(self.client.calls,ensure_ascii=False))
+        self.assertIn('Ориентировочно осталось около 50 секунд.',json.dumps(self.client.calls,ensure_ascii=False))
     def test_ready_before_10_no_result_in_scenario(self):
         self.after();self.result={'state':'READY','text':'Секретная сумма 123'};self.now+=1;self.core.tick()
         self.assertEqual(len(self.launches()),1)
@@ -49,12 +49,12 @@ class DeliveryTests(unittest.TestCase):
         for t in (1019,1020,1039,1040): self.now=t;self.core.tick()
         texts=[x[2] for x in self.client.calls if x[2]]
         self.assertIn('Первое.',json.dumps(texts[0],ensure_ascii=False));self.assertIn('Второе.',json.dumps(texts[1],ensure_ascii=False));self.assertEqual(len(self.launches()),2)
-    def test_pending_repetitions_bounded_ready_still_automatic(self):
+    def test_pending_repetitions_with_eta_ready_still_automatic(self):
         self.after()
         for t in (1010,1020,1030,1040,1050,1060):self.now=t;self.core.tick()
-        self.assertEqual(len(self.launches()),3)
+        self.assertEqual(len(self.launches()),6)
         self.result={'state':'READY','text':'Готовый отчёт'};self.now=1061;self.core.tick()
-        self.assertEqual(len(self.launches()),4)
+        self.assertEqual(len(self.launches()),7)
     def test_disable_keeps_manual(self):
         self.settings(enabled=False,manual_command='покажи ответ');self.after();self.now+=11;self.result={'state':'READY','text':'Ответ'};self.core.tick()
         self.assertFalse(self.launches());self.assertEqual(self.before('покажи ответ')['reply'],'Ответ')
@@ -98,13 +98,13 @@ class DeliveryTests(unittest.TestCase):
         self.client.hook=hook;self.core.tick();self.assertFalse(self.launches())
         self.assertFalse(self.core.state['uncertain'])
     def test_manual_pending_keeps_automatic_delivery(self):
-        self.after();self.assertEqual(self.before('результат')['reply'],'Расчёт ещё выполняется.')
+        self.after();self.assertIn('Ориентировочно осталось около минуты.',self.before('результат')['reply'])
         self.assertEqual(self.core.state['job']['delivery'],'waiting')
         self.result={'state':'READY','text':'Ответ'};self.now+=1;self.core.tick();self.assertEqual(len(self.launches()),1)
     def test_final_after_old_fifteen_minute_window(self):
         self.after();self.now+=901;self.core.state['job']['message']=3
         self.core.tick();self.assertEqual(self.core.state['job']['delivery'],'waiting')
-        self.result={'state':'READY','text':'Ответ'};self.core.tick();self.assertEqual(len(self.launches()),1)
+        self.result={'state':'READY','text':'Ответ'};self.core.tick();self.assertEqual(len(self.launches()),2)
     def test_new_job_before_launch(self):
         self.after();self.now+=10
         self.client.hook=lambda m,p:self.after('job2')
