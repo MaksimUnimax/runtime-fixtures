@@ -174,13 +174,16 @@ function aggregateSellerWarehouses(warehouses, responses) {
     )
       return { status: "INCOMPLETE", reason: "WAREHOUSE_RESPONSE_MISMATCH" };
     let total = 0;
+    const seenSizes = new Set();
     for (const row of response.stocks) {
       if (
         !Number.isInteger(row.chrtId) ||
         !Number.isInteger(row.amount) ||
-        row.amount < 0
+        row.amount < 0 ||
+        seenSizes.has(row.chrtId)
       )
         return { status: "INCOMPLETE", reason: "INVALID_STOCK_ROW" };
+      seenSizes.add(row.chrtId);
       total += row.amount;
     }
     byWarehouse.set(response.warehouseId, total);
@@ -233,6 +236,109 @@ assert.deepEqual(
   { status: "INCOMPLETE", reason: "MISSING_WAREHOUSE_RESPONSE" },
   "missing seller-warehouse data must not become zero stock",
 );
+
+function assertSellerStockCase(label, warehouses, responses, expected) {
+  const before = structuredClone({ warehouses, responses });
+  const actual = aggregateSellerWarehouses(warehouses, responses);
+  assert.deepEqual(actual, expected, label);
+  assert.deepEqual({ warehouses, responses }, before, `${label}: input mutated`);
+}
+
+const invalidStockRow = { status: "INCOMPLETE", reason: "INVALID_STOCK_ROW" };
+for (const duplicateAmount of [4, 99]) {
+  const rows = [
+    { chrtId: 1001, amount: 4 },
+    { chrtId: 1002, amount: 6 },
+    { chrtId: 1001, amount: duplicateAmount },
+  ];
+  for (const [a, b, c] of [
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+    [2, 1, 0],
+  ]) {
+    const responses = structuredClone(sellerCase.responses);
+    responses[0].stocks = [rows[a], rows[b], rows[c]];
+    for (const ordered of [responses, [...responses].reverse()])
+      assertSellerStockCase(
+        "STD-08 duplicate FBS cell must not inflate a warehouse total",
+        sellerCase.warehouses,
+        ordered,
+        invalidStockRow,
+      );
+  }
+}
+assertSellerStockCase(
+  "STD-08 same size in different warehouses is two distinct cells",
+  sellerCase.warehouses,
+  [
+    { warehouseId: 10, stocks: [{ chrtId: 1001, amount: 0 }] },
+    { warehouseId: 20, stocks: [{ chrtId: 1001, amount: 3 }] },
+  ],
+  {
+    status: "COMPLETE",
+    rows: [
+      { warehouseId: 20, warehouseName: "Seller Fixture B", onHandUnits: 3 },
+      { warehouseId: 10, warehouseName: "Seller Fixture A", onHandUnits: 0 },
+    ],
+  },
+);
+assertSellerStockCase(
+  "STD-08 baseline and descending warehouse order preserved",
+  sellerCase.warehouses,
+  [...sellerCase.responses].reverse(),
+  { status: "COMPLETE", rows: sellerCase.expected },
+);
+for (const value of [-1, 0.5, NaN, Infinity, "4", null, undefined]) {
+  const responses = structuredClone(sellerCase.responses);
+  responses[0].stocks[0].amount = value;
+  assertSellerStockCase(
+    "STD-08 invalid stock amount remains incomplete",
+    sellerCase.warehouses,
+    responses,
+    invalidStockRow,
+  );
+}
+for (const value of [0.5, NaN, Infinity, "1001", null, undefined]) {
+  const responses = structuredClone(sellerCase.responses);
+  responses[0].stocks[0].chrtId = value;
+  assertSellerStockCase(
+    "STD-08 invalid size identity remains incomplete",
+    sellerCase.warehouses,
+    responses,
+    invalidStockRow,
+  );
+}
+for (const [warehouses, responses, reason] of [
+  [
+    [...sellerCase.warehouses, sellerCase.warehouses[0]],
+    sellerCase.responses,
+    "DUPLICATE_WAREHOUSE_ID",
+  ],
+  [
+    sellerCase.warehouses,
+    [...sellerCase.responses, sellerCase.responses[0]],
+    "WAREHOUSE_RESPONSE_MISMATCH",
+  ],
+  [
+    sellerCase.warehouses,
+    [{ warehouseId: 999, stocks: [] }, ...sellerCase.responses],
+    "WAREHOUSE_RESPONSE_MISMATCH",
+  ],
+  [
+    sellerCase.warehouses,
+    sellerCase.responses.slice(1),
+    "MISSING_WAREHOUSE_RESPONSE",
+  ],
+])
+  assertSellerStockCase(
+    "STD-08 warehouse admission preserved",
+    warehouses,
+    responses,
+    { status: "INCOMPLETE", reason },
+  );
 
 console.log(
   JSON.stringify({
