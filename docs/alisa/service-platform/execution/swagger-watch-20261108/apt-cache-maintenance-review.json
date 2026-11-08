@@ -1,0 +1,34 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_APT_CACHE_MAINTENANCE_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "HOLD_ASSERTS_GUARD_DESTRUCTIVE_OPERATION",
+  "scope": "Read-only source review. Script was not executed; no target-host/provider/DB/browser calls or provider credential/config reads.",
+  "script": "docs/alisa/service-platform/execution/swagger-watch-20261108/apt-cache-maintenance.py",
+  "script_sha256": "6f3fc9f99ab49306d1ca0c8e72a8bfcc1fcf89bec5820b840a2bd6a976da1b33",
+  "blocking_finding": {
+    "id": "PYTHON_ASSERT_OPTIMIZATION_BYPASSES_CACHE_DELETE_GUARDS",
+    "severity": "BLOCKER",
+    "detail": "Every critical guard is expressed with `assert`, including root/config/receipt preconditions, apt/dpkg process exclusion, cache regular-file/root-owner/single-link/size checks, effective apt-config verification, unchanged cache identity/metadata checks, dpkg status equality, the 3 GiB free-space floor, and the inode floor. Python removes assert statements when optimization is enabled (`-O`/`-OO`, including PYTHONOPTIMIZE). The script neither checks nor neutralizes that interpreter mode, so a valid invocation under an optimized Python can skip safety checks immediately before unlinking the two cache paths.",
+    "required_resolution": "Replace destructive-operation and admission `assert` statements with explicit conditional checks that raise on failure. Do not rely only on an assert that checks sys.flags.optimize. At minimum keep cache identity/type/owner/link-count/size, apt-config values, concurrent-process exclusion, dpkg status equality, and postcondition resource floors unconditional."
+  },
+  "reviewed_design_if_blocker_fixed": {
+    "intended_mutation_scope": "A single newly created apt.conf.d file disables only the two regenerable binary cache indices; deletion is limited to /var/cache/apt/pkgcache.bin and srcpkgcache.bin. APT lists and package archives are counted/preserved.",
+    "locking": "The script attempts nonblocking POSIX locks on the APT lists/archive and dpkg frontend/backend lock paths before scanning processes or touching files.",
+    "cache_checks": "It lstat-checks both cache entries, hashes and records size, verifies they remain unchanged immediately before unlink, and records before/after free bytes/inodes and dpkg status hash.",
+    "audit": "It writes a one-shot receipt with exact paths, sizes, hashes, status hashes, and free-space values."
+  },
+  "additional_review_notes": [
+    "Because the current script is blocked, its claimed process/type/owner/floor safeguards are not considered effective until converted from assert to unconditional checks.",
+    "The script also does not lstat/validate the receipt directory chain before writing its exclusive receipt; consider asserting it is the expected root-owned private directory as defense in depth. This is secondary to the optimization blocker."
+  ],
+  "deployment_gate": "Do not execute this version. Re-review the exact revised script after all deletion/admission checks no longer depend on assert and the receipt directory is verified before mutation.",
+  "reviewer_actions": {
+    "script_executed": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "provider_credentials_read": false
+  }
+}

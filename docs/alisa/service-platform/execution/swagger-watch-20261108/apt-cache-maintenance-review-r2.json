@@ -1,0 +1,34 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_APT_CACHE_MAINTENANCE_REVIEW_R2",
+  "date": "2026-11-08",
+  "verdict": "PASS_SOURCE_REVIEW",
+  "scope": "Read-only review of exact R2 resource-repair script. No execution, tests, target-host/provider/DB/browser calls, or credential/config-value reads.",
+  "script": "docs/alisa/service-platform/execution/swagger-watch-20261108/apt-cache-maintenance.py",
+  "script_sha256": "bbe2bf56291a46909f15d8cbd7218c93119fd42bf62449fa97a9f018daef0a28",
+  "prior_r1_hold_sha256": "70f0c04273c225fd47d8075ec0aa6e08dee878a0ca30c954a3cea9a590fd4911",
+  "prior_r2_assert_hold_sha256": "70f0c04273c225fd47d8075ec0aa6e08dee878a0ca30c954a3cea9a590fd4911",
+  "reviewed_safeguards": {
+    "assert_optimization_bypass": "RESOLVED: all critical checks use explicit require(condition, code) and remain active under optimized Python; no assert statements remain.",
+    "receipt_durability_before_mutation": "RESOLVED: the expected root-owned, mode-restricted directory chain is lstat-validated; the receipt is created exclusively with O_CREAT|O_EXCL|O_NOFOLLOW and mode 0600, initial FAILED record is flushed/fsynced, and the containing directory is fsynced before locks/config/cache changes.",
+    "mutation_progress": "PASS: before each unlink the exact cache path is recorded as next_cache_to_remove and persisted; after unlink, removed list is updated and persisted. A crash leaves a precreated receipt that identifies whether removal was pending or completed.",
+    "apt_configuration": "PASS: only a previously absent named apt.conf.d file is created with pkgcache and srcpkgcache set to empty values, then apt-config dump is checked for both effective settings before either cache unlink.",
+    "cache_scope": "PASS: exactly two fixed /var/cache/apt binary cache paths are considered. Each is lstat-checked regular, root-owned, single-link and bounded in size; device/inode/size/mtime are rechecked immediately before unlink. APT lists and package archives are retained.",
+    "apt_and_dpkg_exclusion": "PASS: nonblocking POSIX locks are acquired for APT lists/archive and dpkg frontend/backend lock paths; a process scan also rejects known apt/dpkg/unattended-upgrade executable names.",
+    "postconditions": "PASS: dpkg status SHA must remain identical and post-removal free space/inodes must meet 3 GiB and 200,000 floors before receipt result becomes PASS."
+  },
+  "remaining_limitations": [
+    "The operation is deliberately one-shot: a pre-mutation lock contention or other failed attempt still produces the exclusive receipt, so a retry requires a separately reviewed process rather than silently rerunning over history.",
+    "Filesystem power-loss durability for the config/cache directory entries is not fully guaranteed because their containing directories are not fsynced after each create/unlink; the receipt itself is fsynced. This is not a blocker for the requested bounded live operation, but a crash-consistency enhancement could fsync those directory descriptors."
+  ],
+  "deployment_gate": "No source blocker remains for the bounded repair when invoked by the reported isolated `/usr/bin/python3 -I` runner. Preserve R1 HOLD and R2 HOLD as historical receipts; this PASS applies only to the exact R2 SHA above. Post-run acceptance still requires the operator's receipt to show both intended cache removals, apt-config readback, unchanged dpkg status, and resource floors.",
+  "reviewer_actions": {
+    "script_executed": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "credential_values_read": false,
+    "apt_config_values_read": false
+  }
+}

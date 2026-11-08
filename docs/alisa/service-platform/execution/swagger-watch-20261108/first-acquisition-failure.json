@@ -1,0 +1,17 @@
+{
+  "invocation": "f82128ef5245470893e05e8c8e3009c8",
+  "observed_exit_status": 1,
+  "diagnosis": "DISK_RESERVE",
+  "diagnosis_basis": "CLI deliberately logs only ALISA_SWAGGER_WATCH_FAILED. Independently measured free3144638464 < immutable3221225472bytes floor; source save() unconditionally calls reserve() before saving next document metadata. After the independently reviewed APT binary-index repair the same installed source completed successfully.",
+  "journal_excerpt": [
+    "2026-11-08T06:08:16+00:00 Alisa systemd[1]: alisa-swagger-watch.service: RuntimeMaxSec= has no effect in combination with Type=oneshot. Ignoring.",
+    "2026-11-08T06:08:16+00:00 Alisa systemd[1]: alisa-swagger-watch.service: RuntimeMaxSec= has no effect in combination with Type=oneshot. Ignoring.",
+    "2026-11-08T06:08:18+00:00 Alisa systemd[1]: alisa-swagger-watch.service: RuntimeMaxSec= has no effect in combination with Type=oneshot. Ignoring.",
+    "2026-11-08T06:08:18+00:00 Alisa systemd[1]: Starting alisa-swagger-watch.service - Alisa official Swagger acquisition and drift monitoring...",
+    "2026-11-08T06:08:19+00:00 Alisa entry.sh[291362]: ALISA_SWAGGER_WATCH_FAILED",
+    "2026-11-08T06:08:19+00:00 Alisa systemd[1]: alisa-swagger-watch.service: Main process exited, code=exited, status=1/FAILURE",
+    "2026-11-08T06:08:19+00:00 Alisa systemd[1]: alisa-swagger-watch.service: Failed with result 'exit-code'.",
+    "2026-11-08T06:08:19+00:00 Alisa systemd[1]: Failed to start alisa-swagger-watch.service - Alisa official Swagger acquisition and drift monitoring."
+  ],
+  "note": "DISK_RESERVE is the operator diagnosis from filesystem measurement and source guard; it is not an exception string leaked to journald."
+}

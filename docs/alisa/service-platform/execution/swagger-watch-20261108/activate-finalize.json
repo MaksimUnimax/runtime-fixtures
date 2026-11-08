@@ -1,0 +1,161 @@
+{
+  "scope": "ISOLATED_SWAGGER_ONLY_NO_EXISTING_PRODUCT_RESTART_OR_DB_MUTATION",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "fresh_receipt",
+      "passed": true
+    },
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_candidate",
+      "passed": true
+    },
+    {
+      "case": "private_prepare.json",
+      "passed": true
+    },
+    {
+      "case": "private_baseline.json",
+      "passed": true
+    },
+    {
+      "case": "prepared_exact_source",
+      "passed": true
+    },
+    {
+      "case": "baseline_unchanged",
+      "passed": true
+    },
+    {
+      "case": "private_package",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "bounded_exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "manifest_binding",
+      "passed": true
+    },
+    {
+      "case": "all_payload_hashes",
+      "passed": true
+    },
+    {
+      "case": "inactive_payload_exact",
+      "passed": true
+    },
+    {
+      "case": "private_owner-document-review.json",
+      "passed": true
+    },
+    {
+      "case": "independently_reviewed_owner_document",
+      "passed": true
+    },
+    {
+      "case": "private_activate-resume.json",
+      "passed": true
+    },
+    {
+      "case": "known_partial_activation",
+      "passed": true
+    },
+    {
+      "case": "partial_service_identity_exact",
+      "passed": true
+    },
+    {
+      "case": "partial_owner_input_regular_private",
+      "passed": true
+    },
+    {
+      "case": "partial_state_exact",
+      "passed": true
+    },
+    {
+      "case": "reviewed_index_regular_private",
+      "passed": true
+    },
+    {
+      "case": "known_reviewed_only_state",
+      "passed": true
+    },
+    {
+      "case": "partial_units_exact_and_inactive",
+      "passed": true
+    },
+    {
+      "case": "owned_release_directory_alisa-swagger-watch",
+      "passed": true
+    },
+    {
+      "case": "owned_release_directory_releases",
+      "passed": true
+    },
+    {
+      "case": "owned_release_directory_7cbe3059a83677ae",
+      "passed": true
+    },
+    {
+      "case": "actual_service_uid_can_load_candidate",
+      "passed": true
+    },
+    {
+      "case": "reviewed_document_without_false_freshness",
+      "passed": true
+    },
+    {
+      "case": "read_only_status_running",
+      "passed": true
+    },
+    {
+      "case": "nginx_still_exact",
+      "passed": true
+    },
+    {
+      "case": "existing_own_route_backup_exact",
+      "passed": true
+    },
+    {
+      "case": "public_swagger_status_only",
+      "passed": true
+    },
+    {
+      "case": "all_existing_product_services_and_configs_preserved",
+      "passed": true
+    },
+    {
+      "case": "existing_components_still_ready",
+      "passed": true
+    }
+  ],
+  "phase": "ACTIVATED",
+  "source_sha": "7cbe3059a83677aeb42a086898a48067918f16a2",
+  "new_uid": 987,
+  "new_gid": 981,
+  "public_status_url": "https://alisa.octoport.ru/health/swagger",
+  "nginx_before_sha256": "4406eddfae11e88706f03929f401bf27ea58b146f38fd6dc2f9573b4d6a0b5b1",
+  "nginx_after_sha256": "d8ea08e5921cc7962c4ba5530205bfd4958e963a59d6f7742fbb2b5c4daed586",
+  "existing_product_services_preserved": true,
+  "db_mutations": false,
+  "owner_login": "NOT_RUN",
+  "profiles": {
+    "alisa-swagger-watch.service": "TimeoutStartUSec=7min\nTimeoutStopUSec=5s\nRuntimeMaxUSec=7min\nMemoryMax=536870912\nMemorySwapMax=0\nTasksMax=64\nKillMode=control-group\nActiveState=activating\nSubState=start\nInvocationID=f82128ef5245470893e05e8c8e3009c8",
+    "alisa-swagger-watch.timer": "ActiveState=active\nSubState=running\nInvocationID=87673d70ab7145e9984d2fb2c5f43cff",
+    "alisa-swagger-status.service": "TimeoutStartUSec=1min 30s\nTimeoutStopUSec=5s\nRuntimeMaxUSec=infinity\nMemoryMax=134217728\nMemorySwapMax=0\nTasksMax=32\nKillMode=control-group\nActiveState=active\nSubState=running\nInvocationID=bd8e0d6520db4a68b777d391e55c5a53"
+  }
+}

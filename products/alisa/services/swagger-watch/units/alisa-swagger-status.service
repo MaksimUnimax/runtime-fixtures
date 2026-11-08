@@ -1,0 +1,33 @@
+[Unit]
+Description=Alisa read-only public Swagger monitoring status
+After=network.target
+
+[Service]
+Type=simple
+User=alisa-swagger-watch
+Group=alisa-swagger-watch
+WorkingDirectory=/opt/alisa-swagger-watch/current
+ExecStart=/opt/alisa-swagger-watch/current/entry.sh serve
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=5
+KillMode=control-group
+MemoryMax=128M
+MemorySwapMax=0
+TasksMax=32
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadOnlyPaths=/var/lib/alisa-swagger-watch
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

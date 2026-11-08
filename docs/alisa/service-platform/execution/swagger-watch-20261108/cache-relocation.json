@@ -1,0 +1,16 @@
+{
+  "scope": "OWN_UNUSED_INTERMEDIATE_CACHE_RELOCATION_ONLY",
+  "status": "PASS",
+  "removed_local_cache_name": "package.zip",
+  "sha256": "482bdbd86ce03f06990638651167a48f0347b3afa1cae2859c6ca8fc1c38f469",
+  "bytes": 395881,
+  "active_consumers": false,
+  "retained_archive_device": "Easyscript",
+  "retained_archive_path": "/var/lib/octoport-monitor/alisa-swagger-build-20261108/retained-ci-d259-package.zip",
+  "retained_archive_sha_verified": true,
+  "github_artifact_id": 13605118771,
+  "free_bytes_before": 3269623808,
+  "free_bytes_after": 3270021120,
+  "old_releases_or_backups_deleted": 0,
+  "mandatory_floor_changed": false
+}

@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-08",
+  "scope": "READ_ONLY_PUBLIC_OFFICIAL_SOURCE_SEARCH",
+  "question": "Find a documented official machine-readable Ozon export available without owner actions",
+  "sources": [
+    {
+      "url": "https://dev.ozon.ru/community/665-Gde-swagger-json-dlia-Seller-API/",
+      "authority": "Official Ozon developer site; moderator response",
+      "published": "2023-12-14",
+      "finding": "Moderator directs readers to the Seller documentation page and browser Network to obtain the current Swagger. It does not publish a separate automated feed in the visible reply."
+    },
+    {
+      "url": "https://dev.ozon.ru/community/2276-Ofitsialnyi-machine-readable-OpenAPI-Swagger-export-dlia-Ozon-Seller-API/",
+      "authority": "Official Ozon developer site; unanswered community question, not an official answer",
+      "published": "2026-07-19",
+      "finding": "A similar question asks for an official export/version/checksum/Postman URL. The retrieved page has no answer. It cannot prove that no export exists."
+    }
+  ],
+  "result": "NO_ADDITIONAL_DOCUMENTED_MACHINE_FEED_FOUND_IN_THIS_CHECK",
+  "server_observation": "The registered official Seller and Performance JSON URLs returned an access-control redirect loop (307); ordinary unauthenticated browser previously ended at403. The installed watcher retains the explicit blocked status and24h backoff.",
+  "limitations": "This search is not proof of impossibility or absence of other official exports. No guessed paths, anti-bot bypass, proxy/identity rotation, account session, CAPTCHA solving, or provider credentials were used. No owner action is requested."
+}
