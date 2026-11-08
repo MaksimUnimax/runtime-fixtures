@@ -1,0 +1,26 @@
+{
+  "scope": "OWN_INACTIVE_B8_DEPENDENCIES_NO_ACTIVE_INODES",
+  "status": "FAILED",
+  "applied_links": 0,
+  "paths_removed": 0,
+  "active_inodes_touched": 0,
+  "cases": [
+    {
+      "case": "fresh_receipt_and_bounded_repair_metadata",
+      "passed": true
+    },
+    {
+      "case": "private_root_backup_parent",
+      "passed": true
+    },
+    {
+      "case": "target_inactive",
+      "passed": true
+    },
+    {
+      "case": "exact_owned_inactive_target_manifest",
+      "passed": false
+    }
+  ],
+  "error_type": "RuntimeError"
+}

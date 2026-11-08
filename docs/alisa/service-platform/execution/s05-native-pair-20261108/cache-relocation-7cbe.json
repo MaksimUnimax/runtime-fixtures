@@ -1,0 +1,19 @@
+{
+  "scope": "OWN_UNUSED_DOWNLOAD_CACHE_RELOCATED_EXACT_BYTES_RETAINED",
+  "sha256": "47aa17a90b336c102bf4c4d1e82cbdb665db9af40654a61b78614ec80bc5b489",
+  "bytes": 395896,
+  "source_path": "/var/lib/alisa-platform/stage/rollout-backups/swagger-watch-20261108/package-7cbe3059a83677ae.zip",
+  "retained_device": "Easyscript",
+  "retained_path": "/var/lib/octoport-monitor/alisa-swagger-build-20261108/retained-ci-7cbe-package.zip",
+  "retained_hash_readback_verified": true,
+  "active_consumer": false,
+  "source_metadata": {
+    "uid": 0,
+    "gid": 0,
+    "mode": 384,
+    "mtime_ns": 1794116898621213697
+  },
+  "free_before": 3222396928,
+  "production_releases_or_unique_archives_removed": 0,
+  "free_after": 3222790144
+}

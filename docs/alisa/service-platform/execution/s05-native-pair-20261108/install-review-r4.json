@@ -1,0 +1,16 @@
+{
+  "review": "INDEPENDENT_INSTALL_R4_DELTA_REVIEW",
+  "source": "docs/alisa/service-platform/execution/s05-native-pair-20261108/install-r4.py",
+  "source_sha256": "d5eb0f15d07586cb1bcf66b734fe20cf4e505b2ee0759cf34621a3aaf6c1a041",
+  "prior_review": "install-review-r3.json",
+  "result": "PASS_WITH_BOUNDED_SCOPE",
+  "scope": "Static source review only. No installer execution, tests, host/provider/database/browser calls, or credential reads were performed.",
+  "resume_guard": "The R4 path requires the recorded prior activation receipt to show FAILED with CalledProcessError and the exact own rollback marker; it also requires the owned drop-in to be absent. It checks the prepared snapshot across all fields except the checker launch identity that necessarily changed during the failed restart, then confirms the checker is back on the original argv and WorkingDirectory and that the original store_checker.py hash is unchanged. The new receipt path is activate-r4.json, preserving the earlier activation receipt.",
+  "native_group_delta": "The added checker supplementary GID is derived from the actual root-owned native runtime config file's group. The code requires a root-owned config file with no group/other write or other permissions, requires that GID to equal the native service user's primary GID, and resolves it to a real group. The group is added only to alisa-store-check.service; the platform service is not changed. Existing inaccessible paths remain, the backup config remains masked, and only the one Ozon systemd credential is aliased read-only.",
+  "rollback": "The R3 signal-safe drop-in inode tracking and pre-armed API pointer recovery remain present. Resume uses only the already prepared overlay and binding projection; it does not regenerate projection or modify native core, credentials, database, or unrelated pointers.",
+  "blockers": [],
+  "limitations": [
+    "The passing source review does not establish that the resumed live operation succeeds or that a customer card transitions; the runtime peer probe and post-switch readiness checks remain necessary gates.",
+    "The original R2 HOLD and R3 PASS receipts remain unchanged. The resource helper remains NOT APPLIED and outside this review."
+  ]
+}

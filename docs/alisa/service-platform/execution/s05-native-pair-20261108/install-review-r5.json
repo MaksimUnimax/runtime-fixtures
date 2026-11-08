@@ -1,0 +1,19 @@
+{
+  "review": "INDEPENDENT_INSTALL_R5_DELTA_REVIEW",
+  "source": "docs/alisa/service-platform/execution/s05-native-pair-20261108/install-r5.py",
+  "source_sha256": "ec75e6016fffc43ba431e8810880f2537fc4d288cfa5ebe67a7bc8c0d2756ff0",
+  "prior_review": "install-review-r4.json",
+  "result": "PASS_WITH_BOUNDED_SCOPE",
+  "scope": "Static source delta review only. No script, host, provider, database, browser, or credential operation was performed.",
+  "delta_assessment": {
+    "systemd_execstart_normalization": "The helper normalizes only lines beginning ExecStart= and strips only the transient suffix beginning ' ; ignore_errors='. Other systemctl-show lines, including MainPID, InvocationID, WorkingDirectory, User, Group, and SupplementaryGroups, remain part of the equality check. The exact ExecStart path/argv prefix is retained and compared before rebasing the prepared snapshot to the current daemon-reload rendering.",
+    "resume_and_rollback": "The prior owned FAILED/rollback receipt, absent drop-in, original checker argv/WorkingDirectory/store_checker hash, prepared immutable artifacts, and protected snapshots remain required. R4's validated native config group and R3's signal-safe inode/pointer rollback remain unchanged. The new attempt writes activate-r5.json, leaving earlier receipts intact.",
+    "scope": "No product source/package changes are introduced by this procedure delta. The existing checker-only group, single credential/config aliases, API-only pointer switch, and 3 GiB resource floor remain unchanged."
+  },
+  "blockers": [],
+  "limitations": [
+    "The approval covers only this script source and its stated bounded resume. It does not assert live success, customer-store promotion, or browser flow.",
+    "A finite runner must still provide enough stop grace for bounded rollback; SIGKILL and external service-manager failure cannot be recovered by the script.",
+    "The abandoned resource helper remains NOT_APPLIED and outside this review."
+  ]
+}
