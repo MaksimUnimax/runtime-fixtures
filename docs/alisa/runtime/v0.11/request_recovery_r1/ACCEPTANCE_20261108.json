@@ -1,0 +1,148 @@
+{
+  "schema": "alisa-recovery-acceptance/v1",
+  "installed_runtime": "alisa-request-recovery-r5-20261108",
+  "installed_station": "station-auto-r7-recovery",
+  "source_commit": "da5793a539082537d4b05cbf32e81d261300283c",
+  "tests": {
+    "runtime": {
+      "passed": 1217,
+      "total": 1217,
+      "seconds": 107.639
+    },
+    "dataset": {
+      "passed": 87,
+      "total": 87,
+      "seconds": 9.846
+    },
+    "deadline_fixture_final": {
+      "passed": 8,
+      "total": 8,
+      "seconds": 5.571
+    },
+    "station": {
+      "passed": 43,
+      "total": 43
+    },
+    "independent_business_projection": {
+      "passed": 45,
+      "total": 45
+    }
+  },
+  "live": [
+    {
+      "request": "fbs_posting_list",
+      "state": "READY",
+      "error": null,
+      "route": "DIRECT_READ_METHOD",
+      "seconds": 4.28,
+      "pages": 1,
+      "calls": [
+        {
+          "source": "ozon",
+          "state": "RECEIVED",
+          "http": 200,
+          "count": 1
+        }
+      ],
+      "answer_sha256": "3aac1fbb3bddcf426c09b570bec826d7bf94f996696bdcfe205a47430171d464"
+    },
+    {
+      "request": "Обнови сводка заказов за вчера на Озоне",
+      "state": "READY",
+      "error": null,
+      "route": "P1",
+      "seconds": 4.52,
+      "pages": 1,
+      "calls": [
+        {
+          "source": "ozon",
+          "state": "RECEIVED",
+          "http": 200,
+          "count": 1
+        }
+      ],
+      "answer_sha256": "919f408ee4858cc4ee52a6197a4658f52563bde38470e1f7045da681ada0bf28"
+    },
+    {
+      "request": "Обнови какие акции доступны сейчас на Вайлдберриз",
+      "state": "READY",
+      "error": null,
+      "route": "UNIVERSAL_READ",
+      "seconds": 36.2,
+      "pages": 2,
+      "calls": [
+        {
+          "source": "model",
+          "state": "RECEIVED",
+          "http": 200,
+          "count": 4
+        },
+        {
+          "source": "wb",
+          "state": "RECEIVED",
+          "http": 200,
+          "count": 1
+        },
+        {
+          "source": "wb",
+          "state": "RECEIVED",
+          "http": 200,
+          "count": 1
+        }
+      ],
+      "answer_sha256": "b6d8f962338a0b56bc9888ffbbd91a977799e583dc9dd61033d1cbb5f6f99a11"
+    },
+    {
+      "request": "Обнови в каких акциях участвуют мои товары на Озоне",
+      "state": "READY",
+      "error": null,
+      "route": "UNIVERSAL_READ",
+      "seconds": 40.23,
+      "pages": 2,
+      "calls": [
+        {
+          "source": "model",
+          "state": "RECEIVED",
+          "http": 200,
+          "count": 5
+        },
+        {
+          "source": "ozon",
+          "state": "RECEIVED",
+          "http": 200,
+          "count": 1
+        },
+        {
+          "source": "ozon",
+          "state": "RECEIVED",
+          "http": 200,
+          "count": 1
+        }
+      ],
+      "answer_sha256": "590f8cc858bfbe7d3422a8dcff9b439b4705b845b4626bdece9ac1cda058cd1f"
+    }
+  ],
+  "fbs_observed_shapes": {
+    "money_objects": 1,
+    "articles_with_spaces": 1
+  },
+  "handoff": {
+    "ozon": "PASS",
+    "wb": "PASS",
+    "next_page": "PASS",
+    "same_message_replay": "PASS"
+  },
+  "physical_audio_verified": false,
+  "station_settings_preserved": {
+    "connected": true,
+    "paired": true,
+    "uncertain": false,
+    "auto": true,
+    "interval_seconds": 25
+  },
+  "long_answer_continuation": "дальше",
+  "notes": [
+    "Market data were actually fetched; no source-cabinet UI reconciliation was performed.",
+    "Final deadline-test cleanup change was verified separately with all 8 deadline tests after the complete runtime suite."
+  ]
+}
