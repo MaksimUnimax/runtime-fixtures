@@ -567,7 +567,11 @@ def main():
                     reader_email=second_email,authority_proxy=proxies[1],private_key=private_key,token_path=token_path,record=record,access_enabled=args.access,web_origin=WEB,platform_proxy=proxies[2],native_letter=letter,native_password=customer_password)
                 # The same identity now has a real native admin authenticator.
                 # Ordinary customer login must still use password + email only.
-                customer_page=context.new_page();open_identity(customer_page)
+                customer_page=context.new_page();customer_page.goto(WEB+'/app')
+                expect(customer_page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
+                customer_page.get_by_role('button',name='Выйти из кабинета',exact=True).click()
+                check('s02_enrolled_customer_explicitly_logs_out_before_testing_fresh_credentials',urlsplit(customer_page.url).path=='/login')
+                open_identity(customer_page)
                 if customer_page.get_by_role('button',name='Продолжить вход в кабинет').count():
                     customer_page.get_by_role('button',name='Продолжить вход в кабинет').click()
                 customer_page.locator('input[name=login]').fill(email)
