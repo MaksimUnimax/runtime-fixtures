@@ -331,10 +331,16 @@ const calculators = {
         !Number.isFinite(row.units),
     );
     if (invalid) return { status: "INCOMPLETE", money: null, units: null };
+    const money = rows.reduce((sum, row) => sum + row.money, 0);
+    const units = rows.reduce((sum, row) => sum + row.units, 0);
+    // Finite source rows can still overflow either aggregate. Keep the existing
+    // left-fold arithmetic, but never label nonfinite totals as COMPLETE.
+    if (!Number.isFinite(money) || !Number.isFinite(units))
+      return { status: "INCOMPLETE", money: null, units: null };
     return {
       status: "COMPLETE",
-      money: rows.reduce((sum, row) => sum + row.money, 0),
-      units: rows.reduce((sum, row) => sum + row.units, 0),
+      money,
+      units,
     };
   },
   daily_rank(input) {
@@ -1124,6 +1130,42 @@ assert.deepEqual(
   { status: "COMPLETE", money: 100, units: 3 },
   "valid complete sales rows preserve numeric money and units",
 );
+
+// Synthetic finite-total cases use the actual calculator and its unchanged DTO.
+let salesTotalsFiniteConsumerCases = 0;
+for (const field of ["money", "units"]) {
+  for (const sign of [1, -1]) {
+    for (const values of [
+      [sign * Number.MAX_VALUE, sign * Number.MAX_VALUE],
+      [sign * Number.MAX_VALUE, sign * Number.MAX_VALUE, -sign * Number.MAX_VALUE],
+    ]) {
+      const rows = values.map((value) => ({ money: 0, units: 0, [field]: value }));
+      const actual = calculators.sales_totals({ complete: true, rows });
+      assert.deepEqual(actual, salesTotalsIncomplete);
+      assert.equal(JSON.stringify(actual), JSON.stringify(salesTotalsIncomplete));
+      salesTotalsFiniteConsumerCases++;
+    }
+  }
+}
+for (const [values, expected] of [
+  [[Number.MAX_VALUE], Number.MAX_VALUE],
+  [[-Number.MAX_VALUE], -Number.MAX_VALUE],
+  [[Number.MAX_VALUE, -Number.MAX_VALUE], 0],
+  [[Number.MAX_VALUE, Number.MIN_VALUE], Number.MAX_VALUE],
+  [[Number.MIN_VALUE, Number.MIN_VALUE], Number.MIN_VALUE * 2],
+  [[2 ** 53, 1, -(2 ** 53)], 0],
+  [[2 ** 53, -(2 ** 53), 1], 1],
+  [[-0], 0],
+  [[], 0],
+]) {
+  const rows = Object.freeze(values.map((value) =>
+    Object.freeze({ money: value, units: value })));
+  const actual = calculators.sales_totals(Object.freeze({ complete: true, rows }));
+  assert.equal(actual.status, "COMPLETE");
+  assert.ok(Object.is(actual.money, expected));
+  assert.ok(Object.is(actual.units, expected));
+  salesTotalsFiniteConsumerCases++;
+}
 
 // STD-03 top-N must fail closed on an invalid N or incomplete join identity.
 const validTopNCatalog = [{ id: "p", name: "Product" }];
@@ -2208,6 +2250,7 @@ console.log(
     wbOperationRefs,
     wbHosts: [...wbHosts].sort(),
     numericCases: numeric.cases.length,
+    salesTotalsFiniteConsumerCases,
     daysCoverFiniteConsumerCases,
     finiteContributionCases,
     finiteDrrConsumerCases,
