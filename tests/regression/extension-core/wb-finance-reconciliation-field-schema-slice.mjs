@@ -84,6 +84,8 @@ assert.deepEqual(
 assert.equal(deductions.query.limit.max, 1000);
 assert.deepEqual(deductions.query.sort.enum, ["nmId", "dtBonus", "bonusSumm"]);
 assert.deepEqual(deductions.query.order.enum, ["desc", "asc"]);
+assert.equal(deductions.query.sort.default, "dtBonus");
+assert.equal(deductions.query.order.default, "desc");
 assert.equal(
   deductions.response.totalMeaning,
   "TOTAL_ROWS_WITHOUT_LIMIT_OFFSET",
@@ -162,6 +164,7 @@ function summarizeDeductionPages(pages) {
     return { status: "INCOMPLETE", reason: "DEDUCTION_PAGES_MISSING" };
   let expectedOffset = 0;
   let total = null;
+  let queryIdentity = null;
   const providerAmounts = [];
   let rows = 0;
   for (const page of pages) {
@@ -178,6 +181,29 @@ function summarizeDeductionPages(pages) {
         status: "INCOMPLETE",
         reason: "DEDUCTION_OFFSET_SEQUENCE_INVALID",
       };
+    // Bind the declared selection and ordering across pages. Exact date strings
+    // are opaque here: equality does not establish timezone, inclusivity,
+    // provider defaults for an omitted dateFrom, or an atomic source snapshot.
+    // Page size may vary; offsets keep their existing contiguous-row check.
+    const { dateFrom, dateTo, sort, order } = page.request;
+    const effectiveSort = sort === undefined ? deductions.query.sort.default : sort;
+    const effectiveOrder = order === undefined ? deductions.query.order.default : order;
+    if (
+      typeof dateTo !== "string" || dateTo.trim() === "" ||
+      (dateFrom !== undefined && (typeof dateFrom !== "string" || dateFrom.trim() === "")) ||
+      !deductions.query.sort.enum.includes(effectiveSort) ||
+      !deductions.query.order.enum.includes(effectiveOrder)
+    )
+      return { status: "INCOMPLETE", reason: "DEDUCTION_QUERY_INVALID" };
+    const currentQuery = JSON.stringify([
+      dateFrom === undefined ? null : dateFrom,
+      dateTo,
+      effectiveSort,
+      effectiveOrder,
+    ]);
+    if (queryIdentity === null) queryIdentity = currentQuery;
+    if (currentQuery !== queryIdentity)
+      return { status: "INCOMPLETE", reason: "DEDUCTION_QUERY_CHANGED" };
     if (!Number.isInteger(page.total) || page.total < 0)
       return { status: "INCOMPLETE", reason: "DEDUCTION_TOTAL_INVALID" };
     if (total === null) total = page.total;
@@ -277,6 +303,117 @@ assert.deepEqual(
   summarizeFinanceDetail(c.financeDetailCurrencyMismatch),
   c.financeDetailCurrencyMismatchExpected,
 );
+
+// Synthetic request-coherence cases. Existing amounts/signs, currency boundary,
+// no-guessed-dedup and finance-detail rules stay separate from page identity.
+let deductionQueryBindingCases = 0;
+const queryInvalid = { status: "INCOMPLETE", reason: "DEDUCTION_QUERY_INVALID" };
+const queryChanged = { status: "INCOMPLETE", reason: "DEDUCTION_QUERY_CHANGED" };
+function checkDeductionQuery(pages, expected, label) {
+  const actual = summarizeDeductionPages(pages);
+  assert.deepEqual(actual, expected, label);
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), label + " JSON");
+  deductionQueryBindingCases++;
+}
+const syntheticPages = () => structuredClone(c.completePages);
+for (const [field, value] of [
+  ["dateFrom", "2026-09-01T00:00:00Z"],
+  ["dateTo", "2026-09-27T23:59:59Z"],
+  ["sort", "nmId"],
+  ["order", "asc"],
+]) {
+  const pages = syntheticPages();
+  pages[1].request[field] = value;
+  checkDeductionQuery(pages, queryChanged, "mixed " + field);
+}
+for (const [sort, order] of [[undefined, undefined], ["dtBonus", undefined], [undefined, "desc"], ["dtBonus", "desc"]]) {
+  const pages = syntheticPages();
+  pages[1].request.sort = sort;
+  pages[1].request.order = order;
+  checkDeductionQuery(pages, c.completeExpected, "omitted/explicit source defaults");
+}
+for (const sort of deductions.query.sort.enum)
+  for (const order of deductions.query.order.enum) {
+    const pages = syntheticPages();
+    for (const page of pages) Object.assign(page.request, { sort, order, dateFrom: "2026-09-01T00:00:00Z" });
+    checkDeductionQuery(pages, c.completeExpected, "same explicit selection/order");
+  }
+for (const field of ["dateFrom", "dateTo"])
+  for (const value of [null, "", " ", 1, false, [], {}, new String("2026-09-26T00:00:00Z"), 1n, Symbol("synthetic"), () => "date"]) {
+    const pages = syntheticPages();
+    pages[1].request[field] = value;
+    checkDeductionQuery(pages, queryInvalid, "invalid date query " + field);
+  }
+const missingTo = syntheticPages();
+delete missingTo[1].request.dateTo;
+checkDeductionQuery(missingTo, queryInvalid, "required dateTo missing");
+const optionalFrom = syntheticPages();
+optionalFrom[1].request.dateFrom = undefined;
+checkDeductionQuery(optionalFrom, c.completeExpected, "undefined optional dateFrom");
+for (const field of ["sort", "order"])
+  for (const value of [null, "", " ", "INVALID", 1, false, [], {}, new String(field === "sort" ? "dtBonus" : "desc"), Symbol("synthetic")]) {
+    const pages = syntheticPages();
+    pages[1].request[field] = value;
+    checkDeductionQuery(pages, queryInvalid, "invalid enum " + field);
+  }
+const changedSize = syntheticPages();
+changedSize[1].request.limit = 1;
+checkDeductionQuery(changedSize, c.completeExpected, "page size is not selection identity");
+const equivalentInstantText = syntheticPages();
+equivalentInstantText[1].request.dateTo = "2026-09-26T23:59:59+00:00";
+checkDeductionQuery(equivalentInstantText, queryChanged, "no inferred datetime normalization");
+const duplicates = syntheticPages();
+duplicates[1].reports[0] = structuredClone(duplicates[0].reports[0]);
+checkDeductionQuery(duplicates, { ...c.completeExpected, providerAmounts: [247.5, -10.25, 247.5] }, "no guessed unique row key");
+const emptyComplete = [{ request: { dateTo: "2026-09-26T23:59:59Z", limit: 1, offset: 0 }, total: 0, reports: [] }];
+checkDeductionQuery(emptyComplete, { ...c.completeExpected, rows: 0, providerAmounts: [] }, "explicit total zero");
+for (const pages of [null, undefined, [], {}, "pages"])
+  checkDeductionQuery(pages, { status: "INCOMPLETE", reason: "DEDUCTION_PAGES_MISSING" }, "pages missing");
+const wrongOffset = syntheticPages();
+wrongOffset[1].request.offset = 1;
+checkDeductionQuery(wrongOffset, c.badOffsetExpected, "offset sequence unchanged");
+for (const value of [0, -1, 1001, 1.5, NaN, Infinity, "2", null, undefined]) {
+  const pages = syntheticPages();
+  pages[1].request.limit = value;
+  checkDeductionQuery(pages, c.badOffsetExpected, "limit guard unchanged");
+}
+for (const value of [0, 1, 3, -1, NaN, Infinity, 1.5, "2", undefined]) {
+  const pages = syntheticPages();
+  pages[1].request.offset = value;
+  checkDeductionQuery(pages, c.badOffsetExpected, "offset type/value guard unchanged");
+}
+for (const value of [-1, 1.5, NaN, Infinity, "3", undefined]) {
+  const pages = syntheticPages();
+  pages[0].total = value;
+  checkDeductionQuery(pages, { status: "INCOMPLETE", reason: "DEDUCTION_TOTAL_INVALID" }, "total guard unchanged");
+}
+const changedTotal = syntheticPages();
+changedTotal[1].total = 4;
+checkDeductionQuery(changedTotal, { status: "INCOMPLETE", reason: "DEDUCTION_TOTAL_CHANGED" }, "total drift unchanged");
+const absentReports = syntheticPages();
+delete absentReports[1].reports;
+checkDeductionQuery(absentReports, { status: "INCOMPLETE", reason: "DEDUCTION_REPORTS_MISSING" }, "reports missing unchanged");
+checkDeductionQuery(c.incompletePages, c.incompleteExpected, "partial count unchanged");
+const missingAmount = syntheticPages();
+delete missingAmount[1].reports[0].bonusSumm;
+checkDeductionQuery(missingAmount, c.missingAmount.expected, "row guard unchanged");
+const frozenPages = syntheticPages();
+for (const page of frozenPages) {
+  Object.freeze(page.request);
+  page.reports.forEach(Object.freeze);
+  Object.freeze(page.reports);
+  Object.freeze(page);
+}
+Object.freeze(frozenPages);
+const frozenBefore = JSON.stringify(frozenPages);
+checkDeductionQuery(frozenPages, c.completeExpected, "frozen nested input");
+assert.equal(JSON.stringify(frozenPages), frozenBefore, "pagination input unchanged");
+const detachedAmounts = summarizeDeductionPages(frozenPages);
+detachedAmounts.providerAmounts[0] = 999;
+checkDeductionQuery(frozenPages, c.completeExpected, "result amounts detached");
+const signedZero = syntheticPages();
+signedZero[1].reports[0].bonusSumm = -0;
+checkDeductionQuery(signedZero, { ...c.completeExpected, providerAmounts: [247.5, -10.25, -0] }, "raw signed zero preserved");
 assert.equal(
   slice.rules.currency,
   "DEDUCTION_MONEY_USES_SELLER_REGISTRATION_COUNTRY_CURRENCY_BUT_CODE_NOT_IN_RESPONSE",
@@ -307,6 +444,7 @@ console.log(
     deductionCurrencyCodeInResponse: false,
     deductionCurrencyPolicy: "SELLER_REGISTRATION_COUNTRY_CURRENCY",
     financeDetailCurrencyRequired: true,
+    deductionQueryBindingCases,
     crossSourceNettingAllowed: false,
     acceptedOperationMappingChanged: false,
     liveValues: false,
