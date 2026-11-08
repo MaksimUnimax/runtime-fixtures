@@ -1,5 +1,5 @@
 """Normal public registration/navigation using one new owned example.invalid mailbox."""
-import json,os,pathlib,re,secrets,shutil,sys,time,uuid
+import json,os,pathlib,re,secrets,shutil,subprocess,sys,tempfile,time,uuid
 from email import policy
 from email.parser import BytesParser
 from urllib.parse import urlsplit
@@ -8,7 +8,7 @@ sys.dont_write_bytecode=True;os.umask(0o077)
 P=pathlib.Path;D=P('/var/lib/alisa-platform/stage/rollout-backups/auth-navigation-20261108');WEB='https://alisa.octoport.ru';IDP='https://id.octoport.ru'
 PHASE=sys.argv[1] if len(sys.argv)==2 else ''
 if PHASE not in {'before','after'}:raise SystemExit('Expected before or after')
-OUT=D/(PHASE+('-browser-r2.json' if PHASE=='before' else '-browser.json'));record={'scope':'INSTALLED_PUBLIC_BROWSER_OWN_EXAMPLE_INVALID_REGISTRATION_AND_SESSION_NAVIGATION','phase':PHASE,'status':'FAILED','cases':[],'navigation':[],'provider_calls':0}
+OUT=D/(PHASE+'-browser-r2.json');record={'scope':'INSTALLED_PUBLIC_BROWSER_OWN_EXAMPLE_INVALID_REGISTRATION_AND_SESSION_NAVIGATION','phase':PHASE,'status':'FAILED','cases':[],'navigation':[],'provider_calls':0}
 def check(name,ok):
  record['cases'].append({'case':name,'passed':bool(ok)})
  if not ok:raise RuntimeError(name)
@@ -25,7 +25,16 @@ def mailbox_code(email,after):
   time.sleep(.5)
  raise RuntimeError('own_mailbox_delivery_deadline')
 def run():
- check('disk_and_memory_reserve',shutil.disk_usage(D).free>=3072*1048576+80*1048576 and next(int(l.split()[1]) for l in P('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:'))>=2560*1024)
+ temp=P(tempfile.gettempdir()).resolve()
+ ram_temp=str(temp).startswith('/run/alisa-auth-navigation-browser') and P(os.environ.get('HOME','/')).resolve()==temp and subprocess.check_output(['stat','-f','-c','%T',str(temp)],text=True).strip()=='tmpfs'
+ # A private systemd RuntimeDirectory holds the browser profile, downloads and
+ # HOME on tmpfs. Only bounded JSON/cookie receipts touch the root filesystem.
+ allowance=1048576 if ram_temp else 80*1048576
+ record['temporary_storage']='PRIVATE_TMPFS' if ram_temp else 'ROOT_DISK'
+ if ram_temp:
+  check('private_tmpfs_xdg_paths',all(P(os.environ.get(key,'/')).resolve()==temp/leaf for key,leaf in [('XDG_CACHE_HOME','cache'),('XDG_CONFIG_HOME','config'),('XDG_DATA_HOME','data')]))
+ check('temporary_storage_capacity',not ram_temp or shutil.disk_usage(temp).free>=128*1048576)
+ check('disk_and_memory_reserve',shutil.disk_usage(D).free>=3072*1048576+allowance and next(int(l.split()[1]) for l in P('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:'))>=2560*1024)
  private=D/'fixture.private.json'
  if PHASE=='before':
   check('available_private_sink',len(list(P('/var/lib/alisa-platform/stage/mail-sandbox').glob('*.eml')))<195)
@@ -60,7 +69,27 @@ def run():
    old_cookie=next(c['value'] for c in ctx.cookies() if c['name']=='__Host-alisa_session')
    response=page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0)
    check('verified_session_post_start_reuses_same_session',response.status==303 and response.headers.get('location')==WEB+'/app' and 'set-cookie' not in response.headers and next(c['value'] for c in ctx.cookies() if c['name']=='__Host-alisa_session')==old_cookie)
-  ctx.storage_state(path=str(D/'browser-state.private.json'));browser.close()
+   original_profile=profile.json()['profile']
+   page.get_by_role('button',name='Выйти из кабинета',exact=True).click();expect(page.locator('form[action="/auth/start"]')).to_be_visible()
+   check('ordinary_logout_removes_cabinet_authorization',page.request.get(WEB+'/api/account/me').status==401)
+   page.locator('input[name=service]').check();page.locator('input[name=privacy]').check();page.get_by_role('button',name='Войти или создать кабинет',exact=True).click()
+   expect(page.get_by_role('heading',name='Подтвердите вход в кабинет',exact=True)).to_be_visible()
+   check('fresh_reentry_does_not_show_old_success',not any(re.search(r'Успешный вход|Successfully signed in|Адрес .* подтверждён',text) for text in page.get_by_role('status').all_inner_texts()))
+   page.get_by_role('button',name='Продолжить вход в кабинет',exact=True).click()
+   page.locator('input[name=login]').fill(f['email']);page.locator('input[name=password]').fill(f['password'])
+   sent=time.time();page.locator('form').filter(has=page.locator('input[name=login]')).locator('button[type=submit]').first.click();expect(page.locator('input[name=code]')).to_be_visible()
+   code=mailbox_code(f['email'],sent)
+   page.locator('input[name=code]').fill('AAAA-AAAA' if code!='AAAA-AAAA' else 'BBBB-BBBB');page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+   expect(page.locator('input[name=code]')).to_be_visible();check('wrong_delivered_email_code_does_not_authorize',page.request.get(WEB+'/api/account/me').status==401)
+   page.locator('input[name=code]').fill(code);page.locator('form').filter(has=page.locator('input[name=code]')).locator('button[type=submit]').first.click();del code
+   expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
+   new_profile=page.request.get(WEB+'/api/account/me').json()['profile']
+   check('native_repeat_password_and_delivered_email_keep_same_account',all(new_profile[k]==original_profile[k] for k in ['customer_id','tenant_id','email']))
+   check('repeat_login_mints_a_new_native_session',next(c['value'] for c in ctx.cookies() if c['name']=='__Host-alisa_session')!=old_cookie)
+  state=json.dumps(ctx.storage_state());check('bounded_private_browser_state',len(state.encode())<=65536)
+  (D/'browser-state.private.json').write_text(state);(D/'browser-state.private.json').chmod(0o600)
+  check('root_disk_reserve_after_private_state',shutil.disk_usage(D).free>=3072*1048576)
+  browser.close()
  record['status']='PASS'
 if OUT.exists():raise SystemExit('Existing receipt retained')
 try:run()

@@ -4,7 +4,7 @@ from pathlib import Path as P
 sys.dont_write_bytecode=True
 os.umask(0o077)
 B=P('/opt/alisa-platform/stage');C=P('/etc/alisa-platform/stage')
-D=P('/var/lib/alisa-platform/stage/rollout-backups/auth-navigation-20261108')
+D=P('/var/lib/alisa-platform/stage/rollout-backups/auth-navigation-20261108/merged-da73a089')
 RESERVE=3072*1048576
 LOCKS=['alisa-stage-rollout.lock','alisa-s01-rollout.lock','alisa-s02-provider-probe.lock','alisa-s02-rollout.lock','alisa-s03-rollout.lock']
 record={'status':'FAILED','scope':'CUSTOMER_SESSION_NAVIGATION_AND_STALE_NOTICES_WEB_IDENTITY_ONLY','cases':[]}
@@ -104,7 +104,10 @@ def prepare(pins,target,release):
  with opener.open(incoming['download_url'],timeout=40) as r:raw=r.read(pins['zip_size']+1)
  check('exact_ci_zip',len(raw)==pins['zip_size'] and sha(raw)==pins['zip_sha256'])
  with zipfile.ZipFile(io.BytesIO(raw)) as z:
-  check('exact_zip_members',len(z.infolist())==2 and set(z.namelist())=={release+'.tar.gz',release+'.tar.gz.sha256'})
+  runtime='alisa-runtime-'+pins['source_sha'][:16]+'.tar.gz'
+  check('exact_zip_members',len(z.infolist())==4 and set(z.namelist())=={release+'.tar.gz',release+'.tar.gz.sha256',runtime,runtime+'.sha256'})
+  check('bounded_ignored_runtime_archive',0<z.getinfo(runtime).file_size==pins['runtime_tar_size']<=8*1048576 and z.getinfo(runtime+'.sha256').file_size<256)
+  check('ignored_runtime_archive_checksum',sha(z.read(runtime))==pins['runtime_tar_sha256'] and z.read(runtime+'.sha256').decode().split()[0]==pins['runtime_tar_sha256'])
   check('bounded_zip_expansion',z.getinfo(release+'.tar.gz').file_size==pins['tar_size'] and z.getinfo(release+'.tar.gz.sha256').file_size<256)
   tarraw=z.read(release+'.tar.gz');check('checksum_sidecar',z.read(release+'.tar.gz.sha256').decode().split()[0]==pins['tar_sha256'])
  del raw
@@ -224,7 +227,7 @@ if __name__=='__main__':
    f=stack.enter_context(open('/run/lock/'+name));fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)
   try:
    pins=private_json('package-binding.json');source=pins['source_sha']
-   check('qualified_exact_source',source=='85b88ebe532affe08ce93a4bd5cb3f53c833ba68' and pins['source_tree']=='17dd9e77f7afb3c6ca0134d47ddfb18c014c1e9b' and pins['ci_platform_run']==42444538075 and pins['ci_status']=='success' and pins['independent_source_review']=='APPROVED_SOURCE')
+   check('qualified_exact_source',source=='da73a089d3125429fe1902e552715ec37c355510' and pins['source_tree']=='214b947a67549c1e9efb369a71c77a03af304d13' and pins['ci_platform_run']==42445427293 and pins['ci_status']=='success' and pins['independent_source_review']=='APPROVED_SOURCE')
    release='alisa-'+source[:16];target=B/'releases'/release
    (prepare if phase=='prepare' else activate)(pins,target,release)
   except Exception as error:record['error_type']=type(error).__name__
