@@ -57,6 +57,10 @@ function validateRows(rows, idField, duplicateReason) {
       !row ||
       row[idField] === null ||
       row[idField] === undefined ||
+      // Retained SalesItem.saleID is String; the existing finance-detail
+      // normalized contract requires integer rrdId. Check before key coercion.
+      (idField === "saleID" && typeof row[idField] !== "string") ||
+      (idField === "rrdId" && !Number.isInteger(row[idField])) ||
       !Number.isInteger(row.nmId)
     )
       return { status: "INCOMPLETE", reason: "ROW_ID_OR_PRODUCT_MISSING" };
@@ -196,6 +200,85 @@ assert.deepEqual(
   c.advertisingStock.expected,
 );
 
+// Source-only row identity admission, exercised through the actual join caller.
+// No ID prefix/length/trim/canonicalization or raw int64 precision is inferred.
+let rowIdentityTypeCases = 0;
+const rowIdentityInvalid = { status: "INCOMPLETE", reason: "ROW_ID_OR_PRODUCT_MISSING" };
+function checkRowIdentity(input, expected, label) {
+  const actual = projectSalesFinance(input);
+  assert.deepEqual(actual, expected, label);
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), label + " JSON");
+  rowIdentityTypeCases++;
+}
+const syntheticJoin = () => structuredClone(c.salesFinance);
+for (const value of [0, 101, -1, 1.5, NaN, Infinity, -Infinity, true, false, null, undefined, 1n, Symbol("synthetic"), {}, [], ["S-002"], new String("S-001"), () => "S-001"])
+  for (const index of [0, 2]) {
+    const input = syntheticJoin();
+    input.salesRows[index].saleID = value;
+    checkRowIdentity(input, rowIdentityInvalid, "saleID requires primitive String");
+  }
+for (const value of ["1", "2", "", " ", 1.5, -0.5, Number.MIN_VALUE, NaN, Infinity, -Infinity, true, false, null, undefined, 1n, Symbol("synthetic"), {}, [], new Number(1), () => 1])
+  for (const index of [0, 1]) {
+    const input = syntheticJoin();
+    input.financeRows[index].rrdId = value;
+    checkRowIdentity(input, rowIdentityInvalid, "rrdId requires integer Number");
+  }
+for (const value of ["S-001", "R-return", "1", "01", "", " ", "S-001 ", "\u00e9", "e\u0301", "a\0b", "__proto__"] ) {
+  const input = syntheticJoin();
+  input.salesRows[0].saleID = value;
+  checkRowIdentity(input, c.salesFinance.expected, "opaque String identity unchanged");
+}
+for (const value of [-Number.MAX_VALUE, -1, -0, 0, 1, 3, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER + 1, Number.MAX_VALUE]) {
+  const input = syntheticJoin();
+  input.financeRows[0].rrdId = value;
+  checkRowIdentity(input, c.salesFinance.expected, "existing integer domain unchanged");
+}
+for (const [rows, key, duplicate, reason] of [
+  ["salesRows", "saleID", "S-002", "DUPLICATE_SALE_ID"],
+  ["financeRows", "rrdId", 2, "DUPLICATE_FINANCE_RRD_ID"],
+]) {
+  const input = syntheticJoin();
+  input[rows][0][key] = duplicate;
+  checkRowIdentity(input, { status: "INCOMPLETE", reason }, "valid typed duplicate unchanged");
+}
+const zeroDuplicate = syntheticJoin();
+zeroDuplicate.financeRows[0].rrdId = -0;
+zeroDuplicate.financeRows[1].rrdId = 0;
+checkRowIdentity(zeroDuplicate, { status: "INCOMPLETE", reason: "DUPLICATE_FINANCE_RRD_ID" }, "zero identity equality unchanged");
+for (const [rows, field] of [["salesRows", "saleID"], ["financeRows", "rrdId"]]) {
+  const input = syntheticJoin();
+  delete input[rows][0][field];
+  checkRowIdentity(input, rowIdentityInvalid, "missing row identity unchanged");
+}
+for (const rows of ["salesRows", "financeRows"])
+  for (const value of [undefined, null, "1001", 1.5, NaN, Infinity]) {
+    const input = syntheticJoin();
+    input[rows][0].nmId = value;
+    checkRowIdentity(input, rowIdentityInvalid, "product admission unchanged");
+  }
+const mismatch = syntheticJoin();
+mismatch.financeRows[0].nmId = 9999;
+checkRowIdentity(mismatch, c.missingProduct.expected, "product set mismatch unchanged");
+for (const field of ["salesComplete", "financeComplete"])
+  for (const value of [false, undefined, 1, "true"])
+    checkRowIdentity({ ...syntheticJoin(), [field]: value }, { status: "INCOMPLETE", reason: "SOURCE_READ_INCOMPLETE" }, "strict completeness unchanged");
+for (const field of ["period", "timezone"])
+  checkRowIdentity({ ...syntheticJoin(), [field]: "" }, { status: "INCOMPLETE", reason: "PERIOD_OR_TIMEZONE_MISSING" }, "declared period guard unchanged");
+for (const value of [undefined, null, "", 1, {}])
+  checkRowIdentity({ ...syntheticJoin(), financeCurrency: value }, { status: "INCOMPLETE", reason: "FINANCE_CURRENCY_MISSING" }, "currency admission unchanged");
+const frozenJoin = syntheticJoin();
+for (const rows of ["salesRows", "financeRows"]) {
+  frozenJoin[rows].forEach(Object.freeze);
+  Object.freeze(frozenJoin[rows]);
+}
+Object.freeze(frozenJoin);
+const frozenBefore = JSON.stringify(frozenJoin);
+checkRowIdentity(frozenJoin, c.salesFinance.expected, "frozen nested join");
+assert.equal(JSON.stringify(frozenJoin), frozenBefore, "join input unchanged");
+const detachedJoin = projectSalesFinance(frozenJoin);
+detachedJoin.rows[0].saleEvents = 999;
+checkRowIdentity(frozenJoin, c.salesFinance.expected, "result rows detached");
+
 assert.equal(
   slice.rules.financeMetric,
   "RETAIL_AMOUNT_AND_FOR_PAY_REMAIN_SEPARATE",
@@ -211,6 +294,7 @@ console.log(
     selectedJoin: "sales_x_finance",
     acceptedOperationMappingChanged: false,
     advertisingStockProductAllocation: "INCOMPLETE",
+    rowIdentityTypeCases,
     liveValues: false,
   }),
 );
