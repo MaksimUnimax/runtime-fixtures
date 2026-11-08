@@ -1,0 +1,80 @@
+{
+  "record": "CAP19_WB_FBS_STOCK_BRIDGE_MANIFEST_V1",
+  "author": "existing B",
+  "consumer": "existing A through coordinator after independent qualification",
+  "status": "AUTHOR_CANDIDATE_NOT_INDEPENDENTLY_ACCEPTED",
+  "baseCommit": "7274b1187bc25b8cc4a9bdaaa999f0ab3158a27d",
+  "baseTree": "ebe9642493b390bad7e202e7b8379fa18e88f4d3",
+  "acceptedPairedInput": {
+    "bytes": 113010,
+    "sha256": "ba6a2c8008af939c758d439c7d551690aed73b3257b63faea94fb5de4b9e7ed9",
+    "sixPostimages": "UNCHANGED",
+    "FBSQualification": "NOT_INHERITED"
+  },
+  "sourcePins": [
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-catalog-identity-field-schema-slice-v1.json",
+      "bytes": 6338,
+      "sha256": "51397e237faa95c05c51d7d6bbcdd482a9e72b192261b7464c78eaece87c6290"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-stock-field-schema-slice-v1.json",
+      "bytes": 5812,
+      "sha256": "f1d89b9ca8899471410823a9cf677d305116e7ce3e6539c33f28be8063ebd5bb"
+    }
+  ],
+  "sourceEvidenceDate": "2026-09-27",
+  "sourceRefresh": false,
+  "identityEdges": [
+    "cards_list.cards[].nmID -> cards[].sizes[].chrtID",
+    "seller_warehouses.id -> request path warehouseId",
+    "request.chrtIds -> response.stocks[].chrtId -> catalog size identity",
+    "response.stocks[].amount -> selected size/sellerWarehouseId cell"
+  ],
+  "callerMetadata": [
+    "synthetic",
+    "selection",
+    "complete",
+    "asOf",
+    "response wrapper warehouseId from request target"
+  ],
+  "artifacts": [
+    {
+      "path": "docs/product/readiness/CAP19_WB_FBS_STOCK_BRIDGE_V1.md",
+      "bytes": 5104,
+      "sha256": "be2fccc40facff9d61cdee679c93adab536fcb2af77283db6c3e12800ef7bda3"
+    },
+    {
+      "path": "tests/regression/extension-core/cap19-wb-fbs-stock-bridge-v1.mjs",
+      "bytes": 6730,
+      "sha256": "2cab7b997d895225bb03d63cc066074256ca978955c53919ee765eba66a1d63f"
+    },
+    {
+      "path": "tests/regression/extension-core/cap19-wb-fbs-stock-bridge-v1.test.mjs",
+      "bytes": 9948,
+      "sha256": "cf31787986d76956567dbd1ce6c69620abfc25f48a0372ee19df3ce31bb87e23"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/cap19-wb-fbs-stock-bridge-v1.json",
+      "bytes": 3389,
+      "sha256": "1ea36926f9a4ac19563c0087b05945cfa3d0616c36c676803be9e06662c9720f"
+    }
+  ],
+  "function": "bridgeFbsStock(input)",
+  "success": "FBS_STOCK_IDENTITY_SYNTHETIC_VALID",
+  "failure": "INCOMPLETE with bounded fixed diagnostic reason",
+  "oracle": "AUTHOR_ONLY_NO_INDEPENDENT_EXPECTED",
+  "fullPairedStatisticsProjection": false,
+  "runtimeEffects": false,
+  "scopeExcluded": [
+    "Ozon",
+    "FBW/FBS warehouse namespace merging",
+    "advertising statistics or actual-cost allocation",
+    "business low-stock thresholds",
+    "owner semantics/B22",
+    "provider capture or loaded/runtime binding",
+    "B50/13-subset/DB5/PREP/GET/live/security",
+    "full CAP19 acceptance"
+  ],
+  "nextConsumerBoundary": "A can consume a qualified identity/stock helper separately; the accepted WB warehouse projector remains scheme-restricted. A must not pass FBS output into it by relabelling the scheme. No existing A file is changed."
+}

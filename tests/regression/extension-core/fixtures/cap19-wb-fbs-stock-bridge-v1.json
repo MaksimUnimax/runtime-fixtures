@@ -1,0 +1,77 @@
+{
+  "record": "CAP19_WB_FBS_STOCK_IDENTITY_SYNTHETIC_FIXTURE_V1",
+  "sourceDate": "2026-09-27",
+  "independentExpected": "NOT_PROVIDED_AUTHOR_ORACLE_ONLY",
+  "input": {
+    "schemaVersion": "cap19_wb_fbs_stock_bridge_v1",
+    "synthetic": true,
+    "marketplace": "WB",
+    "context": { "stockAsOf": "2026-09-27T00:00:00+03:00", "timezone": "Europe/Moscow" },
+    "selection": {
+      "sellerWarehouseIds": [10, 20],
+      "products": [
+        { "nmId": 90001, "chrtIds": [1011, 1012] },
+        { "nmId": 90002, "chrtIds": [1021] },
+        { "nmId": 90003, "chrtIds": [1031] }
+      ]
+    },
+    "catalog": {
+      "complete": true,
+      "asOf": "2026-09-27T00:00:00+03:00",
+      "cards": [
+        { "nmID": 90001, "sizes": [{ "chrtID": 1011, "skus": ["SYNTHETIC-A"] }, { "chrtID": 1012, "skus": ["SYNTHETIC-B"] }] },
+        { "nmID": 90002, "sizes": [{ "chrtID": 1021, "skus": ["SYNTHETIC-C"] }] },
+        { "nmID": 90003, "sizes": [{ "chrtID": 1031, "skus": ["SYNTHETIC-D"] }] }
+      ]
+    },
+    "warehouses": {
+      "complete": true,
+      "asOf": "2026-09-27T00:00:00+03:00",
+      "rows": [{ "id": 10, "officeId": 507 }, { "id": 20, "officeId": 901 }]
+    },
+    "stock": {
+      "scheme": "WB_SELLER_WAREHOUSE_FBS",
+      "complete": true,
+      "asOf": "2026-09-27T00:00:00+03:00",
+      "requests": [
+        { "warehouseId": 10, "chrtIds": [1011, 1012, 1021, 1031] },
+        { "warehouseId": 20, "chrtIds": [1011, 1012, 1021, 1031] }
+      ],
+      "responses": [
+        { "warehouseId": 10, "stocks": [{ "chrtId": 1011, "amount": 4 }, { "chrtId": 1012, "amount": 6 }, { "chrtId": 1021, "amount": 0 }, { "chrtId": 1031, "amount": 3 }] },
+        { "warehouseId": 20, "stocks": [{ "chrtId": 1011, "amount": 0 }, { "chrtId": 1012, "amount": 2 }, { "chrtId": 1021, "amount": 0 }, { "chrtId": 1031, "amount": 1 }] }
+      ]
+    }
+  },
+  "authorExpected": {
+    "status": "FBS_STOCK_IDENTITY_SYNTHETIC_VALID",
+    "schemaVersion": "cap19_wb_fbs_stock_bridge_v1",
+    "context": { "stockAsOf": "2026-09-27T00:00:00+03:00", "timezone": "Europe/Moscow" },
+    "stockScope": {
+      "scheme": "WB_SELLER_WAREHOUSE_FBS",
+      "complete": true,
+      "sellerWarehouseIds": [10, 20],
+      "products": [{ "nmId": 90001, "chrtIds": [1011, 1012] }, { "nmId": 90002, "chrtIds": [1021] }, { "nmId": 90003, "chrtIds": [1031] }]
+    },
+    "products": [
+      {
+        "nmId": 90001, "onHandUnits": 12, "outOfStockInSelection": false,
+        "stockRows": [
+          { "nmId": 90001, "chrtId": 1011, "sellerWarehouseId": 10, "amount": 4 },
+          { "nmId": 90001, "chrtId": 1011, "sellerWarehouseId": 20, "amount": 0 },
+          { "nmId": 90001, "chrtId": 1012, "sellerWarehouseId": 10, "amount": 6 },
+          { "nmId": 90001, "chrtId": 1012, "sellerWarehouseId": 20, "amount": 2 }
+        ]
+      },
+      {
+        "nmId": 90002, "onHandUnits": 0, "outOfStockInSelection": true,
+        "stockRows": [{ "nmId": 90002, "chrtId": 1021, "sellerWarehouseId": 10, "amount": 0 }, { "nmId": 90002, "chrtId": 1021, "sellerWarehouseId": 20, "amount": 0 }]
+      },
+      {
+        "nmId": 90003, "onHandUnits": 4, "outOfStockInSelection": false,
+        "stockRows": [{ "nmId": 90003, "chrtId": 1031, "sellerWarehouseId": 10, "amount": 3 }, { "nmId": 90003, "chrtId": 1031, "sellerWarehouseId": 20, "amount": 1 }]
+      }
+    ],
+    "totals": { "onHandUnits": 16, "cells": 8 }
+  }
+}
