@@ -28,6 +28,8 @@ Greeting: empty launch now says only «Привет». Site-name personalization
 
 A later code-agent runtime/lab deployment must carry the station_status/station_deliver gateway branch and station_client call. Do not replace this active integration with the historical original transport. No change needed in formulas/templates. `activate_site_r2.py` upgrades only the Station sidecar and adds the site reverse proxy route. The admin subsection has a direct URL for settings; the general admin bundle is not rebuilt over another agent's active work.
 
+The Quasar callback must recognize the full invocation «спроси Октопорт маркет доставка …» and return the bound report once. Internal delivery commands must never fall through to the analytics planner. See [the 2026-11-08 incident](INCIDENT_20261108_VOICE_LOOP.md) and its physical acceptance step.
+
 ## Checks
 
 ```
