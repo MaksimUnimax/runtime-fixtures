@@ -1,0 +1,51 @@
+{
+  "schema": "alisa-matrix-change-contract/v1",
+  "candidate": "20261108-cue01-matrix-r4",
+  "status": "CANDIDATE_NOT_INSTALLED",
+  "base_candidate": "20261108-cue01-matrix-r3",
+  "candidate_manifest_sha256": "cd49516cccefbddf9195ba7c4b706f2ee379fd95b336d72845ed91297c30db8e",
+  "changed_business_files": ["fresh_source/normalization_catalog.json", "runtime/failure_catalog.json"],
+  "runtime_python_changed": false,
+  "calculation_python_changed": false,
+  "actual_type_binding": {
+    "profile": "last_mile",
+    "exact_type_name": "DeliveryToHandoverPlaceByOzon",
+    "dictionary_required": true,
+    "type_id_hardcoded": false,
+    "selection": "existing qualified actual-first selector; actual replaces estimate for that matched line/component"
+  },
+  "finance_aggregate": {
+    "name": "delivery_to_handover_place_by_ozon",
+    "handling": "classified store-period variable; not added again as a cohort-wide overhead",
+    "still_in_finance_controls": true,
+    "cohort_association": "exact posting/order reference plus SKU and qualified quantity; no allocation of unrelated historical orders"
+  },
+  "new_control": {
+    "id": "last_mile_ozon_finance",
+    "left": "SUM amounts from accruals__services and accruals__item_fees where the dictionary resolves type_id to the exact type name",
+    "right": "SUM overhead rows with the exact finance aggregate name",
+    "period": "same original accrual day; as-of lookup is not added to this comparison",
+    "zero": "explicit zero remains distinct from missing money; absence on both sides introduces no new component",
+    "on_mismatch": "FINANCE_LAST_MILE_OZON_RECONCILIATION",
+    "on_unclassified_other_service": "UNCLASSIFIED_FINANCE_SERVICE"
+  },
+  "new_synthetic_tests": 22,
+  "source_qualification": {
+    "source_run": "CUE01_MATRIX_LIVE_R3_20261108",
+    "same_day_detail_equals_finance_aggregate": true,
+    "nonzero_proven": true,
+    "qualification_reused_as_new_job_result": false,
+    "failed_r3_job_mutated": false,
+    "new_http_for_classification": 0
+  },
+  "official_semantics_sources": [
+    {"published": "2026-03-23", "effective": "2026-04-06", "url": "https://seller.ozon.ru/media/news/novoe-v-usluge-dostavki-i-kategoriyah-tovarov/", "use": "Ozon-operated and partner-operated delivery to handover place are alternative service variants; no tariff value is hardcoded from the article"},
+    {"published": "2026-09-01", "url": "https://seller.ozon.ru/media/beginners/za-chto-platyat-prodavcy-na-ozon/", "use": "delivery-to-handover is the stage from sorting centre to pickup point/locker/customer, not first-mile acceptance"}
+  ],
+  "new_voice_definitions": 0,
+  "new_voice_enablements": 0,
+  "catalog_counts": {"implemented": 82, "enabled": 78, "disabled": 4},
+  "owner_profile": "previously approved r9 qualification example only, not production defaults",
+  "independent_reviewer": "NOT_RUN",
+  "live_result_document": "docs/alisa/quality/CUE01_MATRIX_LIVE_R4_ACCEPTANCE_2026-11-08.md"
+}
