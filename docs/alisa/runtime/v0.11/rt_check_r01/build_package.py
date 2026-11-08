@@ -22,7 +22,7 @@ def main():
         'files': {name: hashlib.sha256(data).hexdigest() for name, data in payload.items()},
         'baseline': json.loads(payload['baseline-binding.json']), 'installed': False,
         'live_provider_qualified': False, 'seller_binding_default': 'UNQUALIFIED',
-        'performance_binding': 'IDENTITY_NOT_VERIFIED', 'contains_private_config_or_keys': False}
+        'performance_binding': 'AUTHENTICATED_UNLINKED_NOT_CONNECTED', 'contains_private_config_or_keys': False}
     payload['manifest.json'] = (json.dumps(manifest, indent=2)+'\n').encode()
     args.output.mkdir(parents=True, exist_ok=True)
     target = args.output/('rt-check-'+args.source[:16]+'.tar.gz')
