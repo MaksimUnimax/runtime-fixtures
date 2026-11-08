@@ -120,7 +120,7 @@ function monthlyHistory(rows) {
       !row.query
     )
       return { status: "INCOMPLETE", reason: "HISTORY_BUSINESS_KEY_MISSING" };
-    keys.add([row.period, row.product, row.query].join("\u0000"));
+    keys.add(JSON.stringify([row.period, row.product, row.query]));
   }
   return {
     uniqueBusinessKeys: keys.size,
@@ -256,6 +256,88 @@ assert.deepEqual(
   c.monthlyHistory.expected,
 );
 
+// CAP-25 owner-file identity is the complete tuple of accepted strings.
+// Embedded delimiters are data; distinct tuples must never alias each other.
+let monthlyHistoryCases = 0;
+function checkHistory(name, rows, expectedCount) {
+  assert.deepEqual(
+    monthlyHistory(rows),
+    {
+      uniqueBusinessKeys: expectedCount,
+      providerTopSetProvesFullUniverse: false,
+      ownerManagedLocalFilesRequired: true,
+    },
+    name,
+  );
+  monthlyHistoryCases++;
+}
+const historyAliases = [
+  { period: "2026-08", product: "1001\u0000sub", query: "dress" },
+  { period: "2026-08", product: "1001", query: "sub\u0000dress" },
+];
+checkHistory("history distinct product/query delimiter tuples", historyAliases, 2);
+checkHistory("history true duplicate", [historyAliases[0], historyAliases[0]], 1);
+checkHistory("history duplicate beside distinct tuple", [...historyAliases, historyAliases[0]], 2);
+const shiftedDelimiters = [
+  { period: "a\u0000b", product: "c", query: "d" },
+  { period: "a", product: "b\u0000c", query: "d" },
+  { period: "a", product: "b", query: "c\u0000d" },
+];
+checkHistory("history all tuple boundaries", shiftedDelimiters, 3);
+checkHistory("history permutation", [...shiftedDelimiters].reverse(), 3);
+checkHistory("history empty input", [], 0);
+checkHistory("history literal escape differs from delimiter", [
+  { period: "2026-08", product: "1001\\u0000sub", query: "dress" },
+  historyAliases[0],
+], 2);
+checkHistory("history exact Unicode strings stay distinct", [
+  { period: "2026-08", product: "1001", query: "é" },
+  { period: "2026-08", product: "1001", query: "e\u0301" },
+  { period: "2026-08", product: "1001", query: "\ud800" },
+  { period: "2026-08", product: "1001", query: "�" },
+], 4);
+checkHistory("history existing nonempty-string acceptance", [
+  { period: " ", product: " ", query: " " },
+], 1);
+const historyAlphabet = ["a", "a\u0000b", "b\u0000a", "\u0000", "x\\0y", "\"\\\n", "платье🚀"];
+const historyGrid = historyAlphabet.flatMap((period) =>
+  historyAlphabet.flatMap((product) =>
+    historyAlphabet.map((query) => ({ period, product, query })),
+  ),
+);
+checkHistory("history complete accepted-string Cartesian set", historyGrid, 343);
+checkHistory("history Cartesian duplicate copies", [...historyGrid, ...historyGrid], 343);
+for (const field of ["period", "product", "query"]) {
+  for (const value of [undefined, null, "", 1, false, [], {}]) {
+    const row = { period: "2026-08", product: "1001", query: "dress" };
+    if (value === undefined) delete row[field];
+    else row[field] = value;
+    assert.deepEqual(monthlyHistory([row]), {
+      status: "INCOMPLETE", reason: "HISTORY_BUSINESS_KEY_MISSING",
+    }, "history invalid " + field + " / " + String(value));
+    monthlyHistoryCases++;
+  }
+}
+for (const rows of [undefined, null, "rows", 1, false, {}]) {
+  assert.deepEqual(monthlyHistory(rows), {
+    status: "INCOMPLETE", reason: "HISTORY_ROWS_MISSING",
+  }, "history non-array input " + String(rows));
+  monthlyHistoryCases++;
+}
+for (const row of [null, undefined, {}, [], "row", 1, false]) {
+  assert.deepEqual(monthlyHistory([row]), {
+    status: "INCOMPLETE", reason: "HISTORY_BUSINESS_KEY_MISSING",
+  }, "history invalid row " + String(row));
+  monthlyHistoryCases++;
+}
+const frozenHistory = Object.freeze(historyAliases.map((row) => Object.freeze({ ...row })));
+const historyBefore = JSON.stringify(frozenHistory);
+checkHistory("history frozen input", frozenHistory, 2);
+assert.equal(JSON.stringify(frozenHistory), historyBefore, "history input not mutated");
+const detachedHistoryResult = monthlyHistory(frozenHistory);
+detachedHistoryResult.uniqueBusinessKeys = -1;
+checkHistory("history detached return", frozenHistory, 2);
+
 assert.equal(
   slice.rules.modelIdeas,
   "AI_SUGGESTIONS_MUST_REMAIN_SEPARATE_FROM_PROVIDER_SEARCH_FACTS",
@@ -279,5 +361,6 @@ console.log(
     aiSuggestionsAreProviderFacts: false,
     acceptedOperationMappingChanged: false,
     liveValues: false,
+    monthlyHistoryCases,
   }),
 );
