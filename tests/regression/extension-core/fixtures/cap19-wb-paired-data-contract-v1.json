@@ -25,7 +25,9 @@
     "periodEnd": "EXCLUSIVE",
     "stockAsOf": "equal to period.endExclusive for this synthetic reference pair",
     "membershipAsOf": "equal to stockAsOf",
-    "interpretation": "period statistics beside an end snapshot; no historical stock or through-period membership inference"
+    "interpretation": "period statistics beside an end snapshot; no historical stock or through-period membership inference",
+    "dailyGrainCoverage": "Both start and endExclusive must be Moscow midnight T00:00:00+03:00; complete calendar days only",
+    "partialDay": "INCOMPLETE / DAILY_PERIOD_BOUNDARY_UNALIGNED; no prorating"
   },
   "grains": {
     "statistics": [
@@ -63,5 +65,6 @@
     "actualCostHistory": "promo_spend_history advertId/updSum; sourceRowRef is a synthetic capture reference, not an invented provider field; no currency/product allocation inferred"
   },
   "consumerBoundary": "Technical source contract and synthetic input for A; no browser, provider requests, business-answer tuning, pipeline integration, readiness TSV or existing gold definition changes",
-  "independentExpectedTable": "PENDING_REVIEW; authorExpected is not independent"
+  "independentExpectedTable": "PENDING_REVIEW; authorExpected is not independent",
+  "contractRevision": "1.0.1"
 }

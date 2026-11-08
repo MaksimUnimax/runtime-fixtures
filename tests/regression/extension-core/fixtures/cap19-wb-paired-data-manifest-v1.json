@@ -52,5 +52,18 @@
     "node --test tests/regression/extension-core/cap19-wb-paired-data-contract.test.mjs",
     "node tests/regression/extension-core/cap19-wb-paired-data-contract.mjs"
   ],
-  "integration": "Standalone source candidate. Existing A validators/CI/readiness/gold-index files are not modified."
+  "integration": "Standalone source candidate. Existing A validators/CI/readiness/gold-index files are not modified.",
+  "candidateRevision": "1.0.1",
+  "supersedesCommit": "44fdbfe54ce6dca7a62c1150d60ee62582e648ca",
+  "fixedFinding": "CAP19-B-P2-1",
+  "reviewProvenance": {
+    "verdictOnSupersededCommit": "REQUEST_CHANGES",
+    "reviewPacketBytes": 25591,
+    "reviewPacketSha256": "7f3d1286e565019d03d05cbf1efcce42a7e05b99cdf0f72cead847a463b629db",
+    "fullReportBytes": 15143,
+    "fullReportSha256": "cb75791e430ac7563115165316cf995e80bf52a1a1a15d085d0fbbf578e5266a",
+    "independentBaselineExpectedBytes": 4336,
+    "independentBaselineExpectedSha256": "1e9aa9a514b6159224442f85c5929e8e0ba498f92a8d0c26ac25e26f5f7a6fc3",
+    "successorDeltaVerdict": "PENDING_SAME_REVIEWER"
+  }
 }

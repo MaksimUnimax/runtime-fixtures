@@ -54,6 +54,10 @@ export function projectPair(input) {
     if (c.timezone !== "Europe/Moscow" || c.currency !== "RUB" || c.comparison !== "PERIOD_STATS_WITH_END_SNAPSHOT_NOT_HISTORICAL_STOCK")
       fail("UNSUPPORTED_CONTEXT");
     const start = stamp(c.period.start), end = stamp(c.period.endExclusive);
+    // A daily row establishes the whole Moscow day, not an arbitrary interval
+    // containing its midnight. No sub-day attribution or prorating is supported.
+    if (c.period.start.slice(10) !== "T00:00:00+03:00" || c.period.endExclusive.slice(10) !== "T00:00:00+03:00")
+      fail("DAILY_PERIOD_BOUNDARY_UNALIGNED");
     if (end <= start || end - start > 31 * 86400000) fail("INVALID_PERIOD");
     if (c.stockAsOf !== c.period.endExclusive || c.membershipAsOf !== c.stockAsOf)
       fail("SNAPSHOT_CONTEXT_MISMATCH");

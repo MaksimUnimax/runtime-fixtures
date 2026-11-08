@@ -20,6 +20,8 @@ function rejects(reason, mutate) {
 test("source pins and declared source-only scope remain exact", () => {
   validateSources(root, manifest);
   assert.equal(contract.inputSchemaVersion, VERSION);
+  assert.equal(contract.contractRevision, "1.0.1");
+  assert.equal(manifest.candidateRevision, "1.0.1");
   assert.equal(contract.scope.syntheticOnly, true);
   assert.equal(contract.scope.ozon, "OPEN_NOT_PROVIDED");
   assert.equal(manifest.applicability.independentExpected, "PENDING_REVIEW");
@@ -115,6 +117,36 @@ test("out-of-period statistics are rejected", () => rejects("STATISTICS_PERIOD_M
 test("invalid calendar dates are rejected", () => rejects("INVALID_TIME", (x) => { x.statistics.rows[0].day = "2026-09-31"; }));
 test("a different stock snapshot is not silently substituted", () => rejects("SNAPSHOT_CONTEXT_MISMATCH", (x) => { x.context.stockAsOf = "2026-09-28T00:00:00+03:00"; }));
 test("timezone must be explicit and consistent", () => rejects("UNSUPPORTED_CONTEXT", (x) => { x.context.timezone = "UTC"; }));
+for (const time of ["00:00:01", "12:00:00", "23:59:59"]) {
+  test(`CAP19-B-P2-1 rejects end at ${time} even when both snapshots match`, () => rejects("DAILY_PERIOD_BOUNDARY_UNALIGNED", (x) => {
+    x.context.period.endExclusive = `2026-09-26T${time}+03:00`;
+    x.context.stockAsOf = x.context.membershipAsOf = x.context.period.endExclusive;
+  }));
+  test(`daily grain rejects a sub-day start at ${time}`, () => rejects("DAILY_PERIOD_BOUNDARY_UNALIGNED", (x) => {
+    x.context.period.start = `2026-09-26T${time}+03:00`;
+  }));
+}
+test("an elapsed 24-hour window cannot substitute for aligned Moscow days", () => rejects("DAILY_PERIOD_BOUNDARY_UNALIGNED", (x) => {
+  x.context.period.start = "2026-09-25T12:00:00+03:00";
+  x.context.period.endExclusive = "2026-09-26T12:00:00+03:00";
+  x.context.stockAsOf = x.context.membershipAsOf = x.context.period.endExclusive;
+}));
+test("an aligned 31-day period retains the baseline statistics and stock table", () => {
+  const x = input();
+  x.context.period.start = "2026-09-01T00:00:00+03:00";
+  x.context.period.endExclusive = "2026-10-02T00:00:00+03:00";
+  x.context.stockAsOf = x.context.membershipAsOf = x.context.period.endExclusive;
+  const out = projectPair(x);
+  assert.equal(out.status, "STATISTICS_STOCK_SYNTHETIC_PAIR_VALID");
+  assert.deepEqual(out.statistics, fixture.authorExpected.statistics);
+  assert.deepEqual(out.products, fixture.authorExpected.products);
+  assert.deepEqual(out.actualCostStock, fixture.authorExpected.actualCostStock);
+});
+test("an aligned 32-day period remains rejected", () => rejects("INVALID_PERIOD", (x) => {
+  x.context.period.start = "2026-09-01T00:00:00+03:00";
+  x.context.period.endExclusive = "2026-10-03T00:00:00+03:00";
+  x.context.stockAsOf = x.context.membershipAsOf = x.context.period.endExclusive;
+}));
 test("unknown allocation payload is not accepted", () => rejects("INVALID_SHAPE", (x) => { x.stock.rows[0].allocatedCost = "12.00"; }));
 test("duplicate campaign membership is rejected", () => rejects("DUPLICATE_CAMPAIGN_MEMBERSHIP", (x) => { x.campaigns.rows[0].nmIds.push(90001); }));
 test("duplicate cost source references are rejected", () => rejects("DUPLICATE_ACTUAL_COST_SOURCE_ROW", (x) => { x.actualCostHistory.rows.push({ ...x.actualCostHistory.rows[0] }); }));

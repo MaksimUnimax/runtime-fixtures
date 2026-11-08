@@ -2,6 +2,10 @@
 
 Author: existing B. Consumer: existing A. Base: `c5d0ad95397c376928da7462d7606993e32fbbd4`.
 Status: author source candidate; independent numeric table/review pending.
+Revision: 1.0.1, fixing `CAP19-B-P2-1` from frozen commit
+`44fdbfe54ce6dca7a62c1150d60ee62582e648ca`. Baseline numeric values were
+independently recalculated; this successor still requires the same Reviewer's
+delta qualification.
 
 This technical candidate supplies one explicitly synthetic paired input for
 CAP-19. It does not tune business answers or change accepted readiness/gold
@@ -33,6 +37,14 @@ The synthetic reference period is `[2026-09-26T00:00:00+03:00,
 Stock and campaign membership are a snapshot exactly at the period end. This
 is a reproducible test context, not a new live request default, historical stock
 claim or claim that snapshot membership persisted through the statistics period.
+
+The source statistics have daily grain. Both `start` and `endExclusive` must be
+Moscow midnight (`T00:00:00+03:00`) so every admitted day is wholly covered by the
+half-open period. Sub-day boundaries return
+`INCOMPLETE / DAILY_PERIOD_BOUNDARY_UNALIGNED`, even when snapshots equal the
+sub-day end or the elapsed duration is exactly 24 hours. No amounts are prorated.
+Aligned periods of one through 31 days remain supported; longer periods are
+rejected. The original baseline fixture bytes and expected values are unchanged.
 
 Campaign metadata identifies membership. Only status 9 means active at the
 snapshot. Membership never supplies product-attributed spend. Such amounts come
@@ -103,3 +115,8 @@ A can consume the qualified technical pair within this scope. Integrating it
 into a current extension/package and full CAP19 Ozon/WB semantic acceptance are
 separate results. B50, DB5 and R15 native are not dependencies of these source
 checks and are not executed here.
+
+Review provenance: the prior full report and independent baseline table are
+identified by exact bytes/SHA in the revision manifest. Its `REQUEST_CHANGES`
+verdict is not replaced by an author PASS; the corrected candidate and new
+boundary cases are the input for a narrow independent delta review.
