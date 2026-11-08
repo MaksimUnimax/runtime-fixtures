@@ -53,7 +53,7 @@ def main():
     unchanged={u:{p:prop(u,p) for p in ['WorkingDirectory','ExecStart']} for u in UNITS[1:]}
     log=Path('/tmp/alisa-recovery-r5-full.log').read_text()
     assert '\nOK\n' in log and 'FAILED (' not in log,'FULL_SUITE_NOT_PASSED'
-    changed={'read_surface.py','read_surface_data/catalog.json.gz','tests/test_money_article.py','manifest.json'}
+    changed={'read_surface.py','read_surface_data/catalog.json.gz','tests/test_money_article.py','tests/test_audit_deadline.py','manifest.json'}
     for path in BASE.rglob('*'):
         if path.is_file() and '__pycache__' not in str(path) and str(path.relative_to(BASE)) not in changed:
             assert digest(path)==digest(NEW/path.relative_to(BASE)),'CONCURRENT_BASE_FILE_CHANGE:'+str(path.relative_to(BASE))
