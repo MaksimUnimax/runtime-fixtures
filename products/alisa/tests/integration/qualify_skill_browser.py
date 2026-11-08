@@ -17,9 +17,11 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
     state=secrets.token_urlsafe(24)
     query=urlencode({'client_id':client_id,'redirect_uri':REDIRECT,'response_type':'code','scope':'reports:read','state':state})
     callbacks=[]
+    consent_origins=[]
     def broker_boundary(route):
         # Fetch the REAL consent POST once without following its external 303.
         # The owned UID firewall must never need to resolve/connect to Yandex.
+        consent_origins.append(route.request.headers.get('origin',''))
         result=route.fetch(max_redirects=0)
         location=result.headers.get('location','')
         if result.status==303 and location.startswith(REDIRECT+'?'):
@@ -44,6 +46,7 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
         check('s06_pending_consent_cannot_move_to_another_account',not any(c['name']=='__Host-alisa_alice' for c in second_context.cookies(web_origin)))
         foreign.close()
         page.get_by_role('button',name='Разрешить подключение',exact=True).click()
+        check('s06_actual_consent_form_preserves_exact_site_origin',consent_origins==[web_origin])
         check('s06_real_consent_post_returns_fixed_external_303',len(callbacks)==1)
         check('s06_consent_mirrors_state_client_and_scope_to_fixed_broker',len(callbacks)==1 and callbacks[0]['state']==[state] and callbacks[0]['client_id']==[client_id] and callbacks[0]['scope']==['reports:read'])
         code=callbacks[0]['code'][0];private_values.append(code)

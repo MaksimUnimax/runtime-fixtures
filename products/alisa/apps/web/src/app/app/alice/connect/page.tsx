@@ -3,7 +3,9 @@ import {redirect} from 'next/navigation';
 import {getProfile,SESSION_COOKIE} from '../../../../server/auth';
 import {ALICE_FLOW_COOKIE,aliceEnabled,previewAlice} from '../../../../server/alice-link';
 export const dynamic='force-dynamic';
-export const metadata={title:'Разрешить доступ Алисе',referrer:'no-referrer',robots:{index:false,follow:false}};
+// Same-origin preserves the browser's Origin on the consent POST and suppresses
+// the Referer when the successful response leaves for Yandex's broker.
+export const metadata={title:'Разрешить доступ Алисе',referrer:'same-origin',robots:{index:false,follow:false}};
 export default async function AliceConsent(){
   if(!aliceEnabled())redirect('/app');
   const jar=await cookies(),profile=await getProfile(jar.get(SESSION_COOKIE)?.value||'');
