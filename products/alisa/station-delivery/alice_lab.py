@@ -8,7 +8,7 @@ from http import HTTPStatus
 sys.path.append("/opt/alice-lab/releases/20261103-relink-r1")
 import deepseek_lab as llm
 sys.path.insert(0,"/opt/alice-market/releases/20261103-v09-dialogue-r7")
-sys.path.insert(0,"/opt/alisa-station/releases/station-auto-r6-session")
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 import alice_bridge as marketplace
 import station_client
 
