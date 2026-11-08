@@ -92,7 +92,10 @@ function parseDecimal(value) {
 function addDecimals(values) {
   const parsed = values.map(parseDecimal);
   if (parsed.some((value) => value === null)) return null;
-  const scale = Math.max(2, ...parsed.map((value) => value.scale));
+  // A complete report can span multiple RRD pages. Select the same maximum
+  // without passing a row-sized argument list to the JavaScript engine.
+  let scale = 2;
+  for (const value of parsed) scale = Math.max(scale, value.scale);
   let total = 0n;
   for (const value of parsed)
     total += value.sign * value.digits * 10n ** BigInt(scale - value.scale);
@@ -253,6 +256,33 @@ for (const id of [0, -0, -1, 2 ** 53, -(2 ** 53), Number.MAX_VALUE]) {
   }, "empty private-domain behavior preserved");
 }
 
+// Synthetic many-page-sized inputs exercise both group and report aggregation.
+// They prove exact local arithmetic only, not provider capture/completeness.
+let decimalManyRowCases = 0;
+for (const mixed of [false, true]) {
+  const rows = Array.from({ length: 140000 }, (_, index) => ({
+    reportId: 901,
+    rrdId: index + 1,
+    nmId: mixed && index % 2 ? 1002 : 1001,
+    retailAmount: mixed ? (index % 2 ? "-0.0001" : "0.001") : "0.01",
+    forPay: mixed ? (index % 2 ? "0.00200" : "-0.0002") : "0.02",
+  }));
+  const expected = mixed ? {
+    status: "PASS", currency: "USD", retailAmount: "63.0000", forPay: "126.00000",
+    byProduct: {
+      "1001": { retailAmount: "70.000", forPay: "-14.0000" },
+      "1002": { retailAmount: "-7.0000", forPay: "140.00000" },
+    },
+  } : {
+    status: "PASS", currency: "RUB", retailAmount: "1400.00", forPay: "2800.00",
+    byProduct: { "1001": { retailAmount: "1400.00", forPay: "2800.00" } },
+  };
+  const actual = summarize(rows, { reportId: 901, currency: expected.currency }, true);
+  assert.deepEqual(actual, expected);
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected));
+  decimalManyRowCases++;
+}
+
 console.log(
   JSON.stringify({
     status: "PASS",
@@ -262,6 +292,7 @@ console.log(
     currencyJoin: true,
     exactDecimal: true,
     financeRowIdentityCases,
+    decimalManyRowCases,
     finalRevenueSelected: false,
     liveValues: false,
   }),
