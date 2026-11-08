@@ -4,14 +4,16 @@ import subprocess, json, hashlib, sqlite3, shutil, fcntl, time, os, tempfile, ar
 BASE=Path('/opt/alice-market/releases/alisa-runtime-business-read-r4-20261108')
 NEW=BASE.with_name('alisa-request-recovery-r5-20261108')
 CONFIG=Path('/etc/alice-market/market-runtime.json')
-BACKUP=Path('/var/lib/alice-market/fbs-shape-recovery-r5-20261108')
+BACKUP=Path('/var/lib/alice-market/fbs-shape-recovery-r5-final-20261108')
 UNITS=['alice-market.service','alisa-station.service','alice-lab-web.service']
 
 def run(*args):
     return subprocess.check_output(args, text=True, timeout=45).strip()
 
 def prop(unit, name):
-    return run('systemctl','show',unit,'--value','-p',name)
+    value=run('systemctl','show',unit,'--value','-p',name)
+    # systemd appends PID/start/stop/status metadata to ExecStart; compare the configured command only.
+    return value.split(' ; ignore_errors=',1)[0] if name=='ExecStart' else value
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
