@@ -1,0 +1,47 @@
+{
+  "scope": "TARGETED_UNCHANGED_ORIGINAL_DS03_FUNCTION_PLUS_FAILURE_REASON_COMPANION_ASSERTIONS_NOT_FULL_HISTORICAL_SCRIPT",
+  "status": "PASS",
+  "python": "3.11.0rc1 (main, Aug 12 2022, 10:02:14) [GCC 11.2.0]",
+  "target_source_sha": "772a2adc2dc98cfd8642407b0821135ec6577c2e",
+  "runtime_identical_in": "3b3fd35aaf31679bd937271b652bfe47f432cab2",
+  "runtime_root": "/root/alisa-audit-ci-20261108/products/alisa/runtime",
+  "verified_git_blobs": 81,
+  "runtime_tree_sha256": "5eaa9644949334ea100774bd564aafafcf6b7b6f67299fa48f6f3d35beecd9e4",
+  "original_script": "/root/alisa-audit-qa-20261108/docs/alisa/quality/inbox/20261105-TESTER-4d04edaa/independent_isolated.py",
+  "original_script_sha256": "f191461ef1c2e3cf35a78e869017b4b4bfbad9e56b1224d02711d792070c5511",
+  "unchanged_original_function_sha256": {
+    "pipeline": "a3bac35ca3b416a0c52b6e2b9f62c5bc25ea94a057bb7ffbde6ca725185cc121",
+    "ask": "109a580f04849d80cbe2fdfa67b6534ee4056435d25b66931b2dda449b679ecd",
+    "ds03": "e36174c361835d7bc1197015b74331b2e46eaf2db05da22724fe0511b4b38c00"
+  },
+  "tested_file_sha256": {
+    "matrix_core.py": "2cabf6d3fb9c781910b1497eb07a212775f6b3a378e7e2aab0584952c209cd3a",
+    "matrix_sources.py": "893afe8680725a8b6200ea2bb85d05333239f319a6cb5705d002c678dc16af3b",
+    "engine.py": "2198efd01840ae8f061419df3c800a2370b17ebf1aa935023b0ac48e20663170",
+    "repository.py": "c07698c689520149db2fccfc1183d7bf7fc259cb62417d830b79003895d34572",
+    "failure_explanations.py": "e1fc3c9c22a7249d26af354684c37156a7a2fe016b4335b839897a32d2c6de3d",
+    "failure_catalog.json": "01ad3b6233e707ffb4c6927a3709a2afe31074a7c1ae44b1f69ed2bed3f26efa",
+    "test_dataset_pipeline.py": "364098940e53f26dc6716c80b2db4c0f0216d9822f97cd43c2defd63880154e6",
+    "shared_http.py": "0a7657ff13ea4e34bb553294dd0bec09e094cdb6ab25dbb65050d04735d8d7f8"
+  },
+  "original_ds03": {
+    "state": "FAILED",
+    "error": "NUMBER_RANGE",
+    "result_absent": true,
+    "fake_http_calls": 1,
+    "automatic_retry": false
+  },
+  "companion_failure_reason": {
+    "reason_code": "NUMBER_RANGE",
+    "text": "Источник вернул число за пределами безопасной точности или размера. Полный отчёт не сформирован; частичные суммы не выдаю. Нужно проверить формат поля источника. Автоматический повтор этого ответа не выполняю.",
+    "fake_calls_after_render": 1
+  },
+  "network_attempts": 0,
+  "live_database_used": false,
+  "live_credentials_read": false,
+  "financial_numeric_acceptance": false,
+  "historical_script_executed_whole": false,
+  "historical_receipt_written": false,
+  "elapsed_seconds": 0.615,
+  "error": null
+}
