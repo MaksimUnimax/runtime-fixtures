@@ -8,11 +8,15 @@ import time
 from urllib.parse import urlencode, urlsplit
 
 from allauth.account.stages import LoginStage
-from allauth.account.views import ConfirmLoginCodeView
+from allauth.account.views import ConfirmLoginCodeView, LoginView
 from allauth.mfa.stages import AuthenticateStage
 from django.conf import settings
 from django.http import HttpResponseRedirect, JsonResponse, QueryDict
 from django.urls import reverse
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.debug import sensitive_post_parameters
 
 from .staff import fingerprint, fresh
 
@@ -20,6 +24,33 @@ PIN = 'alisa_customer_credentials'
 PROOF = 'alisa_customer_authorization'
 CODE_PROOF = '_alisa_customer_auth'
 ACR = 'urn:octoport:customer:password-email:v1'
+
+
+class CustomerReentryLoginView(LoginView):
+    """Show the native login form immediately; end old SSO only on its CSRF POST."""
+
+    @method_decorator(csrf_protect)
+    @method_decorator(never_cache)
+    @method_decorator(sensitive_post_parameters('password'))
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            if request.method == 'GET':
+                # Bypass only the library's authenticated-user redirect. GET
+                # displays its standard form and never signs the user out.
+                return self.get(request, *args, **kwargs)
+            if request.method == 'POST':
+                from allauth.account.adapter import get_adapter
+                get_adapter().logout(request)
+        # The library still owns rate limits, password and email-code stages.
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from django.contrib import messages
+        context = super().get_context_data(**kwargs)
+        context['customer_reentry_action'] = reverse('account_reauthenticate')
+        context['messages'] = [message for message in messages.get_messages(self.request)
+                               if message.level != messages.SUCCESS]
+        return context
 
 
 def authorization_query(target):

@@ -320,8 +320,12 @@ def main():
             try:
                 stale_site.clear_cookies(name='__Host-alisa_session')
                 stale_page=stale_site.new_page();open_identity(stale_page)
-                expect(stale_page.get_by_role('heading',name='Подтвердите вход в кабинет',exact=True)).to_be_visible()
-                check('s02_identity_session_without_cabinet_cookie_requires_explicit_reentry',urlsplit(stale_page.url).path=='/accounts/reauthenticate/' and stale_page.get_by_role('button',name='Продолжить вход в кабинет',exact=True).count()==1)
+                expect(stale_page.get_by_role('heading',name='Вход в кабинет',exact=True)).to_be_visible()
+                expect(stale_page.locator('input[name=login]')).to_be_visible()
+                expect(stale_page.locator('input[name=password]')).to_be_visible()
+                check('s02_identity_session_without_cabinet_cookie_opens_password_form_directly',urlsplit(stale_page.url).path=='/accounts/reauthenticate/'
+                    and stale_page.locator('form').filter(has=stale_page.locator('input[name=password]')).get_attribute('action')=='/accounts/reauthenticate/'
+                    and not stale_page.get_by_role('button',name='Продолжить вход в кабинет',exact=True).count())
                 check('s02_reentry_does_not_display_old_success_messages',not any(re.search(r'Успешный вход|Successfully signed in|Адрес .* подтверждён',text) for text in stale_page.get_by_role('status').all_inner_texts()))
             finally:stale_site.close()
             mfa_theme_page=context.new_page()
@@ -373,6 +377,24 @@ def main():
             second_email='s02-'+uuid.uuid4().hex[:10]+'@example.invalid';contacts.append(second_email);register(second_page,second_email)
             with db('platform') as conn:check('s02_foreign_lead_handoff_not_attached',conn.execute('SELECT count(*) FROM accounts_leadlink').fetchone()[0]==1)
             with db('platform') as conn:second_id=conn.execute('SELECT id FROM accounts_tenant WHERE id<>%s',[first[1]]).fetchone()[0]
+            # Keep the second customer's native Identity session, removing only
+            # the product cookie, and complete the direct reentry in the browser.
+            second_context.clear_cookies(name='__Host-alisa_session')
+            open_identity(second_page)
+            expect(second_page.locator('input[name=password]')).to_be_visible()
+            check('s02_direct_reentry_browser_has_no_confirmation_click',urlsplit(second_page.url).path=='/accounts/reauthenticate/'
+                and not second_page.get_by_role('button',name='Продолжить вход в кабинет',exact=True).count())
+            second_page.locator('input[name=login]').fill(second_email)
+            second_page.locator('input[name=password]').fill(customer_password)
+            second_page.locator('form').filter(has=second_page.locator('input[name=password]')).locator('button[type=submit]').click()
+            expect(second_page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+            second_page.locator('input[name=code]').fill(letter(second_email))
+            second_page.locator('form').filter(has=second_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+            expect(second_page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
+            with db('platform') as conn:
+                check('s02_direct_reentry_browser_preserves_same_customer_tenant',second_page.get_by_text(second_email,exact=True).is_visible()
+                    and conn.execute('SELECT id FROM accounts_tenant WHERE id<>%s',[first[1]]).fetchone()[0]==second_id
+                    and conn.execute('SELECT count(*) FROM accounts_customer').fetchone()[0]==2)
             reply=page.request.post(WEB+'/api/account/profile',data={'display_name':'bad','tenant_id':str(second_id)},headers={'Origin':WEB})
             check('s02_tenant_spoof_rejected',reply.status==422)
             reply=page.request.get(WEB+'/api/account/me?tenant_id='+str(second_id));check('s02_profile_lookup_cannot_select_other_tenant',reply.status==422)

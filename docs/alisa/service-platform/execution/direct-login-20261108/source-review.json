@@ -1,0 +1,32 @@
+{
+  "record_type": "AL_S02_DIRECT_LOGIN_INDEPENDENT_SOURCE_REVIEW",
+  "reviewer": "s03_independent_review",
+  "base_commit": "83d5dec3157e69ed2e1f9427d1d9a8e0d79f7626",
+  "base_tree": "077a5640ef36a76f12f1bab8532499b9fe6cf3f2",
+  "reviewed_worktree_diff_sha256": "73bb65387e84d34ee74af5507ff62f3faa0d42e3b43343c89135206db08cf204",
+  "verdict": "PASS_FOR_DECLARED_DIRECT_LOGIN_SOURCE_DELTA",
+  "reviewed_files": {
+    "products/alisa/services/identity/src/octoport_identity/protocol/customer.py": "5c7d54847a592ede33118ecb661e1350a3415a56c3bbf8ca58eb125ba74d2f9e",
+    "products/alisa/services/identity/src/octoport_identity/protocol/views.py": "ac2f32b2f8bec82cac092ddfe5f891f038f8cb80bc4c0dcb0173468f4c2d0f13",
+    "products/alisa/services/identity/src/octoport_identity/accounts/templates/account/login.html": "13dc4bd5402feca93e697d59e0fea9ee729c9b6466a93589f74c2ad66904f150",
+    "products/alisa/tests/integration/customer_identity_checks.py": "0da17e270c6fbec4fbb559056c03691f31b5a9227012a63265204f52ab392a65",
+    "products/alisa/tests/integration/qualify_identity.py": "4bdc8a53298654a48cc4ceb31125da6b504ef0359b6f37228f7353bea8966e8d"
+  },
+  "security_review": [
+    "Customer OAuth return target is validated before the specialized login view can log out an authenticated SSO session.",
+    "Authenticated GET renders the native password form directly and does not log out; POST is CSRF-protected, no-store, and marks password parameters sensitive before dispatch.",
+    "Only the CSRF-valid POST to the validated customer reentry target logs out the prior SSO session before the library-native login flow. The allauth view retains password validation, rate limits, and the email-code stage.",
+    "Form posts back to the reentry endpoint with the redirect target, preserving the intended OAuth request through password and email-code stages.",
+    "Non-customer account-security reauthentication and staff/native security branches retain their prior route selection."
+  ],
+  "static_test_review": [
+    "Added checks cover direct native form rendering, authenticated GET session preservation, CSRF rejection without logout, invalid target rejection without logout, wrong password without reuse of old SSO or email-code issuance, correct password requiring fresh email code, and same-user/exact-target completion.",
+    "Browser regression now expects the native password form directly after stale cabinet BFF session instead of an intermediate confirmation button."
+  ],
+  "findings": [],
+  "limits": [
+    "Read-only static review; no tests, production database, auth configuration, credentials, or host actions were used.",
+    "Candidate commit was not frozen at review time; the recorded file hashes and diff hash bind this review to the inspected worktree bytes.",
+    "CI qualification remains a separate gate."
+  ]
+}

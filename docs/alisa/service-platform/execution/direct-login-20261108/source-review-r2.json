@@ -1,0 +1,33 @@
+{
+  "record_type": "AL_S02_DIRECT_LOGIN_INDEPENDENT_SOURCE_REVIEW_R2",
+  "reviewer": "s03_independent_review",
+  "supersedes": "source-review.json for final five-file binding and added authenticated-browser coverage; prior R1 record remains unchanged",
+  "base_commit": "83d5dec3157e69ed2e1f9427d1d9a8e0d79f7626",
+  "base_tree": "077a5640ef36a76f12f1bab8532499b9fe6cf3f2",
+  "reviewed_worktree_diff_sha256": "7fbf381ee7de14edcc01f95aca83410c72dadb3a43a786a99372b33cdfd9e4c3",
+  "verdict": "PASS_FOR_DECLARED_DIRECT_LOGIN_SOURCE_DELTA",
+  "reviewed_files": {
+    "products/alisa/services/identity/src/octoport_identity/protocol/customer.py": "5c7d54847a592ede33118ecb661e1350a3415a56c3bbf8ca58eb125ba74d2f9e",
+    "products/alisa/services/identity/src/octoport_identity/protocol/views.py": "ac2f32b2f8bec82cac092ddfe5f891f038f8cb80bc4c0dcb0173468f4c2d0f13",
+    "products/alisa/services/identity/src/octoport_identity/accounts/templates/account/login.html": "13dc4bd5402feca93e697d59e0fea9ee729c9b6466a93589f74c2ad66904f150",
+    "products/alisa/tests/integration/customer_identity_checks.py": "0da17e270c6fbec4fbb559056c03691f31b5a9227012a63265204f52ab392a65",
+    "products/alisa/tests/integration/qualify_identity.py": "45de6076948ce742fbede494772913a8971267d12af005159d659637b2797cd8"
+  },
+  "r2_test_only_delta": [
+    "After establishing the second test customer and verifying initial account counts, the browser test clears only that browser's Alisa product session cookie and retains its native Identity session.",
+    "The browser asserts the direct password form appears without the intermediate confirmation button, submits the same customer's password, receives and submits the delivered email code, then verifies the same email and tenant remain and the customer count stays at two.",
+    "The first customer's shared Identity session and prior lost-response assertions are not altered. No product source changed from R1."
+  ],
+  "security_review": [
+    "Return target is validated before any logout; authenticated GET preserves the native Identity session.",
+    "The specialized login POST is CSRF-protected before dispatch; invalid target and CSRF rejection do not sign out.",
+    "Wrong password cannot reuse the old SSO session or issue the email code; correct password still requires fresh native email-code verification.",
+    "Staff and native account-security reauthentication branches remain unchanged."
+  ],
+  "findings": [],
+  "limits": [
+    "Read-only source review; no tests, production database, auth configuration, credentials, or host actions were used.",
+    "Candidate commit was not frozen at review time; file hashes and diff hash bind this review to the inspected worktree bytes.",
+    "CI qualification remains a separate gate."
+  ]
+}

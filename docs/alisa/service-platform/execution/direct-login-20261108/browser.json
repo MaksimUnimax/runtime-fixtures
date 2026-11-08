@@ -1,0 +1,160 @@
+{
+  "status": "PASS",
+  "scope": "INSTALLED_PUBLIC_LOGIN_OWN_EXISTING_FIXTURE_ONLY",
+  "cases": [
+    {
+      "case": "private_tmpfs_browser_storage",
+      "passed": true
+    },
+    {
+      "case": "tmpfs_capacity",
+      "passed": true
+    },
+    {
+      "case": "root_disk_and_memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "private_existing_fixture",
+      "passed": true
+    },
+    {
+      "case": "own_reserved_test_mailbox",
+      "passed": true
+    },
+    {
+      "case": "bounded_test_mail_sink",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "direct_login_has_no_intermediate_confirmation",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "native_login_reaches_own_existing_cabinet",
+      "passed": true
+    },
+    {
+      "case": "valid_product_session_still_opens_cabinet",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "direct_login_has_no_intermediate_confirmation",
+      "passed": true
+    },
+    {
+      "case": "retained_identity_opens_password_form_directly",
+      "passed": true
+    },
+    {
+      "case": "rendering_form_preserves_native_sso",
+      "passed": true
+    },
+    {
+      "case": "no_old_success_flash",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "wrong_email_code_cannot_open_cabinet",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "approved_origin_before_sensitive_step",
+      "passed": true
+    },
+    {
+      "case": "native_login_reaches_own_existing_cabinet",
+      "passed": true
+    },
+    {
+      "case": "direct_reentry_preserves_same_customer_and_tenant",
+      "passed": true
+    },
+    {
+      "case": "fresh_product_session_after_reentry",
+      "passed": true
+    },
+    {
+      "case": "bounded_own_private_state",
+      "passed": true
+    },
+    {
+      "case": "mandatory_root_disk_reserve",
+      "passed": true
+    }
+  ],
+  "navigation": [
+    "alisa.octoport.ru/login",
+    "alisa.octoport.ru/login",
+    "id.octoport.ru/accounts/login/",
+    "id.octoport.ru/accounts/login/code/confirm/",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/login",
+    "alisa.octoport.ru/login",
+    "id.octoport.ru/accounts/reauthenticate/",
+    "id.octoport.ru/accounts/login/code/confirm/",
+    "id.octoport.ru/accounts/login/code/confirm/",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app"
+  ],
+  "direct_database_writes": 0,
+  "marketplace_calls": 0,
+  "owner_browser_flow": "NOT_RUN",
+  "native_password_and_delivered_email_flows": 2,
+  "temporary_storage": "PRIVATE_TMPFS"
+}
