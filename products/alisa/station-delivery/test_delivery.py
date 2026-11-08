@@ -70,6 +70,61 @@ class DeliveryTests(unittest.TestCase):
         self.after();self.result={'state':'READY','text':'Ответ'};self.core.tick();code=self.core.state['job']['nonce']
         self.assertEqual(self.before('доставка '+code)['reply'],'Ответ');self.assertEqual(self.before('доставка '+code)['reply'],'Ответ')
         self.identity['application']='other';self.assertNotEqual(self.before('доставка '+code)['reply'],'Ответ')
+    def test_full_quasar_invocation_delivers_report_once(self):
+        self.after();self.result={'state':'READY','text':'Готовый ответ'};self.core.tick()
+        code=self.core.state['job']['nonce']
+        reply=self.before('спроси октопорт маркет доставка '+code)
+        self.assertEqual(reply['reply'],'Готовый ответ')
+        self.assertEqual(self.core.state['job']['delivery'],'responded_to_skill')
+        self.assertEqual(len(self.launches()),1)
+
+    def test_registry_routes_complete_quasar_phrase(self):
+        from service import Registry
+        with tempfile.TemporaryDirectory() as path:
+            registry=Registry(path,Cipher())
+            delivery=registry.site('d05f09d0-0e8f-494b-b76f-0cfc0821ee3e')
+            delivery.clock=lambda:self.now
+            delivery.auth=lambda *args:True
+            delivery.peek=lambda value: {'state': 'READY', 'text': 'Итоговый ответ'}
+            delivery.state.update(connected=True,selected={'id':'speaker'},binding={'tenant':'A','application':'app'})
+            delivery.state['job']={'tenant':'A','application':'app','token_hash':'a'*64,
+                'jid':'job1','conversation':'conversation1','created':self.now,'delivery':'sending',
+                'nonce':'12345678','nonce_generation':delivery.state['generation'],'nonce_until':self.now+90}
+            answer=registry.ingress(dict(self.identity,op='before',command='спроси октопорт маркет доставка 12345678',
+                rid='callback-123',conversation='new-conversation',message_id=0))
+            self.assertEqual(answer,{'reply':'Итоговый ответ'})
+            self.assertEqual(delivery.state['job']['delivery'],'responded_to_skill')
+
+    def test_internal_command_ingress_failure_fails_closed(self):
+        import socket
+        from service import Ingress, IngressHandler, Registry
+        with tempfile.TemporaryDirectory() as path:
+            registry=Registry(path,Cipher())
+            delivery=registry.site('d05f09d0-0e8f-494b-b76f-0cfc0821ee3e')
+            delivery.auth=lambda *args:False
+            delivery.state['binding']={'tenant':'A','application':'app'}
+            server=Ingress(str(Path(path)/'ingress.sock'),IngressHandler);server.delivery=registry
+            thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+            try:
+                with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as sock:
+                    sock.connect(str(Path(path)/'ingress.sock'))
+                    sock.sendall(json.dumps(dict(self.identity,op='before',
+                        command='спроси октопорт маркет доставка 12345678',
+                        rid='callback-123',conversation='new-conversation',message_id=0)).encode()+b'\n')
+                    answer=json.loads(sock.recv(4096))
+                self.assertIn('reply',answer)
+                self.assertNotIn('command',answer)
+            finally:
+                server.shutdown();server.server_close();thread.join(2)
+
+    def test_unbound_internal_invocation_cannot_start_analysis(self):
+        from service import Registry
+        with tempfile.TemporaryDirectory() as path:
+            registry=Registry(path,Cipher())
+            answer=registry.ingress(dict(self.identity,op='before',command='спроси октопорт маркет доставка 12345678',
+                rid='callback-123',conversation='new-conversation',message_id=0))
+            self.assertEqual(answer,{'reply':'Этот автоматический ответ больше недоступен.'})
+
     def test_callback_expired_and_disabled(self):
         self.after();self.result={'state':'READY','text':'Ответ'};self.core.tick();code=self.core.state['job']['nonce']
         self.now+=91;self.assertNotEqual(self.before('доставка '+code)['reply'],'Ответ')
