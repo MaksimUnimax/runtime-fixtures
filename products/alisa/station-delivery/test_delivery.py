@@ -95,6 +95,25 @@ class DeliveryTests(unittest.TestCase):
             self.assertEqual(answer,{'reply':'Итоговый ответ'})
             self.assertEqual(delivery.state['job']['delivery'],'responded_to_skill')
 
+    def test_skill_adapter_never_calls_analytics_for_quasar_callback(self):
+        from service import Registry
+        import station_client
+        with tempfile.TemporaryDirectory() as path:
+            registry=Registry(path,Cipher())
+            delivery=registry.site('d05f09d0-0e8f-494b-b76f-0cfc0821ee3e')
+            delivery.clock=lambda:self.now;delivery.auth=lambda *args:True
+            delivery.peek=lambda value:{'state':'READY','text':'Доставленный отчёт'}
+            delivery.state.update(connected=True,selected={'id':'speaker'},binding={'tenant':'A','application':'app'})
+            delivery.state['job']={'tenant':'A','token_hash':'a'*64,'jid':'job1','conversation':'conversation1',
+                'created':self.now,'delivery':'sending','nonce':'12345678',
+                'nonce_generation':delivery.state['generation'],'nonce_until':self.now+90}
+            class NoAnalytics:
+                def request_result(self,*args,**kwargs):raise AssertionError('unexpected DeepSeek job')
+            with patch.object(station_client,'call',side_effect=registry.ingress):
+                reply=station_client.handle(NoAnalytics(),'A','спроси октопорт маркет доставка 12345678',
+                    'callback-123','bodyhash','new-conversation',0,'app','a'*64)
+            self.assertEqual(reply,'Доставленный отчёт')
+
     def test_internal_command_ingress_failure_fails_closed(self):
         import socket
         from service import Ingress, IngressHandler, Registry
