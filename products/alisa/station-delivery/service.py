@@ -73,6 +73,14 @@ def token_active(tenant, token_hash):
         return False
 
 
+def token_refresh_possible(tenant):
+    try:
+        with contextlib.closing(sqlite3.connect('file:/var/lib/alice-lab/lab.sqlite3?mode=ro', uri=True, timeout=.15)) as c:
+            return bool(c.execute("SELECT 1 FROM tokens WHERE account=? AND kind='refresh' AND revoked=0 AND expires>? LIMIT 1", (tenant, time.time())).fetchone())
+    except sqlite3.Error:
+        return False
+
+
 class Delivery:
     def __init__(self, directory, cipher, client=None, clock=time.time, auth=token_active, peek=gateway):
         self.directory = Path(directory); self.cipher = cipher
@@ -250,8 +258,12 @@ class Delivery:
                 raise
 
     def status_job(self, job):
-        if not self.auth(job['tenant'], job['token_hash']): return {'state': 'REVOKED', 'text': ''}
-        return self.peek({'op':'station_status','tenant':job['tenant'], 'conversation_id':job['conversation'], 'job_id':job['jid']})
+        active = self.auth(job['tenant'], job['token_hash'])
+        if not active and not token_refresh_possible(job['tenant']): return {'state': 'REVOKED', 'text': ''}
+        result = self.peek({'op':'station_status','tenant':job['tenant'], 'conversation_id':job['conversation'], 'job_id':job['jid']})
+        # Expired access tokens may be refreshed by Yandex when the skill wakes.
+        # Until that callback presents a fresh token, only the state is exposed.
+        return result if active else {'state': result.get('state', 'REVOKED'), 'text': ''}
 
     def ingress(self, data):
         with self.lock:
@@ -339,9 +351,11 @@ class Delivery:
             if state not in ('READY', 'QUEUED', 'RUNNING') or self.clock()-job['created'] > 900:
                 job['delivery'] = 'stopped'; self.save(); return
             final = state == 'READY'
+            # Keep checking for READY, but never repeat a pending phrase forever.
+            if not final and job['message'] >= 3: return
             if not final and self.clock() < job['next_at']: return
             text = result.get('text', '') if final else settings['pending_messages'][job['message'] % len(settings['pending_messages'])]
-            if not text: return
+            if not text and not final: return
             job['delivery'] = 'sending'
             if final:
                 job['nonce'] = ''.join(str(secrets.randbelow(10)) for _ in range(8))
