@@ -5,13 +5,14 @@ import sqlite3, struct, threading, time, urllib.request, urllib.error
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from transport import Yandex, Fault, payload
+from eta import baseline, pending, observe, label
 
 BASE = '/admin/station/'
 ORIGIN = 'https://alisa-admin.octoport.ru'
 SITE_BASE = '/app/station/'
 SITE_ORIGIN = 'https://alisa.octoport.ru'
 DEFAULTS = {'enabled': True, 'interval_seconds': 10,
-            'pending_messages': ['Расчёт ещё выполняется. Сообщу, когда ответ будет готов.'],
+            'pending_messages': ['Расчёт ещё выполняется. Ориентировочно осталось {remaining}.'],
             'manual_command': 'результат'}
 RESERVED = {'помощь', 'что ты умеешь', 'что умеет навык', 'дальше', 'отмена', 'выход',
             'отмени отчет', 'статус отчета', 'план запроса', 'привязать колонку',
@@ -92,10 +93,11 @@ class Delivery:
         self.last_poll = 0; self.pair_hash = ''; self.pair_until = 0; self.pair_tries = 0
         self.state = {'settings': dict(DEFAULTS), 'revision': 1, 'owner': None, 'selected': None,
                       'scenario': None, 'binding': None, 'job': None, 'connected': False,
-                      'uncertain': False, 'generation': 0, 'last_delivery': None, 'trigger': secrets.token_hex(12)}
+                      'uncertain': False, 'generation': 0, 'last_delivery': None, 'trigger': secrets.token_hex(12), 'eta_history': []}
         path = self.directory / 'state.json'
         if path.exists():
             self.state = json.loads(path.read_text())
+            self.state.setdefault('eta_history', [])
             validate_settings(self.state['settings'])
             if self.state.get('connected'):
                 try:
@@ -311,7 +313,8 @@ class Delivery:
                             delivered = self.peek({'op':'station_deliver','tenant':job['tenant'], 'conversation_id':job['conversation'], 'job_id':job['jid'],
                                                    'target_conversation':data.get('conversation'), 'message_id':data.get('message_id')})
                             return {'reply': delivered['text'] if delivered.get('state') == 'READY' else 'Этот ответ больше недоступен для текущей беседы.'}
-                        if result['state'] in ('QUEUED', 'RUNNING'): return {'reply': 'Расчёт ещё выполняется.'}
+                        if result['state'] in ('QUEUED', 'RUNNING'):
+                            return {'reply': pending('Расчёт ещё выполняется.', self.state['job'], self.clock())}
                         return {'reply': result.get('text') or 'Для этого запроса нет доступного готового ответа.'}
                     return {'command': 'результат'}
                 if match and command in ('отмени отчет', 'выход') and self.state['job']:
@@ -325,12 +328,14 @@ class Delivery:
                 if not isinstance(conversation, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,128}', conversation): raise Fault('conversation_schema')
                 if not old or (old['jid'], old['conversation']) != (jid, conversation):
                     self.state['generation'] += 1
+                    estimate = baseline(self.state['eta_history'])
                     self.state['job'] = dict(tenant=data['tenant'], token_hash=data['token_hash'], jid=jid,
                         conversation=conversation, created=self.clock(), next_at=self.clock()+settings['interval_seconds'],
+                        eta_base=estimate, eta_until=self.clock()+estimate, eta_observed=False,
                         message=0, delivery='waiting' if settings['enabled'] and self.state['connected'] and not self.state['uncertain'] else 'manual')
                     self.save()
                 if self.state['job']['delivery'] == 'waiting':
-                    return {'text': 'Задание принято. Сообщу ответ на этой колонке, когда расчёт завершится.'}
+                    return {'text': 'Задание принято. Примерное время ответа — около '+label(self.state['job'].get('eta_base', 60))+'. Сообщу ответ на этой колонке, когда расчёт завершится.'}
             # Replace only the runtime's exact fixed instruction, never figures or arbitrary prose.
             text = text.replace('Скажите: результат.', 'Скажите: '+settings['manual_command']+'.')
             text = text.replace('Для получения отчета: результат.', 'Для получения отчета: '+settings['manual_command']+'.')
@@ -351,10 +356,12 @@ class Delivery:
             if state not in ('READY', 'QUEUED', 'RUNNING') or self.clock()-job['created'] > 86400:
                 job['delivery'] = 'stopped'; self.save(); return
             final = state == 'READY'
-            # Keep checking for READY, but never repeat a pending phrase forever.
-            if not final and job['message'] >= 3: return
+            if final and not job.get('eta_observed'):
+                observe(self.state['eta_history'], self.clock()-job['created'])
+                job['eta_observed'] = True
+                self.save()
             if not final and self.clock() < job['next_at']: return
-            text = result.get('text', '') if final else settings['pending_messages'][job['message'] % len(settings['pending_messages'])]
+            text = result.get('text', '') if final else pending(settings['pending_messages'][job['message'] % len(settings['pending_messages'])], job, self.clock())
             if not text and not final: return
             job['delivery'] = 'sending'
             if final:
