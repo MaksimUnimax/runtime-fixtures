@@ -1,8 +1,8 @@
 {% extends "allauth/layouts/base.html" %}
 {% block head_title %}Подтвердите вход{% endblock %}
 {% block content %}
-<h1>Подтвердите вход ещё раз</h1>
-<p>{% if customer_reauthentication %}Для нового входа введите логин и пароль, затем код из письма.{% else %}Для нового входа нужен свежий код на почту.{% endif %} После продолжения текущая сессия центра входа завершится.</p>
+<h1>{% if customer_reauthentication %}Подтвердите вход в кабинет{% else %}Подтвердите вход ещё раз{% endif %}</h1>
+<p>{% if customer_reauthentication %}Чтобы открыть кабинет, введите логин и пароль, затем свежий код из письма.{% else %}Для нового входа нужен свежий код на почту.{% endif %} После продолжения текущая сессия центра входа завершится.</p>
 <form method="post" action="{% url 'account_logout' %}">
   {% csrf_token %}<input type="hidden" name="next" value="{{ login_target }}">
   <button type="submit">{% if customer_reauthentication %}Продолжить вход в кабинет{% else %}Продолжить вход по коду{% endif %}</button>

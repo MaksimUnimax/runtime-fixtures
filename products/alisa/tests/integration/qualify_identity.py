@@ -316,6 +316,14 @@ def main():
                 expect(unknown_page.locator('form[action="/auth/start"]')).to_be_visible()
                 check('s02_unverified_cookie_cannot_reuse_another_render_session',unknown_page.locator('header').get_by_role('link',name='Войти',exact=True).count()==1)
             finally:unknown_cookie.close()
+            stale_site=browser.new_context(ignore_https_errors=False,storage_state=context.storage_state())
+            try:
+                stale_site.clear_cookies(name='__Host-alisa_session')
+                stale_page=stale_site.new_page();open_identity(stale_page)
+                expect(stale_page.get_by_role('heading',name='Подтвердите вход в кабинет',exact=True)).to_be_visible()
+                check('s02_identity_session_without_cabinet_cookie_requires_explicit_reentry',urlsplit(stale_page.url).path=='/accounts/reauthenticate/' and stale_page.get_by_role('button',name='Продолжить вход в кабинет',exact=True).count()==1)
+                check('s02_reentry_does_not_display_old_success_messages',not any(re.search(r'Успешный вход|Successfully signed in|Адрес .* подтверждён',text) for text in stale_page.get_by_role('status').all_inner_texts()))
+            finally:stale_site.close()
             mfa_theme_page=context.new_page()
             mfa_theme_page.goto(ISSUER+'/accounts/2fa/totp/activate/')
             # Password-based accounts must satisfy the native security-settings

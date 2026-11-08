@@ -32,7 +32,15 @@ def code_reauthentication(request):
         return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
     login=reverse('account_login')+'?'+urlencode({REDIRECT_FIELD_NAME:target})
     if not request.user.is_authenticated:return HttpResponseRedirect(login)
-    response=render(request,'identity/reauthenticate_code.html',{'login_target':login,'customer_reauthentication':customer_target(target) is not None})
+    customer_reauthentication=customer_target(target) is not None
+    context={'login_target':login,'customer_reauthentication':customer_reauthentication}
+    if customer_reauthentication:
+        from django.contrib import messages
+        # The prior OAuth redirect never rendered these success flashes. They
+        # describe the old center session, not the fresh cabinet challenge.
+        context['messages']=[message for message in messages.get_messages(request)
+            if message.level!=messages.SUCCESS]
+    response=render(request,'identity/reauthenticate_code.html',context)
     response['Cache-Control']='no-store';return response
 
 def mail_status(request):
