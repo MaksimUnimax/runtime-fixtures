@@ -8,7 +8,7 @@ from http import HTTPStatus
 sys.path.append("/opt/alice-lab/releases/20261103-relink-r1")
 import deepseek_lab as llm
 sys.path.insert(0,"/opt/alice-market/releases/20261103-v09-dialogue-r7")
-sys.path.insert(0,"/opt/alisa-station/releases/station-auto-r1")
+sys.path.insert(0,"/opt/alisa-station/releases/station-auto-r6-session")
 import alice_bridge as marketplace
 import station_client
 
@@ -100,7 +100,8 @@ def skill(body,auth_header=""):
         if not account:
             answer=response("Для проверки закрытого задания свяжите учебный аккаунт.",count,linking=("account_linking" in meta.get("interfaces",{})))
         else:
-            answer=response(station_client.handle(marketplace,account,cmd,reqkey,bodyhash,hp(SKILL+"|"+sid),mid,hp((s.get("application") or {}).get("application_id") or "missing:"+sid),digest(token)),count)
+            speech,end_session=station_client.handle_turn(marketplace,account,cmd,reqkey,bodyhash,hp(SKILL+"|"+sid),mid,hp((s.get("application") or {}).get("application_id") or "missing:"+sid),digest(token))
+            answer=response(speech,count,end=end_session)
         return 200,answer,{"market_live_canary":True,"account_hmac":hp(account) if account else None,"session_hmac":session,"message_id":mid,"has_token":bool(token)}
     with db() as c:
         c.execute("BEGIN IMMEDIATE")
