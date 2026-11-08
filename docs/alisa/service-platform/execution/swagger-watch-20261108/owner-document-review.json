@@ -1,0 +1,64 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_OWNER_SUPPLIED_DOCUMENT_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "STRUCTURALLY_ACCEPTABLE_AS_OWNER_SUPPLIED_REVIEW_CANDIDATE",
+  "scope": "Read-only structural review of the normalized owner-supplied JSON artifact only. No original Markdown, tests, host/provider/DB/browser calls, or acceptance mutation.",
+  "artifact": {
+    "path": "/workspace/scratch/6c2f0ed5dac0/ozon-performance-owner-source.json",
+    "sha256": "c15c0e295a1feefca05a2f3db6c12c11a58bd128206f4e430ab3eea120e60c87",
+    "bytes": 308373,
+    "hash_matches_requested": true
+  },
+  "document_identity": {
+    "openapi": "3.0.0",
+    "title": "Документация Ozon Performance API",
+    "version": "2.0",
+    "server": "https://api-performance.ozon.ru:443",
+    "registry_server_identity": "https://api-performance.ozon.ru",
+    "server_identity_result": "MATCHES_AFTER_DEFAULT_HTTPS_PORT_NORMALIZATION",
+    "registry_title_pattern": "/performance/i",
+    "title_pattern_result": "MATCH"
+  },
+  "structure": {
+    "root_keys": ["components", "info", "openapi", "paths", "servers", "tags", "x-tagGroups"],
+    "path_count": 47,
+    "operation_count": 48,
+    "operation_ids": {"present": 48, "missing": 0, "duplicate_values": 0},
+    "tags": 11,
+    "components": {"schemas": 97, "requestBodies": 12},
+    "references": {"total": 182, "local": 182, "external": 0, "unresolved": 0},
+    "constraint_facets_observed": {
+      "required": 43,
+      "enum": 31,
+      "format": 135,
+      "pattern": 2,
+      "minimum": 3,
+      "maximum": 3,
+      "additionalProperties": 3
+    }
+  },
+  "review_findings": [
+    "The root document is valid JSON and its declared OpenAPI version is 3.0.0.",
+    "The single advertised server is the expected Ozon Performance origin; explicit :443 normalizes to the registry's default HTTPS port. No extra server, path, credentials, query, or fragment is present in that server URL.",
+    "The title matches the registered Performance title constraint.",
+    "All 182 references are local JSON pointers and resolve in the supplied document; no external references were found.",
+    "All 48 operations have unique operationId values. The document has 97 schemas and 12 request bodies, with ordinary schema constraints present.",
+    "No formal OpenAPI securitySchemes or root/operation security declarations are present. This document therefore does not establish an authentication contract and must not be used to infer that credentials are linked to a Seller cabinet.",
+    "This review establishes structural identity consistency only. It does not establish that Ozon currently serves these bytes, that the source is fresh, or that it is an official authenticated response."
+  ],
+  "acceptance_boundary": {
+    "allowed_status_if_later_accepted": "OWNER_SUPPLIED_REVIEWED",
+    "automatic_freshness": false,
+    "provider_identity_or_auth_binding": false,
+    "requires": "Separate explicit digest-specific administrative review/acceptance after the owner has reviewed the exact SHA256."
+  },
+  "reviewer_actions": {
+    "original_markdown_read": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "acceptance_performed": false
+  }
+}

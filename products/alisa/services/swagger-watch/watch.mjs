@@ -6,7 +6,6 @@ import {acquireOfficialSource} from '../../../../tooling/api-watch/src/acquire.t
 import {productionSourceRegistry} from '../../../../tooling/api-watch/src/source-registry.ts';
 import {buildCompleteOperationInventory} from '../../../../tooling/api-watch/src/inventory.ts';
 import {diffInventories,canonicalSemanticDiff} from '../../../../tooling/api-watch/src/diff.ts';
-import {validateSwaggerBytes} from '../../../../packages/server/monitoring-control/src/swagger-handoff.ts';
 
 export const PRODUCT='alisa_market';
 export const INTERVAL_MS=6*3600_000;
@@ -94,11 +93,18 @@ export function canonicalProviderIdentity(root,expected){
   return false;
 }
 export function validateDocument(d,bytes){
-  const v=validateSwaggerBytes(bytes,d.filename,MAX_BYTES),root=v.document.root;
-  if(!canonicalProviderIdentity(root,d.entry.requiredServerIdentity))throw Error('SOURCE_SERVER_IDENTITY_MISMATCH');
-  if(d.entry.titlePattern&&!d.entry.titlePattern.test(root.info?.title??''))throw Error('SOURCE_TITLE_IDENTITY_MISMATCH');
+  // API Watch performs full JSON/YAML OpenAPI parsing, root and reference
+  // validation. Product services do not import the sibling server package.
   const inventory=buildCompleteOperationInventory({sourceFamily:d.family,documentKey:d.key,snapshotSha256:digest(bytes),bytes,filename:d.filename});
-  return {inventory,version:v.detectedSpecVersion};
+  let version=null;
+  if(d.entry.requiredServerIdentity||d.entry.titlePattern){
+    // Both Ozon registry documents are JSON. WB YAML remains parsed solely
+    // by the existing API Watch implementation, without a second YAML stack.
+    const root=JSON.parse(Buffer.from(bytes).toString('utf8'));version=root.openapi??root.swagger;
+    if(!canonicalProviderIdentity(root,d.entry.requiredServerIdentity))throw Error('SOURCE_SERVER_IDENTITY_MISMATCH');
+    if(d.entry.titlePattern&&!d.entry.titlePattern.test(root.info?.title??''))throw Error('SOURCE_TITLE_IDENTITY_MISMATCH');
+  }
+  return {inventory,version};
 }
 async function previousInventory(root,r){
   if(!r.current)return null;
