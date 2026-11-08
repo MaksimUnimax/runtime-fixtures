@@ -18,7 +18,7 @@ Admin settings URL: https://alisa-admin.octoport.ru/admin/station/ (existing OWN
 - After the one-time QR approval, the service selects the only Station (or asks the owner to choose among several) and invokes the linked skill with a short-lived challenge. The authorized callback binds its application to the chosen device automatically. The user does not read or pronounce a code. Challenge lifetime: 3 minutes / 5 failed attempts per voice identity, 24 random digits. No account guessed from email/name.
 - Network mutation outcome unknown → no blind retry, reconnect required. Accepted by Quasar / callback answered is not proof of physical sound.
 - One selected Station, one active delivery subscription. A new job supersedes previous automatic delivery on this Station; stored reports remain under existing runtime retention.
-- A waiting Station subscription stops after 24 hours; the underlying runtime's ready report has its own expiry. A failed/cancelled/revoked/expired job stops automatic speech; the configured manual command remains available for its status.
+- A waiting Station subscription stops after 24 hours; the underlying runtime's ready report has its own expiry. A terminal FAILED/UNKNOWN job produces one spoken failure explanation; cancelled/revoked/expired jobs stop. The configured manual command remains available for status.
 
 Greeting: empty launch now says only «Привет». Site-name personalization remains dependent on the real site↔skill identity connection; no staff/Yandex/demo name is substituted. Existing H00 stays on an explicit help request.
 
