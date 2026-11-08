@@ -171,7 +171,8 @@ def run(*, context, second_context, db, check, web_origin, private_values, resta
     form.get_by_label('Маркетплейс',exact=True).select_option('WB')
     form.get_by_label('Название магазина',exact=True).fill('Synthetic lost ACK')
     form.get_by_label('API-токен',exact=True).fill('fixture:CONNECTED:wb:lost-ack')
-    form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+    with page.expect_event('requestfailed',predicate=lambda request:request.method=='POST' and request.post_data_json.get('action')=='create'):
+        form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
     expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_enabled()
     expect(page.get_by_role('button',name='Повторить это же добавление',exact=True)).to_be_disabled()
     page.unroute('**/api/account/stores',lose_create_ack)
@@ -196,7 +197,8 @@ def run(*, context, second_context, db, check, web_origin, private_values, resta
     form.get_by_label('Маркетплейс',exact=True).select_option('WB')
     form.get_by_label('Название магазина',exact=True).fill('Synthetic retry')
     form.get_by_label('API-токен',exact=True).fill('fixture:CONNECTED:wb:retry')
-    form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+    with page.expect_event('requestfailed',predicate=lambda request:request.method=='POST' and request.post_data_json.get('action')=='create'):
+        form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
     expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_enabled()
     page.unroute('**/api/account/stores',fail_before_create)
     page.get_by_role('button',name='Восстановить результат добавления',exact=True).click()
