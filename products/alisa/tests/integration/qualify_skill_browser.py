@@ -17,10 +17,18 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
     state=secrets.token_urlsafe(24)
     query=urlencode({'client_id':client_id,'redirect_uri':REDIRECT,'response_type':'code','scope':'reports:read','state':state})
     callbacks=[]
-    def broker(route):
-        callbacks.append(parse_qs(urlsplit(route.request.url).query))
-        route.fulfill(status=200,content_type='text/html',body='<p>Owned test broker boundary</p>')
-    context.route(REDIRECT+'**',broker)
+    def broker_boundary(route):
+        # Fetch the REAL consent POST once without following its external 303.
+        # The owned UID firewall must never need to resolve/connect to Yandex.
+        result=route.fetch(max_redirects=0)
+        location=result.headers.get('location','')
+        if result.status==303 and location.startswith(REDIRECT+'?'):
+            callbacks.append(parse_qs(urlsplit(location).query))
+            headers={key:value for key,value in result.headers.items() if key not in {'location','content-length','content-type'}}
+            headers['content-type']='text/html'
+            route.fulfill(status=200,headers=headers,body='<p>Owned test broker boundary</p>')
+        else:route.fulfill(response=result)
+    page.route(web_origin+'/api/account/alice',broker_boundary)
     try:
         page.goto(web_origin+'/alice/oauth/authorize?'+query)
         expect(page.get_by_role('heading',name='Подключить аккаунт к Алисе',exact=True)).to_be_visible()
@@ -36,7 +44,7 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
         check('s06_pending_consent_cannot_move_to_another_account',not any(c['name']=='__Host-alisa_alice' for c in second_context.cookies(web_origin)))
         foreign.close()
         page.get_by_role('button',name='Разрешить подключение',exact=True).click()
-        page.wait_for_url(REDIRECT+'**')
+        check('s06_real_consent_post_returns_fixed_external_303',len(callbacks)==1)
         check('s06_consent_mirrors_state_client_and_scope_to_fixed_broker',len(callbacks)==1 and callbacks[0]['state']==[state] and callbacks[0]['client_id']==[client_id] and callbacks[0]['scope']==['reports:read'])
         code=callbacks[0]['code'][0];private_values.append(code)
         form={'grant_type':'authorization_code','client_id':client_id,'client_secret':client_secret,'redirect_uri':REDIRECT,'code':code}
@@ -71,13 +79,13 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
         check('s06_connection_and_voice_privacy_are_account_isolated',True);other.close()
         fresh=context.browser.new_context(ignore_https_errors=False)
         try:
-            fresh.route(REDIRECT+'**',broker)
-            login=fresh.new_page();login.goto(web_origin+'/alice/oauth/authorize?'+query)
+            login=fresh.new_page();login.route(web_origin+'/api/account/alice',broker_boundary)
+            login.goto(web_origin+'/alice/oauth/authorize?'+query)
             expect(login).to_have_url(web_origin+'/login')
             native_login(login)
             expect(login.get_by_role('heading',name='Подключить аккаунт к Алисе',exact=True)).to_be_visible()
             check('s06_fresh_native_password_email_login_returns_to_skill_consent',urlsplit(login.url).path=='/app/alice/connect')
-            login.get_by_role('button',name='Отмена',exact=True).click();login.wait_for_url(REDIRECT+'**')
+            login.get_by_role('button',name='Отмена',exact=True).click()
             check('s06_consent_denial_has_no_code_and_clears_pending_cookie',callbacks[-1].get('error')==['access_denied'] and 'code' not in callbacks[-1] and not any(c['name']=='__Host-alisa_alice' for c in fresh.cookies(web_origin)))
             profile=fresh.request.get(web_origin+'/api/account/me').json()['profile']
             check('s06_same_oidc_subject_keeps_customer_tenant_and_access',all(profile[k]==before[k] for k in ['customer_id','tenant_id','access_status']))
@@ -85,5 +93,5 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
         with db('platform') as conn:
             check('s06_linking_created_no_customer_or_tenant_duplicate',conn.execute('SELECT (SELECT count(*) FROM accounts_customer),(SELECT count(*) FROM accounts_tenant)').fetchone()==counts)
     finally:
-        context.unroute(REDIRECT+'**',broker)
+        page.unroute(web_origin+'/api/account/alice',broker_boundary)
         page.close()
