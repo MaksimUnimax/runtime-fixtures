@@ -563,11 +563,13 @@ const calculators = {
       return incomplete;
 
     const values = raw;
+    const amount =
+      values[0] - values.slice(1).reduce((sum, value) => sum + value, 0);
+    if (!Number.isFinite(amount)) return incomplete;
     return {
       status: "COMPLETE",
       label: "platform_contribution",
-      amount:
-        values[0] - values.slice(1).reduce((sum, value) => sum + value, 0),
+      amount,
       isNetProfit: false,
     };
   },
@@ -1415,6 +1417,101 @@ const frozenCoverBefore = JSON.stringify(frozenCoverInput);
 checkDaysCoverConsumer(frozenCoverInput, 14, "frozen numeric-string input");
 assert.equal(JSON.stringify(frozenCoverInput), frozenCoverBefore, "days_cover input unchanged");
 
+let finiteContributionCases = 0;
+const contributionComponents = ["revenue", "fees", "storage", "logistics", "ads"];
+// Synthetic normalized inputs only; the calculator gets no new defaults.
+function syntheticContributionInput(values = {}, currency = "RUB") {
+  return {
+    complete: true,
+    revenue: 1000,
+    fees: 110,
+    storage: 45,
+    logistics: 75,
+    ads: 90,
+    currencyByComponent: Object.fromEntries(
+      contributionComponents.map((field) => [field, currency]),
+    ),
+    ...values,
+  };
+}
+const incompleteContribution = {
+  status: "INCOMPLETE", label: "platform_contribution", amount: null, isNetProfit: false,
+};
+function completeContribution(amount) {
+  return { status: "COMPLETE", label: "platform_contribution", amount, isNetProfit: false };
+}
+function checkFiniteContribution(input, expected, label) {
+  const actual = calculators.platform_contribution(input);
+  assert.deepEqual(actual, expected, label);
+  assert.ok(actual.status !== "COMPLETE" || Number.isFinite(actual.amount), label + " finite amount");
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), label + " JSON");
+  finiteContributionCases++;
+}
+for (const [label, revenue, fees, storage, logistics, ads, amount] of [
+  ["cost sum overflow", 1000, Number.MAX_VALUE, Number.MAX_VALUE, 0, 0, null],
+  ["positive final overflow", Number.MAX_VALUE, -Number.MAX_VALUE, 0, 0, 0, null],
+  ["negative final overflow", -Number.MAX_VALUE, Number.MAX_VALUE, 0, 0, 0, null],
+  ["later cancellation cannot repair overflow", 0, Number.MAX_VALUE, Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE, null],
+  ["negative cost sum overflow", 0, -Number.MAX_VALUE, -Number.MAX_VALUE, 0, 0, null],
+  ["finite MAX", Number.MAX_VALUE, 0, 0, 0, 0, Number.MAX_VALUE],
+  ["finite negative MAX", -Number.MAX_VALUE, 0, 0, 0, 0, -Number.MAX_VALUE],
+  ["finite MAX cost cancellation", Number.MAX_VALUE, Number.MAX_VALUE, 0, 0, 0, 0],
+  ["finite negative cost", 0, -Number.MAX_VALUE, 0, 0, 0, Number.MAX_VALUE],
+  ["ordinary contribution", 1000, 110, 45, 75, 90, 680],
+  ["loss stays complete", 100, 110, 0, 0, 0, -10],
+  ["negative correction retained", 100, -10, 0, 0, 0, 110],
+  ["finite cost cancellation", 1, Number.MAX_VALUE, -Number.MAX_VALUE, 0, 0, 1],
+  ["ordered rounding retained", 1, 2 ** 53, 1, -(2 ** 53), 0, 1],
+  ["real zero", 0, 0, 0, 0, 0, 0],
+  ["negative zero retained", -0, 0, 0, 0, 0, -0],
+  ["subnormal amount", Number.MIN_VALUE, -Number.MIN_VALUE, 0, 0, 0, 2 * Number.MIN_VALUE],
+  ["subnormal cancellation", Number.MIN_VALUE, Number.MIN_VALUE, 0, 0, 0, 0],
+  ["subnormal loss", Number.MIN_VALUE, Number.MIN_VALUE, Number.MIN_VALUE, Number.MIN_VALUE, Number.MIN_VALUE, -3 * Number.MIN_VALUE],
+]) {
+  checkFiniteContribution(
+    syntheticContributionInput({ revenue, fees, storage, logistics, ads }),
+    amount === null ? incompleteContribution : completeContribution(amount),
+    label,
+  );
+}
+for (const field of contributionComponents) {
+  for (const value of [null, undefined, NaN, Infinity, -Infinity, "1", "", {}, [], true, false, 1n, Symbol("synthetic"), new Number(1), () => 1])
+    checkFiniteContribution(syntheticContributionInput({ [field]: value }), incompleteContribution, "invalid amount " + field);
+  const missing = syntheticContributionInput();
+  delete missing[field];
+  checkFiniteContribution(missing, incompleteContribution, "missing amount " + field);
+  for (const currency of [null, undefined, "", " ", " RUB", "RUB ", 1, true, {}, [], new String("RUB")]) {
+    const input = syntheticContributionInput();
+    input.currencyByComponent[field] = currency;
+    checkFiniteContribution(input, incompleteContribution, "invalid currency " + field);
+  }
+  const mismatch = syntheticContributionInput();
+  mismatch.currencyByComponent[field] = "USD";
+  checkFiniteContribution(mismatch, incompleteContribution, "currency mismatch " + field);
+  const absentCurrency = syntheticContributionInput();
+  delete absentCurrency.currencyByComponent[field];
+  checkFiniteContribution(absentCurrency, incompleteContribution, "missing currency " + field);
+}
+for (const currencyByComponent of [null, undefined, "RUB", [], true, 1, {}])
+  checkFiniteContribution(syntheticContributionInput({ currencyByComponent }), incompleteContribution, "invalid currency mapping");
+for (const complete of [false, undefined, null, 0, 1, "true", new Boolean(true)])
+  checkFiniteContribution(syntheticContributionInput({ complete }), incompleteContribution, "strict contribution completeness");
+checkFiniteContribution(syntheticContributionInput({}, "USD"), completeContribution(680), "matching explicit currency retained");
+const frozenContribution = syntheticContributionInput();
+Object.freeze(frozenContribution.currencyByComponent);
+Object.freeze(frozenContribution);
+const frozenContributionBefore = JSON.stringify(frozenContribution);
+checkFiniteContribution(frozenContribution, completeContribution(680), "frozen contribution input");
+assert.equal(JSON.stringify(frozenContribution), frozenContributionBefore, "contribution input unchanged");
+const detachedContribution = calculators.platform_contribution(frozenContribution);
+detachedContribution.amount = 999;
+checkFiniteContribution(frozenContribution, completeContribution(680), "detached contribution result");
+const detachedIncomplete = calculators.platform_contribution(syntheticContributionInput({ complete: false }));
+detachedIncomplete.amount = 999;
+checkFiniteContribution(syntheticContributionInput({ complete: false }), incompleteContribution, "detached incomplete result");
+assert.throws(() => calculators.platform_contribution(null), TypeError, "preexisting null-root boundary unchanged");
+assert.throws(() => calculators.platform_contribution(undefined), TypeError, "preexisting missing-root boundary unchanged");
+
 // STD-04 SOURCE-only: require declared complete source rows, amounts, matching
 // provider/store/operation/field/metric/currency, and yesterday/prior relative
 // to a stated calendar reference. Declared identities do not prove real provider
@@ -2059,6 +2156,7 @@ console.log(
     wbHosts: [...wbHosts].sort(),
     numericCases: numeric.cases.length,
     daysCoverFiniteConsumerCases,
+    finiteContributionCases,
     semanticProjectionSha256: coverage.readiness.semanticProjectionSha256,
     ozonRegistrySha256: coverage.authorities.ozon.registrySha256,
     wbRegistrySha256: coverage.authorities.wildberries.registrySha256,
