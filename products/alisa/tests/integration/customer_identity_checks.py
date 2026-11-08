@@ -93,6 +93,35 @@ def run(check):
     check('customer_existing_sso_cannot_issue_new_code',b.get(new_url,secure=True).status_code==403)
     external=reverse('account_reauthenticate')+'?'+urlencode({'next':'https://wrong.example.invalid/'})
     check('customer_password_account_reauth_rejects_external_target',b.get(external,secure=True).status_code==400)
+    reentry=reverse('account_reauthenticate')+'?'+urlencode({'next':new_url})
+    old_session=b.session.session_key
+    form=b.get(reentry,secure=True)
+    check('customer_reentry_shows_native_password_form_without_intermediate_confirmation',form.status_code==200
+        and b'name="login"' in form.content and b'name="password"' in form.content
+        and 'Продолжить вход в кабинет'.encode() not in form.content
+        and 'Подтвердите вход в кабинет'.encode() not in form.content
+        and ('action="'+reverse('account_reauthenticate')+'"').encode() in form.content)
+    check('customer_reentry_get_preserves_authenticated_identity_session',b.session.session_key==old_session
+        and b.session.get('_auth_user_id')==str(person.pk))
+    denied=b.post(reverse('account_reauthenticate'),{'login':person.email,'password':password,'next':new_url},secure=True,
+        HTTP_ORIGIN=settings.IDENTITY_ISSUER)
+    check('customer_reentry_csrf_rejection_does_not_sign_out',denied.status_code==403
+        and b.session.session_key==old_session and b.session.get('_auth_user_id')==str(person.pk))
+    denied=post(b,reverse('account_reauthenticate'),{'next':'https://wrong.example.invalid/','login':person.email,'password':password})
+    check('customer_reentry_invalid_target_does_not_sign_out',denied.status_code==400
+        and b.session.get('_auth_user_id')==str(person.pk))
+    before=IdentityMail.objects.filter(recipient=person.email).count()
+    denied=post(b,reverse('account_reauthenticate'),{'login':person.email,'password':'incorrect-owned-reentry-password','next':new_url})
+    check('customer_reentry_wrong_password_cannot_reuse_old_sso_or_send_code',denied.status_code==200
+        and '_auth_user_id' not in b.session and PROOF not in b.session
+        and IdentityMail.objects.filter(recipient=person.email).count()==before)
+    response=post(b,reverse('account_reauthenticate'),{'login':person.email,'password':password,'next':new_url})
+    check('customer_reentry_password_still_requires_fresh_email_code',response.status_code==302
+        and urlsplit(response['Location']).path==reverse('account_confirm_login_code')
+        and '_auth_user_id' not in b.session and PROOF not in b.session)
+    response=code_step(b,letter(b))
+    check('customer_reentry_native_code_restores_same_identity_and_exact_oauth_target',response.status_code==302
+        and response['Location']==new_url and b.session.get('_auth_user_id')==str(person.pk) and PROOF in b.session)
     check('customer_duplicate_parameter_not_customer_authorization',customer_target(new_url+'&nonce=duplicate') is None)
     check('customer_probe_callback_not_customer_authorization',customer_target(new_url.replace('%2Fauth%2Fcallback','%2Foidc-probe%2Fcallback')) is None)
     staff=reverse('idp:oidc:authorization')+'?'+urlencode({'client_id':settings.IDENTITY_STAFF_CLIENT_ID,

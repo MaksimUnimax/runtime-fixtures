@@ -15,7 +15,7 @@ def code_reauthentication(request):
     """Restart both customer factors; retain native account-security reauth."""
     from allauth.account.adapter import get_adapter
     from allauth.account.views import ReauthenticateView
-    from .customer import customer_target
+    from .customer import customer_target, CustomerReentryLoginView
     values=request.POST.getlist(REDIRECT_FIELD_NAME) or request.GET.getlist(REDIRECT_FIELD_NAME)
     target=values[0] if len(values)==1 else ''
     if len(values)>1 or len(target)>4096 or '\\' in target or any(ord(c)<32 or ord(c)==127 for c in target):
@@ -24,7 +24,12 @@ def code_reauthentication(request):
     except ValueError:return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
     if u.scheme or u.netloc or u.fragment or target and not u.path.startswith('/'):
         return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
-    if (customer_target(target) is None and request.user.is_authenticated
+    customer_reauthentication=customer_target(target) is not None
+    if customer_reauthentication:
+        if request.method not in {'GET','POST'}:
+            return JsonResponse({'code':'METHOD_NOT_ALLOWED'},status=405)
+        return CustomerReentryLoginView.as_view()(request)
+    if (request.user.is_authenticated
             and get_adapter().get_reauthentication_methods(request.user)):
         return ReauthenticateView.as_view()(request)
     if request.method!='GET':return JsonResponse({'code':'METHOD_NOT_ALLOWED'},status=405)
@@ -32,14 +37,7 @@ def code_reauthentication(request):
         return JsonResponse({'code':'INVALID_RETURN_TARGET'},status=400)
     login=reverse('account_login')+'?'+urlencode({REDIRECT_FIELD_NAME:target})
     if not request.user.is_authenticated:return HttpResponseRedirect(login)
-    customer_reauthentication=customer_target(target) is not None
     context={'login_target':login,'customer_reauthentication':customer_reauthentication}
-    if customer_reauthentication:
-        from django.contrib import messages
-        # The prior OAuth redirect never rendered these success flashes. They
-        # describe the old center session, not the fresh cabinet challenge.
-        context['messages']=[message for message in messages.get_messages(request)
-            if message.level!=messages.SUCCESS]
     response=render(request,'identity/reauthenticate_code.html',context)
     response['Cache-Control']='no-store';return response
 
