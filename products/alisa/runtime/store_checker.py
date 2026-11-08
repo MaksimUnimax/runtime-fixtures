@@ -17,7 +17,7 @@ ENDPOINTS = {
 }
 CODES = frozenset({'CONNECTED', 'AUTH_DENIED', 'SCOPE_MISSING', 'TIMEOUT', 'RATE_LIMITED',
     'CHECK_UNAVAILABLE', 'PROVIDER_UNAVAILABLE', 'IDENTITY_NOT_VERIFIED',
-    'UNKNOWN_OUTCOME', 'PROVIDER_PLAN_REQUIRED'})
+    'UNKNOWN_OUTCOME', 'PROVIDER_PLAN_REQUIRED', 'AUTHENTICATED_UNLINKED'})
 
 
 def object_pairs(pairs):
@@ -71,6 +71,8 @@ def validate(message, environment):
 
 def safe_result(result, pins):
     if not isinstance(result, dict) or result.get('code') not in CODES:
+        return False
+    if result['code'] == 'AUTHENTICATED_UNLINKED' and pins['kind'] != 'PERFORMANCE':
         return False
     if result['code'] != 'CONNECTED':
         return set(result) == {'code'}
@@ -175,5 +177,11 @@ class Checker:
         else:
             # Token issuance proves credentials, not a link to the Seller cabinet.
             # Never decode unverified JWT claims or fetch campaigns/reports to guess.
-            return {'code': 'IDENTITY_NOT_VERIFIED'}
+            token = data.get('access_token') if isinstance(data, dict) else None
+            if (not isinstance(token, str) or not 12 <= len(token) <= 16384
+                    or not token.isascii() or any(ord(c) <= 32 or ord(c) >= 127 for c in token)
+                    or not isinstance(data.get('token_type'), str) or data['token_type'].lower() != 'bearer'
+                    or type(data.get('expires_in')) is not int or not 0 < data['expires_in'] < 2**31):
+                return {'code': 'IDENTITY_NOT_VERIFIED'}
+            return {'code': 'AUTHENTICATED_UNLINKED'}
         return {'code': 'CONNECTED', 'identity': identity, 'capabilities': [kind]}

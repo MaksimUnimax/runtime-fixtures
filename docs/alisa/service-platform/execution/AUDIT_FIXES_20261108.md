@@ -23,3 +23,11 @@ Installed source ancestors 7afaf646(web/identity),73180172(admin),6098b313(platf
 Alisa apt-get clean restored free disk from3226886144 to3546927104 bytes. Only reproducible OS package cache cleared. No release/account/DB removed.
 
 Current status: SOURCE_TESTED, browser/backend CI pending, independent final review pending, NOT_INSTALLED.
+
+## Concurrent source reconciliation
+
+The current stores branch advanced to5dff6e8883e25ac464d6e8c64e4ab5a7280c70f7 during audit work. Its Seller qualification and AUTHENTICATED_UNLINKED change has been merged without discarding either branch. The new checker and its TLS tests were also incorporated into canonical products/alisa/runtime; existing security boundaries and the configured Seller qualification flag are preserved.
+
+Publication fallback: ordinary server git push timed out, including one bounded55s HTTP/1.1 retry. Connected GitHub API published the identical tree b0e3c2c934637e394dd35e503b81cf6d6c0e9b96 as3aeb0c77; original local history retained. Draft PR399 is the review/CI surface.
+
+Resource follow-up: native hardlink dry-run preserving timestamps/ownership/mode/xattrs on inactive dependency trees projected only95.32KiB. No hardlinks applied. The earlier OS-cache cleanup retained every release and restored about305MiB. Installation admission must measure actual package/extraction/rollback requirements against3072MiB reserve.

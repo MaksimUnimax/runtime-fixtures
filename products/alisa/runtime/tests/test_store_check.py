@@ -124,9 +124,26 @@ class HTTPSChecks(unittest.TestCase):
     def test_performance_token_never_proves_link_to_seller(self):
         self.server.body = b'{"access_token":"fixture-token-with-unverified-sub","token_type":"Bearer","expires_in":3600}'
         value = message('PERFORMANCE'); result = self.checker(True).check(value, 'dev')
-        self.assertEqual(result, {'code': 'IDENTITY_NOT_VERIFIED'})
+        self.assertEqual(result, {'code': 'AUTHENTICATED_UNLINKED'})
         self.assertEqual(self.destinations, ['https://api-performance.ozon.ru/api/client/token'])
         self.assertEqual(loads(self.server.bodies[0])['grant_type'], 'client_credentials')
+
+    def test_performance_200_requires_a_well_formed_token_response(self):
+        valid = {'access_token': 'fixture-token-with-unverified-sub', 'token_type': 'Bearer', 'expires_in': 1800}
+        invalid = [{}, [], {**valid, 'access_token': ''}, {**valid, 'access_token': 'bad token value'},
+            {**valid, 'token_type': 'Basic'}, {**valid, 'expires_in': True}, {**valid, 'expires_in': 0},
+            {**valid, 'expires_in': '1800'}, {**valid, 'expires_in': 2**31}]
+        for body in invalid:
+            with self.subTest(body=body):
+                self.server.body = json.dumps(body).encode()
+                self.assertEqual(self.checker(True).check(message('PERFORMANCE'), 'dev'), {'code': 'IDENTITY_NOT_VERIFIED'})
+
+    def test_authenticated_unlinked_cannot_claim_an_identity_or_other_channel(self):
+        result = {'code': 'AUTHENTICATED_UNLINKED'}
+        self.assertTrue(safe_result(result, message('PERFORMANCE')['pins']))
+        self.assertFalse(safe_result({**result, 'identity': 'ozon:client:123'}, message('PERFORMANCE')['pins']))
+        for kind in ['SELLER', 'WB']:
+            self.assertFalse(safe_result(result, message(kind)['pins']))
 
     def test_statuses_are_distinct_and_no_upstream_text_is_returned(self):
         for status, code in [(401, 'AUTH_DENIED'), (402, 'PROVIDER_PLAN_REQUIRED'), (403, 'CHECK_UNAVAILABLE'), (429, 'RATE_LIMITED'), (503, 'PROVIDER_UNAVAILABLE')]:

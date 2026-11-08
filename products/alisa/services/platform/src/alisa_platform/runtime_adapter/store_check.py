@@ -11,7 +11,7 @@ from django.conf import settings
 VERSION = 'rt_check_v1'
 LIMIT = 32768
 CODES = {'CONNECTED', 'AUTH_DENIED', 'SCOPE_MISSING', 'TIMEOUT', 'RATE_LIMITED',
-         'CHECK_UNAVAILABLE', 'PROVIDER_UNAVAILABLE', 'IDENTITY_NOT_VERIFIED', 'UNKNOWN_OUTCOME', 'PROVIDER_PLAN_REQUIRED'}
+         'CHECK_UNAVAILABLE', 'PROVIDER_UNAVAILABLE', 'IDENTITY_NOT_VERIFIED', 'UNKNOWN_OUTCOME', 'PROVIDER_PLAN_REQUIRED', 'AUTHENTICATED_UNLINKED'}
 
 
 def strict_object(pairs):
@@ -64,6 +64,8 @@ def check_store(pins, credential):
             raise ValueError()
         result = value['result']
         if not isinstance(result, dict) or result.get('code') not in CODES:
+            raise ValueError()
+        if result['code'] == 'AUTHENTICATED_UNLINKED' and pins['kind'] != 'PERFORMANCE':
             raise ValueError()
         if result['code'] == 'CONNECTED':
             if set(result) != {'code', 'identity', 'capabilities'}:
