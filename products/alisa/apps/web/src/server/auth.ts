@@ -1,6 +1,7 @@
 import * as oidc from 'openid-client';
 import {EncryptJWT,jwtDecrypt} from 'jose';
 import {createHash,randomBytes} from 'node:crypto';
+import {cache} from 'react';
 import {siteOrigin} from './public';
 import {permittedAuthOrigins} from './auth-origins';
 import type {AuthFlowInput,AuthSessionInput} from '@alisa/contracts';
@@ -84,6 +85,7 @@ export async function begin(request:Request){
   if(new URL(request.url).search)return response({code:'INVALID_PAYLOAD'},422);
   const text=await boundedBody(request,2048);const form=new URLSearchParams(text);
   if([...form.keys()].some(k=>!['service','privacy','return_to'].includes(k))||form.getAll('service').length!==1||form.getAll('privacy').length!==1||form.get('service')!=='on'||form.get('privacy')!=='on'||(form.get('return_to')||'/app')!=='/app')return response({code:'INVALID_PAYLOAD'},422);
+  if(await getProfile(readCookie(request,SESSION_COOKIE)))return new Response(null,{status:303,headers:{Location:siteOrigin()+'/app','Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
   const config=await client(),state=oidc.randomState(),nonce=oidc.randomNonce(),verifier=oidc.randomPKCECodeVerifier();
   const encrypted=await seal({state,nonce,verifier,session_token:randomBytes(32).toString('base64url'),return_to:'/app'},'alisa-flow','10m');
   const handoff=readCookie(request,HANDOFF_COOKIE);
@@ -127,11 +129,13 @@ export async function callback(request:Request){
     return new Response(null,{status:303,headers:{Location:target.href,'Set-Cookie':cookie(FLOW_COOKIE,'',0),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
   }
 }
-export async function getProfile(token:string):Promise<Profile|null>{
+// React scopes this memoization to one server render; route handlers perform
+// fresh lookups. Do not replace it with a process-wide session cache.
+export const getProfile=cache(async(token:string):Promise<Profile|null>=>{
   if(!authEnabled()||!/^[A-Za-z0-9_-]{43}$/.test(token))return null;
   const result=await accountApi('me',{session_token:token});
   if(result.status===401)return null;if(result.status!==200||!result.body.profile)throw new AuthUnavailable();return result.body.profile as Profile;
-}
+});
 export async function boundedBody(request:Request,limit=4096){
   const reader=request.body?.getReader();if(!reader)return '';
   const chunks:Uint8Array[]=[];let length=0;

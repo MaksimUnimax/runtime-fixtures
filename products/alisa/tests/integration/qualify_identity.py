@@ -292,6 +292,30 @@ def main():
             page.goto(confirmation);page.get_by_role('button',name='Подтвердить контакт').click();expect(page.get_by_role('status')).to_contain_text('Контакт подтверждён')
             check('s02_handoff_contact_confirmed_in_browser',True)
             register(page,email)
+            expect(page.locator('header').get_by_role('link',name='Кабинет',exact=True)).to_have_attribute('href','/app')
+            check('s02_verified_customer_header_links_to_cabinet',True)
+            with db('platform') as conn:
+                navigation_before=conn.execute('SELECT (SELECT count(*) FROM accounts_authflow),(SELECT count(*) FROM accounts_websession)').fetchone()
+            with db('identity') as conn:mail_before=conn.execute('SELECT count(*) FROM accounts_identitymail').fetchone()[0]
+            cookie_before=next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')
+            for target in ['/login','/login?error=AUTH_FAILED']:
+                page.goto(WEB+target)
+                expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
+                check('s02_verified_session_reuses_cabinet_'+('error' if '?' in target else 'plain'),urlsplit(page.url).path=='/app' and not page.locator('form[action="/auth/start"]').count())
+            started=page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0)
+            check('s02_verified_session_post_start_reuses_cabinet_without_cookie_replacement',started.status==303 and started.headers.get('location')==WEB+'/app' and 'set-cookie' not in started.headers and next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')==cookie_before)
+            check('s02_verified_session_start_still_rejects_foreign_origin',page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':'https://wrong.example.invalid'},max_redirects=0).status==403)
+            check('s02_verified_session_start_still_requires_consents',page.request.post(WEB+'/auth/start',form={},headers={'Origin':WEB},max_redirects=0).status==422)
+            check('s02_verified_session_start_still_rejects_query',page.request.post(WEB+'/auth/start?next=foreign',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0).status==422)
+            with db('platform') as conn:check('s02_signed_in_navigation_creates_no_flow_or_session',conn.execute('SELECT (SELECT count(*) FROM accounts_authflow),(SELECT count(*) FROM accounts_websession)').fetchone()==navigation_before)
+            with db('identity') as conn:check('s02_signed_in_navigation_sends_no_new_email',conn.execute('SELECT count(*) FROM accounts_identitymail').fetchone()[0]==mail_before)
+            unknown_cookie=browser.new_context(ignore_https_errors=False)
+            try:
+                unknown_cookie.add_cookies([{'name':'__Host-alisa_session','value':'x'*43,'url':WEB,'secure':True,'httpOnly':True}])
+                unknown_page=unknown_cookie.new_page();unknown_page.goto(WEB+'/login')
+                expect(unknown_page.locator('form[action="/auth/start"]')).to_be_visible()
+                check('s02_unverified_cookie_cannot_reuse_another_render_session',unknown_page.locator('header').get_by_role('link',name='Войти',exact=True).count()==1)
+            finally:unknown_cookie.close()
             mfa_theme_page=context.new_page()
             mfa_theme_page.goto(ISSUER+'/accounts/2fa/totp/activate/')
             # Password-based accounts must satisfy the native security-settings
@@ -427,6 +451,7 @@ def main():
             page.goto(WEB+'/app');expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible()
             # Logout revokes the server-side product session, not just its cookie.
             saved=session['value'];page.get_by_role('button',name='Выйти из кабинета').click();expect(page).to_have_url(re.compile('/login'))
+            check('s02_logout_renders_signed_out_navigation',page.locator('header').get_by_role('link',name='Войти',exact=True).count()==1 and page.locator('form[action="/auth/start"]').count()==1)
             check('s02_logout_revokes_server_session',request('http://127.0.0.1:18402/api/v1/account/me','POST',{'session_token':saved},{'Authorization':'Bearer '+auth_service})[0]==401)
             # Repeat login goes through the authority and a fresh email code.
             open_identity(page)
@@ -441,7 +466,16 @@ def main():
             expect(page.get_by_role('heading',name='Мой кабинет',exact=True)).to_be_visible(timeout=15000)
             with db('platform') as conn:check('s02_repeat_login_preserves_customer_and_tenant',conn.execute('SELECT customer_id,tenant_id FROM accounts_membership WHERE customer_id=%s',[first[0]]).fetchone()==first and conn.execute('SELECT count(*) FROM accounts_customer').fetchone()[0]==2)
             # Recovery through genuine process restarts retains the same row and cookie.
-            stop(api);api=start('platform');stop(authority);authority=start('identity')
+            stop(api)
+            try:
+                unavailable_page=context.new_page();unavailable_page.goto(WEB+'/login')
+                expect(unavailable_page.get_by_role('heading',name='Вход временно недоступен',exact=True)).to_be_visible()
+                check('s02_session_lookup_outage_does_not_offer_another_login',not unavailable_page.locator('form[action="/auth/start"]').count() and not unavailable_page.locator('header a[href="/login"]').count())
+                failed_start=page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0)
+                check('s02_session_lookup_outage_start_fails_closed',failed_start.status==503 and failed_start.json().get('code')=='AUTH_UNAVAILABLE' and 'set-cookie' not in failed_start.headers)
+                unavailable_page.close()
+            finally:api=start('platform')
+            stop(authority);authority=start('identity')
             for _ in range(50):
                 try:
                     if request(WEB+'/api/account/me',headers={'Cookie':'__Host-alisa_session='+next(c['value'] for c in context.cookies() if c['name']=='__Host-alisa_session')})[0]==200:break
@@ -466,6 +500,10 @@ def main():
                 conn.execute('UPDATE accounts_customer SET is_active=true WHERE id=%s',[first[0]])
                 conn.execute("UPDATE accounts_websession SET expires_at=now()-interval '1 second' WHERE token_hash=%s",[hashlib.sha256(current_cookie.encode()).hexdigest()])
                 check('s02_expired_product_session_denied',profile_status()==401)
+                expired=context.new_page();expired.goto(WEB+'/login')
+                expect(expired.locator('form[action="/auth/start"]')).to_be_visible()
+                check('s02_expired_product_session_renders_login_without_cached_authorization',expired.locator('header').get_by_role('link',name='Войти',exact=True).count()==1)
+                expired.close()
                 conn.execute("UPDATE accounts_websession SET expires_at=now()+interval '10 minutes' WHERE token_hash=%s",[hashlib.sha256(current_cookie.encode()).hexdigest()])
             check('s02_own_session_restored_after_owned_fixture_change',profile_status()==200)
             with db('platform') as conn:
