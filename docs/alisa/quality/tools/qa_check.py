@@ -89,13 +89,17 @@ def transition(before,after):
 
 def render(root):
     stats=check(root);bugs=load(root/'BUGS.json')['records'];templates=load(root/'TEMPLATES.json')['records'];runs=load(root/'RUNS.json')['records'];esc=lambda s:str(s).replace('|','/').replace('\n',' ')
-    lines=['# Общая доска тестера и автора матрицы','','**Генерируется из BUGS.json, TEMPLATES.json, RUNS.json. Не редактировать статусы вручную здесь.**','',f"Импорт: {stats['candidates']} кандидатов; {stats['findings']} записей разных типов; {stats['source_reports']} исторических журналов. Включённых импортированных кандидатов: **{stats['enabled_candidates']}**.",'','## Кандидаты','','| ID | Название | Этап | Зависимости | Блокеры |','|---|---|---|---|---|']
+    lines=['# Общая доска тестера и автора матрицы','','**Генерируется из BUGS.json, TEMPLATES.json, RUNS.json. Не редактировать статусы вручную здесь.**','',f"Импорт: {stats['candidates']} кандидатов; {stats['findings']} записей разных типов; {stats['source_reports']} протоколов. Включённых импортированных кандидатов: **{stats['enabled_candidates']}**.",'','## Кандидаты','','| ID | Название | Этап | Зависимости | Блокеры |','|---|---|---|---|---|']
+    progress=root/'CATALOG_PROGRESS_CURRENT.json'
+    if progress.exists():
+        counts=load(progress)
+        lines[5:5]=[f"Текущий каталог: **{counts['implemented_total']} реализовано / {counts['enabled_total']} включено**. Шесть импортированных CASE не являются размером всего каталога. [Точная версия и ограничения](CATALOG_PROGRESS_CURRENT.json).",'']
     for t in templates:lines.append('| '+' | '.join(esc(x) for x in [t['id'],t['title'],t['state'],', '.join(t['dependencies']) or '—',', '.join(t['blockers'])])+' |')
-    lines+=['','## Дефекты и наблюдения','','TRIAGED означает разбор материалов, не повторную проверку текущего сервиса. Исторический исход хранится отдельно.','','| ID | Тип | Severity источника | Наблюдение | Исторический исход | Сейчас |','|---|---|---|---|---|---|']
-    for b in bugs:lines.append('| '+' | '.join(esc(x) for x in [b['id'],b['kind'],b['severity'],b['title'],b['reported_outcome'],b['state']+' / '+b['current_runtime_retest']])+' |')
+    lines+=['','## Дефекты и наблюдения','','TRIAGED означает разбор материалов, не повторную проверку текущего сервиса. Исторический исход хранится отдельно.','','| ID | Тип | Severity источника | Наблюдение | Исторический исход | Сейчас | Точная прежняя проверка |','|---|---|---|---|---|---|---|']
+    for b in bugs:lines.append('| '+' | '.join(esc(x) for x in [b['id'],b['kind'],b['severity'],b['title'],b['reported_outcome'],b['state']+' / '+b['current_runtime_retest'], (b.get('historical_verification') or {}).get('target_build','—')+' / '+(b.get('historical_verification') or {}).get('outcome','—')])+' |')
     lines+=['','## Исходные журналы','','| Журнал | Тип | Сборка | Значение |','|---|---|---|---|']
-    for r in runs:lines.append('| '+' | '.join(esc(x) for x in [r['source']['path'],r['kind'],r['observed_build'],'Исторический источник, не новая приёмка'])+' |')
-    lines+=['','## Следующий пакет','','RT-CAT-R01: offline-пакет готов к интеграционной проверке (846/846), не установлен. Следующий общий SRC-OZON-ACCRUAL и повтор OZCP-001/002/003/005 на новом кандидате. Никаких новых HTTP ради переоформления журналов. Подробности в README и WORKFLOW.','']
+    for r in runs:lines.append('| '+' | '.join(esc(x) for x in [r['source']['path'],r['kind'],r['observed_build'],r.get('outcome','Источник')+'; '+('приёмка указанной версии' if r.get('current_release_acceptance') else 'не приёмка текущего выпуска')])+' |')
+    lines+=['','## Следующий пакет','','Следующий исполняемый пакет и его зависимости определяет [актуальный README](README.md). Эта доска не назначает прежний RT-CAT вместо текущей работы. READY_FOR_RETEST требует отдельной проверки указанной версии; прежние PASS не переносятся на новый выпуск. Исторические FAIL и числовые PARTIAL/SKIP сохраняются. Никаких новых HTTP ради переоформления журналов.','']
     (root/'BOARD.md').write_text('\n'.join(lines))
 
 if __name__=='__main__':

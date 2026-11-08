@@ -1,0 +1,185 @@
+{
+  "scope": "INSTALLED_CODE_ONLY_SMOKE_NOT_OWNER_MFA_OR_NUMERIC_ACCEPTANCE",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "inactive_install_pass",
+      "passed": true
+    },
+    {
+      "case": "expected_pointers",
+      "passed": true
+    },
+    {
+      "case": "exact_manifest",
+      "passed": true
+    },
+    {
+      "case": "exact_payload",
+      "passed": true
+    },
+    {
+      "case": "disk_inode_memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "own_launch_platform",
+      "passed": true
+    },
+    {
+      "case": "own_launch_web",
+      "passed": true
+    },
+    {
+      "case": "own_launch_admin",
+      "passed": true
+    },
+    {
+      "case": "parse_static_launch_web",
+      "passed": true
+    },
+    {
+      "case": "parse_static_launch_admin",
+      "passed": true
+    },
+    {
+      "case": "parse_static_launch_platform",
+      "passed": true
+    },
+    {
+      "case": "parse_static_launch_identity",
+      "passed": true
+    },
+    {
+      "case": "known_configs",
+      "passed": true
+    },
+    {
+      "case": "no_database_migration",
+      "passed": true
+    },
+    {
+      "case": "staff_owner_lock",
+      "passed": true
+    },
+    {
+      "case": "unchanged_pre_cutover",
+      "passed": true
+    },
+    {
+      "case": "unused_pointer_temp",
+      "passed": true
+    },
+    {
+      "case": "unused_pointer_temp",
+      "passed": true
+    },
+    {
+      "case": "unused_pointer_temp",
+      "passed": true
+    },
+    {
+      "case": "actual_release_process_platform",
+      "passed": true
+    },
+    {
+      "case": "actual_release_process_web",
+      "passed": true
+    },
+    {
+      "case": "actual_release_process_admin",
+      "passed": true
+    },
+    {
+      "case": "parse_static_launch_web",
+      "passed": true
+    },
+    {
+      "case": "parse_static_launch_admin",
+      "passed": true
+    },
+    {
+      "case": "parse_static_launch_platform",
+      "passed": true
+    },
+    {
+      "case": "parse_static_launch_identity",
+      "passed": true
+    },
+    {
+      "case": "service_security_profiles_unchanged",
+      "passed": true
+    },
+    {
+      "case": "identity_process_unchanged",
+      "passed": true
+    },
+    {
+      "case": "config_bytes_and_file_set_unchanged",
+      "passed": true
+    },
+    {
+      "case": "staff_authority_unchanged",
+      "passed": true
+    },
+    {
+      "case": "pointers_expected_after",
+      "passed": true
+    },
+    {
+      "case": "disk_reserve_after",
+      "passed": true
+    }
+  ],
+  "before_pointers": {
+    "site-current": "alisa-5dff6e8883e25ac4",
+    "web-current": "alisa-5dff6e8883e25ac4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-7afaf646b9b35a58",
+    "current": "alisa-482ed11832b666af"
+  },
+  "health_before": {
+    "web": {
+      "status": "READY",
+      "release": "alisa-5dff6e8883e25ac4"
+    },
+    "admin": {
+      "status": "READY",
+      "release": "alisa-73180172646b7012"
+    },
+    "platform": {
+      "status": "READY",
+      "release": "alisa-5dff6e8883e25ac4"
+    },
+    "identity": {
+      "status": "READY",
+      "release": "alisa-7afaf646b9b35a58"
+    }
+  },
+  "authority_fingerprint_before": "3a5b10972dba875d25310c4b020a598a0445a41e53d7975de2cad22959cf0a4c",
+  "health_after": {
+    "web": {
+      "status": "READY",
+      "release": "alisa-06f3c053e7719290"
+    },
+    "admin": {
+      "status": "READY",
+      "release": "alisa-06f3c053e7719290"
+    },
+    "platform": {
+      "status": "READY",
+      "release": "alisa-06f3c053e7719290"
+    },
+    "identity": {
+      "status": "READY",
+      "release": "alisa-7afaf646b9b35a58"
+    }
+  },
+  "active_pointers": {
+    "site-current": "alisa-06f3c053e7719290",
+    "web-current": "alisa-06f3c053e7719290",
+    "admin-current": "alisa-06f3c053e7719290",
+    "identity-current": "alisa-7afaf646b9b35a58",
+    "current": "alisa-482ed11832b666af"
+  }
+}

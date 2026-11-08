@@ -5,7 +5,7 @@
       "id": "ozon_customer_realization_prices",
       "title": "Цена покупателя по товарам, дата начисления",
       "state": "TRIAGED",
-      "revision": 1,
+      "revision": 2,
       "change_class": "SOURCE_BINDING",
       "owner_role": "RUNTIME",
       "source_reported_status": "SPEC_FOR_PATCH_NOT_INSTALLED",
@@ -47,13 +47,15 @@
       "approved_hash": null,
       "approval_ref": null,
       "proofs": [],
-      "next_action": "Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."
+      "next_action": "Сверить точный CASE с включёнными accrual_* и price_lines, проверить период/ось/количество/сумму по независимому эталону; уже существующие источники не реализовывать заново.",
+      "implementation_evidence_ref": "docs/alisa/quality/CATALOG_PROGRESS_CURRENT.json",
+      "scope_note": "В установленном каталоге есть разрезы начислений по товарам/дням и строки цен. Это реализованное подмножество, не независимая приёмка всего импортированного CASE и не дата заказа."
     },
     {
       "id": "ozon_daily_customer_price_and_volume",
       "title": "Дневные количества и средняя цена реализации",
       "state": "TRIAGED",
-      "revision": 1,
+      "revision": 2,
       "change_class": "SOURCE_BINDING",
       "owner_role": "RUNTIME",
       "source_reported_status": "INPUTS_AND_ALGEBRA_QUALIFIED_NOT_INSTALLED_IN_SKILL",
@@ -96,7 +98,9 @@
       "approved_hash": null,
       "approval_ref": null,
       "proofs": [],
-      "next_action": "Внести через общий каталог после квалификации зависимостей; исследовательский Python не устанавливать."
+      "next_action": "Сверить точный CASE с включёнными accrual_* и price_lines, проверить период/ось/количество/сумму по независимому эталону; уже существующие источники не реализовывать заново.",
+      "implementation_evidence_ref": "docs/alisa/quality/CATALOG_PROGRESS_CURRENT.json",
+      "scope_note": "В установленном каталоге есть разрезы начислений по товарам/дням и строки цен. Это реализованное подмножество, не независимая приёмка всего импортированного CASE и не дата заказа."
     },
     {
       "id": "ozon_payment_methods_v1",

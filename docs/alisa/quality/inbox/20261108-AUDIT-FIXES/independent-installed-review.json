@@ -1,0 +1,189 @@
+{
+  "schema": "alisa-independent-review/v1",
+  "review_date_utc": "2026-11-08",
+  "reviewer_role": "independent_read_only_reviewer",
+  "verdict": "PASS_INSTALLED_SMOKE",
+  "source_sha": "06f3c053e77192907821005aa4aae5cc1e8aee63",
+  "scope": "Read-only installed code, process, readiness, manifests and bounded activation-evidence inspection.",
+  "device_id": "89049fc7-4160-4636-9ad7-89c31f9bcb32",
+  "evidence_directory": "/var/lib/alisa-platform/stage/rollout-backups/audit-06f3-20261108",
+  "evidence_inspected": [
+    {
+      "file": "install.json",
+      "status": "PASS",
+      "cases": 4492,
+      "failed_cases": 0
+    },
+    {
+      "file": "runtime-installed-qualification.json",
+      "status": "PASS",
+      "cases": 1076,
+      "failed_cases": 0
+    },
+    {
+      "file": "runtime-qualification-unit.json",
+      "scope": "Saved externally observed systemd isolation properties"
+    },
+    {
+      "file": "platform-activation.json",
+      "status": "PASS",
+      "cases": 32,
+      "failed_cases": 0
+    },
+    {
+      "file": "runtime-activation.json",
+      "status": "PASS",
+      "cases": 43,
+      "failed_cases": 0
+    }
+  ],
+  "personally_verified": {
+    "pointers": {
+      "web-current": "alisa-06f3c053e7719290",
+      "admin-current": "alisa-06f3c053e7719290",
+      "site-current": "alisa-06f3c053e7719290",
+      "identity-current": "alisa-7afaf646b9b35a58",
+      "current": "alisa-482ed11832b666af"
+    },
+    "platform_manifest": {
+      "path": "/opt/alisa-platform/stage/releases/alisa-06f3c053e7719290/manifest.json",
+      "sha256": "2a5c430bde4bc5fd8593958481d3cfd79baf9552b178ffdd1ced6175526166c9",
+      "files_checked": 4459,
+      "file_mismatches": 0,
+      "symlink_mismatches": 0
+    },
+    "runtime_manifest": {
+      "path": "/opt/alice-market/releases/alisa-runtime-06f3c053e7719290/manifest.json",
+      "sha256": "44e3b6116ac3dd3963e734a031c297b41fa64f3b84b140339fe03c90797d757a",
+      "files_checked": 81,
+      "file_mismatches": 0,
+      "symlink_mismatches": 0
+    },
+    "local_http_readiness": {
+      "web": {
+        "port": 18100,
+        "status": "READY",
+        "release": "alisa-06f3c053e7719290"
+      },
+      "admin": {
+        "port": 18101,
+        "status": "READY",
+        "release": "alisa-06f3c053e7719290"
+      },
+      "platform": {
+        "port": 18102,
+        "status": "READY",
+        "release": "alisa-06f3c053e7719290",
+        "analytics_dispatch": "RUNTIME_NOT_CONNECTED"
+      },
+      "identity": {
+        "port": 18103,
+        "status": "READY",
+        "release": "alisa-7afaf646b9b35a58"
+      }
+    },
+    "actual_processes": [
+      {
+        "unit": "alisa-web@stage.service",
+        "pid": 281245,
+        "uid": 995,
+        "cwd": "/opt/alisa-platform/stage/releases/alisa-06f3c053e7719290/ui/web/apps/web"
+      },
+      {
+        "unit": "alisa-admin@stage.service",
+        "pid": 281249,
+        "uid": 994,
+        "cwd": "/opt/alisa-platform/stage/releases/alisa-06f3c053e7719290/ui/admin/apps/admin"
+      },
+      {
+        "unit": "alisa-platform@stage.service",
+        "pid": 281240,
+        "uid": 993,
+        "cwd": "/opt/alisa-platform/stage/releases/alisa-06f3c053e7719290"
+      },
+      {
+        "unit": "alisa-identity@stage.service",
+        "pid": 153405,
+        "uid": 990,
+        "cwd": "/opt/alisa-platform/stage/releases/alisa-7afaf646b9b35a58"
+      },
+      {
+        "unit": "alice-market.service",
+        "pid": 281405,
+        "uid": 996,
+        "cwd": "/opt/alice-market/releases/alisa-runtime-06f3c053e7719290"
+      },
+      {
+        "unit": "alisa-store-check.service",
+        "pid": 281409,
+        "uid": 996,
+        "cwd": "/opt/alice-market/releases/alisa-runtime-06f3c053e7719290"
+      }
+    ],
+    "runtime_and_checker_execstart_point_to_new_release": true,
+    "runtime_dropin_hashes_match_activation_receipt": true,
+    "runtime_config_sha256": "92702c1136ebd0d785ef2b1b76c9d7873761076478e568df739e7d4635b252b5",
+    "sockets": [
+      {
+        "name": "gateway.sock",
+        "is_socket": true,
+        "uid": 996,
+        "gid": 988,
+        "mode": "0660"
+      },
+      {
+        "name": "store-check.sock",
+        "is_socket": true,
+        "uid": 996,
+        "gid": 982,
+        "mode": "0660"
+      }
+    ],
+    "resources_at_readback": {
+      "free_bytes": 3339624448,
+      "free_mib": 3184.91,
+      "reserve_mib": 3072,
+      "free_inodes": 504540,
+      "memory_available_kib": 6072388
+    }
+  },
+  "receipt_supported_not_personally_reexecuted": {
+    "native_qualification": {
+      "tests": 1076,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "network_attempts": 0,
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "sqlite": "3.45.1",
+      "manifest_unchanged": true
+    },
+    "qualification_unit": {
+      "PrivateNetwork": "yes",
+      "PrivateTmp": "yes",
+      "ProtectHome": "yes",
+      "ProtectSystem": "strict",
+      "MemoryMax": 805306368,
+      "TasksMax": 128,
+      "RuntimeMaxUSec": "5min",
+      "CPUQuotaPerSecUSec": "1s",
+      "ReadWritePaths": "/var/lib/alisa-platform/stage/rollout-backups/audit-06f3-20261108",
+      "InaccessiblePaths": "/etc/alisa-platform /etc/alice-market /var/lib/alice-market /run/alice-market /run/postgresql"
+    },
+    "platform_environment_file_set_and_bytes_preserved": true,
+    "service_security_profiles_preserved": true,
+    "staff_authority_fingerprint_preserved": true,
+    "identity_pid_preserved": true,
+    "sqlite_backup_clone_additive_migration_and_legacy_class_open_passed": true,
+    "sqlite_metadata_preserved": true,
+    "original_sqlite_business_data_not_restored_from_backup": true
+  },
+  "limitations": [
+    "The reviewer inspected qualification and activation receipts; the reviewer did not personally reexecute the 1076-case native suite.",
+    "No real-owner login, MFA enrollment, factor or recovery-code inspection, email delivery or marketplace/AI provider request was performed.",
+    "This does not establish real financial numerical acceptance, complete authorization coverage or a complete new-customer analytics journey.",
+    "Platform analytics dispatch still reports RUNTIME_NOT_CONNECTED; store-check IPC and running analytics runtime are separate surfaces.",
+    "Resource values are a dated observation, not admission for an arbitrary future release.",
+    "No activation, restart, configuration, role, factor, database or release-pointer mutation was performed by this reviewer."
+  ]
+}

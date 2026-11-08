@@ -1,33 +1,73 @@
 {
   "schema": "alisa-catalog-progress/v1",
-  "observed_utc": "2026-11-08T03:48:13.867719+00:00",
+  "observed_utc": "2026-11-08T04:10:41.338822+00:00",
   "counting_unit": "Declared scalar metric, summary, formula, dataset view or help definition. Internal bindings, adapters, tests and API calls are not voice templates.",
-  "active_release": "20261106-store-check-6098-r1",
-  "active_manifest_kind": "S05_INTEGRATION_MANIFEST.json:files",
-  "active_manifest_sha256": "170fc0c331b588615451c7073862f4a93b2a55729808a2d1dca642936a8af439",
-  "active_manifest_files": 74,
-  "active_release_installed_by_this_executor": false,
-  "active_process_started_utc": "2026-11-06T03:31:03+00:00",
-  "main_pid": 145588,
+  "active_release": "alisa-runtime-06f3c053e7719290",
+  "active_manifest_kind": "manifest.json:files",
+  "active_manifest_sha256": "44e3b6116ac3dd3963e734a031c297b41fa64f3b84b140339fe03c90797d757a",
+  "active_manifest_files": 81,
+  "active_release_installed_by_this_executor": true,
+  "active_process_started_utc": "2026-11-08T03:57:48+00:00",
+  "main_pid": 281405,
   "config_sha256": "92702c1136ebd0d785ef2b1b76c9d7873761076478e568df739e7d4635b252b5",
-  "active_files_changed": false,
+  "active_files_changed": true,
   "active_config_changed": false,
-  "release_status": "ACTIVE_S05_UNCHANGED_OWNER_BINDING_CANDIDATE_NOT_INSTALLED",
+  "release_status": "ACTIVE_AUDIT_06F3_OWNER_BINDING_CANDIDATE_NOT_INSTALLED",
   "implemented_total": 82,
   "enabled_total": 78,
   "implemented_not_enabled": 4,
-  "count_evidence": "Active catalogs remain byte-identical to the 74-file S05 manifest; no new voice definitions or enablements.",
-  "breakdown": {"primary_scalar": 42, "base_summaries": 15, "base_event_reports": 2, "derived_formulas": 6, "dataset_views_implemented": 16, "dataset_views_enabled": 12, "help": 1},
-  "enabled_dataset_views": ["product_registry", "offer_prices", "posting_metadata", "accrual_items", "accrual_days", "accrual_items_days", "accrual_price_lines", "realization_payment_lines", "realization_payment_totals", "realization_payment_days", "realization_payment_items", "realization_payment_items_days"],
+  "count_evidence": "All 15 catalog/matrix/fixture JSON files from BASE_INSTALLED_MANIFEST were compared on the installed 06f3 runtime; no hash differences. The 82 implemented / 78 enabled definitions and candidate status are unchanged.",
+  "breakdown": {
+    "primary_scalar": 42,
+    "base_summaries": 15,
+    "base_event_reports": 2,
+    "derived_formulas": 6,
+    "dataset_views_implemented": 16,
+    "dataset_views_enabled": 12,
+    "help": 1
+  },
+  "enabled_dataset_views": [
+    "product_registry",
+    "offer_prices",
+    "posting_metadata",
+    "accrual_items",
+    "accrual_days",
+    "accrual_items_days",
+    "accrual_price_lines",
+    "realization_payment_lines",
+    "realization_payment_totals",
+    "realization_payment_days",
+    "realization_payment_items",
+    "realization_payment_items_days"
+  ],
   "enabled_dataset_platform_variants": 14,
-  "implemented_not_enabled_groups": {"WB_four_campaign_views": ["wb_active_ads", "wb_campaign_inventory", "wb_active_ads_totals", "wb_supported_ads"]},
-  "families": {"planned_business": 16, "planned_service": 3, "with_enabled_subset": 17, "without_enabled_subset": ["B13", "S03"], "warning": "Enabled subset is not full source coverage or independent numerical acceptance."},
+  "implemented_not_enabled_groups": {
+    "WB_four_campaign_views": [
+      "wb_active_ads",
+      "wb_campaign_inventory",
+      "wb_active_ads_totals",
+      "wb_supported_ads"
+    ]
+  },
+  "families": {
+    "planned_business": 16,
+    "planned_service": 3,
+    "with_enabled_subset": 17,
+    "without_enabled_subset": [
+      "B13",
+      "S03"
+    ],
+    "warning": "Enabled subset is not full source coverage or independent numerical acceptance."
+  },
   "evidence_changes_this_pass": {
     "pass_id": "OWNER_BINDING_R1_20261108",
     "candidate": "/opt/alice-market/candidates/20261108-owner-binding-r1",
     "status": "MATRIX_OWNER_INPUT_OFFLINE_PASS_READY_FOR_PLATFORM_INTEGRATION_NOT_INSTALLED",
     "new_generic_module": "adapters/owner_snapshot_binding.py",
-    "existing_python_files_changed": ["adapters/fresh_queue_adapter.py", "fresh_source/normalized_source_engine.py"],
+    "existing_python_files_changed": [
+      "adapters/fresh_queue_adapter.py",
+      "fresh_source/normalized_source_engine.py"
+    ],
     "runtime_python_unchanged": true,
     "existing_owner_resolver_and_scenario_arithmetic_unchanged": true,
     "entire_pass_json_only": false,
@@ -46,14 +86,34 @@
     "clean_extract_status": "PASS",
     "clean_extract_completed_utc": "2026-11-08T03:48:13.867719+00:00",
     "repeated_runs_counted_twice": false,
-    "json_only_extension_gate": {"status": "PASS", "component": "packaging", "json_files_changed": 4, "existing_python_changed": false, "source_kind": "SYNTHETIC", "counted_as_additional_unittests": false},
-    "supplemental_retention": {"status": "PASS", "temporary_db_only": true, "owner_snapshot_removed_from_job_plan": true, "owner_snapshot_removed_from_control_receipt": true, "result_and_progress_removed": true, "quota_window_preserved": true, "system_clock_changed": false, "test_clock_only": true, "counted_as_additional_unittests": false},
+    "json_only_extension_gate": {
+      "status": "PASS",
+      "component": "packaging",
+      "json_files_changed": 4,
+      "existing_python_changed": false,
+      "source_kind": "SYNTHETIC",
+      "counted_as_additional_unittests": false
+    },
+    "supplemental_retention": {
+      "status": "PASS",
+      "temporary_db_only": true,
+      "owner_snapshot_removed_from_job_plan": true,
+      "owner_snapshot_removed_from_control_receipt": true,
+      "result_and_progress_removed": true,
+      "quota_window_preserved": true,
+      "system_clock_changed": false,
+      "test_clock_only": true,
+      "counted_as_additional_unittests": false
+    },
     "marketplace_http": 0,
     "deepseek_calls": 0,
     "working_database_used": false,
     "real_owner_inputs_used": false,
     "platform_issuer_status": "NOT_FOUND_IN_INSPECTED_INSTALLED_SOURCE",
-    "platform_inspection_scope": ["/opt/alisa-platform/stage/releases/alisa-482ed11832b666af", "/opt/alisa-platform/stage/releases/alisa-73180172646b7012"],
+    "platform_inspection_scope": [
+      "/opt/alisa-platform/stage/releases/alisa-482ed11832b666af",
+      "/opt/alisa-platform/stage/releases/alisa-73180172646b7012"
+    ],
     "installed_runtime_contract_observed": "contracts/runtime/port-v1.json: RUNTIME_NOT_CONNECTED",
     "production_owner_integration": "NOT_RUN",
     "platform_handoff": "docs/alisa/quality/OWNER_BINDING_R1_PLATFORM_HANDOFF_2026-11-08.md",
@@ -94,24 +154,62 @@
     "Ozon B13 advertising counters",
     "S01 verified cross-market product mapping"
   ],
-  "wb_blocker": {"requested": 21, "returned": 18, "missing": 3, "addressed_same_period_response": "JSON_NULL", "wider_requested": 3, "wider_returned": 2, "wider_missing": 1, "zeros_proven": false, "zeros_substituted": false, "live_qualification_enabled": false, "requeried_this_pass": false},
+  "wb_blocker": {
+    "requested": 21,
+    "returned": 18,
+    "missing": 3,
+    "addressed_same_period_response": "JSON_NULL",
+    "wider_requested": 3,
+    "wider_returned": 2,
+    "wider_missing": 1,
+    "zeros_proven": false,
+    "zeros_substituted": false,
+    "live_qualification_enabled": false,
+    "requeried_this_pass": false
+  },
   "tester": {
     "N06": "VERIFIED_ON_DIALOGUE_FIXES_R1",
     "N08": "VERIFIED_ON_DIALOGUE_FIXES_R1",
     "N09_OZCP001": "VERIFIED_ON_DIALOGUE_FIXES_R1",
     "safety_retest_commit": "1b9c3192022d12f26b1ea3c455ae771aaa556be1",
-    "safety_retest": {"pass": 18, "partial": 2, "fail": 1, "skip": 3, "verdict": "REQUIRES_CORRECTION"},
-    "ds03_independent_outcome": "NOT_RUN_READY_FOR_RETEST",
+    "safety_retest": {
+      "pass": 18,
+      "partial": 2,
+      "fail": 1,
+      "skip": 3,
+      "verdict": "REQUIRES_CORRECTION"
+    },
+    "ds03_independent_outcome": "PASS_TARGETED_SOURCE_772a_RUNTIME_IDENTICAL_06f3; FULL_SAFETY_AND_LIVE_NUMERIC_NOT_RUN",
     "original_outcomes_rewritten": false,
     "queue_independent_review": "NOT_RUN_READY_FOR_ISOLATED_REVIEW",
     "queue_review_document": "docs/alisa/quality/testpacks/cue01_matrix_live_r4/README.md",
     "owner_binding_review": "NOT_RUN",
-    "queue_voice_tests": "NOT_INSTALLED_NOT_ASSIGNED"
+    "queue_voice_tests": "NOT_INSTALLED_NOT_ASSIGNED",
+    "ds03_independent_receipt": "docs/alisa/quality/inbox/20261108-AUDIT-DS03/RESULT.json"
   },
-  "history_ref": {"commit": "2f057286b1409dd3de9be8482366115eb0ed351b", "path": "docs/alisa/quality/CATALOG_PROGRESS_CURRENT.json", "purpose": "Exact prior R4 full live receipts, tests, hashes and historical independent statuses remain accessible."},
+  "history_ref": {
+    "commit": "2f057286b1409dd3de9be8482366115eb0ed351b",
+    "path": "docs/alisa/quality/CATALOG_PROGRESS_CURRENT.json",
+    "purpose": "Exact prior R4 full live receipts, tests, hashes and historical independent statuses remain accessible."
+  },
   "enabled_is_not_independent_numeric_acceptance": true,
   "latest_evidence_directory": "/root/alice-lab-evidence/owner-binding-r1-20261108",
   "latest_pass_document": "docs/alisa/quality/OWNER_BINDING_R1_ACCEPTANCE_2026-11-08.md",
   "next_step": "Connect platform-approved actual owner snapshot/mapping and current verifier to the completed matrix boundary; perform a bounded actual integration, not a synthetic or r9 fallback.",
-  "next_goal": "C-UE01 READY with actual verified owner inputs, revocation checks and independent reconciliation; then separately approved voice release. Production owner-data goal remains open."
+  "next_goal": "C-UE01 READY with actual verified owner inputs, revocation checks and independent reconciliation; then separately approved voice release. Production owner-data goal remains open.",
+  "previous_active_observation": {
+    "observed_utc": "2026-11-08T03:48:13.867719+00:00",
+    "active_release": "20261106-store-check-6098-r1",
+    "active_manifest_kind": "S05_INTEGRATION_MANIFEST.json:files",
+    "active_manifest_sha256": "170fc0c331b588615451c7073862f4a93b2a55729808a2d1dca642936a8af439",
+    "active_manifest_files": 74,
+    "active_release_installed_by_this_executor": false,
+    "active_process_started_utc": "2026-11-06T03:31:03+00:00",
+    "main_pid": 145588,
+    "active_files_changed": false,
+    "release_status": "ACTIVE_S05_UNCHANGED_OWNER_BINDING_CANDIDATE_NOT_INSTALLED",
+    "count_evidence": "Active catalogs remain byte-identical to the 74-file S05 manifest; no new voice definitions or enablements."
+  },
+  "active_release_evidence": "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/independent-installed-review.json",
+  "active_release_installed_by": "audit repair pass 2026-11-08; matrix author candidate remains separate"
 }

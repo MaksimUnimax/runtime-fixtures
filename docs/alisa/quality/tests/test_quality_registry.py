@@ -13,10 +13,10 @@ class QualityTests(unittest.TestCase):
   with self.assertRaises(qa.CheckError) as c:qa.check(self.root)
   self.assertEqual(str(c.exception),code)
  def test_import_counts(self):
-  r=qa.check(self.root);self.assertEqual((r['findings'],r['candidates'],r['source_reports']),(27,5,7));self.assertEqual(r['enabled_candidates'],0)
+  r=qa.check(self.root);self.assertEqual((r['findings'],r['candidates'],r['source_reports']),(28,6,10));self.assertEqual(r['enabled_candidates'],0)
  def test_all_legacy_ids_present(self):
   rows=qa.load(self.root/'BUGS.json')['records'];ids={x['id'] for x in rows}
-  expected={f'OZCP-{i:03}' for i in range(1,6)}|{f'OZCP-G{i:03}' for i in range(1,6)}|{f'OZPAY-{i:03}' for i in range(1,5)}|{f'OZYOY-{i:03}' for i in range(1,9)}|{f'INFRA-{i:03}' for i in range(1,5)}|{'INFRA-YOY-001'}
+  expected={f'OZCP-{i:03}' for i in range(1,6)}|{f'OZCP-G{i:03}' for i in range(1,6)}|{f'OZPAY-{i:03}' for i in range(1,5)}|{f'OZYOY-{i:03}' for i in range(1,9)}|{f'INFRA-{i:03}' for i in range(1,5)}|{'INFRA-YOY-001','DS03'}
   self.assertEqual(ids,expected)
  def test_duplicate_issue_rejected(self):self.edit('BUGS.json',lambda d:d['records'].append(copy.deepcopy(d['records'][0])));self.bad('DUPLICATE_RECORD_ID')
  def test_duplicate_candidate_rejected(self):self.edit('TEMPLATES.json',lambda d:d['records'].append(copy.deepcopy(d['records'][0])));self.bad('DUPLICATE_RECORD_ID')
@@ -44,9 +44,9 @@ class QualityTests(unittest.TestCase):
   before=qa.load(self.root/'BUGS.json');after=copy.deepcopy(before);after['records'][0]['next_action']='changed'
   with self.assertRaisesRegex(qa.CheckError,'REVISION_NOT_INCREASED'):qa.transition(before,after)
  def test_higher_revision_valid_update(self):
-  before=qa.load(self.root/'BUGS.json');after=copy.deepcopy(before);after['records'][0].update(revision=2,next_action='Reproduce synthetic negative.')
+  before=qa.load(self.root/'BUGS.json');after=copy.deepcopy(before);after['records'][0].update(revision=before['records'][0]['revision']+1,next_action='Reproduce synthetic negative.')
   self.assertTrue(qa.transition(before,after))
  def test_changed_content_revokes_approval(self):
-  before=qa.load(self.root/'TEMPLATES.json');after=copy.deepcopy(before);after['records'][0].update(revision=2,candidate_sha256='4'*64,approved_hash='4'*64,approval_ref='forged')
+  before=qa.load(self.root/'TEMPLATES.json');after=copy.deepcopy(before);after['records'][0].update(revision=before['records'][0]['revision']+1,candidate_sha256='4'*64,approved_hash='4'*64,approval_ref='forged')
   with self.assertRaisesRegex(qa.CheckError,'STALE_APPROVAL_AFTER_EDIT'):qa.transition(before,after)
 if __name__=='__main__':unittest.main(verbosity=2)

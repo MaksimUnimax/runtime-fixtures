@@ -1,0 +1,27 @@
+{
+  "source_sha": "06f3c053e77192907821005aa4aae5cc1e8aee63",
+  "source_tree": "962e9e2426181f5f3f716a34b5dc64e6c22c4890",
+  "ci": {
+    "platform": 42443251068,
+    "documentation": 42443251053,
+    "conclusion": "success"
+  },
+  "zip_size": 51976216,
+  "zip_sha256": "7d574ccf3ff1afb1b0c1aae848a37e38d980f71c25d1bf345c15ad8fb1605182",
+  "archives": {
+    "alisa-06f3c053e7719290.tar.gz": {
+      "size": 51810111,
+      "sha256": "fe54eda83e344f075791ee857e426c18a322b207c9f1e6627a4308287b3a1863",
+      "manifest_sha256": "2a5c430bde4bc5fd8593958481d3cfd79baf9552b178ffdd1ced6175526166c9",
+      "members": 5479,
+      "payload_bytes": 122834263
+    },
+    "alisa-runtime-06f3c053e7719290.tar.gz": {
+      "size": 243888,
+      "sha256": "40cc5edadb09e744b240e56fe1a3c6551d757043224bf72da5adef2612c139bd",
+      "manifest_sha256": "44e3b6116ac3dd3963e734a031c297b41fa64f3b84b140339fe03c90797d757a",
+      "members": 82,
+      "payload_bytes": 1490962
+    }
+  }
+}

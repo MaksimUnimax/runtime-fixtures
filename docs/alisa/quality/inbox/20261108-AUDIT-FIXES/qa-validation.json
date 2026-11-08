@@ -1,0 +1,30 @@
+{
+  "scope": "QA_RECORDS_VALIDATION_AND_PROVENANCE_READBACK",
+  "status": "PASS",
+  "validated_utc": "2026-11-08",
+  "base_commit": "2e733cb5fdee6a40b74cd16efe8eff408d6f7fed",
+  "unit_tests": {
+    "run": 20,
+    "passed": 20,
+    "failed": 0,
+    "validation_rules_weakened": false
+  },
+  "registry": {
+    "findings": 28,
+    "candidates": 6,
+    "source_reports": 10,
+    "source_files": 19,
+    "enabled_imported_candidates": 0,
+    "source_bytes_unchanged": true,
+    "transitions_pass": true
+  },
+  "ds03": {
+    "published_commit": "2e733cb5fdee6a40b74cd16efe8eff408d6f7fed",
+    "published_sha256": "ef352bdde34dc7c4ddc71e39ebcb02ef492be5a9f304531fb718db9247270f5c",
+    "producer_file_with_trailing_lf_sha256": "a7563b5f0228cbe487701913ccdc0fdeccbeae25d581ea3f03c122d559d7ffd7",
+    "difference": "One terminal LF only; JSON content identical; RUNS points to exact published bytes.",
+    "current_release_acceptance": false
+  },
+  "historical_outcomes_preserved": true,
+  "network_calls": 0
+}

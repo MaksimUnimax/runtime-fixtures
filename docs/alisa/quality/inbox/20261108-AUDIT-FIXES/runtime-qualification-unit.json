@@ -1,0 +1,14 @@
+{
+  "observed_systemd_properties": {
+    "RuntimeMaxUSec": "5min",
+    "CPUQuotaPerSecUSec": "1s",
+    "MemoryMax": "805306368",
+    "TasksMax": "128",
+    "ReadWritePaths": "/var/lib/alisa-platform/stage/rollout-backups/audit-06f3-20261108",
+    "InaccessiblePaths": "/etc/alisa-platform /etc/alice-market /var/lib/alice-market /run/alice-market /run/postgresql",
+    "PrivateTmp": "yes",
+    "PrivateNetwork": "yes",
+    "ProtectHome": "yes",
+    "ProtectSystem": "strict"
+  }
+}

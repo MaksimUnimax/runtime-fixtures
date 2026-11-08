@@ -1,0 +1,16 @@
+{
+  "scope": "READ_ONLY_FINAL_POINTERS_AND_RESOURCE_SNAPSHOT",
+  "observed_utc": "2026-11-08T04:14:36.682798+00:00",
+  "pointers": {
+    "web-current": "alisa-06f3c053e7719290",
+    "admin-current": "alisa-06f3c053e7719290",
+    "site-current": "alisa-06f3c053e7719290",
+    "identity-current": "alisa-7afaf646b9b35a58",
+    "current": "alisa-482ed11832b666af"
+  },
+  "runtime": "/opt/alice-market/releases/alisa-runtime-06f3c053e7719290",
+  "free_mib": 3139.56,
+  "reserve_mib": 3072,
+  "live_provider_calls": 0,
+  "owner_login_tested": false
+}

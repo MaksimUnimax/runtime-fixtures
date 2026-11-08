@@ -1,0 +1,49 @@
+{
+  "schema": "alisa-independent-review/v1",
+  "review_date_utc": "2026-11-08",
+  "reviewer_role": "independent_read_only_reviewer",
+  "verdict": "PASS_SOURCE_ADDENDUM",
+  "scope": "Confirm source equivalence for product and workflow paths after the parallel-branch integration merge; not deployment or new-script operational acceptance.",
+  "prior_reviewed_commit": "449c931efb420468a36f8fc7c64e03a0601fc610",
+  "new_commit": "df60518a7d564a452ae92c3f6103f27fe9ee1931",
+  "tree_sha": "b1f28edfb0f77ea34503c71da7c50da18a5d9dca",
+  "parents": [
+    "449c931efb420468a36f8fc7c64e03a0601fc610",
+    "da73a089d3125429fe1902e552715ec37c355510"
+  ],
+  "personally_verified": {
+    "method": "GitHub compare commits and Git Commit API",
+    "product_paths": "products/alisa/",
+    "workflow_paths": ".github/workflows/",
+    "product_or_workflow_delta": 0,
+    "changed_paths": [
+      "docs/alisa/service-platform/execution/auth-navigation-20261108/before-browser-r2.json",
+      "docs/alisa/service-platform/execution/auth-navigation-20261108/before-browser.json",
+      "docs/alisa/service-platform/execution/auth-navigation-20261108/identity-reentry-before.json",
+      "docs/alisa/service-platform/execution/auth-navigation-20261108/independent-source-review.json",
+      "docs/alisa/service-platform/execution/auth-navigation-20261108/owned-browser.py",
+      "docs/alisa/service-platform/execution/auth-navigation-20261108/owned-identity-reentry.py",
+      "docs/alisa/service-platform/execution/auth-navigation-20261108/rollout.py"
+    ]
+  },
+  "ci_for_prior_exact_commit": {
+    "run_id": 42445128692,
+    "head_sha": "449c931efb420468a36f8fc7c64e03a0601fc610",
+    "status": "completed",
+    "conclusion": "success",
+    "attempt": 2
+  },
+  "new_head_ci": {
+    "run_id": 42446268819,
+    "status_reported_by_author": "in_progress",
+    "documentation_run_id": 42446268817,
+    "documentation_conclusion_reported_by_author": "success",
+    "independently_executed": false
+  },
+  "conclusion": "The previous product/workflow source review carries forward to df60518a7d564a452ae92c3f6103f27fe9ee1931. No repeated test-suite execution was performed by this reviewer.",
+  "limitations": [
+    "The seven additional documentation and operational-script paths were compared as a source delta; their new rollout scripts were not independently approved or executed by this addendum.",
+    "CI success was verified for exact head 449c931efb420468a36f8fc7c64e03a0601fc610; this is not a claim that the new head's CI had finished.",
+    "The new integration head was not installed or activated by this reviewer. Installed acceptance remains attached to source 06f3c053e77192907821005aa4aae5cc1e8aee63."
+  ]
+}

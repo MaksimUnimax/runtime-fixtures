@@ -1,0 +1,160 @@
+{
+  "schema": "alisa-independent-review/v1",
+  "review_date_utc": "2026-11-08",
+  "reviewer_role": "independent_read_only_reviewer",
+  "verdict": "PASS_QA_RECONCILIATION",
+  "scope": "Final read-only review of audit documentation, historical QA registries, public operational evidence and fixture updates; no production action.",
+  "worktree_head_at_review": "6affa61a6bedebec4208c263119de8282998cf49",
+  "transition_baseline": "f21f0887f1dbe810aef4888cbca4b0df79addebc",
+  "blockers": [],
+  "personally_executed_checks": {
+    "validator_with_all_original_sources": {
+      "candidates": 6,
+      "enabled_candidates": 0,
+      "findings": 28,
+      "network_calls": 0,
+      "source_files": 19,
+      "source_reports": 10,
+      "status": "PASS"
+    },
+    "transitions_preserving_historical_fields": {
+      "BUGS.json": true,
+      "RUNS.json": true,
+      "TEMPLATES.json": true
+    },
+    "generated_board_exact_match": true,
+    "registry_unittests": {
+      "command": "python3 -B -m unittest discover -s docs/alisa/quality/tests -p test_quality_registry.py",
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "result": "PASS",
+      "temporary_fixture_data_only": true
+    },
+    "fixture_delta_review": "Exact counts updated to 28/6/10, DS03 added to the complete retained ID set, revision checks advance from the actual prior revision. Negative checks and validator constraints were not weakened."
+  },
+  "honest_status_boundaries": {
+    "finding_records": 28,
+    "bug_kind_records": 3,
+    "note": "Record type BUG is a classification, not a count of independently reproduced current production bugs.",
+    "finding_kinds": {
+      "ACCEPTANCE_RULE": 6,
+      "BUG": 3,
+      "CAPABILITY_GAP": 2,
+      "LIMITATION": 1,
+      "PREVENTED": 4,
+      "PROVIDER_ERROR": 1,
+      "PROVIDER_FORMAT": 2,
+      "RESEARCH_FIX": 4,
+      "RESEARCH_TOOLING": 5
+    },
+    "imported_candidates": 6,
+    "imported_candidates_enabled": 0,
+    "catalog_counts": {
+      "enabled": 78,
+      "implemented": 82
+    },
+    "catalog_unit": "Declared catalog definitions; not six imported CASE and not complete numerical or voice acceptance.",
+    "installed_source": "06f3c053e77192907821005aa4aae5cc1e8aee63",
+    "installed_review": "PASS_INSTALLED_SMOKE",
+    "identity_preserved_release": "alisa-7afaf646b9b35a58",
+    "integrated_source_reviewed": "449c931efb420468a36f8fc7c64e03a0601fc610",
+    "integrated_successor": "df60518a7d564a452ae92c3f6103f27fe9ee1931",
+    "integration_scope": "SOURCE only; integration is not described as installed by this audit.",
+    "owner_binding_r1": "Separate candidate; author-reported 1840 tests, NOT_INSTALLED, independent review and live owner integration NOT_RUN.",
+    "historical_safety_retest": {
+      "pass": 18,
+      "partial": 2,
+      "fail": 1,
+      "skip": 3,
+      "outcomes_preserved": true
+    },
+    "historical_ozcp001": "R06 PASS remains attached to dialogue-fixes-r1; current-build retest remains distinct.",
+    "ds03_current_catalog_label": "PASS_TARGETED_SOURCE_772a_RUNTIME_IDENTICAL_06f3; FULL_SAFETY_AND_LIVE_NUMERIC_NOT_RUN",
+    "ds03_scope": "Personally executed unchanged original DS03 functions through an in-memory harness, plus failure-reason assertions; not the whole historical safety script or live financial acceptance.",
+    "ds03_runtime_identity_verified": "The 81-file runtime hash map for installed 06f3 equals the original targeted 772a runtime tree SHA256 5eaa9644949334ea100774bd564aafafcf6b7b6f67299fa48f6f3d35beecd9e4.",
+    "resources": "Earlier independent observation 3184.91 MiB remains dated. The later author readback reports 3139.56 MiB against a 3072 MiB floor; the report explicitly requires new admission before another release.",
+    "station": "Published/private-skill and help observations are attributed to the audit evidence. Physical Station behavior and the full new-customer route remain separate acceptance."
+  },
+  "ds03_publication_bytes": {
+    "source_commit": "2e733cb5fdee6a40b74cd16efe8eff408d6f7fed",
+    "original_local_with_trailing_lf_sha256": "a7563b5f0228cbe487701913ccdc0fdeccbeae25d581ea3f03c122d559d7ffd7",
+    "published_and_aligned_local_sha256": "ef352bdde34dc7c4ddc71e39ebcb02ef492be5a9f304531fb718db9247270f5c",
+    "independently_fetched_published_content": true,
+    "semantic_equal_to_original_independent_record": true,
+    "only_removed_final_lf": true,
+    "runs_source_hash_matches_published_bytes": true
+  },
+  "public_evidence_review": {
+    "scanned_file_count_before_this_receipt": 16,
+    "scanned_bytes": 514930,
+    "secret_or_contact_flags": [],
+    "scan_categories": [
+      "Private-key material",
+      "Provider credential formats",
+      "Literal Bearer credentials",
+      "JSON secret values",
+      "Signed URLs",
+      "Product cookie values",
+      "Possible real contact addresses"
+    ],
+    "four_public_operator_scripts_match_previously_reviewed_sha256": true,
+    "receipt_scope_labels_reviewed": true,
+    "conclusion": "No secrets or real contact values were detected in this bounded review.",
+    "limitation": "Pattern scanning and source review are not a guarantee against every possible encoded or unknown secret format."
+  },
+  "ci_boundaries": {
+    "independently_observed_run": {
+      "run_id": 42445128692,
+      "head_sha": "449c931efb420468a36f8fc7c64e03a0601fc610",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 2
+    },
+    "first_failure": "The failed first foundation-browser attempt is preserved. The same SHA passed on rerun; no causal fix is claimed.",
+    "successor_source_delta": "df60518a vs 449c931 has seven documentation/script paths and no product or workflow delta; see independent-integration-addendum.json.",
+    "successor_ci_reported_by_author": {
+      "run_id": 42446268819,
+      "status": "in_progress",
+      "documentation_run_id": 42446268817,
+      "documentation_conclusion": "success"
+    },
+    "new_head_ci_success_not_inferred": true
+  },
+  "reviewed_file_sha256": {
+    "docs/alisa/quality/AUDIT_FIXES_2026-11-08.md": "49a18a5bba11803049cf191fe9a51622640de43747b6bc6ce3d5f4e8c6c7e2a9",
+    "docs/alisa/quality/BOARD.md": "8a98275a5a538e2ec66e9a5d67a86c2023af0b7a42702c6c8798f08f4a9575be",
+    "docs/alisa/quality/BUGS.json": "6771c5b58fde0fa72cccee9c1b5bb686327c8cf648cf792e0e3b0a9a52e9de10",
+    "docs/alisa/quality/CATALOG_PROGRESS_CURRENT.json": "769874492f9128c3501871962f41cb498df4fa7f23b0c289b0b2baa8de1440da",
+    "docs/alisa/quality/IMPORT_MANIFEST.json": "f056fabf0f116cf91a54e3211bae4aa83ddad9c6a19d0b2429150a1cfa7cd928",
+    "docs/alisa/quality/README.md": "a074bf0a22d81ac44cbc1adc3d38abf54df877fe5045e6107da08f91a70e9508",
+    "docs/alisa/quality/RUNS.json": "e9839b9eb2c8c4f5953f5160d4b24a73779bec4d97ae35bd3bb0a0116cd326cb",
+    "docs/alisa/quality/TEMPLATES.json": "2b260b6346ecd7878c81ba55cef202eb8556aa0a5f7c1c87f2bba05b9a69c85f",
+    "docs/alisa/quality/inbox/20261108-AUDIT-DS03/RESULT.json": "ef352bdde34dc7c4ddc71e39ebcb02ef492be5a9f304531fb718db9247270f5c",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/activate-platform.py": "9ed28b9c55c20c2dc498a83958ecddb35962cf54456e55684e8267fde6e308b5",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/activate-runtime.py": "6322acf604fe0f07d6957a75864cfc30d719397a80cacf9ba545e708a41f5539",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/final-readback.json": "502f2ffe6e21c868d83d5e913510aad058eec7ca5576c1802981eca455eff18a",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/independent-installed-review.json": "bb4a36d5aaaae3b905a9979a5a05ac312a8976bdf8f0ae3b6f3c344db95f7db0",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/independent-integration-addendum.json": "039dcc1dfef5481787e8e75ca675f64fc9a94ac130f7ef2cb737b074063ac9a7",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/independent-integration-review.json": "c4bf7bbfcf7b288dee8c194bbfb7e11d53bac386e372fb82677eda0f48d78188",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/install.json": "22ee87a63d7833ab7a35ad3ccddd1f78bf60f6714ef07b3fa086c434ce9e3474",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/install.py": "cc17240abbecb7c75913e64b66d83b437cbd7dca770c37cb8a91fc8bb16efed3",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/matrix-compatibility-native.json": "609b28e44cd6a84b395956df36a476c148cf4af00d2f84110d21ffac958c44f7",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/package-binding.json": "7eca713465b261632a8f3d1fb46f3c86bf828ab59f212a85ae281fd8ce9f42e1",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/platform-activation.json": "f05b1eca50a1b56e68613f17396819e688c2e489776cd87b3d286b4b8ea9faa9",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/qa-validation.json": "c1628edcdf349c060e3d9fe7961b71ecf4a4309fe312a818b2d9f1568ec6e9ca",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/qualify-runtime.py": "e36d677f19537e3bf8da4cd57d29e8e3d16dbc8917c2244077a06462c72c7d5b",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/runtime-activation.json": "1871aa9d2fe286148383210f0867e94ae2b80c7ac052fbcc7419670256767d79",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/runtime-installed-qualification.json": "b2dfc2ea25dd997c936ba72c18b73e41ccc94409a04904aecc73c8ef8cf20e64",
+    "docs/alisa/quality/inbox/20261108-AUDIT-FIXES/runtime-qualification-unit.json": "faf1d1417927c050f2a213c254f03964c0474895f3b687b3475c8df653fc0699",
+    "docs/alisa/quality/tests/test_quality_registry.py": "d589e6ef439ad41b2f9c494af7c6a303e7f1e139848c2e9e43287119affd35ea",
+    "docs/alisa/quality/tools/qa_check.py": "6ba251008839220b849daa5b642792b879aced0e1e00048a4279bb65a6b9c621"
+  },
+  "limitations": [
+    "This receipt approves documentation/QA reconciliation at the recorded file hashes, not a complete product, authentication, penetration or financial audit.",
+    "Native 1076-case and R4 1774-case runs remain evidence-inspection results; they were not personally reexecuted for this documentation review.",
+    "No real-owner authentication, MFA, email or provider request was performed.",
+    "No foreign documentation, registry, source, configuration, role, factor, database, service or production pointer was changed by this reviewer.",
+    "The reviewer created only the authorized independent review artifacts. CI/merge status after this snapshot must be read back separately."
+  ]
+}

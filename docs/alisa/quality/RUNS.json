@@ -114,6 +114,41 @@
       "current_release_acceptance": false,
       "outcome": "PASS_SCOPE_DOCUMENTATION_ONLY",
       "report_path": "docs/alisa/quality/inbox/20261105-TESTER-4a2e8c17/RUN_REPORT.json"
+    },
+    {
+      "id": "20261105-TESTER-d7a5899c-R06",
+      "kind": "HISTORICAL_LIVE_DIALOGS_RETEST",
+      "source": {
+        "path": "docs/alisa/quality/inbox/20261105-TESTER-d7a5899c/RUN_REPORT.json",
+        "commit": "4700b7dea1cd629b48f3d965fa5eeac65193e2d2",
+        "sha256": "874fc27560eef6dbb32fdbb3c7c4978ac4e8cb5d456903e31f421ee2ba644872",
+        "line_start": 1,
+        "line_end": 927
+      },
+      "observed_build": "20261105-v010-dialogue-fixes-r1",
+      "claims": "EXACT_RELEASE_SEMANTIC_PASS_NOT_CURRENT_BUILD_RETEST",
+      "current_release_acceptance": false,
+      "outcome": "PASS",
+      "report_path": "docs/alisa/quality/inbox/20261105-TESTER-d7a5899c/RUN_REPORT.json",
+      "scenario_id": "R06-original-OZCP001",
+      "manifest_sha256": "cbf16b0488801eb692b3402d117707c51819c6bf07175e6f84999ec1091e3c16",
+      "fix_commit": "9d0603e4be36515875767c9ee6e94421f7f74b60"
+    },
+    {
+      "id": "20261108-AUDIT-DS03",
+      "kind": "INDEPENDENT_TARGETED_SOURCE_RETEST",
+      "source": {
+        "path": "docs/alisa/quality/inbox/20261108-AUDIT-DS03/RESULT.json",
+        "commit": "2e733cb5fdee6a40b74cd16efe8eff408d6f7fed",
+        "sha256": "ef352bdde34dc7c4ddc71e39ebcb02ef492be5a9f304531fb718db9247270f5c",
+        "line_start": 1,
+        "line_end": 47
+      },
+      "observed_build": "772a2adc2dc98cfd8642407b0821135ec6577c2e",
+      "claims": "ORIGINAL_DS03_FUNCTIONS_PASS_NOT_FULL_HISTORICAL_OR_LIVE_NUMERIC_RETEST",
+      "current_release_acceptance": false,
+      "outcome": "PASS",
+      "report_path": "docs/alisa/quality/inbox/20261108-AUDIT-DS03/RESULT.json"
     }
   ]
 }

@@ -1,0 +1,186 @@
+{
+  "scope": "INSTALLED_RUNTIME_CODE_AND_ADDITIVE_SQLITE_COLUMNS_NOT_LIVE_NUMERIC_ACCEPTANCE",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "install_and_native_qualification_pass",
+      "passed": true
+    },
+    {
+      "case": "exact_runtime_manifest",
+      "passed": true
+    },
+    {
+      "case": "runtime_payload",
+      "passed": true
+    },
+    {
+      "case": "exact_original_launch",
+      "passed": true
+    },
+    {
+      "case": "config_pin",
+      "passed": true
+    },
+    {
+      "case": "new_override_paths",
+      "passed": true
+    },
+    {
+      "case": "disk_inode_backup_reserve",
+      "passed": true
+    },
+    {
+      "case": "unix_socket_gateway.sock",
+      "passed": true
+    },
+    {
+      "case": "unix_socket_store-check.sock",
+      "passed": true
+    },
+    {
+      "case": "no_queued_running_jobs",
+      "passed": true
+    },
+    {
+      "case": "no_sending_provider_call",
+      "passed": true
+    },
+    {
+      "case": "no_queued_running_jobs",
+      "passed": true
+    },
+    {
+      "case": "no_sending_provider_call",
+      "passed": true
+    },
+    {
+      "case": "units_stopped",
+      "passed": true
+    },
+    {
+      "case": "disk_inode_backup_reserve",
+      "passed": true
+    },
+    {
+      "case": "new_backup_paths",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_calls",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_control_inbox",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_denied",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_dialogue_context",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_dialogue_receipts",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_inbox",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_inbox_age",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_jobs",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_pointers",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_rates",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_reader_cursors",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_reader_pointers",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_runtime_migrations",
+      "passed": true
+    },
+    {
+      "case": "preserved_existing_table_slots",
+      "passed": true
+    },
+    {
+      "case": "additive_job_columns",
+      "passed": true
+    },
+    {
+      "case": "exact_launch_alice-market.service",
+      "passed": true
+    },
+    {
+      "case": "actual_runtime_pid_alice-market.service",
+      "passed": true
+    },
+    {
+      "case": "exact_launch_alisa-store-check.service",
+      "passed": true
+    },
+    {
+      "case": "actual_runtime_pid_alisa-store-check.service",
+      "passed": true
+    },
+    {
+      "case": "security_profiles_preserved",
+      "passed": true
+    },
+    {
+      "case": "unix_socket_gateway.sock",
+      "passed": true
+    },
+    {
+      "case": "unix_socket_store-check.sock",
+      "passed": true
+    },
+    {
+      "case": "socket_metadata_preserved",
+      "passed": true
+    },
+    {
+      "case": "config_and_platform_pointers_preserved",
+      "passed": true
+    },
+    {
+      "case": "database_metadata_preserved",
+      "passed": true
+    },
+    {
+      "case": "live_additive_columns",
+      "passed": true
+    },
+    {
+      "case": "reserve_retained",
+      "passed": true
+    }
+  ],
+  "logical_database_bytes": 253952,
+  "backup_sha256": "a886f05fd72cee8d89fe929c93adbbc47c33e6098c6171b0cea7fe44548bc591",
+  "upgrade_probe_legacy_open": true,
+  "active_runtime": "/opt/alice-market/releases/alisa-runtime-06f3c053e7719290",
+  "override_hashes": {
+    "/etc/systemd/system/alice-market.service.d/zzzzzzzzzzzzzzzzz-audit-20261108.conf": "8a0f6843d3ec27791e89ea70f65cab9e81cf0db5969eed8a57f02e78a0285f41",
+    "/etc/systemd/system/alisa-store-check.service.d/zzzz-audit-20261108.conf": "518fb49eddaa9521b8d0cd5af9c1c4d659e5547353d18232e635a14b1b704996"
+  }
+}

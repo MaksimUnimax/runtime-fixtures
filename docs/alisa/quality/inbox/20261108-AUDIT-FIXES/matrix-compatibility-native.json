@@ -1,0 +1,340 @@
+{
+  "scope": "SEPARATE_R4_AUDIT_COMPATIBILITY_COPY_NOT_ORIGINAL_R4_OR_OWNER_BINDING_ACCEPTANCE",
+  "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+  "sqlite": "3.45.1",
+  "manifest_sha256": "a5c8d5e03c38c2ea49fa40c58f42bfab86eebcd148992e085840220852515d57",
+  "input_zip_sha256": "c0ec865bd2196801998c4103c05d93fad68a579067502412458d2d5f97695ac3",
+  "original_r4_zip_sha256": "de69ba95fa18ac30d2f25ca10ac2b38afcfabd4806b605dfb2245f2238b5fe30",
+  "result": {
+    "utc": "2026-11-08T03:43:10.986870+00:00",
+    "status": "PASS",
+    "counts": {
+      "previous": 1691,
+      "runner_authority": 16,
+      "capture_r2": 18,
+      "plan_reason_r2": 14,
+      "accrual_reference_r3": 13,
+      "last_mile_r4": 22
+    },
+    "total_tests": 1774,
+    "checks": {
+      "previous": {
+        "exit_code": 0,
+        "receipt": {
+          "utc": "2026-11-08T03:43:04.556617+00:00",
+          "checks": {
+            "baseline": {
+              "exit_code": 0,
+              "receipt": {
+                "utc": "2026-11-08T03:40:43.587383+00:00",
+                "checks": {
+                  "runtime": {
+                    "exit_code": 0,
+                    "receipt": {
+                      "utc": "2026-11-08T03:40:43.636612+00:00",
+                      "checks": {
+                        "baseline": {
+                          "exit_code": 0,
+                          "receipt": {
+                            "utc": "2026-11-08T03:41:53.374245+00:00",
+                            "tests": 1035,
+                            "failures": 0,
+                            "errors": 0,
+                            "skipped": 0,
+                            "network_attempts": 0,
+                            "architecture_violations": {},
+                            "dataset_json_only_exit": 0,
+                            "runtime_manifest_matches": true,
+                            "target_contracts": "installed runtime only; no uninstalled RuntimePort/catalog acceptance",
+                            "status": "PASS"
+                          }
+                        },
+                        "b05_b13": {
+                          "exit_code": 0,
+                          "receipt": {
+                            "tests": 57,
+                            "failures": 0,
+                            "errors": 0,
+                            "skipped": 0,
+                            "external_calls": 0,
+                            "credential_reads": 0,
+                            "live_database_used": false,
+                            "status": "PASS"
+                          }
+                        },
+                        "join": {
+                          "exit_code": 0,
+                          "receipt": {
+                            "status": "PASS",
+                            "tests": 70,
+                            "failures": 0,
+                            "errors": 0,
+                            "skipped": 0,
+                            "live_http": 0,
+                            "credentials_read": false,
+                            "live_database_used": false
+                          }
+                        },
+                        "json_only": {
+                          "exit_code": 0,
+                          "receipt": {
+                            "reports": [
+                              {
+                                "variant": 1,
+                                "state": "READY",
+                                "exact_cache": "HIT",
+                                "enrichment_complete": false
+                              },
+                              {
+                                "variant": 2,
+                                "state": "READY",
+                                "exact_cache": "HIT",
+                                "enrichment_complete": true
+                              }
+                            ],
+                            "fixture_http_calls": 4,
+                            "new_source_pairs": 2,
+                            "new_relations": 2,
+                            "network_calls": 0,
+                            "status": "PASS",
+                            "json_files_changed": 2,
+                            "python_files_unchanged": 37,
+                            "python_manifest_sha256": "c6604400be5d307deed52899662b3434554dbc99211fca16d25cfe9ed061dece"
+                          }
+                        },
+                        "review_safety": {
+                          "exit_code": 0,
+                          "receipt": {
+                            "status": "PASS",
+                            "tests": 78,
+                            "failures": 0,
+                            "errors": 0,
+                            "skipped": 0,
+                            "network_attempts": 0,
+                            "live_database_used": false,
+                            "live_credentials_read": false
+                          }
+                        },
+                        "number_reason": {
+                          "exit_code": 0,
+                          "receipt": {
+                            "tests": 27,
+                            "failures": 0,
+                            "errors": 0,
+                            "skipped": 0,
+                            "network_attempts": 0,
+                            "live_database_used": false,
+                            "credentials_read": false,
+                            "status": "PASS"
+                          }
+                        }
+                      },
+                      "external_api_calls": 0,
+                      "installed": false,
+                      "runtime_manifest_matches": true,
+                      "status": "PASS"
+                    }
+                  },
+                  "integration": {
+                    "exit_code": 0,
+                    "receipt": {
+                      "utc": "2026-11-08T03:42:58.599523+00:00",
+                      "checks": {
+                        "queue": {
+                          "exit_code": 0,
+                          "tests": 47,
+                          "failures": 0,
+                          "errors": 0,
+                          "skipped": 0,
+                          "network_attempts": 0,
+                          "production_database": false,
+                          "through_actual_worker_class": true,
+                          "status": "PASS"
+                        },
+                        "boundaries": {
+                          "exit_code": 0,
+                          "tests": 28,
+                          "failures": 0,
+                          "errors": 0,
+                          "skipped": 0,
+                          "network_attempts": 0,
+                          "live_database": false,
+                          "status": "PASS"
+                        },
+                        "raw_graph": {
+                          "exit_code": 0,
+                          "tests": 15,
+                          "errors": 0,
+                          "failures": 0,
+                          "skipped": 0,
+                          "network_attempts": 0,
+                          "inputs": "SYNTHETIC_PROVIDER_SHAPES",
+                          "existing_worker": true,
+                          "production_installed": false,
+                          "status": "PASS"
+                        },
+                        "owner": {
+                          "exit_code": 0,
+                          "tests": 66,
+                          "failures": 0,
+                          "errors": 0,
+                          "skipped": 0,
+                          "network_calls": 0,
+                          "live_credentials": false,
+                          "live_database": false,
+                          "status": "PASS"
+                        },
+                        "gate": {
+                          "exit_code": 0,
+                          "tests": 8,
+                          "failures": 0,
+                          "errors": 0,
+                          "skipped": 0,
+                          "network_calls": 0,
+                          "production_adapter_installed": false,
+                          "status": "PASS"
+                        },
+                        "scenario": {
+                          "exit_code": 0,
+                          "tests": 88,
+                          "failures": 0,
+                          "errors": 0,
+                          "skipped": 0,
+                          "network_calls": 0,
+                          "live_credentials": false,
+                          "live_database": false,
+                          "installed": false,
+                          "status": "PASS"
+                        },
+                        "selector": {
+                          "exit_code": 0,
+                          "tests": 96,
+                          "failures": 0,
+                          "errors": 0,
+                          "skipped": 0,
+                          "network_attempts": 0,
+                          "live_data": false,
+                          "status": "PASS"
+                        },
+                        "normalizer": {
+                          "exit_code": 0,
+                          "tests": 48,
+                          "errors": 0,
+                          "failures": 0,
+                          "skipped": 0,
+                          "network_attempts": 0,
+                          "source_kind": "SYNTHETIC",
+                          "status": "PASS"
+                        },
+                        "shared_http": {
+                          "exit_code": 0,
+                          "tests": 7,
+                          "failures": 0,
+                          "errors": 0,
+                          "skipped": 0,
+                          "network_attempts": 0,
+                          "status": "PASS"
+                        }
+                      },
+                      "tests": 403,
+                      "new_queue_tests": 90,
+                      "status": "PASS",
+                      "live_http": 0,
+                      "live_database": false,
+                      "production_installed": false
+                    }
+                  }
+                },
+                "live_provider_calls": 0,
+                "production_database": false,
+                "installed": false,
+                "runtime_tests": 1267,
+                "integration_tests": 403,
+                "total_tests": 1670,
+                "package_hashes_match": true,
+                "status": "PASS"
+              }
+            },
+            "live_contract": {
+              "exit_code": 0,
+              "receipt": {
+                "tests": 21,
+                "failures": 0,
+                "errors": 0,
+                "skipped": 0,
+                "network_attempts": 0,
+                "live_database": false,
+                "status": "PASS"
+              }
+            }
+          },
+          "previous_tests": 1670,
+          "new_tests": 21,
+          "network_calls": 0,
+          "live_run_executed": false,
+          "production_installed": false,
+          "total_tests": 1691,
+          "status": "PASS"
+        }
+      },
+      "runner_authority": {
+        "exit_code": 0,
+        "receipt": {
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "network_attempts": 0,
+          "live_config": false,
+          "status": "PASS"
+        }
+      },
+      "capture_r2": {
+        "exit_code": 0,
+        "receipt": {
+          "tests": 18,
+          "failures": 0,
+          "errors": 0,
+          "network_attempts": 0,
+          "status": "PASS"
+        }
+      },
+      "plan_reason_r2": {
+        "exit_code": 0,
+        "receipt": {
+          "tests": 14,
+          "failures": 0,
+          "errors": 0,
+          "network_attempts": 0,
+          "status": "PASS"
+        }
+      },
+      "accrual_reference_r3": {
+        "exit_code": 0,
+        "receipt": {
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "network_attempts": 0,
+          "status": "PASS"
+        }
+      },
+      "last_mile_r4": {
+        "exit_code": 0,
+        "receipt": {
+          "tests": 22,
+          "failures": 0,
+          "errors": 0,
+          "network_attempts": 0,
+          "status": "PASS"
+        }
+      }
+    },
+    "manifest_unchanged": true,
+    "network_calls": 0,
+    "installed": false,
+    "independent_review": "NOT_RUN"
+  },
+  "live_provider_calls": 0,
+  "installed_matrix_candidate": false
+}

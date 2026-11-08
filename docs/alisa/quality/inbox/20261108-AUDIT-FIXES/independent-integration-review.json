@@ -1,0 +1,56 @@
+{
+  "schema": "alisa-independent-review/v1",
+  "review_date_utc": "2026-11-08",
+  "reviewer_role": "independent_read_only_reviewer",
+  "verdict": "PASS_SOURCE",
+  "scope": "Source integration review of audit repairs with customer-auth navigation, plus the retention WAL-checkpoint fixture delta. Not a deployment acceptance.",
+  "reviewed_local_commit": "2cf3e5f1bd2301dadad38f47000689e2f8831e5b",
+  "published_equivalent_commit": "449c931efb420468a36f8fc7c64e03a0601fc610",
+  "verified_tree_sha": "51b211cd151d3443be45a77166320f6b86f3d6de",
+  "tree_identity_personally_verified": {
+    "local_method": "git rev-parse 2cf3e5f1bd2301dadad38f47000689e2f8831e5b^{tree}",
+    "remote_method": "GitHub Git Commit API for 449c931efb420468a36f8fc7c64e03a0601fc610",
+    "equal": true
+  },
+  "baseline_source_sha": "06f3c053e77192907821005aa4aae5cc1e8aee63",
+  "integrated_upstream_ref": "85b88ebe",
+  "findings": {
+    "blockers": [],
+    "audit_fixes_preserved": "Direct diff against 06f3 confirmed the A04 admin code, A05 stores UI/backend and A03/A06 production runtime code are unchanged.",
+    "stores_interaction": "The stores recovery scope remains tied to the verified profile tenant/customer; pending UUID, Web Lock and command-status recovery are unchanged.",
+    "auth_navigation": "Cabinet navigation and login/start reuse require a backend-validated product session. Origin, query and consent validation precede POST reuse; unavailable profile lookup fails closed.",
+    "auth_cache": "React cache is scoped to a server render/request; this is not a process-wide authorization cache. Route handlers do not share a persistent session cache.",
+    "identity_delta": "Customer reentry heading and stale SUCCESS-flash filtering only; native fresh challenge, logout POST and CSRF remain.",
+    "protected_protocols": "Customer and staff protocol implementations are unchanged against 06f3.",
+    "retention_delta": "The fixture commits DROP and requires a successful WAL checkpoint before measuring the main database file. The compaction assertions are preserved.",
+    "whitespace_check": "git diff --check for the reviewed product/identity/retention source scope passed."
+  },
+  "reviewed_paths": [
+    "products/alisa/apps/web/src/server/auth.ts",
+    "products/alisa/apps/web/src/app/layout.tsx",
+    "products/alisa/apps/web/src/app/login/page.tsx",
+    "products/alisa/apps/web/src/app/app/stores",
+    "products/alisa/apps/admin/src/app/admin/access.tsx",
+    "products/alisa/services/platform/src/alisa_platform/stores",
+    "products/alisa/services/identity/src/octoport_identity/protocol/views.py",
+    "products/alisa/services/identity/src/octoport_identity/protocol/customer.py",
+    "products/alisa/services/identity/src/octoport_identity/protocol/staff.py",
+    "products/alisa/services/identity/src/octoport_identity/accounts/templates/identity/reauthenticate_code.html",
+    "products/alisa/tests/integration/qualify_identity.py",
+    "products/alisa/runtime/tests/test_retention.py"
+  ],
+  "reference_checked": "https://react.dev/reference/react/cache",
+  "ci": {
+    "run_id": 42445128692,
+    "status_reported_by_author_at_request": "in_progress",
+    "personally_executed": false,
+    "successful_ci_acceptance_not_claimed": true
+  },
+  "limitations": [
+    "This is source review, not a full authentication or penetration audit.",
+    "The reviewer did not personally run the full CI or the reported 58 retention checks.",
+    "The integration candidate was not installed or activated by this reviewer; the earlier installed smoke verdict remains attached to 06f3.",
+    "No real accounts, MFA factors, credentials, live configuration values or provider APIs were inspected or changed.",
+    "Additional historical documentation and operational receipts in the merge were not treated as new live acceptance."
+  ]
+}
