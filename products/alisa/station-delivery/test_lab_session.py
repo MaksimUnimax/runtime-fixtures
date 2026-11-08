@@ -1,8 +1,9 @@
 import importlib.util, os
+from pathlib import Path
 from unittest.mock import patch
 
 os.environ.update(LAB_LOG_KEY='x'*40,LAB_OAUTH_CLIENT_SECRET='s'*40,LAB_TEST_PASSWORD='p'*20)
-path='/opt/alisa-station/releases/station-auto-r6-session/alice_lab.py'
+path=str(Path(__file__).with_name('alice_lab.py'))
 spec=importlib.util.spec_from_file_location('lab_session_test',path)
 lab=importlib.util.module_from_spec(spec);spec.loader.exec_module(lab)
 body={'version':'1.0','meta':{},'session':{'skill_id':lab.SKILL,'session_id':'test-session-01',
