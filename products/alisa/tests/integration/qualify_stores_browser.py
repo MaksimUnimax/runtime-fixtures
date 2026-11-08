@@ -222,10 +222,13 @@ def run(*, context, second_context, db, check, web_origin, private_values, resta
 
     # Two actual tabs: hold the first create response while the second tab
     # submits stale UI. Only the tab holding the shared Web Lock may dispatch.
-    other=context.new_page();other.goto(web_origin+'/app/stores')
+    other=context.new_page()
+    # Install before hydration so the fixture really retains stale UI. A late
+    # window listener cannot suppress an already-registered same-target listener.
+    other.add_init_script("window.addEventListener('storage',event=>event.stopImmediatePropagation(),true)")
+    other.goto(web_origin+'/app/stores')
     other_form=other.locator('section[aria-label="Добавить магазин"]')
     held=[];cross_tab_posts=[]
-    other.evaluate("() => window.addEventListener('storage',event=>event.stopImmediatePropagation(),true)")
     def hold_create(route):
         data=route.request.post_data_json if route.request.method=='POST' else None
         if data and data.get('action')=='create':
