@@ -1,0 +1,27 @@
+{
+  "scope": "READ_ONLY_OBSERVATION_AFTER_PARALLEL_AUTH_ROLLOUT_NOT_AUDITOR_DEPLOYMENT",
+  "observed_utc": "2026-11-08T04:25:02.646477+00:00",
+  "pointers": {
+    "web-current": "alisa-da73a089d3125429",
+    "admin-current": "alisa-06f3c053e7719290",
+    "site-current": "alisa-06f3c053e7719290",
+    "identity-current": "alisa-da73a089d3125429"
+  },
+  "runtime": "/opt/alice-market/releases/alisa-runtime-06f3c053e7719290",
+  "free_mib": 3162.48,
+  "reserve_mib": 3072,
+  "health_ready": {
+    "web": "READY",
+    "admin": "READY",
+    "platform": "READY",
+    "identity": "READY"
+  },
+  "auth_release": {
+    "source_sha": "da73a089d3125429fe1902e552715ec37c355510",
+    "manifest_sha256": "ac98274ac6592ae04def74b5d21181ff210d490ae18cf8ab04db6a5a031dcb9e",
+    "manifest_files": 4459
+  },
+  "full_auth_release_hash_walk_in_this_readback": false,
+  "owner_login_tested": false,
+  "live_provider_calls": 0
+}

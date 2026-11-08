@@ -1,0 +1,34 @@
+{
+  "scope": "EXACT_SOURCE_CI_AND_MERGE_READBACK_NOT_DEPLOYMENT_ACCEPTANCE",
+  "source_sha": "df60518a7d564a452ae92c3f6103f27fe9ee1931",
+  "tree_sha": "b1f28edfb0f77ea34503c71da7c50da18a5d9dca",
+  "platform_ci": {
+    "run_id": 42446268819,
+    "job_id": 128625739695,
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "documentation_ci": {
+    "run_id": 42446268817,
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "pr": 399,
+  "merge": {
+    "sha": "7c2c674fae5c2b07a15f48b961f7a204a65a5102",
+    "merged": true,
+    "base": "feat/alisa-stores-v05"
+  },
+  "prior_attempts_preserved": [
+    {
+      "run_id": 42445128692,
+      "source_sha": "449c931efb420468a36f8fc7c64e03a0601fc610",
+      "attempt1": "failure: foundation browser assertion",
+      "attempt2": "success",
+      "cause_of_initial_failure": "NOT_ESTABLISHED"
+    }
+  ],
+  "installed_runtime_source_sha": "06f3c053e77192907821005aa4aae5cc1e8aee63",
+  "live_owner_acceptance": false,
+  "physical_station_acceptance": false
+}
