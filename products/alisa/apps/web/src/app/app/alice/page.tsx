@@ -16,7 +16,7 @@ export default async function AlicePage({searchParams}:{searchParams:Promise<{no
     <p>Чтобы подключить или повторно подключить этот аккаунт, откройте навык в приложении Алисы и выберите подключение аккаунта. Войдите с этой же почтой: {profile.email}.</p>
     <section><h2>Голосовая приватность</h2><p>При включённой приватности финансовые данные не произносятся вслух. Результаты можно будет смотреть в кабинете.</p>
       <form method="post" action="/api/account/alice"><input type="hidden" name="action" value="privacy"/>
-        <label>Приватность<select name="voice_private" defaultValue={status.voice_private?'on':'off'}><option value="on">Включена</option><option value="off">Разрешить озвучивание</option></select></label><button className="button">Сохранить настройку</button></form>
+        <label htmlFor="voice_private">Приватность</label><select id="voice_private" name="voice_private" defaultValue={status.voice_private?'on':'off'}><option value="on">Включена</option><option value="off">Разрешить озвучивание</option></select><button className="button">Сохранить настройку</button></form>
     </section>
     {status.state!=='DISCONNECTED'&&<form method="post" action="/api/account/alice"><input type="hidden" name="action" value="unlink"/><button className="button">Отключить Алису</button></form>}
   </article></main>;
