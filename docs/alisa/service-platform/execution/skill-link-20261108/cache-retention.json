@@ -1,0 +1,53 @@
+{
+  "scope": "two recoverable public NPM download-cache blobs only",
+  "installed_modules_changed": false,
+  "releases_and_archives_changed": false,
+  "retained_on": "Easyscript",
+  "directory": "/var/lib/octoport-monitor/alisa-s06-cache-retained-20261108",
+  "free_before_bytes": 3224371200,
+  "free_after_bytes": 3233320960,
+  "required_free_floor_bytes": 3221225472,
+  "items": [
+    {
+      "name": "exceljs-4.4.0.tgz",
+      "bytes": 4716975,
+      "sha512": "5dcb6f29a10c6a3d488bda033aa6d6ffa7b5817927498e20fda2c20e270e5ea044e0cd27456914bb43d3a7ef943cdce8158d7604d1cc7ecfd569d2884ba965be"
+    },
+    {
+      "name": "pdf-lib-1.17.1.tgz",
+      "bytes": 4226739,
+      "sha512": "57f9a9c890284ec3787273f7d6f734c1f340d7ea76d1ebeaaa76a9d0a2e8454374624fe9df0379d83384b0be2804570b75befa865a4a3edcc9220a3aee3fd72f"
+    }
+  ],
+  "verification": [
+    "offsite exact bytes and SHA512 readback",
+    "source exact size/SHA512/nlink=1",
+    "no active fuser",
+    "no package installer; existing RDC npm exec preserved"
+  ],
+  "additional_items": [
+    {
+      "name": "ripgrep-linux-x64-1.18.0.tgz",
+      "bytes": 2351856,
+      "sha512": "990ddb56b5299c3dafb3b413d2f5fdd0bb7472752ae3aeee16d124b4876c249996dbde91a1250b446a968331b500ac720693430fa97864ee2a29fe928320b6dd"
+    },
+    {
+      "name": "puppeteer-core-25.16.0.tgz",
+      "bytes": 1198931,
+      "sha512": "540e4f7f9e0df2c85fa293646595c27628b07e79d8f1925800ca854118651f99865217f07f9dc0afbef418fb5da530cb52abd0798a4806d0bdfc6d898a3d8827"
+    },
+    {
+      "name": "zod-4.6.7.tgz",
+      "bytes": 1141941,
+      "sha512": "83c5b60f6914e9af2e9ed734e777d7d6e5412b333bcaa0315bfdf3c24f37fba472176f9228eb95f9cd30043854c335753da19aa66647fab99c5333dffb7086c2"
+    },
+    {
+      "name": "types-node.packument.json",
+      "bytes": 11183996,
+      "sha512": "b46e7aa4c4f934d6bd6e718cd85237d78a143273265cb12682eebf5f907de5b654a3c86034928b7a8cc513bebb89157e13c7a4eefce4b197b3c301522aedad07",
+      "kind": "exact frozen public registry metadata; transferred losslessly, not replaced by fresh upstream JSON"
+    }
+  ],
+  "final_free_bytes": 3228811264,
+  "final_resource_floor_restored": true
+}
