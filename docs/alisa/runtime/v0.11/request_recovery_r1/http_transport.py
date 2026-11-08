@@ -8,7 +8,7 @@ from decimal import Decimal
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from engine import CallError
-from semantics import strict_json
+from semantics import strict_json,Rejected
 from registry import REGISTRY_HASH
 from query_program import model_system
 from semantic_catalog import EXPRESSION_CATALOG
@@ -194,10 +194,14 @@ class HTTPTransport:
             data={'authorized':True}
         if is_read:
             import read_surface
-            data=read_surface.sanitize(read_surface.project_response(store['platform'],request.operation.split('.',2)[2],data))
+            try:data=read_surface.sanitize(read_surface.project_response(store['platform'],request.operation.split('.',2)[2],data))
+            except Rejected as error:
+                print(json.dumps({'event':'read_response_projection_rejected','operation':request.operation,'http':status,'code':error.code,'root_type':type(data).__name__}),flush=True)
+                # HTTPS completed and its body was received. A local projection
+                # validation error is definitive, never UNKNOWN or blind retry.
+                raise CallError(error.code,status=status)from None
         if operation in ('deepseek_parse','deepseek_read_plan'):
             try:
                 choice=data['choices'][0];data={'content':choice['message']['content'],'finish_reason':choice['finish_reason']}
             except (KeyError,TypeError,IndexError):raise CallError('MODEL_ENVELOPE',status=status) from None
         return data,meta
-

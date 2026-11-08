@@ -1,8 +1,8 @@
 """Install reviewed recovery release; preserve current config and user state."""
 from pathlib import Path
 import subprocess,json,hashlib,sqlite3,shutil,fcntl,time,os
-BASE=Path('/opt/alice-market/releases/alisa-runtime-business-read-r1-20261108')
-NEW=BASE.with_name('alisa-request-recovery-r2-20261108')
+BASE=Path('/opt/alice-market/releases/alisa-runtime-business-read-r2-20261108')
+NEW=BASE.with_name('alisa-request-recovery-r3-20261108')
 STATION=Path('/opt/alisa-station/releases/station-auto-r7-recovery')
 OLD_STATION=STATION.with_name('station-auto-r6-session')
 OLD_LAB=Path('/opt/alice-lab/releases/20261108-station-session-r1')
@@ -24,6 +24,7 @@ changed={'engine.py','repository.py','http_transport.py','shared_http.py','reque
 for p in BASE.rglob('*'):
  if p.is_file() and '__pycache__' not in str(p) and str(p.relative_to(BASE)) not in changed:
   assert digest(p)==digest(NEW/p.relative_to(BASE)), 'BASE_FILE_CHANGED:'+str(p.relative_to(BASE))
+assert '\nOK\n' in Path('/tmp/alisa-recovery-r3-focused.log').read_text(), 'FOCUSED_SUITE_NOT_PASSED'
 assert shutil.disk_usage('/').free>500*1024*1024
 BACKUP.mkdir(mode=0o700,exist_ok=True)
 before={u:{'workdir':prop(u,'WorkingDirectory'),'exec':prop(u,'ExecStart')}for u in units}
