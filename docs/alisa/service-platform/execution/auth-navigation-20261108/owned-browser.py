@@ -57,6 +57,9 @@ def run():
   if PHASE=='after':
    check('verified_session_header_routes_to_cabinet',not header_login)
    check('verified_session_login_route_reuses_cabinet',not login_form and urlsplit(page.url).path=='/app')
+   old_cookie=next(c['value'] for c in ctx.cookies() if c['name']=='__Host-alisa_session')
+   response=page.request.post(WEB+'/auth/start',form={'service':'on','privacy':'on'},headers={'Origin':WEB},max_redirects=0)
+   check('verified_session_post_start_reuses_same_session',response.status==303 and response.headers.get('location')==WEB+'/app' and 'set-cookie' not in response.headers and next(c['value'] for c in ctx.cookies() if c['name']=='__Host-alisa_session')==old_cookie)
   ctx.storage_state(path=str(D/'browser-state.private.json'));browser.close()
  record['status']='PASS'
 if OUT.exists():raise SystemExit('Existing receipt retained')
