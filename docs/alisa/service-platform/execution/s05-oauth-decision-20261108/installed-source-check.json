@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-08",
+  "scope": "READ_ONLY_INSTALLED_SOURCE_AND_CONFIG_NAMES",
+  "installed_checker": {
+    "service": "alisa-store-check.service",
+    "pid_at_observation": 295997,
+    "path": "/opt/alice-market/checker-releases/owner-catalog-853e2b2f85759c42/store_checker.py",
+    "sha256": "ce6973646121160fb6f3a428d4577c119037ef650ca618805eb44f74772cc5d1",
+    "equals_reviewed_local_source": true,
+    "authenticated_unlinked_return_count": 1,
+    "finding": "The successful Performance token branch unconditionally returns AUTHENTICATED_UNLINKED after token response-shape validation. There is no implemented same-Seller proof branch."
+  },
+  "configuration_search": {
+    "alisa_stage_env_matching_setting_names": [],
+    "easyscript_config_matching_setting_names": [],
+    "easyscript_search_bounded_seconds": 15,
+    "easyscript_files_examined": 30295,
+    "limitation": "Searches matched relevant OAuth/refresh/app setting names within bounded configuration roots; they do not prove that no registered private Ozon application exists. Values of matching secrets were not output."
+  },
+  "browser": {
+    "initialized": false,
+    "error": "Browser access requires the originating browser context. Open ChatGPT in the browser with the connected extension and try again.",
+    "private_application_list_inspected": false,
+    "fallback_session_or_login_attempted": false
+  },
+  "new_provider_calls": 0,
+  "live_code_or_configuration_changes": 0,
+  "database_mutations": 0,
+  "secret_values_recorded": false,
+  "new_tests_claimed": false
+}
