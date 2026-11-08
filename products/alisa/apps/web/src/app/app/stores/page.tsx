@@ -14,6 +14,6 @@ export default async function StoresPage(){
   }
   if(!profile)redirect('/login');
   return <main className="site"><article className="article"><a href="/app">Вернуться в кабинет</a><h1>Мои магазины</h1>
-    {stores?<StoresView initial={stores}/>:<p>Подключение магазинов пока недоступно.</p>}
+    {stores?<StoresView initial={stores} recoveryScope={profile.tenant_id+':'+profile.customer_id}/>:<p>Подключение магазинов пока недоступно.</p>}
   </article></main>;
 }

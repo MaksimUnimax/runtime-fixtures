@@ -9,12 +9,18 @@ type Operation=Record<string,unknown>;
 const dates=(value:string)=>new Date(value).toLocaleString('ru-RU',{timeZone:'UTC'})+' UTC';
 const sources:Record<string,string>={GIFT:'Подарок',COMPENSATION:'Компенсация',PAYMENT:'Оплата'};
 const pendingKey='alisa-access-pending-operation';
+// Storage may be unavailable; the current tab still retains the exact operation.
+function savePending(operation:Operation):boolean{
+  try{localStorage.setItem(pendingKey,JSON.stringify(operation));return true;}catch{return false;}
+}
+function clearPending(){try{localStorage.removeItem(pendingKey);}catch{/* A stale replay keeps the same idempotency key. */}}
 const messages:Record<string,string>={FORBIDDEN:'Нужны права выдачи доступа, просмотра клиентов и свежий вход с MFA.',STAFF_AUTHORITY_CHANGED:'Права инициатора изменились. Нужна новая выдача оставшимся клиентам.',PREVIEW_EXPIRED:'Предпросмотр истёк. Создайте новый.',REVISION_CONFLICT:'Срок клиента уже изменился. Создайте новый предпросмотр.',PREVIEW_ALREADY_USED:'Этот предпросмотр уже подтверждён. Проверьте журнал выдач.',IDEMPOTENCY_CONFLICT:'Ключ уже относится к другой операции. Состояние не изменено.',NOT_REVOCABLE:'У выбранного периода нет доступного для отзыва остатка.'};
 
 async function api(data:Operation){
   const response=await fetch('/api/staff/access',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   if(response.status>=500)throw new Error('UNKNOWN');
-  const result=await response.json();
+  let result;
+  try{result=await response.json();}catch{throw new Error('UNKNOWN');}
   if(!response.ok)throw new Error(result.code||'REJECTED');
   return result;
 }
@@ -39,17 +45,17 @@ export function AccessPanel({recipients,onApplied}:{recipients:Recipient[];onApp
   async function submit(operation:Operation){
     if(busy)return;setBusy(true);setMessage('');setPending(operation);
     // Persist only opaque operation identifiers, never tokens, factors or contacts.
-    localStorage.setItem(pendingKey,JSON.stringify(operation));
+    const persisted=savePending(operation);
     try{
-      const result=await api(operation);localStorage.removeItem(pendingKey);setPending(null);setPreview(null);
+      const result=await api(operation);clearPending();setPending(null);setPreview(null);
       if(operation.action==='execute'){
         setBatch(result);setMessage(result.state==='COMPLETED'?'Выдача завершена. Результат каждого клиента показан ниже.':'Часть выдачи выполнена. Продолжите тем же списком.');
       }else{setBatch(null);setMessage('Оставшийся срок выбранного периода отозван.');}
-      await load();onApplied?.();
+      try{await load();onApplied?.();}catch{setMessage('Операция подтверждена. Не удалось обновить список периодов — обновите карточку.');}
     }catch(error){
       const code=(error as Error).message;
-      if(code==='UNKNOWN'||error instanceof TypeError){setMessage('Ответ не получен. Повторите эту же операцию кнопкой ниже.');}
-      else{localStorage.removeItem(pendingKey);setPending(null);setMessage(messages[code]||'Операция отклонена. Проверьте журнал и создайте новый предпросмотр.');}
+      if(code==='UNKNOWN'||error instanceof TypeError){setMessage('Ответ не получен. Повторите эту же операцию кнопкой ниже.'+(persisted?'':' Не закрывайте эту вкладку до получения результата.'));}
+      else{clearPending();setPending(null);setMessage(messages[code]||'Операция отклонена. Проверьте журнал и создайте новый предпросмотр.');}
     }finally{setBusy(false);}
   }
   function confirm(){
@@ -104,7 +110,7 @@ function BatchRows({batch}:{batch:Batch}){
 
 export function AccessBatches({onSelectRemaining}:{onSelectRemaining:(recipients:Recipient[])=>void}){
   const [items,setItems]=useState<{batch_id:string;created_at:string}[]>([]),[batch,setBatch]=useState<Batch|null>(null);
-  const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[unconfirmed,setUnconfirmed]=useState<Operation|null>(null);
   async function list(){const result=await api({action:'batches'});setItems(result.items);}
   useEffect(()=>{void list().catch(()=>setError('Не удалось загрузить выдачи.'));},[]);
   async function open(id:string){setBusy(true);setError('');try{setBatch(await api({action:'batch',batch_id:id}));}catch{setError('Не удалось прочитать выдачу.');}finally{setBusy(false);}}
@@ -112,9 +118,16 @@ export function AccessBatches({onSelectRemaining}:{onSelectRemaining:(recipients
     if(!batch||busy)return;setBusy(true);setError('');
     let operation:Operation=batch.unfinished_commands[0]||{action:'execute',command_id:crypto.randomUUID(),batch_id:batch.batch_id,preview_id:batch.preview_id,limit:5};
     try{
-      const saved=localStorage.getItem(pendingKey);if(saved){const old=JSON.parse(saved);if(old.batch_id!==batch.batch_id){setError('Сначала проверьте незавершённую операцию в карточке клиента.');return;}operation=old;}
-      localStorage.setItem(pendingKey,JSON.stringify(operation));setBatch(await api(operation));localStorage.removeItem(pendingKey);
-    }catch(error){setError(messages[(error as Error).message]||'Ответ не получен. Откройте выдачу и повторите продолжение.');}finally{setBusy(false);}
+      let old=unconfirmed;
+      if(!old){try{const saved=localStorage.getItem(pendingKey);if(saved)old=JSON.parse(saved);}catch{/* Retain the exact operation in this mounted journal. */}}
+      if(old){if(old.batch_id!==batch.batch_id){setError('Сначала проверьте незавершённую операцию в карточке клиента.');return;}operation=old;}
+      setUnconfirmed(operation);savePending(operation);
+      const result=await api(operation);setBatch(result);clearPending();setUnconfirmed(null);
+    }catch(error){
+      const code=(error as Error).message;
+      if(code!=='UNKNOWN'&&!(error instanceof TypeError)){clearPending();setUnconfirmed(null);}
+      setError(messages[code]||'Ответ не получен. Не закрывайте вкладку; повторите продолжение той же выдачи.');
+    }finally{setBusy(false);}
   }
   return <section aria-label="Журнал выдач"><h2>Выдачи доступа</h2><p role="status">{error}</p>
     <button disabled={busy} onClick={()=>void list().catch(()=>setError('Не удалось загрузить выдачи.'))}>Обновить список выдач</button>

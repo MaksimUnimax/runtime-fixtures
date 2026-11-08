@@ -1,0 +1,1203 @@
+{
+  "schema": "alice-scalar-catalog/v1",
+  "version": "20261105-ad-scope-r1",
+  "recipes": {
+    "ozon": {
+      "platform": "ozon",
+      "family": "orders",
+      "operation": "ozon_orders",
+      "max_days": 366,
+      "paired_periods": false,
+      "fields": {
+        "ordered_units": "ordered_units",
+        "ordered_revenue": "revenue"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "OZON_SCHEMA",
+      "workflow": null,
+      "priority": 0,
+      "auth_profile": null,
+      "comparison_error": "OZON_SCHEMA"
+    },
+    "wb": {
+      "platform": "wb",
+      "family": "orders",
+      "operation": "wb_orders",
+      "max_days": 366,
+      "paired_periods": true,
+      "fields": {
+        "ordered_units": "orderCount",
+        "ordered_revenue": "orderSum",
+        "buyout_units_cohort": "buyoutCount",
+        "buyout_revenue_cohort": "buyoutSum",
+        "cancelled_units_cohort": "cancelCount",
+        "cancelled_revenue_cohort": "cancelSum",
+        "card_views": "openCount",
+        "cart_additions": "cartCount"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        },
+        "previous_values": {
+          "$if": [
+            {
+              "$fn": [
+                "ne",
+                {
+                  "$path": [
+                    "params",
+                    "comparison"
+                  ],
+                  "default": null
+                },
+                null
+              ]
+            },
+            {
+              "$fn": [
+                "pairs_object",
+                {
+                  "$map": [
+                    {
+                      "$path": [
+                        "params",
+                        "metrics"
+                      ]
+                    },
+                    "metric",
+                    [
+                      {
+                        "$path": [
+                          "metric"
+                        ]
+                      },
+                      {
+                        "$fn": [
+                          "sum_values",
+                          {
+                            "$map": [
+                              {
+                                "$path": [
+                                  "rows"
+                                ]
+                              },
+                              "summand",
+                              {
+                                "$fn": [
+                                  "get",
+                                  {
+                                    "$path": [
+                                      "summand",
+                                      "previous_values"
+                                    ]
+                                  },
+                                  {
+                                    "$path": [
+                                      "metric"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            },
+            {}
+          ]
+        }
+      },
+      "error_code": "WB_SCHEMA",
+      "workflow": null,
+      "priority": 1,
+      "auth_profile": null,
+      "comparison_error": "WB_COMPARISON_SCHEMA"
+    },
+    "ozon_ads": {
+      "platform": "ozon",
+      "family": "ads",
+      "operation": "ozon_expense",
+      "max_days": 62,
+      "paired_periods": false,
+      "fields": {
+        "ad_bonus_spend": "bonusSpent",
+        "ad_prepayment_spend": "prepaymentSpent"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "ADS_SCHEMA",
+      "workflow": null,
+      "auth_profile": "performance",
+      "priority": 2,
+      "comparison_error": "ADS_SCHEMA"
+    },
+    "wb_ads": {
+      "platform": "wb",
+      "family": "ads",
+      "operation": "wb_expense",
+      "max_days": 31,
+      "paired_periods": false,
+      "fields": {
+        "ad_spend": "updSum"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "ADS_SCHEMA",
+      "workflow": null,
+      "priority": 3,
+      "auth_profile": null,
+      "comparison_error": "ADS_SCHEMA"
+    },
+    "ozon_finance": {
+      "platform": "ozon",
+      "family": "finance",
+      "operation": "ozon_finance",
+      "max_days": 366,
+      "paired_periods": false,
+      "fields": {
+        "finance_sales": "finance_sales",
+        "finance_storage_cost": "finance_storage_cost",
+        "finance_logistics_cost": "finance_logistics_cost",
+        "finance_commission_cost": "finance_commission_cost",
+        "finance_acquiring_cost": "finance_acquiring_cost",
+        "finance_return_amount": "finance_return_amount",
+        "finance_accrued": "finance_accrued",
+        "finance_payments": "finance_payments",
+        "finance_services_cost": "finance_services_cost",
+        "finance_opening_balance": "finance_opening_balance",
+        "finance_closing_balance": "finance_closing_balance"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "count_integer",
+            {
+              "$fn": [
+                "sum",
+                {
+                  "$path": [
+                    "rows"
+                  ]
+                },
+                "count"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "OZON_FINANCE_SCHEMA",
+      "workflow": null,
+      "priority": 4,
+      "auth_profile": null,
+      "comparison_error": "OZON_FINANCE_SCHEMA"
+    },
+    "wb_finance": {
+      "platform": "wb",
+      "family": "finance",
+      "operation": "wb_finance",
+      "max_days": 366,
+      "paired_periods": false,
+      "fields": {
+        "finance_sales": "retailAmountSum",
+        "finance_storage_cost": "paidStorageSum",
+        "finance_logistics_cost": "deliveryServiceSum",
+        "finance_for_pay": "forPaySum",
+        "finance_acceptance_cost": "paidAcceptanceSum",
+        "finance_deductions": "deductionSum",
+        "finance_penalties": "penaltySum",
+        "finance_additional_payments": "additionalPaymentSum",
+        "finance_bank_scheduled": "bankPaymentSum"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "WB_FINANCE_SCHEMA",
+      "workflow": null,
+      "priority": 5,
+      "auth_profile": null,
+      "comparison_error": "WB_FINANCE_SCHEMA"
+    },
+    "ozon_stocks": {
+      "platform": "ozon",
+      "family": "stocks",
+      "operation": "ozon_stocks",
+      "max_days": 366,
+      "paired_periods": false,
+      "fields": {
+        "stock_fbo_units": "stock_fbo_units",
+        "stock_fbs_units": "stock_fbs_units",
+        "stock_fbo_reserved": "stock_fbo_reserved",
+        "stock_fbs_reserved": "stock_fbs_reserved"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "OZON_STOCK_SCHEMA",
+      "workflow": null,
+      "priority": 6,
+      "auth_profile": null,
+      "comparison_error": "OZON_STOCK_SCHEMA"
+    },
+    "wb_stocks": {
+      "platform": "wb",
+      "family": "stocks",
+      "operation": "wb_stocks_create",
+      "max_days": 366,
+      "paired_periods": false,
+      "fields": {
+        "stock_fbo_units": "stock_fbo_units",
+        "stock_to_customer": "stock_to_customer",
+        "stock_return_transit": "stock_return_transit"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "WB_STOCK_SCHEMA",
+      "workflow": {
+        "initial": "create",
+        "steps": {
+          "create": {
+            "operation": "wb_stocks_create",
+            "capture": {
+              "phase": "status",
+              "task_id": {
+                "$fn": [
+                  "uuid",
+                  {
+                    "$path": [
+                      "response",
+                      "data",
+                      "taskId"
+                    ]
+                  }
+                ]
+              },
+              "polls": 0
+            },
+            "guards": [],
+            "error": "PROVIDER_TASK_ID",
+            "final": false
+          },
+          "status": {
+            "operation": "wb_stocks_status",
+            "capture": {
+              "phase": {
+                "$if": [
+                  {
+                    "$fn": [
+                      "eq",
+                      {
+                        "$path": [
+                          "response",
+                          "data",
+                          "status"
+                        ]
+                      },
+                      "done"
+                    ]
+                  },
+                  "download",
+                  "status"
+                ]
+              },
+              "task_id": {
+                "$fn": [
+                  "uuid",
+                  {
+                    "$path": [
+                      "response",
+                      "data",
+                      "id"
+                    ]
+                  }
+                ]
+              },
+              "polls": {
+                "$fn": [
+                  "integer_add",
+                  {
+                    "$path": [
+                      "progress",
+                      "polls"
+                    ]
+                  },
+                  1
+                ]
+              }
+            },
+            "guards": [
+              {
+                "test": {
+                  "$fn": [
+                    "eq",
+                    {
+                      "$fn": [
+                        "uuid",
+                        {
+                          "$path": [
+                            "response",
+                            "data",
+                            "id"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "$path": [
+                        "progress",
+                        "task_id"
+                      ]
+                    }
+                  ]
+                },
+                "code": "PROVIDER_TASK_MISMATCH"
+              },
+              {
+                "test": {
+                  "$fn": [
+                    "in",
+                    {
+                      "$path": [
+                        "response",
+                        "data",
+                        "status"
+                      ]
+                    },
+                    [
+                      "new",
+                      "processing",
+                      "done",
+                      "canceled",
+                      "purged"
+                    ]
+                  ]
+                },
+                "code": "PROVIDER_TASK_STATE"
+              },
+              {
+                "test": {
+                  "$fn": [
+                    "not",
+                    {
+                      "$fn": [
+                        "in",
+                        {
+                          "$path": [
+                            "response",
+                            "data",
+                            "status"
+                          ]
+                        },
+                        [
+                          "canceled",
+                          "purged"
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "code": "PROVIDER_REPORT_UNAVAILABLE"
+              },
+              {
+                "test": {
+                  "$fn": [
+                    "lt",
+                    {
+                      "$path": [
+                        "progress",
+                        "polls"
+                      ]
+                    },
+                    120
+                  ]
+                },
+                "code": "PROVIDER_REPORT_NOT_READY"
+              }
+            ],
+            "error": "WB_STOCK_SCHEMA",
+            "final": false
+          },
+          "download": {
+            "operation": "wb_stocks_download",
+            "capture": null,
+            "guards": [],
+            "error": "WB_STOCK_SCHEMA",
+            "final": true
+          }
+        },
+        "max_steps": 128,
+        "limit_error": "PROVIDER_REPORT_NOT_READY"
+      },
+      "priority": 7,
+      "auth_profile": null,
+      "comparison_error": "WB_STOCK_SCHEMA"
+    },
+    "wb_balance": {
+      "platform": "wb",
+      "family": "balance",
+      "operation": "wb_balance",
+      "max_days": 366,
+      "paired_periods": false,
+      "fields": {
+        "current_balance": "current",
+        "available_withdrawal": "for_withdraw"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "BALANCE_SCHEMA",
+      "workflow": null,
+      "priority": 8,
+      "auth_profile": null,
+      "comparison_error": "BALANCE_SCHEMA"
+    },
+    "ozon_accruals": {
+      "platform": "ozon",
+      "family": "accrual",
+      "operation": "ozon_accrual_by_day",
+      "max_days": 1,
+      "paired_periods": false,
+      "fields": {
+        "accrual_sale_units": "gross_units",
+        "accrual_sale_amount": "gross_buyer_amount",
+        "accrual_reversal_units": "reversal_units",
+        "accrual_reversal_amount": "reversal_buyer_amount",
+        "accrual_seller_amount": "gross_seller_amount",
+        "accrual_reversal_seller_amount": "reversal_seller_amount"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "entry",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "entry",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "ACCRUAL_SCHEMA",
+      "workflow": null,
+      "priority": 90,
+      "auth_profile": null,
+      "comparison_error": "ACCRUAL_COMPARISON"
+    },
+    "ozon_ads_daily": {
+      "platform": "ozon",
+      "family": "ads",
+      "operation": "ozon_ads_daily",
+      "max_days": 62,
+      "paired_periods": false,
+      "fields": {
+        "ad_spend": "moneySpent"
+      },
+      "output": {
+        "values": {
+          "$fn": [
+            "pairs_object",
+            {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                [
+                  {
+                    "$path": [
+                      "metric"
+                    ]
+                  },
+                  {
+                    "$fn": [
+                      "sum_values",
+                      {
+                        "$map": [
+                          {
+                            "$path": [
+                              "rows"
+                            ]
+                          },
+                          "summand",
+                          {
+                            "$fn": [
+                              "get",
+                              {
+                                "$path": [
+                                  "summand",
+                                  "values"
+                                ]
+                              },
+                              {
+                                "$path": [
+                                  "metric"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "$fn": [
+            "len",
+            {
+              "$path": [
+                "rows"
+              ]
+            }
+          ]
+        }
+      },
+      "error_code": "ADS_DAILY_SCHEMA",
+      "workflow": null,
+      "auth_profile": "performance",
+      "priority": 20,
+      "comparison_error": "ADS_DAILY_SCHEMA"
+    }
+  },
+  "auth_profiles": {
+    "performance": {
+      "operation": "ozon_ads_token",
+      "token_path": [
+        "access_token"
+      ],
+      "expires_path": [
+        "expires_in"
+      ],
+      "min_ttl": 60,
+      "max_ttl": 86400,
+      "refresh_margin": 60,
+      "schema_error": "PERFORMANCE_TOKEN_SCHEMA",
+      "missing_error": "PERFORMANCE_AUTH_REQUIRED"
+    }
+  }
+}

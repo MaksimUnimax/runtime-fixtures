@@ -1,0 +1,31 @@
+{
+  "schema": "alisa-unit-expense-ads-gold/v1",
+  "kind": "SYNTHETIC_NOT_MERCHANT_DATA",
+  "inputs": {
+    "ordered_units": 10,
+    "consumed_units": 8,
+    "cost_per_product": "25",
+    "marketplace_costs": "400",
+    "recognized_revenue": "1000",
+    "daily_rows": [
+      {"id": "CPO_EXAMPLE", "date": "2030-01-02", "moneySpent": "80,00"},
+      {"id": "CPC_EXAMPLE", "date": "2030-01-02", "moneySpent": "20,00"}
+    ],
+    "cpo_control_rows": [{"expense": "40"}, {"expense": "40"}],
+    "selected_cpo": {"rows": [], "overExpenses": 0},
+    "legacy_expense_rows": [],
+    "tax": "EXCLUDED_BY_USER"
+  },
+  "expected": {
+    "ads": "100", "cpo_control": "80", "cogs": "200", "total_expenses": "700",
+    "cost_per_ordered_unit": "70.00", "result": "300", "result_per_ordered_unit": "30.00",
+    "product_cost_model": "75.00"
+  },
+  "negative_cases": [
+    "legacy empty must not override nonempty daily", "CPO detail not added to daily again",
+    "unknown mandatory ads blocks usable report", "product cost input differs from COGS / ordered units",
+    "missing cost vs explicit zero", "overExpenses numeric, not list", "PaymentType exact case",
+    "duplicate campaign/date", "out-of-period date", "nonfinite/negative spend",
+    "zero denominator", "no invented provider cause"
+  ]
+}

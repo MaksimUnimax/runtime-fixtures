@@ -1,0 +1,2423 @@
+{
+  "schema": "alice-dataset-queries/v1",
+  "version": "20261105-join-r1",
+  "max_rows": 20000,
+  "max_bytes": 6000000,
+  "max_tasks": 150,
+  "max_pages": 200,
+  "queries": {
+    "product_registry": {
+      "phrases": [
+        "справочник товаров",
+        "идентификаторы товаров",
+        "артикулы товаров"
+      ],
+      "snapshot": true,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "rows",
+            "source": "ds_ozon_products",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          }
+        ],
+        "wb": [
+          {
+            "id": "rows",
+            "source": "ds_wb_products",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "product_id",
+          "label": "ID площадки",
+          "kind": "text"
+        },
+        {
+          "field": "offer_id",
+          "label": "артикул продавца",
+          "kind": "text"
+        }
+      ],
+      "group_by": [],
+      "aggregates": [],
+      "notes": [
+        "Текущий справочник отдельно по площадке. Совпадение названия или артикула не доказывает соответствие товарам другой площадки.",
+        "Карточки WB в корзине удаления этим источником не включены."
+      ],
+      "output_stage": "rows"
+    },
+    "offer_prices": {
+      "phrases": [
+        "текущие цены предложения",
+        "цены товаров сейчас",
+        "цены предложения товаров"
+      ],
+      "snapshot": true,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "rows",
+            "source": "ds_ozon_prices",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          }
+        ],
+        "wb": [
+          {
+            "id": "rows",
+            "source": "ds_wb_prices",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "product_id",
+          "label": "ID",
+          "kind": "text"
+        },
+        {
+          "field": "offer_id",
+          "label": "артикул",
+          "kind": "text"
+        },
+        {
+          "field": "size",
+          "label": "размер",
+          "kind": "text"
+        },
+        {
+          "field": "price",
+          "label": "цена продавца",
+          "kind": "money"
+        },
+        {
+          "field": "discounted_price",
+          "label": "со скидкой WB",
+          "kind": "money"
+        },
+        {
+          "field": "club_price",
+          "label": "WB Клуб",
+          "kind": "money"
+        },
+        {
+          "field": "marketing_seller_price",
+          "label": "маркетинговая цена продавца Ozon",
+          "kind": "money"
+        },
+        {
+          "field": "currency",
+          "label": "валюта",
+          "kind": "text"
+        }
+      ],
+      "group_by": [],
+      "aggregates": [],
+      "notes": [
+        "Снимок цен источника, не историческая цена конкретной покупки и не гарантия персональной цены при оплате. Отсутствующие поля не заменены нулями."
+      ],
+      "output_stage": "rows"
+    },
+    "posting_metadata": {
+      "phrases": [
+        "метаданные отправлений",
+        "способы оплаты отправлений",
+        "отправления и способы оплаты"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "fbo",
+            "source": "ds_ozon_fbo_postings",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "rows",
+            "source": "ds_ozon_fbs_postings",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "scheme",
+          "label": "схема",
+          "kind": "text"
+        },
+        {
+          "field": "created_day",
+          "label": "дата создания",
+          "kind": "text"
+        },
+        {
+          "field": "in_process_day",
+          "label": "дата обработки",
+          "kind": "text"
+        },
+        {
+          "field": "status",
+          "label": "статус",
+          "kind": "text"
+        },
+        {
+          "field": "payment",
+          "label": "метка оплаты",
+          "kind": "text"
+        },
+        {
+          "field": "units",
+          "label": "товаров",
+          "kind": "number"
+        }
+      ],
+      "group_by": [],
+      "aggregates": [],
+      "notes": [
+        "Период фильтра источника отправлений; это не реализация по дате начисления и не выкупы за этот день.",
+        "Метка оплаты сохранена как сообщает Ozon; unknown не означает оплату без карты. Соединение с начислениями здесь не выполняется."
+      ],
+      "output_stage": [
+        "fbo",
+        "rows"
+      ]
+    },
+    "wb_active_ads": {
+      "phrases": [
+        "статистика активных рекламных кампаний",
+        "показы и клики активных кампаний",
+        "рекламные счетчики активных кампаний"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "wb": [
+          {
+            "id": "campaigns",
+            "source": "ds_wb_campaigns",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "rows",
+            "source": "ds_wb_adstats",
+            "period_mode": "whole",
+            "foreach": {
+              "$map": [
+                {
+                  "$fn": [
+                    "chunks",
+                    {
+                      "$map": [
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "campaigns"
+                              ]
+                            },
+                            "campaign",
+                            {
+                              "$fn": [
+                                "in",
+                                {
+                                  "$path": [
+                                    "campaign",
+                                    "status"
+                                  ]
+                                },
+                                [
+                                  9,
+                                  11
+                                ]
+                              ]
+                            }
+                          ]
+                        },
+                        "campaign",
+                        {
+                          "$path": [
+                            "campaign",
+                            "campaign_id"
+                          ]
+                        }
+                      ]
+                    },
+                    50
+                  ]
+                },
+                "batch",
+                {
+                  "campaigns": {
+                    "$path": [
+                      "batch"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "campaign_id",
+          "label": "кампания",
+          "kind": "text"
+        },
+        {
+          "field": "views",
+          "label": "показы",
+          "kind": "number"
+        },
+        {
+          "field": "clicks",
+          "label": "клики",
+          "kind": "number"
+        },
+        {
+          "field": "orders",
+          "label": "атрибутированные заказы",
+          "kind": "number"
+        },
+        {
+          "field": "units",
+          "label": "атрибутированные товары",
+          "kind": "number"
+        },
+        {
+          "field": "revenue",
+          "label": "атрибутированная сумма",
+          "kind": "money"
+        },
+        {
+          "field": "spend",
+          "label": "расход",
+          "kind": "money"
+        },
+        {
+          "field": "currency",
+          "label": "валюта",
+          "kind": "text"
+        }
+      ],
+      "group_by": [],
+      "aggregates": [],
+      "notes": [
+        "Выбраны кампании, активные или приостановленные на момент запроса (статусы 9 и 11). Это не все исторические кампании магазина.",
+        "Показатели рекламной атрибуции WB не равны общим заказам магазина. Пустой или неполный ответ fullstats не подменяется нулём.",
+        "Показатели статистики предварительные и могут обновляться; статистический расход не прибавляется повторно к финансовому расходу."
+      ],
+      "output_stage": "rows"
+    },
+    "accrual_items": {
+      "phrases": [
+        "товарные начисления по товарам",
+        "цены реализации по начислениям по товарам"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "rows",
+            "source": "ds_ozon_accrual_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "product_id",
+          "label": "SKU",
+          "kind": "text"
+        },
+        {
+          "field": "sale_units",
+          "label": "реализовано",
+          "kind": "number"
+        },
+        {
+          "field": "sale_amount",
+          "label": "покупательская сумма строк",
+          "kind": "money"
+        },
+        {
+          "field": "average_price",
+          "label": "средняя на товар",
+          "kind": "money"
+        },
+        {
+          "field": "reversal_units",
+          "label": "обратные начисления, шт.",
+          "kind": "number"
+        },
+        {
+          "field": "reversal_amount",
+          "label": "модуль обратных сумм",
+          "kind": "money"
+        },
+        {
+          "field": "seller_amount",
+          "label": "положительная сумма продавца",
+          "kind": "money"
+        },
+        {
+          "field": "reversal_seller_amount",
+          "label": "обратная сумма продавца, модуль",
+          "kind": "money"
+        }
+      ],
+      "group_by": [
+        "product_id"
+      ],
+      "aggregates": [
+        {
+          "field": "sale_units",
+          "kind": "sum",
+          "source": "sale_units",
+          "denominator": null
+        },
+        {
+          "field": "sale_amount",
+          "kind": "sum",
+          "source": "sale_amount",
+          "denominator": null
+        },
+        {
+          "field": "seller_amount",
+          "kind": "sum",
+          "source": "seller_amount",
+          "denominator": null
+        },
+        {
+          "field": "reversal_units",
+          "kind": "sum",
+          "source": "reversal_units",
+          "denominator": null
+        },
+        {
+          "field": "reversal_amount",
+          "kind": "sum",
+          "source": "reversal_amount",
+          "denominator": null
+        },
+        {
+          "field": "average_price",
+          "kind": "ratio_sum",
+          "source": "sale_amount",
+          "denominator": "sale_units"
+        },
+        {
+          "field": "reversal_seller_amount",
+          "kind": "sum",
+          "source": "reversal_seller_amount",
+          "denominator": null
+        }
+      ],
+      "notes": [
+        "Дата начисления, не дата заказа или физического выкупа; направления разделены.",
+        "Показаны только дни и товары с записями источника; отсутствие строки не заменено нулём.",
+        "Покупательская сумма — сумма строки; среднее взвешено количеством. Это не кассовый чек."
+      ],
+      "output_stage": "rows"
+    },
+    "accrual_days": {
+      "phrases": [
+        "товарные начисления по дням",
+        "реализация по начислениям по дням"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "rows",
+            "source": "ds_ozon_accrual_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "day",
+          "label": "день",
+          "kind": "text"
+        },
+        {
+          "field": "sale_units",
+          "label": "реализовано",
+          "kind": "number"
+        },
+        {
+          "field": "sale_amount",
+          "label": "покупательская сумма строк",
+          "kind": "money"
+        },
+        {
+          "field": "average_price",
+          "label": "средняя на товар",
+          "kind": "money"
+        },
+        {
+          "field": "reversal_units",
+          "label": "обратные начисления, шт.",
+          "kind": "number"
+        },
+        {
+          "field": "reversal_amount",
+          "label": "модуль обратных сумм",
+          "kind": "money"
+        },
+        {
+          "field": "seller_amount",
+          "label": "положительная сумма продавца",
+          "kind": "money"
+        },
+        {
+          "field": "reversal_seller_amount",
+          "label": "обратная сумма продавца, модуль",
+          "kind": "money"
+        }
+      ],
+      "group_by": [
+        "day"
+      ],
+      "aggregates": [
+        {
+          "field": "sale_units",
+          "kind": "sum",
+          "source": "sale_units",
+          "denominator": null
+        },
+        {
+          "field": "sale_amount",
+          "kind": "sum",
+          "source": "sale_amount",
+          "denominator": null
+        },
+        {
+          "field": "seller_amount",
+          "kind": "sum",
+          "source": "seller_amount",
+          "denominator": null
+        },
+        {
+          "field": "reversal_units",
+          "kind": "sum",
+          "source": "reversal_units",
+          "denominator": null
+        },
+        {
+          "field": "reversal_amount",
+          "kind": "sum",
+          "source": "reversal_amount",
+          "denominator": null
+        },
+        {
+          "field": "average_price",
+          "kind": "ratio_sum",
+          "source": "sale_amount",
+          "denominator": "sale_units"
+        },
+        {
+          "field": "reversal_seller_amount",
+          "kind": "sum",
+          "source": "reversal_seller_amount",
+          "denominator": null
+        }
+      ],
+      "notes": [
+        "Дата начисления, не дата заказа или физического выкупа; направления разделены.",
+        "Показаны только дни и товары с записями источника; отсутствие строки не заменено нулём.",
+        "Покупательская сумма — сумма строки; среднее взвешено количеством. Это не кассовый чек."
+      ],
+      "output_stage": "rows"
+    },
+    "accrual_items_days": {
+      "phrases": [
+        "товарные начисления по товарам и дням",
+        "цены реализации по начислениям по товарам и дням"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "rows",
+            "source": "ds_ozon_accrual_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "day",
+          "label": "день",
+          "kind": "text"
+        },
+        {
+          "field": "product_id",
+          "label": "SKU",
+          "kind": "text"
+        },
+        {
+          "field": "sale_units",
+          "label": "реализовано",
+          "kind": "number"
+        },
+        {
+          "field": "sale_amount",
+          "label": "покупательская сумма строк",
+          "kind": "money"
+        },
+        {
+          "field": "average_price",
+          "label": "средняя на товар",
+          "kind": "money"
+        },
+        {
+          "field": "reversal_units",
+          "label": "обратные начисления, шт.",
+          "kind": "number"
+        },
+        {
+          "field": "reversal_amount",
+          "label": "модуль обратных сумм",
+          "kind": "money"
+        },
+        {
+          "field": "seller_amount",
+          "label": "положительная сумма продавца",
+          "kind": "money"
+        },
+        {
+          "field": "reversal_seller_amount",
+          "label": "обратная сумма продавца, модуль",
+          "kind": "money"
+        }
+      ],
+      "group_by": [
+        "day",
+        "product_id"
+      ],
+      "aggregates": [
+        {
+          "field": "sale_units",
+          "kind": "sum",
+          "source": "sale_units",
+          "denominator": null
+        },
+        {
+          "field": "sale_amount",
+          "kind": "sum",
+          "source": "sale_amount",
+          "denominator": null
+        },
+        {
+          "field": "seller_amount",
+          "kind": "sum",
+          "source": "seller_amount",
+          "denominator": null
+        },
+        {
+          "field": "reversal_units",
+          "kind": "sum",
+          "source": "reversal_units",
+          "denominator": null
+        },
+        {
+          "field": "reversal_amount",
+          "kind": "sum",
+          "source": "reversal_amount",
+          "denominator": null
+        },
+        {
+          "field": "average_price",
+          "kind": "ratio_sum",
+          "source": "sale_amount",
+          "denominator": "sale_units"
+        },
+        {
+          "field": "reversal_seller_amount",
+          "kind": "sum",
+          "source": "reversal_seller_amount",
+          "denominator": null
+        }
+      ],
+      "notes": [
+        "Дата начисления, не дата заказа или физического выкупа; направления разделены.",
+        "Показаны только дни и товары с записями источника; отсутствие строки не заменено нулём.",
+        "Покупательская сумма — сумма строки; среднее взвешено количеством. Это не кассовый чек."
+      ],
+      "output_stage": "rows"
+    },
+    "accrual_price_lines": {
+      "phrases": [
+        "строки товарных начислений",
+        "цены товарных строк по начислениям"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "rows",
+            "source": "ds_ozon_accrual_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "day",
+          "label": "дата начисления",
+          "kind": "text"
+        },
+        {
+          "field": "product_id",
+          "label": "SKU",
+          "kind": "text"
+        },
+        {
+          "field": "direction",
+          "label": "направление",
+          "kind": "text"
+        },
+        {
+          "field": "line_units",
+          "label": "товаров в строке",
+          "kind": "number"
+        },
+        {
+          "field": "buyer_line_amount",
+          "label": "покупательская сумма строки, модуль",
+          "kind": "money"
+        },
+        {
+          "field": "buyer_unit_average",
+          "label": "среднее строки на товар",
+          "kind": "money"
+        },
+        {
+          "field": "seller_unit_price",
+          "label": "цена продавца за товар, модуль",
+          "kind": "money"
+        },
+        {
+          "field": "seller_line_amount",
+          "label": "сумма продавца строки, модуль",
+          "kind": "money"
+        },
+        {
+          "field": "currency",
+          "label": "валюта",
+          "kind": "text"
+        }
+      ],
+      "group_by": [],
+      "aggregates": [],
+      "notes": [
+        "Дата начисления, не дата заказа или физического выкупа; направления разделены.",
+        "Показаны только дни и товары с записями источника; отсутствие строки не заменено нулём.",
+        "Разные товарные строки одного SKU не объединены. При количестве больше одного среднее строки не доказывает цену каждой отдельной покупки.",
+        "Обратные начисления показаны отдельным направлением с модулями денежных сумм."
+      ],
+      "output_stage": "rows"
+    },
+    "wb_campaign_inventory": {
+      "phrases": [
+        "реестр рекламных кампаний",
+        "список рекламных кампаний по статусам"
+      ],
+      "snapshot": true,
+      "max_days": 31,
+      "flows": {
+        "wb": [
+          {
+            "id": "rows",
+            "source": "ds_wb_campaigns",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "campaign_id",
+          "label": "ID кампании",
+          "kind": "number"
+        },
+        {
+          "field": "status",
+          "label": "статус источника",
+          "kind": "number"
+        }
+      ],
+      "group_by": [],
+      "aggregates": [],
+      "notes": [
+        "Список и статусы на момент запроса. Это не статистика за период и не восстановление прежних статусов.",
+        "Отсутствие кампании в отдельном отчёте статистики не означает нулевые показы или расходы."
+      ],
+      "output_stage": "rows"
+    },
+    "wb_active_ads_totals": {
+      "phrases": [
+        "сводка статистики активных рекламных кампаний",
+        "итоги активных рекламных кампаний"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "wb": [
+          {
+            "id": "campaigns",
+            "source": "ds_wb_campaigns",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "rows",
+            "source": "ds_wb_adstats",
+            "period_mode": "whole",
+            "foreach": {
+              "$map": [
+                {
+                  "$fn": [
+                    "chunks",
+                    {
+                      "$map": [
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "campaigns"
+                              ]
+                            },
+                            "campaign",
+                            {
+                              "$fn": [
+                                "in",
+                                {
+                                  "$path": [
+                                    "campaign",
+                                    "status"
+                                  ]
+                                },
+                                [
+                                  9,
+                                  11
+                                ]
+                              ]
+                            }
+                          ]
+                        },
+                        "campaign",
+                        {
+                          "$path": [
+                            "campaign",
+                            "campaign_id"
+                          ]
+                        }
+                      ]
+                    },
+                    50
+                  ]
+                },
+                "batch",
+                {
+                  "campaigns": {
+                    "$path": [
+                      "batch"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "views",
+          "label": "показы",
+          "kind": "number"
+        },
+        {
+          "field": "clicks",
+          "label": "клики",
+          "kind": "number"
+        },
+        {
+          "field": "orders",
+          "label": "атрибутированные заказы",
+          "kind": "number"
+        },
+        {
+          "field": "units",
+          "label": "атрибутированные товары",
+          "kind": "number"
+        },
+        {
+          "field": "revenue",
+          "label": "атрибутированная сумма",
+          "kind": "money"
+        },
+        {
+          "field": "spend",
+          "label": "расход",
+          "kind": "money"
+        },
+        {
+          "field": "currency",
+          "label": "валюта",
+          "kind": "text"
+        }
+      ],
+      "group_by": [
+        "currency"
+      ],
+      "aggregates": [
+        {
+          "field": "views",
+          "kind": "sum",
+          "source": "views",
+          "denominator": null
+        },
+        {
+          "field": "clicks",
+          "kind": "sum",
+          "source": "clicks",
+          "denominator": null
+        },
+        {
+          "field": "orders",
+          "kind": "sum",
+          "source": "orders",
+          "denominator": null
+        },
+        {
+          "field": "units",
+          "kind": "sum",
+          "source": "units",
+          "denominator": null
+        },
+        {
+          "field": "revenue",
+          "kind": "sum",
+          "source": "revenue",
+          "denominator": null
+        },
+        {
+          "field": "spend",
+          "kind": "sum",
+          "source": "spend",
+          "denominator": null
+        }
+      ],
+      "notes": [
+        "Выбраны кампании, активные или приостановленные на момент запроса (статусы 9 и 11). Это не все исторические кампании магазина.",
+        "Показатели рекламной атрибуции WB не равны общим заказам магазина. Пустой или неполный ответ fullstats не подменяется нулём.",
+        "Показатели статистики предварительные и могут обновляться; статистический расход не прибавляется повторно к финансовому расходу."
+      ],
+      "output_stage": "rows"
+    },
+    "wb_supported_ads": {
+      "phrases": [
+        "статистика завершенных активных и приостановленных кампаний"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "wb": [
+          {
+            "id": "campaigns",
+            "source": "ds_wb_campaigns",
+            "period_mode": "whole",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "rows",
+            "source": "ds_wb_adstats",
+            "period_mode": "whole",
+            "foreach": {
+              "$map": [
+                {
+                  "$fn": [
+                    "chunks",
+                    {
+                      "$map": [
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "campaigns"
+                              ]
+                            },
+                            "campaign",
+                            {
+                              "$fn": [
+                                "in",
+                                {
+                                  "$path": [
+                                    "campaign",
+                                    "status"
+                                  ]
+                                },
+                                [
+                                  7,
+                                  9,
+                                  11
+                                ]
+                              ]
+                            }
+                          ]
+                        },
+                        "campaign",
+                        {
+                          "$path": [
+                            "campaign",
+                            "campaign_id"
+                          ]
+                        }
+                      ]
+                    },
+                    50
+                  ]
+                },
+                "batch",
+                {
+                  "campaigns": {
+                    "$path": [
+                      "batch"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "campaign_id",
+          "label": "кампания",
+          "kind": "text"
+        },
+        {
+          "field": "views",
+          "label": "показы",
+          "kind": "number"
+        },
+        {
+          "field": "clicks",
+          "label": "клики",
+          "kind": "number"
+        },
+        {
+          "field": "orders",
+          "label": "атрибутированные заказы",
+          "kind": "number"
+        },
+        {
+          "field": "units",
+          "label": "атрибутированные товары",
+          "kind": "number"
+        },
+        {
+          "field": "revenue",
+          "label": "атрибутированная сумма",
+          "kind": "money"
+        },
+        {
+          "field": "spend",
+          "label": "расход",
+          "kind": "money"
+        },
+        {
+          "field": "currency",
+          "label": "валюта",
+          "kind": "text"
+        }
+      ],
+      "group_by": [],
+      "aggregates": [],
+      "notes": [
+        "Выбраны кампании с текущими статусами 7, 9 и 11. Это не все удалённые кампании и не исторический снимок статусов.",
+        "Запрошены все ID выбранной группы; отсутствие ответа хотя бы по одному ID блокирует полный отчёт, а не превращается в ноль.",
+        "Показатели статистики предварительные и могут обновляться; статистический расход не прибавляется повторно к финансовому расходу."
+      ],
+      "output_stage": "rows"
+    },
+    "realization_payment_lines": {
+      "phrases": [
+        "строки реализаций по способам оплаты"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "target",
+            "source": "ds_ozon_accrual_join_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "fbo",
+            "source": "ds_ozon_fbo_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          },
+          {
+            "id": "fbs",
+            "source": "ds_ozon_fbs_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "day",
+          "label": "дата начисления",
+          "kind": "text"
+        },
+        {
+          "field": "product_id",
+          "label": "SKU",
+          "kind": "text"
+        },
+        {
+          "field": "payment_label",
+          "label": "метка оплаты источника",
+          "kind": "text"
+        },
+        {
+          "field": "sale_units",
+          "label": "товаров",
+          "kind": "number"
+        },
+        {
+          "field": "sale_amount",
+          "label": "покупательская сумма строк",
+          "kind": "money"
+        },
+        {
+          "field": "seller_amount",
+          "label": "сумма продавца",
+          "kind": "money"
+        },
+        {
+          "field": "buyer_unit_average",
+          "label": "средняя исходной строки",
+          "kind": "money"
+        }
+      ],
+      "group_by": [],
+      "aggregates": [],
+      "notes": [
+        "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+        "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+        "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+        "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку."
+      ],
+      "output_stage": "enriched",
+      "relations": [
+        {
+          "id": "enriched",
+          "label": "способ оплаты положительных реализаций",
+          "left": "target",
+          "right": [
+            "fbo",
+            "fbs"
+          ],
+          "on": [
+            [
+              "posting_key",
+              "posting_key"
+            ],
+            [
+              "product_id",
+              "product_id"
+            ]
+          ],
+          "parent_keys": [
+            0
+          ],
+          "left_where": {
+            "$fn": [
+              "gt",
+              {
+                "$fn": [
+                  "decimal_compare",
+                  {
+                    "$path": [
+                      "row",
+                      "sale_units"
+                    ]
+                  },
+                  "0"
+                ]
+              },
+              0
+            ]
+          },
+          "capacity": {
+            "left": "sale_units",
+            "right": "item_units",
+            "mode": "sum_le"
+          },
+          "preserve": [
+            "sale_units",
+            "sale_amount",
+            "seller_amount"
+          ],
+          "fields": {
+            "payment_label": {
+              "source": "payment_raw",
+              "unknown": "неизвестно",
+              "unknown_values": [
+                null,
+                "",
+                "unknown"
+              ]
+            }
+          },
+          "coverage_field": "join_state",
+          "missing": "report_unknown"
+        }
+      ]
+    },
+    "realization_payment_totals": {
+      "phrases": [
+        "реализации по способам оплаты"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "target",
+            "source": "ds_ozon_accrual_join_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "fbo",
+            "source": "ds_ozon_fbo_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          },
+          {
+            "id": "fbs",
+            "source": "ds_ozon_fbs_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "payment_label",
+          "label": "метка оплаты источника",
+          "kind": "text"
+        },
+        {
+          "field": "sale_units",
+          "label": "товаров",
+          "kind": "number"
+        },
+        {
+          "field": "sale_amount",
+          "label": "покупательская сумма строк",
+          "kind": "money"
+        },
+        {
+          "field": "seller_amount",
+          "label": "сумма продавца",
+          "kind": "money"
+        },
+        {
+          "field": "average_price",
+          "label": "средняя на товар",
+          "kind": "money"
+        }
+      ],
+      "group_by": [
+        "payment_label"
+      ],
+      "aggregates": [
+        {
+          "field": "sale_units",
+          "kind": "sum",
+          "source": "sale_units",
+          "denominator": null
+        },
+        {
+          "field": "sale_amount",
+          "kind": "sum",
+          "source": "sale_amount",
+          "denominator": null
+        },
+        {
+          "field": "seller_amount",
+          "kind": "sum",
+          "source": "seller_amount",
+          "denominator": null
+        },
+        {
+          "field": "average_price",
+          "kind": "ratio_sum",
+          "source": "sale_amount",
+          "denominator": "sale_units"
+        }
+      ],
+      "notes": [
+        "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+        "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+        "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+        "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку."
+      ],
+      "output_stage": "enriched",
+      "relations": [
+        {
+          "id": "enriched",
+          "label": "способ оплаты положительных реализаций",
+          "left": "target",
+          "right": [
+            "fbo",
+            "fbs"
+          ],
+          "on": [
+            [
+              "posting_key",
+              "posting_key"
+            ],
+            [
+              "product_id",
+              "product_id"
+            ]
+          ],
+          "parent_keys": [
+            0
+          ],
+          "left_where": {
+            "$fn": [
+              "gt",
+              {
+                "$fn": [
+                  "decimal_compare",
+                  {
+                    "$path": [
+                      "row",
+                      "sale_units"
+                    ]
+                  },
+                  "0"
+                ]
+              },
+              0
+            ]
+          },
+          "capacity": {
+            "left": "sale_units",
+            "right": "item_units",
+            "mode": "sum_le"
+          },
+          "preserve": [
+            "sale_units",
+            "sale_amount",
+            "seller_amount"
+          ],
+          "fields": {
+            "payment_label": {
+              "source": "payment_raw",
+              "unknown": "неизвестно",
+              "unknown_values": [
+                null,
+                "",
+                "unknown"
+              ]
+            }
+          },
+          "coverage_field": "join_state",
+          "missing": "report_unknown"
+        }
+      ]
+    },
+    "realization_payment_days": {
+      "phrases": [
+        "реализации по дням и способам оплаты"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "target",
+            "source": "ds_ozon_accrual_join_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "fbo",
+            "source": "ds_ozon_fbo_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          },
+          {
+            "id": "fbs",
+            "source": "ds_ozon_fbs_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "day",
+          "label": "дата начисления",
+          "kind": "text"
+        },
+        {
+          "field": "payment_label",
+          "label": "метка оплаты источника",
+          "kind": "text"
+        },
+        {
+          "field": "sale_units",
+          "label": "товаров",
+          "kind": "number"
+        },
+        {
+          "field": "sale_amount",
+          "label": "покупательская сумма строк",
+          "kind": "money"
+        },
+        {
+          "field": "seller_amount",
+          "label": "сумма продавца",
+          "kind": "money"
+        },
+        {
+          "field": "average_price",
+          "label": "средняя на товар",
+          "kind": "money"
+        }
+      ],
+      "group_by": [
+        "day",
+        "payment_label"
+      ],
+      "aggregates": [
+        {
+          "field": "sale_units",
+          "kind": "sum",
+          "source": "sale_units",
+          "denominator": null
+        },
+        {
+          "field": "sale_amount",
+          "kind": "sum",
+          "source": "sale_amount",
+          "denominator": null
+        },
+        {
+          "field": "seller_amount",
+          "kind": "sum",
+          "source": "seller_amount",
+          "denominator": null
+        },
+        {
+          "field": "average_price",
+          "kind": "ratio_sum",
+          "source": "sale_amount",
+          "denominator": "sale_units"
+        }
+      ],
+      "notes": [
+        "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+        "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+        "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+        "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку."
+      ],
+      "output_stage": "enriched",
+      "relations": [
+        {
+          "id": "enriched",
+          "label": "способ оплаты положительных реализаций",
+          "left": "target",
+          "right": [
+            "fbo",
+            "fbs"
+          ],
+          "on": [
+            [
+              "posting_key",
+              "posting_key"
+            ],
+            [
+              "product_id",
+              "product_id"
+            ]
+          ],
+          "parent_keys": [
+            0
+          ],
+          "left_where": {
+            "$fn": [
+              "gt",
+              {
+                "$fn": [
+                  "decimal_compare",
+                  {
+                    "$path": [
+                      "row",
+                      "sale_units"
+                    ]
+                  },
+                  "0"
+                ]
+              },
+              0
+            ]
+          },
+          "capacity": {
+            "left": "sale_units",
+            "right": "item_units",
+            "mode": "sum_le"
+          },
+          "preserve": [
+            "sale_units",
+            "sale_amount",
+            "seller_amount"
+          ],
+          "fields": {
+            "payment_label": {
+              "source": "payment_raw",
+              "unknown": "неизвестно",
+              "unknown_values": [
+                null,
+                "",
+                "unknown"
+              ]
+            }
+          },
+          "coverage_field": "join_state",
+          "missing": "report_unknown"
+        }
+      ]
+    },
+    "realization_payment_items": {
+      "phrases": [
+        "реализации по товарам и способам оплаты"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "target",
+            "source": "ds_ozon_accrual_join_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "fbo",
+            "source": "ds_ozon_fbo_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          },
+          {
+            "id": "fbs",
+            "source": "ds_ozon_fbs_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "product_id",
+          "label": "SKU",
+          "kind": "text"
+        },
+        {
+          "field": "payment_label",
+          "label": "метка оплаты источника",
+          "kind": "text"
+        },
+        {
+          "field": "sale_units",
+          "label": "товаров",
+          "kind": "number"
+        },
+        {
+          "field": "sale_amount",
+          "label": "покупательская сумма строк",
+          "kind": "money"
+        },
+        {
+          "field": "seller_amount",
+          "label": "сумма продавца",
+          "kind": "money"
+        },
+        {
+          "field": "average_price",
+          "label": "средняя на товар",
+          "kind": "money"
+        }
+      ],
+      "group_by": [
+        "product_id",
+        "payment_label"
+      ],
+      "aggregates": [
+        {
+          "field": "sale_units",
+          "kind": "sum",
+          "source": "sale_units",
+          "denominator": null
+        },
+        {
+          "field": "sale_amount",
+          "kind": "sum",
+          "source": "sale_amount",
+          "denominator": null
+        },
+        {
+          "field": "seller_amount",
+          "kind": "sum",
+          "source": "seller_amount",
+          "denominator": null
+        },
+        {
+          "field": "average_price",
+          "kind": "ratio_sum",
+          "source": "sale_amount",
+          "denominator": "sale_units"
+        }
+      ],
+      "notes": [
+        "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+        "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+        "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+        "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку."
+      ],
+      "output_stage": "enriched",
+      "relations": [
+        {
+          "id": "enriched",
+          "label": "способ оплаты положительных реализаций",
+          "left": "target",
+          "right": [
+            "fbo",
+            "fbs"
+          ],
+          "on": [
+            [
+              "posting_key",
+              "posting_key"
+            ],
+            [
+              "product_id",
+              "product_id"
+            ]
+          ],
+          "parent_keys": [
+            0
+          ],
+          "left_where": {
+            "$fn": [
+              "gt",
+              {
+                "$fn": [
+                  "decimal_compare",
+                  {
+                    "$path": [
+                      "row",
+                      "sale_units"
+                    ]
+                  },
+                  "0"
+                ]
+              },
+              0
+            ]
+          },
+          "capacity": {
+            "left": "sale_units",
+            "right": "item_units",
+            "mode": "sum_le"
+          },
+          "preserve": [
+            "sale_units",
+            "sale_amount",
+            "seller_amount"
+          ],
+          "fields": {
+            "payment_label": {
+              "source": "payment_raw",
+              "unknown": "неизвестно",
+              "unknown_values": [
+                null,
+                "",
+                "unknown"
+              ]
+            }
+          },
+          "coverage_field": "join_state",
+          "missing": "report_unknown"
+        }
+      ]
+    },
+    "realization_payment_items_days": {
+      "phrases": [
+        "реализации по товарам дням и способам оплаты"
+      ],
+      "snapshot": false,
+      "max_days": 31,
+      "flows": {
+        "ozon": [
+          {
+            "id": "target",
+            "source": "ds_ozon_accrual_join_rows",
+            "period_mode": "days",
+            "foreach": [
+              {}
+            ]
+          },
+          {
+            "id": "fbo",
+            "source": "ds_ozon_fbo_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          },
+          {
+            "id": "fbs",
+            "source": "ds_ozon_fbs_join_items",
+            "period_mode": "whole",
+            "foreach": {
+              "$if": [
+                {
+                  "$fn": [
+                    "gt",
+                    {
+                      "$fn": [
+                        "len",
+                        {
+                          "$filter": [
+                            {
+                              "$path": [
+                                "datasets",
+                                "target"
+                              ]
+                            },
+                            "target_row",
+                            {
+                              "$fn": [
+                                "gt",
+                                {
+                                  "$fn": [
+                                    "decimal_compare",
+                                    {
+                                      "$path": [
+                                        "target_row",
+                                        "sale_units"
+                                      ]
+                                    },
+                                    "0"
+                                  ]
+                                },
+                                0
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    0
+                  ]
+                },
+                [
+                  {}
+                ],
+                []
+              ]
+            },
+            "window": {
+              "start_offset_days": -31,
+              "end_offset_days": 0,
+              "chunk_days": 31
+            }
+          }
+        ]
+      },
+      "columns": [
+        {
+          "field": "day",
+          "label": "дата начисления",
+          "kind": "text"
+        },
+        {
+          "field": "product_id",
+          "label": "SKU",
+          "kind": "text"
+        },
+        {
+          "field": "payment_label",
+          "label": "метка оплаты источника",
+          "kind": "text"
+        },
+        {
+          "field": "sale_units",
+          "label": "товаров",
+          "kind": "number"
+        },
+        {
+          "field": "sale_amount",
+          "label": "покупательская сумма строк",
+          "kind": "money"
+        },
+        {
+          "field": "seller_amount",
+          "label": "сумма продавца",
+          "kind": "money"
+        },
+        {
+          "field": "average_price",
+          "label": "средняя на товар",
+          "kind": "money"
+        }
+      ],
+      "group_by": [
+        "day",
+        "product_id",
+        "payment_label"
+      ],
+      "aggregates": [
+        {
+          "field": "sale_units",
+          "kind": "sum",
+          "source": "sale_units",
+          "denominator": null
+        },
+        {
+          "field": "sale_amount",
+          "kind": "sum",
+          "source": "sale_amount",
+          "denominator": null
+        },
+        {
+          "field": "seller_amount",
+          "kind": "sum",
+          "source": "seller_amount",
+          "denominator": null
+        },
+        {
+          "field": "average_price",
+          "kind": "ratio_sum",
+          "source": "sale_amount",
+          "denominator": "sale_units"
+        }
+      ],
+      "notes": [
+        "Выбраны положительные реализации по дате начисления; обратные начисления и нецелевые строки отдельно, не включены в этот отчёт.",
+        "Метаданные ищутся также за 31 день до начала периода. Это ограниченное окно, не обещание полной истории; несопоставленные строки сохраняются с неизвестной оплатой.",
+        "Метки оплаты сохранены как сообщает источник. Неизвестная метка не означает оплату без карты; bank_coinvestment для определения карты не используется.",
+        "Покупательская сумма уже относится ко всей строке. Средняя взвешена количеством; это не кассовый чек. Разность средних групп не доказывает скидку на ту же покупку."
+      ],
+      "output_stage": "enriched",
+      "relations": [
+        {
+          "id": "enriched",
+          "label": "способ оплаты положительных реализаций",
+          "left": "target",
+          "right": [
+            "fbo",
+            "fbs"
+          ],
+          "on": [
+            [
+              "posting_key",
+              "posting_key"
+            ],
+            [
+              "product_id",
+              "product_id"
+            ]
+          ],
+          "parent_keys": [
+            0
+          ],
+          "left_where": {
+            "$fn": [
+              "gt",
+              {
+                "$fn": [
+                  "decimal_compare",
+                  {
+                    "$path": [
+                      "row",
+                      "sale_units"
+                    ]
+                  },
+                  "0"
+                ]
+              },
+              0
+            ]
+          },
+          "capacity": {
+            "left": "sale_units",
+            "right": "item_units",
+            "mode": "sum_le"
+          },
+          "preserve": [
+            "sale_units",
+            "sale_amount",
+            "seller_amount"
+          ],
+          "fields": {
+            "payment_label": {
+              "source": "payment_raw",
+              "unknown": "неизвестно",
+              "unknown_values": [
+                null,
+                "",
+                "unknown"
+              ]
+            }
+          },
+          "coverage_field": "join_state",
+          "missing": "report_unknown"
+        }
+      ]
+    }
+  }
+}

@@ -32,6 +32,11 @@ def validate(data):
     if not isinstance(data, dict) or not isinstance(data.get('action'), str):
         raise ValueError()
     action = data['action']
+    if action == 'command_status':
+        if set(data) != {'action', 'command_id'}:
+            raise ValueError()
+        identifier(data['command_id'])
+        return data
     if action == 'list':
         if set(data)-{'action', 'cursor'} or not isinstance(data.get('cursor', ''), str) or len(data.get('cursor', '')) > 1024:
             raise ValueError()
