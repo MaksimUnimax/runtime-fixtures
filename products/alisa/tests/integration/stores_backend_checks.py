@@ -65,6 +65,18 @@ try:
         again=api(token,created)
         check('same_create_command_replays_one_store_and_secret',again[0]==201 and again[1]['store']==s and Store.objects.filter(tenant=ta).count()==1 and VaultSecret.objects.filter(store_id=s['id']).count()==1)
         check('changed_create_payload_same_uuid_conflicts',api(token,{**created,'name':'Changed'})[0]==409)
+        recovered=api(token,{'action':'command_status','command_id':created['command_id']})
+        check('create_status_recovers_committed_store_without_credentials',recovered[0]==200 and recovered[1]['outcome']=='COMPLETED' and recovered[1]['store_id']==s['id'] and 'fixture:' not in json.dumps(recovered[1]))
+        foreign_status=api(other,{'action':'command_status','command_id':created['command_id']})
+        missing_status=api(token,{'action':'command_status','command_id':str(uuid.uuid4())})
+        check('create_status_unknown_and_foreign_do_not_disclose_or_mutate',foreign_status[0]==200 and missing_status[0]==200 and foreign_status[1]['outcome']==missing_status[1]['outcome']=='UNKNOWN' and 'store_id' not in foreign_status[1] and Store.objects.filter(tenant=ta).count()==1)
+        check('create_status_rejects_scope_injection',api(token,{'action':'command_status','command_id':created['command_id'],'tenant_id':str(tb.pk)})[0]==422)
+        with transaction.atomic():
+            Membership.objects.filter(customer=b).update(tenant=ta)
+            WebSession.objects.filter(customer=b).update(tenant=ta)
+            same_tenant_status=api(other,{'action':'command_status','command_id':created['command_id']})
+            check('create_status_same_tenant_other_customer_is_unknown',same_tenant_status[0]==200 and same_tenant_status[1]['outcome']=='UNKNOWN' and 'store_id' not in same_tenant_status[1])
+            transaction.set_rollback(True)
         saved_command=StoreCommand.objects.get(request_id=created['command_id'])
         from types import SimpleNamespace
         scoped_other=SimpleNamespace(tenant_id=tb.pk,customer_id=b.pk)

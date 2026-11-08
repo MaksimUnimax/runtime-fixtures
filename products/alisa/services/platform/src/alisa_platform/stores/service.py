@@ -112,6 +112,13 @@ def execute(token, data):
         actor = principal(token)
         if data['action'] == 'list':
             return listing(actor, data.get('cursor', '')), 200
+        if data['action'] == 'command_status':
+            # A missing row is unresolved, not permission to allocate a new key.
+            previous = StoreCommand.objects.filter(product_id=PRODUCT, tenant_id=actor.tenant_id,
+                customer_id=actor.customer_id, request_id=identifier(data['command_id']), action='create').first()
+            if previous and previous.state == 'DONE':
+                return {'outcome': 'COMPLETED', 'store_id': str(previous.store_id)}, 200
+            return {'outcome': 'UNKNOWN'}, 200
         fingerprint = request_fingerprint(actor, data)
         previous = StoreCommand.objects.filter(product_id=PRODUCT, tenant_id=actor.tenant_id,
             customer_id=actor.customer_id, request_id=identifier(data['command_id'])).first()

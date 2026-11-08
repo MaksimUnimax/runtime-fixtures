@@ -154,6 +154,127 @@ def run(*, context, second_context, db, check, web_origin, private_values, resta
     card.get_by_role('button',name='Удалить магазин',exact=True).click();expect(card).to_have_count(0)
     wb.get_by_role('button',name='Удалить магазин',exact=True).click();expect(wb).to_have_count(0)
     check('s05_delete_removes_cards_and_retains_no_plaintext_keys',page.request.get(web_origin+'/api/account/stores').json()['items']==[])
+    # A committed create whose ACK and subsequent list read are lost must retain
+    # exactly one recovery UUID across reload. No real credentials are involved.
+    create_attempts=[]
+    def lose_create_ack(route):
+        data=route.request.post_data_json if route.request.method=='POST' else None
+        if data and data.get('action')=='create':
+            create_attempts.append(data['command_id'])
+            response=route.fetch()
+            assert response.status==201
+            route.abort('failed')
+        elif route.request.method=='GET':
+            route.fulfill(status=503,content_type='application/json',body='{"code":"UNAVAILABLE"}')
+        else:route.continue_()
+    page.route('**/api/account/stores',lose_create_ack)
+    form.get_by_label('Маркетплейс',exact=True).select_option('WB')
+    form.get_by_label('Название магазина',exact=True).fill('Synthetic lost ACK')
+    form.get_by_label('API-токен',exact=True).fill('fixture:CONNECTED:wb:lost-ack')
+    with page.expect_event('requestfailed',predicate=lambda request:request.method=='POST' and request.post_data_json.get('action')=='create'):
+        form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+    expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_enabled()
+    expect(page.get_by_role('button',name='Повторить это же добавление',exact=True)).to_be_disabled()
+    page.unroute('**/api/account/stores',lose_create_ack)
+    page.reload()
+    expect(page.get_by_role('button',name='Повторить это же добавление',exact=True)).to_be_disabled()
+    page.get_by_role('button',name='Восстановить результат добавления',exact=True).click()
+    expect(page.get_by_role('button',name='Сохранить и проверить',exact=True)).to_be_enabled()
+    recovered=page.request.get(web_origin+'/api/account/stores').json()['items']
+    check('audit_create_committed_lost_ack_failed_refresh_reload_one_store',len(create_attempts)==1 and len(recovered)==1 and recovered[0]['name']=='Synthetic lost ACK')
+    recovered_card=page.locator('section[data-store-id="'+recovered[0]['id']+'"]')
+    recovered_card.get_by_role('button',name='Удалить магазин',exact=True).click();expect(recovered_card).to_have_count(0)
+
+    # Failure before dispatch leaves UNKNOWN. The explicit retry must preserve
+    # the UUID even if storage was removed before its queued storage event.
+    retry_attempts=[]
+    def fail_before_create(route):
+        data=route.request.post_data_json if route.request.method=='POST' else None
+        if data and data.get('action')=='create':
+            retry_attempts.append(data['command_id']);route.abort('failed')
+        else:route.continue_()
+    page.route('**/api/account/stores',fail_before_create)
+    form.get_by_label('Маркетплейс',exact=True).select_option('WB')
+    form.get_by_label('Название магазина',exact=True).fill('Synthetic retry')
+    form.get_by_label('API-токен',exact=True).fill('fixture:CONNECTED:wb:retry')
+    with page.expect_event('requestfailed',predicate=lambda request:request.method=='POST' and request.post_data_json.get('action')=='create'):
+        form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+    expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_enabled()
+    page.unroute('**/api/account/stores',fail_before_create)
+    page.get_by_role('button',name='Восстановить результат добавления',exact=True).click()
+    retry_button=page.get_by_role('button',name='Повторить это же добавление',exact=True)
+    expect(retry_button).to_be_enabled()
+    page.evaluate("() => {for(const key of Object.keys(localStorage))if(key.startsWith('alisa-store-create:'))localStorage.removeItem(key);}")
+    def record_retry(route):
+        data=route.request.post_data_json if route.request.method=='POST' else None
+        if data and data.get('action')=='create':retry_attempts.append(data['command_id'])
+        route.continue_()
+    page.route('**/api/account/stores',record_retry)
+    form.get_by_label('Маркетплейс',exact=True).select_option('WB')
+    form.get_by_label('Название магазина',exact=True).fill('Synthetic retry')
+    form.get_by_label('API-токен',exact=True).fill('fixture:CONNECTED:wb:retry')
+    retry_button.click()
+    retry_card=page.locator('section[data-store-id]').filter(has=page.get_by_role('heading',name='Synthetic retry · Wildberries',exact=True))
+    expect(retry_card).to_contain_text('Подключение подтверждено')
+    page.unroute('**/api/account/stores',record_retry)
+    check('audit_unknown_create_explicit_retry_retains_original_uuid',len(retry_attempts)==2 and len(set(retry_attempts))==1)
+    retry_card.get_by_role('button',name='Удалить магазин',exact=True).click();expect(retry_card).to_have_count(0)
+
+    # Two actual tabs: hold the first create response while the second tab
+    # submits stale UI. Only the tab holding the shared Web Lock may dispatch.
+    other=context.new_page()
+    # Install before hydration so the fixture really retains stale UI. A late
+    # window listener cannot suppress an already-registered same-target listener.
+    other.add_init_script("window.addEventListener('storage',event=>event.stopImmediatePropagation(),true)")
+    other.goto(web_origin+'/app/stores')
+    other_form=other.locator('section[aria-label="Добавить магазин"]')
+    held=[];cross_tab_posts=[]
+    def hold_create(route):
+        data=route.request.post_data_json if route.request.method=='POST' else None
+        if data and data.get('action')=='create':
+            cross_tab_posts.append(data['command_id']);held.append(route)
+        else:route.continue_()
+    context.route('**/api/account/stores',hold_create)
+    try:
+        for target in [form,other_form]:
+            target.get_by_label('Маркетплейс',exact=True).select_option('WB')
+            target.get_by_label('Название магазина',exact=True).fill('Synthetic concurrent')
+            target.get_by_label('API-токен',exact=True).fill('fixture:CONNECTED:wb:concurrent')
+        form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+        expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_disabled()
+        other_form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+        expect(other.get_by_role('status')).to_contain_text('в другой вкладке')
+        check('audit_two_tabs_only_one_create_dispatches',len(cross_tab_posts)==1)
+        held[0].abort('failed')
+        expect(page.get_by_role('button',name='Обновить список',exact=True)).to_be_enabled()
+    finally:
+        context.unroute('**/api/account/stores',hold_create);other.close()
+    # Recover the uncommitted fixture using its exact UUID, then remove it.
+    page.get_by_role('button',name='Восстановить результат добавления',exact=True).click()
+    expect(page.get_by_role('button',name='Повторить это же добавление',exact=True)).to_be_enabled()
+    form.get_by_label('Маркетплейс',exact=True).select_option('WB')
+    form.get_by_label('Название магазина',exact=True).fill('Synthetic concurrent')
+    form.get_by_label('API-токен',exact=True).fill('fixture:CONNECTED:wb:concurrent')
+    page.get_by_role('button',name='Повторить это же добавление',exact=True).click()
+    concurrent_card=page.locator('section[data-store-id]').filter(has=page.get_by_role('heading',name='Synthetic concurrent · Wildberries',exact=True))
+    expect(concurrent_card).to_contain_text('Подключение подтверждено')
+    concurrent_card.get_by_role('button',name='Удалить магазин',exact=True).click();expect(concurrent_card).to_have_count(0)
+    # A storage write failure must stop before secrets leave the browser.
+    intercepted=[]
+    def observe_storage_failure(route):
+        data=route.request.post_data_json if route.request.method=='POST' else None
+        if data and data.get('action')=='create':intercepted.append(data)
+        route.continue_()
+    page.route('**/api/account/stores',observe_storage_failure)
+    page.evaluate("""() => {window.__saveSet=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k.startsWith('alisa-store-create:'))throw new DOMException('blocked','SecurityError');return window.__saveSet.call(this,k,v);};}""")
+    form.get_by_label('Маркетплейс',exact=True).select_option('WB')
+    form.get_by_label('Название магазина',exact=True).fill('must-not-leave-browser')
+    form.get_by_label('API-токен',exact=True).fill('fixture:must-not-dispatch')
+    form.get_by_role('button',name='Сохранить и проверить',exact=True).click()
+    expect(page.get_by_role('status')).to_contain_text('Магазин и ключи не отправлены')
+    check('audit_failed_recovery_storage_prevents_create_dispatch',intercepted==[])
+    page.evaluate('() => {Storage.prototype.setItem=window.__saveSet;delete window.__saveSet;}')
+    page.unroute('**/api/account/stores',observe_storage_failure);page.reload()
     # Exercise the actual mounted UI after the browser loses its cookie.
     # Clearing this owned fixture context does not alter a user's live session.
     for action in ['refresh','create']:

@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import type {Store,StoreCredential,StoreList} from '../../../server/stores';
+import {recoveryKey,readPendingCreate,persistCreate,finishCreate} from './pending-create';
 
 const messages:Record<string,string>={
   CONNECTED:'Подключение подтверждено',NOT_CHECKED:'Ещё не проверено',
@@ -37,10 +38,40 @@ function material(form:FormData,kind:StoreCredential['kind'],prefix=''){
   return kind==='WB'?{token:secret}:kind==='SELLER'?{client_id:String(form.get(prefix+'client_id')||''),api_key:secret}:{client_id:String(form.get(prefix+'client_id')||''),client_secret:secret};
 }
 
-export function StoresView({initial}:{initial:StoreList}){
+export function StoresView({initial,recoveryScope}:{initial:StoreList;recoveryScope:string}){
   const [ready,setReady]=useState(false);
-  useEffect(()=>setReady(true),[]);
   const [list,setList]=useState(initial),[provider,setProvider]=useState<'OZON'|'WB'>('OZON'),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+  const [pendingCreate,setPendingCreate]=useState<string|null>(null),[retryCreate,setRetryCreate]=useState(false),[storageReady,setStorageReady]=useState(false);
+  const pendingKey=recoveryKey(recoveryScope);
+  useEffect(()=>{
+    function restore(){
+      try{if(!navigator.locks)throw new Error('LOCK_UNAVAILABLE');setPendingCreate(readPendingCreate(pendingKey));setStorageReady(true);}
+      catch{setStorageReady(false);setMessage('Браузер не позволяет восстановить добавление магазина. Разрешите хранение данных сайта и обновите страницу. Ключи не отправлены.');}
+      setRetryCreate(false);
+    }
+    restore();setReady(true);
+    const changed=(event:StorageEvent)=>{if(event.key===pendingKey||event.key===null)restore();};
+    window.addEventListener('storage',changed);return ()=>window.removeEventListener('storage',changed);
+  },[pendingKey]);
+  function completeCreate(id:string){
+    if(finishCreate(pendingKey,id)){setPendingCreate(null);setRetryCreate(false);return;}
+    try{setPendingCreate(readPendingCreate(pendingKey));}catch{setStorageReady(false);}
+    setRetryCreate(false);
+  }
+  async function recoverCreate(){
+    if(!pendingCreate||!navigator.locks)return;
+    await navigator.locks.request(pendingKey,{ifAvailable:true},async lock=>{
+      if(!lock)throw new Error('Добавление уже выполняется в другой вкладке. Дождитесь результата.');
+      const current=readPendingCreate(pendingKey);
+      if(current&&current!==pendingCreate){setPendingCreate(current);setRetryCreate(false);return;}
+      const value=await send({action:'command_status'},pendingCreate);
+      if(value.outcome==='COMPLETED'){
+        completeCreate(pendingCreate);setMessage('Магазин уже создан. Проверьте сохранённую карточку и отдельно доступ к рекламе.');
+      }else{
+        setRetryCreate(true);setMessage('Сохранение пока не подтверждено. Можно повторить это же добавление с прежними данными: повтор не создаст второй магазин.');
+      }
+    });
+  }
   async function refresh(append=false){
     const suffix=append&&list.next_cursor?'?cursor='+encodeURIComponent(list.next_cursor):'';
     const response=await fetch('/api/account/stores'+suffix,{cache:'no-store'});
@@ -49,13 +80,13 @@ export function StoresView({initial}:{initial:StoreList}){
     const value=await response.json() as StoreList;
     setList(previous=>({...value,items:append?[...previous.items,...value.items]:value.items}));
   }
-  async function send(command:Command){
+  async function send(command:Command,commandId:string=crypto.randomUUID()){
     const response=await fetch('/api/account/stores',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({...command,command_id:crypto.randomUUID()})});
+      body:JSON.stringify({...command,command_id:commandId})});
     if(response.status===401){window.location.assign('/login');throw new Error('Войдите в кабинет.');}
     const value=await response.json();
     if(!response.ok)throw new Error(messages[value.code]||'Не удалось выполнить действие. Обновите список перед повтором.');
-    return value as {store?:Store;check_code?:string;state?:string};
+    return value as {store?:Store;check_code?:string;state?:string;outcome?:'COMPLETED'|'UNKNOWN';store_id?:string};
   }
   async function perform(operation:()=>Promise<unknown>){
     if(busy)return;setBusy(true);setMessage('');
@@ -69,6 +100,7 @@ export function StoresView({initial}:{initial:StoreList}){
     return value;
   }
   function createStore(form:HTMLFormElement){
+    if(busy||!ready||!storageReady||(pendingCreate&&!retryCreate))return;
     const data=new FormData(form),kind=provider==='OZON'?'SELLER':'WB';
     const withPerformance=provider==='OZON'&&Boolean(data.get('performance_client_id')||data.get('performance_secret'));
     if(withPerformance){
@@ -82,10 +114,21 @@ export function StoresView({initial}:{initial:StoreList}){
     }
     const command={action:'create',provider,name:String(data.get('name')||''),voice_alias:String(data.get('voice_alias')||''),credential:material(data,kind)};
     const performance=withPerformance?material(data,'PERFORMANCE','performance_'):null;
-    void perform(async()=>{
+    if(!navigator.locks){setStorageReady(false);setMessage('Для безопасного добавления обновите браузер. Ключи не отправлены.');return;}
+    void navigator.locks.request(pendingKey,{ifAvailable:true},async lock=>{
+    if(!lock){setMessage('Добавление уже выполняется в другой вкладке. Дождитесь результата.');return;}
+    let commandId:string;
+    try{
+      const existing=readPendingCreate(pendingKey);
+      if(existing&&existing!==pendingCreate){setPendingCreate(existing);setRetryCreate(false);setMessage('Сначала восстановите предыдущее добавление магазина.');return;}
+      commandId=pendingCreate||existing||crypto.randomUUID();persistCreate(pendingKey,commandId);
+    }catch{setStorageReady(false);setMessage('Браузер не смог сохранить номер операции. Магазин и ключи не отправлены. Разрешите хранение данных сайта и обновите страницу.');return;}
+    setPendingCreate(commandId);setRetryCreate(false);
+    await perform(async()=>{
       form.reset();setProvider('OZON');
-      const created=await send(command);
-      if(!created.store)throw new Error('Обновите список перед повторным добавлением магазина.');
+      const created=await send(command,commandId);
+      if(!created.store)throw new Error('Восстановите результат добавления магазина перед повтором.');
+      completeCreate(commandId);
       let store=created.store;
       // Persist both channels before provider checks. A failed Seller check
       // must not discard or prevent saving the separate advertising key.
@@ -107,6 +150,7 @@ export function StoresView({initial}:{initial:StoreList}){
       }
       setMessage(results.join(' '));
     });
+    }).catch(()=>{setMessage('Не удалось безопасно начать добавление. Обновите страницу.');});
   }
   async function saveKey(store:Store,kind:StoreCredential['kind'],form:HTMLFormElement){
     const data=new FormData(form),credential=material(data,kind);form.reset();
@@ -117,6 +161,10 @@ export function StoresView({initial}:{initial:StoreList}){
     <p>Подключить магазин можно без оплаты. Проверка подключения не запускает финансовый отчёт.</p>
     <p role="status" aria-live="polite">{message}</p>
     <button className="button" disabled={!ready||busy} onClick={()=>void perform(()=>refresh())}>Обновить список</button>
+    {pendingCreate&&<section aria-label="Незавершённое добавление"><h2>Проверьте предыдущее добавление</h2>
+      <p>Не начинайте новое добавление, пока не получен результат предыдущего. Сохранён только номер операции, без ключей.</p>
+      <button className="button" disabled={!ready||busy} onClick={()=>void perform(recoverCreate)}>Восстановить результат добавления</button>
+    </section>}
     <section aria-label="Добавить магазин"><h2>Добавить магазин</h2>
       <form method="post" action="/api/account/stores" onSubmit={event=>{event.preventDefault();createStore(event.currentTarget);}}>
         <label htmlFor="store-provider">Маркетплейс</label><select id="store-provider" value={provider} disabled={!ready||busy} onChange={event=>setProvider(event.target.value as 'OZON'|'WB')}><option value="OZON">Ozon</option><option value="WB">Wildberries</option></select>
@@ -128,7 +176,7 @@ export function StoresView({initial}:{initial:StoreList}){
           <KeyFields kind="PERFORMANCE" id="new-store-performance" prefix="performance_" optional/>
         </>}
         <p>Сохранённые ключи не показываются. Доступ к продажам и рекламе проверяется отдельно.</p>
-        <button className="button" disabled={!ready||busy}>Сохранить и проверить</button>
+        <button className="button" disabled={!ready||busy||!storageReady||!!pendingCreate&&!retryCreate}>{pendingCreate?'Повторить это же добавление':'Сохранить и проверить'}</button>
       </form>
     </section>
     <section aria-label="Сохранённые магазины"><h2>Сохранённые магазины</h2>

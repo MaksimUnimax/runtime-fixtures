@@ -48,6 +48,11 @@ jobs:
           python qualify.py --output "$GITHUB_WORKSPACE/products/alisa/dist/rt-check-qualification.json"
           python qualify_baseline.py --output "$GITHUB_WORKSPACE/products/alisa/dist/rt-check-baseline-qualification.json"
           python build_package.py --source "$ALISA_SOURCE_SHA" --output "$GITHUB_WORKSPACE/products/alisa/dist"
+      - name: Current runtime fairness, deadlines and offline regression
+        working-directory: products/alisa/runtime
+        run: |
+          python run_checks.py --output ../dist/runtime-qualification.json
+          python build_package.py --source "$ALISA_SOURCE_SHA" --output ../dist
       - name: Locked source checks and UI build (not stage acceptance)
         working-directory: products/alisa
         run: |
@@ -108,6 +113,7 @@ jobs:
             products/alisa/dist/s04-*.json
             products/alisa/dist/s05-*.json
             products/alisa/dist/rt-check-*.json
+            products/alisa/dist/runtime-qualification.json
             products/alisa/dist/s02-identity-*.png
           if-no-files-found: error
       - name: Save the qualified immutable stage package

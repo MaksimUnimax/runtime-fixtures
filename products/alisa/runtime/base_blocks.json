@@ -1,0 +1,1266 @@
+{
+  "schema": "alice-base-blocks/v1",
+  "version": "20261104-batch01",
+  "families": {
+    "B01": "Заказанные товары",
+    "B02": "Выкупы по дате события",
+    "B03": "Возвраты по дате события",
+    "B04": "Выкупы и отмены заказанной когорты",
+    "B05": "Товарная реализация по дате начисления",
+    "B06": "Расходы по статье",
+    "B07": "Доплаты и компенсации",
+    "B08": "Контрольные финансовые итоги",
+    "B09": "Выплаты по источнику",
+    "B10": "Суммы к перечислению",
+    "B11": "Текущий баланс",
+    "B12": "Рекламный расход",
+    "B13": "Рекламные исходные счётчики",
+    "B14": "Активность карточки",
+    "B15": "Остатки, резервы, товары в пути",
+    "B16": "Текущие цены предложения",
+    "S01": "Справочник товаров и соответствия",
+    "S02": "Метаданные заказов и отправлений",
+    "S03": "Себестоимость и собственные затраты"
+  },
+  "entries": [
+    {
+      "id": "B01.ordered_units",
+      "family": "B01",
+      "title": "заказано товаров",
+      "kind": "scalar",
+      "metrics": [
+        "ordered_units"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "time_axis": "order_period",
+      "unit": "item",
+      "source_family": "orders",
+      "snapshot": false,
+      "phrase": "количество заказанных товаров",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": "wb_supported_only"
+    },
+    {
+      "id": "B01.ordered_revenue",
+      "family": "B01",
+      "title": "сумма заказов",
+      "kind": "scalar",
+      "metrics": [
+        "ordered_revenue"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "time_axis": "order_period",
+      "unit": "currency",
+      "source_family": "orders",
+      "snapshot": false,
+      "phrase": "сумма заказов",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": "wb_supported_only"
+    },
+    {
+      "id": "B04.buyout_units_cohort",
+      "family": "B04",
+      "title": "выкуплено товаров из заказов периода",
+      "kind": "scalar",
+      "metrics": [
+        "buyout_units_cohort"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "order_period",
+      "unit": "item",
+      "source_family": "orders",
+      "snapshot": false,
+      "phrase": "количество выкупленных товаров по заказам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": "wb_supported_only"
+    },
+    {
+      "id": "B04.buyout_revenue_cohort",
+      "family": "B04",
+      "title": "сумма выкупов по заказам периода",
+      "kind": "scalar",
+      "metrics": [
+        "buyout_revenue_cohort"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "order_period",
+      "unit": "currency",
+      "source_family": "orders",
+      "snapshot": false,
+      "phrase": "сумма выкупов по заказам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": "wb_supported_only"
+    },
+    {
+      "id": "B04.cancelled_units_cohort",
+      "family": "B04",
+      "title": "отменено товаров из заказов периода",
+      "kind": "scalar",
+      "metrics": [
+        "cancelled_units_cohort"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "order_period",
+      "unit": "item",
+      "source_family": "orders",
+      "snapshot": false,
+      "phrase": "количество отмененных товаров по заказам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": "wb_supported_only"
+    },
+    {
+      "id": "B04.cancelled_revenue_cohort",
+      "family": "B04",
+      "title": "сумма отмен по заказам периода",
+      "kind": "scalar",
+      "metrics": [
+        "cancelled_revenue_cohort"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "order_period",
+      "unit": "currency",
+      "source_family": "orders",
+      "snapshot": false,
+      "phrase": "сумма отмен по заказам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": "wb_supported_only"
+    },
+    {
+      "id": "B05.accrual_sale_units",
+      "family": "B05",
+      "title": "товаров в положительных начислениях",
+      "kind": "scalar",
+      "metrics": [
+        "accrual_sale_units"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "accrual_date",
+      "unit": "item",
+      "source_family": "accrual",
+      "snapshot": false,
+      "phrase": "количество реализованных товаров по начислениям",
+      "implementation": "CANDIDATE_NEW_SOURCE",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B05.accrual_sale_amount",
+      "family": "B05",
+      "title": "покупательская сумма товарных строк начислений",
+      "kind": "scalar",
+      "metrics": [
+        "accrual_sale_amount"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "accrual_date",
+      "unit": "currency",
+      "source_family": "accrual",
+      "snapshot": false,
+      "phrase": "сумма покупателя по начислениям",
+      "implementation": "CANDIDATE_NEW_SOURCE",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B05.accrual_reversal_units",
+      "family": "B05",
+      "title": "товаров в обратных начислениях",
+      "kind": "scalar",
+      "metrics": [
+        "accrual_reversal_units"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "accrual_date",
+      "unit": "item",
+      "source_family": "accrual",
+      "snapshot": false,
+      "phrase": "количество товаров в обратных начислениях",
+      "implementation": "CANDIDATE_NEW_SOURCE",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B05.accrual_reversal_amount",
+      "family": "B05",
+      "title": "модуль покупательской суммы обратных начислений",
+      "kind": "scalar",
+      "metrics": [
+        "accrual_reversal_amount"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "accrual_date",
+      "unit": "currency",
+      "source_family": "accrual",
+      "snapshot": false,
+      "phrase": "сумма покупателя в обратных начислениях",
+      "implementation": "CANDIDATE_NEW_SOURCE",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B05.accrual_seller_amount",
+      "family": "B05",
+      "title": "сумма положительных товарных начислений в цене продавца",
+      "kind": "scalar",
+      "metrics": [
+        "accrual_seller_amount"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "accrual_date",
+      "unit": "currency",
+      "source_family": "accrual",
+      "snapshot": false,
+      "phrase": "сумма реализации в цене продавца по начислениям",
+      "implementation": "CANDIDATE_NEW_SOURCE",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B05.accrual_reversal_seller_amount",
+      "family": "B05",
+      "title": "модуль обратных товарных начислений в цене продавца",
+      "kind": "scalar",
+      "metrics": [
+        "accrual_reversal_seller_amount"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "accrual_date",
+      "unit": "currency",
+      "source_family": "accrual",
+      "snapshot": false,
+      "phrase": "сумма обратных начислений в цене продавца",
+      "implementation": "CANDIDATE_NEW_SOURCE",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B06.finance_storage_cost",
+      "family": "B06",
+      "title": "хранение: сумма расходов по финансовому источнику",
+      "kind": "scalar",
+      "metrics": [
+        "finance_storage_cost"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "расходы на хранение",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B06.finance_logistics_cost",
+      "family": "B06",
+      "title": "логистика: сумма расходов по финансовому источнику",
+      "kind": "scalar",
+      "metrics": [
+        "finance_logistics_cost"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "расходы на логистику",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B06.finance_commission_cost",
+      "family": "B06",
+      "title": "комиссия с учётом сторно возвратов",
+      "kind": "scalar",
+      "metrics": [
+        "finance_commission_cost"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "комиссия площадки",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B06.finance_acquiring_cost",
+      "family": "B06",
+      "title": "эквайринг по финансовому балансу",
+      "kind": "scalar",
+      "metrics": [
+        "finance_acquiring_cost"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "расходы на эквайринг",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B06.finance_acceptance_cost",
+      "family": "B06",
+      "title": "платная приёмка по финансовым отчётам",
+      "kind": "scalar",
+      "metrics": [
+        "finance_acceptance_cost"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "расходы на платную приемку",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B06.finance_deductions",
+      "family": "B06",
+      "title": "удержания по финансовым отчётам",
+      "kind": "scalar",
+      "metrics": [
+        "finance_deductions"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "удержания по финансовым отчетам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B06.finance_penalties",
+      "family": "B06",
+      "title": "штрафы по финансовым отчётам",
+      "kind": "scalar",
+      "metrics": [
+        "finance_penalties"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "штрафы по финансовым отчетам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B07.finance_additional_payments",
+      "family": "B07",
+      "title": "доплаты по финансовым отчётам",
+      "kind": "scalar",
+      "metrics": [
+        "finance_additional_payments"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "доплаты по финансовым отчетам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B08.finance_sales",
+      "family": "B08",
+      "title": "продажи по финансовому источнику",
+      "kind": "scalar",
+      "metrics": [
+        "finance_sales"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "продажи по финансовым отчетам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B08.finance_return_amount",
+      "family": "B08",
+      "title": "возвраты по финансовому балансу, знак сохранён",
+      "kind": "scalar",
+      "metrics": [
+        "finance_return_amount"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "возвраты по финансовому балансу",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B08.finance_accrued",
+      "family": "B08",
+      "title": "итого начислено по финансовому балансу",
+      "kind": "scalar",
+      "metrics": [
+        "finance_accrued"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "начислено по финансовому балансу",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B08.finance_services_cost",
+      "family": "B08",
+      "title": "все услуги по финансовому балансу",
+      "kind": "scalar",
+      "metrics": [
+        "finance_services_cost"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "сумма всех услуг",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B08.finance_opening_balance",
+      "family": "B08",
+      "title": "начальный баланс периода",
+      "kind": "scalar",
+      "metrics": [
+        "finance_opening_balance"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "начальный баланс периода",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B08.finance_closing_balance",
+      "family": "B08",
+      "title": "конечный баланс периода",
+      "kind": "scalar",
+      "metrics": [
+        "finance_closing_balance"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "конечный баланс периода",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B09.finance_payments",
+      "family": "B09",
+      "title": "выплаты по финансовому балансу",
+      "kind": "scalar",
+      "metrics": [
+        "finance_payments"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "выплаты по финансовому балансу",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B10.finance_for_pay",
+      "family": "B10",
+      "title": "к перечислению за товар до прочих удержаний",
+      "kind": "scalar",
+      "metrics": [
+        "finance_for_pay"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "к перечислению за товар",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B10.finance_bank_scheduled",
+      "family": "B10",
+      "title": "сумма к выплате по финансовым отчётам",
+      "kind": "scalar",
+      "metrics": [
+        "finance_bank_scheduled"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "financial_period",
+      "unit": "currency",
+      "source_family": "finance",
+      "snapshot": false,
+      "phrase": "к выплате по финансовым отчетам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B11.current_balance",
+      "family": "B11",
+      "title": "текущий баланс кабинета",
+      "kind": "scalar",
+      "metrics": [
+        "current_balance"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "snapshot",
+      "unit": "currency",
+      "source_family": "balance",
+      "snapshot": true,
+      "phrase": "текущий баланс кабинета",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now",
+      "sku_filters": false
+    },
+    {
+      "id": "B11.available_withdrawal",
+      "family": "B11",
+      "title": "доступно к выводу сейчас",
+      "kind": "scalar",
+      "metrics": [
+        "available_withdrawal"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "snapshot",
+      "unit": "currency",
+      "source_family": "balance",
+      "snapshot": true,
+      "phrase": "доступно к выводу",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now",
+      "sku_filters": false
+    },
+    {
+      "id": "B12.ad_spend",
+      "family": "B12",
+      "title": "расход на рекламу по отчёту",
+      "kind": "scalar",
+      "metrics": [
+        "ad_spend"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "time_axis": "advertising_period",
+      "unit": "currency",
+      "source_family": "ads",
+      "snapshot": false,
+      "phrase": "расход на рекламу",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B12.ad_bonus_spend",
+      "family": "B12",
+      "title": "расход рекламных бонусов",
+      "kind": "scalar",
+      "metrics": [
+        "ad_bonus_spend"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "advertising_period",
+      "unit": "currency",
+      "source_family": "ads",
+      "snapshot": false,
+      "phrase": "расход рекламных бонусов",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B12.ad_prepayment_spend",
+      "family": "B12",
+      "title": "расход с абонентского рекламного счёта",
+      "kind": "scalar",
+      "metrics": [
+        "ad_prepayment_spend"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "advertising_period",
+      "unit": "currency",
+      "source_family": "ads",
+      "snapshot": false,
+      "phrase": "расход с абонентского рекламного счета",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": false
+    },
+    {
+      "id": "B14.card_views",
+      "family": "B14",
+      "title": "переходов в карточки",
+      "kind": "scalar",
+      "metrics": [
+        "card_views"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "order_period",
+      "unit": "count",
+      "source_family": "orders",
+      "snapshot": false,
+      "phrase": "переходы в карточки",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": "wb_supported_only"
+    },
+    {
+      "id": "B14.cart_additions",
+      "family": "B14",
+      "title": "добавлений в корзину",
+      "kind": "scalar",
+      "metrics": [
+        "cart_additions"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "order_period",
+      "unit": "count",
+      "source_family": "orders",
+      "snapshot": false,
+      "phrase": "добавления в корзину",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "sku_filters": "wb_supported_only"
+    },
+    {
+      "id": "B15.stock_fbo_units",
+      "family": "B15",
+      "title": "остатки на складах площадки",
+      "kind": "scalar",
+      "metrics": [
+        "stock_fbo_units"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "time_axis": "snapshot",
+      "unit": "item",
+      "source_family": "stocks",
+      "snapshot": true,
+      "phrase": "остатки на складах площадки",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now",
+      "sku_filters": false
+    },
+    {
+      "id": "B15.stock_fbs_units",
+      "family": "B15",
+      "title": "остатки на складах продавца Ozon",
+      "kind": "scalar",
+      "metrics": [
+        "stock_fbs_units"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "snapshot",
+      "unit": "item",
+      "source_family": "stocks",
+      "snapshot": true,
+      "phrase": "остатки на складах продавца",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now",
+      "sku_filters": false
+    },
+    {
+      "id": "B15.stock_fbo_reserved",
+      "family": "B15",
+      "title": "зарезервировано на складах Ozon",
+      "kind": "scalar",
+      "metrics": [
+        "stock_fbo_reserved"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "snapshot",
+      "unit": "item",
+      "source_family": "stocks",
+      "snapshot": true,
+      "phrase": "зарезервировано на складах площадки",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now",
+      "sku_filters": false
+    },
+    {
+      "id": "B15.stock_fbs_reserved",
+      "family": "B15",
+      "title": "зарезервировано на складах продавца Ozon",
+      "kind": "scalar",
+      "metrics": [
+        "stock_fbs_reserved"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "time_axis": "snapshot",
+      "unit": "item",
+      "source_family": "stocks",
+      "snapshot": true,
+      "phrase": "зарезервировано на складах продавца",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now",
+      "sku_filters": false
+    },
+    {
+      "id": "B15.stock_to_customer",
+      "family": "B15",
+      "title": "в пути до покупателей WB",
+      "kind": "scalar",
+      "metrics": [
+        "stock_to_customer"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "snapshot",
+      "unit": "item",
+      "source_family": "stocks",
+      "snapshot": true,
+      "phrase": "товаров в пути до покупателей",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now",
+      "sku_filters": false
+    },
+    {
+      "id": "B15.stock_return_transit",
+      "family": "B15",
+      "title": "возвраты в пути на склады WB",
+      "kind": "scalar",
+      "metrics": [
+        "stock_return_transit"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "time_axis": "snapshot",
+      "unit": "item",
+      "source_family": "stocks",
+      "snapshot": true,
+      "phrase": "возвратов в пути на склад",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now",
+      "sku_filters": false
+    },
+    {
+      "id": "SUMMARY.43",
+      "family": "B01",
+      "title": "сводка заказанных товаров",
+      "kind": "scalar",
+      "metrics": [
+        "ordered_units",
+        "ordered_revenue"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "сводка заказанных товаров",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.44",
+      "family": "B04",
+      "title": "результат заказов выбранного периода",
+      "kind": "scalar",
+      "metrics": [
+        "buyout_units_cohort",
+        "buyout_revenue_cohort",
+        "cancelled_units_cohort",
+        "cancelled_revenue_cohort"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "результат заказов выбранного периода",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.45",
+      "family": "B04",
+      "title": "сводка выкупов и отмен по заказам",
+      "kind": "scalar",
+      "metrics": [
+        "buyout_units_cohort",
+        "buyout_revenue_cohort",
+        "cancelled_units_cohort",
+        "cancelled_revenue_cohort"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "сводка выкупов и отмен по заказам",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.46",
+      "family": "B06",
+      "title": "сводка хранения и логистики",
+      "kind": "scalar",
+      "metrics": [
+        "finance_storage_cost",
+        "finance_logistics_cost"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "сводка хранения и логистики",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.47",
+      "family": "B06",
+      "title": "сводка комиссии и эквайринга",
+      "kind": "scalar",
+      "metrics": [
+        "finance_commission_cost",
+        "finance_acquiring_cost"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "snapshot": false,
+      "phrase": "сводка комиссии и эквайринга",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.48",
+      "family": "B06",
+      "title": "сводка удержаний и штрафов",
+      "kind": "scalar",
+      "metrics": [
+        "finance_deductions",
+        "finance_penalties",
+        "finance_acceptance_cost"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "сводка удержаний и штрафов",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.49",
+      "family": "B08",
+      "title": "сводка финансовой реализации",
+      "kind": "scalar",
+      "metrics": [
+        "finance_sales"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "сводка финансовой реализации",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.50",
+      "family": "B08",
+      "title": "сводка начислений и выплат",
+      "kind": "scalar",
+      "metrics": [
+        "finance_accrued",
+        "finance_payments",
+        "finance_opening_balance",
+        "finance_closing_balance"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "snapshot": false,
+      "phrase": "сводка начислений и выплат",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.51",
+      "family": "B10",
+      "title": "сводка сумм к перечислению",
+      "kind": "scalar",
+      "metrics": [
+        "finance_for_pay",
+        "finance_bank_scheduled"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "сводка сумм к перечислению",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.52",
+      "family": "B11",
+      "title": "сводка текущего баланса",
+      "kind": "scalar",
+      "metrics": [
+        "current_balance",
+        "available_withdrawal"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "snapshot": true,
+      "phrase": "сводка текущего баланса",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now"
+    },
+    {
+      "id": "SUMMARY.53",
+      "family": "B12",
+      "title": "сводка рекламных расходов",
+      "kind": "scalar",
+      "metrics": [
+        "ad_spend"
+      ],
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "сводка рекламных расходов",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.54",
+      "family": "B12",
+      "title": "сводка компонентов рекламных расходов",
+      "kind": "scalar",
+      "metrics": [
+        "ad_spend",
+        "ad_bonus_spend",
+        "ad_prepayment_spend"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "snapshot": false,
+      "phrase": "сводка компонентов рекламных расходов",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.55",
+      "family": "B14",
+      "title": "активность карточек",
+      "kind": "scalar",
+      "metrics": [
+        "card_views",
+        "cart_additions"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "snapshot": false,
+      "phrase": "активность карточек",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period"
+    },
+    {
+      "id": "SUMMARY.56",
+      "family": "B15",
+      "title": "сводка текущих остатков на складах продавца и площадки",
+      "kind": "scalar",
+      "metrics": [
+        "stock_fbo_units",
+        "stock_fbs_units",
+        "stock_fbo_reserved",
+        "stock_fbs_reserved"
+      ],
+      "platforms": [
+        "ozon"
+      ],
+      "snapshot": true,
+      "phrase": "сводка текущих остатков на складах продавца и площадки",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now"
+    },
+    {
+      "id": "SUMMARY.57",
+      "family": "B15",
+      "title": "сводка текущих остатков и товаров в пути",
+      "kind": "scalar",
+      "metrics": [
+        "stock_fbo_units",
+        "stock_to_customer",
+        "stock_return_transit"
+      ],
+      "platforms": [
+        "wb"
+      ],
+      "snapshot": true,
+      "phrase": "сводка текущих остатков и товаров в пути",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "now"
+    },
+    {
+      "id": "B02.wb_events",
+      "family": "B02",
+      "title": "Фактические продажи WB",
+      "kind": "table",
+      "platforms": [
+        "wb"
+      ],
+      "phrase": "фактические выкупы",
+      "metrics": [
+        "event_buyout_units",
+        "event_buyout_amount",
+        "event_return_units",
+        "event_return_amount"
+      ],
+      "snapshot": false,
+      "time_axis": "event_date",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "limitation": "Оперативная статистика WB; в полном отчёте продажи и возвраты разделены."
+    },
+    {
+      "id": "B03.wb_events",
+      "family": "B03",
+      "title": "События возвратов WB",
+      "kind": "table",
+      "platforms": [
+        "wb"
+      ],
+      "phrase": "возвраты по дате события",
+      "metrics": [
+        "event_buyout_units",
+        "event_buyout_amount",
+        "event_return_units",
+        "event_return_amount"
+      ],
+      "snapshot": false,
+      "time_axis": "event_date",
+      "implementation": "EXISTING_SOURCE_BOUND",
+      "date_requirement": "explicit_period",
+      "limitation": "Оперативная статистика WB; в полном отчёте продажи и возвраты разделены."
+    }
+  ],
+  "blocked": [
+    {
+      "id": "B02.ozon_events",
+      "family": "B02",
+      "title": "Фактические выкупы Ozon",
+      "reason": "EVENT_SOURCE_NOT_QUALIFIED",
+      "needs": "Источник фактической даты выкупа для этого кабинета.",
+      "implementation": "BLOCKED",
+      "runtime_enabled": false
+    },
+    {
+      "id": "B03.ozon_returns",
+      "family": "B03",
+      "title": "Физические возвраты Ozon",
+      "reason": "EVENT_SOURCE_NOT_QUALIFIED",
+      "needs": "Источник даты физического возврата, не отрицательное начисление.",
+      "implementation": "BLOCKED",
+      "runtime_enabled": false
+    },
+    {
+      "id": "B13.ads_statistics",
+      "family": "B13",
+      "title": "Показы, клики и рекламная атрибуция",
+      "reason": "SOURCE_NOT_QUALIFIED",
+      "needs": "Проверенные campaign/product/grain/окно атрибуции, полный источник счётчиков.",
+      "implementation": "BLOCKED",
+      "runtime_enabled": false
+    },
+    {
+      "id": "B16.offer_prices",
+      "family": "B16",
+      "title": "Текущие цены предложения",
+      "reason": "SOURCE_NOT_QUALIFIED",
+      "needs": "Квалификация текущих seller/offer/карточных цен, не исторический чек.",
+      "implementation": "BLOCKED",
+      "runtime_enabled": false
+    },
+    {
+      "id": "S01.product_master",
+      "family": "S01",
+      "title": "Полный справочник и соответствия товаров",
+      "reason": "PARTIAL_KEYS_ONLY",
+      "needs": "Есть только ID товаров в отдельных источниках; нет общего подтверждённого cross-market mapping.",
+      "implementation": "BLOCKED",
+      "runtime_enabled": false
+    },
+    {
+      "id": "S02.posting_metadata",
+      "family": "S02",
+      "title": "Метаданные отправлений и оплаты",
+      "reason": "QUALIFIED_JOIN_REQUIRED",
+      "needs": "Полная выборка метаданных и соединение без размножения строк.",
+      "implementation": "BLOCKED",
+      "runtime_enabled": false
+    },
+    {
+      "id": "S03.cost_basis",
+      "family": "S03",
+      "title": "Себестоимость и собственные затраты",
+      "reason": "OWNER_INPUT_SOURCE_REQUIRED",
+      "needs": "Версионированные значения от продавца, валюта/единица/дата. UI платформы не в нашей зоне.",
+      "implementation": "BLOCKED",
+      "runtime_enabled": false
+    },
+    {
+      "id": "C-UE01",
+      "family": "COMPOSITE",
+      "title": "Юнит-экономика",
+      "reason": "PLANNED_DEPENDENCIES",
+      "needs": "Явная единица/признанная база выручки, непересекающиеся расходы B06/B12, корректировки B07, S03; налоги отдельно. Не объявлять чистой прибылью.",
+      "implementation": "BLOCKED",
+      "runtime_enabled": false
+    }
+  ],
+  "help_block": "H00",
+  "tests_default_period": {
+    "from": "2026-11-03",
+    "to": "2026-11-03"
+  },
+  "release_status": "QUALIFIED_CANDIDATE_DEPLOYMENT_STATUS_IN_RECEIPT",
+  "family_count": 19,
+  "coverage_note": "59 объявленных вариантов используют 42 исходных scalar-показателя и события WB. 14 бизнес-семейств имеют исполнимое квалифицированное подмножество; это не полное покрытие обеих площадок или всех разрезов. S01–S03, B13/B16 и события Ozon отмечены отдельно."
+}

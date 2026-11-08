@@ -1,0 +1,5308 @@
+{
+  "kind": "SYNTHETIC_OFFLINE_EXPECTATIONS",
+  "today": "2026-11-03",
+  "timezone": "Europe/Moscow",
+  "store_currencies": "RUB only in synthetic fixture",
+  "cases": [
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за октябрь 2026 на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q001"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за октябрь 2026 на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q002"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за октябрь 2026 отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q003"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за октябрь 2026 по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q004"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за октябрь 2026 на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q005"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за вчера на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q006"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за вчера на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q007"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за вчера отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q008"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за вчера по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q009"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за вчера на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q010"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за текущий месяц на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q011"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за текущий месяц на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q012"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за текущий месяц отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q013"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за текущий месяц по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q014"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за текущий месяц на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q015"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за прошлую неделю на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q016"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за прошлую неделю на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q017"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за прошлую неделю отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q018"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за прошлую неделю по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q019"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за прошлую неделю на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q020"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за последние 7 дней на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q021"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за последние 7 дней на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q022"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за последние 7 дней отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q023"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за последние 7 дней по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q024"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров за последние 7 дней на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q025"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров с 2026-09-15 по 2026-10-15 на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q026"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров с 2026-09-15 по 2026-10-15 на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q027"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров с 2026-09-15 по 2026-10-15 отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q028"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров с 2026-09-15 по 2026-10-15 по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q029"
+    },
+    {
+      "utterance": "Пожалуйста, покажи количество заказанных товаров с 2026-09-15 по 2026-10-15 на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q030"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за октябрь 2026 на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q031"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за октябрь 2026 на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q032"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за октябрь 2026 отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q033"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за октябрь 2026 по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q034"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за октябрь 2026 на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q035"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за вчера на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q036"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за вчера на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q037"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за вчера отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q038"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за вчера по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q039"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за вчера на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q040"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за текущий месяц на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q041"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за текущий месяц на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q042"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за текущий месяц отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q043"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за текущий месяц по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q044"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за текущий месяц на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q045"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за прошлую неделю на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q046"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за прошлую неделю на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q047"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за прошлую неделю отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q048"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за прошлую неделю по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q049"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за прошлую неделю на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q050"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за последние 7 дней на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q051"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за последние 7 дней на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q052"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за последние 7 дней отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q053"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за последние 7 дней по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q054"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов за последние 7 дней на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q055"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов с 2026-09-15 по 2026-10-15 на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q056"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов с 2026-09-15 по 2026-10-15 на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q057"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов с 2026-09-15 по 2026-10-15 отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q058"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов с 2026-09-15 по 2026-10-15 по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q059"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сумму заказов с 2026-09-15 по 2026-10-15 на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q060"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за октябрь 2026 на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q061"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за октябрь 2026 на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q062"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за октябрь 2026 отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q063"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за октябрь 2026 по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q064"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за октябрь 2026 на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q065"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за вчера на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q066"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за вчера на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q067"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за вчера отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q068"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за вчера по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q069"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за вчера на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-02",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-02",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q070"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за текущий месяц на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q071"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за текущий месяц на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q072"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за текущий месяц отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q073"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за текущий месяц по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q074"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за текущий месяц на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-11-01",
+          "to": "2026-11-03"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-11-01",
+              "date_to": "2026-11-03",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-11-01",
+                "end": "2026-11-03"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q075"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за прошлую неделю на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q076"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за прошлую неделю на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q077"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за прошлую неделю отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q078"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за прошлую неделю по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q079"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за прошлую неделю на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-26",
+              "date_to": "2026-11-01",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-26",
+                "end": "2026-11-01"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q080"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за последние 7 дней на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q081"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за последние 7 дней на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q082"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за последние 7 дней отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q083"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за последние 7 дней по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q084"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов за последние 7 дней на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-10-27",
+          "to": "2026-11-02"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-27",
+              "date_to": "2026-11-02",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-27",
+                "end": "2026-11-02"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q085"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов с 2026-09-15 по 2026-10-15 на Озоне.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q086"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов с 2026-09-15 по 2026-10-15 на ВБ.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q087"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов с 2026-09-15 по 2026-10-15 отдельно на Озоне и Вайлдберриз.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q088"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов с 2026-09-15 по 2026-10-15 по всем магазинам.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q089"
+    },
+    {
+      "utterance": "Пожалуйста, покажи сводку заказов с 2026-09-15 по 2026-10-15 на обеих площадках вместе.",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue",
+          "ordered_units"
+        ],
+        "period": {
+          "from": "2026-09-15",
+          "to": "2026-10-15"
+        },
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "group_by": "total",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-09-15",
+              "date_to": "2026-10-15",
+              "metrics": [
+                "revenue",
+                "ordered_units"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-09-15",
+                "end": "2026-10-15"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q090"
+    },
+    {
+      "utterance": "ДРР за октябрь на Озоне",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "drr_ordered"
+        ],
+        "platforms": [
+          "ozon"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q091"
+    },
+    {
+      "utterance": "Расходы на рекламу за октябрь",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ad_spend"
+        ],
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_ads_daily",
+            "body": {
+              "dateFrom": "2026-10-01",
+              "dateTo": "2026-10-31"
+            }
+          },
+          {
+            "operation": "wb_expense",
+            "body": {
+              "from": "2026-10-01",
+              "to": "2026-10-31"
+            }
+          }
+        ]
+      },
+      "case_id": "Q092"
+    },
+    {
+      "utterance": "Выкупы за октябрь",
+      "expected": {
+        "route": "P3",
+        "code": "COHORT_REQUIRED",
+        "external_calls": 0
+      },
+      "case_id": "Q093"
+    },
+    {
+      "utterance": "Остатки за вчера",
+      "expected": {
+        "route": "P3",
+        "code": "STOCK_SCOPE_REQUIRED",
+        "external_calls": 0
+      },
+      "case_id": "Q094"
+    },
+    {
+      "utterance": "Прибыль за октябрь",
+      "expected": {
+        "route": "P3",
+        "code": "MISSING_COST_BASIS",
+        "external_calls": 0
+      },
+      "case_id": "Q095"
+    },
+    {
+      "utterance": "Возвраты за октябрь",
+      "expected": {
+        "route": "P3",
+        "code": "EVENT_RETURNS_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q096"
+    },
+    {
+      "utterance": "Комиссия за октябрь",
+      "expected": {
+        "route": "P3",
+        "code": "PLATFORM_METRIC_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q097"
+    },
+    {
+      "utterance": "Логистика за октябрь",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "finance_logistics_cost"
+        ],
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_finance",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31"
+            }
+          },
+          {
+            "operation": "wb_finance",
+            "body": {
+              "dateFrom": "2026-10-01",
+              "dateTo": "2026-10-31",
+              "period": "daily",
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q098"
+    },
+    {
+      "utterance": "Сравни сумму заказов за октябрь и сентябрь",
+      "expected": {
+        "route": "P1",
+        "metrics": [
+          "ordered_revenue"
+        ],
+        "platforms": [
+          "ozon",
+          "wb"
+        ],
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "group_by": "marketplace",
+        "first_physical_requests": [
+          {
+            "operation": "ozon_orders",
+            "body": {
+              "date_from": "2026-10-01",
+              "date_to": "2026-10-31",
+              "metrics": [
+                "revenue"
+              ],
+              "dimension": [
+                "month"
+              ],
+              "filters": [],
+              "limit": 1000,
+              "offset": 0
+            }
+          },
+          {
+            "operation": "wb_orders",
+            "body": {
+              "selectedPeriod": {
+                "start": "2026-10-01",
+                "end": "2026-10-31"
+              },
+              "pastPeriod": {
+                "start": "2026-09-01",
+                "end": "2026-09-30"
+              },
+              "nmIds": [],
+              "brandNames": [],
+              "subjectIds": [],
+              "tagIds": [],
+              "skipDeletedNm": false,
+              "orderBy": {
+                "field": "orderSum",
+                "mode": "desc"
+              },
+              "limit": 1000,
+              "offset": 0
+            }
+          }
+        ]
+      },
+      "case_id": "Q099"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь кроме артикула А",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q100"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь без товара Б",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q101"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь не на Озоне",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q102"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь артикул 123",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q103"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь бренд Север",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q104"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь склад Москва",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q105"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь FBO",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q106"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь FBS",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q107"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь по товарам",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q108"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь по дням",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q109"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь в долларах",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q110"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь в евро",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q111"
+    },
+    {
+      "utterance": "Сумма заказов за октябрь в юанях",
+      "expected": {
+        "route": "P3",
+        "code": "OPERATION_NOT_ENABLED",
+        "external_calls": 0
+      },
+      "case_id": "Q112"
+    },
+    {
+      "utterance": "Количество заказов за октябрь",
+      "expected": {
+        "route": "P3",
+        "code": "METRIC_AMBIGUOUS",
+        "external_calls": 0
+      },
+      "case_id": "Q113"
+    },
+    {
+      "utterance": "Продажи за октябрь",
+      "expected": {
+        "route": "P3",
+        "code": "METRIC_AMBIGUOUS",
+        "external_calls": 0
+      },
+      "case_id": "Q114"
+    },
+    {
+      "utterance": "Выручка за октябрь",
+      "expected": {
+        "route": "P3",
+        "code": "METRIC_AMBIGUOUS",
+        "external_calls": 0
+      },
+      "case_id": "Q115"
+    },
+    {
+      "utterance": "Измени цены за октябрь на Озоне",
+      "expected": {
+        "route": "P3",
+        "code": "READ_ONLY",
+        "external_calls": 0
+      },
+      "case_id": "Q116"
+    },
+    {
+      "utterance": "Сумма заказов чужого кабинета за октябрь",
+      "expected": {
+        "route": "P3",
+        "code": "ACCESS",
+        "external_calls": 0
+      },
+      "case_id": "Q117"
+    },
+    {
+      "utterance": "Сумма заказов за месяц",
+      "expected": {
+        "route": "P3",
+        "code": "PERIOD_REQUIRED",
+        "external_calls": 0
+      },
+      "case_id": "Q118"
+    },
+    {
+      "utterance": "Сумма заказов с 1 по 31 февраля 2026",
+      "expected": {
+        "route": "P3",
+        "code": "INVALID_DATE",
+        "external_calls": 0
+      },
+      "case_id": "Q119"
+    },
+    {
+      "utterance": "Сумма заказов за декабрь 2026",
+      "expected": {
+        "route": "P3",
+        "code": "PERIOD_RANGE",
+        "external_calls": 0
+      },
+      "case_id": "Q120"
+    },
+    {
+      "utterance": "Каков объем заказанных единиц за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q121"
+    },
+    {
+      "utterance": "Назови общее число заказанных товаров за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q122"
+    },
+    {
+      "utterance": "Мне нужно число заказанных штук за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q123"
+    },
+    {
+      "utterance": "Расскажи про сумму оформленных заказов за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q124"
+    },
+    {
+      "utterance": "Хочу узнать объем заказанных товаров за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q125"
+    },
+    {
+      "utterance": "Какая общая стоимость заказанных товаров за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q126"
+    },
+    {
+      "utterance": "Скажи размер суммы оформленных заказов за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q127"
+    },
+    {
+      "utterance": "Какова сумма всех оформленных заказов за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q128"
+    },
+    {
+      "utterance": "Мне интересно сколько штук было заказано за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q129"
+    },
+    {
+      "utterance": "Подскажи общую стоимость оформленных заказов за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q130"
+    },
+    {
+      "utterance": "Назови величину суммы заказанных товаров за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q131"
+    },
+    {
+      "utterance": "Какое число товарных единиц было заказано за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q132"
+    },
+    {
+      "utterance": "Посчитай итоговое количество заказанных штук за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q133"
+    },
+    {
+      "utterance": "Узнай общую сумму оформленных заказов за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q134"
+    },
+    {
+      "utterance": "Дай информацию о количестве заказанных единиц за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q135"
+    },
+    {
+      "utterance": "Покажи значение суммы оформленных заказов за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q136"
+    },
+    {
+      "utterance": "Хочу получить количество заказанных товарных единиц за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q137"
+    },
+    {
+      "utterance": "Скажи итоговую стоимость заказанных товаров за октябрь 2026 на Озоне",
+      "expected": {
+        "route": "P2",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-31"
+        },
+        "platforms": [
+          "ozon"
+        ],
+        "model_calls_maximum": 1,
+        "model_semantics_not_tested": true
+      },
+      "case_id": "Q138"
+    },
+    {
+      "utterance": "готово",
+      "expected": {
+        "route": "P0",
+        "command": "готово",
+        "external_calls": 0
+      },
+      "case_id": "Q139"
+    },
+    {
+      "utterance": "результат",
+      "expected": {
+        "route": "P0",
+        "command": "результат",
+        "external_calls": 0
+      },
+      "case_id": "Q140"
+    },
+    {
+      "utterance": "результат отчета",
+      "expected": {
+        "route": "P0",
+        "command": "результат отчета",
+        "external_calls": 0
+      },
+      "case_id": "Q141"
+    },
+    {
+      "utterance": "прочитай отчет",
+      "expected": {
+        "route": "P0",
+        "command": "прочитай отчет",
+        "external_calls": 0
+      },
+      "case_id": "Q142"
+    },
+    {
+      "utterance": "повтори отчет",
+      "expected": {
+        "route": "P0",
+        "command": "повтори отчет",
+        "external_calls": 0
+      },
+      "case_id": "Q143"
+    },
+    {
+      "utterance": "статус отчета",
+      "expected": {
+        "route": "P0",
+        "command": "статус отчета",
+        "external_calls": 0
+      },
+      "case_id": "Q144"
+    },
+    {
+      "utterance": "план запроса",
+      "expected": {
+        "route": "P0",
+        "command": "план запроса",
+        "external_calls": 0
+      },
+      "case_id": "Q145"
+    },
+    {
+      "utterance": "отмени отчет",
+      "expected": {
+        "route": "P0",
+        "command": "отмени отчет",
+        "external_calls": 0
+      },
+      "case_id": "Q146"
+    },
+    {
+      "utterance": "дальше",
+      "expected": {
+        "route": "P0",
+        "command": "дальше",
+        "external_calls": 0
+      },
+      "case_id": "Q147"
+    },
+    {
+      "utterance": "помощь аналитики",
+      "expected": {
+        "route": "P0",
+        "command": "помощь аналитики",
+        "external_calls": 0
+      },
+      "case_id": "Q148"
+    },
+    {
+      "utterance": "диагностика аналитики",
+      "expected": {
+        "route": "P0",
+        "command": "диагностика аналитики",
+        "external_calls": 0
+      },
+      "case_id": "Q149"
+    },
+    {
+      "utterance": "помощь",
+      "expected": {
+        "route": "P0",
+        "command": "помощь",
+        "external_calls": 0
+      },
+      "case_id": "Q150"
+    }
+  ]
+}
