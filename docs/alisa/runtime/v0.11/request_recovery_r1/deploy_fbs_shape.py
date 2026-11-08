@@ -1,10 +1,10 @@
 """Install the money/article parser without changing credentials or cached plans."""
 from pathlib import Path
 import subprocess, json, hashlib, sqlite3, shutil, fcntl, time, os, tempfile, argparse
-BASE=Path('/opt/alice-market/releases/alisa-request-recovery-r3-20261108')
-NEW=BASE.with_name('alisa-request-recovery-r4-20261108')
+BASE=Path('/opt/alice-market/releases/alisa-runtime-business-read-r4-20261108')
+NEW=BASE.with_name('alisa-request-recovery-r5-20261108')
 CONFIG=Path('/etc/alice-market/market-runtime.json')
-BACKUP=Path('/var/lib/alice-market/fbs-shape-recovery-20261108')
+BACKUP=Path('/var/lib/alice-market/fbs-shape-recovery-r5-20261108')
 UNITS=['alice-market.service','alisa-station.service','alice-lab-web.service']
 
 def run(*args):
@@ -51,7 +51,7 @@ def main():
         lock=open('/run/lock/'+name,'w'); fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB); locks.append(lock)
     assert prop(UNITS[0],'WorkingDirectory')==str(BASE),'CONCURRENT_RUNTIME_CHANGE'
     unchanged={u:{p:prop(u,p) for p in ['WorkingDirectory','ExecStart']} for u in UNITS[1:]}
-    log=Path('/tmp/alisa-recovery-r4-full.log').read_text()
+    log=Path('/tmp/alisa-recovery-r5-full.log').read_text()
     assert '\nOK\n' in log and 'FAILED (' not in log,'FULL_SUITE_NOT_PASSED'
     changed={'read_surface.py','read_surface_data/catalog.json.gz','tests/test_money_article.py','manifest.json'}
     for path in BASE.rglob('*'):
@@ -83,7 +83,7 @@ def main():
         atomic_config(updated,stat.st_mode & 0o777,stat.st_uid,stat.st_gid); wrote=True
         directory=Path('/etc/systemd/system/alice-market.service.d')
         width=max([len(p.name)-len(p.name.lstrip('z')) for p in directory.glob('*.conf')]+[0])+1
-        dropin=directory/('z'*width+'-fbs-money-article-r4.conf')
+        dropin=directory/('z'*width+'-fbs-money-article-r5.conf')
         dropin.write_text(f'[Service]\nWorkingDirectory={NEW}\nExecStart=\nExecStart=/usr/bin/python3 -B {NEW}/runtime.py --config {CONFIG}\n')
         run('systemctl','daemon-reload')
         for unit in UNITS: run('systemctl','start',unit)

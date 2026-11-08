@@ -232,7 +232,7 @@ def project_response(platform,operation,value):
     row=method(platform,operation);profile=projection_for(row)
     if profile is None:return value
     allowed=profile['fields'];stats={'removed_fields':0,'retained_fields':0};budget=[0]
-    kinds={'object','objects','object_or_objects','integer','number','identifier','enum','currency','boolean','cursor','timestamp','money','article'}
+    kinds={'object','objects','object_or_objects','integer','number','identifier','enum','currency','boolean','cursor','timestamp','business_label','money'}
     need(all(type(k)is str and type(v)is str and v in kinds and not _SECRET.search(k)and not _PERSON.search(k)for k,v in allowed.items()),'READ_PROJECTION_POLICY')
     def scalar(value,kind):
         if value is None:return None
@@ -242,8 +242,6 @@ def project_response(platform,operation,value):
                 need(value['amount'] is not None and value['currency'] is not None,'READ_PROJECTION_TYPE')
                 return {'amount':scalar(value['amount'],'number'),'currency':scalar(value['currency'],'currency')}
             return scalar(value,'number')
-        if kind=='article':
-            need(type(value)is str and 1<=len(value)<=256 and re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',value)is None and not any(ord(ch)<32 or 127<=ord(ch)<=159 for ch in value),'READ_PROJECTION_TYPE');return value
         if kind=='integer':
             need(type(value)is int or type(value)is str and re.fullmatch(r'-?[0-9]{1,80}',value)is not None,'READ_PROJECTION_TYPE');return value
         if kind=='number':
@@ -254,6 +252,9 @@ def project_response(platform,operation,value):
         if kind=='boolean':need(type(value)is bool,'READ_PROJECTION_TYPE');return value
         if kind=='cursor'and type(value)is int:return value
         need(type(value)is str,'READ_PROJECTION_TYPE')
+        if kind=='business_label':
+            import unicodedata
+            need(1<=len(value)<=256 and not any(unicodedata.category(ch)in ('Cc','Cf')for ch in value)and re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',value)is None,'READ_PROJECTION_TYPE');return value
         if kind=='currency':need(re.fullmatch(r'[A-Z]{3}',value)is not None,'READ_PROJECTION_TYPE')
         elif kind=='enum':need(re.fullmatch(r'[A-Za-z][A-Za-z0-9_.:-]{0,99}',value)is not None,'READ_PROJECTION_TYPE')
         elif kind=='identifier':need(re.fullmatch(r'[\w./:-]{1,160}',value)is not None,'READ_PROJECTION_TYPE')

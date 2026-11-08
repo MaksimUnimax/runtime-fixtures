@@ -12,7 +12,7 @@ class MoneyArticle(unittest.TestCase):
   for v in [{'amount':'nan','currency':'RUB'},{'amount':'123','currency':'bad'},{'unknown':'PRIVATE'},{'amount':None,'currency':'RUB'}]:
    with self.assertRaises(Rejected):project_response('ozon','fbs_posting_list',{'price':v})
  def test_article_control_characters_blocked(self):
-  for ch in ['\n', '\x7f', '\x85', '\x9f']:
+  for ch in ['\n', '\x7f', '\x85', '\x9f', '\u200b', '\u202e']:
    with self.subTest(ch=repr(ch)):
     with self.assertRaises(Rejected):project_response('ozon','fbs_posting_list',{'offer_id':'abc'+ch+'secret'})
 
