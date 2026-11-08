@@ -38,6 +38,22 @@ class DeliveryTests(unittest.TestCase):
         self.after();self.now+=9;self.core.tick();self.assertFalse(self.launches())
         self.now+=1;self.core.tick();self.assertEqual(len(self.launches()),1)
         self.assertIn('Ориентировочно осталось около 50 секунд.',json.dumps(self.client.calls,ensure_ascii=False))
+    def test_async_acceptance_closes_skill_session(self):
+        accepted=self.after()
+        self.assertTrue(accepted['end_session'])
+        self.assertEqual(self.core.state['job']['delivery'],'waiting')
+        self.settings(enabled=False)
+        manual=self.after('job2')
+        self.assertFalse(manual.get('end_session',False))
+
+    def test_terminal_failure_is_spoken_once(self):
+        self.after();self.result={'state':'FAILED','text':'Неверный формат ответа модели.'}
+        self.now+=1;self.core.tick()
+        self.assertEqual(len(self.launches()),1)
+        self.assertEqual(self.core.state['job']['delivery'],'failed_notified')
+        self.assertIn('Неверный формат',json.dumps(self.client.calls,ensure_ascii=False))
+        self.core.tick();self.assertEqual(len(self.launches()),1)
+
     def test_ready_before_10_no_result_in_scenario(self):
         self.after();self.result={'state':'READY','text':'Секретная сумма 123'};self.now+=1;self.core.tick()
         self.assertEqual(len(self.launches()),1)
@@ -188,7 +204,7 @@ class DeliveryTests(unittest.TestCase):
     def test_settings_conflict(self):
         with self.assertRaises(Fault):self.core.configure({'revision':0,'settings':DEFAULTS})
     def test_superseded_or_revoked_no_speech(self):
-        for state in ('SUPERSEDED','REVOKED','FAILED','CANCELLED','EXPIRED'):
+        for state in ('SUPERSEDED','REVOKED','CANCELLED','EXPIRED'):
             self.after(state);self.result={'state':state,'text':''};self.now+=11;self.core.tick()
         self.assertFalse(self.launches())
     def test_pair_automatic_skill_challenge_and_app(self):
