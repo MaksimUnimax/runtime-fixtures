@@ -93,10 +93,18 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(len(self.launches()),1)
         self.assertNotIn('Секретный отчёт',json.dumps(self.client.calls,ensure_ascii=False))
     def test_manual_takeover_before_launch(self):
-        self.after();self.now+=10
+        self.after();self.result={'state':'READY','text':'Ответ'};self.now+=10
         def hook(m,p):self.before('результат')
         self.client.hook=hook;self.core.tick();self.assertFalse(self.launches())
         self.assertFalse(self.core.state['uncertain'])
+    def test_manual_pending_keeps_automatic_delivery(self):
+        self.after();self.assertEqual(self.before('результат')['reply'],'Расчёт ещё выполняется.')
+        self.assertEqual(self.core.state['job']['delivery'],'waiting')
+        self.result={'state':'READY','text':'Ответ'};self.now+=1;self.core.tick();self.assertEqual(len(self.launches()),1)
+    def test_final_after_old_fifteen_minute_window(self):
+        self.after();self.now+=901;self.core.state['job']['message']=3
+        self.core.tick();self.assertEqual(self.core.state['job']['delivery'],'waiting')
+        self.result={'state':'READY','text':'Ответ'};self.core.tick();self.assertEqual(len(self.launches()),1)
     def test_new_job_before_launch(self):
         self.after();self.now+=10
         self.client.hook=lambda m,p:self.after('job2')
