@@ -1,0 +1,34 @@
+{
+  "at": "2026-11-08T06:22:07.752349+00:00",
+  "invocation": "1de52e7274ae4596a449a4cec366eaa3",
+  "before": {
+    "bytes": 3143544832,
+    "inodes": 494814
+  },
+  "scope": "APT_BINARY_INDICES_ONLY",
+  "result": "PASS",
+  "removed": [
+    "/var/cache/apt/pkgcache.bin",
+    "/var/cache/apt/srcpkgcache.bin"
+  ],
+  "dpkg_status_before": "43377192d9a93685df9b509adb3f9112361bd89843837e1bae71e3b93daf22ff",
+  "retained_list_count": 66,
+  "cache_before": [
+    {
+      "path": "/var/cache/apt/pkgcache.bin",
+      "bytes": 58804731,
+      "sha256": "798b35b743badb7f2e9560c4885da628ebd871e6ea2a748a848a94592a812447"
+    },
+    {
+      "path": "/var/cache/apt/srcpkgcache.bin",
+      "bytes": 58783782,
+      "sha256": "77a5627c07893ba9f9078ae52d9f5ff397f0a8118ab4f01350f3fa71cda5e09b"
+    }
+  ],
+  "config_sha256": "81d6312767c3949c48dcd61d135f92f13f4a20ab505dc239368ed77c811fc24a",
+  "after": {
+    "bytes": 3261116416,
+    "inodes": 494813
+  },
+  "dpkg_status_after": "43377192d9a93685df9b509adb3f9112361bd89843837e1bae71e3b93daf22ff"
+}

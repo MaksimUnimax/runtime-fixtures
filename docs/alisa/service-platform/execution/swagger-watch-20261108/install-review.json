@@ -1,0 +1,50 @@
+{
+  "review": "ALISA_SWAGGER_WATCH_INSTALL_PROCEDURE_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "PASS_WITH_PARTIAL_FAILURE_RECOVERY_CAVEAT",
+  "scope": "Read-only review of install.py. Script was not executed; no host state, private configuration contents, provider credentials, tests, provider endpoints, DB, or browser were accessed.",
+  "source_pin": "7cbe3059a83677aeb42a086898a48067918f16a2",
+  "installer_sha256": "ce218d82931ff2074c345a98a19803c18e63dc9b0b993eb381aea5d1c7ccb7a3",
+  "phase_boundary": {
+    "prepare": "Verifies exact source/package binding and every ZIP payload hash before copying into a new release; checks source gates, baseline service/pointer/config hashes, ready endpoints, disk/memory reserve, new UID/namespace/units, and port availability. Validates the exact owner document through the packaged checker and preserves the prior snapshot. It does not switch pointers or restart existing services.",
+    "activate": "Requires prepared receipt and unchanged baseline; rechecks archive/payload and owner-review receipt; creates a dedicated no-login UID/group and private state, sets only its own current pointer and three new units, imports then exact-digest accepts the reviewed owner document through the flock launcher, starts only its read-only status service, adds a single exact Nginx include, validates/reloads Nginx, checks public metadata and existing readiness, then enables its own status/timer and starts its own watcher asynchronously.",
+    "existing_product_scope": "Only the new Swagger service/state namespace and the dedicated exact `/health/swagger` Nginx location are changed. Existing website/API/Identity/admin/core/checker units and pointers are snapshotted and rechecked; no existing application restart, database mutation, credential read, or provider API call is in the script."
+  },
+  "safety_findings": [
+    "Package verification is bounded: exact ZIP size/hash, exact member set, bounded expansion, exact manifest source/product/file set, and per-file hashes; files are copied under fixed expected names rather than extracting archive paths.",
+    "Owner document bytes are pinned by SHA256 and revalidated by the candidate checker before activation. Administrative acceptance is exact-digest and records OWNER_SUPPLIED_REVIEWED without claiming automatic freshness.",
+    "The new service has a dedicated system UID/group, no supplied supplementary groups, no-login shell, bounded systemd units, loopback-only status binding, GET/HEAD-only public route, and read-only status state access.",
+    "Nginx change is guarded by the original config hash and exact server-name anchor, written as one fixed include, tested before reload, and public status is read back after reload.",
+    "Five rollout locks are acquired nonblocking; existing service/pointer/config readiness and post-change snapshots gate completion. Disk reserve includes the 3 GiB floor and fixed overhead; no old version/archive deletion is attempted.",
+    "Recovery removes only the exact new include when present and queues stop/reload for the new units; it preserves unrelated later Nginx edits and does not roll back or rewrite existing product pointers/configuration."
+  ],
+  "caveats": [
+    {
+      "severity": "OPERATIONAL_RECOVERY_CAVEAT",
+      "detail": "Failures during activation before the `current` symlink is created can occur after creating the new service account or some new state/release files; failures later intentionally retain the new release, pointer, units, and receipts for forensic readback while detaching the public include and queueing own-unit stops. This is fail-safe for existing products but is not an automatic cleanup/retry path: a failed attempt may require a separately reviewed continuation or cleanup of only these newly created owned paths before rerun."
+    },
+    {
+      "severity": "NON_BLOCKING_NAMESPACE_CHECK_CAVEAT",
+      "detail": "The fresh-path checks use Path.exists(), which does not detect dangling symlinks. Subsequent mkdir/open with exclusive creation fails rather than following/replacing such entries, so this does not bypass the intended no-overwrite boundary, but it can turn a preflight rejection into a later partial failed preparation/activation. `lstat`/lexists checks would make the preflight result clearer."
+    },
+    {
+      "severity": "OPERATIONAL_READINESS_CAVEAT",
+      "detail": "The watcher is started with `systemctl start --no-block` after the public status route is confirmed, and its completion/result is not awaited. The activation PASS therefore proves installation and public status routing, not successful documentation retrieval; post-install status may correctly remain DEGRADED when Ozon requires operator-supplied source."
+    },
+    {
+      "severity": "OWNER_REVIEW_LIMIT",
+      "detail": "Acceptance is intentionally administrative. It cannot turn the owner-provided JSON into an automatic TLS-fetched source or establish same-cabinet Performance/Seller identity."
+    }
+  ],
+  "deployment_gate": "Procedure source is acceptable for a controlled one-shot install after exact source/package CI bindings and host preconditions are independently verified. Preserve FAILED receipts and inspect partial owned paths before any retry; treat activation PASS as installed/routed only until ordinary status confirms acquisition; do not describe OWNER_SUPPLIED_REVIEWED as automatic freshness or provider authentication.",
+  "reviewer_actions": {
+    "script_executed": false,
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "private_config_contents_read": false,
+    "provider_credentials_read": false
+  }
+}
