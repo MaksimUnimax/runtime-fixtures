@@ -1,0 +1,156 @@
+{
+  "record": "CAP19_WB_STATISTICS_FBS_PAIR_MANIFEST_V1",
+  "author": "existing B",
+  "consumer": "existing A via coordinator after qualification",
+  "status": "AUTHOR_SOURCE_CANDIDATE_INDEPENDENT_COMPOSITION_REVIEW_PENDING",
+  "parentCommit": "8b212046d8f54c562dd176e28fd4992f48a67426",
+  "parentTree": "236c013ceef3627e4c9137ad6a3bb43bfb36372b",
+  "acceptedStatisticsBoundary": {
+    "commit": "7274b1187bc25b8cc4a9bdaaa999f0ab3158a27d",
+    "tree": "ebe9642493b390bad7e202e7b8379fa18e88f4d3",
+    "reviewBytes": 32551,
+    "reviewSHA256": "3d0e131c81ece7b0050a1961dccea30423050e015e37d372d0bf85f37c6586a6"
+  },
+  "acceptedFbsBoundary": {
+    "commit": "8b212046d8f54c562dd176e28fd4992f48a67426",
+    "reviewLibraryId": "libfile_51eee9413b548191b267d58d291cee9a",
+    "reviewFileId": "file_000000000d8881fbad44f858e92c8881",
+    "reviewVersion": 0,
+    "reviewBytes": 115604,
+    "reviewSHA256": "eb52468f5faa10e43e7a3934f031f1e6fcf40c7c777e7c8cac2fa1956ecc7e41"
+  },
+  "boundaryExpectedRecords": [
+    {
+      "name": "WB_INDEPENDENT_EXPECTED.json",
+      "bytes": 4336,
+      "sha256": "1e9aa9a514b6159224442f85c5929e8e0ba498f92a8d0c26ac25e26f5f7a6fc3"
+    },
+    {
+      "name": "FBS_INDEPENDENT_EXPECTED.json",
+      "bytes": 2120,
+      "sha256": "af41a2b1378b021933f70bb2cf79829dbd677f31922d12b93986706bbc4e5dc6"
+    }
+  ],
+  "oracleStatus": "AUTHOR_COMPOSITION_ORACLE_NOT_INDEPENDENT_ACCEPTANCE",
+  "artifacts": [
+    {
+      "path": "docs/product/readiness/CAP19_WB_STATISTICS_FBS_PAIR_V1.md",
+      "bytes": 6542,
+      "sha256": "3ac910311d60fdbf50737871574f3b3ba764b1541fda35f4c6f7539a2c3f15b1"
+    },
+    {
+      "path": "tests/regression/extension-core/cap19-wb-statistics-fbs-pair-v1.mjs",
+      "bytes": 8995,
+      "sha256": "ed6f16963ecce61e5c49e8b61ca42e75bdcf36f969cdf60dc15c99f2aca565c7"
+    },
+    {
+      "path": "tests/regression/extension-core/cap19-wb-statistics-fbs-pair-v1.test.mjs",
+      "bytes": 21898,
+      "sha256": "9c72c455d62d8556997f13c83c550d36c34777d2f96d8e5a521cf3dbc71cacc5"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/cap19-wb-statistics-fbs-pair-v1.json",
+      "bytes": 18278,
+      "sha256": "fcf1273d9577cd3aad42a99a9502fafdae5e22cbcc5d17589822be0195c6d1af"
+    }
+  ],
+  "sourcePins": [
+    {
+      "path": "tests/regression/extension-core/cap19-wb-paired-data-contract.mjs",
+      "bytes": 11907,
+      "sha256": "9baf62bca69d827c3810e853916f67253b5264c7a1c07073e1743f2e8ac780ca"
+    },
+    {
+      "path": "tests/regression/extension-core/cap19-wb-fbs-stock-bridge-v1.mjs",
+      "bytes": 6730,
+      "sha256": "2cab7b997d895225bb03d63cc066074256ca978955c53919ee765eba66a1d63f"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/cap19-wb-paired-data-fixture-v1.json",
+      "bytes": 10227,
+      "sha256": "bc9a76e3beab4595bdc15c9b5f548ce078691a8d81857da4747d911b24f396e8"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/cap19-wb-fbs-stock-bridge-v1.json",
+      "bytes": 3389,
+      "sha256": "1ea36926f9a4ac19563c0087b05945cfa3d0616c36c676803be9e06662c9720f"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/cap19-wb-paired-data-contract-v1.json",
+      "bytes": 3517,
+      "sha256": "d70f5f26a001f0a8de3c11ee7785a7b314273082089ca45e7fde8c0bd412ca39"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-cross-source-join-field-schema-slice-v1.json",
+      "bytes": 5554,
+      "sha256": "be78de5a8ffc8548d1144466bcd2fe00d9795b773c8a7acfe767fa7e91eb3fb5"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-advertised-stock-reuse-v1.json",
+      "bytes": 6697,
+      "sha256": "6af327d0dd08adb801198398f46f40737afee240b64b5e6960def6d6c6d7df23"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-advertising-stats-grain-field-schema-slice-v1.json",
+      "bytes": 9765,
+      "sha256": "257faf1c825a31ff4f1bf2ec413224641cad851cfa202126972692354b530e6d"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-stock-field-schema-slice-v1.json",
+      "bytes": 5812,
+      "sha256": "f1d89b9ca8899471410823a9cf677d305116e7ce3e6539c33f28be8063ebd5bb"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-catalog-identity-field-schema-slice-v1.json",
+      "bytes": 6338,
+      "sha256": "51397e237faa95c05c51d7d6bbcdd482a9e72b192261b7464c78eaece87c6290"
+    }
+  ],
+  "canonicalPlan": {
+    "repository": "MaksimUnimax/runtime-fixtures",
+    "ref": "docs/alice-first-20261102",
+    "path": "docs/development/coordination/PLAN.md",
+    "blob": "983bfc0bac0641706244d31bd62d36684b8e16b6",
+    "bytes": 135239,
+    "sha256": "49b6bac3d33a185469b5164eeb1c0d1a0d0a3749412d8e2a4d0a2dd60bd461e7",
+    "application": "B20/B29 technical input preparation; business-answer tuning remains after B22; latest owner instructions override historical plan status"
+  },
+  "contract": {
+    "function": "composeStatisticsFbs(input)",
+    "inputSchemaVersion": "cap19_wb_statistics_fbs_pair_v1",
+    "inputDomain": "synthetic JSON-shaped values; no arbitrary Proxy/getters",
+    "marketplace": "WILDBERRIES; accepted FBS input uses its exact WB literal",
+    "statisticsBoundary": "normalized product/campaign components with strict complete flag; raw day/appType validation/capture remains upstream",
+    "statisticsMeasure": "PRODUCT_ATTRIBUTED_STATISTICS_NOT_ACTUAL_COST",
+    "currency": "RUB only, consistent across context/statistics/campaign totals",
+    "period": "positive half-open interval of 1..31 complete Europe/Moscow +03:00 calendar days, both midnight",
+    "snapshots": "membershipAsOf and validated FBS stockAsOf equal endExclusive; no historical stock or through-period membership inference",
+    "selection": "exact same product set for normalized statistics and FBS; exact outer product/size and seller warehouse selection for FBS",
+    "money": "canonical nonnegative two-decimal strings; BigInt cents; normalized max 9999999999990.00 individually and in aggregate",
+    "bounds": {
+      "products": 1000,
+      "globalComponents": 1000,
+      "campaignTotals": 1000,
+      "selectedSizes": 1000,
+      "sellerWarehouses": 100,
+      "selectedStockCells": 10000
+    },
+    "spendPlacement": "one product/campaign component once; no spend on stock rows",
+    "actualCost": "INCOMPLETE/CAMPAIGN_SPEND_PRODUCT_ALLOCATION_UNDEFINED; currency/productCost/warehouseCost null; no source-complete claim",
+    "success": "STATISTICS_FBS_SYNTHETIC_PAIR_VALID",
+    "failure": "INCOMPLETE plus fixed diagnostic reason; prefixed fixed FBS reason propagated",
+    "nonmutation": "detached sorted output, input unchanged"
+  },
+  "preservation": "five additions only; both qualified helpers, their fixtures and original pins unchanged; no A/C file or shared lockfile edited",
+  "remainingOpen": [
+    "independent qualification of this new composition",
+    "real provider/capture/tenant/alias/cursor/request-path and normalization binding",
+    "runtime/installed consumer integration",
+    "actual-cost attribution/currency",
+    "Ozon",
+    "B22 owner semantics",
+    "full CAP19 and all existing resource/live STOPs"
+  ],
+  "runtimeIntegrated": false,
+  "newReviewQueue": false
+}

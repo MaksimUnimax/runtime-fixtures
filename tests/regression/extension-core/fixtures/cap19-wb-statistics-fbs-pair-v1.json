@@ -1,0 +1,491 @@
+{
+  "record": "CAP19_WB_STATISTICS_FBS_SYNTHETIC_PAIRED_FIXTURE_V1",
+  "sourceDate": "2026-09-27",
+  "oracleStatus": "AUTHOR_COMPOSITION_ORACLE_NOT_INDEPENDENT_ACCEPTANCE",
+  "derivedFromIndependentBoundaries": [
+    {
+      "name": "WB statistics/warehouse expected",
+      "bytes": 4336,
+      "sha256": "1e9aa9a514b6159224442f85c5929e8e0ba498f92a8d0c26ac25e26f5f7a6fc3"
+    },
+    {
+      "name": "FBS identity/stock expected",
+      "bytes": 2120,
+      "sha256": "af41a2b1378b021933f70bb2cf79829dbd677f31922d12b93986706bbc4e5dc6"
+    }
+  ],
+  "input": {
+    "schemaVersion": "cap19_wb_statistics_fbs_pair_v1",
+    "synthetic": true,
+    "marketplace": "WILDBERRIES",
+    "selection": {
+      "sellerWarehouseIds": [
+        10,
+        20
+      ],
+      "products": [
+        {
+          "nmId": 90001,
+          "chrtIds": [
+            1011,
+            1012
+          ]
+        },
+        {
+          "nmId": 90002,
+          "chrtIds": [
+            1021
+          ]
+        },
+        {
+          "nmId": 90003,
+          "chrtIds": [
+            1031
+          ]
+        }
+      ]
+    },
+    "statistics": {
+      "sourceSchemaVersion": "cap19_wb_paired_data_v1",
+      "complete": true,
+      "context": {
+        "period": {
+          "start": "2026-09-26T00:00:00+03:00",
+          "endExclusive": "2026-09-27T00:00:00+03:00"
+        },
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "membershipAsOf": "2026-09-27T00:00:00+03:00",
+        "comparison": "PERIOD_STATS_WITH_END_SNAPSHOT_NOT_HISTORICAL_STOCK"
+      },
+      "measure": "PRODUCT_ATTRIBUTED_STATISTICS_NOT_ACTUAL_COST",
+      "currency": "RUB",
+      "total": "157.00",
+      "campaignTotals": [
+        {
+          "advertId": 1001,
+          "currency": "RUB",
+          "amount": "125.50"
+        },
+        {
+          "advertId": 1002,
+          "currency": "RUB",
+          "amount": "24.50"
+        },
+        {
+          "advertId": 1003,
+          "currency": "RUB",
+          "amount": "7.00"
+        }
+      ],
+      "products": [
+        {
+          "nmId": 90001,
+          "statisticsSpend": "120.00",
+          "statisticsComponents": [
+            {
+              "advertId": 1001,
+              "amount": "95.50"
+            },
+            {
+              "advertId": 1002,
+              "amount": "24.50"
+            }
+          ],
+          "activeCampaignIds": [
+            1001,
+            1002
+          ]
+        },
+        {
+          "nmId": 90002,
+          "statisticsSpend": "30.00",
+          "statisticsComponents": [
+            {
+              "advertId": 1001,
+              "amount": "30.00"
+            }
+          ],
+          "activeCampaignIds": [
+            1001
+          ]
+        },
+        {
+          "nmId": 90003,
+          "statisticsSpend": "7.00",
+          "statisticsComponents": [
+            {
+              "advertId": 1003,
+              "amount": "7.00"
+            }
+          ],
+          "activeCampaignIds": []
+        }
+      ]
+    },
+    "fbs": {
+      "schemaVersion": "cap19_wb_fbs_stock_bridge_v1",
+      "synthetic": true,
+      "marketplace": "WB",
+      "context": {
+        "stockAsOf": "2026-09-27T00:00:00+03:00",
+        "timezone": "Europe/Moscow"
+      },
+      "selection": {
+        "sellerWarehouseIds": [
+          10,
+          20
+        ],
+        "products": [
+          {
+            "nmId": 90001,
+            "chrtIds": [
+              1011,
+              1012
+            ]
+          },
+          {
+            "nmId": 90002,
+            "chrtIds": [
+              1021
+            ]
+          },
+          {
+            "nmId": 90003,
+            "chrtIds": [
+              1031
+            ]
+          }
+        ]
+      },
+      "catalog": {
+        "complete": true,
+        "asOf": "2026-09-27T00:00:00+03:00",
+        "cards": [
+          {
+            "nmID": 90001,
+            "sizes": [
+              {
+                "chrtID": 1011,
+                "skus": [
+                  "SYNTHETIC-A"
+                ]
+              },
+              {
+                "chrtID": 1012,
+                "skus": [
+                  "SYNTHETIC-B"
+                ]
+              }
+            ]
+          },
+          {
+            "nmID": 90002,
+            "sizes": [
+              {
+                "chrtID": 1021,
+                "skus": [
+                  "SYNTHETIC-C"
+                ]
+              }
+            ]
+          },
+          {
+            "nmID": 90003,
+            "sizes": [
+              {
+                "chrtID": 1031,
+                "skus": [
+                  "SYNTHETIC-D"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "warehouses": {
+        "complete": true,
+        "asOf": "2026-09-27T00:00:00+03:00",
+        "rows": [
+          {
+            "id": 10,
+            "officeId": 507
+          },
+          {
+            "id": 20,
+            "officeId": 901
+          }
+        ]
+      },
+      "stock": {
+        "scheme": "WB_SELLER_WAREHOUSE_FBS",
+        "complete": true,
+        "asOf": "2026-09-27T00:00:00+03:00",
+        "requests": [
+          {
+            "warehouseId": 10,
+            "chrtIds": [
+              1011,
+              1012,
+              1021,
+              1031
+            ]
+          },
+          {
+            "warehouseId": 20,
+            "chrtIds": [
+              1011,
+              1012,
+              1021,
+              1031
+            ]
+          }
+        ],
+        "responses": [
+          {
+            "warehouseId": 10,
+            "stocks": [
+              {
+                "chrtId": 1011,
+                "amount": 4
+              },
+              {
+                "chrtId": 1012,
+                "amount": 6
+              },
+              {
+                "chrtId": 1021,
+                "amount": 0
+              },
+              {
+                "chrtId": 1031,
+                "amount": 3
+              }
+            ]
+          },
+          {
+            "warehouseId": 20,
+            "stocks": [
+              {
+                "chrtId": 1011,
+                "amount": 0
+              },
+              {
+                "chrtId": 1012,
+                "amount": 2
+              },
+              {
+                "chrtId": 1021,
+                "amount": 0
+              },
+              {
+                "chrtId": 1031,
+                "amount": 1
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "authorExpected": {
+    "status": "STATISTICS_FBS_SYNTHETIC_PAIR_VALID",
+    "schemaVersion": "cap19_wb_statistics_fbs_pair_v1",
+    "synthetic": true,
+    "marketplace": "WILDBERRIES",
+    "context": {
+      "period": {
+        "start": "2026-09-26T00:00:00+03:00",
+        "endExclusive": "2026-09-27T00:00:00+03:00"
+      },
+      "timezone": "Europe/Moscow",
+      "currency": "RUB",
+      "membershipAsOf": "2026-09-27T00:00:00+03:00",
+      "comparison": "PERIOD_STATS_WITH_END_SNAPSHOT_NOT_HISTORICAL_STOCK",
+      "stockAsOf": "2026-09-27T00:00:00+03:00"
+    },
+    "statistics": {
+      "measure": "PRODUCT_ATTRIBUTED_STATISTICS_NOT_ACTUAL_COST",
+      "currency": "RUB",
+      "total": "157.00",
+      "campaignTotals": [
+        {
+          "advertId": 1001,
+          "currency": "RUB",
+          "amount": "125.50"
+        },
+        {
+          "advertId": 1002,
+          "currency": "RUB",
+          "amount": "24.50"
+        },
+        {
+          "advertId": 1003,
+          "currency": "RUB",
+          "amount": "7.00"
+        }
+      ]
+    },
+    "stockScope": {
+      "scheme": "WB_SELLER_WAREHOUSE_FBS",
+      "complete": true,
+      "sellerWarehouseIds": [
+        10,
+        20
+      ],
+      "products": [
+        {
+          "nmId": 90001,
+          "chrtIds": [
+            1011,
+            1012
+          ]
+        },
+        {
+          "nmId": 90002,
+          "chrtIds": [
+            1021
+          ]
+        },
+        {
+          "nmId": 90003,
+          "chrtIds": [
+            1031
+          ]
+        }
+      ]
+    },
+    "products": [
+      {
+        "nmId": 90001,
+        "activeCampaignIds": [
+          1001,
+          1002
+        ],
+        "statisticsSpend": "120.00",
+        "statisticsComponents": [
+          {
+            "advertId": 1001,
+            "amount": "95.50"
+          },
+          {
+            "advertId": 1002,
+            "amount": "24.50"
+          }
+        ],
+        "onHandUnits": 12,
+        "outOfStockInSelection": false,
+        "lowStock": null,
+        "stockRows": [
+          {
+            "nmId": 90001,
+            "chrtId": 1011,
+            "sellerWarehouseId": 10,
+            "amount": 4
+          },
+          {
+            "nmId": 90001,
+            "chrtId": 1011,
+            "sellerWarehouseId": 20,
+            "amount": 0
+          },
+          {
+            "nmId": 90001,
+            "chrtId": 1012,
+            "sellerWarehouseId": 10,
+            "amount": 6
+          },
+          {
+            "nmId": 90001,
+            "chrtId": 1012,
+            "sellerWarehouseId": 20,
+            "amount": 2
+          }
+        ]
+      },
+      {
+        "nmId": 90002,
+        "activeCampaignIds": [
+          1001
+        ],
+        "statisticsSpend": "30.00",
+        "statisticsComponents": [
+          {
+            "advertId": 1001,
+            "amount": "30.00"
+          }
+        ],
+        "onHandUnits": 0,
+        "outOfStockInSelection": true,
+        "lowStock": null,
+        "stockRows": [
+          {
+            "nmId": 90002,
+            "chrtId": 1021,
+            "sellerWarehouseId": 10,
+            "amount": 0
+          },
+          {
+            "nmId": 90002,
+            "chrtId": 1021,
+            "sellerWarehouseId": 20,
+            "amount": 0
+          }
+        ]
+      },
+      {
+        "nmId": 90003,
+        "activeCampaignIds": [],
+        "statisticsSpend": "7.00",
+        "statisticsComponents": [
+          {
+            "advertId": 1003,
+            "amount": "7.00"
+          }
+        ],
+        "onHandUnits": 4,
+        "outOfStockInSelection": false,
+        "lowStock": null,
+        "stockRows": [
+          {
+            "nmId": 90003,
+            "chrtId": 1031,
+            "sellerWarehouseId": 10,
+            "amount": 3
+          },
+          {
+            "nmId": 90003,
+            "chrtId": 1031,
+            "sellerWarehouseId": 20,
+            "amount": 1
+          }
+        ]
+      }
+    ],
+    "stockTotals": {
+      "onHandUnits": 16,
+      "cells": 8
+    },
+    "actualCostStock": {
+      "status": "INCOMPLETE",
+      "reason": "CAMPAIGN_SPEND_PRODUCT_ALLOCATION_UNDEFINED",
+      "currency": null,
+      "productCost": null,
+      "warehouseCost": null
+    }
+  },
+  "boundaryExpectedRecords": [
+    {
+      "name": "WB_INDEPENDENT_EXPECTED.json",
+      "bytes": 4336,
+      "sha256": "1e9aa9a514b6159224442f85c5929e8e0ba498f92a8d0c26ac25e26f5f7a6fc3",
+      "utf8": "{\n  \"status\": \"STATISTICS_STOCK_SYNTHETIC_PAIR_VALID\",\n  \"schemaVersion\": \"cap19_wb_paired_data_v1\",\n  \"context\": {\n    \"period\": {\n      \"start\": \"2026-09-26T00:00:00+03:00\",\n      \"endExclusive\": \"2026-09-27T00:00:00+03:00\"\n    },\n    \"timezone\": \"Europe/Moscow\",\n    \"currency\": \"RUB\",\n    \"stockAsOf\": \"2026-09-27T00:00:00+03:00\",\n    \"membershipAsOf\": \"2026-09-27T00:00:00+03:00\",\n    \"comparison\": \"PERIOD_STATS_WITH_END_SNAPSHOT_NOT_HISTORICAL_STOCK\"\n  },\n  \"stockScope\": {\n    \"scheme\": \"WB_WAREHOUSE_ON_HAND\",\n    \"selection\": {\n      \"warehouseIds\": [\n        507,\n        901\n      ],\n      \"products\": [\n        {\n          \"nmId\": 90001,\n          \"chrtIds\": [\n            1011,\n            1012\n          ]\n        },\n        {\n          \"nmId\": 90002,\n          \"chrtIds\": [\n            1021\n          ]\n        },\n        {\n          \"nmId\": 90003,\n          \"chrtIds\": [\n            1031\n          ]\n        }\n      ]\n    },\n    \"complete\": true\n  },\n  \"statistics\": {\n    \"measure\": \"PRODUCT_ATTRIBUTED_STATISTICS_NOT_ACTUAL_COST\",\n    \"currency\": \"RUB\",\n    \"total\": \"157.00\"\n  },\n  \"products\": [\n    {\n      \"nmId\": 90001,\n      \"activeCampaignIds\": [\n        1001,\n        1002\n      ],\n      \"statisticsSpend\": \"120.00\",\n      \"statisticsComponents\": [\n        {\n          \"advertId\": 1001,\n          \"amount\": \"95.50\"\n        },\n        {\n          \"advertId\": 1002,\n          \"amount\": \"24.50\"\n        }\n      ],\n      \"onHandUnits\": 10,\n      \"outOfStockInSelection\": false,\n      \"lowStock\": null,\n      \"stockRows\": [\n        {\n          \"nmId\": 90001,\n          \"chrtId\": 1011,\n          \"warehouseId\": 507,\n          \"quantity\": 0,\n          \"inWayToClient\": 14,\n          \"inWayFromClient\": 3\n        },\n        {\n          \"nmId\": 90001,\n          \"chrtId\": 1011,\n          \"warehouseId\": 901,\n          \"quantity\": 4,\n          \"inWayToClient\": 0,\n          \"inWayFromClient\": 1\n        },\n        {\n          \"nmId\": 90001,\n          \"chrtId\": 1012,\n          \"warehouseId\": 507,\n          \"quantity\": 6,\n          \"inWayToClient\": 2,\n          \"inWayFromClient\": 0\n        },\n        {\n          \"nmId\": 90001,\n          \"chrtId\": 1012,\n          \"warehouseId\": 901,\n          \"quantity\": 0,\n          \"inWayToClient\": 0,\n          \"inWayFromClient\": 0\n        }\n      ]\n    },\n    {\n      \"nmId\": 90002,\n      \"activeCampaignIds\": [\n        1001\n      ],\n      \"statisticsSpend\": \"30.00\",\n      \"statisticsComponents\": [\n        {\n          \"advertId\": 1001,\n          \"amount\": \"30.00\"\n        }\n      ],\n      \"onHandUnits\": 0,\n      \"outOfStockInSelection\": true,\n      \"lowStock\": null,\n      \"stockRows\": [\n        {\n          \"nmId\": 90002,\n          \"chrtId\": 1021,\n          \"warehouseId\": 507,\n          \"quantity\": 0,\n          \"inWayToClient\": 4,\n          \"inWayFromClient\": 0\n        },\n        {\n          \"nmId\": 90002,\n          \"chrtId\": 1021,\n          \"warehouseId\": 901,\n          \"quantity\": 0,\n          \"inWayToClient\": 0,\n          \"inWayFromClient\": 1\n        }\n      ]\n    },\n    {\n      \"nmId\": 90003,\n      \"activeCampaignIds\": [],\n      \"statisticsSpend\": \"7.00\",\n      \"statisticsComponents\": [\n        {\n          \"advertId\": 1003,\n          \"amount\": \"7.00\"\n        }\n      ],\n      \"onHandUnits\": 10,\n      \"outOfStockInSelection\": false,\n      \"lowStock\": null,\n      \"stockRows\": [\n        {\n          \"nmId\": 90003,\n          \"chrtId\": 1031,\n          \"warehouseId\": 507,\n          \"quantity\": 9,\n          \"inWayToClient\": 0,\n          \"inWayFromClient\": 0\n        },\n        {\n          \"nmId\": 90003,\n          \"chrtId\": 1031,\n          \"warehouseId\": 901,\n          \"quantity\": 1,\n          \"inWayToClient\": 0,\n          \"inWayFromClient\": 0\n        }\n      ]\n    }\n  ],\n  \"actualCostStock\": {\n    \"status\": \"INCOMPLETE\",\n    \"reason\": \"CAMPAIGN_SPEND_PRODUCT_ALLOCATION_UNDEFINED\",\n    \"sourceComplete\": true,\n    \"currency\": null,\n    \"productCost\": null,\n    \"warehouseCost\": null,\n    \"sourceRows\": [\n      {\n        \"sourceRowRef\": \"SYNTHETIC-CHARGE-1\",\n        \"advertId\": 1001,\n        \"updSum\": \"130.00\"\n      },\n      {\n        \"sourceRowRef\": \"SYNTHETIC-CHARGE-2\",\n        \"advertId\": 1002,\n        \"updSum\": \"25.00\"\n      },\n      {\n        \"sourceRowRef\": \"SYNTHETIC-CHARGE-3\",\n        \"advertId\": 1003,\n        \"updSum\": \"8.00\"\n      }\n    ]\n  }\n}\n"
+    },
+    {
+      "name": "FBS_INDEPENDENT_EXPECTED.json",
+      "bytes": 2120,
+      "sha256": "af41a2b1378b021933f70bb2cf79829dbd677f31922d12b93986706bbc4e5dc6",
+      "utf8": "{\n  \"status\": \"FBS_STOCK_IDENTITY_SYNTHETIC_VALID\",\n  \"schemaVersion\": \"cap19_wb_fbs_stock_bridge_v1\",\n  \"context\": {\n    \"stockAsOf\": \"2026-09-27T00:00:00+03:00\",\n    \"timezone\": \"Europe/Moscow\"\n  },\n  \"stockScope\": {\n    \"scheme\": \"WB_SELLER_WAREHOUSE_FBS\",\n    \"complete\": true,\n    \"sellerWarehouseIds\": [\n      10,\n      20\n    ],\n    \"products\": [\n      {\n        \"nmId\": 90001,\n        \"chrtIds\": [\n          1011,\n          1012\n        ]\n      },\n      {\n        \"nmId\": 90002,\n        \"chrtIds\": [\n          1021\n        ]\n      },\n      {\n        \"nmId\": 90003,\n        \"chrtIds\": [\n          1031\n        ]\n      }\n    ]\n  },\n  \"products\": [\n    {\n      \"nmId\": 90001,\n      \"onHandUnits\": 12,\n      \"outOfStockInSelection\": false,\n      \"stockRows\": [\n        {\n          \"nmId\": 90001,\n          \"chrtId\": 1011,\n          \"sellerWarehouseId\": 10,\n          \"amount\": 4\n        },\n        {\n          \"nmId\": 90001,\n          \"chrtId\": 1011,\n          \"sellerWarehouseId\": 20,\n          \"amount\": 0\n        },\n        {\n          \"nmId\": 90001,\n          \"chrtId\": 1012,\n          \"sellerWarehouseId\": 10,\n          \"amount\": 6\n        },\n        {\n          \"nmId\": 90001,\n          \"chrtId\": 1012,\n          \"sellerWarehouseId\": 20,\n          \"amount\": 2\n        }\n      ]\n    },\n    {\n      \"nmId\": 90002,\n      \"onHandUnits\": 0,\n      \"outOfStockInSelection\": true,\n      \"stockRows\": [\n        {\n          \"nmId\": 90002,\n          \"chrtId\": 1021,\n          \"sellerWarehouseId\": 10,\n          \"amount\": 0\n        },\n        {\n          \"nmId\": 90002,\n          \"chrtId\": 1021,\n          \"sellerWarehouseId\": 20,\n          \"amount\": 0\n        }\n      ]\n    },\n    {\n      \"nmId\": 90003,\n      \"onHandUnits\": 4,\n      \"outOfStockInSelection\": false,\n      \"stockRows\": [\n        {\n          \"nmId\": 90003,\n          \"chrtId\": 1031,\n          \"sellerWarehouseId\": 10,\n          \"amount\": 3\n        },\n        {\n          \"nmId\": 90003,\n          \"chrtId\": 1031,\n          \"sellerWarehouseId\": 20,\n          \"amount\": 1\n        }\n      ]\n    }\n  ],\n  \"totals\": {\n    \"onHandUnits\": 16,\n    \"cells\": 8\n  }\n}\n"
+    }
+  ]
+}
