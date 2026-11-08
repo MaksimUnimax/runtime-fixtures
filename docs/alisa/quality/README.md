@@ -1,63 +1,61 @@
-# Октопорт маркет: совместная работа тестера и автора матрицы
+# Октопорт маркет: матрица, голосовая и веб-аналитика
 
-Начинать каждый сеанс здесь. Репозиторий `MaksimUnimax/runtime-fixtures`, ветка `alisa`, общий центр `docs/alisa/quality/`. Чат и архивы не создают вторую очередь задач.
+Начинать каждый сеанс здесь. Репозиторий `MaksimUnimax/runtime-fixtures`, ветка `alisa`; общий центр `docs/alisa/quality/`. Чат и архивы не создают вторую очередь задач.
 
-## Текущая точка — OWNER-CONSOLE-R1, 8 ноября 2026
+## Уточнение владельца
 
-**OWNER_FORM_ACTIVE / AUTHOR_TESTED / REAL_OWNER_CONFIRMATION_PENDING.**
+**Развиваем и голосовое управление через Алису, и полноценный веб-сервис аналитики.** Сайт не ограничивать регистрацией/настройками. Последнее конкретное поручение — пункт1: общая себестоимость магазина, индивидуальные исключения и автоматический выбор товара вместо ручного ввода SKU. После выполнения владелец тестирует этот пункт; не подменять его новой цепочкой несогласованных функций.
 
-[Фактическая приёмка, артефакты и действия владельца](OWNER_CONSOLE_R1_ACCEPTANCE_2026-11-08.md) · [План поставки](OWNER_CONSOLE_R1_RELEASE_PLAN_2026-11-08.md) · [План реализации](OWNER_CONSOLE_R1_PLAN_2026-11-08.md).
+## Текущая точка — OWNER-DEFAULT-R1, 8 ноября 2026
 
-Форма **«Себестоимость и расходы» установлена**: https://alisa.octoport.ru/app/owner-inputs . В карточках https://alisa.octoport.ru/app/stores добавлена ссылка. Используются прежние login и session cookie; без сессии — redirect /login. Автор не заполнял и не утверждал реальные параметры владельца.
+**COMMON_COST_FORM_AND_CATALOG_ACTIVE / AUTHOR_TESTED / REAL_OWNER_TEST_PENDING.**
 
-Вводятся числовой marketplace SKU, себестоимость с датами действия, налог и собственные расходы за точный период. Неизвестное, явный ноль и явное исключение налога различаются. Нет r9/default250, автоматической ставки или месячного prorating. Сохранение требует явной галочки и текущей revision; формируется новая подтверждённая версия. Само сохранение расчёт не запускает.
+[Приёмка, доказательства и действия владельца](OWNER_DEFAULT_R1_ACCEPTANCE_2026-11-08.md) · [План установки](OWNER_DEFAULT_R1_RELEASE_PLAN_2026-11-08.md).
 
-При потерянном ответе используется исходный command ID и status/deadline, не автоматическая новая правка. В localStorage только идентификатор/магазин/revision/action/deadline, без денежных черновиков и секретов. Web Lock и expected_revision защищают вкладки; отказ storage блокирует POST. Duplicate JSON keys и неизвестные действия BFF запрещены. Сохранённые неподдерживаемые поля не отбрасываются молча.
+Форма https://alisa.octoport.ru/app/owner-inputs обновлена на рабочем сайте; ссылка также есть в https://alisa.octoport.ru/app/stores . Web/platform release **alisa-853e2b2f85759c42**.
 
-### Проверки
+«Добавить общую себестоимость» — сумма за единицу и даты для всех товаров, без SKU/списка товаров. «Добавить исключение для товара» — название/артикул из подключённого каталога, индивидуальная сумма и даты. Идентификатор подставляется программно. Общая цена распространяется и на новые source-verified товары; исключение перекрывает её в свои даты. Явный ноль/unknown исключения не заменяется общей ценой; вне покрытия остаётся пропуск. Правила реализованы и проверены в общем resolver кандидата; работающий аналитический runtime не переключался.
 
-**1940 server checks PASS** = 1840 matrix +85 source/recovery/RPC +15 upstream. Отдельно **39 model/strictJSON** и **18 Chromium+Next BFF** PASS, typecheck/build PASS. Не складывать слои в выдуманное число финансовых сценариев. Данные тестов искусственные; реальный owner login/save не выполнялся. Disposable PostgreSQL остановлен/удалён, provider HTTP0.
+Сохранены галочка, текущая revision, защита второй вкладки, lost-ACK recovery, отказ при недоступном browser storage, strict JSON/Host/Origin/session. Налог и собственные расходы — точный период, не автоматическое распределение. Нет r9/default250. Реальные параметры не вводились и не утверждались исполнителем; существующие записи не мигрировались и не переутверждались автоматически.
 
-Защищённый current-authority RPC реализован и проверен настоящим loopback HTTP: подписанный scoped ticket, текущая проверка БД, отдельный service-key, MAC ответа/request_id, bounded shared HTTP, без browser token или DB credentials в runtime. Но **production OWNER_RUNTIME_ENABLED=0**, job-admission/RuntimePort/voice C-UE01 ещё не включены. Readiness платформы честно RUNTIME_NOT_CONNECTED. Доступность формы не равна готовности нового голосового отчёта.
+Каталог — ограниченная read-only справочная операция существующего private peer IPC проверки магазина. Это не финансовая очередь и не выдаётся за расход аналитического ledger. Fixed endpoints/shared bounded HTTP, без произвольных URL/retry; current owner/store/credential проверяются до и после IO, cursor подписан. Для общей цены каталог не нужен; для выбора товара PERFORMANCE не требуется. Ошибка источника не маскируется пустым успешным списком.
 
-### Фактическая установка
+### Проверки и установленное состояние
 
-Web и platform/site: **alisa-e5a51856a45d8c03**,4484 manifest objects verified; manifest SHA256 `b3561265cec07473874f6c544bed712996d1890e0a3f2f035258472a7e9a7d2b`. Переключены только web-current/site-current и включён OWNER_DATA_ENABLED. Применена только additive owner_data.0001_initial; обе новые таблицы при активации пусты. До миграции — частная согласованная backup; она и env не публикуются. PostgreSQL runtime-role осталась без superuser, прежний запрет UPDATE access grants сохранён.
+**1996 серверных PASS**:1840 прежняя матрица,103 source/recovery/RPC,15 upstream audit,12 defaults,18 catalogue,8 Unix IPC. Отдельно47model и24Chromium+NextBFF PASS, typecheck/build PASS. Provider ответы/аккаунты/суммы в тестах искусственные; рабочая БД не использовалась. Temporary PostgreSQL остановлен/удалён. Реальный owner login/save и live provider catalogue — ещё не проверены пользователем. Независимый review нового пакета NOT_RUN.
 
-Identity остаётся da73, admin06f3, аналитическое ядро **alisa-runtime-06f3c053e7719290**. Их PIDs/указатели и market runtime config сохранены относительно preflight. Пароль/email-коды/MFA/привязки не менялись. Перезапущены только web/platform.
+Проверены4498файлов web/platform, manifest SHA256 `4872b71ed8ec251ed6fc6615e87589d120b3f896cc0d25a79b961379e164fe70`. Checker release `owner-catalog-853e2b2f85759c42` включён отдельным флагом в существующей службе, без расширения доступа к БД/секретам. Новых services/миграций нет.
 
-HTTPS smoke05:45:35UTC: главная/login200; stores и owner-inputs без сессии307→login; ownerAPI401 без сессии и403 при чужом Origin; публичный internal RPC404. Реальный вход владельца этим не доказан. Свободно3119,41MiB при резерве3072MiB.
+Первый activation автоматически вернул старый код из-за прав0700 новой checker-директории. Исправлены только права каталога0755, worker проверен от имени службы, повторная установка прошла. Неуспешные receipts сохранены. Внешний readback06:42UTC: login/root200, защищённые страницы redirect без сессии, catalogueBFF401/403, internalRPC публично404.
 
-Старый da73 представляет частичный web/identity release: все присутствующие хеши и обязательные исполняемые компоненты проверены, но недостающие inactive/build inputs не названы полной целостностью архива. Новый release построен на полной проверенной06f3 базе с overlay нового web/platform кода. Старые действующие компоненты не заменялись вручную.
+Переключались только web/platform и справочный checker. **Identity da73/admin06f3/market06f3, их PIDs, web/platform env и market config сохранены.** Пароль, email-коды, MFA не менялись. Аналитическое ядро остаётся `alisa-runtime-06f3c053e7719290`,81файл,PID281405; config SHA256 `92702c1136ebd0d785ef2b1b76c9d7873761076478e568df739e7d4635b252b5`.
 
-## Исходники и воспроизведение
+**OWNER_RUNTIME=0, C-UE01 job-admission/voice всё ещё не включены; readiness RUNTIME_NOT_CONNECTED.** Доступность формы не означает новый принятый финансовый отчёт. Успешный старый R4 с примером не подставлять как live-проверку нынешних пользовательских данных.
 
-Локальный source SHA **e5a51856a45d8c03cbf042c5d8af1356edbf9473**, база ed7a679c. **CLI push не авторизован; этот source commit пока не заявляется опубликованным в GitHub.** Exact SOURCE.bundle/patch сохранены в overlay; требуется интегрировать их в штатную платформенную ветку, не потеряв текущие правки. Документация опубликована отдельно штатным connector.
+## Материалы
 
-Overlay на Alisa: `/root/alice-lab-evidence/owner-console-r1-20261108/alisa-e5a51856a45d8c03-owner-overlay.tar.gz`,15184593байт,SHA256 `b344f512817162c68237a0d29795be87e2ace0d65216275a2b0fdb5f4d9633a9`.
+Candidate: `/opt/alice-market/candidates/20261108-owner-default-r1`,301manifest entries,SHA256 `c57690d04e551b4c73b503a70b8b8c544af45211923ae191009f42741365d70f`.
 
-Матричный кандидат `/opt/alice-market/candidates/20261108-owner-console-r1`. Архив кандидата/безопасных квитанций `ALISA_OWNER_CONSOLE_R1_2026-11-08.zip`,701959байт,SHA256 `76a07e7aa0713af5c0990b4b76f352f932ea6cbf0f8c6a569a79e6c22ca306f9`,в том же evidence-каталоге. Candidate MANIFEST293entries,SHA256 `35491864d8817db963c26e01cc9d99aebb209a6311867e5b2944a744fa2e2f74`. Нет working env, реальных owner facts/секретов/backup.
+Evidence: `/root/alice-lab-evidence/owner-default-r1-20261108`.
 
-Не повторять завершённую activation. Перед дальнейшей работой сверить Git, locks, ExecStart, новые web/site flags и manifests; не откатывать06f3 fairness/deadline, текущий login или установленную форму старыми полными пакетами.
+Полный backend/source bundle/безопасные квитанции: `ALISA_OWNER_DEFAULT_R1_2026-11-08.zip`,781088байт,323файла,SHA256 `a62069a8cbb83ddc8176a91468977a8f2e5ea58603214b4eb7e34d23f82e236e`.
 
-## История, каталог и независимые статусы
+Точный source commit853e2b2f85759c42b8befa146a300482f31409de, SOURCE.bundle/patch сохранены; Git push не заявлен. Полный built overlay15407883байт находится на Easyscript в `/root/alisa-owner-console-r1-20261108/default-delivery/`; SHA256 `8ccf2463247ba7bca1ac45fcf1ac54718bc2517ca49bbccf6806a973431a22b3`. На Alisa удалена только проверенная собственная дублирующая transfer-копия ради3072MiB резерва; старые evidence/backups не удалялись. Исторические live/install scripts не запускать повторно автоматически.
 
-[OWNER-SOURCE-R1](OWNER_SOURCE_R1_ACCEPTANCE_2026-11-08.md) — producer/current verifier,1907 тестов; [OWNER-BINDING-R1](OWNER_BINDING_R1_ACCEPTANCE_2026-11-08.md) — внешний matrix snapshot; [MATRIX-LIVE-R4](CUE01_MATRIX_LIVE_R4_ACCEPTANCE_2026-11-08.md) — последняя реальная bounded квалификация с r9-примером. Старый READY R4 не является новым результатом на реальных owner inputs.
+## Общие правила и независимые статусы
 
-Одна аналитическая очередь/Worker и общий quota ledger. Exact-only cache требует полного идентичного результата и актуальных прав/срока. Нельзя подставлять неизвестные значения нулями, смешивать частичные старые captures, скрывать UNKNOWN автоматическим повтором или считать частичный результат READY.
+**82 реализовано /78 включено /4WB выключено.** UI, source, internal bindings и тесты не увеличивают число голосовых определений. WB полнота остаётся недоказанной; lifecycle/split/physical-event и production C-UE01 не закрыты этой формой.
 
-**82 реализовано /78 включено /4WB выключено.** Новых голосовых включений0. Независимый review OWNER_CONSOLE и реальный owner save — NOT_RUN. DS03 имеет отдельный targeted SOURCE PASS из аудита, но полный safety/live numeric и прежние PARTIAL/SKIP не закрыты. [Аудиторская установка06f3](AUDIT_FIXES_2026-11-08.md) и [частные испытания Станции](STATION_START_2026-11-08.md) не превращаются в приёмку новой C-UE01.
+Один аналитический runtime/queue/quota ledger, exact-only полный кеш при текущих правах/TTL. Не заменять пропуски нулями, partial результатомREADY, исторические данные текущим snapshot; UNKNOWN не повторять автоматически. Новая версия owner данных не подменяет принятую арифметику старого job.
 
-[BUGS](BUGS.json), [TEMPLATES](TEMPLATES.json), [RUNS](RUNS.json), [BOARD](BOARD.md), [WORKFLOW](WORKFLOW.md), [счётчики](CATALOG_PROGRESS_CURRENT.json) остаются общим центром. Новый независимый прогон — отдельный inbox с точной версией/hash и фактическими исходами; не переписывать историю.
+DS03 имеет отдельный адресный независимый SOURCE PASS в [аудите](AUDIT_FIXES_2026-11-08.md); это не полный safety/live numerical verdict. Исторические PARTIAL/SKIP не переписаны. Новые независимые отчёты — отдельный inbox/<UTC-дата>-TESTER-<8hex>/ с exact version/hash, фактическими запросами/ответами и временем. Неизмеренное null; авторский PASS не равен независимому.
 
-## Что требуется от владельца
+[BUGS](BUGS.json),[TEMPLATES](TEMPLATES.json),[RUNS](RUNS.json),[BOARD](BOARD.md),[WORKFLOW](WORKFLOW.md),[счётчики](CATALOG_PROGRESS_CURRENT.json) остаются общим центром. Перед изменениями снова проверять актуальные указатели/manifests/locks; не откатывать работу другого исполнителя.
 
-В итоговом отчёте каждого прохода необходимые действия владельца располагать **непосредственно перед «Следующим шагом»**, с конкретной ссылкой и ожидаемым результатом. Не отправлять владельца на неустановленную функцию.
+## Действия владельца и продолжение
 
-Сейчас: открыть https://alisa.octoport.ru/app/stores , проверить выбранный магазин; открыть https://alisa.octoport.ru/app/owner-inputs , ввести реальные SKU/себестоимости/даты и нужные period-expenses либо явные пропуски; отметить подтверждение и сохранить. Ожидается «Параметры подтверждены. Версия N». При потере ответа — «Проверить сохранение». Сообщить название магазина, период и номер версии, без ключей/паролей/кодов.
+В отчёте давать конкретные пользовательские шаги **перед следующим техническим шагом**: ссылка, действие, ожидаемый результат. Сейчас: выбрать магазин, добавить общую цену/даты, при необходимости исключение из каталога, явно подтвердить/сохранить и перечитать версию. Подробности в приёмке. Никаких ручных SKU для общего режима и выдуманных значений для проверки.
 
-## Следующий шаг
+**Следующий шаг — принять ручной тест пункта1.** Затем продолжать согласованную расчётную/голосовую интеграцию и веб-аналитику, не выдавая уже установленную настройку за завершённую новую аналитику.
 
-Интегрировать сохранённый exact source bundle в штатную ветку, завершить production job-admission/current-authority wiring и независимое ревью; после реального подтверждения параметров выполнить ограниченный C-UE01 и числовую сверку. Новый голосовой отчёт пока не включать и не объявлять готовым по одним тестовым данным.
-
-[Предыдущий README](https://github.com/MaksimUnimax/runtime-fixtures/blob/cfcf8fd91e4a8878b7420f6ebdd95d607b4e8592/docs/alisa/quality/README.md) сохраняет точную историю OWNER-SOURCE-R1.
+История: [OWNER-CONSOLE-R1](OWNER_CONSOLE_R1_ACCEPTANCE_2026-11-08.md),[OWNER-SOURCE-R1](OWNER_SOURCE_R1_ACCEPTANCE_2026-11-08.md),[OWNER-BINDING-R1](OWNER_BINDING_R1_ACCEPTANCE_2026-11-08.md),[MATRIX-LIVE-R4](CUE01_MATRIX_LIVE_R4_ACCEPTANCE_2026-11-08.md). Предыдущий README сохранён в checkpoint af46c01777824aa49e192be3afbf40fc5e2c8805.
