@@ -111,6 +111,14 @@ function summarize(rows, report, paginationComplete) {
     return { status: "INCOMPLETE", reason: "REPORT_CURRENCY_MISSING" };
   if (rows.some((row) => row.reportId !== report.reportId))
     return { status: "INCOMPLETE", reason: "REPORT_ID_MISMATCH" };
+  // The accepted normalized finance-detail grain is one integer rrdId per row.
+  // Reject ambiguous/repeated identities rather than silently counting them twice.
+  const ids = new Set();
+  for (const row of rows) {
+    if (!Number.isInteger(row.rrdId) || ids.has(row.rrdId))
+      return { status: "INCOMPLETE", reason: "FINANCE_DETAIL_RRD_ID_INVALID" };
+    ids.add(row.rrdId);
+  }
   for (const field of ["retailAmount", "forPay"]) {
     if (rows.some((row) => parseDecimal(row[field]) === null))
       return { status: "INCOMPLETE", reason: "MONEY_NOT_DECIMAL_STRING" };
@@ -172,6 +180,79 @@ assert.equal(slice.rules.ownerRevenueDefinition, "REQUIRED_BEFORE_LABEL_REVENUE"
 assert.equal(slice.rules.decimalMath, "EXACT_DECIMAL_STRING_NO_BINARY_FLOAT");
 assert.equal(slice.rules.currency, "JOIN_REPORT_METADATA_DO_NOT_ASSUME_RUB");
 
+// Synthetic identity failures go through the actual summary before money totals.
+// This retains the project's integer Number domain, without a new provider ID
+// syntax, positivity or safe-integer policy. Valid duplicate amounts are not IDs.
+let financeRowIdentityCases = 0;
+const invalidRrd = { status: "INCOMPLETE", reason: "FINANCE_DETAIL_RRD_ID_INVALID" };
+function checkFinanceRows(rows, report, complete, expected, label) {
+  const actual = summarize(rows, report, complete);
+  assert.deepEqual(actual, expected, label);
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), label + " JSON");
+  financeRowIdentityCases++;
+}
+for (const id of [
+  undefined, null, "1", "", true, false, 0.5, -0.5, NaN, Infinity,
+  -Infinity, Number.MIN_VALUE, {}, [], new Number(1), 1n, Symbol("rrd"),
+]) {
+  for (let index = 0; index < c.detailRows.length; index++) {
+    const rows = structuredClone(c.detailRows);
+    rows[index].rrdId = id;
+    checkFinanceRows(rows, c.reportMetadata, true, invalidRrd, "invalid rrdId");
+  }
+}
+for (let source = 0; source < c.detailRows.length; source++) {
+  for (let position = 0; position <= c.detailRows.length; position++) {
+    const rows = structuredClone(c.detailRows);
+    rows.splice(position, 0, structuredClone(rows[source]));
+    checkFinanceRows(rows, c.reportMetadata, true, invalidRrd, "duplicate row");
+  }
+}
+for (const id of [0, -0, -1, 2 ** 53, -(2 ** 53), Number.MAX_VALUE]) {
+  const rows = structuredClone(c.detailRows);
+  rows[0].rrdId = id;
+  checkFinanceRows(rows, c.reportMetadata, true, summary, "valid integer domain");
+}
+{
+  const rows = structuredClone(c.detailRows);
+  rows[0].rrdId = 0;
+  rows[1].rrdId = -0;
+  checkFinanceRows(rows, c.reportMetadata, true, invalidRrd, "signed zero duplicate");
+}
+{
+  const rows = structuredClone(c.detailRows);
+  rows[1].rrdId = rows[0].rrdId;
+  rows[1].nmId = 1002;
+  checkFinanceRows(rows, c.reportMetadata, true, invalidRrd, "cross-product duplicate");
+  checkFinanceRows(rows, c.reportMetadata, false,
+    { status: "INCOMPLETE", reason: "PAGINATION_NOT_TERMINAL_204" }, "pagination first");
+  checkFinanceRows(rows, { reportId: 901 }, true,
+    { status: "INCOMPLETE", reason: "REPORT_CURRENCY_MISSING" }, "currency first");
+  rows[0].reportId = 902;
+  checkFinanceRows(rows, c.reportMetadata, true,
+    { status: "INCOMPLETE", reason: "REPORT_ID_MISMATCH" }, "report first");
+}
+{
+  const rows = structuredClone(c.detailRows);
+  rows[1].retailAmount = rows[0].retailAmount;
+  rows[1].forPay = rows[0].forPay;
+  checkFinanceRows(rows, c.reportMetadata, true, {
+    status: "PASS", currency: "RUB", retailAmount: "250.20", forPay: "180.10",
+    byProduct: {
+      "1001": { retailAmount: "200.20", forPay: "140.10" },
+      "1002": { retailAmount: "50.00", forPay: "40.00" },
+    },
+  }, "equal amounts with distinct identities");
+}
+{
+  const rows = Object.freeze(c.detailRows.map((row) => Object.freeze({ ...row })));
+  const report = Object.freeze({ ...c.reportMetadata });
+  checkFinanceRows(rows, report, true, summary, "frozen inputs");
+  checkFinanceRows([], report, true, {
+    status: "PASS", currency: "RUB", retailAmount: "0.00", forPay: "0.00", byProduct: {},
+  }, "empty private-domain behavior preserved");
+}
+
 console.log(
   JSON.stringify({
     status: "PASS",
@@ -180,6 +261,7 @@ console.log(
     operations: [list.operationAlias, detail.operationAlias],
     currencyJoin: true,
     exactDecimal: true,
+    financeRowIdentityCases,
     finalRevenueSelected: false,
     liveValues: false,
   }),
