@@ -1,0 +1,7 @@
+{
+  "source_sha": "5dff6e8883e25ac464d6e8c64e4ab5a7280c70f7",
+  "manifest_sha256": "71db6528ea86cd7a112eeed53546cf1b4524a3fab6367ec5da928b4968e8df10",
+  "status": "PREPARED",
+  "shared_http_materialization": "SYMLINK_TO_SAME_PINNED_PHYSICAL_CORE_FILE"
+}
+

@@ -1,0 +1,136 @@
+{
+  "review": "S05_INSTALLED_INDEPENDENT_FINAL_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "COHERENT_WITH_EXPLICIT_LIMITS",
+  "review_scope": "Local read-only cross-check of supplied installed and CI receipts; no host calls, credentials, DB access, or mutations by reviewer.",
+  "source": {
+    "sha": "5dff6e8883e25ac464d6e8c64e4ab5a7280c70f7",
+    "tree": "9afeb3e88268606e1d51bdc842093c9be483a7da",
+    "manifest_sha256": "74fc1baa3513550ad463b69984bf5a239e0f58294126cbab9b155cf700afcbc8",
+    "ci_platform": 42440668842,
+    "ci_documentation": 42440668853,
+    "ci_conclusion": "success"
+  },
+  "receipt_sha256": {
+    "activate-platform-web.json": "fda410983df2e824cc358ec805b9a532ddcffedb212736eea62107549bef7e5e",
+    "install-checker-overlay.json": "77694d7a2cc6ff7236b38517ff0db8a4b1a7d4803e469b1cd6b8cdcaecd164c8",
+    "final-readback.json": "dd13c90f76a4bcd68b650e94ef13f1bf08fccea8d9a9c6f261fd8b0a737a0f0e",
+    "ci-s05-core-qualification.json": "5ad20bcf5513ec6fab2aa7ea998fa78342948f5b211be11d8cb5ba857e6e9f83",
+    "ci-s02-qualification.json": "fe49899785e3b776f5201b58da58e122377f2204581da4eb4272f3ea59b346eb",
+    "package-binding.json": "4676a9d4cf927726e48d926a5650e96c05602df8923338864b2a95c0c00c564e"
+  },
+  "activation": {
+    "status": "PASS",
+    "passed_cases": 24,
+    "cases": 24,
+    "active_pointers": {
+      "web-current": "alisa-5dff6e8883e25ac4",
+      "site-current": "alisa-5dff6e8883e25ac4",
+      "identity-current": "alisa-7afaf646b9b35a58",
+      "admin-current": "alisa-73180172646b7012",
+      "current": "alisa-482ed11832b666af"
+    },
+    "preserved_services_and_configs_check_passed": true
+  },
+  "checker_overlay": {
+    "status": "PASS",
+    "passed_cases": 37,
+    "cases": 37,
+    "live_adapter_results": [
+      {
+        "case": "seller_actual",
+        "code": "CONNECTED",
+        "identity_matches": true
+      },
+      {
+        "case": "seller_wrong_client",
+        "code": "AUTH_DENIED"
+      },
+      {
+        "case": "seller_wrong_key",
+        "code": "AUTH_DENIED"
+      },
+      {
+        "case": "performance_actual",
+        "code": "AUTHENTICATED_UNLINKED"
+      },
+      {
+        "case": "wb_actual",
+        "code": "CONNECTED",
+        "identity_matches": true
+      }
+    ],
+    "shared_http_sha256": "da3ecbb2ceb2671adda1fd8a4cab7ea4331eb1cd43b0b6a1f70dc9cb12ec34cb",
+    "same_physical_shared_http": true,
+    "directory_modes": [
+      "0o755",
+      "0o755"
+    ]
+  },
+  "final_readback": {
+    "pointers": {
+      "web-current": "alisa-5dff6e8883e25ac4",
+      "site-current": "alisa-5dff6e8883e25ac4",
+      "identity-current": "alisa-7afaf646b9b35a58",
+      "admin-current": "alisa-73180172646b7012",
+      "current": "alisa-482ed11832b666af"
+    },
+    "services": {
+      "alice-market.service": "MainPID=145588\nActiveState=active\nSubState=running",
+      "alisa-platform@stage.service": "MainPID=278219\nActiveState=active\nSubState=running",
+      "alisa-web@stage.service": "MainPID=278242\nActiveState=active\nSubState=running",
+      "alisa-store-check.service": "MainPID=278372\nActiveState=active\nSubState=running",
+      "alisa-identity@stage.service": "MainPID=153405\nActiveState=active\nSubState=running",
+      "alisa-admin@stage.service": "MainPID=144260\nActiveState=active\nSubState=running"
+    },
+    "web_health": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-5dff6e8883e25ac4",
+      "status": "READY"
+    },
+    "platform_health": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-5dff6e8883e25ac4"
+    },
+    "free_bytes": 3378135040,
+    "free_inodes": 513046
+  },
+  "owner_store": {
+    "matching_store_count": 1,
+    "database_scope": "READ_ONLY",
+    "store_status": "ACTIVE",
+    "identity_verified": false,
+    "credentials": [
+      {
+        "kind": "SELLER",
+        "revision": 1,
+        "status": "PENDING",
+        "check_code": "IDENTITY_NOT_VERIFIED"
+      },
+      {
+        "kind": "PERFORMANCE",
+        "revision": 1,
+        "status": "PENDING",
+        "check_code": "IDENTITY_NOT_VERIFIED"
+      }
+    ],
+    "interpretation": "Owner store still needs its authorized browser recheck; successful installed checker calls do not update the existing stored credential statuses."
+  },
+  "limits": [
+    "Performance token is authenticated but unlinked; same-cabinet identity is not proven.",
+    "No owner browser session or authenticated BFF recheck was performed.",
+    "Platform reports RUNTIME_NOT_CONNECTED; customer reporting, financial data, and voice workflows remain unverified.",
+    "Disposable CI and live adapter credential checks do not establish full customer-facing acceptance."
+  ],
+  "reviewer_actions": {
+    "host_calls": false,
+    "provider_calls": false,
+    "database_reads": false,
+    "credentials_read": false,
+    "mutations": false
+  }
+}
