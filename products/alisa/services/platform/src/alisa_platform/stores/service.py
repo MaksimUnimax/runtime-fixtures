@@ -48,7 +48,8 @@ def projection(store):
         'voice_alias': store.voice_alias, 'revision': store.revision, 'status': store.status,
         'identity_verified': store.verified_identity is not None,
         'credentials': [{'id': str(r.pk), 'kind': r.kind, 'revision': r.revision,
-            'status': r.status, 'check_code': r.check_code,
+            'status': r.status, 'check_code': 'CONNECTED' if r.check_code == 'CONNECTED_NATIVE_OWNER' else r.check_code,
+            **({'binding_provenance': 'NATIVE_OWNER_CONFIGURED_PAIR'} if r.check_code == 'CONNECTED_NATIVE_OWNER' else {}),
             'checked_at': r.checked_at.isoformat() if r.checked_at else None} for r in credentials]}
 
 
@@ -226,7 +227,9 @@ def finish(token, command_id, checked):
                     kind=candidate.kind, status='ACTIVE').exclude(pk=candidate.pk))
                 store.verified_identity = identity
                 candidate.status = 'ACTIVE'
-        candidate.check_code = code; candidate.checked_at = now; candidate.save(update_fields=['status', 'check_code', 'checked_at'])
+        stored_code = ('CONNECTED_NATIVE_OWNER' if code == 'CONNECTED'
+                       and checked.get('identity_provenance') == 'NATIVE_OWNER_CONFIGURED_PAIR' else code)
+        candidate.check_code = stored_code; candidate.checked_at = now; candidate.save(update_fields=['status', 'check_code', 'checked_at'])
         store.revision += 1; store.save(update_fields=['verified_identity', 'revision'])
-        audit(actor, store, 'check', code)
+        audit(actor, store, 'check', stored_code)
         return result(command, {'store': projection(store), 'check_code': code})

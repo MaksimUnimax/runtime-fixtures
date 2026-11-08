@@ -1,0 +1,34 @@
+{
+  "runtime": {
+    "zip_sha256": "a739f9b511df5751f771e491002d9825c7bb201095796ffcebc470e12f4c75d0",
+    "tar_sha256": "95b77f367ad9aad0f17a384be3b552a1a01aab74767cdb74f84caddbaa82a9dd",
+    "files": {
+      "manifest.json": "701d73af41b58b7d4054802aac596e31ce19b05c5912739b4d893c986ab2fd98",
+      "store_checker.py": "a9b8abe8ac37d43c35eae19ab9b3114feaf158b72e80e7485d982add9cfc77a1",
+      "native_store_binding.py": "30664db61e047927c9dafd2b16fd70d3d1ba662ee3ea59ce539d4e1e32045347"
+    }
+  },
+  "qualification": {
+    "zip_sha256": "ecc6129440911c03b88b06d522c1b85d9d8043003ea8ddf0d3beec160689590d",
+    "files": 19
+  },
+  "platform": {
+    "zip_sha256": "f758df0bcd54a39a330adad49194dd520577db3167d5417210d3171a402307fb",
+    "tar_sha256": "ca2776d8048cca5db0079014cca05b3d803455355c92088fdb78125ae39020f0",
+    "files": {
+      "manifest.json": "c823e43abab975a9e8425ba81924eff66171ebb2f3f6c29bb5e8f0f46c6c0d5f",
+      "services/platform/src/alisa_platform/stores/service.py": "af1f1db37d3aa36951af59a0657ae4766b0c471812fd2567d29485bdaf355dc1",
+      "services/platform/src/alisa_platform/runtime_adapter/store_check.py": "5739007ed991ada634cf4c498de3310db807ca2a004ebb5d45c0db75d379f8d8"
+    }
+  },
+  "source_sha": "8e1a695d71f1004b03564570b880a915efdb539e",
+  "tree_sha": "5ed062fb9fc74e9a2c8689e1234f748ff0c2951e",
+  "platform_ci": {
+    "id": 42461710315,
+    "conclusion": "success"
+  },
+  "documentation_ci": {
+    "id": 42461710338,
+    "conclusion": "success"
+  }
+}

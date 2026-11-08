@@ -1,0 +1,42 @@
+{
+  "status": "PASS",
+  "source_sha": "8e1a695d71f1004b03564570b880a915efdb539e",
+  "api_release": "alisa-native-pair-8e1a695d71f1004b",
+  "checker_release": "native-pair-8e1a695d71f1004b",
+  "files": {
+    "api_manifest": "b9f76bd48ea07355085cd89d14232d5de4df9641bf966c2c6c7fd8b514449cf1",
+    "store_service": "af1f1db37d3aa36951af59a0657ae4766b0c471812fd2567d29485bdaf355dc1",
+    "store_adapter_with_preserved_catalog": "6d71f8cb6ed263d713292ff49a19aefe90ee5462d8370cc0b9ef9bb3b9f93968",
+    "checker": "a9b8abe8ac37d43c35eae19ab9b3114feaf158b72e80e7485d982add9cfc77a1",
+    "native_binding": "30664db61e047927c9dafd2b16fd70d3d1ba662ee3ea59ce539d4e1e32045347",
+    "requalify_helper": "ab6c237e9a5affda88df6bb91dc2f7c9f9b09d1c0f9f3f4fe7b34cbc02e7d799",
+    "refresh_unit": "29608ba61951f1ec610781e17c8d5d2a6e614c13c6997a4296d1c2d9129e0411"
+  },
+  "service_states": {
+    "alice-market.service": "active",
+    "alice-lab-worker.service": "inactive",
+    "alisa-web@stage.service": "active",
+    "alisa-platform@stage.service": "active",
+    "alisa-identity@stage.service": "active",
+    "alisa-admin@stage.service": "active",
+    "alisa-store-check.service": "active"
+  },
+  "current_native_generation_matches": true,
+  "public": {
+    "homepage": {
+      "http_status": 200,
+      "final_path": "/"
+    },
+    "stores_unauthenticated": {
+      "http_status": 200,
+      "final_path": "/login"
+    }
+  },
+  "free_bytes": 3223064576,
+  "available_inodes": 482295,
+  "browser_card_transition": "NOT_RUN",
+  "database_migrations": 0,
+  "native_core_restarted_by_this_work": false,
+  "web_identity_admin_changed_by_this_work": false,
+  "native_core_restart_by_another_actor_observed_after_first_activation": true
+}

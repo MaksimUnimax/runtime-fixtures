@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "scope": "FIXTURE_ONLY_NO_PROVIDER_OR_DB",
+  "total": 21,
+  "new_refresh_cases": 6,
+  "existing_binding_cases": 15,
+  "command": "python3 -B docs/alisa/service-platform/execution/s05-native-pair-20261108/test_requalify.py",
+  "source_sha256": "ab6c237e9a5affda88df6bb91dc2f7c9f9b09d1c0f9f3f4fe7b34cbc02e7d799"
+}
