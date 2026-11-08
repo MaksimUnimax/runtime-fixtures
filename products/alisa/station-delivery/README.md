@@ -1,5 +1,3 @@
-> **NOT_DEPLOYED / UX_REJECTED (2026-11-08).** Owner clarified that QR approval was for the transport test, not approval of a second production onboarding/login. Deployment of this candidate is paused. Its admin QR flow and separate spoken pairing must not become the production customer path. The timer/configuration/reader code below is a candidate only. Resolve the complete normal skill-linking → question → automatic answer path before resuming deployment. No claim that a public skill can wake the Station without separate authority.
-
 # Station autoanswer R1
 
 Owner-requested production integration of the physically tried Quasar probe. This is the single-owner Station channel; it does not declare the new-customer S06/S19 path complete.
@@ -14,7 +12,7 @@ Admin URL: https://alisa-admin.octoport.ru/admin/station/ (existing OWNER staff 
 - The callback verifies current voice token, tenant + application binding, enabled flag, generation, nonce lifetime, job state, reader selection and current source permission. It attaches the exact report to the new conversation for `дальше`.
 - Autoanswer OFF stops future sends and leaves the same saved report for the configurable manual phrase (default `результат`). Turning it back on does not unexpectedly replay previously disabled tasks.
 - QR session is encrypted with Fernet, root-provisioned systemd credential; no credentials in Git/logs/JS. Revoke clears local session, pending tasks and binding. Remote session revocation can also be performed in the Yandex account.
-- A six-digit code is spoken only on the selected Station; saying it inside the skill binds the originating application to the device. It expires after 3 minutes / 5 failed attempts. No account guessed from email/name.
+- After the one-time QR approval, the service selects the only Station (or asks the owner to choose among several) and invokes the linked skill with a short-lived challenge. The authorized callback binds its application to the chosen device automatically. The user does not read or pronounce a code. Challenge lifetime: 3 minutes / 5 failed attempts. No account guessed from email/name.
 - Network mutation outcome unknown → no blind retry, reconnect required. Accepted by Quasar / callback answered is not proof of physical sound.
 - One selected Station, one active delivery subscription. A new job supersedes previous automatic delivery on this Station; stored reports remain under existing runtime retention.
 - Pending delivery expires after 15 minutes. Stored jobs follow existing runtime expiry. A failed/cancelled/revoked/expired job stops automatic speech; the configured manual command remains available for its status.
@@ -23,7 +21,7 @@ Greeting: empty launch now says only «Привет». Site-name personalization
 
 ## Source and rollout
 
-`build_adapters.py` reproducibly patches three pinned installed source files into `alice_lab.py`, `alice_bridge.py`, `local_gateway.py`. No engine, matrix, provider, auth, store code or platform release pointer changes. Runtime service gets a hardlinked copy of the existing immutable release plus the two IPC files; originals stay intact. Lab OAuth is unchanged. `install.py` holds the existing release locks, checks exact original hashes and idle runtime, installs a dedicated persistent service and nginx path, and rolls back its own cutover on failure. See the installation receipt in the release report for the actual status.
+`build_adapters.py` reproducibly patches three pinned installed source files into `alice_lab.py`, `alice_bridge.py`, `local_gateway.py`. No engine, matrix, provider, auth, store code or platform release pointer changes. Runtime service gets a hardlinked copy of the existing immutable release plus the two IPC files; originals stay intact. Lab OAuth is unchanged. `install.py` preserves the current promotions-r1 runtime and holds the existing release locks, checks exact original hashes and idle runtime, installs a dedicated persistent service and nginx path, and rolls back its own cutover on failure. See the installation receipt in the release report for the actual status.
 
 A later code-agent runtime/lab deployment must carry the station_status/station_deliver gateway branch and station_client call. Do not replace this active integration with the historical original transport. No change needed in formulas/templates. The admin subsection has a direct URL; the general admin bundle is not rebuilt over another agent's active work.
 
@@ -37,3 +35,5 @@ node --check app.js
 ```
 
 Offline transport fixtures make no Yandex/provider calls. Installed synthetic checks and physical owner acceptance are separate.
+
+Owner clarification accepted: QR is allowed once on our site, with durable encrypted session reuse. Closing the page, ordinary skill requests and restarting the service do not require a new QR. Yandex-side expiry/revocation may require reconnect. Previous OWNER_UX_CORRECTION.md records the earlier misunderstanding and is superseded on this point.

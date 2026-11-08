@@ -52,6 +52,12 @@ class DeliveryTests(unittest.TestCase):
     def test_disable_keeps_manual(self):
         self.settings(enabled=False,manual_command='покажи ответ');self.after();self.now+=11;self.result={'state':'READY','text':'Ответ'};self.core.tick()
         self.assertFalse(self.launches());self.assertEqual(self.before('покажи ответ')['reply'],'Ответ')
+    def test_manual_ready_attaches_new_conversation(self):
+        self.settings(enabled=False);self.after();self.result={'state':'READY','text':'Ответ'}
+        seen=[]
+        self.core.peek=lambda value:(seen.append(value) or dict(self.result))
+        self.before('результат')
+        self.assertEqual(seen[-1]['op'],'station_deliver');self.assertEqual(seen[-1]['target_conversation'],'new-conversation')
     def test_disabled_no_retroactive_send(self):
         self.after();self.settings(enabled=False);self.settings(enabled=True);self.result={'state':'READY','text':'Ответ'};self.core.tick();self.assertFalse(self.launches())
     def test_callback_exact_once_rid_and_binding(self):
@@ -88,9 +94,9 @@ class DeliveryTests(unittest.TestCase):
         for state in ('SUPERSEDED','REVOKED','FAILED','CANCELLED','EXPIRED'):
             self.after(state);self.result={'state':state,'text':''};self.now+=11;self.core.tick()
         self.assertFalse(self.launches())
-    def test_pair_requires_spoken_secret_and_app(self):
+    def test_pair_automatic_skill_challenge_and_app(self):
         self.core.state['binding']=None
-        self.core.admin('pair',{},'owner');code=''.join(__import__('re').findall(r'\d',self.client.calls[0][2]['steps'][0]['parameters']['items'][0]['value']['capabilities'][0]['state']['value']['text']))
+        self.core.admin('pair',{},'owner');code=''.join(__import__('re').findall(r'\d',self.client.calls[0][2]['steps'][0]['parameters']['items'][0]['value']['capabilities'][0]['state']['value']))
         self.assertEqual(len(code),6);self.before('привязать колонку '+code);self.assertEqual(self.core.state['binding']['application'],'app')
     def test_staff_contract(self):
         from io import BytesIO

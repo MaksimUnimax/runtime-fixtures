@@ -193,7 +193,7 @@ class Delivery:
                 self.pair_hash = hashlib.sha256(code.encode()).hexdigest()
                 self.pair_until = self.clock()+180; self.pair_tries = 0
                 generation = self.state['generation']
-            self.speak('Код привязки: ' + '. '.join(code) + '. Скажите: Алиса, попроси Октопорт маркет привязать колонку, и эти шесть цифр.', generation)
+            self.speak('Спроси Октопорт маркет привязать колонку '+code, generation, mode='skill')
             return self.view()
         raise Fault('unknown_action')
 
@@ -268,18 +268,21 @@ class Delivery:
                     return {'reply': result['text']}
                 if command.startswith('привязать колонку'):
                     code = ''.join(re.findall(r'\d', command[len('привязать колонку'):]))
-                    if self.clock() >= self.pair_until or self.pair_tries >= 5: return {'reply': 'Запустите привязку колонки в админке заново.'}
+                    if self.clock() >= self.pair_until or self.pair_tries >= 5: return {'reply': 'Подключение колонки не завершено. Обновите состояние на сайте.'}
                     self.pair_tries += 1
                     if not hmac.compare_digest(hashlib.sha256(code.encode()).hexdigest(), self.pair_hash):
-                        return {'reply': 'Код привязки не совпал. Повторите шесть цифр, которые произнесла выбранная колонка.'}
+                        return {'reply': 'Автоматическое подключение не подтверждено.'}
                     self.state['binding'] = {k: data[k] for k in ('tenant', 'application')}
                     self.pair_until = 0; self.save()
-                    return {'reply': 'Колонка привязана. Автоматический ответ готов к проверке.'}
+                    return {'reply': 'Колонка подключена. Теперь я сообщу ответ, когда расчёт завершится.'}
                 if normalize(command) == settings['manual_command']:
                     if match and self.state['job']:
                         job = dict(self.state['job']); result = self.status_job(job)
                         self.state['job']['delivery'] = 'manual'; self.state['generation'] += 1; self.save()
-                        if result['state'] == 'READY': return {'reply': result['text']}
+                        if result['state'] == 'READY':
+                            delivered = self.peek({'op':'station_deliver','tenant':job['tenant'], 'conversation_id':job['conversation'], 'job_id':job['jid'],
+                                                   'target_conversation':data.get('conversation'), 'message_id':data.get('message_id')})
+                            return {'reply': delivered['text'] if delivered.get('state') == 'READY' else 'Этот ответ больше недоступен для текущей беседы.'}
                         if result['state'] in ('QUEUED', 'RUNNING'): return {'reply': 'Расчёт ещё выполняется.'}
                         return {'reply': result.get('text') or 'Для этого запроса нет доступного готового ответа.'}
                     return {'command': 'результат'}
