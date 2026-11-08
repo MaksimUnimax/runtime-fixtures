@@ -223,7 +223,8 @@ function drr(row) {
     row.spendCurrency !== row.revenueCurrency
   )
     return null;
-  return (row.spend / row.revenue) * 100;
+  const value = (row.spend / row.revenue) * 100;
+  return Number.isFinite(value) ? value : null;
 }
 
 for (const row of slice.syntheticCases.drr)
@@ -232,6 +233,61 @@ for (const row of slice.syntheticCases.drr)
     row.expected,
     "DRR must fail closed on zero/missing/currency mismatch",
   );
+
+let finiteDrrCases = 0;
+function checkFiniteDrr(values, expected, label) {
+  const actual = drr(values);
+  assert.ok(Object.is(actual, expected), label);
+  assert.ok(actual === null || Number.isFinite(actual), label + " finite/null");
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), label + " JSON");
+  finiteDrrCases++;
+}
+for (const [label, spend, revenue, expected] of [
+  ["division overflow", 1, Number.MIN_VALUE, null],
+  ["scale overflow", Number.MAX_VALUE, 1, null],
+  ["negative division overflow", -1, Number.MIN_VALUE, null],
+  ["negative scale overflow", -Number.MAX_VALUE, 1, null],
+  ["finite MAX", 1.7976931348623156e306, 1, Number.MAX_VALUE],
+  ["finite negative MAX", -1.7976931348623156e306, 1, -Number.MAX_VALUE],
+  ["scale overflow neighbour", 1.797693134862316e306, 1, null],
+  ["ordinary percent", 150, 1000, 15],
+  ["above100 retained", 100, 1, 10000],
+  ["negative finite spend", -150, 1000, -15],
+  ["division rounding", 1, 3, 33.33333333333333],
+  ["zero", 0, Number.MIN_VALUE, 0],
+  ["negative zero", -0, Number.MIN_VALUE, -0],
+  ["subnormal scale", Number.MIN_VALUE, 1, 4.94e-322],
+  ["underflow", Number.MIN_VALUE, 2, 0],
+  ["negative underflow", -Number.MIN_VALUE, 2, -0],
+  ["subnormal tie", 3 * Number.MIN_VALUE, 2, 9.9e-322],
+  ["zero revenue", 1, 0, null],
+  ["negative revenue", 1, -1, null],
+])
+  checkFiniteDrr({ spend, revenue, spendCurrency: "RUB", revenueCurrency: "RUB" }, expected, label);
+for (const field of ["spend", "revenue"]) {
+  for (const value of [null, undefined, NaN, Infinity, -Infinity, "1", {}, [], true, false, 1n, Symbol("synthetic"), new Number(1), () => 1])
+    checkFiniteDrr({ spend: 150, revenue: 1000, spendCurrency: "RUB", revenueCurrency: "RUB", [field]: value }, null, "invalid metric " + field);
+  const missing = { spend: 150, revenue: 1000, spendCurrency: "RUB", revenueCurrency: "RUB" };
+  delete missing[field];
+  checkFiniteDrr(missing, null, "missing metric " + field);
+}
+for (const field of ["spendCurrency", "revenueCurrency"]) {
+  for (const value of [null, undefined, 1, true, {}, [], Symbol("synthetic"), new String("RUB"), "USD"])
+    checkFiniteDrr({ spend: 150, revenue: 1000, spendCurrency: "RUB", revenueCurrency: "RUB", [field]: value }, null, "currency rejection " + field);
+  const missing = { spend: 150, revenue: 1000, spendCurrency: "RUB", revenueCurrency: "RUB" };
+  delete missing[field];
+  checkFiniteDrr(missing, null, "missing currency " + field);
+}
+// Existing string-equality admission is characterized, not ISO/provider proof.
+for (const currency of ["", " RUB ", "USD"])
+  checkFiniteDrr({ spend: 150, revenue: 1000, spendCurrency: currency, revenueCurrency: currency }, 15, "existing equal currency strings");
+checkFiniteDrr({ spend: 150, revenue: 1000, spendCurrency: "RUB", revenueCurrency: "RUB", complete: false }, 15, "helper has no generic completeness flag");
+const frozenDrrRow = Object.freeze({ spend: 150, revenue: 1000, spendCurrency: "RUB", revenueCurrency: "RUB" });
+const frozenDrrRowBefore = JSON.stringify(frozenDrrRow);
+checkFiniteDrr(frozenDrrRow, 15, "frozen helper input");
+assert.equal(JSON.stringify(frozenDrrRow), frozenDrrRowBefore, "helper input unchanged");
+assert.throws(() => drr(null), TypeError, "preexisting helper null root");
+assert.throws(() => drr(undefined), TypeError, "preexisting helper missing root");
 
 assert.equal(
   slice.rules.spend,
@@ -269,6 +325,7 @@ console.log(
     actualSpendSource: costs.operationAlias,
     promotionCurrencyInResponse: true,
     finalRevenueSelected: false,
+    finiteDrrCases,
     acceptedOperationMappingChanged: false,
     liveValues: false,
   }),

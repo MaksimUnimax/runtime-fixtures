@@ -518,7 +518,8 @@ const calculators = {
     const spend = finiteRecordedMetric(input.spend),
       revenue = finiteRecordedMetric(input.revenue);
     if (spend === null || revenue === null || revenue <= 0) return null;
-    return (spend / revenue) * 100;
+    const value = (spend / revenue) * 100;
+    return Number.isFinite(value) ? value : null;
   },
   platform_contribution(input) {
     const incomplete = {
@@ -1512,6 +1513,58 @@ checkFiniteContribution(syntheticContributionInput({ complete: false }), incompl
 assert.throws(() => calculators.platform_contribution(null), TypeError, "preexisting null-root boundary unchanged");
 assert.throws(() => calculators.platform_contribution(undefined), TypeError, "preexisting missing-root boundary unchanged");
 
+let finiteDrrConsumerCases = 0;
+function checkFiniteDrrConsumer(input, expected, label) {
+  const actual = calculators.drr(input);
+  assert.ok(Object.is(actual, expected), label);
+  assert.ok(actual === null || Number.isFinite(actual), label + " finite/null");
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), label + " JSON");
+  finiteDrrConsumerCases++;
+}
+for (const [label, spend, revenue, expected] of [
+  ["division overflow", 1, Number.MIN_VALUE, null],
+  ["percentage scale overflow", Number.MAX_VALUE, 1, null],
+  ["negative division overflow", -1, Number.MIN_VALUE, null],
+  ["negative scale overflow", -Number.MAX_VALUE, 1, null],
+  ["finite MAX percentage", 1.7976931348623156e306, 1, Number.MAX_VALUE],
+  ["finite negative MAX percentage", -1.7976931348623156e306, 1, -Number.MAX_VALUE],
+  ["next input overflows scale", 1.797693134862316e306, 1, null],
+  ["previous finite scale input", 1.7976931348623153e306, 1, 1.7976931348623153e308],
+  ["ordinary percentage", 150, 1000, 15],
+  ["percentage above100 retained", 100, 1, 10000],
+  ["negative finite spend retained", -150, 1000, -15],
+  ["division rounding retained", 1, 3, 33.33333333333333],
+  ["zero spend", 0, Number.MIN_VALUE, 0],
+  ["negative zero spend", -0, Number.MIN_VALUE, -0],
+  ["subnormal percentage", Number.MIN_VALUE, 1, 4.94e-322],
+  ["division underflow retained", Number.MIN_VALUE, 2, 0],
+  ["negative division underflow retained", -Number.MIN_VALUE, 2, -0],
+  ["subnormal tie rounding", 3 * Number.MIN_VALUE, 2, 9.9e-322],
+  ["equal MAX operands", Number.MAX_VALUE, Number.MAX_VALUE, 100],
+  ["zero revenue", 1, 0, null],
+  ["negative zero revenue", 1, -0, null],
+  ["negative revenue", 1, -1, null],
+  ["numeric strings retained", "15.5", "100", 15.5],
+  ["numeric whitespace retained", " 15.5 ", " 100 ", 15.5],
+  ["Number base syntax retained", "0b11", "0x20", 9.375],
+])
+  checkFiniteDrrConsumer({ complete: true, spend, revenue }, expected, label);
+for (const field of ["spend", "revenue"]) {
+  for (const value of [null, undefined, NaN, Infinity, -Infinity, "", " ", "1e309", "NaN", "Infinity", {}, [], true, false, 1n, Symbol("synthetic"), new Number(1), () => 1])
+    checkFiniteDrrConsumer({ complete: true, spend: 150, revenue: 1000, [field]: value }, null, "invalid DRR " + field);
+  const missing = { complete: true, spend: 150, revenue: 1000 };
+  delete missing[field];
+  checkFiniteDrrConsumer(missing, null, "missing DRR " + field);
+}
+for (const complete of [false, undefined, null, 0, 1, "true", new Boolean(true)])
+  checkFiniteDrrConsumer({ complete, spend: 150, revenue: 1000 }, null, "strict DRR completeness");
+for (const input of [null, undefined, false, 0, "", [], {}])
+  checkFiniteDrrConsumer(input, null, "incomplete DRR root");
+const frozenDrrInput = Object.freeze({ complete: true, spend: "15.5", revenue: "100" });
+const frozenDrrBefore = JSON.stringify(frozenDrrInput);
+checkFiniteDrrConsumer(frozenDrrInput, 15.5, "frozen DRR input");
+assert.equal(JSON.stringify(frozenDrrInput), frozenDrrBefore, "DRR input unchanged");
+
 // STD-04 SOURCE-only: require declared complete source rows, amounts, matching
 // provider/store/operation/field/metric/currency, and yesterday/prior relative
 // to a stated calendar reference. Declared identities do not prove real provider
@@ -2157,6 +2210,7 @@ console.log(
     numericCases: numeric.cases.length,
     daysCoverFiniteConsumerCases,
     finiteContributionCases,
+    finiteDrrConsumerCases,
     semanticProjectionSha256: coverage.readiness.semanticProjectionSha256,
     ozonRegistrySha256: coverage.authorities.ozon.registrySha256,
     wbRegistrySha256: coverage.authorities.wildberries.registrySha256,
