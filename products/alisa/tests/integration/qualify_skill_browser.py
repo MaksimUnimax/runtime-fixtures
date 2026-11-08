@@ -1,5 +1,6 @@
 """Packaged website/IdP/SQL scenario. The Yandex broker is intercepted, not certified."""
 import secrets
+import time
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 from playwright.sync_api import expect
@@ -55,9 +56,12 @@ def run(*, context, second_context, db, check, web_origin, client_id, client_sec
         page.get_by_role('button',name='Сохранить настройку',exact=True).click()
         expect(page.get_by_role('status')).to_have_text('Настройка сохранена.')
         check('s06_voice_privacy_saved_in_browser',page.get_by_label('Приватность',exact=True).input_value()=='off')
+        refresh_started=time.monotonic()
         refreshed=protocol({'grant_type':'refresh_token','client_id':client_id,'client_secret':client_secret,'refresh_token':tokens['refresh_token']},'refresh')
+        refresh_elapsed=time.monotonic()-refresh_started
         retried=protocol({'grant_type':'refresh_token','client_id':client_id,'client_secret':client_secret,'refresh_token':tokens['refresh_token']},'refresh')
         check('s06_public_refresh_retry_preserves_access_after_lost_response',refreshed.status==200 and retried.status==200 and refreshed.json()['access_token']==retried.json()['access_token'])
+        check('s06_owned_browser_refresh_completes_within_five_seconds',refresh_elapsed<5,elapsed_ms=round(refresh_elapsed*1000))
         page.get_by_role('button',name='Отключить Алису',exact=True).click()
         expect(page.get_by_text('Аккаунт ещё не подключён.',exact=True)).to_be_visible()
         check('s06_public_unlink_revokes_refresh',protocol({'grant_type':'refresh_token','client_id':client_id,'client_secret':client_secret,'refresh_token':tokens['refresh_token']}).status==400)

@@ -14,9 +14,8 @@ class Command(BaseCommand):
         if not settings.ACCOUNTS_ENABLED:return
         now=timezone.now()
         try:
-            if settings.ALICE_LINK_ENABLED:
-                from alisa_platform.alice_link.cleanup import cleanup
-                cleanup()
+            from alisa_platform.alice_link.cleanup import cleanup
+            cleanup()  # retention continues when skill admission is disabled
             with transaction.atomic():
                 expired=WebSession.objects.select_for_update(skip_locked=True).filter(Q(expires_at__lte=now)|Q(revoked_at__isnull=False))
                 ids=list(expired.exclude(encrypted_payload='').values_list('pk',flat=True)[:1000])

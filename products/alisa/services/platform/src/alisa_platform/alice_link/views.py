@@ -10,7 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 from oauthlib.oauth2 import OAuth2Error
 
-from alisa_platform.accounts.models import Customer
+from alisa_platform.accounts.models import Customer, WebSession
 from alisa_platform.accounts.views import boundary, digest, exact, session
 from alisa_platform.foundation.views import reply
 from alisa_platform.leads.views import allow
@@ -216,6 +216,9 @@ def handle(request, data):
         if not row:
             return reply({'code': 'AUTHENTICATION_REQUIRED'}, 401)
         customer_lock(row.customer_id)
+        # Logout's UPDATE takes this same row lock. A logout that commits first
+        # is visible to the fresh session check; otherwise consent commits first.
+        WebSession.objects.select_for_update().get(pk=row.pk)
         row = session(data)
         if not row:
             return reply({'code': 'AUTHENTICATION_REQUIRED'}, 401)

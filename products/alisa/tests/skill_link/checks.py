@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import secrets
 import sys
+import threading
+import time
 import unittest
 import uuid
 from datetime import timedelta
@@ -37,7 +39,7 @@ elif not settings.configured:
 import django
 django.setup()
 from django.core.management import call_command
-from django.db import connections
+from django.db import connections, transaction
 from django.test import RequestFactory, override_settings
 from django.utils import timezone
 from alisa_platform.accounts.models import AuthFlow, Customer, Membership, Tenant, WebSession
@@ -346,6 +348,46 @@ class SkillChecks(unittest.TestCase):
         self.assertIn(results[1][0],{200,400})
         self.assertEqual(self.api('status',session_token=self.token)[1]['alice']['state'],'DISCONNECTED')
         self.assertEqual(self.protocol(grant_type='refresh_token',refresh_token=values['refresh_token'])[0],400)
+
+    @unittest.skipUnless(POSTGRES,'Session row-lock serialization requires the isolated PostgreSQL qualification')
+    def test_logout_committed_before_consent_lock_prevents_new_grant(self):
+        ref,_=self.start(self.token)
+        started=threading.Event();worker={}
+        def approve():
+            try:
+                with connections['default'].cursor() as cursor:
+                    cursor.execute('SELECT pg_backend_pid()');worker['pid']=cursor.fetchone()[0]
+                started.set()
+                return self.api('approve',session_token=self.token,flow_ref=ref)
+            finally:connections.close_all()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with transaction.atomic():
+                WebSession.objects.select_for_update().get(pk=self.owner.pk)
+                future=pool.submit(approve)
+                self.assertTrue(started.wait(3))
+                blocked=False;deadline=time.monotonic()+3
+                while time.monotonic()<deadline and not future.done():
+                    with connections['default'].cursor() as cursor:
+                        cursor.execute('SELECT cardinality(pg_blocking_pids(%s))',[worker['pid']])
+                        blocked=cursor.fetchone()[0]>0
+                    if blocked:break
+                    time.sleep(.01)
+                self.assertTrue(blocked,'Consent must wait for the same row that logout updates')
+                WebSession.objects.filter(pk=self.owner.pk).update(revoked_at=timezone.now(),encrypted_payload='')
+            self.assertEqual(future.result(timeout=3)[0],401)
+        self.assertFalse(AliceLink.objects.filter(customer=self.owner.customer).exists())
+        self.assertFalse(AuthorizationCode.objects.filter(link__customer=self.owner.customer).exists())
+
+    @unittest.skipUnless(POSTGRES,'Existing account cleanup timer is qualified on PostgreSQL')
+    def test_disabled_feature_still_erases_expired_private_envelopes(self):
+        _,values=self.issue()
+        ref,_=self.start(self.token)
+        AuthorizationRequest.objects.filter(secret_hash=digest(ref)).update(expires_at=timezone.now()-timedelta(seconds=1))
+        TokenFamily.objects.filter(refresh_hash=digest(values['refresh_token'])).update(retry_until=timezone.now()-timedelta(seconds=1))
+        with override_settings(ALICE_LINK_ENABLED=False):
+            call_command('accounts_cleanup',verbosity=0)
+        self.assertEqual(AuthorizationRequest.objects.get(secret_hash=digest(ref)).encrypted_payload,'')
+        self.assertEqual(TokenFamily.objects.get(refresh_hash=digest(values['refresh_token'])).encrypted_response,'')
 
 
 if __name__=='__main__':

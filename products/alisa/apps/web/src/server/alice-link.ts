@@ -73,8 +73,9 @@ export async function protocol(request:Request,revoke=false){
   if(!aliceEnabled())return response({error:'temporarily_unavailable'},503);
   if(!validBrowserRequest(request)||new URL(request.url).search)return response({error:'invalid_request'},400);
   if(request.headers.get('content-type')?.split(';')[0].trim()!=='application/x-www-form-urlencoded')return response({error:'invalid_request'},400);
-  const body=await boundedBody(request,8192),authorization=request.headers.get('authorization')||'';
-  const result=await accountApi('alice',{action:revoke?'revoke':'token',body,authorization});
+  let body:string;try{body=await boundedBody(request,8192);}catch{return response({error:'invalid_request'},400);}
+  const authorization=request.headers.get('authorization')||'';
+  const result=await accountApi('alice',{action:revoke?'revoke':'token',body,authorization},3500);
   if(result.status!==200||typeof result.body.oauth_status!=='number'||!result.body.oauth_body)return response({error:'invalid_request'},400);
   const status=result.body.oauth_status;
   if(![200,400,401,403].includes(status))throw new Error('ALICE_UNAVAILABLE');
@@ -86,8 +87,8 @@ export async function protocol(request:Request,revoke=false){
 export async function webhook(request:Request){
   if(!aliceEnabled())return response({code:'NOT_FOUND'},404);
   if(!validBrowserRequest(request)||new URL(request.url).search||request.headers.get('content-type')?.split(';')[0].trim()!=='application/json')return response({code:'INVALID_PAYLOAD'},422);
-  const payload=strictJson(await boundedBody(request,24000));
-  const result=await accountApi('alice',{action:'webhook',payload,authorization:request.headers.get('authorization')||''});
+  let payload:unknown;try{payload=strictJson(await boundedBody(request,24000));}catch{return response({code:'INVALID_PAYLOAD'},422);}
+  const result=await accountApi('alice',{action:'webhook',payload,authorization:request.headers.get('authorization')||''},3500);
   if(result.status!==200)return response({code:typeof result.body.code==='string'?result.body.code:'INVALID_PAYLOAD'},result.status);
   if(!result.body.skill_response)throw new Error('ALICE_UNAVAILABLE');
   return response(result.body.skill_response);

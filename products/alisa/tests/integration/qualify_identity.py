@@ -106,7 +106,6 @@ def main():
                 if not args.stores:raise RuntimeError('Alice browser qualification requires the full store regression')
                 skill_client='s06-browser-client';skill_secret=secrets.token_urlsafe(40)
                 skill_id='e1c48501-7b1f-47fe-87d7-e6bec9c45673'
-                private_values.append(skill_secret)
                 platform_only.update({'ALISA_ALICE_LINK_ENABLED':'1','ALISA_ALICE_CLIENT_ID':skill_client,
                     'ALISA_ALICE_CLIENT_SECRET':skill_secret,'ALISA_ALICE_SKILL_ID':skill_id,'ALISA_ALICE_DATA_KEYS':Fernet.generate_key().decode()})
             component_keys={c:secrets.token_urlsafe(48) for c in ['platform','identity','web']}
@@ -228,6 +227,7 @@ def main():
                 check('s02_basic_'+kind+'_validation',(status==400 and body.get('error')=='invalid_grant') if kind=='encoded' else (status==401 and body.get('error')=='invalid_client'))
             sink=Sink(('127.0.0.1',18226),SMTP);sink.messages=[];threading.Thread(target=sink.serve_forever,daemon=True).start()
             contacts=[];private_values=[service,auth_service,web_secret,probe_secret,data_key,bff_key]
+            if args.alice:private_values.append(skill_secret)
             if args.staff:private_values.extend([staff_secret,staff_service,staff_key])
             def letter(email):
                 matches=[]

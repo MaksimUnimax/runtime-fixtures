@@ -46,12 +46,12 @@ export function readCookie(request:Request,name:string){
   return values.length===1?values[0].slice(name.length+1):'';
 }
 export function response(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}
-export async function accountApi(action:string,data:Record<string,unknown>){
+export async function accountApi(action:string,data:Record<string,unknown>,timeoutMs=5000){
   const paths:Record<string,string>={createFlow:'auth/flows',consumeFlow:'auth/flows/consume',createSession:'auth/sessions',me:'account/me',profile:'account/profile',access:'account/access',stores:'account/stores',alice:'account/alice',ownerInputs:'account/owner-inputs',ownerProducts:'account/owner-products',logout:'auth/logout'};
   const base=new URL(process.env.ALISA_PLATFORM_URL||''),token=process.env.ALISA_AUTH_SERVICE_TOKEN||'';
   if(!paths[action]||base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||base.pathname!=='/'||base.search||base.hash||base.username||base.password||token.length<32)throw new AuthUnavailable();
   try{
-    const r=await fetch(new URL('/api/v1/'+paths[action],base),{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(data),redirect:'error',cache:'no-store',signal:AbortSignal.timeout(5000)});
+    const r=await fetch(new URL('/api/v1/'+paths[action],base),{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(data),redirect:'error',cache:'no-store',signal:AbortSignal.timeout(timeoutMs)});
     const body=await r.json();if(r.status>=500)throw new AuthUnavailable();return {status:r.status,body};
   }catch(error){throw new AuthUnavailable('platform',error);}
 }
