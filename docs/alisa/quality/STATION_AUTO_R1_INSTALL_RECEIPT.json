@@ -1,0 +1,126 @@
+{
+  "status": "INSTALLED_SYNTHETIC_PASS",
+  "checks": [
+    {
+      "check": "previous_tests_pass",
+      "passed": true
+    },
+    {
+      "check": "previous_rollback_completed",
+      "passed": true
+    },
+    {
+      "check": "baseline_unchanged",
+      "passed": true
+    },
+    {
+      "check": "staged_files_exact",
+      "passed": true
+    },
+    {
+      "check": "overlay_manifest_exact",
+      "passed": true
+    },
+    {
+      "check": "no_override_collision",
+      "passed": true
+    },
+    {
+      "check": "reserve",
+      "passed": true
+    },
+    {
+      "check": "runtime_idle",
+      "passed": true
+    },
+    {
+      "check": "no_provider_send",
+      "passed": true
+    },
+    {
+      "check": "admin_route_new",
+      "passed": true
+    },
+    {
+      "check": "runtime_idle",
+      "passed": true
+    },
+    {
+      "check": "no_provider_send",
+      "passed": true
+    },
+    {
+      "check": "runtime_idle",
+      "passed": true
+    },
+    {
+      "check": "no_provider_send",
+      "passed": true
+    },
+    {
+      "check": "stopped_baseline_current",
+      "passed": true
+    },
+    {
+      "check": "exact_launch",
+      "passed": true
+    },
+    {
+      "check": "nginx_unchanged_before_write",
+      "passed": true
+    },
+    {
+      "check": "admin_auth_wall",
+      "passed": true
+    },
+    {
+      "check": "cross_origin_denied",
+      "passed": true
+    },
+    {
+      "check": "services_active",
+      "passed": true
+    },
+    {
+      "check": "restart_socket_and_http_ready",
+      "passed": true
+    },
+    {
+      "check": "settings_persisted",
+      "passed": true
+    },
+    {
+      "check": "reserve_retained",
+      "passed": true
+    }
+  ],
+  "physical_acceptance": false,
+  "http_readiness_statuses": [
+    308,
+    303
+  ],
+  "lab_readiness_statuses": [
+    200
+  ],
+  "tests_passed": 31,
+  "baseline": "/opt/alice-market/releases/alisa-runtime-promotions-r1-20261108",
+  "baseline_tree_sha256": "2e124a71539831c2c90d213697b76b0956161e47b18e5bff04edcfe78bf30039",
+  "runtime": "/opt/alice-market/releases/alisa-runtime-promotions-station-r1-20261108",
+  "url": "https://alisa-admin.octoport.ru/admin/station/",
+  "code_sha256": {
+    "qrcodegen.py": "f727dbf8300b16ab2ed317e227980e7259a4041f94340fb5382fdbecbda41396",
+    "service.py": "dbeff3da22a0929c97a8e98faa314b6e37c6faa79b68aeb7f23df5cfe7dc8186",
+    "manifest.json": "41ad64d01d9cf3f89633128fe92b9fa1faddbee9a284442e65b9fa3641d14e4e",
+    "station_client.py": "366993cab8ee6b15318c78fcfb9fbbe50f41c3f0afff38ea8c9cfe8c7ea47376",
+    "THIRD_PARTY.md": "7b894d8ba5f393919ac218e7d64e9c61c3368e523c6315f8c0891c99f5f4d3b9",
+    "app.js": "14f6d2718538bdf30ea43d10ee1b83bfc630bab3ade654230f08ca3851d0e3c2",
+    "transport.py": "aa1f89b7310dfb8dabd65614eaf9157488a1620f3f782e297e1ce54ce18417fb",
+    "index.html": "e40c26f91f258d51bd0e5b41ce9d2e722a6d80ab029b1f870a8caf6e93eab3e2",
+    "README.md": "49c3da7e2ba1be800ffa6736cf49a0a9cfbbc2fd94adb069533053c7cdda8647",
+    "station_status.py": "60e3718de1e796455eb40bb2e1e0985c6a9f8c7ff9cc65ae4c1204e208bbf039",
+    "local_gateway.py": "84d4839b8424a18952645cc56f016a47877abe68041d7386e83f5f24344d2982",
+    "alice_lab.py": "3f9ed04dc95c130212174428af7d6845d65f62d97c90a3d7ed65227fdac2497d",
+    "style.css": "82e1e08ce0e38602ed0f74d3c3a61735f3bbc228cb87d96948fc3d3b1cd22613",
+    "alice_bridge.py": "65c0a32bb2cfe64dd11f29dbf19d738f13345aa6f5a67c603efaf43eda6cb334"
+  }
+}

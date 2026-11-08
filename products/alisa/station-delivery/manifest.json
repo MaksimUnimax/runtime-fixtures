@@ -1,0 +1,22 @@
+{
+  "activate_existing.py": "93a7bd736ec9dcf8d244e4a01a45a28ad28b557e94788671bbb1821f716ad940",
+  "alice_bridge.py": "65c0a32bb2cfe64dd11f29dbf19d738f13345aa6f5a67c603efaf43eda6cb334",
+  "alice_lab.py": "3f9ed04dc95c130212174428af7d6845d65f62d97c90a3d7ed65227fdac2497d",
+  "app.js": "14f6d2718538bdf30ea43d10ee1b83bfc630bab3ade654230f08ca3851d0e3c2",
+  "bridge_original.py": "889705eebd7e080f87bf155c8c3351e1d604dfc431b6e7defb8c44a8ca25c202",
+  "build_adapters.py": "26695b7664afba11ec22b5fbd1e988d6f3ff3e94c73ca4a1641c4dc0c0b85a76",
+  "gateway_original.py": "5052daacb16d25ba43fa1aa94410d4df18e4acff46afcc7fef94b53062dfe120",
+  "index.html": "e40c26f91f258d51bd0e5b41ce9d2e722a6d80ab029b1f870a8caf6e93eab3e2",
+  "install.py": "55cdcc7863539ee86ce4eb786b0f81f47a8dcc530bad69bc359c8cee036722d0",
+  "lab_original.py": "11a64fe5b33472a99032b245c0aad8cfca8ad353291ad14975da7c2614f3da43",
+  "local_gateway.py": "84d4839b8424a18952645cc56f016a47877abe68041d7386e83f5f24344d2982",
+  "qrcodegen.py": "f727dbf8300b16ab2ed317e227980e7259a4041f94340fb5382fdbecbda41396",
+  "service.py": "dbeff3da22a0929c97a8e98faa314b6e37c6faa79b68aeb7f23df5cfe7dc8186",
+  "station_client.py": "366993cab8ee6b15318c78fcfb9fbbe50f41c3f0afff38ea8c9cfe8c7ea47376",
+  "station_status.py": "60e3718de1e796455eb40bb2e1e0985c6a9f8c7ff9cc65ae4c1204e208bbf039",
+  "style.css": "82e1e08ce0e38602ed0f74d3c3a61735f3bbc228cb87d96948fc3d3b1cd22613",
+  "test_boundaries.py": "c219a2527d732c9f5394311e15c4f9ce08023070a23bf6f4f43a9c2567a88b37",
+  "test_delivery.py": "2a9903650a679588ef21b06ec7d53179a10d9ccb969b9323054ab749668001fc",
+  "test_runtime_delivery.py": "e0d35f347ca6eadc3ddf2afd8b023045b23e708807b48ad530a71b133cdf366b",
+  "transport.py": "aa1f89b7310dfb8dabd65614eaf9157488a1620f3f782e297e1ce54ce18417fb"
+}
