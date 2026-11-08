@@ -1,0 +1,32 @@
+{
+  "scope": "BOUNDED_READ_ONLY_LEGACY_PERFORMANCE_IDENTITY_PROBE",
+  "cases": [
+    {
+      "case": "performance_exchange",
+      "http_status": 200,
+      "field_names": [
+        "access_token",
+        "expires_in",
+        "token_type"
+      ],
+      "seller_id_present": false
+    },
+    {
+      "case": "seller_oauth_me_with_performance_bearer",
+      "http_status": 404,
+      "field_names": [],
+      "seller_id_present": false
+    },
+    {
+      "case": "performance_wrong_secret_canary",
+      "http_status": 401,
+      "field_names": [
+        "error",
+        "error_description"
+      ],
+      "seller_id_present": false
+    }
+  ],
+  "secrets_or_response_values_recorded": false
+}
+

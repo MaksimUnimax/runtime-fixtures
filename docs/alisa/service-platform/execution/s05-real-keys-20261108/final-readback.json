@@ -1,0 +1,62 @@
+{
+  "scope": "FINAL_INSTALLED_READBACK_NOT_OWNER_BROWSER_SESSION",
+  "pointers": {
+    "web-current": "alisa-5dff6e8883e25ac4",
+    "site-current": "alisa-5dff6e8883e25ac4",
+    "identity-current": "alisa-7afaf646b9b35a58",
+    "admin-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "saved_owner_store": {
+    "matching_store_count": 1,
+    "database_scope": "READ_ONLY",
+    "credentials": [
+      {
+        "kind": "SELLER",
+        "revision": 1,
+        "status": "PENDING",
+        "check_code": "IDENTITY_NOT_VERIFIED"
+      },
+      {
+        "kind": "PERFORMANCE",
+        "revision": 1,
+        "status": "PENDING",
+        "check_code": "IDENTITY_NOT_VERIFIED"
+      }
+    ],
+    "store_status": "ACTIVE",
+    "identity_verified": false
+  },
+  "shared_http_same_physical_file": true,
+  "shared_http_sha256": "da3ecbb2ceb2671adda1fd8a4cab7ea4331eb1cd43b0b6a1f70dc9cb12ec34cb",
+  "checker_directory_modes": [
+    "0o755",
+    "0o755"
+  ],
+  "free_bytes": 3378135040,
+  "free_inodes": 513046,
+  "services": {
+    "alice-market.service": "MainPID=145588\nActiveState=active\nSubState=running",
+    "alisa-platform@stage.service": "MainPID=278219\nActiveState=active\nSubState=running",
+    "alisa-web@stage.service": "MainPID=278242\nActiveState=active\nSubState=running",
+    "alisa-store-check.service": "MainPID=278372\nActiveState=active\nSubState=running",
+    "alisa-identity@stage.service": "MainPID=153405\nActiveState=active\nSubState=running",
+    "alisa-admin@stage.service": "MainPID=144260\nActiveState=active\nSubState=running"
+  },
+  "health": {
+    "web": {
+      "component": "web",
+      "environment": "stage",
+      "release": "alisa-5dff6e8883e25ac4",
+      "status": "READY"
+    },
+    "platform": {
+      "component": "platform",
+      "status": "READY",
+      "runtime": "RUNTIME_NOT_CONNECTED",
+      "environment": "stage",
+      "release": "alisa-5dff6e8883e25ac4"
+    }
+  }
+}
+
