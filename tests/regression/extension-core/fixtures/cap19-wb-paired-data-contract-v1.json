@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "cap19_wb_paired_data_contract_v1",
+  "inputSchemaVersion": "cap19_wb_paired_data_v1",
+  "scope": {
+    "scenarioId": "CAP-19",
+    "marketplace": "WILDBERRIES",
+    "stockScheme": "WB_WAREHOUSE_ON_HAND",
+    "syntheticOnly": true,
+    "ozon": "OPEN_NOT_PROVIDED",
+    "fbs": "NOT_CLAIMED",
+    "runtimeIntegrated": false,
+    "ownerSemanticAcceptance": false
+  },
+  "inputBounds": {
+    "maxRowsPerArray": 1000,
+    "maxSelectedStockCells": 1000,
+    "money": "canonical non-negative two-decimal strings, at most ten integer digits",
+    "identifiers": "positive JS safe integers",
+    "quantity": "non-negative JS safe integer; aggregate must remain safe"
+  },
+  "temporal": {
+    "timezone": "Europe/Moscow",
+    "currency": "RUB",
+    "maxPeriodDays": 31,
+    "periodEnd": "EXCLUSIVE",
+    "stockAsOf": "equal to period.endExclusive for this synthetic reference pair",
+    "membershipAsOf": "equal to stockAsOf",
+    "interpretation": "period statistics beside an end snapshot; no historical stock or through-period membership inference"
+  },
+  "grains": {
+    "statistics": [
+      "advertId",
+      "day",
+      "appType",
+      "nmId"
+    ],
+    "stock": [
+      "nmId",
+      "chrtId",
+      "warehouseId"
+    ],
+    "productOutput": [
+      "nmId"
+    ],
+    "stockSelection": "explicit product/size x warehouse Cartesian set; exact key coverage required; not all stock in the store"
+  },
+  "semantics": {
+    "statisticsSpend": "PRODUCT_ATTRIBUTED_STATISTICS_NOT_ACTUAL_COST",
+    "membership": "active status9 at the snapshot only; eligible or inactive membership is not currently advertised",
+    "statisticsCompleteness": "all selected campaign/product pairs have explicit rows and exact sum to the corresponding campaign statistics total",
+    "stockCompleteness": "complete flag and exact declared grain coverage; missing is not zero",
+    "onHand": "sum quantity only, each stock grain once; exclude transit",
+    "spendPlacement": "product/campaign statistics stay once per product; never copied onto size/warehouse stock rows",
+    "actualCost": "CAMPAIGN_SPEND_PRODUCT_ALLOCATION_UNDEFINED; currency remains null because no source currency binding is proved",
+    "lowStock": "null; owner rule not selected",
+    "businessAdvice": "none",
+    "costHistoryCompleteness": "partial actual-cost history remains incomplete and does not block otherwise complete statistics x stock"
+  },
+  "normalization": {
+    "campaigns": "promo_campaigns id -> advertId, nm_settings.nm_id -> nmIds; currency is campaign metadata, not proof for cost ledger",
+    "statistics": "promo_fullstats days.date/apps.appType/apps.nms.nmId/apps.nms.sum; currency bound by fullstats response",
+    "stock": "wb_warehouse_stocks nmId/chrtId/warehouseId/quantity/inWayToClient/inWayFromClient",
+    "actualCostHistory": "promo_spend_history advertId/updSum; sourceRowRef is a synthetic capture reference, not an invented provider field; no currency/product allocation inferred"
+  },
+  "consumerBoundary": "Technical source contract and synthetic input for A; no browser, provider requests, business-answer tuning, pipeline integration, readiness TSV or existing gold definition changes",
+  "independentExpectedTable": "PENDING_REVIEW; authorExpected is not independent"
+}

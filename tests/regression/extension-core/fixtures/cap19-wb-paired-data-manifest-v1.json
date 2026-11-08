@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "cap19_wb_paired_data_manifest_v1",
+  "author": "existing B",
+  "consumer": "existing A",
+  "baseCommit": "c5d0ad95397c376928da7462d7606993e32fbbd4",
+  "canonicalPlanBlob": "983bfc0bac0641706244d31bd62d36684b8e16b6",
+  "sourcePins": [
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-cross-source-join-field-schema-slice-v1.json",
+      "bytes": 5554,
+      "sha256": "be78de5a8ffc8548d1144466bcd2fe00d9795b773c8a7acfe767fa7e91eb3fb5"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-advertised-stock-reuse-v1.json",
+      "bytes": 6697,
+      "sha256": "6af327d0dd08adb801198398f46f40737afee240b64b5e6960def6d6c6d7df23"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-advertising-stats-grain-field-schema-slice-v1.json",
+      "bytes": 9765,
+      "sha256": "257faf1c825a31ff4f1bf2ec413224641cad851cfa202126972692354b530e6d"
+    },
+    {
+      "path": "tests/regression/extension-core/fixtures/wb-stock-field-schema-slice-v1.json",
+      "bytes": 5812,
+      "sha256": "f1d89b9ca8899471410823a9cf677d305116e7ce3e6539c33f28be8063ebd5bb"
+    }
+  ],
+  "sourceEvidenceDate": "2026-09-27",
+  "sourceProvenance": "Existing A field-schema/source fixtures; WB upstream mirror5057bdb9bf16dea24000e3ca79e1934f7761d7fe where recorded. No fresh upstream or live attestation.",
+  "applicability": {
+    "CAP19": "WB synthetic statistics x selected warehouse-size stock only",
+    "actualCostStock": "INCOMPLETE_UNALLOCATED",
+    "OZON": "OPEN_NOT_PROVIDED",
+    "live": "NOT_RUN",
+    "ownerSemantics": "NOT_RUN",
+    "independentExpected": "PENDING_REVIEW"
+  },
+  "candidateArtifactPaths": [
+    "docs/product/readiness/CAP19_WB_PAIRED_DATA_CONTRACT_V1.md",
+    "tests/regression/extension-core/fixtures/cap19-wb-paired-data-contract-v1.json",
+    "tests/regression/extension-core/fixtures/cap19-wb-paired-data-fixture-v1.json",
+    "tests/regression/extension-core/cap19-wb-paired-data-contract.mjs",
+    "tests/regression/extension-core/cap19-wb-paired-data-contract.test.mjs"
+  ],
+  "reviewerMaterial": {
+    "input": "fixtures/cap19-wb-paired-data-fixture-v1.json#/input",
+    "authorOracle": "fixtures/cap19-wb-paired-data-fixture-v1.json#/authorExpected",
+    "task": "Independently calculate product/campaign statistics amounts, stock grain coverage and selected on-hand totals; confirm no campaign or warehouse multiplication, temporal/currency guards and unresolved actual-cost attribution."
+  },
+  "requiredChecks": [
+    "node --test tests/regression/extension-core/cap19-wb-paired-data-contract.test.mjs",
+    "node tests/regression/extension-core/cap19-wb-paired-data-contract.mjs"
+  ],
+  "integration": "Standalone source candidate. Existing A validators/CI/readiness/gold-index files are not modified."
+}
