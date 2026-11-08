@@ -224,6 +224,7 @@ class Delivery:
     def speak(self, text, generation, guard=None, mode="text"):
         with self.transport_lock:
             launch_attempted = False
+            retryable_before_launch = False
             with self.lock:
                 if generation != self.state['generation'] or not self.state['connected'] or not self.state['selected']:
                     raise Fault('delivery_cancelled')
@@ -235,6 +236,7 @@ class Delivery:
             try:
                 body = payload(name, trigger, selected, text, mode)
                 if sid:
+                    retryable_before_launch = True
                     self.client.api('PUT', '/m/v4/user/scenarios/'+sid, body)
                 else:
                     answer = self.client.api('POST', '/m/v4/user/scenarios', body)
@@ -263,10 +265,12 @@ class Delivery:
                         self.save_session(); self.save()
             except Exception as exc:
                 with self.lock:
+                    known_rate_rejection = isinstance(exc, Fault) and exc.code == 'yandex_http_429'
+                    safe_retry = (retryable_before_launch and not launch_attempted) or known_rate_rejection
                     cancelled_before_launch = isinstance(exc, Fault) and exc.code == 'delivery_cancelled' and not launch_attempted
-                    if cancelled_before_launch:
+                    if cancelled_before_launch or safe_retry:
                         self.state['uncertain'] = False
-                    self.state['last_delivery'] = {'state': 'cancelled_before_launch' if cancelled_before_launch else 'unknown_no_retry', 'at': self.clock()}; self.save()
+                    self.state['last_delivery'] = {'state': 'cancelled_before_launch' if cancelled_before_launch else ('retryable_before_launch' if safe_retry else 'unknown_no_retry'), 'at': self.clock()}; self.save()
                 raise
 
     def status_job(self, job):
@@ -330,10 +334,27 @@ class Delivery:
                     return {'command': 'результат'}
                 if match and command in ('отмени отчет', 'выход') and self.state['job']:
                     self.state['job']['delivery'] = 'manual'; self.state['generation'] += 1; self.save()
-                return {'command': command}
+                ticket = None
+                if match and data.get('rid'):
+                    receipts=self.state.setdefault('turn_receipts',{})
+                    turn=receipts.get(data['rid'])
+                    if not turn:
+                        latest=self.state.get('latest_turn') or {}
+                        conversation=data.get('conversation');seq=data.get('message_id')
+                        if conversation and conversation==latest.get('conversation') and type(seq)is int and type(latest.get('seq'))is int and seq<=latest['seq']:
+                            return {'reply':'Этот запрос уже заменён следующим вопросом.'}
+                        turn={'rid':data['rid'],'ticket':secrets.token_hex(16),'at':self.clock(),'conversation':conversation,'seq':seq}
+                        receipts[data['rid']]=turn
+                        self.state['turn_receipts']={k:v for k,v in receipts.items() if self.clock()-v['at']<=3600}
+                        self.state['latest_turn']=turn;self.save()
+                    ticket=turn['ticket']
+                return {'command': command, 'ticket':ticket}
             result = data.get('result')
             if not isinstance(result, dict) or not isinstance(result.get('text'), str): raise Fault('result_schema')
             text = result['text']
+            turn = self.state.get('latest_turn')
+            if turn and data.get('ticket') != turn['ticket']:
+                return {'text':text}
             if match and result.get('job_id') and result.get('state') in ('QUEUED', 'RUNNING'):
                 old = self.state['job']; jid = result['job_id']; conversation = data.get('conversation')
                 if not isinstance(conversation, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,128}', conversation): raise Fault('conversation_schema')
@@ -355,9 +376,14 @@ class Delivery:
     def tick(self):
         with self.lock:
             job = self.state['job']; settings = self.state['settings']
-            if not job or job['delivery'] != 'waiting' or not settings['enabled'] or self.state['uncertain']: return
+            if not job or not settings['enabled'] or self.state['uncertain']:return
+            if job['delivery'] == 'accepted_waiting_skill' and not job.get('callback_rid'):
+                if self.clock() < job.get('callback_retry_at', job.get('next_at',0)):return
+                job['delivery']='waiting';self.save()
+            if job['delivery'] != 'waiting':return
             if self.clock()-job['created'] > 86400:
                 job['delivery'] = 'stopped'; self.save(); return
+            if (self.state.get('last_delivery') or {}).get('state') == 'retryable_before_launch' and self.clock() < job['next_at']:return
             snapshot = dict(job); generation = self.state['generation']
         try: result = self.status_job(snapshot)
         except (OSError, ValueError, Fault): return
@@ -376,11 +402,13 @@ class Delivery:
             if not text and not final: return
             job['delivery'] = 'sending'
             if final:
-                job['nonce'] = ''.join(str(secrets.randbelow(10)) for _ in range(8))
+                if not job.get('nonce') or job.get('nonce_generation') != generation:
+                    job['nonce'] = ''.join(str(secrets.randbelow(10)) for _ in range(8))
                 job['nonce_until'] = self.clock()+90; job['nonce_generation'] = generation
                 job['callback_rid'] = None
                 text = 'Спроси Октопорт маркет доставка '+job['nonce']
             self.save()
+        speak_started = False
         try:
             # Recheck permission and concrete job immediately before dispatch.
             latest = self.status_job(snapshot)
@@ -389,15 +417,25 @@ class Delivery:
                 with self.lock:
                     if self.state['job'] is job: job['delivery']='waiting'; self.save()
                 return
+            speak_started = True
             self.speak(text, generation, guard=lambda: self.state['job'] is job and job['delivery'] == 'sending' and self.status_job(snapshot).get('state') in accepted_states, mode='skill' if final else 'text')
             with self.lock:
                 if self.state['job'] is job and generation == self.state['generation']:
                     if job['delivery'] != 'responded_to_skill': job['delivery'] = 'accepted_waiting_skill' if final else ('failed_notified' if failed else 'waiting')
+                    if final:
+                        attempts=job.get('callback_attempts',0)+1;job['callback_attempts']=attempts
+                        job['callback_retry_at']=self.clock()+min(15*2**min(attempts-1,5),300)
                     job['next_at'] = self.clock()+settings['interval_seconds']; job['message'] += 1; self.save()
-        except Exception:
+        except Exception as exc:
             with self.lock:
                 if self.state['job'] is job:
-                    job['delivery'] = 'unknown' if self.state['uncertain'] else 'manual'; self.save()
+                    if job.get('delivery') == 'responded_to_skill':return
+                    status_retry = not speak_started and (isinstance(exc,(OSError,ValueError)) or isinstance(exc,Fault) and exc.code in ('runtime_response','delivery_unavailable'))
+                    if status_retry:self.state['last_delivery']={'state':'retryable_before_launch','at':self.clock()}
+                    retryable = status_retry or (self.state.get('last_delivery') or {}).get('state') == 'retryable_before_launch'
+                    job['delivery'] = 'unknown' if self.state['uncertain'] else ('waiting' if retryable else 'manual')
+                    if retryable:job['next_at'] = self.clock()+settings['interval_seconds']
+                    self.save()
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -608,3 +646,4 @@ def main():
     threading.Thread(target=work, daemon=True).start()
     web.serve_forever()
 if __name__ == '__main__': main()
+
