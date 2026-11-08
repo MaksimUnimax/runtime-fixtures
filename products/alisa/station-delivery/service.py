@@ -306,8 +306,8 @@ class Delivery:
                 if normalize(command) == settings['manual_command']:
                     if match and self.state['job']:
                         job = dict(self.state['job']); result = self.status_job(job)
-                        self.state['job']['delivery'] = 'manual'; self.state['generation'] += 1; self.save()
                         if result['state'] == 'READY':
+                            self.state['job']['delivery'] = 'manual'; self.state['generation'] += 1; self.save()
                             delivered = self.peek({'op':'station_deliver','tenant':job['tenant'], 'conversation_id':job['conversation'], 'job_id':job['jid'],
                                                    'target_conversation':data.get('conversation'), 'message_id':data.get('message_id')})
                             return {'reply': delivered['text'] if delivered.get('state') == 'READY' else 'Этот ответ больше недоступен для текущей беседы.'}
@@ -340,7 +340,7 @@ class Delivery:
         with self.lock:
             job = self.state['job']; settings = self.state['settings']
             if not job or job['delivery'] != 'waiting' or not settings['enabled'] or self.state['uncertain']: return
-            if self.clock()-job['created'] > 900:
+            if self.clock()-job['created'] > 86400:
                 job['delivery'] = 'stopped'; self.save(); return
             snapshot = dict(job); generation = self.state['generation']
         try: result = self.status_job(snapshot)
@@ -348,7 +348,7 @@ class Delivery:
         with self.lock:
             if generation != self.state['generation'] or self.state['job'] != job or job['delivery'] != 'waiting': return
             state = result.get('state')
-            if state not in ('READY', 'QUEUED', 'RUNNING') or self.clock()-job['created'] > 900:
+            if state not in ('READY', 'QUEUED', 'RUNNING') or self.clock()-job['created'] > 86400:
                 job['delivery'] = 'stopped'; self.save(); return
             final = state == 'READY'
             # Keep checking for READY, but never repeat a pending phrase forever.
