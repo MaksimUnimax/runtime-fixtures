@@ -34,8 +34,13 @@ def inspect(db):
     with sqlite3.connect('file:'+db+'?mode=ro',uri=True) as c:
         assert c.execute("select count(*) from jobs where state in ('QUEUED','RUNNING')").fetchone()[0]==0,'ACTIVE_USER_WORK'
         # This narrowly scoped deployment does not rebind historical provenance.
-        for table, clause in [('jobs',"state='READY' and"),('dialogue_receipts',''),('control_inbox','')]:
-            rows=c.execute(f"select plan from {table} where {clause} expires>?",(time.time(),))
+        now=time.time()
+        for table, predicate, parameters in [
+            ('jobs',"state='READY' and expires>?",(now,)),
+            ('dialogue_receipts',"created+900>? and (expires is null or expires>?)",(now,now)),
+            ('control_inbox',"created+900>? and (expires is null or expires>?)",(now,now)),
+        ]:
+            rows=c.execute(f"select plan from {table} where {predicate}",parameters)
             assert not any('universal_read' in json.loads(row[0] or '{}') for row in rows),'UNEXPIRED_READ_BINDING:'+table
 
 def main():

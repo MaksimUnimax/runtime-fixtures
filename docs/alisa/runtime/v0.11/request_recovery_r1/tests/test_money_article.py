@@ -15,3 +15,7 @@ class MoneyArticle(unittest.TestCase):
   for ch in ['\n', '\x7f', '\x85', '\x9f']:
    with self.subTest(ch=repr(ch)):
     with self.assertRaises(Rejected):project_response('ozon','fbs_posting_list',{'offer_id':'abc'+ch+'secret'})
+
+ def test_non_contact_at_sign_in_article(self):
+  for v in ['SKU@batch','Товар @ L']:
+   self.assertEqual(project_response('ozon','fbs_posting_list',{'offer_id':v})['offer_id'],v)

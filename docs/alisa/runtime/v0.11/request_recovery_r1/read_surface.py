@@ -243,7 +243,7 @@ def project_response(platform,operation,value):
                 return {'amount':scalar(value['amount'],'number'),'currency':scalar(value['currency'],'currency')}
             return scalar(value,'number')
         if kind=='article':
-            need(type(value)is str and 1<=len(value)<=256 and '@'not in value and not any(ord(ch)<32 or 127<=ord(ch)<=159 for ch in value),'READ_PROJECTION_TYPE');return value
+            need(type(value)is str and 1<=len(value)<=256 and re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',value)is None and not any(ord(ch)<32 or 127<=ord(ch)<=159 for ch in value),'READ_PROJECTION_TYPE');return value
         if kind=='integer':
             need(type(value)is int or type(value)is str and re.fullmatch(r'-?[0-9]{1,80}',value)is not None,'READ_PROJECTION_TYPE');return value
         if kind=='number':
