@@ -59,6 +59,7 @@ def manifest(source):
             'schema_compatibility': {'foundation': ['0001_initial'], 'leads':['0001_initial','0002_submission_created_at'],
                 'platform_accounts':['0001_initial'],'identity_accounts':['0001_initial','0002_identitymail_protocolcache_identityconsent_subject'],
                 'platform_staff':['0001_initial'],'platform_entitlements':['0001_initial'],'platform_stores':['0001_initial'],
+                'platform_owner_data':['0001_initial'],'platform_alice_link':['0001_initial'],
                 'rollback':'For S05 disable STORES capability and retain the additive vault/revisions/audit plus private keyring; never migrate down over customer stores. For S04 retain access grants/adjustments and disable ENTITLEMENTS capability before restoring compatible code. Retain additive schema/data and audit privileges; disable S03 staff capability in platform/admin/identity and restore previous compatible code/config. Preserve S02 accounts. Never reverse migrations over user data.'},
             'acceptance': 'NOT_ACCEPTED'}
 

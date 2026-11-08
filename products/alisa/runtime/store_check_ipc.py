@@ -14,15 +14,19 @@ import threading
 import time
 sys.dont_write_bytecode = True
 from store_checker import Checker, MAX_MESSAGE, VERSION, loads, validate, safe_result
+import product_catalog
 
 
-def child_check(raw, pins, *, environment, enabled, seller_binding_qualified, timeout):
+def child_check(raw, pins, *, environment, enabled, seller_binding_qualified, timeout, enable_catalog=False):
     command = [sys.executable, '-I', '-B', str(Path(__file__).with_name('store_check_worker.py')),
         '--environment', environment]
     for kind in enabled:
         command.extend(['--enable-kind', kind])
     if seller_binding_qualified:
         command.append('--seller-binding-qualified')
+    if enable_catalog:command.append('--enable-catalog')
+    version=loads(raw).get('schema_version')
+    validator=product_catalog.safe_result if version==product_catalog.VERSION else safe_result
     clean = {k: v for k, v in os.environ.items() if k in {'PATH', 'LANG', 'LC_ALL'}}
     with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             env=clean, cwd=Path(__file__).resolve().parent) as child:
@@ -35,11 +39,11 @@ def child_check(raw, pins, *, environment, enabled, seller_binding_qualified, ti
             return {'code': 'CHECK_UNAVAILABLE'}
     try:
         value = loads(response)
-        if (set(value) != {'schema_version', 'pins', 'result'} or value['schema_version'] != VERSION
+        if (set(value) != {'schema_version', 'pins', 'result'} or value['schema_version'] != version
                 or json.dumps(value['pins'], sort_keys=True) != json.dumps(pins, sort_keys=True)):
             raise ValueError()
         result = value['result']
-        if not safe_result(result, pins):
+        if not validator(result, pins):
             raise ValueError()
         return result
     except (ValueError, TypeError, KeyError):
@@ -51,7 +55,7 @@ class Server(socketserver.ThreadingUnixStreamServer):
     block_on_close = True
     request_queue_size = 8
 
-    def __init__(self, path, *, allowed_uid, environment, enabled=(), seller_binding_qualified=False, runner=child_check):
+    def __init__(self, path, *, allowed_uid, environment, enabled=(), seller_binding_qualified=False, runner=child_check, enable_catalog=False):
         if not hasattr(socket, 'SO_PEERCRED') or allowed_uid < 0:
             raise ValueError('Verifiable peer identity required')
         target = Path(path)
@@ -66,6 +70,7 @@ class Server(socketserver.ThreadingUnixStreamServer):
             raise ValueError('Private owned socket path required; existing paths are preserved')
         self.allowed_uid, self.environment = allowed_uid, environment
         self.enabled, self.seller_binding_qualified, self.runner = tuple(enabled), seller_binding_qualified, runner
+        self.enable_catalog = enable_catalog
         self.slots = threading.BoundedSemaphore(2)
         super().__init__(str(target), Handler)
         os.chmod(target, 0o660)
@@ -112,23 +117,29 @@ class Handler(socketserver.StreamRequestHandler):
     def handle(self):
         started = time.monotonic()
         self.request.settimeout(.5)
-        pins = {}
+        pins = {};version=VERSION;validator=safe_result
         try:
             raw = self.rfile.readline(MAX_MESSAGE+1)
             if len(raw) > MAX_MESSAGE or not raw.endswith(b'\n'):
                 raise ValueError()
             message = loads(raw)
-            pins, _ = validate(message, self.server.environment)
-            remaining = 2.7-(time.monotonic()-started)
+            options={}
+            if message.get('schema_version')==product_catalog.VERSION:
+                if not self.server.enable_catalog:raise ValueError()
+                pins,_,_=product_catalog.validate(message,self.server.environment)
+                if pins['kind']not in self.server.enabled:raise ValueError()
+                version=product_catalog.VERSION;validator=product_catalog.safe_result;options['enable_catalog']=True
+            else:pins, _ = validate(message, self.server.environment)
+            remaining = (3.8 if options else 2.7)-(time.monotonic()-started)
             result = self.server.runner(raw, pins, environment=self.server.environment,
                 enabled=self.server.enabled, seller_binding_qualified=self.server.seller_binding_qualified,
-                timeout=max(.001, remaining))
-            if not safe_result(result, pins):
+                timeout=max(.001, remaining),**options)
+            if not validator(result, pins):
                 raise ValueError()
         except Exception:
             result = {'code': 'CHECK_UNAVAILABLE'}
         try:
-            self.wfile.write((json.dumps({'schema_version': VERSION, 'pins': pins, 'result': result}, separators=(',', ':'))+'\n').encode())
+            self.wfile.write((json.dumps({'schema_version': version, 'pins': pins, 'result': result}, separators=(',', ':'))+'\n').encode())
         except OSError:
             pass
 
@@ -140,12 +151,13 @@ def main():
     parser.add_argument('--environment', required=True, choices=['dev', 'stage', 'prod'])
     parser.add_argument('--enable-kind', action='append', default=[], choices=['WB', 'SELLER', 'PERFORMANCE'])
     parser.add_argument('--seller-binding-qualified', action='store_true')
+    parser.add_argument('--enable-catalog', action='store_true')
     args = parser.parse_args()
     def interrupted(*_):
         raise KeyboardInterrupt()
     signal.signal(signal.SIGTERM, interrupted)
     with Server(args.socket, allowed_uid=args.allowed_uid, environment=args.environment,
-            enabled=args.enable_kind, seller_binding_qualified=args.seller_binding_qualified) as server:
+            enabled=args.enable_kind, seller_binding_qualified=args.seller_binding_qualified, enable_catalog=args.enable_catalog) as server:
         try:
             server.serve_forever(poll_interval=.1)
         except KeyboardInterrupt:

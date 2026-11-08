@@ -33,7 +33,7 @@ def check(name,condition,**safe):
     CASES.append({'case':name,'passed':True,**safe});print(json.dumps(CASES[-1]),flush=True)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');parser.add_argument('--access',action='store_true');parser.add_argument('--stores',action='store_true');parser.add_argument('--open-registration',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--artifact',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--staff',action='store_true');parser.add_argument('--access',action='store_true');parser.add_argument('--stores',action='store_true');parser.add_argument('--alice',action='store_true');parser.add_argument('--open-registration',action='store_true');args=parser.parse_args()
     params=psycopg.conninfo.conninfo_to_dict(os.environ.get('ALISA_TEST_PG_DSN',''))
     if (os.environ.get('ALISA_TEST_DB_ALLOW')!='1' or params.get('host')!='127.0.0.1' or params.get('port')!='55480' or params.get('dbname')!='alisa_ci_admin' or params.get('user')!='alisa_ci_admin' or not params.get('password') or set(params)-{'host','port','dbname','user','password'}):
         raise RuntimeError('Guarded disposable CI database required')
@@ -102,12 +102,20 @@ def main():
                 store_fixture=Fixture(temp/'stores-check.sock',network.uid)
                 platform_only.update({'ALISA_STORES_ENABLED':'1','ALISA_STORE_DATA_KEYS':Fernet.generate_key().decode(),
                     'ALISA_STORE_CHECK_SOCKET':str(temp/'stores-check.sock'),'ALISA_STORE_CHECK_UID':str(os.getuid())})
+            if args.alice:
+                if not args.stores:raise RuntimeError('Alice browser qualification requires the full store regression')
+                skill_client='s06-browser-client';skill_secret=secrets.token_urlsafe(40)
+                skill_id='e1c48501-7b1f-47fe-87d7-e6bec9c45673'
+                private_values.append(skill_secret)
+                platform_only.update({'ALISA_ALICE_LINK_ENABLED':'1','ALISA_ALICE_CLIENT_ID':skill_client,
+                    'ALISA_ALICE_CLIENT_SECRET':skill_secret,'ALISA_ALICE_SKILL_ID':skill_id,'ALISA_ALICE_DATA_KEYS':Fernet.generate_key().decode()})
             component_keys={c:secrets.token_urlsafe(48) for c in ['platform','identity','web']}
             web_env={**clean_environment(),'HOME':str(home),'ALISA_ENV':'dev','ALISA_RELEASE':manifest['artifact_id'],
                   'ALISA_LEAD_INTAKE_ENABLED':'1','ALISA_SECRET_KEY':component_keys['web'],'ALISA_ACCOUNTS_ENABLED':'1','ALISA_IDENTITY_ISSUER':ISSUER,
                   'ALISA_PUBLIC_BASE_URL':WEB,'ALISA_SERVICE_TOKEN':service,'ALISA_AUTH_SERVICE_TOKEN':auth_service,
                   'ALISA_WEB_OIDC_CLIENT_ID':'s02_web','ALISA_WEB_OIDC_CLIENT_SECRET':web_secret,'NODE_EXTRA_CA_CERTS':str(ca),
                   'ALISA_WEB_SESSION_KEY':bff_key,'ALISA_PLATFORM_URL':'http://127.0.0.1:18404','ALISA_ALLOWED_HOSTS':'127.0.0.1,localhost'}
+            if args.alice:web_env['ALISA_ALICE_LINK_ENABLED']='1'
             if args.open_registration:
                 fixture_secret=temp/'real-smtp-fixture.private'
                 fixture_secret.write_text('synthetic-owned-smtp-fixture-password-0001')
@@ -582,6 +590,19 @@ def main():
                     api=start('platform')
                 run_stores_browser(context=context,second_context=second_context,db=db,check=check,
                     web_origin=WEB,private_values=private_values,restart=restart_actual_platform)
+            if args.alice:
+                from qualify_skill_browser import run as run_skill_browser
+                def native_skill_login(skill_page):
+                    skill_page.locator('input[name=service]').check();skill_page.locator('input[name=privacy]').check()
+                    skill_page.get_by_role('button',name='Войти или создать кабинет').click()
+                    field=skill_page.locator('input[name=login]').first
+                    expect(field).to_be_visible();field.fill(email);skill_page.locator('input[name=password]').fill(customer_password)
+                    skill_page.locator('form').filter(has=field).locator('button[type=submit]').first.click()
+                    expect(skill_page.locator('input[name=code]')).to_be_visible();manage('identity',['identity_deliver'])
+                    skill_page.locator('input[name=code]').fill(letter(email))
+                    skill_page.locator('form').filter(has=skill_page.locator('input[name=code]')).locator('button[type=submit]').first.click()
+                run_skill_browser(context=context,second_context=second_context,db=db,check=check,web_origin=WEB,
+                    client_id=skill_client,client_secret=skill_secret,skill_id=skill_id,private_values=private_values,native_login=native_skill_login)
             if args.staff:
                 from qualify_staff_browser import run as run_staff_browser
                 run_staff_browser(browser=browser,context=context,second_context=second_context,db=db,manage=manage,
@@ -653,7 +674,7 @@ def main():
         tb=exc.__traceback__
         while tb:
             if Path(tb.tb_frame.f_code.co_filename).name=='qualify_identity.py':record['qualification_line']=tb.tb_lineno
-            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_access_browser.py','qualify_stores_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
+            if Path(tb.tb_frame.f_code.co_filename).name in {'qualify_identity.py','qualify_staff_browser.py','qualify_access_browser.py','qualify_stores_browser.py','qualify_skill_browser.py'}:record['source_error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}
             if not tb.tb_next:break
             tb=tb.tb_next
         if tb:record['error_location']={'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno}

@@ -27,7 +27,10 @@ def invalid_number(value):
     raise ValueError()
 
 
-def check_store(pins, credential):
+def check_store(pins, credential, *, catalog_cursor=None):
+    catalog = catalog_cursor is not None
+    version = 'rt_catalog_v1' if catalog else VERSION
+    budget = 4.1 if catalog else 3.0
     path = settings.STORE_CHECK_SOCKET
     if not path:
         return {'code': 'CHECK_UNAVAILABLE'}
@@ -40,13 +43,14 @@ def check_store(pins, credential):
         parent = os.lstat(str(Path(path).parent))
         if not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in {0, settings.STORE_CHECK_UID} or parent.st_mode & 0o022:
             raise ValueError()
-        message = {'schema_version': VERSION, 'operation': 'check_store', 'pins': pins, 'credential': credential}
+        message = {'schema_version': version, 'operation': 'product_catalog'if catalog else'check_store', 'pins': pins, 'credential': credential}
+        if catalog:message['cursor']=catalog_cursor
         raw = json.dumps(message, separators=(',', ':'), allow_nan=False).encode()+b'\n'
         if len(raw) > LIMIT:
             raise ValueError()
-        deadline = time.monotonic()+3.0
+        deadline = time.monotonic()+budget
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
-            peer.settimeout(3.0); peer.connect(path)
+            peer.settimeout(budget); peer.connect(path)
             _, uid, _ = struct.unpack('3i', peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
             if uid != settings.STORE_CHECK_UID:
                 raise ValueError()
@@ -60,9 +64,21 @@ def check_store(pins, credential):
                 data.extend(part)
         value = json.loads(data, object_pairs_hook=strict_object, parse_constant=invalid_number)
         if (not isinstance(value, dict) or set(value) != {'schema_version', 'pins', 'result'}
-                or value['schema_version'] != VERSION or json.dumps(value['pins'], sort_keys=True) != json.dumps(pins, sort_keys=True)):
+                or value['schema_version'] != version or json.dumps(value['pins'], sort_keys=True) != json.dumps(pins, sort_keys=True)):
             raise ValueError()
         result = value['result']
+        if catalog:
+            if not isinstance(result,dict):raise ValueError()
+            if result.get('code')=='OK':
+                if set(result)!={'code','items','cursor','complete'}or type(result['complete'])is not bool or not isinstance(result['items'],list)or len(result['items'])>60 or not isinstance(result['cursor'],dict)or result['complete']!=(not result['cursor']):raise ValueError()
+                seen=set()
+                for item in result['items']:
+                    if not isinstance(item,dict)or set(item)!={'sku','name','offer_id'}or not isinstance(item['sku'],str)or not item['sku'].isdigit()or not 0<int(item['sku'])<10**20 or item['sku']in seen:raise ValueError()
+                    if any(not isinstance(item[k],str)or len(item[k])>250 or any(ord(c)<32 for c in item[k])for k in ('name','offer_id')):raise ValueError()
+                    seen.add(item['sku'])
+                return result
+            if set(result)=={'code'}and result['code']in CODES|{'CATALOG_INCOMPLETE'}:return result
+            raise ValueError()
         if not isinstance(result, dict) or result.get('code') not in CODES:
             raise ValueError()
         if result['code'] == 'AUTHENTICATED_UNLINKED' and pins['kind'] != 'PERFORMANCE':

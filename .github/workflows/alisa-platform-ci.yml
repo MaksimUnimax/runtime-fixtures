@@ -77,6 +77,10 @@ jobs:
         working-directory: products/alisa
         run: |
           .venv/bin/python tests/integration/qualify_stores_core.py --output dist/s05-core-qualification.json
+      - name: Alice OAuth consent, replay, refresh and unlink on isolated PostgreSQL
+        working-directory: products/alisa
+        run: |
+          .venv/bin/python tests/integration/qualify_skill_core.py --output dist/s06-core-qualification.json
       - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
         working-directory: products/alisa
         run: |
@@ -90,7 +94,7 @@ jobs:
           sudo --preserve-env=ALISA_TEST_DB_ALLOW,ALISA_TEST_PG_DSN,GITHUB_ACTIONS,PATH,PLAYWRIGHT_BROWSERS_PATH \
             .venv/bin/python tests/integration/qualify_identity.py \
             --artifact "dist/alisa-${ALISA_SOURCE_SHA:0:16}.tar.gz" \
-            --output dist/s02-qualification.json --staff --access --stores
+            --output dist/s02-qualification.json --staff --access --stores --alice
       - name: Open email registration and repeat login without an invitation list
         working-directory: products/alisa
         run: |
@@ -112,6 +116,7 @@ jobs:
             products/alisa/dist/s03-*.json
             products/alisa/dist/s04-*.json
             products/alisa/dist/s05-*.json
+            products/alisa/dist/s06-*.json
             products/alisa/dist/rt-check-*.json
             products/alisa/dist/runtime-qualification.json
             products/alisa/dist/s02-identity-*.png

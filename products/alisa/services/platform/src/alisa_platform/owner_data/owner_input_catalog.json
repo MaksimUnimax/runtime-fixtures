@@ -1,0 +1,38 @@
+{
+  "schema": "alice-owner-input-catalog/v1",
+  "version": "20261108-current-cost-r1",
+  "max_entries": 2000,
+  "max_period_days": 366,
+  "max_segments": 1024,
+  "fields": {
+    "unit_cost": {
+      "label": "Себестоимость физической единицы товара",
+      "unit": "currency_per_physical_unit",
+      "mode": "effective_date",
+      "minimum": "0",
+      "maximum": "1000000000000",
+      "allow_exclusion": false,
+      "omission_label": "Себестоимость не указана; она не заменяется нулём или ценой из кабинета.",
+      "default_entity": "all-products",
+      "allow_current": true
+    },
+    "tax_amount": {
+      "label": "Налог за точно указанный период",
+      "unit": "currency",
+      "mode": "exact_period",
+      "minimum": "0",
+      "maximum": "1000000000000",
+      "allow_exclusion": true,
+      "omission_label": "Налог не включён или явно исключён владельцем; это не утверждение нулевой ставки."
+    },
+    "own_cost_amount": {
+      "label": "Собственные расходы за точно указанный период",
+      "unit": "currency",
+      "mode": "exact_period",
+      "minimum": "0",
+      "maximum": "1000000000000",
+      "allow_exclusion": false,
+      "omission_label": "Неуказанные собственные расходы не включены; автоматического распределения по дням нет."
+    }
+  }
+}

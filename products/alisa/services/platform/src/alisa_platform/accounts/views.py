@@ -19,6 +19,7 @@ from alisa_platform.funnel.models import FunnelEvent
 from .models import Customer,Tenant,Membership,IdentityLink,AuthFlow,WebSession,ConsentRecord,LeadLink
 
 VERSION='alisa-s02-1'
+SESSION_MAX_AGE_SECONDS=30*24*60*60
 def digest(value):return hashlib.sha256(value.encode()).hexdigest()
 
 def boundary(view):
@@ -51,7 +52,7 @@ def flow_create(request,data):
     if data['service_consent'] is not True or data['privacy_consent'] is not True:raise ValueError()
     with transaction.atomic():
         if not allow('auth-flow-global',60,60):return reply({'code':'RATE_LIMITED'},429)
-        AuthFlow.objects.filter(expires_at__lt=timezone.now()-timedelta(days=1)).delete()
+        AuthFlow.objects.filter(expires_at__lt=timezone.now()-timedelta(days=1),websession__isnull=True).delete()
     handoff=None
     if data.get('handoff_id'):
         try:handoff=uuid.UUID(data['handoff_id'])
@@ -110,7 +111,7 @@ def session_create(request,data):
         for document in ['service','privacy']:
             ConsentRecord.objects.get_or_create(customer=customer,document=document,version=VERSION)
         WebSession.objects.create(token_hash=data['session_hash'],customer=customer,tenant=membership.tenant,flow=flow,
-            encrypted_payload=payload,security_revision=customer.security_revision,expires_at=now+timedelta(hours=1))
+            encrypted_payload=payload,security_revision=customer.security_revision,expires_at=now+timedelta(seconds=SESSION_MAX_AGE_SECONDS))
         flow.completed_at=now;flow.save(update_fields=['completed_at'])
         registration_attribution=None
         if flow.handoff_id:

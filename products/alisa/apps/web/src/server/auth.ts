@@ -6,7 +6,8 @@ import {siteOrigin} from './public';
 import {permittedAuthOrigins} from './auth-origins';
 import type {AuthFlowInput,AuthSessionInput} from '@alisa/contracts';
 
-export const SESSION_COOKIE='__Host-alisa_session';
+import {SESSION_COOKIE,SESSION_MAX_AGE_SECONDS,cookie} from './session-cookie';
+export {SESSION_COOKIE,SESSION_MAX_AGE_SECONDS,cookie} from './session-cookie';
 export const FLOW_COOKIE='__Host-alisa_login';
 export const HANDOFF_COOKIE='__Host-alisa_handoff';
 export function realLoginEnabled(){return (process.env.ALISA_REAL_LOGIN_ENABLED==='1'||process.env.ALISA_REAL_LOGIN_OPEN==='1')&&authEnabled();}
@@ -44,10 +45,9 @@ export function readCookie(request:Request,name:string){
   const values=(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).filter(s=>s.startsWith(name+'='));
   return values.length===1?values[0].slice(name.length+1):'';
 }
-export function cookie(name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
 export function response(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}
 export async function accountApi(action:string,data:Record<string,unknown>){
-  const paths:Record<string,string>={createFlow:'auth/flows',consumeFlow:'auth/flows/consume',createSession:'auth/sessions',me:'account/me',profile:'account/profile',access:'account/access',stores:'account/stores',logout:'auth/logout'};
+  const paths:Record<string,string>={createFlow:'auth/flows',consumeFlow:'auth/flows/consume',createSession:'auth/sessions',me:'account/me',profile:'account/profile',access:'account/access',stores:'account/stores',alice:'account/alice',ownerInputs:'account/owner-inputs',ownerProducts:'account/owner-products',logout:'auth/logout'};
   const base=new URL(process.env.ALISA_PLATFORM_URL||''),token=process.env.ALISA_AUTH_SERVICE_TOKEN||'';
   if(!paths[action]||base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||base.pathname!=='/'||base.search||base.hash||base.username||base.password||token.length<32)throw new AuthUnavailable();
   try{
@@ -85,7 +85,7 @@ export async function begin(request:Request){
   if(new URL(request.url).search)return response({code:'INVALID_PAYLOAD'},422);
   const text=await boundedBody(request,2048);const form=new URLSearchParams(text);
   if([...form.keys()].some(k=>!['service','privacy','return_to'].includes(k))||form.getAll('service').length!==1||form.getAll('privacy').length!==1||form.get('service')!=='on'||form.get('privacy')!=='on'||(form.get('return_to')||'/app')!=='/app')return response({code:'INVALID_PAYLOAD'},422);
-  if(await getProfile(readCookie(request,SESSION_COOKIE)))return new Response(null,{status:303,headers:{Location:siteOrigin()+'/app','Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+  if(await getProfile(readCookie(request,SESSION_COOKIE)))return new Response(null,{status:303,headers:{Location:siteOrigin()+await customerReturn(request),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
   const config=await client(),state=oidc.randomState(),nonce=oidc.randomNonce(),verifier=oidc.randomPKCECodeVerifier();
   const encrypted=await seal({state,nonce,verifier,session_token:randomBytes(32).toString('base64url'),return_to:'/app'},'alisa-flow','10m');
   const handoff=readCookie(request,HANDOFF_COOKIE);
@@ -121,8 +121,8 @@ export async function callback(request:Request){
     try{result=await accountApi('createSession',input);}
     catch{result=await accountApi('createSession',input);}
     if(result.status!==201&&!(result.status===200&&result.body.state==='ALREADY_CREATED'))throw new Error();
-    const headers=new Headers({Location:c.origin+'/app','Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
-    headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,3600));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));headers.append('Set-Cookie',cookie(HANDOFF_COOKIE,'',0));
+    const headers=new Headers({Location:c.origin+await customerReturn(request),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
+    headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,SESSION_MAX_AGE_SECONDS));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));headers.append('Set-Cookie',cookie(HANDOFF_COOKIE,'',0));
     return new Response(null,{status:303,headers});
   }catch(error){
     reportAuthFailure(error);
@@ -141,4 +141,9 @@ export async function boundedBody(request:Request,limit=4096){
   const chunks:Uint8Array[]=[];let length=0;
   while(true){const {done,value}=await reader.read();if(done)break;length+=value.length;if(length>limit){await reader.cancel();throw new Error('INVALID_PAYLOAD');}chunks.push(value);}
   return Buffer.concat(chunks).toString('utf8');
+}
+
+async function customerReturn(request:Request){
+  // Dynamic import keeps the normal OIDC path independent of skill configuration.
+  const {aliceReturn}=await import('./alice-link');return aliceReturn(request);
 }

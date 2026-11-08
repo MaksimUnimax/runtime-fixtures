@@ -18,7 +18,7 @@ RELEASE = required("ALISA_RELEASE")
 DEBUG = False
 ALLOWED_HOSTS = required("ALISA_ALLOWED_HOSTS").split(",")
 FOUNDATION_PROBE_ENABLED = ALISA_ENV in {"dev", "stage"} and os.environ.get("FOUNDATION_PROBE_ENABLED") == "1"
-INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts", "alisa_platform.staff", "alisa_platform.entitlements", "alisa_platform.stores"]
+INSTALLED_APPS = ["alisa_platform.foundation", "alisa_platform.leads", "alisa_platform.funnel", "alisa_platform.accounts", "alisa_platform.staff", "alisa_platform.entitlements", "alisa_platform.stores", "alisa_platform.owner_data", "alisa_platform.alice_link"]
 MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "django.middleware.common.CommonMiddleware"]
 ROOT_URLCONF = "alisa_platform.config.urls"
 WSGI_APPLICATION = "alisa_platform.config.wsgi.application"
@@ -152,3 +152,38 @@ try:
             raise ValueError()
 except (ValueError, TypeError):
     raise ImproperlyConfigured('Invalid store vault or RT-CHECK configuration') from None
+
+# Skill OAuth is independent of browser OIDC and opt-in; legacy lab grants stay intact.
+ALICE_LINK_ENABLED = os.environ.get('ALISA_ALICE_LINK_ENABLED', '0') == '1'
+ALICE_CLIENT_ID = os.environ.get('ALISA_ALICE_CLIENT_ID', '')
+ALICE_CLIENT_SECRET = os.environ.get('ALISA_ALICE_CLIENT_SECRET', '')
+ALICE_SKILL_ID = os.environ.get('ALISA_ALICE_SKILL_ID', '')
+ALICE_DATA_KEYS = [key for key in os.environ.get('ALISA_ALICE_DATA_KEYS', '').split(',') if key]
+try:
+    if os.environ.get('ALISA_ALICE_LINK_ENABLED', '0') not in {'0', '1'}:
+        raise ValueError()
+    if ALICE_LINK_ENABLED:
+        from cryptography.fernet import Fernet
+        import uuid
+        if (not ACCOUNTS_ENABLED or not 1 <= len(ALICE_CLIENT_ID) <= 100 or len(ALICE_CLIENT_SECRET) < 32
+                or ALICE_CLIENT_SECRET in {SERVICE_TOKEN, AUTH_SERVICE_TOKEN, STAFF_SERVICE_TOKEN}
+                or not 1 <= len(ALICE_DATA_KEYS) <= 5 or len(set(ALICE_DATA_KEYS)) != len(ALICE_DATA_KEYS)):
+            raise ValueError()
+        uuid.UUID(ALICE_SKILL_ID)
+        for key in ALICE_DATA_KEYS:
+            Fernet(key.encode())
+        if set(ALICE_DATA_KEYS) & (set(STORE_DATA_KEYS) | set(os.environ.get('ALISA_IDENTITY_DATA_KEYS', '').split(','))):
+            raise ValueError()
+except (ValueError, TypeError):
+    raise ImproperlyConfigured('Invalid Alice account-link configuration') from None
+
+# Owner-data entry remains separate from analytical execution and authentication.
+OWNER_DATA_ENABLED = os.environ.get("ALISA_OWNER_DATA_ENABLED", "0") == "1"
+OWNER_RUNTIME_ENABLED = os.environ.get("ALISA_OWNER_RUNTIME_ENABLED", "0") == "1"
+OWNER_RUNTIME_AUTH_TOKEN = os.environ.get("ALISA_OWNER_RUNTIME_AUTH_TOKEN", "")
+if any(os.environ.get(k,"0") not in {"0","1"} for k in ("ALISA_OWNER_DATA_ENABLED","ALISA_OWNER_RUNTIME_ENABLED")):
+    raise RuntimeError("Invalid owner feature flag")
+if OWNER_DATA_ENABLED and not (ACCOUNTS_ENABLED and STORES_ENABLED and ENTITLEMENTS_ENABLED):
+    raise RuntimeError("Owner data requires accounts, stores and entitlements")
+if OWNER_RUNTIME_ENABLED and not OWNER_DATA_ENABLED:
+    raise RuntimeError("Owner runtime requires owner data")

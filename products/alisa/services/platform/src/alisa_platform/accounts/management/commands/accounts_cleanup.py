@@ -14,6 +14,9 @@ class Command(BaseCommand):
         if not settings.ACCOUNTS_ENABLED:return
         now=timezone.now()
         try:
+            if settings.ALICE_LINK_ENABLED:
+                from alisa_platform.alice_link.cleanup import cleanup
+                cleanup()
             with transaction.atomic():
                 expired=WebSession.objects.select_for_update(skip_locked=True).filter(Q(expires_at__lte=now)|Q(revoked_at__isnull=False))
                 ids=list(expired.exclude(encrypted_payload='').values_list('pk',flat=True)[:1000])
@@ -22,7 +25,7 @@ class Command(BaseCommand):
                 AuthFlow.objects.filter(pk__in=ids).update(encrypted_payload='')
                 ids=list(WebSession.objects.select_for_update(skip_locked=True).filter(expires_at__lt=now-timedelta(days=1)).values_list('pk',flat=True)[:1000])
                 WebSession.objects.filter(pk__in=ids).delete()
-                ids=list(AuthFlow.objects.select_for_update(skip_locked=True).filter(expires_at__lt=now-timedelta(days=1)).values_list('pk',flat=True)[:1000])
+                ids=list(AuthFlow.objects.select_for_update(of=('self',),skip_locked=True).filter(expires_at__lt=now-timedelta(days=1),websession__isnull=True).values_list('pk',flat=True)[:1000])
                 AuthFlow.objects.filter(pk__in=ids).delete()
                 for model in [StaffSession,StaffAuthFlow]:
                     stale=Q(expires_at__lte=now)

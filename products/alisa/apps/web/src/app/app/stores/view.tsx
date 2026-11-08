@@ -183,6 +183,7 @@ export function StoresView({initial,recoveryScope}:{initial:StoreList;recoverySc
       {!list.items.length&&<p>Подключённых магазинов пока нет.</p>}
       {list.items.map(store=><section key={store.id} aria-label={'Магазин '+store.name} data-store-id={store.id}>
         <h3>{store.name} · {store.provider==='OZON'?'Ozon':'Wildberries'}</h3>
+        <p><a href={'/app/owner-inputs?store='+encodeURIComponent(store.id)}>Себестоимость и расходы</a></p>
         <p>{store.status==='DISABLED'?'Магазин отключён. Сохранённые ключи удалены.':'Магазин включён.'}</p>
         {store.voice_alias&&<p>Голосовое название: {store.voice_alias}</p>}
         <form method="post" action="/api/account/stores" onSubmit={event=>{event.preventDefault();const data=new FormData(event.currentTarget);void perform(()=>send({action:'rename',store_id:store.id,expected_revision:store.revision,name:String(data.get('name')||''),voice_alias:String(data.get('voice_alias')||'')}));}}>
