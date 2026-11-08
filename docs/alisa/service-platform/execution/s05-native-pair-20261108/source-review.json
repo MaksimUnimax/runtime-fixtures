@@ -1,0 +1,41 @@
+{
+  "review": "AL_S05_NATIVE_OWNER_PAIR_SOURCE_REVIEW",
+  "date": "2026-11-08",
+  "verdict": "PASS_SOURCE_DESIGN_CONDITIONAL_ON_CI_AND_INSTALL_REVIEW",
+  "scope": "Read-only source review of the owner-qualified native-pair identity path and contract changes. No live host/provider/DB/browser calls, no tests, and no code edits.",
+  "worktree_base": "81594bcd7f75eeec3c26c1ae05900ba38b53a9c6",
+  "sha256": {
+    "products/alisa/runtime/native_store_binding.py": "f1163b74d9d62e90a02c1f4132e4f94600dc596c40f24acadc4d3a371b769f74",
+    "products/alisa/runtime/store_checker.py": "a9b8abe8ac37d43c35eae19ab9b3114feaf158b72e80e7485d982add9cfc77a1",
+    "products/alisa/runtime/store_check_worker.py": "5db26735109f38503f429e033e7f9ae0c0317ad7b601653a4cc36e118229fc51",
+    "platform_adapter/store_check.py": "5739007ed991ada634cf4c498de3310db807ca2a004ebb5d45c0db75d379f8d8",
+    "platform_stores/service.py": "af1f1db37d3aa36951af59a0657ae4766b0c471812fd2567d29485bdaf355dc1",
+    "store-check-v1.md": "5c67deb58c6aad5ea93de54842b0aaae5183a849a336854811a621e50cd2a897",
+    "runtime_package_builder.py": "f137c2801c837a9b75bf72d8fc2da926debfddc32acc576cb40e6f4ab67134e9",
+    "native_binding_tests.py": "2cb1ad0f0b6617052ace0dd952677a0c8c967ed2c25fb202721e07e7014f5749"
+  },
+  "findings": [
+    "The contract now distinguishes provider-authenticated identity from NATIVE_OWNER_CONFIGURED_PAIR provenance and says explicitly that the latter is an owner-configured association, not a provider-issued crosswalk. This resolves the earlier contract conflict without claiming Ozon attested the Seller/Performance relationship.",
+    "Performance credentials are first sent to the existing real token endpoint. Only a bounded, strict successful token response proceeds to binding resolution. Any token/auth failure stays AUTH_DENIED/IDENTITY_NOT_VERIFIED and cannot consult binding to override it.",
+    "Binding resolution is fail-closed on every request: root-owned non-writable file-chain checks, no-follow bounded JSON reads, read-only systemd credential check, exact environment/product/provider/kind/tenant/store scope, one matching row, active account/execution, exact native store/credential binding, current native credential material, both qualification records and revision-bearing native store source. It uses domain-separated keyed HMAC and constant-time comparison for the exact Performance pair; raw API key/secret is not copied into the projection or returned.",
+    "Canonical identity is derived only from the seller_client_id inside the currently working native Seller credential paired with its seller_api_key in the same native credential object; the projection binds both Seller and Performance pairs. It does not derive a Seller cabinet from Performance client ID, token/JWT, name or a report endpoint. Platform finish still checks exact equality against the already verified store identity, revision/security state and tenant-local duplicate constraint.",
+    "The platform adapter accepts provenance only for PERFORMANCE and only for the exact enum. finish stores a distinct internal check code and audit event, while the customer projection reports CONNECTED with an explicit binding_provenance field. No secret, HMAC or raw identity is exposed. A different Seller identity is still rejected as ACCOUNT_MISMATCH; unsuccessful replacements preserve active credentials.",
+    "The runtime package builder now includes the canonical native_store_binding.py and marks the feature as opt-in/otherwise unlinked. The duplicated qualification checker is synchronized. The tests add deterministic scope, secret/client mutation, source drift, revocation, ambiguity, auth-failure and unlisted-pair cases, plus integration persistence/audit/account-mismatch coverage; CI remains a separate gate."
+  ],
+  "trust_boundary": "The HMAC key and scope projection are root-controlled together. Their integrity ultimately relies on the root-owned, non-writable configuration boundary and operator authority, not on HMAC against a malicious root administrator. This provenance must remain labeled as owner-configured rather than provider-authenticated.",
+  "remaining_gates": [
+    "Exact full CI and package manifest/source review must pass before installation.",
+    "The live checker module integration must be reviewed against the exact active runtime preimage while preserving the foreign additive catalog method and existing HTTP primitive.",
+    "Owner-qualified pairing permits identity binding only; advertising operation capabilities/scopes still depend on current native qualification and do not independently imply every campaign/report operation is safe.",
+    "Full AL-S05 completion still requires separately authorized real provider checks and verified customer-visible behavior; this source review does not perform them."
+  ],
+  "reviewer_actions": {
+    "tests_run": false,
+    "host_calls": false,
+    "provider_calls": false,
+    "db_calls": false,
+    "browser_calls": false,
+    "credential_values_read": false,
+    "code_modified": false
+  }
+}

@@ -77,7 +77,12 @@ def safe_result(result, pins):
     if result['code'] != 'CONNECTED':
         return set(result) == {'code'}
     value = result.get('identity')
-    return (set(result) == {'code', 'identity', 'capabilities'} and isinstance(value, str)
+    fields = {'code', 'identity', 'capabilities'}
+    if 'identity_provenance' in result:
+        if pins['kind'] != 'PERFORMANCE' or result['identity_provenance'] != 'NATIVE_OWNER_CONFIGURED_PAIR':
+            return False
+        fields.add('identity_provenance')
+    return (set(result) == fields and isinstance(value, str)
         and 1 <= len(value) <= 160 and all(c.isascii() and (c.isalnum() or c in ':_-') for c in value)
         and result['capabilities'] == [pins['kind']])
 
@@ -107,12 +112,13 @@ def error_code(kind, status, body=None):
 
 
 class Checker:
-    def __init__(self, *, enabled=(), seller_binding_qualified=False, exchange=read_response):
+    def __init__(self, *, enabled=(), seller_binding_qualified=False, exchange=read_response, native_binding_resolver=None):
         if set(enabled)-ENDPOINTS.keys() or type(seller_binding_qualified) is not bool:
             raise ValueError()
         self.enabled = frozenset(enabled)
         self.seller_binding_qualified = seller_binding_qualified
         self.exchange = exchange
+        self.native_binding_resolver = native_binding_resolver
 
     def check(self, message, environment):
         pins, credential = validate(message, environment)
@@ -175,13 +181,26 @@ class Checker:
             # never infer the cabinet from company name, INN or OGRN.
             identity = 'ozon:client:'+str(int(credential['client_id']))
         else:
-            # Token issuance proves credentials, not a link to the Seller cabinet.
-            # Never decode unverified JWT claims or fetch campaigns/reports to guess.
+            # Issuance alone never proves Seller identity. The optional root-owned
+            # projection reuses an existing, explicitly qualified native pair.
             token = data.get('access_token') if isinstance(data, dict) else None
             if (not isinstance(token, str) or not 12 <= len(token) <= 16384
                     or not token.isascii() or any(ord(c) <= 32 or ord(c) >= 127 for c in token)
                     or not isinstance(data.get('token_type'), str) or data['token_type'].lower() != 'bearer'
                     or type(data.get('expires_in')) is not int or not 0 < data['expires_in'] < 2**31):
                 return {'code': 'IDENTITY_NOT_VERIFIED'}
+            try:
+                if self.native_binding_resolver is None:
+                    from native_store_binding import resolve
+                    identity = resolve(pins, credential)
+                else:
+                    identity = self.native_binding_resolver(pins, credential)
+            except Exception:
+                identity = None
+            if identity:
+                result = {'code': 'CONNECTED', 'identity': identity, 'capabilities': [kind],
+                          'identity_provenance': 'NATIVE_OWNER_CONFIGURED_PAIR'}
+                if safe_result(result, pins):
+                    return result
             return {'code': 'AUTHENTICATED_UNLINKED'}
         return {'code': 'CONNECTED', 'identity': identity, 'capabilities': [kind]}

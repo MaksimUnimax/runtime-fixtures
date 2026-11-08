@@ -68,7 +68,12 @@ def check_store(pins, credential):
         if result['code'] == 'AUTHENTICATED_UNLINKED' and pins['kind'] != 'PERFORMANCE':
             raise ValueError()
         if result['code'] == 'CONNECTED':
-            if set(result) != {'code', 'identity', 'capabilities'}:
+            fields = {'code', 'identity', 'capabilities'}
+            if 'identity_provenance' in result:
+                if pins['kind'] != 'PERFORMANCE' or result['identity_provenance'] != 'NATIVE_OWNER_CONFIGURED_PAIR':
+                    raise ValueError()
+                fields.add('identity_provenance')
+            if set(result) != fields:
                 raise ValueError()
             identity = result['identity']
             if (not isinstance(identity, str) or not 1 <= len(identity) <= 160

@@ -37,7 +37,9 @@ class Handler(socketserver.StreamRequestHandler):
             return
         self.server.calls += 1
         result = {'code': code}
-        if code == 'CONNECTED':
+        if code == 'CONNECTED_NATIVE_OWNER':
+            result = {'code': 'CONNECTED', 'identity_provenance': 'NATIVE_OWNER_CONFIGURED_PAIR'}
+        if result['code'] == 'CONNECTED':
             result.update(identity=identity, capabilities=[value['pins']['kind']])
         pins = {**value['pins']}
         if self.server.bad_pins:
