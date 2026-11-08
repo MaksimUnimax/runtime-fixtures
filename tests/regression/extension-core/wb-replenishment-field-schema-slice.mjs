@@ -47,7 +47,10 @@ function daysCover(stockUnits, averageDailyDemandUnits) {
     return { status: "UNKNOWN_DEMAND" };
   if (averageDailyDemandUnits < 0)
     return { status: "INCOMPLETE", reason: "NEGATIVE_DEMAND" };
-  return { status: "FINITE", value: stockUnits / averageDailyDemandUnits };
+  const value = stockUnits / averageDailyDemandUnits;
+  if (!Number.isFinite(value))
+    return { status: "INCOMPLETE", reason: "DAYS_COVER_NONFINITE" };
+  return { status: "FINITE", value };
 }
 
 function priority(rows) {
@@ -148,6 +151,92 @@ assert.deepEqual(
   c.negativeDemandPriority.expected,
 );
 
+let finitePriorityCases = 0;
+function checkFinitePriority(actual, expected, label) {
+  assert.deepEqual(actual, expected, label);
+  finitePriorityCases++;
+}
+const nonfiniteCover = {
+  status: "INCOMPLETE",
+  reason: "DAYS_COVER_NONFINITE",
+};
+for (const [stock, demand] of [
+  [Number.MAX_VALUE, 0.5],
+  [Number.MAX_VALUE, Number.MIN_VALUE],
+  [1, Number.MIN_VALUE],
+  [Number.MAX_VALUE / 2, 0.25],
+]) {
+  checkFinitePriority(
+    daysCover(stock, demand),
+    nonfiniteCover,
+    "finite operands must not produce FINITE Infinity",
+  );
+  const overflowRow = {
+    productId: 9,
+    stockUnits: stock,
+    averageDailyDemandUnits: demand,
+  };
+  for (const rows of [
+    [overflowRow],
+    [overflowRow, c.priority.rows[0]],
+    [c.priority.rows[0], overflowRow],
+  ]) {
+    const result = priority(rows);
+    checkFinitePriority(result, nonfiniteCover, "overflow blocks whole priority");
+    checkFinitePriority(
+      JSON.parse(JSON.stringify(result)),
+      nonfiniteCover,
+      "overflow must not become a successful null days-cover value in JSON",
+    );
+  }
+}
+for (const [stock, demand, expected] of [
+  [Number.MAX_VALUE, 1, Number.MAX_VALUE],
+  [Number.MAX_VALUE, Number.MAX_VALUE, 1],
+  [Number.MAX_VALUE / 2, 0.5, Number.MAX_VALUE],
+  [Number.MIN_VALUE, Number.MIN_VALUE, 1],
+  [Number.MIN_VALUE, 1, Number.MIN_VALUE],
+  [0, Number.MIN_VALUE, 0],
+  [-0, Number.MIN_VALUE, -0],
+  [3, 2, 1.5],
+]) {
+  const result = daysCover(stock, demand);
+  checkFinitePriority(result, { status: "FINITE", value: expected }, "finite boundary");
+  assert.ok(Number.isFinite(result.value));
+}
+for (const demand of [null, undefined, NaN, Infinity, -Infinity, 0, -0, "2"])
+  checkFinitePriority(daysCover(3, demand), { status: "UNKNOWN_DEMAND" }, "unknown demand retained");
+for (const stock of [-1, NaN, Infinity, -Infinity, null, undefined, "3"])
+  checkFinitePriority(daysCover(stock, 2), { status: "INCOMPLETE", reason: "STOCK_INVALID" }, "invalid stock retained");
+checkFinitePriority(daysCover(3, -1), { status: "INCOMPLETE", reason: "NEGATIVE_DEMAND" }, "negative demand retained");
+checkFinitePriority(priority([]), {
+  urgentProductIds: [], daysCover: {}, unknownDemandProductIds: [], exactOrderQuantities: null,
+}, "empty input retained");
+const tiedRows = [
+  { productId: 3, stockUnits: 4, averageDailyDemandUnits: 2 },
+  { productId: 2, stockUnits: 0, averageDailyDemandUnits: Number.MIN_VALUE },
+  { productId: 4, stockUnits: 5, averageDailyDemandUnits: 0 },
+  { productId: 1, stockUnits: 2, averageDailyDemandUnits: 1 },
+];
+const tiedExpected = {
+  urgentProductIds: [2, 1, 3], daysCover: { 2: 0, 1: 2, 3: 2 },
+  unknownDemandProductIds: [4], exactOrderQuantities: null,
+};
+for (const rows of [tiedRows, [...tiedRows].reverse()])
+  checkFinitePriority(priority(rows), tiedExpected, "zero stock and product-ID ties retained");
+const frozenRows = Object.freeze(tiedRows.map((row) => Object.freeze({ ...row })));
+const frozenBefore = JSON.stringify(frozenRows);
+checkFinitePriority(priority(frozenRows), tiedExpected, "frozen input supported");
+checkFinitePriority(JSON.stringify(frozenRows), frozenBefore, "input not mutated");
+const detached = priority(frozenRows);
+detached.urgentProductIds.push(999);
+detached.daysCover[1] = 999;
+detached.unknownDemandProductIds.push(999);
+checkFinitePriority(priority(frozenRows), tiedExpected, "return values detached");
+for (const productId of [null, undefined, "1", NaN, Infinity, 1.5])
+  checkFinitePriority(priority([{ productId, stockUnits: 3, averageDailyDemandUnits: 1 }]),
+    { status: "INCOMPLETE", reason: "PRODUCT_ID_INVALID" }, "product-ID validation retained");
+
 assert.equal(
   slice.rules.urgency,
   "FINITE_DAYS_COVER_SORT_ASCENDING_STABLE_BY_PRODUCT_ID",
@@ -165,6 +254,7 @@ console.log(
     scenario: "STD-07",
     reusedOperations: slice.reuse.operations,
     exactOrderQuantityWithoutInputs: false,
+    finitePriorityCases,
     acceptedOperationMappingChanged: false,
     liveValues: false,
   }),
