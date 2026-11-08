@@ -1,5 +1,18 @@
 # Исправления аудита Алисы — 8 ноября 2026
 
+**Пакет исправлений установлен и сохранён в общей ветке.** A03 fairness, A04 admin storage, A05 lost-ACK/two-tab recovery и A06 total HTTP deadline установлены из 06f3c053e77192907821005aa4aae5cc1e8aee63. Native 1076/1076, независимый PASS_INSTALLED_SMOKE. S06/S07, числовая приёмка и физическая Станция этим статусом не закрыты.
+
+Итоговый интеграционный head df60518a7d564a452ae92c3f6103f27fe9ee1931 прошёл полный CI 42446268819 и Documentation CI 42446268817. PR #399 слит merge 7c2c674fae5c2b07a15f48b961f7a204a65a5102. Сохранены параллельные исправления входа и их материалы; начальный неповторившийся browser-FAIL предыдущего SHA не скрыт.
+
+Последний readback 04:25 UTC: web/identity alisa-da73a089d3125429 после отдельного обновления входа; admin/platform/core сохраняют 06f3. Все четыре HTTP-службы READY. Диск 3162.48 MiB при минимуме 3072 MiB; перед следующей поставкой снова измерять резерв. Не возвращать старые pointers и не заменять текущую авторизацию прежним снимком.
+
+[Полный отчёт и исходные доказательства на ветке alisa](https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/quality/AUDIT_FIXES_2026-11-08.md). [Инструкция для первых частных тестов Станции](https://github.com/MaksimUnimax/runtime-fixtures/blob/alisa/docs/alisa/quality/STATION_START_2026-11-08.md).
+
+Следующая продуктовая работа: остаток S05, RuntimePort и привязка Яндекса S06, первый сквозной отчёт S07. OWNER-SOURCE-R1 уже разрабатывается отдельным кандидатом; его не считать установленным. Частный опубликованный навык можно проверять сегодня под аккаунтом его создателя; S18 — итоговая приёмка на физической Станции.
+
+## История подготовки — не текущее состояние
+
+
 Статус: IN_PROGRESS. Основание — прямое поручение владельца устранить ошибки аудита и подготовить работу с прибывающей Станцией.
 
 Автор текущего scope: /root. База платформы 9be30db36b90be9d924cf977c76d052b91b6d8c3; действующие web/identity 7afaf646, admin73180172, platform6098b313. Изолированная ветка fix/alisa-audit-r1-20261108. Рабочие исходники/конфигурация пока не изменены.
@@ -28,6 +41,6 @@ Current status: SOURCE_TESTED, browser/backend CI pending, independent final rev
 
 The current stores branch advanced to5dff6e8883e25ac464d6e8c64e4ab5a7280c70f7 during audit work. Its Seller qualification and AUTHENTICATED_UNLINKED change has been merged without discarding either branch. The new checker and its TLS tests were also incorporated into canonical products/alisa/runtime; existing security boundaries and the configured Seller qualification flag are preserved.
 
-Publication fallback: ordinary server git push timed out, including one bounded55s HTTP/1.1 retry. Connected GitHub API published the identical tree b0e3c2c934637e394dd35e503b81cf6d6c0e9b96 as3aeb0c77; original local history retained. Draft PR399 is the review/CI surface.
+Publication fallback: ordinary server git push timed out, including one bounded55s HTTP/1.1 retry. Connected GitHub API published the identical tree b0e3c2c934637e394dd35e503b81cf6d6c0e9b96 as3aeb0c77; original local history retained. Draft PR #399 is the review/CI surface.
 
 Resource follow-up: native hardlink dry-run preserving timestamps/ownership/mode/xattrs on inactive dependency trees projected only95.32KiB. No hardlinks applied. The earlier OS-cache cleanup retained every release and restored about305MiB. Installation admission must measure actual package/extraction/rollback requirements against3072MiB reserve.
