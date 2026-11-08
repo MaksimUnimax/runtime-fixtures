@@ -346,7 +346,7 @@ class Delivery:
                         message=0, delivery='waiting' if settings['enabled'] and self.state['connected'] and not self.state['uncertain'] else 'manual')
                     self.save()
                 if self.state['job']['delivery'] == 'waiting':
-                    return {'text': 'Задание принято. Примерное время ответа — около '+label(self.state['job'].get('eta_base', 60))+'. Сообщу ответ на этой колонке, когда расчёт завершится.'}
+                    return {'text': 'Задание принято. Примерное время ответа — около '+label(self.state['job'].get('eta_base', 60))+'. Сообщу ответ на этой колонке, когда расчёт завершится.', 'end_session': True}
             # Replace only the runtime's exact fixed instruction, never figures or arbitrary prose.
             text = text.replace('Скажите: результат.', 'Скажите: '+settings['manual_command']+'.')
             text = text.replace('Для получения отчета: результат.', 'Для получения отчета: '+settings['manual_command']+'.')
@@ -364,15 +364,15 @@ class Delivery:
         with self.lock:
             if generation != self.state['generation'] or self.state['job'] != job or job['delivery'] != 'waiting': return
             state = result.get('state')
-            if state not in ('READY', 'QUEUED', 'RUNNING') or self.clock()-job['created'] > 86400:
+            if state not in ('READY', 'QUEUED', 'RUNNING', 'FAILED', 'UNKNOWN') or self.clock()-job['created'] > 86400:
                 job['delivery'] = 'stopped'; self.save(); return
-            final = state == 'READY'
+            final = state == 'READY'; failed = state in ('FAILED', 'UNKNOWN')
             if final and not job.get('eta_observed'):
                 observe(self.state['eta_history'], self.clock()-job['created'])
                 job['eta_observed'] = True
                 self.save()
-            if not final and self.clock() < job['next_at']: return
-            text = result.get('text', '') if final else pending(settings['pending_messages'][job['message'] % len(settings['pending_messages'])], job, self.clock())
+            if not final and not failed and self.clock() < job['next_at']: return
+            text = (result.get('text') or 'Расчёт не завершился. Повторите исходный запрос.')[:900] if failed else (result.get('text', '') if final else pending(settings['pending_messages'][job['message'] % len(settings['pending_messages'])], job, self.clock()))
             if not text and not final: return
             job['delivery'] = 'sending'
             if final:
@@ -384,14 +384,15 @@ class Delivery:
         try:
             # Recheck permission and concrete job immediately before dispatch.
             latest = self.status_job(snapshot)
-            if latest.get('state') not in (('READY',) if final else ('QUEUED','RUNNING')):
+            accepted_states = ('READY',) if final else (('FAILED','UNKNOWN') if failed else ('QUEUED','RUNNING'))
+            if latest.get('state') not in accepted_states:
                 with self.lock:
                     if self.state['job'] is job: job['delivery']='waiting'; self.save()
                 return
-            self.speak(text, generation, guard=lambda: self.state['job'] is job and job['delivery'] == 'sending' and self.status_job(snapshot).get('state') in (('READY',) if final else ('QUEUED','RUNNING')), mode='skill' if final else 'text')
+            self.speak(text, generation, guard=lambda: self.state['job'] is job and job['delivery'] == 'sending' and self.status_job(snapshot).get('state') in accepted_states, mode='skill' if final else 'text')
             with self.lock:
                 if self.state['job'] is job and generation == self.state['generation']:
-                    if job['delivery'] != 'responded_to_skill': job['delivery'] = 'accepted_waiting_skill' if final else 'waiting'
+                    if job['delivery'] != 'responded_to_skill': job['delivery'] = 'accepted_waiting_skill' if final else ('failed_notified' if failed else 'waiting')
                     job['next_at'] = self.clock()+settings['interval_seconds']; job['message'] += 1; self.save()
         except Exception:
             with self.lock:
