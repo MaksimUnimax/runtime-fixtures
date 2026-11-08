@@ -8,7 +8,11 @@
     "minimal_read_only_probe": {
       "method": "POST",
       "url": "https://api-seller.ozon.ru/v1/seller/info",
-      "headers": ["Client-Id", "Api-Key", "Content-Type: application/json"],
+      "headers": [
+        "Client-Id",
+        "Api-Key",
+        "Content-Type: application/json"
+      ],
       "body": {},
       "acceptance": "TLS authenticated HTTP 200 plus strict expected company response shape; no additional roles, campaign, analytics, or report request.",
       "identity_limit": "The response schema does not establish an explicit Client-Id-to-seller_id crosswalk in the official pages reviewed. Combined with the required Client-Id and Api-Key headers and the official Api-Key-not-found-for-seller_id error semantics, a 200 is conditionally sufficient to bind the exact submitted pair in the canonical ozon:client:<Client-Id> namespace. This is an inference from official contracts, not a literal documented header-to-seller_id equality; it does not itself echo the numeric account identifier."
@@ -43,14 +47,82 @@
     "caution": "Ozon documents Seller API and Performance API as separate integration areas. An official community response on using Seller API key as Performance client_secret reports invalid_client; this is evidence of separate credential systems, not a crosswalk."
   },
   "sources": [
-    {"url": "https://dev.ozon.ru/news/505-Izmenenie-otdavaemykh-oshibok-sviazannykh-c-API-kliuchami-Seller-API/", "reference": "turn32view1", "finding": "404 Api-Key not found for seller_id; distinct 403 causes."},
-    {"url": "https://dev.ozon.ru/start/450-Protsess-OAuth-avtorizatsii-dlia-dostupa-k-Ozon-Seller-API/", "reference": "turn32view0", "finding": "Authorization Code consent, select_company, OAuth token; sub differs for authorization_code and client_credentials."},
-    {"url": "https://dev.ozon.ru/start/442-FAQ-Magazin-prilozhenii-i-Lichnyi-kabinet-razrabotchika/", "reference": "turn31view0", "finding": "access_token.sub is unique company seller_id; /oauth/me is bodyless POST with Bearer; consent/cabinet semantics."},
-    {"url": "https://dev.ozon.ru/docs/legal/appstore/", "reference": "turn35view1", "finding": "Ozon's developer-app Client_id definition shows terminology collision with Seller API Client-Id; not a proven legacy seller-id mapping."},
-    {"url": "https://dev.ozon.ru/news/482-Novyi-domen-Performance-API/", "reference": "turn34search0", "finding": "Current Performance API host is api-performance.ozon.ru."},
-    {"url": "https://dev.ozon.ru/community/1221-Ne-poluchaetsia-poluchit-API-key/", "reference": "turn34search3", "finding": "Seller API key used as Performance client_secret receives invalid_client; credentials are distinct."},
-    {"url": "https://dev.ozon.ru/news/483-Bolshoe-obnovlenie-razdela-lichnogo-kabineta-API-integratsii/", "reference": "turn34search4", "finding": "Seller and Performance are separate integration tabs/areas."},
-    {"url": "https://dev.ozon.ru/news/784-Izmeneniia-v-srokakh-deistviia-kliuchei-Seller-API/", "reference": "turn22search7", "finding": "Latest reviewed Seller API key lifetime policy, effective September 3, 2026."}
+    {
+      "url": "https://dev.ozon.ru/news/505-Izmenenie-otdavaemykh-oshibok-sviazannykh-c-API-kliuchami-Seller-API/",
+      "reference": "turn32view1",
+      "finding": "404 Api-Key not found for seller_id; distinct 403 causes."
+    },
+    {
+      "url": "https://dev.ozon.ru/start/450-Protsess-OAuth-avtorizatsii-dlia-dostupa-k-Ozon-Seller-API/",
+      "reference": "turn32view0",
+      "finding": "Authorization Code consent, select_company, OAuth token; sub differs for authorization_code and client_credentials."
+    },
+    {
+      "url": "https://dev.ozon.ru/start/442-FAQ-Magazin-prilozhenii-i-Lichnyi-kabinet-razrabotchika/",
+      "reference": "turn31view0",
+      "finding": "access_token.sub is unique company seller_id; /oauth/me is bodyless POST with Bearer; consent/cabinet semantics."
+    },
+    {
+      "url": "https://dev.ozon.ru/docs/legal/appstore/",
+      "reference": "turn35view1",
+      "finding": "Ozon's developer-app Client_id definition shows terminology collision with Seller API Client-Id; not a proven legacy seller-id mapping."
+    },
+    {
+      "url": "https://dev.ozon.ru/news/482-Novyi-domen-Performance-API/",
+      "reference": "turn34search0",
+      "finding": "Current Performance API host is api-performance.ozon.ru."
+    },
+    {
+      "url": "https://dev.ozon.ru/community/1221-Ne-poluchaetsia-poluchit-API-key/",
+      "reference": "turn34search3",
+      "finding": "Seller API key used as Performance client_secret receives invalid_client; credentials are distinct."
+    },
+    {
+      "url": "https://dev.ozon.ru/news/483-Bolshoe-obnovlenie-razdela-lichnogo-kabineta-API-integratsii/",
+      "reference": "turn34search4",
+      "finding": "Seller and Performance are separate integration tabs/areas."
+    },
+    {
+      "url": "https://dev.ozon.ru/news/784-Izmeneniia-v-srokakh-deistviia-kliuchei-Seller-API/",
+      "reference": "turn22search7",
+      "finding": "Latest reviewed Seller API key lifetime policy, effective September 3, 2026."
+    }
   ],
-  "decision": "Seller can be qualified into ozon:client:<normalized Client-Id> only if runtime records the exact request pair, TLS-authenticated HTTP 200, strict company shape, and the qualification policy accepts the combined official auth contract as binding proof. Otherwise fail closed pending Ozon clarification. Do not label it seller_id without explicit mapping. Retain IDENTITY_NOT_VERIFIED for Performance pending same-cabinet proof."
+  "decision": "Seller can be qualified into ozon:client:<normalized Client-Id> only if runtime records the exact request pair, TLS-authenticated HTTP 200, strict company shape, and the qualification policy accepts the combined official auth contract as binding proof. Otherwise fail closed pending Ozon clarification. Do not label it seller_id without explicit mapping. Retain IDENTITY_NOT_VERIFIED for Performance pending same-cabinet proof.",
+  "followup_20261108": {
+    "scope": "PUBLIC_CONTRACT_RESEARCH_AND_EXISTING_OWNER_CREDENTIAL_METADATA_ONLY",
+    "roadmap_step": "AL-S05",
+    "status": "LEGACY_BINDING_NOT_QUALIFIED_OFFICIAL_SPEC_REQUIRED",
+    "public_official_sources": [
+      {
+        "url": "https://dev.ozon.ru/news/691-Performance-API-Optimizatsiia-kontrolia-dostupov-cherez-OAuth/",
+        "finding": "Ozon documents a single OAuth token for Seller and Performance with selected scopes and a read-only role. This is a separate grant path; it does not retroactively bind an existing legacy Performance client_credentials pair to a Seller Client-Id."
+      },
+      {
+        "url": "https://dev.ozon.ru/start/450-Protsess-OAuth-avtorizatsii-dlia-dostupa-k-Ozon-Seller-API/",
+        "finding": "The official OAuth article distinguishes authorization_code sub (Seller ID) from client_credentials sub (application Client ID). Neither unverified JWT decoding nor client-id string parsing is accepted as a legacy crosswalk."
+      }
+    ],
+    "actual_owner_metadata_probe": {
+      "credential_file_present": true,
+      "performance_legacy_generated_format": true,
+      "performance_prefix_matches_seller_client_id": false,
+      "identifiers_or_secret_values_recorded": false,
+      "provider_calls": 0,
+      "files_changed": 0
+    },
+    "public_spec_acquisition": {
+      "official_url": "https://docs.ozon.ru/api/performance/swagger.json",
+      "url_provenance": "existing tooling/api-watch/src/source-registry.ts",
+      "web_search_fetch": "NO_READABLE_SPEC",
+      "authorized_server_direct_fetch_http_status": 307,
+      "response_content_type": "text/html",
+      "redirect_present": true,
+      "usable_openapi_document_obtained": false,
+      "redirect_challenge_bypass_attempted": false
+    },
+    "implementation_boundary": "Existing AUTHENTICATED_UNLINKED result and pending revision retained. No guessed identity, OAuth registration, API writes, key replacement, configuration change, or release activation. Existing source tests already protect this boundary.",
+    "required_next_input": "Official public Performance OpenAPI JSON downloaded normally from the documentation. No account credential, seller token, cookie, or new key is requested.",
+    "next_action": "Inspect official schemas for a provider-authenticated crosswalk or exact supported OAuth flow, then implement the chosen contract with negative mismatch, lifecycle, tenant, and no-secret regression checks. If no legacy crosswalk exists, document the concrete supported OAuth prerequisite before asking the owner to configure an application."
+  }
 }
