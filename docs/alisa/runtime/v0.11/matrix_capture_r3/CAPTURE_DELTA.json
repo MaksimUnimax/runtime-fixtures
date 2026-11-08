@@ -1,0 +1,60 @@
+{
+  "schema": "alisa-matrix-capture-delta/v1",
+  "status": "CANDIDATE_NOT_INSTALLED",
+  "candidate": "/opt/alice-market/candidates/20261108-cue01-matrix-r3",
+  "base": "/opt/alice-market/candidates/20261106-cue01-live-queue-r1",
+  "application": "Review description of the implemented JSON delta, not an installer. Exact files, tests and unified patch are in the complete candidate archive.",
+  "source_file": "matrix_examples/raw_graph.synthetic.json",
+  "rebuild": "python3 -B live/build_live_catalog.py",
+  "generated_file": "live/live_graph.json",
+  "changes": [
+    {
+      "node_id": "orders_fbo",
+      "record_expression_path": ["capture", "postings", "$map", 2],
+      "remove": "in_process_at",
+      "retained_event_field": "created_at",
+      "reason": "Only the FBO cohort event timestamp is required. The unused FBS timestamp is not captured."
+    },
+    {
+      "node_id": "orders_fbs",
+      "record_expression_path": ["capture", "postings", "$map", 2],
+      "remove": "created_at",
+      "retained_event_field": "in_process_at",
+      "reason": "Only the FBS cohort event timestamp is required. A missing required timestamp is still an error, not a fallback to the other date."
+    },
+    {
+      "node_ids": ["accruals", "accruals_asof"],
+      "record_expression_path": ["capture", "accruals", "$map", 2],
+      "replace_field": "unit_number",
+      "expression": {
+        "$if": [
+          {
+            "$fn": [
+              "and",
+              {"$fn": ["eq", {"$path": ["record", "posting"]}, null]},
+              {"$fn": ["eq", {"$path": ["record", "item_fees"]}, null]}
+            ]
+          },
+          null,
+          {"$path": ["record", "unit_number"]}
+        ]
+      },
+      "reason": "An accrual without posting and item_fees has no product/order association. Its date and total_amount remain present. Product-linked accruals must retain their source reference; absence is not replaced by null, zero or an invented identifier. Missing branch markers also remain errors."
+    }
+  ],
+  "failure_catalog": {
+    "file": "runtime/failure_catalog.json",
+    "alias": {"BINDING_MISSING": "SOURCE_FIELD_MISSING"},
+    "entry": {
+      "reason": "В полученных данных нет поля, необходимого выбранному расчёту. Полный отчёт не сформирован; отсутствующие значения не заменяю нулями.",
+      "next_action": "Нужно проверить соответствие источника и матрицы полей. Автоматически повторять запрос к площадке не буду.",
+      "cause_status": "OBSERVED_FAILURE"
+    }
+  },
+  "runtime_python_changed": false,
+  "calculation_python_changed": false,
+  "new_voice_definitions": 0,
+  "newly_enabled_definitions": 0,
+  "independent_review": "NOT_RUN",
+  "live_r3_retest": "NOT_RUN"
+}
