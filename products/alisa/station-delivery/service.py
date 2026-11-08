@@ -8,6 +8,8 @@ from transport import Yandex, Fault, payload
 
 BASE = '/admin/station/'
 ORIGIN = 'https://alisa-admin.octoport.ru'
+SITE_BASE = '/app/station/'
+SITE_ORIGIN = 'https://alisa.octoport.ru'
 DEFAULTS = {'enabled': True, 'interval_seconds': 10,
             'pending_messages': ['Расчёт ещё выполняется. Сообщу, когда ответ будет готов.'],
             'manual_command': 'результат'}
@@ -76,6 +78,8 @@ class Delivery:
         self.directory = Path(directory); self.cipher = cipher
         self.clock, self.auth, self.peek = clock, auth, peek
         self.lock, self.transport_lock = threading.RLock(), threading.Lock()
+        self.policy_enabled=lambda: True
+        self.policy_guard=threading.RLock()
         self.client = client or Yandex(); self.devices = []; self.qr = None; self.qr_until = 0
         self.last_poll = 0; self.pair_hash = ''; self.pair_until = 0; self.pair_tries = 0
         self.state = {'settings': dict(DEFAULTS), 'revision': 1, 'owner': None, 'selected': None,
@@ -188,7 +192,7 @@ class Delivery:
             return self.view()
         if kind == 'pair':
             if self.state['binding']: raise Fault('already_paired')
-            code = ''.join(str(secrets.randbelow(10)) for _ in range(6))
+            code = ''.join(str(secrets.randbelow(10)) for _ in range(24))
             with self.lock:
                 self.pair_hash = hashlib.sha256(code.encode()).hexdigest()
                 self.pair_until = self.clock()+180; self.pair_tries = 0
@@ -199,6 +203,7 @@ class Delivery:
 
     def speak(self, text, generation, guard=None, mode="text"):
         with self.transport_lock:
+            launch_attempted = False
             with self.lock:
                 if generation != self.state['generation'] or not self.state['connected'] or not self.state['selected']:
                     raise Fault('delivery_cancelled')
@@ -222,15 +227,26 @@ class Delivery:
                 with self.lock:
                     if generation != self.state['generation']: raise Fault('delivery_cancelled')
                     if guard is not None and not guard(): raise Fault('delivery_cancelled')
-                self.client.api('POST', '/m/user/scenarios/'+sid+'/actions')
+                if guard is not None:
+                    with self.policy_guard:
+                        if not self.policy_enabled() or generation != self.state['generation'] or not guard():
+                            raise Fault('delivery_cancelled')
+                        launch_attempted = True
+                        self.client.api('POST', '/m/user/scenarios/'+sid+'/actions')
+                else:
+                    launch_attempted = True
+                    self.client.api('POST', '/m/user/scenarios/'+sid+'/actions')
                 with self.lock:
                     if generation == self.state['generation']:
                         self.state['uncertain'] = False
                         self.state['last_delivery'] = {'state': 'accepted_not_heard', 'at': self.clock()}
                         self.save_session(); self.save()
-            except Exception:
+            except Exception as exc:
                 with self.lock:
-                    self.state['last_delivery'] = {'state': 'unknown_no_retry', 'at': self.clock()}; self.save()
+                    cancelled_before_launch = isinstance(exc, Fault) and exc.code == 'delivery_cancelled' and not launch_attempted
+                    if cancelled_before_launch:
+                        self.state['uncertain'] = False
+                    self.state['last_delivery'] = {'state': 'cancelled_before_launch' if cancelled_before_launch else 'unknown_no_retry', 'at': self.clock()}; self.save()
                 raise
 
     def status_job(self, job):
@@ -355,11 +371,92 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs): raise Fault('auth_redirect')
 
 
-def staff_cookie(header):
+def session_cookie(header, name):
     found = [part.strip().split('=', 1)[1] for part in (header or '').split(';')
-             if part.strip().startswith('__Host-alisa_staff=')]
+             if part.strip().startswith(name+'=')]
     if len(found) != 1 or not re.fullmatch(r'[A-Za-z0-9_-]{43}', found[0]): raise Fault('login_required')
     return found[0]
+
+def staff_cookie(header): return session_cookie(header, '__Host-alisa_staff')
+
+def site_profile(cookie):
+    token = session_cookie(cookie, '__Host-alisa_session')
+    base = os.environ['ALISA_PLATFORM_URL'].rstrip('/')
+    if base not in ('http://127.0.0.1:18102', 'http://127.0.0.1:18104'): raise Fault('platform_origin')
+    req = urllib.request.Request(base+'/api/v1/account/me', data=json.dumps({'session_token':token}).encode(),
+        headers={'Authorization':'Bearer '+os.environ['ALISA_AUTH_SERVICE_TOKEN'], 'Content-Type':'application/json'})
+    try:
+        with urllib.request.build_opener(NoRedirect()).open(req, timeout=3) as response: value=json.load(response)
+    except urllib.error.HTTPError: raise Fault('login_required') from None
+    profile=value.get('profile', {})
+    if profile.get('role') != 'OWNER_CLIENT' or not isinstance(profile.get('customer_id'),str) or not re.fullmatch(r'[0-9a-f-]{36}', profile['customer_id']):
+        raise Fault('customer_required')
+    return profile
+
+class Registry:
+    """One private Station session per authenticated site customer; shared admin policy."""
+    def __init__(self, directory, cipher):
+        self.root=Path(directory); self.cipher=cipher;self.lock=threading.RLock()
+        self.policy=Delivery(self.root,cipher)
+        self.users={}
+        self.pair_fail={}
+        parent=self.root/'users';parent.mkdir(exist_ok=True)
+        for path in parent.iterdir():
+            if path.is_dir() and re.fullmatch(r'[0-9a-f-]{36}',path.name):self._open(path.name)
+    def _open(self, owner):
+        if owner not in self.users:
+            path=self.root/'users'/owner;path.mkdir(mode=0o700,exist_ok=True)
+            d=Delivery(path,self.cipher)
+            d.policy_enabled=lambda:self.policy.state['settings']['enabled']
+            d.policy_guard=self.policy.lock
+            if d.state['owner'] not in (None,owner):raise Fault('connection_other_owner')
+            d.state['owner']=owner
+            if d.state['settings']!=self.policy.state['settings']:
+                d.configure({'revision':d.state['revision'],'settings':self.policy.state['settings']})
+            self.users[owner]=d
+        return self.users[owner]
+    def site(self, owner):
+        with self.lock:return self._open(owner)
+    def admin(self, kind, data, owner):
+        if kind not in ('status','settings'):raise Fault('personal_connection_on_site')
+        with self.lock:
+            if kind=='status':return self.policy.view()
+            result=self.policy.configure(data)
+            for d in self.users.values():d.configure({'revision':d.state['revision'],'settings':self.policy.state['settings']})
+            return result
+    def ingress(self, data):
+        with self.lock:
+            for d in self.users.values():
+                if d.state['settings']!=self.policy.state['settings']:
+                    d.configure({'revision':d.state['revision'],'settings':self.policy.state['settings']})
+            identity=(data.get('tenant'),data.get('application'))
+            bound=[d for d in self.users.values() if d.state['binding'] and (d.state['binding']['tenant'],d.state['binding']['application'])==identity]
+            if len(bound)>1:return {'error':'ambiguous_station_binding'}
+            command=data.get('command','')
+            if data.get('op')=='before' and isinstance(command,str) and command.startswith('привязать колонку'):
+                code=''.join(re.findall(r'\d',command[len('привязать колонку'):]))
+                marker=identity
+                until,count=self.pair_fail.get(marker,(0,0))
+                if until<time.time():until,count=time.time()+180,0
+                if count>=5:return {'reply':'Подключение временно недоступно. Начните его повторно позже.'}
+                target=[d for d in self.users.values() if d.pair_until>d.clock() and hmac.compare_digest(d.pair_hash,hashlib.sha256(code.encode()).hexdigest())]
+                if len(target)!=1 or bound and bound[0] is not target[0]:
+                    self.pair_fail[marker]=(until,count+1)
+                    if len(self.pair_fail)>1000:self.pair_fail={k:v for k,v in self.pair_fail.items() if v[0]>=time.time()}
+                    return {'reply':'Подключение не подтверждено.'}
+                self.pair_fail.pop(marker,None)
+                return target[0].ingress(data)
+            if bound:return bound[0].ingress(data)
+            if data.get('op')=='before':
+                if normalize(command)==self.policy.state['settings']['manual_command']:return {'command':'результат'}
+                return {'command':command}
+            return {'text':data.get('result',{}).get('text','')}
+    def tick(self):
+        with self.lock:users=list(self.users.values())
+        for d in users:
+            if d.state['settings']!=self.policy.state['settings']:
+                d.configure({'revision':d.state['revision'],'settings':self.policy.state['settings']})
+            d.tick()
 
 
 def staff_profile(cookie):
@@ -388,21 +485,26 @@ class AdminHandler(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(body)
     def do_GET(self):
         try:
-            if self.headers.get('Host') != 'alisa-admin.octoport.ru': raise Fault('origin')
-            profile = staff_profile(self.headers.get('Cookie'))
-            if self.server.delivery.state['owner'] not in (None, profile['id']): raise Fault('connection_other_owner')
-            name = self.path.removeprefix(BASE)
-            if self.path == BASE: name = 'index.html'
-            if self.path == BASE+'qr.svg':
-                link = self.server.delivery.qr
-                if not link or time.time() >= self.server.delivery.qr_until: raise Fault('qr_expired')
+            site=self.headers.get('Host')=='alisa.octoport.ru' and self.path.startswith(SITE_BASE)
+            admin=self.headers.get('Host')=='alisa-admin.octoport.ru' and self.path.startswith(BASE)
+            if not (site or admin):raise Fault('origin')
+            profile=site_profile(self.headers.get('Cookie')) if site else staff_profile(self.headers.get('Cookie'))
+            base=SITE_BASE if site else BASE
+            device=self.server.delivery.site(profile['customer_id']) if site else None
+            name=self.path.removeprefix(base)
+            if self.path==base:name='index-site.html' if site else 'index-admin.html'
+            if self.path==base+'qr.svg':
+                if not site:raise Fault('personal_connection_on_site')
+                link=device.qr
+                if not link or time.time()>=device.qr_until:raise Fault('qr_expired')
                 from qrcodegen import QrCode
                 qr = QrCode.encode_text(link, QrCode.Ecc.MEDIUM)
                 rects = ''.join(f'<path d="M{x+4},{y+4}h1v1h-1z"/>' for y in range(qr.get_size()) for x in range(qr.get_size()) if qr.get_module(x,y))
                 svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {qr.get_size()+8} {qr.get_size()+8}"><rect width="100%" height="100%" fill="white"/><g fill="black">{rects}</g></svg>'
                 self.send(200, svg.encode(), 'image/svg+xml'); return
-            if name not in ('index.html','app.js','style.css') or not self.path.startswith(BASE): raise Fault('not_found')
-            mime = {'index.html':'text/html','app.js':'text/javascript','style.css':'text/css'}[name]
+            allowed=('index-site.html','app.js','style.css') if site else ('index-admin.html','app-admin.js','style.css')
+            if name not in allowed:raise Fault('not_found')
+            mime = {'index-site.html':'text/html','index-admin.html':'text/html','app.js':'text/javascript','app-admin.js':'text/javascript','style.css':'text/css'}[name]
             self.send(200, Path(__file__).with_name(name).read_bytes(), mime+'; charset=utf-8')
         except Fault as e:
             if e.code == 'login_required': self.send(303, b'', location='/login')
@@ -410,13 +512,18 @@ class AdminHandler(BaseHTTPRequestHandler):
         except Exception: self.send(503, b'{"error":"service_unavailable"}')
     def do_POST(self):
         try:
-            if self.headers.get('Host') != 'alisa-admin.octoport.ru' or self.headers.get('Origin') != ORIGIN: raise Fault('origin')
-            if self.path != BASE+'api' or self.headers.get('Content-Type') != 'application/json': raise Fault('request_schema')
-            profile = staff_profile(self.headers.get('Cookie'))
+            site=self.headers.get('Host')=='alisa.octoport.ru' and self.headers.get('Origin')==SITE_ORIGIN and self.path==SITE_BASE+'api'
+            admin=self.headers.get('Host')=='alisa-admin.octoport.ru' and self.headers.get('Origin')==ORIGIN and self.path==BASE+'api'
+            if not (site or admin):raise Fault('origin')
+            if self.headers.get('Content-Type')!='application/json':raise Fault('request_schema')
+            profile=site_profile(self.headers.get('Cookie')) if site else staff_profile(self.headers.get('Cookie'))
             length = int(self.headers.get('Content-Length','0'))
             if not 1 <= length <= 4096: raise Fault('request_size')
             data = json.loads(self.rfile.read(length)); action = data.pop('action')
-            response = self.server.delivery.admin(action, data, profile['id'])
+            if site and action not in ('status','qr','poll','devices','select','pair','disconnect'):
+                raise Fault('owner_only_setting')
+            response=(self.server.delivery.site(profile['customer_id']).admin(action,data,profile['customer_id']) if site
+                      else self.server.delivery.admin(action,data,profile['id']))
             self.send(200, json.dumps(response, ensure_ascii=False).encode())
         except Fault as e: self.send(409 if e.code=='settings_changed_reload' else 403, json.dumps({'error':e.code}).encode())
         except Exception: self.send(503, b'{"error":"service_unavailable"}')
@@ -443,7 +550,7 @@ def main():
     args = parser.parse_args()
     from cryptography.fernet import Fernet
     os.umask(0o077)
-    core = Delivery(args.state, Fernet(Path(args.key).read_bytes()))
+    core = Registry(args.state, Fernet(Path(args.key).read_bytes()))
     ipc_path = '/run/alisa-station/ingress.sock'
     ipc = Ingress(ipc_path, IngressHandler); ipc.delivery = core
     web = ThreadingHTTPServer(('127.0.0.1',8777), AdminHandler); web.delivery = core

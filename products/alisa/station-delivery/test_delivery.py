@@ -78,14 +78,17 @@ class DeliveryTests(unittest.TestCase):
         self.after();self.now+=10
         self.client.hook=lambda m,p:setattr(self,'authorized',False)
         self.core.tick();self.assertFalse(self.launches())
+        self.assertFalse(self.core.state['uncertain'])
+        self.assertEqual(self.core.state['last_delivery']['state'],'cancelled_before_launch')
     def test_manual_takeover_before_launch(self):
         self.after();self.now+=10
         def hook(m,p):self.before('результат')
         self.client.hook=hook;self.core.tick();self.assertFalse(self.launches())
+        self.assertFalse(self.core.state['uncertain'])
     def test_new_job_before_launch(self):
         self.after();self.now+=10
         self.client.hook=lambda m,p:self.after('job2')
-        self.core.tick();self.assertFalse(self.launches());self.assertEqual(self.core.state['job']['jid'],'job2')
+        self.core.tick();self.assertFalse(self.launches());self.assertEqual(self.core.state['job']['jid'],'job2');self.assertFalse(self.core.state['uncertain'])
     def test_refresh_token_same_job(self):
         self.after();self.identity['token_hash']='b'*64;self.after();self.assertEqual(self.core.state['job']['token_hash'],'b'*64)
     def test_settings_conflict(self):
@@ -97,7 +100,7 @@ class DeliveryTests(unittest.TestCase):
     def test_pair_automatic_skill_challenge_and_app(self):
         self.core.state['binding']=None
         self.core.admin('pair',{},'owner');code=''.join(__import__('re').findall(r'\d',self.client.calls[0][2]['steps'][0]['parameters']['items'][0]['value']['capabilities'][0]['state']['value']))
-        self.assertEqual(len(code),6);self.before('привязать колонку '+code);self.assertEqual(self.core.state['binding']['application'],'app')
+        self.assertEqual(len(code),24);self.before('привязать колонку '+code);self.assertEqual(self.core.state['binding']['application'],'app')
     def test_staff_contract(self):
         from io import BytesIO
         value={'staff':{'id':'owner','role':'OWNER','product_id':'alisa_market'}}
