@@ -96,8 +96,9 @@ class DeadlineTests(unittest.TestCase):
                     release.set()
                     for caller in callers:
                         if caller.ident is not None:caller.join(1)
-                until=time.monotonic()+1
-                while any(t.name=='alisa-http-io' for t in threading.enumerate()) and time.monotonic()<until:time.sleep(.01)
+                    until=time.monotonic()+1
+                    while any(t.name=='alisa-http-io' for t in threading.enumerate()) and time.monotonic()<until:time.sleep(.01)
+                self.assertFalse(any(t.name=='alisa-http-io' for t in threading.enumerate()))
             self.assertEqual(sent,[])
         # All slots must become usable again after late DNS workers exit.
         def good(conn):conn.recv(4096);conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok')
