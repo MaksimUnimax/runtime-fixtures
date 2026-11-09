@@ -17,7 +17,9 @@ import type { DatabaseRuntime } from "./index.js";
 
 type Row = Record<string, any>;
 const iso = (value: unknown): string | null =>
-  value == null ? null : new Date(String(value)).toISOString();
+  value == null
+    ? null
+    : (value instanceof Date ? value : new Date(String(value))).toISOString();
 const page = <T>(
   items: T[],
   limit: number,
