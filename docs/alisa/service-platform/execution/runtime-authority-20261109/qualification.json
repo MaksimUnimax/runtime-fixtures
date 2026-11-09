@@ -4,7 +4,7 @@
   "author_qualification": {
     "postgresql": "16.15",
     "authority": {
-      "passed": 37,
+      "passed": 38,
       "failed": 0
     },
     "pinned_rt_job_r01_1_unix_roundtrip": {
@@ -15,7 +15,7 @@
     "append_only_runtime_role": "PASS",
     "owned_database_and_role_cleanup": true
   },
-  "checks_in_new_ci": "37 authority PostgreSQL tests; 8 roundtrip tests require separately supplied, pinned original RT-JOB source",
+  "checks_in_new_ci": "38 authority PostgreSQL tests; 8 roundtrip tests require separately supplied, pinned original RT-JOB source",
   "runtime_input": {
     "zip_sha256": "d5db0d7220048af0cea155e80a4af638ec4e60d21a5c07baf685bd14a40341d3",
     "manifest_sha256": "41229162f2d886cfea4300e4b33d8f72e57fc31d586e30312923471a945773da"
@@ -24,9 +24,9 @@
     "products/alisa/services/platform/src/alisa_platform/config/settings.py": "2b87784279ee3d470799426bcedff23b832aaa0b7d41aae359c265c48baf87f2",
     "products/alisa/services/platform/src/alisa_platform/config/urls.py": "f06cc2aa7c5819775f3d9431786f90e6678900bcff8d9126dfe0534300c55f2a",
     "products/alisa/services/platform/src/alisa_platform/runtime_adapter/authority_rpc.py": "e49b7bac6cbab8898c8cf222a9879aac73049fbbb19b7a9751d9237fb9db52cf",
-    "products/alisa/services/platform/src/alisa_platform/runtime_adapter/authority.py": "1cb2977a8e785d8c26d11d9284984a1915436dec52c61bf3788ccc3af1dc589c",
+    "products/alisa/services/platform/src/alisa_platform/runtime_adapter/authority.py": "bedb22e788dcc899f1cb8793a7a917bab5f5fc1993124f5aace44e78e2852b52",
     "products/alisa/services/platform/src/alisa_platform/runtime_adapter/bindings.py": "baf68b85c84d09398d6f113f6ebbaf0e759da99731740e59d91a00112f2bb688",
-    "products/alisa/tests/runtime_authority/checks.py": "fe751208aca127ae2cd282da9b5bcb46c0b0a043b5e34db7cc303bff9d6271ac",
+    "products/alisa/tests/runtime_authority/checks.py": "92dffa6aa8e08be6a893c2695cadd01c13316f76825f11cbf7697c9910880591",
     "products/alisa/tests/runtime_authority/roundtrip.py": "aecbd6f48977ec7fd7cbcc0abf7e7933f5d91cff63b2e85aa13f2790685bc9b1",
     "products/alisa/tests/integration/qualify_runtime_authority.py": "0bcfcca05ba9a4fc1662ed1ef5a27b59d22f472ff5400856162b98a9ccc336f1"
   },
@@ -35,5 +35,10 @@
   "independent_review": "PENDING",
   "installed": "NOT_RUN",
   "live_owner": "NOT_RUN",
-  "production": "NOT_RUN"
+  "production": "NOT_RUN",
+  "regression_evidence": {
+    "skill_client_change_before_fix": "FAILED: old grant and ticket accepted",
+    "skill_client_change_after_fix": "PASS: both denied",
+    "checks_after_fix": 46
+  }
 }

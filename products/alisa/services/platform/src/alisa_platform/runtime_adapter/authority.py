@@ -61,6 +61,7 @@ class AlicePrincipal:
             http_method='POST', headers={'Authorization': 'Bearer ' + self._token}, scopes=[SCOPE])
         need(valid, 'AUTH_REQUIRED')
         row = request.alice_family
+        need(row.link.client_id == settings.ALICE_CLIENT_ID, 'AUTH_REQUIRED')
         proof = {'kind': 'ALICE', 'id': str(row.pk), 'revision': row.revision,
                  'fingerprint': digest(row.access_hash)}
         return str(request.user.customer_id), str(request.user.tenant_id), row.access_expires_at.timestamp(), proof
@@ -82,7 +83,8 @@ def principal_current(proof, claims):
         need(getattr(settings, 'ALICE_LINK_ENABLED', False) is True, 'AUTH_REQUIRED')
         row = TokenFamily.objects.select_related('link__customer').filter(pk=proof['id'], revoked_at__isnull=True,
             access_expires_at__gt=timezone.now(), link__customer_id=claims['actor_id'], link__tenant_id=claims['tenant_id']).first()
-        need(row is not None and valid_link(row.link) and row.revision == row.link.revision
+        need(row is not None and row.link.client_id == settings.ALICE_CLIENT_ID
+             and valid_link(row.link) and row.revision == row.link.revision
              and proof['revision'] == row.revision and proof['fingerprint'] == digest(row.access_hash), 'AUTH_REQUIRED')
 
 

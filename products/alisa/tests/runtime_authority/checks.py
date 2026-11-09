@@ -289,6 +289,13 @@ class AuthorityChecks(AuthorityFixture):
             self.deny('AUTH_REQUIRED', lambda: self.authority.verify(ctx['execution_ticket'], 'fixture-platform'))
             self.assertFalse(authorizer.current(ctx, 'read_result'))
 
+    def test_skill_client_change_denies_old_grant_and_ticket(self):
+        authorizer, _, _, _ = self.issue_alice(); ctx = authorizer.prepare('submit')
+        with override_settings(ALICE_CLIENT_ID='other-client'):
+            for action in [lambda: authorizer.prepare('submit'),
+                           lambda: self.authority.verify(ctx['execution_ticket'], 'fixture-platform')]:
+                with self.subTest(action=action): self.deny('AUTH_REQUIRED', action)
+
     def test_shape_valid_untrusted_ticket_never_authorizes(self):
         self.deny('AUTH_REQUIRED', lambda: self.authority.verify('shape-only-not-signed', 'fixture-platform'))
 
