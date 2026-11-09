@@ -117,6 +117,37 @@ function evidence(result: unknown) {
   return list.slice(0, 32);
 }
 
+function mapRecommendation(row: Row, currentAuthority = true) {
+  const result = row.result && typeof row.result === "object" ? row.result : {};
+  return row.recommendation
+    ? {
+        recommendation: currentAuthority
+          ? recommendation(row.recommendation)
+          : "STALE",
+        sourceRecommendation: row.recommendation,
+        reasonCode: currentAuthority
+          ? `H5_${row.recommendation}`
+          : "STALE_EVALUATION_SCOPE",
+        severity: null,
+        evaluationId: row.id,
+        evaluationKey: row.evaluationKey,
+        incidentId: row.incidentId ?? null,
+        profileRevisionId: row.candidateProfileRevisionId,
+        provider: row.provider,
+        surface: row.surface,
+        variant: row.variant ?? "default",
+        browserFamily: row.browserFamily,
+        browserVersionScope: row.browserVersion,
+        monitoringLayer: row.probeLayer,
+        evidenceReferences: evidence(result),
+        issuedAt: iso(row.latestEvaluatedAt),
+        evaluationRevision: Number(row.suiteRevision),
+        freshnessAuthority: `${row.evaluationKey}:${row.suiteRevision}`,
+        executionAuthority: false,
+      }
+    : null;
+}
+
 function mapEvaluation(
   row: Row,
   currentScope?: Pick<
@@ -172,33 +203,7 @@ function mapEvaluation(
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
     incidentId: row.incidentId ?? null,
-    recommendationView: row.recommendation
-      ? {
-          recommendation: currentAuthority
-            ? recommendation(row.recommendation)
-            : "STALE",
-          sourceRecommendation: row.recommendation,
-          reasonCode: currentAuthority
-            ? `H5_${row.recommendation}`
-            : "STALE_EVALUATION_SCOPE",
-          severity: null,
-          evaluationId: row.id,
-          evaluationKey: row.evaluationKey,
-          incidentId: row.incidentId ?? null,
-          profileRevisionId: row.candidateProfileRevisionId,
-          provider: row.provider,
-          surface: row.surface,
-          variant: row.variant ?? "default",
-          browserFamily: row.browserFamily,
-          browserVersionScope: row.browserVersion,
-          monitoringLayer: row.probeLayer,
-          evidenceReferences: evidence(result),
-          issuedAt: iso(row.latestEvaluatedAt),
-          evaluationRevision: Number(row.suiteRevision),
-          freshnessAuthority: `${row.evaluationKey}:${row.suiteRevision}`,
-          executionAuthority: false,
-        }
-      : null,
+    recommendationView: mapRecommendation(row, currentAuthority),
   };
   return HealthAdminEvaluationDetailSchema.parse(mapped);
 }
@@ -309,9 +314,12 @@ export function createHealthAdminReadRepository(
       );
       const items = rows
         .filter((row) => row.recommendation)
-        .map((row) => mapEvaluation(row).recommendationView!)
+        .map((row) => mapRecommendation(row)!)
         .map((value) => HealthRecommendationSchema.parse(value));
-      return page(items, input.limit, input.cursor ?? null);
+      return {
+        items,
+        nextCursor: page(rows, input.limit, input.cursor ?? null).nextCursor,
+      };
     },
   };
   return repo;
