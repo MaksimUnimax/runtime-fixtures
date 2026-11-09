@@ -303,6 +303,14 @@ function isPaymentHistory(value: unknown): value is PaymentHistory {
   );
 }
 
+function formatBillingAmount(amountMinor: number, currency: string): string {
+  if (currency !== "RUB") {
+    return `${amountMinor} ${currency} (minor units)`;
+  }
+  const digits = String(amountMinor).padStart(3, "0");
+  return `${digits.slice(0, -2)}.${digits.slice(-2)} ${currency}`;
+}
+
 export default function Billing() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState("");
@@ -516,7 +524,7 @@ export default function Billing() {
               <dt>Price</dt>
               <dd>
                 {current.price
-                  ? `${current.price.amountMinor} ${current.price.currency} / ${current.price.billingInterval.count} ${current.price.billingInterval.unit}`
+                  ? `${formatBillingAmount(current.price.amountMinor, current.price.currency)} / ${current.price.billingInterval.count} ${current.price.billingInterval.unit}`
                   : "Price: not available"}
               </dd>
             </dl>
@@ -534,7 +542,8 @@ export default function Billing() {
             <ul>
               {payments.map((payment) => (
                 <li key={payment.id}>
-                  {payment.state} — {payment.amountMinor} {payment.currency} —{" "}
+                  {payment.state} —{" "}
+                  {formatBillingAmount(payment.amountMinor, payment.currency)} —{" "}
                   {payment.createdAt}
                 </li>
               ))}
