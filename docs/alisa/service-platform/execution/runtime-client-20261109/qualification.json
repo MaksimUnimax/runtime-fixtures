@@ -1,0 +1,17 @@
+{
+  "schema": "alisa-runtime-client-qualification/v1",
+  "scope": "SOURCE_SYNTHETIC_UNIX_IPC",
+  "runtime_zip_sha256": "d5db0d7220048af0cea155e80a4af638ec4e60d21a5c07baf685bd14a40341d3",
+  "tests": 20,
+  "seconds": 2.155,
+  "passed": true,
+  "client_sha256": "46edf0834ecbd7ca81895bd1bbba006080768ee70feba392f631c57686a1a560",
+  "test_sha256": "867d3586d1a626df435c4aaf85ccfea9c957c727190ecbe0dc551e581d64c548",
+  "external_network_allowed": false,
+  "real_unix_socket": true,
+  "real_queue_and_sqlite": true,
+  "authority": "SYNTHETIC",
+  "provider": "SYNTHETIC",
+  "installed": false,
+  "independent_review": "PENDING"
+}
