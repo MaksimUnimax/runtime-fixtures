@@ -48,16 +48,5 @@ try{
  process.stdout.write(JSON.stringify({ok:true,platform:input.platform,operation:input.operation,normalized:output.normalized,request}));
 }catch(error){
  const code=typeof error?.code==='string'&&/^[A-Z0-9_]{1,90}$/.test(error.code)?error.code:'READ_REQUEST_INVALID';
- // Validator messages may name a missing field. Never include a supplied value.
- const match=String(error?.message||'').match(/(?:params\.)[A-Za-z0-9_.\[\]]{1,90}/);
- const explanation=String(error?.message||'').toLowerCase();
- let expectedType=null;
- if(match){
-  if(explanation.includes('массив')||explanation.includes('array'))expectedType='array';
-  else if(explanation.includes('строк')||explanation.includes('string'))expectedType='string';
-  else if(explanation.includes('boolean'))expectedType='boolean';
-  else if(explanation.includes('цел')||explanation.includes('integer'))expectedType='integer';
-  else if(explanation.includes('объект')||explanation.includes('object'))expectedType='object';
- }
- process.stdout.write(JSON.stringify({ok:false,error:code,field:match?.[0]||null,expected_type:expectedType}));process.exitCode=2;
+ process.stdout.write(JSON.stringify({ok:false,error:code}));process.exitCode=2;
 }

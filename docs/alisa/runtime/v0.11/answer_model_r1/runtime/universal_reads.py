@@ -447,10 +447,6 @@ def worker_step(worker,row,plan):
             'expected_finish_fact':{'label':'Краткое название без цифр','expr':{'$path':['calls',0,'data','result']}},
             'expected_discovery_keys':['action','platform','cluster','query','offset'],'provider_request_executed':False,
             'parameter_help':'ID следует брать из полученных данных. Для массивов используйте JSON-массив или params_expr с $map, а не придуманные числа.'}
-        contract=getattr(exc,'contract_feedback',None)
-        if type(contract)is dict:
-            progress['feedback']['parameter_error']=contract
-            progress['feedback']['parameter_help']='Исправь указанное поле согласно expected_json_type исходного валидатора. Числовая строка передаётся в кавычках; не меняй значение, не копируй ID из примеров. Это локальная проверка до API.'
         if answer_by_model:progress['feedback'].pop('expected_finish_fact',None)
         elif decision.get('action')=='finish':progress['feedback']['expression_language']=expression_contract()
         if decision.get('action')=='read'and type(decision.get('operation'))is str:
