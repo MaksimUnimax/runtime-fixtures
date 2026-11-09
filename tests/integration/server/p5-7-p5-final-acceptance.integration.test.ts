@@ -1297,25 +1297,223 @@ describe.sequential(
         audits: (await q("SELECT * FROM audit_events ORDER BY id")).rows,
       });
       const beforeReplay = await canonicalState();
-      // processClaim may look up status before the repository detects staleness.
-      expect(await service.processClaim(claim, id())).toEqual({
-        kind: "STALE_LEASE",
-        paymentId: c.paymentId,
+      const { createApiApp } = await import("../../../apps/api/src/app.js");
+      const ownerToken = "db44-owner-principal-stub";
+      const otherToken = "db44-other-principal-stub";
+      // Narrow test-principal stub only; this does not exercise real login/auth.
+      const principalStub = {
+        authenticate: async (token: string) => {
+          const userId =
+            token === ownerToken
+              ? f.userId
+              : token === otherToken
+                ? other.userId
+                : undefined;
+          return userId ? { userId, sessionId: token } : undefined;
+        },
+      };
+      const app = createApiApp({
+        config: {
+          environment: "test",
+          databaseUrl: connectionString!,
+          logLevel: "error",
+          apiPort: 0,
+          workerReadyDelayMs: 0,
+        },
+        // Unused health-route readiness stub; no infrastructure qualification.
+        isInfrastructureReady: async () => true,
+        authService: principalStub as unknown as NonNullable<
+          Parameters<typeof createApiApp>[0]["authService"]
+        >,
+        // Reuse the recovered fixture's real service and repositories.
+        commercialPortalService: portal,
       });
-      expect(await canonicalState()).toEqual(beforeReplay);
-      expect(await portal.readSubscription(f.userId, f.accountId)).toEqual(
-        ownerSubscription,
-      );
-      expect(await portal.listPayments(f.userId, f.accountId, 10)).toEqual(
-        ownerHistory,
-      );
-      expect(
-        await portal.readSubscription(other.userId, other.accountId),
-      ).toEqual(otherSubscription);
-      expect(await portal.listPayments(other.userId, other.accountId, 10)).toEqual({
-        kind: "OK",
-        payments: [],
-      });
+      try {
+        const get = (url: string, token: string) =>
+          app.inject({
+            method: "GET",
+            url,
+            headers: { cookie: `pcp_portal_session=${token}` },
+          });
+        const readWire = async () => {
+          const subscriptionResponse = await get(
+            `/v1/subscription?accountId=${f.accountId}`,
+            ownerToken,
+          );
+          expect(subscriptionResponse.statusCode).toBe(200);
+          expect(subscriptionResponse.headers["cache-control"]).toBe(
+            "no-store",
+          );
+          const subscriptionWire = subscriptionResponse.json();
+          expect(subscriptionWire).toEqual({
+            accountId: f.accountId,
+            accessBasis: "COMMERCIAL",
+            access: { status: "ELIGIBLE", reason: null },
+            subscription: {
+              id: subscription.id,
+              state: "ACTIVE",
+              stateRevision: 1,
+              plan: {
+                planRevisionId: f.planRevisionId,
+                planCode: `p57-${f.planId.slice(0, 8)}`,
+                planRevision: 1,
+                displayName: "P5.7 final plan",
+              },
+              price: {
+                priceRevisionId: f.priceRevisionId,
+                amountMinor: 1900,
+                currency: "RUB",
+                billingInterval: { unit: "MONTH", count: 1 },
+              },
+              currentPeriodStart: providerStatusAt.toISOString(),
+              currentPeriodEnd: expectedPeriodEnd.toISOString(),
+              graceUntil: null,
+              cancelAtPeriodEnd: false,
+            },
+            deviceAllowance: {
+              maxActive: 2,
+              activeCount: 0,
+              remaining: 2,
+              overLimit: false,
+            },
+            billing: {
+              purchaseStatus: "UNAVAILABLE",
+              reason: "PAYMENT_GO_LIVE_DEFERRED",
+            },
+          });
+          const paymentResponse = await get(
+            `/v1/billing/payments?accountId=${f.accountId}&limit=10`,
+            ownerToken,
+          );
+          expect(paymentResponse.statusCode).toBe(200);
+          expect(paymentResponse.headers["cache-control"]).toBe("no-store");
+          const paymentsWire = paymentResponse.json();
+          expect(paymentsWire).toEqual({
+            payments: [
+              {
+                id: c.paymentId,
+                state: "SUCCEEDED",
+                amountMinor: 1900,
+                currency: "RUB",
+                priceRevisionId: f.priceRevisionId,
+                plan: {
+                  planCode: `p57-${f.planId.slice(0, 8)}`,
+                  planRevision: 1,
+                  displayName: "P5.7 final plan",
+                },
+                billingInterval: { unit: "MONTH", count: 1 },
+                createdAt: paymentBefore.createdAt.toISOString(),
+                confirmedAt: providerStatusAt.toISOString(),
+                subscriptionLinked: true,
+              },
+            ],
+            nextCursor: null,
+          });
+          expect(paymentsWire.payments[0]?.confirmedAt).not.toBe(
+            processingAt.toISOString(),
+          );
+          expect(JSON.stringify([subscriptionWire, paymentsWire])).not.toMatch(
+            /provider|idempotency|checkoutReference|billingEvent|leaseToken|stateReason/,
+          );
+          for (const [token, accountId] of [
+            [otherToken, f.accountId],
+            [ownerToken, other.accountId],
+          ] as const) {
+            for (const path of ["/v1/subscription", "/v1/billing/payments"]) {
+              const forbidden = await get(
+                `${path}?accountId=${accountId}`,
+                token,
+              );
+              expect(forbidden.statusCode).toBe(403);
+              expect(forbidden.json()).toEqual({
+                error: {
+                  code: "ACCOUNT_FORBIDDEN",
+                  message: "Account access forbidden",
+                  correlationId: expect.any(String),
+                },
+              });
+            }
+          }
+          const otherSubscriptionResponse = await get(
+            `/v1/subscription?accountId=${other.accountId}`,
+            otherToken,
+          );
+          expect(otherSubscriptionResponse.statusCode).toBe(200);
+          expect(otherSubscriptionResponse.headers["cache-control"]).toBe(
+            "no-store",
+          );
+          const otherSubscriptionWire = otherSubscriptionResponse.json();
+          expect(otherSubscriptionWire).toEqual({
+            accountId: other.accountId,
+            accessBasis: "NONE",
+            access: { status: "INELIGIBLE", reason: "NO_CURRENT_SUBSCRIPTION" },
+            subscription: null,
+            deviceAllowance: {
+              maxActive: null,
+              activeCount: 0,
+              remaining: null,
+              overLimit: false,
+            },
+            billing: {
+              purchaseStatus: "UNAVAILABLE",
+              reason: "PAYMENT_GO_LIVE_DEFERRED",
+            },
+          });
+          const otherPaymentResponse = await get(
+            `/v1/billing/payments?accountId=${other.accountId}&limit=10`,
+            otherToken,
+          );
+          expect(otherPaymentResponse.statusCode).toBe(200);
+          expect(otherPaymentResponse.headers["cache-control"]).toBe(
+            "no-store",
+          );
+          const otherPaymentsWire = otherPaymentResponse.json();
+          expect(otherPaymentsWire).toEqual({ payments: [], nextCursor: null });
+          const foreignCursorResponse = await get(
+            `/v1/billing/payments?accountId=${other.accountId}&cursor=${c.paymentId}`,
+            otherToken,
+          );
+          expect(foreignCursorResponse.statusCode).toBe(400);
+          expect(foreignCursorResponse.json()).toEqual({
+            error: {
+              code: "INVALID_REQUEST",
+              message: "Invalid request",
+              correlationId: expect.any(String),
+            },
+          });
+          return {
+            subscriptionWire,
+            paymentsWire,
+            otherSubscriptionWire,
+            otherPaymentsWire,
+          };
+        };
+        const beforeWireReplay = await readWire();
+        expect(await canonicalState()).toEqual(beforeReplay);
+        // processClaim may look up status before the repository detects staleness.
+        expect(await service.processClaim(claim, id())).toEqual({
+          kind: "STALE_LEASE",
+          paymentId: c.paymentId,
+        });
+        expect(await canonicalState()).toEqual(beforeReplay);
+        expect(await portal.readSubscription(f.userId, f.accountId)).toEqual(
+          ownerSubscription,
+        );
+        expect(await portal.listPayments(f.userId, f.accountId, 10)).toEqual(
+          ownerHistory,
+        );
+        expect(
+          await portal.readSubscription(other.userId, other.accountId),
+        ).toEqual(otherSubscription);
+        expect(
+          await portal.listPayments(other.userId, other.accountId, 10),
+        ).toEqual({ kind: "OK", payments: [] });
+        expect(await readWire()).toEqual(beforeWireReplay);
+        expect(await canonicalState()).toEqual(beforeReplay);
+      } finally {
+        // Fastify.inject uses no listen socket; close even on assertion failure.
+        await app.close();
+      }
     });
     it("DB-45 reconciliation failed status corrects a pending payment", async () => {
       const f = await fixture();
