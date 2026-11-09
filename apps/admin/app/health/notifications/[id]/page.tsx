@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { formatHealthNotificationSchedule } from "../../../../lib/health-notification-ui";
 import {
   has,
   LoadState,
@@ -122,7 +123,7 @@ export default function HealthNotificationDetailPage() {
                 "Observed window",
                 "Cooldown",
                 "Attempts",
-                "Next retry",
+                "Attempt schedule",
                 "Delivered",
               ]}
               rows={[
@@ -131,7 +132,7 @@ export default function HealthNotificationDetailPage() {
                   `${result.data.firstObservedAt} → ${result.data.latestObservedAt}`,
                   result.data.cooldownUntil,
                   `${result.data.attemptCount} (${result.data.claim.state})`,
-                  result.data.nextAttemptAt,
+                  formatHealthNotificationSchedule(result.data.state, result.data.nextAttemptAt),
                   result.data.deliveredAt ?? "Not delivered",
                 ],
               ]}
