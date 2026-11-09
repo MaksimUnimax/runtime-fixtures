@@ -20,7 +20,7 @@ def status(engine, value):
         if not row or row['id'] != jid:
             return {'state': 'SUPERSEDED', 'text': '', 'tts': ''}
         failure_notice=engine.access_failure_notice(row)
-        if failure_notice is None and row['plan'] and not engine.authorized(strict_json(row['plan'])):
+        if failure_notice is None and not engine.output_authorized(row):
             raise Rejected('SOURCE_ACCESS')
         state = row['state']
         if state == 'READY' and (row['expires'] or 0) <= engine.repo.clock():
@@ -43,7 +43,7 @@ def status(engine, value):
                 latest = engine.repo.get(tenant)
                 if not latest or latest['id'] != jid or latest['state'] != 'READY' or (latest['expires'] or 0) <= engine.repo.clock():
                     return {'state': 'SUPERSEDED', 'text': '', 'tts': ''}
-                if latest['plan'] and not engine.authorized(strict_json(latest['plan'])):
+                if not engine.output_authorized(latest):
                     raise Rejected('SOURCE_ACCESS')
             # Never replace a report selected by a newer utterance in this session.
             previous = c.execute('SELECT last_seq FROM dialogue_context WHERE tenant=? AND conversation=?', (tenant, target)).fetchone()

@@ -51,7 +51,7 @@ def current_versions():
     return {'runtime_contract_version':CONTRACT,'task_schema_version':'runtime_task_v1',
             'task_schema_sha256':hashlib.sha256(Path(__file__).with_name('runtime_task_v1.schema.json').read_bytes()).hexdigest(),
             'registry_hash':REGISTRY_HASH,'catalog_bundle_hash':bundle_hash(),
-            'query_language':LANGUAGE,'projection':PROJECTION,'port_build':'RT-JOB-R02.1'}
+            'query_language':LANGUAGE,'projection':PROJECTION,'port_build':'RT-JOB-R02.2'}
 
 def pins(context):
     return {'product_id':PRODUCT,**{k:copy.deepcopy(v) for k,v in context.items()
@@ -191,7 +191,10 @@ class RuntimePort:
                 # Internal rid is namespaced; a trusted platform UUID cannot collide with legacy ingress.
                 rid='rt1:'+fingerprint([ctx['tenant_id'],ctx['actor_id'],request_id])
                 today=datetime.fromtimestamp(self.repo.clock(),ZoneInfo(ctx['business_timezone'])).date()
-                answer=self.engine._submit(scope.tenant,query['text'],rid,digest,today,execution_context=guard)
+                from model_answer import ORIGINAL_QUESTION
+                token=ORIGINAL_QUESTION.set(query['text'])
+                try:answer=self.engine._submit(scope.tenant,query['text'],rid,digest,today,execution_context=guard)
+                finally:ORIGINAL_QUESTION.reset(token)
                 ref=str(uuid4());created=self.repo.clock()
                 c.execute('INSERT INTO rt_job_refs VALUES(?,?,?,?,?,?,?,?,?)',
                           (ref,ctx['tenant_id'],ctx['actor_id'],logical_id,digest,fingerprint(guard),scope.tenant,answer['job_id'],created))
@@ -216,7 +219,7 @@ class RuntimePort:
         self.engine.authorize_job(row)
         if row['plan']:
             plan=strict_json(row['plan'])
-            if plan.get('runtime_guard')!=guard or not self.engine.authorized(plan):
+            if plan.get('runtime_guard')!=guard or not self.engine.output_authorized(row):
                 raise Rejected('PERMISSION_DENIED')
         elif row['state'] in ('QUEUED','RUNNING'):
             draft=strict_json(row['draft'])

@@ -71,7 +71,9 @@ def main(argv=None):
     retention.sweep(repo)
     from universal_reads import ReadSurface
     reads=ReadSurface(lambda:config.read().get('read_surface',{})) if d.get('read_surface',{}).get('enabled')is True else None
-    engine=Engine(repo,config.scope,read_surface=reads,table_capabilities=(lambda:config.read().get('table_capabilities',{})) if 'table_capabilities' in d else None,dataset_capabilities=(lambda:config.read().get('dataset_capabilities',{})) if 'dataset_capabilities' in d else None)
+    from model_answer import Settings
+    answer_settings=Settings(Path(d['database']).parent/'answer-settings.json')
+    engine=Engine(repo,config.scope,answer_settings=answer_settings,read_surface=reads,table_capabilities=(lambda:config.read().get('table_capabilities',{})) if 'table_capabilities' in d else None,dataset_capabilities=(lambda:config.read().get('dataset_capabilities',{})) if 'dataset_capabilities' in d else None)
     transport=HTTPTransport(directory,d['credential_bindings'],d['qualifications'],enabled=True,qualification_provider=lambda:config.read()['qualifications'],read_surface_policy=lambda:config.read().get('read_surface',{}))
     worker=Worker(engine,transport)
     from runtime_port_service import attach as attach_port,close as close_port
