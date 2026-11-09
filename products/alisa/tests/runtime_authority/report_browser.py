@@ -5,6 +5,8 @@ import hashlib
 import http.server
 import json
 import os
+import importlib.util
+import shutil
 from pathlib import Path
 import signal
 import socket
@@ -29,6 +31,33 @@ sys.path.insert(0,str(ROOT/'tests/integration'))
 from identity_tls import certificates,start_proxy
 from identity_network import OwnedNetwork
 from run_postgres import clean_environment
+
+
+def browser_runtime(root):
+    """Readable disposable runtime for the firewall uid; checkout stays private."""
+    prefix=Path(sys.base_prefix).resolve()
+    if prefix==Path('/') or not (prefix/'lib').is_dir():raise RuntimeError('Invalid test Python prefix')
+    pyroot=root/'python'
+    shutil.copytree(prefix,pyroot,symlinks=False,
+        ignore=shutil.ignore_patterns('site-packages','__pycache__','tests','test','include','share','libpython*.a'))
+    py=pyroot/'bin'/Path(sys._base_executable).name
+    site=root/'python-site';site.mkdir()
+    for name in ['playwright','pyee','greenlet','typing_extensions']:
+        spec=importlib.util.find_spec(name)
+        if spec is None:raise RuntimeError('Missing owned browser dependency: '+name)
+        if spec.submodule_search_locations:
+            shutil.copytree(next(iter(spec.submodule_search_locations)),site/name,ignore=shutil.ignore_patterns('__pycache__'))
+        else:shutil.copy2(spec.origin,site/Path(spec.origin).name)
+    browsers=root/'browsers'
+    shutil.copytree(os.environ['PLAYWRIGHT_BROWSERS_PATH'],browsers,ignore=shutil.ignore_patterns('__pycache__'))
+    node=root/'node';shutil.copy2(shutil.which('node'),node)
+    script=root/'browser-client.py';shutil.copy2(ROOT/'tests/runtime_authority/report_browser_client.py',script)
+    for tree in [pyroot,site,browsers]:
+        for path in [tree,*tree.rglob('*')]:
+            if path.is_symlink():continue
+            path.chmod(path.stat().st_mode | (0o055 if path.is_dir() else 0o044))
+    node.chmod(0o755);script.chmod(0o644)
+    return py,node,script,{'PYTHONHOME':str(pyroot),'PYTHONPATH':str(site),'PLAYWRIGHT_BROWSERS_PATH':str(browsers)}
 
 
 class Account(http.server.BaseHTTPRequestHandler):
@@ -70,7 +99,8 @@ def run(case, ports):
             subprocess.run(['certutil','-N','-d','sql:'+str(nss),'--empty-password'],check=True,stdout=log,stderr=log)
             subprocess.run(['certutil','-A','-d','sql:'+str(nss),'-n','Report CI CA','-t','C,,','-i',str(ca)],check=True,stdout=log,stderr=log)
             for path in [home,*home.rglob('*')]:os.chown(path,network.uid,network.uid)
-            network.setup();case.assertTrue(network.witness(sys.executable,clean_environment()))
+            py,node_binary,client_script,browser_env=browser_runtime(root)
+            network.setup();case.assertTrue(network.witness(py,{**clean_environment(),**browser_env}))
             api=http.server.ThreadingHTTPServer(('127.0.0.1',0),Account);api.daemon_threads=True
             threading.Thread(target=api.serve_forever,kwargs={'poll_interval':.01},daemon=True).start()
             with socket.socket()as reservation:
@@ -82,7 +112,7 @@ def run(case, ports):
                  'ALISA_PUBLIC_BASE_URL':origin,'ALISA_PLATFORM_URL':'http://127.0.0.1:'+str(api.server_address[1]),
                  'ALISA_AUTH_SERVICE_TOKEN':settings.AUTH_SERVICE_TOKEN,'NEXT_TELEMETRY_DISABLED':'1',
                  'PORT':str(node_port),'HOSTNAME':'127.0.0.1','HOME':str(home),'NODE_EXTRA_CA_CERTS':str(ca)}
-            node=subprocess.Popen(['node',str(release/'ui/web/apps/web/server.js')],env=env,cwd=release,
+            node=subprocess.Popen([str(node_binary),str(release/'ui/web/apps/web/server.js')],env=env,cwd=release,
                 user=network.uid,group=network.uid,extra_groups=[],stdout=log,stderr=log,start_new_session=True)
             for _ in range(80):
                 try:
@@ -99,9 +129,9 @@ def run(case, ports):
             with case.archive.connection()as c:
                 original=case.archive.metadata(c.execute('SELECT * FROM reports WHERE id=?',(ident,)).fetchone())
             before=len(case.transport.calls)
-            child_env={**clean_environment(),'HOME':str(home),'PLAYWRIGHT_BROWSERS_PATH':os.environ['PLAYWRIGHT_BROWSERS_PATH']}
+            child_env={**clean_environment(),**browser_env,'HOME':str(home)}
             data={'origin':origin,'session':case.web_token,'title':item['template']['name'],'files':[item,original]}
-            result=subprocess.run([sys.executable,str(ROOT/'tests/runtime_authority/report_browser_client.py')],env=child_env,
+            result=subprocess.run([str(py),str(client_script)],env=child_env,
                 user=network.uid,group=network.uid,extra_groups=[],input=json.dumps(data),capture_output=True,text=True,timeout=50)
             if result.returncode:raise AssertionError('Browser download qualification failed: '+result.stderr[-3000:])
             record=json.loads(result.stdout);case.assertEqual(record['status'],'PASS')
