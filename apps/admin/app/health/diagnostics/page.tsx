@@ -147,6 +147,32 @@ export default function HealthDiagnosticsPage() {
               {summary.data.notification.delivered} delivered. Scheduler failure
               is shown separately from Health state.
             </p>
+            <h2>Scheduler activity</h2>
+            <p className="muted">
+              Execution failures do not establish a target&apos;s Health state
+              or the cause of UNKNOWN.
+            </p>
+            <Table
+              headers={["Scheduler activity", "Value"]}
+              rows={[
+                [
+                  "Latest successful execution",
+                  summary.data.scheduler.latestSuccessfulScheduledRunAt ?? "Not recorded",
+                ],
+                [
+                  "Latest failed execution",
+                  summary.data.scheduler.latestFailedScheduledExecutionAt ?? "Not recorded",
+                ],
+                [
+                  "Overdue due targets",
+                  summary.data.scheduler.overdueDueTargetCount,
+                ],
+                [
+                  "Retryable executions",
+                  summary.data.scheduler.retryingExecutionCount,
+                ],
+              ]}
+            />
           </>
         )}
         {breakdown.data && (
