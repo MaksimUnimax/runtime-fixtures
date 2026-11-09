@@ -441,7 +441,9 @@ def worker_step(worker,row,plan):
             if fallback is not None:
                 need(worker.engine.authorized(plan),'SOURCE_ACCESS')
                 worker.repo.complete(row['id'],row['owner'],fallback);return
-        progress['feedback']={'code':exc.code,'rejected_action':decision.get('action'),'received_keys':sorted(decision)[:12],
+        try:rejected_attempt=surface.sanitize(decision)
+        except Rejected:rejected_attempt={'omitted':True}  # Diagnostics must not replace the original failure.
+        progress['feedback']={'code':exc.code,'rejected_action':decision.get('action'),'rejected_attempt':rejected_attempt,'received_keys':sorted(decision)[:12],
             'expected_finish_fact':{'label':'Краткое название без цифр','expr':{'$path':['calls',0,'data','result']}},
             'expected_discovery_keys':['action','platform','cluster','query','offset'],'provider_request_executed':False,
             'parameter_help':'ID следует брать из полученных данных. Для массивов используйте JSON-массив или params_expr с $map, а не придуманные числа.'}

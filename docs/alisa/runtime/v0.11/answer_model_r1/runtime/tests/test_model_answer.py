@@ -250,6 +250,7 @@ class AnswerFlow(unittest.TestCase):
         self.assertEqual(r['state'],'READY',r['error'])
         plans=[x for x in self.transport.calls if x.operation=='deepseek_read_plan']
         self.assertEqual(plans[2].body['context']['feedback']['code'],'READ_PARAMETER_FORM_REQUIRED')
+        self.assertEqual(plans[2].body['context']['feedback']['rejected_attempt'],{'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'promotionIDs':[777]}})
         meta=next(x for x in plans[2].body['context']['discovery']['items']if x['operation']=='calendar_promotion_details')
         self.assertEqual(meta['parameter_forms'],[{'path':['query','promotionIDs'],'kind':'positive_integer_list'}])
         self.assertEqual([x.operation for x in self.transport.calls].count('read.wb.calendar_promotion_details'),1)
@@ -264,6 +265,25 @@ class AnswerFlow(unittest.TestCase):
         self.assertGreater(discovery['total'],25)
         self.assertEqual(discovery['items'][0]['operation'],'calendar_promotion_details')
         self.assertEqual(discovery['items'][0]['parameter_forms'],[{'path':['query','promotionIDs'],'kind':'positive_integer_list'}])
+
+    def test_malformed_diagnostic_attempt_does_not_break_same_job_recovery(self):
+        deep={'value':777}
+        for _ in range(50):deep={'nested':deep}
+        self.transport.data={'data':{'promotions':[{'id':777,'type':'regular','name':'Акция'}]}}
+        self.transport.decisions=[
+            {'action':'read','store_id':'wb1','operation':'calendar_promotions','params':{'query':{'startDateTime':'2026-11-03T00:00:00+03:00','endDateTime':'2026-11-03T23:59:59+03:00','allPromo':False}}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'promotionIDs':[777],'extra':1.5}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'query':{'extra':deep}}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'query':{'promotionIDs':[777]}}},
+            {'action':'data_ready'}]
+        r=self.run_job(self.ask('В каких акциях товары на Вайлдберриз'))
+        self.assertEqual(r['state'],'READY',r['error'])
+        plans=[x for x in self.transport.calls if x.operation=='deepseek_read_plan']
+        for index in (2,3):
+            feedback=plans[index].body['context']['feedback']
+            self.assertEqual(feedback['code'],'READ_PARAMETER_FORM_REQUIRED')
+            self.assertEqual(feedback['rejected_attempt'],{'omitted':True})
+        self.assertEqual([x.operation for x in self.transport.calls].count('read.wb.calendar_promotion_details'),1)
 
 class Adapter(unittest.TestCase):
     def test_payload_is_plain_text_without_output_schema(self):

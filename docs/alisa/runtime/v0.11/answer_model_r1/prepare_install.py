@@ -4,11 +4,11 @@ from pathlib import Path
 
 ROOT=Path('/root/alice-lab-evidence/answer-model-20261109')
 CANDIDATE=Path('/dev/shm/alisa-answer-model-20261109')
-BASE=Path('/opt/alice-market/releases/alisa-paid-model-result-r2-20261109')
+BASE=Path('/opt/alice-market/releases/alisa-answer-model-r3-20261109')
 OLD=BASE
-STATION=Path('/opt/alisa-station/releases/station-answer-model-r2-20261109')
-TARGET=Path('/opt/alice-market/releases/alisa-answer-model-r3-20261109')
-STARGET=Path('/opt/alisa-station/releases/station-answer-model-r3-20261109')
+STATION=Path('/opt/alisa-station/releases/station-answer-model-r3-20261109')
+TARGET=Path('/opt/alice-market/releases/alisa-answer-model-r4-20261109')
+STARGET=Path('/opt/alisa-station/releases/station-answer-model-r4-20261109')
 SOURCE=None
 
 def show(unit, prop):
@@ -27,7 +27,7 @@ def main():
     base_manifest=json.loads((BASE/'manifest.json').read_text())
     assert all(digest(BASE/n)==h for n,h in base_manifest['files'].items()),'BASE_MANIFEST_CHANGED'
     need=sum(p.stat().st_size for part in ('runtime','station') for p in (CANDIDATE/part).rglob('*') if p.is_file() and '__pycache__'not in p.parts)
-    assert shutil.disk_usage('/').free-need>3072*1024**2,'DISK_RESERVE'
+    assert shutil.disk_usage('/').free-need>3_000_000_000,'DISK_RESERVE'
     import os
     assert os.statvfs('/').f_favail>200000,'INODE_RESERVE'
     ROOT.mkdir(mode=0o700,exist_ok=True)
@@ -64,7 +64,7 @@ def main():
     finally:Path(temporary).unlink(missing_ok=True)
     receipt=dict(state='PREPARED',source_commit=SOURCE,runtime=str(TARGET),station=str(STARGET),base=str(BASE),
         config_sha256=digest(config),old_pin=old_pin,new_pin=new_pin,source_hashes=expected)
-    (ROOT/'PREPARED_ANSWER_R3.json').write_text(json.dumps(receipt,indent=2))
+    (ROOT/'PREPARED_ANSWER_R4.json').write_text(json.dumps(receipt,indent=2))
     Path('/opt/alice-market/.model-usage-7d-owner.lock').write_text(json.dumps(dict(owner='controller-model-usage-20261109',status='ANSWER_MODEL_PREPARED', active_executor=True,
         scope='Owner prompts, ordinary model answer, API error policy; preserve active base/catalogues/7d accounting',runtime=str(TARGET),evidence=str(ROOT)),indent=2))
     print(json.dumps(dict(state='PREPARED',source=SOURCE,files=len(expected),bytes=need)))
