@@ -2,6 +2,7 @@
   "base_release": "alisa-ozon-subscription-access-r1-20261109",
   "base_source_sha256": "3343552e4a758edda38456bca0bca78f2e2fce812f74cec9e611f5b42e8d29b9",
   "files": {
+    "BASE_INSTALLED_MANIFEST.json": "170fc0c331b588615451c7073862f4a93b2a55729808a2d1dca642936a8af439",
     "SOURCE_SNAPSHOT.json": "9dc9f7385d58abeece0a27ba95ada36d2be6cceb750cf78216538346d8340ff2",
     "alice_bridge.py": "889705eebd7e080f87bf155c8c3351e1d604dfc431b6e7defb8c44a8ca25c202",
     "architecture_gate.py": "03c3b1e896e87f638aadf3120240192146206a0567c8e7f743ab9339d6127c58",

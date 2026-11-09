@@ -92,7 +92,7 @@ jobs:
       - name: Current-core RuntimePort, reader isolation and seven-day model accounting
         working-directory: docs/alisa/runtime/v0.11/rt_job_r02
         run: |
-          python run_checks.py --output "$GITHUB_WORKSPACE/products/alisa/dist/s07-current-core-qualification.json"
+          "$GITHUB_WORKSPACE/products/alisa/.venv/bin/python" run_checks.py --output "$GITHUB_WORKSPACE/products/alisa/dist/s07-current-core-qualification.json"
       - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
         working-directory: products/alisa
         run: |
