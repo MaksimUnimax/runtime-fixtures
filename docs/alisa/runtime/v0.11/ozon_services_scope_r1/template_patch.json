@@ -1,0 +1,119 @@
+{
+  "base_runtime": "/opt/alice-market/releases/alisa-report-archive-r1-20261109",
+  "base_catalog_sha256": "2ac4184cd61490074afa192ff5f9e9548a4cbfd83049d3f5be0d195d1c848a1c",
+  "new_catalog_sha256": "382d4a4be7c58d6da456a9128a9b9cfe785206cfa464d2fedc74fcceb35851e1",
+  "entries": {
+    "B06.finance_commission_cost": {
+      "id": "B06.finance_commission_cost",
+      "version": 2,
+      "purpose": "Комиссия Ozon за продажу товаров с учётом сторно комиссии при возвратах: отдельное вознаграждение за продажу, cashflows.sales.fee и cashflows.returns.fee. Выбирать для вопроса о комиссии за продажи. Общая стоимость услуг (логистика, хранение, эквайринг и другие статьи cashflows.services) считается отдельно шаблоном B08.finance_services_cost. Одна комиссия не покрывает общий вопрос обо всех удержаниях Ozon.",
+      "platforms": [
+        "ozon"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "ozon_source",
+          "platform": "ozon",
+          "operation": "ozon_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "ozon_finance",
+          "params": {
+            "date_from": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "date_to": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_commission_cost"
+            ],
+            "fields": {
+              "finance_commission_cost": "finance_commission_cost"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [],
+      "metrics": [
+        "finance_commission_cost"
+      ]
+    },
+    "B08.finance_services_cost": {
+      "id": "B08.finance_services_cost",
+      "version": 2,
+      "purpose": "Суммарная стоимость всех услуг Ozon за период: общий итог всех статей cashflows.services финансового баланса. Включает присутствующие в этом разделе логистику и обратную логистику, хранение (размещение товаров на складах), эквайринг и другие услуги. Выбирать для вопросов об общей стоимости услуг или сумме удержаний ЗА УСЛУГИ Ozon. Комиссия за продажу из cashflows.sales.fee/cashflows.returns.fee в эту сумму НЕ входит. Для отдельной комиссии, логистики, хранения или эквайринга выбирать соответствующий отдельный шаблон. Общий запрос «удержания Ozon за вчера» без уточнения состава не считать вопросом только об услугах: этот шаблон не покрывает все удержания.",
+      "platforms": [
+        "ozon"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "ozon_source",
+          "platform": "ozon",
+          "operation": "ozon_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "ozon_finance",
+          "params": {
+            "date_from": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "date_to": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_services_cost"
+            ],
+            "fields": {
+              "finance_services_cost": "finance_services_cost"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [
+        "Кратко назови общую стоимость услуг и период, затем дай одно короткое пояснение состава. Это итог раздела услуг финансового отчёта: логистика и обратная логистика, хранение (размещение товаров на складах), эквайринг и другие статьи этого раздела. Называй фактически включёнными только статьи, присутствующие в данных API; не утверждай, что все перечисленные примеры были в этом периоде. Комиссия за продажу считается отдельно и в этот итог не входит. Не называй сумму всеми удержаниями Ozon и не прибавляй к ней повторно отдельные услуги. Подробная разбивка — только по вопросу пользователя."
+      ],
+      "metrics": [
+        "finance_services_cost"
+      ]
+    }
+  }
+}
