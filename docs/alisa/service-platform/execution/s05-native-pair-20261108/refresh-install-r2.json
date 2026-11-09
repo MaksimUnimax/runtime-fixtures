@@ -1,0 +1,72 @@
+{
+  "status": "PASS",
+  "scope": "UNCHANGED_NATIVE_PAIR_RESTART_HOOK",
+  "cases": [
+    {
+      "case": "new_receipt",
+      "passed": true
+    },
+    {
+      "case": "exact_installed_overlay",
+      "passed": true
+    },
+    {
+      "case": "resource_reserve",
+      "passed": true
+    },
+    {
+      "case": "only_reviewed_sources",
+      "passed": true
+    },
+    {
+      "case": "exact_source_hashes",
+      "passed": true
+    },
+    {
+      "case": "fresh_owned_paths",
+      "passed": true
+    },
+    {
+      "case": "checker_active",
+      "passed": true
+    },
+    {
+      "case": "refresh_one_shot_succeeded",
+      "passed": true
+    },
+    {
+      "case": "proof_matches_current_native_generation",
+      "passed": true
+    },
+    {
+      "case": "real_performance_peer_after_native_restart",
+      "passed": true
+    },
+    {
+      "case": "native_api_web_identity_admin_and_environment_preserved",
+      "passed": true
+    },
+    {
+      "case": "checker_sandbox_preserved",
+      "passed": true
+    },
+    {
+      "case": "all_four_services_ready",
+      "passed": true
+    },
+    {
+      "case": "mandatory_free_reserve",
+      "passed": true
+    }
+  ],
+  "performance_live_ipc": {
+    "code": "CONNECTED",
+    "identity_matches": true,
+    "native_provenance": true
+  },
+  "refresh_unit_profile": "TimeoutStartUSec=15s\nTimeoutStopUSec=5s\nResult=success\nExecMainStatus=0\nMemoryMax=67108864\nMemorySwapMax=0\nTasksMax=16\nReadWritePaths=/etc/alisa-store-check/native-pair\nPrivateNetwork=yes",
+  "database_mutations": 0,
+  "native_core_restarts_by_this_hook_install": 0,
+  "owner_browser_flow": "NOT_RUN",
+  "free_bytes": 3223080960
+}

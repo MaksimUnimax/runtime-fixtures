@@ -1,0 +1,21 @@
+{
+  "scope": "OWN_SIX_DOMAIN_RENEWAL_DRY_RUN",
+  "observed_at_utc": "2026-11-04T14:35:32.969303+00:00",
+  "unit": "alisa-stage-cert-renewal-check-20261104-1435.service",
+  "systemd": {
+    "Result": "exit-code",
+    "ExecMainStartTimestamp": "Wed 2026-11-04 14:34:24 UTC",
+    "ExecMainExitTimestamp": "Wed 2026-11-04 14:34:27 UTC",
+    "ExecMainStatus": "1"
+  },
+  "errors": [
+    "Failed to renew certificate alisa-platform-bootstrap with error: urn:ietf:params:acme:error:rateLimited :: There were too many requests of a given type :: Service busy; retry later."
+  ],
+  "current_certificate": "notAfter=Feb  2 08:55:20 2027 GMT\nsha256 Fingerprint=FC:8E:E9:82:3A:4C:56:51:A2:31:60:B8:7A:FA:83:18:4F:1D:02:36:57:C7:A2:62:26:D0:DB:E8:DF:8A:35:07",
+  "renewal_proven": false,
+  "production_certificate_replaced": false,
+  "retry_performed_after_previous_attempt_minutes": 72,
+  "status_source": "https://letsencrypt.status.io/",
+  "status_observed": "Planned maintenance through 2026-11-04 21:00 UTC; staging coming back online update 06:26 UTC",
+  "causation": "Maintenance is an external risk factor, not proven cause of this exact failure. No further immediate retry."
+}

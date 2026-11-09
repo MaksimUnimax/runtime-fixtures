@@ -1,0 +1,11 @@
+{
+  "scope": "INSTALLED_OWN_CUSTOMER_API_SSR_NO_BROWSER_NO_PROVIDER_CHECK",
+  "status": "NEEDS_NATIVE_CUSTOMER_LOGIN",
+  "cases": [
+    {
+      "case": "existing_own_invalid_contact_only",
+      "passed": true
+    }
+  ],
+  "external_provider_calls": 0
+}

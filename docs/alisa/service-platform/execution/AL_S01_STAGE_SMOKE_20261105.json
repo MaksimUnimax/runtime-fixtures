@@ -1,0 +1,239 @@
+{
+  "record_type": "REAL_INSTALLED_AL_S01_STAGE_SMOKE",
+  "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "artifact_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+  "release": "alisa-8d680f775c8ccdf2",
+  "environment": "stage",
+  "started_at_utc": "2026-11-05T01:00:27.691795+00:00",
+  "scope": "own HTTPS BFF/API/platform DB/private synthetic SMTP only",
+  "cases": [
+    {
+      "case": "https_page_",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 183
+    },
+    {
+      "case": "noindex_",
+      "passed": true
+    },
+    {
+      "case": "https_page_examples",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 191
+    },
+    {
+      "case": "noindex_examples",
+      "passed": true
+    },
+    {
+      "case": "https_page_how-it-works",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 46
+    },
+    {
+      "case": "noindex_how-it-works",
+      "passed": true
+    },
+    {
+      "case": "https_page_pricing",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 28
+    },
+    {
+      "case": "noindex_pricing",
+      "passed": true
+    },
+    {
+      "case": "https_page_faq",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 72
+    },
+    {
+      "case": "noindex_faq",
+      "passed": true
+    },
+    {
+      "case": "https_page_help",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 69
+    },
+    {
+      "case": "noindex_help",
+      "passed": true
+    },
+    {
+      "case": "https_page_contacts",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 31
+    },
+    {
+      "case": "noindex_contacts",
+      "passed": true
+    },
+    {
+      "case": "https_page_privacy",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 139
+    },
+    {
+      "case": "noindex_privacy",
+      "passed": true
+    },
+    {
+      "case": "https_page_terms",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 25
+    },
+    {
+      "case": "noindex_terms",
+      "passed": true
+    },
+    {
+      "case": "https_page_consents",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 97
+    },
+    {
+      "case": "noindex_consents",
+      "passed": true
+    },
+    {
+      "case": "https_page_join",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 40
+    },
+    {
+      "case": "noindex_join",
+      "passed": true
+    },
+    {
+      "case": "https_page_login",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 29
+    },
+    {
+      "case": "noindex_login",
+      "passed": true
+    },
+    {
+      "case": "https_page_app_private-object",
+      "passed": true,
+      "status": 200,
+      "elapsed_ms": 20
+    },
+    {
+      "case": "noindex_app_private-object",
+      "passed": true
+    },
+    {
+      "case": "actual_release",
+      "passed": true
+    },
+    {
+      "case": "unknown_route_is_safe_404",
+      "passed": true
+    },
+    {
+      "case": "foreign_origin_denied",
+      "passed": true
+    },
+    {
+      "case": "missing_origin_denied",
+      "passed": true
+    },
+    {
+      "case": "real_contact_denied",
+      "passed": true
+    },
+    {
+      "case": "service_consent_required",
+      "passed": true
+    },
+    {
+      "case": "extra_payload_rejected",
+      "passed": true
+    },
+    {
+      "case": "concurrent_submit_idempotent",
+      "passed": true
+    },
+    {
+      "case": "one_lead_and_submission",
+      "passed": true
+    },
+    {
+      "case": "request_uuid_cannot_rebind_contact",
+      "passed": true
+    },
+    {
+      "case": "one_submitted_server_event",
+      "passed": true
+    },
+    {
+      "case": "attribution_allowlist_only",
+      "passed": true
+    },
+    {
+      "case": "private_sandbox_mail_delivered",
+      "passed": true
+    },
+    {
+      "case": "ordinary_repeat_does_not_send_spam",
+      "passed": true
+    },
+    {
+      "case": "one_use_link_in_fragment",
+      "passed": true
+    },
+    {
+      "case": "wrong_confirmation_rejected",
+      "passed": true
+    },
+    {
+      "case": "real_bff_api_db_confirmation",
+      "passed": true
+    },
+    {
+      "case": "confirmation_replay_rejected",
+      "passed": true
+    },
+    {
+      "case": "one_confirmed_server_effect",
+      "passed": true
+    },
+    {
+      "case": "mail_outbox_secret_payload_cleared",
+      "passed": true
+    },
+    {
+      "case": "ttl_expiry_rejected",
+      "passed": true
+    },
+    {
+      "case": "ttl_reissue_preserves_one_lead",
+      "passed": true
+    },
+    {
+      "case": "new_link_after_expiry_works",
+      "passed": true
+    }
+  ],
+  "synthetic_fixture_id": "3e40df47852f",
+  "status": "FAILED",
+  "error_type": "CalledProcessError",
+  "finished_at_utc": "2026-11-05T01:00:33.482883+00:00",
+  "case_count": 49,
+  "passed_count": 49
+}

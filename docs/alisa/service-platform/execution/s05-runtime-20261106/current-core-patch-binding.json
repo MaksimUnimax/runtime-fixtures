@@ -1,0 +1,18 @@
+{
+  "scope": "PREPARED_CURRENT_SOURCE_PATCH_NOT_APPLIED_NOT_CURRENT_CORE_TESTED",
+  "source_path": "/opt/alice-market/releases/20261105-v010-number-reason-r1/http_transport.py",
+  "before_sha256": "c5bef1600d8f70449c908c8abd974d358d18cb74243df4d5683c7c228000ba2f",
+  "after_sha256": "ecc93ed78f5ab718d66992f43eef74c1c66bbb68dd5a9ec911f7f57dc206db20",
+  "patch_sha256": "a3df7f323d67790a2cc9676ffbd640fbc2b928656a07f9f75f158af2e8de4988",
+  "shared_http_source_sha": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "shared_http_sha256": "da3ecbb2ceb2671adda1fd8a4cab7ea4331eb1cd43b0b6a1f70dc9cb12ec34cb",
+  "changed_scope": "Extract NoRedirect and the same verified HTTPS bounded read only. Scope/qualification/cache/matrix/decoders unchanged.",
+  "unchanged_remainder_verified": true,
+  "runtime_or_db_changed": false,
+  "required_before_activation": [
+    "Exact current-core author integration and tests on isolated current-source copy",
+    "Fresh hash and WorkingDirectory check immediately before any switch",
+    "Peer-specific socket permissions without broad alice-lab membership",
+    "Seller pair binding proof; Performance same-cabinet proof remains open"
+  ]
+}

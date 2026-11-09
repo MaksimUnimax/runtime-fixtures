@@ -1,0 +1,8 @@
+{
+  "baseline_archive": "ALISA_RUNTIME_PORT_RT_JOB_R01_2026-11-04.zip",
+  "archive_sha256": "d5db0d7220048af0cea155e80a4af638ec4e60d21a5c07baf685bd14a40341d3",
+  "http_transport_before_sha256": "92bf639369dec881915442adb1d5c778ecd2ccb40f393969bdd00583d139a65b",
+  "http_transport_after_sha256": "33c0a7b07d45bf1b5691caa1b82417faf1a6098deb8095069e7dd32665b53046",
+  "patch_scope": "Extract same bounded HTTPS read only; qualification/scope/recipes/decoder/Engine unchanged.",
+  "live_application": "NOT_APPLIED; current Nov5+ runtime must be rechecked and patch rebased before live use."
+}

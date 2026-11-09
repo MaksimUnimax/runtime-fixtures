@@ -1,0 +1,23 @@
+{
+  "scope": "READ_ONLY_USER_SAVED_STORE_NO_DB_CHANGES",
+  "matching_store_count": 1,
+  "cases": [
+    {
+      "kind": "SELLER",
+      "status": "PENDING",
+      "revision": 1,
+      "check_code": "IDENTITY_NOT_VERIFIED",
+      "matches_original_owner_credential": true
+    },
+    {
+      "kind": "PERFORMANCE",
+      "status": "PENDING",
+      "revision": 1,
+      "check_code": "IDENTITY_NOT_VERIFIED",
+      "matches_original_owner_credential": true
+    }
+  ],
+  "store_status": "ACTIVE",
+  "identity_verified": false
+}
+

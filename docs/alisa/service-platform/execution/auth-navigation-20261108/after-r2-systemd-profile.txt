@@ -1,0 +1,13 @@
+TimeoutStopUSec=5s
+RuntimeMaxUSec=3min
+OOMPolicy=stop
+MemoryMax=1610612736
+MemorySwapMax=0
+TasksMax=512
+Environment=PLAYWRIGHT_BROWSERS_PATH=/var/lib/alisa-platform/stage/test-browser-cache TMPDIR=/run/alisa-auth-navigation-browser-r2 HOME=/run/alisa-auth-navigation-browser-r2 XDG_CACHE_HOME=/run/alisa-auth-navigation-browser-r2/cache XDG_CONFIG_HOME=/run/alisa-auth-navigation-browser-r2/config XDG_DATA_HOME=/run/alisa-auth-navigation-browser-r2/data
+ReadWritePaths=/var/lib/alisa-platform/stage/rollout-backups/auth-navigation-20261108 /run/alisa-auth-navigation-browser-r2
+ProtectSystem=strict
+RuntimeDirectoryMode=0700
+RuntimeDirectory=alisa-auth-navigation-browser-r2
+KillMode=control-group
+InvocationID=fd2fabc50c27428c9658e63e66763d60

@@ -1,0 +1,16 @@
+{
+  "source_sha": "3a1d3885250d8aa1a51f6e7df3f9d1c3db50b281",
+  "tree_sha": "0db793d11bc1d9820eee10fd9bfd5e06d0d1f53e",
+  "platform_ci": 42468265071,
+  "documentation_ci": 42468265001,
+  "identity_probe_ci": 42468265010,
+  "platform_zip_sha256": "6e88eb5f147438249b587bfba0fcabfb25642a4a55003f01c5e779d930689fc9",
+  "platform_tar_sha256": "87298698df008c7cf8ce89de3e74a89e72424df204236d5b5e37993fc20a3840",
+  "qualification_zip_sha256": "d2ae4b5c1bfd27820687906d38c8c997f1601f9312754517dff6793759a40985",
+  "manifest_sha256": "3a34b469c34bb47a06d67acb212060ecc523a515f9402c27f875f78ff6a1efb8",
+  "selected_files": {
+    "services/identity/src/octoport_identity/protocol/customer.py": "5c7d54847a592ede33118ecb661e1350a3415a56c3bbf8ca58eb125ba74d2f9e",
+    "services/identity/src/octoport_identity/protocol/views.py": "ac2f32b2f8bec82cac092ddfe5f891f038f8cb80bc4c0dcb0173468f4c2d0f13",
+    "services/identity/src/octoport_identity/accounts/templates/account/login.html": "13dc4bd5402feca93e697d59e0fea9ee729c9b6466a93589f74c2ad66904f150"
+  }
+}

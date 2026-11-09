@@ -1,0 +1,29 @@
+{
+  "record_type": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R3",
+  "reviewer": "s03_independent_review",
+  "source_sha": "efa6a412ddc6926132cfd6fa648b71d0a155232a",
+  "tree_sha": "a5c7cbff1dcc7c2b0f5c1b40776dc0e75d145eee",
+  "reviewed_local_checkpoint": "018464bcc8312e7760f396d758a9d228e82ee633",
+  "verdict": "ACCEPTED_FOR_DECLARED_SOURCE_SCOPE",
+  "supersedes": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R2_20261105.json for the newly identified no-JavaScript credential submission boundary",
+  "r3_delta_review": [
+    "All create, rename, and credential replacement forms now have fixed method=POST and action=/api/account/stores. The BFF accepts JSON only and rejects native form encoding, so credentials cannot fall back into a GET query string.",
+    "Interactive controls start disabled and become enabled only after hydration. The no-JavaScript browser case uses an authenticated session, checks at least three forms have the fixed POST target, and checks the credential-bearing create submit is disabled.",
+    "The marketplace selector now has a separate explicit label association, preserving the exact WB selector assertion after the prior timeout.",
+    "The engineering probe only gains a hydration readiness gate; its existing processing assertion and timeout are unchanged. Earlier failure history remains recorded."
+  ],
+  "remaining_document_note": {
+    "severity": "P2_NONBLOCKING_FOR_THIS_SOURCE_REVIEW",
+    "finding": "AL_S05_RT_CHECK_HANDOFF_20261105.md line 3 still names the R2 c6217b source/tree as its exact platform binding.",
+    "action": "Refresh the source/tree pointer before using that handoff document as exact-source evidence. RT-CHECK contract semantics reviewed here are unchanged."
+  },
+  "remaining_gates": [
+    "CI rerun for this exact R3 source was pending during review.",
+    "RT-CHECK remains proposed/client-only; runtime-side socket/provider implementation is not accepted.",
+    "Full S05 acceptance still requires separately authorized real Ozon, WB, and Performance provider checks."
+  ],
+  "review_limits": [
+    "Read-only source inspection; reviewer ran no tests and performed no host actions.",
+    "No secrets or provider credentials were read or included."
+  ]
+}

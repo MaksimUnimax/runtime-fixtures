@@ -1,0 +1,113 @@
+{
+  "scope": "ONE_WEB_POINTER_AND_RESTART_NO_ENV_DB_CORE_IDENTITY_CHANGES",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "root_private_namespace",
+      "passed": true
+    },
+    {
+      "case": "root_private_regular_install_receipt",
+      "passed": true
+    },
+    {
+      "case": "own_exact_component_installed",
+      "passed": true
+    },
+    {
+      "case": "exact_web_component_bytes",
+      "passed": true
+    },
+    {
+      "case": "same_own_web_and_platform_predecessor",
+      "passed": true
+    },
+    {
+      "case": "private_root_config_metadata",
+      "passed": true
+    },
+    {
+      "case": "existing_web_service_uses_own_pointer",
+      "passed": true
+    },
+    {
+      "case": "exact_launcher_path_and_argv",
+      "passed": true
+    },
+    {
+      "case": "actual_node_executable_root_owned",
+      "passed": true
+    },
+    {
+      "case": "effective_web_pid_uid_cwd_cgroup",
+      "passed": true
+    },
+    {
+      "case": "effective_launch_path_and_argv_preserved",
+      "passed": true
+    },
+    {
+      "case": "service_profile_and_all_private_configs_preserved",
+      "passed": true
+    },
+    {
+      "case": "all_other_pointers_preserved",
+      "passed": true
+    },
+    {
+      "case": "own_web_pointer_exact",
+      "passed": true
+    },
+    {
+      "case": "anonymous_store_list_requires_login",
+      "passed": true
+    },
+    {
+      "case": "anonymous_store_mutation_requires_login",
+      "passed": true
+    },
+    {
+      "case": "private_page_still_requires_login",
+      "passed": true
+    },
+    {
+      "case": "public_https_exact_release",
+      "passed": true
+    },
+    {
+      "case": "platform_still_previous_qualified_release",
+      "passed": true
+    },
+    {
+      "case": "runtime_and_checker_still_active",
+      "passed": true
+    },
+    {
+      "case": "physical_reserve_retained",
+      "passed": true
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-6098b31384ae23a4",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "health_before": {
+    "status": "READY",
+    "release": "alisa-6098b31384ae23a4"
+  },
+  "health_after": {
+    "status": "READY",
+    "release": "alisa-d9918bcb3695b432"
+  },
+  "active_pointers": {
+    "web-current": "alisa-d9918bcb3695b432",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "inherited_profile_sha256": "1f8cbc1a812253532e44a8fe0b970cf49eff6589050aaf8a61f0efd850de300f"
+}

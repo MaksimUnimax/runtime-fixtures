@@ -1,0 +1,23 @@
+{
+  "scope": "INSTALLED_PUBLIC_BROWSER_OWN_EXAMPLE_INVALID_REGISTRATION_AND_SESSION_NAVIGATION",
+  "phase": "before",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "disk_and_memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "fresh_fixture_and_available_private_sink",
+      "passed": true
+    },
+    {
+      "case": "own_reserved_contact",
+      "passed": true
+    }
+  ],
+  "navigation": [],
+  "provider_calls": 0,
+  "error_type": "Error"
+}
+

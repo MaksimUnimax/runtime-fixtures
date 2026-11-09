@@ -1,0 +1,169 @@
+{
+  "scope": "FINAL_READ_ONLY_INSTALLED_STATE_NO_PROVIDER_CALLS",
+  "observed_utc": "2026-11-06T04:04:37.730093+00:00",
+  "provider_calls": 0,
+  "pointers": {
+    "web-current": "alisa-6098b31384ae23a4",
+    "site-current": "alisa-6098b31384ae23a4",
+    "admin-current": "alisa-73180172646b7012",
+    "identity-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "services": {
+    "alice-market.service": {
+      "MainPID": "145588",
+      "ControlGroup": "/system.slice/alice-market.service",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alice-market/releases/20261106-store-check-6098-r1"
+    },
+    "alisa-store-check.service": {
+      "MainPID": "145594",
+      "ControlGroup": "/system.slice/alisa-store-check.service",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alice-market/releases/20261106-store-check-6098-r1"
+    },
+    "alisa-web@stage.service": {
+      "MainPID": "146170",
+      "ControlGroup": "/system.slice/system-alisa\\x2dweb.slice/alisa-web@stage.service",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-6098b31384ae23a4/ui/web/apps/web"
+    },
+    "alisa-platform@stage.service": {
+      "MainPID": "146181",
+      "ControlGroup": "/system.slice/system-alisa\\x2dplatform.slice/alisa-platform@stage.service",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-6098b31384ae23a4"
+    },
+    "alisa-admin@stage.service": {
+      "MainPID": "144260",
+      "ControlGroup": "/system.slice/system-alisa\\x2dadmin.slice/alisa-admin@stage.service",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-73180172646b7012/ui/admin/apps/admin"
+    },
+    "alisa-identity@stage.service": {
+      "MainPID": "144271",
+      "ControlGroup": "/system.slice/system-alisa\\x2didentity.slice/alisa-identity@stage.service",
+      "ActiveState": "active",
+      "SubState": "running",
+      "cwd": "/opt/alisa-platform/stage/releases/alisa-73180172646b7012"
+    }
+  },
+  "health": {
+    "web": {
+      "status": "READY",
+      "release": "alisa-6098b31384ae23a4"
+    },
+    "platform": {
+      "status": "READY",
+      "release": "alisa-6098b31384ae23a4"
+    },
+    "admin": {
+      "status": "READY",
+      "release": "alisa-73180172646b7012"
+    },
+    "identity": {
+      "status": "READY",
+      "release": "alisa-73180172646b7012"
+    }
+  },
+  "public": {
+    "/health/ready": {
+      "status": 200,
+      "location": null
+    },
+    "/app/stores": {
+      "status": 307,
+      "location": "/login"
+    },
+    "/api/account/stores": {
+      "status": 422,
+      "location": null
+    }
+  },
+  "nonstore_configs_unchanged": {
+    "web": true,
+    "admin": true,
+    "identity": true,
+    "platform-migration": true,
+    "identity-migration": true
+  },
+  "platform_matches_planned_bytes": true,
+  "installed_unit_hashes_match": true,
+  "sockets": {
+    "store-check.sock": {
+      "uid": 996,
+      "gid": 982,
+      "mode": "0o660",
+      "is_socket": true
+    },
+    "gateway.sock": {
+      "uid": 996,
+      "gid": 988,
+      "mode": "0o660",
+      "is_socket": true
+    }
+  },
+  "resources": {
+    "disk_free_bytes": 3393146880,
+    "free_inodes": 535018,
+    "mem_available_kib": 6127720,
+    "memory_pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=537333\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=498203"
+  },
+  "finite_units": {
+    "alisa-s05-integrated-core-6098-20261106.service": {
+      "MainPID": "0",
+      "Result": "success",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "empty_cgroup": true
+    },
+    "alisa-s05-core-activate-r5-6098-20261106.service": {
+      "MainPID": "0",
+      "Result": "success",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "empty_cgroup": true
+    },
+    "alisa-s05-platform-activate-r8-6098-20261106.service": {
+      "MainPID": "0",
+      "Result": "success",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "empty_cgroup": true
+    },
+    "alisa-s05-owned-customer-6098-20261106.service": {
+      "MainPID": "0",
+      "Result": "success",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "empty_cgroup": true
+    }
+  },
+  "existing_locks_free": {
+    "alisa-stage-rollout.lock": true,
+    "alisa-s01-rollout.lock": true,
+    "alisa-s02-provider-probe.lock": true,
+    "alisa-s02-rollout.lock": true,
+    "alisa-s03-rollout.lock": true
+  },
+  "own_customer_smoke": {
+    "scope": "INSTALLED_OWN_CUSTOMER_API_SSR_NO_BROWSER_NO_PROVIDER_CHECK",
+    "status": "NEEDS_NATIVE_CUSTOMER_LOGIN",
+    "cases": [
+      {
+        "case": "existing_own_invalid_contact_only",
+        "passed": true
+      }
+    ],
+    "external_provider_calls": 0
+  }
+}

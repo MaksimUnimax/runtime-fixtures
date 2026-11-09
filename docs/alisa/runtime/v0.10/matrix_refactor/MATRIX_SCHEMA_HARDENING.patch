@@ -1,0 +1,34 @@
+--- a/matrix_core.py
++++ b/matrix_core.py
+@@ -186,7 +186,7 @@
+                     fail('MATRIX_PATH_SCHEMA')
+                 path = node['$path']
+                 if (not isinstance(path, list) or not 1 <= len(path) <= 16
+-                    or path[0] not in roots or any(type(p) not in (str,int) for p in path)
++                    or not isinstance(path[0],str) or path[0] not in roots or any(type(p) not in (str,int) for p in path)
+                     or any(type(p) is int and not 0 <= p <= 20000 for p in path)
+                     or any(isinstance(p,str) and (not p or len(p)>160) for p in path)):
+                     fail('MATRIX_PATH_SCHEMA')
+--- a/matrix_sources.py
++++ b/matrix_sources.py
+@@ -21,7 +21,7 @@
+     kind=schema.get('type')
+     fields={'object':{'properties','required'},'array':{'items','max_length','min_length'},
+             'integer':{'minimum','maximum'},'string':{'max_length','min_length','format'},'boolean':set()}
+-    if kind not in fields or set(schema)-({'type','enum'}|fields[kind]):fail('MATRIX_TYPE_SCHEMA')
++    if not isinstance(kind,str) or kind not in fields or set(schema)-({'type','enum'}|fields[kind]):fail('MATRIX_TYPE_SCHEMA')
+     if 'enum' in schema and (not isinstance(schema['enum'],list) or not 1<=len(schema['enum'])<=100):fail('MATRIX_TYPE_SCHEMA')
+     if kind=='object':
+         props=schema.get('properties')
+@@ -129,6 +129,11 @@
+         if any(not isinstance(k,str) or not k.isascii() or not all(c.isalnum() or c=='-' for c in k) or k.lower() in ('host','content-length','connection','transfer-encoding') for k in a['headers']):fail('MATRIX_AUTH_HEADER')
+         validate_expression(a['headers'],{'credentials'})
+         if a['claims'] is not None and (not isinstance(a['claims'],dict) or set(a['claims'])!={'field','expected'} or not isinstance(a['claims']['field'],str) or not isinstance(a['claims']['expected'],dict)):fail('MATRIX_AUTH')
++        requirements=s['proof_requirements']
++        if (not isinstance(requirements,dict) or len(requirements)>32
++            or any(not isinstance(k,str) or not k or len(k)>100 for k in requirements)
++            or any(type(v) not in (str,int,bool) or isinstance(v,str) and len(v)>200 for v in requirements.values())):
++            fail('MATRIX_PROOF_REQUIREMENTS')
+         d=s['response']
+         required_d={'items','root_asserts','lets','row_asserts','map','include','currency','identity',
+                     'duplicate_code','page_duplicate_code','pagination','totals','totals_changed_code','dataset_asserts'}

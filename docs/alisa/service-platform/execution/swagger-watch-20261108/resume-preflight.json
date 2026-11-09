@@ -1,0 +1,7 @@
+{
+  "scope": "READ_ONLY_RESUME_PREFLIGHT",
+  "existing_snapshot_matches_baseline": true,
+  "changed_snapshot_keys": [],
+  "owner_input_regular_987_mode0600": true,
+  "old_installer_preserved_sha256": "3d7f3e69dadeeb25e669e290211c852062fea72034e639f7cc050239c5588051"
+}

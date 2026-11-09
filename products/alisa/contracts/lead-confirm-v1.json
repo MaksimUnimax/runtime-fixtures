@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["lead_id", "token"],
+  "properties": {
+    "lead_id": {"type": "string", "format": "uuid"},
+    "token": {"type": "string", "minLength": 32, "maxLength": 80}
+  }
+}

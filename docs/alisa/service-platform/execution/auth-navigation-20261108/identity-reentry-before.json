@@ -1,0 +1,14 @@
+{
+  "scope": "OWN_FIXTURE_MISSING_SITE_COOKIE_VALID_IDENTITY_COOKIE_NO_LOGOUT_OR_CREDENTIAL_SUBMISSION",
+  "status": "PASS",
+  "destination": "/accounts/reauthenticate/",
+  "headings": [
+    "Подтвердите вход ещё раз"
+  ],
+  "messages": [
+    "Адрес [own fixture] подтверждён.",
+    "Успешный вход под именем [own fixture]."
+  ],
+  "explicit_continue": true
+}
+

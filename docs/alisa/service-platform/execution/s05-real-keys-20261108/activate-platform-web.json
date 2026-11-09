@@ -1,0 +1,120 @@
+{
+  "scope": "OWN_WEB_AND_PLATFORM_POINTERS_RESTART_ONLY_NO_ENV_DB_MIGRATION_CORE_IDENTITY_ADMIN_CHANGES",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "private_namespace",
+      "passed": true
+    },
+    {
+      "case": "exact_successful_install",
+      "passed": true
+    },
+    {
+      "case": "exact_manifest",
+      "passed": true
+    },
+    {
+      "case": "exact_selected_payload",
+      "passed": true
+    },
+    {
+      "case": "expected_current_pointers",
+      "passed": true
+    },
+    {
+      "case": "private_config_metadata",
+      "passed": true
+    },
+    {
+      "case": "platform_fixed_pointer_launcher",
+      "passed": true
+    },
+    {
+      "case": "platform_ready_before",
+      "passed": true
+    },
+    {
+      "case": "platform_ready_after",
+      "passed": true
+    },
+    {
+      "case": "platform_actual_process_directory",
+      "passed": true
+    },
+    {
+      "case": "platform_service_profile_preserved",
+      "passed": true
+    },
+    {
+      "case": "web_fixed_pointer_launcher",
+      "passed": true
+    },
+    {
+      "case": "web_ready_before",
+      "passed": true
+    },
+    {
+      "case": "web_ready_after",
+      "passed": true
+    },
+    {
+      "case": "web_actual_process_directory",
+      "passed": true
+    },
+    {
+      "case": "web_service_profile_preserved",
+      "passed": true
+    },
+    {
+      "case": "other_pointers_preserved",
+      "passed": true
+    },
+    {
+      "case": "private_configs_and_other_services_preserved",
+      "passed": true
+    },
+    {
+      "case": "anonymous_store_list_requires_login",
+      "passed": true
+    },
+    {
+      "case": "anonymous_store_write_requires_login",
+      "passed": true
+    },
+    {
+      "case": "store_page_requires_login",
+      "passed": true
+    },
+    {
+      "case": "public_https_exact_new_web",
+      "passed": true
+    },
+    {
+      "case": "password_login_is_preserved",
+      "passed": true
+    },
+    {
+      "case": "disk_reserve",
+      "passed": true
+    }
+  ],
+  "before_pointers": {
+    "web-current": "alisa-7afaf646b9b35a58",
+    "site-current": "alisa-6098b31384ae23a4",
+    "identity-current": "alisa-7afaf646b9b35a58",
+    "admin-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "active_pointers": {
+    "web-current": "alisa-5dff6e8883e25ac4",
+    "site-current": "alisa-5dff6e8883e25ac4",
+    "identity-current": "alisa-7afaf646b9b35a58",
+    "admin-current": "alisa-73180172646b7012",
+    "current": "alisa-482ed11832b666af"
+  },
+  "source_sha": "5dff6e8883e25ac464d6e8c64e4ab5a7280c70f7",
+  "owner_session_used": false,
+  "live_customer_store_changed_by_script": false
+}
+

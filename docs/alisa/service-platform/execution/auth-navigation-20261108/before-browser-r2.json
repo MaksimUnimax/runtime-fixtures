@@ -1,0 +1,49 @@
+{
+  "scope": "INSTALLED_PUBLIC_BROWSER_OWN_EXAMPLE_INVALID_REGISTRATION_AND_SESSION_NAVIGATION",
+  "phase": "before",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "disk_and_memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "available_private_sink",
+      "passed": true
+    },
+    {
+      "case": "retry_only_unsubmitted_own_fixture",
+      "passed": true
+    },
+    {
+      "case": "own_reserved_contact",
+      "passed": true
+    },
+    {
+      "case": "native_registration_password_and_delivered_email_reaches_cabinet",
+      "passed": true
+    },
+    {
+      "case": "own_cabinet_session_valid",
+      "passed": true
+    }
+  ],
+  "navigation": [
+    "alisa.octoport.ru/login",
+    "alisa.octoport.ru/login",
+    "id.octoport.ru/accounts/login/",
+    "id.octoport.ru/accounts/signup/",
+    "id.octoport.ru/accounts/login/code/confirm/",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/app",
+    "alisa.octoport.ru/login",
+    "alisa.octoport.ru/login"
+  ],
+  "provider_calls": 0,
+  "observed": {
+    "valid_session_header_shows_login": true,
+    "valid_session_login_page_shows_new_auth_form": true,
+    "login_destination": "/login"
+  }
+}
+

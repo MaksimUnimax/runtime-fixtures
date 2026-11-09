@@ -1,0 +1,20 @@
+{
+  "scope": "DOCUMENT_LAYOUT_ONLY",
+  "review": "author_visual_review_not_independent_product_acceptance",
+  "documents": [
+    {
+      "file": "ROADMAP_GUIDE.docx",
+      "sha256": "87806d7d0ccce809756b4974ebfdee4266c659b1d7db046644cec0748e347fdc",
+      "pages": 21,
+      "all_pages_visually_reviewed": true,
+      "clipping_or_overlap_observed": false
+    },
+    {
+      "file": "DOMAIN_SETUP_GUIDE.docx",
+      "sha256": "4765c0798a8be47f8facaf5e329e12c4237e2a8b0dfd28e6b72bb27cc30ab78d",
+      "pages": 5,
+      "all_pages_visually_reviewed": true,
+      "clipping_or_overlap_observed": false
+    }
+  ]
+}

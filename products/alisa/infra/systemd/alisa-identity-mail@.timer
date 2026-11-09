@@ -1,0 +1,8 @@
+[Unit]
+Description=Alisa identity-only mail timer (%i)
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+Unit=alisa-identity-mail@%i.service
+[Install]
+WantedBy=timers.target

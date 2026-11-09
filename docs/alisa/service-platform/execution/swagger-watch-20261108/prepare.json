@@ -1,0 +1,86 @@
+{
+  "scope": "ISOLATED_SWAGGER_ONLY_NO_EXISTING_PRODUCT_RESTART_OR_DB_MUTATION",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "fresh_receipt",
+      "passed": true
+    },
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_candidate",
+      "passed": true
+    },
+    {
+      "case": "private_package",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "bounded_exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "manifest_binding",
+      "passed": true
+    },
+    {
+      "case": "all_payload_hashes",
+      "passed": true
+    },
+    {
+      "case": "existing_components_ready",
+      "passed": true
+    },
+    {
+      "case": "disk_and_memory_admission",
+      "passed": true
+    },
+    {
+      "case": "fresh_namespace",
+      "passed": true
+    },
+    {
+      "case": "fresh_service_identity",
+      "passed": true
+    },
+    {
+      "case": "dedicated_status_port_unused",
+      "passed": true
+    },
+    {
+      "case": "candidate_node_syntax",
+      "passed": true
+    },
+    {
+      "case": "exact_owner_public_document",
+      "passed": true
+    },
+    {
+      "case": "actual_owner_document_complete_validation",
+      "passed": true
+    },
+    {
+      "case": "prepare_preserves_existing_components",
+      "passed": true
+    }
+  ],
+  "phase": "PREPARED_NOT_ACTIVATED",
+  "source_sha": "7cbe3059a83677aeb42a086898a48067918f16a2",
+  "payload_bytes": 2353395,
+  "owner_document": {
+    "operations": 48,
+    "sha256": "c15c0e295a1feefca05a2f3db6c12c11a58bd128206f4e430ab3eea120e60c87"
+  },
+  "free_bytes": 3267284992
+}

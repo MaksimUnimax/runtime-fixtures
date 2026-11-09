@@ -1,0 +1,10 @@
+{
+  "runtime_lock": true,
+  "projection": true,
+  "generation": true,
+  "config": true,
+  "credential": true,
+  "qualified_unchanged_source": true,
+  "stable_generation": true,
+  "private_atomic_write_directory": true
+}

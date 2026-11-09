@@ -1,0 +1,137 @@
+openapi: 3.1.0
+info:
+  title: Alisa platform API
+  version: 0.1.0
+servers:
+  - url: http://127.0.0.1:18102
+paths:
+  /api/v1/auth/flows:
+    post:
+      description: Dedicated trusted BFF authority only; stores opaque encrypted state, never a browser-selected tenant; requires both product consents
+      security: [{authServiceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './auth-flow-v1.json'}
+      responses:
+        '201': {description: Short-lived opaque browser-bound reference}
+        '404': {description: Account capability disabled}
+        '429': {description: Bounded flow creation}
+  /api/v1/auth/flows/consume:
+    post:
+      description: Atomic one-use consume of BFF flow; no OIDC network operation inside the DB transaction
+      security: [{authServiceToken: []}]
+      responses:
+        '200': {description: Opaque encrypted flow for the same BFF}
+        '400': {description: Missing, expired or already consumed flow}
+  /api/v1/auth/sessions:
+    post:
+      description: Trusted OIDC RP BFF has already verified issuer/audience/signature/state/nonce/expiry; platform checks configured identity context, provisions its own user/tenant idempotently and never merges by email
+      security: [{authServiceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './auth-session-v1.json'}
+      responses:
+        '201': {description: One local session, stable user/tenant, OWNER_CLIENT membership and durable consent records; no trial or grants}
+        '409': {description: Flow already used for another session}
+  /api/v1/account/me:
+    post:
+      description: Session-derived profile only; rejects caller-selected user or tenant identifiers
+      security: [{authServiceToken: []}]
+      responses:
+        '200': {description: Own profile and real empty state}
+        '401': {description: Missing, expired, revoked or blocked local session}
+  /api/v1/account/profile:
+    post:
+      description: Session token plus display_name only; tenant/identity/roles cannot be supplied by the browser
+      security: [{authServiceToken: []}]
+      responses:
+        '200': {description: Own profile changed}
+        '422': {description: Extra fields or invalid display name rejected}
+  /api/v1/auth/logout:
+    post:
+      description: Revokes the local product session and clears BFF token storage; identity/global logout is separate
+      security: [{authServiceToken: []}]
+      responses:
+        '200': {description: Idempotent local logout}
+  /api/v1/leads:
+    post:
+      description: CLOSED synthetic-only intake; dedicated BFF bearer; email dedupe and persistent request idempotency; no account or grant
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './lead-intake-v1.json'}
+      responses:
+        '202': {description: Same generic acknowledgement for new, pending and confirmed contacts}
+        '404': {description: Intake disabled or production}
+        '409': {description: Request ID already bound to a different contact}
+        '422': {description: Invalid payload or non-synthetic address}
+        '429': {description: Persistent rate limit}
+        '503': {description: Database unavailable}
+  /api/v1/leads/confirm:
+    post:
+      description: One use, 15 minute TTL, at most 5 failed checks; no authentication session created
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './lead-confirm-v1.json'}
+      responses:
+        '200': {description: Contact confirmed and one server funnel effect}
+        '400': {description: Invalid, expired or already used link}
+        '404': {description: Intake disabled or production}
+  /api/v1/funnel/events:
+    post:
+      description: Only landing.view/demo.opened/cta.clicked with analytics consent; server binds product/environment/release; unknown attribution becomes OTHER and raw query/contact/token is never stored
+      security: [{serviceToken: []}]
+      responses:
+        '202': {description: Recorded once by event ID, or intentionally not tracked without consent}
+  /health/live:
+    get:
+      responses:
+        '200': {description: Process is alive; says nothing about database readiness}
+  /health/ready:
+    get:
+      responses:
+        '200': {description: Required database and foundation migration available}
+        '503': {description: Database or schema unavailable}
+  /internal/foundation/probes:
+    post:
+      description: Stage flag plus dedicated BFF identity required; absent in production
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './foundation-probe-v1.json'}
+      responses:
+        '202': {description: Probe and durable job committed}
+        '200': {description: Same committed probe returned on retry}
+        '401': {description: Missing or invalid service identity}
+        '404': {description: Probe disabled}
+        '410': {description: Probe expired}
+        '422': {description: Invalid bounded payload}
+        '503': {description: Database unavailable; no false success}
+  /internal/foundation/probes/{probe_id}:
+    get:
+      security: [{serviceToken: []}]
+      parameters:
+        - name: probe_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200': {description: Persisted probe state}
+        '401': {description: Missing or invalid service identity}
+        '404': {description: Probe absent, expired or disabled}
+        '503': {description: Database unavailable}
+components:
+  securitySchemes:
+    serviceToken: {type: http, scheme: bearer}
+    authServiceToken: {type: http, scheme: bearer, description: Dedicated BFF account authority; distinct from the public lead service token}

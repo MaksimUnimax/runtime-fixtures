@@ -1,0 +1,118 @@
+{
+  "record_type": "AL_S01_AUTHOR_INSTALLED_SMOKE_CONSOLIDATION",
+  "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "release": "alisa-8d680f775c8ccdf2",
+  "artifact_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+  "target": "https://alisa-stage.octoport.ru",
+  "status": "PASS",
+  "successful_assertions": 80,
+  "failed_product_assertions": 0,
+  "smoke_receipts": [
+    {
+      "file": "AL_S01_STAGE_SMOKE_20261105.json",
+      "status": "FAILED",
+      "passed_count": 49,
+      "case_count": 49
+    },
+    {
+      "file": "AL_S01_STAGE_SMOKE_CONTINUATION_20261105.json",
+      "status": "FAILED",
+      "passed_count": 5,
+      "case_count": 5
+    },
+    {
+      "file": "AL_S01_STAGE_SMOKE_FINAL_20261105.json",
+      "status": "PASS",
+      "passed_count": 26,
+      "case_count": 26
+    }
+  ],
+  "history": "Two FAILED harness attempts remain intact. A sixth batch hit unchanged StartLimitBurst5/10s; pending effect was reconciled without replay. Browser binary was then missing before UI writes. Only unfinished checks continued after isolated test assets were prepared.",
+  "migration_scope": {
+    "database": "alisa_stage_platform",
+    "applied": [
+      "funnel.0001_initial",
+      "leads.0001_initial"
+    ],
+    "new_tables": [
+      "funnel_funnelevent",
+      "leads_lead",
+      "leads_mailoutbox",
+      "leads_ratebucket",
+      "leads_submission"
+    ]
+  },
+  "evidence_sha256": [
+    {
+      "file": "AL_S01_PREFLIGHT_20261105.json",
+      "sha256": "a62e18f6880a188c5539471e8c8fc2c47de05b55ba38410c456c51873fa9a551"
+    },
+    {
+      "file": "AL_S01_INSTALL_20261105.json",
+      "sha256": "4533df9ff1f814e977112561929df03ee281f13409087537f01a5e967fc100a4"
+    },
+    {
+      "file": "AL_S01_MIGRATION_PLAN_20261105.json",
+      "sha256": "93c4bb9cc2ddd712a9b08579017d7fce5eb800457f415ce1993d1d99318cc1f3"
+    },
+    {
+      "file": "AL_S01_ACTIVATION_20261105.json",
+      "sha256": "3efd68b8e8bda95176e462b815fe6a197625c0de8a6692e8d93237ae62b8d2dc"
+    },
+    {
+      "file": "AL_S01_STAGE_SMOKE_20261105.json",
+      "sha256": "6fd88e1d40d612c3304ee62c65e8f761493b948aa785617580404873c59cc618"
+    },
+    {
+      "file": "AL_S01_STAGE_SMOKE_CONTINUATION_20261105.json",
+      "sha256": "f92ca28b8524556987d6798551202fcd92100385bc6f61e0580bdb294ca40900"
+    },
+    {
+      "file": "AL_S01_BROWSER_PREFLIGHT_20261105.json",
+      "sha256": "85262ffe05afcb260860577c57ddecbc43f4f8d3b029f0abb447508fa5ec6d5e"
+    },
+    {
+      "file": "AL_S01_STAGE_SMOKE_FINAL_20261105.json",
+      "sha256": "56378c59ea55c1654f4274224598f0a22448f64c276dc18105ded6405a5abae7"
+    },
+    {
+      "file": "AL_S01_POST_SMOKE_READBACK_20261105.json",
+      "sha256": "8017dbb090bd76b397ec84a12fb353428d1e3548ae4a2dc3a941b6c8ddac5acd"
+    }
+  ],
+  "operational_source_files": [
+    {
+      "path": "docs/alisa/service-platform/execution/rollout_support/apply_s01_stage.py",
+      "sha256": "044b65a5ed2c183d90340c5ce12da7d7f6181252b3855d864fb6f6bef3c8d1d8"
+    },
+    {
+      "path": "docs/alisa/service-platform/execution/rollout_support/finish_s01_stage_smoke.py",
+      "sha256": "cfff0fed1f326431539bbde1b6389a59679d2a5a631366262acc79ab858b94d1"
+    },
+    {
+      "path": "docs/alisa/service-platform/execution/rollout_support/resume_s01_stage_smoke.py",
+      "sha256": "f65090fa79526440a1fc5f45eb68467dcbcdfd7f257b949b92ff7de1ad87fe3c"
+    },
+    {
+      "path": "docs/alisa/service-platform/execution/rollout_support/smoke_s01_stage.py",
+      "sha256": "5f74aaab26594f678e2f9d290d6344b97b8b53cc4c49592500ec2e3a952c24d8"
+    },
+    {
+      "path": "docs/alisa/service-platform/execution/rollout_support/synthetic_smtp.py",
+      "sha256": "77ae3701d5181870ded5867a79b6977e7a3f4af718a2a368cbcde8da8219cdd8"
+    },
+    {
+      "path": "docs/alisa/service-platform/execution/rollout_support/test_synthetic_smtp.py",
+      "sha256": "7195a846e463a640abe484ae649f569861849a33ce1bdfe52b31ccd43af7b08d"
+    }
+  ],
+  "runtime_package_unchanged": true,
+  "rollback_claim": "Accepted S00 code and private own config backups retained. New S01 release-pair rollback was not exercised. Additive schema and records must be retained.",
+  "scope_limits": [
+    "CLOSED synthetic example.invalid only; no real recipients or public contact collection",
+    "Identity/admin/lab/foreign databases/credentials/matrix/processor unchanged",
+    "Not production or hardware voice-skill acceptance"
+  ],
+  "independent_report": "AL_S01_INDEPENDENT_INSTALLED_ACCEPTANCE_20261105.json",
+  "next_step": "Publish actual installed evidence and independent final verdict; only then begin source design for AL-S02. Live identity changes require separate exact approval."
+}

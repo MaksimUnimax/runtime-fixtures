@@ -1,0 +1,32 @@
+{
+  "record_type": "AL_S05_SOURCE_INDEPENDENT_REVIEW_R1",
+  "reviewer": "s03_independent_review",
+  "recorded_by": "root from independent reviewer final response",
+  "source_sha": "3f3162ac7709f575b3bf965ad0b709e326060cab",
+  "tree_sha": "dfa8cbc6e364decdfce4105f967e1801bf41ac47",
+  "verdict": "REWORK",
+  "findings": [
+    {
+      "severity": "P1",
+      "finding": "StoreCommand.action varchar(16) cannot persist 17-character revoke_credential; PostgreSQL credential revoke fails. Existing backend test omitted this action.",
+      "required_fix": "Model and initial migration max24; PostgreSQL Performance-only revoke erases its secret and preserves active Seller."
+    },
+    {
+      "severity": "P2",
+      "finding": "Unkeyed SHA256 of the command including credentials exposes an offline guessing verifier on database disclosure. No plaintext leak was claimed.",
+      "required_fix": "Server-only domain-separated HMAC for command binding and a negative plaintext-SHA / cross-tenant test."
+    }
+  ],
+  "accepted_inspection_boundaries": [
+    "Tenant/customer locks before mutation.",
+    "Persisted validation claim before IPC outside DB transaction.",
+    "Current security/store/credential revision check at completion.",
+    "Vault context and PostgreSQL tenant composite foreign keys.",
+    "Append-only audit privileges and secret-free BFF projection."
+  ],
+  "limits": [
+    "No tests or host mutations by reviewer.",
+    "RT-CHECK is proposed client-only; live provider/runtime not accepted.",
+    "Original candidate is not accepted for installation."
+  ]
+}

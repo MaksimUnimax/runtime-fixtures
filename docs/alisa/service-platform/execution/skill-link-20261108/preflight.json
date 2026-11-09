@@ -1,0 +1,120 @@
+{
+  "status": "PASS",
+  "scope": "WEB_PLATFORM_ACCOUNT_CLEANUP_ONLY",
+  "cases": [
+    {
+      "case": "allowed_finite_phase",
+      "passed": true
+    },
+    {
+      "case": "fresh_public_receipt",
+      "passed": true
+    },
+    {
+      "case": "disk_floor_and_bounded_install_budget",
+      "passed": true
+    },
+    {
+      "case": "inode_reserve",
+      "passed": true
+    },
+    {
+      "case": "memory_reserve",
+      "passed": true
+    },
+    {
+      "case": "no_previous_activation_attempt",
+      "passed": true
+    },
+    {
+      "case": "own_dropins_fresh",
+      "passed": true
+    },
+    {
+      "case": "independently_recorded_prepared_manifest",
+      "passed": true
+    },
+    {
+      "case": "qualified_product_source",
+      "passed": true
+    },
+    {
+      "case": "independent_exact_ci_selected_map",
+      "passed": true
+    },
+    {
+      "case": "prepared_manifest_file_hashes",
+      "passed": true
+    },
+    {
+      "case": "qualified_verifier_hash",
+      "passed": true
+    },
+    {
+      "case": "exact_prepared_file_and_link_sets",
+      "passed": true
+    },
+    {
+      "case": "effective_web_baseline",
+      "passed": true
+    },
+    {
+      "case": "web_baseline_manifest",
+      "passed": true
+    },
+    {
+      "case": "effective_platform_baseline",
+      "passed": true
+    },
+    {
+      "case": "platform_baseline_manifest",
+      "passed": true
+    },
+    {
+      "case": "all_preserved_platform_source",
+      "passed": true
+    },
+    {
+      "case": "preserved_launcher",
+      "passed": true
+    },
+    {
+      "case": "current_staff_changes_preserved",
+      "passed": true
+    },
+    {
+      "case": "all_components_ready",
+      "passed": true
+    },
+    {
+      "case": "cleanup_not_running",
+      "passed": true
+    },
+    {
+      "case": "existing_native_client_configured",
+      "passed": true
+    },
+    {
+      "case": "same_authorized_platform_database",
+      "passed": true
+    },
+    {
+      "case": "separate_migration_role",
+      "passed": true
+    },
+    {
+      "case": "no_concurrent_scoped_change_during_preflight",
+      "passed": true
+    }
+  ],
+  "phase": "ACTIVATION_PREFLIGHT",
+  "source_sha": "d3cb053be14264c6bb2332708abb32d4b0c005ae",
+  "migration_plan": [
+    [
+      "alice_link",
+      "0001_initial",
+      false
+    ]
+  ],
+  "free_bytes": 3253039104
+}

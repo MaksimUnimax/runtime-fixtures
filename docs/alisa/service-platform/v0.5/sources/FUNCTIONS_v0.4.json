@@ -1,0 +1,1267 @@
+[
+  {
+    "id": "AL-F01",
+    "title": "Клиент регистрируется и возвращается в свой кабинет",
+    "outcome": "Человек получает одноразовый код на почту, входит, видит свой аккаунт и после выхода возвращается в тот же tenant.",
+    "areas": [
+      "accounts",
+      "UI",
+      "PostgreSQL",
+      "email",
+      "consent",
+      "session security"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R001",
+      "AL-R002",
+      "AL-R004",
+      "AL-R009",
+      "AL-R046",
+      "AL-R047",
+      "AL-R048",
+      "AL-R049",
+      "AL-R050",
+      "AL-R052",
+      "AL-R053",
+      "AL-R054",
+      "AL-R056",
+      "AL-R057"
+    ],
+    "test_ids": [
+      "AL-T01-01",
+      "AL-T01-02",
+      "AL-T01-03",
+      "AL-T01-04",
+      "AL-T01-05"
+    ],
+    "legacy_depends_on": [],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S01",
+      "AL-S02"
+    ],
+    "legacy_demo": [
+      "открыть регистрацию",
+      "получить код в тестовом почтовом ящике",
+      "войти, выйти и повторно войти",
+      "показать неизменный tenant ID и пустой кабинет"
+    ],
+    "legacy_input_conditions": [
+      "изолированный стенд",
+      "разрешённый домен/локальный тестовый origin",
+      "синтетическая почта и почтовый приёмник",
+      "зафиксированные версии зависимостей"
+    ],
+    "legacy_external_acceptance": "Для полной внешней приёмки — доставка на контролируемый настоящий email. Локальный mail sink доказывает интеграцию приложения, но не доставляемость провайдера."
+  },
+  {
+    "id": "AL-F02",
+    "title": "Владелец управляет отдельной админкой с MFA",
+    "outcome": "Владелец сервиса входит с MFA, назначает администратора, ограничивает его права и отзывает доступ с аудитом.",
+    "areas": [
+      "staff",
+      "RBAC",
+      "MFA",
+      "audit",
+      "admin UI"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R001",
+      "AL-R003",
+      "AL-R008",
+      "AL-R046",
+      "AL-R049",
+      "AL-R051",
+      "AL-R052",
+      "AL-R053"
+    ],
+    "test_ids": [
+      "AL-T02-01",
+      "AL-T02-02",
+      "AL-T02-03",
+      "AL-T02-04",
+      "AL-T02-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F01"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S03",
+      "AL-S13"
+    ],
+    "legacy_demo": [
+      "войти владельцем с MFA",
+      "пригласить ADMIN без catalog.publish",
+      "показать отказ прямому запросу публикации",
+      "отозвать staff и показать журнал"
+    ],
+    "legacy_input_conditions": [
+      "AL-F01 принят на стенде",
+      "отдельный admin origin",
+      "первый OWNER создан закрытой одноразовой процедурой",
+      "два именованных staff-аккаунта"
+    ],
+    "legacy_external_acceptance": "Проверить на настоящем HTTPS admin origin. Пользовательские и административные сессии раздельны. Назначения настоящих сотрудников — отдельное разрешённое действие."
+  },
+  {
+    "id": "AL-F03",
+    "title": "Клиент подключает и безопасно меняет магазины Ozon/WB",
+    "outcome": "Клиент без оплаты добавляет магазины, видит раздельные права источников и может заменить или удалить подключение без утечки ключей.",
+    "areas": [
+      "stores",
+      "credential vault",
+      "runtime adapter",
+      "capability checks",
+      "UI"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R004",
+      "AL-R005",
+      "AL-R006",
+      "AL-R009",
+      "AL-R046",
+      "AL-R058"
+    ],
+    "test_ids": [
+      "AL-T03-01",
+      "AL-T03-02",
+      "AL-T03-03",
+      "AL-T03-04",
+      "AL-T03-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F01"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S05",
+      "AL-S09",
+      "AL-S17"
+    ],
+    "legacy_demo": [
+      "добавить два Ozon и два WB fixture-магазина",
+      "показать Seller без Performance",
+      "заменить ключ",
+      "удалить один магазин",
+      "проверить, что тарифного лимита магазинов нет"
+    ],
+    "legacy_input_conditions": [
+      "AL-F01",
+      "изолированный credentials store",
+      "контракт проверки источника",
+      "для живого этапа разрешённые read-only кабинеты Ozon и WB"
+    ],
+    "legacy_external_acceptance": "Полная приёмка включает минимальную разрешённую проверку одного настоящего Ozon и одного WB; отдельно подтверждается Performance. Fixtures не доказывают права настоящих ключей."
+  },
+  {
+    "id": "AL-F04",
+    "title": "Администратор выдаёт и отзывает бесплатные периоды",
+    "outcome": "Админ выдаёт дни одному клиенту или подтверждённой группе; клиент видит новый срок, получает доступ, а выручка не увеличивается.",
+    "areas": [
+      "entitlements",
+      "admin grants UI",
+      "audit",
+      "notifications",
+      "calendar service"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R008",
+      "AL-R010",
+      "AL-R011",
+      "AL-R017",
+      "AL-R046",
+      "AL-R051"
+    ],
+    "test_ids": [
+      "AL-T04-01",
+      "AL-T04-02",
+      "AL-T04-03",
+      "AL-T04-04",
+      "AL-T04-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F01",
+      "AL-F02"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S04",
+      "AL-S10",
+      "AL-S22",
+      "AL-S23"
+    ],
+    "legacy_demo": [
+      "выдать 7 дней",
+      "повторить запрос",
+      "добавить 3 дня другому основанию",
+      "отозвать только будущий подарок",
+      "показать неизменную выручку"
+    ],
+    "legacy_input_conditions": [
+      "AL-F01/02",
+      "транзакционный grant ledger",
+      "configurable test policy",
+      "действующая цена не требуется"
+    ],
+    "legacy_external_acceptance": "Реальные клиентские подарки не выдаются во время разработки. Приёмка на синтетических клиентах; пилотные grants — после разрешения запуска."
+  },
+  {
+    "id": "AL-F05",
+    "title": "Клиент связывает аккаунт с Алисой и может отвязать его",
+    "outcome": "Связка через штатный OAuth соединяет навык с правильным tenant; refresh работает, unlink отзывает доступ, но не подписку.",
+    "areas": [
+      "OAuth",
+      "Alice facade",
+      "sessions",
+      "account UI",
+      "voice privacy"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R007",
+      "AL-R046",
+      "AL-R050",
+      "AL-R055"
+    ],
+    "test_ids": [
+      "AL-T05-01",
+      "AL-T05-02",
+      "AL-T05-03",
+      "AL-T05-04",
+      "AL-T05-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F01"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S06",
+      "AL-S07"
+    ],
+    "legacy_demo": [
+      "войти в настоящую тестовую консоль",
+      "связать новый тестовый аккаунт",
+      "получить сообщение о подключении",
+      "отвязать из ЛК и проверить отказ старого токена"
+    ],
+    "legacy_input_conditions": [
+      "AL-F01",
+      "изолированный тестовый навык/адреса",
+      "зафиксированный legacy OAuth manifest",
+      "не менять рабочую связку владельца"
+    ],
+    "legacy_external_acceptance": "Нужен настоящий Яндекс Dialogs linking/refresh/unlink. Протокольная заглушка допускает разработку, но не закрывает эту функцию."
+  },
+  {
+    "id": "AL-F06",
+    "title": "Клиент получает первый настоящий отчёт через Алису и ЛК",
+    "outcome": "Связанный клиент с доступом задаёт один поддержанный вопрос и получает проверенный результат существующего ядра в нужном аккаунте.",
+    "areas": [
+      "runtime adapter",
+      "access tickets",
+      "Alice webhook",
+      "query UI",
+      "minimal insights hook"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R004",
+      "AL-R008",
+      "AL-R009",
+      "AL-R020",
+      "AL-R021",
+      "AL-R046",
+      "AL-R056"
+    ],
+    "test_ids": [
+      "AL-T06-01",
+      "AL-T06-02",
+      "AL-T06-03",
+      "AL-T06-04",
+      "AL-T06-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F03",
+      "AL-F04",
+      "AL-F05"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S07",
+      "AL-S20"
+    ],
+    "legacy_demo": [
+      "спросить один уже поддержанный показатель",
+      "показать job в ЛК",
+      "сравнить ответ с разрешённым источником и эталоном",
+      "повторно открыть без нового HTTP"
+    ],
+    "legacy_input_conditions": [
+      "AL-F03/04/05",
+      "выбран точный стабильный runtime и каталог",
+      "его контракт принят обеими сторонами",
+      "есть независимый числовой эталон"
+    ],
+    "legacy_external_acceptance": "Реальные Dialogs и read-only marketplace необходимы. Поддержать один квалифицированный сценарий достаточно для первого вертикального шага; это не приёмка всех KPI."
+  },
+  {
+    "id": "AL-F07",
+    "title": "Клиент выбирает несколько магазинов и уточняет смысл вопроса",
+    "outcome": "Вопрос «по всем магазинам» фиксирует состав; краткое уточнение сохраняет период и отличает заказы, выкупы и начисления.",
+    "areas": [
+      "context",
+      "store selection",
+      "semantics",
+      "parallel dialogues",
+      "completeness"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R005",
+      "AL-R021",
+      "AL-R022",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T07-01",
+      "AL-T07-02",
+      "AL-T07-03",
+      "AL-T07-04",
+      "AL-T07-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F06"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S09"
+    ],
+    "legacy_demo": [
+      "дать запрос по всем",
+      "уточнить «заказанные»",
+      "выполнить второй диалог с другим магазином",
+      "показать два независимых результата"
+    ],
+    "legacy_input_conditions": [
+      "AL-F06",
+      "два магазина одной площадки и магазин другой",
+      "qualified multi-store capability либо явный отказ"
+    ],
+    "legacy_external_acceptance": "Проверка в Dialogs и на квалифицированной выборке; пересчёт разных валют/осей не разрешается по факту наличия функции."
+  },
+  {
+    "id": "AL-F08",
+    "title": "Долгое задание переживает ожидание, отмену и перезапуск",
+    "outcome": "Клиент видит честное состояние длительного расчёта, отменяет его и получает результат без повторения уже выполненных запросов.",
+    "areas": [
+      "queue",
+      "cancellation",
+      "UNKNOWN",
+      "result TTL",
+      "delivery",
+      "recovery"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R021",
+      "AL-R023",
+      "AL-R024",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T08-01",
+      "AL-T08-02",
+      "AL-T08-03",
+      "AL-T08-04",
+      "AL-T08-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F06"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S10"
+    ],
+    "legacy_demo": [
+      "запустить многостраничный отчёт",
+      "перезапустить worker",
+      "дочитать результат",
+      "отдельно отменить и показать EXPIRED после TTL"
+    ],
+    "legacy_input_conditions": [
+      "AL-F06",
+      "fixtures пагинации и асинхронного отчёта",
+      "killpoints до/после send и commit",
+      "управляемые часы"
+    ],
+    "legacy_external_acceptance": "Записанные ответы допустимы для fault injection; реальный длинный сценарий в консоли нужен до AL-F22."
+  },
+  {
+    "id": "AL-F09",
+    "title": "Клиент и администратор видят правдивый каталог вопросов",
+    "outcome": "Каталог показывает опубликованные шаблоны, определения и доступность именно для выбранных магазинов, а админ видит зависимости.",
+    "areas": [
+      "catalog read model",
+      "capabilities",
+      "user UI",
+      "staff UI"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R012",
+      "AL-R025",
+      "AL-R034",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T09-01",
+      "AL-T09-02",
+      "AL-T09-03",
+      "AL-T09-04",
+      "AL-T09-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F02",
+      "AL-F03"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S11",
+      "AL-S13"
+    ],
+    "legacy_demo": [
+      "найти вопрос",
+      "выбрать магазин без рекламных прав",
+      "увидеть причину",
+      "открыть ту же карточку админом с версиями и зависимостями"
+    ],
+    "legacy_input_conditions": [
+      "AL-F02/03",
+      "immutable catalog fixture и один реальный exported catalog",
+      "mapping статусов capability"
+    ],
+    "legacy_external_acceptance": "Функция допускает приёмку на проверенном экспорте каталога; наличие карточки не доказывает live API-результат."
+  },
+  {
+    "id": "AL-F10",
+    "title": "Неподошедший вопрос появляется у администратора без секретов",
+    "outcome": "Каждый допустимый P1-промах и окончательный отказ учитывается один раз с причиной, даже когда P2 успешно ответил.",
+    "areas": [
+      "query insights",
+      "redaction",
+      "runtime outbox",
+      "inbox",
+      "admin list",
+      "event contracts"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R026",
+      "AL-R027",
+      "AL-R028",
+      "AL-R029",
+      "AL-R030",
+      "AL-R046",
+      "AL-R057"
+    ],
+    "test_ids": [
+      "AL-T10-01",
+      "AL-T10-02",
+      "AL-T10-03",
+      "AL-T10-04",
+      "AL-T10-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F02",
+      "AL-F06"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S08",
+      "AL-S09"
+    ],
+    "legacy_demo": [
+      "отправить новую формулировку с P2 success",
+      "открыть запись в админке",
+      "повторить webhook и «результат»",
+      "показать неизменный счётчик"
+    ],
+    "legacy_input_conditions": [
+      "AL-F02/06",
+      "очищенный event contract",
+      "продуктовый worker",
+      "source-safe fixtures",
+      "политика хранения задана тестово"
+    ],
+    "legacy_external_acceptance": "Нужен настоящий путь runtime→outbox→platform→admin. Синтетические редактированные события проверяют consumer, но не весь путь."
+  },
+  {
+    "id": "AL-F11",
+    "title": "Повторяющаяся потребность превращается в одну задачу разработки",
+    "outcome": "Админ объединяет похожие безопасные вопросы; при достижении настроенного спроса появляется один кандидат на новый шаблон.",
+    "areas": [
+      "clusters",
+      "semantic signatures",
+      "thresholds",
+      "candidate tasks",
+      "merge/split",
+      "admin UI"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R027",
+      "AL-R028",
+      "AL-R031",
+      "AL-R032",
+      "AL-R033",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T11-01",
+      "AL-T11-02",
+      "AL-T11-03",
+      "AL-T11-04",
+      "AL-T11-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F09",
+      "AL-F10"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S12"
+    ],
+    "legacy_demo": [
+      "набрать 20 допустимых вкладов от 5 клиентов",
+      "открыть кандидата",
+      "добавить событие",
+      "показать, что второго кандидата нет",
+      "вручную разделить несовместимые оси"
+    ],
+    "legacy_input_conditions": [
+      "AL-F09/10",
+      "версии нормализатора и threshold policy",
+      "clock-controlled fixtures с несколькими tenant"
+    ],
+    "legacy_external_acceptance": "Для проверки достаточно воспроизводимых events настоящего consumer. Рыночная обоснованность порога не утверждается."
+  },
+  {
+    "id": "AL-F12",
+    "title": "Проверенный шаблон публикуется и откатывается без смены результата на ходу",
+    "outcome": "Админ проводит кандидата через спецификацию и проверки, включает пакет для тестовых клиентов и возвращает прежнюю версию без повторов API.",
+    "areas": [
+      "catalog lifecycle",
+      "qualification",
+      "package manifests",
+      "release coordinator",
+      "canary",
+      "audit"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R034",
+      "AL-R035",
+      "AL-R036",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T12-01",
+      "AL-T12-02",
+      "AL-T12-03",
+      "AL-T12-04",
+      "AL-T12-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F08",
+      "AL-F09",
+      "AL-F11"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S13"
+    ],
+    "legacy_demo": [
+      "добавить синтетический синоним/формулу только данными",
+      "собрать manifest",
+      "показать отказ без proof",
+      "включить canary",
+      "откатить новые задания"
+    ],
+    "legacy_input_conditions": [
+      "AL-F08/09/11",
+      "общий runtime поддерживает нужные примитивы",
+      "закреплён исходный каталог",
+      "полный test pack и допуск live-canary"
+    ],
+    "legacy_external_acceptance": "Новый источник требует отдельной разрешённой API-квалификации. JSON-only proof не заменяет семантическую и live-приёмку."
+  },
+  {
+    "id": "AL-F13",
+    "title": "Пользователь выбирает срок единственного тарифа и открывает оплату",
+    "outcome": "Клиент видит 1/3/6/12 месяцев с одним набором функций и получает checkout по неизменной серверной цене.",
+    "areas": [
+      "offers",
+      "orders",
+      "payment adapter",
+      "UI",
+      "price publication"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R012",
+      "AL-R013",
+      "AL-R016",
+      "AL-R046",
+      "AL-R048"
+    ],
+    "test_ids": [
+      "AL-T13-01",
+      "AL-T13-02",
+      "AL-T13-03",
+      "AL-T13-04",
+      "AL-T13-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F01",
+      "AL-F02",
+      "AL-F04"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S20"
+    ],
+    "legacy_demo": [
+      "публикация тестовой цены",
+      "выбор 3 месяцев",
+      "создание order",
+      "переход к hosted checkout",
+      "изменение цены каталога без изменения старого заказа"
+    ],
+    "legacy_input_conditions": [
+      "AL-F01/02/04",
+      "sandbox merchant или детерминированный fake payment port",
+      "цены явно SYNTHETIC",
+      "D01/D04 не считаются решёнными"
+    ],
+    "legacy_external_acceptance": "Sandbox checkout настоящего выбранного провайдера требуется для provider-ready. Production-price и договор — отдельный commercial gate."
+  },
+  {
+    "id": "AL-F14",
+    "title": "Подтверждённая оплата один раз выдаёт доступ",
+    "outcome": "Платёж в sandbox подтверждается у провайдера, клиент получает срок, а дубли, подделки и сбои не выдают лишние месяцы.",
+    "areas": [
+      "payment inbox",
+      "authenticated reconciliation",
+      "grant ledger",
+      "outbox",
+      "user payment history"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R014",
+      "AL-R015",
+      "AL-R016",
+      "AL-R040",
+      "AL-R046",
+      "AL-R051"
+    ],
+    "test_ids": [
+      "AL-T14-01",
+      "AL-T14-02",
+      "AL-T14-03",
+      "AL-T14-04",
+      "AL-T14-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F13"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S20"
+    ],
+    "legacy_demo": [
+      "оплатить sandbox",
+      "показать success и grant",
+      "повторить webhook",
+      "оборвать worker после provider read",
+      "восстановить без второго grant"
+    ],
+    "legacy_input_conditions": [
+      "AL-F13",
+      "реальный sandbox и его разрешённый webhook",
+      "durable inbox/outbox",
+      "транзакционные уникальности",
+      "отдельные test/prod конфигурации"
+    ],
+    "legacy_external_acceptance": "Только настоящий sandbox end-to-end закрывает provider-tested. Контролируемый production payment остаётся AL-F24."
+  },
+  {
+    "id": "AL-F15",
+    "title": "Клиент продлевает доступ без потери оплаченных дней",
+    "outcome": "Продление сохраняет остаток и календарный якорь; конкурентные покупки и подарки дают воспроизводимую последовательность интервалов.",
+    "areas": [
+      "calendar",
+      "entitlement scheduling",
+      "renewal UI",
+      "reminders",
+      "concurrent payments"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R017",
+      "AL-R040",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T15-01",
+      "AL-T15-02",
+      "AL-T15-03",
+      "AL-T15-04",
+      "AL-T15-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F04",
+      "AL-F14"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S21"
+    ],
+    "legacy_demo": [
+      "продлить 31 января на два месячных периода",
+      "показать февраль и март",
+      "добавить подарок и следующую покупку",
+      "отменить старое напоминание"
+    ],
+    "legacy_input_conditions": [
+      "AL-F04/14",
+      "замороженные часы",
+      "Europe/Moscow для расчёта тарифа как test policy",
+      "baseline anchor fixtures"
+    ],
+    "legacy_external_acceptance": "Даты проверяются на искусственных датах и настоящем DB-коде; суммы в примерах synthetic, реальную цену не назначают."
+  },
+  {
+    "id": "AL-F16",
+    "title": "Администратор возвращает деньги и разбирает ошибку чека",
+    "outcome": "Возвраты выполняются по подтверждённой операции; влияние на доступ выбирается отдельно, чеки и неопределённость видны.",
+    "areas": [
+      "refunds",
+      "receipts",
+      "billing reconciliation",
+      "admin approval",
+      "access adjustments"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R016",
+      "AL-R018",
+      "AL-R019",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T16-01",
+      "AL-T16-02",
+      "AL-T16-03",
+      "AL-T16-04",
+      "AL-T16-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F02",
+      "AL-F14",
+      "AL-F15"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S22",
+      "AL-S23"
+    ],
+    "legacy_demo": [
+      "полный возврат неиспользованного срока",
+      "частичный возврат с явным access_effect",
+      "сбой чека",
+      "показать неизменный подарок"
+    ],
+    "legacy_input_conditions": [
+      "AL-F14/15",
+      "sandbox refunds/receipts contracts",
+      "D10 policies test-configured",
+      "production fiscal/terms decisions remain OPEN"
+    ],
+    "legacy_external_acceptance": "Нужен sandbox или документированный тестовый режим выбранной кассовой схемы; реальные возвраты/чеки только после коммерческого разрешения."
+  },
+  {
+    "id": "AL-F17",
+    "title": "Админ видит достоверную статистику пользователей, оплат и качества",
+    "outcome": "Дашборд показывает воронку, активность, деньги, бесплатный доступ, промахи шаблонов и стоимость с определениями и полнотой.",
+    "areas": [
+      "admin statistics",
+      "read models",
+      "financial reconciliation",
+      "cohort metrics",
+      "privacy"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R037",
+      "AL-R038",
+      "AL-R046",
+      "AL-R051",
+      "AL-R057"
+    ],
+    "test_ids": [
+      "AL-T17-01",
+      "AL-T17-02",
+      "AL-T17-03",
+      "AL-T17-04",
+      "AL-T17-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F10",
+      "AL-F11",
+      "AL-F14",
+      "AL-F16"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S16",
+      "AL-S23"
+    ],
+    "legacy_demo": [
+      "открыть 30-дневный дашборд",
+      "сверить суммы",
+      "отфильтровать внутренние тесты и подарки",
+      "открыть определения метрик и неполный интервал telemetry"
+    ],
+    "legacy_input_conditions": [
+      "реальные модули событий/биллинга",
+      "синтетический gold ledger",
+      "без клиентских сумм в labels",
+      "explicit timezones"
+    ],
+    "legacy_external_acceptance": "Проверяем реальный UI/DB на эталонных данных; затем в пилоте сверяем реальные счётчики. Экономическая прибыль сервиса не выводится без полной себестоимости."
+  },
+  {
+    "id": "AL-F18",
+    "title": "Пользователь получает поддержку и уведомление о своей идее",
+    "outcome": "Клиент сообщает об ошибке ответа, админ разбирает безопасную диагностику, выдаёт компенсацию и уведомляет о решённой идее.",
+    "areas": [
+      "support",
+      "feedback",
+      "notifications",
+      "idea subscriptions",
+      "attachments"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R010",
+      "AL-R033",
+      "AL-R039",
+      "AL-R040",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T18-01",
+      "AL-T18-02",
+      "AL-T18-03",
+      "AL-T18-04",
+      "AL-T18-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F02",
+      "AL-F04",
+      "AL-F10",
+      "AL-F11"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S14",
+      "AL-S23"
+    ],
+    "legacy_demo": [
+      "создать жалобу «ответ не тот»",
+      "открыть staff карточку без сумм",
+      "связать с кластером",
+      "выдать компенсацию",
+      "сообщить о решении"
+    ],
+    "legacy_input_conditions": [
+      "AL-F02/04/10/11",
+      "mail sink",
+      "synthetic attachments",
+      "каталог причин",
+      "отсутствие админского impersonation"
+    ],
+    "legacy_external_acceptance": "Для доставки — контролируемый реальный email; маркетинговый opt-in не следует из обращения."
+  },
+  {
+    "id": "AL-F19",
+    "title": "Клиент управляет безопасностью и удаляет аккаунт",
+    "outcome": "Клиент меняет контакт, отзывает сессии и удаляет аккаунт; удалённые ключи и права не возвращаются из backup.",
+    "areas": [
+      "profile",
+      "sessions",
+      "reauth",
+      "deletion",
+      "retention",
+      "tombstones",
+      "legal holds"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R004",
+      "AL-R009",
+      "AL-R024",
+      "AL-R029",
+      "AL-R041",
+      "AL-R046",
+      "AL-R050"
+    ],
+    "test_ids": [
+      "AL-T19-01",
+      "AL-T19-02",
+      "AL-T19-03",
+      "AL-T19-04",
+      "AL-T19-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F01",
+      "AL-F03",
+      "AL-F05",
+      "AL-F10"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S15",
+      "AL-S16",
+      "AL-S17",
+      "AL-S22"
+    ],
+    "legacy_demo": [
+      "сменить email с подтверждением",
+      "отозвать сессию",
+      "запросить удаление",
+      "проверить ключи/связку/gap",
+      "сделать restore drill с tombstones"
+    ],
+    "legacy_input_conditions": [
+      "AL-F01/03/05/10",
+      "policy registry",
+      "fixture ledger с финансовыми записями",
+      "separate deletion evidence store"
+    ],
+    "legacy_external_acceptance": "Реальные персональные данные не удаляются без явного запроса клиента. Тест финансовой retention-policy не является юридическим заключением."
+  },
+  {
+    "id": "AL-F20",
+    "title": "Оператор видит сбой и сохраняет работу остальных клиентов",
+    "outcome": "Health и инциденты показывают очередь, очистку, квоты и стоимость; сбой одного источника не выключает весь сервис.",
+    "areas": [
+      "operations UI",
+      "health",
+      "fair queue",
+      "budgets",
+      "alerts",
+      "telemetry quality"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R024",
+      "AL-R030",
+      "AL-R038",
+      "AL-R042",
+      "AL-R046"
+    ],
+    "test_ids": [
+      "AL-T20-01",
+      "AL-T20-02",
+      "AL-T20-03",
+      "AL-T20-04",
+      "AL-T20-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F08",
+      "AL-F10"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S16",
+      "AL-S23"
+    ],
+    "legacy_demo": [
+      "отключить один источник",
+      "увидеть инцидент",
+      "продолжить другой",
+      "нагрузить одного tenant",
+      "остановить retention",
+      "показать явное предупреждение"
+    ],
+    "legacy_input_conditions": [
+      "AL-F08/10",
+      "реальный test worker/DB",
+      "local fault injection",
+      "заданный load profile",
+      "alert test receiver"
+    ],
+    "legacy_external_acceptance": "Нагрузка проводится на fixtures, не на маркетплейсах. Для operator-ready — фактическая доставка безопасного предупреждения."
+  },
+  {
+    "id": "AL-F21",
+    "title": "После сбоя или обновления восстанавливается тот же сервис без дублей",
+    "outcome": "Оператор восстанавливает платформу и переносит лабораторный аккаунт через проверенный cutover, сохраняя доступ и историю.",
+    "areas": [
+      "backup restore",
+      "migration",
+      "release compatibility",
+      "OAuth cutover",
+      "DB rollout",
+      "docs"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R001",
+      "AL-R020",
+      "AL-R041",
+      "AL-R043",
+      "AL-R046",
+      "AL-R049",
+      "AL-R052",
+      "AL-R055",
+      "AL-R058"
+    ],
+    "test_ids": [
+      "AL-T21-01",
+      "AL-T21-02",
+      "AL-T21-03",
+      "AL-T21-04",
+      "AL-T21-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F08",
+      "AL-F19",
+      "AL-F20"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S17",
+      "AL-S23"
+    ],
+    "legacy_demo": [
+      "восстановить чистое окружение",
+      "применить удаления и сверку",
+      "показать те же grants/сессии по политике",
+      "выполнить контролируемый cutover и rollback кода"
+    ],
+    "legacy_input_conditions": [
+      "AL-F08/19/20",
+      "точные manifests старого runtime/OAuth",
+      "изолированная копия",
+      "синтетические деньги",
+      "согласованный rollback plan"
+    ],
+    "legacy_external_acceptance": "Реальный перенос текущих аккаунтов/секретов — только отдельно разрешённое действие. Оригинальная SQLite и рабочие services не используются как disposable fixtures."
+  },
+  {
+    "id": "AL-F22",
+    "title": "Пользователь проходит полный день сценариев на настоящей Станции",
+    "outcome": "Приняты конкретные голосовые и экранные сценарии на реальном устройстве, включая приватность и длинный отчёт.",
+    "areas": [
+      "Station acceptance",
+      "Dialogs",
+      "actual audio",
+      "release candidate",
+      "end-to-end"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R044",
+      "AL-R046",
+      "AL-R055"
+    ],
+    "test_ids": [
+      "AL-T22-01",
+      "AL-T22-02",
+      "AL-T22-03",
+      "AL-T22-04",
+      "AL-T22-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F07",
+      "AL-F08",
+      "AL-F09",
+      "AL-F10",
+      "AL-F18",
+      "AL-F19",
+      "AL-F20",
+      "AL-F21"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S18"
+    ],
+    "legacy_demo": [
+      "голосом запустить навык",
+      "связать аккаунт",
+      "получить короткий отчёт",
+      "запросить длинный и затем «результат»",
+      "проверить режим без сумм и отзыв"
+    ],
+    "legacy_input_conditions": [
+      "единый RC",
+      "физическая Станция и владелец устройства",
+      "разрешённый аккаунт/магазины",
+      "кабинетная числовая сверка",
+      "аппаратный checklist"
+    ],
+    "legacy_external_acceptance": "Физическая Станция обязательна. Наличие text/tts в консоли не заменяет звук. Автоозвучка по READY остаётся отдельной будущей функцией."
+  },
+  {
+    "id": "AL-F23",
+    "title": "Ограниченная группа бесплатно пользуется всем безопасным сервисом",
+    "outcome": "Реальные приглашённые клиенты подключаются на подаренных сроках; оператор видит проблемы, запросы вне шаблонов и может безопасно остановить набор.",
+    "areas": [
+      "pilot admission",
+      "onboarding",
+      "support",
+      "demand collection",
+      "limits",
+      "feature flags"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R045",
+      "AL-R046",
+      "AL-R047",
+      "AL-R048",
+      "AL-R056"
+    ],
+    "test_ids": [
+      "AL-T23-01",
+      "AL-T23-02",
+      "AL-T23-03",
+      "AL-T23-04",
+      "AL-T23-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F01",
+      "AL-F02",
+      "AL-F03",
+      "AL-F04",
+      "AL-F05",
+      "AL-F06",
+      "AL-F07",
+      "AL-F08",
+      "AL-F09",
+      "AL-F10",
+      "AL-F11",
+      "AL-F12",
+      "AL-F18",
+      "AL-F19",
+      "AL-F20",
+      "AL-F21",
+      "AL-F22"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S19"
+    ],
+    "legacy_demo": [
+      "подключить согласованную небольшую группу",
+      "выдать сроки",
+      "получить реальные вопросы",
+      "закрыть набор, не блокируя существующих",
+      "разобрать один gap"
+    ],
+    "legacy_input_conditions": [
+      "пройден FREE_PILOT_GATE",
+      "опубликован честный supported catalog",
+      "privacy/hosting решения для реальных данных закрыты",
+      "владелец разрешил пилот"
+    ],
+    "legacy_external_acceptance": "Реальные клиенты и их согласия; состав/размер волны утверждаются, а не берутся из произвольного календаря. Платежи выключены."
+  },
+  {
+    "id": "AL-F24",
+    "title": "Первый платный клиент проходит оплату, использование и сопровождение",
+    "outcome": "После юридических и технических допусков сервис принимает реальную оплату, выдаёт доступ/документы и обслуживает клиента без ручных исправлений БД.",
+    "areas": [
+      "commercial launch",
+      "live payments",
+      "receipts",
+      "support",
+      "reconciliation",
+      "controlled rollout"
+    ],
+    "status": "NOT_STARTED",
+    "assignee": null,
+    "requirements": [
+      "AL-R019",
+      "AL-R045",
+      "AL-R046",
+      "AL-R047",
+      "AL-R056"
+    ],
+    "test_ids": [
+      "AL-T24-01",
+      "AL-T24-02",
+      "AL-T24-03",
+      "AL-T24-04",
+      "AL-T24-05"
+    ],
+    "legacy_depends_on": [
+      "AL-F13",
+      "AL-F14",
+      "AL-F15",
+      "AL-F16",
+      "AL-F17",
+      "AL-F23"
+    ],
+    "interpretation": "LEGACY_REQUIREMENT_GROUP_NOT_EXECUTION_STEP",
+    "execution_steps": [
+      "AL-S24"
+    ],
+    "legacy_demo": [
+      "контролируемая реальная покупка",
+      "получение срока и чека",
+      "один голосовой отчёт",
+      "разрешённый возврат/сверка",
+      "решение о расширении волны"
+    ],
+    "legacy_input_conditions": [
+      "COMMERCIAL_GATE",
+      "D01/D02/D04/D07/D10 закрыты в применимой части",
+      "production merchant/receipts",
+      "фактическая нагрузочная ёмкость",
+      "разрешение владельца на реальные деньги"
+    ],
+    "legacy_external_acceptance": "Реальное списание/возврат только с конкретным разрешением плательщика и владельца. Sandbox не заменяет эту приёмку."
+  }
+]

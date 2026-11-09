@@ -1,0 +1,15 @@
+{
+  "source_sha": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+  "tree_sha": "786126cc26dc094911b891f8600bf94a95353d1f",
+  "release": "alisa-c8666516683e7b2b",
+  "zip_sha256": "68f91fba8e7cec6eeb2d9ac81c1ba95a4ec554255a469ae95c6dd1f825abae6d",
+  "tar_sha256": "81c2bd21d8d9eec6e1a0094f8ecb384b394b1061cb3b7650497b9607ee51345e",
+  "manifest_sha256": "3287fa567545e9598a04e4ba57f7a484814e45195f6cd724bb0532c24b6606f5",
+  "files": 4433,
+  "links": 42,
+  "zip_bytes": 51686060,
+  "tar_bytes": 51763039,
+  "payload_allocated_bytes": 139657216,
+  "package_artifact": 13419830937,
+  "platform_ci": 42037466701
+}

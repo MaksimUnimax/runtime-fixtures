@@ -1,0 +1,6 @@
+{
+  "schema": "alice-owner-binding-policy/v1",
+  "version": "owner-binding-r1",
+  "product_key": "sku",
+  "max_products": 200
+}

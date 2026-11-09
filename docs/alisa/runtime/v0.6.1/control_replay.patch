@@ -1,0 +1,157 @@
+--- a/repository.py
++++ b/repository.py
+@@ -3,6 +3,7 @@
+ import os
+ import sqlite3
+ import time
++import threading
+ import uuid
+ from datetime import datetime
+ import providers
+@@ -19,6 +20,7 @@
+ class Repository:
+     def __init__(self, path: str, clock=time.time, ttl: int=900, lease: int=120):
+         self.path, self.clock, self.ttl, self.lease = str(path), clock, ttl, lease
++        self._transaction = threading.local()
+         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+         with self.connection() as c:
+             c.execute('PRAGMA journal_mode=WAL')
+@@ -32,6 +34,10 @@
+             CREATE TABLE IF NOT EXISTS slots(tenant TEXT,key TEXT,jid TEXT,PRIMARY KEY(tenant,key));
+             CREATE TABLE IF NOT EXISTS inbox(tenant TEXT,rid TEXT,body_hash TEXT,jid TEXT,
+               PRIMARY KEY(tenant,rid));
++            CREATE TABLE IF NOT EXISTS control_inbox(
++              tenant TEXT NOT NULL,rid TEXT NOT NULL,body_hash TEXT NOT NULL,
++              reply TEXT NOT NULL,plan TEXT,expires REAL,created REAL NOT NULL,
++              PRIMARY KEY(tenant,rid));
+             CREATE TABLE IF NOT EXISTS pointers(tenant TEXT PRIMARY KEY,jid TEXT);
+             CREATE TABLE IF NOT EXISTS calls(
+               id INTEGER PRIMARY KEY, jid TEXT, source TEXT, at REAL, state TEXT,
+@@ -46,18 +52,62 @@
+ 
+     @contextmanager
+     def connection(self, write=False):
++        # Control receipts and their state changes share one transaction. The
++        # connection is thread-local: other callers still serialize in SQLite.
++        existing = getattr(self._transaction, 'connection', None)
++        if existing is not None:
++            if write and not self._transaction.write:
++                raise Rejected('NESTED_WRITE_WITHOUT_TRANSACTION')
++            yield existing
++            return
+         c = sqlite3.connect(self.path, timeout=2)
+         c.row_factory = sqlite3.Row
+         try:
+             c.execute('PRAGMA busy_timeout=2000')
+             if write: c.execute('BEGIN IMMEDIATE')
++            self._transaction.connection, self._transaction.write = c, write
+             yield c
+             c.commit()
+         except BaseException:
+             c.rollback()
+             raise
+         finally:
++            self._transaction.connection, self._transaction.write = None, False
+             c.close()
++
++    @staticmethod
++    def validate_ingress(tenant, rid, body_hash):
++        if (not isinstance(tenant, str) or not tenant or not isinstance(rid, str)
++            or not 0 < len(rid) <= 256 or not isinstance(body_hash, str)
++            or len(body_hash) != 64):
++            raise Rejected('INGRESS_SCHEMA')
++
++    def control_reply(self, tenant, rid, body_hash, action, authorize):
++        """Atomically persist a P0 reply and its cancellation/read cursor changes.
++
++        action is network-free and returns (reply, protected_plan, expires).
++        Replays recheck current authorization and TTL before returning figures.
++        """
++        self.validate_ingress(tenant, rid, body_hash)
++        with self.connection(True) as c:
++            if c.execute('SELECT 1 FROM inbox WHERE tenant=? AND rid=?', (tenant, rid)).fetchone():
++                raise Rejected('CHANGED_REPLAY')
++            old = c.execute('SELECT * FROM control_inbox WHERE tenant=? AND rid=?', (tenant, rid)).fetchone()
++            if old:
++                if old['body_hash'] != body_hash:
++                    raise Rejected('CHANGED_REPLAY')
++                if old['plan'] and not authorize(strict_json(old['plan'])):
++                    raise Rejected('SOURCE_ACCESS', 'Доступ к источнику изменился. Сохраненные цифры не выдаю.')
++                if old['expires'] is not None and old['expires'] <= self.clock():
++                    raise Rejected('RESULT_EXPIRED', 'Отчет устарел. Повторите исходный запрос для нового полного отчета.')
++                return strict_json(old['reply'])
++            reply, plan, expires = action()
++            if plan and (plan.get('tenant') != tenant or not authorize(plan)):
++                raise Rejected('SOURCE_ACCESS')
++            c.execute('INSERT INTO control_inbox VALUES(?,?,?,?,?,?,?)',
++                      (tenant, rid, body_hash, canonical_json(reply),
++                       canonical_json(plan) if plan else None, expires, self.clock()))
++            return reply
+ 
+     def _row(self,c,jid,tenant=None):
+         seen = set()
+@@ -86,12 +136,13 @@
+         return False
+ 
+     def enqueue(self,tenant,rid,body_hash,draft,plan,scope_signature):
+-        if not isinstance(tenant,str) or not tenant or not isinstance(rid,str) or not 0<len(rid)<=256 or not isinstance(body_hash,str) or len(body_hash)!=64:
+-            raise Rejected('INGRESS_SCHEMA')
++        self.validate_ingress(tenant, rid, body_hash)
+         if plan and plan.get('tenant') != tenant: raise Rejected('TENANT_DENIED')
+         canonical = plan is not None
+         key = ('p:'+fingerprint(plan)) if canonical else 'u:'+fingerprint({'draft':draft,'scope':scope_signature})
+         with self.connection(True) as c:
++            if c.execute('SELECT 1 FROM control_inbox WHERE tenant=? AND rid=?',(tenant,rid)).fetchone():
++                raise Rejected('CHANGED_REPLAY')
+             old = c.execute('SELECT * FROM inbox WHERE tenant=? AND rid=?',(tenant,rid)).fetchone()
+             if old:
+                 if old['body_hash'] != body_hash: raise Rejected('CHANGED_REPLAY')
+--- a/engine.py
++++ b/engine.py
+@@ -32,7 +32,8 @@
+         scope = self.scope_for(tenant)
+         if scope.tenant != tenant: raise Rejected('TENANT_DENIED')
+         draft = parse(command,today)
+-        if draft['route']=='P0': return self.control(tenant,draft['command'])
++        if draft['route']=='P0':
++            return self.control_once(tenant,draft['command'],request_id,body_hash)
+         selected = scope.select(draft['platforms'])
+         frozen = Scope(scope.tenant,scope.revision,selected)
+         pre = make_plan(frozen,draft,draft['metrics'] or ['ordered_units'])
+@@ -69,10 +70,24 @@
+             return 'Полный отчет не получен. Частичные суммы не выдаю. Код: '+(row['error'] or 'UNSPECIFIED')+'.'
+         return 'Отчет пока недоступен.'
+ 
++    def control_once(self,tenant,command,request_id,body_hash):
++        def action():
++            # Capture the report used by this request, not a later pointer.
++            public = command in ('помощь','помощь аналитики','что ты умеешь','диагностика аналитики','отмени отчет')
++            row = None if public else self.repo.get(tenant)
++            reply = self.control(tenant,command)
++            plan = strict_json(row['plan']) if row and row['plan'] else None
++            if plan and not self.authorized(plan):
++                # A denial is not a cached financial response.
++                plan = None
++            expires = row['expires'] if plan and row['state']=='READY' else None
++            return reply,plan,expires
++        return self.repo.control_reply(tenant,request_id,body_hash,action,self.authorized)
++
+     def control(self,tenant,command):
+         if command in ('помощь','помощь аналитики','что ты умеешь'): text=HELP
+         elif command=='диагностика аналитики':
+-            text='Матрица 0.6. Реальные запросы заказанных товаров и суммы заказов включены в тестовом режиме. Очередь и точный кэш. ДРР и прибыль пока не доступны.'
++            text='Матрица 0.6.1. Реальные запросы заказанных товаров и суммы заказов включены в тестовом режиме. Очередь и точный кэш. ДРР и прибыль пока не доступны.'
+         elif command=='отмени отчет':
+             text='Задание отменено.' if self.repo.cancel(tenant) else 'Активного задания для отмены нет.'
+         else:
+--- a/alice_bridge.py
++++ b/alice_bridge.py
+@@ -7,7 +7,7 @@
+ from local_gateway import request
+ from semantics import normalize,Rejected
+ 
+-VERSION='alice-market-matrix-0.6.0-canary'
++VERSION='alice-market-matrix-0.6.1-canary'
+ SOCKET_PATH=os.environ.get('ALISA_MARKET_SOCKET','/run/alice-market/gateway.sock')
+ LEGACY={'проверка связи','короткий тест','состояние','диагностика','проверка авторизации',
+         'длинный тест','проверь отчет','другой вопрос','проверка нейросети','результат дипсика','выход'}

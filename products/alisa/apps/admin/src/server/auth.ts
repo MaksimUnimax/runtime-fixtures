@@ -1,0 +1,138 @@
+import * as oidc from 'openid-client';
+import {EncryptJWT,jwtDecrypt} from 'jose';
+import {createHash,randomBytes} from 'node:crypto';
+import {siteOrigin,canonicalAuthEnabled,permittedStaffAuthOrigins} from './origin';
+
+export const SESSION_COOKIE='__Host-alisa_staff';
+export const FLOW_COOKIE='__Host-alisa_staff_login';
+export function authEnabled(){return process.env.ALISA_STAFF_ENABLED==='1'&&['stage','dev'].includes(process.env.ALISA_ENV||'');}
+export class AuthUnavailable extends Error{
+  stage:string;safeCode:string;
+  constructor(stage='configuration',cause?:unknown){
+    super('Authentication temporarily unavailable');this.stage=stage;
+    const code=(cause as {code?:unknown})?.code;
+    this.safeCode=typeof code==='string'&&/^[A-Z0-9_]{1,64}$/.test(code)?code:'UNAVAILABLE';
+  }
+}
+export function reportAuthFailure(error:unknown){
+  const failure=error instanceof AuthUnavailable?error:new AuthUnavailable('protocol',error);
+  console.warn(JSON.stringify({event:'alisa.staff.auth.failure',stage:failure.stage,code:failure.safeCode}));
+}
+export type Profile={id:string;name:string;product_id:'alisa_market';role:'OWNER'|'ADMIN';revision:number;permissions:string[]};
+function configuration(){
+  if(!authEnabled())throw new AuthUnavailable();
+  const origin=new URL(siteOrigin()),issuer=new URL(process.env.ALISA_IDENTITY_ISSUER||'');
+  const clientId=process.env.ALISA_STAFF_OIDC_CLIENT_ID||'',secret=process.env.ALISA_STAFF_OIDC_CLIENT_SECRET||'';
+  if(origin.pathname!=='/'||origin.search||origin.hash||origin.username||origin.password||issuer.pathname!=='/'||issuer.search||issuer.hash||issuer.username||issuer.password||!clientId||secret.length<32)throw new AuthUnavailable();
+  if(!permittedStaffAuthOrigins(process.env.ALISA_ENV,origin,issuer,canonicalAuthEnabled()))throw new AuthUnavailable();
+  if(process.env.ALISA_ENV==='dev'&&![origin,issuer].every(u=>['127.0.0.1','localhost'].includes(u.hostname)&&['http:','https:'].includes(u.protocol)))throw new AuthUnavailable();
+  const encoded=process.env.ALISA_STAFF_SESSION_KEY||'';
+  if(!/^[A-Za-z0-9_-]{43}$/.test(encoded))throw new AuthUnavailable();
+  const key=Buffer.from(encoded,'base64url');if(key.length!==32)throw new AuthUnavailable();
+  return {origin:origin.origin,issuer,clientId,secret,key};
+}
+export function validBrowserRequest(request:Request,post=false){
+  try{const own=new URL(siteOrigin());return request.headers.get('host')===own.host&&(!post||request.headers.get('origin')===own.origin);}catch{return false;}
+}
+export function readCookieHeader(header:string|null,name:string){
+  const values=(header||'').split(';').map(s=>s.trim()).filter(s=>s.startsWith(name+'='));
+  return values.length===1?values[0].slice(name.length+1):'';
+}
+export function readCookie(request:Request,name:string){return readCookieHeader(request.headers.get('cookie'),name);}
+export function cookie(name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
+export function response(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});}
+export async function accountApi(action:string,data:Record<string,unknown>){
+  const paths:Record<string,string>={createFlow:'staff/auth/flows',consumeFlow:'staff/auth/flows/consume',createSession:'staff/auth/sessions',me:'staff/me',read:'staff/read',command:'staff/command',access:'staff/access',logout:'staff/logout'};
+  const base=new URL(process.env.ALISA_PLATFORM_URL||''),token=process.env.ALISA_STAFF_SERVICE_TOKEN||'';
+  if(!paths[action]||base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||base.pathname!=='/'||base.search||base.hash||base.username||base.password||token.length<32)throw new AuthUnavailable();
+  try{
+    const r=await fetch(new URL('/api/v1/'+paths[action],base),{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(data),redirect:'error',cache:'no-store',signal:AbortSignal.timeout(5000)});
+    const body=await r.json();if(r.status>=500)throw new AuthUnavailable();return {status:r.status,body};
+  }catch(error){throw new AuthUnavailable('platform',error);}
+}
+let clientPromise:Promise<oidc.Configuration>|undefined;
+async function client(){
+  if(!clientPromise){
+    const c=configuration();
+    const pinnedFetch:oidc.CustomFetch=async(url,options)=>{
+      const target=new URL(url.toString());if(target.origin!==c.issuer.origin||target.username||target.password)throw new AuthUnavailable();
+      const body=options.body instanceof Uint8Array?new Uint8Array(options.body):options.body;
+      return fetch(url,{...options,body,redirect:'error',signal:options.signal?AbortSignal.any([options.signal,AbortSignal.timeout(5000)]):AbortSignal.timeout(5000)});
+    };
+    clientPromise=oidc.discovery(c.issuer,c.clientId,{token_endpoint_auth_method:'client_secret_basic',id_token_signed_response_alg:'RS256'},oidc.ClientSecretBasic(c.secret),{
+      timeout:5,[oidc.customFetch]:pinnedFetch,execute:[oidc.enableNonRepudiationChecks,...(c.issuer.protocol==='http:'?[oidc.allowInsecureRequests]:[])]
+    }).then(config=>{
+      const metadata=config.serverMetadata();
+      for(const field of ['authorization_endpoint','token_endpoint','jwks_uri'] as const){
+        const endpoint=metadata[field];if(typeof endpoint!=='string'||new URL(endpoint).origin!==c.issuer.origin)throw new AuthUnavailable();
+      }
+      return config;
+    }).catch(error=>{clientPromise=undefined;throw new AuthUnavailable('discovery',error);});
+  }
+  return clientPromise;
+}
+async function seal(value:Record<string,unknown>,purpose:string,ttl:string){
+  const c=configuration();return new EncryptJWT(value).setProtectedHeader({alg:'dir',enc:'A256GCM',typ:'alisa-bff+jwt'}).setIssuer(c.origin).setAudience(purpose).setIssuedAt().setExpirationTime(ttl).encrypt(c.key);
+}
+export async function begin(request:Request){
+  if(!authEnabled())return response({code:'NOT_FOUND'},404);
+  if(!validBrowserRequest(request,true))return response({code:'ORIGIN_DENIED'},403);
+  if(new URL(request.url).search)return response({code:'INVALID_PAYLOAD'},422);
+  const text=await boundedBody(request,2048);const form=new URLSearchParams(text);
+  if([...form.keys()].some(k=>k!=='return_to')||form.getAll('return_to').length!==1||form.get('return_to')!=='/admin')return response({code:'INVALID_PAYLOAD'},422);
+  const existing=await getProfile(readCookie(request,SESSION_COOKIE));
+  if(existing)return new Response(null,{status:303,headers:{Location:siteOrigin()+'/admin','Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+  const config=await client(),state=oidc.randomState(),nonce=oidc.randomNonce(),verifier=oidc.randomPKCECodeVerifier();
+  const encrypted=await seal({state,nonce,verifier,session_token:randomBytes(32).toString('base64url'),return_to:'/admin'},'alisa-staff-flow','10m');
+  const input={encrypted_payload:encrypted};
+  const flow=await accountApi('createFlow',input);if(flow.status!==201||typeof flow.body.flow_ref!=='string')throw new AuthUnavailable();
+  const redirect=oidc.buildAuthorizationUrl(config,{redirect_uri:configuration().origin+'/auth/callback',scope:'openid email profile',response_type:'code',state,nonce,code_challenge:await oidc.calculatePKCECodeChallenge(verifier),code_challenge_method:'S256'});
+  return new Response(null,{status:303,headers:{Location:redirect.href,'Set-Cookie':cookie(FLOW_COOKIE,flow.body.flow_ref,600),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+}
+export async function callback(request:Request){
+  if(!authEnabled())return response({code:'NOT_FOUND'},404);
+  if(!validBrowserRequest(request))return response({code:'HOST_DENIED'},403);
+  const c=configuration(),target=new URL('/login?error=AUTH_FAILED',c.origin);
+  try{
+    const ref=readCookie(request,FLOW_COOKIE),incoming=new URL(request.url);
+    if(!/^[A-Za-z0-9_-]{43}$/.test(ref)||incoming.searchParams.getAll('code').length!==1||incoming.searchParams.getAll('state').length!==1)throw new Error();
+    const flow=await accountApi('consumeFlow',{flow_ref:ref});
+    if(flow.status===400){target.search='?error=ALREADY_HANDLED_OR_EXPIRED';throw new Error();}
+    if(flow.status!==200||typeof flow.body.encrypted_payload!=='string'||typeof flow.body.flow_id!=='string')throw new Error();
+    const {payload}=await jwtDecrypt(flow.body.encrypted_payload,c.key,{issuer:c.origin,audience:'alisa-staff-flow'});
+    if(typeof payload.state!=='string'||typeof payload.nonce!=='string'||typeof payload.verifier!=='string'||typeof payload.session_token!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(payload.session_token)||payload.return_to!=='/admin')throw new Error();
+    const url=new URL('/auth/callback',c.origin);url.search=incoming.search;
+    const tokens=await oidc.authorizationCodeGrant(await client(),url,{expectedState:payload.state,expectedNonce:payload.nonce,pkceCodeVerifier:payload.verifier,idTokenExpected:true});
+    const claims=tokens.claims();
+    if(!claims||typeof claims.sub!=='string'||!/^[0-9a-f-]{36}$/i.test(claims.sub)||claims.acr!=='urn:octoport:staff:native-mfa:v1')throw new Error();
+    const factor=claims.alisa_mfa as {at?:unknown;type?:unknown}|undefined;
+    if(!factor||typeof factor.at!=='number'||!Number.isInteger(factor.at)||!['totp','recovery_codes'].includes(String(factor.type))||claims.auth_time!==factor.at||factor.at<Date.now()/1000-300||factor.at>Date.now()/1000+5)throw new Error();
+    const methods=claims.amr;
+    if(!Array.isArray(methods)||methods.length!==1||methods[0]!== (factor.type==='totp'?'otp':'recovery_code'))throw new Error();
+    const sessionToken=payload.session_token;
+    const encrypted=await seal({access_token:tokens.access_token,id_token:tokens.id_token,token_type:tokens.token_type},'alisa-staff-tokens','1h');
+    const input={flow_id:flow.body.flow_id,issuer:c.issuer.origin,client_id:c.clientId,subject:claims.sub,
+      mfa_at:factor.at,mfa_type:factor.type,session_hash:createHash('sha256').update(sessionToken).digest('hex'),encrypted_payload:encrypted};
+    let result;
+    try{result=await accountApi('createSession',input);}
+    catch{result=await accountApi('createSession',input);}
+    if(result.status!==201&&!(result.status===200&&result.body.state==='ALREADY_CREATED'))throw new Error();
+    const headers=new Headers({Location:c.origin+'/admin','Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
+    headers.append('Set-Cookie',cookie(SESSION_COOKIE,sessionToken,3600));headers.append('Set-Cookie',cookie(FLOW_COOKIE,'',0));
+    return new Response(null,{status:303,headers});
+  }catch(error){
+    reportAuthFailure(error);
+    return new Response(null,{status:303,headers:{Location:target.href,'Set-Cookie':cookie(FLOW_COOKIE,'',0),'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+  }
+}
+export async function getProfile(token:string):Promise<Profile|null>{
+  if(!authEnabled()||!/^[A-Za-z0-9_-]{43}$/.test(token))return null;
+  const result=await accountApi('me',{session_token:token});
+  if(result.status===401)return null;if(result.status!==200||!result.body.staff)throw new AuthUnavailable();return result.body.staff as Profile;
+}
+export async function boundedBody(request:Request,limit=4096){
+  const reader=request.body?.getReader();if(!reader)return '';
+  const chunks:Uint8Array[]=[];let length=0;
+  while(true){const {done,value}=await reader.read();if(done)break;length+=value.length;if(length>limit){await reader.cancel();throw new Error('INVALID_PAYLOAD');}chunks.push(value);}
+  return Buffer.concat(chunks).toString('utf8');
+}

@@ -1,0 +1,605 @@
+{
+  "scope": "S03_NATIVE_MFA_AND_PLATFORM_CORE_NOT_BROWSER_NOT_STAGE",
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "customer_exact_registered_callback_selected",
+      "passed": true
+    },
+    {
+      "case": "customer_wrong_password_sends_no_code",
+      "passed": true
+    },
+    {
+      "case": "customer_native_password_requires_email_even_with_totp",
+      "passed": true
+    },
+    {
+      "case": "customer_wrong_email_code_does_not_log_in",
+      "passed": true
+    },
+    {
+      "case": "customer_email_code_skips_enrolled_totp_only_for_cabinet",
+      "passed": true
+    },
+    {
+      "case": "customer_proof_bound_to_exact_nonce",
+      "passed": true
+    },
+    {
+      "case": "customer_actual_oauth_code_consumes_proof",
+      "passed": true
+    },
+    {
+      "case": "customer_native_signed_token_contains_both_factors",
+      "passed": true
+    },
+    {
+      "case": "customer_oauth_code_single_use",
+      "passed": true
+    },
+    {
+      "case": "customer_existing_sso_cannot_issue_new_code",
+      "passed": true
+    },
+    {
+      "case": "customer_password_account_reauth_rejects_external_target",
+      "passed": true
+    },
+    {
+      "case": "customer_reentry_shows_native_password_form_without_intermediate_confirmation",
+      "passed": true
+    },
+    {
+      "case": "customer_reentry_get_preserves_authenticated_identity_session",
+      "passed": true
+    },
+    {
+      "case": "customer_reentry_csrf_rejection_does_not_sign_out",
+      "passed": true
+    },
+    {
+      "case": "customer_reentry_invalid_target_does_not_sign_out",
+      "passed": true
+    },
+    {
+      "case": "customer_reentry_wrong_password_cannot_reuse_old_sso_or_send_code",
+      "passed": true
+    },
+    {
+      "case": "customer_reentry_password_still_requires_fresh_email_code",
+      "passed": true
+    },
+    {
+      "case": "customer_reentry_native_code_restores_same_identity_and_exact_oauth_target",
+      "passed": true
+    },
+    {
+      "case": "customer_duplicate_parameter_not_customer_authorization",
+      "passed": true
+    },
+    {
+      "case": "customer_probe_callback_not_customer_authorization",
+      "passed": true
+    },
+    {
+      "case": "customer_login_does_not_satisfy_admin_mfa",
+      "passed": true
+    },
+    {
+      "case": "customer_code_only_route_cannot_bypass_password",
+      "passed": true
+    },
+    {
+      "case": "customer_legacy_passwordless_account_receives_reset_code",
+      "passed": true
+    },
+    {
+      "case": "customer_native_reset_sets_password_without_login",
+      "passed": true
+    },
+    {
+      "case": "customer_reset_returns_to_cabinet_front_door",
+      "passed": true
+    },
+    {
+      "case": "customer_reset_requires_fresh_login_email",
+      "passed": true
+    },
+    {
+      "case": "customer_signup_rejects_weak_password",
+      "passed": true
+    },
+    {
+      "case": "customer_native_registration_requires_email_code",
+      "passed": true
+    },
+    {
+      "case": "customer_native_registration_password_and_email_complete",
+      "passed": true
+    },
+    {
+      "case": "customer_parallel_authorizations_consume_proof_once",
+      "passed": true
+    },
+    {
+      "case": "s03_stale_passwordless_session_cannot_enroll_first_factor",
+      "passed": true
+    },
+    {
+      "case": "s03_stale_enrollment_continuation_uses_native_email_route",
+      "passed": true
+    },
+    {
+      "case": "s03_real_native_email_code_allows_first_factor_enrollment",
+      "passed": true
+    },
+    {
+      "case": "s03_closed_prepare_subject_maps_verified_person_to_admin_client",
+      "passed": true
+    },
+    {
+      "case": "s03_closed_prepare_subject_is_idempotent",
+      "passed": true
+    },
+    {
+      "case": "s03_closed_prepare_subject_does_not_create_factor",
+      "passed": true
+    },
+    {
+      "case": "s03_closed_prepare_subject_rejects_unverified_person",
+      "passed": true
+    },
+    {
+      "case": "s03_existing_identity_and_enrolled_factor_do_not_issue_admin_code",
+      "passed": true
+    },
+    {
+      "case": "s03_native_factor_form_rejects_missing_csrf",
+      "passed": true
+    },
+    {
+      "case": "s03_wrong_native_factor_has_no_attestation",
+      "passed": true
+    },
+    {
+      "case": "s03_native_totp_creates_pending_request_bound_evidence",
+      "passed": true
+    },
+    {
+      "case": "s03_native_totp_issues_one_library_authorization_code",
+      "passed": true
+    },
+    {
+      "case": "s03_wrong_client_secret_cannot_exchange_bound_code",
+      "passed": true
+    },
+    {
+      "case": "s03_native_mfa_bound_code_exchanges_via_library",
+      "passed": true
+    },
+    {
+      "case": "s03_signed_mfa_evidence_has_fixed_issuer_client_subject_nonce",
+      "passed": true
+    },
+    {
+      "case": "s03_admin_authorization_code_replay_denied",
+      "passed": true
+    },
+    {
+      "case": "s03_persisted_authentication_records_do_not_attest_a_new_request",
+      "passed": true
+    },
+    {
+      "case": "s03_native_totp_replay_does_not_attest_new_flow",
+      "passed": true
+    },
+    {
+      "case": "s03_reauth_replay_has_precise_used_code_error",
+      "passed": true
+    },
+    {
+      "case": "s03_rejected_totp_is_not_prefilled_again",
+      "passed": true
+    },
+    {
+      "case": "s03_login_stage_uses_form_user_for_native_replay_hint",
+      "passed": true
+    },
+    {
+      "case": "s03_wrong_code_keeps_native_incorrect_error",
+      "passed": true
+    },
+    {
+      "case": "s03_native_rate_limit_error_not_relabelled_as_replay",
+      "passed": true
+    },
+    {
+      "case": "s03_native_recovery_consumption_creates_attestation",
+      "passed": true
+    },
+    {
+      "case": "s03_native_proof_cannot_move_to_another_authorization_request",
+      "passed": true
+    },
+    {
+      "case": "s03_used_recovery_code_cannot_attest_another_flow",
+      "passed": true
+    },
+    {
+      "case": "s03_stale_native_factor_requires_step_up",
+      "passed": true
+    },
+    {
+      "case": "s03_recovery_proof_is_signed_for_the_actual_code",
+      "passed": true
+    },
+    {
+      "case": "s03_factor_secret_is_encrypted_in_postgresql",
+      "passed": true
+    },
+    {
+      "case": "s03_client_registration_uses_confidential_dedicated_admin",
+      "passed": true
+    },
+    {
+      "case": "s03_single_enrollment_starts_with_registered_admin_request",
+      "passed": true
+    },
+    {
+      "case": "s03_wrong_enrollment_code_cannot_add_factor_or_proof",
+      "passed": true
+    },
+    {
+      "case": "s03_enrollment_replay_rolls_back_new_factor_and_preserves_displayed_qr",
+      "passed": true
+    },
+    {
+      "case": "s03_enrollment_replay_retry_uses_next_real_code_same_qr",
+      "passed": true
+    },
+    {
+      "case": "s03_one_enrollment_post_redirects_directly_to_recovery",
+      "passed": true
+    },
+    {
+      "case": "s03_recovery_http_uses_same_verified_challenge_without_second_form",
+      "passed": true
+    },
+    {
+      "case": "s03_native_reauth_record_survives_redirect_after_enrollment",
+      "passed": true
+    },
+    {
+      "case": "s03_same_enrollment_code_has_native_replay_marker",
+      "passed": true
+    },
+    {
+      "case": "s03_enrollment_recovery_does_not_send_second_login_mail",
+      "passed": true
+    },
+    {
+      "case": "s03_recovery_response_not_cacheable",
+      "passed": true
+    },
+    {
+      "case": "s03_continue_requires_csrf",
+      "passed": true
+    },
+    {
+      "case": "s03_continue_rejects_external_target",
+      "passed": true
+    },
+    {
+      "case": "s03_continue_rejects_changed_nonce",
+      "passed": true
+    },
+    {
+      "case": "s03_continue_rejects_different_user",
+      "passed": true
+    },
+    {
+      "case": "s03_continue_rejects_stale_pending",
+      "passed": true
+    },
+    {
+      "case": "s03_continue_does_not_extend_expired_mfa",
+      "passed": true
+    },
+    {
+      "case": "s03_continue_uses_only_original_validated_native_target",
+      "passed": true
+    },
+    {
+      "case": "s03_single_challenge_resumes_to_library_oauth_code",
+      "passed": true
+    },
+    {
+      "case": "s03_single_challenge_code_exchanges_once_with_native_mfa",
+      "passed": true
+    },
+    {
+      "case": "s03_missing_pending_recovery_page_keeps_visible_admin_action",
+      "passed": true
+    },
+    {
+      "case": "s03_finished_or_legacy_missing_pending_has_clean_admin_fallback",
+      "passed": true
+    },
+    {
+      "case": "s03_closed_bootstrap_and_explicit_staff_session",
+      "passed": true
+    },
+    {
+      "case": "s03_session_creation_identical_retry_recovers_receipt",
+      "passed": true
+    },
+    {
+      "case": "s03_session_flow_cannot_bind_another_session_token",
+      "passed": true
+    },
+    {
+      "case": "s03_web_service_token_cannot_call_staff_api",
+      "passed": true
+    },
+    {
+      "case": "s03_browser_role_labels_do_not_authorize",
+      "passed": true
+    },
+    {
+      "case": "s03_closed_bootstrap_cannot_replace_or_append_owner",
+      "passed": true
+    },
+    {
+      "case": "s03_local_block_and_idempotent_receipt",
+      "passed": true
+    },
+    {
+      "case": "s03_local_block_revokes_only_product_customer_sessions",
+      "passed": true
+    },
+    {
+      "case": "s03_command_uuid_cannot_apply_changed_payload",
+      "passed": true
+    },
+    {
+      "case": "s03_concurrent_identical_commands_have_one_revision_effect",
+      "passed": true
+    },
+    {
+      "case": "s03_limited_staff_can_read_real_customer",
+      "passed": true
+    },
+    {
+      "case": "s03_reader_block_denied_by_backend_and_audited",
+      "passed": true
+    },
+    {
+      "case": "s03_staff_revocation_invalidates_both_sessions",
+      "passed": true
+    },
+    {
+      "case": "s03_last_owner_is_transactionally_protected",
+      "passed": true
+    },
+    {
+      "case": "s03_other_product_staff_has_no_alisa_session",
+      "passed": true
+    },
+    {
+      "case": "s03_stale_mfa_denies_current_backend_reads",
+      "passed": true
+    },
+    {
+      "case": "s03_runtime_audit_update_denied_by_postgresql",
+      "passed": true
+    },
+    {
+      "case": "s03_runtime_audit_delete_denied_by_postgresql",
+      "passed": true
+    },
+    {
+      "case": "s03_runtime_audit_truncate_denied_by_postgresql",
+      "passed": true
+    },
+    {
+      "case": "s03_safe_audit_excludes_contacts_and_session_tokens",
+      "passed": true
+    },
+    {
+      "case": "s03_logout_revokes_current_staff_session",
+      "passed": true
+    },
+    {
+      "case": "s03_cleanup_erases_owned_expired_and_revoked_staff_payloads",
+      "passed": true
+    },
+    {
+      "case": "s03_cleanup_preserves_foreign_product_staff_payload",
+      "passed": true
+    },
+    {
+      "case": "s03_staff_enabled_readiness_checks_own_schema",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_fixture_has_fresh_owner_session",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_requires_exact_revision",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_rejects_existing_staff_binding",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_rejects_wrong_owner",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_is_not_a_public_staff_command",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_preserves_one_owner_and_member_id",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_revokes_old_owner_without_minting_session",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_identical_retry_is_noop",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_stale_other_target_cannot_apply",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_cannot_rotate_authority_again",
+      "passed": true
+    },
+    {
+      "case": "s03_initial_handover_audits_only_subject_fingerprints",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_strict_positive",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_new_issuer_requires_flag",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_old_issuer_refused_in_canonical_mode",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_invalid_flag_refused",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_arbitrary_issuer_refused",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_prod_closed",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_dev_not_broadened",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_mixed_staff_callback_refused",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_disabled_command_denied",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_unknown_callback_refuses_without_clearing_tokens",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_partial_callback_without_marker_denied",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_same_confidential_client_and_secret",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_native_codes_tokens_sessions_invalidated",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_pending_mail_code_erased_without_replay",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_terminal_unknown_outcome_preserved",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_people_subjects_factors_preserved",
+      "passed": true
+    },
+    {
+      "case": "canonical_identity_repeat_noop_preserves_new_tokens",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_strict_positive",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_new_issuer_requires_flag",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_old_issuer_refused_in_canonical_mode",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_invalid_flag_refused",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_arbitrary_issuer_refused",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_prod_closed",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_dev_not_broadened",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_stale_owner_revision_refused",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_target_collision_refuses_without_merge",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_customer_tenant_and_pairwise_subject_preserved",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_roles_permissions_ids_preserved",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_foreign_product_untouched",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_stale_product_flows_sessions_erased",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_one_owner_and_safe_audit",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_identical_repeat_noop",
+      "passed": true
+    },
+    {
+      "case": "canonical_platform_changed_composition_cannot_replay",
+      "passed": true
+    }
+  ],
+  "platform_migrations_applied": true,
+  "identity_migrations_applied": true,
+  "owned_database_and_role_cleanup": true
+}

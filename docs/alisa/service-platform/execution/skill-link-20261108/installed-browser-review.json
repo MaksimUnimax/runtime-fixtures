@@ -1,0 +1,12 @@
+{
+  "reviewer": "s05_transport_review",
+  "status": "PASS",
+  "script_sha256": "8fae94e2cbd55b745095b7adf025ae0376f95c6f604b27c51bd42c1a7224efbe",
+  "scope": "OWN_EXISTING_FIXTURE_NO_SKILL_GRANT_OR_PRIVACY_MUTATION",
+  "ordinary_password_email_login_creates_websession": true,
+  "owner_sessions_used": false,
+  "skill_grants_created": 0,
+  "privacy_writes": 0,
+  "reviewer_execution": false,
+  "live_yandex_acceptance": "NOT_RUN"
+}

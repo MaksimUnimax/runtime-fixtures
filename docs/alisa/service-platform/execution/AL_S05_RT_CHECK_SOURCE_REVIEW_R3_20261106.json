@@ -1,0 +1,34 @@
+{
+  "schema_version": "alisa_independent_source_review_v1",
+  "scope": "READ_ONLY_DELTA_AND_SOURCE_BOUNDARY_REVIEW_RT_CHECK_R03_NO_TESTS_NO_HOST_CALLS_NO_LIVE_CREDENTIALS",
+  "candidate_commit": "6098b31384ae23a43fb869abd3e67f165bc644fa",
+  "candidate_tree": "746cd1be53a45a47c3ac6cf5fb64041aced785b0",
+  "observed_local_head": "cd277ac3337a1d196ab69e4fbbb5deb1d4407391",
+  "observed_local_tree": "746cd1be53a45a47c3ac6cf5fb64041aced785b0",
+  "overall": "SOURCE_REVIEW_ACCEPTED_WITH_LIVE_AND_INTEGRATION_GATES_OPEN",
+  "delta_from_r2": {
+    "http_402_mapping": "FIXED: PROVIDER_PLAN_REQUIRED is limited to WB; Ozon Seller and Performance 402 return CHECK_UNAVAILABLE.",
+    "fixtures_and_docs": "PASS_SOURCE: synthetic cases assert both Ozon kinds remain unclassified; README now describes provider-scoped behavior."
+  },
+  "source_boundary": {
+    "wb_identity": "Authenticated fixed seller-info response sid UUIDv4 only; no name/tin/JWT identity inference.",
+    "seller_identity": "Default binding flag false; response company values are only a minimum shape guard; no company-name/INN/OGRN identity inference; conditional Client-Id identity remains gated on separately qualified pair binding.",
+    "performance_identity": "Token exchange success never promotes Seller identity; no token persistence, JWT decoding, campaign, or report calls.",
+    "transport_and_process": "Fixed HTTPS endpoints; verified TLS; proxy and redirects disabled; bounded response; child timeout kill/reap; credentials via child stdin with environment stripped; no raw upstream error text returned.",
+    "ipc": "SO_PEERCRED validation occurs before body read; two request slots; private parent rejects group/world write on runtime and platform sides; platform pins peer UID and pins response.",
+    "engine_and_current_runtime": "No Engine/SQLite/report gateway change in reviewed R3 delta. Pinned baseline HTTP patch is explicitly not for the newer current runtime transport and was not applied to the working core."
+  },
+  "open_gates": [
+    "No live provider checks or installation acceptance are established by this source review.",
+    "Seller pair-binding qualification and negative canary remain open; Seller promotion is disabled by default.",
+    "Performance same-Seller proof remains unavailable and returns IDENTITY_NOT_VERIFIED.",
+    "Current runtime HTTP transport differs from pinned R01; any integration requires an exact fresh-source patch/review, not application of the old patch."
+  ],
+  "verification": {
+    "tests_run_by_reviewer": 0,
+    "live_credentials_used": false,
+    "runtime_server_touched": false,
+    "working_engine_sqlite_or_report_gateway_modified": false,
+    "candidate_matches_local_head_tree": true
+  }
+}

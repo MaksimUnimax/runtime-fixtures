@@ -1,0 +1,128 @@
+{
+  "record_type": "AL_S01_FINAL_INSTALLED_SMOKE_CONTINUATION",
+  "source_commit": "8d680f775c8ccdf2a9520fa93c4909dd0aaaa986",
+  "artifact_sha256": "fd28f38960c50f5375fe4ff74ca0a29fd01aaf168673fe31213e3e662f094642",
+  "release": "alisa-8d680f775c8ccdf2",
+  "started_at_utc": "2026-11-05T01:10:59.092889+00:00",
+  "previous_results": [
+    "AL_S01_STAGE_SMOKE_20261105.json",
+    "AL_S01_STAGE_SMOKE_CONTINUATION_20261105.json"
+  ],
+  "previous_passed_cases": 54,
+  "resolved_harness_limits": [
+    "Native systemd start limit respected; pending mail delivery reconciled, no duplicate send",
+    "Matching Playwright headless assets prepared in own stage test cache; no OS dependency change"
+  ],
+  "status": "PASS",
+  "cases": [
+    {
+      "case": "mobile_layout_no_overflow",
+      "passed": true
+    },
+    {
+      "case": "desktop_layout_no_overflow",
+      "passed": true
+    },
+    {
+      "case": "browser_ack_clears_request_uuid",
+      "passed": true
+    },
+    {
+      "case": "browser_confirm_and_reload_without_token_url",
+      "passed": true
+    },
+    {
+      "case": "browser_record_confirmed_in_postgresql",
+      "passed": true
+    },
+    {
+      "case": "web_api_restart_preserves_confirmed_record",
+      "passed": true
+    },
+    {
+      "case": "bff_reports_real_api_outage",
+      "passed": true
+    },
+    {
+      "case": "api_outage_creates_no_lead",
+      "passed": true
+    },
+    {
+      "case": "smtp_outage_preserves_pending_outbox",
+      "passed": true
+    },
+    {
+      "case": "smtp_recovery_delivers_confirmation",
+      "passed": true
+    },
+    {
+      "case": "ingress_logs_path_only_no_query",
+      "passed": true
+    },
+    {
+      "case": "no_contacts_tokens_or_raw_attribution_in_logs",
+      "passed": true
+    },
+    {
+      "case": "funnel_metrics_no_contacts_or_tokens",
+      "passed": true
+    },
+    {
+      "case": "protected_file_unchanged_alice-lab.conf",
+      "passed": true
+    },
+    {
+      "case": "protected_file_unchanged_default",
+      "passed": true
+    },
+    {
+      "case": "protected_file_unchanged_identity.env",
+      "passed": true
+    },
+    {
+      "case": "protected_file_unchanged_admin.env",
+      "passed": true
+    },
+    {
+      "case": "excluded_service_unchanged_alisa-identity@stage.service",
+      "passed": true
+    },
+    {
+      "case": "excluded_service_unchanged_alisa-admin@stage.service",
+      "passed": true
+    },
+    {
+      "case": "excluded_service_unchanged_alice-lab-web.service",
+      "passed": true
+    },
+    {
+      "case": "excluded_service_unchanged_alice-lab-worker.service",
+      "passed": true
+    },
+    {
+      "case": "excluded_service_unchanged_alice-lab-llm.service",
+      "passed": true
+    },
+    {
+      "case": "excluded_common_release_pointer_preserved",
+      "passed": true
+    },
+    {
+      "case": "own_selected_release_pointer",
+      "passed": true
+    },
+    {
+      "case": "smtp_only_loopback",
+      "passed": true
+    },
+    {
+      "case": "native_mail_start_limit_preserved",
+      "passed": true
+    }
+  ],
+  "privacy_unique_confirmation_tokens_checked": 6,
+  "confirmed_probe_id": "950490f3-5b93-49ef-b2a8-baf6ed18b2a3",
+  "finished_at_utc": "2026-11-05T01:11:09.439915+00:00",
+  "case_count": 26,
+  "passed_count": 26
+}

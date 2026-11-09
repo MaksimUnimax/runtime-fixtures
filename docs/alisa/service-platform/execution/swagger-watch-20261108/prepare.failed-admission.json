@@ -1,0 +1,52 @@
+{
+  "scope": "ISOLATED_SWAGGER_ONLY_NO_EXISTING_PRODUCT_RESTART_OR_DB_MUTATION",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "allowed_phase",
+      "passed": true
+    },
+    {
+      "case": "fresh_receipt",
+      "passed": true
+    },
+    {
+      "case": "private_package-binding.json",
+      "passed": true
+    },
+    {
+      "case": "qualified_exact_candidate",
+      "passed": true
+    },
+    {
+      "case": "private_package",
+      "passed": true
+    },
+    {
+      "case": "exact_ci_zip",
+      "passed": true
+    },
+    {
+      "case": "bounded_exact_zip_members",
+      "passed": true
+    },
+    {
+      "case": "manifest_binding",
+      "passed": true
+    },
+    {
+      "case": "all_payload_hashes",
+      "passed": true
+    },
+    {
+      "case": "existing_components_ready",
+      "passed": true
+    },
+    {
+      "case": "disk_and_memory_admission",
+      "passed": false
+    }
+  ],
+  "error_type": "RuntimeError",
+  "failed_case": "disk_and_memory_admission"
+}

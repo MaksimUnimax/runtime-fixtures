@@ -1,0 +1,13 @@
+--- a/http_transport.py
++++ b/http_transport.py
+@@ -25,2 +25 @@
+-class NoRedirect(urllib.request.HTTPRedirectHandler):
+-    def redirect_request(self,*args,**kwargs):return None
++from shared_http import NoRedirect, read_response
+@@ -94 +93 @@
+-        start=time.monotonic();opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
++        start=time.monotonic()
+@@ -96,2 +95 @@
+-            with opener.open(request_http,timeout=25) as response:
+-                raw=response.read(12000001);status=response.status
++            raw,status=read_response(request_http,timeout=25,limit=12000000)

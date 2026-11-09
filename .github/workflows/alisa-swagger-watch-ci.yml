@@ -1,0 +1,47 @@
+name: Alisa Swagger Watch
+on:
+  push:
+    branches: ['feat/alisa-swagger-watch-20261108']
+  pull_request:
+    paths: ['products/alisa/services/swagger-watch/**', 'tooling/api-watch/**', 'packages/server/monitoring-control/**', '.github/workflows/alisa-swagger-watch-ci.yml']
+permissions:
+  contents: read
+concurrency:
+  group: alisa-swagger-watch-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+      - name: Install exact repository dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Build shared API Watch and isolated Alisa entry points
+        run: |
+          pnpm exec vitest run tooling/api-watch/src/acquire.test.ts tooling/api-watch/src/acquire-deadline.test.ts tooling/api-watch/src/inventory-semantic.test.ts tooling/api-watch/src/diff.test.ts --maxWorkers=2 --no-file-parallelism
+          node products/alisa/services/swagger-watch/build.mjs
+          node --test products/alisa/services/swagger-watch/watch.test.mjs
+          git diff --exit-code -- pnpm-lock.yaml
+      - name: Bind deployable files to exact source
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,subprocess
+          p=pathlib.Path('products/alisa/services/swagger-watch/dist')
+          files={f.name:hashlib.sha256(f.read_bytes()).hexdigest() for f in p.iterdir() if f.is_file()}
+          source=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          (p/'manifest.json').write_text(json.dumps({'schema_version':1,'product_id':'alisa_market','source_sha':source,'files':files,'llm_monitoring':False},indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alisa-swagger-watch-${{ github.event.pull_request.head.sha || github.sha }}
+          path: products/alisa/services/swagger-watch/dist/
+          if-no-files-found: error

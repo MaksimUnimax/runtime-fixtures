@@ -1,0 +1,7 @@
+name,type,value,ttl,purpose
+alisa,A,185.244.51.141,300,landing_and_lk_prod
+alisa-admin,A,185.244.51.141,300,staff_prod
+id,A,185.244.51.141,300,identity_prod
+alisa-stage,A,185.244.51.141,300,landing_and_lk_stage
+alisa-admin-stage,A,185.244.51.141,300,staff_stage
+id-stage,A,185.244.51.141,300,identity_stage

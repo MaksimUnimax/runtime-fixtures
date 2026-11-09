@@ -1,0 +1,73 @@
+{
+  "record_type": "AL_S04_PROCEDURE_INDEPENDENT_REVIEW_R2",
+  "review_date": "2026-11-05",
+  "status": "ACCEPTED_FOR_BOUNDED_ACTIVATION_PROCEDURE",
+  "source_package": {
+    "status": "ACCEPTED_FOR_DECLARED_SOURCE_PACKAGE_SCOPE",
+    "source_sha": "c8666516683e7b2bedc2c1a7d939e9e3c4489d38",
+    "tree_sha": "786126cc26dc094911b891f8600bf94a95353d1f",
+    "release": "alisa-c8666516683e7b2b",
+    "ci_binding_sha256": "253fee65c06f005e71e9acc76ecc374a251915009e7c50302f96263745353823",
+    "package_zip_sha256": "68f91fba8e7cec6eeb2d9ac81c1ba95a4ec554255a469ae95c6dd1f825abae6d",
+    "package_tar_sha256": "81c2bd21d8d9eec6e1a0094f8ecb384b394b1061cb3b7650497b9607ee51345e",
+    "manifest_sha256": "3287fa567545e9598a04e4ba57f7a484814e45195f6cd724bb0532c24b6606f5",
+    "manifest_files": 4433,
+    "manifest_links": 42,
+    "qualification": {
+      "s04_postgresql_core": "36_OF_36_PASS",
+      "packaged_browser": "96_OF_96_PASS",
+      "integrated_https_browser": "159_OF_159_PASS",
+      "s04_named_integrated_browser_cases": "12_OF_12_PASS",
+      "canonical_native_core": "92_OF_92_PASS",
+      "scope_note": "Source/package qualification only; it is not installed functional acceptance."
+    }
+  },
+  "reviewed_procedures": {
+    "normal_package_copy": {
+      "path": "docs/alisa/service-platform/execution/s04-installed-20261105/install-package.py",
+      "sha256": "2193cc37ecc7369540cd39c1ea744f99a2f41da0c7c0a28d55851fed97ece648",
+      "verdict": "ACCEPTED_FOR_BOUNDED_PACKAGE_COPY_ONLY",
+      "scope": "Exact bound download and immutable release install through the existing source-pinned installer; no DB/config/service/pointer activation."
+    },
+    "activation": {
+      "path": "docs/alisa/service-platform/execution/s04-installed-20261105/activate.py",
+      "sha256": "d0a38cd52ff54864aff5bd1b0f1d0daca1170c4717312def5e242e2c952acae2",
+      "verdict": "ACCEPTED_FOR_BOUNDED_ACTIVATION_PROCEDURE",
+      "closed_findings": [
+        "All five prior pointers must be symlinks into the owned releases namespace and resolve to exact source 482.",
+        "Effective web/platform/admin ExecStart and WorkingDirectory paths are verified against the switched pointer set.",
+        "Canonical web/admin URLs and canonical-auth flags plus issuer are checked before mutation.",
+        "The planned migration must be exactly entitlements.0001_initial; the post-migration ledger delta must be exactly that one row with all prior rows unchanged.",
+        "Runtime UPDATE, DELETE, and TRUNCATE are checked denied on accessgrant, accessadjustment, and accesspreview.",
+        "Failure recovery restores only pointer/config values proven to be either pre-state or this procedure's own written values; unknown drift is preserved for readback."
+      ],
+      "declared_mutations": [
+        "Apply the single additive entitlements migration using the own migration role.",
+        "Set only ALISA_ENTITLEMENTS_ENABLED=1 in platform configuration.",
+        "Switch only web-current, site-current, and admin-current to the exact c866 release.",
+        "Restart only platform, web, and admin stage services."
+      ],
+      "preserved_scope": [
+        "Identity and shared current remain at source 482.",
+        "No identity canonicalization, callback migration, OWNER handover, or staff authority mutation.",
+        "No real customer grant, payment, or real-mail batch."
+      ]
+    },
+    "rollout_document": {
+      "path": "docs/alisa/service-platform/execution/AL_S04_ROLLOUT_20261105.md",
+      "sha256": "2d430e8273ff1f64a8e407e6824a0c48f7dad8eda79341a2cd652313712cdcd9",
+      "verdict": "ALIGNED_WITH_REVIEWED_PROCEDURE",
+      "notes": "Binds c866/482, canonical origins, normal-copy install, exact migration/ACL checks, rollback boundaries, resource reserve, and READY_FOR_OWNER_TEST limit."
+    }
+  },
+  "execution_state": {
+    "activation_executed_by_reviewer": false,
+    "installed_acceptance": "OPEN",
+    "required_after_activation": [
+      "Fresh read-only host binding/readiness/config/ACL/pointer readback.",
+      "Report only READY_FOR_OWNER_TEST until the real OWNER performs the functional grant test.",
+      "Do not create or restore a test OWNER, execute identity handover, or expand acceptance to other bundled source features."
+    ]
+  },
+  "review_method": "Read-only source, package, script, and rollout-document inspection; no tests or host actions were run."
+}

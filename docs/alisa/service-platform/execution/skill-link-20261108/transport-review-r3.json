@@ -1,0 +1,13 @@
+{
+  "status": "PASS_FOR_CUMULATIVE_DECLARED_TRANSPORT_SOURCE_SCOPE",
+  "local_source_sha": "7375b1d018879aac8cf450a97a898cdd2749ed7d",
+  "public_source_sha": "286fc552eefcfa5791f34520dfa2feebfadc6490",
+  "tree_sha": "3b4b5d73fb354e1d193b41266c1d8a446723274e",
+  "reviewer": "s05_transport_review",
+  "change": "Both native form pages explicitly set same-origin referrer policy; actual consent/privacy Origin is asserted, exact BFF Origin validation is unchanged.",
+  "not_claimed": [
+    "reviewer-run tests",
+    "live installation",
+    "real Yandex developer console"
+  ]
+}

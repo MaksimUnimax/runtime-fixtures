@@ -1,0 +1,38 @@
+{
+  "scope": "INDEPENDENT_READ_ONLY_SOURCE_REVIEW",
+  "reviewer": "separate gpt-6-luna context",
+  "reviewed_paths": [
+    "products/alisa/bin/alisa",
+    "products/alisa/services",
+    "products/alisa/apps",
+    "products/alisa/infra",
+    "products/alisa/README.md"
+  ],
+  "findings": [
+    {
+      "id": "MIGRATION_CONFIG_RUNBOOK",
+      "state": "FIXED_AND_REREVIEWED",
+      "fix": "Both migration config paths documented and included in doctor"
+    },
+    {
+      "id": "DOCTOR_SCOPE",
+      "state": "CLARIFIED",
+      "fix": "README limits doctor.ready to tools/config presence"
+    },
+    {
+      "id": "CLEANUP_TIMER_ACTIVATION",
+      "state": "CLARIFIED",
+      "fix": "README explicitly enables timer after migration and activation"
+    }
+  ],
+  "verdict": "SOURCE_PARTIAL_NOT_ACCEPTED",
+  "foundation_ready": false,
+  "unexecuted": [
+    "PostgreSQL migration/isolation",
+    "browser/API/DB/worker success",
+    "restart",
+    "r1-r2-r1 rollback",
+    "target resource budget",
+    "independent stage handoff"
+  ]
+}

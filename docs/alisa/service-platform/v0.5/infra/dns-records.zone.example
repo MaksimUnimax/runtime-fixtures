@@ -1,0 +1,8 @@
+; ADD ONLY THESE RECORDS TO EXISTING octoport.ru ZONE; NOT A FULL ZONE REPLACEMENT
+; recheck assigned ingress IP before use
+alisa 300 IN A 185.244.51.141
+alisa-admin 300 IN A 185.244.51.141
+id 300 IN A 185.244.51.141
+alisa-stage 300 IN A 185.244.51.141
+alisa-admin-stage 300 IN A 185.244.51.141
+id-stage 300 IN A 185.244.51.141

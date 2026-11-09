@@ -1,0 +1,23 @@
+{
+  "source": "AUTHOR_OBSERVED_LOADED_SYSTEMD_PROFILE_IMMEDIATELY_AFTER_START",
+  "unit": "alisa-direct-login-browser-20261108.service",
+  "invocation_id": "a77b9d4ebbe54b5ea43f4bf6382078ba",
+  "runtime_max_sec": 240,
+  "timeout_stop_sec": 5,
+  "memory_max_bytes": 1610612736,
+  "memory_swap_max_bytes": 0,
+  "tasks_max": 512,
+  "kill_mode": "control-group",
+  "oom_policy": "stop",
+  "protect_system": "strict",
+  "runtime_directory": "alisa-direct-login-browser-20261108",
+  "runtime_directory_mode": "0700",
+  "limit_core_bytes": 0,
+  "root_disk_reserve_bytes": 3221225472,
+  "profile_after_collection": "NOT_EVIDENCE_OF_LOADED_LIMITS",
+  "observed_active_memory_peak_bytes": 274755584,
+  "final_peak_not_captured": true,
+  "completion": "JOURNAL_DEACTIVATED_SUCCESSFULLY_AND_BROWSER_RECEIPT_PASS",
+  "runtime_directory_removed": true,
+  "cgroup_removed": true
+}

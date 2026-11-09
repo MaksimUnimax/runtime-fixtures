@@ -1,0 +1,598 @@
+{
+  "scope": "S02_FULL_DISPOSABLE_HTTPS_BROWSER_QUALIFICATION_NOT_STAGE_ACCEPTANCE",
+  "status": "FAILED",
+  "cases": [
+    {
+      "case": "s02_immutable_package_hashes",
+      "passed": true
+    },
+    {
+      "case": "s02_offline_identity_dependencies_installed",
+      "passed": true
+    },
+    {
+      "case": "s02_separate_migrations_and_confidential_clients",
+      "passed": true
+    },
+    {
+      "case": "s02_platform_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_identity_foreign_database_denied",
+      "passed": true
+    },
+    {
+      "case": "s02_runtime_nonloopback_egress_denied_by_owned_uid_firewall",
+      "passed": true
+    }
+  ],
+  "not_run": [
+    "live_stage_rollout",
+    "controlled_real_email",
+    "live_release_pair_rollback"
+  ],
+  "source_sha": "6a80265f02ad7fbf6bc1862fd6514314e977acb1",
+  "artifact_sha256": "37eb253bd7c5c54afb3e56addd0ac409c5c5f38342f8845342ccb5aaa689c81b",
+  "postgres_version": "16.15 (Debian 16.15-1.pgdg13+2)",
+  "schemas": {
+    "platform": {
+      "migrations": [
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0001_initial"
+        ],
+        [
+          "foundation",
+          "0002_pending_job_index"
+        ],
+        [
+          "funnel",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0001_initial"
+        ],
+        [
+          "leads",
+          "0002_submission_created_at"
+        ]
+      ],
+      "tables": [
+        "accounts_authflow",
+        "accounts_consentrecord",
+        "accounts_customer",
+        "accounts_identitylink",
+        "accounts_leadlink",
+        "accounts_membership",
+        "accounts_tenant",
+        "accounts_websession",
+        "django_migrations",
+        "foundation_foundationjob",
+        "foundation_foundationprobe",
+        "funnel_funnelevent",
+        "leads_lead",
+        "leads_mailoutbox",
+        "leads_ratebucket",
+        "leads_submission"
+      ]
+    },
+    "identity": {
+      "migrations": [
+        [
+          "account",
+          "0001_initial"
+        ],
+        [
+          "account",
+          "0002_email_max_length"
+        ],
+        [
+          "account",
+          "0003_alter_emailaddress_create_unique_verified_email"
+        ],
+        [
+          "account",
+          "0004_alter_emailaddress_drop_unique_email"
+        ],
+        [
+          "account",
+          "0005_emailaddress_idx_upper_email"
+        ],
+        [
+          "account",
+          "0006_emailaddress_lower"
+        ],
+        [
+          "account",
+          "0007_emailaddress_idx_email"
+        ],
+        [
+          "account",
+          "0008_emailaddress_unique_primary_email_fixup"
+        ],
+        [
+          "account",
+          "0009_emailaddress_unique_primary_email"
+        ],
+        [
+          "accounts",
+          "0001_initial"
+        ],
+        [
+          "accounts",
+          "0002_identitymail_protocolcache_identityconsent_subject"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0001_initial"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0002_client_default_scopes"
+        ],
+        [
+          "allauth_idp_oidc",
+          "0003_client_allow_uri_wildcards"
+        ],
+        [
+          "auth",
+          "0001_initial"
+        ],
+        [
+          "auth",
+          "0002_alter_permission_name_max_length"
+        ],
+        [
+          "auth",
+          "0003_alter_user_email_max_length"
+        ],
+        [
+          "auth",
+          "0004_alter_user_username_opts"
+        ],
+        [
+          "auth",
+          "0005_alter_user_last_login_null"
+        ],
+        [
+          "auth",
+          "0006_require_contenttypes_0002"
+        ],
+        [
+          "auth",
+          "0007_alter_validators_add_error_messages"
+        ],
+        [
+          "auth",
+          "0008_alter_user_username_max_length"
+        ],
+        [
+          "auth",
+          "0009_alter_user_last_name_max_length"
+        ],
+        [
+          "auth",
+          "0010_alter_group_name_max_length"
+        ],
+        [
+          "auth",
+          "0011_update_proxy_permissions"
+        ],
+        [
+          "auth",
+          "0012_alter_user_first_name_max_length"
+        ],
+        [
+          "contenttypes",
+          "0001_initial"
+        ],
+        [
+          "contenttypes",
+          "0002_remove_content_type_name"
+        ],
+        [
+          "mfa",
+          "0001_initial"
+        ],
+        [
+          "mfa",
+          "0002_authenticator_timestamps"
+        ],
+        [
+          "mfa",
+          "0003_authenticator_type_uniq"
+        ],
+        [
+          "sessions",
+          "0001_initial"
+        ]
+      ],
+      "tables": [
+        "account_emailaddress",
+        "account_emailconfirmation",
+        "accounts_identityconsent",
+        "accounts_identitymail",
+        "accounts_person",
+        "accounts_person_groups",
+        "accounts_person_user_permissions",
+        "accounts_subject",
+        "allauth_idp_oidc_client",
+        "allauth_idp_oidc_token",
+        "auth_group",
+        "auth_group_permissions",
+        "auth_permission",
+        "django_content_type",
+        "django_migrations",
+        "django_session",
+        "identity_protocol_cache",
+        "mfa_authenticator"
+      ]
+    }
+  },
+  "error_type": "RuntimeError",
+  "qualification_line": 150,
+  "error_location": {
+    "file": "qualify_identity.py",
+    "line": 150
+  },
+  "safe_http_trace": [
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "backend": 18400,
+      "method": "GET",
+      "path": "/health/ready",
+      "status": 503,
+      "code": "DEPENDENCY_UNAVAILABLE"
+    }
+  ],
+  "safe_auth_diagnostics": [],
+  "owned_database_and_process_cleanup": true
+}

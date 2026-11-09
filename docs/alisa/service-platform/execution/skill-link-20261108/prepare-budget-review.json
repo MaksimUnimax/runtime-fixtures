@@ -1,0 +1,9 @@
+{
+  "status": "REVIEW_COMMENT_CLOSED_FOR_CORRECTED_BUDGET_SOURCE",
+  "helper_sha256": "de5ab57e69b83d561823efbf5a74b1279026f2411cef183ce2a16141a2ac53fc",
+  "reviewer": "s03_independent_review",
+  "executed": false,
+  "checks": "Includes all file and selected-link ancestors, block rounding, manifest and concurrent-growth reserves; refuses existing target.",
+  "prepared_state": "PREPARED_NOT_ACTIVATED_AFTER_RESOURCE_RECOVERY",
+  "migration_activation_restart_approved": false
+}

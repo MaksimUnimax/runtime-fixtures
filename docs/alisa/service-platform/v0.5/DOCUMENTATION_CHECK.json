@@ -1,0 +1,375 @@
+{
+  "validation": "DOCUMENTATION_ONLY",
+  "verdict": "DOCUMENTATION_VALIDATION_PASS",
+  "as_of_utc": "2026-11-04T09:34:01.597221+00:00",
+  "product_tests_executed": 0,
+  "external_calls_by_validator": 0,
+  "counts": {
+    "steps": 25,
+    "requirement_groups": 25,
+    "legacy_functions": 24,
+    "tests": 186,
+    "preserved_tests": 120,
+    "added_tests": 66,
+    "requirements": 70,
+    "baseline": 35,
+    "api_operations": 96,
+    "schemas": 7,
+    "new_domain_records": 6,
+    "deferred_merge_steps": 5,
+    "deferred_merge_tests": 20
+  },
+  "checks": [
+    {
+      "check": "linear_steps_unique",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "test_ids_unique",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "sequence_and_declared_test_dependencies",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "every_step_has_demo_and_acceptance",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "test_links_bidirectional",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "all_120_original_test_semantics_unchanged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "original_blueprint_hash",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "A01_A35_verbatim",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "U01_U10_verbatim",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "baseline_coverage_resolves",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "requirements_preserved_and_mapped",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "only_unexecuted_product_statuses",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "explicit_first_step",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "checkout_includes_confirmed_access",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "pilot_before_money_but_after_restoration",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "selftest_reject_future_product",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "selftest_reject_future_test",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "selftest_reject_cycle_or_reverse",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "selftest_reject_unknown",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "schema:execution_step_receipt_v1.schema.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "schema:funnel_client_event_v1.schema.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "schema:product_identity_link_v1.schema.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "schema:catalog_release_v1.schema.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "schema:runtime_task_v1.schema.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "schema:acceptance_receipt_v1.schema.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "schema:query_gap_v1.schema.json",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "example:gap_valid.json",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "example:gap_invalid_extra_raw.json",
+      "passed": true,
+      "detail": [
+        "Additional properties are not allowed ('raw_utterance' was unexpected)"
+      ]
+    },
+    {
+      "check": "example:gap_metadata_only_valid.json",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "example:runtime_shape_valid_but_unauthorized.json",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "example:runtime_invalid_secret.json",
+      "passed": true,
+      "detail": [
+        "Additional properties are not allowed ('api_key' was unexpected)"
+      ]
+    },
+    {
+      "check": "example:catalog_release_valid_shape.json",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "example:identity_link_valid.json",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "example:identity_link_invalid_environment.json",
+      "passed": true,
+      "detail": [
+        "'https://id-stage.octoport.ru' was expected"
+      ]
+    },
+    {
+      "check": "example:funnel_valid.json",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "example:funnel_invalid_private_text.json",
+      "passed": true,
+      "detail": [
+        "Additional properties are not allowed ('raw_question' was unexpected)"
+      ]
+    },
+    {
+      "check": "example:step_receipt_valid.json",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "example:step_receipt_invalid.json",
+      "passed": true,
+      "detail": [
+        "'AL-S99' does not match '^AL-S(0[0-9]|1[0-9]|2[0-4])$'"
+      ]
+    },
+    {
+      "check": "openapi_local_refs",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "api_schedule_matches",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "api_steps_known",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "api_count_preserved",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "v04_old_local_auth_deprecated",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "early_query_routes_available",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "source_check_available_at_stores",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "billing_reconcile_available_at_first_payment",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "local_markdown_links",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "no_chat_only_citations",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "all146_v03_behavior_preserved",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "v05_186_total_cases",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "new_identity_is_step2",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "standalone_landing_is_step1",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "six_distinct_domains",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "domains_not_false_ready",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "environment_preflight_explicit",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "merge_order_deferred",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "merge_twenty_unrun",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "merge_not_current_dependency",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "entrypoints_assigned",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "domain_guide_exact_hosts",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "all168_v04_behavior_preserved",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "foundation_has_18_real_scenarios",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "site_requires_foundation",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "source_paths_defined",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "foundation_not_false_implemented",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "publication_not_false_claimed",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "check": "foundation_docs_present",
+      "passed": true,
+      "detail": null
+    }
+  ],
+  "limits": [
+    "Checks explicit dependency annotations, not arbitrary natural-language semantics.",
+    "No product or server test performed.",
+    "OpenAPI is a project contract; 2 local auth routes deprecated, 10 new entrypoints scheduled; library schemas and remaining gaps assigned to their functional steps.",
+    "Review is authors own documentary review, not independent product acceptance."
+  ]
+}

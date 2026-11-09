@@ -1,0 +1,17 @@
+{
+  "status": "PASS_FOR_DECLARED_TRANSPORT_AND_HARNESS_SCOPE",
+  "local_source_sha": "bb1803371fb1371bb61b5e62145622908d519c3b",
+  "public_source_sha": "beae1599e9be704eaf3979cc82697eab2c4f3c4c",
+  "tree_sha": "b6a3f03e45c6a69d1b273ef9fdc8456a8f5b0b6d",
+  "reviewer": "s05_transport_review",
+  "scope": [
+    "fixed Yandex broker redirect and protocol JSON",
+    "3.5s token/webhook internal deadline",
+    "real consent POST captured at external 303 boundary"
+  ],
+  "not_claimed": [
+    "reviewer-executed tests",
+    "real broker exchange",
+    "actual developer console configuration"
+  ]
+}

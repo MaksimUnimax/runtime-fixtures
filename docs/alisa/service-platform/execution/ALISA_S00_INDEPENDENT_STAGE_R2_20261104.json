@@ -1,0 +1,117 @@
+{
+  "report": "ALISA_S00_INDEPENDENT_STAGE_R2",
+  "date_utc": "2026-11-04",
+  "overall": "PARTIAL_NOT_FOUNDATION_READY",
+  "environment": "stage only",
+  "release": {
+    "artifact_id": "alisa-29c99f6d9d00f19e",
+    "source_sha": "29c99f6d9d00f19e14087a85d488a6cf5264ff1b",
+    "package_sha256": "f8c042561abc0cfd00007a2f61deaadd7de285583b7fd83f812dc7adb3ee37fc",
+    "rollback_release": {
+      "artifact_id": "alisa-3e763ad761fac377",
+      "source_sha": "3e763ad761fac377e391e2181f972d9795b7646a",
+      "package_sha256": "9967d4f655632b36489148cfabb99de2235613c97391ba2925be6d3c7bbe601c"
+    }
+  },
+  "ci": [
+    {"run_id": 41828542002, "trigger": "push", "source_job": "success", "clean_runner": true},
+    {"run_id": 41828551580, "trigger": "pull_request", "source_job": "success", "clean_runner": true}
+  ],
+  "independent_stage_checks": {
+    "r2_identity_and_private_config_modes": "PASS",
+    "browser_ui_api_database_roundtrip": {
+      "status": "PASS",
+      "probe_id": "d515b1ba-ac09-4305-9a4f-034374d62686",
+      "correlation_id": "fd89a742-fc22-458b-84b5-f7e7caf7859c",
+      "effect_count": 1
+    },
+    "concurrent_duplicate_and_conflicting_kind": {
+      "status": "PASS",
+      "probe_id": "2a01517e-0afe-4202-986e-0cae8abae75f",
+      "correlation_id": "12c1ae25-a903-4e81-b659-64ded4a9a3a8",
+      "duplicate_statuses": [200, 202],
+      "conflicting_kind_status": 422,
+      "effect_count": 1
+    },
+    "worker_restart_durable_pending_job": {
+      "status": "PASS",
+      "probe_id": "c674838a-8a0f-4924-a364-c34fe8a64298",
+      "correlation_id": "267b86d5-186c-48ab-91a8-4ed4a2a68009",
+      "readiness_after_restart": [200, 200, 200, 200],
+      "effect_count": 1
+    },
+    "database_outage_and_recovery": {
+      "status": "PASS",
+      "probe_id": "104fa122-a84a-4141-82c9-a3fda018a438",
+      "correlation_id": "32dfa2ba-2449-46dc-b9fc-364e39e93d76",
+      "liveness_during_outage": 200,
+      "readiness_during_outage": 503,
+      "write_status_during_outage": 503,
+      "row_created_during_outage": false,
+      "recovery_effect_count": 1,
+      "runtime_role_login_restored": true
+    },
+    "runtime_role_boundary": {
+      "status": "PASS",
+      "runtime_roles_superuser": false,
+      "platform_runtime_ddl_denied": true,
+      "cross_database_connect_denied": [true, true]
+    },
+    "default_deny_forged_session_and_tenant": {
+      "status": "PASS",
+      "responses": {"/app": 404, "/staff": 404, "/app/tenants/<forged-id>": 404}
+    },
+    "protected_write_denials": {
+      "status": "PASS",
+      "unauthenticated_status": 401,
+      "wrong_origin_status": 403,
+      "database_rows_created": 0
+    },
+    "missing_required_database_secret_child_process": {
+      "status": "PASS",
+      "exit_code": 1,
+      "real_config_edited": false
+    },
+    "secret_scan": {
+      "status": "PASS",
+      "installed_payload_hits": 0,
+      "recent_stage_service_log_hits": 0
+    },
+    "final_state": {
+      "five_stage_services_active": true,
+      "cleanup_timer_active": true,
+      "platform_runtime_role_can_login": true,
+      "temporary_nft_table_absent": true
+    }
+  },
+  "timing_observations": [
+    "First browser attempt did not have PLAYWRIGHT_BROWSERS_PATH; it failed before submitting a probe and was repeated with the configured observer browser path.",
+    "First worker restart readback raced the startup window and got a transient URLError. No database role change had occurred. After bounded readiness checks for all four HTTP components, the same pending probe processed once; this initial timing failure is retained rather than hidden."
+  ],
+  "cases": [
+    {"id": "AL-T00-01", "status": "PASS_CI_REPEAT_PARTIAL_ARTIFACT_SCOPE", "fact": "Two fresh GitHub push/PR source jobs for the r2 SHA succeeded, including build and packaged PostgreSQL/browser qualification; exact package SHA recorded above. No byte-reproducibility claim."},
+    {"id": "AL-T00-02", "status": "PASS_SOURCE_GATE", "fact": "Root executed temporary forbidden-import negative check; architecture/boundary CI passed. No protected matrix-path diff reported."},
+    {"id": "AL-T00-03", "status": "PARTIAL", "fact": "Browser reached the engineering page via TLS. Not all three host-to-component mappings, invalid Host, or ingress-bypass paths were independently tested here."},
+    {"id": "AL-T00-04", "status": "PASS", "fact": "Fresh browser UUID traversed UI/API/worker/PostgreSQL with matching correlation and one effect."},
+    {"id": "AL-T00-05", "status": "PASS", "fact": "Concurrent same-UUID POSTs returned 200/202; conflicting kind returned 422; persisted effect count was one."},
+    {"id": "AL-T00-06", "status": "PASS", "fact": "Stopped only stage worker before accepting a fresh UUID, restarted platform API and worker, then read the same persisted job as processed once."},
+    {"id": "AL-T00-07", "status": "PASS", "fact": "Temporary NOLOGIN on only the stage platform runtime role produced liveness 200, readiness 503 and write 503 without a row; LOGIN restored and same UUID recovered once."},
+    {"id": "AL-T00-08", "status": "PARTIAL", "fact": "Both stage runtime roles were non-superuser; cross-database connections and platform runtime DDL were denied. Production credential denial was not actively tested."},
+    {"id": "AL-T00-09", "status": "AUTHOR_EVIDENCE_ONLY", "fact": "Root reports r1/r2/r1 migration and readback passed; this independent run did not repeat migration-head compatibility checks."},
+    {"id": "AL-T00-10", "status": "PASS_STAGE_SCOPE", "fact": "A child manage.py check without ALISA_DB_PASSWORD failed safely without changing real config; exact stage secret scan found no hits in installed payload or recent service logs."},
+    {"id": "AL-T00-11", "status": "AUTHOR_EVIDENCE_ONLY", "fact": "Root reports r1→r2→r1 data-preserving transition passed. Independent run did not repeat rollback transitions."},
+    {"id": "AL-T00-12", "status": "PASS_SOURCE_NEGATIVE_GATES_PARTIAL_CI_BOUNDARY", "fact": "Root demonstrated syntax/typecheck and DTO contract mutations fail, and package refuses dirty source. No intentional red GitHub workflow run was performed."},
+    {"id": "AL-T00-13", "status": "PASS_STAGE_ROUTES", "fact": "Forged session and tenant cookie yielded 404 on /app, /staff and forged tenant route."},
+    {"id": "AL-T00-14", "status": "PARTIAL", "fact": "Stage unauthenticated write returned 401 and wrong Origin returned 403 without rows. Probe-disabled behavior and production 404 were not changed or tested in this stage-only run."},
+    {"id": "AL-T00-15", "status": "PASS_STAGE_EGRESS_SCOPE", "fact": "Root's temporary stage-UID egress filter denied old loopback port 8765; deny counter stayed unchanged during browser roundtrip. Does not establish all historical service/DB blocking evidence beyond the tested paths."},
+    {"id": "AL-T00-16", "status": "PARTIAL", "fact": "One correlation was independently traced through DB/API/UI. Root notes BFF currently has no correlation logger; TTL expiry/cleanup and durable release receipt-after-expiry were not tested."},
+    {"id": "AL-T00-17", "status": "BLOCKED_FAIL_RESOURCE_MEASUREMENT", "fact": "Earlier resource capture ended in FileNotFound during an intentional restart; no valid replacement RSS/CPU/disk measurement was taken in this run."},
+    {"id": "AL-T00-18", "status": "PARTIAL", "fact": "Independent browser/API/DB/recovery checks passed, but no clean package redeploy, independent r2→r1→r2 handoff, full 18-case evidence bundle, or resource pass. FOUNDATION_READY is not granted."}
+  ],
+  "readiness_decision": "NOT_ACCEPTED; FOUNDATION_READY=false",
+  "limits": [
+    "The `evidence` CLI emits metadata and NOT_ACCEPTED; it does not establish acceptance.",
+    "No production, marketplace, payment, or LLM path was exercised.",
+    "No stage config was edited; the platform runtime role was restored to LOGIN; all five stage units and cleanup timer were active at final check; temporary nft table was absent."
+  ]
+}

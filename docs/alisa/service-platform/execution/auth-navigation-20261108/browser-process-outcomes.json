@@ -1,0 +1,25 @@
+{
+  "scope": "AUTHOR_OBSERVED_FINITE_NATIVE_BROWSER_UNIT_COMPLETION",
+  "source": "Remote Desktop Commander read_process_output; no private browser data",
+  "units": [
+    {
+      "name": "alisa-auth-navigation-after-r2-20261108.service",
+      "invocation_id": "fd2fabc50c27428c9658e63e66763d60",
+      "result": "success",
+      "exit_code": 0,
+      "runtime_seconds": 67.674,
+      "memory_peak_display": "237.3M",
+      "memory_swap_peak_bytes": 0,
+      "loaded_profile_receipt": "after-r2-systemd-profile.txt"
+    },
+    {
+      "name": "alisa-auth-navigation-reentry-after-20261108.service",
+      "result": "success",
+      "exit_code": 0,
+      "runtime_seconds": 2.577,
+      "memory_swap_peak_bytes": 0,
+      "loaded_profile_readback": "NOT_CAPTURED_BEFORE_UNIT_COLLECTION",
+      "post_collection_readback_receipt": "reentry-after-systemd-profile.txt"
+    }
+  ]
+}

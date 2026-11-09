@@ -1,0 +1,21 @@
+{
+  "review": "INDEPENDENT_NATIVE_PAIR_RESTART_REFRESH_REVIEW_R3",
+  "result": "PASS_WITH_BOUNDED_SCOPE",
+  "scope": "Static exact-source review only. No host/provider/database/browser/credential calls or tests were run.",
+  "artifacts": {
+    "requalify.py": "ab6c237e9a5affda88df6bb91dc2f7c9f9b09d1c0f9f3f4fe7b34cbc02e7d799",
+    "alisa-native-pair-refresh.service": "29608ba61951f1ec610781e17c8d5d2a6e614c13c6997a4296d1c2d9129e0411",
+    "native-pair-refresh.conf": "8d225c86c0103b69ab30d7f78b3f16694acaebc7ef7bc7ebc18f2bf35633c253",
+    "install-refresh-r2.py": "46646c2dffb10bf0909215ccd8428371472c26931de58f0af467bc29a1188440"
+  },
+  "result_basis": [
+    "The helper now reads the Ozon credential through a single explicit read-only file bind from the native service credential into its private RuntimeDirectory. The native credential remains hidden elsewhere by systemd; no Seller/WB/AI credential is added.",
+    "The helper's source uses the aliased path and requires a read-only filesystem view. It continues to validate the old HMAC against current config/material, changes only generation and derived HMAC, rechecks inputs before atomic write, and fails closed on drift.",
+    "RuntimeDirectory=alisa-native-pair-refresh mode 0700 provides the writable isolated flock path under ProtectSystem=strict. Only the scope directory is additionally writable. The helper remains private-network, AF_UNIX-only, bounded, and root-owned.",
+    "The R2 installer reads the separately named refresh-payload-r2.json, checks exact member set and each embedded digest, uses exclusive no-follow writes with inode-scoped cleanup, checks current generation plus real platform peer/IPC before PASS, and preserves the prior failed receipt by using refresh-install-r2.json.",
+    "The installed hook is limited to checker ExecStartPre. It does not alter or restart native core/API/web/identity/admin, and the installer compares protected pointers, launch properties, environments, and sandbox snapshots."
+  ],
+  "blockers": [],
+  "residual_limitation": "A native-core restart can race the helper's final generation check and atomic replacement. This may leave a stale proof temporarily, but checker requests validate the current process generation and fail closed. The checker restart hook should requalify the new generation; confirm the author's post-install receipts reflect that generation before claiming restored Performance connectivity.",
+  "test_claims": "The 21 passing fixture tests and prior failure/rollback observations are author-reported and were not independently rerun or inspected."
+}
