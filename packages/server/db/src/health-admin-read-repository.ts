@@ -11,6 +11,7 @@ import {
   type HealthAdminEvaluationQuery,
   type HealthAdminPage,
   type HealthAdminReadRepository,
+  type HealthAvailabilityReaderInput,
 } from "@product/health";
 import type { DatabaseRuntime } from "./index.js";
 
@@ -116,9 +117,30 @@ function evidence(result: unknown) {
   return list.slice(0, 32);
 }
 
-function mapEvaluation(row: Row, currentProfileRevisionId?: string | null) {
+function mapEvaluation(
+  row: Row,
+  currentScope?: Pick<
+    HealthAvailabilityReaderInput,
+    | "provider"
+    | "surface"
+    | "variant"
+    | "profileRevisionId"
+    | "browserFamily"
+    | "browserVersion"
+    | "monitoringLayer"
+  >,
+) {
   const result = row.result && typeof row.result === "object" ? row.result : {};
   const comparison = result.comparison ?? result.h4Comparison;
+  const currentAuthority =
+    currentScope === undefined ||
+    (row.provider === currentScope.provider &&
+      row.surface === currentScope.surface &&
+      (row.variant ?? "default") === currentScope.variant &&
+      row.candidateProfileRevisionId === currentScope.profileRevisionId &&
+      row.browserFamily === currentScope.browserFamily &&
+      row.browserVersion === currentScope.browserVersion &&
+      row.probeLayer === currentScope.monitoringLayer);
   const mapped = {
     id: String(row.id),
     evaluationKey: String(row.evaluationKey),
@@ -144,9 +166,7 @@ function mapEvaluation(row: Row, currentProfileRevisionId?: string | null) {
       : "NOT_APPLICABLE",
     decisiveContours: (comparison?.decisiveContours ?? []).slice(0, 13),
     evidenceReferences: evidence(result),
-    currentAuthority:
-      currentProfileRevisionId == null ||
-      String(row.candidateProfileRevisionId) === currentProfileRevisionId,
+    currentAuthority,
     firstEvaluatedAt: iso(row.firstEvaluatedAt),
     latestEvaluatedAt: iso(row.latestEvaluatedAt),
     createdAt: iso(row.createdAt),
@@ -154,9 +174,13 @@ function mapEvaluation(row: Row, currentProfileRevisionId?: string | null) {
     incidentId: row.incidentId ?? null,
     recommendationView: row.recommendation
       ? {
-          recommendation: recommendation(row.recommendation),
+          recommendation: currentAuthority
+            ? recommendation(row.recommendation)
+            : "STALE",
           sourceRecommendation: row.recommendation,
-          reasonCode: `H5_${row.recommendation}`,
+          reasonCode: currentAuthority
+            ? `H5_${row.recommendation}`
+            : "STALE_EVALUATION_SCOPE",
           severity: null,
           evaluationId: row.id,
           evaluationKey: row.evaluationKey,
@@ -390,10 +414,18 @@ async function hydrateTarget(runtime: DatabaseRuntime, row: Row) {
         (value.variant ?? "default") === row.variant,
     )
     .map((value) =>
-      mapEvaluation(
-        value,
-        row.candidate_profile_revision_id ?? row.profile_revision_id,
-      ),
+      mapEvaluation(value, {
+        provider: row.provider,
+        surface: row.surface,
+        variant: row.variant,
+        profileRevisionId:
+          row.candidate_profile_revision_id ??
+          row.baseline_profile_revision_id ??
+          row.profile_revision_id,
+        browserFamily: row.browser_family,
+        browserVersion: row.browser_version,
+        monitoringLayer: row.monitoring_layer ?? "NO_SESSION",
+      }),
     );
   const evidenceRows = await runtime.query<Row>(
     `SELECT evidence_id AS "evidenceId",rule_id AS "ruleId",classification,sha256,size_bytes AS "sizeBytes" FROM health_evidence_references WHERE run_id=$1
@@ -420,7 +452,24 @@ async function hydrateTarget(runtime: DatabaseRuntime, row: Row) {
     })),
     evidenceReferences: evidenceRows.rows,
     activeIncident: incident.rows[0] ? mapIncident(incident.rows[0]) : null,
-    evaluations,
+    evaluations: evaluations.map((value) => ({
+      id: value.id,
+      evaluationKey: value.evaluationKey,
+      phase: value.phase,
+      baselineProfileRevisionId: value.baselineProfileRevisionId,
+      candidateProfileRevisionId: value.candidateProfileRevisionId,
+      outcome: value.outcome,
+      recommendation: value.recommendation,
+      postRolloutOutcome: value.postRolloutOutcome,
+      comparability: value.comparability,
+      decisiveContours: value.decisiveContours,
+      evidenceReferences: value.evidenceReferences,
+      currentAuthority: value.currentAuthority,
+      firstEvaluatedAt: value.firstEvaluatedAt,
+      latestEvaluatedAt: value.latestEvaluatedAt,
+      createdAt: value.createdAt,
+      updatedAt: value.updatedAt,
+    })),
     healthRecommendation: latestRecommendation,
   });
 }
