@@ -186,8 +186,9 @@ class HTTPTransport:
         if is_read and built.get('response_style',built.get('response_mode','json'))=='binary':
             import csv,io,hashlib
             if 'text/csv'in built.get('response_content_types',[]):
-                try:data={'rows':list(csv.DictReader(io.StringIO(raw.decode('utf-8-sig'))))}
-                except (ValueError,UnicodeError):raise CallError('READ_CSV_INVALID',status=status)from None
+                from csv_transport import decode_csv,CSVDecodeError
+                try:data=decode_csv(raw,delimiter=built.get('response_csv_delimiter'))
+                except CSVDecodeError as error:raise CallError(error.code,status=status)from None
             else:data={'file_bytes':len(raw),'file_sha256':hashlib.sha256(raw).hexdigest(),'content_extracted':False,'note':'Binary response requires a file export; no text contents claimed.'}
         else:
             try:data=[] if specification and status in specification.get('options',{}).get('empty_statuses',[]) and not raw else strict_json(raw,parse_float=Decimal)
