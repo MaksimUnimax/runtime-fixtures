@@ -154,6 +154,26 @@ class ClientTests(Setup):
         self.thread = threading.Thread(target=self.server.serve_forever, kwargs={'poll_interval': .01}, daemon=True)
         self.thread.start()
 
+    def test_installed_template_gap_is_strictly_normalized_without_provider_or_data_success(self):
+        receipt = self.accepted(); self.finish(receipt)
+        answer = self.port.read_result(receipt['job_ref'], self.ctx, self.peer)
+        negative = {'ok': False, 'status': 'TEMPLATE_NOT_FOUND',
+            'message': 'Извините, данный запрос не поддерживается', 'data': None,
+            'retryable': False, 'temporary_mode': True, 'case_id': 'tgap_' + 'a' * 32}
+        answer.update(result_kind='PROVIDER_REFUSAL', model_result=negative, pages=[negative['message']])
+        self.replace_server(lambda request: self.actual_reply(request) if request['operation'] != 'read_result'
+                            else {'ok': True, 'data': answer})
+        value = self.client.read_result(receipt['job_ref'])
+        self.assertEqual(value['result_kind'], 'UNSUPPORTED_QUERY'); self.assertEqual(value['model_result'], negative)
+        for key, bad in [('ok', True), ('data', {'sales': 42}), ('retryable', True),
+                         ('temporary_mode', False), ('case_id', 'native-store'), ('message', 'Другой ответ')]:
+            saved = negative[key]; negative[key] = bad
+            self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.read_result(receipt['job_ref']))
+            negative[key] = saved
+        negative['extra'] = 'business'; self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.read_result(receipt['job_ref']))
+        del negative['extra']; answer['pages'] = ['Продажи 42']
+        self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.read_result(receipt['job_ref']))
+
     def actual_reply(self, request):
         try:
             return {'ok': True, 'data': dispatch(self.port, self.peer, request)}

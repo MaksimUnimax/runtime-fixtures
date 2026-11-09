@@ -49,6 +49,26 @@ def client(principal, stores):
     return configured_client(PlatformAuthorizer(configured_authority(), principal, stores))
 
 
+class DeliveryGuard:
+    """Request-local proof only; never returned by the BFF or stored in a row."""
+    def __init__(self, principal, authorizer, context, query, result_expires_at):
+        self.principal, self.authorizer, self.context = principal, authorizer, context
+        self.query_id, self.expires_at = str(query.pk), query.expires_at
+        self.result_expires_at = timestamp(result_expires_at)
+
+    def check(self):
+        # Called under the voice delivery transaction, after OAuth/privacy work.
+        # Locks acquired by authority.state stay held until text is formed.
+        row = owned(self.principal, self.query_id, lock=True)
+        need(self.authorizer.current(self.context, 'read_result') is True, 'PERMISSION_DENIED')
+        now = timezone.now()
+        need(row.expires_at > now and self.expires_at > now and self.result_expires_at > now.timestamp(),
+             'RESULT_EXPIRED')
+
+    def __repr__(self):
+        return '<DeliveryGuard>'
+
+
 def list_queries(principal):
     enabled(); customer, tenant = actor(principal)
     rows = Query.objects.filter(customer_id=customer, tenant_id=tenant,
@@ -103,7 +123,8 @@ def submit(principal, query_id, stores, utterance, *, recover=False, channel='WE
     return {'query': receipt(row)}, 201
 
 
-def read(principal, query_id, *, result=False):
+def read(principal, query_id, *, result=False, with_delivery_guard=False):
+    need(not with_delivery_guard or result)
     enabled(); row = owned(principal, query_id)
     if row.runtime_job_ref is None:
         return {'query': receipt(row), 'code': 'UNKNOWN_OUTCOME'}
@@ -124,7 +145,10 @@ def read(principal, query_id, *, result=False):
     need(current.expires_at > timezone.now(), 'RESULT_EXPIRED')
     if result:
         need(timestamp(value['result_expires_at']) > timezone.now().timestamp(), 'RESULT_EXPIRED')
-    return {'query': receipt(current), 'result' if result else 'status': value}
+    answer = {'query': receipt(current), 'result' if result else 'status': value}
+    if with_delivery_guard:
+        answer['delivery_guard'] = DeliveryGuard(principal, api.authorizer, context, current, value['result_expires_at'])
+    return answer
 
 
 def cancel(principal, query_id, request_id):

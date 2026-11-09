@@ -25,7 +25,7 @@ MESSAGES = {
 }
 
 
-def response(token, customer, message, *, pages=None, result_kind='DATA'):
+def response(token, customer, message, *, pages=None, result_kind='DATA', delivery_guard=None):
     # Privacy and token revocation are checked AFTER IPC, under the same customer
     # lock as unlink/privacy; no network runs while that lock is held.
     with transaction.atomic():
@@ -34,7 +34,9 @@ def response(token, customer, message, *, pages=None, result_kind='DATA'):
             http_method='POST', headers={'Authorization': 'Bearer ' + token}, scopes=[SCOPE])
         need(valid and str(request.user.customer_id) == customer, 'AUTH_REQUIRED')
         if pages is not None:
-            message = (('Подготовлено пояснение об ограничении доступа.' if result_kind == 'PROVIDER_REFUSAL'
+            need(isinstance(delivery_guard, service.DeliveryGuard), 'PERMISSION_DENIED')
+            delivery_guard.check()
+            message = (('Запрос пока не поддерживается.' if result_kind == 'UNSUPPORTED_QUERY' else 'Подготовлено пояснение об ограничении доступа.' if result_kind == 'PROVIDER_REFUSAL'
                         else 'Отчёт готов.') + ' Откройте его в разделе «Задания» в кабинете.'
                        if request.user.voice_private else pages[0] +
                        (' Полный отчёт доступен в кабинете.' if len(pages) > 1 else ''))
@@ -64,15 +66,19 @@ def handle(token, payload):
                 return response(token, customer, 'В этой беседе пока нет задания. Задайте вопрос для отчёта.')
             if command in {'отмена', 'отмени'}:
                 value = service.cancel(principal, str(row.pk), rid)
-                message = ('Задание отменено.' if value.get('status', {}).get('cancelled') is True
-                           else MESSAGES['UNKNOWN_OUTCOME'] if value.get('code') else 'Задание уже завершено.')
+                status = value.get('status', {})
+                message = ('Задание отменено.' if status.get('cancelled') is True
+                           else MESSAGES['UNKNOWN_OUTCOME'] if value.get('code') or status.get('state') == 'UNKNOWN'
+                           or status.get('code') == 'UNKNOWN_OUTCOME' else 'Задание уже завершено.')
                 return response(token, customer, message)
             value = service.read(principal, str(row.pk))
             if value.get('code'): return response(token, customer, MESSAGES['UNKNOWN_OUTCOME'])
             state = value['status']['state']
             if state == 'READY':
-                result = service.read(principal, str(row.pk), result=True)['result']
-                return response(token, customer, '', pages=result['pages'], result_kind=result.get('result_kind', 'DATA'))
+                value = service.read(principal, str(row.pk), result=True, with_delivery_guard=True)
+                result = value['result']
+                return response(token, customer, '', pages=result['pages'], result_kind=result.get('result_kind', 'DATA'),
+                                delivery_guard=value['delivery_guard'])
             message = {'CANCELLED': 'Задание отменено.', 'FAILED': 'Расчёт не завершился. Подробности доступны в кабинете.',
                        'UNKNOWN': MESSAGES['UNKNOWN_OUTCOME'], 'EXPIRED': MESSAGES['RESULT_EXPIRED']}.get(
                            state, 'Расчёт ещё идёт. Спросите: готово?')

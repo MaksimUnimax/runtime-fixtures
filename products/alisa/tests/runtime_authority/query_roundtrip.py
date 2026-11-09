@@ -9,6 +9,7 @@ from datetime import timedelta
 import json
 import socket
 import threading
+import time
 import unittest
 from unittest.mock import patch
 from current_core_roundtrip import RoundtripChecks, RuntimeClient, RuntimeFailure, connections, TEMP
@@ -224,6 +225,65 @@ class QueryChecks(RoundtripChecks):
         payload['session']['session_id']='different-session'
         with patch.object(service,'read',side_effect=AssertionError('cross dialogue read')):
             self.assertIn('нет задания',voice.handle(token,payload)['response']['text'])
+
+    def late_voice_read(self, change):
+        _,link,_,token=self.issue_alice();link.voice_private=False;link.save(update_fields=['voice_private'])
+        voice.handle(token,self.payload(QUESTION));self.qid=str(Query.objects.filter(customer=self.actor).latest('created_at').pk)
+        self.finish_query();real=service.read
+        def after_read(*args,**kwargs):
+            value=real(*args,**kwargs)
+            if kwargs.get('result'):change(value)
+            return value
+        with patch.object(service,'read',after_read):return voice.handle(token,self.payload('готово',1))['response']['text']
+
+    def test_voice_entitlement_revoked_after_read_never_releases_pages(self):
+        def revoke(_):AccessAdjustment.objects.create(id=uid(),grant=self.grant,cutoff=timezone.now(),actor_id=uid(),reason='INITIAL_TEST')
+        self.assertIn('не удалось проверить',self.late_voice_read(revoke))
+
+    def test_voice_credentials_revoked_after_read_never_releases_pages(self):
+        def revoke(_):
+            row=self.credentials[0];row.status='REVOKED';row.save(update_fields=['status'])
+        self.assertIn('не удалось проверить',self.late_voice_read(revoke))
+
+    def test_voice_query_ttl_expires_after_read_never_releases_pages(self):
+        def expire(_):Query.objects.filter(pk=self.qid).update(expires_at=timezone.now()-timedelta(seconds=1))
+        self.assertIn('Срок хранения',self.late_voice_read(expire))
+
+    def test_voice_runtime_ttl_crosses_late_delivery_check(self):
+        _,link,_,token=self.issue_alice();link.voice_private=False;link.save(update_fields=['voice_private'])
+        voice.handle(token,self.payload(QUESTION));self.qid=str(Query.objects.filter(customer=self.actor).latest('created_at').pk)
+        self.finish_query();real=service.read
+        def slow_delivery(*args,**kwargs):
+            if kwargs.get('result'):
+                self.clock.now=time.time()
+                with self.repo.connection(True) as conn:conn.execute('UPDATE jobs SET expires=?',[time.time()+1.5])
+            value=real(*args,**kwargs)
+            if kwargs.get('result'):time.sleep(1.6)
+            return value
+        with patch.object(service,'read',slow_delivery):text=voice.handle(token,self.payload('готово',1))['response']['text']
+        self.assertIn('Срок хранения',text)
+
+    def test_confirmed_unknown_cancel_never_claims_finished_in_voice(self):
+        _,_,_,token=self.issue_alice();voice.handle(token,self.payload(QUESTION))
+        row=Query.objects.filter(customer=self.actor).latest('created_at')
+        with self.repo.connection(True) as conn:conn.execute('UPDATE jobs SET state=\'UNKNOWN\'')
+        value=service.cancel(self.principal,str(row.pk),uid())
+        self.assertEqual(value['status']['state'],'UNKNOWN');self.assertFalse(value['status']['cancelled'])
+        message=voice.handle(token,self.payload('отмена',1))['response']['text']
+        self.assertIn('не подтверждена',message);self.assertNotIn('завершено',message)
+
+    def test_template_gap_wire_shape_is_not_a_useful_report_or_provider_subscription(self):
+        self.send();self.finish_query();original=self.port.read_result
+        gap={'ok':False,'status':'TEMPLATE_NOT_FOUND','message':'Извините, данный запрос не поддерживается',
+             'data':None,'retryable':False,'temporary_mode':True,'case_id':'tgap_'+'a'*32}
+        def native_shape(*args,**kwargs):
+            value=original(*args,**kwargs);value.update(result_kind='PROVIDER_REFUSAL',model_result=gap,pages=[gap['message']]);return value
+        with patch.object(self.port,'read_result',native_shape):
+            web=service.read(self.principal,self.qid,result=True)['result']
+            _,_,_,token=self.issue_alice();alice=service.read(AlicePrincipal(token),self.qid,result=True)['result']
+        self.assertEqual(web,alice);self.assertEqual(web['result_kind'],'UNSUPPORTED_QUERY')
+        from alisa_platform.funnel.models import FunnelEvent
+        self.assertFalse(FunnelEvent.objects.filter(subject_id=self.actor.pk,event_type='query.first_useful_ready').exists())
 
 
 if __name__=='__main__':
