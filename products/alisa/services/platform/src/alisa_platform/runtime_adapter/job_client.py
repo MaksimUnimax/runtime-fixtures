@@ -8,6 +8,8 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime
 import json
+import base64
+import hashlib
 import math
 import os
 from pathlib import Path
@@ -291,7 +293,7 @@ class RuntimeClient:
             exact(value, VERSION_FIELDS | {'operations', 'query_input_kinds', 'utterance_max_chars',
                   'business_timezones', 'unsupported', 'replay_retention_seconds', 'read_recomputes'})
             need({key: value[key] for key in VERSION_FIELDS} == self.versions, 'CATALOG_INCOMPATIBLE')
-            need(value['operations'] == ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions']
+            need(value['operations'] in (['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions'], ['submit', 'status', 'read_result', 'cancel', 'capabilities', 'current_versions', 'list_reports', 'read_report'])
                  and value['query_input_kinds'] == ['utterance'] and type(value['utterance_max_chars']) is int
                  and value['utterance_max_chars'] == 1200 and value['business_timezones'] == ['Europe/Moscow']
                  and value['unsupported'] == ['template', 'revoke_scope'] and value['read_recomputes'] is False
@@ -299,6 +301,57 @@ class RuntimeClient:
                  'CATALOG_INCOMPATIBLE')
             return deepcopy(value)
         return self._authorized('capabilities', self._context('capabilities'), {}, validate)
+
+    @staticmethod
+    def _report(value):
+        fields = {'id','run_id','template','filename','media_type','bytes','sha256',
+                  'created_at','expires_at','operation','error'}
+        exact(value, fields)
+        identifier(value['id']); identifier(value['run_id'])
+        t = value['template']; exact(t, {'id','name','version','catalog_hash'})
+        text(t['id'],160); text(t['name'],1024)
+        need(type(t['version']) is int and t['version']>=1)
+        for h in (t['catalog_hash'],value['sha256']): need(type(h) is str and re.fullmatch('[a-f0-9]{64}',h))
+        text(value['filename'],300); need(not any(c in value['filename'] for c in '/\\'))
+        text(value['media_type'],160); need(re.fullmatch(r'[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+',value['media_type']))
+        text(value['operation'],160)
+        need(type(value['bytes']) is int and 0<=value['bytes']<=64*1024*1024)
+        need(value['error'] in (None,'STORAGE_CAPACITY'))
+        for k in ('created_at','expires_at'):
+            need(type(value[k]) in (int,float) and math.isfinite(value[k]) and value[k]>0)
+        need(abs(value['expires_at']-value['created_at']-172800)<0.00001)
+        return value
+
+    def list_reports(self, cursor=None):
+        if cursor is not None: identifier(cursor)
+        def validate(value):
+            exact(value, {'schema_version','items','next_cursor'})
+            need(value['schema_version']=='runtime_reports_v1' and type(value['items']) is list and len(value['items'])<=50)
+            seen=set()
+            for item in value['items']:
+                self._report(item); need(item['id'] not in seen and item['expires_at']>self.clock()); seen.add(item['id'])
+            if value['next_cursor'] is not None: identifier(value['next_cursor'])
+            return deepcopy(value)
+        return self._authorized('list_reports',self._context('list_reports'),{'cursor':cursor},validate)
+
+    def read_report(self, file_id, offset=0):
+        identifier(file_id); need(type(offset) is int and offset>=0 and offset%65536==0)
+        def validate(value):
+            fields={'schema_version','offset','next_offset','eof','base64','chunk_sha256'}
+            need(type(value) is dict and fields<=set(value))
+            self._report({k:v for k,v in value.items() if k not in fields})
+            need(value['schema_version']=='runtime_report_chunk_v1' and value['id']==file_id
+                 and value['offset']==offset and type(value['offset']) is int and value['expires_at']>self.clock()
+                 and value['error'] is None and type(value['eof']) is bool)
+            text(value['base64'],87384,empty=True)
+            try: raw=base64.b64decode(value['base64'],validate=True)
+            except ValueError: raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
+            need(len(raw)==min(65536,value['bytes']-offset) and 0<=len(raw)<=65536
+                 and type(value['next_offset']) is int and value['next_offset']==offset+len(raw)
+                 and value['eof']==(value['next_offset']==value['bytes'])
+                 and value['chunk_sha256']==hashlib.sha256(raw).hexdigest())
+            return deepcopy(value)
+        return self._authorized('read_report',self._context('read_report'),{'file_id':file_id,'offset':offset},validate)
 
     def submit(self, utterance, *, request_id, logical_query_id, trace_id):
         text(utterance, 1200); need(utterance.strip())

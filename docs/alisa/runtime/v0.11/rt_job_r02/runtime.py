@@ -26,6 +26,9 @@ class Configuration:
             or not isinstance(d.get('accounts'),dict) or not isinstance(d.get('credential_bindings'),dict)
             or not isinstance(d.get('qualifications'),dict)):
             raise Rejected('CONFIG_SCHEMA')
+        a=d.get('report_archive')
+        if a is not None and (type(a)is not dict or set(a)-{'enabled','max_bytes'} or type(a.get('enabled'))is not bool or type(a.get('max_bytes',256*1024*1024))is not int or not 16*1024*1024<=a.get('max_bytes',256*1024*1024)<=1024*1024*1024):
+            raise Rejected('CONFIG_SCHEMA')
         return d
     def scope(self,tenant):
         d=self.read();account=d['accounts'].get(tenant)
@@ -70,10 +73,16 @@ def main(argv=None):
     model_usage.begin_run(repo)
     retention.sweep(repo)
     from universal_reads import ReadSurface
-    reads=ReadSurface(lambda:config.read().get('read_surface',{})) if d.get('read_surface',{}).get('enabled')is True else None
+    reads=None  # Owner-ordered temporary TEMPLATE_ONLY mode; no universal planner.
     from model_answer import Settings
     answer_settings=Settings(Path(d['database']).parent/'answer-settings.json')
-    engine=Engine(repo,config.scope,answer_settings=answer_settings,read_surface=reads,table_capabilities=(lambda:config.read().get('table_capabilities',{})) if 'table_capabilities' in d else None,dataset_capabilities=(lambda:config.read().get('dataset_capabilities',{})) if 'dataset_capabilities' in d else None)
+    from report_archive import Archive
+    archive_settings=d.get('report_archive',{})
+    archive=Archive(repo,budget=archive_settings.get('max_bytes',256*1024*1024)) if archive_settings.get('enabled')is True else None
+    if archive is not None:
+        from protected_reads import key
+        key(repo)  # Validate encryption before accepting any paid provider work.
+    engine=Engine(repo,config.scope,template_mode=True,report_archive=archive,answer_settings=answer_settings,read_surface=reads,table_capabilities=(lambda:config.read().get('table_capabilities',{})) if 'table_capabilities' in d else None,dataset_capabilities=(lambda:config.read().get('dataset_capabilities',{})) if 'dataset_capabilities' in d else None)
     transport=HTTPTransport(directory,d['credential_bindings'],d['qualifications'],enabled=True,qualification_provider=lambda:config.read()['qualifications'],read_surface_policy=lambda:config.read().get('read_surface',{}))
     worker=Worker(engine,transport)
     from runtime_port_service import attach as attach_port,close as close_port

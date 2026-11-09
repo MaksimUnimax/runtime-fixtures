@@ -76,7 +76,7 @@ def formula_platforms(name,catalog):
     return sorted(walk({'metric':name},set()))
 
 def validate_speech(speech,catalog):
-    if (not isinstance(speech,dict) or set(speech)!={'schema','version','phrases','bundles'}
+    if (not isinstance(speech,dict) or set(speech)-{'legacy_dataset_phrases'}!={'schema','version','phrases','bundles'}
         or speech['schema']!='alice-speech/v1' or not isinstance(speech['version'],str)
         or not isinstance(speech['phrases'],dict) or not isinstance(speech['bundles'],dict)):raise CatalogError('SPEECH_SCHEMA')
     codes=set(DEFINITIONS)|set(catalog['formulas']);claims={}

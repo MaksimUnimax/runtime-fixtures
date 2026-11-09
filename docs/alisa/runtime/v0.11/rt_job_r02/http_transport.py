@@ -134,7 +134,7 @@ class HTTPTransport:
         operation=request.operation
         if not self.enabled:raise CallError('LIVE_DISABLED')
         is_read=operation.startswith('read.')
-        if operation not in ENDPOINTS and operation not in ('deepseek_read_plan','model_answer')and not is_read:raise CallError('ENDPOINT_NOT_ALLOWED')
+        if operation not in ENDPOINTS and operation not in ('deepseek_read_plan','model_answer','template_select','template_verify')and not is_read:raise CallError('ENDPOINT_NOT_ALLOWED')
         specification=None
         if is_read:
             built,meta=self._read_request(request,store)
@@ -152,6 +152,11 @@ class HTTPTransport:
             elif private_mode=='wb-service':headers=self._completion_credentials(meta,store)
             else:headers={name:str(credentials[field])for name,field in meta['credential_headers'].items()}
             method=built['method'];url=built['url'];payload=strict_json(built['body'])if built.get('body')is not None else None
+        elif operation in ('template_select','template_verify'):
+            from template_protocol import payload as template_payload
+            try:payload=template_payload(operation,request.body)
+            except ValueError:raise CallError('TEMPLATE_MODEL_POLICY')from None
+            method='POST';url=ENDPOINTS['deepseek_parse'];headers={'Authorization':'Bearer '+self._credential('deepseek')}
         elif operation=='model_answer':
             payload={'model':'deepseek-flash','messages':request.body['messages']}
             method='POST';url=ENDPOINTS['deepseek_parse'];headers={'Authorization':'Bearer '+self._credential('deepseek')}
@@ -183,8 +188,11 @@ class HTTPTransport:
         encoded=None if payload is None else json.dumps(payload,ensure_ascii=False,allow_nan=False).encode()
         request_http=urllib.request.Request(url,data=encoded,headers={**headers,'Content-Type':'application/json'},method=method)
         start=time.monotonic()
+        from report_archive import DOCUMENT_SINK
+        sink=DOCUMENT_SINK.get() if store is not None and not request.source.startswith('model:') and not any(a['operation']==operation for a in SCALARS.auth.values()) else None
+        document_headers={}
         try:
-            raw,status=read_response(request_http,timeout=self.max_request_seconds if operation=='model_answer' else 25,limit=12000000,**({'on_dispatch':on_dispatch} if on_dispatch is not None else {}))
+            raw,status=read_response(request_http,timeout=self.max_request_seconds if operation=='model_answer' else 25,limit=12000000,**({'on_dispatch':on_dispatch} if on_dispatch is not None else {}),**({'response_headers':document_headers} if sink is not None else {}))
         except urllib.error.HTTPError as exc:
             retry=exc.headers.get('Retry-After');retry_at=None
             try:
@@ -216,6 +224,13 @@ class HTTPTransport:
         except (urllib.error.URLError,TimeoutError,ConnectionError,OSError,http.client.HTTPException):
             raise CallError('NETWORK_OUTCOME_UNKNOWN',unknown=True) from None
         if len(raw)>12000000:raise CallError('RESPONSE_SIZE',status=status)
+        if sink is not None:
+            from protected_reads import sniff
+            actual=document_headers.get('Content-Type','').split(';')[0].strip().lower()
+            attachment=document_headers.get('Content-Disposition','').lower().startswith('attachment')
+            original=bool(attachment or actual and actual not in ('application/json','application/problem+json') and not actual.endswith('+json') or sniff(raw)!='application/octet-stream')
+            sink(raw,actual or (sniff(raw)if original else 'application/json'),original)
+        binary_capture=None
         completion=meta.get('completion',{})if is_read else{}
         if completion.get('mode')in('ozon-protected','wb-protected','opaque-file'):
             from protected_reads import ProtectedPayload,protected_json,sniff
@@ -225,6 +240,8 @@ class HTTPTransport:
             else:private=ProtectedPayload({'document_received':True,'content_scope':'AUTHORIZED_OWNER_ONLY','content_extracted':False},raw,raw_format)
             return private,{'status':status,'elapsed_ms':int((time.monotonic()-start)*1000),'bytes':len(raw)}
         if is_read and built.get('response_style',built.get('response_mode','json'))=='binary':
+            from report_archive import media
+            binary_capture=(raw,media(raw,next(iter(built.get('response_content_types',[])),None))[0])
             import csv,io,hashlib
             if 'text/csv'in built.get('response_content_types',[]):
                 from csv_transport import decode_csv,CSVDecodeError
@@ -235,6 +252,9 @@ class HTTPTransport:
             try:data=[] if specification and status in specification.get('options',{}).get('empty_statuses',[]) and not raw else strict_json(raw,parse_float=Decimal)
             except (ValueError,UnicodeError):raise CallError('RESPONSE_JSON',status=status) from None
         meta={'status':status,'elapsed_ms':round(1000*(time.monotonic()-start)),'bytes':len(raw)}
+        if binary_capture is not None:
+            from report_archive import BINARY_META
+            meta[BINARY_META]=binary_capture
         token_profiles=[(name,a) for name,a in SCALARS.auth.items() if a['operation']==operation]
         if token_profiles:
             for name,policy in token_profiles:
@@ -258,10 +278,12 @@ class HTTPTransport:
                 # HTTPS completed and its body was received. A local projection
                 # validation error is definitive, never UNKNOWN or blind retry.
                 raise CallError(error.code,status=status)from None
-        if operation in ('deepseek_parse','deepseek_read_plan','model_answer'):
+        if operation in ('deepseek_parse','deepseek_read_plan','model_answer','template_select','template_verify'):
+            from model_usage import receipt
+            meta['model_usage']=receipt(data,payload['model'])
             try:
                 choice=data['choices'][0];data={'content':choice['message']['content'],'finish_reason':choice['finish_reason']}
-            except (KeyError,TypeError,IndexError):raise CallError('MODEL_ENVELOPE',status=status) from None
+            except (KeyError,TypeError,IndexError):raise CallError('MODEL_ENVELOPE',status=status,model_usage=meta['model_usage']) from None
         if operation=='model_answer' and (type(data['content'])is not str or not data['content'].strip()):
-            raise CallError('MODEL_ENVELOPE',status=status)
+            raise CallError('MODEL_ENVELOPE',status=status,model_usage=meta['model_usage'])
         return data,meta

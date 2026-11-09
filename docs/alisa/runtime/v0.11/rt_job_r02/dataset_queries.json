@@ -7,11 +7,6 @@
   "max_pages": 200,
   "queries": {
     "product_registry": {
-      "phrases": [
-        "справочник товаров",
-        "идентификаторы товаров",
-        "артикулы товаров"
-      ],
       "snapshot": true,
       "max_days": 31,
       "flows": {
@@ -57,11 +52,6 @@
       "output_stage": "rows"
     },
     "offer_prices": {
-      "phrases": [
-        "текущие цены предложения",
-        "цены товаров сейчас",
-        "цены предложения товаров"
-      ],
       "snapshot": true,
       "max_days": 31,
       "flows": {
@@ -136,11 +126,6 @@
       "output_stage": "rows"
     },
     "posting_metadata": {
-      "phrases": [
-        "метаданные отправлений",
-        "способы оплаты отправлений",
-        "отправления и способы оплаты"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -207,11 +192,6 @@
       ]
     },
     "wb_active_ads": {
-      "phrases": [
-        "статистика активных рекламных кампаний",
-        "показы и клики активных кампаний",
-        "рекламные счетчики активных кампаний"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -338,10 +318,6 @@
       "output_stage": "rows"
     },
     "accrual_items": {
-      "phrases": [
-        "товарные начисления по товарам",
-        "цены реализации по начислениям по товарам"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -453,10 +429,6 @@
       "output_stage": "rows"
     },
     "accrual_days": {
-      "phrases": [
-        "товарные начисления по дням",
-        "реализация по начислениям по дням"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -568,10 +540,6 @@
       "output_stage": "rows"
     },
     "accrual_items_days": {
-      "phrases": [
-        "товарные начисления по товарам и дням",
-        "цены реализации по начислениям по товарам и дням"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -689,10 +657,6 @@
       "output_stage": "rows"
     },
     "accrual_price_lines": {
-      "phrases": [
-        "строки товарных начислений",
-        "цены товарных строк по начислениям"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -765,10 +729,6 @@
       "output_stage": "rows"
     },
     "wb_campaign_inventory": {
-      "phrases": [
-        "реестр рекламных кампаний",
-        "список рекламных кампаний по статусам"
-      ],
       "snapshot": true,
       "max_days": 31,
       "flows": {
@@ -804,10 +764,6 @@
       "output_stage": "rows"
     },
     "wb_active_ads_totals": {
-      "phrases": [
-        "сводка статистики активных рекламных кампаний",
-        "итоги активных рекламных кампаний"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -968,9 +924,6 @@
       "output_stage": "rows"
     },
     "wb_supported_ads": {
-      "phrases": [
-        "статистика завершенных активных и приостановленных кампаний"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -1098,9 +1051,6 @@
       "output_stage": "rows"
     },
     "realization_payment_lines": {
-      "phrases": [
-        "строки реализаций по способам оплаты"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -1344,9 +1294,6 @@
       ]
     },
     "realization_payment_totals": {
-      "phrases": [
-        "реализации по способам оплаты"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -1607,9 +1554,6 @@
       ]
     },
     "realization_payment_days": {
-      "phrases": [
-        "реализации по дням и способам оплаты"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -1876,9 +1820,6 @@
       ]
     },
     "realization_payment_items": {
-      "phrases": [
-        "реализации по товарам и способам оплаты"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {
@@ -2145,9 +2086,6 @@
       ]
     },
     "realization_payment_items_days": {
-      "phrases": [
-        "реализации по товарам дням и способам оплаты"
-      ],
       "snapshot": false,
       "max_days": 31,
       "flows": {

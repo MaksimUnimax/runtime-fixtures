@@ -25,6 +25,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--runtime-source', type=Path)
     parser.add_argument('--current-core-source', type=Path)
+    parser.add_argument('--report-browser-artifact', type=Path)
     args = parser.parse_args()
     if args.runtime_source and args.current_core_source:
         parser.error('Select one pinned runtime source')
@@ -83,6 +84,9 @@ def main():
             'PYTHONPATH': str(ROOT / 'services/platform/src'), 'PYTHONDONTWRITEBYTECODE': '1'}
         migration = {**env, 'ALISA_DB_USER': NAME + '_migration', 'ALISA_DB_PASSWORD': passwords['migration']}
         runtime = {**env, 'ALISA_DB_USER': NAME + '_runtime', 'ALISA_DB_PASSWORD': passwords['runtime']}
+        if args.report_browser_artifact:
+            if os.geteuid()!=0 or os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('Owned CI root browser context required')
+            runtime.update(ALISA_REPORT_BROWSER_ARTIFACT=str(args.report_browser_artifact.resolve()),GITHUB_ACTIONS='true',PLAYWRIGHT_BROWSERS_PATH=os.environ['PLAYWRIGHT_BROWSERS_PATH'])
         with tempfile.TemporaryDirectory(prefix='s07-qual-', dir=ROOT) as folder:
             temp = Path(folder)
             # Failure logs contain generated fixtures only, and stay with this run.
@@ -102,6 +106,7 @@ def main():
                 runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
                 cases.append(('current_core_roundtrip', ROOT / 'tests/runtime_authority/current_core_roundtrip.py'))
                 cases.append(('query_roundtrip', ROOT / 'tests/runtime_authority/query_roundtrip.py'))
+                cases.append(('report_roundtrip', ROOT / 'tests/runtime_authority/report_roundtrip.py'))
             for label, script in cases:
                 output = temp / (label + '.json')
                 result = subprocess.run([sys.executable, str(script), '--output', str(output)],

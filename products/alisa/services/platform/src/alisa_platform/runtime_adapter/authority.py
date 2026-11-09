@@ -26,7 +26,7 @@ from .job_client import (CONTEXT_FIELDS, RuntimeFailure, context_shape, encode, 
 PRODUCT = 'alisa_market'
 SALT = 'alisa.runtime.admission.v1'
 LIFETIME = 120
-ACTIONS = {'capabilities', 'submit', 'status', 'read_result', 'cancel', 'execute'}
+ACTIONS = {'capabilities', 'submit', 'status', 'read_result', 'cancel', 'execute', 'list_reports', 'read_report'}
 
 
 def digest(value):

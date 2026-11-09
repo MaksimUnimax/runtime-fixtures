@@ -33,3 +33,6 @@ urlpatterns += [path('internal/runtime/authority', authority_rpc.check)]
 
 from alisa_platform.queries import views as queries
 urlpatterns += [path('api/v1/account/queries', queries.queries)]
+
+from alisa_platform.queries.reports import reports
+urlpatterns += [path('api/v1/account/reports', reports)]

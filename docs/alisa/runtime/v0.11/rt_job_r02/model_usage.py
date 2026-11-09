@@ -6,6 +6,8 @@ counted only when the production transport reaches the network dispatch boundary
 from __future__ import annotations
 import hashlib
 import json
+import re
+from decimal import Decimal
 
 WINDOW_SECONDS = 7 * 86400
 SCHEMA = 'alisa-model-usage/v1'
@@ -18,6 +20,8 @@ def install(repo):
             c.execute('ALTER TABLE calls ADD COLUMN dispatched REAL')
         if 'error_code' not in columns:
             c.execute('ALTER TABLE calls ADD COLUMN error_code TEXT')
+        if 'model_usage' not in columns:
+            c.execute('ALTER TABLE calls ADD COLUMN model_usage TEXT')
         c.execute('CREATE INDEX IF NOT EXISTS model_dispatch_time ON calls(dispatched)')
         c.execute('CREATE INDEX IF NOT EXISTS model_ledger_expiry ON calls(COALESCE(dispatched,at))')
         c.execute('CREATE TABLE IF NOT EXISTS model_usage_requests(request_key TEXT PRIMARY KEY, at REAL NOT NULL)')
@@ -76,3 +80,84 @@ def summary(repo):
                 failed=by_state.get('HTTP_ERROR', 0),
                 unknown=by_state.get('UNKNOWN', 0),
                 pending=by_state.get('SENDING', 0), by_model=by_model)
+
+
+def receipt(envelope, requested_model):
+    """Only billing counters and model identity; never content or reasoning text."""
+    result = {'requested_model': requested_model}
+    if type(envelope) is not dict:
+        return result
+    model = envelope.get('model')
+    if type(model) is str and re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', model):
+        result['model'] = model
+    created = envelope.get('created')
+    if type(created) is int and 0 <= created < 2**63:
+        result['created'] = created
+    usage = envelope.get('usage')
+    if type(usage) is not dict:
+        return result
+    counts = {}
+    for key in ('prompt_tokens', 'completion_tokens', 'total_tokens',
+                'prompt_cache_hit_tokens', 'prompt_cache_miss_tokens'):
+        value = usage.get(key)
+        if type(value) is int and 0 <= value < 2**63:
+            counts[key] = value
+    for detail, key in (('prompt_tokens_details', 'cached_tokens'),
+                        ('completion_tokens_details', 'reasoning_tokens')):
+        details = usage.get(detail)
+        value = details.get(key) if type(details) is dict else None
+        if type(value) is int and 0 <= value < 2**63:
+            counts[detail] = {key: value}
+    result['usage'] = counts
+    return result
+
+
+def record(repo, event_id, value):
+    if value is None:
+        return
+    with repo.connection(True) as c:
+        c.execute("UPDATE calls SET model_usage=? WHERE id=? AND source LIKE 'model:%' "
+                  "AND dispatched IS NOT NULL AND model_usage IS NULL",
+                  (json.dumps(value, ensure_ascii=False, separators=(',', ':')), event_id))
+
+
+def job_attempts(repo, job_id):
+    """All real attempts, including unknown costs; historical gaps stay unknown."""
+    with repo.connection() as c:
+        rows = c.execute("SELECT id,source,dispatched,state,http,model_usage FROM calls "
+                         "WHERE jid=? AND source LIKE 'model:%' AND dispatched>? "
+                         "ORDER BY id", (job_id, repo.clock()-WINDOW_SECONDS)).fetchall()
+    return [dict(id=r['id'], source=r['source'], dispatched=r['dispatched'],
+                 state=r['state'], http=r['http'],
+                 receipt=json.loads(r['model_usage']) if r['model_usage'] else None)
+            for r in rows]
+
+
+def price_attempt(value, *, input_cached, input_uncached, output, rub_per_currency):
+    """Quote at caller-supplied, dated rates per million; None means incomplete.
+
+    Output includes reasoning tokens already. Never add reasoning_tokens twice.
+    The caller selects the actual model, currency, tariff period and FX quote.
+    """
+    usage = (value or {}).get('usage', {})
+    prompt = usage.get('prompt_tokens'); completion = usage.get('completion_tokens')
+    hit = usage.get('prompt_cache_hit_tokens')
+    details = usage.get('prompt_tokens_details', {})
+    alternate = details.get('cached_tokens')
+    if hit is None:
+        hit = alternate
+    elif alternate is not None and alternate != hit:
+        return None
+    if any(type(v) is not int or v < 0 for v in (prompt, completion, hit)):
+        return None
+    miss = usage.get('prompt_cache_miss_tokens', prompt-hit)
+    if type(miss) is not int or miss < 0 or hit+miss != prompt:
+        return None
+    if 'total_tokens' in usage and usage['total_tokens'] != prompt+completion:
+        return None
+    cached, uncached, out, fx = map(lambda v: Decimal(str(v)),
+                                  (input_cached, input_uncached, output, rub_per_currency))
+    if any(not v.is_finite() or v < 0 for v in (cached, uncached, out)) or not fx.is_finite() or fx <= 0:
+        raise ValueError('MODEL_COST_RATES')
+    amount = (hit*cached + miss*uncached + completion*out) / Decimal(1000000)
+    return {'currency_amount': str(amount), 'rub': str(amount*fx)}

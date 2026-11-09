@@ -41,7 +41,7 @@ def bundle_hash():
     names={'registry.json','expression_catalog.json','speech_catalog.json',
            'scalar_catalog.json','scalar_source_catalog.json','source_matrix.json','table_catalog.json',
            'dataset_queries.json','dataset_sources.json','base_blocks.json','information_catalog.json',
-           'failure_catalog.json','report_contract_catalog.json','resource_limits.json','subscription_access.json.gz'}
+           'failure_catalog.json','report_contract_catalog.json','resource_limits.json','subscription_access.json.gz','template_catalog.json'}
     root=Path(__file__).parent
     names.update(p.name for p in root.glob('*.py'))
     names.update(str(p.relative_to(root)) for p in (root/'read_surface_data').iterdir() if p.is_file())
@@ -51,7 +51,7 @@ def current_versions():
     return {'runtime_contract_version':CONTRACT,'task_schema_version':'runtime_task_v1',
             'task_schema_sha256':hashlib.sha256(Path(__file__).with_name('runtime_task_v1.schema.json').read_bytes()).hexdigest(),
             'registry_hash':REGISTRY_HASH,'catalog_bundle_hash':bundle_hash(),
-            'query_language':LANGUAGE,'projection':PROJECTION,'port_build':'RT-JOB-R02.3'}
+            'query_language':LANGUAGE,'projection':PROJECTION,'port_build':'RT-JOB-R02.4'}
 
 def pins(context):
     return {'product_id':PRODUCT,**{k:copy.deepcopy(v) for k,v in context.items()
@@ -143,7 +143,7 @@ class RuntimePort:
 
     def capabilities(self,context,peer):
         self._auth(context,peer,'capabilities')
-        return {**self.versions_for(peer),'operations':['submit','status','read_result','cancel','capabilities','current_versions'],
+        return {**self.versions_for(peer),'operations':['submit','status','read_result','cancel','capabilities','current_versions','list_reports','read_report'],
                 'query_input_kinds':['utterance'],'utterance_max_chars':1200,
                 'business_timezones':['Europe/Moscow'],'unsupported':['template','revoke_scope'],
                 'replay_retention_seconds':retention.REPLAY_TTL,'read_recomputes':False}
@@ -269,6 +269,30 @@ class RuntimePort:
                    'result_kind':'PROVIDER_REFUSAL' if result.get('failure_code') else 'DATA'}
             if access is not None:reply['model_result']=access
             return reply
+
+    def list_reports(self,context,peer,cursor=None):
+        from report_archive import owner
+        ctx,guard,scope=self._auth(context,peer,'list_reports')
+        archive=self.engine.report_archive
+        if archive is None:raise Rejected('CAPABILITY_UNAVAILABLE')
+        if cursor is not None:uuid_text(cursor)
+        result=archive.list(scope,owner(guard),cursor)
+        _,fresh,current=self._auth(context,peer,'list_reports')
+        if fresh!=guard:raise Rejected('PERMISSION_DENIED')
+        now=self.repo.clock()
+        result['items']=[r for r in result['items']if r['expires_at']>now and archive.authorize(current,owner(fresh),r['id'])]
+        return {'schema_version':'runtime_reports_v1',**result}
+
+    def read_report(self,file_id,offset,context,peer):
+        from report_archive import owner
+        ctx,guard,scope=self._auth(context,peer,'read_report')
+        if self.engine.report_archive is None:raise Rejected('CAPABILITY_UNAVAILABLE')
+        result=self.engine.report_archive.read(scope,owner(guard),uuid_text(file_id),offset)
+        _,fresh,current=self._auth(context,peer,'read_report')
+        if fresh!=guard:raise Rejected('PERMISSION_DENIED')
+        if result['expires_at']<=self.repo.clock():raise Rejected('RESULT_EXPIRED')
+        self.engine.report_archive.authorize(current,owner(fresh),file_id)
+        return {'schema_version':'runtime_report_chunk_v1',**result}
 
     def cancel(self,job_ref,context,request_id,peer):
         ctx,guard,_=self._auth(context,peer,'cancel')

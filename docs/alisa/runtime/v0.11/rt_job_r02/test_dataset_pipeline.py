@@ -130,7 +130,7 @@ def route_case(qid,platform,phrase):
 n=0
 for qid,q in dp.CATALOG['queries'].items():
  for plat in q['flows']:
-  for phrase in q['phrases']:setattr(Pipeline,'test_route_'+str(n),route_case(qid,plat,phrase));n+=1
+  for phrase in json.loads((ROOT/'speech_catalog.json').read_text())['legacy_dataset_phrases'][qid]:setattr(Pipeline,'test_route_'+str(n),route_case(qid,plat,phrase));n+=1
 
 class SourceGuards(unittest.TestCase):
  def decode(self,op,body,page=None,matrix=None):

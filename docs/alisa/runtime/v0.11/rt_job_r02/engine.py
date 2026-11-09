@@ -21,9 +21,10 @@ HELP = ('Доступны заказы, расход рекламы и ДРР о
         'Для получения отчета: результат. Для обновления: обнови и исходный запрос.')
 
 class CallError(Exception):
-    def __init__(self,code,status=None,unknown=False,retry_at=None,feedback=None):
+    def __init__(self,code,status=None,unknown=False,retry_at=None,feedback=None,model_usage=None):
         self.code,self.status,self.unknown,self.retry_at = code,status,unknown,retry_at
         self.feedback=feedback
+        self.model_usage=model_usage
         super().__init__(code)
 
 def validate_model_budget(value):
@@ -36,9 +37,11 @@ def validate_model_budget(value):
     return dict(value)
 
 class Engine:
-    def __init__(self,repository: Repository,scope_for: Callable[[str], Scope],catalog=None,table_capabilities=None,dataset_capabilities=None,read_surface=None,answer_settings=None,execution_policy=None):
+    def __init__(self,repository: Repository,scope_for: Callable[[str], Scope],catalog=None,table_capabilities=None,dataset_capabilities=None,read_surface=None,answer_settings=None,execution_policy=None,template_mode=False,report_archive=None):
         self.repo,self.scope_for = repository,scope_for
         self.execution_policy=execution_policy
+        self.template_mode=bool(template_mode)
+        self.report_archive=report_archive
         self.repo.execution_authorizer=self.authorize_job
         self.read_surface=read_surface
         self.answer_settings=answer_settings
@@ -53,6 +56,9 @@ class Engine:
         install(self.repo)
 
     def authorized(self,plan):
+        if plan.get('schema')=='alice-template-execution/v1':
+            from template_runtime import authorized
+            return authorized(self,plan)
         try:
             scope = self.execution_scope(plan.get('runtime_guard'),plan['tenant'])
             if 'universal_read'in plan:
@@ -131,6 +137,7 @@ class Engine:
             ORIGINAL_QUESTION.reset(token)
 
     def submit_method(self,tenant,store_id,operation,params,request_id,today,conversation):
+        if self.template_mode:raise Rejected('TEMPLATE_DIRECT_METHOD_DISABLED','Временный режим: получение данных только через зарегистрированные шаблоны.')
         if self.read_surface is None:raise Rejected('READ_SURFACE_DISABLED')
         if not isinstance(conversation,str)or not re.fullmatch(r'[A-Za-z0-9_-]{8,128}',conversation):raise Rejected('DIALOGUE_SCHEMA')
         scope=self.scope_for(tenant)
@@ -139,6 +146,9 @@ class Engine:
             return self.read_surface.submit_method(self,scope,store_id,operation,params,request_id,today)
 
     def _submit(self,tenant,command,request_id,body_hash,today: date,clarification=None,execution_context=None):
+        if self.template_mode:
+            from template_runtime import submit
+            return submit(self,tenant,command,request_id,body_hash,today,clarification,execution_context)
         try:return self._submit_standard(tenant,command,request_id,body_hash,today,clarification,execution_context)
         except Rejected as error:
             if error.context and error.context.get('fallback_allowed')is False:raise
@@ -243,6 +253,10 @@ class Engine:
         except (Rejected,KeyError,TypeError,ValueError,OSError):return None
 
     def access_failure_result(self,row):
+        if row['plan']and strict_json(row['plan']).get('schema')=='alice-template-execution/v1':
+            from template_runtime import gap_result
+            value=gap_result(self,row)
+            if value is not None:return value
         from provider_access_result import stored
         if row['state']=='FAILED':
             if self.access_failure_notice(row)is None:return None
@@ -393,13 +407,20 @@ class Worker:
                         import model_usage
                         model_usage.dispatched(self.repo,event)
                         return lambda:model_usage.undispatched(self.repo,event)
-                value,meta=observed(request,store,dispatched)
+                from report_archive import observe
+                value,meta=observe(self.engine,row,event,request,store,lambda:observed(request,store,dispatched))
             else:
-                value,meta=self.transport.execute(request,store)
+                from report_archive import observe
+                value,meta=observe(self.engine,row,event,request,store,lambda:self.transport.execute(request,store))
         except Rejected as exc:
-            self.repo.failed_call(event,unknown=False,code=exc.code)
+            from report_archive import ReceivedArchiveError
+            if isinstance(exc,ReceivedArchiveError):self.repo.received(event,exc.receipt)
+            else:self.repo.failed_call(event,unknown=False,code=exc.code)
             raise
         except CallError as exc:
+            if request.source.startswith('model:'):
+                import model_usage
+                model_usage.record(self.repo,event,exc.model_usage)
             repaired=False
             with self.repo.connection(True):
                 self.repo.failed_call(event,exc.status,exc.unknown,exc.code)
@@ -420,9 +441,14 @@ class Worker:
         except Exception:
             self.repo.failed_call(event,unknown=True,code='UNEXPECTED_TRANSPORT_OUTCOME')
             raise CallError('UNEXPECTED_TRANSPORT_OUTCOME',unknown=True) from None
+        if request.source.startswith('model:'):
+            import model_usage
+            model_usage.record(self.repo,event,meta.get('model_usage'))
         # Local persistence errors are not an uncertain network outcome.
         with self.repo.connection(True):
             self.repo.received(event,meta)
+            from report_archive import capture
+            capture(self.engine,row,event,request,store,value,meta)
             if store is not None and not request.operation.startswith('read.') and not meta.get('authentication_only'):
                 self.repo.capture_api_answer(row,event,request,value)
             if on_received is not None:on_received(value)
@@ -440,6 +466,11 @@ class Worker:
             if PENDING in saved:
                 answer_step(self,row,strict_json(row['plan']),saved)
                 return True
+            if row['plan']and strict_json(row['plan']).get('schema')=='alice-template-execution/v1':
+                from template_runtime import worker_step
+                worker_step(self,row,strict_json(row['plan']));return True
+            if self.engine.template_mode and row['plan']and 'universal_read'in strict_json(row['plan']):
+                raise Rejected('TEMPLATE_UNIVERSAL_DISABLED')
             if not row['plan']:
                 if draft.get('compiler_pin')!={'language':LANGUAGE,'projection':PROJECTION,'registry_hash':REGISTRY_HASH}:raise Rejected('PENDING_PLAN_VERSION_CHANGED')
                 snapshot=draft['scope_snapshot']
