@@ -12,7 +12,8 @@ import type { DatabaseRuntime } from "./index.js";
 
 type Row = Record<string, unknown>;
 
-const iso = (value: unknown): string => new Date(String(value)).toISOString();
+const iso = (value: unknown): string =>
+  (value instanceof Date ? value : new Date(String(value))).toISOString();
 
 function cursorValue(input: HealthNotificationAdminQuery): {
   createdAt: Date | null;
