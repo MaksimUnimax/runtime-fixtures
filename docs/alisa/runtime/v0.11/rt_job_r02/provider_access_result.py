@@ -23,8 +23,8 @@ def build(diagnosis):
     if diagnosis.get('http')!=403 or diagnosis.get('provider_code')!=7:return None
     op=diagnosis.get('operation');reason=diagnosis.get('reason')
     if type(op)is not str or not re.fullmatch(r'(?:read\.ozon\.)?[A-Za-z0-9_]{1,120}',op):return None
-    if reason not in ('OZON_PAID_SUBSCRIPTION_REQUIREMENT','OZON_METHOD_PERMISSION_REQUIREMENT','OZON_ACCESS_DENIED_UNSPECIFIED'):return None
-    status={'OZON_PAID_SUBSCRIPTION_REQUIREMENT':'SUBSCRIPTION_REQUIRED','OZON_METHOD_PERMISSION_REQUIREMENT':'METHOD_PERMISSION_REQUIRED','OZON_ACCESS_DENIED_UNSPECIFIED':'ACCESS_DENIED'}[reason]
+    if reason not in ('OZON_PAID_SUBSCRIPTION_REQUIREMENT','OZON_METHOD_PERMISSION_REQUIREMENT','OZON_ACCESS_DENIED_UNSPECIFIED','UNSPECIFIED_ACCESS_DENIED'):return None
+    status={'OZON_PAID_SUBSCRIPTION_REQUIREMENT':'SUBSCRIPTION_REQUIRED','OZON_METHOD_PERMISSION_REQUIREMENT':'METHOD_PERMISSION_REQUIRED','OZON_ACCESS_DENIED_UNSPECIFIED':'ACCESS_DENIED','UNSPECIFIED_ACCESS_DENIED':'ACCESS_DENIED'}[reason]
     products=diagnosis.get('provider_required_products',[])if status=='SUBSCRIPTION_REQUIRED'else[]
     if type(products)is not list or any(p not in NAMES for p in products):return None
     products=list(dict.fromkeys(products));relation='SINGLE'if len(products)==1 else diagnosis.get('provider_requirement_relation','UNRESOLVED')
@@ -54,8 +54,8 @@ def from_error(error):
     return validate(feedback.get('model_response'))if type(feedback)is dict else None
 
 def stored(row):
-    if row['state']!='FAILED'or not row['result']:return None
-    try:result=json.loads(row['result']);return validate(result.get('model_response'))if type(result)is dict else None
+    if row['state']not in ('FAILED','READY')or not row['result']:return None
+    try:result=json.loads(row['result']);return validate(result.get('model_result',result.get('model_response')))if type(result)is dict else None
     except(ValueError,TypeError):return None
 
 def safe_provider_message(message):

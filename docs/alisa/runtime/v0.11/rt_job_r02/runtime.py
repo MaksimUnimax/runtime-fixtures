@@ -111,7 +111,7 @@ def main(argv=None):
         gateway.serve_forever(poll_interval=.25)
     finally:
         stop.set()
-        if thread is not None and thread.ident is not None:thread.join(timeout=30)
+        if thread is not None and thread.ident is not None:thread.join(timeout=transport.max_request_seconds+10)
         if gateway is not None:gateway.server_close()
         if runtime_gateway is not None:
             if port_thread is not None and port_thread.is_alive():

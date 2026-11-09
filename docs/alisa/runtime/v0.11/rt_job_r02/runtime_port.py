@@ -51,7 +51,7 @@ def current_versions():
     return {'runtime_contract_version':CONTRACT,'task_schema_version':'runtime_task_v1',
             'task_schema_sha256':hashlib.sha256(Path(__file__).with_name('runtime_task_v1.schema.json').read_bytes()).hexdigest(),
             'registry_hash':REGISTRY_HASH,'catalog_bundle_hash':bundle_hash(),
-            'query_language':LANGUAGE,'projection':PROJECTION,'port_build':'RT-JOB-R02.2'}
+            'query_language':LANGUAGE,'projection':PROJECTION,'port_build':'RT-JOB-R02.3'}
 
 def pins(context):
     return {'product_id':PRODUCT,**{k:copy.deepcopy(v) for k,v in context.items()
@@ -258,13 +258,17 @@ class RuntimePort:
             if status['state']!='READY':raise Rejected('RESULT_NOT_READY')
             result=strict_json(row['result'])
             if result.get('complete') is not True:raise Rejected('RESULT_NOT_READY')
+            access=self.engine.access_failure_result(row)
             # Rights/TTL can change while a slow final authorizer is running.
             _,current_guard,_=self._auth(context,peer,'read_result')
             if current_guard!=guard:raise Rejected('PERMISSION_DENIED')
             if (row['expires'] or 0)<=self.repo.clock():raise Rejected('RESULT_EXPIRED')
             # Do not change page/delivered cursors, and do not copy internal store IDs or rows.
-            return {**status,'schema_version':'runtime_result_v1','complete':True,
-                    'pages':result['pages'],'fetched_at':result['fetched_at']}
+            reply={**status,'schema_version':'runtime_result_v1','complete':True,
+                   'pages':result['pages'],'fetched_at':result['fetched_at'],
+                   'result_kind':'PROVIDER_REFUSAL' if result.get('failure_code') else 'DATA'}
+            if access is not None:reply['model_result']=access
+            return reply
 
     def cancel(self,job_ref,context,request_id,peer):
         ctx,guard,_=self._auth(context,peer,'cancel')

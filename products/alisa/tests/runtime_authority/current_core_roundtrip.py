@@ -227,6 +227,27 @@ class RoundtripChecks(AuthorityFixture):
         self.assertEqual(len(self.transport.answer_calls), 1)
         self.assertEqual(model_usage.summary(self.repo)['attempts'], 1)
 
+    def test_paid_refusal_metadata_is_shared_by_both_channels_without_api_retry(self):
+        from model_answer import Settings
+        from test_model_answer import Transport
+        import test_paid_model_result as paid
+        self.engine.answer_settings = Settings(Path(self.socket_dir.name) / 'answer-settings.json')
+        self.repo.answer_settings = self.engine.answer_settings
+        self.transport = Transport(); self.worker = Worker(self.engine, self.transport)
+        diagnosis = paid.diagnose()
+        def deny(request):
+            if request.operation == 'ozon_orders':raise paid.error(diagnosis)
+        self.transport.on_call = deny
+        receipt = self.submit(); self.finish(receipt)
+        browser = self.client.read_result(receipt['job_ref'])
+        self.client.authorizer, _, _, _ = self.issue_alice()
+        self.assertEqual(self.client.read_result(receipt['job_ref']), browser)
+        self.assertEqual(browser['result_kind'], 'PROVIDER_REFUSAL')
+        self.assertEqual(browser['model_result'], diagnosis['model_response'])
+        self.assertIsNone(browser['model_result']['data'])
+        self.assertEqual([r.operation for r in self.transport.calls].count('ozon_orders'), 1)
+        self.assertEqual(len(self.transport.answer_calls), 1)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', type=Path, required=True)

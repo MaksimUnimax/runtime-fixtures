@@ -108,6 +108,8 @@ class AnswerFlow(unittest.TestCase):
         self.assertEqual([c.operation for c in self.transport.calls].count('read.ozon.ozon_actions_list'),1)
         self.assertIn('Акция 39',self.transport.answer_calls[0].body['messages'][-1]['content'])
         self.assertEqual(next(c for c in self.transport.calls if c.operation=='deepseek_read_plan').body['system'],COLLECTION_SYSTEM)
+        index=next(c for c in self.transport.calls if c.operation=='deepseek_read_plan').body['context']['method_index']
+        self.assertTrue(any(x['operation']=='ozon_actions_list' for x in index['ozon']))
     def test_access_revoked_before_final_model(self):
         a=self.ask();self.worker.step();self.scope=replace(self.scope,revision='revoked');r=self.run_job(a)
         self.assertEqual(r['error'],'SOURCE_ACCESS');self.assertFalse(self.transport.answer_calls)
@@ -225,6 +227,64 @@ class AnswerFlow(unittest.TestCase):
         context=self.transport.answer_calls[-1].body['messages'][-1]['content']
         self.assertNotIn('authorized',context);self.assertIn('participating_products_count',context)
 
+    def test_revisited_discovery_returns_requested_cluster_after_different_search(self):
+        self.transport.decisions=[
+            {'action':'discover','platform':'wb','cluster':'marketplace','query':'акции','offset':0},
+            {'action':'discover','platform':'wb','cluster':'prices','query':'акции','offset':0},
+            {'action':'discover','platform':'wb','cluster':'marketplace','query':'акции','offset':0},
+            {'action':'clarify','question':'Уточните интересующие акции'}]
+        r=self.run_job(self.ask('Какие акции доступны сейчас на Вайлдберриз'))
+        self.assertEqual(r['state'],'READY',r['error'])
+        plans=[x for x in self.transport.calls if x.operation=='deepseek_read_plan']
+        self.assertEqual(plans[3].body['context']['discovery']['request']['cluster'],'marketplace')
+        self.assertIn({'operation':'calendar_promotions','cluster':'calendar'},plans[0].body['context']['method_index']['wb'])
+
+    def test_selected_method_contract_is_visible_after_parameter_form_error(self):
+        self.transport.decisions=[
+            {'action':'read','store_id':'wb1','operation':'calendar_promotions','params':{'query':{'startDateTime':'2026-11-03T00:00:00+03:00','endDateTime':'2026-11-03T23:59:59+03:00','allPromo':False}}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'promotionIDs':[777]}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'query':{'promotionIDs':[777]}}},
+            {'action':'data_ready'}]
+        self.transport.data={'data':{'promotions':[{'id':777,'type':'regular','name':'Акция'}]}}
+        r=self.run_job(self.ask('В каких акциях участвуют товары на Вайлдберриз'))
+        self.assertEqual(r['state'],'READY',r['error'])
+        plans=[x for x in self.transport.calls if x.operation=='deepseek_read_plan']
+        self.assertEqual(plans[2].body['context']['feedback']['code'],'READ_PARAMETER_FORM_REQUIRED')
+        self.assertEqual(plans[2].body['context']['feedback']['rejected_attempt'],{'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'promotionIDs':[777]}})
+        meta=next(x for x in plans[2].body['context']['discovery']['items']if x['operation']=='calendar_promotion_details')
+        self.assertEqual(meta['parameter_forms'],[{'path':['query','promotionIDs'],'kind':'positive_integer_list'}])
+        self.assertEqual([x.operation for x in self.transport.calls].count('read.wb.calendar_promotion_details'),1)
+
+    def test_exact_selected_method_is_first_among_more_than_one_discovery_page(self):
+        from copy import deepcopy
+        catalogue=deepcopy(read_surface.CATALOG)
+        methods=catalogue['providers']['wb']['operations']
+        for i in range(27):methods[f'aaa_calendar_promotion_details_{i}']=deepcopy(methods['calendar_promotion_details'])
+        with patch.object(read_surface,'CATALOG',catalogue):
+            discovery=read_surface.discover('wb','calendar_promotion_details')
+        self.assertGreater(discovery['total'],25)
+        self.assertEqual(discovery['items'][0]['operation'],'calendar_promotion_details')
+        self.assertEqual(discovery['items'][0]['parameter_forms'],[{'path':['query','promotionIDs'],'kind':'positive_integer_list'}])
+
+    def test_malformed_diagnostic_attempt_does_not_break_same_job_recovery(self):
+        deep={'value':777}
+        for _ in range(50):deep={'nested':deep}
+        self.transport.data={'data':{'promotions':[{'id':777,'type':'regular','name':'Акция'}]}}
+        self.transport.decisions=[
+            {'action':'read','store_id':'wb1','operation':'calendar_promotions','params':{'query':{'startDateTime':'2026-11-03T00:00:00+03:00','endDateTime':'2026-11-03T23:59:59+03:00','allPromo':False}}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'promotionIDs':[777],'extra':1.5}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'query':{'extra':deep}}},
+            {'action':'read','store_id':'wb1','operation':'calendar_promotion_details','params':{'query':{'promotionIDs':[777]}}},
+            {'action':'data_ready'}]
+        r=self.run_job(self.ask('В каких акциях товары на Вайлдберриз'))
+        self.assertEqual(r['state'],'READY',r['error'])
+        plans=[x for x in self.transport.calls if x.operation=='deepseek_read_plan']
+        for index in (2,3):
+            feedback=plans[index].body['context']['feedback']
+            self.assertEqual(feedback['code'],'READ_PARAMETER_FORM_REQUIRED')
+            self.assertEqual(feedback['rejected_attempt'],{'omitted':True})
+        self.assertEqual([x.operation for x in self.transport.calls].count('read.wb.calendar_promotion_details'),1)
+
 class Adapter(unittest.TestCase):
     def test_payload_is_plain_text_without_output_schema(self):
         from http_transport import HTTPTransport
@@ -236,6 +296,6 @@ class Adapter(unittest.TestCase):
         transport=HTTPTransport('/unused',{}, {},enabled=True)
         with patch.object(transport,'_credential',return_value='synthetic-provider-key'),patch('http_transport.read_response',side_effect=http):
             value,meta=transport.execute(Request('model_answer','model:fixture','',{'messages':messages('Вопрос',{'rows':[1,2]})},0,None),None)
-        self.assertEqual(value['content'],'Обычный текст { без JSON');self.assertNotIn('response_format',seen[0]);self.assertNotIn('tools',seen[0]);self.assertEqual(len(seen[0]['messages']),3)
+        self.assertEqual(value['content'],'Обычный текст { без JSON');self.assertNotIn('response_format',seen[0]);self.assertNotIn('thinking',seen[0]);self.assertNotIn('tools',seen[0]);self.assertEqual(len(seen[0]['messages']),3)
 
 if __name__=='__main__':unittest.main()

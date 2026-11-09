@@ -124,6 +124,29 @@ class ClientTests(Setup):
         self.failure('VALIDATION_FAILED', lambda: self.client.submit('Вопрос\nещё', **self.ids()))
         self.failure('VALIDATION_FAILED', lambda: self.client.status(uid() + '\n'))
 
+    def test_provider_refusal_metadata_is_preserved_and_cannot_contain_business_data(self):
+        receipt = self.accepted(); self.finish(receipt)
+        answer = self.port.read_result(receipt['job_ref'], self.ctx, self.peer)
+        negative = {'schema': 'alice-provider-access-result/v1', 'ok': False, 'provider': 'ozon',
+            'operation': 'marketplace_search_queries_top', 'status': 'SUBSCRIPTION_REQUIRED',
+            'http_status': 403, 'provider_code': 7, 'required_subscriptions': [{'id': 'PREMIUM_PRO', 'name': 'Premium Pro'}],
+            'subscription_relation': 'SINGLE', 'requirement_source': 'provider_response',
+            'documentation_conflict': False, 'data': None, 'retryable': False,
+            'message': 'Ozon требует Premium Pro.', 'model_instruction': 'Объясни подтверждённую причину.',
+            'provider_body_sha256': 'a' * 64}
+        answer.update(result_kind='PROVIDER_REFUSAL', model_result=negative)
+        self.replace_server(lambda request: self.actual_reply(request) if request['operation'] != 'read_result'
+                            else {'ok': True, 'data': answer})
+        self.assertEqual(self.client.read_result(receipt['job_ref'])['model_result'], negative)
+        for key, value in [('data', {'sales': 42}), ('status', 'OK'), ('retryable', True),
+                           ('required_subscriptions', [{'id': 'PREMIUM_PRO', 'name': 'Free'}])]:
+            with self.subTest(field=key):
+                saved = negative[key]; negative[key] = value
+                self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.read_result(receipt['job_ref']))
+                negative[key] = saved
+        answer['result_kind'] = 'DATA'
+        self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.read_result(receipt['job_ref']))
+
     def replace_server(self, callback):
         self.server.shutdown(); self.server.server_close(); self.thread.join(timeout=2)
         self.path.unlink()

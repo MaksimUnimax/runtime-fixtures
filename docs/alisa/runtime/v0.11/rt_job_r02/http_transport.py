@@ -29,6 +29,7 @@ from shared_http import NoRedirect,read_response
 
 class HTTPTransport:
     model_source = 'model:deepseek-flash'
+    max_request_seconds = 90
     def __init__(self,credential_directory,bindings,qualifications,enabled=False,qualification_provider=None,read_surface_policy=None):
         self.directory=Path(credential_directory);self.bindings=dict(bindings)
         self.qualifications=dict(qualifications);self.enabled=enabled;self._tokens={}
@@ -152,7 +153,7 @@ class HTTPTransport:
             else:headers={name:str(credentials[field])for name,field in meta['credential_headers'].items()}
             method=built['method'];url=built['url'];payload=strict_json(built['body'])if built.get('body')is not None else None
         elif operation=='model_answer':
-            payload={'model':'deepseek-flash','thinking':{'type':'disabled'},'messages':request.body['messages']}
+            payload={'model':'deepseek-flash','messages':request.body['messages']}
             method='POST';url=ENDPOINTS['deepseek_parse'];headers={'Authorization':'Bearer '+self._credential('deepseek')}
         elif operation=='deepseek_read_plan':
             from universal_reads import SYSTEM, COLLECTION_SYSTEM
@@ -183,7 +184,7 @@ class HTTPTransport:
         request_http=urllib.request.Request(url,data=encoded,headers={**headers,'Content-Type':'application/json'},method=method)
         start=time.monotonic()
         try:
-            raw,status=read_response(request_http,timeout=25,limit=12000000,**({'on_dispatch':on_dispatch} if on_dispatch is not None else {}))
+            raw,status=read_response(request_http,timeout=self.max_request_seconds if operation=='model_answer' else 25,limit=12000000,**({'on_dispatch':on_dispatch} if on_dispatch is not None else {}))
         except urllib.error.HTTPError as exc:
             retry=exc.headers.get('Retry-After');retry_at=None
             try:

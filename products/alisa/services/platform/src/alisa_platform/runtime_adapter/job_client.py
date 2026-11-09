@@ -88,6 +88,34 @@ def identifier(value):
     return value
 
 
+def provider_result(value):
+    """Bounded negative tool metadata; never a financial dataset or a retry grant."""
+    exact(value, {'schema', 'ok', 'provider', 'operation', 'status', 'http_status',
+        'provider_code', 'required_subscriptions', 'subscription_relation', 'requirement_source',
+        'documentation_conflict', 'data', 'retryable', 'message', 'model_instruction', 'provider_body_sha256'})
+    need(value['schema'] == 'alice-provider-access-result/v1' and value['ok'] is False
+         and value['provider'] == 'ozon' and value['http_status'] == 403 and value['provider_code'] == 7
+         and value['data'] is None and value['retryable'] is False)
+    need(value['status'] in {'SUBSCRIPTION_REQUIRED', 'METHOD_PERMISSION_REQUIRED', 'ACCESS_DENIED'}
+         and value['requirement_source'] == 'provider_response'
+         and type(value['documentation_conflict']) is bool
+         and value['subscription_relation'] in {'SINGLE', 'ANY_OF', 'UNRESOLVED'})
+    need(re.fullmatch(r'[A-Za-z0-9_]{1,120}', text(value['operation'], 120)))
+    need(re.fullmatch(r'[a-f0-9]{64}', text(value['provider_body_sha256'], 64)))
+    names = {'PREMIUM': 'Premium', 'PREMIUM_LITE': 'Premium Lite', 'PREMIUM_PLUS': 'Premium Plus',
+             'PREMIUM_PRO': 'Premium Pro', 'REVIEWS_MANAGEMENT': 'Управление отзывами'}
+    subscriptions = value['required_subscriptions']
+    need(type(subscriptions) is list and len(subscriptions) <= len(names))
+    seen = set()
+    for item in subscriptions:
+        exact(item, {'id', 'name'}); text(item['id'], 40); text(item['name'], 80)
+        need(item['id'] in names and item['name'] == names[item['id']] and item['id'] not in seen)
+        seen.add(item['id'])
+    need(value['status'] == 'SUBSCRIPTION_REQUIRED' or not seen)
+    text(value['message'], 1500); text(value['model_instruction'], 1500)
+    return deepcopy(value)
+
+
 def timestamp(value):
     text(value, 40)
     need(re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)', value))
@@ -300,7 +328,14 @@ class RuntimeClient:
     def read_result(self, job_ref):
         identifier(job_ref)
         def validate(value):
-            result = self._status(value, job_ref, extra={'schema_version', 'complete', 'pages', 'fetched_at'})
+            need(type(value) is dict)
+            metadata = {'result_kind', 'model_result'} & set(value)
+            result = self._status(value, job_ref, extra={'schema_version', 'complete', 'pages', 'fetched_at'} | metadata)
+            if 'result_kind' in value:
+                need(value['result_kind'] in {'DATA', 'PROVIDER_REFUSAL'})
+            if 'model_result' in value:
+                need(value.get('result_kind') == 'PROVIDER_REFUSAL')
+                provider_result(value['model_result'])
             need(value['schema_version'] == 'runtime_result_v1' and value['state'] == 'READY'
                  and value['complete'] is True and timestamp(value['result_expires_at']) > self.clock()
                  and type(value['pages']) is list and 1 <= len(value['pages']) <= 1000)

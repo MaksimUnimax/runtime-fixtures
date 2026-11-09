@@ -150,7 +150,7 @@ def discover(platform,query='',cluster=None,offset=0,limit=25):
         if not words or score:rows.append(item)
     no_exact_match=not rows
     if no_exact_match:rows=fallback
-    rows.sort(key=lambda x:(-x[0],x[1]['operation']))
+    rows.sort(key=lambda x:(x[1]['operation'] != query, -x[0], x[1]['operation']))
     return {'request':{'platform':platform,'query':query,'cluster':requested_cluster,'offset':offset},
         'items':[r for _,r in rows[offset:offset+limit]],'total':len(rows),'next_offset':offset+limit if offset+limit<len(rows)else None,
         'query_no_exact_match':no_exact_match,'unknown_cluster':invalid_cluster,'valid_clusters':list(known_clusters),
