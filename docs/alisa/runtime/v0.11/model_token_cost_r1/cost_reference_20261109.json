@@ -1,0 +1,20 @@
+{
+  "schema": "alisa-model-cost-reference/v1",
+  "checked_date": "2026-11-09",
+  "model_ids": [
+    "deepseek-flash"
+  ],
+  "currency": "USD",
+  "period": "off-peak",
+  "valid_from_utc": "2026-11-09T10:00:00+00:00",
+  "valid_until_utc": "2026-11-10T01:00:00+00:00",
+  "input_cached_per_million": "0.003",
+  "input_uncached_per_million": "0.15",
+  "output_per_million": "0.60",
+  "rub_per_currency": "82.1386",
+  "fx_rate_date": "2026-11-07",
+  "fx_requested_date": "2026-11-09",
+  "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+  "fx_source": "https://www.cbr.ru/scripts/XML_daily.asp?date_req=09%2F11%2F2026",
+  "note": "Reference conversion, excludes bank/top-up fees. Do not apply outside this tariff period or to unknown usage."
+}
