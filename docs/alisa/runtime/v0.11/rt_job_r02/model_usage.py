@@ -49,7 +49,10 @@ def dispatched(repo, event_id):
 def undispatched(repo, event_id):
     """Undo only a transport-proven abort before any HTTP send was attempted."""
     with repo.connection(True) as c:
-        count=c.execute("UPDATE calls SET dispatched=NULL WHERE id=? AND source LIKE 'model:%' AND state='SENDING' AND dispatched IS NOT NULL",(event_id,)).rowcount
+        # The caller can already have recorded UNKNOWN while its I/O thread
+        # finishes this proven pre-send abort. A received response must never
+        # lose its stamp; no-send may retire a pending or failed reservation.
+        count=c.execute("UPDATE calls SET dispatched=NULL WHERE id=? AND source LIKE 'model:%' AND state IN ('SENDING','HTTP_ERROR','UNKNOWN') AND dispatched IS NOT NULL",(event_id,)).rowcount
         if count!=1:raise RuntimeError('MODEL_DISPATCH_ABORT_INVALID')
 
 

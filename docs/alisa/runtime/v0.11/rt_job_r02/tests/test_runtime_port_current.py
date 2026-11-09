@@ -230,3 +230,64 @@ class CurrentCore(Setup):
         connection.sock=None
         self.assertEqual(sent,[])
         self.assertEqual(model_usage.summary(self.repo)['attempts'],0)
+
+    def test_http_caller_unknown_before_io_undo_still_removes_unpaid_stamp(self):
+        import threading
+        from types import SimpleNamespace
+        from urllib.request import Request
+        import shared_http
+        _,receipt=self.submit('интересный показатель за октябрь 2026 на озоне')
+        row=self.repo.claim();event=self.repo.reserve(row['id'],row['owner'],'model:deepseek-flash',0,None)
+        entered=threading.Event();release=threading.Event();undone=threading.Event()
+        errors=[];sends=[]
+        def observer():
+            model_usage.dispatched(self.repo,event);entered.set()
+            if not release.wait(2):raise AssertionError('Caller did not finalize timeout')
+            def undo():
+                try:model_usage.undispatched(self.repo,event)
+                except BaseException as error:errors.append(type(error).__name__)
+                finally:undone.set()
+            return undo
+        def builder(*handlers):
+            budget=next(h.budget for h in handlers if isinstance(h,shared_http._HTTPHandler))
+            def opening(*args,**kwargs):
+                budget.observe_dispatch();sends.append(True)
+                raise AssertionError('HTTP must not send after deadline')
+            return SimpleNamespace(open=opening)
+        try:
+            with patch('shared_http.urllib.request.build_opener',side_effect=builder):
+                with self.assertRaises(TimeoutError):
+                    shared_http.read_response(Request('http://127.0.0.1/fixture'),timeout=.08,
+                                              ssl_context=object(),on_dispatch=observer)
+                self.assertTrue(entered.is_set())
+                self.repo.failed_call(event,unknown=True,code='NETWORK_OUTCOME_UNKNOWN')
+                release.set();self.assertTrue(undone.wait(2))
+        finally:release.set()
+        self.assertEqual(errors,[]);self.assertEqual(sends,[])
+        self.assertEqual(model_usage.summary(self.repo)['attempts'],0)
+
+    def test_received_model_response_cannot_be_unstamped(self):
+        self.submit('интересный показатель за октябрь 2026 на озоне')
+        row=self.repo.claim();event=self.repo.reserve(row['id'],row['owner'],'model:deepseek-flash',0,None)
+        model_usage.dispatched(self.repo,event);self.repo.received(event,{'status':200})
+        with self.assertRaises(RuntimeError):model_usage.undispatched(self.repo,event)
+        self.assertEqual(model_usage.summary(self.repo)['attempts'],1)
+
+    def test_deadline_after_first_http_send_preserves_actual_dispatch(self):
+        from shared_http import _Budget,_Connection
+        self.submit('интересный показатель за октябрь 2026 на озоне')
+        row=self.repo.claim();event=self.repo.reserve(row['id'],row['owner'],'model:deepseek-flash',0,None)
+        now=[24.0];sends=[]
+        class Sink:
+            def settimeout(self,_):pass
+            def sendall(self,data):sends.append(data);now[0]=26.0
+        def observer():
+            model_usage.dispatched(self.repo,event)
+            return lambda:model_usage.undispatched(self.repo,event)
+        connection=_Connection('localhost',budget=_Budget(25,25,observer));connection.sock=Sink()
+        try:
+            with patch('shared_http.time.monotonic',side_effect=lambda:now[0]):
+                connection.send(b'POST /fixture HTTP/1.1\r\n\r\n')
+                with self.assertRaises(TimeoutError):connection.send(b'body')
+        finally:connection.sock=None
+        self.assertEqual(len(sends),1);self.assertEqual(model_usage.summary(self.repo)['attempts'],1)
