@@ -81,6 +81,10 @@ jobs:
         working-directory: products/alisa
         run: |
           .venv/bin/python tests/integration/qualify_skill_core.py --output dist/s06-core-qualification.json
+      - name: Runtime authority, current access and signed tickets on isolated PostgreSQL
+        working-directory: products/alisa
+        run: |
+          .venv/bin/python tests/integration/qualify_runtime_authority.py --output dist/s07-authority-qualification.json
       - name: Real PostgreSQL and packaged browser qualification (not stage acceptance)
         working-directory: products/alisa
         run: |
@@ -117,6 +121,7 @@ jobs:
             products/alisa/dist/s04-*.json
             products/alisa/dist/s05-*.json
             products/alisa/dist/s06-*.json
+            products/alisa/dist/s07-*.json
             products/alisa/dist/rt-check-*.json
             products/alisa/dist/runtime-qualification.json
             products/alisa/dist/s02-identity-*.png

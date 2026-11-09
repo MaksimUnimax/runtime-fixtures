@@ -27,3 +27,6 @@ from alisa_platform.owner_data import views as owner_data, runtime_rpc as owner_
 urlpatterns += [path("api/v1/account/owner-inputs",owner_data.owner_data),path("internal/runtime/owner/check",owner_runtime.check)]
 
 urlpatterns += [path("api/v1/account/owner-products", owner_data.owner_products)]
+
+from alisa_platform.runtime_adapter import authority_rpc
+urlpatterns += [path('internal/runtime/authority', authority_rpc.check)]
