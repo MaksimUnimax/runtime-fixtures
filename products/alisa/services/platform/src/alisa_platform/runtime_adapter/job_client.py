@@ -199,7 +199,11 @@ class RuntimeClient:
                 need(type(error['code']) is str and error['code'] in ERRORS
                      and error['message'] == error['code'] and error['retryable'] is False)
                 identifier(error['trace_id'])
-                raise RuntimeFailure(error['code'], outcome='UNKNOWN' if error['code'] == 'UNKNOWN_OUTCOME' else 'REJECTED')
+                # A safe error envelope can be produced after durable dispatch
+                # when serializing the success reply fails. It is not evidence
+                # that submit/cancel had no effect; recover with the same ID.
+                unknown = error['code'] == 'UNKNOWN_OUTCOME' or (mutation and error['code'] == 'DEPENDENCY_UNAVAILABLE')
+                raise RuntimeFailure(error['code'], outcome='UNKNOWN' if unknown else 'REJECTED')
             exact(value, {'ok', 'data'})
             answer = validate(value['data'])
             if operation == 'current_versions': self._pid = pid
@@ -228,15 +232,19 @@ class RuntimeClient:
             return result
         except RuntimeFailure: raise
         except Exception:
-            raise RuntimeFailure('AUTH_REQUIRED') from None
+            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
 
     def _authorized(self, operation, context, payload, validate):
         if self._pid is None: self.current_versions()
         answer = self._exchange(operation, {**payload, 'context': context}, validate)
         try:
             current = self.authorizer.current(deepcopy(context), operation) is True
-        except Exception:
+        except RuntimeFailure as failure:
+            if failure.code == 'DEPENDENCY_UNAVAILABLE':
+                raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED') from None
             current = False
+        except Exception:
+            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED') from None
         if not current:
             raise RuntimeFailure('PERMISSION_DENIED', outcome='UNKNOWN' if operation in {'submit', 'cancel'} else 'REJECTED')
         return answer
@@ -306,7 +314,10 @@ class RuntimeClient:
             except ValueError:
                 raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
             return result
-        return self._authorized('read_result', self._context('read_result'), {'job_ref': job_ref}, validate)
+        result = self._authorized('read_result', self._context('read_result'), {'job_ref': job_ref}, validate)
+        # The final DB-backed authority check can cross the result TTL boundary.
+        need(timestamp(result['result_expires_at']) > self.clock(), 'RESULT_EXPIRED')
+        return result
 
     def cancel(self, job_ref, *, request_id):
         identifier(job_ref); identifier(request_id)
