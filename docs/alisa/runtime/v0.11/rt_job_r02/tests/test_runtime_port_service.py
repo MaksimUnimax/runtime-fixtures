@@ -63,6 +63,9 @@ class CredentialPermissions(unittest.TestCase):
     def test_plain_group_readable_file_is_not_systemd_acl(self):self.assertFalse(self.check(acl=b''))
     def test_writable_mount_is_rejected(self):self.assertFalse(self.check(readonly=False))
     def test_systemd_name_outside_credential_root_is_rejected(self):self.assertFalse(self.check(path='/private/fixture.service/key'))
+    def test_systemd_parent_traversal_is_rejected(self):
+        self.assertFalse(self.check(path='/run/credentials/../authority'))
+        self.assertFalse(self.check(path='/run/credentials/fixture.service/../authority'))
     def test_nonroot_owner_or_group_is_rejected(self):
         self.assertFalse(self.check(uid=1001));self.assertFalse(self.check(gid=1001))
     def test_world_read_or_group_write_is_rejected(self):

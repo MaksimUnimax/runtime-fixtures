@@ -26,7 +26,7 @@ def private_credential(path):
             or info.st_size > 257): return False
         if not info.st_mode & 0o077: return True
         if (info.st_uid != 0 or info.st_gid != 0 or stat.S_IMODE(info.st_mode) != 0o440
-            or os.getuid() == 0 or path.parent.parent != Path('/run/credentials')
+            or os.getuid() == 0 or '..' in path.parts or path.parent.parent != Path('/run/credentials')
             or not os.statvfs(path).f_flag & os.ST_RDONLY): return False
         for parent in path.parents:
             metadata = parent.lstat()
