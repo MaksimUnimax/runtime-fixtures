@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """S07 authority qualification on a new database in the empty CI PG cluster."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -23,7 +24,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--runtime-source', type=Path)
+    parser.add_argument('--current-core-source', type=Path)
     args = parser.parse_args()
+    if args.runtime_source and args.current_core_source:
+        parser.error('Select one pinned runtime source')
     params = psycopg.conninfo.conninfo_to_dict(os.environ.get('ALISA_TEST_PG_DSN', ''))
     if (os.environ.get('ALISA_TEST_DB_ALLOW') != '1' or params.get('host') != '127.0.0.1'
         or params.get('port') != '55480' or params.get('dbname') != 'alisa_ci_admin'
@@ -92,6 +96,11 @@ def main():
             if args.runtime_source:
                 runtime['ALISA_RT_JOB_TEST_SOURCE'] = str(args.runtime_source.resolve())
                 cases.append(('runtime_roundtrip', ROOT / 'tests/runtime_authority/roundtrip.py'))
+            if args.current_core_source:
+                source=args.current_core_source.resolve()
+                runtime['ALISA_RT_JOB_TEST_SOURCE']=str(source)
+                runtime['ALISA_RT_JOB_MANIFEST_SHA256']=hashlib.sha256((source/'CURRENT_CORE_MANIFEST.json').read_bytes()).hexdigest()
+                cases.append(('current_core_roundtrip', ROOT / 'tests/runtime_authority/current_core_roundtrip.py'))
             for label, script in cases:
                 output = temp / (label + '.json')
                 result = subprocess.run([sys.executable, str(script), '--output', str(output)],
