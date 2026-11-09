@@ -1,0 +1,124 @@
+{
+  "source_component": "f10cf0d91c2a6a9b70d45b86dc91d2e172071738",
+  "runtime": "alisa-model-usage-r8-capability-20261109",
+  "station": "station-auto-r8-model-usage-r8",
+  "manifests": {
+    "alisa-model-usage-r8-capability-20261109": true,
+    "station-auto-r8-model-usage-r8": true
+  },
+  "services": {
+    "alice-market.service": "active",
+    "alisa-station.service": "active",
+    "alice-market-retention.timer": "active"
+  },
+  "metric": {
+    "attempts": 60,
+    "average": 1.6667,
+    "by_model": {
+      "deepseek-flash": 60
+    },
+    "collection_started_at": 1794193485.4668977,
+    "coverage_since": 1794199228.560503,
+    "failed": 0,
+    "full_window": false,
+    "generated_at": 1794199515.6490045,
+    "pending": 0,
+    "received": 60,
+    "requests": 36,
+    "schema": "alisa-model-usage/v1",
+    "unknown": 0,
+    "window_seconds": 604800,
+    "window_start": 1794193485.4668977
+  },
+  "sql_metric_match": true,
+  "expired_model_calls": 0,
+  "expired_metric_requests": 0,
+  "live_cases": [
+    {
+      "case": 1,
+      "state": "READY",
+      "seconds": 6.32,
+      "request_replay": true,
+      "next_replay": true,
+      "calls": [
+        {
+          "kind": "marketplace",
+          "http": 200,
+          "count": 3
+        },
+        {
+          "kind": "model",
+          "http": 200,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "case": 2,
+      "state": "READY",
+      "seconds": 22.16,
+      "request_replay": true,
+      "next_replay": true,
+      "calls": [
+        {
+          "kind": "marketplace",
+          "http": 200,
+          "count": 2
+        },
+        {
+          "kind": "model",
+          "http": 200,
+          "count": 6
+        }
+      ]
+    },
+    {
+      "case": 3,
+      "state": "READY",
+      "seconds": 3.05,
+      "request_replay": true,
+      "next_replay": true,
+      "calls": [
+        {
+          "kind": "marketplace",
+          "http": 200,
+          "count": 1
+        },
+        {
+          "kind": "model",
+          "http": 200,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "column": {
+    "launch_acknowledged": true,
+    "new_turn_observed": true,
+    "delivery": "responded_to_skill",
+    "own_scenario_deleted": true,
+    "acoustic_confirmation": false
+  },
+  "tests": {
+    "runtime_full": 1460,
+    "install_faults": 6,
+    "admin_boundary": 3,
+    "admin_rendering": 3
+  },
+  "verification_scope": {
+    "typed_calculations": "verified_for_reported_scenarios",
+    "universal_measure_lineage": "not_fully_verified",
+    "physical_audio": "not_observed",
+    "marketplace_cabinet": "not_compared"
+  },
+  "private_test_cleanup": {
+    "files_removed": 18,
+    "service_data_modified": false
+  },
+  "source_documentation_ci": {
+    "run_id": 42562915340,
+    "conclusion": "failure",
+    "inherited_errors": 55,
+    "own_file_errors": 0
+  }
+}
