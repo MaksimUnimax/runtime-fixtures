@@ -184,7 +184,10 @@ export const HealthProfileEvaluationSummarySchema = z
     phase: EvaluationPhaseSchema,
     baselineProfileRevisionId: Uuid,
     candidateProfileRevisionId: Uuid,
-    outcome: EvaluationOutcomeSchema,
+    outcome: z.union([
+      EvaluationOutcomeSchema,
+      z.enum(["CANARY_ASSESSMENT", "STABLE", "REGRESSION", "RECOVERED"]),
+    ]),
     recommendation: H5RecommendationSchema.nullable(),
     postRolloutOutcome: z
       .enum(["STABLE", "REGRESSION", "RECOVERED", "INCONCLUSIVE"])
