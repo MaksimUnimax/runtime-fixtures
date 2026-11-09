@@ -1,0 +1,6 @@
+{
+  "template_catalog.py": "131b89ce64d0eb7b8c94ea1c1d34ba14c5122ab7d38fa32c8d127dd2f8cf68b5",
+  "template_runtime.py": "2006b2c6d64acd98b057fcb943dd5b855b5932777d03e926fa79877c203e6cd2",
+  "template_catalog.json": "2ac4184cd61490074afa192ff5f9e9548a4cbfd83049d3f5be0d195d1c848a1c",
+  "tests/test_template_only.py": "c92112da6440437d3576774deeb64fdb9ec2d53530a4ca7ef6c42402be0bc4c2"
+}
