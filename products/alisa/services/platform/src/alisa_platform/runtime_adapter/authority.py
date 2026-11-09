@@ -110,9 +110,11 @@ class RuntimeAuthority:
         self.enabled(); identifier(actor_id); identifier(tenant_id)
         need(type(store_ids) is list and 1 <= len(store_ids) <= 1000)
         ids = sorted(identifier(value) for value in store_ids); need(len(set(ids)) == len(ids))
-        actor = Customer.objects.select_for_update().filter(pk=actor_id).first()
+        # Block account changes without conflicting with KEY SHARE acquired by
+        # grant/notification foreign keys while their writer holds the ledger.
+        actor = Customer.objects.select_for_update(no_key=True).filter(pk=actor_id).first()
         need(actor is not None and actor.is_active, 'ACCOUNT_BLOCKED')
-        need(Tenant.objects.select_for_update().filter(pk=tenant_id).exists() and
+        need(Tenant.objects.select_for_update(no_key=True).filter(pk=tenant_id).exists() and
              Membership.objects.filter(customer=actor, tenant_id=tenant_id, role='OWNER_CLIENT').exists(),
              'PERMISSION_DENIED')
         need(AccessLedger.objects.select_for_update().filter(product_id=PRODUCT, tenant_id=tenant_id).exists(),
@@ -189,7 +191,12 @@ class RuntimeAuthority:
             need(value['scope_hash'] == digest(self.resolve(pins(normalized), 'capabilities')), 'AUTH_REQUIRED')
             principal_current(value['principal'], result)
             return result
-        except (signing.BadSignature, RuntimeFailure, ValueError, TypeError, KeyError, DatabaseError):
+        except RuntimeFailure as failure:
+            if failure.code == 'DEPENDENCY_UNAVAILABLE': raise
+            raise RuntimeFailure('AUTH_REQUIRED') from None
+        except DatabaseError:
+            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
+        except (signing.BadSignature, ValueError, TypeError, KeyError):
             raise RuntimeFailure('AUTH_REQUIRED') from None
 
 
@@ -220,7 +227,9 @@ class PlatformAuthorizer:
             result['execution_ticket'] = ticket
             return context_shape(result, timezone.now().timestamp())
         except RuntimeFailure: raise
-        except (ValueError, TypeError, KeyError, DatabaseError):
+        except DatabaseError:
+            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
+        except (ValueError, TypeError, KeyError):
             raise RuntimeFailure('AUTH_REQUIRED') from None
 
     def current(self, context, operation):
@@ -234,5 +243,10 @@ class PlatformAuthorizer:
             need(verified == {'product_id': PRODUCT, **{key: value for key, value in context.items()
                                                        if key != 'execution_ticket'}}, 'PERMISSION_DENIED')
             return True
-        except (RuntimeFailure, ValueError, TypeError, KeyError, DatabaseError):
+        except RuntimeFailure as failure:
+            if failure.code == 'DEPENDENCY_UNAVAILABLE': raise
+            return False
+        except DatabaseError:
+            raise RuntimeFailure('DEPENDENCY_UNAVAILABLE') from None
+        except (ValueError, TypeError, KeyError):
             return False

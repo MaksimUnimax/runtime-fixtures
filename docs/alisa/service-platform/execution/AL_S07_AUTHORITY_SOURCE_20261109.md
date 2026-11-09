@@ -30,13 +30,13 @@ Runtime consumer обязан независимо проверять HMAC, ун
 
 ## Проверки автора
 
-В PostgreSQL **16.15**: **38/38** тестов authority. На той же PostgreSQL и оригинальном pinned RT-JOB-R01.1: **8/8** тестов через настоящий Unix listener, очередь SQLite и worker. Provider/model — только синтетический транспорт; внешняя сеть/DNS запрещены. Отдельный fixture переводит JSON scope в runtime Scope; production consumer не подменялся этим fixture.
+В PostgreSQL **16.15**: **43/43** тестов authority. На той же PostgreSQL и оригинальном pinned RT-JOB-R01.1: **8/8** тестов через настоящий Unix listener, очередь SQLite и worker. Provider/model — только синтетический транспорт; внешняя сеть/DNS запрещены. Отдельный fixture переводит JSON scope в runtime Scope; production consumer не подменялся этим fixture.
 
 Подтверждены browser/OAuth admission, отзыв доступа/ключей, замена mapping без bump, отсутствие повторного расчёта при чтении, один durable submit при повторе ID, отзыв ключа внутри provider call с запретом выдачи, продолжение после logout для другой действующей сессии и после естественного истечения admission ticket. Миграции/model consistency и защита append-only runtime-роли — PASS. Собственная тестовая база и роли удалены, тестовый контейнер остановлен и удалён. Хеши проверенных исходников совпали побайтно с рабочим деревом; сведения в `runtime-authority-20261109/qualification.json`.
 
 Первый SQLite bootstrap остановился до тестов: штатная миграция требует PostgreSQL; ограничение сохранено. Первый PG прогон выявил лишнее чтение сессии при выключенной функции: feature gate перенесён до чтения. Исправлено ожидание теста для request_id недоверенного тела. В отрицательном roundtrip исходная фраза возвращала METRIC_AMBIGUOUS до постановки задания; сценарий заменён на квалифицированную фразу с отзывом непосредственно внутри provider call. При дополнительной проверке воспроизведён пропуск после смены OAuth-клиента: старые grant и ticket принимались. Добавлено точное совпадение client_id и при выдаче, и при проверке ticket; новый отрицательный тест сначала упал на обоих действиях, после исправления прошли 38 + 8 проверок. Логика матрицы не менялась.
 
-CI теперь явно запускает 38 PostgreSQL-тестов authority. Ещё 8 Unix roundtrip требуют отдельно предоставленный оригинальный пакет RT-JOB и в обычном CI не исполняются. Запуск из `products/alisa`:
+CI теперь явно запускает 43 PostgreSQL-тестов authority. Ещё 8 Unix roundtrip требуют отдельно предоставленный оригинальный пакет RT-JOB и в обычном CI не исполняются. Запуск из `products/alisa`:
 
 ```sh
 .venv/bin/python tests/integration/qualify_runtime_authority.py --output dist/s07-authority-qualification.json
@@ -51,3 +51,9 @@ CI теперь явно запускает 38 PostgreSQL-тестов authority
 Общий CI первой ревизии выявил гонку в существующем S06 browser fixture: сразу после click проверялся callbacks/cookie, хотя перехваченный настоящий POST ещё выполнялся. В safe qualification record отмечен `s06_consent_denial_has_no_code_and_clears_pending_cookie`; закрытие контекста после раннего отказа затем порождало вторичный TargetClosedError. Fixture теперь сначала ожидает доставленную страницу собственного broker boundary и лишь затем проверяет все прежние callback/cookie invariants. Ожидание добавлено и после approve, и после deny; ответы сервера не подменяются, существующие проверки не ослабляются. Результат общего CI точной опубликованной ревизии хранится отдельно от авторских 38 + 8.
 
 Независимое review, затем совместная квалификация consumer и **актуального** runtime владельцем ядра. Требуются подтверждённые реальные mapping и отдельные закрытые настройки. Старый R01.1 нельзя устанавливать поверх актуального ядра ради прохождения теста; listener должен использовать его же engine/worker и единственный execution-policy owner. Переключение пользовательского навыка и показ отчётов в кабинете этим source-пакетом не выполнены. Новые магазинные ключи и Ozon-приложение для разработки не нужны.
+
+## Исправления по Sol 6.1 review
+
+Независимое read-only review исходника ceae673: CHANGES_REQUIRED, три P2 и один P3. Автор подтвердил все четыре; исходники reviewer не менял. Точный PostgreSQL тест воспроизвёл deadlock при ledger-locked выдаче grant/notification и authority, удерживающей Tenant/Customer. Для родительских записей выбран FOR NO KEY UPDATE: изменения аккаунта по-прежнему сериализуются, FK KEY SHARE не создаёт цикл с ledger. AccessLedger/Store/Credential locks сохранены.
+
+Dependency failures больше не превращаются в AUTH_REQUIRED: verify, prepare и current сохраняют безопасный DEPENDENCY_UNAVAILABLE, включая RPC 503 и повторную проверку клиента. Подпись/сессия/чужие pins по-прежнему отказывают. Неоднозначный error envelope мутации остаётся UNKNOWN; TTL результата перепроверяется после последнего current. До исправления: authority 43 теста, четыре failure + один реальный deadlock; client 26 тестов, шесть failure. После: 43/43 + 26/26 + 8/8 roundtrip, без внешних API. Повторное независимое review исправленного source ожидается; первоначальный CHANGES_REQUIRED не заменён авторским PASS.

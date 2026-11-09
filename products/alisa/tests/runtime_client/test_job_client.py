@@ -164,6 +164,70 @@ class ClientTests(Setup):
         self.assertEqual(receipt, lost[0]['data'])
         self.assertEqual(self.count('jobs'), 1)
 
+    def test_error_envelope_after_durable_submit_remains_unknown(self):
+        lost = []
+        def response(request):
+            answer = self.actual_reply(request)
+            if request['operation'] == 'submit' and not lost:
+                lost.append(answer); return error_response('DEPENDENCY_UNAVAILABLE')
+            return answer
+        self.replace_server(response); ids = self.ids()
+        self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.accepted(**ids), outcome='UNKNOWN')
+        self.assertEqual(self.count('jobs'), 1)
+        self.assertEqual(self.server.calls.count('submit'), 1)
+        self.assertEqual(self.accepted(**ids), lost[0]['data'])
+        self.assertEqual(self.count('jobs'), 1)
+
+    def test_error_envelope_after_durable_cancel_remains_unknown(self):
+        receipt = self.accepted(); lost = []
+        def response(request):
+            answer = self.actual_reply(request)
+            if request['operation'] == 'cancel' and not lost:
+                lost.append(answer); return error_response('DEPENDENCY_UNAVAILABLE')
+            return answer
+        self.replace_server(response); rid = uid()
+        self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.cancel(receipt['job_ref'], request_id=rid), outcome='UNKNOWN')
+        self.assertEqual(self.server.calls.count('cancel'), 1)
+        self.assertEqual(self.client.cancel(receipt['job_ref'], request_id=rid), lost[0]['data'])
+
+    def test_result_expiring_during_final_authority_check_is_not_released(self):
+        receipt = self.accepted(); self.finish(receipt)
+        with self.repo.connection(True) as conn:
+            conn.execute('UPDATE jobs SET expires=? WHERE id=?', (self.clock() + 1, self.inner_id(receipt)))
+        checks = []
+        def current(context, operation):
+            checks.append(operation)
+            if len(checks) == 2: self.clock.advance(2)
+            return True
+        calls = len(self.transport.calls)
+        with patch.object(self.authorizer, 'current', side_effect=current):
+            self.failure('RESULT_EXPIRED', lambda: self.client.read_result(receipt['job_ref']))
+        self.assertEqual(len(self.transport.calls), calls)
+
+    def test_dependency_in_final_authority_check_is_not_permission_denial(self):
+        receipt = self.accepted(); self.finish(receipt); checks = []
+        def current(context, operation):
+            checks.append(operation)
+            if len(checks) == 2: raise RuntimeFailure('DEPENDENCY_UNAVAILABLE')
+            return True
+        with patch.object(self.authorizer, 'current', side_effect=current):
+            self.failure('DEPENDENCY_UNAVAILABLE', lambda: self.client.read_result(receipt['job_ref']))
+
+    def test_dependency_after_acceptance_keeps_mutation_unknown(self):
+        checks = []
+        def current(context, operation):
+            checks.append(operation)
+            if len(checks) == 2: raise RuntimeFailure('DEPENDENCY_UNAVAILABLE')
+            return True
+        with patch.object(self.authorizer, 'current', side_effect=current):
+            self.failure('DEPENDENCY_UNAVAILABLE', self.accepted, outcome='UNKNOWN')
+        self.assertEqual(self.count('jobs'), 1)
+
+    def test_unexpected_authority_outage_before_call_is_dependency_error(self):
+        with patch.object(self.authorizer, 'prepare', side_effect=TimeoutError('fixture-private')):
+            self.failure('DEPENDENCY_UNAVAILABLE', self.accepted, outcome='NOT_SENT')
+        self.assertEqual(self.count('jobs'), 0)
+
     def test_revoked_runtime_authority_denies_even_valid_ticket(self):
         receipt = self.accepted(); self.auth.revoked = True
         self.failure('ACCESS_REQUIRED', lambda: self.client.status(receipt['job_ref']), outcome='REJECTED')

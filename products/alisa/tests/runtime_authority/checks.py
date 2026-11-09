@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real Django/model/signer authority qualification on an owned disposable DB."""
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 import argparse
 from datetime import timedelta
 import hashlib
@@ -12,6 +13,7 @@ import secrets
 import socket
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -34,14 +36,14 @@ import django
 django.setup()
 from django.core import signing
 from django.core.management import call_command
-from django.db import connection, connections
+from django.db import connection, connections, transaction, DatabaseError
 from django.test import RequestFactory, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from alisa_platform.accounts.models import Customer, Tenant, Membership, AuthFlow, WebSession
 from alisa_platform.accounts.views import digest as token_digest
 from alisa_platform.alice_link.models import AliceLink, TokenFamily
-from alisa_platform.entitlements.models import AccessGrant, AccessLedger, AccessAdjustment
+from alisa_platform.entitlements.models import AccessGrant, AccessLedger, AccessAdjustment, AccessNotification
 from alisa_platform.stores.models import Store, CredentialRevision, VaultSecret
 from alisa_platform.runtime_adapter.authority import RuntimeAuthority, SALT, pins, digest
 from alisa_platform.runtime_adapter.bindings import BindingFile
@@ -131,6 +133,61 @@ class AuthorityFixture(unittest.TestCase):
 
 
 class AuthorityChecks(AuthorityFixture):
+    def test_concurrent_grant_and_notification_do_not_deadlock_authority(self):
+        ledger_held, authority_at_ledger = threading.Event(), threading.Event()
+        def grant_writer():
+            try:
+                with transaction.atomic():
+                    with connection.cursor() as cursor: cursor.execute("SET LOCAL lock_timeout='5s'")
+                    ledger = AccessLedger.objects.select_for_update().get(pk=self.ledger.pk)
+                    ledger_held.set()
+                    if not authority_at_ledger.wait(5): raise AssertionError('Authority did not reach ledger')
+                    now = timezone.now()
+                    grant = AccessGrant.objects.create(tenant=self.tenant, source='GIFT', source_id=uuid.uuid4(),
+                        days=1, starts_at=now, ends_at=now + timedelta(days=1), actor_id=uuid.uuid4(), reason='CONCURRENT_TEST')
+                    AccessNotification.objects.create(event_id=uuid.uuid4(), customer=self.actor, grant=grant, kind='GRANTED')
+                    ledger.revision += 1; ledger.save(update_fields=['revision'])
+                return 'COMMITTED'
+            finally: connections.close_all()
+        def authority_reader():
+            def observed(execute, sql, params, many, context):
+                if 'entitlements_accessledger' in sql.lower() and 'FOR UPDATE' in sql:
+                    authority_at_ledger.set()
+                return execute(sql, params, many, context)
+            try:
+                with connection.execute_wrapper(observed):
+                    result = self.authority.state(str(self.actor.pk), str(self.tenant.pk), [str(self.store.pk)])
+                return result[0]['access_revision']
+            finally: connections.close_all()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            writer = pool.submit(grant_writer)
+            self.assertTrue(ledger_held.wait(5))
+            reader = pool.submit(authority_reader)
+            self.assertEqual(writer.result(timeout=12), 'COMMITTED')
+            self.assertEqual(reader.result(timeout=12), self.ledger.revision + 1)
+
+    def test_valid_ticket_binding_outage_stays_dependency_error_in_rpc(self):
+        ticket = self.context()['execution_ticket']; self.path.unlink()
+        self.deny('DEPENDENCY_UNAVAILABLE', lambda: self.authority.verify(ticket, 'fixture-platform'))
+        response, value = self.rpc(payload={'ticket': ticket})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(value['payload']['code'], 'DEPENDENCY_UNAVAILABLE')
+
+    def test_valid_ticket_database_outage_is_not_auth_failure(self):
+        ticket = self.context()['execution_ticket']
+        with patch.object(self.authority, 'resolve', side_effect=DatabaseError('fixture-private-database-error')):
+            error = self.deny('DEPENDENCY_UNAVAILABLE', lambda: self.authority.verify(ticket, 'fixture-platform'))
+            self.assertNotIn('fixture-private', str(error))
+
+    def test_principal_database_outage_during_prepare_is_dependency_error(self):
+        with patch.object(self.authorizer.principal, 'current', side_effect=DatabaseError('fixture-private-database-error')):
+            self.deny('DEPENDENCY_UNAVAILABLE', self.context)
+
+    def test_principal_database_outage_during_current_is_dependency_error(self):
+        context = self.context()
+        with patch.object(self.authorizer.principal, 'current', side_effect=DatabaseError('fixture-private-database-error')):
+            self.deny('DEPENDENCY_UNAVAILABLE', lambda: self.authorizer.current(context, 'read_result'))
+
     def test_real_session_ticket_and_explicit_native_mapping(self):
         ctx = self.context(); claims = self.authority.verify(ctx['execution_ticket'], 'fixture-platform')
         self.assertEqual(claims['actor_id'], str(self.actor.pk))
