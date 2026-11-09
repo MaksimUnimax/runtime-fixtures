@@ -5,6 +5,7 @@ import {
 import {
   NotificationDeliveryError,
   type NotificationDeliveryPort,
+  type NotificationDeliveryReceipt,
 } from "@product/health";
 import type { JobRunner } from "./lifecycle.js";
 import { RunnerControl, type JobFailureEvent } from "./job-failure.js";
@@ -78,18 +79,13 @@ export class HealthNotificationRunner implements JobRunner {
     const intent = await this.repository.claimDue({ ownerId });
     if (!intent) return false;
     if (!intent.claimToken) throw new Error("NOTIFICATION_CLAIM_TOKEN_MISSING");
+    let receipt: NotificationDeliveryReceipt;
     try {
-      const receipt = await this.provider.deliver({
+      receipt = await this.provider.deliver({
         intentId: intent.id,
         idempotencyKey: intent.dedupKey,
         routeKey: intent.routeKey,
         payload: intent.payload,
-      });
-      await this.repository.markDelivered({
-        id: intent.id,
-        claimToken: intent.claimToken,
-        providerAdapterKey: receipt.providerAdapterKey,
-        providerDeliveryId: receipt.providerDeliveryId,
       });
     } catch (error) {
       const deliveryError =
@@ -100,7 +96,14 @@ export class HealthNotificationRunner implements JobRunner {
         code: deliveryError?.code ?? "TRANSIENT_PROVIDER_FAILURE",
         retryAfterMs: deliveryError?.retryAfterMs,
       });
+      return true;
     }
+    await this.repository.markDelivered({
+      id: intent.id,
+      claimToken: intent.claimToken,
+      providerAdapterKey: receipt.providerAdapterKey,
+      providerDeliveryId: receipt.providerDeliveryId,
+    });
     return true;
   }
 }
