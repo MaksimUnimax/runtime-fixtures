@@ -1,0 +1,6 @@
+{
+  "model_answer.py": "e7ad38994947354783c2ebf41751172857d40c8fc97c7fd2f79232e9df8ab6fe",
+  "template_runtime.py": "7757d70acb32447873b68eaff9528e144da1154b254b2c588607e189a539514e",
+  "template_catalog.json": "0590541678b1d1c8ecd22fad950adb975acc48148347fc35de7fc32fa1c248ae",
+  "tests/test_template_only.py": "22178eb60288fe7417be4feba7e044188438d4477c90914feb88945b56054976"
+}
