@@ -181,6 +181,15 @@ Do not implement trial assumptions before product policy is chosen; support the 
 
 ## 10. Billing provider abstraction
 
+<a id="infrastructure-first-20261109"></a>
+
+## Инфраструктура и подготовка оплаты прежде новой логики расширения — 09.11.2026
+
+Решение владельца 09.11.2026 меняет [приоритет разработки B33](../development/coordination/PLAN.md#infrastructure-first-20261109): provider-neutral billing и разрешённая тестовая квалификация могут готовиться до новой версии расширения. Исторический [ADR-0020](ADR/0020-p5-subscription-billing-persistence-foundation.md) и P5 относятся к Fake/StubBillingProvider, не к real payment go-live.
+
+Выбор production provider остаётся отдельным входом; YooKassa/T-Bank не выбраны этой записью. Fake, sandbox и live не смешиваются. Валюта, цены, trial/refund policy, настройки оплаты и платность первой волны не меняются. BETA — отдельное основание доступа; реальное применение прав в браузере требует настоящего клиента. Этот текст не выполняет checkout, списания, возвраты, DB/security или production действия.
+
+
 Internal interface conceptually supports:
 
 ```text

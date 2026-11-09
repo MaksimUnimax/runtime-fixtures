@@ -2,6 +2,15 @@
 
 # Product Control Plane — Two-Level Roadmap
 
+<a id="infrastructure-first-20261109"></a>
+
+## Инфраструктура и подготовка оплаты прежде новой логики расширения — 09.11.2026
+
+Это датированное дополнение к историческому P0–P15, а не новая приёмка сентябрьских этапов. [Действующий PLAN](../development/coordination/PLAN.md#infrastructure-first-20261109) переносит server core/common services/recovery и подготовку коммерческого домена раньше новой версии расширения.
+
+P5 DONE сохраняется только в исторически принятом deterministic Fake/StubBillingProvider/simulated scope. Реальный провайдер не выбран, боевой checkout/списания/возвраты и production не объявлены готовыми. Reference client — предусмотренный [INTEGRATION_CONTRACT](INTEGRATION_CONTRACT.md) seam, а не доказательство клиентского enforcement. Старые DNS/IP, server/ layout, Chrome-only и WB-later не становятся current фактами: текущие пути apps/, packages/server/, tests/, обе площадки и четыре браузера сохраняются.
+
+
 Status: active source of truth  
 Date: 2026-09-09
 
