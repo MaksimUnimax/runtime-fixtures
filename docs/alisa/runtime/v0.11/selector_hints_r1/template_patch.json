@@ -1,0 +1,460 @@
+{
+  "base_runtime": "/opt/alice-market/releases/alisa-services-scope-r1-20261109",
+  "base_catalog_sha256": "382d4a4be7c58d6da456a9128a9b9cfe785206cfa464d2fedc74fcceb35851e1",
+  "new_catalog_sha256": "24a35385284363e3da1b64450bbe8402828bb8a68c3ef843f390ca9989e41dba",
+  "entries": {
+    "B01.ordered_revenue": {
+      "id": "B01.ordered_revenue",
+      "version": 2,
+      "purpose": "Сумма оформленных заказов. Для «на какую сумму заказали». Не продажи и не итог начислений.",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "order_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": true
+      },
+      "steps": [
+        {
+          "id": "ozon_source",
+          "platform": "ozon",
+          "operation": "ozon_orders",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "ozon",
+          "params": {
+            "date_from": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "date_to": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            },
+            "metrics": {
+              "$map": [
+                {
+                  "$path": [
+                    "params",
+                    "metrics"
+                  ]
+                },
+                "metric",
+                {
+                  "$fn": [
+                    "get",
+                    {
+                      "$path": [
+                        "params",
+                        "fields"
+                      ]
+                    },
+                    {
+                      "$path": [
+                        "metric"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "dimension": [
+              "month"
+            ],
+            "filters": [],
+            "limit": 1000,
+            "offset": 0
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "ordered_revenue"
+            ],
+            "fields": {
+              "ordered_revenue": "revenue"
+            }
+          },
+          "workflow": null
+        },
+        {
+          "id": "wb_source",
+          "platform": "wb",
+          "operation": "wb_orders",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "wb",
+          "params": {
+            "$fn": [
+              "merge",
+              {
+                "selectedPeriod": {
+                  "start": {
+                    "$path": [
+                      "period",
+                      "from"
+                    ]
+                  },
+                  "end": {
+                    "$path": [
+                      "period",
+                      "to"
+                    ]
+                  }
+                },
+                "nmIds": {
+                  "$path": [
+                    "filters",
+                    "nm_ids"
+                  ],
+                  "default": []
+                },
+                "brandNames": [],
+                "subjectIds": [],
+                "tagIds": [],
+                "skipDeletedNm": false,
+                "orderBy": {
+                  "field": "orderSum",
+                  "mode": "desc"
+                },
+                "limit": 1000,
+                "offset": {
+                  "$path": [
+                    "progress",
+                    "offset"
+                  ],
+                  "default": 0
+                }
+              },
+              {
+                "$if": [
+                  {
+                    "$fn": [
+                      "ne",
+                      {
+                        "$path": [
+                          "params",
+                          "comparison"
+                        ],
+                        "default": null
+                      },
+                      null
+                    ]
+                  },
+                  {
+                    "pastPeriod": {
+                      "start": {
+                        "$path": [
+                          "params",
+                          "comparison",
+                          "from"
+                        ]
+                      },
+                      "end": {
+                        "$path": [
+                          "params",
+                          "comparison",
+                          "to"
+                        ]
+                      }
+                    }
+                  },
+                  {}
+                ]
+              }
+            ]
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "ordered_revenue"
+            ],
+            "fields": {
+              "ordered_revenue": "orderSum"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [],
+      "metrics": [
+        "ordered_revenue"
+      ]
+    },
+    "B06.finance_commission_cost": {
+      "id": "B06.finance_commission_cost",
+      "version": 3,
+      "purpose": "Комиссия Ozon за продажи с учётом её возврата при возврате товара. Для вопросов о комиссии; остальные услуги не входят.",
+      "platforms": [
+        "ozon"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "ozon_source",
+          "platform": "ozon",
+          "operation": "ozon_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "ozon_finance",
+          "params": {
+            "date_from": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "date_to": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_commission_cost"
+            ],
+            "fields": {
+              "finance_commission_cost": "finance_commission_cost"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [],
+      "metrics": [
+        "finance_commission_cost"
+      ]
+    },
+    "B08.finance_sales": {
+      "id": "B08.finance_sales",
+      "version": 2,
+      "purpose": "Продажи до удержаний. Ozon: в цене продавца, с баллами за скидки и партнёрскими начислениями. WB: сумма продаж финансового отчёта. Не сумма заказов и не итог начислений.",
+      "platforms": [
+        "ozon",
+        "wb"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "ozon_source",
+          "platform": "ozon",
+          "operation": "ozon_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "ozon_finance",
+          "params": {
+            "date_from": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "date_to": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_sales"
+            ],
+            "fields": {
+              "finance_sales": "finance_sales"
+            }
+          },
+          "workflow": null
+        },
+        {
+          "id": "wb_source",
+          "platform": "wb",
+          "operation": "wb_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "wb_finance",
+          "params": {
+            "dateFrom": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "dateTo": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            },
+            "period": "daily",
+            "limit": 1000,
+            "offset": {
+              "$path": [
+                "progress",
+                "offset"
+              ],
+              "default": 0
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_sales"
+            ],
+            "fields": {
+              "finance_sales": "retailAmountSum"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [],
+      "metrics": [
+        "finance_sales"
+      ]
+    },
+    "B08.finance_accrued": {
+      "id": "B08.finance_accrued",
+      "version": 4,
+      "purpose": "Итог начислений Ozon с учётом возвратов, комиссии и услуг. Для «сколько начислил Ozon». Не сумма заказов, не продажи до удержаний и не банковская выплата.",
+      "platforms": [
+        "ozon"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "ozon_source",
+          "platform": "ozon",
+          "operation": "ozon_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "ozon_finance",
+          "params": {
+            "date_from": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "date_to": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_accrued"
+            ],
+            "fields": {
+              "finance_accrued": "finance_accrued"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [
+        "Кратко назови итог финансовых начислений продавцу за период с учётом возвратов и услуг, отражённых в отчёте. Обычный ответ — одно предложение с суммой и периодом. Подробности о банковских выплатах и прочие пояснения добавляй только по вопросу пользователя."
+      ],
+      "metrics": [
+        "finance_accrued"
+      ]
+    },
+    "B08.finance_services_cost": {
+      "id": "B08.finance_services_cost",
+      "version": 3,
+      "purpose": "Общая стоимость услуг Ozon: логистика, хранение, эквайринг и другие статьи услуг. Комиссия за продажи отдельно. Для «сколько стоили услуги/удержали за услуги». Для отдельной услуги — её шаблон. Не все удержания Ozon.",
+      "platforms": [
+        "ozon"
+      ],
+      "kind": "scalar",
+      "input_policy": {
+        "time_axis": "financial_period",
+        "snapshot": false,
+        "period_required": true,
+        "comparison_supported": true,
+        "filters_supported": false
+      },
+      "steps": [
+        {
+          "id": "ozon_source",
+          "platform": "ozon",
+          "operation": "ozon_finance",
+          "source_registry": "scalar_source_catalog",
+          "recipe": "ozon_finance",
+          "params": {
+            "date_from": {
+              "$path": [
+                "period",
+                "from"
+              ]
+            },
+            "date_to": {
+              "$path": [
+                "period",
+                "to"
+              ]
+            }
+          },
+          "bind": {
+            "period": "input.period",
+            "filters": "input.filters",
+            "metrics": [
+              "finance_services_cost"
+            ],
+            "fields": {
+              "finance_services_cost": "finance_services_cost"
+            }
+          },
+          "workflow": null
+        }
+      ],
+      "qualification": "existing_source_requirements",
+      "notes": [
+        "Кратко назови общую стоимость услуг и период, затем дай одно короткое пояснение состава. Это итог раздела услуг финансового отчёта: логистика и обратная логистика, хранение (размещение товаров на складах), эквайринг и другие статьи этого раздела. Называй фактически включёнными только статьи, присутствующие в данных API; не утверждай, что все перечисленные примеры были в этом периоде. Комиссия за продажу считается отдельно и в этот итог не входит. Не называй сумму всеми удержаниями Ozon и не прибавляй к ней повторно отдельные услуги. Подробная разбивка — только по вопросу пользователя."
+      ],
+      "metrics": [
+        "finance_services_cost"
+      ]
+    }
+  }
+}
